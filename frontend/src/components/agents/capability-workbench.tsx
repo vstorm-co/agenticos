@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { capabilityGroups } from "@/lib/capability-groups";
+import { useState } from "react";
 import type { ReactNode } from "react";
 
 import { CapabilityDetail } from "@/components/agents/capability-settings";
@@ -41,23 +42,6 @@ import type {
 } from "@/types/agents";
 import { contextSettings } from "@/lib/context-settings";
 import { useTranslations } from "next-intl";
-
-/**
- * Capabilities that tune how a run is carried rather than what the agent can do.
- *
- * Kept below the rest, folded, because each one answers a problem somebody meets
- * only after an agent is working - a long conversation, a huge tool result, dozens
- * of MCP tools - and a list that opens on them reads as a list of things to
- * understand before starting (#2070).
- */
-const ADVANCED_CAPABILITIES: ReadonlySet<string> = new Set([
-  "compaction",
-  "media",
-  "system_reminders",
-  "tool_output_limits",
-  "tool_search",
-]);
-const ADVANCED = "advanced";
 
 interface CapabilityWorkbenchProps {
   /**
@@ -163,6 +147,16 @@ export function CapabilityWorkbench({
 }: CapabilityWorkbenchProps) {
   const t = useTranslations("agents");
   const tc = useTranslations("capabilityCategories");
+  const delegation = useTranslations("agentDelegation");
+  const presented = catalog.map((entry) =>
+    entry.id === "coding_agent" || entry.id === "external_acp"
+      ? {
+          ...entry,
+          name: delegation(`${entry.id}.name`),
+          description: delegation(`${entry.id}.description`),
+        }
+      : entry,
+  );
   const enabled = new Set(selected.filter((binding) => binding.enabled).map((b) => b.id));
   // Which card's settings panel is open.
   const [openedId, setOpenedId] = useState<string | null>(null);
@@ -172,10 +166,10 @@ export function CapabilityWorkbench({
   // too - somebody looking for "chart" is looking for the tool, and has no
   // reason to know which capability owns it.
   const [query, setQuery] = useState("");
-  const categories = useMemo(() => {
+  const categories = (() => {
     const needle = query.trim().toLowerCase();
     // Stored workflow bindings remain editable; new tools use platform MCP.
-    const offered = catalog.filter(
+    const offered = presented.filter(
       (entry) => entry.id !== "workflows" || selected.some((binding) => binding.id === entry.id),
     );
     const matching = needle
@@ -186,17 +180,13 @@ export function CapabilityWorkbench({
             entry.tools.some((tool) => tool.name.toLowerCase().includes(needle)),
         )
       : offered;
-    const groupOf = (entry: CapabilityCatalogEntry) =>
-      ADVANCED_CAPABILITIES.has(entry.id) ? ADVANCED : entry.category;
-    const names = [...new Set(matching.map(groupOf))].filter((name) => name !== ADVANCED).sort();
-    if (matching.some((entry) => groupOf(entry) === ADVANCED)) names.push(ADVANCED);
-    return names.map((name) => ({
-      name,
-      entries: matching.filter((entry) => groupOf(entry) === name),
-    }));
-  }, [catalog, query, selected]);
+    return capabilityGroups(
+      matching,
+      new Set(selected.filter((binding) => binding.enabled).map((binding) => binding.id)),
+    );
+  })();
 
-  const focused = catalog.find((entry) => entry.id === openedId);
+  const focused = presented.find((entry) => entry.id === openedId);
   const bound = selected.find((entry) => entry.id === focused?.id);
   const isOn = focused !== undefined && enabled.has(focused.id);
 
@@ -370,6 +360,7 @@ export function CapabilityWorkbench({
         </p>
       ) : (
         <CapabilityGallery
+          expandAdvanced={query.trim() !== ""}
           shelves={categories.map((category) => ({
             ...category,
             // A category the console has no words for yet - one added in

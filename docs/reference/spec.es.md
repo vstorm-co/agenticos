@@ -1,5 +1,5 @@
 ---
-source_sha: "8e2d3b157e74"
+source_sha: "7abf020febb5"
 ---
 
 # El spec del agent { #the-agent-spec }
@@ -21,6 +21,8 @@ sistema que la plataforma conoce (la fecha y la hora, quién ha iniciado sesión
 [grupos](../departments.md), la organización, el agent, el canal) o con una de las `variables` propias del agent.
 `time_zone` decide qué reloj lee `{{current_time}}`. Publicar rechaza un nombre que
 no sea ninguna de las dos cosas.
+
+`{{language}}` es el idioma guardado en la cuenta de la persona para la que se ejecuta el run, expresado como nombre de idioma (English, Polish, German o Turkish). Si el run no tiene una persona o una preferencia admitida, usa English; los runs desatendidos no toman el idioma de quien los publicó. Los agents también reciben esta preferencia en el contexto de la persona: los saludos breves o ambiguos la mantienen y una petición explícita de otro idioma tiene prioridad.
 
 ::: app.agents.spec.PromptVariableSpec
 

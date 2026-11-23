@@ -65,6 +65,8 @@ def action_intent(trigger: AgentTrigger) -> str:
     # Omit legacy defaults so existing signed consents keep their fingerprints.
     if trigger.source_id is not None:
         content["source_id"] = trigger.source_id
+    if trigger.action_mode is not None:
+        content["action_mode"] = trigger.action_mode
     if trigger.result_mode == "inbox":
         content["result_mode"] = "inbox"
     if trigger.project_id is not None:
@@ -394,6 +396,7 @@ class RoutineActionService:
             raise BadRequestError(
                 message="Choose distinct actions whose agent approval policy permits standing consent"
             )
+        current.action_mode = "per_tool"
         intent = action_intent(current)
         # A replacement gets fresh identities: revoking and regranting cannot revive
         # the consent snapshot of a parked run.
@@ -412,7 +415,9 @@ class RoutineActionService:
             for key in ordered
         ]
         await agent_trigger_repo.update(
-            self.db, trigger=current, update_data={"action_consents": consents}
+            self.db,
+            trigger=current,
+            update_data={"action_consents": consents, "action_mode": "per_tool"},
         )
         await record_audit(
             self.db,

@@ -1,5 +1,5 @@
 ---
-source_sha: "d9b7cfe344c3"
+source_sha: "f281a876b51b"
 ---
 
 # Configurar un trigger de evento { #setting-up-an-event-trigger }
@@ -142,7 +142,7 @@ La entrega autenticada y sus tareas de envío se guardan juntas antes de confirm
 
 Una URL compartida confirma la recepción duradera de forma asíncrona y no devuelve una respuesta personalizada del workflow. Un workflow con fuente compartida no puede alcanzar **Responder al webhook**. Los endpoints dedicados de workflows conservan las respuestas síncronas.
 
-**Pausar fuente** impide iniciar suscriptores para nuevas entregas; pausar una rutina o workflow afecta solo a ese destino. No se permite eliminar una fuente con suscripciones; la lista de uso muestra los destinos que debes desvincular. Las entregas terminadas siguen la política de retención de tareas en segundo plano.
+**Pausar fuente** impide iniciar suscriptores para nuevas entregas. Una fuente pausada sigue verificando y almacenando cada entrega, y una escucha abierta aún puede capturarla. Pausar una rutina o workflow afecta solo a ese destino. No se permite eliminar una fuente con suscripciones; la lista de uso muestra los destinos que debes desvincular. Las entregas terminadas siguen la política de retención de tareas en segundo plano.
 
 ### Escuchar en la URL activa { #listen-on-the-live-url }
 

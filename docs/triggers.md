@@ -130,7 +130,7 @@ An authenticated delivery and its dispatch work commit together before the sourc
 
 A shared URL acknowledges durable receipt asynchronously; it cannot return a workflow's custom response. A shared-source workflow must not reach **Respond to webhook**. Dedicated workflow endpoints retain their synchronous response behavior.
 
-**Pause source** stops starting subscribers for new deliveries; pausing one routine or workflow stops that subscriber. Deleting a source is refused while subscriptions remain; its usage list shows the targets to detach first. Terminal delivery payloads follow the background-job retention policy.
+**Pause source** stops starting subscribers for new deliveries. A paused source still verifies and stores each delivery, and an open listener still captures it. Pausing one routine or workflow stops that subscriber. Deleting a source is refused while subscriptions remain; its usage list shows the targets to detach first. Terminal delivery payloads follow the background-job retention policy.
 
 ### Listen on the live URL { #listen-on-the-live-url }
 

@@ -848,6 +848,7 @@ def load_builtins() -> None:
         context,
         conversation_search,
         drafts,
+        external_acp,
         follow_ups,
         guardrails,
         image_generation,

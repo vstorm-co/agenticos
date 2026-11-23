@@ -1,5 +1,5 @@
 ---
-source_sha: "81ca00765031"
+source_sha: "75494f696b30"
 ---
 
 # Glosario { #glossary }
@@ -136,6 +136,7 @@ se describe en [Capabilities](capabilities.md).
 | Date and time | `clock` |
 | Calculations | `code_execution` |
 | Coding agent | `coding_agent` |
+| Agente ACP externo | `external_acp` |
 | Long conversations | `compaction` |
 | Computer use | `computer_use` |
 | Context | `context` |

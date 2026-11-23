@@ -1,5 +1,5 @@
 ---
-source_sha: "5eb8b938b5d7"
+source_sha: "e2a19cf6c8da"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -786,3 +786,309 @@ Die Auswahl des lokalen Zugriffs gehört zum gewählten Agenten, nicht zu einer 
 Die Korrektur `[session:api] Verwende die EU-Zahlen` erreicht die Sitzung `api`. Bei einer aktiven Sitzung erreichen sie auch Korrekturen ohne Adresse; bei mehreren bleiben diese beim übergeordneten Agenten, damit keine andere Aufgabe geändert wird. Der übergeordnete Agent protokolliert die Korrektur einmal, wenn er fortfährt.
 
  Sandbox-Coding-Aufgaben desselben Toolsets laufen nacheinander, damit sich ihre Dateischnappschüsse nicht überschneiden; unabhängige lokale Sitzungen laufen weiterhin parallel.
+
+Eigene installierte ACP-Programme lassen sich unter **Externe ACP-Agenten** registrieren. [Externer ACP-Agent](reference/capabilities.md#external-acp) beschreibt Registrierung, Berechtigungen, Sitzungsidentität und Abrechnungsgrenzen.
+
+## Codex als Gesprächslaufzeit { #codex-conversation }
+
+Wählen Sie im Desktop-Chat einen genehmigten Ordner mit **Vollzugriff**, dann **Gesprächslaufzeit → Codex · dieser Computer**. Codex erzeugt die Gesprächsantwort; kein gehostetes Modell delegiert den Prompt. Melden Sie sich über die vorhandenen nativen Programmierkonten an. Die CLI verwaltet Konto, Modell und Kosten; weder Tresor-OAuth noch ein Cloud-Profil-Schlüssel werden importiert. Eine optionale genaue native Modell-ID muss vor dem Prompt bestätigt werden. Das normale Modellprofil dient der Zuordnung, nicht einer zweiten Inferenz.
+
+Werkzeugzugriff ist standardmäßig nur lesend. Native Schreibvorgänge und Befehle werden abgelehnt; Plattformwerkzeuge benötigen die Read-only-Einstufung des vorhandenen Klassifikators. Bearbeitung behält Agentenrechte, Freigaben und Budgets. Die CLI besitzt weiterhin die OS-Rechte des lokalen Kontos, ohne Betriebssystem-Sandbox. Aktivität und Antwortstream erscheinen im Chat; weitergegebene Aufrufe unterliegen dem Schritt-/Werkzeuglimit. Native interne Anfragen, Tokens und Abonnement-/API-Kosten bleiben unbekannt und unbepreist.
+
+Abgeschlossene Durchläufe speichern einen nativen Sitzungsbeleg. Weitere Nachrichten und Neustarts müssen Sitzung und sichtbare Historie vor neuem Kontext abgleichen. Laufzeit-, Modell- oder Richtlinienwechsel wählen einen anderen Bereich. **Native Sitzung zurücksetzen** behält den Chat und startet neuen nativen Kontext. Fehlende Belege führen niemals zu automatischer Wiederaufnahme oder erneuter Einreichung. Nach Stop, Trennung oder unklarer Zustellung vor dem Fortsetzen die Auswirkungen prüfen; es gibt keine automatische Wiederholung oder Rücknahme.
+
+Unterstützt wird nur der private, nicht geteilte Text-Webchat des initiierenden Mitglieds. Strukturierte Ausgabe, multimodale Prompts, Modellparameter-Überschreibungen, Code Mode, Reviewer und Plattformkompaktierung müssen deaktiviert sein; Kontext gehört der CLI. Zusätzliche Modellaufrufe brauchen einen eigenen unterstützten Anbieter statt rekursivem Zugriff auf die primäre Sitzung. API, Sprache, Zeitpläne und andere Personen dürfen das Desktop-Konto nicht ausleihen. Codex-Modellprofile und delegierte Programmieraufgaben bleiben getrennte Optionen. Anmeldung, Berechtigung, Werkzeugwirkungen, Kontingente und Wiederaufnahme benötigen echte Kontotests.
+
+## Plattformwerkzeuge weitergeben { #runtime-platform-tools }
+
+**External ACP agent → Forward platform tools** ist standardmäßig ausgeschaltet. Die Option lässt das registrierte Programm Werkzeuge aufrufen, die für diesen AgenticOS-Durchlauf bereits zugelassen sind. Erforderlich sind ein privates, nicht geteiltes Gespräch des Mitglieds und dessen freigegebener Computer. Desktop verlangt eine eigene native Zustimmung; eine bestehende Ordnerfreigabe aktiviert die Brücke nicht. Die folgenden Anbieterbeschreibungen gelten für die Standardeinstellungen, sofern diese Option nicht aktiviert ist.
+
+Ein prozesseigener Loopback-MCP-Endpunkt führt Anfragen durch den vorbereiteten Werkzeugmanager von Pydantic AI. Pi verwendet eine Anwendungserweiterung, Muse die sitzungsbezogene MCP-Konfiguration seines SDK. Validierung, Ressourcenrechte, Budgets, Freigaben und Ergebnisprüfung bleiben wirksam. Werkzeuge zur Runtime-Delegation sind ausgeschlossen; weitergegebene Aufrufe laufen nacheinander. Ohne Abruf des begrenzten Katalogs wird ein ACP-Prompt abgelehnt. Das Programm erhält kein Plattform-Zugriffstoken.
+
+Freigabepflichtige Aktionen zeigen ihre vollständigen Argumente im Live-Chat. Die Entscheidung wird vor der Ausführung gespeichert; beim Eingang der Antwort werden die Rechte erneut geprüft. Fehlende Rechte, zu große Karten, Ablehnung, Ablauf oder Verbindungsabbruch erteilen keine Zustimmung und parken den aktiven RPC nicht. Abbruch, unklare Zustellung und zu große oder nicht darstellbare Ergebnisse sind ausdrückliche Fehler; Aktionen werden niemals automatisch wiederholt. Die lokalen MCP-Zugangsdaten enden mit dem Prozess. Native Anbieterwerkzeuge behalten ihre bisherigen Rechte und Kontokosten.
+
+## Antigravity über ACP { #antigravity-acp }
+
+Installiere die Antigravity-CLI von Google. Wähle unter **Externe ACP-Agenten**
+eine der beiden Vorlagen und gib den absoluten Pfad aus `which agy` ein. Beide
+erlauben nur das Argument `acp`, und keine kopiert Token-Dateien.
+
+| Vorlage | Anmeldung | Abrechnung |
+| --- | --- | --- |
+| **Antigravity** | Persönliche Google-Anmeldung (`oauth-personal`). Führe zuerst `agy acp --login` aus. Geerbte Gemini-API-Schlüssel und API-/Vertex-Selektoren werden entfernt. | Dein Google-AI-Abo |
+| **Antigravity · Gemini-API-Schlüssel** | `gemini-api-key`, mit einem für den Lauf aus dem Tresor gewählten Gemini-Schlüssel (Zweck Google Gemini oder Custom), sonst mit dem von Desktop geerbten `GEMINI_API_KEY`. Ein Tresorschlüssel erfordert deinen eigenen Sichtzugriff und erreicht nur deinen privaten Chat auf deinem eigenen Computer. Ein fehlender Schlüssel verhindert den Start; die gespeicherte Google-Anmeldung wird nie ersatzweise verwendet. | Preise und Bedingungen der Gemini API |
+
+Die erste Vorlage birgt ein Risiko für dein Google-Konto. Abschnitt 6 der
+[Antigravity-Zusatzbedingungen](https://antigravity.google/terms) beschränkt die
+Verbraucheranmeldung über Drittanbieterwerkzeuge, und ein Google-Maintainer
+[schrieb im Issue-Tracker der CLI](https://github.com/google-antigravity/antigravity-cli/issues/1493),
+dass sie kein fremdes Agenten-Harness betreiben darf, mit Missbrauchsmaßnahmen und
+Kontosperrung als Folge. Andere Clients wie T3 Code bieten dieselbe Anmeldung an.
+Die Konsole verlangt vor der Registrierung der Vorlage, dass du dieses Risiko
+akzeptierst; die Entscheidung und ihre Folgen liegen bei dir. Die Vorlage mit
+Gemini-API-Schlüssel vermeidet es.
+
+Aktiviere **External ACP agent** im Builder mit der registrierten ID. Desktop
+verlangt vor dem Sitzungsstart die ACP-Authentifizierungsmethode der Vorlage, auch
+wenn die Bindung die Programmeinstellungen nutzt. Eine abgelehnte oder nicht
+unterstützte Anmeldung schlägt fehl, ohne ein anderes Konto oder einen anderen
+Abrechnungsmodus zu versuchen.
+
+Bitte den Agenten, mit `inspect_acp_agent` die Modell- und Denkstufen der aktuellen
+Sitzung zu lesen. Der Katalog sendet keinen Prompt und wird nicht kontenübergreifend
+zwischengespeichert. Eine fehlende Auswahl ist etwas anderes als eine leere Liste.
+Setze **External model ID** auf eine exakt zurückgegebene ID, um ein Modell zu
+wählen; leer bleibt die CLI-Einstellung. Eine nicht unterstützte Modelleinstellung
+schlägt ausdrücklich fehl.
+
+Damit laufen delegierte Aufgaben mit den nativen Werkzeugen von Antigravity. Das
+ist getrennt von Gemini-API-Modellprofilen und leitet standardmäßig keine
+AgenticOS-Plattformwerkzeuge weiter. Die Nutzung bleibt in AgenticOS unbepreist.
+Google beschränkt einige Drittanbietermodelle auf benannte Clients; AgenticOS
+identifiziert sich als AgenticOS und verspricht keinen Zugriff über den eigenen
+angekündigten Katalog hinaus.
+
+### Registrierte Agenten als Gesprächslaufzeit { #external-runtime }
+
+Antigravity mit einem Gemini-Tresorschlüssel verwendet das optionale Feld für die native Modell-ID, statt den von Desktop geerbten Schlüssel zur Katalogabfrage zu verwenden. Ein leeres Feld behält die CLI-Vorgabe; eine explizite ID wird vor dem Prompt anhand der laufenden Sitzung geprüft.
+
+Jeder unter **Externe ACP-Agenten** registrierte Agent kann das Gespräch auch selbst
+beantworten, anstelle des Modellprofils des Agenten, nach [demselben
+Vertrag](#codex-conversation) wie Codex und Claude Agent: Antigravity in beiden
+Modi, Cursor, Cline, Grok, Kimi, Qwen, Devin, Mistral Vibe, OpenCode und Go, Hermes,
+Muse und eigene ACP-Programme. Pi-Vorlagen sprechen RPC statt ACP und übernehmen nur
+delegierte Aufgaben.
+
+Wähle **Dieser Computer** mit Vollzugriff und dann **Gesprächslaufzeit → Externer
+Agent · dieser Computer**; bei mehreren Registrierungen wähle die gewünschte. Desktop
+liest die Modelle dieser Registrierung mit ihrer eigenen Anmeldung und ohne
+Modellturn und listet sie unter **Modell** auf; **Agentenstandard** behält die
+Auswahl der CLI. Mistral Vibe, Kimi, Qwen, Devin, Hermes und Muse wählen ihr Modell
+in den eigenen Einstellungen, daher wird keine Liste gelesen. Ein fehlgeschlagenes
+Lesen zeigt die Ablehnung der CLI und **Modelle erneut lesen**. Ein aufgeführtes
+Modell belegt weder Berechtigung noch verbleibendes Kontingent.
+
+Die Laufzeit ist verfügbar, solange der Betreiber nicht
+`EXTERNAL_NATIVE_CONVERSATION_ENABLED=false` setzt. Registrierte CLIs versprechen
+keine Nur-Lese-Beschränkung, daher läuft die Laufzeit immer mit eigenem
+Werkzeugzugriff, und AgenticOS-Plattformwerkzeuge behalten die Freigaberichtlinie
+des Agenten. Hermes erhält dasselbe private Zuhause pro Gespräch wie bei delegierten
+Aufgaben. Eine Registrierung, die kein ACP spricht, wird vor jedem Prompt abgelehnt,
+und ein Wechsel von Registrierung oder Modell startet eine neue native Sitzung. Bei
+einer persönlichen Antigravity-Anmeldung wiederholt die Auswahl das bei der
+Registrierung akzeptierte Kontorisiko.
+
+Anmeldung mit echtem Konto, Berechtigung, Kontingent, Widerruf und Fortsetzung nach
+einem Neustart erfordern weiterhin Abnahmetests. Unterstützte
+Authentifizierungsmethoden und Client-Einschränkungen beschreibt der
+[offizielle ACP-Leitfaden](https://antigravity.google/docs/ide/extensions/acp).
+
+## OpenCode und Go über ACP { #opencode-acp }
+
+Installieren Sie OpenCode, führen Sie `opencode auth login` im Terminal aus und
+registrieren Sie den absoluten Programmpfad mit der Vorlage **OpenCode** unter
+**Externe ACP-Agenten**. Sie startet `opencode acp`. Provider-Zugangsdaten, eigene
+Endpunkte und Projekteinstellungen bleiben in OpenCode; AgenticOS kopiert keine
+Schlüssel und überschreibt keine Konfiguration. Die Integration delegiert native
+Aufgaben, leitet standardmäßig keine AgenticOS-Tools weiter und ersetzt nicht die Hauptlaufzeit.
+
+`inspect_acp_agent` liefert eine Momentaufnahme der konfigurierten Modelle. Der
+Aufruf wartet kurz auf verzögerte ACP-Katalogaktualisierungen; `refresh_pending`
+bedeutet, dass innerhalb dieser Zeit keine Modelle eingetroffen sind. Prüfen Sie
+nach der CLI-Einrichtung erneut. Der Katalog bestätigt weder Berechtigung noch
+Restkontingent. Tragen Sie eine zurückgegebene ID unter **Externe Modell-ID** ein
+oder behalten Sie die CLI-Vorgabe bei.
+
+Verbinden Sie für **OpenCode Go** den Go-Schlüssel in OpenCode über `/connect`
+unter **OpenCode Go**. Registrieren Sie die separate Vorlage **OpenCode Go** und
+wählen Sie ein Modell `opencode-go/…`. Dieser Namensraum muss vor der Auswahl und
+in den bestätigten Sitzungseinstellungen vorliegen. Ein fehlendes oder anderes
+Modell wird vor dem Inferenz-Prompt abgelehnt. Der Katalog dieser Registrierung
+filtert andere Provider aus. Nach einer Ablehnung wird der primäre Provider nicht
+automatisch gewechselt.
+
+Go ist für Programmieraufgaben bestimmt. Die Einschränkung gilt für das primäre
+Modell; Hilfsmodelle von OpenCode und Go **Extra Usage** können weitere Kosten
+verursachen. AgenticOS weist externe Kosten als unbepreist aus. Anmeldung,
+Go-Kontingent, Widerruf und Wiederaufnahme nach Neustart erfordern Tests mit einem
+echten Konto. Siehe [ACP-Anleitung](https://opencode.ai/docs/cli/acp/) und
+[Go-Einrichtung](https://opencode.ai/docs/console/go/).
+
+## Cursor über ACP { #cursor-acp }
+
+Installieren Sie Cursor CLI, führen Sie `agent login` aus und prüfen Sie
+`agent status`. Registrieren Sie den absoluten Programmpfad mit der Vorlage
+**Cursor**. Sie startet `agent acp`, verlangt die angekündigte Methode
+`cursor_login` und entfernt geerbte `CURSOR_API_KEY`- und `CURSOR_AUTH_TOKEN`-Werte.
+Die Anmeldung bleibt bei Cursor; AgenticOS liest keine Token-Dateien, ändert keine
+Einstellungen und installiert das CLI nicht. Die Vorlage unterstützt das
+CLI-Konto, keine API-Schlüsselregistrierung. Die separate Vorlage **Cursor API-Schlüssel** wird [unten](#native-account-controls-and-launch-models) beschrieben.
+
+`inspect_acp_agent` liest die Modelle der Sitzung; **Externe Modell-ID** nimmt
+eine genaue ID daraus an. Ein fehlender Selektor bestätigt keine Berechtigung.
+Die Nutzung bleibt unbepreist; Cursor-Kontoeinstellungen bestimmen Abonnement-,
+On-Demand- und weitere Kosten. Melden Sie sich mit `agent logout` ab und entfernen
+oder registrieren Sie den Desktop-Eintrag erneut, um Sitzungen und gespeicherte
+Fortsetzungen zu löschen. Registrieren Sie nach einem Kontowechsel erneut; allein
+der Wechsel der CLI-Zugangsdaten widerruft keinen laufenden Prozess.
+
+Native Fragen und vollständige Pläne erscheinen im Live-Chat. Nur Ihre ausdrückliche
+Antwort wird zurückgegeben. Siehe [Runtime-Fragen](#runtime-questions).
+Standard-ACP-Toolfreigaben nutzen die bestehende Delegationsrichtlinie. Die
+Integration verlangt vollen lokalen Zugriff und leitet standardmäßig keine AgenticOS-Tools
+weiter. Kontoanmeldung, Modellzugriff, Kontingentablehnung und Wiederaufnahme nach
+Neustart bleiben Abnahmetests. Siehe [Cursor ACP](https://cursor.com/docs/cli/acp)
+und [CLI-Anmeldung](https://cursor.com/docs/cli/reference/authentication).
+
+## Cline über ACP { #cline-acp }
+
+Installieren Sie Cline CLI mit direkter ACP-Unterstützung und registrieren Sie
+den absoluten Pfad über **Cline** oder **Cline-API-Schlüssel**. Beide Vorlagen
+starten `cline --acp` ohne automatische Freigabe, erzwingen
+`CLINE_PROVIDER=cline` und nutzen die bestehende Prozess- und Sitzungsverwaltung.
+Sie verbinden sich nicht mit einem gemeinsamen Hintergrund-Hub.
+
+Führen Sie für **Cline** vorher `cline auth` aus. Der native Prozess entfernt
+geerbte `CLINE_API_KEY`-Werte und authentifiziert das Konto mit der angekündigten
+Methode `cline`. Starten Sie für **Cline-API-Schlüssel** Desktop mit
+`CLINE_API_KEY` in seiner Prozessumgebung. Schlüssel werden weder im Spec noch in
+Registrierungsargumenten oder Servernachrichten angenommen. Fehlende oder leere
+Schlüssel verhindern den Start vor der Sitzung. Das CLI erhält diesen Schlüssel;
+AgenticOS wechselt nicht zur gespeicherten Anmeldung. Die Integration speichert
+keine Zugangsdaten dauerhaft.
+
+`inspect_acp_agent` liest den Sitzungskatalog ohne Inferenz. Nutzen Sie eine
+genaue ID unter **Externe Modell-ID** oder behalten Sie die CLI-Auswahl. Guthaben,
+kostenlose Angebote und Kosten hängen von Cline ab; die Integration verspricht
+weder ein kostenloses Modell noch Abonnementberechtigung. Nutzung bleibt
+unbepreist. Entfernen oder registrieren Sie den Eintrag nach einem Wechsel der
+Zugangsdaten erneut, um Prozesse und Fortsetzungen zu löschen. Voller lokaler
+Zugriff ist erforderlich; Plattform-Tools werden standardmäßig nicht weitergeleitet.
+
+Konto- und Schlüsselanmeldung, Guthabenablehnung, Modelle und Wiederaufnahme nach
+Neustart verlangen echte Abnahmetests. Siehe
+[Cline ACP](https://github.com/cline/cline/blob/main/docs/usage/acp.mdx).
+
+## Mistral Vibe über ACP { #mistral-vibe-acp }
+
+Installieren Sie Mistral Vibe, schließen Sie `vibe --setup` ab und registrieren
+Sie den absoluten Pfad von `vibe-acp` ohne Argumente mit **Mistral Vibe**. Die
+Vorlage verlangt ACP `browser-auth`, deaktiviert Telemetrie für diesen Prozess
+und aktiviert Vibes experimentellen Modellkatalog. Konfiguration und Zugangsdaten
+bleiben bei Vibe. Die Browser-Anmeldung kann einen API-Schlüssel erzeugen oder
+wiederverwenden; sie bestätigt keinen Le-Chat-Abonnementzugriff.
+
+`inspect_acp_agent` wartet kurz auf Katalogaktualisierungen und liefert bereinigte
+`credentials`: `kind=api_key`, Quelle (`os_keyring`, `cli_file` oder `environment`)
+und die von Vibe gemeldete Abmeldemöglichkeit. Aufgabenberichte tragen dieselben
+Fakten. Kontoidentität, Schlüssel, Domain und Konfigurationsfehler werden nicht
+übernommen. Ein unbekannter Statusvertrag oder fehlende Zugangsdaten verhindern
+Inferenz. Der Status beschreibt den Speicherort, weder Restguthaben noch Tarif.
+
+API- und Abonnementkosten bleiben unter den Kontoeinstellungen; externe Nutzung
+ist unbepreist. Das Entfernen einer Registrierung widerruft keinen geerbten
+CLI-Schlüssel. Nutzen Sie Vibes Konto- und Einrichtungskontrollen und entfernen
+oder registrieren Sie danach den Desktop-Eintrag erneut, um Prozesse und
+Fortsetzungen zu löschen. Unterstützt ist lokale Browser-Anmeldung, keine
+delegierte Anmeldung auf entfernten Hosts. Voller lokaler Zugriff ist erforderlich;
+Plattformwerkzeuge sind eine [ausdrückliche Option](#runtime-platform-tools). Anmeldung, Guthabenlimits, Abmeldung und
+Wiederaufnahme benötigen echte Abnahmetests. Siehe
+[Vibe ACP einrichten](https://docs.mistral.ai/vibe/code/use-vibe-in-other-ides).
+
+Mistral Vibe meldet `configuration_policy=launch`: Wählen Sie eine angebotene Externe Modell-ID. Desktop setzt `VIBE_ACTIVE_MODEL` nur für diesen Prozess und ruft keine Operation zum Speichern des Standardmodells auf.
+
+## Grok Build über ACP { #grok-acp }
+
+Installieren Sie Grok Build, führen Sie `grok login` (oder `grok login --device-auth`) aus und registrieren Sie den absoluten `grok`-Pfad mit der Vorlage **Grok**. Sie startet `--no-auto-update agent stdio`, entfernt geerbte `XAI_API_KEY` und `GROK_CODE_XAI_API_KEY` und setzt `GROK_DISABLE_API_KEY_AUTH=true` nur für diesen Kindprozess.
+
+AgenticOS verlangt die angebotene Methode `cached_token`, lehnt eine Laufzeit mit weiter angebotenem `xai.api_key` ab und fordert Anmeldung ohne Interaktion an. Tokendateien werden nicht importiert; es gibt keinen Wechsel zu Schlüsseln oder anderer Anmeldung. Prüfen Sie Modelle mit `inspect_acp_agent`; Konto, Gateway und Tarif bestimmen Verfügbarkeit und Kosten. Nicht jeder Grok-Tarif muss Build enthalten. Rückfragen erscheinen als Live-Chat-Karte; eine leere Schlussantwort ist ein ausdrücklicher Fehler.
+
+Die separate Vorlage **Grok API-Schlüssel** isoliert den Schlüssel von gespeicherten CLI-Konten; siehe [native Kontosteuerung](#native-account-controls-and-launch-models).
+
+## Kimi Code über ACP { #kimi-acp }
+
+Installieren Sie Kimi Code CLI, führen Sie `kimi login` aus und registrieren Sie den absoluten `kimi`-Pfad mit **Kimi Code**. Die Vorlage startet `acp` und verlangt die angebotene Methode `login`. Sie prüft die CLI-Anmeldung; AgenticOS öffnet kein Anmeldeterminal und importiert keine Token. Fehlende oder abgelaufene Zugangsdaten stoppen die Aufgabe ohne Methodenwechsel.
+
+Wählen Sie eine genaue Kimi-Modell-ID aus `inspect_acp_agent`. Der quellgeprüfte Host ändert nur die Konfiguration im Arbeitsspeicher; Zugangsdaten, Erneuerung und Abrechnung bleiben bei Kimi. Rückfragen erscheinen weiterhin im Chat.
+
+Registrieren Sie nach Kontowechsel erneut. Berechtigungen, Kontingente, Wiederverbindung, Abbruch und Modelle mit echtem Konto bleiben Abnahmekriterien. Dies ist delegierte lokale Ausführung standardmäßig ohne Weitergabe von AgenticOS-Plattformwerkzeugen. Siehe [Kimi ACP](https://www.kimi.com/code/docs/en/kimi-code-cli/reference/kimi-acp).
+
+## Qwen-Abonnement über ACP { #qwen-subscription-acp }
+
+Installieren Sie ein aktuelles Qwen Code CLI, starten Sie `qwen` und wählen Sie mit `/auth` **Qwen Account with Subscription**. Registrieren Sie den absoluten `qwen`-Pfad mit **Qwen-Abonnement**. Der Kindprozess startet `--acp --auth-type=qwen-subscription` und entfernt geerbte `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `OPENAI_MODEL` und `DASHSCOPE_API_KEY`. Nicht unterstützte CLI-Versionen müssen aktualisiert werden; es gibt keinen API-Schlüsselersatz.
+
+Die Vorlage ruft ACP `authenticate` nicht auf, da es die gespeicherte Anmeldung ändern kann. Qwen nutzt seine eigene Abonnement-Anmeldung. Eine optionale angebotene Modell-ID wird beim Start über `--model` gesetzt und vor der Inferenz bestätigt.
+
+Qwen Plus/Pro unterscheidet sich von Alibaba Model Studio API-Schlüsseln und Coding/Token-Plan-Endpunkten. Das eingestellte kostenlose OAuth-Kontingent wird nicht angeboten. Tarife, Kontingente, Ablauf und Widerruf, Abbruch, Wiederverbindung und Modelle benötigen Abnahme mit echtem Konto. Registrieren Sie nach Kontowechsel erneut. Plattformwerkzeuge sind eine [ausdrückliche Option](#runtime-platform-tools). Siehe [Qwen-Anmeldung](https://qwenlm.github.io/qwen-code-docs/en/users/configuration/auth/).
+
+## Devin CLI über ACP { #devin-acp }
+
+Installieren Sie Devin CLI, führen Sie `devin auth login` aus und prüfen Sie `devin auth status`. Registrieren Sie den absoluten `devin`-Pfad mit **Devin**. Die Vorlage startet `--permission-mode normal acp`, verlangt die angebotene Methode `devin-browser` und lehnt zusätzliche Cloud- oder Freigabeumgehungsflags ab. Zugangsdaten bleiben im CLI; AgenticOS importiert sie nicht.
+
+Dies delegiert an die lokale CLI, nicht die Devin Cloud-Aufgaben-API. Ein optionales angebotenes Modell wird beim Start über `--model` gesetzt und vor der Inferenz bestätigt. Kontorichtlinien bestimmen Zugriff und Abrechnung.
+
+Registrieren Sie nach Kontowechsel erneut. Anmeldung, Ablauf, Widerruf, Kontingente, Modelle, Wiederaufnahme, Abbruch und Kontowechsel benötigen Abnahme mit echtem Konto. Native Rückfragen sind noch nicht verifiziert. Plattformwerkzeuge sind eine [ausdrückliche Option](#runtime-platform-tools). Siehe [Devin ACP](https://docs.devin.ai/cli/acp/zed) und [Befehle](https://docs.devin.ai/cli/reference/commands).
+
+## Pi über natives RPC { #pi-rpc }
+
+Registriere **Pi** unter Einstellungen → Desktop-App mit dem absoluten Pfad zu `pi`. Die Vorlage startet genau `--mode rpc` mit den eigenen Anbietern, Modellen, Konten und Erweiterungen von Pi. Melde dich zuerst in Pi an und wähle das Modell; lass External model ID leer. Die delegierte Ausführung benötigt einen ausdrücklich freigegebenen Ordner mit Vollzugriff. Es gibt keine Betriebssystem-Sandbox; Plattformwerkzeuge sind standardmäßig ausgeschaltet; diese Vorlage gibt keine Tresorschlüssel weiter. Pi-Werkzeuge und Erweiterungen behalten ihre eigenen Rechte. Abonnement- oder API-Abrechnung folgt dem ausgewählten Konto; Kosten bleiben unbekannt.
+
+`inspect_acp_agent` liest mit Anbietern qualifizierte Modell-IDs aus dem konfigurierten Pi-Katalog. Der Werkzeugname bleibt aus Kompatibilitätsgründen; der Transport ist Pi RPC, nicht ACP. Ein Katalog belegt weder Anmeldung noch Berechtigung oder Guthaben. Benannte Aufgaben speichern die native Sitzungsdatei im bestehenden Geltungsbereich von Organisation, Person, Chat, Ordner und Registrierungsversion. Nach einem Kontowechsel erneut registrieren. Ein fehlgeschlagener Wiederaufnahmeversuch wird abgelehnt, statt still eine andere Sitzung zu starten.
+
+Der Abschluss wartet auf `agent_settled`, auch nach automatischen Wiederholungen und Kompaktierung nach `agent_end`. Fehlgeschlagene, abgebrochene, eingereihte oder von Erweiterungen behandelte Prompts gelten nie als abgeschlossen. Stop leert die Warteschlange, bricht den aktiven Durchlauf ab und beendet den eigenen Prozessbaum. Unterstützte Erweiterungsdialoge erscheinen als Chat-Karte; menschliche Antworten werden nicht erfunden. Streaming, Wiederaufnahme nach Neustart, Kontingente, Abbruch und Erweiterungskompatibilität mit einem echten Konto bleiben Abnahmetests. Siehe [Pi RPC](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/rpc.md).
+
+## Muse über das offizielle SDK { #muse-sdk }
+
+Wähle **Muse** oder **Muse API-Schlüssel** unter Einstellungen → Desktop-App mit dem absoluten Pfad zur Muse-CLI **1.4.23**. AgenticOS liefert das passende MIT-lizenzierte `@muse-code/sdk` in seiner verwalteten Node-Laufzeit. Das SDK übernimmt MSP-Aushandlung, Ereignisrekonstruktion, Wiederholung und Durchlaufergebnisse; ein AgenticOS-Adapter verbindet es mit dem bestehenden Aufgabentransport. Es startet einen eigenen Vordergrundprozess `muse serve`. Es verbindet sich nicht mit einem Daemon und behandelt ein Meta-Konto nicht als gewöhnlichen Modelltoken.
+
+Richte das Konto zuerst in `muse` ein. Muse bevorzugt Umgebungsschlüssel vor gespeicherten Schlüsseln und danach die Browseranmeldung. Die Inspektion zeigt die tatsächliche API-Schlüssel- oder OAuth-Quelle, ohne Token oder Kontobezeichnungen in den Bericht zu kopieren. Der Schlüsselmodus benötigt `META_API_KEY` in Desktop und die Bestätigung dieser Quelle; gespeicherte Schlüssel oder Browserkonten dürfen sie nicht still ersetzen. Eine Browseranmeldung belegt weder Berechtigung noch Abrechnung. Verwaltete Meta-Konten können API-Schlüssel benötigen. Kosten bleiben unbekannt.
+
+Aufgaben benötigen ausdrückliche Ordnerfreigabe mit Vollzugriff. Muse behält native Werkzeuge und Erweiterungen; Plattformwerkzeuge werden standardmäßig nicht weitergegeben, eine werkzeugfreie Ausführung wird nicht angeboten. `inspect_acp_agent` liest den aktuellen Katalog mit Anbieter-IDs; Modellwechsel benötigen Katalogtreffer und Serverbestätigung. Dauerhafte Sitzungen nutzen die vorhandene Wiederaufnahmehistorie. Fehlende Persistenz oder unpassende SDK/CLI-Versionen führen zur Ablehnung. Abbruch erreicht den SDK-Durchlauf und beendet den eigenen Prozessbaum. Fehlerhafte oder unbekannte Endzustände gelten nie als Erfolg. Kontoberechtigung, Kontingente, Wiederaufnahme, Stop und Erweiterungskompatibilität bleiben echte Kontotests. Siehe [Muse SDK](https://github.com/meta-models/muse-code-sdk) und [Anmeldung](https://www.musemuse.dev/docs/muse-code/auth).
+
+## Runtime-Fragen { #runtime-questions }
+
+Cursor-Fragen und vollständige Pläne, Grok-Fragen, Kimis Fragen über Berechtigungen, Pis select/confirm/input/editor-Dialoge und Muse-SDK-Eingaben erscheinen in der bestehenden Chat-Karte. Auswahlgrenzen, Optionsidentitäten und native Vorschauen bleiben erhalten. Pi-Editoren bewahren Einrückungen, Zeilenumbrüche und ausdrücklich leeren Ersatztext. Passwörter gehören in die Anmeldung des Anbieters.
+
+Antworten erfordern die aktive, berechtigte Verbindung der startenden Person und die aktuelle Frage-ID. Stop, Verbindungsabbruch, natives Ablaufen oder Abschluss schließt die Karte; verspätete Antworten können keine spätere Frage beantworten. Ohne aktive Frageschnittstelle werden Anfragen ausdrücklich abgebrochen. Dialoge erteilen keine Werkzeugrechte und lockern keine Delegationsrichtlinie. Fragen und angenommene Antworten erscheinen im bestehenden Gesprächsverlauf.
+
+### Muse-Konto in Desktop verwalten { #muse-account }
+
+Jede Muse-Registrierung bietet **Konto prüfen**, **Bei Muse anmelden** und **Bei Muse abmelden**. Die Geräteanmeldung nutzt das festgelegte SDK und den eigenen Muse-Ablauf. Bestätige den nativen Dialog, öffne die angezeigte HTTPS-Adresse und gib den Code ein. Einstellungen bis zum Abschluss geöffnet lassen. Abbrechen, Schließen der Steuerung, Registrierungs- oder Serverwechsel beziehungsweise zehn Minuten ohne Abschluss beendet den eigenen Anmeldeprozess. Kontonamen, Schlüssel und Gerätecodes gelangen weder zum Backend noch zum Modell.
+
+Anmelden verlangt ein abgemeldetes Muse-Konto ohne vorrangigen API-Schlüssel. Die Umgebungsschlüssel-Vorlage bietet Status und Abmelden ohne Browseranmeldung. Abmelden entfernt gespeicherte Muse-Zugangsdaten; ein geerbter `META_API_KEY` bleibt aktiv und wird so angezeigt. Ein Kontowechsel stoppt alle Muse-Aufgaben und löscht Fortsetzungen, weil die lokale CLI Zugangsdaten teilt. Neue Muse-Aufgaben warten bis zum Abschluss der Kontoverwaltung. Tarifberechtigung und Geräteanmeldung mit echtem Konto bleiben Abnahmetests.
+
+## Pi mit gewähltem Tresor-API-Schlüssel { #pi-vault-key }
+
+Registriere **Pi · Inception**, **Pi · DeepSeek** oder **Pi · OpenRouter** mit dem absoluten Pfad zur Pi-CLI **1.5.2**. Wähle in External ACP agent denselben **Anbieter mit Tresorschlüssel**, dessen API-Schlüssel und eine genaue **External model ID** mit Anbieterpräfix, etwa `deepseek/<model-id>`. Diese API-Schlüsselmodi bleiben von gespeicherten Pi-Konten und direkten Pydantic AI-Anbietern getrennt.
+
+Nur der private, ausdrücklich mit Vollzugriff freigegebene Computer des startenden Mitglieds darf den Schlüssel erhalten. Agentenausführungsrechte reichen nicht: aktuelle Mitgliedschaft und eigener Tresorzugriff auf diesen Schlüssel werden vor jedem Start und jeder Inspektion geprüft. Anonyme, gemeinsame Raum- und Identitätswechsel-Durchläufe dürfen ihn nicht exportieren. Die native Registrierung muss vor dem Prompt denselben Anbieter bestätigen. Schlüsselrotation verändert den Fortsetzungsbereich.
+
+Pi nutzt eine temporäre private Konfiguration ohne gespeicherte Konten, gefundene Erweiterungen, Skills, Promptvorlagen oder MCP-Server. Eine schlüsselfreie Erweiterung übernimmt den Schlüssel aus der Kindprozessumgebung, entfernt Startvariablen und überschreibt Anbieter-Authentifizierung einschließlich beider OpenRouter-Header. Der Schlüssel gelangt weder in Argumente, generierte Dateien, Modellwerkzeugparameter noch Berichte. Native Werkzeuge behalten vollen lokalen Zugriff; dies ist keine Betriebssystem-Sandbox. Textfragmente warten auf die redigierbare vollständige Antwort; Werkzeugaktivität bleibt sichtbar.
+
+Inception-Chat-IDs, Kontext-/Ausgabelimits und Preise stammen aus dem aktuellen authentifizierten Chat-Katalog. DeepSeek und OpenRouter nutzen den Katalog und Transport der festgelegten Pi-Version. Modellwechsel benötigen genaue native Bestätigung. Inspektion liefert höchstens 128 Einträge, den aktuellen zuerst, und meldet Kürzung. Ein Katalog beweist weder Kontoberechtigung noch Guthaben. Kosten bleiben in AgenticOS unbepreist. Ungültige Schlüssel, Guthabenfehler und unbekannte Modelle wechseln nicht zu anderen gespeicherten Konten oder Abrechnungen.
+
+Private Sitzungsdateien sind auf Person, Agent, Chat, Ordner, Registrierung und Schlüsselrevision beschränkt. Temporäre Konfiguration wird mit dem eigenen Prozess entfernt. Entfernen oder erneutes Registrieren widerruft Fortsetzungen. Echte Schlüsseltests prüfen Streaming, 401/402, Kontingente, Neustart/Wiederaufnahme und Stop. Plattformwerkzeuge sind eine [ausdrückliche Option](#runtime-platform-tools). Siehe [Pi-Anbietererweiterungen](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/custom-provider.md) und [Inception-Modelle](https://www.inceptionlabs.ai/models).
+
+Codex und Claude Agent sind verfügbar, solange der Betreiber nicht `CODEX_NATIVE_CONVERSATION_ENABLED=false` oder `CLAUDE_NATIVE_CONVERSATION_ENABLED=false` setzt. Jede Person verwendet ihr eigenes CLI-Konto und verantwortet dessen Bedingungen. OpenAI erlaubt die App-Server-Authentifizierung für kommerzielle oder gehostete Dienste nicht ohne Genehmigung, und Anthropic verlangt eine vorherige Genehmigung, um claude.ai-Anmeldung oder Verbraucherlimits in einem SDK-Produkt eines Drittanbieters anzubieten; die Auswahl weist darauf hin, dass der Anbieter ein Konto einschränken oder sperren kann. Die Schalter belegen weder Berechtigung noch Genehmigung. Ein Anmeldewechsel über Desktop beendet die aktiven Prozesse dieser Laufzeit und löscht ihre gespeicherten Fortsetzungen; setze die native Sitzung vor dem Fortfahren zurück. Manuelle Kontowechsel außerhalb von Desktop erfordern ebenfalls ein ausdrückliches Zurücksetzen.
+
+Claude Agent verwendet den vorhandenen, gepinnten Claude-Code-ACP-Adapter als primäre Gesprächslaufzeit, mit demselben Vertrag für private Sitzungen, Streaming, Werkzeugrichtlinie und Wiederherstellung wie Codex. Die Binärdatei des Anbieters und ihre Authentifizierungsmethoden bleiben unverändert. Die Oberfläche verwendet den zulässigen Namen „Claude Agent“.
+
+## Hermes im eigenen Prozess {#hermes-runtime}
+
+Registrieren Sie die **Python-Datei** einer vorbereiteten Hermes-Umgebung mit der Hermes-Vorlage und ohne Argumente. Die Integration verwendet Revision `91cb42b51bddc6841c4e50183c41c96d59e48516`. Bereiten Sie diesen Checkout nach der Abhängigkeitsanleitung des Projekts vor und wählen Sie dessen Python-Umgebung. Desktop prüft vor Inferenz drei Adapterdateien. Andere Revisionen werden bis zur erneuten Vertragsprüfung abgelehnt.
+
+Desktop startet `HermesACPAgent(session_manager=SessionManager())` im eigenen Prozess. Normales `hermes acp` wählt dagegen den gemeinsamen Gateway-Viewer. Der explizite Sitzungsmanager hält diese Integration im Vordergrund: Stop beendet nur den eigenen Prozessbaum und verwendet oder beendet kein persönliches Gateway. Modellerkennung, mehrere Gesprächsrunden, Streaming, native Freigaben und optionale Plattformwerkzeuge nutzen die vorhandene ACP-Grenze.
+
+Jedes private Gespräch des initiierenden Mitglieds erhält ein eigenes Hermes-Verzeichnis, zusätzlich gebunden an Agent, Ordner, Verbindung und Registrierungsrevision. Geteilte oder impersonierte Ausführungen werden abgelehnt. Beim ersten Start erscheinen das genaue Verzeichnis und lokale Anweisungen. Setzen Sie `HERMES_HOME` darauf und starten Sie Python mit `-m hermes_cli.main --profile default setup`; für Nous Portal verwenden Sie `-m hermes_cli.main --profile default auth add nous --type oauth`. Konfigurieren Sie dort Modell und Anbieter. Vorhandene Verzeichnisse, Speicher, Skills oder Token-Dateien werden nicht importiert.
+
+Hermes verwaltet Zugangsdaten, Aktualisierung, API-/Aboabrechnung und eigene Werkzeuge. Anmeldung und Modellkatalog bestätigen keine Planberechtigung. Die Nutzung bleibt ohne Preisangabe. Stoppen Sie vor Kontowechseln den Lauf und registrieren Sie erneut, um Fortsetzungen zu verwerfen und ein neues Profil zu wählen. Das Entfernen einer Registrierung löscht keine Anbieterdateien; entfernen Sie das Verzeichnis separat, wenn das Konto nicht mehr benötigt wird. Native Werkzeuge behalten den ausdrücklich erlaubten vollständigen lokalen Zugriff. Kontotests stehen separat im PR.
+
+## Native Kontosteuerung und Startmodelle { #native-account-controls-and-launch-models }
+
+Unter **Einstellungen → Desktop-App** bieten Cursor-, Grok-, Kimi-, Devin- und Vibe-Registrierungen Kontostatus, Anmeldung, erneute Verbindung, Abmeldung und Abbruch. Die erneute Verbindung meldet zunächst ab. Eine native Bestätigung nennt das Programm vor der Änderung; alle Registrierungen dieser CLI werden gestoppt, Fortsetzungen und Zustimmungen gelöscht, und neue Starts warten auf das Prozessende. Die Anmeldung bleibt beim Anbieter; Codes und Zugangsdaten erreichen das Backend nicht. Vibe weist Umgebungsschlüssel ausdrücklich aus und entfernt sie nicht.
+
+**Cursor API-Schlüssel** benötigt `CURSOR_API_KEY` in der Desktop-Umgebung und entfernt `CURSOR_AUTH_TOKEN`. **Grok API-Schlüssel** benötigt `XAI_API_KEY`, verwendet ein privates `GROK_HOME` ohne kopierte Konten oder Einstellungen und authentifiziert sich nur als `xai.api_key`. Sitzungsdaten im jeweiligen Geltungsbereich überleben Prozessneustarts; die CLI-eigene `auth.json` wird beim Beenden und vor erneuter Verwendung nach einem Absturz entfernt. Fehlende Schlüssel oder Authentifizierungsfehler wählen kein gespeichertes Konto. Die Modellabfrage nutzt denselben isolierten Zugang.
+
+Modellentscheidungen für Vibe, Kimi, Qwen und Devin gelten für den gestarteten Prozess (`configuration_policy=launch`), nie für Benutzervorgaben. Die Laufzeit muss das Modell vor einem Prompt bestätigen; Abweichungen und separate Denkstufenüberschreibungen werden abgelehnt. Eine leere ID behält die CLI-Vorgabe. Kimi benötigt eine Python-Installation der Quellrevision `9ab1286b8fe4e6bcd116949a27ce5e0ac3389c82`; registrieren Sie deren `kimi`-Launcher mit einem Shebang auf den Python-Interpreter dieser Umgebung. Der eigene Host prüft Quellfingerabdrücke vor dem Laden. Gebündelte Binärdateien oder inkompatible CLIs werden bei Modellüberschreibungen abgelehnt.
+
+Aktualisieren Sie API und Desktop gemeinsam. Diese Steuerung und Protokolltests bestätigen weder reale Tarifberechtigung noch Kontingente oder Abrechnung; diese Abnahmetests bleiben aufgeschoben.

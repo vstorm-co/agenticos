@@ -438,6 +438,14 @@ class BasePurge(Payload):
     for the deployment-wide one."""
 
 
+class WipeSubscriptionAccounts(Payload):
+    """Gateway scopes whose sign-ins go: members who left, organizations deleted.
+
+    Scopes rather than people, because the organization may already be gone."""
+
+    scopes: list[str] = Field(min_length=1)
+
+
 class DiscardVectorDocument(Payload):
     """Chunks an ingest wrote for a document deleted while it indexed (#2565).
 
@@ -820,6 +828,15 @@ DISCARD_VECTOR_DOCUMENT = Task(
     payload_type=DiscardVectorDocument,
     pool=Pool.SYSTEM,
     max_attempts=3,
+    timeout=timedelta(minutes=5),
+    priority=Priority.SCHEDULED,
+)
+
+WIPE_SUBSCRIPTION_ACCOUNTS = Task(
+    kind="wipe-subscription-accounts",
+    payload_type=WipeSubscriptionAccounts,
+    pool=Pool.SYSTEM,
+    max_attempts=5,
     timeout=timedelta(minutes=5),
     priority=Priority.SCHEDULED,
 )

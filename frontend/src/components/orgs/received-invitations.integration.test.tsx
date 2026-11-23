@@ -2,6 +2,7 @@ import { toast } from "sonner";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor, act } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
+import type { ComponentProps } from "react";
 import { apiClient } from "@/lib/api-client";
 import { ReceivedInvitations } from "./received-invitations";
 import type { ReceivedInvitation } from "@/hooks/use-received-invitations";
@@ -54,13 +55,13 @@ vi.mock("@/stores/org-store", () => ({
 vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
 vi.mock("@/lib/api-client", () => ({ apiClient: { get: vi.fn(), post: vi.fn() } }));
 
-function mount() {
+function mount(props: ComponentProps<typeof ReceivedInvitations> = {}) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
   const view = render(
     <QueryClientProvider client={client}>
-      <ReceivedInvitations />
+      <ReceivedInvitations {...props} />
     </QueryClientProvider>,
   );
   return { ...view, client };
@@ -89,6 +90,39 @@ beforeEach(() => {
     return { organization_id: "company" };
   });
 });
+it("embeds received invitations in onboarding without a modal or automatic acceptance", async () => {
+  env.path = "/onboarding";
+  const accepted = vi.fn();
+  mount({ presentation: "inline", onAccepted: accepted });
+  expect(await screen.findByRole("region", { name: "Your team is waiting" })).toBeVisible();
+  expect(screen.getByText("Northwind")).toBeVisible();
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Invitations (1)" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Later" })).not.toBeInTheDocument();
+  expect(apiClient.post).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button", { name: "Join workspace" }));
+  await waitFor(() => expect(accepted).toHaveBeenCalledWith("company"));
+  expect(env.setOrg).toHaveBeenCalledWith("company");
+  expect(env.push).not.toHaveBeenCalled();
+});
+
+it.each(["/onboarding", "/pl/onboarding"])(
+  "leaves onboarding invitation UI to its inline owner: %s",
+  (path) => {
+    env.path = path;
+    mount();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(apiClient.get).not.toHaveBeenCalled();
+  },
+);
+
+it("renders no inline section when the inbox has no invitations", async () => {
+  env.items = [];
+  const view = mount({ presentation: "inline" });
+  await waitFor(() => expect(apiClient.get).toHaveBeenCalled());
+  expect(view.container).toBeEmptyDOMElement();
+});
+
 it("shows addressed invitations after sign-in without any token or selected organization", async () => {
   mount();
   expect(await screen.findByRole("dialog", { name: "Your team is waiting" })).toBeVisible();
@@ -147,9 +181,9 @@ it.each(["/login", "/pl/invitations/pending", "/shared/chat"])(
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   },
 );
-it("does not query when signed out", () => {
+it.each(["dialog", "inline"] as const)("does not query when signed out (%s)", (presentation) => {
   env.auth = { isAuthenticated: false, user: null };
-  mount();
+  mount({ presentation });
   expect(apiClient.get).not.toHaveBeenCalled();
 });
 it("ignores a late acceptance after the account changes", async () => {

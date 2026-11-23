@@ -33,6 +33,14 @@ VARIABLE = re.compile(r"\{\{\s*([a-z][a-z0-9_]*)\s*\}\}")
 SYSTEM_TIME_ZONE = "system"
 PERSON_TIME_ZONE = "user"
 
+LANGUAGE_NAMES = {"en": "English", "pl": "Polish", "de": "German", "tr": "Turkish", "fr": "French"}
+"""The account's console locales, rendered as language names for instructions."""
+
+
+def preferred_language(locale: str | None) -> str:
+    """The account's language, or English when no supported preference is known."""
+    return LANGUAGE_NAMES.get(locale or "", "English")
+
 
 @dataclass(frozen=True)
 class SystemVariable:
@@ -50,6 +58,7 @@ SYSTEM_VARIABLES: tuple[SystemVariable, ...] = (
     SystemVariable("weekday", "Today's day of the week", "Saturday"),
     SystemVariable("user_name", "The signed-in person's name, or 'a visitor'", "Ada Lovelace"),
     SystemVariable("user_email", "The signed-in person's email, or empty", "ada@example.com"),
+    SystemVariable("language", "The person's account language, or English when unknown", "Polish"),
     SystemVariable("organization_name", "The organization the agent runs in", "Acme"),
     SystemVariable(
         "groups", "The groups - departments - the signed-in person is in, or empty", "Finance"
@@ -89,6 +98,8 @@ class RunFacts:
     groups: tuple[str, ...] = ()
     """The person's groups in the run's organization (#2072), so one agent can answer
     each department in its own terms."""
+    user_locale: str | None = None
+    """The actual run subject's saved account locale, never a publisher fallback's."""
 
 
 def referenced(text: str) -> list[str]:
@@ -138,6 +149,7 @@ def _system_values(facts: RunFacts, zone: ZoneInfo, agent_name: str) -> dict[str
         "weekday": f"{local:%A}",
         "user_name": flattened(facts.user_name) if facts.user_name else "a visitor",
         "user_email": flattened(facts.user_email) if facts.user_email else "",
+        "language": preferred_language(facts.user_locale),
         "organization_name": flattened(facts.organization_name or ""),
         "groups": ", ".join(flattened(name) for name in facts.groups),
         "agent_name": flattened(agent_name),

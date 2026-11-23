@@ -27,6 +27,7 @@ mod diagnostics;
 mod docker_install;
 mod docker_runtime;
 mod dropped;
+mod external_agents;
 #[cfg(all(test, target_os = "linux"))]
 mod glib_soundness;
 mod local_agents;
@@ -481,7 +482,7 @@ fn connection_target(typed: &str) -> Result<(Url, Option<String>), String> {
     let segments: Vec<_> = server.path().trim_matches('/').split('/').collect();
     let invitation = match segments.as_slice() {
         ["invitations", token] => Some(*token),
-        [locale, "invitations", token] if ["en", "pl", "de", "tr"].contains(locale) => Some(*token),
+        [locale, "invitations", token] if ["en", "pl", "de", "tr", "fr"].contains(locale) => Some(*token),
         _ => None,
     };
     if let Some(token) = invitation {
@@ -515,6 +516,8 @@ mod onboarding_language_tests {
         let (server, destination) = connection_target("https://team.example/pl/invitations/abc_DEF-123").unwrap();
         assert_eq!(server.as_str(), "https://team.example/");
         assert_eq!(destination.as_deref(), Some("pl/invitations/abc_DEF-123"));
+        let (_, destination) = connection_target("https://team.example/fr/invitations/abc_DEF-123").unwrap();
+        assert_eq!(destination.as_deref(), Some("fr/invitations/abc_DEF-123"));
         assert_eq!(connection_target("team.example").unwrap().1, None);
         assert!(connection_target("https://team.example/invitations/pending?flow=secret").is_err());
         assert!(connection_target("https://team.example/invitations/%2F%2Fevil.example").is_err());
@@ -1595,6 +1598,7 @@ pub fn run() {
         }))
         .manage(local_browser::Browsers::default())
         .manage(agent_session::Sessions::default())
+        .manage(agent_session::accounts::AccountFlows::default())
         .manage(native_browser::NativeBrowsers::default())
         .plugin({
             let builder = tauri_plugin_updater::Builder::new();
@@ -1689,9 +1693,16 @@ pub fn run() {
             routine_access::routine_revoke,
             local_work::local_files,
             local_work::local_file,
+            agent_session::accounts::external_muse_account,
+            agent_session::accounts::external_cli_account,
+            agent_session::accounts::external_cancel_muse_account,
+            external_agents::external_agents,
+            external_agents::external_save_agent,
+            external_agents::external_remove_agent,
             local_agents::local_agents,
             local_agents::local_agent_prepare,
             coding_options::local_agent_options,
+            coding_options::external_agent_options,
             local_agents::local_agent_sign_in,
             local_agents::local_agent_sign_out,
             local_skills::local_skills,

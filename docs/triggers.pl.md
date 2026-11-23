@@ -1,5 +1,5 @@
 ---
-source_sha: "d9b7cfe344c3"
+source_sha: "f281a876b51b"
 ---
 
 # Konfigurowanie triggera zdarzeniowego { #setting-up-an-event-trigger }
@@ -138,7 +138,7 @@ Uwierzytelniona dostawa i zadania wysyłki zapisują się wspólnie, zanim źró
 
 Wspólny URL asynchronicznie potwierdza trwały odbiór i nie zwraca własnej odpowiedzi workflow. Workflow ze wspólnym źródłem nie może dotrzeć do **Odpowiedz na webhook**. Dedykowane endpointy workflow zachowują odpowiedzi synchroniczne.
 
-**Wstrzymaj źródło** zatrzymuje uruchamianie subskrybentów dla nowych dostaw; wstrzymanie rutyny lub workflow dotyczy tylko tego celu. Usunięcie źródła jest zablokowane, dopóki istnieją subskrypcje; lista użycia wskazuje cele do odłączenia. Zakończone dostawy podlegają zasadom retencji zadań w tle.
+**Wstrzymaj źródło** zatrzymuje uruchamianie subskrybentów dla nowych dostaw. Wstrzymane źródło nadal weryfikuje i zapisuje każdą dostawę, a włączony nasłuch nadal ją przechwytuje. Wstrzymanie rutyny lub workflow dotyczy tylko tego celu. Usunięcie źródła jest zablokowane, dopóki istnieją subskrypcje; lista użycia wskazuje cele do odłączenia. Zakończone dostawy podlegają zasadom retencji zadań w tle.
 
 ### Nasłuchiwanie na aktywnym URL { #listen-on-the-live-url }
 

@@ -11,12 +11,10 @@ the publisher whose account stands in for them, so they get nothing here.
 
 from dataclasses import dataclass
 
-from app.agents.prompt_variables import flattened
+from app.agents.prompt_variables import LANGUAGE_NAMES as LANGUAGE_NAMES
+from app.agents.prompt_variables import flattened, preferred_language
 from app.agents.spec import AgentSpec
 from app.schemas.user import WorkingHours
-
-LANGUAGE_NAMES = {"en": "English", "pl": "Polish", "de": "German", "tr": "Turkish"}
-"""The console's languages - `ConsoleLocale` - by the name a model reads best."""
 
 _WEEKDAYS = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
 
@@ -39,18 +37,18 @@ def _working_days(days: list[int]) -> str:
     return ", ".join(_WEEKDAYS[day - 1] for day in days)
 
 
-def person_briefing(person: Person) -> str | None:
-    """The section of the instructions about the person, or None when nothing is known.
+def person_briefing(person: Person) -> str:
+    """The person's section, including the account language's explicit default.
 
     Their role and work are their own words, flattened so they cannot open a
     section or a variable of their own.
     """
-    lines: list[str] = []
-    if language := LANGUAGE_NAMES.get(person.locale or ""):
-        lines.append(
-            f"- Their console is in {language}: answer in {language} unless they write "
-            "in another language."
-        )
+    language = preferred_language(person.locale)
+    lines = [
+        f"- Their preferred language is {language}: answer in {language} unless they explicitly "
+        "request another language. Use this preference for short or ambiguous greetings; "
+        "do not search memory or call tools to guess their language."
+    ]
     if person.time_zone:
         lines.append(f"- Their time zone is {person.time_zone}; read and state times in it.")
     if person.job_title:
@@ -63,8 +61,6 @@ def person_briefing(person: Person) -> str | None:
             f"- They work {_working_days(hours.days)}, {hours.start}-{hours.end} their time; "
             "plan around it, and nothing waits on it."
         )
-    if not lines:
-        return None
     return "\n".join(["# The person you are talking to", "", *lines])
 
 

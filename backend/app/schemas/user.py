@@ -9,7 +9,7 @@ from pydantic import ConfigDict, EmailStr, Field, field_validator, model_validat
 
 from app.schemas.base import BaseSchema, TimestampSchema
 
-ConsoleLocale = Literal["en", "pl", "de", "tr"]
+ConsoleLocale = Literal["en", "pl", "de", "tr", "fr"]
 """The languages the console is translated into - `frontend/src/lib/locales.ts`."""
 
 ConsoleTheme = Literal["light", "dark", "system"]

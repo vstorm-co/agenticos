@@ -8,6 +8,7 @@ agent run.
 """
 
 import json
+import re
 import uuid
 from datetime import UTC, datetime
 from typing import Literal
@@ -48,12 +49,14 @@ from app.core.secret_kinds import (
     GcpServiceAccountSecret,
     GithubOAuthAppSecret,
     NoSecret,
+    OpenAIChatGPTSecret,
     OpenAICodexSecret,
     SecretKind,
     seal_secret,
 )
 from app.core.vault import VaultScope
 from app.schemas.model_profile import ModelProfileRead, ModelProfileUpdate
+from app.services.chatgpt_plan import VaultChatGPTCredentials
 from app.services.model_catalog import CatalogModel
 from app.services.model_profile import (
     MAX_FALLBACK_DEPTH,
@@ -117,6 +120,13 @@ def secret_for(spec: ProviderSpec):
             aws_access_key_id="AKIAEXAMPLE1234",
             aws_secret_access_key="aws-secret",
             region_name="us-east-1",
+        )
+    if spec.secret_kind is SecretKind.OPENAI_CHATGPT:
+        return OpenAIChatGPTSecret(
+            client_id="test-client",
+            access_token="test-access-token",
+            refresh_token="test-refresh-token",
+            scope="chatgpt.tokens.use.direct",
         )
     if spec.secret_kind is SecretKind.OPENAI_CODEX:
         return codex_secret()
@@ -205,6 +215,174 @@ def _db():
 
 
 class TestProviderCatalog:
+    def test_minimax_does_not_accept_a_keyless_profile(self) -> None:
+        with pytest.raises(BadRequestError, match="MiniMax requires a vault API key"):
+            build_model(ResolvedCredential(provider="minimax", secret=NoSecret()), "MiniMax-M3")
+
+    @pytest.mark.anyio
+    async def test_minimax_completes_a_tool_round_trip_on_its_compatible_api(self) -> None:
+        from pydantic_ai import Agent
+
+        requests: list[httpx2.Request] = []
+
+        def lookup() -> str:
+            return "verified lookup result"
+
+        def respond(request: httpx2.Request) -> httpx2.Response:
+            requests.append(request)
+            message = (
+                {
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": [
+                        {
+                            "id": "call-1",
+                            "type": "function",
+                            "function": {"name": "lookup", "arguments": "{}"},
+                        }
+                    ],
+                }
+                if len(requests) == 1
+                else {"role": "assistant", "content": "Lookup completed"}
+            )
+            return httpx2.Response(
+                200,
+                json={
+                    "id": "minimax-response",
+                    "object": "chat.completion",
+                    "created": 1,
+                    "model": "MiniMax-M3.1-Flash",
+                    "choices": [
+                        {
+                            "index": 0,
+                            "finish_reason": "tool_calls" if len(requests) == 1 else "stop",
+                            "message": message,
+                        }
+                    ],
+                    "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
+                },
+            )
+
+        model = build_model(
+            ResolvedCredential(provider="minimax", secret=ApiKeySecret(api_key="minimax-plan-key")),
+            "MiniMax-M3.1-Flash",
+        )
+        assert isinstance(model, OpenAIChatModel)
+        async with httpx2.AsyncClient(transport=httpx2.MockTransport(respond)) as client:
+            model._provider._client = model.client.with_options(http_client=client, max_retries=0)
+            result = await Agent(model, tools=[lookup]).run("Look up the result")
+        assert result.output == "Lookup completed"
+        assert len(requests) == 2
+        assert all(str(r.url) == "https://api.minimax.io/v1/chat/completions" for r in requests)
+        assert all(r.headers["Authorization"] == "Bearer minimax-plan-key" for r in requests)
+        assert b"verified lookup result" in requests[1].content
+        assert result.response.provider_name == "minimax"
+
+    @pytest.mark.parametrize(
+        ("provider", "default"),
+        [
+            ("kimi_code", "https://api.kimi.ai/coding/v1/"),
+            ("alibaba_coding_plan", "https://coding-intl.dashscope.aliyuncs.com/v1/"),
+            ("opencode_go", "https://opencode.ai/inference/go/openai/v1/"),
+            ("ollama_cloud", "https://ollama.com/v1/"),
+            ("cliproxyapi", "http://cliproxyapi:8317/v1/"),
+            ("nous_portal", "https://inference-api.nousresearch.com/v1/"),
+            ("inception", "https://api.inceptionlabs.ai/v1/"),
+            ("cline", "https://api.cline.bot/api/v1/"),
+            ("chutes", "https://llm.chutes.ai/v1/"),
+            ("synthetic", "https://api.synthetic.new/openai/v1/"),
+        ],
+    )
+    def test_subscription_plan_keys_reach_their_plans_endpoint_under_their_own_identity(
+        self, provider: str, default: str, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from app.agents.model_resolver import PROVIDERS
+        from app.services.model_catalog import CUSTOM_LISTINGS, LISTINGS
+
+        monkeypatch.setenv("OPENAI_API_KEY", "unrelated-openai-key")
+        model = build_model(
+            ResolvedCredential(provider=provider, secret=ApiKeySecret(api_key="plan-key")), "m"
+        )
+        assert isinstance(model, OpenAIChatModel)
+        assert str(model.client.base_url) == default and model.client.api_key == "plan-key"
+        assert model.system == provider
+        regional = build_model(
+            ResolvedCredential(
+                provider=provider,
+                secret=ApiKeySecret(api_key="plan-key"),
+                base_url="https://regional.example/v1",
+            ),
+            "m",
+        )
+        assert str(regional.client.base_url) == "https://regional.example/v1/"
+        assert LISTINGS[provider].auth_template == "Bearer {key}"
+        assert CUSTOM_LISTINGS[provider] is True
+        with pytest.raises(
+            BadRequestError, match=re.escape(f"{PROVIDERS[provider].name} requires a vault")
+        ):
+            build_model(ResolvedCredential(provider=provider, secret=NoSecret()), "m")
+
+    def test_plan_usage_is_never_priced_as_metered_api_tokens(self) -> None:
+        from pydantic_ai.usage import RequestUsage
+
+        from app.agents.capabilities.budget._capability import price_request
+
+        usage = RequestUsage(input_tokens=1000, output_tokens=1000)
+        for provider in (
+            "kimi_code",
+            "alibaba_coding_plan",
+            "opencode_go",
+            "ollama_cloud",
+            "cliproxyapi",
+        ):
+            assert price_request(usage, "qwen3-coder-plus", provider) is None
+
+    def test_minimax_uses_its_own_history_identity_and_selected_key(self) -> None:
+        credential = ResolvedCredential(
+            provider="minimax", secret=ApiKeySecret(api_key="minimax-plan-key")
+        )
+        model = build_model(credential, "MiniMax-M3.1-Flash")
+        assert isinstance(model, OpenAIChatModel)
+        assert str(model.client.base_url) == "https://api.minimax.io/v1/"
+        assert model.client.api_key == "minimax-plan-key"
+        assert model.system == "minimax"
+        assert model._provider.canonical_system == "minimax"
+
+    def test_minimax_custom_endpoint_is_used_without_openai_credentials(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("OPENAI_API_KEY", "unrelated-openai-key")
+        credential = ResolvedCredential(
+            provider="minimax",
+            secret=ApiKeySecret(api_key="regional-plan-key"),
+            base_url="https://api.minimaxi.com/v1",
+        )
+        model = build_model(credential, "MiniMax-M3.1-Flash")
+        assert isinstance(model, OpenAIChatModel)
+        assert str(model.client.base_url) == "https://api.minimaxi.com/v1/"
+        assert model.client.api_key == "regional-plan-key"
+
+    @pytest.mark.parametrize(
+        "endpoint",
+        ["https://api.z.ai/api/coding/paas/v4", "https://open.bigmodel.cn/api/coding/paas/v4"],
+    )
+    def test_zai_coding_plan_keeps_the_selected_endpoint(self, endpoint: str) -> None:
+        assert PROVIDERS["zai"].supports_base_url
+        credential = ResolvedCredential(
+            provider="zai", secret=ApiKeySecret(api_key="coding-plan-key"), base_url=endpoint
+        )
+        model = build_model(credential, "glm-5")
+        assert isinstance(model, OpenAIChatModel)
+        assert str(model.client.base_url) == endpoint + "/"
+
+    def test_zai_without_an_endpoint_keeps_pay_per_token_api(self) -> None:
+        credential = ResolvedCredential(
+            provider="zai", secret=ApiKeySecret(api_key="regular-api-key")
+        )
+        model = build_model(credential, "glm-5")
+        assert isinstance(model, OpenAIChatModel)
+        assert str(model.client.base_url) == "https://api.z.ai/api/paas/v4/"
+
     @pytest.mark.parametrize("provider_id", sorted(PROVIDERS))
     def test_every_selectable_provider_actually_builds_a_model(self, provider_id):
         """The invariant a hand-written registry used to give, kept after inference.
@@ -218,13 +396,24 @@ class TestProviderCatalog:
         # OpenRouter is the one provider that rejects a bare model id, and does
         # so in the constructor rather than at request time.
         model = "openai/gpt-4.1" if provider_id == "openrouter" else "some-model"
+        # A subscription-accounts credential reaches a client only once bound
+        # to a person's gateway scope, as a key and an endpoint.
         credential = ResolvedCredential(
             provider=provider_id,
-            secret=secret_for(spec),
-            base_url="https://gateway.example.com" if spec.supports_base_url else None,
+            secret=ApiKeySecret(api_key="gateway-token")
+            if spec.personal_gateway
+            else secret_for(spec),
+            base_url="https://gateway.example.com"
+            if spec.supports_base_url or spec.personal_gateway
+            else None,
             credential_source=VaultCodexCredentials(
                 organization_id=uuid.uuid4(), secret_id=uuid.uuid4()
             ),
+            chatgpt_source=VaultChatGPTCredentials(
+                organization_id=uuid.uuid4(), secret_id=uuid.uuid4(), generation=uuid.uuid4()
+            )
+            if provider_id == "openai_chatgpt"
+            else None,
         )
         assert build_model(credential, model) is not None
 
@@ -363,6 +552,7 @@ class TestProviderCatalog:
         offering = {spec.id: spec.apis for spec in PROVIDERS.values() if spec.apis}
         assert offering == {
             "openai": ("responses", "chat", "decisions"),
+            "openai_chatgpt": ("responses",),
             "google": ("chat", "decisions"),
             "openrouter": ("chat", "decisions"),
             "typesafe": ("decisions",),
@@ -1320,13 +1510,18 @@ class TestResolution:
         assert isinstance(spec.build(), FallbackModel)
 
     @pytest.mark.anyio
-    async def test_a_fallback_on_a_speech_model_is_left_out_of_the_chain(self):
+    @pytest.mark.parametrize(
+        "provider,model", [("openai", "gpt-4o-mini-tts"), ("openai_chatgpt", "gpt-account")]
+    )
+    async def test_an_unsupported_fallback_is_left_out_of_the_chain(
+        self, provider: str, model: str
+    ):
         """A provider failure must not hand the conversation to a model that
         cannot hold one (#2487). Publish refuses such a fallback; this covers one
         added to the profile afterwards. A custom endpoint is unknown, so kept."""
         ctx = _ctx()
         secret = _vault_secret(ctx)
-        speech = _profile(ctx, secret, model="gpt-4o-mini-tts")
+        speech = _profile(ctx, secret, provider=provider, model=model)
         custom = _profile(ctx, secret, model="whisper-1", base_url="http://vllm:8000/v1")
         profile = _profile(ctx, secret, fallbacks=[speech.id, custom.id])
 

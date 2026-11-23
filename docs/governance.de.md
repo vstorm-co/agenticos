@@ -1,5 +1,5 @@
 ---
-source_sha: "4a5506769583"
+source_sha: "4c4d606984ca"
 ---
 
 # Governance { #governance }
@@ -69,12 +69,9 @@ sie bestätigt keinen Webhook-Eingang. Öffentliche Webhook-Antworten bleiben un
 
 ## Zustellung von Routinen { #routine-delivery }
 
-Eine im privaten Chat über das Plattform-MCP erstellte Routine antwortet in diesem
-Chat, sofern Sie kein anderes Ziel wählen. Ihre Karte zeigt den aktuellen Zustand,
-die nächste Aktivierung sowie die vorhandenen Aktionen zum Bearbeiten, Pausieren
-und Entfernen. Das Ausführungsprotokoll bleibt unter Routines verfügbar.
+Neue Routinen speichern standardmäßig alle Ausführungen in einem gemeinsamen schreibgeschützten Verlauf. Die erstellende Person kann eine Antwort in einen privaten Chat verzweigen. Alternativ erhält jede Ausführung einen eigenen bearbeitbaren privaten Chat. Die Routinenkarte behält ihre Aktionen zum Bearbeiten, Pausieren und Entfernen. Routines zeigt alle Ausführungen mit Links zu Chat und Ausführungsdetails.
 
-Vor dem Speichern einer fertigen Antwort prüft die Plattform erneut die aktive Mitgliedschaft der erstellenden Person und ihr aktuelles Schreibrecht im gewählten Chat. Ein gelöschtes oder unzugängliches Ziel lässt die Antwort im Ausführungsprotokoll und zeigt **Letzte Antwort im Chat nicht verfügbar** an der Routine. Ein Datenbankfehler während der Nachrichtenzustellung wird isoliert, sodass der abgeschlossene Lauf weder rückgängig gemacht noch der Agent erneut ausgeführt wird.
+Vor dem Chat-Modus-Upgrade zugelassene Läufe behalten ihren bisherigen Zustellungsvertrag. Nur diese älteren Läufe kopieren eine fertige Antwort in das zuvor gewählte Ziel, nachdem aktive Mitgliedschaft und aktuelles Schreibrecht erneut geprüft wurden. Fehlt das Ziel, bleibt die Antwort im Protokoll. Zustellungsfehler machen die abgeschlossene Ausführung nicht rückgängig und starten den Agenten nicht erneut.
 
 Abschlussmeldungen verlinken den Chat erst nach erfolgreicher Zustellung.
 
@@ -883,7 +880,11 @@ Identitäten; erst das Speichern des aktuellen Reviews erteilt Zustimmung. Neue 
 und geänderte Konten werden nicht automatisch ausgewählt. Verbindliche Freigaben,
 Widerruf und die Prüfung auf veraltete Reviews gelten weiterhin.
 
-Folgende Routinen verwenden die Aktionsfreigaben des Agenten ohne zusätzliche routinenweite Freigabepflicht. Eingeschränkte Routinen fragen zusätzlich vor Capability-Aktionen, lokalen Dateiänderungen und Delegation sowie vor externen MCP-Aufrufen ohne Nur-Lesen-Kennzeichnung. Explizite Agenten- oder Verbindungsvorgaben und verbindliche Freigaben gelten in beiden Modi. Der Codemodus bleibt für Routinen ausgeschaltet, damit Sammelskripte keine einzelnen Werkzeugkontrollen umgehen.
+Neue Routinen handeln standardmäßig als ihre erstellende Person mit deren aktuellen Berechtigungen. Ein Formular enthält Name, Anweisungen, Agent, Zeitplan und Werkzeugfreigaben; Quellenprüfung und Limits stehen unter den erweiterten Optionen. Identität und Freigabe sind unabhängig.
+
+**Zulässige Werkzeuge automatisch ausführen** nutzt die Agentenregeln (`agent`). **Vor Aktionen fragen** ergänzt eine Routinenfreigabe für Auswirkungen (`manual`) und widerruft bestehende Dauerfreigaben atomar. **Freigaben je Werkzeug wählen** erlaubt einmalige dauerhafte Freigaben ausgewählter zulässiger Aktionen dieser Routine (`per_tool`). Die Wahl gilt für beide Quellenmodi.
+
+Bestehende Routinen ohne Aktionsmodus behalten ihre bisherige Richtlinie. Explizite Agenten-/Verbindungsvorgaben und verbindliche Plattform-/Gerätefreigaben bleiben bestehen. Der Codemodus bleibt für Routinen ausgeschaltet.
 
 Schreibzugriffe auf AgenticOS Virtual Tables laufen innerhalb ihrer aktuellen Tabellen- und Operationsfreigaben ohne Ausnahme für die Routine. Eine ausdrücklich konfigurierte Freigaberichtlinie des Agenten gilt weiterhin für diese internen Schreibzugriffe.
 
@@ -891,11 +892,11 @@ Die erstellende Person öffnet **Aktionsfreigaben** ihrer Routine und wählt Fä
 
 Eine MCP-Ausnahme benennt das konkrete Konto, den Adresshash, die Autorisierungsgeneration und den ursprünglichen Aktionsnamen. E-Mail-Versand erlaubt weder Löschen noch Schreibzugriffe auf ein anderes Konto. Persönliche Konten stehen nur Routinen zur Verfügung, die als ihre erstellende Person handeln. Die Auswahl verwendet die gespeicherte Werkzeugliste; prüfe die Verbindung oder bitte deren Administration, wenn sie fehlt. Alle Freigaben lassen sich auch ohne funktionierende Werkzeugliste widerrufen.
 
-Die Prüfung zeigt die Capabilities des Agenten, AgenticOS und jedes andere MCP-Konto als eigene Abschnitte, jeweils mit ihren Gruppen. Es erscheinen nur Aktionen, die der Agent schon ohne Nachfrage ausführt: Einer Aktion, vor der er fragt, lässt sich hier nicht zustimmen, also fehlt sie. **Einstellungen des Agenten verwenden** wählt genau diese Aktionen und ersetzt die aktuelle Auswahl; gespeichert wird erst mit **Freigaben speichern**.
+Die Prüfung zeigt Capabilities, AgenticOS und jedes MCP-Konto getrennt. Werkzeuge mit vorgeschriebener Freigabe bleiben sichtbar, sind jedoch mit Erklärung gesperrt. Sammelauswahl umfasst nur zulässige Aktionen. Speichern aktiviert die Freigabe je Werkzeug; nicht ausgewählte Auswirkungen fragen bei Verwendung. Quellenvererbung versteckt oder umgeht diese Entscheidungen nicht.
 
 Das Feld **Geprüfte Quellen** darüber listet die Quellen der Routine nach Art - Capabilities, Skills, Wissensdatenbanken, Tabellen, Konten -, jede Art auf eine Anzahl eingeklappt und jede Quelle mit ihrem Namen. Eine Quelle, die es nicht mehr gibt, erscheint als nicht mehr verfügbar; ihre Kennung steht im Tooltip.
 
-Handelt eine Routine als ihre erstellende Person, erscheinen die eigenen Werkzeuge des AgenticOS-Servers in den Gruppen, die der Builder zeigt: Tabellen, Aufgaben, Workflows, Agenten und die übrigen. Nur Werkzeuge, die etwas ändern, werden gelistet, denn Lesezugriffe fragen nie; die Werkzeugsuche fragt ebenfalls nicht. Ein Werkzeug, vor dem der Agent fragt, steht nicht in der Liste. Das gilt für jede Änderung, die die Bindung nicht auf **Run freely** setzt, und für die Werkzeuge, die immer fragen. Eine Routine behält die Bestätigungen des Agenten also oder verschärft sie, gibt aber nie eine frei.
+Wenn eine Routine als ihr Ersteller handelt, werden AgenticOS-Aktionen wie im Builder gruppiert: Tabellen, Aufgaben, Workflows, Agenten und weitere. Aktionen mit verpflichtender Freigabe bleiben sichtbar, aber gesperrt. Lesezugriffe und Werkzeugsuche erhalten keine zusätzliche Routinenfreigabe; eine explizite Agentenfreigabe gilt weiterhin. Routinen dürfen Agentenfreigaben beibehalten oder verschärfen, niemals eine Pflichtfreigabe entfernen.
 
 Eine Plattform-Ausnahme nennt nur das Werkzeug: Die Läufe der Routine erreichen die Plattform nur als ihre erstellende Person, die einzige, die sie prüfen kann.
 
@@ -2693,15 +2694,21 @@ Vorlagen zur lesenden Überwachung gemeinsam. Ein Trigger bestimmt, _wann_ eine
 Routine läuft; die Überwachungsvorlage begrenzt, _was_ sie tun darf. Für eine
 Verantwortung genügt eine Routine, statt Watch und Zeitplan für dasselbe Postfach.
 
-Wählen Sie **Nach jeder abgeschlossenen Ausführung** (`result_mode: report`, der
-bisherige Standard) für Berichte oder **Nur wenn etwas Aufmerksamkeit braucht**
-(`result_mode: inbox`) für stille Prüfungen. Der Agent liefert relevante
-Quellelemente mit stabilen Element- und Revisionskennungen, Kontext und dem
-vollständigen angeforderten Entwurf. Ein leeres Ergebnis erzeugt weder Gespräch
-noch Abschlussmeldung. Jedes Element erhält ein privates Arbeitsgespräch und
-einen Inbox-Vorgang. Wiederholte Revisionen werden dauerhaft dedupliziert, auch
-nach Erledigung. Eine neue Revision aktualisiert dasselbe Gespräch und öffnet den
-Vorgang erneut; stummgeschaltete Elemente bleiben stumm.
+Inbox-Ergebnisse werden ausschließlich über das AgenticOS-MCP-Werkzeug `publish_inbox_finding` veröffentlicht. Jede Routine und jeder Monitor erhält es automatisch, auch ohne Plattformbindung. Ein impliziter Berichtsschlüssel hat keine allgemeinen Plattformrechte: Er ist an einen laufenden Run gebunden und veröffentlicht nur für die besitzende Person. Andere Empfänger, private Inbox-Lesezugriffe und Organisationsverwaltung sind damit nicht möglich. Jede Veröffentlichung prüft Mitgliedschaft, Quellenfreigabe, Pause und Ablauf erneut. Monitore müssen ihre Quelle zuerst erfolgreich lesen; ungelöste Lesefehler verhindern die Meldung. Dringlichkeit respektiert die Einstellung der besitzenden Person.
+
+Der Agent übergibt stabile Element- und Revisionskennungen, Kontext und angeforderte vollständige Entwürfe. Unveränderte Revisionen bleiben still; neue aktualisieren denselben Arbeitschat und öffnen den Fall erneut, stummgeschaltete Elemente bleiben stumm. Ein Run kann höchstens acht Ergebnisse veröffentlichen. Endantworten bleiben im Protokoll oder ausdrücklich gewählten Chat und werden nie in Inbox-Karten geparst. Das alte Feld `result_mode` bleibt lesbar, aktiviert aber keine automatische strukturierte Zustellung mehr. Ohne Änderungen wird nichts veröffentlicht, außer ein Monitor soll jede Prüfung melden.
+
+Veröffentlichte Ergebnisse werden beim MCP-Aufruf gespeichert. Ein späterer Run-Fehler löscht sie nicht; der fehlgeschlagene Versuch bleibt sichtbar und Wiederholungen deduplizieren Quellenrevisionen.
+
+Neue Routinen verwenden standardmäßig **einen gemeinsamen schreibgeschützten Verlauf** (`chat_mode=shared`). Wähle **einen neuen privaten Chat pro Ausführung** (`chat_mode=per_run`), um jeden vollständigen Verlauf mit Werkzeugaufrufen in einem eigenen bearbeitbaren Chat zu behalten. Weitere Nachrichten ändern die Routine nicht und werden nicht zum Gesprächsverlauf der nächsten Ausführung; die konfigurierte Erinnerung gilt weiterhin. Der Chat erscheint in deiner Seitenleiste.
+
+Wähle **gemeinsamen Verlauf** (`chat_mode=shared`), um Ausführungen an eine schreibgeschützte Systemunterhaltung anzuhängen. Die erstellende Person sieht sie mit `runs:view` und aktuellem Agentenzugriff in der Seitenleiste; Projektprotokolle bleiben durch den Projektzugriff geregelt. Sie kann eine Antwort in einen privaten Chat verzweigen. Neue Ausführungen übernehmen frühere Protokollnachrichten nicht automatisch; Speicher und explizite Quellenabfragen stellen Kontinuität her.
+
+Migration `0351_routine_chat_modes.py` ordnet bisherige Hauptchat- und Einzelchat-Zustellung separaten Ausführungschats zu; reine Protokolle und der bisherige Inbox-Modus werden gemeinsame Verläufe. Unterhaltungen, Zeitpläne, Pausen, Budgets und Quellen-/Werkzeugfreigaben bleiben erhalten. Bestehende Protokolle werden schreibgeschützt; bereits zugelassene Runs ohne Modus-Snapshot behalten ihre bisherige Zustellung. API und Worker gemeinsam aktualisieren. Alte Zielfelder bleiben für Kompatibilität und Downgrade lesbar.
+
+Inbox-Ergebnisse behalten eigene Arbeitsunterhaltungen je stabilem Quellelement. Nicht jede Ausführung erzeugt eine Inbox-Karte.
+
+Unbeaufsichtigte Ausführungen haben keinen aktiven `ask_user`-Kanal. Fehlen notwendige Angaben, soll der Agent die Frage und die blockierte Arbeit als Inbox-Befund veröffentlichen, statt eine Antwort anzunehmen. Dadurch entsteht kein pausiertes, fortsetzbares Frageformular.
 
 Öffnen Sie das Gespräch aus der Inbox, um den Entwurf zu ändern oder den nächsten
 Schritt zu beauftragen. Lesen und Bearbeiten versenden nichts und erledigen den

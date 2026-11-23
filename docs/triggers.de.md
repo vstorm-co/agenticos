@@ -1,5 +1,5 @@
 ---
-source_sha: "d9b7cfe344c3"
+source_sha: "f281a876b51b"
 ---
 
 # Einen Event-Trigger einrichten { #setting-up-an-event-trigger }
@@ -144,7 +144,7 @@ Eine authentifizierte Zustellung und ihre Versandaufträge werden gemeinsam gesp
 
 Eine gemeinsame URL bestätigt den dauerhaften Empfang asynchron und liefert keine benutzerdefinierte Workflow-Antwort. Ein Workflow mit gemeinsamer Quelle darf **Auf Webhook antworten** nicht erreichen. Dedizierte Workflow-Endpunkte behalten synchrone Antworten.
 
-**Quelle pausieren** verhindert den Start von Abonnenten für neue Zustellungen; das Pausieren einer Routine oder eines Workflows betrifft nur dieses Ziel. Solange Abonnements bestehen, ist Löschen gesperrt; die Nutzungsliste zeigt die zuvor zu trennenden Ziele. Abgeschlossene Zustellungen folgen der Aufbewahrungsregel für Hintergrundjobs.
+**Quelle pausieren** verhindert den Start von Abonnenten für neue Zustellungen. Eine pausierte Quelle prüft und speichert weiterhin jede Zustellung. Eine laufende Erfassung empfängt sie ebenfalls. Das Pausieren einer Routine oder eines Workflows betrifft nur dieses Ziel. Solange Abonnements bestehen, ist Löschen gesperrt; die Nutzungsliste zeigt die zuvor zu trennenden Ziele. Abgeschlossene Zustellungen folgen der Aufbewahrungsregel für Hintergrundjobs.
 
 ### Auf der Live-URL auf ein Ereignis warten { #listen-on-the-live-url }
 

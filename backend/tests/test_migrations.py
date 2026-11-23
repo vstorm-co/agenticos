@@ -342,23 +342,25 @@ def test_delete_crosslink_migration_preserves_rows_and_defers_only_checks() -> N
                 title="Report",
             )
             routine_id = uuid4()
+            db.add(page)
             db.execute(
                 text(
-                    "INSERT INTO agent_triggers (id, organization_id, agent_id, created_by_user_id, "
-                    "is_active, trigger_type, schedule_kind, interval_seconds, event_config, "
-                    "prompt, next_fire_at, answer_to, delivery_conversation_id) "
-                    "VALUES (:id, :org, :agent, :owner, true, 'schedule', 'interval', 300, "
-                    "'{}', 'Report', now(), 'conversation', :chat)"
+                    "INSERT INTO agent_triggers "
+                    "(id, organization_id, agent_id, created_by_user_id, prompt, "
+                    "interval_seconds, next_fire_at, answer_to, delivery_conversation_id, "
+                    "is_active, trigger_type, schedule_kind, event_config) "
+                    "VALUES (:id, :organization, :agent, :creator, 'Report', "
+                    "300, :next_fire, 'conversation', :chat, true, 'schedule', 'interval', '{}')"
                 ),
                 {
                     "id": routine_id,
-                    "org": org_id,
+                    "organization": org_id,
                     "agent": agent.id,
-                    "owner": owner_id,
+                    "creator": owner_id,
+                    "next_fire": datetime.now(UTC),
                     "chat": chat.id,
                 },
             )
-            db.add(page)
             db.commit()
             agent_id = agent.id
             page_id = page.id
@@ -715,6 +717,8 @@ class TestMigrations:
         "0306_shared_page_attribution",
         "0345_matrix_channel",
         "0345_merge_mcp_and_personal",
+        "0349_personal_work_context",
+        "0350_member_onboarding_progress",
     ],
 )
 def test_improvement_merge_upgrades_either_existing_history(starting_revision: str) -> None:
@@ -2628,19 +2632,14 @@ def test_github_filter_diagnostic_preserves_existing_routine_policy() -> None:
             db.flush()
             db.execute(
                 text(
-                    "INSERT INTO agent_triggers (id, organization_id, agent_id, created_by_user_id, "
-                    "is_active, trigger_type, schedule_kind, event_source, event_config, "
-                    "event_secret_encrypted, secret_key_version, prompt) "
-                    "VALUES (:id, :org, :agent, :owner, true, 'event', 'interval', 'github', "
-                    "CAST(:config AS jsonb), 'sealed', 1, 'Triage issues')"
+                    "INSERT INTO agent_triggers "
+                    "(id, organization_id, agent_id, created_by_user_id, trigger_type, "
+                    "event_source, event_config, event_secret_encrypted, secret_key_version, prompt, "
+                    "is_active, schedule_kind) "
+                    "VALUES (:id, :organization, :agent, :creator, 'event', 'github', "
+                    "'{\"actions\": [\"opened\"]}', 'sealed', 1, 'Triage issues', true, 'interval')"
                 ),
-                {
-                    "id": trigger_id,
-                    "org": org_id,
-                    "agent": agent.id,
-                    "owner": owner_id,
-                    "config": json.dumps({"actions": ["opened"]}),
-                },
+                {"id": trigger_id, "organization": org_id, "agent": agent.id, "creator": owner_id},
             )
             db.commit()
         for action, revision in [
@@ -2949,6 +2948,102 @@ def test_matrix_surface_migration_preserves_existing_exposures() -> None:
         engine.dispose()
 
 
+def test_routine_chat_mode_migration_maps_destinations_without_changing_authority() -> None:
+    from app.db.models.agent import Agent
+    from app.db.models.conversation import Conversation
+
+    assert _alembic("upgrade", "head").returncode == 0
+    assert _alembic("downgrade", "0350_run_reporting_credential").returncode == 0
+    engine = create_engine(_url(MIGRATION_DATABASE))
+    try:
+        with DatabaseSession(engine, expire_on_commit=False) as db:
+            user_id, org_id = uuid4(), uuid4()
+            db.execute(_HISTORICAL_USER_INSERT, {"id": user_id, "email": f"{user_id}@example.com"})
+            db.execute(
+                _HISTORICAL_ORGANIZATION_INSERT,
+                {
+                    "id": org_id,
+                    "name": "Chat modes",
+                    "slug": f"chat-modes-{org_id}",
+                    "owner": user_id,
+                },
+            )
+            agent = Agent(
+                organization_id=org_id,
+                owner_user_id=user_id,
+                name="Reporter",
+                slug=f"reporter-{uuid4()}",
+            )
+            target = Conversation(organization_id=org_id, user_id=user_id)
+            history = Conversation(organization_id=org_id, user_id=None)
+            db.add_all([agent, target, history])
+            db.flush()
+            policy = {"id": "retained-source-consent", "scope_hash": "unchanged"}
+            for label, answer_to, result_mode in (
+                ("primary", "primary", "report"),
+                ("conversation", "conversation", "report"),
+                ("log", "run_log", "report"),
+                ("inbox", "primary", "inbox"),
+            ):
+                db.execute(
+                    text(
+                        "INSERT INTO agent_triggers (id, organization_id, agent_id, created_by_user_id, name, prompt, interval_seconds, next_fire_at, is_active, trigger_type, schedule_kind, event_config, answer_to, result_mode, delivery_conversation_id, conversation_id, approved_sources) "
+                        "VALUES (:id, :org, :agent, :person, :name, 'Unchanged prompt', 86400, :next_fire, false, 'schedule', 'interval', '{}', :answer, :result, :target, :history, CAST(:policy AS jsonb))"
+                    ),
+                    {
+                        "id": uuid4(),
+                        "org": org_id,
+                        "agent": agent.id,
+                        "person": user_id,
+                        "name": label,
+                        "next_fire": datetime.now(UTC),
+                        "answer": answer_to,
+                        "result": result_mode,
+                        "target": target.id if answer_to == "conversation" else None,
+                        "history": history.id,
+                        "policy": json.dumps(policy),
+                    },
+                )
+            db.commit()
+            history_id = history.id
+        for action, revision in (
+            ("upgrade", "head"),
+            ("downgrade", "0350_run_reporting_credential"),
+            ("upgrade", "head"),
+        ):
+            result = _alembic(action, revision)
+            assert result.returncode == 0, result.stderr
+            if action != "upgrade":
+                continue
+            with engine.connect() as db:
+                rows = db.execute(
+                    text(
+                        "SELECT name, chat_mode, is_active, prompt, approved_sources FROM agent_triggers WHERE organization_id = :org"
+                    ),
+                    {"org": org_id},
+                ).all()
+                assert {row.name: row.chat_mode for row in rows} == {
+                    "primary": "per_run",
+                    "conversation": "per_run",
+                    "log": "shared",
+                    "inbox": "shared",
+                }
+                assert all(
+                    not row.is_active
+                    and row.prompt == "Unchanged prompt"
+                    and row.approved_sources == policy
+                    for row in rows
+                )
+                assert (
+                    db.execute(
+                        text("SELECT origin FROM conversations WHERE id = :id"), {"id": history_id}
+                    ).scalar_one()
+                    == "routine"
+                )
+    finally:
+        engine.dispose()
+
+
 def test_event_source_downgrade_preserves_runnable_fire_jobs() -> None:
     from app.db.models.background_job import BackgroundJob
 
@@ -2990,7 +3085,7 @@ def test_event_source_downgrade_preserves_runnable_fire_jobs() -> None:
                     .where(BackgroundJob.id == source_job)
                     .values(status=status)
                 )
-            refused = _alembic("downgrade", "0360_merge_key_coverage")
+            refused = _alembic("downgrade", "0362_merge_native_release")
             assert refused.returncode != 0 and "source-bound fire-trigger jobs" in refused.stderr
         with engine.begin() as connection:
             connection.execute(
@@ -2998,7 +3093,7 @@ def test_event_source_downgrade_preserves_runnable_fire_jobs() -> None:
                 .where(BackgroundJob.id == source_job)
                 .values(status="cancelled")
             )
-        result = _alembic("downgrade", "0360_merge_key_coverage")
+        result = _alembic("downgrade", "0362_merge_native_release")
         assert result.returncode == 0, result.stderr
         with engine.connect() as connection:
             assert connection.scalars(
@@ -3094,7 +3189,7 @@ def test_event_source_downgrade_retires_only_obsolete_queue_work() -> None:
                 )
             )
             conn.execute(insert(BackgroundTaskKind).values(kind=retention))
-        blocked = _alembic("downgrade", "0360_merge_key_coverage")
+        blocked = _alembic("downgrade", "0362_merge_native_release")
         assert blocked.returncode != 0 and "settle pending source work" in blocked.stderr
         with engine.begin() as conn:
             # A refused downgrade must leave the accepted input and job intact.
@@ -3109,7 +3204,7 @@ def test_event_source_downgrade_retires_only_obsolete_queue_work() -> None:
                 .where(EventDispatch.id == dispatch)
                 .values(status="skipped", completed_at=datetime.now(UTC))
             )
-        blocked = _alembic("downgrade", "0360_merge_key_coverage")
+        blocked = _alembic("downgrade", "0362_merge_native_release")
         assert blocked.returncode != 0 and "running event source jobs" in blocked.stderr
         with engine.begin() as conn:
             conn.execute(
@@ -3117,7 +3212,7 @@ def test_event_source_downgrade_retires_only_obsolete_queue_work() -> None:
                 .where(BackgroundJob.id == sweep)
                 .values(status="dead", last_error="original failure")
             )
-        result = _alembic("downgrade", "0360_merge_key_coverage")
+        result = _alembic("downgrade", "0362_merge_native_release")
         assert result.returncode == 0, result.stderr
         with DatabaseSession(engine) as db:
             for retired in (job, sweep):

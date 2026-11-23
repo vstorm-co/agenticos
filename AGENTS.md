@@ -79,6 +79,11 @@ template-inherited subsystems have different coverage gates, described below.
 - Store credentials through `app/core/vault.py`. Connector sources reference vault
   secret IDs; do not put credentials in a connector's `CONFIG_MODEL` or introduce
   deployment-wide Fernet keys, `CHANNEL_ENCRYPTION_KEY` or `app/core/crypto.py`.
+  Maintainer-approved exception (2026-11-23): CLIProxyAPI subscription accounts
+  retain their native token store, refresh journal and process keys on the
+  `subscription_accounts` volume. Preserve its atomic refresh/recovery contract;
+  do not describe it as Vault-encrypted or extend the exception to other keys.
+  See `docs/design/subscription-native-credentials.md` and `docs/secrets.md`.
 - Organization authority comes from membership and the permission catalog. Do not
   restore `UserRole`, `User.has_role()`, `RoleChecker`, `CurrentAdmin`,
   `CurrentSuperuser` or the old `users.role` column.
@@ -322,6 +327,8 @@ retranslated is how a stale translation stops being visible.
   `.claude/references/issue-triage.md` for the repository's board conventions.
 
 ## Releases
+
+Release cadence follows the [maintainer decision in discussion #3208](https://github.com/vstorm-co/agenticos/discussions/3208#discussioncomment-19796269): merge reviewed, green PRs independently and prepare one manual combined cut per day. Do not restore a one-release-per-PR requirement. Urgent hotfixes may ship separately through the same checks and production approval.
 
 Versions follow [Semantic Versioning](https://semver.org) from 1.0.0 onwards, except
 that the major stays 1 (below); every release before 1.0.0 was `0.0.N`. CHANGELOG.md

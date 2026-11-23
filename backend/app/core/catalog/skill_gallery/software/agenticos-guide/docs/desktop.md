@@ -737,3 +737,295 @@ Local access choices belong to the selected agent, not to a global default inher
 While local coding sessions run, `[session:api] Use the EU numbers` redirects the session named `api`. With one active session, an unaddressed correction reaches it; with several, it stays with the parent agent to avoid changing an unrelated task. The parent records the correction once when it continues.
 
  Sandbox coding tasks in the same toolset queue so their workspace snapshots do not overlap; independent local sessions still run in parallel.
+
+Custom installed ACP programs can be registered under **External ACP agents**. See [External ACP agent](https://vstorm-co.github.io/agenticos/reference/capabilities/#external-acp) for registration, permissions, session identity and billing limits.
+
+## Codex as the conversation runtime { #codex-conversation }
+
+In Desktop chat, choose an approved **Full access** folder, then **Conversation runtime → Codex · this computer**. Codex now makes the conversation's answer; no hosted model delegates the prompt to it. Sign in through the existing native coding-account controls. Its CLI owns the account, model configuration and charges; no vault OAuth grant or cloud profile key is imported. An optional exact native model ID must be acknowledged before the prompt. The normal model profile remains attribution, not a second inference provider.
+
+**Runtime tool access** defaults to read-only. Native writes and commands are refused; platform tools are offered only when the canonical classifier establishes read-only behavior. Editing keeps the agent's permission, approval and budget gates. The CLI still runs with the local account's OS access, not an OS sandbox. Native activity and streamed answers enter the existing chat; forwarded platform calls are capped by the run's step/tool-call ceiling. Native internal requests, tokens and subscription/API charges remain unpriced and unmeasured.
+
+Completed turns record a scoped native-session receipt. Subsequent turns and restarts must match that session and the stored visible history before sending new context. Changing runtime, model or policy creates another scope. **Reset native session** retains the chat and starts a fresh native context. A failed or missing receipt never silently resumes or submits another task. After Stop, disconnection or unknown delivery, check effects before resetting or continuing; there is no automatic retry or rollback.
+
+This mode supports only the initiating member's private, unshared text web chat. Structured output, multimodal prompts, model-setting overrides, Code Mode, reviewers and platform compaction must be disabled; the native CLI manages its own context. Auxiliary model calls need a separate supported provider, not recursive access to the primary session. API, voice, schedules and other callers cannot borrow the Desktop account. Existing Codex model profiles and delegated coding tasks remain separate choices. Real-account login, entitlement, tool effects, quotas and restart/resume require acceptance testing.
+
+## Forward platform tools { #runtime-platform-tools }
+
+**External ACP agent → Forward platform tools** is off by default. Enable it to let the registered runtime call the tools already admitted to this AgenticOS run. It requires the initiating member's private, unshared conversation and approved computer. Desktop asks for separate native consent; existing folder consent alone does not enable the bridge. The provider sections below describe defaults unless this option is enabled.
+
+A process-owned loopback MCP endpoint carries requests through the prepared Pydantic AI tool manager. Pi uses an app-owned extension; Muse uses its SDK's per-session MCP configuration. Validation, resource permissions, budget checks, approval policy and result screening still apply. Runtime-delegation tools are excluded, and forwarded calls run sequentially. A runtime that does not discover the scoped catalog is refused before an ACP prompt. No platform bearer token is given to the program.
+
+Actions needing approval show their complete arguments in the live chat. The approval is committed before the action executes and authority is checked again when the answer arrives. Missing authority, oversized cards, rejection, expiry or disconnection never invent consent or park the live RPC. Cancellation, uncertain delivery and oversized or unsupported results are explicit failures; actions are never retried automatically. The local bridge's credentials expire with its process. Vendor-native tools retain their existing privileges and account billing.
+
+## Antigravity through ACP { #antigravity-acp }
+
+Install Google's Antigravity CLI. Under **External ACP agents**, choose one of two
+setup templates and enter the absolute path reported by `which agy`. Both permit
+only the `acp` argument, and neither copies token files.
+
+| Template | Login | Billing |
+| --- | --- | --- |
+| **Antigravity** | Google personal sign-in (`oauth-personal`). Run `agy acp --login` first. Inherited Gemini API keys and API/Vertex selectors are removed. | Your Google AI plan |
+| **Antigravity · Gemini API key** | `gemini-api-key`, using a Gemini key chosen from the vault (purpose Google Gemini or Custom) for the run, otherwise the `GEMINI_API_KEY` that Desktop inherited. A vault key needs your own view access to it and reaches only your private chat on your own computer. A missing key refuses the launch; the saved Google sign-in is never used instead. | Gemini API pricing and terms |
+
+Using the first template carries a risk to your Google account. Section 6 of the
+[Antigravity Additional Terms](https://antigravity.google/terms) restricts consumer
+sign-in through third-party tools, and a Google maintainer
+[wrote on the CLI's issue tracker](https://github.com/google-antigravity/antigravity-cli/issues/1493)
+that it must not back a third-party agent harness, with abuse enforcement and
+account suspension as the consequence. Other clients, such as T3 Code, offer the
+same sign-in. The console asks you to accept this risk before it registers the
+template; the decision and its consequences are yours. The Gemini API key template
+avoids it.
+
+Enable **External ACP agent** in the Builder with the registered ID. Desktop
+requires the template's ACP authentication method before a session starts, even
+when the binding uses the program-setting mode. A refused or unsupported login
+fails without trying another account or billing mode.
+
+Ask the agent to use `inspect_acp_agent` to read the current session's model and
+thinking choices. The catalog sends no inference prompt and is not cached across
+accounts. An absent picker differs from an empty list. Set **External model ID**
+to an exact returned ID to choose a runtime model; leaving it empty keeps the CLI
+setting. An unsupported model setting fails explicitly.
+
+This runs delegated tasks using Antigravity's native tools. It is separate from
+Gemini API model profiles and does not forward AgenticOS platform tools by default.
+Usage is unpriced in AgenticOS. Google restricts some third-party models to named
+clients; AgenticOS identifies itself as AgenticOS and promises no access beyond
+its own advertised catalog.
+
+### Registered agents as the conversation runtime { #external-runtime }
+
+Antigravity with a Gemini Vault key uses the optional native model ID field instead of probing the key inherited by Desktop. Leave it empty to keep the CLI default; an explicit ID is checked against the running session before a prompt is sent.
+
+Any agent registered under **External ACP agents** can also answer the
+conversation itself, instead of the agent's model profile, under the
+[same contract](#codex-conversation) as Codex and Claude Agent: Antigravity in either
+mode, Cursor, Cline, Grok, Kimi, Qwen, Devin, Mistral Vibe, OpenCode and Go,
+Hermes, Muse and custom ACP programs. Pi templates speak RPC rather than ACP and
+take delegated tasks only.
+
+Choose **This computer** with full access, then **Conversation runtime → External
+agent · this computer**, and pick the registration when there is more than one.
+Desktop reads that registration's models with its own login and no model turn and
+lists them under **Model**; **Agent default** keeps the CLI's selection. Mistral
+Vibe, Kimi, Qwen, Devin, Hermes and Muse choose their model in their own settings,
+so no list is read. A failed read shows the CLI's refusal and **Read models again**.
+A listed model is not proof of entitlement or remaining quota.
+
+The runtime is available unless the operator sets
+`EXTERNAL_NATIVE_CONVERSATION_ENABLED=false`. Registered CLIs promise no read-only
+confinement, so the runtime always runs with its own tool access, and AgenticOS
+platform tools keep the agent's approval policy. Hermes gets the same private
+per-conversation home as for delegated tasks. A registration that does not speak
+ACP is refused before any prompt is sent, and changing the registration or model
+starts a new native session. With an Antigravity personal sign-in, the picker
+repeats the account risk you accepted when registering it.
+
+Real-account login, entitlement, quota, revocation and resume after restart still
+require acceptance testing. See the [official ACP guide](https://antigravity.google/docs/ide/extensions/acp)
+for supported authentication methods and client restrictions.
+
+## OpenCode and Go through ACP { #opencode-acp }
+
+Install OpenCode, run `opencode auth login` in a terminal, then register its
+absolute executable path with the **OpenCode** template under **External ACP
+agents**. The template launches `opencode acp`. Provider credentials, custom
+endpoints and project settings stay in OpenCode; AgenticOS does not copy keys or
+rewrite its configuration. This delegates native tasks and does not forward
+AgenticOS tools by default or replace the main conversation runtime.
+
+Use `inspect_acp_agent` for a session snapshot of configured model choices. It
+waits briefly for delayed ACP catalog updates; `refresh_pending` means no model
+choices arrived within that window. Inspect again after completing CLI setup.
+The catalog describes configuration, not verified entitlement or remaining quota.
+Set **External model ID** to an exact returned ID or keep the CLI default.
+
+For **OpenCode Go**, connect the Go key under **OpenCode Go** using `/connect` in
+OpenCode itself. Register the separate **OpenCode Go** template and choose an
+`opencode-go/…` model. A task requires that namespace both before selection and
+in the acknowledged session settings; missing or different selections fail before
+an inference prompt. Discovery filters other providers from this registration.
+There is no automatic fallback to another primary provider after a refusal.
+
+Go is for coding work. The namespace restriction covers the primary model;
+OpenCode's auxiliary models and Go **Extra Usage** settings can incur additional
+charges. AgenticOS reports external spend as unpriced. Account login, Go quota,
+revocation and restart/resume need real-account acceptance tests. See the
+[ACP guide](https://opencode.ai/docs/cli/acp/) and
+[Go account setup](https://opencode.ai/docs/console/go/).
+
+## Cursor through ACP { #cursor-acp }
+
+Install the Cursor CLI, run `agent login` and check `agent status`. Register the
+absolute executable path using the **Cursor** template. It launches `agent acp`,
+requires the advertised `cursor_login` method and removes inherited
+`CURSOR_API_KEY` and `CURSOR_AUTH_TOKEN` overrides. Sign-in stays with Cursor;
+AgenticOS does not read token files, change Cursor settings or install its CLI.
+This template supports the CLI account, not an API-key registration. The separate **Cursor API key** template is described [below](#native-account-controls-and-launch-models).
+
+Use `inspect_acp_agent` for session model choices and **External model ID** for an
+exact returned ID. An absent picker does not imply account eligibility. Usage is
+unpriced; Cursor account settings decide subscription, on-demand and other charges.
+Log out using `agent logout`, then remove or re-register the Desktop entry to stop
+owned sessions and clear remembered continuation. Register again after a switch
+of account; changing CLI credentials alone does not revoke a running process.
+
+Native questions and complete plan reviews appear in the live chat; only your
+explicit answer is returned. See [runtime questions](#runtime-questions).
+Standard ACP tool permissions use the existing delegation policy. This integration
+requires full local access and forwards no AgenticOS tools by default. Real-account login,
+model eligibility, quota refusal and restart/resume remain acceptance follow-ups.
+See [Cursor ACP](https://cursor.com/docs/cli/acp) and
+[CLI authentication](https://cursor.com/docs/cli/reference/authentication).
+
+## Cline through ACP { #cline-acp }
+
+Install a Cline CLI version with direct ACP support and register its absolute
+executable path using **Cline** or **Cline API key**. Both launch `cline --acp`
+without auto-approval flags, fix `CLINE_PROVIDER=cline` and use the existing owned
+process/session lifecycle. They do not connect to a shared background hub.
+
+For **Cline**, complete `cline auth` first. The native child removes inherited
+`CLINE_API_KEY` and authenticates with the advertised `cline` account method.
+For **Cline API key**, start Desktop with `CLINE_API_KEY` in its process environment;
+no key is accepted in the spec, registration arguments or server messages. A
+missing or empty key refuses launch before a session starts. The CLI receives
+that key directly; AgenticOS does not fall back to stored login. No credential is
+persisted by this integration.
+
+`inspect_acp_agent` reads the session catalog without inference. Set **External
+model ID** to an exact ID it returns or keep the CLI selection. Account credits,
+free offerings and charges depend on Cline; this integration promises neither a
+free model nor subscription entitlement. Usage remains unpriced. Re-register or
+remove the entry after changing credentials to stop its processes and clear
+continuation. Full local access is required; platform tools are not forwarded by default.
+
+Account/key login, credit refusal, available models and restart/resume still need
+real-account acceptance. See [Cline ACP](https://github.com/cline/cline/blob/main/docs/usage/acp.mdx).
+
+## Mistral Vibe through ACP { #mistral-vibe-acp }
+
+Install Mistral Vibe, complete `vibe --setup`, then register the absolute
+`vibe-acp` executable path with the **Mistral Vibe** template and no arguments.
+The template requires ACP `browser-auth`, disables telemetry for this child and
+enables Vibe's experimental model catalog. It leaves configuration and credential
+files with Vibe. Browser sign-in may provision or reuse an API key; it is not
+proof of Le Chat subscription entitlement.
+
+`inspect_acp_agent` waits briefly for session catalog updates and includes
+sanitized `credentials`: `kind=api_key`, its source (`os_keyring`, `cli_file` or
+`environment`) and whether Vibe reports native sign-out as available. Task reports
+carry the same facts. No account identity, key, domain or configuration error is
+copied into those results. An unknown status contract or unavailable credential
+fails before an inference prompt. The status describes credential storage, not
+remaining credit or the account's plan.
+
+Keep API and subscription charges under the account's own controls; external use
+is unpriced. Inherited keys remain with the CLI and cannot be revoked by removing
+a registration. Use Vibe's own setup/account controls, then remove or re-register
+the Desktop entry to stop owned processes and clear continuation. This supports
+local browser authentication, not delegated browser login on a remote host.
+Full local access is required; platform-tool forwarding is an explicit option described [above](#runtime-platform-tools).
+Real account login, credit limits, sign-out and restart/resume need acceptance
+tests. See [Vibe ACP setup](https://docs.mistral.ai/vibe/code/use-vibe-in-other-ides).
+
+Mistral Vibe reports `configuration_policy=launch`: choose an advertised External model ID. Desktop sets `VIBE_ACTIVE_MODEL` only in this child; it never invokes Vibe’s settings-writing model operation.
+
+## Grok Build through ACP { #grok-acp }
+
+Install Grok Build, complete `grok login` (or `grok login --device-auth`), and register the absolute `grok` path with the **Grok** template. It launches `--no-auto-update agent stdio`, removes inherited `XAI_API_KEY` and `GROK_CODE_XAI_API_KEY`, and sets `GROK_DISABLE_API_KEY_AUTH=true` only for this child.
+
+AgenticOS requires the advertised `cached_token` method, rejects a runtime still advertising `xai.api_key`, and requests headless authentication. It neither imports token files nor falls back to a key or another login. Inspect models through `inspect_acp_agent`; account, gateway and plan settings determine availability and billing. This template does not promise that every Grok plan includes Build. Human questions use the live chat card; an empty final answer is an explicit failure.
+
+Re-register after changing accounts. The separate **Grok API key** template isolates that credential from saved CLI accounts; see [native account controls](#native-account-controls-and-launch-models). Real-account login, quotas, cancellation and model access remain acceptance checks. See the [Grok CLI reference](https://docs.x.ai/build/cli/reference).
+
+## Kimi Code through ACP { #kimi-acp }
+
+Install Kimi Code CLI, complete `kimi login`, and register the absolute `kimi` path using **Kimi Code**. The template launches `acp` and requires advertised `login` authentication. This operation checks CLI login readiness; AgenticOS does not open a login terminal or import token files. Missing or expired credentials stop the task without trying another method.
+
+Choose an exact Kimi model ID from `inspect_acp_agent`. The source-checked launch host changes only its in-memory configuration; Kimi retains credentials, refresh and billing. Human questions still use the live chat card.
+
+Re-register after changing accounts. Real-account entitlement, quota, reconnect, cancellation and available models remain acceptance checks. This is delegated local execution; it forwards no AgenticOS platform tools by default. See [Kimi ACP](https://www.kimi.com/code/docs/en/kimi-code-cli/reference/kimi-acp).
+
+## Qwen subscription through ACP { #qwen-subscription-acp }
+
+Install a current Qwen Code CLI, run `qwen`, and use `/auth` to choose **Qwen Account with Subscription**. Register the absolute `qwen` path with **Qwen subscription**. The child launches `--acp --auth-type=qwen-subscription` and removes inherited `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `OPENAI_MODEL` and `DASHSCOPE_API_KEY`. Unsupported CLI versions must be upgraded rather than replaced with an API-key fallback.
+
+This template does not call ACP `authenticate`, which can change the saved authentication choice. Qwen uses its own subscription login. An optional advertised model ID is passed through `--model` at launch and must be confirmed before inference.
+
+Qwen Plus/Pro subscription access is distinct from Alibaba Model Studio API keys and Coding/Token Plan endpoints. The discontinued legacy free OAuth allowance is not offered. Plans and quotas require real-account acceptance, alongside expiry/revocation, cancellation, reconnect and available models. Re-register after changing accounts. Platform-tool forwarding is an explicit option described [above](#runtime-platform-tools). See [Qwen authentication](https://qwenlm.github.io/qwen-code-docs/en/users/configuration/auth/).
+
+## Devin CLI through ACP { #devin-acp }
+
+Install Devin CLI, complete `devin auth login` and check `devin auth status`. Register its absolute `devin` path with **Devin**. The template launches `--permission-mode normal acp`, requires the advertised `devin-browser` method, and rejects extra cloud or permission-bypass flags. Credentials remain in the CLI; AgenticOS does not import them.
+
+This delegates to the local CLI, not the Devin Cloud task API. An optional advertised model is passed through `--model` at launch and must be confirmed before inference. Account policies determine access and billing.
+
+Re-register after changing accounts. Login/expiry/revocation, quotas, models, multi-turn resume, cancellation and account replacement require real-account acceptance. Native human-input UI remains unverified. Scoped platform-tool forwarding is an explicit option described [above](#runtime-platform-tools). See [Devin ACP](https://docs.devin.ai/cli/acp/zed) and [commands](https://docs.devin.ai/cli/reference/commands).
+
+## Pi through native RPC { #pi-rpc }
+
+Register **Pi** in Settings → Desktop app with the absolute path of `pi`. The template launches exactly `--mode rpc`, using Pi's own provider, model, accounts and extensions. Complete login and select the model in Pi first; keep External model ID empty. This is delegated execution in an explicitly approved full-access folder, with no OS sandbox. Platform tools are off by default; this template never exports vault keys. Pi's local tools and extensions retain their own privileges. Subscription or API billing follows its selected account and remains unpriced.
+
+Use `inspect_acp_agent` to discover provider-qualified model IDs from the configured Pi catalog. The tool name is retained for compatibility; the transport is Pi RPC, not ACP. A listing does not establish authentication, entitlement or credits. Named tasks remember the native session file under the existing tenant/person/chat/folder/registration revision scope. Re-register after changing accounts. Failed resume is refused rather than silently starting a different session.
+
+Completion waits for `agent_settled`, including automatic retries and compaction after `agent_end`. A failed, aborted, queued or extension-handled prompt is never reported as completed. Stop clears queued work, aborts the active turn and closes the owned process tree. Supported extension dialogs use the live chat card; no human answer is invented. Real-account streaming, restart/resume, quota, cancellation and extension compatibility remain acceptance checks. See [Pi RPC](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/rpc.md).
+
+## Muse through the official SDK { #muse-sdk }
+
+Choose **Muse** or **Muse API key** in Settings → Desktop app, with the absolute path to Muse CLI **1.4.23**. AgenticOS packages the matching MIT-licensed `@muse-code/sdk` in its managed Node runtime. The native SDK owns MSP negotiation, event reconstruction, replay and turn outcomes; an AgenticOS adapter connects it to the existing task transport. It starts its own foreground `muse serve` process. It does not attach to a daemon or treat a Meta account as a generic model token.
+
+Complete first-run setup in `muse`. Muse gives environment keys precedence over stored keys, then browser sign-in. Inspect the runtime to see the effective API-key or OAuth source, without copying tokens or account labels into the report. API-key mode requires `META_API_KEY` in Desktop and confirmation of the environment-key lane; a saved key or browser session cannot silently replace it. Browser sign-in does not establish entitlement or billing. Managed Meta accounts may require API keys. Usage remains unpriced.
+
+Tasks require explicit full-access folder consent. Muse retains its native tools and configured extensions; platform tools are not forwarded by default and tool-free execution is not offered. Discover the current provider-qualified model catalog with `inspect_acp_agent`; model changes require a catalog match and server acknowledgement. Durable sessions use the existing scoped resume history; unsupported persistence or SDK/CLI mismatch refuses execution. Cancellation reaches the SDK turn and closes the owned process tree. Failed and unknown terminal outcomes never become completion. Real-account entitlement, quota, restart/resume, stop and installed-extension compatibility remain acceptance tests. See [Muse SDK](https://github.com/meta-models/muse-code-sdk) and [authentication](https://www.musemuse.dev/docs/muse-code/auth).
+
+## Runtime questions { #runtime-questions }
+
+Cursor questions and full plan reviews, Grok questions, Kimi's question-permission fallback, Pi select/confirm/input/editor dialogs and Muse SDK user inputs appear in the existing live chat card. Multiple-choice bounds, offered identities and native previews are preserved. Pi editors keep indentation, line breaks and an explicit empty replacement. Password requests stay in the vendor's own login.
+
+Answers require the initiating person's live, authorized socket and the current question identity. Stop, disconnection, native expiry or terminal settlement closes the pending card; a late answer cannot answer a later request. Without a live question surface, supported requests are explicitly cancelled. These dialogs do not grant tool permissions or weaken the configured delegation policy. Questions and accepted answers enter the existing conversation timeline.
+
+### Manage the Muse account in Desktop { #muse-account }
+
+Each Muse registration offers **Check account**, **Sign in to Muse** and **Sign out of Muse**. Device sign-in uses the pinned SDK and Muse's own device-code flow. Confirm the native prompt, open the displayed HTTPS address and enter its code. Keep Settings open until completion. Cancel, closing the control, a changed registration/server or ten minutes without completion ends the owned login process. No account labels, keys or device codes are sent to the backend or model.
+
+Sign-in requires a logged-out Muse account with no overriding API key. The required environment-key template offers status and sign-out, without browser login. Sign-out removes Muse's stored account/key, while an inherited `META_API_KEY` remains active and is reported as such. Changing the account stops all Muse tasks and clears their continuations because its local CLI credentials are shared. New Muse tasks wait until account management finishes. Vendor plan acceptance and a real-account device login/logout remain smoke tests.
+
+## Pi with a selected vault API key { #pi-vault-key }
+
+Register **Pi · Inception**, **Pi · DeepSeek** or **Pi · OpenRouter** with the absolute path to Pi CLI **1.5.2**. In External ACP agent configuration, choose the same **Vault-key provider**, select its vault API key and set a provider-qualified **External model ID**, such as `deepseek/<model-id>`. These are API-key lanes, separate from Pi's own saved accounts and the existing direct Pydantic AI providers.
+
+Only the initiating member's private, approved full-access computer may receive the key. Agent run access alone is insufficient: current organization membership and independent visibility of this exact vault key are checked before each launch or inspection. Anonymous, shared-room and impersonated runs cannot export it. The native registration must acknowledge the same provider before a prompt can be sent. Key rotation changes the continuation scope.
+
+Pi uses a temporary private configuration with no saved login or discovered extensions, skills, prompt templates or MCP servers. A key-free extension receives the key in its child environment, removes the bootstrap variables and overrides provider authentication, including both OpenRouter header dialects. The key never enters command arguments, generated files, model tool parameters or reports. Native tools retain full local access; this is no OS sandbox. Text chunks are withheld until a complete answer can be redacted; tool activity remains visible.
+
+Inception chat model IDs, context/output limits and prices come from its current authenticated chat catalog. DeepSeek and OpenRouter use the pinned Pi catalog and transport. Exact model changes require a matching native acknowledgement. Inspection returns at most 128 choices, keeps the current model first and reports truncation; a model listing proves neither account entitlement nor remaining credit. Charges remain unpriced in AgenticOS. Invalid keys, credit refusal and unsupported models fail without another saved account or billing fallback.
+
+Private native session files remain scoped to the caller, agent, chat, folder, registration and selected-key revision. Temporary configuration is removed with the owned process. Remove or re-register the native entry to revoke its continuations. Account/key smoke tests cover streamed work, 401/402, quotas, restart/resume and Stop. Platform-tool forwarding is an explicit option described [above](#runtime-platform-tools). See [Pi provider extensions](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/custom-provider.md) and [Inception models](https://www.inceptionlabs.ai/models).
+
+Codex and Claude Agent are available unless the operator sets `CODEX_NATIVE_CONVERSATION_ENABLED=false` or `CLAUDE_NATIVE_CONVERSATION_ENABLED=false`. Each person uses their own CLI account and answers for its terms. OpenAI does not permit App Server authentication for commercial or hosted services without approval, and Anthropic requires prior approval to offer claude.ai login or consumer rate limits in a third-party SDK product; the picker states that the provider may limit or suspend an account. The switches establish neither entitlement nor approval. Changing login through Desktop stops that runtime’s active processes and clears its saved continuations; reset the native session before continuing. Manual account changes outside Desktop also require an explicit reset.
+
+Claude Agent uses the existing pinned Claude Code ACP adapter as the primary conversation runtime, with the same private-session, streaming, tool-policy and recovery contract as Codex. The vendor binary and its authentication methods remain unmodified. The interface uses the permitted “Claude Agent” name.
+
+## Hermes foreground runtime {#hermes-runtime}
+
+Register the **Python executable** from a prepared Hermes environment, with the Hermes template and no arguments. This integration uses Hermes source revision `91cb42b51bddc6841c4e50183c41c96d59e48516`. Prepare that checkout using upstream's dependency instructions, then select its Python environment. Desktop verifies the three adapter boundary files before inference. A different source revision is refused until its contract is reviewed.
+
+Desktop runs `HermesACPAgent(session_manager=SessionManager())` in its own process. Calling `hermes acp` normally selects the shared gateway viewer instead. The explicit session manager keeps this integration in the foreground: Stop closes its owned process tree and never stops or borrows a personal gateway. Model discovery, multi-turn streaming, native permissions and optional scoped platform tools use the existing ACP boundary.
+
+Each initiating member's private conversation gets a separate Hermes home, also bound to the agent, native folder, connection and registration revision. Shared or impersonated runs are refused. The first launch shows the exact home and local setup instructions. Set `HERMES_HOME` to that directory in your terminal and run the selected Python with `-m hermes_cli.main --profile default setup`; for Nous Portal use `-m hermes_cli.main --profile default auth add nous --type oauth`. Configure the model/provider there. No existing home, memory, skills or token files are imported.
+
+Hermes owns credentials, refresh, configured API/subscription billing and native tools. Login and a model catalog do not establish plan entitlement. Usage is unpriced. Stop the run before account changes and register again to invalidate continuations and select a fresh profile. Removing a registration does not delete vendor profile files; retire that home separately when its account is no longer needed. Native tools retain the explicitly approved full local access. Real-account checks are recorded separately in the PR.
+
+## Native account controls and launch models
+
+Under **Settings → Desktop app**, Cursor, Grok, Kimi, Devin and Vibe registrations offer account status, sign-in, reconnect, sign-out and cancellation. Reconnect signs out first. A native confirmation names the executable before mutation; all registrations of that CLI stop, saved continuations and consent are cleared, and new launches wait for the account process to stop. Login remains vendor-owned; codes and credential details never reach the backend. Vibe reports inherited environment keys explicitly and refuses to remove them.
+
+**Cursor API key** requires Desktop’s `CURSOR_API_KEY` and removes `CURSOR_AUTH_TOKEN`. **Grok API key** requires `XAI_API_KEY`, uses a private `GROK_HOME` without copied accounts or settings, and authenticates only as `xai.api_key`. Scoped session data survives process restarts; the CLI-owned `auth.json` is removed on exit and before reuse after a crash. Missing keys or refused authentication never select a saved login. Model discovery uses the same isolated credential path.
+
+Vibe, Kimi, Qwen and Devin model choices apply to the launched process (`configuration_policy=launch`), never to user defaults. The runtime must acknowledge the requested model before any prompt; mismatches and separate reasoning overrides are refused. Leave the model empty to retain the CLI default. Kimi selections require the Python-installed source revision `9ab1286b8fe4e6bcd116949a27ce5e0ac3389c82`; register its `kimi` launcher whose shebang names that environment’s Python. The owned host checks source fingerprints before loading it. A frozen or incompatible CLI is refused for model overrides.
+
+Update API and Desktop together. These controls and protocol tests do not verify real-account plan access, quota or billing; those acceptance tests remain deferred.

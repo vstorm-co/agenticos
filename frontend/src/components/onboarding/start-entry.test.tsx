@@ -1,5 +1,6 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
+import type { ReactNode } from "react";
 import { useAuthStore } from "@/stores/auth-store";
 import { useOnboardingLocationStore } from "@/stores/onboarding-location-store";
 import { startLocationKey } from "@/lib/onboarding/start-location";
@@ -8,6 +9,8 @@ const env = vi.hoisted(() => ({
   completed: false,
   automatic: true,
   entry: "",
+  flow: "",
+  preferencesDone: false,
   resume: false,
   activity: false,
   ready: false,
@@ -20,7 +23,7 @@ const env = vi.hoisted(() => ({
 vi.mock("next/navigation", () => ({
   useSearchParams: () =>
     new URLSearchParams(
-      `${env.automatic ? "welcome=1" : ""}&entry=${env.entry}${env.resume ? "&start-step=member.context&workspace=org" : ""}`,
+      `${env.automatic ? "welcome=1" : ""}&entry=${env.entry}${env.resume ? "&start-step=member.context&workspace=org" : ""}${env.flow ? `&flow=${env.flow}` : ""}${env.preferencesDone ? "&preferences=done" : ""}`,
     ),
 }));
 vi.mock("@/lib/locale-navigation", () => ({ useRouter: () => ({ replace: env.replace }) }));
@@ -44,13 +47,41 @@ vi.mock("@/hooks/use-organizations", () => ({
   useOrganizationList: () => ({ isPending: env.orgPending, data: env.noOrg ? [] : [{}] }),
 }));
 vi.mock("./start-hub", () => ({ StartHub: () => <h1>Workspace setup</h1> }));
+vi.mock("./start-preferences", () => ({
+  StartPreferences: ({
+    onContinue,
+    children,
+  }: {
+    onContinue: () => void;
+    children?: ReactNode;
+  }) => (
+    <>
+      {children}
+      <h1>Personal preferences</h1>
+      <button onClick={onContinue}>Finish preferences</button>
+    </>
+  ),
+}));
+vi.mock("@/components/orgs/accept-staged-invitation", () => ({
+  AcceptStagedInvitation: ({ presentation }: { presentation: string }) => (
+    <aside>Staged invitation {presentation}</aside>
+  ),
+}));
+vi.mock("@/components/orgs/received-invitations", () => ({
+  ReceivedInvitations: ({ presentation }: { presentation: string }) => (
+    <aside>Received invitations {presentation}</aside>
+  ),
+}));
 beforeEach(() => {
   useAuthStore.setState({ user: null });
   useOnboardingLocationStore.setState({ startLocations: {} });
+  window.history.replaceState({}, "", "/onboarding");
   env.completed = false;
   Object.assign(env, {
     automatic: true,
     entry: "",
+    flow: "",
+    preferencesDone: false,
     resume: false,
     activity: false,
     ready: false,
@@ -90,25 +121,74 @@ it("allows an administrator without any organization to create one", () => {
 });
 
 it.each(["account", "joined"])(
-  "welcomes a fresh %s entry even when the organization has ready agents",
+  "starts fresh %s entry with preferences, then workspace setup",
   (entry) => {
     env.entry = entry;
     env.ready = true;
     render(<StartEntry />);
+    expect(screen.getByRole("heading", { name: "Personal preferences" })).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Finish preferences" }));
     expect(screen.getByRole("heading", { name: "Workspace setup" })).toBeVisible();
     expect(env.replace).not.toHaveBeenCalled();
   },
 );
+it("keeps new-account onboarding before workspace activity checks", () => {
+  env.entry = "account";
+  env.ready = true;
+  env.activity = true;
+  render(<StartEntry />);
+  expect(screen.getByRole("heading", { name: "Personal preferences" })).toBeVisible();
+  expect(env.replace).not.toHaveBeenCalled();
+});
+it("embeds only the staged invitation during fresh preferences and preserves flow and navigation state on Continue", () => {
+  env.entry = "account";
+  env.flow = "0123456789abcdef0123456789abcdef";
+  window.history.replaceState(
+    { retained: "navigation-state" },
+    "",
+    `/onboarding?welcome=1&entry=account&flow=${env.flow}#anchor`,
+  );
+  render(<StartEntry />);
+  expect(screen.getByText("Staged invitation inline")).toBeVisible();
+  expect(screen.queryByText("Received invitations inline")).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Finish preferences" }));
+  expect(window.history.state).toEqual({ retained: "navigation-state" });
+  expect(new URLSearchParams(window.location.search).get("preferences")).toBe("done");
+  expect(new URLSearchParams(window.location.search).get("flow")).toBe(env.flow);
+  expect(window.location.hash).toBe("#anchor");
+  expect(screen.getByRole("heading", { name: "Workspace setup" })).toBeVisible();
+  expect(screen.queryByText("Staged invitation inline")).not.toBeInTheDocument();
+});
+
+it("offers received invitations inline during preferences when no staged flow exists", () => {
+  env.entry = "account";
+  render(<StartEntry />);
+  expect(screen.getByText("Received invitations inline")).toBeVisible();
+  expect(screen.queryByText("Staged invitation inline")).not.toBeInTheDocument();
+});
+
 it.each(["account", "joined"])(
-  "does not restart the %s journey after personal activity",
-  async (entry) => {
+  "does not restart completed preferences after a %s refresh",
+  (entry) => {
     env.entry = entry;
-    env.ready = true;
-    env.activity = true;
+    env.preferencesDone = true;
+    env.flow = "0123456789abcdef0123456789abcdef";
     render(<StartEntry />);
-    await waitFor(() => expect(env.replace).toHaveBeenCalledWith("/chat"));
+    expect(screen.queryByRole("heading", { name: "Personal preferences" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Staged invitation inline")).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Workspace setup" })).toBeVisible();
   },
 );
+
+it("resumes a fresh-entry step without replaying preferences or placing invitations above the full-height hub", () => {
+  env.entry = "account";
+  env.resume = true;
+  env.flow = "0123456789abcdef0123456789abcdef";
+  render(<StartEntry />);
+  expect(screen.queryByRole("heading", { name: "Personal preferences" })).not.toBeInTheDocument();
+  expect(screen.queryByText("Staged invitation inline")).not.toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "Workspace setup" })).toBeVisible();
+});
 it("keeps an explicitly resumed walkthrough open", () => {
   env.resume = true;
   env.ready = true;
@@ -163,3 +243,11 @@ it("remembers a safe current step without entry metadata and clears it after com
     ).toBeUndefined(),
   );
 });
+
+it.each(["admin.subscriptions", "member.subscriptions"])(
+  "restores the subscription loading view: %s",
+  async (step) => {
+    const { startLoadingView } = await import("./start-skeleton");
+    expect(startLoadingView(step, null)).toBe("subscriptions");
+  },
+);

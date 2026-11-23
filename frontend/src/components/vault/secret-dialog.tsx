@@ -1,5 +1,7 @@
 "use client";
 
+import { isChatGPTSignInKind } from "@/types/secrets";
+
 import { useState } from "react";
 import { KeyRound } from "lucide-react";
 import { toast } from "sonner";
@@ -145,8 +147,8 @@ export function AddSecretDialog({
   const [kind, setKind] = useState<StorableSecretKind>("api_key");
   const [value, setValue] = useState<Record<string, unknown>>(initial?.value ?? {});
   const [callbackUrl, setCallbackUrl] = useState("");
+  const [deviceState, setDeviceState] = useState<string | null>(null);
   const [errors, setErrors] = useState<Readonly<Record<string, string>>>({});
-  const chatgpt = useChatGPTSignIn();
 
   const inCategory = purposes.filter((entry) => entry.category === category);
   // Falls back to the first in the category so the select is never blank: an
@@ -161,8 +163,12 @@ export function AddSecretDialog({
   const info = kindInfo(kinds, effectiveKind);
   // The one shape nobody types: it is stored by signing in, and it is somebody's
   // own subscription - so it starts private, where every other key starts shared.
-  const signsIn = effectiveKind === "openai_codex";
-  const visibility = chosenVisibility ?? (signsIn ? "private" : "org");
+  const signsIn = isChatGPTSignInKind(effectiveKind);
+  const chatgpt = useChatGPTSignIn(signsIn ? effectiveKind : "openai_codex");
+  const visibility =
+    effectiveKind === "openai_chatgpt"
+      ? "private"
+      : (chosenVisibility ?? (signsIn ? "private" : "org"));
   const pending = isPending || chatgpt.create.isPending;
   // What the field shows: what was typed, or the service's own name. Switching
   // from OpenAI to Anthropic with the field still reading "OpenAI" leaves a key
@@ -173,7 +179,9 @@ export function AddSecretDialog({
   const complete =
     shownName.trim().length > 0 &&
     info !== null &&
-    (signsIn ? callbackUrl.trim() !== "" : isSecretComplete(info.json_schema, value));
+    (signsIn
+      ? callbackUrl.trim() !== "" || deviceState !== null
+      : isSecretComplete(info.json_schema, value));
 
   function reset() {
     setCategory(null);
@@ -184,6 +192,7 @@ export function AddSecretDialog({
     setKind("api_key");
     setValue({});
     setCallbackUrl("");
+    setDeviceState(null);
     setErrors({});
   }
 
@@ -197,6 +206,7 @@ export function AddSecretDialog({
     setPurpose("");
     setValue({});
     setCallbackUrl("");
+    setDeviceState(null);
     setErrors({});
   }
 
@@ -205,6 +215,7 @@ export function AddSecretDialog({
     setPurpose(next);
     setValue({});
     setCallbackUrl("");
+    setDeviceState(null);
     setErrors({});
   }
 
@@ -229,7 +240,9 @@ export function AddSecretDialog({
           name: shownName.trim(),
           description: description.trim() || null,
           visibility,
-          callback_url: callbackUrl.trim(),
+          ...(deviceState !== null
+            ? { device_state: deviceState }
+            : { callback_url: callbackUrl.trim() }),
         });
       } else {
         await onSubmit({
@@ -383,6 +396,10 @@ export function AddSecretDialog({
 
             {info && signsIn && (
               <ChatGPTSignInSteps
+                key={effectiveKind}
+                kind={isChatGPTSignInKind(effectiveKind) ? effectiveKind : "openai_codex"}
+                deviceEndpoint="/secrets/openai-codex/device"
+                onDeviceAuthorized={setDeviceState}
                 callbackUrl={callbackUrl}
                 onCallbackUrlChange={setCallbackUrl}
                 error={errors.callback_url}
@@ -433,7 +450,7 @@ export function AddSecretDialog({
                       {/* Not a shape a custom secret can take: a ChatGPT
                         sign-in is stored by signing in, under its provider. */}
                       {kinds
-                        .filter((entry) => entry.kind !== "openai_codex")
+                        .filter((entry) => !isChatGPTSignInKind(entry.kind))
                         .map((entry) => (
                           <SelectItem key={entry.kind} value={entry.kind}>
                             {entry.name}
@@ -449,6 +466,7 @@ export function AddSecretDialog({
               <Label htmlFor="secret-visibility">{t("whoCanUse")}</Label>
               <Select
                 value={visibility}
+                disabled={effectiveKind === "openai_chatgpt"}
                 onValueChange={(next) => setVisibility(next as SecretVisibility)}
               >
                 <SelectTrigger id="secret-visibility">
@@ -460,8 +478,14 @@ export function AddSecretDialog({
                 </SelectContent>
               </Select>
               <p className="text-muted-foreground text-xs">
-                {visibility === "org" ? t("sharedAccountAnyoneHere") : t("yoursAloneYouCan")}{" "}
-                {t("eitherWayAgentRunsWithIt")}
+                {effectiveKind === "openai_chatgpt" ? (
+                  t("chatgptOwnerOnly")
+                ) : (
+                  <>
+                    {visibility === "org" ? t("sharedAccountAnyoneHere") : t("yoursAloneYouCan")}{" "}
+                    {t("eitherWayAgentRunsWithIt")}
+                  </>
+                )}
               </p>
             </div>
 
@@ -528,21 +552,27 @@ export function RotateSecretDialog({
   const t = useTranslations("vault");
   const [value, setValue] = useState<Record<string, unknown>>({});
   const [callbackUrl, setCallbackUrl] = useState("");
+  const [deviceState, setDeviceState] = useState<string | null>(null);
   const [errors, setErrors] = useState<Readonly<Record<string, string>>>({});
-  const chatgpt = useChatGPTSignIn();
+  const chatgpt = useChatGPTSignIn(
+    isChatGPTSignInKind(secret?.kind) ? secret.kind : "openai_codex",
+  );
 
   const info = secret === null ? null : kindInfo(kinds, secret.kind);
   // A ChatGPT sign-in is rotated by signing in again: there is no value to type,
   // and the grant a refused refresh left behind is the thing being replaced.
-  const reconnects = secret?.kind === "openai_codex";
+  const reconnects = isChatGPTSignInKind(secret?.kind);
   const pending = isPending || chatgpt.reconnect.isPending;
   const complete =
     info !== null &&
-    (reconnects ? callbackUrl.trim() !== "" : isSecretComplete(info.json_schema, value));
+    (reconnects
+      ? callbackUrl.trim() !== "" || deviceState !== null
+      : isSecretComplete(info.json_schema, value));
 
   function clear() {
     setValue({});
     setCallbackUrl("");
+    setDeviceState(null);
     setErrors({});
   }
 
@@ -556,7 +586,11 @@ export function RotateSecretDialog({
     if (pending || secret === null || info === null) return;
     try {
       if (reconnects) {
-        await chatgpt.reconnect.mutateAsync({ id: secret.id, callback_url: callbackUrl.trim() });
+        await chatgpt.reconnect.mutateAsync(
+          deviceState !== null
+            ? { id: secret.id, device_state: deviceState }
+            : { id: secret.id, callback_url: callbackUrl.trim() },
+        );
       } else {
         await onSubmit({ id: secret.id, value: toSecretPayload(secret.kind, value) });
       }
@@ -592,6 +626,10 @@ export function RotateSecretDialog({
               </p>
               {reconnects ? (
                 <ChatGPTSignInSteps
+                  key={secret?.id}
+                  kind={isChatGPTSignInKind(secret?.kind) ? secret.kind : "openai_codex"}
+                  deviceEndpoint="/secrets/openai-codex/device"
+                  onDeviceAuthorized={setDeviceState}
                   callbackUrl={callbackUrl}
                   onCallbackUrlChange={setCallbackUrl}
                   error={errors.callback_url}

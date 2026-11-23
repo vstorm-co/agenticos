@@ -216,7 +216,8 @@ test.describe("Models", () => {
 
 /** Choose a provider, which is what decides every field below it. */
 async function pickProvider(page: Page, label: string): Promise<void> {
-  await page.locator('[id$="-add-model-provider"]:visible').click();
+  const provider = page.locator('[id$="-add-model-provider"]:visible');
+  await provider.click();
   await page.getByRole("option", { name: label, exact: true }).click();
 }
 

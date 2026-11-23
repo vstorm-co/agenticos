@@ -1,4 +1,5 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { NextIntlClientProvider } from "next-intl";
 import { beforeEach, expect, it, vi } from "vitest";
 
@@ -53,7 +54,8 @@ it.each([false, true])(
 
 it.each([false, true])(
   "renders the real request, tool returns and final structured answer (%s)",
-  (truncated) => {
+  async (truncated) => {
+    const user = userEvent.setup();
     useManifest.mockReturnValue({
       manifest: {
         truncated,
@@ -70,9 +72,14 @@ it.each([false, true])(
     draw();
     expect(screen.getAllByText("Model request")).toHaveLength(2);
     expect(screen.getByText("Model response")).toBeVisible();
-    expect(screen.getByText(/Read my week/)).toBeVisible();
-    expect(screen.getByText(/PR #12 waiting/)).toBeVisible();
-    expect(screen.getByText(/Review PR #12/)).toBeVisible();
-    expect(screen.getAllByRole("button")).toHaveLength(3);
+    const events = screen.getAllByRole("listitem");
+    expect(within(events[0]!).getByText("Read my week", { selector: "p" })).not.toBeVisible();
+    await user.click(within(events[0]!).getByText("Model request"));
+    expect(within(events[0]!).getByText("Read my week", { selector: "p" })).toBeVisible();
+    expect(within(events[2]!).getByRole("region")).toHaveTextContent("Review PR #12");
+    expect(within(events[2]!).getByRole("button")).toBeVisible();
+    expect(within(events[0]!).getByRole("region")).not.toBeVisible();
+    await user.click(within(events[0]!).getByText("Raw record"));
+    expect(within(events[0]!).getByRole("region")).toHaveTextContent('"part_kind": "user-prompt"');
   },
 );

@@ -305,3 +305,41 @@ class TestEveryCapabilityHasContracts:
             "these capabilities offer tools the Builder cannot describe; give the "
             "documentation prober whatever their build needs"
         )
+
+
+@pytest.mark.parametrize("asynchronous", [False, True])
+@pytest.mark.parametrize("available", [False, True])
+async def test_documentation_resolves_a_context_dependent_toolset(
+    asynchronous: bool, available: bool
+) -> None:
+    from dataclasses import replace
+
+    from app.services.capability_contracts import _contracts_for
+
+    toolset = FunctionToolset()
+    toolset.add_function(lambda: "unused", name="probe", description="A described tool")
+    built = MagicMock()
+
+    async def resolve(_ctx: object) -> object:
+        return toolset if available else None
+
+    built.get_toolset.return_value = (
+        resolve if asynchronous else lambda _ctx: toolset if available else None
+    )
+    definition = replace(get("external_acp"), builder=MagicMock(return_value=built))
+    result = await _contracts_for(definition)
+    assert set(result) == ({"probe"} if available else set())
+
+
+async def test_invalid_toolset_contract_is_reported_instead_of_inventing_tool_documentation() -> (
+    None
+):
+    from dataclasses import replace
+
+    from app.services.capability_contracts import _contracts_for
+
+    built = MagicMock()
+    built.get_toolset.return_value = object()
+    definition = replace(get("external_acp"), builder=MagicMock(return_value=built))
+    with pytest.raises(TypeError, match="requires a toolset"):
+        await _contracts_for(definition)

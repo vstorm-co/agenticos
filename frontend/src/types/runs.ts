@@ -696,10 +696,20 @@ export interface ResumedRun {
 
 /** One question as the server carries it, before the card's own shape (#2064). */
 export interface WireQuestion {
+  multiline?: boolean;
+  initial_value?: string;
+  allow_empty?: boolean;
+  max_answer_length?: number;
   question: string;
   header?: string | null;
-  options?: { label: string; description?: string | null }[];
+  options?: {
+    label: string;
+    description?: string | null;
+    label_key?: "runtimeApprovePlan" | "runtimeRejectPlan" | "runtimeYes" | "runtimeNo";
+  }[];
   multi_select?: boolean;
+  min_selections?: number;
+  max_selections?: number;
   allow_custom: boolean;
 }
 

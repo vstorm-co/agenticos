@@ -50,6 +50,8 @@ pub struct Settings {
     pub coding_sessions: Vec<crate::agent_session::Remembered>,
     #[serde(default)]
     pub coding_consents: Vec<crate::agent_session::Consent>,
+    #[serde(default)]
+    pub external_agents: Vec<crate::external_agents::Registration>,
 }
 
 /// Personal grants must not follow the console into another account or server.
@@ -58,6 +60,7 @@ pub fn clear_local_authority(settings: &mut Settings) {
     settings.local_services.clear();
     settings.coding_sessions.clear();
     settings.coding_consents.clear();
+    settings.external_agents.clear();
 }
 
 /// A stack the app set up on this machine, or an organization's server.
@@ -339,12 +342,21 @@ mod tests {
             "coding_consents": [{"root": "/private/work", "connection": "previous", "agent": "claude_code", "adapter": "v1"}],
             "coding_sessions": [{"key": {"scope": "old", "root": "/private/work", "connection": "previous", "agent": "claude_code"}, "session_id": "old-session"}]
         })).unwrap();
+        settings.external_agents.push(crate::external_agents::Registration {
+            provider: crate::external_agents::Provider::Custom,
+            id: "agent".into(),
+            name: "Agent".into(),
+            program: "/bin/agent".into(),
+            args: vec![],
+            revision: "v1".into(),
+        });
         clear_local_authority(&mut settings);
         let restored: Settings = serde_json::from_str(&serde_json::to_string(&settings).unwrap()).unwrap();
         assert!(restored.local_grants.is_empty());
         assert!(restored.local_services.is_empty());
         assert!(restored.coding_sessions.is_empty());
         assert!(restored.coding_consents.is_empty());
+        assert!(restored.external_agents.is_empty());
         assert_eq!(restored.connection_revision, "previous");
         assert_eq!(restored.server_url.unwrap().as_str(), "https://example.com/");
     }

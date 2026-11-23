@@ -30,8 +30,8 @@ _DELETE_IF_EQUAL = (
 )
 
 _REPLACE_IF_EQUAL = """
-if redis.call('GET', KEYS[1]) == ARGV[1] then
-  redis.call('SET', KEYS[1], ARGV[2], 'EX', ARGV[3])
+if redis.call('get', KEYS[1]) == ARGV[1] then
+  redis.call('set', KEYS[1], ARGV[2], 'EX', ARGV[3])
   return 1
 end
 return 0
@@ -243,10 +243,6 @@ class RedisClient:
         used, _expired = await pipe.execute()
         return int(used)
 
-    async def replace_if_equal(self, key: str, *, expected: str, value: str, ttl: int) -> bool:
-        """Replace a live value and its TTL in one step only if it still equals `expected`."""
-        return bool(await self.raw.eval(_REPLACE_IF_EQUAL, 1, key, expected, value, ttl))
-
     async def expire(self, key: str, ttl: int) -> bool:
         """Set a key's lifetime to `ttl` seconds. False when there is no such key."""
         if not self.client:
@@ -348,6 +344,10 @@ class RedisClient:
         await self.raw.eval(
             _UPDATE_MAPPING, 1, key, json.dumps(updates), json.dumps(list(remove)), ttl
         )
+
+    async def replace_if_equal(self, key: str, expected: str, value: str, *, ttl: int) -> bool:
+        """Update a still-current pending operation without reviving a consumed one."""
+        return bool(await self.raw.eval(_REPLACE_IF_EQUAL, 1, key, expected, value, ttl))
 
     async def delete_if_equal(self, key: str, value: str) -> bool:
         """Delete a key only while it still holds `value` - a lease given back by its holder."""

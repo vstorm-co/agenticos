@@ -96,6 +96,8 @@ interface DataTableProps<T> {
   fillHeight?: boolean;
   /** Page a complete in-memory collection after sorting. Never use with server paging or infinite loading. */
   clientPagination?: boolean;
+  /** Page size for a client-paged collection; defaults to the standard list size. */
+  pageSize?: number;
   /** Stack compact, non-virtual tables into labeled rows in narrow containers. */
   stackOnNarrow?: boolean;
   /** Number of skeleton rows while loading. */
@@ -159,6 +161,7 @@ export function DataTable<T>({
   isRowActive,
   fillHeight = false,
   clientPagination = false,
+  pageSize = PAGE_SIZE,
   stackOnNarrow = false,
   skeletonRows = 6,
   className,
@@ -209,9 +212,9 @@ export function DataTable<T>({
   }, [rowHeight]);
 
   const recordCount = visible?.length ?? 0;
-  const currentPage = Math.min(page, Math.max(0, Math.ceil(recordCount / PAGE_SIZE) - 1));
-  const pageOffset = clientPagination ? currentPage * PAGE_SIZE : 0;
-  const pageRows = clientPagination ? visible?.slice(pageOffset, pageOffset + PAGE_SIZE) : visible;
+  const currentPage = Math.min(page, Math.max(0, Math.ceil(recordCount / pageSize) - 1));
+  const pageOffset = clientPagination ? currentPage * pageSize : 0;
+  const pageRows = clientPagination ? visible?.slice(pageOffset, pageOffset + pageSize) : visible;
   useEffect(() => {
     if (clientPagination && scrollRef.current) scrollRef.current.scrollTop = 0;
   }, [clientPagination, currentPage, clientSort]);
@@ -236,6 +239,7 @@ export function DataTable<T>({
 
   return (
     <div
+      data-slot="data-table"
       className={cn(
         "border-border bg-card overflow-hidden rounded-xl border",
         stackOnNarrow &&
@@ -255,14 +259,18 @@ export function DataTable<T>({
         {/* Explicit roles retain semantics when narrow-container CSS changes display types. */}
         <table
           role={stackOnNarrow ? "table" : undefined}
-          className="w-full border-collapse text-sm"
+          className="w-full border-collapse text-sm leading-5"
           aria-busy={loading || undefined}
         >
           {/* No column headings over no rows: an empty table read as a grid
               with a hole in it, the empty state boxed again inside it. */}
           <thead
             role={stackOnNarrow ? "rowgroup" : undefined}
-            className={cn(fillHeight && "bg-card sticky top-0 z-10", showEmpty && "hidden")}
+            className={cn(
+              "bg-muted/30",
+              fillHeight && "bg-card sticky top-0 z-10",
+              showEmpty && "hidden",
+            )}
           >
             <tr role={stackOnNarrow ? "row" : undefined} className="border-border border-b">
               {columns.map((col) => {
@@ -279,7 +287,7 @@ export function DataTable<T>({
                     className={cn(
                       // One line: a two-word heading wrapped to two rows made every
                       // header taller than the rows under it.
-                      "text-foreground/85 px-3 py-3 text-[13px] font-semibold whitespace-nowrap sm:px-4",
+                      "text-muted-foreground px-3 py-2.5 text-xs leading-5 font-medium whitespace-nowrap sm:px-4",
                       alignClass[col.align ?? "left"],
                       col.hideBelow && hideBelowClass[col.hideBelow],
                       col.className,
@@ -307,6 +315,7 @@ export function DataTable<T>({
                 <tr
                   role={stackOnNarrow ? "row" : undefined}
                   key={`sk-${i}`}
+                  style={rowHeight ? { height: rowHeight } : undefined}
                   className="border-border/60 border-b last:border-0"
                 >
                   {columns.map((col) => (
@@ -338,6 +347,7 @@ export function DataTable<T>({
                 <tr
                   role={stackOnNarrow ? "row" : undefined}
                   key={getRowKey(row, pageOffset + first + offset)}
+                  style={rowHeight ? { height: rowHeight } : undefined}
                   onClick={onRowClick ? () => onRowClick(row) : undefined}
                   tabIndex={onRowClick ? 0 : undefined}
                   onKeyDown={
@@ -357,7 +367,7 @@ export function DataTable<T>({
                   // is not one.
                   aria-selected={isRowActive ? isRowActive(row) : undefined}
                   className={cn(
-                    "border-border/60 border-b transition-colors last:border-0",
+                    "border-border/60 border-b transition-colors last:border-0 motion-reduce:transition-none",
                     onRowClick &&
                       "hover:bg-accent focus-visible:bg-accent focus-visible:outline-ring cursor-pointer focus-visible:outline-2 focus-visible:-outline-offset-2",
                     // A tint alone reads as hover - they were the same colour,
@@ -436,7 +446,7 @@ export function DataTable<T>({
           <PaginationBar
             showSinglePage
             page={currentPage}
-            pageSize={PAGE_SIZE}
+            pageSize={pageSize}
             total={recordCount}
             isLoading={loading || showError}
             onPage={setPage}

@@ -33,22 +33,22 @@ export function SidebarShell({
       <div className={cn("shrink-0 pt-1", collapsed ? "flex justify-center px-1 pb-2" : "px-3")}>
         <OrganizationSwitcher collapsed={collapsed} onNavigate={onNavigate} />
       </div>
-      {!collapsed && (
-        <div className="flex shrink-0 flex-col gap-2 px-3 pt-3 pb-3">
-          <Link
-            href="/chat?new=workspace"
-            onClick={onNavigate}
-            className={cn(
-              buttonVariants({ variant: "secondary" }),
-              "w-full justify-start gap-2.5 px-3",
-            )}
-            data-tour="chat-start"
-          >
-            <SquarePen className="size-4" aria-hidden />
-            {t("newChat")}
-          </Link>
-        </div>
-      )}
+      <div className={cn("flex shrink-0 py-3", collapsed ? "justify-center px-1" : "px-3")}>
+        <Link
+          href="/chat?new=workspace"
+          onClick={onNavigate}
+          aria-label={collapsed ? t("newChat") : undefined}
+          title={collapsed ? t("newChat") : undefined}
+          className={cn(
+            buttonVariants({ variant: "secondary" }),
+            collapsed ? "size-10 p-0" : "w-full justify-start gap-2.5 px-3",
+          )}
+          data-tour="chat-start"
+        >
+          <SquarePen className="size-[18px]" strokeWidth={1.75} aria-hidden />
+          {!collapsed && t("newChat")}
+        </Link>
+      </div>
       <div className="flex min-h-0 flex-1 scrollbar-thin flex-col overflow-y-auto overscroll-contain">
         {children}
       </div>

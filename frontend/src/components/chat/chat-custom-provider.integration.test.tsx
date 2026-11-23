@@ -210,10 +210,9 @@ for (const presentation of ["form", "library"] as const) {
   it(`preserves existing models on another key in ${presentation}`, async () => {
     serve([{ ...saved("openai_compatible", "existing"), secret_id: "openai_compatible-key-2" }]);
     const changed = await mount(presentation, providers[0]!);
-    if (presentation === "library")
-      await userEvent.click(screen.getByRole("tab", { name: "Saved models" }));
+    expect(screen.queryByRole("tab", { name: "Saved models" })).not.toBeInTheDocument();
     await userEvent.click(
-      screen.getByRole(presentation === "library" ? "option" : "button", {
+      screen.getByRole("button", {
         name: /Saved gateway model/,
       }),
     );
