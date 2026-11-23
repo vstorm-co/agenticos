@@ -48,7 +48,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 from pydantic_ai.capabilities import WrapperCapability
 from pydantic_ai.messages import ToolCallPart
 from pydantic_ai.tools import AgentDepsT, RunContext, ToolDefinition
-from pydantic_ai.toolsets import AgentToolset
+from pydantic_ai.toolsets import AgentToolset, FunctionToolset
 from pydantic_ai.workspaces import Workspace
 from pydantic_ai_backends import StateWorkspace
 from pydantic_ai_harness.tool_output_limits import (
@@ -393,8 +393,7 @@ class MeteredToolOutputLimits(WrapperCapability[AgentDepsT]):
         toolset = super().get_toolset()
         if toolset is None:  # pragma: no cover - the library always builds one
             return None
-        tool = getattr(toolset, "tools", {}).get(READ_TOOL_NAME)
-        if tool is None:
+        if not isinstance(toolset, FunctionToolset) or READ_TOOL_NAME not in toolset.tools:
             # The same refusal `ToolOverrides` makes, for the same reason: left
             # alone, the model would read the library's sentence while the
             # Builder shows this one, with nothing reporting the difference.
@@ -402,7 +401,10 @@ class MeteredToolOutputLimits(WrapperCapability[AgentDepsT]):
                 "Tool output limits no longer offers `read_tool_result` as a "
                 "readable tool, so it cannot be described here"
             )
+        tool = toolset.tools[READ_TOOL_NAME]
         tool.description = READ_TOOL_RESULT_TEXT.render()
+        # Upstream additions must not bypass the platform's declared tool policy.
+        toolset.tools = {READ_TOOL_NAME: tool}
         return toolset
 
     async def after_tool_execute(

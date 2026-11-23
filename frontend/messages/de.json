@@ -89,6 +89,11 @@
     "sessionsCouldNotBeRead": "Die Sitzungen konnten nicht gelesen werden."
   },
   "agents": {
+    "profileDefaults": "Modellvorgaben",
+    "profileDefaultsHint": "Diese Vorgaben gelten überall, wo dieses gespeicherte Modell verwendet wird. Einzelne Agenten können sie überschreiben. Belassen Sie nicht unterstützte Parameter bei den Anbietervorgaben.",
+    "profileThinkingOn": "Ein · Anbieteraufwand",
+    "profileThinkingOff": "Aus",
+    "profileCustomThinking": "Gespeicherte benutzerdefinierte Einstellung",
     "buildSummary": {
       "variables": "{count, plural, =0 {Systemvariablen} one {Systemvariablen und # eigene Variable} other {Systemvariablen und # eigene Variablen}}",
       "voice": "Anrufe {calls, select, on {an} other {aus}} · Diktat {dictation, select, on {an} other {aus}}",
