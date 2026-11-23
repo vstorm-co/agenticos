@@ -2,12 +2,12 @@
 
 The seed exists so the guided first run has a real workspace to show before
 the user's own first run lands. What matters is that it creates exactly the
-curated content, never twice, that a second run or ``--clear`` leaves nothing
+curated content, never twice, that a second run or `--clear` leaves nothing
 half-built behind, and that the stored answer can never pass for a real
-completed run: it carries no ``run_id`` and ``model_name="demo"``.
+completed run: it carries no `run_id` and `model_name="demo"`.
 
 Taken from draft PR #209's tests, plus the name-resolution paths this PR adds
-so ``scripts/quickstart.sh --demo`` can seed by the organization name it just
+so `scripts/quickstart.sh --demo` can seed by the organization name it just
 bootstrapped.
 """
 
@@ -49,7 +49,7 @@ def _result(value):
 
 
 def _named(orgs):
-    """A lookup result whose ``scalars().all()`` answers with ``orgs``."""
+    """A lookup result whose `scalars().all()` answers with `orgs`."""
     result = MagicMock()
     result.scalars.return_value.all.return_value = orgs
     return result
@@ -98,7 +98,7 @@ def _patch_all(
 ):
     """Patch every repository the seed touches; lookups answer in call order.
 
-    ``name_matches`` is the answer to the by-name lookup, which runs before
+    `name_matches` is the answer to the by-name lookup, which runs before
     the project lookup when the organization is given as a name, not an id.
     """
     lookups = []

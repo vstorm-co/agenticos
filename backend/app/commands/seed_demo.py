@@ -8,36 +8,36 @@ Usage:
 What it creates, in the named organization:
 
 - one project, "Demo — first-run example", visible to the whole organization,
-  stored without a sandbox (``backend="state"``), so it needs no container;
+  stored without a sandbox (`backend="state"`), so it needs no container;
 - one conversation in it, "Demo — meeting notes into an action plan", with a
   user question and an assistant answer.
 
 The content is the fictional Northwind example the guided first run shows as
-"what a finished result looks like" (``frontend/messages/en.json``,
-``start.examples.meeting``), so the seed and the start hub agree word for word.
+"what a finished result looks like" (`frontend/messages/en.json`,
+`start.examples.meeting`), so the seed and the start hub agree word for word.
 
 What it deliberately does NOT create:
 
 - no connected app: a connection row without credentials would be a fake, and
   the connections UI would try to refresh it and fail. The start hub's connect
   step is skippable for exactly this reason;
-- no agent run: the assistant answer is stored with ``model_name="demo"`` and
-  no ``run_id``, so it can never count as a real completed run. The start hub
-  only completes on ``GET /me/onboarding`` reporting ``has_result``, which a
+- no agent run: the assistant answer is stored with `model_name="demo"` and
+  no `run_id`, so it can never count as a real completed run. The start hub
+  only completes on `GET /me/onboarding` reporting `has_result`, which a
   seeded conversation cannot produce;
 - no task board and no solution bundle: boards need a Virtual Table and the
   solutions backend is not on this branch yet (it arrives with the 1.86.1
   sync). Both are follow-ups, not silent omissions.
 
-The organization is an id or an exact name: ``scripts/quickstart.sh --demo``
+The organization is an id or an exact name: `scripts/quickstart.sh --demo`
 only knows the name it just bootstrapped, so a name resolves here rather than
 in the shell. A name that matches nothing, or more than one organization, is
-refused — pass the id then. Taken from draft PR #209's ``seed-demo`` with only
+refused — pass the id then. Taken from draft PR #209's `seed-demo` with only
 that resolution added; the wizard #209 also built is parked and not revived
 here.
 
 Idempotent: running it twice reports the existing workspace and creates
-nothing. ``--clear`` removes exactly what it created — the demo conversation
+nothing. `--clear` removes exactly what it created — the demo conversation
 first (deleting the project alone would only detach it, leaving an ordinary
 chat behind), then the project — and nothing else.
 """
