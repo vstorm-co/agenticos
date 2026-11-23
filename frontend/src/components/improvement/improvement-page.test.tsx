@@ -257,6 +257,11 @@ it("shows a running search's progress at Changes, and why an ended one found not
       /The search found no variant that did better than the current instructions on the training questions\./,
     ),
   ).toBeInTheDocument();
+  // Changes is skipped without a candidate, so what the search tried stays on Result.
+  expect(
+    screen.getByText("The search stopped after rounds that found nothing better."),
+  ).toBeInTheDocument();
+  expect(screen.getByText(/3 of up to 40 variants tried/)).toBeInTheDocument();
 });
 
 it("blocks finishing when a selected new skill requires missing access", async () => {

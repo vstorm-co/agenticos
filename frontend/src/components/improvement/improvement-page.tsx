@@ -30,7 +30,7 @@ import { type ReadOnlyReason } from "./read-only";
 import { SessionDecision } from "./session-decision";
 import { VariantSearch } from "./variant-search";
 import { ImprovementShell, WorkingNote } from "./improvement-shell";
-import { hasCandidate, isActive, isClosed, stopOf } from "@/lib/improvement-steps";
+import { currentAttempt, hasCandidate, isActive, isClosed, stopOf } from "@/lib/improvement-steps";
 
 export function ImprovementPage({ agentId, sessionId }: { agentId: string; sessionId: string }) {
   const t = useTranslations("improvement");
@@ -252,6 +252,9 @@ function Session({
           )}
           {step === "check" && (
             <CheckProgress session={session} onShowResult={() => goTo("result")} />
+          )}
+          {step === "result" && !currentAttempt(session)?.batch_id && (
+            <VariantSearch session={session} choosable={false} />
           )}
           {step === "result" && (
             <ResultStep

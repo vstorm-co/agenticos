@@ -34,6 +34,8 @@ export function StartMode({
   const t = useTranslations("improvement.startSearch");
   const { profiles, profilesStatus } = useModelProviders();
   const tooFew = trainQuestions !== null && trainQuestions < MIN_SEARCH_QUESTIONS;
+  // The search budget defaults from the first quote, so Search waits for one.
+  const unpriced = trainQuestions === null;
   const options: { value: ImprovementMode; hint: string; disabled: boolean }[] = [
     { value: "steps", hint: t("stepsHint"), disabled: false },
     {
@@ -41,7 +43,7 @@ export function StartMode({
       hint: tooFew
         ? t("tooFew", { count: trainQuestions, needed: MIN_SEARCH_QUESTIONS })
         : t("searchHint"),
-      disabled: tooFew,
+      disabled: tooFew || unpriced,
     },
   ];
   return (

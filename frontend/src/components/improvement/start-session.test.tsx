@@ -487,12 +487,25 @@ it("searches many variants with their own budget and grading model, priced befor
   await screen.findByText(/Includes the search budget/);
   await user.click(screen.getByRole("button", { name: "Start improving" }));
 
+  // The limit leaves room for a search on each later attempt, not just the first.
   expect(state.start).toHaveBeenCalledWith(
     expect.objectContaining({
       mode: "search",
       search: { budget_usd: "0.24", grading_model_profile_id: "grader" },
+      budget_usd: "1.01",
     }),
   );
+});
+
+it("offers search only once the first quote has priced the dataset", async () => {
+  let price: (quote: unknown) => void = () => {};
+  state.estimate.mockReturnValueOnce(new Promise((resolve) => (price = resolve)));
+  render(<StartSession agentId="a1" onClose={vi.fn()} />);
+
+  expect(await screen.findByRole("radio", { name: /Search variants/ })).toBeDisabled();
+  price({ ...QUOTE, train_questions: 12 });
+
+  await waitFor(() => expect(screen.getByRole("radio", { name: /Search variants/ })).toBeEnabled());
 });
 
 it("offers no search on a dataset with fewer than ten training questions", async () => {
