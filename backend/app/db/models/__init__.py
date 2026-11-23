@@ -15,6 +15,9 @@ from app.db.models.conversation import Conversation, Message, ToolCall
 from app.db.models.conversation_message_pin import ConversationMessagePin
 from app.db.models.conversation_task import ConversationTask, ConversationTurnClaim
 from app.db.models.room_submission import RoomSubmission
+from app.db.models.room_participant import RoomParticipant
+from app.db.models.room_message_reaction import RoomMessageReaction
+from app.db.models.room_thread import RoomThread, RoomThreadFollow, RoomThreadRead
 from app.db.models.room_routing import RoomLeadPolicy, RoomRoutingProposal, RoomTaskLink
 from app.db.models.coding_task_change import CodingTaskChange
 from app.db.models.chat_file import ChatFile
@@ -317,6 +320,11 @@ __all__ = [
     "ConversationTask",
     "ConversationTurnClaim",
     "RoomSubmission",
+    "RoomParticipant",
+    "RoomMessageReaction",
+    "RoomThread",
+    "RoomThreadFollow",
+    "RoomThreadRead",
     "RoomLeadPolicy",
     "RoomRoutingProposal",
     "RoomTaskLink",

@@ -43,6 +43,8 @@ class TestContentGate:
 
     def test_every_catalogued_event_type_resolves_to_its_gate(self):
         expected = {
+            NotificationEventType.ROOM_MENTION: ContentGate.SHARED_CONVERSATION,
+            NotificationEventType.ROOM_THREAD_REPLY: ContentGate.SHARED_CONVERSATION,
             NotificationEventType.APPROVAL_REQUESTED: ContentGate.DEGRADE,
             NotificationEventType.USAGE_REPORT: ContentGate.RUNS_VIEW,
             NotificationEventType.AGENT_USAGE_REPORT: ContentGate.RUNS_VIEW,

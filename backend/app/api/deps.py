@@ -112,6 +112,7 @@ from app.services.conversation_message_pin import ConversationMessagePinService
 from app.services.coding_task_changes import CodingTaskChangeService
 from app.services.conversation_tasks import ConversationTaskService
 from app.services.room_submission import RoomSubmissionService
+from app.services.room_message_reaction import RoomMessageReactionService
 from app.services.room_routing import RoomRoutingService
 from app.services.tasks import TaskService
 from app.services.visual import VisualService
@@ -218,6 +219,35 @@ def get_room_submission_service(db: DBSession) -> RoomSubmissionService:
 
 
 RoomSubmissionSvc = Annotated[RoomSubmissionService, Depends(get_room_submission_service)]
+
+
+def get_room_message_reaction_service(db: DBSession) -> RoomMessageReactionService:
+    return RoomMessageReactionService(db)
+
+
+RoomMessageReactionSvc = Annotated[
+    RoomMessageReactionService, Depends(get_room_message_reaction_service)
+]
+
+
+from app.services.room_participant import RoomParticipantService
+
+
+def get_room_participant_service(db: DBSession) -> RoomParticipantService:
+    return RoomParticipantService(db)
+
+
+RoomParticipantSvc = Annotated[RoomParticipantService, Depends(get_room_participant_service)]
+
+
+from app.services.room_thread import RoomThreadService
+
+
+def get_room_thread_service(db: DBSession) -> RoomThreadService:
+    return RoomThreadService(db)
+
+
+RoomThreadSvc = Annotated[RoomThreadService, Depends(get_room_thread_service)]
 
 
 def get_room_routing_service(db: DBSession) -> RoomRoutingService:

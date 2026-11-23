@@ -6,8 +6,12 @@ import { clientId } from "@/lib/ids";
 import { announceRoomChange } from "@/lib/room-events";
 import { useAuthStore, useChatStore, useOrgStore } from "@/stores";
 import { EMPTY_ROOM_DRAFT } from "@/stores/chat-store";
+import { insertRoomMention, reconcileRoomMentionEdit, roomMentionRefs } from "@/lib/room-mentions";
+import type { RoomMentionEditHint, RoomMentionQuery } from "@/lib/room-mentions";
 import { useRoomActions } from "./use-room";
 import type { MessageReply } from "@/types/chat";
+import type { RoomParticipantRead, RoomPendingUpload } from "@/types/room";
+import type { FileUploadResponse } from "@/lib/file-api";
 
 /** An uncertain POST keeps its exact payload until the server acknowledges it. */
 export function useRoomDraft(
@@ -20,13 +24,17 @@ export function useRoomDraft(
   const chatApi = useChatStore.useApi();
   const accountId = useAuthStore((state) => state.user?.id);
   const tenantId = useOrgStore((state) => state.activeOrgId);
+  const generation = useChatStore((state) => state.roomDraftGeneration);
   const key = JSON.stringify([accountId, tenantId, conversationId, threadRootMessageId]);
   const draft = useChatStore((state) => state.roomDrafts[key]) ?? EMPTY_ROOM_DRAFT;
   const reply = useChatStore((state) =>
     threadRootMessageId === null ? state.replyTo : (state.roomDrafts[key]?.reply ?? null),
   );
-  const change = (apply: (value: typeof EMPTY_ROOM_DRAFT) => typeof EMPTY_ROOM_DRAFT) =>
+  const change = (apply: (value: typeof EMPTY_ROOM_DRAFT) => typeof EMPTY_ROOM_DRAFT) => {
+    if (chatApi.getState().roomDraftGeneration !== generation) return false;
     chatApi.getState().updateRoomDraft(key, apply);
+    return true;
+  };
   const setReply = (value: MessageReply | null) => {
     if (threadRootMessageId === null) chatApi.getState().setReplyTo(value);
     else change((held) => ({ ...held, reply: value }));
@@ -35,7 +43,14 @@ export function useRoomDraft(
   async function submit(leadPolicyRevision?: number) {
     const generation = chatApi.getState().roomDraftGeneration;
     const held = chatApi.getState().roomDrafts[key] ?? EMPTY_ROOM_DRAFT;
-    if (held.sending || !isCurrent() || held.content.trim().length === 0) return;
+    if (
+      held.sending ||
+      held.pendingUploads.length > 0 ||
+      held.uploadError !== null ||
+      !isCurrent() ||
+      (held.content.trim().length === 0 && held.attachments.length === 0)
+    )
+      return;
     if (held.attempt === null && held.intent === "ask_lead" && leadPolicyRevision === undefined)
       return;
     const selectedReply = threadRootMessageId === null ? chatApi.getState().replyTo : held.reply;
@@ -43,11 +58,13 @@ export function useRoomDraft(
       input: {
         client_message_id: clientId(),
         content: held.content.trim(),
+        mentions: roomMentionRefs(held.roomMentions),
+        ...(held.attachments.length === 0
+          ? {}
+          : { file_ids: [...new Set(held.attachments.map((file) => file.id))] }),
         ...(held.intent === "ask_lead"
           ? { intent: "ask_lead" as const, expected_policy_revision: leadPolicyRevision }
-          : held.agentId === null
-            ? {}
-            : { agent_id: held.agentId }),
+          : {}),
         ...(selectedReply === null ? {} : { reply_to_message_id: selectedReply.messageId }),
         ...(selectedReply?.selectedText === undefined
           ? {}
@@ -122,12 +139,90 @@ export function useRoomDraft(
 
   return {
     content: draft.content,
-    setContent: (content: string) => change((value) => ({ ...value, content })),
-    agentId: draft.agentId,
+    roomMentions: draft.roomMentions,
+    attachments: draft.attachments,
+    pendingUploads: draft.pendingUploads,
+    uploadError: draft.uploadError,
+    canContinueUpload: () =>
+      chatApi.getState().roomDraftGeneration === generation &&
+      useAuthStore.getState().user?.id === accountId &&
+      useOrgStore.getState().activeOrgId === tenantId,
+    beginUploads: (uploads: RoomPendingUpload[]) => {
+      let began = false;
+      change((value) => {
+        if (value.attempt !== null || value.pendingUploads.length > 0 || uploads.length === 0)
+          return value;
+        began = true;
+        return { ...value, pendingUploads: uploads, uploadError: null };
+      });
+      return began;
+    },
+    completeUpload: (uploadId: string, file: FileUploadResponse) => {
+      let completed = false;
+      change((value) => {
+        if (!value.pendingUploads.some((upload) => upload.id === uploadId)) return value;
+        completed = true;
+        return {
+          ...value,
+          pendingUploads: value.pendingUploads.filter((upload) => upload.id !== uploadId),
+          attachments:
+            value.attempt !== null || value.attachments.some((item) => item.id === file.id)
+              ? value.attachments
+              : [...value.attachments, file],
+        };
+      });
+      return completed;
+    },
+    failUpload: (uploadId: string, error: string) => {
+      let failed = false;
+      change((value) => {
+        if (!value.pendingUploads.some((upload) => upload.id === uploadId)) return value;
+        failed = true;
+        return {
+          ...value,
+          pendingUploads: value.pendingUploads.filter((upload) => upload.id !== uploadId),
+          uploadError: error,
+        };
+      });
+      return failed;
+    },
+    clearUploadError: () =>
+      change((value) => (value.uploadError === null ? value : { ...value, uploadError: null })),
+    addAttachment: (file: FileUploadResponse) =>
+      change((value) =>
+        value.attempt !== null || value.attachments.some((item) => item.id === file.id)
+          ? value
+          : { ...value, attachments: [...value.attachments, file] },
+      ),
+    removeAttachment: (fileId: string) =>
+      change((value) =>
+        value.attempt !== null
+          ? value
+          : { ...value, attachments: value.attachments.filter((file) => file.id !== fileId) },
+      ),
+    setContent: (content: string, editHint?: RoomMentionEditHint) =>
+      change((value) => ({
+        ...value,
+        content,
+        roomMentions: reconcileRoomMentionEdit(
+          value.content,
+          content,
+          value.roomMentions,
+          editHint,
+        ),
+      })),
+    pickMention: (query: RoomMentionQuery, participant: RoomParticipantRead) => {
+      let caret = query.start;
+      change((value) => {
+        const result = insertRoomMention(value.content, value.roomMentions, query, participant);
+        caret = result.caret;
+        return { ...value, content: result.content, roomMentions: result.mentions };
+      });
+      return caret;
+    },
     intent: draft.intent,
-    setAgentId: (agentId: string | null) =>
-      change((value) => ({ ...value, agentId, intent: "message" })),
-    setAskLead: () => change((value) => ({ ...value, agentId: null, intent: "ask_lead" })),
+    setMessageIntent: () => change((value) => ({ ...value, intent: "message" })),
+    setAskLead: () => change((value) => ({ ...value, intent: "ask_lead" })),
     reply: draft.attempt === null ? reply : draft.attempt.reply,
     setReply,
     clearReply: () => setReply(null),

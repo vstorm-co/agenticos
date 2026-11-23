@@ -41,6 +41,7 @@ from app.agents.ask_user import parked_status
 from app.agents.ephemeral_media import describe_binary
 from app.agents.tool_errors import controlled_tool_error
 from app.core.tool_identity import PresentationKind, ToolIdentity
+from app.repositories import agent as agent_repo
 from app.repositories import chat_file as chat_file_repo
 from app.repositories import conversation as conversation_repo
 
@@ -470,6 +471,12 @@ class TranscriptService:
         rewritten between runs, and attributing last Tuesday's answer to the
         spec it has today would rewrite what it was told to do.
         """
+        if thread_root_message_id is not None:
+            from app.services.room_thread import RoomThreadService
+
+            await RoomThreadService(self.db).assert_replyable(
+                conversation_id, thread_root_message_id
+            )
         # What this turn cost, so a channel, an API caller and a widget report it
         # the way web chat has since the columns existed - and so a conversation
         # can be totalled at all on those surfaces, where every message read null.
@@ -506,6 +513,21 @@ class TranscriptService:
             run_id=run.id,
             thread_root_message_id=thread_root_message_id,
         )
+        if thread_root_message_id is not None:
+            from app.services.room_thread import RoomThreadService
+
+            agents = await agent_repo.get_many(
+                self.db, [run.agent_id], organization_id=run.organization_id
+            )
+            agent = agents.get(run.agent_id)
+            await RoomThreadService(self.db).reply_saved(
+                organization_id=run.organization_id,
+                conversation_id=conversation_id,
+                root_message_id=thread_root_message_id,
+                reply_message_id=message.id,
+                actor_user_id=None,
+                sender=agent.name if agent is not None else "An agent",
+            )
         now = datetime.now(UTC)
         for call in tool_calls:
             row = await conversation_repo.create_tool_call(

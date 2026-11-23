@@ -1,4 +1,4 @@
-"""Execute explicitly requested room answers once, in accepted room order."""
+"""Execute accepted room answers once, in accepted room order."""
 
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
@@ -47,6 +47,8 @@ async def _live(submission: RoomSubmission, message: MessageRead) -> AsyncGenera
                 "message_id": str(message.id),
                 "client_message_id": message.client_message_id,
                 "content": message.content,
+                "room_mentions": [item.model_dump(mode="json") for item in message.room_mentions],
+                "files": [item.model_dump(mode="json") for item in message.files],
                 "sender": None
                 if message.sender is None
                 else message.sender.model_dump(mode="json"),
@@ -151,9 +153,15 @@ async def run_request(job: RoomRequestJob) -> None:
                 "authority checked the pinned agent"
             )
             history = await ConversationService(db).model_history(
-                conversation_id, limit=60, room_request_message_id=message.id
+                conversation_id,
+                limit=60,
+                room_request_message_id=message.id,
+                room_request_id=submission.id,
             )
             prompt = await service.conversations.model_text(message, conversation)
+            attachments = await service.attachments(
+                message, submission.requester_id, include_content=True
+            )
             people = await conversation_repo.users_by_id(db, {submission.requester_id})
             sender = people.get(submission.requester_id)
             if sender is None:
@@ -162,7 +170,9 @@ async def run_request(job: RoomRequestJob) -> None:
                 await room_repo.save(db, submission)
                 announce_request(db, submission)
                 return
-            prompt_read = await service.read_message(message, sender)
+            prompt_read = await service.read_message(
+                message, sender, organization_id=ctx.organization_id
+            )
             submission.status = "running"
             await room_repo.save(db, submission)
             announce_request(db, submission)
@@ -176,12 +186,13 @@ async def run_request(job: RoomRequestJob) -> None:
                 if current is None or current.status != "running" or current.run_id is not None:
                     raise AlreadyExistsError(message="This room request no longer owns its run")
                 current.run_id = run.id
-                await conversation_repo.link_message_to_run(
-                    db,
-                    message_id=current.message_id,
-                    run_id=run.id,
-                    conversation_id=current.conversation_id,
-                )
+                if current.parent_submission_id is None:
+                    await conversation_repo.link_message_to_run(
+                        db,
+                        message_id=current.message_id,
+                        run_id=run.id,
+                        conversation_id=current.conversation_id,
+                    )
                 await room_repo.save(db, current)
                 announce_request(db, current)
 
@@ -207,11 +218,17 @@ async def run_request(job: RoomRequestJob) -> None:
                             ctx,
                             agent_id,
                             prompt,
-                            said="",
+                            said=message.content,
+                            saved_prompt_id=message.id,
+                            attachments=attachments,
                             surface=RunSurface.WEB,
                             conversation_id=conversation_id,
                             version_id=version_id,
-                            memory_room_key=f"room:project:{conversation_id}",
+                            memory_room_key=(
+                                f"room:project:{conversation_id}"
+                                if conversation.project_id is not None
+                                else f"room:conversation:{conversation_id}"
+                            ),
                             thread_root_message_id=message.thread_root_message_id,
                             message_history=history,
                             acts_for_sender=True,

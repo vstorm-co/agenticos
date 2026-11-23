@@ -15,8 +15,11 @@ from app.api.deps import (
     CurrentUser,
     MessageRatingSvc,
     ProjectSvc,
+    RoomMessageReactionSvc,
+    RoomParticipantSvc,
     RoomRoutingSvc,
     RoomSubmissionSvc,
+    RoomThreadSvc,
     VisualSvc,
     WorkspaceSvc,
     key_needs,
@@ -60,6 +63,15 @@ from app.schemas.message_rating import (
     MessageRatingCreate,
     MessageRatingRead,
 )
+from app.schemas.room_participant import (
+    RoomCreate,
+    RoomMentionableList,
+    RoomParticipantAutoReplyUpdate,
+    RoomParticipantRead,
+    RoomParticipantRef,
+    RoomParticipantsRead,
+)
+from app.schemas.room_reaction import RoomMessageReactionCreate, RoomMessageReactionsRead
 from app.schemas.room_routing import (
     RoomLeadPolicyRead,
     RoomLeadPolicyWrite,
@@ -76,6 +88,7 @@ from app.schemas.room_submission import (
     RoomMessageRead,
     RoomThreadRead,
 )
+from app.schemas.room_thread import RoomThreadActionRead, RoomThreadReadCursor
 from app.schemas.visual import VisualPublish, VisualPublished
 from app.schemas.workspace import (
     WorkspaceFileContent,
@@ -263,6 +276,87 @@ async def read_room_thread(
         latest=latest,
         before=before,
     )
+
+
+@router.post(
+    "/{conversation_id}/room-threads/{root_message_id}/close",
+    response_model=RoomThreadActionRead,
+)
+async def close_room_thread(
+    conversation_id: UUID, root_message_id: UUID, service: RoomThreadSvc, ctx: Auth
+) -> Any:
+    """Close a thread to replies while keeping its history readable."""
+    return await service.close(ctx, conversation_id, root_message_id)
+
+
+@router.post(
+    "/{conversation_id}/room-threads/{root_message_id}/reopen",
+    response_model=RoomThreadActionRead,
+)
+async def reopen_room_thread(
+    conversation_id: UUID, root_message_id: UUID, service: RoomThreadSvc, ctx: Auth
+) -> Any:
+    """Reopen a previously closed thread."""
+    return await service.reopen(ctx, conversation_id, root_message_id)
+
+
+@router.post(
+    "/{conversation_id}/room-threads/{root_message_id}/archive",
+    response_model=RoomThreadActionRead,
+)
+async def archive_room_thread(
+    conversation_id: UUID, root_message_id: UUID, service: RoomThreadSvc, ctx: Auth
+) -> Any:
+    """Archive a thread, preventing further replies."""
+    return await service.archive(ctx, conversation_id, root_message_id)
+
+
+@router.post(
+    "/{conversation_id}/room-threads/{root_message_id}/unarchive",
+    response_model=RoomThreadActionRead,
+)
+async def unarchive_room_thread(
+    conversation_id: UUID, root_message_id: UUID, service: RoomThreadSvc, ctx: Auth
+) -> Any:
+    """Restore an archived thread to its prior open or closed state."""
+    return await service.unarchive(ctx, conversation_id, root_message_id)
+
+
+@router.put(
+    "/{conversation_id}/room-threads/{root_message_id}/follow",
+    response_model=RoomThreadActionRead,
+)
+async def follow_room_thread(
+    conversation_id: UUID, root_message_id: UUID, service: RoomThreadSvc, ctx: Auth
+) -> Any:
+    """Follow a thread to receive reply notifications."""
+    return await service.follow(ctx, conversation_id, root_message_id)
+
+
+@router.delete(
+    "/{conversation_id}/room-threads/{root_message_id}/follow",
+    response_model=RoomThreadActionRead,
+)
+async def unfollow_room_thread(
+    conversation_id: UUID, root_message_id: UUID, service: RoomThreadSvc, ctx: Auth
+) -> Any:
+    """Mute a thread, overriding the author and replier follow defaults."""
+    return await service.unfollow(ctx, conversation_id, root_message_id)
+
+
+@router.post(
+    "/{conversation_id}/room-threads/{root_message_id}/read",
+    response_model=RoomThreadActionRead,
+)
+async def mark_room_thread_read(
+    conversation_id: UUID,
+    root_message_id: UUID,
+    body: RoomThreadReadCursor,
+    service: RoomThreadSvc,
+    ctx: Auth,
+) -> Any:
+    """Advance read state through the last reply the client actually displayed."""
+    return await service.mark_read(ctx, conversation_id, root_message_id, body.through_message_id)
 
 
 @router.post(
@@ -457,6 +551,104 @@ async def list_conversations(
         for_model=for_model,
     )
     return ConversationList(items=items, total=total)  # ty: ignore[invalid-argument-type]
+
+
+@router.post(
+    "/rooms",
+    response_model=ConversationRead,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_room(
+    body: RoomCreate,
+    service: RoomParticipantSvc,
+    ctx: Auth,
+) -> Any:
+    """Create a private or public human and agent room in the active organization."""
+    return await service.create_room(ctx, body)
+
+
+@router.get("/rooms", response_model=ConversationList)
+async def list_public_rooms(
+    service: RoomParticipantSvc,
+    ctx: Auth,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+) -> Any:
+    """Directory of public rooms this organization member has not joined."""
+    items, total = await service.list_public_rooms(ctx, skip=skip, limit=limit)
+    return ConversationList(
+        items=[ConversationRead.model_validate(item) for item in items],
+        total=total,
+    )
+
+
+@router.get("/{conversation_id}/participants", response_model=RoomParticipantsRead)
+async def list_room_participants(
+    conversation_id: UUID,
+    service: RoomParticipantSvc,
+    ctx: Auth,
+) -> Any:
+    return await service.participants(ctx, conversation_id)
+
+
+@router.post(
+    "/{conversation_id}/participants",
+    response_model=RoomParticipantRead,
+)
+async def add_room_participant(
+    conversation_id: UUID,
+    body: RoomParticipantRef,
+    service: RoomParticipantSvc,
+    ctx: Auth,
+) -> Any:
+    return await service.add(ctx, conversation_id, body)
+
+
+@router.delete(
+    "/{conversation_id}/participants/{kind}/{member_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def remove_room_participant(
+    conversation_id: UUID,
+    kind: Literal["user", "agent"],
+    member_id: UUID,
+    service: RoomParticipantSvc,
+    ctx: Auth,
+) -> Response:
+    await service.remove(ctx, conversation_id, RoomParticipantRef(kind=kind, id=member_id))
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get("/{conversation_id}/room-mentionables", response_model=RoomMentionableList)
+async def list_room_mentionables(
+    conversation_id: UUID,
+    service: RoomParticipantSvc,
+    ctx: Auth,
+) -> Any:
+    return await service.mentionables(ctx, conversation_id)
+
+
+@router.patch(
+    "/{conversation_id}/participants/agent/{agent_id}",
+    response_model=RoomParticipantRead,
+)
+async def update_room_agent_auto_reply(
+    conversation_id: UUID,
+    agent_id: UUID,
+    body: RoomParticipantAutoReplyUpdate,
+    service: RoomParticipantSvc,
+    ctx: Auth,
+) -> Any:
+    return await service.set_auto_reply(ctx, conversation_id, agent_id, auto_reply=body.auto_reply)
+
+
+@router.post("/{conversation_id}/join", response_model=ConversationRead)
+async def join_public_room(
+    conversation_id: UUID,
+    service: RoomParticipantSvc,
+    ctx: Auth,
+) -> Any:
+    return await service.join_public_room(ctx, conversation_id)
 
 
 @router.post(
@@ -848,6 +1040,50 @@ async def list_messages(
         ctx=ctx,
     )
     return MessageList(items=items, total=total, cost=cost)  # ty: ignore[invalid-argument-type]
+
+
+@router.put(
+    "/{conversation_id}/messages/{message_id}/reactions",
+    response_model=RoomMessageReactionsRead,
+)
+async def set_room_message_reaction(
+    conversation_id: UUID,
+    message_id: UUID,
+    body: RoomMessageReactionCreate,
+    service: RoomMessageReactionSvc,
+    ctx: Auth,
+    current_user: CurrentUser,
+) -> Any:
+    """Ensure the current person has this emoji on the room message."""
+    return await service.set_reaction(
+        ctx,
+        user_id=current_user.id,
+        conversation_id=conversation_id,
+        message_id=message_id,
+        data=body,
+    )
+
+
+@router.delete(
+    "/{conversation_id}/messages/{message_id}/reactions",
+    response_model=RoomMessageReactionsRead,
+)
+async def remove_room_message_reaction(
+    conversation_id: UUID,
+    message_id: UUID,
+    body: RoomMessageReactionCreate,
+    service: RoomMessageReactionSvc,
+    ctx: Auth,
+    current_user: CurrentUser,
+) -> Any:
+    """Ensure the current person no longer has this emoji on the room message."""
+    return await service.remove_reaction(
+        ctx,
+        user_id=current_user.id,
+        conversation_id=conversation_id,
+        message_id=message_id,
+        data=body,
+    )
 
 
 @router.post(

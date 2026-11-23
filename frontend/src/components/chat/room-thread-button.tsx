@@ -18,17 +18,28 @@ export function RoomThreadButton({
   if (message.isTemporaryId || message.isStreaming || message.role === "system" || !message.content)
     return null;
   const count = message.threadReplyCount ?? 0;
-  if (!canStart && count === 0) return null;
+  const unreadCount = message.threadSummary?.unread ?? 0;
+  const unread = unreadCount > 0;
+  if (!canStart && count === 0 && !unread) return null;
   return (
     <button
       type="button"
       data-tour="chat-room-thread"
       className={TURN_ACTION}
       aria-label={count > 0 ? t("replies", { count }) : t("start")}
+      aria-describedby={unread ? `room-thread-unread-${message.id}` : undefined}
       onClick={() => onOpen(message.id)}
     >
       <MessageSquare aria-hidden />
       <span>{count > 0 ? t("replies", { count }) : t("start")}</span>
+      {unread && (
+        <>
+          <span className="bg-primary size-1.5 rounded-full" aria-hidden />
+          <span id={`room-thread-unread-${message.id}`} className="sr-only">
+            {t("unreadCount", { count: unreadCount })}
+          </span>
+        </>
+      )}
     </button>
   );
 }

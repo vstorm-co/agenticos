@@ -12,6 +12,9 @@ from pydantic import ConfigDict, Field, JsonValue, ValidationInfo, field_validat
 
 from app.schemas.base import BaseSchema, TimestampSchema
 from app.schemas.mention import MentionKind
+from app.schemas.room_participant import RoomMentionRead
+from app.schemas.room_reaction import RoomMessageReactionRead
+from app.schemas.room_thread import RoomThreadSummary
 
 if TYPE_CHECKING:
     from app.db.models.user import User
@@ -483,6 +486,11 @@ class MessageRead(MessageBase, TimestampSchema):
 
     id: UUID
     conversation_id: UUID
+    room_mentions: list[RoomMentionRead] = Field(default_factory=list)
+    reactions: list[RoomMessageReactionRead] = Field(
+        default_factory=list,
+        description="Aggregated human emoji reactions for the current signed-in reader",
+    )
     thread_root_message_id: UUID | None = Field(
         default=None, description="The top-level room message whose subthread contains this turn"
     )
@@ -490,6 +498,10 @@ class MessageRead(MessageBase, TimestampSchema):
     thread_last_activity_at: datetime | None = Field(
         default=None,
         description="Newest reply time in this root's subthread, independent of the loaded page",
+    )
+    thread_summary: RoomThreadSummary | None = Field(
+        default=None,
+        description="Per-reader follow, unread and lifecycle state for a room thread root",
     )
     run_id: UUID | None = Field(
         default=None,
@@ -636,6 +648,12 @@ class MessageRead(MessageBase, TimestampSchema):
         ),
     )
 
+    @field_validator("room_mentions", mode="before")
+    @classmethod
+    def unflushed_row_has_no_mentions(cls, value: object) -> object:
+        """A column default applies on flush, so a row not yet written reads `None`."""
+        return [] if value is None else value
+
 
 class ConversationBase(BaseSchema):
     """Base conversation schema."""
@@ -725,6 +743,10 @@ class ConversationRead(ConversationBase, TimestampSchema):
     organization_id: UUID | None = None
     project_id: UUID | None = Field(
         default=None, description="The project this chat was started in, if any"
+    )
+    room_visibility: Literal["private", "public"] | None = Field(
+        default=None,
+        description="Private or public room visibility; null for legacy conversations and project chats",
     )
     is_archived: bool = False
     origin: Literal["api", "workflow"] | None = Field(

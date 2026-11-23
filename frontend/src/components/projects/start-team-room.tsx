@@ -11,7 +11,14 @@ import { getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
 import { useRouter } from "@/lib/locale-navigation";
 
-export function StartTeamRoom({ projectId }: { projectId: string }) {
+export function StartTeamRoom({
+  projectId,
+  onCreated,
+}: {
+  projectId: string;
+  /** Returns false when the reader left the selection that started creation. */
+  onCreated?: (roomId: string) => boolean;
+}) {
   const t = useTranslations("chat.teamRoom");
   const tErrors = useTranslations("errors");
   const { create, isReady } = useCreateTeamRoom();
@@ -25,7 +32,7 @@ export function StartTeamRoom({ projectId }: { projectId: string }) {
     setCreating(true);
     try {
       const room = await create(projectId, t("defaultTitle"));
-      if (room) router.push(`${ROUTES.CHAT}?id=${room.id}`);
+      if (room && onCreated?.(room.id) !== false) router.push(`${ROUTES.CHAT}?id=${room.id}`);
     } catch (error) {
       toast.error(getErrorMessage(error, tErrors, t("createFailed")));
     } finally {
