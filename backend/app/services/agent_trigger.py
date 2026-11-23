@@ -34,7 +34,6 @@ import contextlib
 import json
 import logging
 import secrets
-import sys
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
@@ -2850,6 +2849,7 @@ class AgentTriggerService:
         # the renewer moves it and the `finally` must clear the *latest*.
         ticket = [claimed_at]
         renewer = asyncio.create_task(self._keep_lease_alive(trigger_id, ticket))
+        completed = False
         try:
             await self._fire_loaded(
                 trigger,
@@ -2857,26 +2857,28 @@ class AgentTriggerService:
                 activation_id=activation_id or uuid4(),
                 source_policy_id=expected_source_policy,
             )
+            completed = True
         finally:
             renewer.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await renewer
-            # A conditional UPDATE against the committed row, not a comparison
-            # on the instance loaded when this fire began: a fire that outran
-            # the lease may find a newer claim's marker there, and only the
-            # database can judge that freshly (`clear_fire_marker`).
-            if sys.exception() is not None:
-                # The worker will roll this transaction back. Release its row
-                # locks before clearing the lease in an independent transaction.
-                await self.db.rollback()
-                async with get_db_context() as cleanup_db:
+            renewal_settled = False
+            try:
+                with contextlib.suppress(asyncio.CancelledError):
+                    await renewer
+                renewal_settled = True
+            finally:
+                # Clear the latest owned ticket even when the renewer failed.
+                # Its error still propagates, so that transaction will roll back.
+                if not completed or not renewal_settled:
+                    # Release row locks before the independent cleanup transaction.
+                    await self.db.rollback()
+                    async with get_db_context() as cleanup_db:
+                        await agent_trigger_repo.clear_fire_marker(
+                            cleanup_db, trigger_id=trigger_id, claimed_at=ticket[-1]
+                        )
+                else:
                     await agent_trigger_repo.clear_fire_marker(
-                        cleanup_db, trigger_id=trigger_id, claimed_at=ticket[-1]
+                        self.db, trigger_id=trigger_id, claimed_at=ticket[-1]
                     )
-            else:
-                await agent_trigger_repo.clear_fire_marker(
-                    self.db, trigger_id=trigger_id, claimed_at=ticket[-1]
-                )
 
     async def _keep_lease_alive(self, trigger_id: UUID, ticket: list[datetime]) -> None:
         """Re-stamp the fire's in-flight marker for as long as the run executes.

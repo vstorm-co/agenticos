@@ -5803,6 +5803,40 @@ def test_new_routines_default_to_the_creator_but_keep_per_tool_approval_independ
     assert data.model_copy(update={"action_mode": "per_tool"}).runs_as_creator is True
 
 
+async def test_lease_renewal_error_propagates_after_independent_cleanup(monkeypatch):
+    service = _service()
+    trigger = _trigger()
+    ticket = datetime.now(UTC)
+    service.db.rollback = AsyncMock()
+    cleanup = MagicMock()
+
+    async def fail_renewal(*args):
+        raise RuntimeError("Lease renewal failed")
+
+    async def finish(*args, **kwargs):
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
+
+    @contextlib.asynccontextmanager
+    async def context():
+        assert service.db.rollback.await_count == 1
+        yield cleanup
+
+    monkeypatch.setattr(service, "_keep_lease_alive", fail_renewal)
+    monkeypatch.setattr(service, "_fire_loaded", finish)
+    with (
+        patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+        patch("app.services.agent_trigger.get_db_context", context),
+        pytest.raises(RuntimeError, match="Lease renewal failed"),
+    ):
+        repo.get_by_id = AsyncMock(return_value=trigger)
+        repo.clear_fire_marker = AsyncMock()
+        await service.fire(trigger.id, claimed_at=ticket)
+    repo.clear_fire_marker.assert_awaited_once_with(
+        cleanup, trigger_id=trigger.id, claimed_at=ticket
+    )
+
+
 @pytest.mark.parametrize("caller", ["other", "background", "impersonated"])
 async def test_only_owner_in_person_may_change_the_routine_action_mode(caller):
     trigger = _trigger(action_mode="per_tool")
