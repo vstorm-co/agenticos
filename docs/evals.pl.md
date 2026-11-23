@@ -1,5 +1,5 @@
 ---
-source_sha: "f1203e95a788"
+source_sha: "76ac5bb3504a"
 title: "Runy ewaluacji"
 description: "Run ewaluacji odpowiada na każdy przypadek datasetu wersją agenta albo jego wersją roboczą, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -300,7 +300,7 @@ przypadki przed nimi.
 
 ## Wyniki { #results }
 
-Wynik otwiera zakładkę **Odpowiedzi**, bezpośrednio pod podsumowaniem napisanym prostym językiem. Zakładka **Co sprawdzono** pokazuje wyniki rodzin kryteriów, a **Szczegóły** — metryki obu stron i szczegóły porównania. Rozwiń **Jak przeprowadzono pomiar**, aby przeczytać zasady potwierdzania zmian. Odpowiedź bazowa poprzedza odpowiedź kandydata; powtórzenia można rozwinąć. Filtr wyniku jest zapisany w URL-u, a otwarte pytanie pozostaje rozwinięte po zmianie zakładki.
+Wynik pokazuje najpierw rezultat i odpowiedzi do sprawdzenia. Porównanie podaje liczbę poprawnych odpowiedzi przed i po. Otwórz pytanie, aby przeczytać odpowiedź i ocenę. **Jak przeprowadzono test** zawiera wyniki rodzin kryteriów, koszt i szczegóły wykonania; ich otwarcie nie ukrywa odpowiedzi. Filtr wyniku i wybrane pytanie pozostają w URL-u.
 
 Każda próba zachowuje odpowiedź, wykonane wywołania - każde oznaczone jako
 wykonane, zablokowane, odtworzone albo rozbieżne - werdykt i uzasadnienie

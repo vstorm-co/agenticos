@@ -172,44 +172,7 @@ export function ImprovementShell({
         onValueChange={setStepParam}
         className="space-y-5"
       >
-        <SessionLine session={session} working={working} />
-        {finished && (
-          <div className="flex min-w-0 items-center gap-2">
-            <TabsList className="flex-1" aria-label={t("stepsLabel")} data-tour="improvement-steps">
-              {(["result", "changes", "check", "attempts", "understand", "accept"] as const)
-                .filter(
-                  (id) =>
-                    id === "result" ||
-                    (id === "attempts"
-                      ? hasAttempts
-                      : id === "understand" || id === "accept"
-                        ? recordTab === id && isReachable(views[id])
-                        : isReachable(views[id])),
-                )
-                .map((id) => (
-                  <TabsTrigger key={id} value={id} data-tour={`improvement-step-${id}`}>
-                    {t(`record.${id}`)}
-                  </TabsTrigger>
-                ))}
-            </TabsList>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" aria-label={t("record.more")}>
-                  <MoreHorizontal className="size-4" aria-hidden />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                {(["understand", "accept"] as const)
-                  .filter((id) => isReachable(views[id]))
-                  .map((id) => (
-                    <DropdownMenuItem key={id} onSelect={() => setStepParam(id)}>
-                      {t(`record.${id}`)}
-                    </DropdownMenuItem>
-                  ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        )}
+        {!finished && <SessionLine session={session} working={working} />}
         {!finished && (
           <nav
             data-tour="improvement-steps"
@@ -304,6 +267,51 @@ export function ImprovementShell({
             <StepDecisions session={session} step={step} />
           </div>
         </TabsContent>
+        {finished && (
+          <NativeDisclosure open={recordTab !== "result"} className="rounded-xl border px-4 py-3">
+            <summary className="cursor-pointer text-sm font-medium" data-tour="improvement-steps">
+              {t("workspace.records")}
+            </summary>
+            <div className="mt-4 space-y-4">
+              <SessionLine session={session} working={working} />
+              <div className="flex min-w-0 items-center gap-2">
+                <TabsList className="flex-1" aria-label={t("stepsLabel")}>
+                  {(["result", "changes", "check", "attempts", "understand", "accept"] as const)
+                    .filter(
+                      (id) =>
+                        id === "result" ||
+                        (id === "attempts"
+                          ? hasAttempts
+                          : id === "understand" || id === "accept"
+                            ? recordTab === id && isReachable(views[id])
+                            : isReachable(views[id])),
+                    )
+                    .map((id) => (
+                      <TabsTrigger key={id} value={id} data-tour={`improvement-step-${id}`}>
+                        {t(`record.${id}`)}
+                      </TabsTrigger>
+                    ))}
+                </TabsList>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" aria-label={t("record.more")}>
+                      <MoreHorizontal className="size-4" aria-hidden />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    {(["understand", "accept"] as const)
+                      .filter((id) => isReachable(views[id]))
+                      .map((id) => (
+                        <DropdownMenuItem key={id} onSelect={() => setStepParam(id)}>
+                          {t(`record.${id}`)}
+                        </DropdownMenuItem>
+                      ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            </div>
+          </NativeDisclosure>
+        )}
         {footer}
         {readOnly === null &&
           step !== "result" &&

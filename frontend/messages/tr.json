@@ -16803,7 +16803,19 @@
       "answerCount": "{cases} yanıttan {passed}"
     },
     "newlyFixed": "İyileşen yanıtlar",
-    "newlyBroken": "Kötüleşen yanıtlar"
+    "newlyBroken": "Kötüleşen yanıtlar",
+    "workspace": {
+      "records": "Oturum geçmişi ve test ayrıntıları",
+      "changes": "Neler değişti",
+      "changesHint": "Her değişikliğin gerekçesini okuyun. Tam metin için karşılaştırmayı açın.",
+      "evidence": "Yanıtlar iyileşti mi?",
+      "evidenceHint": "Bu sorular güncellemeden sonra farklı yanıtlandı. Yanıtları karşılaştırmak için birini açın.",
+      "finished": "Ne oldu",
+      "change": "Değişiklik {number}",
+      "exactChange": "Tam metni karşılaştır",
+      "invalid": "Test sürümleri güvenilir biçimde karşılaştıramadı. Sonuç çıkarmadan önce testi inceleyin.",
+      "noExamples": "Gösterilecek değişmiş yanıt yok. Tüm sorular için tam testi açın."
+    }
   },
   "authoring": {
     "describe": {
@@ -16891,7 +16903,8 @@
       "partial": "Hangi yanıtların değerlendirilebildiğini aşağıda inceleyin.",
       "overallWorseBody": "Hiçbir yanıt tutarlı biçimde kötüleşmese de genel kalite düştü.",
       "requirementsBody": "Daha fazla gereksinim karşılandı, ancak bütünüyle düzelen bir yanıt doğrulanmadı.",
-      "reviewChanges": "Değişiklikleri incele"
+      "reviewChanges": "Değişiklikleri incele",
+      "passedCount": "{cases} yanıttan {passed} tanesi geçti"
     },
     "cases": {
       "answerState": {
@@ -16910,6 +16923,11 @@
         "fixed": "{confirmed, select, true {İyileşti} other {İyileşmiş olabilir}}",
         "regression": "{confirmed, select, true {Kötüleşti} other {Kötüleşmiş olabilir}}"
       }
+    },
+    "workspace": {
+      "details": "Test yöntemi · ölçütler, maliyet ve ayrıntılar",
+      "answers": "Yanıtları inceleyin",
+      "answersHint": "Yanıtı ve değerlendirmesini görmek için bir soru açın."
     }
   },
   "knowledgeGaps": {
@@ -16923,7 +16941,11 @@
       "keepEditing": "Düzenlemeye devam et",
       "add": "Bilgi tabanına ekle",
       "target": "Hedef: {name}",
-      "hint": "Metni inceleyin, ardından ajanlarınızın kullanabilmesi için bilgi tabanına ekleyin."
+      "hint": "Metni inceleyin, ardından ajanlarınızın kullanabilmesi için bilgi tabanına ekleyin.",
+      "reviewDocument": "Belgeyi inceleyin ve bilgi tabanına ekleyin",
+      "read": "Belgeyi oku",
+      "edit": "Belgeyi düzenle",
+      "searchDetails": "Bu soru neden işaretlendi?"
     }
   },
   "skillImprovement": {
@@ -16938,6 +16960,12 @@
         "unknown": "{count} doğrulanmadı",
         "better": "{count} iyileşti"
       }
+    },
+    "workspace": {
+      "title": "Bu değişiklik ajanlarınız için ne anlama geliyor?",
+      "hint": "Beceriler paylaşılır. Değişikliğin uygulanması her ajana yardımcı olduğu anlamına gelmez.",
+      "agents": "Ajanlar üzerindeki etki",
+      "skillText": "Bu oturumda test edilen beceri"
     }
   }
 }

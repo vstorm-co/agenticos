@@ -15435,7 +15435,11 @@
       "keepEditing": "Weiter bearbeiten",
       "add": "Zur Wissensbasis hinzufügen",
       "target": "Ziel: {name}",
-      "hint": "Prüfen Sie den Text und fügen Sie ihn der Wissensbasis hinzu, damit Ihre Agenten ihn nutzen können."
+      "hint": "Prüfen Sie den Text und fügen Sie ihn der Wissensbasis hinzu, damit Ihre Agenten ihn nutzen können.",
+      "reviewDocument": "Dokument prüfen und zur Wissensbasis hinzufügen",
+      "read": "Dokument lesen",
+      "edit": "Dokument bearbeiten",
+      "searchDetails": "Warum wurde diese Frage markiert?"
     }
   },
   "evals": {
@@ -16064,7 +16068,13 @@
       "partial": "Sehen Sie unten nach, welche Antworten bewertet werden konnten.",
       "overallWorseBody": "Die Gesamtqualität sank, obwohl keine einzelne Antwort durchgehend schlechter war.",
       "requirementsBody": "Mehr Anforderungen wurden erfüllt, aber keine ganze Antwort wurde durchgehend verbessert.",
-      "reviewChanges": "Änderungen prüfen"
+      "reviewChanges": "Änderungen prüfen",
+      "passedCount": "{passed} von {cases} Antworten bestanden"
+    },
+    "workspace": {
+      "details": "Testverfahren · Kriterien, Kosten und Details",
+      "answers": "Antworten prüfen",
+      "answersHint": "Öffnen Sie eine Frage, um die Antwort und ihre Bewertung zu lesen."
     }
   },
   "authoring": {
@@ -17094,6 +17104,18 @@
       "more": "Sitzungsdetails",
       "answersPassed": "Bestandene Antworten",
       "answerCount": "{passed} von {cases}"
+    },
+    "workspace": {
+      "records": "Sitzungsverlauf und Testdetails",
+      "changes": "Was sich geändert hat",
+      "changesHint": "Lesen Sie die Begründung. Öffnen Sie den Vergleich für den genauen Wortlaut.",
+      "evidence": "Sind die Antworten besser?",
+      "evidenceHint": "Diese Fragen wurden nach der Änderung anders beantwortet. Öffnen Sie eine Frage für den Vergleich.",
+      "finished": "Was passiert ist",
+      "change": "Änderung {number}",
+      "exactChange": "Genauen Wortlaut vergleichen",
+      "invalid": "Der Test konnte die Versionen nicht zuverlässig vergleichen. Prüfen Sie ihn zuerst.",
+      "noExamples": "Es gibt keine geänderten Antworten. Öffnen Sie den vollständigen Test für alle Fragen."
     }
   },
   "unsaved": {
@@ -18071,6 +18093,12 @@
         "catch_up": "Auf main nachziehen",
         "to_main": "Nach main verschieben"
       }
+    },
+    "workspace": {
+      "title": "Was bedeutet diese Änderung für Ihre Agenten?",
+      "hint": "Ein Skill wird gemeinsam genutzt. Prüfen Sie jeden Agenten: Eine angewandte Änderung hilft nicht automatisch allen.",
+      "agents": "Auswirkungen auf Agenten",
+      "skillText": "In dieser Sitzung geprüfter Skill"
     }
   },
   "resourceAppearance": {

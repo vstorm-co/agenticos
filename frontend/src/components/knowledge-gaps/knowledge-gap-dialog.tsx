@@ -18,7 +18,7 @@ import {
   DialogTitle,
 } from "@/components/ui";
 import { useKnowledgeGap } from "@/hooks/use-knowledge-gaps";
-import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_BROAD } from "@/lib/dialog-sizes";
+import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_CANVAS } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
 import type { KnowledgeGapTopic } from "@/types/knowledge-gaps";
 import { KnowledgeGapActions } from "./knowledge-gap-actions";
@@ -43,7 +43,7 @@ export function KnowledgeGapDialog({ topicId, onClose, wizard = false }: Knowled
   return (
     <InImproveWizard.Provider value={wizard}>
       <Dialog open onOpenChange={(open) => !open && close()}>
-        <DialogContent className={cn(DIALOG_BROAD, DIALOG_COLUMN)}>
+        <DialogContent className={cn(DIALOG_CANVAS, DIALOG_COLUMN)}>
           <DialogHeader>
             <div className="flex items-start justify-between gap-2">
               <DialogTitle className="break-words">{topic?.label ?? t("topic")}</DialogTitle>

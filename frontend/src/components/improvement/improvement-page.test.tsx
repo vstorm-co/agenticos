@@ -1042,6 +1042,9 @@ it("opens attempts from a finished result and restores the attempt tab from its 
   state.session!.published_version = 4;
   const view = render(<ImprovementPage agentId="a1" sessionId="s1" />);
   expect(screen.queryByText("Attempt 1 of 3")).toBeNull();
+  await userEvent.click(
+    screen.getByText("Session history and test details", { selector: "summary" }),
+  );
   await userEvent.click(screen.getByRole("tab", { name: "Attempts" }));
   expect(screen.getByRole("tab", { name: "Attempts" })).toHaveAttribute("aria-selected", "true");
   expect(screen.getByText("Attempt 1 of 3")).toBeVisible();
@@ -1056,6 +1059,9 @@ it("keeps the full test link on a finished session's question tab", async () => 
   state.session!.status = "published";
   state.session!.iterations[0]!.eval_run_ids = ["run-final"];
   render(<ImprovementPage agentId="a1" sessionId="s1" />);
+  await userEvent.click(
+    screen.getByText("Session history and test details", { selector: "summary" }),
+  );
   await userEvent.click(screen.getByRole("tab", { name: "Test questions" }));
   expect(screen.getByRole("link", { name: "Open the full check" })).toHaveAttribute(
     "href",

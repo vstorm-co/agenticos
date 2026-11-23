@@ -1,5 +1,5 @@
 ---
-source_sha: "7d14ddf24791"
+source_sha: "9a685de82017"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -173,7 +173,7 @@ sprawdzały sugestie, więc możesz porównać przewidywanie z tym, co wykazały
 
 ## Konfiguracja { #configuration }
 
-Zakończone sesje Improve agenta i skilla otwierają raport z kompaktowymi zakładkami. **Wynik**, **Zmiany**, **Pytania testowe** i **Próby** oddzielają rezultat od dowodów; **Analiza** i **Decyzja**, w menu **Szczegóły sesji**, zachowują wcześniejszy kontekst. Dotychczasowe linki do kroków nadal działają. Działania decyzyjne są dostępne tylko w sesjach oczekujących na decyzję. Zastosowana zmiana skilla może nadal obejmować agentów z niewystarczającymi dowodami; zastosowanie zmiany nie oznacza potwierdzenia poprawy.
+Zakończone sesje Improve pokazują razem wynik, zapisane zmiany i zmienione odpowiedzi. Pierwsza odpowiedź jest rozwinięta do porównania; regresje pojawiają się najpierw. Przy ponownym użyciu wyniku bazowego odpowiedź pochodzi z jego pierwotnego runu. Wynik skilla pokazuje wpływ na każdego agenta obok zmian — zastosowanie zmiany nie oznacza poprawy u wszystkich. **Historia sesji i szczegóły testu** zachowuje wcześniejsze kroki i próby; dotychczasowe linki nadal działają. Działania decyzyjne pojawiają się tylko, gdy decyzja jest dostępna.
 
 Poza tekstem asystent może zasugerować zmianę w kilku częściach konfiguracji
 agenta. Każda jest sugestią jak każda inna, decydowaną osobno w pasku, i

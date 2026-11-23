@@ -1,5 +1,5 @@
 ---
-source_sha: "f1203e95a788"
+source_sha: "76ac5bb3504a"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Entwurf, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -319,7 +319,7 @@ auf einem anderen Modell als die Fälle davor.
 
 ## Ergebnisse { #results }
 
-Das Ergebnis öffnet **Antworten** direkt unter einer Zusammenfassung in einfacher Sprache. **Was geprüft wurde** zeigt die Kriterienfamilien; **Details** enthält die Kennzahlen beider Seiten und Vergleichsdetails. Unter **Messverfahren** finden Sie die Erläuterung zur Bestätigung. Die Ausgangsantwort steht vor der Kandidatenantwort; Bestätigungsläufe lassen sich aufklappen. Der Ergebnisfilter bleibt in der URL erhalten, und die geöffnete Frage bleibt beim Wechsel der Registerkarte geöffnet.
+Das Ergebnis zeigt zuerst das Resultat und die zu prüfenden Antworten. Ein Vergleich nennt die bestandenen Antworten vorher und nachher. Öffnen Sie eine Frage für Antwort und Bewertung. **Testverfahren** enthält Kriterienfamilien, Kosten und Ausführungsdetails; die Antworten bleiben dabei sichtbar. Ergebnisfilter und ausgewählte Frage bleiben in der URL.
 
 Jeder Versuch behält die Antwort, die gemachten Aufrufe - jeder markiert als
 ausgeführt, blockiert, wiedergegeben oder abweichend -, das Urteil und die

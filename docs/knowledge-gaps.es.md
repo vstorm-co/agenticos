@@ -1,5 +1,5 @@
 ---
-source_sha: "1ab1881e5195"
+source_sha: "376b00eb0c95"
 title: "Lagunas de conocimiento"
 description: "Las lagunas de conocimiento muestran las preguntas para las que un agent no encontró nada relevante en su base de conocimiento, o respondió sin saber, agrupadas por tema, para saber qué documento falta."
 ---
@@ -375,3 +375,5 @@ valoración.
 Los nombres no se quitan de lo que lee el redactor ni se marcan en el contenido
 que se va a añadir: nada aquí reconoce un nombre. Revisa si un borrador los
 contiene antes de añadirlo.
+
+Un borrador guardado se abre como documento legible. Elige **Editar documento** para cambiar título o contenido y **Leer documento** para revisar sin perder cambios. Los detalles de búsqueda están en la explicación de cada pregunta.

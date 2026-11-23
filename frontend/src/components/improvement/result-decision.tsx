@@ -29,7 +29,11 @@ export function ResultStep({
   knowledgeCheck,
   onAccept,
   onStarted,
+  evidence,
+  changes,
 }: {
+  evidence?: ReactNode;
+  changes?: ReactNode;
   session: Improvement;
   agent: string;
   candidate: boolean;
@@ -45,16 +49,40 @@ export function ResultStep({
   const host = chosen ?? session.iterations.at(-1);
   return (
     <section className="space-y-4" data-tour="improvement-results">
-      <ResultDecision
-        session={session}
-        agent={agent}
-        candidate={candidate}
-        topics={topics.length}
-        canAccept={canAccept}
-        onAccept={onAccept}
-        onStarted={onStarted}
-      />
-      <ResultSummary session={session} round={chosen} />
+      <div className="bg-muted/30 grid min-w-0 gap-6 rounded-xl border p-4 sm:p-6 xl:grid-cols-[minmax(0,1fr)_minmax(24rem,1fr)]">
+        <ResultDecision
+          session={session}
+          agent={agent}
+          candidate={candidate}
+          topics={topics.length}
+          canAccept={canAccept}
+          onAccept={onAccept}
+          onStarted={onStarted}
+        />
+        <ResultSummary session={session} round={chosen} />
+      </div>
+      {(changes || evidence) && (
+        <div className="grid min-w-0 items-start gap-6 xl:grid-cols-2">
+          {changes && (
+            <section className="min-w-0 space-y-4 rounded-xl border p-4 sm:p-6">
+              <div className="space-y-1">
+                <h2 className="text-base font-medium">{t("workspace.changes")}</h2>
+                <p className="text-muted-foreground text-sm">{t("workspace.changesHint")}</p>
+              </div>
+              {changes}
+            </section>
+          )}
+          {evidence && (
+            <section className="min-w-0 space-y-4 rounded-xl border p-4 sm:p-6">
+              <div className="space-y-1">
+                <h2 className="text-base font-medium">{t("workspace.evidence")}</h2>
+                <p className="text-muted-foreground text-sm">{t("workspace.evidenceHint")}</p>
+              </div>
+              {evidence}
+            </section>
+          )}
+        </div>
+      )}
       {!isClosed(session) && <ResultAttempts session={session} knowledgeCheck={knowledgeCheck} />}
       {!host && draftCheckShown(session, topics) && (
         <Details summary={t("showDetails")}>{knowledgeCheck}</Details>
@@ -238,8 +266,10 @@ function ResultDecision({
     </Button>
   );
   return (
-    <section className="space-y-3" data-tour="improvement-decision">
-      <h2 className="font-medium">{t("resultDecision.title")}</h2>
+    <section className="min-w-0 space-y-3" data-tour="improvement-decision">
+      <h2 className="text-lg font-medium">
+        {t(isClosed(session) ? "workspace.finished" : "resultDecision.title")}
+      </h2>
       <p
         role={session.status === "failed" && session.stop_reason ? "alert" : undefined}
         className="text-sm"

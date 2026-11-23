@@ -15522,7 +15522,11 @@
       "keepEditing": "Kontynuuj edycję",
       "add": "Dodaj do bazy wiedzy",
       "target": "Docelowa baza: {name}",
-      "hint": "Sprawdź treść, a następnie dodaj ją do bazy wiedzy, aby agenci mogli z niej korzystać."
+      "hint": "Sprawdź treść, a następnie dodaj ją do bazy wiedzy, aby agenci mogli z niej korzystać.",
+      "reviewDocument": "Sprawdź dokument, a następnie dodaj go do bazy wiedzy",
+      "read": "Czytaj dokument",
+      "edit": "Edytuj dokument",
+      "searchDetails": "Dlaczego oznaczono to pytanie?"
     }
   },
   "evals": {
@@ -16151,7 +16155,13 @@
       "partial": "Sprawdź poniżej, które odpowiedzi udało się ocenić.",
       "overallWorseBody": "Ogólna jakość spadła, choć żadna pojedyncza odpowiedź nie była stale gorsza.",
       "requirementsBody": "Spełniono więcej wymagań, ale nie potwierdzono poprawy całych odpowiedzi.",
-      "reviewChanges": "Sprawdź zmiany"
+      "reviewChanges": "Sprawdź zmiany",
+      "passedCount": "{passed} z {cases} odpowiedzi poprawnych"
+    },
+    "workspace": {
+      "details": "Jak przeprowadzono test · kryteria, koszt i szczegóły",
+      "answers": "Sprawdź odpowiedzi",
+      "answersHint": "Otwórz pytanie, aby przeczytać odpowiedź i dowiedzieć się, dlaczego jest poprawna lub wymaga uwagi."
     }
   },
   "authoring": {
@@ -17181,6 +17191,18 @@
       "more": "Szczegóły sesji",
       "answersPassed": "Poprawne odpowiedzi",
       "answerCount": "{passed} z {cases}"
+    },
+    "workspace": {
+      "records": "Historia sesji i szczegóły testu",
+      "changes": "Co się zmieniło",
+      "changesHint": "Przeczytaj uzasadnienie zmian. Rozwiń porównanie, aby zobaczyć dokładną treść.",
+      "evidence": "Czy odpowiedzi są lepsze?",
+      "evidenceHint": "Te pytania otrzymały inne odpowiedzi po zmianie. Otwórz pytanie, aby porównać odpowiedzi przed i po.",
+      "finished": "Co się wydarzyło",
+      "change": "Zmiana {number}",
+      "exactChange": "Porównaj dokładną treść",
+      "invalid": "Test nie pozwala wiarygodnie porównać wersji. Sprawdź go przed wyciągnięciem wniosków.",
+      "noExamples": "Nie ma zmienionych odpowiedzi do pokazania. Otwórz pełny test, aby zobaczyć wszystkie pytania."
     }
   },
   "unsaved": {
@@ -18158,6 +18180,12 @@
         "catch_up": "Doganianie main",
         "to_main": "Przeniesienie na main"
       }
+    },
+    "workspace": {
+      "title": "Co ta zmiana oznacza dla Twoich agentów?",
+      "hint": "Skill jest współdzielony. Sprawdź każdego agenta poniżej — zastosowanie zmiany nie oznacza poprawy u wszystkich.",
+      "agents": "Wpływ na agentów",
+      "skillText": "Skill sprawdzony w tej sesji"
     }
   },
   "resourceAppearance": {

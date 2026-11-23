@@ -158,3 +158,36 @@ it("shows only the changes an attempt tested before it is accepted, as reworded"
   view.rerender(<AcceptedChanges session={SESSION} round={round} />);
   expect(screen.getByRole("alert")).toBeInTheDocument();
 });
+
+it("puts the saved wording and rationale directly in the report, with only the exact diff folded", () => {
+  state.changes = {
+    1: [
+      hunk({
+        id: "h0",
+        rationale: "Use the reviewed policy.",
+        new_text: "Original proposal",
+        accepted_text: "Reviewed wording",
+      }),
+    ],
+  };
+  const view = render(<AcceptedChanges session={SESSION} round={FIRST} report />);
+  expect(
+    screen
+      .getAllByText("Use the reviewed policy.", { selector: "p" })
+      .some((item) => item.closest("details") === null),
+  ).toBe(true);
+  expect(
+    screen.getAllByText("Reviewed wording").some((item) => item.closest("details") === null),
+  ).toBe(true);
+  expect(screen.getByText("Compare the exact wording").closest("details")).not.toHaveAttribute(
+    "open",
+  );
+  state.changes = { 1: [hunk({ new_text: "", kind: "spec_field" })] };
+  view.rerender(
+    <AcceptedChanges session={SESSION} round={{ ...FIRST, included_hunk_ids: null }} report />,
+  );
+  expect(screen.getByText("Change 1")).toBeVisible();
+  state.changes = {};
+  view.rerender(<AcceptedChanges session={SESSION} round={FIRST} report />);
+  expect(screen.getByText("No change was written in this attempt.")).toBeVisible();
+});

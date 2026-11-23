@@ -241,11 +241,50 @@ export function EvalRunView({ agentId, runId }: { agentId: string; runId: string
           setTab(value === "questions" ? null : value);
         }}
       >
-        <TabsList aria-label={t("resultTitle")}>
-          <TabsTrigger value="questions">{t("resultTabs.questions")}</TabsTrigger>
-          <TabsTrigger value="criteria">{t("resultTabs.criteria")}</TabsTrigger>
-          <TabsTrigger value="performance">{t("resultTabs.performance")}</TabsTrigger>
-        </TabsList>
+        <NativeDisclosure open={selectedTab !== "questions"} className="rounded-xl border p-4">
+          <summary className="cursor-pointer text-sm font-medium">{t("workspace.details")}</summary>
+          <TabsList aria-label={t("resultTitle")} className="mt-4">
+            <TabsTrigger value="questions">{t("resultTabs.questions")}</TabsTrigger>
+            <TabsTrigger value="criteria">{t("resultTabs.criteria")}</TabsTrigger>
+            <TabsTrigger value="performance">{t("resultTabs.performance")}</TabsTrigger>
+          </TabsList>
+          <TabsContent value="performance" className="space-y-4 pt-3">
+            <ArmsTable
+              agentId={agentId}
+              arms={run.arms}
+              tag={tag}
+              live={live}
+              baseline={comparison?.baseline ?? null}
+              check={check}
+              baselineSummary={comparison?.baseline_summary ?? null}
+            />
+            {!live && comparison && (
+              <NativeDisclosure className="rounded-xl border p-4 text-sm">
+                <summary className="cursor-pointer font-medium">
+                  {t("resultTabs.methodology")}
+                </summary>
+                <ComparisonCard
+                  agentId={agentId}
+                  comparison={comparison}
+                  tag={tag}
+                  check={check}
+                  showCriteria={false}
+                />
+              </NativeDisclosure>
+            )}
+          </TabsContent>
+          <TabsContent value="criteria" className="pt-3">
+            <section className="bg-card rounded-xl border p-4 sm:p-5">
+              {(comparison?.families?.length ?? 0) > 0 ? (
+                <CriteriaTable criteria={familyRows(comparison?.families ?? [])} />
+              ) : (
+                <p role="status" className="text-muted-foreground text-sm">
+                  {t("resultNoCriteria")}
+                </p>
+              )}
+            </section>
+          </TabsContent>
+        </NativeDisclosure>
         <div className="flex flex-wrap gap-2 pt-4">
           {candidates.length > 1 && (
             <Select value={focus ?? ""} onValueChange={setArm}>
@@ -261,7 +300,7 @@ export function EvalRunView({ agentId, runId }: { agentId: string; runId: string
               </SelectContent>
             </Select>
           )}
-          {selectedTab !== "criteria" && tags.length > 0 && (
+          {tags.length > 0 && (
             <FilterSelect
               label={tCases("tagFilter")}
               value={tag ?? ALL}
@@ -273,42 +312,6 @@ export function EvalRunView({ agentId, runId }: { agentId: string; runId: string
             />
           )}
         </div>
-        <TabsContent value="performance" className="space-y-4 pt-3">
-          <ArmsTable
-            agentId={agentId}
-            arms={run.arms}
-            tag={tag}
-            live={live}
-            baseline={comparison?.baseline ?? null}
-            check={check}
-            baselineSummary={comparison?.baseline_summary ?? null}
-          />
-          {!live && comparison && (
-            <NativeDisclosure className="rounded-xl border p-4 text-sm">
-              <summary className="cursor-pointer font-medium">
-                {t("resultTabs.methodology")}
-              </summary>
-              <ComparisonCard
-                agentId={agentId}
-                comparison={comparison}
-                tag={tag}
-                check={check}
-                showCriteria={false}
-              />
-            </NativeDisclosure>
-          )}
-        </TabsContent>
-        <TabsContent value="criteria" className="pt-3">
-          <section className="bg-card rounded-xl border p-4 sm:p-5">
-            {(comparison?.families?.length ?? 0) > 0 ? (
-              <CriteriaTable criteria={familyRows(comparison?.families ?? [])} />
-            ) : (
-              <p role="status" className="text-muted-foreground text-sm">
-                {t("resultNoCriteria")}
-              </p>
-            )}
-          </section>
-        </TabsContent>
         {testingAgain && (
           <StartEvalDialog
             agentId={agentId}
@@ -317,7 +320,11 @@ export function EvalRunView({ agentId, runId }: { agentId: string; runId: string
             onOpenChange={setTestingAgain}
           />
         )}
-        <TabsContent value="questions" forceMount className="pt-3">
+        <section className="space-y-3 pt-3" aria-label={t("workspace.answers")}>
+          <div className="space-y-1">
+            <h2 className="text-base font-medium">{t("workspace.answers")}</h2>
+            <p className="text-muted-foreground text-sm">{t("workspace.answersHint")}</p>
+          </div>
           <div ref={cases}>
             <CaseTable
               run={named}
@@ -341,7 +348,7 @@ export function EvalRunView({ agentId, runId }: { agentId: string; runId: string
               }}
             />
           </div>
-        </TabsContent>
+        </section>
       </Tabs>
     </div>
   );

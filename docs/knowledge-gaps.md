@@ -343,3 +343,5 @@ read for what the agent said, not for the rating.
 
 Names are not taken out of what the drafter reads, nor flagged in content to
 add: nothing here recognises a name. Check a draft for them before you add it.
+
+A saved draft opens as a readable document. Choose **Edit document** to change its title or content, then **Read document** to review those edits without losing them. Retrieval details are available under each question’s explanation.

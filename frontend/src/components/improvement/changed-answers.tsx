@@ -20,7 +20,11 @@ export function ChangedAnswers({
   baselineId,
   candidateId,
   attributions,
+  preview = false,
+  baselineRunId = runId,
 }: {
+  preview?: boolean;
+  baselineRunId?: string;
   runId: string;
   agentId: string;
   flips: CaseFlip[];
@@ -34,20 +38,33 @@ export function ChangedAnswers({
     caseIds: flips.slice(0, 100).map((flip) => flip.case_id),
     limit: 50,
   });
-  if (error) return <p role="alert">{getErrorMessage(error, tErrors)}</p>;
-  if (isLoading) return <p role="status">{t("loading")}</p>;
+  const baseline = useEvalCases(baselineRunId, {
+    caseIds: flips.slice(0, 100).map((flip) => flip.case_id),
+    limit: 50,
+  });
+  if (error || baseline.error)
+    return <p role="alert">{getErrorMessage(error ?? baseline.error, tErrors)}</p>;
+  if (isLoading || baseline.isLoading) return <p role="status">{t("loading")}</p>;
   const byCase = new Map(flips.map((flip) => [flip.case_id, flip]));
-  const confirmed = cases.filter((item) => byCase.get(item.case_id)?.confirmed);
-  const pending = cases.filter((item) => !byCase.get(item.case_id)?.confirmed);
-  const row = (item: EvalCase) => (
+  const ordered = flips.flatMap((flip) => cases.filter((item) => item.case_id === flip.case_id));
+  const confirmed = ordered.filter((item) => byCase.get(item.case_id)?.confirmed);
+  const pending = ordered.filter((item) => !byCase.get(item.case_id)?.confirmed);
+  const row = (item: EvalCase, index: number) => (
     <ChangedRow
       key={item.case_id}
-      item={item}
+      item={{
+        ...item,
+        attempts: [
+          ...item.attempts,
+          ...(baseline.cases.find((before) => before.case_id === item.case_id)?.attempts ?? []),
+        ],
+      }}
       flip={byCase.get(item.case_id)!.flip}
       confirmed={byCase.get(item.case_id)!.confirmed}
       baselineId={baselineId}
       candidateId={candidateId}
       attributions={attributions}
+      initiallyOpen={preview && index === 0}
     />
   );
   return (
@@ -75,7 +92,9 @@ function ChangedRow({
   baselineId,
   candidateId,
   attributions,
+  initiallyOpen,
 }: {
+  initiallyOpen: boolean;
   item: EvalCase;
   flip: CaseFlip["flip"];
   confirmed: boolean;
@@ -88,6 +107,8 @@ function ChangedRow({
   const after = item.attempts.find((a) => a.arm_id === candidateId && a.attempt === 0);
   return (
     <Details
+      initiallyOpen={initiallyOpen}
+      className="@container"
       summary={
         <span className="flex flex-wrap items-center gap-2">
           {confirmed ? (
@@ -103,7 +124,7 @@ function ChangedRow({
         </span>
       }
     >
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-4 @2xl:grid-cols-2">
         {[
           { label: t("before"), value: before?.answer },
           { label: t("after"), value: after?.answer },
@@ -116,13 +137,18 @@ function ChangedRow({
           </div>
         ))}
       </div>
-      {after?.score?.results.map((grade, index) => (
-        <p key={index} className="text-muted-foreground text-sm">
-          {t("graderSaid", { reason: grade.reason })}
-        </p>
-      ))}
-      <div className="text-sm">
-        <p className="font-medium">{t("whichChange")}</p>
+      <NativeDisclosure className="text-muted-foreground text-sm">
+        <summary className="cursor-pointer">{t("technicalDetails")}</summary>
+        <div className="mt-2 space-y-2">
+          {after?.score?.results.map((grade, index) => (
+            <p key={index} className="text-muted-foreground text-sm">
+              {t("graderSaid", { reason: grade.reason })}
+            </p>
+          ))}
+        </div>
+      </NativeDisclosure>
+      <NativeDisclosure className="text-muted-foreground text-sm">
+        <summary className="cursor-pointer">{t("whichChange")}</summary>
         {Object.keys(attributions).length === 0 ? (
           <p className="text-muted-foreground">{t("notAttributed")}</p>
         ) : (
@@ -130,7 +156,7 @@ function ChangedRow({
             <ChangeCause key={id} caseId={item.case_id} runId={id} number={index + 1} />
           ))
         )}
-      </div>
+      </NativeDisclosure>
     </Details>
   );
 }

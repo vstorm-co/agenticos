@@ -1389,7 +1389,8 @@ it("separates criterion evidence from operational metrics and reports absent fam
   const view = renderDetailedResult(<EvalRunView agentId="agent-1" runId="run-1" />);
   await userEvent.click(screen.getByRole("tab", { name: "What was checked" }));
   expect(screen.getByRole("row", { name: /Returns/ })).toHaveTextContent("12 of 12");
-  expect(screen.queryByRole("combobox", { name: "Tag" })).toBeNull();
+  expect(screen.getByRole("combobox", { name: "Tag" })).toBeVisible();
+  expect(screen.getByRole("region", { name: "Review the answers" })).toBeVisible();
   state.comparison = comparison({ families: [] });
   view.rerender(<EvalRunView agentId="agent-1" runId="run-1" />);
   expect(

@@ -3,13 +3,14 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
+import { MarkdownContent } from "@/components/chat/markdown-content";
 
 import { AttemptChanges } from "@/components/improvement/attempt-changes";
 import { AttemptHistory } from "@/components/improvement/attempt-history";
 import { ContinueSession } from "@/components/improvement/continue-session";
 import { ImprovementShell, WorkingNote } from "@/components/improvement/improvement-shell";
 import { type ReadOnlyReason } from "@/components/improvement/read-only";
-import { TriedChanges } from "@/components/improvement/tried-changes";
+import { AcceptedChanges, TriedChanges } from "@/components/improvement/tried-changes";
 import { ErrorState, LoadingState } from "@/components/states";
 import { Button } from "@/components/ui";
 import { useSkill } from "@/hooks";
@@ -171,6 +172,7 @@ function SkillSession({
       ? null
       : "viewOnly";
   const check = session.check;
+  const chosen = session.iterations.find((round) => round.id === session.best_iteration_id);
   const measured = check ? (
     <CheckAgents check={check} />
   ) : (
@@ -296,8 +298,37 @@ function SkillSession({
             )}
             {step === "result" && (
               <section className="space-y-4">
-                <h2 className="font-medium">{t("resultTitle")}</h2>
-                {measured}
+                <div className="bg-muted/30 space-y-2 rounded-xl border p-4 sm:p-6">
+                  <h2 className="text-lg font-medium">{t("workspace.title")}</h2>
+                  <p className="text-muted-foreground text-sm">{t("workspace.hint")}</p>
+                  <p className="text-sm font-medium">
+                    {tImprovement(
+                      `status.${session.status === "accepted" ? "skillAccepted" : session.status}`,
+                      { outcome: session.outcome ?? "other" },
+                    )}
+                  </p>
+                </div>
+                <div className="grid min-w-0 items-start gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+                  <section className="min-w-0 space-y-4">
+                    <h2 className="text-base font-medium">{t("workspace.agents")}</h2>
+                    {measured}
+                  </section>
+                  {(check || chosen?.batch_id) && (
+                    <section className="min-w-0 space-y-4 rounded-xl border p-4 sm:p-6">
+                      <h2 className="text-base font-medium">{t("workspace.skillText")}</h2>
+                      {chosen?.batch_id ? (
+                        <AcceptedChanges session={session} round={chosen} report />
+                      ) : (
+                        check && (
+                          <div className="max-h-96 space-y-3 overflow-y-auto text-sm leading-relaxed wrap-anywhere">
+                            <p className="text-muted-foreground">{check.candidate.description}</p>
+                            <MarkdownContent content={check.candidate.content} inertImages />
+                          </div>
+                        )
+                      )}
+                    </section>
+                  )}
+                </div>
                 <MainAloneResult session={session} />
                 {session.stale &&
                   readOnly === null &&

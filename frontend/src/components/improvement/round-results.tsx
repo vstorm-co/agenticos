@@ -192,6 +192,7 @@ function MeasuredResult({
             runId={runId}
             agentId={run.agent_id}
             flips={comparison.cases.filter((c) => c.flip === "regression" || c.flip === "fixed")}
+            baselineRunId={comparison.baseline.run_id}
             baselineId={comparison.baseline.arm_id}
             candidateId={comparison.candidate.arm_id}
             attributions={attributions}

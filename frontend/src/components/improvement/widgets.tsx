@@ -47,7 +47,7 @@ export function Tiles({
       <dl
         role="group"
         aria-label={label}
-        className="bg-card grid grid-cols-2 gap-x-6 gap-y-4 rounded-xl border p-4 sm:flex sm:flex-wrap sm:gap-10 sm:p-5"
+        className="grid grid-cols-2 gap-x-6 gap-y-4 sm:flex sm:flex-wrap sm:gap-8"
       >
         {tiles.map((tile) => (
           <div key={tile.label} className="min-w-0 space-y-1">
@@ -366,7 +366,9 @@ export function Details({
   className,
   onToggle,
   tour,
+  initiallyOpen,
 }: {
+  initiallyOpen?: boolean;
   summary: ReactNode;
   children: ReactNode;
   className?: string;
@@ -377,6 +379,7 @@ export function Details({
     <NativeDisclosure
       className={cn("group rounded-xl border", className)}
       data-tour={tour}
+      open={initiallyOpen}
       onToggle={onToggle && ((event) => onToggle(event.currentTarget.open))}
     >
       {/* The browser's own marker sits on a line of its own above a block summary,

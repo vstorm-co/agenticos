@@ -1,5 +1,5 @@
 ---
-source_sha: "1ab1881e5195"
+source_sha: "376b00eb0c95"
 title: "Wissenslücken"
 description: "Wissenslücken zeigen die Fragen, zu denen ein Agent in seiner Wissensbasis nichts Passendes gefunden oder ohne Wissen geantwortet hat, nach Thema gruppiert, damit klar ist, welches Dokument fehlt."
 ---
@@ -383,3 +383,5 @@ gesagt hat, nicht auf die Bewertung.
 Namen werden weder aus dem entfernt, was der Lücken-Entwerfer liest, noch in Inhalten
 zum Hinzufügen markiert: Nichts hier erkennt einen Namen. Prüfe einen Entwurf
 darauf, bevor du ihn hinzufügst.
+
+Ein gespeicherter Entwurf öffnet als lesbares Dokument. Mit **Dokument bearbeiten** ändern Sie Titel oder Inhalt, mit **Dokument lesen** prüfen Sie die Änderungen ohne Verlust. Suchdetails stehen bei der Erklärung jeder Frage.

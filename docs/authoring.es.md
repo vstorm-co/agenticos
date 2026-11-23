@@ -1,5 +1,5 @@
 ---
-source_sha: "7d14ddf24791"
+source_sha: "9a685de82017"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las herramientas, la configuración, los skills y los archivos de contexto de un agent. Una persona decide cada uno."
 ---
@@ -174,7 +174,7 @@ lo que encontraron los runs.
 
 ## Configuración { #configuration }
 
-Las sesiones Improve finalizadas de agentes y skills abren un informe con pestañas compactas. **Resultado**, **Cambios**, **Preguntas de prueba** e **Intentos** separan el resultado de sus pruebas; **Análisis** y **Decisión**, en **Detalles de la sesión**, conservan el contexto anterior. Los enlaces existentes a pasos siguen funcionando. Las acciones de decisión solo aparecen mientras hay una decisión pendiente. Una modificación de skill aplicada puede incluir agentes con evidencia insuficiente; aplicarla no confirma una mejora.
+Las sesiones Improve finalizadas muestran juntos el resultado, los cambios guardados y las respuestas modificadas. La primera respuesta está abierta para compararla; las regresiones aparecen primero. Una referencia reutilizada lee su respuesta del run original. Los resultados de skills muestran el efecto por agente junto a los cambios; aplicar no significa mejorar para todos. **Historial de sesión y detalles de prueba** conserva los pasos e intentos anteriores; los enlaces existentes siguen funcionando. Solo se ofrecen acciones de decisión cuando hay una decisión disponible.
 
 Además del texto, el asistente puede sugerir un cambio en algunas partes de la
 configuración de un agent. Cada uno es una sugerencia como cualquier otra, que se

@@ -58,6 +58,29 @@ export function ResultOverview({
                       })
                     : t("singleBody", { failed: candidate.summary.failed })}
       </p>
+      {!invalid && comparison.baseline && comparison.baseline_summary && (
+        <dl className="grid gap-4 pt-3 sm:grid-cols-2">
+          {[
+            { label: t("before"), summary: comparison.baseline_summary },
+            { label: t("after"), summary },
+          ].map((side) => (
+            <div key={side.label} className="bg-muted/40 space-y-2 rounded-lg p-4">
+              <dt className="text-muted-foreground text-sm">{side.label}</dt>
+              <dd className="text-xl font-medium tabular-nums">
+                {t("passedCount", { passed: side.summary.passed, cases: side.summary.cases })}
+              </dd>
+              <dd aria-hidden className="bg-muted h-1.5 overflow-hidden rounded-full">
+                <span
+                  className="bg-foreground/60 block h-full rounded-full"
+                  style={{
+                    width: `${side.summary.cases === 0 ? 0 : (side.summary.passed / side.summary.cases) * 100}%`,
+                  }}
+                />
+              </dd>
+            </div>
+          ))}
+        </dl>
+      )}
       {undecided > 0 && (
         <p className="text-warning-ink text-sm">{t("undecided", { count: undecided })}</p>
       )}

@@ -5,6 +5,9 @@ import { attempt, evalCase, FLIP } from "@/test-utils/eval-runs";
 import { ChangedAnswers } from "./changed-answers";
 const state = vi.hoisted(() => ({
   error: null as Error | null,
+  cached: false,
+  cachedError: null as Error | null,
+  cachedLoading: false,
   loading: false,
   status: "completed",
   confirmed: true,
@@ -16,9 +19,9 @@ const state = vi.hoisted(() => ({
 const comparisonOptions = vi.hoisted(() => vi.fn());
 const FLIPS = [{ ...FLIP, case_id: "case-1", flip: "fixed" as const, confirmed: true }];
 vi.mock("@/hooks/use-eval-runs", () => ({
-  useEvalCases: () => ({
-    error: state.error,
-    isLoading: state.loading,
+  useEvalCases: (runId: string) => ({
+    error: state.error ?? (runId === "cached" ? state.cachedError : null),
+    isLoading: state.loading || (runId === "cached" && state.cachedLoading),
     cases: [
       evalCase({
         input: "How long can I return an order?",
@@ -47,7 +50,11 @@ vi.mock("@/hooks/use-eval-runs", () => ({
               ],
             }),
           }),
-        ],
+        ].filter(
+          (item) =>
+            !state.cached ||
+            (runId === "cached" ? item.arm_id === "before" : item.arm_id === "after"),
+        ),
       }),
     ],
   }),
@@ -66,6 +73,9 @@ vi.mock("@/hooks/use-eval-runs", () => ({
 }));
 beforeEach(() => {
   state.error = null;
+  state.cached = false;
+  state.cachedError = null;
+  state.cachedLoading = false;
   state.loading = false;
   state.status = "completed";
   state.confirmed = true;
@@ -250,4 +260,52 @@ it("marks a confirmed change newly fixed or broken and an unconfirmed one only p
   );
   expect(screen.getByText("Possibly broken")).toBeInTheDocument();
   expect(screen.queryByText("Answers that got worse")).not.toBeInTheDocument();
+});
+
+it("loads a reused baseline from its own run and opens the first answer for review", () => {
+  state.cached = true;
+  const view = render(
+    <ChangedAnswers
+      runId="r1"
+      baselineRunId="cached"
+      agentId="a1"
+      flips={FLIPS}
+      baselineId="before"
+      candidateId="after"
+      attributions={{}}
+      preview
+    />,
+  );
+  expect(screen.getByText("90 days")).toBeVisible();
+  expect(screen.getByText("30 days")).toBeVisible();
+  expect(screen.getByText("Which change caused it").closest("details")).not.toHaveAttribute("open");
+  state.cachedLoading = true;
+  view.rerender(
+    <ChangedAnswers
+      runId="r1"
+      baselineRunId="cached"
+      agentId="a1"
+      flips={FLIPS}
+      baselineId="before"
+      candidateId="after"
+      attributions={{}}
+      preview
+    />,
+  );
+  expect(screen.getByRole("status")).toBeVisible();
+  state.cachedLoading = false;
+  state.cachedError = new Error("Baseline unavailable");
+  view.rerender(
+    <ChangedAnswers
+      runId="r1"
+      baselineRunId="cached"
+      agentId="a1"
+      flips={FLIPS}
+      baselineId="before"
+      candidateId="after"
+      attributions={{}}
+      preview
+    />,
+  );
+  expect(screen.getByRole("alert")).toHaveTextContent("Baseline unavailable");
 });

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { BookPlus, Save } from "lucide-react";
+import { BookPlus, Save, Pencil, Eye } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { Badge, Button, Input, Label, MarkdownEditor } from "@/components/ui";
@@ -38,6 +38,7 @@ export function KnowledgeGapEditor({
   const t = useTranslations("knowledgeGaps");
   const [title, setTitle] = useState(topic.draft?.title ?? "");
   const [content, setContent] = useState(topic.draft?.content ?? "");
+  const [editing, setEditing] = useState(topic.draft === null);
   const [confirmed, setConfirmed] = useState(false);
   const save = useSaveKnowledgeGapContent();
   const add = useAddKnowledgeGapContent();
@@ -63,15 +64,30 @@ export function KnowledgeGapEditor({
 
   return (
     <fieldset disabled={topic.drafting} className="min-w-0 space-y-3">
-      <div className="space-y-1.5">
-        <Label htmlFor="knowledge-gap-title">{t("contentTitle")}</Label>
-        <Input
-          id="knowledge-gap-title"
-          value={title}
-          maxLength={200}
-          onChange={(event) => edit(() => setTitle(event.target.value))}
-        />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm font-medium">{t("workspace.reviewDocument")}</p>
+        <Button type="button" variant="outline" size="sm" onClick={() => setEditing(!editing)}>
+          {editing ? (
+            <Eye className="size-3.5" aria-hidden />
+          ) : (
+            <Pencil className="size-3.5" aria-hidden />
+          )}
+          {t(editing ? "workspace.read" : "workspace.edit")}
+        </Button>
       </div>
+      {editing ? (
+        <div className="space-y-1.5">
+          <Label htmlFor="knowledge-gap-title">{t("contentTitle")}</Label>
+          <Input
+            id="knowledge-gap-title"
+            value={title}
+            maxLength={200}
+            onChange={(event) => edit(() => setTitle(event.target.value))}
+          />
+        </div>
+      ) : (
+        <h3 className="text-lg font-medium break-words">{title || t("contentTitle")}</h3>
+      )}
       <MarkdownEditor
         label={t("contentBody")}
         placeholder={t("contentPlaceholder")}
@@ -79,6 +95,8 @@ export function KnowledgeGapEditor({
         rows={10}
         maxLength={20_000}
         inertImages
+        mode={editing ? "source" : "preview"}
+        editorHeight={editing ? undefined : "auto"}
         onChange={(next) => edit(() => setContent(next))}
       />
       {blanks.length > 0 && (

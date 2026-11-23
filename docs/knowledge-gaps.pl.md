@@ -1,5 +1,5 @@
 ---
-source_sha: "1ab1881e5195"
+source_sha: "376b00eb0c95"
 title: "Luki w wiedzy"
 description: "Luki w wiedzy pokazują pytania, dla których agent nie znalazł w bazie wiedzy nic trafnego albo odpowiedział, że nie wie, pogrupowane w tematy, żeby było widać, jakiego dokumentu brakuje."
 ---
@@ -359,3 +359,5 @@ nie samej oceny.
 Imiona i nazwiska nie są usuwane z tego, co czyta autor szkiców luk, ani oznaczane w
 treści do dodania: nic tutaj nie rozpoznaje imion i nazwisk. Sprawdź pod tym
 kątem szkic, zanim go dodasz.
+
+Zapisany szkic otwiera się jako dokument do przeczytania. Wybierz **Edytuj dokument**, aby zmienić tytuł lub treść, a potem **Czytaj dokument**, aby obejrzeć zmiany bez ich utraty. Szczegóły wyszukiwania są dostępne pod wyjaśnieniem przy każdym pytaniu.

@@ -167,7 +167,7 @@ the runs found.
 
 ## Configuration { #configuration }
 
-Finished agent and skill Improve sessions open as result records with compact tabs, rather than an active step wizard. **Result**, **Changes**, **Test questions** and **Attempts** separate the outcome from its evidence; **Analysis** and **Decision**, in **Session details**, retain the earlier context. Existing step links still work. Only sessions awaiting a decision offer decision actions. An applied skill change can still contain agents with insufficient evidence; application status does not turn an inconclusive result into a verified improvement.
+Finished Improve sessions show the outcome, saved changes and changed answers together. The first changed answer is open for comparison; regressions appear first. A reused baseline reads its answer from its original run. Skill results show each agent’s outcome beside the changes, and application does not imply every agent improved. **Session history and test details** retains the earlier steps and attempts; existing step links still work. Decision actions appear only while a decision is available.
 
 Besides the text, the assistant can suggest a change to a few parts of an
 agent's configuration. Each one is a suggestion like any other, decided on its

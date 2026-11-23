@@ -25,6 +25,7 @@ import { AcceptedChanges, TriedChanges } from "./tried-changes";
 import { NotBetterWarning } from "./attempt-choice";
 import { CriteriaNote, GAINS } from "./criteria";
 import { AcceptSummary, GuardNote, KnowledgeDocuments } from "./outcome";
+import { ResultEvidence } from "./result-evidence";
 import { ResultAttempts, ResultStep } from "./result-decision";
 import { type ReadOnlyReason } from "./read-only";
 import { SessionDecision } from "./session-decision";
@@ -49,7 +50,7 @@ export function ImprovementPage({ agentId, sessionId }: { agentId: string; sessi
   // one, needs edit access too, and without it the session is only read.
   if (!can(Perm.runsView) || (!agent.can_edit && sessionId === "new"))
     return (
-      <div className="mx-auto w-full max-w-screen-2xl min-w-0 space-y-4 pb-8 sm:space-y-6 sm:pb-12">
+      <div className="w-full min-w-0 space-y-4 pb-8 sm:space-y-6 sm:pb-12">
         <PageHeader
           title={t("title", { name: agent.name })}
           breadcrumbs={[{ label: agent.name, href: `/agents/${agentId}` }, { label: t("heading") }]}
@@ -62,7 +63,7 @@ export function ImprovementPage({ agentId, sessionId }: { agentId: string; sessi
     );
   if (sessionId === "new") return <ImprovementStartRedirect agentId={agentId} />;
   return (
-    <div className="mx-auto w-full max-w-screen-2xl min-w-0 space-y-4 pb-8 sm:space-y-6 sm:pb-12">
+    <div className="w-full min-w-0 space-y-4 pb-8 sm:space-y-6 sm:pb-12">
       <PageHeader
         title={t("title", { name: agent.name })}
         breadcrumbs={[{ label: agent.name, href: `/agents/${agentId}` }, { label: t("heading") }]}
@@ -266,6 +267,16 @@ function Session({
               session={session}
               agent={agentName}
               candidate={hasCandidate(session)}
+              changes={
+                isClosed(session) && chosen?.batch_id ? (
+                  <AcceptedChanges session={session} round={chosen} report />
+                ) : undefined
+              }
+              evidence={
+                isClosed(session) && resultRunId ? (
+                  <ResultEvidence agentId={agentId} runId={resultRunId} />
+                ) : undefined
+              }
               canAccept={!selectionDirty && !missingBatch}
               knowledgeCheck={knowledgeCheck}
               onAccept={() => goTo("accept")}

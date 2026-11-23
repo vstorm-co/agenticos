@@ -15749,7 +15749,11 @@
       "keepEditing": "Keep editing",
       "add": "Add to knowledge base",
       "target": "Target: {name}",
-      "hint": "Review the text, then add it to the knowledge base so your agents can use it."
+      "hint": "Review the text, then add it to the knowledge base so your agents can use it.",
+      "reviewDocument": "Review the document, then add it to the knowledge base",
+      "read": "Read document",
+      "edit": "Edit document",
+      "searchDetails": "Why was this question flagged?"
     }
   },
   "evals": {
@@ -16378,7 +16382,13 @@
       "partial": "Open the answers below to see which ones could be checked.",
       "overallWorseBody": "The overall quality dropped, even though no individual answer was consistently worse.",
       "requirementsBody": "More requirements were met, but no whole answer was consistently fixed.",
-      "reviewChanges": "Review changes"
+      "reviewChanges": "Review changes",
+      "passedCount": "{passed} of {cases} answers passed"
+    },
+    "workspace": {
+      "details": "How this was tested · criteria, cost and run details",
+      "answers": "Review the answers",
+      "answersHint": "Open a question to read the response and see why it passed or needs attention."
     }
   },
   "authoring": {
@@ -17408,6 +17418,18 @@
       "more": "Session details",
       "answersPassed": "Answers passed",
       "answerCount": "{passed} of {cases}"
+    },
+    "workspace": {
+      "records": "Session history and test details",
+      "changes": "What changed",
+      "changesHint": "Read why each change was made. Open the comparison for the exact wording.",
+      "evidence": "Did the answers improve?",
+      "evidenceHint": "These questions changed after the update. Open one to compare the answers before and after.",
+      "finished": "What happened",
+      "change": "Change {number}",
+      "exactChange": "Compare the exact wording",
+      "invalid": "The test could not reliably compare the versions. Review the test before drawing conclusions.",
+      "noExamples": "There are no changed answers to show. Open the full test to see every question."
     }
   },
   "unsaved": {
@@ -18385,6 +18407,12 @@
         "catch_up": "Catch up with main",
         "to_main": "Move to main"
       }
+    },
+    "workspace": {
+      "title": "What does this change mean for your agents?",
+      "hint": "A skill is shared. Check each agent below: applying a change does not mean it helped every agent.",
+      "agents": "Impact on agents",
+      "skillText": "Skill checked in this session"
     }
   },
   "resourceAppearance": {
