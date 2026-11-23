@@ -1,5 +1,5 @@
 ---
-source_sha: "baecaa006c9c"
+source_sha: "6b119d96cb03"
 ---
 
 # Konsola { #the-console }
@@ -1081,9 +1081,9 @@ Zapisane logowania do stron mają zwarty panel ustawień na pełną szerokość,
 
 ## Języki { #languages }
 
-Konsola mówi po angielsku, polsku, niemiecku i turecku. Pierwsza karta
-przewodnika proponuje te cztery
-języki, a menu konta zmienia język w każdej chwili; wybór jest zapisywany na twoim
+Konsola mówi po angielsku, polsku, niemiecku, turecku i rosyjsku. Pierwsza karta
+przewodnika proponuje tych pięć
+języków, a menu konta zmienia język w każdej chwili; wybór jest zapisywany na twoim
 koncie, więc konsola otwiera się w nim na każdym urządzeniu, na którym się
 logujesz. Możesz też poprosić agenta - "przełącz na angielski" - a strona zmieni
 się, gdy odpowie, bez przeładowania. Każdy agent odpowiada w nim, chyba że

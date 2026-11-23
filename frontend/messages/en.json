@@ -3194,8 +3194,8 @@
         },
         "members": "Members",
         "organization": "Organization",
-        "title": "Top organizations",
-        "description": "The busiest organizations on this deployment.",
+        "title": "Largest organizations",
+        "description": "Up to five organizations with the most members.",
         "owner": "Owner",
         "noOwner": "No owner"
       },
@@ -7194,6 +7194,12 @@
       "environments": "Environments",
       "exportYaml": "Export YAML",
       "filterByStatus": "Filter by status",
+      "filter": {
+        "all": "All",
+        "published": "Published",
+        "draft": "Drafts",
+        "archived": "Archived"
+      },
       "filterByCategory": "Filter by category",
       "filterByTag": "Filter by tag",
       "allCategories": "All categories",

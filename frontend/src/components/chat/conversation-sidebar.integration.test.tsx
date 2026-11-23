@@ -20,6 +20,7 @@ import { createTranslator } from "next-intl";
 import en from "@/../messages/en.json";
 import pl from "@/../messages/pl.json";
 import de from "@/../messages/de.json";
+import ru from "@/../messages/ru.json";
 import tr from "@/../messages/tr.json";
 
 import type { Conversation } from "@/types/conversation";
@@ -1358,6 +1359,7 @@ it.each([
   { locale: "pl", messages: pl, label: "Tytuł rozmowy" },
   { locale: "de", messages: de, label: de.chat.conversationTitle },
   { locale: "tr", messages: tr, label: "Sohbet başlığı" },
+  { locale: "ru", messages: ru, label: "Название диалога" },
 ])(
   "resolves the rename field label from the actual $locale catalog",
   ({ locale, messages, label }) => {

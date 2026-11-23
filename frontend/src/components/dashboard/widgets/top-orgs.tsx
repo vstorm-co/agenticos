@@ -8,10 +8,14 @@ import { WidgetFrame } from "../widget-frame";
 import { WidgetEmptyBody, WidgetErrorBody, WidgetSkeleton } from "../widget-states";
 import type { DashboardWidgetProps } from "./types";
 
-/** The largest organizations, by people and agents. */
+/** The five largest organizations by member count. */
 export function TopOrgsWidget({ title, hint, seeAll, options }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.top-orgs");
-  const { organizations, isLoading, error, refetch } = useAdminOrganizations({ limit: 5 });
+  const { organizations, isLoading, error, refetch } = useAdminOrganizations({
+    limit: 5,
+    sortBy: "members",
+    sortDir: "desc",
+  });
 
   return (
     <WidgetFrame title={title} hint={hint} seeAll={seeAll} options={options}>

@@ -155,7 +155,7 @@ async def test_update_current_user(auth_client: AsyncClient, mock_user_service: 
 
 
 @pytest.mark.anyio
-@pytest.mark.parametrize("locale", ["en", "tr"])
+@pytest.mark.parametrize("locale", ["en", "tr", "ru"])
 async def test_the_console_language_is_kept_on_the_account(
     auth_client: AsyncClient, mock_user: MockUser, mock_user_service: MagicMock, locale: str
 ):

@@ -1689,6 +1689,18 @@ class TestTheWelcome:
         assert said.startswith("Acme kuruluşuna hoş geldiniz! Ben slack bot")
         assert "konsolu açabilirsiniz: http" in said
 
+    async def test_a_russian_member_receives_the_localized_greeting_and_console_link(self):
+        adapters = {"slack": MagicMock(welcome=AsyncMock(return_value=True))}
+        greeted = await self._welcome(
+            {"slack": [_bot("slack")]},
+            adapters,
+            user=SimpleNamespace(email="ada@acme.com", locale="ru", is_active=True),
+        )
+        assert greeted == 1
+        said = adapters["slack"].welcome.await_args.args[2]
+        assert said.startswith("Добро пожаловать в Acme! Я slack bot")
+        assert "откройте консоль: http" in said
+
     async def test_nobody_is_greeted_where_the_organization_has_not_turned_it_on(self):
         adapters = {"slack": MagicMock(welcome=AsyncMock(return_value=True))}
 
@@ -1999,3 +2011,13 @@ def test_turkish_briefing_text_keeps_the_count_and_console_link() -> None:
     assert "…ve 2 bulgu daha." in message
     assert "https://console.example/inbox" in message
     assert "Finding 4" in message and "Finding 5" not in message
+
+
+def test_russian_briefing_text_keeps_the_count_and_console_link() -> None:
+    from app.services.proactive._briefing import _message
+
+    titles = [f"Finding {index}" for index in range(7)]
+    message = _message("ru", titles, "https://console.example/inbox")
+    assert message.startswith("Новое из ваших наблюдений (7):")
+    assert "…и ещё 2." in message
+    assert "https://console.example/inbox" in message

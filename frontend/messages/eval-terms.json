@@ -1,5 +1,5 @@
 {
-  "about": "One word per concept on the eval screens, in Polish and German: the glossary in docs/howto/translate.md. Each pattern is a form that reads as a second word for a glossary term. Matched case-insensitively. frontend/messages/eval-terms.test.ts applies it to the catalogs under `scope`; scripts/check_docs_glossary.py to the pages under `docs`.",
+  "about": "One word per concept on the eval screens, in Polish, German and Russian: for Polish and German, the glossary in docs/howto/translate.md; the site publishes no Russian, so the Russian words are the `use` of each entry here. Each pattern is a form that reads as a second word for a glossary term. Matched case-insensitively. frontend/messages/eval-terms.test.ts applies it to the catalogs under `scope`; scripts/check_docs_glossary.py to the pages under `docs`.",
   "scope": [
     "evals.",
     "authoring.",
@@ -163,6 +163,52 @@
         "except": ["pages.runs.cacheBust"],
         "note": "A busted cache is still \"Cache gebrochen\"; a case a version breaks is verschlechtert."
       }
+    ],
+    "ru": [
+      {
+        "key": "case",
+        "pattern": "\\bcase|тест-кейс",
+        "use": "кейс"
+      },
+      {
+        "key": "eval",
+        "pattern": "\\beval\\w*|эвал[а-яё]*|прогон[а-яё]*",
+        "use": "оценка, вкладка Оценки",
+        "note": "An eval run is «запуск оценки», like every other run."
+      },
+      {
+        "key": "judge",
+        "pattern": "\\bjudge\\w*|оценщик[а-яё]*",
+        "use": "судья"
+      },
+      {
+        "key": "review",
+        "pattern": "\\breview\\w*|ревью",
+        "use": "проверка"
+      },
+      {
+        "key": "environment",
+        "pattern": "\\benvironment\\w*|(?<![а-яё])сред(?:а|ы|е|у|ой|ам|ами|ах)?(?![а-яё])(?!\\s+выполнения)",
+        "use": "окружение",
+        "note": "Every case form of «среда», including «средой» and the genitive plural «сред». «Среда выполнения» is a runtime, and stays."
+      },
+      {
+        "key": "draft",
+        "pattern": "\\bdraf(t\\w*|cie)\\b(?!\\s+20\\d\\d)",
+        "use": "черновик",
+        "note": "JSON Schema Draft 2020-12 is a specification's name, not a draft."
+      },
+      {
+        "key": "build",
+        "pattern": "\\bbuild\\b",
+        "use": "Конструктор"
+      },
+      {
+        "key": "breaks",
+        "pattern": "(?<![а-яё])лома[а-яё]*\\s+кейс|провал[а-яё]*",
+        "use": "перестала проходить",
+        "note": "A case a version breaks: «перестала проходить»; one it fixes: «теперь проходит»; a case that failed: «не пройден»."
+      }
     ]
   },
   "docs": {
@@ -174,6 +220,7 @@
     "allow": {
       "pl": ["Eval judge", "Knowledge gap drafter"],
       "de": ["Eval judge", "Knowledge gap drafter"]
-    }
+    },
+    "locales": ["pl", "de"]
   }
 }

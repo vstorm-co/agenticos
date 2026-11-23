@@ -4,6 +4,10 @@ import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { NextIntlClientProvider, type AbstractIntlMessages } from "next-intl";
+import en from "@/../messages/en.json";
+import ru from "@/../messages/ru.json";
+
 import AgentsPage from "./page";
 import { qk } from "@/lib/query-keys";
 import { apiClient } from "@/lib/api-client";
@@ -27,6 +31,9 @@ vi.mock("@/lib/api-client", async () => {
   };
 });
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+// The setup file pins every translator to English. This file renders the real
+// provider instead, so the catalog a test supplies is the one the page reads.
+vi.mock("next-intl", async (importOriginal) => importOriginal<typeof import("next-intl")>());
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
   // The header's "?" reads the path to decide whether this page has tips.
@@ -36,11 +43,21 @@ vi.mock("next/navigation", () => ({
 }));
 vi.mock("@/hooks/use-permissions", () => ({ usePermissions: () => ({ can: () => true }) }));
 
-function wrapper({ children }: { children: ReactNode }) {
+function withLocale(locale: string, messages: AbstractIntlMessages, children: ReactNode) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
-  return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+  return (
+    <QueryClientProvider client={client}>
+      <NextIntlClientProvider locale={locale} messages={messages}>
+        {children}
+      </NextIntlClientProvider>
+    </QueryClientProvider>
+  );
+}
+
+function wrapper({ children }: { children: ReactNode }) {
+  return withLocale("en", en, children);
 }
 
 function agent(name: string, status: Agent["status"]): Agent {
@@ -363,7 +380,9 @@ it("keeps cached agents visible and reports a failed refresh", async () => {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={client}>
-      <AgentsPage />
+      <NextIntlClientProvider locale="en" messages={en}>
+        <AgentsPage />
+      </NextIntlClientProvider>
     </QueryClientProvider>,
   );
   expect(await screen.findByText("Live")).toBeVisible();
@@ -379,4 +398,28 @@ it("keeps cached agents visible and reports a failed refresh", async () => {
   expect(await screen.findByRole("alert")).toHaveTextContent("Refresh unavailable");
   expect(screen.getByText("Live")).toBeVisible();
   expect(screen.getByRole("button", { name: "Retry" })).toBeEnabled();
+});
+
+// The options were English literals in every locale; each catalog has to name them.
+it("names the status filter's options from the Russian catalog, and filters by value", async () => {
+  render(<AgentsPage />, {
+    wrapper: ({ children }) => withLocale("ru", ru, children),
+  });
+  await screen.findByText("Live");
+
+  await userEvent.click(screen.getByRole("combobox", { name: "Фильтр по статусу" }));
+  const options = await screen.findAllByRole("option");
+  expect(options.map((option) => option.textContent)).toEqual([
+    "Все",
+    "Опубликованные",
+    "Черновики",
+    "В архиве",
+  ]);
+
+  // The label is Russian; the value the filter stores is still `draft`.
+  await userEvent.click(screen.getByRole("option", { name: "Черновики" }));
+
+  expect(screen.getByText("Draft")).toBeInTheDocument();
+  expect(screen.queryByText("Live")).toBeNull();
+  expect(screen.queryByText("Old")).toBeNull();
 });

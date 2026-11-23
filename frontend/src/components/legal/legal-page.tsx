@@ -90,6 +90,7 @@ const DATE_LOCALE: Record<Locale, string> = {
   pl: "pl-PL",
   de: "de-DE",
   tr: "tr-TR",
+  ru: "ru-RU",
 };
 
 function formatDate(iso: string, locale: Locale): string {

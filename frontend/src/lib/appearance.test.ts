@@ -147,7 +147,7 @@ it("starts desktop glass before paint but respects an explicitly saved standard 
   expect(root().hasAttribute(LOOK_ATTRIBUTE)).toBe(false);
 });
 
-it.each(["en", "pl", "de", "tr"])(
+it.each(["en", "pl", "de", "tr", "ru"])(
   "marks %s connection setup before paint even when the console preference is opaque",
   (locale) => {
     window.__AGENTICOS_SHELL__ = {

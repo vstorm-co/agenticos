@@ -22,6 +22,17 @@ describe("pageMetadata", () => {
     expect(meta.alternates?.canonical).toBe(`${siteOrigin()}/tr/legal/terms`);
   });
 
+  it("uses the Russian Open Graph locale for Russian pages", () => {
+    const meta = pageMetadata({
+      title: "Условия",
+      description: "…",
+      path: "/legal/terms",
+      locale: "ru",
+    });
+    expect(meta.openGraph?.locale).toBe("ru_RU");
+    expect(meta.alternates?.canonical).toBe(`${siteOrigin()}/ru/legal/terms`);
+  });
+
   it("puts the locale in the canonical URL, because every public page has one", () => {
     const meta = pageMetadata({ title: "Terms", description: "…", path: "/legal/terms" });
 
@@ -38,6 +49,7 @@ describe("pageMetadata", () => {
       pl: `${siteOrigin()}/pl/legal/terms`,
       de: `${siteOrigin()}/de/legal/terms`,
       tr: `${siteOrigin()}/tr/legal/terms`,
+      ru: `${siteOrigin()}/ru/legal/terms`,
     });
   });
 
@@ -50,6 +62,7 @@ describe("pageMetadata", () => {
       pl: `${siteOrigin()}/pl`,
       de: `${siteOrigin()}/de`,
       tr: `${siteOrigin()}/tr`,
+      ru: `${siteOrigin()}/ru`,
     });
   });
 
@@ -112,7 +125,12 @@ describe("pageMetadata", () => {
     const meta = pageMetadata({ title: "Regulamin", description: "…", locale: "pl" });
 
     expect(meta.openGraph?.locale).toBe(OG_LOCALE.pl);
-    expect(meta.openGraph?.alternateLocale).toEqual([OG_LOCALE.en, OG_LOCALE.de, OG_LOCALE.tr]);
+    expect(meta.openGraph?.alternateLocale).toEqual([
+      OG_LOCALE.en,
+      OG_LOCALE.de,
+      OG_LOCALE.tr,
+      OG_LOCALE.ru,
+    ]);
   });
 
   it("falls back to the dynamic OG image, and takes an override", () => {

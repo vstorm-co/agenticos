@@ -3339,6 +3339,12 @@
       "environments": "Ortamlar",
       "exportYaml": "YAML olarak dışa aktar",
       "filterByStatus": "Duruma göre filtrele",
+      "filter": {
+        "all": "Tümü",
+        "published": "Yayımlanan",
+        "draft": "Taslaklar",
+        "archived": "Arşivlendi"
+      },
       "filterByCategory": "Kategoriye göre filtrele",
       "filterByTag": "Etikete göre filtrele",
       "allCategories": "Tüm kategoriler",
@@ -7723,8 +7729,8 @@
         },
         "members": "Üyeler",
         "organization": "Kuruluş",
-        "title": "En etkin kuruluşlar",
-        "description": "Bu dağıtımın en yoğun kuruluşları.",
+        "title": "En büyük kuruluşlar",
+        "description": "Üye sayısı en yüksek beş kuruluşa kadar gösterilir.",
         "owner": "Sahip",
         "noOwner": "Sahibi yok"
       },

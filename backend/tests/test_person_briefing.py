@@ -19,6 +19,11 @@ class TestTheSection:
         assert briefing is not None
         assert "Their console is in Turkish: answer in Turkish" in briefing
 
+    def test_russian_console_informs_the_agent_of_the_users_language(self):
+        briefing = person_briefing(Person(locale="ru"))
+        assert briefing is not None
+        assert "Their console is in Russian: answer in Russian" in briefing
+
     def test_a_person_the_account_says_nothing_about_gets_no_section(self):
         assert person_briefing(Person()) is None
         # A language the console is not in is not one to answer in.

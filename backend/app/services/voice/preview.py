@@ -42,6 +42,7 @@ PREVIEW_LINES: dict[PreviewLocale, str] = {
     "pl": "Cześć, tak brzmi mój głos. Zapytaj mnie o cokolwiek, a odpowiem na głos.",
     "de": "Hallo, so klingt meine Stimme. Frag mich etwas, und ich antworte laut.",
     "tr": "Merhaba, sesim böyle. Bana istediğini sor, sana sesli cevap vereyim.",
+    "ru": "Здравствуйте, вот так звучит мой голос. Спросите меня о чём угодно, и я отвечу вслух.",  # noqa: RUF001 - Russian copy
 }
 
 CACHE_SECONDS = 7 * 24 * 3600

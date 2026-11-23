@@ -9,14 +9,17 @@ old name on the canvas while the API, the Architect and the docs use the new one
 import json
 import re
 from pathlib import Path
-from typing import Any
+from typing import Any, get_args
 
 import pytest
 
+from app.schemas.user import ConsoleLocale
 from app.workflows._registry import all_node_definitions
 
 MESSAGES_PATH = Path(__file__).resolve().parents[2] / "frontend" / "messages"
-LOCALES = ("en", "pl", "de", "tr")
+# Every console locale, from the schema that accepts them: a new language joins
+# the copy check by being added there, not by someone remembering this file.
+LOCALES: tuple[str, ...] = get_args(ConsoleLocale)
 
 
 def _key(text: str) -> str:

@@ -3,6 +3,7 @@ import { expect, it } from "vitest";
 import en from "../../messages/en.json";
 import pl from "../../messages/pl.json";
 import de from "../../messages/de.json";
+import ru from "../../messages/ru.json";
 import tr from "../../messages/tr.json";
 import type { Suggestion } from "./suggestions-api";
 import { suggestionChatPrompt } from "./suggestion-chat-prompt";
@@ -60,7 +61,7 @@ it.each([null, [], { chat_prompt: {}, request: 42, prompt: false, cron: ["bad"] 
     );
   },
 );
-for (const [locale, messages] of Object.entries({ en, pl, de, tr })) {
+for (const [locale, messages] of Object.entries({ en, pl, de, tr, ru })) {
   const translated = createTranslator({ locale, messages: messages.inbox.chatDraft });
   for (const kind of ["agent", "routine", "finding", "profile", "role_pack"] as const) {
     it(`provides a concrete ${kind} draft in ${locale} without an internal identifier`, () => {

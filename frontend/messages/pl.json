@@ -2464,6 +2464,12 @@
       "environments": "Środowiska",
       "exportYaml": "Eksportuj YAML",
       "filterByStatus": "Filtruj według statusu",
+      "filter": {
+        "all": "Wszystkie",
+        "published": "Opublikowane",
+        "draft": "Robocze",
+        "archived": "Zarchiwizowane"
+      },
       "filterByCategory": "Filtruj według kategorii",
       "filterByTag": "Filtruj według tagu",
       "allCategories": "Wszystkie kategorie",
@@ -5249,7 +5255,7 @@
           "title": "Brak organizacji",
           "description": "Istnieje tylko organizacja startowa."
         },
-        "description": "Najbardziej zajęte organizacje w tej instalacji.",
+        "description": "Do pięciu organizacji o największej liczbie członków.",
         "owner": "Właściciel",
         "noOwner": "Brak właściciela"
       },

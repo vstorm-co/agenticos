@@ -1,5 +1,5 @@
 ---
-source_sha: "5eb8b938b5d7"
+source_sha: "eaba83fc85b1"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -87,7 +87,7 @@ sie sind keine Voraussetzung für die Wahl einer Verbindung.
 
 Beim Verbinden der Desktop-App können Sie statt der Serveradresse den ursprünglichen Einladungslink einfügen. Die App verbindet sich mit dessen Server und öffnet die Einladung; das Ziel bleibt beim Anmelden erhalten. Die Einladung wird nicht automatisch angenommen und ihr Token nicht in den nativen Einstellungen gespeichert. Die optionale Verbindungsprüfung wartet, bis die Einladung abgeschlossen ist.
 
-Nativer Start und Konsole unterstützen Englisch, Polnisch, Deutsch und Türkisch.
+Nativer Start und Konsole unterstützen Englisch, Polnisch, Deutsch, Türkisch und Russisch.
 Die Auswahl wird an die Konsole übergeben; die gespeicherte Kontosprache hat
 weiterhin Vorrang. Lokal wird ein Arbeitsbereichsname abgefragt; ein separater
 Organisationsname ist eine erweiterte Option. Nach der Verbindungsprüfung öffnet

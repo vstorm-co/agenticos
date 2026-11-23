@@ -34,5 +34,14 @@
     "widget.subtitle": "Escribe, dicta o llama a tu agente.",
     "widget.name": "Atajos de AgenticOS",
     "widget.description": "Tus agentes, a un clic."
+  },
+  "ru": {
+    "widget.ask": "Быстрый вопрос",
+    "widget.chat": "Чат",
+    "widget.inbox": "Входящие",
+    "widget.activity": "Активность",
+    "widget.subtitle": "Напишите, продиктуйте или позвоните агенту.",
+    "widget.name": "Быстрые действия AgenticOS",
+    "widget.description": "Ваши агенты в один клик."
   }
 }

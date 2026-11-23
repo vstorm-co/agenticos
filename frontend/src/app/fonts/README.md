@@ -15,6 +15,12 @@ appears. The ranges in `layout.tsx` are the ones Google's CSS serves for these s
 identical across all three families; how the second face joins the first one's family is
 explained where it is done, in `layout.tsx`.
 
+Inter and Geist Mono carry a third face, **cyrillic**, for the Russian console, declared
+and gated the same way and fetched only when a Cyrillic glyph appears. Bricolage Grotesque
+has no Cyrillic subset, so a Russian display heading falls through to the metric-adjusted
+Arial face `next/font` generates beside the display face ("display Fallback"), and to
+`system-ui` only where Arial is absent.
+
 Every file carries its family's full `wght` axis: Google does not axis-subset, so
 `wght@400..700` and `wght@100..900` return the same bytes. The range in `layout.tsx` is a
 declaration about which weights the face may serve, not a property of the file — a weight
@@ -27,8 +33,10 @@ with nothing to re-download.
 | `bricolage-grotesque-latin-ext.woff2` | Bricolage Grotesque | 700–800  | 200–800          | v9                   |
 | `inter-latin.woff2`                   | Inter               | 400–700  | 100–900          | v20                  |
 | `inter-latin-ext.woff2`               | Inter               | 400–700  | 100–900          | v20                  |
+| `inter-cyrillic.woff2`                | Inter               | 400–700  | 100–900          | v20                  |
 | `geist-mono-latin.woff2`              | Geist Mono          | 400–500  | 100–900          | v6                   |
 | `geist-mono-latin-ext.woff2`          | Geist Mono          | 400–500  | 100–900          | v6                   |
+| `geist-mono-cyrillic.woff2`           | Geist Mono          | 400–500  | 100–900          | v6                   |
 
 All three are SIL Open Font License 1.1 — see `OFL.txt`, which carries the copyright
 notice of each.
@@ -36,7 +44,8 @@ notice of each.
 ## Refreshing one
 
 Ask the CSS API for the family with a browser user agent (it serves `.ttf` to anything it
-does not recognise), take the URLs from the `/* latin */` and `/* latin-ext */` blocks,
+does not recognise), take the URLs from the `/* latin */`, `/* latin-ext */` and, for Inter and Geist Mono,
+`/* cyrillic */` blocks,
 and download each under the same name. Ask for the family's full axis — any range returns
 that same file, and asking for the full one keeps the request honest about what arrives:
 

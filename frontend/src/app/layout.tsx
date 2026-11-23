@@ -16,13 +16,17 @@ import { SITE, siteOrigin } from "@/lib/seo";
 // build on branches that never touched the frontend (#572). `src/app/fonts/`
 // says where each file came from and how to refresh it.
 //
-// Each family is two faces of one `font-family`: the latin file, and a
-// latin-ext file gated by `unicode-range` so Polish diacritics render in the
-// brand font while its bytes are fetched only when such a glyph appears (#606).
-// The `font-family` each `*Ext` call declares is the name the bundler derives
-// from its latin sibling's identifier - the family the emitted `--font-*`
-// variables reference - so the ext face joins that family instead of getting
-// one of its own that no stack names. Rename a const and its string must
+// Each family is faces of one `font-family`: the latin file, and a latin-ext
+// file gated by `unicode-range` so Polish diacritics render in the brand font
+// while its bytes are fetched only when such a glyph appears (#606). Body and
+// mono add a cyrillic face the same way, for Russian; Bricolage Grotesque has
+// no Cyrillic, so a Russian display heading falls through to the metric-adjusted
+// Arial face next/font generates beside it ("display Fallback"), and to
+// `system-ui` only where Arial is absent.
+// The `font-family` each `*Ext` and `*Cyrillic` call declares is the name the
+// bundler derives from its latin sibling's identifier - the family the emitted
+// `--font-*` variables reference - so the extra face joins that family instead
+// of getting one of its own that no stack names. Rename a const and its string must
 // follow; the ranges are written out per call because the font transform
 // refuses identifiers.
 const display = localFont({
@@ -91,6 +95,24 @@ const bodyExt = localFont({
   ],
 });
 
+const bodyCyrillic = localFont({
+  src: "./fonts/inter-cyrillic.woff2",
+  variable: "--font-body-cyrillic",
+  weight: "400 700",
+  display: "swap",
+  preload: false,
+  adjustFontFallback: false,
+  declarations: [
+    { prop: "font-family", value: "body" },
+    {
+      prop: "unicode-range",
+      value:
+        // i18n-exempt: a CSS unicode-range value, not copy.
+        "U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116",
+    },
+  ],
+});
+
 const mono = localFont({
   src: "./fonts/geist-mono-latin.woff2",
   variable: "--font-mono",
@@ -120,6 +142,24 @@ const monoExt = localFont({
       value:
         // i18n-exempt: a CSS unicode-range value, not copy.
         "U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF",
+    },
+  ],
+});
+
+const monoCyrillic = localFont({
+  src: "./fonts/geist-mono-cyrillic.woff2",
+  variable: "--font-mono-cyrillic",
+  weight: "400 500",
+  display: "swap",
+  preload: false,
+  adjustFontFallback: false,
+  declarations: [
+    { prop: "font-family", value: "mono" },
+    {
+      prop: "unicode-range",
+      value:
+        // i18n-exempt: a CSS unicode-range value, not copy.
+        "U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116",
     },
   ],
 });
@@ -223,7 +263,7 @@ export default async function RootLayout({
     <html
       lang={locale}
       suppressHydrationWarning
-      className={`${display.variable} ${displayExt.variable} ${body.variable} ${bodyExt.variable} ${mono.variable} ${monoExt.variable}`}
+      className={`${display.variable} ${displayExt.variable} ${body.variable} ${bodyExt.variable} ${bodyCyrillic.variable} ${mono.variable} ${monoExt.variable} ${monoCyrillic.variable}`}
     >
       <head>
         {/* Before the first paint, so a reduced-motion preference holds from frame one. */}

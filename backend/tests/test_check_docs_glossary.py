@@ -163,6 +163,22 @@ def test_a_page_the_terms_name_and_the_docs_lack_is_named_not_raised(
     assert "docs/governance.pl.md" in capsys.readouterr().out
 
 
+def test_a_locale_the_site_does_not_publish_is_not_looked_for_in_the_docs(
+    docs: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The console ships in Russian; the site does not, so there is no evals.ru.md to read."""
+    terms = {
+        **TERMS,
+        "mixed": {**TERMS["mixed"], "ru": [{"key": "case", "pattern": "тест-кейс", "use": "кейс"}]},
+        "docs": {**TERMS["docs"], "locales": ["pl", "de"]},
+    }
+    guard.TERMS.write_text(json.dumps(terms), encoding="utf-8")
+
+    assert guard.missing() == []
+    assert guard.main() == 0
+    assert "use the glossary's words" in capsys.readouterr().out
+
+
 def test_every_word_the_guard_asks_for_is_in_the_glossary_table() -> None:
     terms = json.loads(guard.TERMS.read_text(encoding="utf-8"))
     page = (REPO_ROOT / "docs" / "howto" / "translate.md").read_text(encoding="utf-8")
@@ -171,9 +187,12 @@ def test_every_word_the_guard_asks_for_is_in_the_glossary_table() -> None:
     words = {word for cell in cells for word in re.split(r", | / | albo ", cell)}
     words |= {word.rsplit(" ", 1)[-1] for word in set(words)}
 
+    # The site documents the words only for the locales it publishes.
+    published = terms["docs"].get("locales", list(terms["mixed"]))
     asked = {
         word
-        for entries in terms["mixed"].values()
+        for locale, entries in terms["mixed"].items()
+        if locale in published
         for entry in entries
         for word in re.split(r", | albo ", entry["use"])
     }

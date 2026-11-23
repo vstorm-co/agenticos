@@ -3195,7 +3195,7 @@
         "members": "Mitglieder",
         "organization": "Organisation",
         "title": "Größte Organisationen",
-        "description": "Die aktivsten Organisationen auf diesem Deployment.",
+        "description": "Bis zu fünf Organisationen mit den meisten Mitgliedern.",
         "owner": "Owner",
         "noOwner": "Kein Owner"
       },
@@ -6466,6 +6466,12 @@
       "environments": "Umgebungen",
       "exportYaml": "YAML exportieren",
       "filterByStatus": "Nach Status filtern",
+      "filter": {
+        "all": "Alle",
+        "published": "Veröffentlicht",
+        "draft": "Entwürfe",
+        "archived": "Archiviert"
+      },
       "filterByCategory": "Nach Kategorie filtern",
       "filterByTag": "Nach Tag filtern",
       "allCategories": "Alle Kategorien",

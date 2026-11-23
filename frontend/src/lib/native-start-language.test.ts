@@ -9,9 +9,11 @@ afterEach(() => {
 it("recognizes supported languages without accepting a URL as a locale", () => {
   expect(languageOf("pl-PL")).toBe("pl");
   expect(languageOf("TR-tr")).toBe("tr");
+  expect(languageOf("ru-RU")).toBe("ru");
   expect(languageOf("https://example.com")).toBe("en");
   expect(translated("Get started", "pl")).toBe("Zacznij");
   expect(translated(" Get started ", "pl")).toBe(" Zacznij ");
+  expect(translated("Get started", "ru")).toBe("Начать");
   expect(translated("Preparing AgenticOS… 50%", "de")).toBe("AgenticOS wird vorbereitet… 50%");
   expect(translated("Provider detail", "pl")).toBe("Provider detail");
 });

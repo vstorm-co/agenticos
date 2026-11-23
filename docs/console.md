@@ -1052,8 +1052,8 @@ Saved browser sign-ins use a compact, full-width settings panel instead of stret
 
 ## Languages
 
-The console speaks English, Polish, German and Turkish. The walkthrough's first
-card offers the four, and
+The console speaks English, Polish, German, Turkish and Russian. The walkthrough's
+first card offers the five, and
 the account menu changes the language at any time; the choice is kept on your
 account, so the console opens in it on every device you sign in on. You can also
 ask an agent - "switch to English" - and the page changes as it answers, without a

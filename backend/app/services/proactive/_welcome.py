@@ -52,6 +52,10 @@ GREETING = {
         "{organization} kuruluşuna hoş geldiniz! Ben {bot}, buradaki AI asistanınızım. "
         "Bu sohbette bana istediğinizi sorabilir veya konsolu açabilirsiniz: {url}"  # codespell:ignore bu
     ),
+    "ru": (
+        "Добро пожаловать в {organization}! Я {bot}, ИИ-ассистент вашей организации. "
+        "Спрашивайте о чём угодно прямо в этом чате — или откройте консоль: {url}"  # noqa: RUF001 - Russian copy
+    ),
 }
 
 PLATFORMS = ("slack", "mattermost", "teams")

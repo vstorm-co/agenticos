@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import de from "../../messages/de.json";
 import en from "../../messages/en.json";
 import pl from "../../messages/pl.json";
+import ru from "../../messages/ru.json";
 import tr from "../../messages/tr.json";
 import type { Translate } from "@/lib/agent-step-captions";
 
@@ -327,6 +328,7 @@ describe("every locale", () => {
     ["de", de],
     ["pl", pl],
     ["tr", tr],
+    ["ru", ru],
   ])("%s words each sentence without falling back to its key", (locale, messages) => {
     const t = translator(locale, { ...en, ...messages });
     for (const row of rows) {

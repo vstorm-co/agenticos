@@ -837,6 +837,7 @@ class AgentSession:
             "pl": "Cześć, jestem {name}. Pomogę Ci planować, pracować z dokumentami i realizować zadania. Zanim odpowiem na Twoją wiadomość, dokończ konfigurację mojego modelu AI i opublikuj agenta. Dodaj klucz dostawcy, jeśli wybrany model go wymaga. Zróbmy ten pierwszy krok razem.",
             "de": "Hallo, ich bin {name}. Ich helfe beim Planen, bei Dokumenten und Aufgaben. Bevor ich antworten kann, richte meinen KI-Zugang ein und veröffentliche mich. Füge bei Bedarf einen Anbieterschlüssel hinzu. Gehen wir diesen ersten Schritt gemeinsam.",
             "tr": "Merhaba, ben {name}. Planlama, belgeler ve görevlerde yardımcı olurum. Yanıt verebilmem için AI modelimi yapılandır ve beni yayımla. Model gerektiriyorsa sağlayıcı anahtarı ekle. İlk adımı birlikte atalım.",
+            "ru": "Здравствуйте, я {name}. Помогаю планировать, работать с документами и доводить задачи до конца. Чтобы я смог ответить на ваш запрос, завершите подключение моей ИИ-модели и опубликуйте меня. Если выбранной модели нужен ключ провайдера, добавьте его. Давайте сделаем этот первый шаг вместе.",  # noqa: RUF001 - Russian copy
         }
         text = replies.get(self.user.locale or "en", replies["en"]).format(name=name)
         await self._emit("model_setup_required", {"agent_id": str(agent_id), "text": text})

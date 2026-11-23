@@ -3,13 +3,15 @@ import { describe, expect, it } from "vitest";
 import de from "./de.json";
 import terms from "./eval-terms.json";
 import pl from "./pl.json";
+import ru from "./ru.json";
 
 /**
- * That the eval screens say one word for one thing in Polish and German.
+ * That the eval screens say one word for one thing in Polish, German and Russian.
  *
  * The forms refused are in `eval-terms.json`, which `scripts/check_docs_glossary.py`
- * reads too for the pages about the same screens. The words are the glossary in
- * `docs/howto/translate.md`, and they are the ones
+ * reads too for the pages about the same screens. The Polish and German words are
+ * the glossary in `docs/howto/translate.md`, the Russian ones only that file's, and
+ * they are the ones
  * the tabs already wear, so a sentence naming a tab names it as the tab does. Each
  * pattern is a form that reads as a second word for a glossary term - "case'ów"
  * for "przypadków", "Evale" for "Ewaluacje", "Draft" for "Entwurf". The product's
@@ -28,9 +30,10 @@ interface Mixed {
 /** The namespaces an eval screen reads, and the ones naming the same things elsewhere. */
 const SCOPE: string[] = terms.scope;
 
-const MIXED: Record<"pl" | "de", Mixed[]> = {
+const MIXED: Record<"pl" | "de" | "ru", Mixed[]> = {
   pl: terms.mixed.pl.map(compile),
   de: terms.mixed.de.map(compile),
+  ru: terms.mixed.ru.map(compile),
 };
 
 function compile({
@@ -150,6 +153,12 @@ describe("the gate", () => {
     ["de", "datasets.generateIntro", "Der Case-Generator"],
     ["de", "evals.comparison.verdict.worse", "Macht Fälle kaputt"],
     ["de", "evals.draft", "{kind, select, a {Draft} other {Entwurf}}"],
+    ["ru", "evals.cases.title", "Тест-кейсы"],
+    ["ru", "evals.runs.title", "Прогоны оценки"],
+    ["ru", "evals.fields.environment", "Среда"],
+    ["ru", "evals.fields.environment", "Работа со средой"],
+    ["ru", "evals.cases.outcome.failed", "Провален"],
+    ["ru", "evals.comparison.verdict.worse", "Версия ломает кейс"],
   ] as const)("in %s, refuses %s reading %j", (locale, key, value) => {
     expect(offences(single(key, value), MIXED[locale])).not.toEqual([]);
   });
@@ -162,6 +171,12 @@ describe("the gate", () => {
     ["de", "agents.reviewersTitle", "Run-Reviewer"],
     ["de", "agents.surfaceWidgetBody", "Ein Script-Tag, kein Build-Schritt."],
     ["de", "agents.approvalParksTheRun", "der Bot wirkt kaputt"],
+    ["ru", "agents.runtime", "Среда выполнения"],
+    [
+      "ru",
+      "evals.answers",
+      "{cases, plural, one {# кейс} few {# кейса} many {# кейсов} other {# кейса}}",
+    ],
   ] as const)("in %s, lets %s read %j", (locale, key, value) => {
     expect(offences(single(key, value), MIXED[locale])).toEqual([]);
   });
@@ -171,6 +186,7 @@ describe("eval terminology", () => {
   it.each([
     ["pl", pl as Catalog, MIXED.pl],
     ["de", de as Catalog, MIXED.de],
+    ["ru", ru as Catalog, MIXED.ru],
   ])("in %s, says one word for one thing on the eval screens", (_locale, catalog, mixed) => {
     expect(offences(catalog, mixed)).toEqual([]);
   });

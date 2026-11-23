@@ -272,7 +272,7 @@ export function CreateSkillDialog({ open, onOpenChange, onCreated }: CreateSkill
 
           <div className="grid min-h-0 flex-1 gap-3 max-md:flex-none md:grid-cols-[minmax(0,15rem)_minmax(0,1fr)]">
             <div className="flex min-h-0 flex-col gap-2">
-              <div className="grid grid-cols-3 gap-1">
+              <div className="flex flex-wrap gap-1">
                 <Button
                   variant="outline"
                   size="sm"

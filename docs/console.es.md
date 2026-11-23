@@ -1,5 +1,5 @@
 ---
-source_sha: "baecaa006c9c"
+source_sha: "6b119d96cb03"
 ---
 
 # La consola { #the-console }
@@ -1110,8 +1110,8 @@ Los accesos guardados del navegador usan un panel compacto de ancho completo, si
 
 ## Idiomas { #languages }
 
-La consola habla inglés, polaco, alemán y turco. La primera tarjeta del recorrido
-ofrece los cuatro, y
+La consola habla inglés, polaco, alemán, turco y ruso. La primera tarjeta del
+recorrido ofrece los cinco, y
 el menú de la cuenta cambia el idioma en cualquier momento; la elección se guarda
 en tu cuenta, así que la consola se abre en él en cada dispositivo en el que
 inicias sesión. También puedes pedírselo a un agent - "cambia a inglés" - y la

@@ -18,6 +18,22 @@ function Harness({ dismissible = true }: { dismissible?: boolean }) {
 }
 
 describe("dialog dismissal", () => {
+  it("keeps the confirmation phrase and its surrounding spaces in the same text flow", () => {
+    render(
+      <ConfirmDialog
+        open
+        onOpenChange={vi.fn()}
+        title="Delete project?"
+        confirmText="Example"
+        onConfirm={vi.fn()}
+      />,
+    );
+
+    const textbox = screen.getByRole<HTMLInputElement>("textbox");
+    const label = textbox.labels?.[0];
+    expect(label?.firstElementChild?.textContent).toBe("Type Example to confirm");
+  });
+
   it("keeps contextual sheets modal and returns keyboard focus to their invoker", async () => {
     const user = userEvent.setup();
     render(

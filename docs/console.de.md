@@ -1,5 +1,5 @@
 ---
-source_sha: "baecaa006c9c"
+source_sha: "6b119d96cb03"
 ---
 
 # Die Konsole { #the-console }
@@ -1155,8 +1155,8 @@ Gespeicherte Browser-Anmeldungen stehen in einem kompakten Einstellungsbereich �
 
 ## Sprachen { #languages }
 
-Die Konsole spricht Englisch, Polnisch, Deutsch und Türkisch. Die erste Karte des
-Rundgangs bietet die vier an, und das Kontomenü wechselt die Sprache jederzeit;
+Die Konsole spricht Englisch, Polnisch, Deutsch, Türkisch und Russisch. Die erste
+Karte des Rundgangs bietet die fünf an, und das Kontomenü wechselt die Sprache jederzeit;
 die Wahl wird in Ihrem
 Konto gespeichert, sodass die Konsole auf jedem Gerät, auf dem Sie sich anmelden,
 in ihr öffnet. Sie können auch einen Agent bitten - "auf Englisch umstellen" -, und

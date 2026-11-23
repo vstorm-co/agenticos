@@ -104,6 +104,12 @@ async def test_turkish_console_has_a_turkish_preview(world):
     assert world.said == [PREVIEW_LINES["tr"]]
 
 
+async def test_russian_console_has_a_russian_preview(world):
+    service, _ = _service(world)
+    await service.preview(_ctx(), _block(), locale="ru")
+    assert world.said == [PREVIEW_LINES["ru"]]
+
+
 @pytest.mark.parametrize(
     "block",
     [

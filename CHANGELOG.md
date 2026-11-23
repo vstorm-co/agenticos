@@ -19,6 +19,14 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- Add Russian to the console, the desktop app's native start, account language selection, person briefings, voice previews and channel greetings. Body and code text render Cyrillic in the console's own fonts; display headings, whose face has no Cyrillic, fall back to Arial, or to the system font where Arial is absent.
+
+### Fixed
+
+- The agents list's status filter shows its options in the console's language; they were English in every locale.
+
 ## [1.91.0] - 2026-11-23
 
 ### Upgrading

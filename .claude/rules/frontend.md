@@ -147,6 +147,16 @@ There is no `(marketing)` route group.
   not say *der Sandbox* and the next *ein Sandbox*. Decided before the first
   namespace rather than after the third (#643); a word joining the list belongs
   here, not in one catalog entry.
+  **Russian is the one exception.** A Latin noun takes no ending inside a Cyrillic
+  sentence (*spec'а*, *run'ом*), so `ru.json` writes each of them as its Russian
+  term: agent агент, spec спецификация, capability возможность, skill навык,
+  dataset набор данных, embed встраивание, budget бюджет, run запуск, prompt промпт,
+  provider провайдер, token токен, workspace рабочее пространство, sandbox
+  песочница. MCP stays Latin and takes no ending (MCP-сервер). The vault is
+  хранилище секретов, Секреты as a menu item: in Latin it reads as HashiCorp Vault,
+  which the platform does not use. The site publishes no Russian, so this list
+  lives here and not in `docs/howto/translate.md`; the eval screens' Russian words
+  are the `use` of each `mixed.ru` entry in `eval-terms.json`.
 - **Translate a namespace, not a branch.** Seventy translated strings among four
   hundred English ones in one dialog is worse than a consistently English one, so
   the unit of work is the namespace a person reads on one screen - which is why

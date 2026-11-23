@@ -6,6 +6,7 @@ import { CHAT_NOTIFICATION_CHANNELS } from "../src/lib/notification-preferences-
 import de from "./de.json";
 import en from "./en.json";
 import pl from "./pl.json";
+import ru from "./ru.json";
 import tr from "./tr.json";
 
 /**
@@ -157,6 +158,7 @@ describe.each([
   ["pl.json", pl],
   ["de.json", de],
   ["tr.json", tr],
+  ["ru.json", ru],
 ])("%s", (_name, catalog) => {
   const all = entries(catalog);
 
@@ -338,9 +340,12 @@ function icuContract(message: string): IcuContract {
   };
 }
 
-describe("Turkish ICU contracts", () => {
+describe.each([
+  ["Turkish", tr],
+  ["Russian", ru],
+])("%s ICU contracts", (_language, catalog) => {
   it("preserves the arguments, rich-text links and selector values supplied by callers", () => {
-    const translated = new Map(entries(tr));
+    const translated = new Map(entries(catalog));
     const mismatches = entries(en).flatMap(([key, message]) => {
       const value = translated.get(key);
       if (value === undefined) return [];
@@ -350,7 +355,9 @@ describe("Turkish ICU contracts", () => {
     });
     expect(mismatches).toEqual([]);
   });
+});
 
+describe("the ICU contract itself", () => {
   it("detects changed argument and link names or selector values", () => {
     expect(icuContract("<terms>{name}</terms>")).not.toEqual(
       icuContract("<privacy>{name}</privacy>"),
@@ -371,6 +378,56 @@ describe("Turkish ICU contracts", () => {
   });
 });
 
+/** The plural categories a cardinal `plural` names, exact `=N` keys aside. */
+function pluralCategories(message: string): string[][] {
+  const found: string[][] = [];
+  function visit(nodes: MessageFormatElement[]): void {
+    for (const node of nodes) {
+      if (node.type === TYPE.tag) visit(node.children);
+      if (node.type !== TYPE.select && node.type !== TYPE.plural) continue;
+      if (node.type === TYPE.plural && node.pluralType === "cardinal") {
+        found.push(Object.keys(node.options).filter((key) => !key.startsWith("=")));
+      }
+      for (const option of Object.values(node.options)) visit(option.value);
+    }
+  }
+  visit(parse(message));
+  return found;
+}
+
+/**
+ * That a Russian count agrees with its noun.
+ *
+ * English needs `one` and `other`; Russian needs `one` (1, 21, 31), `few` (2-4,
+ * 22-24), `many` (5-20, 25-30) and `other` (fractions). A message translated in
+ * the English shape parses, passes its contract and renders "5 агент": nothing
+ * else in the suite can see it. Exact `=0` and `=1` keys are the contract's, and
+ * stay whatever English has.
+ */
+describe("Russian plurals", () => {
+  const RUSSIAN = ["few", "many", "one", "other"];
+
+  it("name every Russian category in every cardinal plural", () => {
+    const offenders = entries(ru).filter(([, value]) =>
+      pluralCategories(value).some(
+        (categories) => JSON.stringify(categories.toSorted()) !== JSON.stringify(RUSSIAN),
+      ),
+    );
+    expect(offenders.map(([key]) => key)).toEqual([]);
+  });
+
+  it("reads an English-shaped plural as an offence and a Russian one as none", () => {
+    expect(pluralCategories("{n, plural, one {# агент} other {# агентов}}")).toEqual([
+      ["one", "other"],
+    ]);
+    expect(
+      pluralCategories(
+        "{n, plural, =0 {Нет} one {# агент} few {# агента} many {# агентов} other {# агента}}",
+      ),
+    ).toEqual([["one", "few", "many", "other"]]);
+  });
+});
+
 it.each([en, pl, de])("names every selectable private notification platform", (catalog) => {
   const messages = new Map(entries(catalog));
   for (const channel of CHAT_NOTIFICATION_CHANNELS) {
@@ -378,7 +435,7 @@ it.each([en, pl, de])("names every selectable private notification platform", (c
   }
 });
 
-it.each([en, pl, de, tr])(
+it.each([en, pl, de, tr, ru])(
   "translates the new composer and builder summaries without fallback",
   (catalog) => {
     const messages = new Map(entries(catalog));

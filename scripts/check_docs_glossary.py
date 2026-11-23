@@ -101,7 +101,11 @@ def _checked() -> list[tuple[Path, list[tuple[re.Pattern[str], str]], list[str]]
     terms = json.loads(TERMS.read_text(encoding="utf-8"))
     docs = terms["docs"]
     checked: list[tuple[Path, list[tuple[re.Pattern[str], str]], list[str]]] = []
+    # A locale the console ships in but the site does not publish has no pages to read.
+    published: list[str] = docs.get("locales", list(terms["mixed"]))
     for locale, entries in terms["mixed"].items():
+        if locale not in published:
+            continue
         allowed: list[str] = docs["allow"].get(locale, [])
         checked += [
             (DOCS / f"{name}.{locale}.md", _patterns(entries), allowed) for name in docs["pages"]

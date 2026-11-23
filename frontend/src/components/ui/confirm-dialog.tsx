@@ -82,10 +82,12 @@ export function ConfirmDialog({
         {confirmText && (
           <div className="space-y-1.5">
             <Label htmlFor="confirm-phrase" className="text-muted-foreground text-xs">
-              {t.rich("typeToConfirm", {
-                phrase: confirmText,
-                mono: (chunks) => <span className="text-foreground font-mono">{chunks}</span>,
-              })}
+              <span>
+                {t.rich("typeToConfirm", {
+                  phrase: confirmText,
+                  mono: (chunks) => <span className="text-foreground font-mono">{chunks}</span>,
+                })}
+              </span>
             </Label>
             <Input
               id="confirm-phrase"

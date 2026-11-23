@@ -212,7 +212,7 @@ export function SkillWorkbench({
           {canEdit && !fork && (
             // One row of three, above the tree: stacked below it they wrapped
             // onto two lines and read as an afterthought under a tall empty box.
-            <div className="grid grid-cols-3 gap-1">
+            <div className="flex flex-wrap gap-1">
               <Button
                 variant="outline"
                 size="sm"

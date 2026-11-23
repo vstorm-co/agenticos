@@ -44,12 +44,7 @@ import { MAX_AGENT_CATEGORIES, MAX_AGENT_TAGS } from "@/lib/agent-labels";
 
 type Filter = "all" | AgentStatus;
 
-const FILTERS: { label: string; value: Filter }[] = [
-  { label: "All", value: "all" },
-  { label: "Published", value: "published" },
-  { label: "Drafts", value: "draft" },
-  { label: "Archived", value: "archived" },
-];
+const FILTERS: Filter[] = ["all", "published", "draft", "archived"];
 
 /** The shared list-card, with this page's count line - honest about a filter
  * narrowing the view. */
@@ -183,9 +178,9 @@ export default function AgentsPage() {
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          {FILTERS.map((entry) => (
-            <SelectItem key={entry.value} value={entry.value}>
-              {entry.label}
+          {FILTERS.map((value) => (
+            <SelectItem key={value} value={value}>
+              {t(`filter.${value}`)}
             </SelectItem>
           ))}
         </SelectContent>
