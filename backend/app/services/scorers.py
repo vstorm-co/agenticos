@@ -341,11 +341,10 @@ def missing_keys(checks: Sequence[Mapping[str, Any]], answer: str) -> list[str]:
         if raw.get("type") != "keys":
             continue
         try:
-            check = CHECK.validate_python(raw)
+            check = KeysCheck.model_validate(raw)
         except PydanticValidationError:
             continue
-        if isinstance(check, KeysCheck):
-            labels += [key.key for key in check.keys if not _carries(text, key.value)]
+        labels += [key.key for key in check.keys if not _carries(text, key.value)]
     return labels
 
 

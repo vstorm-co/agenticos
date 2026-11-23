@@ -32,7 +32,7 @@ export function KeyCoveragePanel({ datasetId }: { datasetId: string }) {
   const [chosen, setChosen] = useState<string | null>(null);
   const agent = published.find((item) => item.id === chosen) ?? null;
 
-  if (isLoading) return <LoadingState />;
+  if (isLoading) return <LoadingState variant="pending" />;
   if (error) return <ErrorState description={getErrorMessage(error, tErrors, t("agentsFailed"))} />;
   if (published.length === 0) {
     return <EmptyState icon={SearchCheck} title={t("noAgents")} description={t("noAgentsHint")} />;
@@ -67,7 +67,7 @@ function AgentCoverage({ datasetId, agent }: { datasetId: string; agent: Agent }
   const { report, loading, error, start, starting } = useKeyCoverage(datasetId, agent.id);
   const running = report?.status === "running";
 
-  if (loading) return <LoadingState />;
+  if (loading) return <LoadingState variant="pending" />;
   if (error) {
     return (
       <p className="text-destructive text-sm" role="alert">
