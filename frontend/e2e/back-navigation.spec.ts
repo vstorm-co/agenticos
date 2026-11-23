@@ -153,10 +153,12 @@ test("Back closes Improve over the agent’s Evals tab", async ({ page }) => {
   await expect(page).toHaveURL(new RegExp(`/agents/${agent}\\?tab=evals$`));
 });
 
-test("a run opened from a link falls back to its agent's Evals tab", async ({ page }) => {
+test("a run opened from a link reaches its agent's Evals tab by its breadcrumb", async ({
+  page,
+}) => {
   const { agent, run } = seeded;
   await page.goto(`/agents/${agent}/evals/${run}`);
-  await page.getByRole("link", { name: "Back to the agent's evals" }).click();
+  await page.getByRole("navigation", { name: "Breadcrumb" }).getByRole("link").first().click();
   await expect(page).toHaveURL(new RegExp(`/agents/${agent}\\?tab=evals$`));
   await expect(page.getByRole("tab", { name: "Evals" })).toHaveAttribute("aria-selected", "true");
 });
