@@ -24,6 +24,7 @@ from typing import TYPE_CHECKING, Literal
 
 from app.core.exceptions import AuthorizationError, NotFoundError, ValidationError
 from app.core.permissions import Perm
+from app.db.models.agent import AgentKind
 from app.db.models.eval_suite import EvalSuiteResultStatus
 from app.repositories import (
     agent_repo,
@@ -634,9 +635,17 @@ class StatsService:
             for suite in suites
             if suite.id in latest and EvalSuiteResultStatus(latest[suite.id].status).alerting
         )
-        agents = await agent_repo.get_many(
-            self.db, sorted({*rated, *failed, *failing}), organization_id=org
-        )
+        # Only agents people use: a system agent's page does not open, so naming one
+        # would lead nowhere.
+        agents = {
+            agent_id: agent
+            for agent_id, agent in (
+                await agent_repo.get_many(
+                    self.db, sorted({*rated, *failed, *failing}), organization_id=org
+                )
+            ).items()
+            if agent.kind == AgentKind.AGENT
+        }
         visible = await accessible_ids(
             self.db, ctx, list(agents.values()), Perm.AGENTS_VIEW, resource_type=AGENT
         )

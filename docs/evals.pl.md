@@ -1,5 +1,5 @@
 ---
-source_sha: "ce67e57114b5"
+source_sha: "76ac5bb3504a"
 title: "Runy ewaluacji"
 description: "Run ewaluacji odpowiada na każdy przypadek datasetu wersją agenta albo jego wersją roboczą, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -299,6 +299,8 @@ przypadki odpowiadałyby na połączeniach produkcji albo na innym modelu niż
 przypadki przed nimi.
 
 ## Wyniki { #results }
+
+Wynik pokazuje najpierw rezultat i odpowiedzi do sprawdzenia. Porównanie podaje liczbę poprawnych odpowiedzi przed i po. Otwórz pytanie, aby przeczytać odpowiedź i ocenę. **Jak przeprowadzono test** zawiera wyniki rodzin kryteriów, koszt i szczegóły wykonania; ich otwarcie nie ukrywa odpowiedzi. Filtr wyniku i wybrane pytanie pozostają w URL-u.
 
 Każda próba zachowuje odpowiedź, wykonane wywołania - każde oznaczone jako
 wykonane, zablokowane, odtworzone albo rozbieżne - werdykt i uzasadnienie

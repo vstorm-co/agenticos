@@ -1,5 +1,5 @@
 ---
-source_sha: "ce67e57114b5"
+source_sha: "76ac5bb3504a"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -291,6 +291,8 @@ restantes responderían contra las conexiones de producción, o con otro modelo
 que los casos anteriores.
 
 ## Resultados { #results }
+
+El resultado presenta primero la conclusión y las respuestas para revisar. La comparación indica cuántas respuestas aprobaron antes y después. Abre una pregunta para leer la respuesta y su evaluación. **Cómo se realizó la prueba** conserva criterios, costes y detalles de ejecución; abrirlos no oculta las respuestas. El filtro y la pregunta elegida permanecen en la URL.
 
 Cada intento conserva la respuesta, las llamadas que hizo - cada una marcada
 como ejecutada, bloqueada, reproducida o divergente -, el veredicto y el motivo

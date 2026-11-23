@@ -1,7 +1,5 @@
 "use client";
 
-import { AlertTriangle } from "lucide-react";
-
 import {
   Input,
   OptionalSetting,
@@ -12,7 +10,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui";
-import type { VerdictKind } from "@/lib/system-agents";
 import type { ModelSettingsSpec } from "@/types/agents";
 import { useTranslations } from "next-intl";
 
@@ -21,11 +18,6 @@ interface ModelSettingsFormProps {
   value: ModelSettingsSpec;
   onChange: (value: ModelSettingsSpec) => void;
   disabled?: boolean;
-  /**
-   * The verdict a system agent of this kind gives, which the same input should
-   * get every time: a temperature above 0 is then warned about.
-   */
-  verdict?: VerdictKind;
 }
 
 /**
@@ -60,7 +52,6 @@ export function ModelSettingsForm({
   value,
   onChange,
   disabled,
-  verdict,
 }: ModelSettingsFormProps) {
   const t = useTranslations("agents");
   const tUi = useTranslations("ui");
@@ -88,12 +79,6 @@ export function ModelSettingsForm({
           disabled={disabled}
           onChange={(next) => set("temperature", next)}
         />
-        {verdict !== undefined && value.temperature !== undefined && value.temperature > 0 && (
-          <p className="flex items-start gap-2 text-xs text-amber-700 dark:text-amber-400">
-            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
-            {t("temperatureVariesVerdict", { kind: verdict })}
-          </p>
-        )}
       </div>
 
       <OptionalSlider

@@ -1,5 +1,5 @@
 ---
-source_sha: "1a0321736e6f"
+source_sha: "95f4a9123a2e"
 title: "Lagunas de conocimiento"
 description: "Las lagunas de conocimiento muestran las preguntas para las que un agent no encontró nada relevante en su base de conocimiento, o respondió sin saber, agrupadas por tema, para saber qué documento falta."
 ---
@@ -223,6 +223,8 @@ deberían pasar ahora.
 
 ## Redactar el contenido que falta { #drafting-the-missing-content }
 
+En una pantalla amplia, el editor muestra el borrador junto a sus pruebas. En el teléfono, cambia entre **Documento propuesto** y **Por qué hace falta** sin perder cambios. **Guardar** conserva el borrador; **Añadir a la base de conocimiento** añade el contenido al destino indicado. No se puede regenerar con cambios sin guardar, y al cerrar se pide confirmar su descarte. El editor permanece deshabilitado mientras se genera otro borrador.
+
 **Draft**, en un tema abierto, pide a un modelo que escriba el fragmento o la
 entrada de FAQ que le falta a la base de conocimiento. El botón muestra lo
 máximo que cuesta un borrador. Es un run del **Knowledge gap drafter**, un
@@ -252,8 +254,7 @@ presupuesto o el modelo dejó de estar disponible, lo indica, con **Try again**.
 Un borrador escrito a partir de las preguntas de una sola persona también lo
 indica: revísalo sabiendo que se basa en lo que preguntó una persona.
 
-El borrador rellena el editor del tema, con un enlace a su run. Puedes copiarlo
-como Markdown, y solo llega a la base de conocimiento cuando alguien lo añade. El redactor no conoce los datos de tu empresa: donde una
+El borrador rellena el editor del tema, con un enlace a su run. La fecha de creación aparece junto al encabezado del borrador. Solo llega a la base de conocimiento cuando alguien lo añade. El redactor no conoce los datos de tu empresa: donde una
 respuesta necesita una cifra, una fecha o una regla, escribe
 `{{what to fill in}}`, y el editor enumera cada uno hasta que se sustituye.
 
@@ -373,3 +374,5 @@ valoración.
 Los nombres no se quitan de lo que lee el redactor ni se marcan en el contenido
 que se va a añadir: nada aquí reconoce un nombre. Revisa si un borrador los
 contiene antes de añadirlo.
+
+Un borrador guardado se abre como documento legible. Elige **Editar documento** para cambiar título o contenido y **Leer documento** para revisar sin perder cambios. Los detalles de búsqueda están en la explicación de cada pregunta.

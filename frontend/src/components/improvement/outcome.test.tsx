@@ -178,10 +178,10 @@ it("shows how often the criteria passed before and after, and what a skill still
     />,
   );
 
-  const passed = screen.getByText("Criteria passed").closest("div.flex-col")!;
+  const passed = screen.getByText("Criteria passed").closest("div")!;
   expect(passed).toHaveTextContent("6% → 56%");
   expect(passed).toHaveTextContent("1 criterion better");
-  const held = screen.getByText("Still held back by a skill").closest("div.flex-col")!;
+  const held = screen.getByText("Still held back by a skill").closest("div")!;
   expect(held).toHaveTextContent("1");
   expect(held).toHaveTextContent("fernhill-quote-format");
 });
@@ -206,10 +206,10 @@ it("counts confirmed changes large, unconfirmed ones beside them, and links the 
   const tiles = screen.getByRole("group", {
     name: "In the agent: 3 questions newly fixed, 0 newly broken. In the knowledge base: 3 topics missing.",
   });
-  const fixed = within(tiles).getByText("Newly fixed").closest("div.flex-col")!;
+  const fixed = within(tiles).getByText("Improved answers").closest("div")!;
   expect(fixed).toHaveTextContent("3");
   expect(fixed).toHaveTextContent("+2 not confirmed");
-  expect(within(tiles).getByText("Newly broken").closest("div.flex-col")).not.toHaveTextContent(
+  expect(within(tiles).getByText("Answers that got worse").closest("div")).not.toHaveTextContent(
     "not confirmed",
   );
   expect(
@@ -218,7 +218,7 @@ it("counts confirmed changes large, unconfirmed ones beside them, and links the 
     ),
   ).toBeInTheDocument();
   // Every open topic of the session counts, drafted or not, whoever may change it.
-  const topics = within(tiles).getByText("Topics missing knowledge").closest("a")!;
+  const topics = within(tiles).getByRole("link")!;
   expect(topics).toHaveTextContent("3");
   expect(topics).toHaveAttribute("href", "#improvement-documents");
   view.rerender(
@@ -231,7 +231,7 @@ it("counts confirmed changes large, unconfirmed ones beside them, and links the 
   expect(screen.queryByText(/^Not confirmed:/)).toBeNull();
   state.topics = [];
   view.rerender(<ResultSummary session={SESSION} round={ROUND} />);
-  expect(screen.getByText("Topics missing knowledge").closest("a")).toBeNull();
+  expect(screen.queryByText("Topics missing knowledge")).toBeNull();
 });
 
 it("counts only what is still missing, and says how much was added since", () => {
@@ -246,7 +246,7 @@ it("counts only what is still missing, and says how much was added since", () =>
       name: "In the agent: 3 questions newly fixed, 0 newly broken. In the knowledge base: nothing missing, 2 added since.",
     }),
   ).toBeInTheDocument();
-  const tile = screen.getByText("Topics missing knowledge").closest<HTMLElement>("div.flex-col")!;
+  const tile = screen.getByText("Topics missing knowledge").closest<HTMLElement>("div")!;
   expect(tile).toHaveTextContent("0");
   expect(tile).toHaveTextContent("2 already added");
   expect(within(tile).queryByRole("link")).not.toBeInTheDocument();
@@ -481,8 +481,8 @@ it("keeps invalid result and acceptance summaries from reusing a previous verdic
   state.compared = comparison({ verdict: "invalid", fixed_confirmed: 3, cases: [FLIP] });
   const view = render(<ResultSummary session={SESSION} round={ROUND} />);
   expect(screen.getByRole("alert")).toHaveTextContent("These results cannot be compared.");
-  expect(screen.queryByText("Newly fixed")).toBeNull();
-  expect(screen.queryByText("Newly broken")).toBeNull();
+  expect(screen.queryByText("Improved answers")).toBeNull();
+  expect(screen.queryByText("Answers that got worse")).toBeNull();
   expect(
     screen.queryByRole("group", { name: /^In the agent: 3 questions newly fixed/ }),
   ).toBeNull();
@@ -502,4 +502,25 @@ it("does not state stored improvements until the comparison is read, and offers 
   expect(screen.getByRole("alert")).toBeVisible();
   await userEvent.click(screen.getByRole("button", { name: "Try reading again" }));
   expect(state.comparisonRetry).toHaveBeenCalled();
+});
+
+it("omits an empty knowledge section from historical changes while preserving loading, errors and an open editor", async () => {
+  state.topics = [];
+  const view = render(<KnowledgeDocuments session={SESSION} hideEmpty />);
+  expect(screen.queryByText("Missing from the knowledge base")).toBeNull();
+  state.topicsLoading = true;
+  view.rerender(<KnowledgeDocuments session={SESSION} hideEmpty />);
+  expect(screen.getByRole("status", { name: "Loading the topics…" })).toBeVisible();
+  state.topicsLoading = false;
+  state.topicsError = new Error("Unavailable knowledge");
+  view.rerender(<KnowledgeDocuments session={SESSION} hideEmpty />);
+  expect(screen.getByText("Unavailable knowledge")).toBeVisible();
+  state.topicsError = null;
+  state.topics = [topic("t1")];
+  view.rerender(<KnowledgeDocuments session={SESSION} hideEmpty />);
+  expect(screen.getByText("Topic t1")).toBeVisible();
+  await userEvent.click(screen.getByRole("button", { name: /Review the draft/ }));
+  state.topics = [];
+  view.rerender(<KnowledgeDocuments session={SESSION} hideEmpty />);
+  expect(screen.getByRole("button", { name: "Close draft t1 in the wizard" })).toBeVisible();
 });
