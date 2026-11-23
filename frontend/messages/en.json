@@ -10161,6 +10161,7 @@
     "enableRoutine": "Enable routine",
     "finishLater": "Finish later",
     "stopWaitingRun": "Stop waiting run",
+    "deliveryPending": "Sending last answer to chat",
     "deliveryUnavailable": "Last answer unavailable in chat",
     "attemptsTitle": "Before the agent started",
     "attemptsHint": "These attempts did not start an agent run or incur model charges.",

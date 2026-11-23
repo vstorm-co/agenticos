@@ -143,6 +143,9 @@ export function TriggerRow({ trigger, showAgent = false }: TriggerRowProps) {
           </p>
         </div>
       </button>
+      {trigger.last_delivery_status === "pending" && (
+        <Badge variant="outline">{t("deliveryPending")}</Badge>
+      )}
       {trigger.last_delivery_status === "unavailable" && (
         <Badge variant="secondary">{t("deliveryUnavailable")}</Badge>
       )}

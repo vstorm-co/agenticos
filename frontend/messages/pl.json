@@ -8842,6 +8842,7 @@
     "enableRoutine": "Włącz rutynę",
     "finishLater": "Dokończ później",
     "stopWaitingRun": "Zatrzymaj oczekujące uruchomienie",
+    "deliveryPending": "Wysyłanie ostatniego wyniku do czatu",
     "deliveryUnavailable": "Ostatni wynik niedostępny w czacie",
     "attemptsTitle": "Przed uruchomieniem agenta",
     "attemptsHint": "Te próby nie rozpoczęły runu agenta ani nie naliczyły kosztów modelu.",

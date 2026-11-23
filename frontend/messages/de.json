@@ -10041,6 +10041,7 @@
     "enableRoutine": "Routine aktivieren",
     "finishLater": "Später fortfahren",
     "stopWaitingRun": "Wartende Ausführung stoppen",
+    "deliveryPending": "Letzte Antwort wird an den Chat gesendet",
     "deliveryUnavailable": "Letzte Antwort im Chat nicht verfügbar",
     "attemptsTitle": "Vor dem Agentenstart",
     "attemptsHint": "Diese Versuche haben keinen Agentenlauf gestartet und keine Modellkosten verursacht.",
