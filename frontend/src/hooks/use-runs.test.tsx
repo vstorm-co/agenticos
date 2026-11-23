@@ -40,6 +40,24 @@ describe("useRuns", () => {
     expect(apiClient.get).toHaveBeenCalledWith("/runs", undefined);
   });
 
+  it("reads a routine across all of its execution chats", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
+    const { result } = renderHook(() => useRuns(undefined, { triggerId: "routine-1" }), {
+      wrapper,
+    });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(apiClient.get).toHaveBeenCalledWith("/runs", { params: { trigger_id: "routine-1" } });
+  });
+
+  it("can still narrow ordinary run history to one conversation", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
+    const { result } = renderHook(() => useRuns(undefined, { conversationId: "chat-1" }), {
+      wrapper,
+    });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(apiClient.get).toHaveBeenCalledWith("/runs", { params: { conversation_id: "chat-1" } });
+  });
+
   it("narrows to one agent, and counts what it did as a delegate", async () => {
     // The per-agent question takes the opposite arithmetic to the bill: a
     // delegate's rows are the only record of its own spend, so an agent that

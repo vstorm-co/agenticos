@@ -1,5 +1,5 @@
 ---
-source_sha: "e1f4fee1c6a8"
+source_sha: "7aff586c0beb"
 ---
 
 # Modele i providery { #models-and-providers }
@@ -270,11 +270,14 @@ ustawieniem `cache: false` albo cache'uje tylko instrukcje i narzędzia przez
 `cache: {"messages": false}`. Flaga konkretnego dostawcy, którą profil już
 ustawia, np. `anthropic_cache_messages`, nadal ma dla niego pierwszeństwo.
 
-Nakładu rozumowania **nie** ma tutaj. Jest nim
-[capability `thinking`](reference/capabilities.md#thinking), bo „myśl mocniej” to
-decyzja o tym, do *czego* agent służy, a nie pokrętło na połączeniu — i dlatego,
-że spec, który ustawia to jako ustawienie modelu, przestaje być przenośny przy
-zmianie modelu.
+Codzienny briefing, sugestie i utrzymanie pamięci udostępniają te parametry oraz
+poziom rozumowania w selektorze modelu organizacji. Zmiany wymagają jawnego zapisu
+do współdzielonego profilu i dotyczą wszystkich miejsc, które go używają.
+Nieustawiona kontrolka nie wysyła nadpisania; dla nieobsługiwanych parametrów
+pozostaw wartości dostawcy. Agenci mogą nadpisać poziom rozumowania przez
+[capability `thinking`](reference/capabilities.md#thinking), korzystającą z ustawienia
+Pydantic AI niezależnego od dostawcy. Role działające w tle nie mają speca agenta
+i korzystają bezpośrednio z domyślnego `thinking` w profilu.
 
 ### Responses czy Chat Completions { #responses-or-chat-completions }
 

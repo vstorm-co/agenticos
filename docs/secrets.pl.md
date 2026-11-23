@@ -1,5 +1,5 @@
 ---
-source_sha: "92fbf49a9fb3"
+source_sha: "c5eb536ace0a"
 ---
 
 # Sekrety i vault { #secrets-and-the-vault }
@@ -10,6 +10,14 @@ source_sha: "92fbf49a9fb3"
     i każdy klucz API strony trzeciej na tej platformie przechodzi przez
     `app/core/vault.py`. Dodanie drugiego sposobu przechowywania poświadczenia
     w spoczynku to defekt, który usunęły dwie migracje.
+
+    Wyjątkiem jest opisany niżej natywny magazyn subskrypcji CLIProxyAPI.
+
+## Natywny magazyn subskrypcji { #native-subscription-store }
+
+Konta subskrypcji CLIProxyAPI są zatwierdzonym przez maintenera wyjątkiem od zasady Vault. Natywny magazyn na `subscription_accounts` przechowuje tokeny dostawców, stan kont, dzienniki odświeżeń, `keys.json` i `config.yaml`. Binarka obsługuje logowanie, odświeżanie i odzyskiwanie; zapis do Vault dopiero przy zamknięciu mógłby po awarii utracić obrócone tokeny lub potwierdzenia odświeżeń. Pełny adapter Vault musi objąć wszystkie trwałe zmiany i dziennik przed zastąpieniem tego magazynu.
+
+Katalogi mają `0700`, a konfiguracja i pliki kluczy `0600`; procesy są izolowane według organizacji, osoby i generacji członkostwa oraz nasłuchują na loopback. Te zabezpieczenia nie szyfrują wolumenu ani kopii zapasowych, nie wiążą kryptograficznie plików z właścicielem i nie podlegają rotacji klucza Vault. Chroń cały wolumen jak poświadczenia i szyfruj jego storage oraz backupy zgodnie z wymaganiami. Pozostałe klucze modeli i poświadczenia konektorów nadal używają Vault.
 
 ## W konsoli { #in-the-console }
 

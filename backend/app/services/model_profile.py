@@ -406,6 +406,9 @@ class ModelProfileService:
             )
         await self._check_label_free(ctx, label)
         if secret_id is not None:
+            if custom_pricing is not None:
+                # Keep the validated credential stable until the approval commits.
+                await hold_subject(self.db, LockScope.MODEL_PRICING_PER_SECRET, secret_id)
             await self._check_key(ctx, secret_id, provider=provider)
         listed = await self._listed_model(ctx, provider, model, base_url, secret_id, api=api)
         if not api_given and spec.api_from_model and listed is not None:
@@ -413,8 +416,6 @@ class ModelProfileService:
             # a Responses-only model gets Responses without anyone choosing it.
             api = api_for_model(listed.surfaces) or api
 
-        if secret_id is not None and custom_pricing is not None:
-            await hold_subject(self.db, LockScope.MODEL_PRICING_PER_SECRET, secret_id)
         profile = await credential_repo.create_profile(
             self.db,
             organization_id=ctx.organization_id,
@@ -644,14 +645,13 @@ class ModelProfileService:
 
         if changes.label is not None and "label" in update_data:
             await self._check_label_free(ctx, changes.label)
-        if secret_id is not None and ("secret_id" in update_data or "base_url" in update_data):
-            await self._check_key(ctx, secret_id, provider=profile.provider)
-
         if secret_id is not None and (
             changes.custom_pricing is not None
             or ("secret_id" in update_data and profile.custom_pricing is not None)
         ):
             await hold_subject(self.db, LockScope.MODEL_PRICING_PER_SECRET, secret_id)
+        if secret_id is not None and ("secret_id" in update_data or "base_url" in update_data):
+            await self._check_key(ctx, secret_id, provider=profile.provider)
         updated = await credential_repo.update_profile(
             self.db, organization_id=ctx.organization_id, profile=profile, update_data=update_data
         )

@@ -404,6 +404,7 @@ export const qk = {
         modelLabel?: string;
         userId?: string;
         conversationId?: string;
+        triggerId?: string;
         agentVersionId?: string;
         isTest?: boolean;
         skip?: number;
@@ -427,6 +428,7 @@ export const qk = {
         opts.agentVersionId ?? "any-version",
         opts.isTest ?? "tests-included",
         opts.skip ?? 0,
+        ...(opts.triggerId ? ["trigger", opts.triggerId] : []),
       ] as const,
     detail: (id: string) => ["runs", id] as const,
     // One run's transcript, where the run-detail surface reads the answers
@@ -599,7 +601,6 @@ export const qk = {
       skip: number;
       limit: number;
       editable: boolean;
-      judge: string;
       asksRun: string;
       agent: string;
     }) => ["datasets", "list", query] as const,
@@ -609,6 +610,9 @@ export const qk = {
       ["datasets", id, "cases", query] as const,
     case: (id: string, caseId: string) => ["datasets", id, "case", caseId] as const,
     generations: (id: string) => ["datasets", id, "generations"] as const,
+    keyDraft: (id: string, caseId: string) => ["datasets", id, "key-draft", caseId] as const,
+    keyCoverage: (id: string, agentId: string) =>
+      ["datasets", id, "key-coverage", agentId] as const,
     proposals: (id: string, query: { skip: number; limit: number }) =>
       ["datasets", id, "proposals", query] as const,
     allScores: (id: string) => ["datasets", id, "scores"] as const,
@@ -626,7 +630,6 @@ export const qk = {
       },
     ) => ["datasets", id, "scores", query] as const,
     allReviewQueue: () => ["datasets", "review-queue"] as const,
-    judgeAgreement: (judgeId: string) => ["datasets", "judge-agreement", judgeId] as const,
     judgeTemplate: (id: string) => ["datasets", id, "judge-template"] as const,
     reviewQueue: (query: { skip: number; limit: number }) =>
       ["datasets", "review-queue", query] as const,

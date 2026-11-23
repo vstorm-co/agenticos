@@ -205,6 +205,13 @@ export const TOUR_STEPS: readonly TourStep[] = [
     optional: true,
   },
   {
+    id: "improvement-mode",
+    page: IMPROVEMENT_START,
+    target: "improvement-mode",
+    permission: Perm.runsView,
+    optional: true,
+  },
+  {
     id: "improvement-question-set",
     page: IMPROVEMENT_START,
     target: "improvement-question-set",
@@ -1255,6 +1262,13 @@ export const TOUR_STEPS: readonly TourStep[] = [
     id: "dataset-review",
     page: DATASET_DETAIL,
     target: "datasets-review-filter",
+    activate: "datasets-results-tab",
+    permission: Perm.datasetsView,
+  },
+  {
+    id: "dataset-key-coverage",
+    page: DATASET_DETAIL,
+    target: "datasets-coverage-tab",
     activate: "datasets-results-tab",
     permission: Perm.datasetsView,
   },

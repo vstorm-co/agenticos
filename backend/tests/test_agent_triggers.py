@@ -144,6 +144,7 @@ def _source_policy():
 def _trigger(**overrides: object) -> MagicMock:
     defaults: dict[str, object] = {
         "id": uuid.uuid4(),
+        "chat_mode": "shared",
         "approved_sources": _source_policy().model_dump(mode="json"),
         "organization_id": _ORG,
         "agent_id": uuid.uuid4(),
@@ -186,7 +187,9 @@ def _trigger(**overrides: object) -> MagicMock:
         "setup_issues": [],
     }
     defaults.update(overrides)
-    return MagicMock(**defaults)
+    trigger = MagicMock(**defaults)
+    trigger.name = overrides.get("name")
+    return trigger
 
 
 def _interval(
@@ -4192,7 +4195,9 @@ class TestRunningAsTheCreator:
     async def test_creation_cannot_name_a_computer_without_standing_authority(self) -> None:
         from app.schemas.local_target import LocalTarget
 
-        data = _interval().model_copy(update={"local_target": LocalTarget(folder="/approved")})
+        data = _interval().model_copy(
+            update={"runs_as_creator": False, "local_target": LocalTarget(folder="/approved")}
+        )
         with pytest.raises(BadRequestError, match="acts as you"):
             await _service().create(_ctx(), uuid.uuid4(), data)
 
@@ -5422,42 +5427,16 @@ async def test_create_can_remain_paused_until_native_routine_consent(active: boo
     assert repo.create.await_args.kwargs["is_active"] is active
 
 
-@pytest.mark.parametrize(
-    "findings",
-    [[], [{"key": "thread", "revision": "mail-1", "title": "Reply", "content": "Draft"}]],
-)
-async def test_inbox_mode_only_delivers_relevant_cases_to_the_owner(findings):
-    import json
-
-    trigger = _trigger(result_mode="inbox", answer_to="primary")
+async def test_legacy_inbox_mode_never_parses_or_publishes_the_display_answer():
     service = _service()
-    target = uuid.uuid4()
-    with (
-        patch(
-            "app.services.agent_trigger.agent_trigger_repo.get_by_id",
-            new=AsyncMock(return_value=trigger),
-        ),
-        patch(
-            "app.services.agent_trigger.member_repo.get_active",
-            new=AsyncMock(return_value=MagicMock(role="owner")),
-        ),
-        patch("app.services.agent_trigger.RoutineFindingService") as publisher,
-        patch("app.services.agent_trigger.PrimaryConversationService") as primary,
-    ):
-        publisher.return_value.publish = AsyncMock(return_value=target)
-        delivered = await service._deliver(
-            trigger,
-            agent=_agent(),
-            run=MagicMock(routine_policy={"result_mode": "inbox"}),
-            answer=json.dumps({"findings": findings}),
-        )
-    primary.assert_not_called()
-    assert delivered.status == ("delivered" if findings else "no_answer")
-    assert delivered.conversation_id == (target if findings else None)
-    if findings:
-        assert publisher.return_value.publish.await_args.kwargs["user_id"] == _CALLER
-    else:
-        publisher.return_value.publish.assert_not_awaited()
+    delivered = await service._deliver(
+        _trigger(result_mode="inbox", answer_to="primary"),
+        agent=_agent(),
+        run=MagicMock(routine_policy={"result_mode": "inbox"}),
+        answer="```json\n{not a transport payload}\n```",
+    )
+    assert delivered.status == "run_log"
+    assert delivered.conversation_id is None
 
 
 @pytest.mark.parametrize("mode", [None, "invalid"])
@@ -5787,3 +5766,139 @@ async def test_deleting_a_departed_creators_routine_does_not_recreate_personal_c
     repo.delete.assert_awaited_once_with(service.db, trigger)
     remember.assert_not_awaited()
     queue.assert_not_awaited()
+
+
+@pytest.mark.parametrize("cancelled", [False, True])
+async def test_failed_fire_releases_its_lease_after_rollback_in_an_independent_transaction(
+    cancelled,
+):
+    service = _service()
+    trigger = _trigger()
+    ticket = datetime.now(UTC)
+    failure = asyncio.CancelledError() if cancelled else RuntimeError("delivery failed")
+    service._fire_loaded = AsyncMock(side_effect=failure)
+    service.db.rollback = AsyncMock()
+    cleanup = MagicMock()
+
+    @contextlib.asynccontextmanager
+    async def context():
+        assert service.db.rollback.await_count == 1
+        yield cleanup
+
+    with (
+        patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+        patch("app.services.agent_trigger.get_db_context", context),
+        pytest.raises(type(failure)),
+    ):
+        repo.get_by_id = AsyncMock(return_value=trigger)
+        repo.clear_fire_marker = AsyncMock()
+        await service.fire(trigger.id, claimed_at=ticket)
+    repo.clear_fire_marker.assert_awaited_once_with(
+        cleanup, trigger_id=trigger.id, claimed_at=ticket
+    )
+
+
+@pytest.mark.security
+def test_new_routines_default_to_the_creator_but_keep_per_tool_approval_independent():
+    data = _interval()
+    assert data.runs_as_creator is True
+    assert data.action_mode is None
+    assert data.model_copy(update={"action_mode": "per_tool"}).runs_as_creator is True
+
+
+async def test_lease_renewal_error_propagates_after_independent_cleanup(monkeypatch):
+    service = _service()
+    trigger = _trigger()
+    ticket = datetime.now(UTC)
+    service.db.rollback = AsyncMock()
+    cleanup = MagicMock()
+
+    async def fail_renewal(*args):
+        raise RuntimeError("Lease renewal failed")
+
+    async def finish(*args, **kwargs):
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
+
+    @contextlib.asynccontextmanager
+    async def context():
+        assert service.db.rollback.await_count == 1
+        yield cleanup
+
+    monkeypatch.setattr(service, "_keep_lease_alive", fail_renewal)
+    monkeypatch.setattr(service, "_fire_loaded", finish)
+    with (
+        patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+        patch("app.services.agent_trigger.get_db_context", context),
+        pytest.raises(RuntimeError, match="Lease renewal failed"),
+    ):
+        repo.get_by_id = AsyncMock(return_value=trigger)
+        repo.clear_fire_marker = AsyncMock()
+        await service.fire(trigger.id, claimed_at=ticket)
+    repo.clear_fire_marker.assert_awaited_once_with(
+        cleanup, trigger_id=trigger.id, claimed_at=ticket
+    )
+
+
+@pytest.mark.parametrize("caller", ["other", "background", "impersonated"])
+async def test_only_owner_in_person_may_change_the_routine_action_mode(caller):
+    trigger = _trigger(action_mode="per_tool")
+    service = _service()
+    service._owned = AsyncMock(return_value=trigger)
+    ctx = _ctx()
+    if caller == "other":
+        ctx = replace(ctx, user_id=uuid.uuid4())
+    if caller == "background":
+        ctx = replace(ctx, routine_id=uuid.uuid4())
+    with (
+        patch(
+            "app.services.agent_trigger.current_impersonator",
+            return_value=uuid.uuid4() if caller == "impersonated" else None,
+        ),
+        pytest.raises(AuthorizationError, match=r"creator.*approval policy"),
+    ):
+        await service.update(ctx, trigger.agent_id, trigger.id, TriggerUpdate(action_mode="agent"))
+
+
+async def test_delivery_does_not_apply_a_result_mode_changed_after_admission():
+    trigger = _trigger(result_mode="report", answer_to="primary")
+    with (
+        patch(
+            "app.services.agent_trigger.agent_trigger_repo.get_by_id",
+            new=AsyncMock(return_value=trigger),
+        ),
+        patch(
+            "app.services.agent_trigger.conversation_repo.create_message", new=AsyncMock()
+        ) as post,
+    ):
+        delivered = await _service()._deliver(
+            trigger,
+            agent=_agent(),
+            run=MagicMock(routine_policy={"result_mode": "inbox"}),
+            answer="Done",
+        )
+    assert delivered.status == "unavailable"
+    post.assert_not_awaited()
+
+
+@pytest.mark.parametrize("mode, expected", [("per_run", "delivered"), ("shared", "run_log")])
+async def test_chat_modes_retain_the_execution_transcript_without_copying_its_answer(
+    mode: str, expected: str
+) -> None:
+    conversation_id = uuid.uuid4()
+    with patch(
+        "app.services.agent_trigger.conversation_repo.create_message", new=AsyncMock()
+    ) as copy:
+        delivery = await _service()._deliver(
+            _trigger(),
+            agent=_agent(),
+            run=MagicMock(routine_policy={"chat_mode": mode}, conversation_id=conversation_id),
+            answer="Completed report",
+        )
+    assert delivery.status == expected and delivery.conversation_id == conversation_id
+    copy.assert_not_awaited()
+
+
+def test_a_chat_mode_update_cannot_clear_its_value() -> None:
+    with pytest.raises(PydanticValidationError, match="chat_mode cannot be set to null"):
+        TriggerUpdate.model_validate({"chat_mode": None})

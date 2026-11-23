@@ -502,6 +502,9 @@ class Settings(BaseSettings):
     # model's own price; one with no known price falls back to a flat guess.
     EVAL_FALLBACK_INPUT_TOKENS: int = 2000
     EVAL_FALLBACK_OUTPUT_TOKENS: int = 400
+    # An answer from an agent with tools takes this many requests more than one: each
+    # tool call is answered in another request.
+    EVAL_FALLBACK_TOOL_ROUNDS: int = Field(default=2, ge=0)
     EVAL_FALLBACK_CASE_COST_USD: Decimal = Decimal("0.05")
     EVAL_ESTIMATE_SAMPLE: int = 50
     # A running eval run whose worker has not said it is alive, nor started or

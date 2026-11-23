@@ -260,6 +260,13 @@ class AdvanceImprovement(Payload):
     organization_id: UUID
 
 
+class SearchImprovement(Payload):
+    """One unit of a search attempt: a round of proposals, or scoring one variant."""
+
+    run_id: UUID
+    organization_id: UUID
+
+
 class AdvanceSkillImprovement(Payload):
     """One short, restartable step of a session on a skill line; paid work runs in a child."""
 
@@ -288,6 +295,20 @@ class GenerateCases(Payload):
     organization_id: UUID
 
 
+class ExtractCaseKeys(Payload):
+    """One case's keys, drafted by the key extractor from its reference answer."""
+
+    draft_id: UUID
+    organization_id: UUID
+
+
+class ReportKeyCoverage(Payload):
+    """Which of a dataset's keys an agent's sources cover, judged by the source coverage agent."""
+
+    report_id: UUID
+    organization_id: UUID
+
+
 class RunAuthoring(Payload):
     """One Improve or Verify the authoring assistant was asked for."""
 
@@ -299,14 +320,16 @@ class ClassifyGaps(Payload):
     """Answers read for the knowledge gaps of these knowledge bases, as the person who asked.
 
     Without `message_ids`, a knowledge base's newest unread answers, as its
-    Knowledge gaps tab asks; with them, those answers alone, as an improvement
-    session sorts the answers it found bad.
+    Knowledge gaps tab asks; with them, and with `eval_run_ids`, those answers
+    alone, as an improvement session sorts the answers it found bad.
     """
 
     organization_id: UUID
     knowledge_base_ids: list[UUID] = Field(max_length=50)
     user_id: UUID
     message_ids: list[UUID] | None = Field(default=None, max_length=500)
+    eval_run_ids: list[UUID] | None = Field(default=None, max_length=500)
+    """A session's failed training answers from evals, by the run that gave each."""
     improvement_run_id: UUID | None = None
 
 
@@ -675,6 +698,24 @@ GENERATE_CASES = Task(
     priority=Priority.INTERACTIVE,
     cancellable=False,
 )
+EXTRACT_CASE_KEYS = Task(
+    kind="extract-case-keys",
+    payload_type=ExtractCaseKeys,
+    pool=Pool.AGENT,
+    max_attempts=1,
+    timeout=timedelta(minutes=10),
+    priority=Priority.INTERACTIVE,
+    cancellable=False,
+)
+REPORT_KEY_COVERAGE = Task(
+    kind="report-key-coverage",
+    payload_type=ReportKeyCoverage,
+    pool=Pool.AGENT,
+    max_attempts=1,
+    timeout=timedelta(minutes=20),
+    priority=Priority.INTERACTIVE,
+    cancellable=False,
+)
 # One attempt, like `RUN_AGENT`: `dispatch_outbox`, not the job, holds a node's
 # position, and a second attempt of the same job could only find its claim held.
 # Re-running a node is the workflow reconciler's call, made from `node_attempts`.
@@ -795,6 +836,16 @@ ADVANCE_IMPROVEMENT = Task(
     priority=Priority.INTERACTIVE,
 )
 SWEEP_IMPROVEMENTS = _sweep("sweep-improvements")
+# One attempt: its answers were paid for. A dead job's variant is scored once more
+# when the session next advances, then given up; one unit per organization at a time.
+SEARCH_IMPROVEMENT = Task(
+    kind="search-improvement",
+    payload_type=SearchImprovement,
+    pool=Pool.EVAL,
+    max_attempts=1,
+    timeout=timedelta(minutes=15),
+    priority=Priority.BULK,
+)
 ADVANCE_SKILL_IMPROVEMENT = Task(
     kind="advance-skill-improvement",
     payload_type=AdvanceSkillImprovement,
@@ -835,6 +886,7 @@ SWEEP_MCP_CONNECTIONS = _sweep("sweep-mcp-connections")
 SYNC_DISCORD_ROLES = _sweep("sync-discord-roles")
 EXPIRE_APPROVALS = _sweep("expire-approvals")
 EXPIRE_INVITATIONS = _sweep("expire-invitations")
+EXPIRE_CASE_KEY_DRAFTS = _sweep("expire-case-key-drafts")
 REAP_STALE_RUNS = _sweep("reap-stale-runs")
 SWEEP_TEARDOWN_RESERVATIONS = _sweep("sweep-teardown-reservations")
 SWEEP_RAG_SCRATCH = _sweep("sweep-rag-scratch")
@@ -975,6 +1027,7 @@ TASKS: dict[str, TaskKind] = {
         RUN_AUTHORING,
         ADVANCE_IMPROVEMENT,
         SWEEP_IMPROVEMENTS,
+        SEARCH_IMPROVEMENT,
         ADVANCE_SKILL_IMPROVEMENT,
         SWEEP_SKILL_IMPROVEMENTS,
         ADVANCE_SKILL_CHECK,
@@ -982,6 +1035,8 @@ TASKS: dict[str, TaskKind] = {
         CLASSIFY_GAPS,
         DRAFT_TOPIC,
         GENERATE_CASES,
+        EXTRACT_CASE_KEYS,
+        REPORT_KEY_COVERAGE,
         RUN_CONVERSATION_TASK,
         RETURN_CONVERSATION_TASK,
         RECONCILE_CONVERSATION_TASKS,
@@ -1004,6 +1059,7 @@ TASKS: dict[str, TaskKind] = {
         SYNC_DISCORD_ROLES,
         EXPIRE_APPROVALS,
         EXPIRE_INVITATIONS,
+        EXPIRE_CASE_KEY_DRAFTS,
         REAP_STALE_RUNS,
         SWEEP_TEARDOWN_RESERVATIONS,
         SWEEP_RAG_SCRATCH,

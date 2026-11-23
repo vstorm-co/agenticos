@@ -1,18 +1,53 @@
 """Exact activation lookups retain tenant and root-run isolation beyond a page."""
 
+import asyncio
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.agent_run import AgentRun
+from app.db.models.agent_trigger import AgentTrigger
 from app.db.models.conversation import Conversation
 from app.repositories.agent_run import RunFilters, list_runs, run_id_for_routine_activation
+from app.services.agent_trigger import AgentTriggerService
 from tests.integration.test_knowledge_gaps import _agent, _owner
+from tests.integration.test_routine_sources import world
 
 pytestmark = pytest.mark.anyio
+
+
+@pytest.mark.parametrize("cancelled", [False, True])
+async def test_failed_fire_clears_committed_lease_despite_outer_rollback(
+    db: AsyncSession, cancelled: bool
+) -> None:
+    _, trigger, _, _ = await world(db)
+    trigger_id = trigger.id
+    ticket = datetime.now(UTC)
+    trigger.fire_in_flight_since = ticket
+    await db.commit()
+
+    async def fail_with_row_lock(*args: object, **kwargs: object) -> None:
+        trigger.name = "Uncommitted delivery"
+        await db.flush()
+        if cancelled:
+            raise asyncio.CancelledError()
+        raise RuntimeError("Delivery persistence failed")
+
+    service = AgentTriggerService(db)
+    with (
+        patch.object(service, "_fire_loaded", AsyncMock(side_effect=fail_with_row_lock)),
+        pytest.raises(asyncio.CancelledError if cancelled else RuntimeError),
+    ):
+        await asyncio.wait_for(service.fire(trigger_id, claimed_at=ticket), timeout=5)
+    await db.rollback()
+    saved = await db.get(AgentTrigger, trigger_id)
+    assert saved is not None
+    assert saved.fire_in_flight_since is None
+    assert saved.name is None
 
 
 @pytest.mark.security

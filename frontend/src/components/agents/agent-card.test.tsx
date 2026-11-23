@@ -153,26 +153,9 @@ describe("AgentCard", () => {
     expect(screen.queryByRole("link", { name: /Improve/ })).toBeNull();
   });
 
-  it("opens an agent with nothing waiting, or a system agent, on its builder", () => {
-    const { unmount } = render(<AgentCard agent={agent({ id: "a8", name: "Quiet" })} canEdit />);
+  it("opens an agent with nothing waiting on its builder", () => {
+    render(<AgentCard agent={agent({ id: "a8", name: "Quiet" })} canEdit />);
     expect(screen.getByRole("link", { name: "Open Quiet" })).toHaveAttribute("href", "/agents/a8");
-    unmount();
-
-    render(
-      <AgentCard
-        agent={agent({ id: "a7", name: "Setup", kind: "judge" })}
-        canEdit
-        attention={{
-          agent_id: "a7",
-          name: "Setup",
-          rated_down: 1,
-          failed_runs: 0,
-          failing_suites: 0,
-          can_edit: true,
-        }}
-      />,
-    );
-    expect(screen.getByRole("link", { name: "Open Setup" })).toHaveAttribute("href", "/agents/a7");
   });
 
   it("only describes the attention to a reader who may not improve the agent", () => {

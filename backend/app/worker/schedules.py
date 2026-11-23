@@ -145,6 +145,7 @@ SCHEDULES: tuple[Schedule, ...] = (
     Schedule("apply-retention", jobs.APPLY_RETENTION, _DAY),
     Schedule("sweep-notifications", jobs.SWEEP_NOTIFICATIONS, _DAY),
     Schedule("sweep-background-jobs", jobs.SWEEP_BACKGROUND_JOBS, _DAY),
+    Schedule("expire-case-key-drafts", jobs.EXPIRE_CASE_KEY_DRAFTS, _DAY),
     Schedule("workflow-run-retention", jobs.WORKFLOW_RUN_RETENTION, _DAY),
     # Generated images, speech and video past `GENERATED_MEDIA_RETENTION_DAYS` (#2310).
     Schedule("sweep-generated-media", jobs.SWEEP_GENERATED_MEDIA, _DAY),
