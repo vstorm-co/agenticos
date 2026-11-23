@@ -273,3 +273,38 @@ async def test_widening_any_binding_names_the_tools_it_adds_and_those_that_may_w
             "writes": ["create_agent_draft"],
         },
     ]
+
+
+async def test_model_comparison_prices_normalized_usage_on_each_profiles_own_rates(db):
+    ctx = await _owner(db)
+    connection = await _connection(db, ctx)
+    agent = await _published(db, ctx, name="Clerk", spec=_spec(connection).model_dump(mode="json"))
+    profiles = [
+        ModelProfile(
+            organization_id=ctx.organization_id,
+            label=f"Custom {index}",
+            provider="ollama",
+            model="same-alias",
+            custom_pricing={"input": str(index), "output": "2"},
+        )
+        for index in [0, 3]
+    ]
+    db.add_all(profiles)
+    db.add(
+        AgentRun(
+            organization_id=ctx.organization_id,
+            agent_id=agent.id,
+            user_id=ctx.user_id,
+            surface="web",
+            status="completed",
+            input_tokens=1000,
+            output_tokens=100,
+            started_at=datetime.now(UTC),
+        )
+    )
+    await db.flush()
+    costs = await ConfigurationService(db).cost(
+        ctx, agent.id, str(profiles[0].id), str(profiles[1].id)
+    )
+    assert costs["cost_per_run_before"] == "0.000200"
+    assert costs["cost_per_run_after"] == "0.003200"

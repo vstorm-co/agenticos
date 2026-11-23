@@ -21,6 +21,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Upgrading
 
+- Apply `0352_model_profile_pricing.py` before starting the API. Existing profiles retain automatic pricing.
+
 - Apply `0351_merge_personal_context_and_onboarding.py` to join the personal work index and provider/onboarding migration histories.
 
 - Apply `0350_member_onboarding_progress.py` before starting the new API. It adds nullable current-step and update-time columns to organization memberships, with no inferred backfill from profile data. Existing recorded completion remains unchanged.
@@ -34,6 +36,8 @@ Two things are versioned separately from this file and worth knowing about:
 - Apply `0342_personal_coding_sessions.py` and update API/workers together before using retained personal coding sessions. Existing workspace rows are unchanged. Sessions remain subject to provider idle expiry; failed tasks without confirmed safe retention are discarded.
 
 ### Added
+
+- Set flat USD token prices per model profile in the console and API, including cache rates and explicit free usage. Fallbacks and delegates use their own profile prices; keyless usage reaches budgets and reports. Existing recorded costs remain unchanged.
 
 - Introduce personal subscriptions, a first chat task, coding-client connections, everyday tools, projects and personal memory first in Discover AgenticOS, with direct links and permission-aware tips.
 

@@ -18,6 +18,7 @@ from pydantic import Field, computed_field
 from app.agents.model_resolver import ModelApi, ModelRegion, is_decision_api, lacks_key
 from app.core.secret_kinds import SecretKind
 from app.schemas.base import BaseSchema, TimestampSchema
+from app.schemas.token_pricing import TokenPricing
 from app.services.model_outputs import listed_model_outputs
 
 
@@ -134,6 +135,7 @@ class ModelProfileCreate(BaseSchema):
             "one. Omitted, it is the first of `regions`."
         ),
     )
+    custom_pricing: TokenPricing | None = None
     params: dict[str, Any] = Field(default_factory=dict)
     fallback_profile_ids: list[UUID] = Field(default_factory=list)
 
@@ -150,6 +152,11 @@ class ModelProfileUpdate(BaseSchema):
     an explicit `null` clears the value, under the same rules creation applies;
     `label` and `params` cannot be cleared, and `null` leaves them as they are.
     """
+
+    custom_pricing: TokenPricing | None = Field(
+        default=None,
+        description="Flat token pricing override; null restores automatic pricing. Omission keeps the saved rates.",
+    )
 
     label: str | None = Field(
         default=None,
@@ -223,6 +230,7 @@ class ModelProfileRead(BaseSchema, TimestampSchema):
             "which `missing_key` then reports."
         ),
     )
+    custom_pricing: TokenPricing | None = None
     params: dict[str, Any] = Field(default_factory=dict)
     fallback_profile_ids: list[str] = Field(default_factory=list)
     context_length: int | None = Field(
@@ -234,6 +242,14 @@ class ModelProfileRead(BaseSchema, TimestampSchema):
             "and not that the model accepts none."
         ),
     )
+
+    @computed_field
+    @property
+    def automatic_pricing(self) -> TokenPricing | None:
+        """Indicative base-tier USD rates, independent of a custom override."""
+        from app.agents.profile_pricing import catalog_token_pricing
+
+        return catalog_token_pricing(self.provider, self.model)
 
     @computed_field  # type: ignore[prop-decorator]  # pydantic's documented form
     @property
@@ -296,6 +312,7 @@ class ModelProfileList(BaseSchema):
 class ProviderModelRead(BaseSchema):
     """One model a provider offers, as the picker renders it."""
 
+    automatic_pricing: TokenPricing | None = None
     id: str = Field(description="The string sent as `model`, verbatim")
     name: str = Field(description="What to show; falls back to the id")
     context_length: int | None = Field(

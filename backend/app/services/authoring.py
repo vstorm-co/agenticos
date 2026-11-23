@@ -505,7 +505,9 @@ class AuthoringService:
                 input_tokens=chars // _CHARS_PER_TOKEN + _PROMPT_TOKENS,
                 output_tokens=_OUTPUT_TOKENS,
             )
-            priced = price_request(usage, model.model, model.provider)
+            priced = price_request(
+                usage, model.model, model.provider, custom_pricing=model.credential.custom_pricing
+            )
             if priced is not None:
                 return Decimal(priced) * steps(published)
         return settings.EVAL_FALLBACK_CASE_COST_USD * steps(published)

@@ -17110,5 +17110,16 @@
     "inProgress": "Devam ediyor",
     "unknown": "Veri yok",
     "otherStep": "Kurulum"
+  },
+  "modelPricing": {
+    "title": "Fiyatlandırma",
+    "automaticAvailable": "Milyon token başına USD cinsinden tahmini otomatik fiyatlar. Gerçek fiyat, kullanım kademelerine veya sağlayıcının bildirdiği ücrete bağlı olabilir.",
+    "automaticUnavailable": "Otomatik token fiyatları kullanılamıyor. Sağlayıcının bildirdiği maliyet, istek sonrasında kaydedilebilir.",
+    "input": "Girdi tokenları",
+    "output": "Çıktı tokenları",
+    "cache_read": "Önbellek okuma tokenları",
+    "cache_write": "Önbellek yazma tokenları",
+    "override": "Özel fiyatları kullan (milyon token başına USD)",
+    "cacheDefault": "Girdi fiyatını kullanmak için boş bırakın."
   }
 }

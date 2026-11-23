@@ -818,10 +818,27 @@ home for them, which means two things worth knowing:
   `claude-sonnet-5-5` does.
 - Updating prices is a dependency bump.
 
-!!! warning "A keyless provider records no spend"
+You can override automatic token prices in a model profile's **Pricing** section.
+Set input and output rates in USD per million tokens; cache read and write rates
+are optional and inherit the input rate when empty. An explicit zero is a price.
+The API exposes the same document as `custom_pricing`; omit it to keep the saved
+setting on update, or send `null` to restore automatic pricing.
 
-    Spend is attributed to the [vault secret](secrets.md) the run resolved to, and
-    a keyless provider has none to attribute it to.
+Custom rates take precedence over catalog prices and provider-reported bills.
+They follow the profile that actually answers, including fallbacks, delegates
+and models without a key. Cache tokens are charged once, using normalized usage.
+Estimates use the profile's rates when they would otherwise use catalog prices;
+estimates based on historical runs remain based on those recorded costs.
+
+Changing a price affects newly resolved usage without rewriting historical run
+or message costs. Invalid token counts remain partially priced. Automatic mode
+preserves the existing catalog and provider-bill resolution. The form shows
+indicative base-tier catalog rates where available; a provider's actual bill is
+known only after the request. Custom prices do not configure realtime voice or
+unit-priced image, audio and video generation.
+
+A keyless model's priced requests count toward organization spending and budgets.
+They have no [vault secret](secrets.md) to attribute a key-level report to.
 
 Cost is checked *before* each model request and recorded even when the run fails.
 See [Budgets](governance.md#budgets).

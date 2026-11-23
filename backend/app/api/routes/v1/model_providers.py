@@ -52,6 +52,7 @@ from app.services.image_models import image_providers
 from app.services.model_catalog import CUSTOM_LISTINGS, models_for
 from app.services.model_outputs import stated_outputs
 from app.services.model_profile import (
+    catalog_token_pricing,
     native_runtime_availability,
     provider_catalog,
     validate_endpoint_url,
@@ -123,7 +124,7 @@ async def list_model_profiles(service: ModelProfileSvc, ctx: Auth) -> Any:
 async def create_model_profile(
     data: ModelProfileCreate, service: ModelProfileSvc, ctx: Auth
 ) -> Any:
-    """Define a selectable model backed by one of the organization's keys."""
+    """Define a selectable model with optional custom USD token prices."""
     return await service.create_profile(
         ctx,
         label=data.label,
@@ -135,6 +136,7 @@ async def create_model_profile(
         region=data.region,
         params=data.params,
         fallback_profile_ids=data.fallback_profile_ids,
+        custom_pricing=data.custom_pricing,
     )
 
 
@@ -146,7 +148,7 @@ async def create_model_profile(
 async def update_model_profile(
     profile_id: UUID, data: ModelProfileUpdate, service: ModelProfileSvc, ctx: Auth
 ) -> Any:
-    """Change a model's key, endpoint, API, settings or name in place.
+    """Change a model's key, endpoint, API, prices, settings or name in place.
 
     The profile keeps its id, so every agent on it uses the change from its next
     run - rotating a key is one call rather than a new model and a republish of
@@ -500,6 +502,7 @@ async def list_provider_models(
             ProviderModelRead(
                 id=entry.id,
                 name=entry.name,
+                automatic_pricing=catalog_token_pricing(provider, entry.id),
                 context_length=entry.context_length,
                 output_modalities=list(entry.output_modalities),
                 apis=[api for api in ("chat", "responses") if api in entry.surfaces],

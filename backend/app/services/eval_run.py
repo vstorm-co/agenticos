@@ -1412,7 +1412,9 @@ class EvalRunService:
                 input_tokens=settings.EVAL_FALLBACK_INPUT_TOKENS,
                 output_tokens=settings.EVAL_FALLBACK_OUTPUT_TOKENS,
             )
-            priced = price_request(typical, model.model, model.provider)
+            priced = price_request(
+                typical, model.model, model.provider, custom_pricing=model.credential.custom_pricing
+            )
             if priced is not None:
                 return Decimal(priced).quantize(_CENT), False
         return settings.EVAL_FALLBACK_CASE_COST_USD, False
@@ -1433,7 +1435,10 @@ class EvalRunService:
         if arm.model_profile_id is not None:
             model = await self.models.resolve(ctx, profile_id=arm.model_profile_id)
             priced = price_request(
-                RunUsage(input_tokens=tokens, output_tokens=0), model.model, model.provider
+                RunUsage(input_tokens=tokens, output_tokens=0),
+                model.model,
+                model.provider,
+                custom_pricing=model.credential.custom_pricing,
             )
             if priced is not None:
                 return Decimal(priced).quantize(_CENT)

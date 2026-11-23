@@ -2941,3 +2941,56 @@ def test_matrix_surface_migration_preserves_existing_exposures() -> None:
         assert result.returncode == 0, result.stderr
     finally:
         engine.dispose()
+
+
+def test_custom_pricing_upgrade_preserves_existing_profiles_and_downgrades_cleanly() -> None:
+    result = _alembic("upgrade", "head")
+    assert result.returncode == 0, result.stderr
+    result = _alembic("downgrade", "0351_merge_context_onboarding")
+    assert result.returncode == 0, result.stderr
+    engine = create_engine(_url(MIGRATION_DATABASE))
+    try:
+        with engine.begin() as db:
+            user_id, org_id, profile_id = uuid4(), uuid4(), uuid4()
+            db.execute(_HISTORICAL_USER_INSERT, {"id": user_id, "email": f"{user_id}@example.test"})
+            db.execute(
+                _HISTORICAL_ORGANIZATION_INSERT,
+                {"id": org_id, "name": "Pricing", "slug": f"pricing-{org_id}", "owner": user_id},
+            )
+            db.execute(
+                text(
+                    "INSERT INTO model_profiles (id, organization_id, label, provider, model) VALUES (:id, :org, 'Legacy', 'ollama', 'alias')"
+                ),
+                {"id": profile_id, "org": org_id},
+            )
+        result = _alembic("upgrade", "head")
+        assert result.returncode == 0, result.stderr
+        with engine.begin() as db:
+            assert (
+                db.scalar(
+                    text("SELECT custom_pricing IS NULL FROM model_profiles WHERE id = :id"),
+                    {"id": profile_id},
+                )
+                is True
+            )
+            db.execute(
+                text(
+                    "UPDATE model_profiles SET custom_pricing = CAST(:rates AS jsonb) WHERE id = :id"
+                ),
+                {"id": profile_id, "rates": '{"input":"0","output":"2","cache_read":"0"}'},
+            )
+        result = _alembic("downgrade", "0351_merge_context_onboarding")
+        assert result.returncode == 0, result.stderr
+        with engine.connect() as db:
+            assert (
+                db.scalar(
+                    text("SELECT model FROM model_profiles WHERE id = :id"), {"id": profile_id}
+                )
+                == "alias"
+            )
+        result = _alembic("upgrade", "head")
+        assert result.returncode == 0, result.stderr
+        result = _alembic("check")
+        assert result.returncode == 0, result.stderr
+    finally:
+        engine.dispose()

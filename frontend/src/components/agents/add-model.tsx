@@ -6,6 +6,8 @@ import { Check, KeyRound, Plus, Save } from "lucide-react";
 
 import { NO_FAILURE, submitFailure } from "@/lib/api-error";
 import { hasKey, LISTED_AT_ENDPOINT, LISTED_WITH_KEY, runsAgents } from "@/lib/model-profiles";
+import { ModelPricing, sameTokenPricing, validTokenPricing } from "./model-pricing";
+import type { TokenPricing } from "@/types/providers";
 import { ModelSourceSelect } from "./model-source-select";
 import { SubscriptionModelForm } from "./subscription-model-form";
 import {
@@ -273,6 +275,10 @@ export function AddModel({
 }: AddModelProps) {
   const fieldId = useId();
   const [connectionOpen, setConnectionOpen] = useState(false);
+  const [customPricing, setCustomPricing] = useState<TokenPricing | null>(
+    selected?.custom_pricing ?? null,
+  );
+  const pricingChanged = !sameTokenPricing(customPricing, selected?.custom_pricing ?? null);
   const tErrors = useTranslations("errors");
   const t = useTranslations("agents");
   // Root, for the absolute keys `modelPlaceholder` answers with - see the note on
@@ -330,6 +336,7 @@ export function AddModel({
 
   const chooseSource = (value: string) => {
     setPickedProvider(value);
+    setCustomPricing(null);
     setSecretId("");
     setModel("");
     setBaseUrl("");
@@ -518,6 +525,7 @@ export function AddModel({
   // whatever its first two fields say.
   const unchanged =
     selected !== undefined &&
+    !pricingChanged &&
     provider?.id === selected.provider &&
     model.trim() === selected.model &&
     label.trim() === "" &&
@@ -577,6 +585,7 @@ export function AddModel({
             : null;
   const canSubmit =
     provider !== undefined &&
+    validTokenPricing(customPricing) &&
     model.trim() !== "" &&
     (chosenKey !== "" || keyOptional) &&
     modelIdIsWellFormed(provider.id, model.trim()) &&
@@ -601,6 +610,7 @@ export function AddModel({
         // All three, every time: the server compares them with what is stored
         // and writes only what differs, so what the form shows is what is saved.
         changes: {
+          ...(pricingChanged ? { custom_pricing: customPricing } : {}),
           secret_id: chosenKey || null,
           base_url: customEndpoint ? baseUrl.trim() : null,
           api,
@@ -646,6 +656,7 @@ export function AddModel({
             )
           : baseLabel;
       const profile = await createProfile.mutateAsync({
+        ...(customPricing !== null ? { custom_pricing: customPricing } : {}),
         label: label.trim() || automaticLabel,
         provider: provider.id,
         model: model.trim(),
@@ -1000,6 +1011,23 @@ export function AddModel({
           </FormField>
         )}
       </ConnectionSettings>
+
+      {provider !== undefined && (
+        <ModelPricing
+          value={customPricing}
+          automatic={
+            suggestions.find((entry) => entry.id === model.trim())?.automatic_pricing ??
+            (selected?.provider === providerId && selected.model === model.trim()
+              ? selected.automatic_pricing
+              : null)
+          }
+          disabled={disabled}
+          onChange={(value) => {
+            setCustomPricing(value);
+            setFailure(NO_FAILURE);
+          }}
+        />
+      )}
 
       {/* The name is derived and almost never worth changing - it exists so an
           organization can run the same model twice under two keys and tell them

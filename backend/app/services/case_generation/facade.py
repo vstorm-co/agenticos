@@ -40,6 +40,7 @@ from app.schemas.case_generation import (
 )
 from app.schemas.dataset import DatasetCaseContent, DatasetVersionRead
 from app.schemas.dataset_helpers import DatasetHelper, DatasetHelpers
+from app.schemas.token_pricing import TokenPricing
 from app.services.background_jobs import enqueue
 from app.services.case_generation.drafts import split
 from app.services.case_generation.estimate import estimate_cost
@@ -187,6 +188,9 @@ class CaseGenerationService:
             count,
             model_name=profile.model,
             provider=profile.provider,
+            custom_pricing=TokenPricing.model_validate(profile.custom_pricing)
+            if profile.custom_pricing is not None
+            else None,
         )
         agent = (
             await agent_repo.get(self.db, generator_agent_id, organization_id=ctx.organization_id)

@@ -22,6 +22,7 @@ import {
 } from "@/lib/model-profiles";
 import { qk } from "@/lib/query-keys";
 import type {
+  TokenPricing,
   ModelApi,
   ModelProfile,
   ModelProfileList,
@@ -29,6 +30,7 @@ import type {
   ProviderCatalog,
 } from "@/types/providers";
 export interface NewModelProfile {
+  custom_pricing?: TokenPricing | null;
   label: string;
   provider: string;
   model: string;
@@ -62,6 +64,7 @@ export interface NewModelProfile {
  * clears a key, an endpoint or an API choice where the server allows it.
  */
 export interface ModelProfileChanges {
+  custom_pricing?: TokenPricing | null;
   secret_id?: string | null;
   base_url?: string | null;
   api?: ModelApi | null;
@@ -249,6 +252,7 @@ export function useModelProviders({ silentCreate = false }: { silentCreate?: boo
 
 /** One model a provider offers, as a picker needs it. */
 export interface ProviderModel {
+  automatic_pricing?: TokenPricing | null;
   id: string;
   name: string;
   /** Tokens the model accepts, when the provider says. */

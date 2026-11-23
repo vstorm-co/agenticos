@@ -1,5 +1,5 @@
 ---
-source_sha: "700e1da74653"
+source_sha: "c0a7dc426e6a"
 ---
 
 # Modele i providery { #models-and-providers }
@@ -843,11 +843,27 @@ do domu, co oznacza dwie rzeczy warte wiedzenia:
   z Anthropic.
 - Aktualizacja cen to podbicie zależności.
 
-!!! warning "Provider bez klucza nie zapisuje żadnego wydatku"
+W sekcji **Cennik** profilu modelu możesz zastąpić automatyczne ceny tokenów.
+Ustaw stawki wejścia i wyjścia w USD za milion tokenów. Stawki odczytu i zapisu
+cache są opcjonalne; puste dziedziczą cenę wejścia. Jawne zero jest ceną.
+API udostępnia ten sam dokument jako `custom_pricing`: pominięcie przy aktualizacji
+zachowuje ustawienie, a `null` przywraca wycenę automatyczną.
 
-    Wydatek przypisywany jest [sekretowi w vault](secrets.md), do którego run się
-    rozwiązał, a provider bez klucza nie ma żadnego, któremu można by go
-    przypisać.
+Własne stawki mają pierwszeństwo przed katalogiem i rachunkiem dostawcy.
+Podążają za profilem, który faktycznie odpowiada, również w fallbackach,
+delegacjach i modelach bez klucza. Tokeny cache są rozliczane raz, według
+znormalizowanego zużycia. Estymacje korzystają ze stawek profilu tam, gdzie
+wcześniej używały katalogu. Estymacje historyczne nadal używają zapisanych kosztów.
+
+Zmiana ceny obejmuje nowo rozwiązywane użycie i nie nadpisuje historycznych
+kosztów wykonań ani wiadomości. Błędne liczniki tokenów pozostają częściowo
+wycenione. Tryb automatyczny zachowuje dotychczasowy katalog i rachunki dostawcy.
+Formularz pokazuje orientacyjne stawki podstawowego progu, jeśli są dostępne;
+faktyczny rachunek dostawcy jest znany po żądaniu. Własny cennik nie konfiguruje
+głosu realtime ani generowania obrazów, audio i wideo rozliczanego jednostkowo.
+
+Wycenione żądania modelu bez klucza wliczają się do wydatków i budżetów organizacji.
+Nie mają [sekretu w vault](secrets.md) do przypisania w raporcie według klucza.
 
 Koszt sprawdzany jest *przed* każdym żądaniem do modelu i zapisywany nawet wtedy,
 gdy run się nie powiedzie. Zobacz [Budżety](governance.md#budgets).

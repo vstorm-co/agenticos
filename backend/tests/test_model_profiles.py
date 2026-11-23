@@ -194,6 +194,7 @@ def _profile(
     profile.base_url = base_url
     profile.api = api
     profile.region = region
+    profile.custom_pricing = None
     profile.params = {}
     profile.fallback_profile_ids = [str(pid) for pid in (fallbacks or [])]
     profile.runs_without_key = False
@@ -732,6 +733,7 @@ class TestProfileCreation:
             await ModelProfileService(_db()).create_profile(
                 ctx,
                 label="Prod",
+                custom_pricing=None,
                 provider="openai",
                 model="gpt-4.1",
                 secret_id=secret.id,
@@ -2563,6 +2565,7 @@ class TestTheWindowAModelAccepts:
         profile = MagicMock(
             id=uuid.uuid4(),
             label="Prod",
+            custom_pricing=None,
             provider="ollama",
             model="llama3.3",
             params={},
@@ -3051,3 +3054,31 @@ async def test_vertex_routing_records_effective_sdk_location(
     ):
         resolved = await ModelProfileService(_db()).resolve_credential(ctx.organization_id, profile)
     assert resolved.routing == {"project": "demo-project", "location": expected}
+
+
+@pytest.mark.anyio
+async def test_new_keyless_profiles_persist_custom_prices():
+    from app.schemas.token_pricing import TokenPricing
+
+    rates = TokenPricing(input="0", output="2")
+    db = _db()
+    db.refresh = AsyncMock()
+    with (
+        patch(
+            "app.services.model_profile.validate_endpoint_url",
+            AsyncMock(return_value="http://localhost:11434/v1"),
+        ),
+        patch("app.services.model_profile.models_for", AsyncMock(return_value=([], "unlisted"))),
+        patch("app.services.system_agents.SystemAgentService.adopt_model", AsyncMock()),
+    ):
+        profile = await ModelProfileService(db).create_profile(
+            _ctx(),
+            label="House",
+            provider="ollama",
+            model="alias",
+            secret_id=None,
+            base_url="http://localhost:11434/v1",
+            custom_pricing=rates,
+        )
+    assert profile.custom_pricing == rates.model_dump(mode="json")
+    assert profile.secret_id is None and profile.runs_without_key

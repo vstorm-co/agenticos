@@ -2147,3 +2147,84 @@ it("does not offer a refresh before endpoint discovery is allowed and reports it
   expect(screen.queryByRole("button", { name: "Refresh models" })).not.toBeInTheDocument();
   expect(screen.getByRole("alert")).toHaveTextContent("The catalog could not be refreshed");
 });
+
+it("saves negotiated pricing on the current profile and can restore automatic pricing", async () => {
+  const user = userEvent.setup();
+  state.purposes = [
+    {
+      id: "openai",
+      label: "OpenAI",
+      kind: "api_key",
+      category: "model_provider",
+      description: "",
+      help_url: null,
+      icon: "",
+    },
+  ];
+  state.catalog = [
+    {
+      id: "openai",
+      name: "OpenAI",
+      secret_kind: "api_key",
+      supports_base_url: true,
+      keyless: true,
+      apis: ["chat", "responses"],
+      native_api: "responses",
+    },
+  ];
+  state.secrets = [{ id: "key", name: "prod", hint: "1234", purpose: "openai", kind: "api_key" }];
+  const selected = {
+    id: "profile",
+    label: "Prod",
+    provider: "openai",
+    model: "gpt-4.1",
+    secret_id: "key",
+    api: "responses" as const,
+    params: {},
+    fallback_profile_ids: [],
+  };
+  const view = render(<AddModel selected={selected} onCreated={vi.fn()} />);
+  await user.click(screen.getByRole("switch"));
+  await user.type(screen.getByLabelText("Input tokens"), "0");
+  await user.type(screen.getByLabelText("Output tokens"), "5");
+  await user.click(screen.getByRole("button", { name: "Update model" }));
+  expect(state.updateProfile.mutateAsync).toHaveBeenCalledWith(
+    expect.objectContaining({
+      id: "profile",
+      changes: expect.objectContaining({
+        custom_pricing: { input: "0", output: "5", cache_read: null, cache_write: null },
+      }),
+    }),
+  );
+  view.unmount();
+  render(
+    <AddModel
+      selected={{ ...selected, custom_pricing: { input: "0", output: "5" } }}
+      onCreated={vi.fn()}
+    />,
+  );
+  await user.click(screen.getByRole("switch"));
+  await user.click(screen.getByRole("button", { name: "Update model" }));
+  expect(state.updateProfile.mutateAsync).toHaveBeenLastCalledWith(
+    expect.objectContaining({ changes: expect.objectContaining({ custom_pricing: null }) }),
+  );
+});
+
+it("creates a model with custom rates only after both required prices are filled", async () => {
+  const user = userEvent.setup();
+  state.secrets = [secret()];
+  mount();
+  await pickProvider("OpenAI");
+  await user.click(screen.getByLabelText("Model"));
+  await user.click(screen.getByRole("option", { name: /gpt-5/i }));
+  await user.click(screen.getByRole("switch"));
+  expect(screen.getByRole("button", { name: "Add model" })).toBeDisabled();
+  await user.type(screen.getByLabelText("Input tokens"), "0");
+  await user.type(screen.getByLabelText("Output tokens"), "7.25");
+  await user.click(screen.getByRole("button", { name: "Add model" }));
+  expect(state.createProfile.mutateAsync).toHaveBeenCalledWith(
+    expect.objectContaining({
+      custom_pricing: { input: "0", output: "7.25", cache_read: null, cache_write: null },
+    }),
+  );
+});

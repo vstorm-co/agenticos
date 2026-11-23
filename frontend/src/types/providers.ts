@@ -68,8 +68,18 @@ export interface ProviderCatalog {
   total: number;
 }
 
+/** Decimal strings preserve the saved price without binary float rounding. */
+export interface TokenPricing {
+  input: string;
+  output: string;
+  cache_read?: string | null;
+  cache_write?: string | null;
+}
+
 /** One named model a provider key is behind. */
 export interface ModelProfile {
+  custom_pricing?: TokenPricing | null;
+  automatic_pricing?: TokenPricing | null;
   id: string;
   label: string;
   provider: string;

@@ -21257,5 +21257,16 @@
     "inProgress": "In Bearbeitung",
     "unknown": "Nicht verfügbar",
     "otherStep": "Einrichtung"
+  },
+  "modelPricing": {
+    "title": "Preise",
+    "automaticAvailable": "Unverbindliche automatische Preise in USD pro Million Tokens. Der tatsächliche Preis kann von Nutzungsstufen oder den gemeldeten Anbietergebühren abhängen.",
+    "automaticUnavailable": "Automatische Tokenpreise sind nicht verfügbar. Vom Anbieter gemeldete Kosten können nach einer Anfrage erfasst werden.",
+    "input": "Eingabetokens",
+    "output": "Ausgabetokens",
+    "cache_read": "Cache-Lesetokens",
+    "cache_write": "Cache-Schreibtokens",
+    "override": "Eigene Preise verwenden (USD pro Million Tokens)",
+    "cacheDefault": "Leer lassen, um den Eingabepreis zu verwenden."
   }
 }

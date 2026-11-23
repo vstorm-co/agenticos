@@ -27,6 +27,7 @@ from app.agents.model_resolver import (
     is_decision_api,
     lacks_key,
 )
+from app.agents.profile_pricing import catalog_token_pricing as catalog_token_pricing
 from app.clients.subscription_gateway import configured_gateway
 from app.core.audit import record_audit
 from app.core.config import settings
@@ -64,6 +65,7 @@ from app.repositories import (
     system_agent_repo,
 )
 from app.schemas.model_profile import ModelProfileUpdate, NativeRuntimeAvailability
+from app.schemas.token_pricing import TokenPricing
 from app.services.access import AGENT, SECRET, accessible_ids, resolve_access
 from app.services.model_catalog import CUSTOM_LISTINGS, CatalogModel, models_for
 from app.services.model_outputs import model_outputs, not_chat_refusal
@@ -339,6 +341,7 @@ class ModelProfileService:
         region: ModelRegion | None = None,
         params: dict | None = None,
         fallback_profile_ids: list[UUID] | None = None,
+        custom_pricing: TokenPricing | None = None,
     ) -> ModelProfile:
         """Define a selectable model.
 
@@ -413,6 +416,9 @@ class ModelProfileService:
             fallback_profile_ids=[str(pid) for pid in (fallback_profile_ids or [])],
             context_length=listed.context_length if listed is not None else None,
             runs_without_key=secret_id is None,
+            custom_pricing=custom_pricing.model_dump(mode="json")
+            if custom_pricing is not None
+            else None,
         )
         await record_audit(
             self.db,
@@ -589,6 +595,12 @@ class ModelProfileService:
             "runs_without_key": secret_id is None
             and ("secret_id" in sent or profile.runs_without_key),
         }
+        if "custom_pricing" in sent:
+            wanted["custom_pricing"] = (
+                changes.custom_pricing.model_dump(mode="json")
+                if changes.custom_pricing is not None
+                else None
+            )
         if changes.label is not None:
             wanted["label"] = changes.label
         if changes.params is not None:
@@ -741,6 +753,11 @@ class ModelProfileService:
         The endpoint is what tells them apart: without one there is nowhere to send
         the request, and the honest answer is the same refusal as before.
         """
+        pricing = (
+            TokenPricing.model_validate(profile.custom_pricing)
+            if profile.custom_pricing is not None
+            else None
+        )
         if profile.secret_id is None:
             if not lacks_key(
                 profile.provider,
@@ -750,6 +767,8 @@ class ModelProfileService:
             ):
                 return ResolvedCredential(
                     provider=profile.provider,
+                    custom_pricing=pricing,
+                    profile_id=profile.id,
                     secret=NoSecret(),
                     base_url=profile.base_url,
                     api=_stored_api(profile.api),
@@ -778,6 +797,8 @@ class ModelProfileService:
         )
         return ResolvedCredential(
             provider=profile.provider,
+            custom_pricing=pricing,
+            profile_id=profile.id,
             secret=value,
             credential_id=secret.id,
             authorization_generation=secret.authorization_generation,

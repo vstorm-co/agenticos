@@ -21344,5 +21344,16 @@
     "inProgress": "W trakcie",
     "unknown": "Brak danych",
     "otherStep": "Konfiguracja"
+  },
+  "modelPricing": {
+    "title": "Cennik",
+    "automaticAvailable": "Orientacyjne stawki automatyczne w USD za milion tokenów. Faktyczna stawka może zależeć od progów zużycia lub kosztu podanego przez dostawcę.",
+    "automaticUnavailable": "Automatyczne ceny tokenów są niedostępne. Koszt podany przez dostawcę może zostać zapisany po żądaniu.",
+    "input": "Tokeny wejściowe",
+    "output": "Tokeny wyjściowe",
+    "cache_read": "Odczyt pamięci podręcznej",
+    "cache_write": "Zapis pamięci podręcznej",
+    "override": "Użyj własnych cen (USD za milion tokenów)",
+    "cacheDefault": "Pozostaw puste, aby użyć ceny wejściowej."
   }
 }

@@ -21571,5 +21571,16 @@
     "inProgress": "In progress",
     "unknown": "Not available",
     "otherStep": "Setup"
+  },
+  "modelPricing": {
+    "title": "Pricing",
+    "automaticAvailable": "Indicative automatic rates in USD per million tokens. The actual rate may depend on usage tiers or a provider-reported bill.",
+    "automaticUnavailable": "Automatic token prices are unavailable. A provider-reported cost can still be recorded after a request.",
+    "input": "Input tokens",
+    "output": "Output tokens",
+    "cache_read": "Cache read tokens",
+    "cache_write": "Cache write tokens",
+    "override": "Use custom prices (USD per million tokens)",
+    "cacheDefault": "Leave empty to use the input price."
   }
 }

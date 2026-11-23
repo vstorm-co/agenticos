@@ -102,6 +102,9 @@ class ModelProfile(Base, TimestampMixin):
     # three mean "not recorded", and the compaction capability falls back to
     # resolving the window itself.
     context_length: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    custom_pricing: Mapped[dict[str, str | None] | None] = mapped_column(
+        JSONB(none_as_null=True), nullable=True
+    )
     # Model settings (temperature, max_tokens...) applied on every run.
     params: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, server_default="{}")
     # Ordered profile ids tried when the primary fails - becomes a FallbackModel.
