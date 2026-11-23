@@ -27,6 +27,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Refuse an Inbox routine that is meant to answer in a chat. Inbox mode never posts to a conversation, so a routine an agent created from a chat with `result_mode="inbox"` could never deliver the answer the person asked for; `create_routine` and routine updates now name the problem and point to report mode or `answer_to="run_log"`.
 - Inbox routines no longer fail on every run: their findings are now read from the run's structured answer instead of its display text, so findings are published and an empty reading records no answer.
 - Let an agent bound to the platform MCP server schedule a routine for itself: `create_routine` without `agent_id` now schedules the agent the run belongs to, and `GET /me/permissions` returns that agent as `run_agent_id` for an agent's run credential. An API key or an MCP client still names the agent.
 

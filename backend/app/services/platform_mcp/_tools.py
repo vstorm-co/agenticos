@@ -2350,7 +2350,10 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         `result_mode="inbox"` checks for relevant source items and creates one private
         working chat and Inbox case per item, including full drafts requested in the
         prompt. Unchanged source revisions stay quiet; new revisions update the same
-        case. Use `report` for a report after each execution. A monitoring Watch is a
+        case. Inbox mode only files per-item findings in the Inbox and never posts
+        to a chat, so never use it for a message the person wants in this chat. Use
+        `report` (the default) for a report after each execution; it answers
+        wherever the routine answers, including this chat. A monitoring Watch is a
         read-only routine preset, not another task to create alongside this routine.
         Give one cadence. `cron_expression` is a five-field crontab read in
         `time_zone`, an IANA name such as `Europe/Warsaw`; left out, it is the

@@ -1,5 +1,5 @@
 ---
-source_sha: "167b16467561"
+source_sha: "5c89cc1efae9"
 ---
 
 # Governance { #governance }
@@ -2556,6 +2556,10 @@ de finalización. Cada elemento tiene una conversación privada y un caso en Inb
 Las revisiones repetidas se deduplican de forma persistente, incluso tras resolver
 el caso. Una revisión nueva actualiza la misma conversación y reabre el caso;
 un elemento silenciado permanece silenciado.
+
+El modo Inbox nunca publica en un chat, por lo que una rutina que responde en una
+conversación se rechaza en ese modo. Use el modo informe para responder en el chat,
+o responda en el registro de ejecuciones para conservar solo los casos del Inbox.
 
 Abra la conversación desde Inbox para editar el borrador o solicitar el siguiente
 paso. Leer o editar no envía nada ni completa el caso. Siguen vigentes los permisos

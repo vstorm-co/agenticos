@@ -1,5 +1,5 @@
 ---
-source_sha: "167b16467561"
+source_sha: "5c89cc1efae9"
 ---
 
 # Governance { #governance }
@@ -2704,6 +2704,11 @@ noch Abschlussmeldung. Jedes Element erhält ein privates Arbeitsgespräch und
 einen Inbox-Vorgang. Wiederholte Revisionen werden dauerhaft dedupliziert, auch
 nach Erledigung. Eine neue Revision aktualisiert dasselbe Gespräch und öffnet den
 Vorgang erneut; stummgeschaltete Elemente bleiben stumm.
+
+Der Inbox-Modus schreibt nie in einen Chat, daher wird eine Routine, die in einer
+Unterhaltung antwortet, in diesem Modus abgelehnt. Verwenden Sie den Berichtsmodus,
+um im Chat zu antworten, oder antworten Sie im Ausführungsprotokoll, um nur
+Inbox-Fälle zu behalten.
 
 Öffnen Sie das Gespräch aus der Inbox, um den Entwurf zu ändern oder den nächsten
 Schritt zu beauftragen. Lesen und Bearbeiten versenden nichts und erledigen den

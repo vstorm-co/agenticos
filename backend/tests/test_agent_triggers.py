@@ -5295,6 +5295,74 @@ async def test_a_private_chats_internal_credential_retains_the_requested_deliver
     assert fields["runs_as_creator"] is True
 
 
+async def _create_from_chat(data: TriggerCreate, *, in_chat: bool) -> dict[str, object]:
+    source = uuid.uuid4()
+    ctx = replace(
+        _ctx(), api_key_id=uuid.uuid4(), source_conversation_id=source if in_chat else None
+    )
+    agent = _agent()
+    service = _service(agent)
+    with (
+        patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+        patch("app.services.agent_trigger.conversation_repo") as conversations,
+        patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+    ):
+        repo.create = AsyncMock(return_value=_trigger(conversation_id=uuid.uuid4()))
+        conversations.get_conversation_by_id = AsyncMock(
+            return_value=SimpleNamespace(organization_id=ctx.organization_id, user_id=ctx.user_id)
+        )
+        await service.create(ctx, agent.id, data)
+    return dict(repo.create.await_args.kwargs)
+
+
+@pytest.mark.parametrize("explicit", [False, True])
+async def test_an_inbox_routine_that_would_answer_in_a_chat_is_refused(explicit: bool) -> None:
+    data = TriggerCreate(prompt="Tell a joke", interval_seconds=300, result_mode="inbox")
+    if explicit:
+        data = data.model_copy(
+            update={"answer_to": "conversation", "delivery_conversation_id": uuid.uuid4()}
+        )
+    with pytest.raises(BadRequestError, match="never answers in a chat") as refused:
+        await _create_from_chat(data, in_chat=True)
+    assert refused.value.details["fields"][0]["field"] == "result_mode"
+
+
+async def test_a_report_routine_from_a_chat_and_an_inbox_run_log_routine_still_create() -> None:
+    report = await _create_from_chat(
+        TriggerCreate(prompt="Tell a joke", interval_seconds=300), in_chat=True
+    )
+    assert report["answer_to"] == "conversation"
+    inbox = await _create_from_chat(
+        TriggerCreate(
+            prompt="Check mail", interval_seconds=300, result_mode="inbox", answer_to="run_log"
+        ),
+        in_chat=True,
+    )
+    assert inbox["result_mode"] == "inbox"
+    primary = await _create_from_chat(
+        TriggerCreate(
+            prompt="Check mail", interval_seconds=300, result_mode="inbox", answer_to="primary"
+        ),
+        in_chat=False,
+    )
+    assert primary["answer_to"] == "primary"
+
+
+async def test_switching_a_chat_routine_to_inbox_is_refused() -> None:
+    trigger = _trigger(answer_to="conversation")
+    service = _service(_agent(agent_id=trigger.agent_id))
+    with (
+        patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+        patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+    ):
+        repo.get = AsyncMock(return_value=trigger)
+        repo.update = AsyncMock(return_value=trigger)
+        with pytest.raises(BadRequestError, match="never answers in a chat"):
+            await service.update(
+                _ctx(), trigger.agent_id, trigger.id, TriggerUpdate(result_mode="inbox")
+            )
+
+
 def test_a_routine_end_without_a_time_zone_is_refused() -> None:
     with pytest.raises(PydanticValidationError, match="timezone"):
         TriggerCreate(

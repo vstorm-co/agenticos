@@ -529,6 +529,21 @@ class AnswerDelivery:
         return TriggerDeliveryStatus.PENDING if self.chat_queued else self.status
 
 
+def _refuse_inbox_in_a_chat(result_mode: str, answer_to: str) -> None:
+    """Refuse an Inbox routine that is meant to answer in a chat.
+
+    Inbox mode files findings as Inbox cases and never posts to a conversation,
+    so the answer the person asked for in the chat could not arrive.
+    """
+    if result_mode == "inbox" and answer_to == "conversation":
+        raise refused_field(
+            "result_mode",
+            "Inbox mode files findings in the Inbox and never answers in a chat. "
+            'Use result_mode "report" to answer in this chat, or answer_to "run_log" '
+            "to keep only Inbox cases.",
+        )
+
+
 class AgentTriggerService:
     """Manage and fire an organization's agent triggers."""
 
@@ -898,6 +913,7 @@ class AgentTriggerService:
                     "delivery_conversation_id": ctx.source_conversation_id,
                 }
             )
+        _refuse_inbox_in_a_chat(data.result_mode, data.answer_to)
         agent = await self.agents.get(ctx, agent_id, perm=Perm.AGENTS_RUN)
         await require_organization_agent(
             self.db,
@@ -1406,6 +1422,11 @@ class AgentTriggerService:
             await self._environment_of(ctx, agent_id, changes["environment_id"])
         if changes.get("teams_conversation_id") is not None:
             await self._teams_target(ctx, changes["teams_conversation_id"])
+        if "result_mode" in changes or "answer_to" in changes:
+            _refuse_inbox_in_a_chat(
+                changes.get("result_mode", trigger.result_mode),
+                changes.get("answer_to", trigger.answer_to),
+            )
         if "answer_to" in changes or "delivery_conversation_id" in changes:
             answer_to = changes.get("answer_to", trigger.answer_to)
             target = changes.get("delivery_conversation_id", trigger.delivery_conversation_id)

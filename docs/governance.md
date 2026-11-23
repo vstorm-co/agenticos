@@ -2406,6 +2406,10 @@ Each item gets one private working conversation and one Inbox case. Repeated sou
 revisions are deduplicated durably, including after a case is resolved. A new revision
 updates the same conversation and reopens its case; a muted item stays muted.
 
+Inbox mode never posts to a chat, so a routine that answers in a conversation
+is refused in Inbox mode. Use report mode to answer in the chat, or answer to the
+run log to keep only Inbox cases.
+
 Open the conversation from Inbox to edit the draft or request the next action.
 Reading or editing a draft does not send it or complete the case. Normal tool
 permissions and approval still apply. The platform MCP tools `list_inbox_cases`

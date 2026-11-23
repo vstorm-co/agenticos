@@ -1,5 +1,5 @@
 ---
-source_sha: "167b16467561"
+source_sha: "5c89cc1efae9"
 ---
 
 # Governance { #governance }
@@ -2544,6 +2544,10 @@ Pusty wynik nie tworzy rozmowy ani powiadomienia o zakończeniu. Każdy element 
 jedną prywatną rozmowę i jedną sprawę w Inbox. Powtórne odczyty tej samej wersji
 są trwale deduplikowane, także po rozwiązaniu sprawy. Nowa wersja aktualizuje tę
 samą rozmowę i otwiera sprawę ponownie; wyciszony element pozostaje wyciszony.
+
+Tryb Skrzynki nigdy nie publikuje w czacie, więc rutyna odpowiadająca w rozmowie
+jest w tym trybie odrzucana. Użyj trybu raportu, aby odpowiadać w czacie, albo
+odpowiedzi w dzienniku uruchomień, aby zachować tylko sprawy ze Skrzynki.
 
 Z Inbox otwórz rozmowę, aby poprawić draft lub zlecić następny krok. Czytanie i
 edycja draftu nie wysyłają go i nie kończą sprawy. Nadal obowiązują uprawnienia i
