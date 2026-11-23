@@ -41,6 +41,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Drafting a knowledge-gap passage and a workflow's knowledge search now search
+  exactly the knowledge base that was checked. Both looked the base up again by
+  its collection name, which several bases of one organization can share, so
+  they could read passages from a same-named base the person or the run's
+  principal had no access to.
 - Serialize eval-answer gap classification with case-copy erasure, remove classifier manifests with the erased copies, and keep competing classifications consistent with their recorded misses.
 - Price automatically reused baselines and held-out-only checks consistently before budget gates; show the same expected cost on the evaluation start button and summary.
 - Rejudge skill checks by a stored rule version, report inaccessible rows as skipped, and recount only finished attempts under the session lock. Preserve indexed UUID lookups for judge costs.
