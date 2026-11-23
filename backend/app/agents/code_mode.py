@@ -220,6 +220,14 @@ def _code_failure(
     """
     cause: BaseException | None = exc
     while cause is not None:
+        if (
+            isinstance(cause, ToolFailed)
+            and isinstance(cause.message, ControlledToolError)
+            and any(cause.message is content for content in errors)
+        ):
+            return nested_tool_error(
+                cause.message, tool=CODE_TOOL, calls_started=calls_started, error=exc
+            )
         if isinstance(cause, MontyRuntimeError | MontySyntaxError | MontyTypingError):
             break
         cause = cause.__cause__

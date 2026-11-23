@@ -49,7 +49,7 @@ itself, and a credential without one is refused rather than built to fail on its
 second run.
 """
 
-from collections.abc import Mapping
+from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal
 from uuid import UUID
@@ -249,7 +249,7 @@ class _StavProvider(OpenAIProvider):
         self,
         *,
         base_url: str | None,
-        api_key: str | None,
+        api_key: str | Callable[[], Awaitable[str]] | None,
         http_client: httpx2.AsyncClient | httpx.AsyncClient | None,
         default_headers: Mapping[str, str] | None = None,
     ) -> AsyncOpenAI:
