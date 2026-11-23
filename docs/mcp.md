@@ -383,11 +383,13 @@ Three modes, which is the only thing that really varies between servers.
 
     1. **Discover** — probe the server, resolve its authorization server, fetch
        RFC 8414 metadata.
-    2. **Register** — RFC 7591 dynamic client registration. A server that
-       publishes no registration endpoint — HubSpot's is one — refuses here, and
+    2. **Register** — RFC 7591 dynamic client registration. AgenticOS registers a
+       public PKCE client if the authorization server advertises `none` and
+       does not support `client_secret_post`. A server that publishes no
+       registration endpoint — HubSpot's is one — refuses here, and
        the only way past is a client you registered at the provider by hand:
-       the connect dialog takes its client ID and secret under *Your own
-       client*, and shows the redirect URL the provider has to hold exactly.
+       the connect dialog takes its client ID and, if required, its secret under
+       *Your own client*. Register the displayed redirect URL exactly as shown.
     3. **Consent** — a PKCE authorization URL with `state` and an RFC 8707
        resource indicator; the browser goes there.
     4. **Exchange** — the callback swaps the code for tokens, then redirects the

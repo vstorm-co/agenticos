@@ -5625,6 +5625,56 @@ class TestAPreRegisteredClientIsRefusedBeforeItIsStaged:
         assert (start.client_id, start.client_secret) == ("cid", None)
 
 
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    ("supported_methods", "expected_method", "client_secret"),
+    [
+        pytest.param(["none"], "none", None, id="public-pkce"),
+        pytest.param(["none", "client_secret_post"], "client_secret_post", "secret", id="both"),
+        pytest.param(None, "client_secret_post", "secret", id="unadvertised"),
+    ],
+)
+async def test_dynamic_registration_uses_public_pkce_when_required(
+    monkeypatch: pytest.MonkeyPatch,
+    supported_methods: list[str] | None,
+    expected_method: str,
+    client_secret: str | None,
+) -> None:
+    metadata = OAuthMetadata(
+        issuer=AnyUrl("https://auth.example.com"),
+        authorization_endpoint=AnyUrl("https://auth.example.com/authorize"),
+        token_endpoint=AnyUrl("https://auth.example.com/token"),
+        registration_endpoint=AnyUrl("https://auth.example.com/register"),
+        response_types_supported=["code"],
+        code_challenge_methods_supported=["S256"],
+        token_endpoint_auth_methods_supported=supported_methods,
+    )
+    server = mcp_oauth.DiscoveredServer(
+        authorization_endpoint=str(metadata.authorization_endpoint),
+        token_endpoint=str(metadata.token_endpoint),
+        registration_endpoint=str(metadata.registration_endpoint),
+        resource="https://mcp.example.com/mcp",
+        scope=None,
+        metadata=metadata,
+    )
+
+    async def register(_client: PinnedAsyncClient, request: httpx2.Request) -> httpx2.Response:
+        registration = json.loads(request.content)
+        if registration["token_endpoint_auth_method"] != expected_method:
+            return httpx2.Response(400, json={"error": "invalid_client_metadata"}, request=request)
+        registered = {**registration, "client_id": "cid"}
+        if client_secret is not None:
+            registered["client_secret"] = client_secret
+        return httpx2.Response(201, json=registered, request=request)
+
+    monkeypatch.setattr(mcp_oauth, "_send", register)
+
+    assert await mcp_oauth.register_client(server, "https://app.example.com/callback") == (
+        "cid",
+        client_secret,
+    )
+
+
 class TestOAuthRequestSafety:
     """Discovery lets the remote server choose most of the URLs we call, so
     every hop - redirects included - is checked and then dialled at the address

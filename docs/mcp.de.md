@@ -1,5 +1,5 @@
 ---
-source_sha: "e679e735c63f"
+source_sha: "b6f4121de57e"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -420,12 +420,14 @@ unterscheidet.
 
     1. **Discover** — den Server prüfen, seinen Authorization Server auflösen,
        RFC-8414-Metadaten holen.
-    2. **Register** — dynamische Client-Registrierung nach RFC 7591. Ein Server,
-       der keinen Registrierungs-Endpunkt veröffentlicht — HubSpots ist so einer —
+    2. **Register** — dynamische Client-Registrierung nach RFC 7591. AgenticOS
+       registriert einen öffentlichen PKCE-Client, wenn der Authorization Server
+       `none` angibt und `client_secret_post` nicht unterstützt. Ein Server ohne
+       Registrierungs-Endpunkt — etwa HubSpot —
        lehnt hier ab, und der einzige Weg weiter ist ein Client, den Sie beim
        Anbieter von Hand registriert haben: Der Verbindungsdialog nimmt dessen
-       Client-ID und Secret unter *Eigener Client* entgegen und zeigt die
-       Redirect-URL, die der Anbieter exakt so hinterlegt haben muss.
+       Client-ID und, falls erforderlich, das Secret unter *Eigener Client*
+       entgegen. Registrieren Sie die angezeigte Redirect-URL genau wie angezeigt.
     3. **Consent** — eine PKCE-Autorisierungs-URL mit `state` und einem
        Resource-Indicator nach RFC 8707; der Browser geht dorthin.
     4. **Exchange** — der Callback tauscht den Code gegen Tokens und leitet den
