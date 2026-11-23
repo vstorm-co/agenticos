@@ -378,7 +378,6 @@ def _legacy_conversation(
 
 def test_coding_task_revert_columns_round_trip_without_changing_existing_diffs() -> None:
     """0322_coding_task_revert.py and 0323_coding_revert_admission.py preserve legacy diffs."""
-    from app.db.models.organization import Organization
 
     result = _alembic("upgrade", "head")
     assert result.returncode == 0, result.stderr
@@ -398,15 +397,22 @@ def test_coding_task_revert_columns_round_trip_without_changing_existing_diffs()
     files = [{"path": "old.py", "status": "modified", "patch": "-before\n+after\n"}]
     try:
         with DatabaseSession(engine) as db:
-            owner = User(email=f"{uuid4()}@example.com", hashed_password="x")
-            db.add(owner)
-            db.flush()
-            organization = Organization(
-                name="Legacy diff", slug=f"legacy-{uuid4()}", created_by_user_id=owner.id
+            owner_id = uuid4()
+            db.execute(
+                _HISTORICAL_USER_INSERT,
+                {"id": owner_id, "email": f"{owner_id}@example.com"},
             )
-            db.add(organization)
-            db.flush()
-            conversation_id = _legacy_conversation(db, organization.id, owner.id, "Old task")
+            organization_id = uuid4()
+            db.execute(
+                _HISTORICAL_ORGANIZATION_INSERT,
+                {
+                    "id": organization_id,
+                    "name": "Legacy diff",
+                    "slug": f"legacy-{uuid4()}",
+                    "owner": owner_id,
+                },
+            )
+            conversation_id = _legacy_conversation(db, organization_id, owner_id, "Old task")
             db.execute(
                 text(
                     "INSERT INTO coding_task_changes (id, organization_id, conversation_id, harness, files, omitted, truncated) "
@@ -414,7 +420,7 @@ def test_coding_task_revert_columns_round_trip_without_changing_existing_diffs()
                 ),
                 {
                     "id": change_id,
-                    "organization": organization.id,
+                    "organization": organization_id,
                     "conversation": conversation_id,
                     "files": json.dumps(files),
                 },
@@ -2399,12 +2405,11 @@ class TestRoomThreadMigration:
             assert "Cannot remove room thread scopes" in refused.stderr
             with engine.begin() as connection:
                 # `0348_approval_expired_notice` validates in an autocommit block, which
-                # commits the revisions already unwound above it, so the refused step
-                # leaves the database there rather than at head. Upstream's
-                # `0343_bundled_context` branch is not yet unwound at that point.
-                assert sorted(
-                    connection.scalars(text("SELECT version_num FROM alembic_version")).all()
-                ) == ["0343_bundled_context", "0348_approval_expired_notice"]
+                # commits the room revisions already unwound above it, so the refused
+                # step leaves the database there rather than at head.
+                assert connection.scalars(
+                    text("SELECT version_num FROM alembic_version")
+                ).all() == ["0348_approval_expired_notice"]
                 assert (
                     connection.scalar(
                         text("SELECT thread_root_message_id FROM messages WHERE id=:id"),

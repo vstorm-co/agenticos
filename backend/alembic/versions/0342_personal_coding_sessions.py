@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "0342_personal_coding_sessions"
-down_revision: str = "0341_workflow_run_tested_step"
+down_revision: str = "0343_solution_installations"
 branch_labels: None = None
 depends_on: None = None
 
