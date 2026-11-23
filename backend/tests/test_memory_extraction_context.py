@@ -114,6 +114,7 @@ def test_memory_extraction_marks_partial_text_instead_of_claiming_complete_conte
     assert turns[0]["source_id"] == "message:1"
 
 
+@pytest.mark.security
 def test_dated_short_turns_include_provenance_and_json_overhead_in_the_budget() -> None:
     at = datetime(2026, 11, 22, tzinfo=UTC)
     turns = transcript_for_extraction(
@@ -125,6 +126,7 @@ def test_dated_short_turns_include_provenance_and_json_overhead_in_the_budget() 
     assert all(turn["occurred_at"] == at.isoformat() for turn in turns)
 
 
+@pytest.mark.security
 @pytest.mark.parametrize("limit", [2, 30, 49, 50, 51, 80])
 def test_json_escaping_and_excerpt_metadata_never_exceed_the_available_budget(
     monkeypatch: pytest.MonkeyPatch, limit: int
@@ -137,6 +139,7 @@ def test_json_escaping_and_excerpt_metadata_never_exceed_the_available_budget(
         assert turns[0]["excerpt"] == "tail"
 
 
+@pytest.mark.security
 def test_a_source_identifier_that_exceeds_the_budget_is_not_truncated() -> None:
     at = datetime(2026, 11, 22, tzinfo=UTC)
     assert (
