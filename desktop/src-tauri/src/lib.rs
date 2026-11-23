@@ -1024,11 +1024,8 @@ fn is_first_window(app: &AppHandle) -> bool {
 
 #[cfg(target_os = "macos")]
 fn console_popup_web_url(url: &Url) -> Option<&str> {
-    (matches!(url.scheme(), "http" | "https")
-        && url.has_host()
-        && url.username().is_empty()
-        && url.password().is_none())
-    .then(|| url.as_str())
+    (matches!(url.scheme(), "http" | "https") && url.username().is_empty() && url.password().is_none())
+        .then(|| url.as_str())
 }
 
 fn open_window(app: &AppHandle, url: WebviewUrl) -> tauri::Result<WebviewWindow> {
