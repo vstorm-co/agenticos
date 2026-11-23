@@ -18,6 +18,7 @@ to the open batch without replacing what is still waiting there.
 import difflib
 import json
 import logging
+import re
 from collections import Counter
 from collections.abc import Callable, Collection, Mapping, Sequence
 from contextlib import AbstractAsyncContextManager
@@ -345,11 +346,36 @@ def _skills_section(spec: AgentSpec, skills: Sequence[Skill], used: Collection[U
         "Each skill is a resource of its own that other agents may read too. Never copy "
         "a skill's text into the instructions, and never propose a new skill that repeats "
         "one. Where the runs show that a skill is wrong or misses a step, report it under "
-        "skill_problems, naming the skill and the graded criteria it makes fail, and change "
-        "nothing in the agent for it.\n"
+        "skill_problems, naming the skill and the graded criteria it makes fail - by their "
+        "family where a grade names one.\n"
+        "A criterion is the skill's only when a line of the skill states the wrong value or "
+        "rule, so the agent could not fix it without contradicting the skill. Copy that line "
+        "into skill_line and change nothing in the agent for it. When the skill is only "
+        "silent, or only says not to add other sections, and the facts the criterion needs "
+        "are in the agent's instructions, context or knowledge, the criterion is the "
+        "agent's: propose the agent change that fixes it. You may still report the skill "
+        "problem, with skill_line empty, as advice. Never move a problem the agent can fix "
+        "into skill_problems to account for it.\n"
         f"{listed}\n\n"
         + (f"# The skills the runs below used, read only\n{bodies}\n" if bodies else "")
     )
+
+
+MIN_SKILL_LINE = 12
+"""Characters a quoted skill line needs after normalising, so a word or two quotes nothing."""
+
+
+def _normalised(text: str) -> str:
+    lines = (re.sub(r"^\s*(?:[-*>]|\d+[.)])\s*", "", line) for line in text.splitlines())
+    return " ".join(" ".join(lines).split()).casefold()
+
+
+def quoted_line(line: str, content: str) -> str | None:
+    """`line` when the skill's body holds it, whitespace, list markers and case aside."""
+    wanted = _normalised(line)
+    if len(wanted) < MIN_SKILL_LINE or wanted not in _normalised(content):
+        return None
+    return line.strip()
 
 
 def _skill_prompt(skill: Skill, pack: EvidencePack, digests: Sequence[RunFindings] | None) -> str:
@@ -369,6 +395,8 @@ def _seed_section(seed: Mapping[str, Any] | None) -> str:
     quotes = "\n".join(f"> {quote}" for quote in seed.get("quotes", []))
     return (
         "\n\n# What an agent's own Improve found in this skill\n"
+        "Each of these is one of your problems, whether or not the runs above show it "
+        "again: say for each whether the skill's text leads to it.\n"
         f"{problems}\n\nQuoted from its runs:\n{quotes or '(none)'}"
     )
 
@@ -416,7 +444,9 @@ def _skill_edits_prompt(
         "agent on this line reads the skill, so change only the passages the problems "
         "point at, as edits to passages of the body - never a whole new body. Change the "
         "description only when agents open the skill when they should not, or do not when "
-        "they should.\n\n"
+        "they should. Write at least one edit for every problem below: a problem left "
+        "without one stays in every answer. Only where the skill's text truly cannot fix a "
+        "problem, leave it out and say which and why in expected_effect.\n\n"
         f"# Its description\n{description}\n\n"
         f"# Its current body\n<skill>\n{content}\n</skill>\n\n"
         f"# The problems the skill's text leads to\n{found}\n\n"
@@ -1403,7 +1433,11 @@ class AuthoringRun:
         skills: Sequence[Skill],
         used: Mapping[UUID, set[UUID]],
     ) -> list[dict[str, object]]:
-        """The problems that name one of the agent's skills and cite runs that used it."""
+        """The problems that name one of the agent's skills and cite runs that used it.
+
+        A problem keeps its `skill_line` only when the skill's body holds it: that line
+        is what makes its criteria the skill's (`criterion_owners`).
+        """
         by_name = {skill.name.casefold(): skill for skill in skills}
         found: list[dict[str, object]] = []
         for problem in problems:
@@ -1427,6 +1461,7 @@ class AuthoringRun:
                     "skill_id": str(skill.id),
                     "skill_name": skill.name,
                     "problem": problem.problem,
+                    "skill_line": quoted_line(problem.skill_line, skill.content),
                     "criteria": [name.strip()[:80] for name in problem.criteria if name.strip()],
                     "evidence": kept,
                     "evidence_dropped": dropped,

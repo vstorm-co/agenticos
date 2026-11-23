@@ -206,6 +206,28 @@ class CriterionDetail(TypedDict):
     """The skill the session's improver put a criterion that still fails down to."""
 
 
+class FamilyDetail(TypedDict):
+    """One family of criteria's counts on a round's held-out questions.
+
+    `fixed` and `broken` count the cases that hold: every flipped one when the
+    family is settled by its own spread, else those the re-asks confirmed.
+    """
+
+    family: str
+    criteria: int
+    cases: int
+    before: int
+    after: int
+    fixed: int
+    broken: int
+    settled: bool
+    better: bool
+    worse: bool
+    skill: NotRequired[str]
+    skill_id: NotRequired[str]
+    """The skill the session's improver put the family down to."""
+
+
 class VerdictDetail(TypedDict, total=False):
     """The counts behind a round's verdict - never a question's or an answer's text."""
 
@@ -224,6 +246,7 @@ class VerdictDetail(TypedDict, total=False):
     suite: str | None
     reason: str | None
     criteria: list[CriterionDetail]
+    families: list[FamilyDetail]
 
 
 class ImprovementRun(Base):

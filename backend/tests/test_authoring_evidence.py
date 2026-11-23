@@ -7,6 +7,7 @@ nobody can find.
 """
 
 import uuid
+from dataclasses import replace
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
@@ -444,6 +445,8 @@ class TestTrainingFeedback:
         ]
         assert "Graded: judge/Follows the policy: 1/5: It quotes 90 days" in run.render()
         assert "It quotes 90 days" in run.quotable
+        named = replace(run, grades=(run.grades[1].model_copy(update={"family": "total"}),))
+        assert "Graded: check/regex '30' (family: total): " in named.render()
 
     async def test_a_confirmed_flip_of_the_agents_own_version_reads_with_its_baseline_answer(
         self, monkeypatch, mock_db_session, evaluated

@@ -285,14 +285,16 @@ def run_checks(
             continue
         if isinstance(check, JudgeCheck):
             judged.append(check)
-        elif isinstance(check, TextCheck):
-            results.append(_text_check(check, answer, required=required))
+            continue
+        if isinstance(check, TextCheck):
+            result = _text_check(check, answer, required=required)
         elif isinstance(check, JsonSchemaCheck):
-            results.append(_schema_check(check, answer, required=required))
+            result = _schema_check(check, answer, required=required)
         elif isinstance(check, LengthCheck):
-            results.append(_length_check(check, answer, required=required))
+            result = _length_check(check, answer, required=required)
         else:
-            results.append(_ceiling_check(check, answer, required=required))
+            result = _ceiling_check(check, answer, required=required)
+        results.append(result.model_copy(update={"family": check.family}))
     return results, judged
 
 
@@ -432,6 +434,7 @@ class JudgeCriterion:
     name: str
     description: str
     required: bool
+    family: str | None = None
 
 
 class JudgeGrade(BaseModel):
@@ -570,6 +573,7 @@ def judge_criteria(
             name=check.criterion[:80],
             description=check.criterion,
             required=scoring.checks.required,
+            family=check.family,
         )
         for index, check in enumerate(judged, start=1)
     )
@@ -863,7 +867,10 @@ def graded(
                 judge_run_id=run_id,
             )
         )
-    return results
+    return [
+        result.model_copy(update={"family": criterion.family})
+        for result, criterion in zip(results, criteria, strict=True)
+    ]
 
 
 def not_graded(
@@ -886,6 +893,7 @@ def not_graded(
             reason_code=code,
             judge_said=said,
             judge_run_id=run_id,
+            family=criterion.family,
         )
         for criterion in criteria
     ]

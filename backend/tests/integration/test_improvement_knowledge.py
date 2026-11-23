@@ -20,7 +20,7 @@ from app.services.agent_registry import UnpublishedCandidate
 from app.services.agent_runner import AgentRunnerService
 from app.services.eval_run import EvalRunService
 from app.services.eval_run_worker import EvalRunWorker
-from app.services.improvement_pipeline import ImprovementPipelineService
+from app.services.improvement_pipeline import ImprovementPipelineService, KnowledgeSources
 from app.services.knowledge_gaps import KnowledgeGapService
 from tests.integration.test_authoring import _environment as _environment
 from tests.integration.test_authoring import _sessions, _setup
@@ -69,7 +69,9 @@ async def _world(db, *, knowledge_search=False, context=False):
     await db.flush()
     service = ImprovementPipelineService(db)
     with patch.object(
-        ImprovementPipelineService, "_knowledge_sources", new=AsyncMock(return_value=([], [], []))
+        ImprovementPipelineService,
+        "_knowledge_sources",
+        new=AsyncMock(return_value=KnowledgeSources([], [], [], [])),
     ):
         started = await service.start(
             ctx,
