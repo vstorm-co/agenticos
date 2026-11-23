@@ -26,6 +26,7 @@ const state = vi.hoisted(() => ({
   push: vi.fn(),
   remove: vi.fn(),
   runsView: true,
+  agentsRun: true,
   findTwin: vi.fn(),
 }));
 vi.mock("next/navigation", async (original) => ({
@@ -88,7 +89,9 @@ vi.mock("@/hooks/use-organizations", async (original) => ({
 }));
 vi.mock("@/components/sharing/sharing-panel", () => ({ SharingPanel: () => null }));
 vi.mock("@/hooks/use-permissions", () => ({
-  usePermissions: () => ({ can: () => state.runsView }),
+  usePermissions: () => ({
+    can: (perm: string) => (perm === "agents:run" ? state.agentsRun : state.runsView),
+  }),
 }));
 vi.mock("@/components/evals/dataset-evals-panel", () => ({
   DatasetEvalsPanel: ({ datasetId }: { datasetId: string }) => <p>evals of {datasetId}</p>,
@@ -155,6 +158,7 @@ describe("the dataset page", () => {
     state.metadataLoading = false;
     state.casesLoading = false;
     state.runsView = true;
+    state.agentsRun = true;
     state.total = 0;
     state.cases = [];
     state.skips = [];
@@ -360,6 +364,18 @@ describe("the dataset page", () => {
     expect(screen.getByText("keys of c1")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("offers no key listing to an editor who may not run agents", async () => {
+    state.agentsRun = false;
+    state.linked = "c1";
+    state.linkedCase = CASE;
+    await mount();
+
+    const dialog = screen.getByRole("dialog", { name: "Case" });
+    await userEvent.click(within(dialog).getByRole("button", { name: "Edit" }));
+    expect(screen.getByRole("button", { name: "Save case" })).toBeInTheDocument();
+    expect(screen.queryByText("keys of c1")).not.toBeInTheDocument();
   });
 
   it("explains a case deleted after opening and retries its live query", async () => {
