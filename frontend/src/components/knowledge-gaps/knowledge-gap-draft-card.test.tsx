@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { KnowledgeGapDraft } from "@/types/knowledge-gaps";
+import { InImproveWizard } from "./wizard-mode";
 import { KnowledgeGapDraftCard } from "./knowledge-gap-draft-card";
 
 const state = vi.hoisted(() => ({
@@ -51,6 +52,7 @@ describe("KnowledgeGapDraftCard", () => {
   it("says a model wrote a draft still waiting to be checked and added", () => {
     render(<KnowledgeGapDraftCard draft={DRAFT} />);
     expect(screen.getByText("Draft — verify before adding")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /copy/i })).toBeNull();
     expect(screen.getByText(/Written by a model from the questions above/)).toBeInTheDocument();
   });
 
@@ -111,4 +113,14 @@ describe("KnowledgeGapDraftCard", () => {
     expect(screen.queryByText(/could not be verified/)).toBeNull();
     expect(screen.queryByRole("link", { name: "Open the run" })).toBeNull();
   });
+});
+
+it("leaves no empty footer when run links are unavailable inside Improve", () => {
+  render(
+    <InImproveWizard.Provider value>
+      <KnowledgeGapDraftCard draft={{ ...DRAFT, sources: [], unverified: 0 }} />
+    </InImproveWizard.Provider>,
+  );
+  expect(screen.queryByRole("link", { name: "Open the run" })).toBeNull();
+  expect(screen.queryByRole("button", { name: /copy/i })).toBeNull();
 });

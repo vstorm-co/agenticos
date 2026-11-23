@@ -219,7 +219,9 @@ it("blocks finishing when a selected new skill requires missing access", async (
 });
 it("reopens the result and requires confirmation before publishing", async () => {
   render(<ImprovementPage agentId="a1" sessionId="s1" />);
-  expect(screen.getByText(/^Attempt 1 made .+ better: 3 questions fixed/)).toBeInTheDocument();
+  expect(
+    screen.getByText(/^The updated agent answered 3 more test questions correctly/),
+  ).toBeInTheDocument();
   expect(actions.finish.mutateAsync).not.toHaveBeenCalled();
   await userEvent.click(screen.getByRole("button", { name: "Review and accept the changes" }));
   const publish = screen.getByRole("button", { name: "Accept and publish" });
@@ -313,7 +315,7 @@ it("retries a failed step from another step too, and then follows the session ag
   state.session!.stage = "evaluating";
   render(<ImprovementPage agentId="a1" sessionId="s1" />);
   await userEvent.click(screen.getByRole("button", { name: "Changes" }));
-  expect(screen.queryByText("What this session came to")).toBeNull();
+  expect(screen.queryByRole("heading", { name: "Result" })).toBeNull();
   actions.estimateContinuation.mutateAsync.mockResolvedValue({
     mode: "retry",
     number: 1,
@@ -330,7 +332,7 @@ it("retries a failed step from another step too, and then follows the session ag
     await screen.findByRole("button", { name: "Confirm the estimate and continue" }),
   );
   expect(actions.continueSession.mutateAsync).toHaveBeenCalled();
-  expect(await screen.findByText("What this session came to")).toBeInTheDocument();
+  expect(await screen.findByRole("heading", { name: "Result" })).toBeInTheDocument();
 });
 
 vi.mock("./understand", () => ({ Understand: () => <p>Source examples fixture</p> }));
@@ -385,7 +387,9 @@ it("lets the person inspect a done step directly without claiming it published",
   expect(screen.getByText("Pinned questions fixture")).toBeInTheDocument();
   expect(actions.finish.mutateAsync).not.toHaveBeenCalled();
   await userEvent.click(screen.getByRole("button", { name: "Result" }));
-  expect(screen.getByText(/^Attempt 1 made .+ better: 3 questions fixed/)).toBeInTheDocument();
+  expect(
+    screen.getByText(/^The updated agent answered 3 more test questions correctly/),
+  ).toBeInTheDocument();
 });
 
 it("reopens the publication link without offering another publish", () => {
@@ -399,7 +403,7 @@ it("reopens the publication link without offering another publish", () => {
   );
   expect(screen.queryByRole("button", { name: "Accept and publish" })).not.toBeInTheDocument();
 });
-it("ends on what was decided, and offers nothing that would change the session", () => {
+it("ends on a result, keeps the decision accessible, and offers no writes", async () => {
   state.session!.status = "published";
   state.session!.published_version = 4;
   state.session!.timeline = [
@@ -413,15 +417,17 @@ it("ends on what was decided, and offers nothing that would change the session",
     },
   ];
   render(<ImprovementPage agentId="a1" sessionId="s1" />);
+  await userEvent.click(screen.getByRole("button", { name: "Session details" }));
+  await userEvent.click(screen.getByRole("menuitem", { name: "Decision" }));
   const decided = screen.getByRole("region", { name: "What was decided" });
   expect(decided).toHaveTextContent("Published as version 4");
   expect(decided).toHaveTextContent(/By Ada/);
-  expect(screen.getByText(/This improvement is finished/)).toBeInTheDocument();
+  expect(screen.queryByText(/This improvement is finished/)).toBeNull();
   for (const name of ["Stop the session", "Keep as draft", "Discard", /Improve again/]) {
     expect(screen.queryByRole("button", { name })).not.toBeInTheDocument();
   }
   // The step bar still opens every step; only the decision is gone.
-  expect(screen.getAllByRole("button", { name: "Accept" })).toHaveLength(1);
+  expect(screen.getByRole("tab", { name: "Decision" })).toHaveAttribute("aria-selected", "true");
 });
 it("lets a reader of the agent and its runs read an open session without changing it", () => {
   state.edit = false;
@@ -590,7 +596,9 @@ it("returns to the actual working step after confirming a selected check", async
     await screen.findByRole("button", { name: "Confirm and check selected changes" }),
   );
   expect(actions.checkSelection.mutateAsync).toHaveBeenCalled();
-  expect(screen.getByText(/^Attempt 1 made .+ better: 3 questions fixed/)).toBeInTheDocument();
+  expect(
+    screen.getByText(/^The updated agent answered 3 more test questions correctly/),
+  ).toBeInTheDocument();
 });
 
 it.each([
@@ -944,7 +952,26 @@ describe("every step's state matches what its panel shows", () => {
       within(screen.getByRole("region", { name: "Session" })).getByRole("status"),
     ).toHaveTextContent(running ? "Working" : /^(?!Working)/);
     for (const id of STEPS) {
-      const trigger = screen.getByRole("button", { name: LABELS[id] });
+      const recordLabels = {
+        understand: "Analysis",
+        changes: "Changes",
+        check: "Test questions",
+        result: "Result",
+        accept: "Decision",
+      };
+      if (status === "accepted" && !isReachable(views[id])) continue;
+      if (status === "accepted" && (id === "understand" || id === "accept"))
+        await userEvent.click(screen.getByRole("button", { name: "Session details" }));
+      const trigger = screen.getByRole(
+        status === "accepted" && (id === "understand" || id === "accept")
+          ? "menuitem"
+          : status === "accepted"
+            ? "tab"
+            : "button",
+        {
+          name: status === "accepted" ? recordLabels[id] : LABELS[id],
+        },
+      );
       if (!isReachable(views[id])) {
         expect(trigger, id).toHaveAttribute("aria-disabled", "true");
         continue;
@@ -1008,4 +1035,51 @@ it("lists every attempt on a finished session's Changes, not the selection it de
   expect(screen.getByRole("heading", { name: "What each attempt tried" })).toBeVisible();
   expect(screen.getByText("Reworded by you")).toBeInTheDocument();
   expect(screen.queryByRole("checkbox", { name: /Include change/ })).toBeNull();
+});
+
+it("opens attempts from a finished result and restores the attempt tab from its URL", async () => {
+  state.session!.status = "published";
+  state.session!.published_version = 4;
+  state.session!.iterations.push({ ...state.session!.iterations[0]!, id: "r2", number: 2 });
+  state.session!.iteration = 2;
+  const view = render(<ImprovementPage agentId="a1" sessionId="s1" />);
+  expect(screen.getByRole("tab", { name: "Result" })).toHaveAttribute("aria-selected", "true");
+  const navigation = screen.getByRole("tablist");
+  expect(navigation).toBeVisible();
+  expect(
+    navigation.compareDocumentPosition(document.querySelector("[data-step-panel]")!) &
+      Node.DOCUMENT_POSITION_FOLLOWING,
+  ).toBeTruthy();
+  await userEvent.click(screen.getByRole("tab", { name: "Attempts" }));
+  expect(screen.getByRole("tab", { name: "Attempts" })).toHaveAttribute("aria-selected", "true");
+  expect(screen.getByText("Attempt 1 of 3")).toBeVisible();
+  expect(screen.getByText("Attempt 1 of 3").closest("details")).toHaveAttribute("open");
+  expect(screen.getByText("Attempt 2 of 3").closest("details")).not.toHaveAttribute("open");
+  expect(new URLSearchParams(window.location.search).get("step")).toBe("attempts");
+  view.unmount();
+  render(<ImprovementPage agentId="a1" sessionId="s1" />);
+  expect(screen.getByRole("tab", { name: "Attempts" })).toHaveAttribute("aria-selected", "true");
+  expect(screen.queryByRole("button", { name: "Previous step" })).toBeNull();
+});
+
+it("keeps the full test link on a finished session's question tab", async () => {
+  state.session!.status = "published";
+  state.session!.iterations[0]!.eval_run_ids = ["run-final"];
+  render(<ImprovementPage agentId="a1" sessionId="s1" />);
+  await userEvent.click(screen.getByRole("tab", { name: "Test questions" }));
+  expect(screen.getByRole("link", { name: "Open the full check" })).toHaveAttribute(
+    "href",
+    "/agents/a1/evals/run-final",
+  );
+});
+
+it("keeps the agent reachable from a published result for a reader without edit access", () => {
+  state.session!.status = "published";
+  state.edit = false;
+  render(<ImprovementPage agentId="a1" sessionId="s1" />);
+  expect(screen.getByRole("link", { name: "Open the agent" })).toHaveAttribute(
+    "href",
+    "/agents/a1",
+  );
+  expect(screen.queryByRole("button", { name: "Publish" })).toBeNull();
 });
