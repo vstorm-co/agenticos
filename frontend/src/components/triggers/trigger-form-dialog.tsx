@@ -1,6 +1,6 @@
 "use client";
 
-import { RoutinePrompt } from "@/components/event-sources/routine-prompt";
+import { LiveSample } from "@/components/event-sources/live-sample";
 import { SourceSelector } from "@/components/event-sources/source-selector";
 import { SubscriptionFields } from "@/components/event-sources/subscription-fields";
 import { NativeDisclosure } from "@/components/ui/native-disclosure";
@@ -183,7 +183,7 @@ interface TriggerFormDialogProps {
  *
  * A trigger remains a schedule or an event. Existing dedicated endpoints keep
  * their source and credential; shared-source routines may select another source
- * they can use. Prompt mode is explicit so existing messages remain literal.
+ * they can use.
  */
 export function TriggerFormDialog({
   agentId,
@@ -367,9 +367,6 @@ export function TriggerFormDialog({
   // "Fires on: a GitHub issue" with a GitHub template picked under it, for
   // somebody who had just chosen the opposite. An edit reads the row.
   const [eventSource, setEventSource] = useState<EventSource>(trigger?.event_source ?? "webhook");
-  const [promptMode, setPromptMode] = useState<"literal" | "template">(
-    trigger?.prompt_mode ?? "literal",
-  );
   const [secret, setSecret] = useState("");
   // Two generic substring filters; what they mean is the source's business - a
   // subject and sender for email - so the keys are mapped in `buildCreate` and
@@ -584,12 +581,7 @@ export function TriggerFormDialog({
     return {
       ...base,
       event_source: eventSource,
-      ...(sourceId
-        ? { source_id: sourceId, prompt_mode: promptMode }
-        : {
-            event_secret: secret,
-            ...(promptMode === "template" ? { prompt_mode: promptMode } : {}),
-          }),
+      ...(sourceId ? { source_id: sourceId } : { event_secret: secret }),
       event_config: sourceId
         ? { ...extraConfig, ...eventFilterConfig(eventSource, [filterA, filterB]) }
         : eventSource === "webhook" && Object.keys(extraConfig).length
@@ -677,7 +669,6 @@ export function TriggerFormDialog({
             ...eventFilterConfig(eventSource, [filterA, filterB]),
           };
         }
-        if (promptMode !== (trigger.prompt_mode ?? "literal")) patch.prompt_mode = promptMode;
         const nextName = name.trim() || null;
         if (nextName !== (trigger.name ?? null)) patch.name = nextName;
         const env = environmentId === DEFAULT_ENV ? null : environmentId;
@@ -961,39 +952,23 @@ export function TriggerFormDialog({
                 {type === "event" ? t("editTitleEvent") : t("editTitleSchedule")}
               </legend>
               <NameField value={name} onChange={setName} />
-              {type === "event" ? (
-                <>
-                  {trigger.source_id && (
-                    <SourceSelector
-                      value={sourceId}
-                      onChange={selectSource}
-                      disabled={pending || !canUseSourceTarget}
-                    />
-                  )}
-                  {sourceId && eventSource !== "webhook" && (
-                    <SubscriptionFields
-                      provider={eventSource}
-                      config={extraConfig}
-                      onChange={setExtraConfig}
-                      disabled={pending}
-                    />
-                  )}
-                  <RoutinePrompt
-                    key={sourceId ?? "dedicated"}
-                    value={prompt}
-                    onChange={setPrompt}
-                    mode={promptMode}
-                    onModeChange={setPromptMode}
-                    resultMode={resultMode}
-                    sourceId={sourceId}
-                    agentId={effectiveAgentId}
-                    triggerId={trigger.id}
-                    disabled={pending}
-                  />
-                </>
-              ) : (
-                <PromptField value={prompt} onChange={setPrompt} disabled={pending} />
+              {type === "event" && trigger.source_id && (
+                <SourceSelector
+                  value={sourceId}
+                  onChange={selectSource}
+                  disabled={pending || !canUseSourceTarget}
+                />
               )}
+              {sourceId && eventSource !== "webhook" && (
+                <SubscriptionFields
+                  provider={eventSource}
+                  config={extraConfig}
+                  onChange={setExtraConfig}
+                  disabled={pending}
+                />
+              )}
+              {sourceId && <LiveSample key={sourceId} sourceId={sourceId} />}
+              <PromptField value={prompt} onChange={setPrompt} disabled={pending} />
 
               {scheduleFields}
 
@@ -1217,6 +1192,7 @@ export function TriggerFormDialog({
                 onChange={setExtraConfig}
               />
             )}
+            {sourceId && <LiveSample key={sourceId} sourceId={sourceId} />}
           </div>
         )}
 
@@ -1355,21 +1331,7 @@ export function TriggerFormDialog({
 
             {/* The step is the message's own, so the editor gets the room a
                   long prompt needs. */}
-            {type === "event" ? (
-              <RoutinePrompt
-                key={sourceId ?? "dedicated"}
-                value={prompt}
-                onChange={setPrompt}
-                mode={promptMode}
-                onModeChange={setPromptMode}
-                resultMode={resultMode}
-                sourceId={sourceId}
-                agentId={effectiveAgentId}
-                disabled={pending}
-              />
-            ) : (
-              <PromptField value={prompt} onChange={setPrompt} rows={8} disabled={pending} />
-            )}
+            <PromptField value={prompt} onChange={setPrompt} rows={8} disabled={pending} />
           </div>
         )}
 

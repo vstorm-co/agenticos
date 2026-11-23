@@ -130,28 +130,13 @@ An authenticated delivery and its dispatch work commit together before the sourc
 
 A shared URL acknowledges durable receipt asynchronously; it cannot return a workflow's custom response. A shared-source workflow must not reach **Respond to webhook**. Dedicated workflow endpoints retain their synchronous response behavior.
 
-**Pause source** stops starting subscribers for new deliveries; pausing one routine or workflow stops that subscriber. Deleting a source is refused while subscriptions remain; its usage list shows the targets to detach first. Structured events remain available to queued or waiting work. Terminal delivery payloads follow the background-job retention policy.
+**Pause source** stops starting subscribers for new deliveries; pausing one routine or workflow stops that subscriber. Deleting a source is refused while subscriptions remain; its usage list shows the targets to detach first. Terminal delivery payloads follow the background-job retention policy.
 
 ### Listen on the live URL { #listen-on-the-live-url }
 
 On the source or in the webhook editor, choose **Listen for event**, then send an authenticated event to the displayed live source URL within two minutes. The listener receives the next event without interrupting dispatch: **active subscribers still execute**. Capture does not start an additional run. A sample is retained for ten minutes and bounded by the existing 64 KB pin limit; capture failure, oversize or expiry does not change live processing.
 
-You can paste example JSON instead. Neither a live nor a pasted sample is required to save a routine or publish a workflow. A workflow sample uses its existing `{body, delivery_id}` output shape, pinning, bindings and step tests. Choose the intended Webhook entry when a workflow has several triggers; no payload transformation is added. See [Workflows](workflows.md#reusable-webhook-sources).
-
-### Insert event fields in a routine prompt { #routine-prompt-fields }
-
-Switch the prompt to template mode, then search the sample field tree and insert a field at the prompt cursor, or type a reference yourself:
-
-```text
-Summarize {{issue.title}} and the first item {{items[0].name}}.
-Read the unusual property {{["request.id"]}}.
-```
-
-Paths start at the JSON body root. Dotted properties, array indices and quoted bracket keys are supported; expressions, functions, loops and defaults are not. Single braces are literal. Escape double braces as `\{{example\}}` when you want to show them as text. Substitution runs once: braces inside a received value never become another reference.
-
-**Preview resolved prompt** uses the same backend resolver as live execution and never invokes an agent. Strings are inserted directly; other JSON values use compact JSON. `false`, `0` and `null` are present values. A missing path fails visibly with its name before an agent call, including in activation diagnostics and routine history when no run exists yet. Inbox previews include the result instructions and count them toward the message size limit.
-
-Saving validates syntax without requiring fields to appear in a sample. Resolution uses the structured event before any legacy context clipping. Template mode sends the authored prompt with selected values marked as external data; it does not append the entire payload. An oversized resolved message fails instead of being truncated. Existing prompts remain literal until you explicitly select template mode; existing dedicated URLs and signature settings continue to work.
+In a workflow editor, you can paste example JSON instead. Neither a live nor a pasted sample is required to save a routine or publish a workflow. A workflow sample uses its existing `{body, delivery_id}` output shape, pinning, bindings and step tests. Choose the intended Webhook entry when a workflow has several triggers; no payload transformation is added. See [Workflows](workflows.md#reusable-webhook-sources).
 
 ## The mechanism, once
 

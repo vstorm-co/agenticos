@@ -228,7 +228,6 @@ class FireTrigger(Payload):
     source_policy_id: UUID | None = None
     activation_id: UUID | None = None
     event_context: str | None = None
-    event_body: dict[str, JsonValue] | None = None
     event_source_id: UUID | None = None
     claimed_at: datetime | None = None
     """The `fire_in_flight_since` the scheduled claim stamped - its claim ticket."""

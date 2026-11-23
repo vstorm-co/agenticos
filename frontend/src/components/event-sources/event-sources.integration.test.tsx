@@ -16,7 +16,6 @@ import type { EventSource } from "@/lib/event-sources-api";
 import { SourceForm } from "./source-form";
 import { SourceManager } from "./source-manager";
 import { SourceSelector } from "./source-selector";
-import { RoutinePrompt } from "./routine-prompt";
 import { LiveSample, PasteSample } from "./live-sample";
 
 vi.mock("@/lib/api-client", async () => ({
@@ -519,40 +518,5 @@ describe("editor samples", () => {
       delivery_id: "example",
     });
     expect(apiClient.post).not.toHaveBeenCalled();
-  });
-  it("inserts a selected field at the prompt cursor and uses only the backend preview operation", async () => {
-    vi.mocked(apiClient.post).mockResolvedValue({ resolved_prompt: "Triage Broken now" });
-    function Editor() {
-      const [value, setValue] = useState("Triage  now");
-      return (
-        <RoutinePrompt
-          value={value}
-          onChange={setValue}
-          mode="template"
-          resultMode="inbox"
-          onModeChange={vi.fn()}
-          sourceId={null}
-          agentId="a1"
-        />
-      );
-    }
-    render(<Editor />, { wrapper });
-    fireEvent.change(screen.getByLabelText("Example JSON object"), {
-      target: { value: '{"issue":{"title":"Broken"}}' },
-    });
-    await userEvent.click(screen.getByRole("button", { name: "Use example", hidden: true }));
-    const prompt = screen.getByLabelText("Message") as HTMLTextAreaElement;
-    prompt.setSelectionRange(7, 7);
-    await userEvent.click(screen.getByRole("button", { name: /\{\{issue.title\}\}/ }));
-    expect(prompt).toHaveValue("Triage {{issue.title}} now");
-    await userEvent.click(screen.getByRole("button", { name: "Preview resolved prompt" }));
-    await waitFor(() =>
-      expect(apiClient.post).toHaveBeenCalledExactlyOnceWith("/agents/a1/triggers/preview-prompt", {
-        prompt: "Triage {{issue.title}} now",
-        payload: { issue: { title: "Broken" } },
-        result_mode: "inbox",
-      }),
-    );
-    expect(await screen.findByText("Triage Broken now")).toBeVisible();
   });
 });

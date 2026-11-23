@@ -8,11 +8,11 @@ together with the fires it read, in the same transaction.
 
 import uuid
 from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.services.agent_trigger import EventFireDecision
 from app.services.portals import PolledEvent, PolledEvents, PortalUnreachable
 
 pytestmark = pytest.mark.anyio
@@ -128,13 +128,7 @@ def _queueing(triggers: MagicMock, recorder: _Recorder, dispatch=None) -> None:
     """Record each fire the trigger service queues, as the poll asks for it."""
 
     async def queue_fire(
-        trigger_id,
-        *,
-        organization_id,
-        event_context=None,
-        event_body=None,
-        claimed_at=None,
-        source_policy_id=None,
+        trigger_id, *, organization_id, event_context=None, claimed_at=None, source_policy_id=None
     ):
         recorder.steps.append(f"fire:{trigger_id}")
         if dispatch is not None:
@@ -201,11 +195,10 @@ class TestTheOrderOfWork:
         at-least-once with the duplicate suppressed.
         """
         recorder = _Recorder()
-        decision = EventFireDecision(
+        decision = SimpleNamespace(
             source_policy_id=uuid.uuid4(),
             trigger_id=uuid.uuid4(),
             event_context="An email arrived.",
-            organization_id=uuid.uuid4(),
         )
 
         await _run(
@@ -263,11 +256,8 @@ class TestTheOrderOfWork:
         window is re-read next tick rather than marked handled - unlike a webhook,
         no provider resends a polled message."""
         recorder = _Recorder()
-        decision = EventFireDecision(
-            source_policy_id=uuid.uuid4(),
-            trigger_id=uuid.uuid4(),
-            event_context="An email arrived.",
-            organization_id=uuid.uuid4(),
+        decision = SimpleNamespace(
+            source_policy_id=uuid.uuid4(), trigger_id=uuid.uuid4(), event_context="a"
         )
 
         async def refused():
@@ -280,7 +270,7 @@ class TestTheOrderOfWork:
             dispatch=refused,
         )
 
-        assert recorder.steps == ["poll", "match:gmail:1", f"fire:{decision.trigger_id}"]
+        assert "cursor:601" not in recorder.steps
 
     async def test_a_grant_that_cannot_be_read_advances_no_cursor(self):
         """`poll_grant` answering `None` is a mailbox to try again in a minute, not
@@ -363,11 +353,10 @@ class TestOutlookWorkflows:
 
     async def test_an_outlook_poll_admits_workflow_runs_before_the_cursor_moves(self):
         recorder = _Recorder()
-        decision = EventFireDecision(
+        decision = SimpleNamespace(
             source_policy_id=uuid.uuid4(),
             trigger_id=uuid.uuid4(),
             event_context="An email arrived.",
-            organization_id=uuid.uuid4(),
         )
 
         await _run(

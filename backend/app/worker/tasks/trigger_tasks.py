@@ -133,7 +133,6 @@ async def _poll_one_grant(db: AsyncSession, grant: McpConnection, source: str) -
             decision.trigger_id,
             organization_id=grant.organization_id,
             event_context=decision.event_context,
-            event_body=decision.event_body,
             source_policy_id=decision.source_policy_id,
         )
     # The workflows listening to this mailbox, in the same transaction as the fires

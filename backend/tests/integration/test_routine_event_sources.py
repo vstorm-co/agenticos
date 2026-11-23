@@ -135,7 +135,7 @@ async def test_rebinding_during_delivery_preserves_the_other_subscriber_and_reti
     assert [FireTrigger.model_validate(job.payload).trigger_id for job in jobs] == [sibling.id]
 
 
-async def test_shared_github_push_admits_one_routine_job_with_structured_input_across_restart(
+async def test_shared_github_push_admits_one_routine_job_with_event_context_across_restart(
     db: AsyncSession, engine: AsyncEngine, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     ctx, existing, _, _ = await world(db)
@@ -155,8 +155,7 @@ async def test_shared_github_push_admits_one_routine_job_with_structured_input_a
             trigger_type="event",
             source_id=source.id,
             event_config={"event": "push", "branches": ["main"]},
-            prompt_mode="template",
-            prompt="Review {{head_commit.message}}",
+            prompt="Review the pushed commits",
             runs_as_creator=True,
         ),
     )
@@ -165,7 +164,6 @@ async def test_shared_github_push_admits_one_routine_job_with_structured_input_a
     assert routine.source_id == source.id
     assert routine.event_source == "github" and routine.event_config["actions"] == []
     assert routine.event_secret_encrypted is None and routine.secret_key_version is None
-    assert routine.prompt_mode == "template"
     policy_id = read_policy(routine.approved_sources).id
     subscription = await db.scalar(
         select(EventSubscription).where(EventSubscription.trigger_id == routine.id)
@@ -190,8 +188,7 @@ async def test_shared_github_push_admits_one_routine_job_with_structured_input_a
     )
     body = {
         "ref": "refs/heads/main",
-        "padding": "x" * 4000,
-        "head_commit": {"message": "Beyond the old cutoff"},
+        "commits": [{"id": "abcdef0123", "message": "Update release notes"}],
     }
     encoded = json.dumps(body).encode()
     headers = {
@@ -238,7 +235,10 @@ async def test_shared_github_push_admits_one_routine_job_with_structured_input_a
     assert len(queued) == 1
     payload = FireTrigger.model_validate(queued[0].payload)
     assert payload.trigger_id == routine_id
-    assert payload.event_body == body
+    assert payload.event_context is not None
+    assert "1 commit(s) pushed to main" in payload.event_context
+    assert "abcdef0 Update release notes" in payload.event_context
+    assert "event_body" not in queued[0].payload
     assert payload.event_source_id == source_id
     assert payload.source_policy_id == policy_id
     assert payload.activation_id == uuid5(receipt_id, str(routine_id))
@@ -422,69 +422,6 @@ async def test_deleting_a_routine_detaches_it_and_preserves_its_accepted_receipt
     assert (
         await db.scalar(select(BackgroundJob).where(BackgroundJob.kind == "fire-trigger")) is None
     )
-
-
-async def test_dedicated_webhooks_preserve_literal_input_and_validate_template_input(
-    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    ctx, existing, _, _ = await world(db)
-    service = AgentTriggerService(db)
-    secret = "integration-routine-secret"
-    literal_data = TriggerCreate(
-        trigger_type="event",
-        event_source="webhook",
-        event_secret=secret,
-        prompt="Review the delivery",
-        runs_as_creator=True,
-    )
-    literal = await service.create(ctx, existing.agent_id, literal_data)
-    template = await service.create(
-        ctx,
-        existing.agent_id,
-        literal_data.model_copy(
-            update={"prompt": "Review {{issue.title}}", "prompt_mode": "template"}
-        ),
-    )
-    monkeypatch.setattr(
-        rate_limit,
-        "trigger_delivery_allowed",
-        AsyncMock(return_value=rate_limit.Decision(allowed=True, retry_after_seconds=0)),
-    )
-
-    escaped_nul = b'{"nested":{"text":"before\\u0000after"}}'
-    structured = {"padding": "x" * 4000, "issue": {"title": "Full payload"}}
-    for trigger, body in (
-        (literal, escaped_nul),
-        (template, escaped_nul),
-        (template, json.dumps(structured).encode()),
-    ):
-        signature = hmac.digest(secret.encode(), body, "sha256").hex()
-        assert await service.queue_event_fire(
-            "webhook",
-            trigger.id,
-            body=body,
-            headers={"x-signature-256": f"sha256={signature}"},
-        )
-
-    jobs = await db.scalars(select(BackgroundJob).where(BackgroundJob.kind == "fire-trigger"))
-    queued = [FireTrigger.model_validate(job.payload) for job in jobs]
-    assert len(queued) == 2
-    by_trigger = {job.trigger_id: job for job in queued}
-    literal_job = by_trigger[literal.id]
-    assert literal_job.event_body is None
-    assert literal_job.event_context is not None
-    assert "before\\u0000after" in literal_job.event_context
-    assert by_trigger[template.id].event_body == structured
-
-    failed = await db.scalar(select(TriggerAttempt).where(TriggerAttempt.trigger_id == template.id))
-    assert failed is not None
-    assert (failed.stage, failed.status, failed.reason) == (
-        "preparation",
-        "failed",
-        "prompt_template_failed",
-    )
-    assert failed.error_message == "The event body cannot be stored for prompt rendering."
-    assert await db.scalar(select(func.count()).select_from(AgentRun)) == 0
 
 
 @pytest.mark.security

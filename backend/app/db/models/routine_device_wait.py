@@ -3,7 +3,6 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import JsonValue
 from sqlalchemy import (
     Boolean,
     CheckConstraint,
@@ -15,7 +14,6 @@ from sqlalchemy import (
     Text,
     text,
 )
-from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -40,9 +38,6 @@ class RoutineDeviceWait(Base, TimestampMixin):
     intent_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     is_event: Mapped[bool] = mapped_column(Boolean, nullable=False)
     event_context: Mapped[str | None] = mapped_column(Text, nullable=True)
-    event_body: Mapped[dict[str, JsonValue] | None] = mapped_column(
-        JSONB(none_as_null=True), nullable=True
-    )
     event_source_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
     status: Mapped[str] = mapped_column(
         String(16), nullable=False, default="waiting", server_default="waiting"
@@ -61,8 +56,7 @@ class RoutineDeviceWait(Base, TimestampMixin):
             name="ck_routine_device_wait_status",
         ),
         CheckConstraint(
-            "(status = 'waiting' OR event_body IS NULL) AND "
-            "(status IN ('waiting', 'failed') OR event_context IS NULL)",
+            "status IN ('waiting', 'failed') OR event_context IS NULL",
             name="ck_routine_device_wait_redacted",
         ),
         CheckConstraint("admission_failures >= 0", name="ck_routine_device_wait_failures"),

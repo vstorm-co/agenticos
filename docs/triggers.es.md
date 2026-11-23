@@ -1,5 +1,5 @@
 ---
-source_sha: "8f9679d88ff5"
+source_sha: "d9b7cfe344c3"
 ---
 
 # Configurar un trigger de evento { #setting-up-an-event-trigger }
@@ -142,28 +142,13 @@ La entrega autenticada y sus tareas de envío se guardan juntas antes de confirm
 
 Una URL compartida confirma la recepción duradera de forma asíncrona y no devuelve una respuesta personalizada del workflow. Un workflow con fuente compartida no puede alcanzar **Responder al webhook**. Los endpoints dedicados de workflows conservan las respuestas síncronas.
 
-**Pausar fuente** impide iniciar suscriptores para nuevas entregas; pausar una rutina o workflow afecta solo a ese destino. No se permite eliminar una fuente con suscripciones; la lista de uso muestra los destinos que debes desvincular. Los eventos estructurados siguen disponibles para el trabajo en cola o en espera. Las entregas terminadas siguen la política de retención de tareas en segundo plano.
+**Pausar fuente** impide iniciar suscriptores para nuevas entregas; pausar una rutina o workflow afecta solo a ese destino. No se permite eliminar una fuente con suscripciones; la lista de uso muestra los destinos que debes desvincular. Las entregas terminadas siguen la política de retención de tareas en segundo plano.
 
 ### Escuchar en la URL activa { #listen-on-the-live-url }
 
 Desde la fuente o el editor de webhooks, elige **Escuchar evento** y envía un evento autenticado a la URL activa mostrada en un plazo de dos minutos. La escucha recibe el siguiente evento sin interrumpir el envío: **los suscriptores activos siguen ejecutándose**. La captura no inicia otra ejecución. La muestra se conserva durante diez minutos y respeta el límite existente de 64 KB para datos fijados. Un fallo, exceso de tamaño o vencimiento no cambia el procesamiento en vivo.
 
-También puedes pegar JSON de ejemplo. Las muestras no son necesarias para guardar una rutina ni publicar un workflow. Una muestra de workflow mantiene `{body, delivery_id}`, los datos fijados, las vinculaciones y las pruebas de pasos. Si hay varios disparadores, selecciona la entrada Webhook adecuada; no se añade ninguna transformación de la carga. Consulta [Workflows](workflows.md#reusable-webhook-sources).
-
-### Insertar campos del evento en el prompt de una rutina { #routine-prompt-fields }
-
-Activa el modo de plantilla, busca un campo en el árbol de la muestra e insértalo en la posición del cursor, o escribe una referencia:
-
-```text
-Resume {{issue.title}} y el primer elemento {{items[0].name}}.
-Lee la propiedad inusual {{["request.id"]}}.
-```
-
-Las rutas empiezan en la raíz del cuerpo JSON. Se admiten propiedades con puntos, índices de arrays y claves entre comillas dentro de corchetes; no expresiones, funciones, bucles ni valores predeterminados. Las llaves simples son literales. Escribe `\{{example\}}` para mostrar llaves dobles como texto. La sustitución ocurre una sola vez: las llaves de un valor recibido nunca generan otra referencia.
-
-**Vista previa del prompt resuelto** usa el mismo resolver del backend que la ejecución y nunca invoca un agente. Las cadenas se insertan directamente; otros valores usan JSON compacto. `false`, `0` y `null` son valores presentes. Una ruta ausente produce un fallo visible con su nombre antes de llamar al agente, también en el diagnóstico de activación y el historial de la rutina cuando todavía no existe una ejecución. En el modo de bandeja de entrada, la vista previa incluye las instrucciones para el resultado y las cuenta en el límite de tamaño del mensaje.
-
-Guardar valida la sintaxis sin exigir que los campos aparezcan en una muestra. La resolución usa el evento estructurado antes de cualquier recorte anterior del contexto. El modo de plantilla envía el prompt escrito con valores seleccionados marcados como datos externos, sin añadir la carga completa. Un mensaje demasiado grande falla en vez de truncarse. Los prompts existentes siguen siendo literales hasta cambiar el modo explícitamente; las URL dedicadas y sus ajustes de firma siguen funcionando.
+En el editor de workflows también puedes pegar JSON de ejemplo. Las muestras no son necesarias para guardar una rutina ni publicar un workflow. Una muestra de workflow mantiene `{body, delivery_id}`, los datos fijados, las vinculaciones y las pruebas de pasos. Si hay varios disparadores, selecciona la entrada Webhook adecuada; no se añade ninguna transformación de la carga. Consulta [Workflows](workflows.md#reusable-webhook-sources).
 
 ## El mecanismo, una vez { #the-mechanism-once }
 

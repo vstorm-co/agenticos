@@ -1,5 +1,5 @@
 ---
-source_sha: "0157f8837925"
+source_sha: "4ae6867bd4ca"
 ---
 
 # Workflows { #workflows }
@@ -1060,7 +1060,7 @@ Każdy, kto ma wgląd w wykonania workflow, może zobaczyć w historii dostarczo
 
 **Nasłuchuj zdarzenia** przechwytuje następne uwierzytelnione zdarzenie z aktywnego URL źródła. Okno trwa dwie minuty; tymczasowe przykłady pozostają przez dziesięć minut i podlegają limitowi przypięcia 64 KB. **Aktywni subskrybenci nadal się wykonują.** Przechwycenie nie tworzy dodatkowego wykonania ani nie zmienia dostaw. Można zamiast tego wkleić przykład JSON; zapis i publikacja nie wymagają próbki.
 
-Przykład wybranego wyzwalacza zachowuje `{body, delivery_id}`. Przypnij go i użyj dotychczasowych powiązań pól i testów kroków; kolejne węzły mogą bezpośrednio czytać JSON. Przy wielu wejściach wybierz jawnie właściwy węzeł Webhook do przechwycenia i przypięcia. Nie dodano przekształcania payloadu ani interpolacji promptów rutyn w powiązaniach workflow.
+Przykład wybranego wyzwalacza zachowuje `{body, delivery_id}`. Przypnij go i użyj dotychczasowych powiązań pól i testów kroków; kolejne węzły mogą bezpośrednio czytać JSON. Przy wielu wejściach wybierz jawnie właściwy węzeł Webhook do przechwycenia i przypięcia.
 
 Wspólne źródło asynchronicznie potwierdza trwały odbiór. Publikacja odmawia, jeśli osiągalna gałąź takiego wejścia zawiera **Odpowiedz na webhook**. Użyj dedykowanego endpointu workflow, gdy nadawca potrzebuje synchronicznego statusu, nagłówków lub body tego węzła. URL, poświadczenia, wykrywanie duplikatów i zachowanie odpowiedzi dedykowanych endpointów pozostają bez zmian.
 

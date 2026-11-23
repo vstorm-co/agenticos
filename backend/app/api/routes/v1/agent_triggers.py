@@ -35,8 +35,6 @@ from app.schemas.agent_trigger import (
     TriggerDispatchRead,
     TriggerFilteredEventRead,
     TriggerList,
-    TriggerPromptPreviewCreate,
-    TriggerPromptPreviewRead,
     TriggerRead,
     TriggerUpdate,
 )
@@ -135,18 +133,6 @@ async def list_org_triggers(
     """Every schedule and trigger in the organization the caller may see."""
     items, total = await service.list_for_organization(ctx, skip=skip, limit=limit)
     return TriggerList(items=items, total=total)
-
-
-@router.post(
-    "/{agent_id}/triggers/preview-prompt",
-    response_model=TriggerPromptPreviewRead,
-    dependencies=[PUBLIC],
-)
-async def preview_trigger_prompt(
-    agent_id: UUID, data: TriggerPromptPreviewCreate, ctx: Auth, service: AgentTriggerSvc
-) -> Any:
-    """Preview routine fields against example JSON; this never runs an agent."""
-    return await service.preview_prompt(ctx, agent_id, data)
 
 
 @router.get("/{agent_id}/triggers", response_model=TriggerList, dependencies=[PUBLIC])

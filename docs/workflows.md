@@ -1027,7 +1027,7 @@ Anyone who can inspect this workflow’s runs may see delivered payloads in its 
 
 Choose **Listen for event** to capture the next authenticated event on the configured live source URL. The window lasts two minutes; temporary samples last ten minutes and respect the 64 KB pin limit. **Active subscribers still execute.** Capture does not add a run or change delivery processing. Pasted example JSON is an alternative, and saving or publishing never requires a sample.
 
-The selected trigger's sample remains `{body, delivery_id}`. Pin it and use the existing field bindings and step tests; downstream nodes can consume the JSON directly. With multiple entries, capture and pin the intended Webhook node explicitly. This adds no payload transformation or routine-style prompt interpolation to workflow bindings.
+The selected trigger's sample remains `{body, delivery_id}`. Pin it and use the existing field bindings and step tests; downstream nodes can consume the JSON directly. With multiple entries, capture and pin the intended Webhook node explicitly.
 
 A shared source acknowledges durable receipt asynchronously. Publishing refuses a shared-source entry whose reachable branch contains **Respond to webhook**. Choose a dedicated workflow endpoint when the sender needs that node's synchronous status, headers or body. Dedicated endpoint URLs, credentials, duplicate detection and response behavior remain unchanged.
 

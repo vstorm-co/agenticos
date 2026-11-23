@@ -75,9 +75,3 @@ export function useSourceListener(id: string, token: string | null) {
   });
   return { listen, capture };
 }
-export function usePromptPreview(agentId: string) {
-  return useMutation({
-    mutationFn: (input: Parameters<typeof eventSourcesApi.preview>[1]) =>
-      eventSourcesApi.preview(agentId, input),
-  });
-}

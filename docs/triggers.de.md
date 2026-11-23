@@ -1,5 +1,5 @@
 ---
-source_sha: "8f9679d88ff5"
+source_sha: "d9b7cfe344c3"
 ---
 
 # Einen Event-Trigger einrichten { #setting-up-an-event-trigger }
@@ -144,28 +144,13 @@ Eine authentifizierte Zustellung und ihre Versandaufträge werden gemeinsam gesp
 
 Eine gemeinsame URL bestätigt den dauerhaften Empfang asynchron und liefert keine benutzerdefinierte Workflow-Antwort. Ein Workflow mit gemeinsamer Quelle darf **Auf Webhook antworten** nicht erreichen. Dedizierte Workflow-Endpunkte behalten synchrone Antworten.
 
-**Quelle pausieren** verhindert den Start von Abonnenten für neue Zustellungen; das Pausieren einer Routine oder eines Workflows betrifft nur dieses Ziel. Solange Abonnements bestehen, ist Löschen gesperrt; die Nutzungsliste zeigt die zuvor zu trennenden Ziele. Strukturierte Ereignisse bleiben für eingereihte oder wartende Arbeit erhalten. Abgeschlossene Zustellungen folgen der Aufbewahrungsregel für Hintergrundjobs.
+**Quelle pausieren** verhindert den Start von Abonnenten für neue Zustellungen; das Pausieren einer Routine oder eines Workflows betrifft nur dieses Ziel. Solange Abonnements bestehen, ist Löschen gesperrt; die Nutzungsliste zeigt die zuvor zu trennenden Ziele. Abgeschlossene Zustellungen folgen der Aufbewahrungsregel für Hintergrundjobs.
 
 ### Auf der Live-URL auf ein Ereignis warten { #listen-on-the-live-url }
 
 Wählen Sie an der Quelle oder im Webhook-Editor **Auf Ereignis warten** und senden Sie innerhalb von zwei Minuten ein authentifiziertes Ereignis an die angezeigte Live-URL. Das nächste Ereignis wird als Beispiel erfasst, ohne den Versand zu unterbrechen: **aktive Abonnenten werden weiter ausgeführt**. Die Erfassung startet keinen zusätzlichen Lauf. Das Beispiel bleibt zehn Minuten erhalten und unterliegt dem bisherigen 64-KB-Pin-Limit. Fehler, Übergröße oder Ablauf beeinflussen die Live-Verarbeitung nicht.
 
-Alternativ können Sie Beispiel-JSON einfügen. Beispiele sind weder zum Speichern einer Routine noch zum Veröffentlichen eines Workflows erforderlich. Workflow-Beispiele verwenden weiterhin `{body, delivery_id}`, Pins, Bindings und Schritttests. Wählen Sie bei mehreren Triggern den gewünschten Webhook-Einstieg; es gibt keine zusätzliche Payload-Transformation. Siehe [Workflows](workflows.md#reusable-webhook-sources).
-
-### Ereignisfelder in den Routine-Prompt einsetzen { #routine-prompt-fields }
-
-Aktivieren Sie den Vorlagenmodus. Suchen Sie im Feldbaum des Beispiels und fügen Sie ein Feld an der Cursorposition ein, oder schreiben Sie die Referenz selbst:
-
-```text
-Fasse {{issue.title}} und das erste Element {{items[0].name}} zusammen.
-Lies die ungewöhnliche Eigenschaft {{["request.id"]}}.
-```
-
-Pfade beginnen an der Wurzel des JSON-Bodys. Punktnotation, Array-Indizes und Schlüssel in Anführungszeichen innerhalb von Klammern sind erlaubt; Ausdrücke, Funktionen, Schleifen und Standardwerte nicht. Einzelne geschweifte Klammern bleiben Text. Schreiben Sie `\{{example\}}`, um doppelte Klammern wörtlich auszugeben. Die Ersetzung erfolgt einmal; Klammern in empfangenen Werten werden nicht erneut ausgewertet.
-
-**Aufgelösten Prompt anzeigen** verwendet denselben Backend-Resolver wie die Live-Ausführung und ruft keinen Agenten auf. Strings werden direkt eingesetzt, andere JSON-Werte als kompaktes JSON. `false`, `0` und `null` gelten als vorhanden. Ein fehlender Pfad führt vor dem Agentenaufruf zu einem sichtbaren Fehler mit seinem Namen, auch in Aktivierungsdiagnose und Routine-Verlauf, wenn noch kein Lauf existiert. Bei der Vorschau im Inbox-Modus zählen die angezeigten Ergebnisanweisungen zur maximalen Nachrichtengröße.
-
-Speichern prüft die Syntax, ohne passende Felder im Beispiel zu verlangen. Die Auflösung verwendet das strukturierte Ereignis vor einer bisherigen Kontextkürzung. Vorlagen senden den verfassten Prompt mit ausgewählten, als externe Daten markierten Werten, ohne die gesamte Payload anzuhängen. Zu große Nachrichten schlagen fehl, statt gekürzt zu werden. Bestehende Prompts bleiben bis zur ausdrücklichen Umstellung wörtlich; dedizierte URLs und Signatureinstellungen bleiben gültig.
+Im Workflow-Editor können Sie alternativ Beispiel-JSON einfügen. Beispiele sind weder zum Speichern einer Routine noch zum Veröffentlichen eines Workflows erforderlich. Workflow-Beispiele verwenden weiterhin `{body, delivery_id}`, Pins, Bindings und Schritttests. Wählen Sie bei mehreren Triggern den gewünschten Webhook-Einstieg; es gibt keine zusätzliche Payload-Transformation. Siehe [Workflows](workflows.md#reusable-webhook-sources).
 
 ## Die Mechanik, einmal { #the-mechanism-once }
 

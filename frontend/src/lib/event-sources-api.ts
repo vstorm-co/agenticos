@@ -90,18 +90,4 @@ export const eventSourcesApi = {
   listen: (id: string) => apiClient.post<SourceListening>(`${base}/${id}/listen`, {}),
   capture: (id: string, token: string) =>
     apiClient.get<SourceCapture>(`${base}/${id}/listen/${token}`),
-  preview: (
-    agentId: string,
-    input: {
-      prompt: string;
-      payload: Record<string, unknown>;
-      result_mode: "report" | "inbox";
-      source_id?: string;
-      trigger_id?: string;
-    },
-  ) =>
-    apiClient.post<{ resolved_prompt: string }>(
-      `/agents/${agentId}/triggers/preview-prompt`,
-      input,
-    ),
 };

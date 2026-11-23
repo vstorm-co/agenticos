@@ -21,7 +21,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
-- Reusable webhook event sources with provider presets, private or organization visibility, vault-backed authentication and independent routine/workflow subscribers. Members who can use a source can inspect its next unfiltered event without a routine or workflow. Attaching it still requires edit and run access to the target. In a workflow editor, pin a captured event or paste example JSON for step tests. Routine template prompts insert selected `{{payload.fields}}`, preview without an agent call and report missing fields before execution. New workflow webhook steps default to choosing a reusable source; select a dedicated endpoint for synchronous responses. Existing dedicated endpoints and literal prompts retain their behavior.
+- Reusable webhook event sources with provider presets, private or organization visibility, vault-backed authentication and independent routine/workflow subscribers. Members who can use a source can inspect its next unfiltered event without a routine or workflow. Attaching it still requires edit and run access to the target. In a workflow editor, pin a captured event or paste example JSON for step tests. New workflow webhook steps default to choosing a reusable source; select a dedicated endpoint for synchronous responses. Existing dedicated endpoints retain their behavior.
 
 - Add an instruction-variant search mode to Improve. Try budgeted variants against training questions, keep the strongest candidate and require the existing held-out check and human acceptance before applying it (#3237).
 
@@ -100,7 +100,7 @@ Two things are versioned separately from this file and worth knowing about:
 - Migration `backend/alembic/versions/0352_eval_answer_gaps.py` adds `knowledge_gap_eval_classifications`, `knowledge_searches.subject` and a unique index on `knowledge_searches` for misses read from eval answers. Earlier misses have no subject and keep their topics. Its downgrade drops all three, with the misses read from eval answers.
 - Migration `backend/alembic/versions/0356_improvement_search.py` adds `improvement_runs.mode` (existing sessions read `steps`), the `searching` stage, the `no_variant` stop reason, `improvement_iterations.search` and the `improvement_search_variants` table. Its downgrade drops them, reads a searching session as `proposing` and `no_variant` as `no_proposal`.
 
-- Apply `0361_reusable_event_sources.py` before starting the updated API and worker. It adds source, subscription, delivery and dispatch tables, structured queued routine input and template diagnostics. Existing webhook URLs and credentials stay valid. Before downgrading, detach source subscribers, switch routine prompts back to literal, and finish pending deliveries and structured device waits. Let running source jobs finish. For routine jobs that still carry structured input, drain or cancel queued work and retry or expire dead jobs before downgrading.
+- Apply `0361_reusable_event_sources.py` before starting the updated API and worker. It adds source, subscription, delivery and dispatch tables. Existing webhook URLs and credentials stay valid. Before downgrading, detach source subscribers and finish pending deliveries and device waits for source events. Let running source jobs finish. For routine jobs that still reference a reusable source, drain or cancel queued work and retry or expire dead jobs before downgrading.
 
 ## [1.91.0] - 2026-11-23
 

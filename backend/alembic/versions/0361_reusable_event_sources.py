@@ -1,13 +1,12 @@
-"""Reusable webhook ingress and explicit routine prompt templates.
+"""Reusable webhook ingress for routines and workflows.
 
 Sources keep organization-bound credentials separate from exported workflow
 configuration. Accepted deliveries and each subscription's dispatch commit in
 one transaction; tenant-composite foreign keys prevent cross-organization
 attachments. Existing dedicated ingress and literal prompts retain their shape.
-A waiting routine keeps its structured event until it resumes or is redacted.
+A waiting routine keeps its source identity so resuming rechecks the same source.
 
-Downgrade requires detaching sources, switching prompts to literal and settling
-structured device waits; silently dropping those references would lose work.
+Downgrade requires detaching sources and settling pending source work.
 """
 
 import sqlalchemy as sa
@@ -274,10 +273,6 @@ def upgrade() -> None:
         ["organization_id"],
         unique=False,
     )
-    op.add_column(
-        "agent_triggers",
-        sa.Column("prompt_mode", sa.String(length=16), server_default="literal", nullable=False),
-    )
     op.add_column("agent_triggers", sa.Column("source_id", sa.UUID(), nullable=True))
     op.create_foreign_key(
         "fk_agent_trigger_source_tenant",
@@ -287,12 +282,7 @@ def upgrade() -> None:
         ["id", "organization_id"],
         ondelete="RESTRICT",
     )
-    op.add_column(
-        "routine_device_waits",
-        sa.Column("event_body", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
-    )
     op.add_column("routine_device_waits", sa.Column("event_source_id", sa.UUID(), nullable=True))
-    op.add_column("trigger_attempts", sa.Column("error_message", sa.Text(), nullable=True))
     op.add_column("workflow_exposures", sa.Column("source_id", sa.UUID(), nullable=True))
     op.create_index(
         op.f("workflow_exposures_source_id_idx"), "workflow_exposures", ["source_id"], unique=False
@@ -324,35 +314,6 @@ def upgrade() -> None:
         "workflow_exposures",
         "(adapter IN ('webhook', 'github') AND ((source_id IS NULL AND secret_encrypted IS NOT NULL AND secret_key_version IS NOT NULL) OR (adapter = 'webhook' AND source_id IS NOT NULL AND secret_encrypted IS NULL AND secret_key_version IS NULL)) AND schedule_kind IS NULL AND interval_seconds IS NULL AND cron_expression IS NULL AND next_fire_at IS NULL AND form_token IS NULL AND channel_bot_id IS NULL) OR (adapter = 'schedule' AND secret_encrypted IS NULL AND secret_key_version IS NULL AND next_fire_at IS NOT NULL AND form_token IS NULL AND channel_bot_id IS NULL AND ((schedule_kind = 'interval' AND interval_seconds IS NOT NULL AND cron_expression IS NULL) OR (schedule_kind = 'cron' AND cron_expression IS NOT NULL AND interval_seconds IS NULL))) OR (adapter = 'form' AND form_token IS NOT NULL AND channel_bot_id IS NULL AND secret_encrypted IS NULL AND secret_key_version IS NULL AND schedule_kind IS NULL AND interval_seconds IS NULL AND cron_expression IS NULL AND next_fire_at IS NULL) OR (adapter IN ('channel', 'gmail', 'outlook') AND form_token IS NULL AND secret_encrypted IS NULL AND secret_key_version IS NULL AND schedule_kind IS NULL AND interval_seconds IS NULL AND cron_expression IS NULL AND next_fire_at IS NULL AND (adapter = 'channel' OR channel_bot_id IS NULL))",
     )
-    op.drop_constraint(
-        op.f("routine_device_waits_ck_routine_device_wait_redacted_check"),
-        "routine_device_waits",
-        type_="check",
-    )
-    op.create_check_constraint(
-        op.f("routine_device_waits_ck_routine_device_wait_redacted_check"),
-        "routine_device_waits",
-        "(status = 'waiting' OR event_body IS NULL) AND "
-        "(status IN ('waiting', 'failed') OR event_context IS NULL)",
-    )
-    op.drop_constraint(
-        op.f("trigger_attempts_ck_trigger_attempt_reason_check"), "trigger_attempts", type_="check"
-    )
-    op.create_check_constraint(
-        op.f("trigger_attempts_ck_trigger_attempt_reason_check"),
-        "trigger_attempts",
-        "reason IN ('platform_identity_required', 'source_review_required', 'agent_unavailable', 'preparation_failed', 'previous_run_active', 'prompt_template_failed')",
-    )
-    op.create_check_constraint(
-        op.f("agent_triggers_ck_trigger_prompt_mode_check"),
-        "agent_triggers",
-        "prompt_mode IN ('literal', 'template')",
-    )
-    op.create_check_constraint(
-        op.f("agent_triggers_ck_trigger_template_event_check"),
-        "agent_triggers",
-        "prompt_mode = 'literal' OR trigger_type = 'event'",
-    )
     op.create_check_constraint(
         op.f("workflow_exposures_ck_workflow_exposure_source_check"),
         "workflow_exposures",
@@ -370,16 +331,14 @@ def downgrade() -> None:
     op.execute("LOCK TABLE background_schedules, background_jobs IN SHARE ROW EXCLUSIVE MODE")
     outstanding = op.get_bind().scalar(
         sa.text(
-            "SELECT EXISTS(SELECT 1 FROM agent_triggers WHERE source_id IS NOT NULL OR prompt_mode = 'template') "
+            "SELECT EXISTS(SELECT 1 FROM agent_triggers WHERE source_id IS NOT NULL) "
             "OR EXISTS(SELECT 1 FROM workflow_exposures WHERE source_id IS NOT NULL) "
-            "OR EXISTS(SELECT 1 FROM routine_device_waits WHERE event_body IS NOT NULL) "
+            "OR EXISTS(SELECT 1 FROM routine_device_waits WHERE status = 'waiting' AND event_source_id IS NOT NULL) "
             "OR EXISTS(SELECT 1 FROM event_dispatches WHERE status = 'pending')"
         )
     )
     if outstanding:
-        raise RuntimeError(
-            "Detach event sources, use literal routine prompts and settle pending source work before downgrade"
-        )
+        raise RuntimeError("Detach event sources and settle pending source work before downgrade")
     retired_kinds = "('dispatch-source-event', 'source-delivery-retention')"
     if op.get_bind().scalar(
         sa.text(
@@ -394,19 +353,19 @@ def downgrade() -> None:
         sa.text(
             "SELECT EXISTS (SELECT 1 FROM background_jobs WHERE kind = 'fire-trigger' "
             "AND status IN ('queued', 'running', 'dead') "
-            "AND (payload->>'event_body' IS NOT NULL OR payload->>'event_source_id' IS NOT NULL))"
+            "AND payload->>'event_source_id' IS NOT NULL)"
         )
     ):
         raise RuntimeError(
-            "Drain or cancel structured fire-trigger jobs, including retryable dead jobs, before downgrade"
+            "Drain or cancel source-bound fire-trigger jobs, including retryable dead jobs, before downgrade"
         )
-    # Even a literal or scheduled fire may have serialized the two optional
-    # fields as JSON null. The old worker rejects unknown fields, null or not.
+    # A dedicated or scheduled fire may have serialized event_source_id as
+    # JSON null. The old worker rejects unknown fields, null or not.
     op.execute(
-        "UPDATE background_jobs SET payload = payload - 'event_body' - 'event_source_id' "
+        "UPDATE background_jobs SET payload = payload - 'event_source_id' "
         "WHERE kind = 'fire-trigger' AND status IN ('queued', 'running', 'dead') "
-        "AND (payload ? 'event_body' OR payload ? 'event_source_id') "
-        "AND payload->>'event_body' IS NULL AND payload->>'event_source_id' IS NULL"
+        "AND payload ? 'event_source_id' "
+        "AND payload->>'event_source_id' IS NULL"
     )
     # No pending dispatch remains. Any queued or retryable job of these
     # retired kinds would only find a deleted/settled dispatch or sweep tables
@@ -418,9 +377,6 @@ def downgrade() -> None:
     )
     op.execute("DELETE FROM background_schedules WHERE name = 'source-delivery-retention'")
     op.execute(f"DELETE FROM background_task_kinds WHERE kind IN {retired_kinds}")
-    op.execute(
-        "UPDATE trigger_attempts SET reason = 'preparation_failed' WHERE reason = 'prompt_template_failed'"
-    )
     op.drop_constraint(
         op.f("agent_triggers_ck_trigger_shape_check"), "agent_triggers", type_="check"
     )
@@ -440,30 +396,6 @@ def downgrade() -> None:
         "(adapter IN ('webhook', 'github') AND secret_encrypted IS NOT NULL AND secret_key_version IS NOT NULL AND schedule_kind IS NULL AND interval_seconds IS NULL AND cron_expression IS NULL AND next_fire_at IS NULL AND form_token IS NULL AND channel_bot_id IS NULL) OR (adapter = 'schedule' AND secret_encrypted IS NULL AND secret_key_version IS NULL AND next_fire_at IS NOT NULL AND form_token IS NULL AND channel_bot_id IS NULL AND ((schedule_kind = 'interval' AND interval_seconds IS NOT NULL AND cron_expression IS NULL) OR (schedule_kind = 'cron' AND cron_expression IS NOT NULL AND interval_seconds IS NULL))) OR (adapter = 'form' AND form_token IS NOT NULL AND channel_bot_id IS NULL AND secret_encrypted IS NULL AND secret_key_version IS NULL AND schedule_kind IS NULL AND interval_seconds IS NULL AND cron_expression IS NULL AND next_fire_at IS NULL) OR (adapter IN ('channel', 'gmail', 'outlook') AND form_token IS NULL AND secret_encrypted IS NULL AND secret_key_version IS NULL AND schedule_kind IS NULL AND interval_seconds IS NULL AND cron_expression IS NULL AND next_fire_at IS NULL AND (adapter = 'channel' OR channel_bot_id IS NULL))",
     )
     op.drop_constraint(
-        op.f("routine_device_waits_ck_routine_device_wait_redacted_check"),
-        "routine_device_waits",
-        type_="check",
-    )
-    op.create_check_constraint(
-        op.f("routine_device_waits_ck_routine_device_wait_redacted_check"),
-        "routine_device_waits",
-        "status IN ('waiting', 'failed') OR event_context IS NULL",
-    )
-    op.drop_constraint(
-        op.f("trigger_attempts_ck_trigger_attempt_reason_check"), "trigger_attempts", type_="check"
-    )
-    op.create_check_constraint(
-        op.f("trigger_attempts_ck_trigger_attempt_reason_check"),
-        "trigger_attempts",
-        "reason IN ('platform_identity_required', 'source_review_required', 'agent_unavailable', 'preparation_failed', 'previous_run_active')",
-    )
-    op.drop_constraint(
-        op.f("agent_triggers_ck_trigger_prompt_mode_check"), "agent_triggers", type_="check"
-    )
-    op.drop_constraint(
-        op.f("agent_triggers_ck_trigger_template_event_check"), "agent_triggers", type_="check"
-    )
-    op.drop_constraint(
         op.f("workflow_exposures_ck_workflow_exposure_source_check"),
         "workflow_exposures",
         type_="check",
@@ -473,12 +405,9 @@ def downgrade() -> None:
     )
     op.drop_index(op.f("workflow_exposures_source_id_idx"), table_name="workflow_exposures")
     op.drop_column("workflow_exposures", "source_id")
-    op.drop_column("trigger_attempts", "error_message")
     op.drop_column("routine_device_waits", "event_source_id")
-    op.drop_column("routine_device_waits", "event_body")
     op.drop_constraint("fk_agent_trigger_source_tenant", "agent_triggers", type_="foreignkey")
     op.drop_column("agent_triggers", "source_id")
-    op.drop_column("agent_triggers", "prompt_mode")
     op.drop_index(op.f("event_dispatches_organization_id_idx"), table_name="event_dispatches")
     op.drop_index(op.f("event_dispatches_delivery_id_idx"), table_name="event_dispatches")
     op.drop_table("event_dispatches")

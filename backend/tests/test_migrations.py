@@ -2956,7 +2956,7 @@ def test_event_source_downgrade_preserves_runnable_fire_jobs() -> None:
     assert result.returncode == 0, result.stderr
     engine = create_engine(_url(MIGRATION_DATABASE))
     legacy = {"trigger_id": str(uuid4()), "event_context": "already rendered"}
-    nullable = {**legacy, "event_body": None, "event_source_id": None}
+    nullable = {**legacy, "event_source_id": None}
     try:
         with engine.begin() as connection:
             connection.execute(
@@ -2972,33 +2972,30 @@ def test_event_source_downgrade_preserves_runnable_fire_jobs() -> None:
                     for status in ("queued", "running", "dead")
                 ],
             )
-            structured = connection.scalar(
+            source_job = connection.scalar(
                 insert(BackgroundJob)
                 .values(
                     kind="fire-trigger",
                     pool="agent",
                     max_attempts=3,
                     status="queued",
-                    payload={**nullable, "event_body": {}},
+                    payload={**legacy, "event_source_id": str(uuid4())},
                 )
                 .returning(BackgroundJob.id)
             )
-        for status, extra in (
-            ("queued", {"event_body": {}}),
-            ("dead", {"event_source_id": str(uuid4())}),
-        ):
+        for status in ("queued", "dead"):
             with engine.begin() as connection:
                 connection.execute(
                     update(BackgroundJob)
-                    .where(BackgroundJob.id == structured)
-                    .values(status=status, payload={**nullable, **extra})
+                    .where(BackgroundJob.id == source_job)
+                    .values(status=status)
                 )
             refused = _alembic("downgrade", "0360_merge_key_coverage")
-            assert refused.returncode != 0 and "structured fire-trigger jobs" in refused.stderr
+            assert refused.returncode != 0 and "source-bound fire-trigger jobs" in refused.stderr
         with engine.begin() as connection:
             connection.execute(
                 update(BackgroundJob)
-                .where(BackgroundJob.id == structured)
+                .where(BackgroundJob.id == source_job)
                 .values(status="cancelled")
             )
         result = _alembic("downgrade", "0360_merge_key_coverage")

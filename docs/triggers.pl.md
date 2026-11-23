@@ -1,5 +1,5 @@
 ---
-source_sha: "8f9679d88ff5"
+source_sha: "d9b7cfe344c3"
 ---
 
 # Konfigurowanie triggera zdarzeniowego { #setting-up-an-event-trigger }
@@ -138,28 +138,13 @@ Uwierzytelniona dostawa i zadania wysyłki zapisują się wspólnie, zanim źró
 
 Wspólny URL asynchronicznie potwierdza trwały odbiór i nie zwraca własnej odpowiedzi workflow. Workflow ze wspólnym źródłem nie może dotrzeć do **Odpowiedz na webhook**. Dedykowane endpointy workflow zachowują odpowiedzi synchroniczne.
 
-**Wstrzymaj źródło** zatrzymuje uruchamianie subskrybentów dla nowych dostaw; wstrzymanie rutyny lub workflow dotyczy tylko tego celu. Usunięcie źródła jest zablokowane, dopóki istnieją subskrypcje; lista użycia wskazuje cele do odłączenia. Zdarzenia strukturalne pozostają dostępne dla pracy w kolejce lub oczekującej. Zakończone dostawy podlegają zasadom retencji zadań w tle.
+**Wstrzymaj źródło** zatrzymuje uruchamianie subskrybentów dla nowych dostaw; wstrzymanie rutyny lub workflow dotyczy tylko tego celu. Usunięcie źródła jest zablokowane, dopóki istnieją subskrypcje; lista użycia wskazuje cele do odłączenia. Zakończone dostawy podlegają zasadom retencji zadań w tle.
 
 ### Nasłuchiwanie na aktywnym URL { #listen-on-the-live-url }
 
 W źródle lub edytorze webhooka wybierz **Nasłuchuj zdarzenia** i w ciągu dwóch minut wyślij uwierzytelnione zdarzenie na pokazany aktywny URL. Nasłuch zwróci następne zdarzenie bez zatrzymywania dostaw: **aktywni subskrybenci nadal się wykonują**. Przechwycenie nie uruchamia dodatkowego wykonania. Przykład jest przechowywany przez dziesięć minut i ograniczony dotychczasowym limitem przypięcia 64 KB. Błąd, zbyt duży przykład lub wygaśnięcie nie zmieniają obsługi zdarzeń na żywo.
 
-Możesz też wkleić przykładowy JSON. Przykład nie jest wymagany do zapisania rutyny ani opublikowania workflow. Próbka workflow zachowuje `{body, delivery_id}`, przypięcia, powiązania i testy kroków. Gdy workflow ma kilka wyzwalaczy, wybierz właściwe wejście Webhook; nie dodano warstwy przekształcania payloadu. Zobacz [Workflow](workflows.md#reusable-webhook-sources).
-
-### Pola zdarzenia w prompcie rutyny { #routine-prompt-fields }
-
-Włącz tryb szablonu, wyszukaj pole w drzewie przykładu i wstaw je w miejscu kursora albo wpisz odwołanie ręcznie:
-
-```text
-Podsumuj {{issue.title}} i pierwszy element {{items[0].name}}.
-Odczytaj nietypową właściwość {{["request.id"]}}.
-```
-
-Ścieżki zaczynają się w korzeniu body JSON. Obsługiwane są właściwości z kropkami, indeksy tablic i klucze w cudzysłowie w nawiasach; wyrażenia, funkcje, pętle i wartości domyślne nie są obsługiwane. Pojedyncze klamry są tekstem. Zapis `\{{example\}}` wyświetla dosłownie podwójne klamry. Podstawienie odbywa się raz: klamry w odebranej wartości nie tworzą kolejnego odwołania.
-
-**Podgląd rozwiązanego promptu** używa tego samego resolvera backendu co wykonanie i nie wywołuje agenta. Teksty są wstawiane bezpośrednio, pozostałe wartości jako zwarty JSON. `false`, `0` i `null` są obecnymi wartościami. Brakująca ścieżka powoduje widoczny błąd z jej nazwą przed wywołaniem agenta, także w diagnostyce aktywacji i historii rutyny, gdy wykonanie jeszcze nie istnieje. W trybie skrzynki odbiorczej podgląd zawiera instrukcje dotyczące wyniku i wlicza je do limitu rozmiaru wiadomości.
-
-Zapis sprawdza składnię bez wymagania pól w przykładzie. Rozwiązywanie korzysta ze strukturalnego zdarzenia przed dotychczasowym skracaniem kontekstu. Tryb szablonu wysyła napisany prompt z wybranymi wartościami oznaczonymi jako dane zewnętrzne, bez dołączania całego payloadu. Zbyt duża wiadomość powoduje błąd zamiast skrócenia. Istniejące prompty pozostają dosłowne do jawnej zmiany trybu; dedykowane adresy URL i ustawienia podpisów nadal działają.
+W edytorze workflow możesz też wkleić przykładowy JSON. Przykład nie jest wymagany do zapisania rutyny ani opublikowania workflow. Próbka workflow zachowuje `{body, delivery_id}`, przypięcia, powiązania i testy kroków. Gdy workflow ma kilka wyzwalaczy, wybierz właściwe wejście Webhook; nie dodano warstwy przekształcania payloadu. Zobacz [Workflow](workflows.md#reusable-webhook-sources).
 
 ## Mechanizm, raz { #the-mechanism-once }
 

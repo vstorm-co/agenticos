@@ -261,7 +261,6 @@ describe("TriggerFormDialog custom-webhook event form", () => {
           "Shared incoming",
         ),
       );
-      expect(screen.getByText("Or paste example JSON")).toBeVisible();
       const picker = screen.getByRole("combobox", { name: "Event source" });
       if (agentId === "run-only") expect(picker).toBeDisabled();
       else expect(picker).toBeEnabled();
@@ -323,10 +322,10 @@ describe("TriggerFormDialog custom-webhook event form", () => {
     },
   );
 
-  it("creates a source-backed template routine without a sample or copied credentials", async () => {
+  it("saves the literal message without requiring a sample or copying source credentials", async () => {
     serveSharedSource("webhook");
     vi.mocked(apiClient.post).mockResolvedValue(
-      trigger({ event_source: "webhook", source_id: "shared-source", prompt_mode: "template" }),
+      trigger({ event_source: "webhook", source_id: "shared-source" }),
     );
     const dialog = await openEvent();
     await userEvent.type(dialog.getByLabelText("Signing secret"), "unused-dedicated-secret");
@@ -335,11 +334,6 @@ describe("TriggerFormDialog custom-webhook event form", () => {
     expect(dialog.queryByLabelText("Signing secret")).toBeNull();
     await userEvent.click(dialog.getByRole("button", { name: "Continue" }));
     await userEvent.click(dialog.getByRole("button", { name: "Continue" }));
-    expect(dialog.getByRole("combobox", { name: "Prompt mode" })).toHaveTextContent(
-      "Literal prompt",
-    );
-    await userEvent.click(dialog.getByRole("combobox", { name: "Prompt mode" }));
-    await userEvent.click(screen.getByRole("option", { name: "Prompt with payload fields" }));
     fireEvent.change(dialog.getByLabelText("Message"), {
       target: { value: "Triage {{issue.title}}" },
     });
@@ -348,7 +342,6 @@ describe("TriggerFormDialog custom-webhook event form", () => {
       `/agents/${AGENT_ID}/triggers`,
       expect.objectContaining({
         source_id: "shared-source",
-        prompt_mode: "template",
         prompt: "Triage {{issue.title}}",
         source_mode: "follow_agent",
       }),

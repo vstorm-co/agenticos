@@ -402,23 +402,6 @@ describe("before-run attempts", () => {
     },
   );
 
-  it("shows the missing prompt field before any agent run exists", async () => {
-    serveRuns([], 0, {
-      items: [
-        {
-          ...attempt("prompt_template_failed"),
-          error_message: "Missing prompt field: issue.title",
-        },
-      ],
-      total: 1,
-    });
-    render(<TriggerRunsView trigger={trigger()} activationId={null} />, { wrapper });
-    expect(await screen.findByText("Missing prompt field: issue.title")).toBeVisible();
-    expect(
-      screen.getByText("The prompt could not be resolved. No agent was called."),
-    ).toBeVisible();
-  });
-
   it("paginates attempts independently from agent runs", async () => {
     serveRuns([run()], 130, { items: [attempt()], total: 11 });
     render(<TriggerRunsView trigger={trigger()} activationId={null} />, { wrapper });
