@@ -118,6 +118,7 @@ function Session({
       : "viewOnly";
   const active = isActive(session);
   const chosen = session.iterations.find((r) => r.id === session.best_iteration_id);
+  const resultRunId = (chosen ?? session.iterations.at(-1))?.eval_run_ids.at(-1);
   const gain = chosen !== undefined && GAINS.includes(chosen.verdict);
   // Without a measured gain nothing is pressed on the person: no standing check, no publish first.
   const automatic = automaticChoice ?? gain;
@@ -245,7 +246,18 @@ function Session({
           )}
           {step === "check" &&
             (isClosed(session) ? (
-              <TestQuestions session={session} />
+              <section className="space-y-4" data-tour="improvement-check">
+                <TestQuestions session={session} />
+                {resultRunId && (
+                  <Link
+                    className="inline-block text-sm underline underline-offset-4"
+                    href={`/agents/${agentId}/evals/${resultRunId}`}
+                    data-tour="improvement-open-check"
+                  >
+                    {t("openCheck")}
+                  </Link>
+                )}
+              </section>
             ) : (
               <CheckProgress session={session} onShowResult={() => goTo("result")} />
             ))}

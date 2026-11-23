@@ -1051,3 +1051,14 @@ it("opens attempts from a finished result and restores the attempt tab from its 
   expect(screen.getByRole("tab", { name: "Attempts" })).toHaveAttribute("aria-selected", "true");
   expect(screen.queryByRole("button", { name: "Previous step" })).toBeNull();
 });
+
+it("keeps the full test link on a finished session's question tab", async () => {
+  state.session!.status = "published";
+  state.session!.iterations[0]!.eval_run_ids = ["run-final"];
+  render(<ImprovementPage agentId="a1" sessionId="s1" />);
+  await userEvent.click(screen.getByRole("tab", { name: "Test questions" }));
+  expect(screen.getByRole("link", { name: "Open the full check" })).toHaveAttribute(
+    "href",
+    "/agents/a1/evals/run-final",
+  );
+});

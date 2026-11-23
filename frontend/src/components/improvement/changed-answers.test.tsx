@@ -222,7 +222,7 @@ it("marks a confirmed change newly fixed or broken and an unconfirmed one only p
       attributions={{}}
     />,
   );
-  expect(screen.getByText("Newly broken")).toBeInTheDocument();
+  expect(screen.getByText("Answers that got worse")).toBeInTheDocument();
   expect(screen.queryByText(/Not confirmed yet/)).not.toBeInTheDocument();
   view.rerender(
     <ChangedAnswers
@@ -237,7 +237,7 @@ it("marks a confirmed change newly fixed or broken and an unconfirmed one only p
   const group = screen.getByText("Not confirmed yet (1)").closest("details")!;
   expect(group).not.toHaveAttribute("open");
   expect(group).toHaveTextContent("Possibly fixed");
-  expect(group).not.toHaveTextContent("Newly fixed");
+  expect(group).not.toHaveTextContent("Improved answers");
   view.rerender(
     <ChangedAnswers
       runId="r1"
@@ -249,5 +249,5 @@ it("marks a confirmed change newly fixed or broken and an unconfirmed one only p
     />,
   );
   expect(screen.getByText("Possibly broken")).toBeInTheDocument();
-  expect(screen.queryByText("Newly broken")).not.toBeInTheDocument();
+  expect(screen.queryByText("Answers that got worse")).not.toBeInTheDocument();
 });
