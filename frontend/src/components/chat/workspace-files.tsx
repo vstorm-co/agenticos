@@ -163,6 +163,8 @@ export function WorkspaceFiles({
     return ![...stored].some((name) => name.startsWith(`${prefix}-`));
   });
   const count = files.length + unstored.length;
+  // Folders count here, where they do not in `count`: the tree draws an empty folder too.
+  const empty = (workspace?.items.length ?? 0) === 0 && unstored.length === 0;
   const readIssue = error ?? workspace?.unreadable_reason ?? null;
 
   // Only for the server's workspace: the archive route is the conversation's, and a
@@ -281,7 +283,7 @@ export function WorkspaceFiles({
                 {/* Two different answers, and they were one. "Nothing yet" is right for a
           workspace that is empty; for an agent that has none it describes a wait
           that will never end, since no turn is going to put a file there. */}
-                {workspace !== null && workspace.unreadable_reason == null && count === 0 && (
+                {workspace !== null && workspace.unreadable_reason == null && empty && (
                   <p className="text-muted-foreground text-xs">
                     {workspace.backend === "none" ? t("noWorkspace") : t("empty")}
                   </p>
