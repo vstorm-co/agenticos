@@ -55,7 +55,10 @@ export function useTriggers(agentId: string | null) {
     // reveal-once `reveal_secret` for a manual preset, which no read ever returns.
     mutationFn: (payload: TriggerCreate) => apiClient.post<TriggerCreated>(base, payload),
     onSuccess: async () => {
-      await invalidate();
+      await Promise.all([
+        invalidate(),
+        queryClient.invalidateQueries({ queryKey: qk.conversations.all() }),
+      ]);
       toast.success(t("created"));
     },
     onError: (error) => toast.error(getErrorMessage(error, tErrors)),

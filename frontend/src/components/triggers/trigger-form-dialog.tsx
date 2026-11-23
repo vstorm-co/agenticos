@@ -7,13 +7,14 @@ import { ZoneField, isTimeZone } from "./zone-field";
 import { RoutineDialogFrame } from "./routine-dialog-frame";
 import { ActionConsentsDialog } from "./action-consents-dialog";
 
-import { ResultModeField, type RoutineResultMode } from "./result-mode-field";
+import type { RoutineResultMode } from "@/types/triggers";
 import { RoutineOptions } from "./routine-options";
 import { EventOptions, eventOptionsValid } from "./event-options";
 import { WebhookSignatureFields, webhookSignatureValid } from "./webhook-signature-fields";
 import { FILTER_COPY } from "./portal-trigger-dialog";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { Hand, ShieldCheck, SlidersHorizontal } from "lucide-react";
 
 import { useRoutineLocalWork } from "@/hooks/use-routine-local-work";
 import { coveredByAllRoutines } from "@/lib/desktop/routine-work";
@@ -62,7 +63,7 @@ import { VersionField } from "@/components/triggers/version-field";
 import { FailurePolicyField } from "@/components/triggers/failure-policy-field";
 import { NotificationChannelsField } from "@/components/triggers/notification-channels-field";
 import type { RoutineNotificationChannel } from "@/types/routines";
-import { AnswerToField } from "@/components/triggers/answer-to-field";
+import { ChatModeField } from "@/components/triggers/chat-mode-field";
 import { BudgetField, parseBudget, raisesBudget } from "@/components/triggers/budget-field";
 import { OverlapField } from "@/components/triggers/overlap-field";
 import { NO_TEAMS_POST, TeamsPostField } from "@/components/triggers/teams-post-field";
@@ -85,7 +86,6 @@ import {
   parseCron,
   unitToSeconds,
   WEEKDAYS,
-  weekdayKey,
 } from "@/lib/trigger-format";
 import type { LocalTarget } from "@/lib/desktop/commands";
 import type {
@@ -94,7 +94,7 @@ import type {
   Trigger,
   TriggerCreate,
   TriggerCreated,
-  TriggerAnswerTo,
+  RoutineChatMode,
   TriggerOverlap,
   TriggerType,
   TriggerUpdate,
@@ -154,8 +154,6 @@ interface TriggerFormDialogProps {
    * offers a picker over the published agents, seeded with the user's default.
    */
   agentId: string | null;
-  /** The chat that offered this routine; absent on the standalone routines page. */
-  originConversationId?: string | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /** The trigger to edit, or null/undefined to create a new one. */
@@ -191,13 +189,11 @@ export function TriggerFormDialog({
   initialResultMode = "report",
   initialType = "schedule",
   initialTemplate = null,
-  originConversationId = null,
   onCreated,
 }: TriggerFormDialogProps) {
   const t = useTranslations("triggers");
   const tp = useTranslations("portals");
   const editing = trigger !== null;
-  const hasConversation = !!(trigger?.delivery_conversation_id ?? originConversationId);
   const localWork = useRoutineLocalWork();
   const [preparedLocal, setPreparedLocal] = useState<TriggerCreated | null>(null);
   const [approvedLocal, setApprovedLocal] = useState<LocalTarget | null>(null);
@@ -251,8 +247,7 @@ export function TriggerFormDialog({
   // event. There is no in-dialog switch, because event triggers are created from
   // the portal grid by default, not this raw form.
   const type = trigger?.trigger_type ?? initialType;
-  // Creating walks the KB-wizard steps; editing has no steps - the shape is
-  // fixed, so its few live fields fit one panel.
+  // Schedules fit one panel; the event flow still has source-specific steps.
   const [step, setStep] = useState<WizardStepId>(type === "event" ? "event" : "configure");
   const [prompt, setPrompt] = useState(trigger?.prompt ?? "");
   const [name, setName] = useState(trigger?.name ?? "");
@@ -293,11 +288,14 @@ export function TriggerFormDialog({
     const instant = endInstant(value);
     setInvalidEnd(instant === undefined || (instant !== null && Date.parse(instant) <= Date.now()));
   };
-  const [resultMode, setResultMode] = useState<RoutineResultMode>(
-    trigger?.result_mode ?? initialResultMode,
-  );
-  const [answerTo, setAnswerTo] = useState<TriggerAnswerTo>(
-    trigger ? (trigger.answer_to ?? "run_log") : originConversationId ? "conversation" : "primary",
+  const resultMode = trigger?.result_mode ?? initialResultMode;
+  const [chatMode, setChatMode] = useState<RoutineChatMode>(
+    trigger?.chat_mode ??
+      (trigger
+        ? trigger.answer_to === "run_log" || trigger.result_mode === "inbox"
+          ? "shared"
+          : "per_run"
+        : "shared"),
   );
   // Impersonation never supplies the creator's own authority.
   const isCreator =
@@ -384,7 +382,11 @@ export function TriggerFormDialog({
   // losing it here is losing it forever (no read ever returns it).
   const [created, setCreated] = useState<TriggerCreated | null>(null);
   const [reviewBeforeActivation, setReviewBeforeActivation] = useState(false);
-  const [reviewing, setReviewing] = useState<TriggerCreated | null>(null);
+  const [approvalChoice, setApprovalChoice] = useState<"automatic" | "manual" | "custom" | null>(
+    null,
+  );
+  const [reviewing, setReviewing] = useState<Trigger | null>(null);
+  const [activateAfterReview, setActivateAfterReview] = useState(false);
 
   const pending = create.isPending || update.isPending || savingLocal;
 
@@ -533,16 +535,23 @@ export function TriggerFormDialog({
       environment_id: environmentId === DEFAULT_ENV ? null : environmentId,
       ...(pinnedVersion ? { pinned_version_id: pinnedVersion } : {}),
       ...(end ? { ends_at: end } : {}),
-      // The console defaults to the consenting creator; other callers retain
-      // the API's identity-free default.
-      ...(runsAsCreator ? { runs_as_creator: true } : {}),
+      // Send the explicit choice, including an opt-out from creator identity.
+      runs_as_creator: runsAsCreator,
+      action_mode:
+        approvalChoice === "manual"
+          ? ("manual" as const)
+          : approvalChoice === "custom"
+            ? ("per_tool" as const)
+            : ("agent" as const),
       source_mode: reviewBeforeActivation ? ("restricted" as const) : ("follow_agent" as const),
-      ...(reviewBeforeActivation || (runsAsCreator && localTarget) ? { is_active: false } : {}),
-      ...(reviewBeforeActivation ? { review_before_activation: true } : {}),
+      ...(reviewBeforeActivation || approvalChoice === "custom" || (runsAsCreator && localTarget)
+        ? { is_active: false }
+        : {}),
+      ...(reviewBeforeActivation || approvalChoice === "custom"
+        ? { review_before_activation: true }
+        : {}),
       ...(teamsPost !== NO_TEAMS_POST ? { teams_conversation_id: teamsPost } : {}),
-      // Only when it is not the server's default, so a plain create says nothing new.
-      ...(answerTo !== "primary" ? { answer_to: answerTo } : {}),
-      ...(answerTo === "conversation" ? { delivery_conversation_id: originConversationId } : {}),
+      chat_mode: chatMode,
       ...(budgetLimit !== null && budgetLimit !== undefined
         ? { monthly_budget_usd: budgetLimit }
         : {}),
@@ -630,6 +639,13 @@ export function TriggerFormDialog({
         // it is sent, so echoing `environment_id` back on a prompt-only edit
         // would overwrite an environment somebody rebound in between.
         const patch: TriggerUpdate = {};
+        if (approvalChoice !== null)
+          patch.action_mode =
+            approvalChoice === "automatic"
+              ? "agent"
+              : approvalChoice === "manual"
+                ? "manual"
+                : "per_tool";
         if (maxFailures !== (trigger.max_failures === undefined ? 3 : trigger.max_failures))
           patch.max_failures = maxFailures;
         if (prompt !== trigger.prompt) patch.prompt = prompt;
@@ -655,12 +671,12 @@ export function TriggerFormDialog({
         const post = teamsPost === NO_TEAMS_POST ? null : teamsPost;
         if (post !== (trigger.teams_conversation_id ?? null)) patch.teams_conversation_id = post;
         if (resultMode !== (trigger.result_mode ?? "report")) patch.result_mode = resultMode;
-        if (answerTo !== (trigger.answer_to ?? "run_log")) {
-          patch.answer_to = answerTo;
-          if (answerTo === "conversation")
-            patch.delivery_conversation_id =
-              trigger.delivery_conversation_id ?? originConversationId;
-        }
+        const previousChatMode =
+          trigger.chat_mode ??
+          (trigger.answer_to === "run_log" || trigger.result_mode === "inbox"
+            ? "shared"
+            : "per_run");
+        if (chatMode !== previousChatMode) patch.chat_mode = chatMode;
         if (endTouched && end !== undefined) patch.ends_at = end;
         if (
           JSON.stringify(notificationChannels) !==
@@ -700,7 +716,10 @@ export function TriggerFormDialog({
           }
         }
         await update.mutateAsync({ triggerId: trigger.id, patch });
-        onOpenChange(false);
+        if (approvalChoice === "custom") {
+          setActivateAfterReview(false);
+          setReviewing({ ...trigger, ...patch });
+        } else onOpenChange(false);
       } else {
         let result = preparedLocal ?? (await create.mutateAsync(buildCreate()));
         if (runsAsCreator && localTarget) {
@@ -721,7 +740,12 @@ export function TriggerFormDialog({
           result = { ...result, ...updated };
         }
         if (!stillHere()) return;
-        if (runsAsCreator && localTarget && !reviewBeforeActivation) {
+        if (
+          runsAsCreator &&
+          localTarget &&
+          !reviewBeforeActivation &&
+          approvalChoice !== "custom"
+        ) {
           const activated = await update.mutateAsync({
             triggerId: result.id,
             patch: { is_active: true },
@@ -730,8 +754,11 @@ export function TriggerFormDialog({
           if (!stillHere()) return;
         }
         onCreated?.(result);
-        if (reviewBeforeActivation) setReviewing(result);
-        else if (result.trigger_type === "event") setCreated(result);
+        if (reviewBeforeActivation || approvalChoice === "custom") {
+          setActivateAfterReview(true);
+          if (result.trigger_type === "event") setCreated(result);
+          setReviewing(result);
+        } else if (result.trigger_type === "event") setCreated(result);
         else onOpenChange(false);
       }
     } catch (error) {
@@ -769,11 +796,7 @@ export function TriggerFormDialog({
 
   const steps: WizardStep[] =
     type === "schedule"
-      ? [
-          { id: "configure", label: t("stepConfigure") },
-          { id: "message", label: t("stepMessage") },
-          { id: "schedule", label: t("stepSchedule") },
-        ]
+      ? [{ id: "configure", label: t("stepConfigure") }]
       : [
           { id: "event", label: t("stepEvent") },
           { id: "configure", label: t("stepConfigure") },
@@ -785,7 +808,11 @@ export function TriggerFormDialog({
   // final Create would refuse.
   const canAdvance =
     step === "configure"
-      ? effectiveAgentId !== null && versionValid && !invalidEnd && budgetLimit !== undefined
+      ? effectiveAgentId !== null &&
+        versionValid &&
+        !invalidEnd &&
+        budgetLimit !== undefined &&
+        (type !== "schedule" || (prompt.trim().length > 0 && scheduleValid))
       : step === "message"
         ? prompt.trim().length > 0
         : step === "schedule"
@@ -807,16 +834,79 @@ export function TriggerFormDialog({
     if (stepIdx > 0) setStep(steps[stepIdx - 1]!.id as WizardStepId);
   }
 
+  const approvalField = (
+    <FormField
+      label={t("approvalMode.label")}
+      htmlFor="routine-approval-mode"
+      description={t("approvalMode.hint")}
+    >
+      <Select
+        disabled={!isCreator}
+        value={
+          approvalChoice ??
+          (trigger
+            ? trigger.action_mode === "agent"
+              ? "automatic"
+              : trigger.action_mode === "manual"
+                ? "manual"
+                : trigger.action_mode === "per_tool"
+                  ? "custom"
+                  : "existing"
+            : "automatic")
+        }
+        onValueChange={(value) => {
+          if (value === "automatic" || value === "manual" || value === "custom")
+            setApprovalChoice(value);
+        }}
+      >
+        <SelectTrigger id="routine-approval-mode">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {trigger && !trigger.action_mode && (
+            <SelectItem value="existing">
+              <span className="inline-flex items-center gap-2">
+                <ShieldCheck className="size-4 shrink-0" aria-hidden />
+                {t("approvalMode.existing")}
+              </span>
+            </SelectItem>
+          )}
+          <SelectItem value="automatic">
+            <span className="inline-flex items-center gap-2">
+              <ShieldCheck className="size-4 shrink-0" aria-hidden />
+              {t("approvalMode.automatic")}
+            </span>
+          </SelectItem>
+          <SelectItem value="manual">
+            <span className="inline-flex items-center gap-2">
+              <Hand className="size-4 shrink-0" aria-hidden />
+              {t("approvalMode.manual")}
+            </span>
+          </SelectItem>
+          <SelectItem value="custom">
+            <span className="inline-flex items-center gap-2">
+              <SlidersHorizontal className="size-4 shrink-0" aria-hidden />
+              {t("approvalMode.custom")}
+            </span>
+          </SelectItem>
+        </SelectContent>
+      </Select>
+    </FormField>
+  );
+
   if (reviewing !== null) {
     return (
       <ActionConsentsDialog
         trigger={reviewing}
-        onSaved={async () => {
-          await update.mutateAsync({ triggerId: reviewing.id, patch: { is_active: true } });
-        }}
+        onSaved={
+          activateAfterReview
+            ? async () => {
+                await update.mutateAsync({ triggerId: reviewing.id, patch: { is_active: true } });
+              }
+            : undefined
+        }
         onClose={() => {
-          if (reviewing.trigger_type === "event") setCreated(reviewing);
-          else onOpenChange(false);
+          if (!created) onOpenChange(false);
           setReviewing(null);
         }}
       />
@@ -969,7 +1059,8 @@ export function TriggerFormDialog({
                 <p className="text-muted-foreground text-xs">{t("linearSecretRotation")}</p>
               )}
 
-              <ResultModeField value={resultMode} onChange={setResultMode} />
+              {approvalField}
+              <ChatModeField value={chatMode} onChange={setChatMode} />
               <RoutineOptions invalid={invalidEnd || !versionValid || budgetLimit === undefined}>
                 {namedEnvironments.length > 0 && (
                   <EnvironmentField
@@ -992,14 +1083,6 @@ export function TriggerFormDialog({
 
                 {resultMode === "report" && (
                   <TeamsPostField value={teamsPost} onChange={setTeamsPost} />
-                )}
-
-                {resultMode === "report" && (
-                  <AnswerToField
-                    value={answerTo}
-                    onChange={setAnswerTo}
-                    hasConversation={hasConversation}
-                  />
                 )}
                 <FailurePolicyField
                   value={maxFailures}
@@ -1075,7 +1158,7 @@ export function TriggerFormDialog({
       <RoutineDialogFrame
         title={type === "event" ? t("newEvent") : t("newSchedule")}
         description={t("createDescription")}
-        progress={{ steps, current: step }}
+        progress={type === "schedule" ? undefined : { steps, current: step }}
         pending={pending}
         disabled={preparedLocal !== null || pending}
         bodyKey={step}
@@ -1149,11 +1232,24 @@ export function TriggerFormDialog({
 
             <NameField value={name} onChange={setName} />
 
-            <ResultModeField value={resultMode} onChange={setResultMode} />
+            {type === "schedule" && (
+              <PromptField value={prompt} onChange={setPrompt} rows={5} disabled={pending} />
+            )}
+            {approvalField}
+            {type === "schedule" && scheduleFields}
+            <ChatModeField value={chatMode} onChange={setChatMode} />
             <p role="note" className="text-muted-foreground text-sm">
               {t(runsAsCreator ? "sourceConsents.runsAsYou" : "sourceConsents.agentIdentity")}
             </p>
             <RoutineOptions invalid={invalidEnd || !versionValid || budgetLimit === undefined}>
+              {type === "schedule" && (
+                <TriggerTemplateSelector
+                  triggerType={type}
+                  selectedKey={templateKey}
+                  onPick={applyTemplate}
+                  onScratch={scratchTemplate}
+                />
+              )}
               <div className="flex items-start gap-3 text-sm">
                 <Checkbox
                   id="routine-review-before-activation"
@@ -1197,13 +1293,6 @@ export function TriggerFormDialog({
                 <TeamsPostField value={teamsPost} onChange={setTeamsPost} />
               )}
 
-              {resultMode === "report" && (
-                <AnswerToField
-                  value={answerTo}
-                  onChange={setAnswerTo}
-                  hasConversation={hasConversation}
-                />
-              )}
               <FailurePolicyField value={maxFailures} onChange={setMaxFailures} />
               <NotificationChannelsField
                 value={notificationChannels}
@@ -1401,7 +1490,7 @@ function ScheduleFields({
  * The "at a set time" builder: a repeat preset and a clock time, compiled to cron
  * by `composeCron` in the parent. A non-technical user picks "every day at 09:00"
  * rather than writing `0 9 * * *`; "Custom (cron)" still takes a raw expression for
- * anything the presets miss. A live summary states what the current choices mean.
+ * anything the presets miss.
  */
 function CronBuilder({
   freq,
@@ -1579,7 +1668,7 @@ interface CadenceFieldsProps extends ScheduleFieldsProps {
 
 /**
  * A schedule's cadence, asked in order: how often, then only what that choice
- * needs, then what it means in one sentence. What happens when a run is still
+ * needs. What happens when a run is still
  * going is rarely changed, so it waits under More options.
  */
 function CadenceFields({ choice, onChoice, overlap, onOverlap, ...schedule }: CadenceFieldsProps) {
@@ -1600,7 +1689,6 @@ function CadenceFields({ choice, onChoice, overlap, onOverlap, ...schedule }: Ca
         />
       )}
       {choice === "custom" && <ScheduleFields {...schedule} />}
-      <CadenceSummary {...schedule} />
       <NativeDisclosure className="group">
         <summary className="text-muted-foreground hover:text-foreground cursor-pointer text-sm font-medium select-none">
           {t("moreOptions")}
@@ -1611,67 +1699,6 @@ function CadenceFields({ choice, onChoice, overlap, onOverlap, ...schedule }: Ca
       </NativeDisclosure>
     </div>
   );
-}
-
-/** What the cadence means, in a sentence - for every choice, the builder's included. */
-function CadenceSummary({ scheduleKind, intervalCount, intervalUnit, cron }: ScheduleFieldsProps) {
-  const t = useTranslations("triggers");
-  if (scheduleKind === "interval") {
-    // An invalid count says so under its own field; there is nothing to restate.
-    if (!intervalCountValid(intervalCount)) return null;
-    return (
-      <p className="bg-muted/60 rounded-xl px-3 py-2 text-sm">
-        {t("summaryInterval", { unit: intervalUnit, count: Number(intervalCount) })}
-      </p>
-    );
-  }
-  if (cron.freq === "advanced") return null;
-  return (
-    <p className="bg-muted/60 rounded-xl px-3 py-2 text-sm">
-      <CronSummary
-        freq={cron.freq}
-        time={cron.time}
-        zone={cron.timeZone}
-        everyDays={cron.everyDays}
-        weekdays={cron.weekdays}
-        dayOfMonth={cron.dayOfMonth}
-      />
-    </p>
-  );
-}
-
-/** A plain-language restatement of the builder's current choices, for reassurance. */
-function CronSummary({
-  freq,
-  time,
-  zone,
-  everyDays,
-  weekdays,
-  dayOfMonth,
-}: {
-  freq: CronFrequency;
-  time: string;
-  zone: string;
-  everyDays: string;
-  weekdays: number[];
-  dayOfMonth: string;
-}) {
-  const t = useTranslations("triggers");
-  if (freq === "everyNDays") {
-    return <>{t("summaryEveryNDays", { count: clampInt(everyDays, 1, 31, 1) })}</>;
-  }
-  if (freq === "weekly") {
-    const chosen = weekdays.length ? weekdays : [1];
-    const days = [...chosen]
-      .sort((a, b) => a - b)
-      .map((value) => t(weekdayKey(value)))
-      .join(", ");
-    return <>{t("summaryWeekly", { time, zone, days })}</>;
-  }
-  if (freq === "monthly") {
-    return <>{t("summaryMonthly", { day: clampInt(dayOfMonth, 1, 31, 1), time, zone })}</>;
-  }
-  return <>{t("summaryDaily", { time, zone })}</>;
 }
 
 interface EventFieldsProps {

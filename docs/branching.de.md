@@ -1,5 +1,5 @@
 ---
-source_sha: "cd7998714012"
+source_sha: "98b351796193"
 ---
 
 # Branches und was sie schützt { #branches-and-what-protects-them }
@@ -395,6 +395,8 @@ nicht gemergt werden. Bereite PRs behalten die erforderlichen Checks und den
 Code-Scanning-Schutz; der Statuswechsel hebt diese nicht auf.
 
 ## Release-Cuts und gemeinsame Releases { #release-cuts-and-release-trains }
+
+Der Release-Rhythmus folgt der [Maintainer-Entscheidung in Diskussion #3208](https://github.com/vstorm-co/agenticos/discussions/3208#discussioncomment-19796269). Ein separates Release je gemergtem PR ist nicht erforderlich.
 
 Behalte separate PRs und bereite bei Änderungen in Unreleased **ein manuelles
 Release pro Tag** vor. Es gibt keinen geplanten Cut und keine automatische

@@ -113,7 +113,6 @@ from app.schemas.change_event import ChangeEvent
 from app.schemas.local_target import LocalTarget
 from app.schemas.portal import PortalPresetRead, PortalRead
 from app.schemas.routine_actions import RoutineActionOptions, RoutineActions
-from app.schemas.routine_notifications import ROUTINE_RESULT_INSTRUCTIONS, RoutineReading
 from app.schemas.routine_sources import RoutineSourceConsent, RoutineSourceReview
 from app.services import (
     change_feed,
@@ -138,7 +137,6 @@ from app.services.portals.github_app import GitHubAppPortalAdapter
 from app.services.primary_conversation import PrimaryConversationService
 from app.services.project import ProjectService
 from app.services.routine_actions import RoutineActionService, activation_intent
-from app.services.routine_delivery import RoutineFindingService
 from app.services.routine_devices import (
     RoutineActivationObsolete,
     RoutineDeviceOffline,
@@ -373,7 +371,9 @@ _WHAT_IT_DOES = (
     "event_config",
     "teams_conversation_id",
     "answer_to",
+    "chat_mode",
     "result_mode",
+    "action_mode",
     "delivery_conversation_id",
 )
 """The edits that change what a fire does or who reads its answer, and so end its acting as the creator."""
@@ -911,6 +911,10 @@ class AgentTriggerService:
         await self._version_target(ctx, agent.id, data.environment_id, data.pinned_version_id)
         if data.environment_id is not None:
             await self._environment_of(ctx, agent.id, data.environment_id)
+        if "chat_mode" not in data.model_fields_set and "answer_to" in data.model_fields_set:
+            data = data.model_copy(
+                update={"chat_mode": "shared" if data.answer_to == "run_log" else "per_run"}
+            )
         if data.teams_conversation_id is not None:
             await self._teams_target(ctx, data.teams_conversation_id)
         await self._delivery_target(ctx, data.answer_to, data.delivery_conversation_id)
@@ -1061,6 +1065,8 @@ class AgentTriggerService:
             overlap=data.overlap or TriggerOverlap.SKIP.value,
             teams_conversation_id=data.teams_conversation_id,
             result_mode=data.result_mode,
+            chat_mode=data.chat_mode,
+            action_mode=data.action_mode,
             answer_to=data.answer_to,
             delivery_conversation_id=data.delivery_conversation_id,
             ends_at=data.ends_at,
@@ -1096,11 +1102,10 @@ class AgentTriggerService:
             else:
                 trigger.approved_sources = policy.model_dump(mode="json")
         await self.db.flush()
-        # Open the run-log conversation now, not on the first fire, so a new
-        # trigger is a clickable item in the sidebar the moment it exists - empty
-        # until a fire appends to it. `_run_log` stays the idempotent fallback for
-        # a conversation later deleted, whose SET NULL reopens a fresh one.
-        await self._run_log(trigger, agent_name=agent.name)
+        # Shared histories are available before their first activation; per-run
+        # chats are opened only when there is an actual execution to record.
+        if trigger.chat_mode == "shared":
+            await self._run_log(trigger, agent_name=agent.name)
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,
@@ -1337,6 +1342,17 @@ class AgentTriggerService:
         """
         trigger = await self._owned(ctx, agent_id, trigger_id, for_update=True)
         changes = writable(data, over=AgentTrigger)
+        if "answer_to" in changes and "chat_mode" not in changes:
+            changes["chat_mode"] = "shared" if changes["answer_to"] == "run_log" else "per_run"
+
+        if "action_mode" in changes and not _acts_as_themselves(ctx, trigger.created_by_user_id):
+            raise AuthorizationError(
+                message="Only the routine's creator may change its tool approval policy"
+            )
+        if "action_mode" in changes and (
+            changes["action_mode"] == "manual" or changes["action_mode"] != trigger.action_mode
+        ):
+            changes["action_consents"] = []
         if changes.get("is_active", trigger.is_active):
             await require_organization_agent(
                 self.db,
@@ -1436,6 +1452,29 @@ class AgentTriggerService:
                 },
             )
         updated = await agent_trigger_repo.update(self.db, trigger=trigger, update_data=changes)
+        if (
+            "name" in changes
+            and updated.chat_mode == "shared"
+            and updated.conversation_id is not None
+        ):
+            history = await conversation_repo.get_conversation_by_id(
+                self.db, updated.conversation_id, fresh=True
+            )
+            if (
+                history is not None
+                and history.organization_id == updated.organization_id
+                and history.origin == "routine"
+                and history.project_id == updated.project_id
+            ):
+                agent = await self.agents.get(ctx, agent_id, perm=Perm.AGENTS_RUN)
+                suffix = (
+                    "triggered" if updated.trigger_type == TriggerType.EVENT.value else "scheduled"
+                )
+                await conversation_repo.update_conversation(
+                    self.db,
+                    db_conversation=history,
+                    update_data={"title": updated.name or f"{agent.name} - {suffix}"},
+                )
         if changes.get("is_active") is True:
             await self.sources.require_current(
                 ctx, updated, expected_id=read_policy(updated.approved_sources).id
@@ -2843,6 +2882,7 @@ class AgentTriggerService:
         # the renewer moves it and the `finally` must clear the *latest*.
         ticket = [claimed_at]
         renewer = asyncio.create_task(self._keep_lease_alive(trigger_id, ticket))
+        completed = False
         try:
             await self._fire_loaded(
                 trigger,
@@ -2850,17 +2890,28 @@ class AgentTriggerService:
                 activation_id=activation_id or uuid4(),
                 source_policy_id=expected_source_policy,
             )
+            completed = True
         finally:
             renewer.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await renewer
-            # A conditional UPDATE against the committed row, not a comparison
-            # on the instance loaded when this fire began: a fire that outran
-            # the lease may find a newer claim's marker there, and only the
-            # database can judge that freshly (`clear_fire_marker`).
-            await agent_trigger_repo.clear_fire_marker(
-                self.db, trigger_id=trigger_id, claimed_at=ticket[-1]
-            )
+            renewal_settled = False
+            try:
+                with contextlib.suppress(asyncio.CancelledError):
+                    await renewer
+                renewal_settled = True
+            finally:
+                # Clear the latest owned ticket even when the renewer failed.
+                # Its error still propagates, so that transaction will roll back.
+                if not completed or not renewal_settled:
+                    # Release row locks before the independent cleanup transaction.
+                    await self.db.rollback()
+                    async with get_db_context() as cleanup_db:
+                        await agent_trigger_repo.clear_fire_marker(
+                            cleanup_db, trigger_id=trigger_id, claimed_at=ticket[-1]
+                        )
+                else:
+                    await agent_trigger_repo.clear_fire_marker(
+                        self.db, trigger_id=trigger_id, claimed_at=ticket[-1]
+                    )
 
     async def _keep_lease_alive(self, trigger_id: UUID, ticket: list[datetime]) -> None:
         """Re-stamp the fire's in-flight marker for as long as the run executes.
@@ -3060,15 +3111,17 @@ class AgentTriggerService:
             return
 
         ctx = replace(ctx, routine_dispatch_id=activation_id)
-        conversation_id = await self._run_log(trigger, agent_name=agent.name)
+        conversation_id = (
+            await self._run_chat(trigger, agent_name=agent.name)
+            if trigger.chat_mode == "per_run"
+            else await self._run_log(trigger, agent_name=agent.name)
+        )
 
         from app.services.agent_runner import AgentRunnerService
 
         message = (
             trigger.prompt if event_context is None else _with_event(trigger.prompt, event_context)
         )
-        if trigger.result_mode == "inbox":
-            message += "\n\n" + ROUTINE_RESULT_INSTRUCTIONS
         # This trigger's tail before the fire opens a run of its own. Every fire ends
         # by stamping `last_run_id` against the run it created, so the run named here
         # is exactly the newest row in the trigger's run-log conversation. It is how
@@ -3098,9 +3151,6 @@ class AgentTriggerService:
                 trigger.agent_id,
                 message,
                 surface=RunSurface.SCHEDULE,
-                output_schema=RoutineReading.model_json_schema()
-                if trigger.result_mode == "inbox"
-                else None,
                 conversation_id=conversation_id,
                 environment_id=trigger.environment_id,
                 version_id=trigger.pinned_version_id,
@@ -3527,16 +3577,21 @@ class AgentTriggerService:
             ),
         )
 
-    async def _run_log(self, trigger: AgentTrigger, *, agent_name: str) -> UUID:
-        """The one conversation this trigger appends every fire to, opened once.
+    async def _run_chat(self, trigger: AgentTrigger, *, agent_name: str) -> UUID:
+        """Give one activation its own private transcript, usable for follow-up work."""
+        if trigger.created_by_user_id is None:
+            raise AuthorizationError(message="A routine chat needs its creator")
+        conversation = await conversation_repo.create_conversation(
+            self.db,
+            organization_id=trigger.organization_id,
+            user_id=trigger.created_by_user_id,
+            title=f"{trigger.name or agent_name} · {datetime.now(UTC).isoformat(sep=' ', timespec='minutes')}",
+            project_id=trigger.project_id,
+        )
+        return conversation.id
 
-        Opened eagerly when the trigger is created, so a new schedule is a
-        clickable item straight away, and reused after; the fire path calls this
-        too, as the idempotent fallback. Per trigger, not per fire: a trigger on
-        the interval floor would otherwise mint ~1440 conversations a day. A null
-        id means the conversation was never opened or was since deleted (the FK is
-        SET NULL), and both want a fresh log.
-        """
+    async def _run_log(self, trigger: AgentTrigger, *, agent_name: str) -> UUID:
+        """Reuse the shared read-only history, reopening it if it was removed."""
         if trigger.conversation_id is not None:
             if trigger.project_id is not None:
                 existing = await conversation_repo.get_conversation_by_id(
@@ -3556,7 +3611,8 @@ class AgentTriggerService:
             self.db,
             organization_id=trigger.organization_id,
             user_id=None,
-            title=f"{agent_name} - {suffix}",
+            origin="routine",
+            title=trigger.name or f"{agent_name} - {suffix}",
             project_id=trigger.project_id,
         )
         trigger.conversation_id = conversation.id
@@ -3760,7 +3816,13 @@ class AgentTriggerService:
         access loss and database delivery failures are isolated in a savepoint so
         recording the completed fire remains possible.
         """
-        if trigger.answer_to == "run_log" and trigger.result_mode != "inbox":
+        mode = (run.routine_policy or {}).get("chat_mode")
+        if mode == "shared":
+            return AnswerDelivery(TriggerDeliveryStatus.RUN_LOG, run.conversation_id)
+        if mode == "per_run":
+            return AnswerDelivery(TriggerDeliveryStatus.DELIVERED, run.conversation_id)
+        # Runs admitted before chat modes retain their recorded delivery contract.
+        if trigger.answer_to == "run_log" or trigger.result_mode == "inbox":
             return AnswerDelivery(TriggerDeliveryStatus.RUN_LOG)
         if trigger.created_by_user_id is None:
             return AnswerDelivery(TriggerDeliveryStatus.UNAVAILABLE)
@@ -3793,26 +3855,6 @@ class AgentTriggerService:
                 accessible_agent = await self.agents.get(ctx, agent.id, perm=Perm.AGENTS_RUN)
                 if accessible_agent.status == AgentStatus.ARCHIVED.value:
                     return AnswerDelivery(TriggerDeliveryStatus.UNAVAILABLE)
-                if trigger.result_mode == "inbox":
-                    reading = RoutineReading.model_validate_json(answer)
-                    target = None
-                    for item in reading.findings:
-                        target = (
-                            await RoutineFindingService(self.db).publish(
-                                run=run,
-                                user_id=trigger.created_by_user_id,
-                                origin_id=trigger.id,
-                                origin_kind="trigger",
-                                item=item,
-                            )
-                            or target
-                        )
-                    return AnswerDelivery(
-                        TriggerDeliveryStatus.DELIVERED
-                        if target is not None
-                        else TriggerDeliveryStatus.NO_ANSWER,
-                        target,
-                    )
                 target = trigger.delivery_conversation_id
                 if trigger.answer_to == "primary":
                     target = await PrimaryConversationService(self.db).ensure(

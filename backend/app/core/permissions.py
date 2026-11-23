@@ -573,6 +573,9 @@ class AuthContext:
     A grant on a single row widens a role, never a key - see :meth:`key_allows`.
     """
 
+    source_run_id: UUID | None = None
+    """Internal credential bound to one run; never supplied by the model."""
+
     key_internal: bool = False
     """The key is a run credential the platform minted for an agent, not one the person issued.
 

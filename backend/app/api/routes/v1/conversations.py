@@ -326,7 +326,8 @@ async def fork_conversation(
     turn continues from there. The source is unchanged. Attachments, cost and
     run records are not copied.
 
-    Only the conversation's owner may fork it; anybody else gets 404. `400`
+    Only the conversation's owner, or the creator of a shared routine history,
+    may fork it; anybody else gets 404. `400`
     when a run in the copied history is still running or parked on an
     approval or a question, or the prefix exceeds 2,000 messages, 10,000 tool
     calls or 20 MiB. Conversations with a saved checklist require their latest
