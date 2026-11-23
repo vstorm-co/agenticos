@@ -38,7 +38,7 @@ export type RunSource = "conversation" | "evaluation" | "system";
 
 /** Which platform agent a run was, and where its work is read. */
 export interface RunOrigin {
-  kind: "grader" | "improve" | "knowledge_gaps" | "test_questions";
+  kind: "grader" | "improve" | "knowledge_gaps" | "test_questions" | "key_drafts";
   agent_name: string;
   /** The agent an assistant request was about. */
   agent_id?: string | null;

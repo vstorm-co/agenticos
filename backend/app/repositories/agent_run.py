@@ -49,6 +49,7 @@ from app.db.models.agent_run import (
 )
 from app.db.models.authoring import AuthoringRequest
 from app.db.models.case_generation import CaseGeneration
+from app.db.models.case_key_draft import CaseKeyDraft
 from app.db.models.channel_bot import ChannelBot
 from app.db.models.channel_identity import ChannelIdentity
 from app.db.models.conversation import Conversation, Message
@@ -933,6 +934,14 @@ async def run_origins(
         )
     )
     for run_id, dataset_id in generations.all():
+        found[run_id] = replace(found[run_id], dataset_id=dataset_id)
+    drafts = await db.execute(
+        select(type_coerce(CaseKeyDraft.run_id, run_id_of), CaseKeyDraft.dataset_id).where(
+            CaseKeyDraft.organization_id == organization_id,
+            CaseKeyDraft.run_id.in_(ids),
+        )
+    )
+    for run_id, dataset_id in drafts.all():
         found[run_id] = replace(found[run_id], dataset_id=dataset_id)
     return found
 

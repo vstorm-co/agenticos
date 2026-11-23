@@ -31,13 +31,28 @@ export function KeyDraftPanel({
   onUse: (keys: DocumentKey[]) => void;
 }) {
   const t = useTranslations("datasets.keyDraft");
-  const { draft, start, starting, dismiss } = useCaseKeyDraft(datasetId, caseId, {
+  const { draft, loading, error, start, starting, dismiss } = useCaseKeyDraft(datasetId, caseId, {
     enabled: true,
   });
   const saved = (savedReference ?? "").trim();
   const unsaved = editedReference.trim() !== saved;
   const blocked = saved === "" ? t("noReference") : unsaved ? t("saveFirst") : null;
 
+  if (loading) {
+    return (
+      <p className="text-muted-foreground flex items-center gap-2 text-sm" role="status">
+        <Loader2 className="size-4 animate-spin" />
+        {t("loading")}
+      </p>
+    );
+  }
+  if (error) {
+    return (
+      <p className="text-destructive text-sm" role="alert">
+        {t("unreadable")}
+      </p>
+    );
+  }
   if (draft?.status === "running") {
     return (
       <p className="text-muted-foreground flex items-center gap-2 text-sm" role="status">
@@ -64,6 +79,7 @@ export function KeyDraftPanel({
             <Button
               type="button"
               size="sm"
+              disabled={blocked !== null}
               onClick={() => {
                 onUse(draft.keys);
                 dismiss();
@@ -76,6 +92,7 @@ export function KeyDraftPanel({
             {t("dismiss")}
           </Button>
         </div>
+        {blocked !== null && <p className="text-muted-foreground">{blocked}</p>}
       </div>
     );
   }

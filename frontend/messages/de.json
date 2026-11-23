@@ -7340,7 +7340,8 @@
           "grader": "Bewerter",
           "improve": "Improve",
           "knowledge_gaps": "Wissenslücken",
-          "test_questions": "Testfragen"
+          "test_questions": "Testfragen",
+          "key_drafts": "Schlüsselentwürfe"
         },
         "open": {
           "openEvalRun": "Eval-Run öffnen",
@@ -15244,7 +15245,9 @@
       "noReference": "Speichern Sie eine Referenzantwort, um ihre Schlüssel aufzulisten.",
       "saveFirst": "Speichern Sie zuerst die Referenzantwort: Die Schlüssel werden aus der gespeicherten aufgelistet.",
       "failedToStart": "Die Schlüssel konnten nicht angefordert werden",
-      "failedToDismiss": "Die aufgelisteten Schlüssel konnten nicht verworfen werden"
+      "failedToDismiss": "Die aufgelisteten Schlüssel konnten nicht verworfen werden",
+      "loading": "Entworfene Schlüssel werden geprüft…",
+      "unreadable": "Die entworfenen Schlüssel konnten nicht gelesen werden."
     },
     "keyCoverage": {
       "title": "Schlüsselabdeckung",

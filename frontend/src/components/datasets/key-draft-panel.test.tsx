@@ -7,6 +7,8 @@ import { KeyDraftPanel } from "./key-draft-panel";
 
 const hook = {
   draft: null as CaseKeyDraft | null,
+  loading: false,
+  error: null as Error | null,
   start: vi.fn(),
   starting: false,
   dismiss: vi.fn(),
@@ -49,6 +51,8 @@ function draft(status: CaseKeyDraft["status"], keys = KEYS, error: string | null
 beforeEach(() => {
   vi.clearAllMocks();
   hook.starting = false;
+  hook.loading = false;
+  hook.error = null;
 });
 
 describe("KeyDraftPanel", () => {
@@ -70,6 +74,28 @@ describe("KeyDraftPanel", () => {
 
   it("does not list an answer edited since it was saved", () => {
     shown(null, "Invoice INV-7", "Invoice INV-8");
+    expect(
+      screen.getByText("Save the reference answer first: keys are listed from the saved one."),
+    ).toBeInTheDocument();
+  });
+
+  it("offers nothing until it knows whether the case has a draft", () => {
+    hook.loading = true;
+    shown(null);
+    expect(screen.getByText("Checking for drafted keys…")).toBeInTheDocument();
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+  });
+
+  it("says when the draft could not be read, rather than offering to replace it", () => {
+    hook.error = new Error("offline");
+    shown(null);
+    expect(screen.getByRole("alert")).toHaveTextContent("The drafted keys could not be read.");
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+  });
+
+  it("does not use keys listed from an answer edited since", () => {
+    shown(draft("ready"), "Invoice INV-7", "Invoice INV-8");
+    expect(screen.getByRole("button", { name: "Use these keys" })).toBeDisabled();
     expect(
       screen.getByText("Save the reference answer first: keys are listed from the saved one."),
     ).toBeInTheDocument();

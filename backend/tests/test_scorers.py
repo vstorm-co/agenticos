@@ -1290,6 +1290,17 @@ class TestKeysCheck:
         result = _check(_keys(("Invoice", "INV-7"), family="invoice facts"), _answer("INV-7"))
         assert result.family == "invoice facts"
 
+    def test_absent_keys_are_refused_without_scanning_a_long_answer(self) -> None:
+        answer = _answer(("Invoice INV-7 for Fernhill Ltd, total 1 234,50 PLN. " * 2000)[:100_000])
+        check = _keys(*((f"Key {n}", f"VAL-{n}-{'x' * 50} 98{n:03d}.5") for n in range(MAX_KEYS)))
+
+        started = time.perf_counter()
+        result = _check(check, answer)
+
+        assert result.score == 0.0
+        # A pattern run per key over this answer takes about 0.4 s; a substring refusal, ms.
+        assert time.perf_counter() - started < 0.15
+
     def test_a_keys_check_naming_no_family_is_in_the_keys_family(self) -> None:
         assert _check(_keys(("Invoice", "INV-7")), _answer("INV-7")).family == "keys"
 

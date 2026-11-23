@@ -266,11 +266,29 @@ _THOUSANDS_GAP = re.compile(r"(?<=\d) (?=\d{3}(?!\d))")
 _DIGIT_RUN = re.compile(r"\d+")
 _SPACES = re.compile(r"\s+")
 _WORD = re.compile(r"\w")
+_DIGIT_GAP = re.compile(r"(?<=\d) (?=\d)")
 MAX_MISSING_NAMED = 20
 
 
 def _normalised(text: str) -> str:
     return _SPACES.sub(" ", unicodedata.normalize("NFKC", text).casefold()).strip()
+
+
+@dataclass(frozen=True)
+class _Haystack:
+    """A normalised answer, and the same text with every space between two digits gone.
+
+    Whatever a key's pattern matches, compacted the same way, is a plain substring
+    of `compact`, so a value absent from it is refused without running a pattern.
+    """
+
+    text: str
+    compact: str
+
+    @classmethod
+    def of(cls, answer: str) -> _Haystack:
+        text = _normalised(answer)
+        return cls(text=text, compact=_DIGIT_GAP.sub("", text))
 
 
 def _grouped(digits: str) -> str:
@@ -280,7 +298,7 @@ def _grouped(digits: str) -> str:
     return " ?".join(groups)
 
 
-def _carries(haystack: str, value: str) -> bool:
+def _carries(haystack: _Haystack, value: str) -> bool:
     """Whether `value` stands in `haystack` as a whole token: `12` is not in `120`.
 
     The answer is only normalised; the value becomes the pattern, so `1234` and
@@ -288,6 +306,8 @@ def _carries(haystack: str, value: str) -> bool:
     """
     written = _normalised(value)
     needle = _THOUSANDS_GAP.sub("", written)
+    if _DIGIT_GAP.sub("", needle) not in haystack.compact:
+        return False
     pattern = ""
     at = 0
     for run in _DIGIT_RUN.finditer(needle):
@@ -305,17 +325,17 @@ def _carries(haystack: str, value: str) -> bool:
             before += r"(?<!\d )"
     if needle[-1:].isdigit():
         after += r"(?! \d{3}(?!\d))(?![.,]\d)"
-    return re.search(before + pattern + after, haystack) is not None
+    return re.search(before + pattern + after, haystack.text) is not None
 
 
 def carries(text: str, value: str) -> bool:
     """Whether `text` holds `value` as a `keys` check would find it."""
-    return _carries(_normalised(text), value)
+    return _carries(_Haystack.of(text), value)
 
 
 def missing_keys(checks: Sequence[Mapping[str, Any]], answer: str) -> list[str]:
     """The labels of the keys `answer` does not carry, across the readable `keys` checks."""
-    text = _normalised(answer)
+    text = _Haystack.of(answer)
     labels: list[str] = []
     for raw in checks:
         if raw.get("type") != "keys":
@@ -330,7 +350,7 @@ def missing_keys(checks: Sequence[Mapping[str, Any]], answer: str) -> list[str]:
 
 
 def _keys_check(check: KeysCheck, answer: ScoredAnswer, *, required: bool) -> ScorerResult:
-    haystack = _normalised(_text(answer, None))
+    haystack = _Haystack.of(_text(answer, None))
     missing = [entry.key for entry in check.keys if not _carries(haystack, entry.value)]
     total = len(check.keys)
     if not missing:

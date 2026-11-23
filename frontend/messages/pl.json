@@ -3322,7 +3322,8 @@
           "grader": "Oceniający",
           "improve": "Poprawianie",
           "knowledge_gaps": "Luki w wiedzy",
-          "test_questions": "Pytania testowe"
+          "test_questions": "Pytania testowe",
+          "key_drafts": "Szkice kluczy"
         },
         "open": {
           "openEvalRun": "Otwórz ewaluację",
@@ -15331,7 +15332,9 @@
       "noReference": "Zapisz odpowiedź referencyjną, aby wypisać jej klucze.",
       "saveFirst": "Najpierw zapisz odpowiedź referencyjną: klucze są wypisywane z zapisanej.",
       "failedToStart": "Nie udało się poprosić o klucze",
-      "failedToDismiss": "Nie udało się odrzucić wypisanych kluczy"
+      "failedToDismiss": "Nie udało się odrzucić wypisanych kluczy",
+      "loading": "Sprawdzanie szkicu kluczy…",
+      "unreadable": "Nie udało się odczytać szkicu kluczy."
     },
     "keyCoverage": {
       "title": "Pokrycie kluczy",

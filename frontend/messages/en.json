@@ -8068,7 +8068,8 @@
           "grader": "Grader",
           "improve": "Improve",
           "knowledge_gaps": "Knowledge gaps",
-          "test_questions": "Test questions"
+          "test_questions": "Test questions",
+          "key_drafts": "Key drafts"
         },
         "open": {
           "openEvalRun": "Open the eval run",
@@ -15558,7 +15559,9 @@
       "noReference": "Save a reference answer to list its keys.",
       "saveFirst": "Save the reference answer first: keys are listed from the saved one.",
       "failedToStart": "The keys could not be asked for",
-      "failedToDismiss": "The drafted keys could not be dismissed"
+      "failedToDismiss": "The drafted keys could not be dismissed",
+      "loading": "Checking for drafted keys…",
+      "unreadable": "The drafted keys could not be read."
     },
     "keyCoverage": {
       "title": "Key coverage",

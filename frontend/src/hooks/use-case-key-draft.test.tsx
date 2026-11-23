@@ -41,7 +41,7 @@ describe("useCaseKeyDraft", () => {
       wrapper,
     });
     expect(apiClient.get).not.toHaveBeenCalled();
-    expect(result.current.draft).toBeNull();
+    expect(result.current).toMatchObject({ draft: null, loading: false, error: null });
   });
 
   it("reads a case with no draft as none, and another refusal as an error", async () => {
@@ -49,12 +49,14 @@ describe("useCaseKeyDraft", () => {
     const { result } = renderHook(() => useCaseKeyDraft("d1", "c1", { enabled: true }), {
       wrapper,
     });
-    await waitFor(() => expect(apiClient.get).toHaveBeenCalledWith(URL));
-    expect(result.current.draft).toBeNull();
+    expect(result.current.loading).toBe(true);
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(apiClient.get).toHaveBeenCalledWith(URL);
+    expect(result.current).toMatchObject({ draft: null, error: null });
 
     vi.mocked(apiClient.get).mockRejectedValueOnce(new ApiError(403, "No"));
     const other = renderHook(() => useCaseKeyDraft("d2", "c2", { enabled: true }), { wrapper });
-    await waitFor(() => expect(apiClient.get).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(other.result.current.error).toBeInstanceOf(ApiError));
     expect(other.result.current.draft).toBeNull();
   });
 
