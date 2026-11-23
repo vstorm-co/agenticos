@@ -1151,7 +1151,11 @@ async def _proposal_price(
     if model_profile_id is not None:
         model = await ModelProfileService(db).resolve(ctx, profile_id=model_profile_id)
         priced = price_request(
-            usage, model.model, model.provider, custom_pricing=model.credential.custom_pricing
+            usage,
+            model.model,
+            model.provider,
+            custom_pricing=model.credential.custom_pricing,
+            exchange_rates=model.credential.exchange_rates,
         )
         if priced is not None:
             return Decimal(priced)

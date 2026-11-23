@@ -245,7 +245,9 @@ async def test_a_round_of_proposals_is_priced_at_the_improvers_model_or_the_fall
 ):
     resolve = AsyncMock(
         return_value=SimpleNamespace(
-            model=model, provider="openai", credential=SimpleNamespace(custom_pricing=None)
+            model=model,
+            provider="openai",
+            credential=SimpleNamespace(custom_pricing=None, exchange_rates={"USD": Decimal(1)}),
         )
     )
     with patch.object(ModelProfileService, "resolve", new=resolve):
@@ -259,10 +261,11 @@ async def test_a_round_of_proposals_is_priced_at_the_improvers_model_or_the_fall
 
 
 @pytest.mark.parametrize(
-    ("model", "input_rate", "output_rate", "expected"),
+    ("model", "input_rate", "output_rate", "currency", "expected"),
     [
-        ("gpt-4o-mini", 0, 0, Decimal(0)),
-        ("not-a-priced-model", 50, 200, Decimal("0.35")),
+        ("gpt-4o-mini", 0, 0, "USD", Decimal(0)),
+        ("not-a-priced-model", 50, 200, "USD", Decimal("0.35")),
+        ("not-a-priced-model", 50, 200, "EUR", Decimal("0.70")),
     ],
 )
 async def test_search_round_estimates_use_custom_rates(
@@ -270,11 +273,15 @@ async def test_search_round_estimates_use_custom_rates(
     model: str,
     input_rate: int,
     output_rate: int,
+    currency: str,
     expected: Decimal,
 ) -> None:
     monkeypatch.setattr(settings, "EVAL_FALLBACK_INPUT_TOKENS", 2_000)
     monkeypatch.setattr(settings, "EVAL_FALLBACK_OUTPUT_TOKENS", 400)
-    credential = SimpleNamespace(custom_pricing=TokenPricing(input=input_rate, output=output_rate))
+    credential = SimpleNamespace(
+        custom_pricing=TokenPricing(input=input_rate, output=output_rate, currency=currency),
+        exchange_rates={"USD": Decimal(1), "EUR": Decimal("0.5")},
+    )
     resolved = SimpleNamespace(model=model, provider="openai", credential=credential)
     with patch.object(ModelProfileService, "resolve", return_value=resolved):
         price = await _proposal_price(
