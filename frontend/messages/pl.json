@@ -21370,6 +21370,7 @@
     "organization": "Waluta organizacji",
     "organizationHint": "Dziedzicz domyślną walutę wdrożenia lub wybierz walutę raportowania. Istniejące ceny i limity zachowują pierwotne jednostki.",
     "inherit": "Dziedzicz ({currency})",
+    "rateUnavailable": "{currency} (brak kursu wymiany)",
     "loadFailed": "Nie udało się wczytać ustawień walut",
     "retry": "Ponów",
     "saveFailed": "Nie udało się zapisać waluty"

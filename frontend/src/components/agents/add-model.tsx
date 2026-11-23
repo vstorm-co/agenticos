@@ -274,7 +274,8 @@ export function AddModel({
   purpose,
   collapseConnection = false,
 }: AddModelProps) {
-  const currencyContext = useCurrencies();
+  const { data: currencyContext } = useCurrencies();
+  const pricingCurrencies = Object.keys(currencyContext?.rates ?? { USD: "1" });
   const fieldId = useId();
   const [connectionOpen, setConnectionOpen] = useState(false);
   const [customPricing, setCustomPricing] = useState<TokenPricing | null>(
@@ -744,6 +745,7 @@ export function AddModel({
         />
         <ModelPricing
           value={customPricing}
+          currencies={pricingCurrencies}
           automatic={null}
           disabled={disabled || !canManagePricing}
           onChange={(value) => {
@@ -1056,7 +1058,7 @@ export function AddModel({
       {provider !== undefined && (
         <ModelPricing
           value={customPricing}
-          currencies={Object.keys(currencyContext.data?.rates ?? { USD: "1" })}
+          currencies={pricingCurrencies}
           automatic={
             suggestions.find((entry) => entry.id === model.trim())?.automatic_pricing ??
             (selected?.provider === providerId && selected.model === model.trim()

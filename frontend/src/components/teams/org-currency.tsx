@@ -18,12 +18,13 @@ import type { Organization } from "@/types";
 
 export function OrgCurrency({ org }: { org: Organization }) {
   const { can } = usePermissions();
-  return can(Perm.orgSettings) ? <CurrencyForm org={org} /> : null;
+  return can(Perm.orgSettings) ? <CurrencyForm key={org.id} org={org} /> : null;
 }
 
 function CurrencyForm({ org }: { org: Organization }) {
   const t = useTranslations("currencies");
   const { context, save } = useOrganizationCurrency(org.id);
+  const { isError: saveFailed, variables: attemptedCurrency, mutate } = save;
   const data = context.data;
   if (context.isError)
     return (
@@ -32,12 +33,15 @@ function CurrencyForm({ org }: { org: Organization }) {
         cta={{ label: t("retry"), onClick: () => void context.refetch() }}
       />
     );
+  const selectedCurrency = org.currency ?? "inherit";
+  const availableCurrencies = Object.keys(data?.rates ?? {});
+  const missingRate = data && org.currency != null && !availableCurrencies.includes(org.currency);
   return (
     <SettingsSection title={t("organization")} description={t("organizationHint")}>
       <Select
-        value={org.currency ?? "inherit"}
+        value={selectedCurrency}
         disabled={!data || save.isPending}
-        onValueChange={(value) => save.mutate(value === "inherit" ? null : value)}
+        onValueChange={(value) => mutate(value === "inherit" ? null : value)}
       >
         <SelectTrigger aria-label={t("organization")}>
           <SelectValue />
@@ -46,17 +50,22 @@ function CurrencyForm({ org }: { org: Organization }) {
           <SelectItem value="inherit">
             {t("inherit", { currency: data?.default_currency ?? "USD" })}
           </SelectItem>
-          {Object.keys(data?.rates ?? {}).map((currency) => (
+          {missingRate && (
+            <SelectItem value={selectedCurrency} disabled>
+              {t("rateUnavailable", { currency: selectedCurrency })}
+            </SelectItem>
+          )}
+          {availableCurrencies.map((currency) => (
             <SelectItem value={currency} key={currency}>
               {currency}
             </SelectItem>
           ))}
         </SelectContent>
       </Select>
-      {save.isError && (
+      {saveFailed && (
         <p className="text-destructive text-sm" role="alert">
           {t("saveFailed")}{" "}
-          <Button variant="link" onClick={() => save.reset()}>
+          <Button type="button" variant="link" onClick={() => mutate(attemptedCurrency)}>
             {t("retry")}
           </Button>
         </p>

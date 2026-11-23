@@ -10,8 +10,9 @@ const state = vi.hoisted(() => ({
   saveFailed: false,
   loading: false,
   saving: false,
+  attemptedCurrency: undefined as string | null | undefined,
+  rates: {} as Record<string, string>,
   mutate: vi.fn(),
-  reset: vi.fn(),
   refetch: vi.fn(),
 }));
 vi.mock("@/hooks/use-permissions", () => ({
@@ -25,15 +26,13 @@ vi.mock("@/hooks/use-currencies", () => ({
       context: {
         isError: state.failed,
         refetch: state.refetch,
-        data: state.loading
-          ? undefined
-          : { default_currency: "PLN", rates: { USD: "1", PLN: "4", EUR: "0.9" } },
+        data: state.loading ? undefined : { default_currency: "PLN", rates: state.rates },
       },
       save: {
         isError: state.saveFailed,
         isPending: state.saving,
         mutate: state.mutate,
-        reset: state.reset,
+        variables: state.attemptedCurrency,
       },
     };
   },
@@ -45,6 +44,8 @@ beforeEach(() => {
   state.saveFailed = false;
   state.loading = false;
   state.saving = false;
+  state.attemptedCurrency = undefined;
+  state.rates = { USD: "1", PLN: "4", EUR: "0.9" };
   vi.clearAllMocks();
 });
 
@@ -78,11 +79,38 @@ describe("organization currency", () => {
     render(<OrgCurrency org={org} />);
     expect(screen.getByRole("combobox")).toBeDisabled();
   });
-  it("reports save failure without claiming success", async () => {
+  it.each([
+    { current: null, option: "EUR", attempted: "EUR" },
+    { current: "EUR", option: "Inherit (PLN)", attempted: null },
+  ])("resubmits a failed selection of $option", async ({ current, option, attempted }) => {
+    const user = userEvent.setup();
+    const currentOrg = { ...org, currency: current };
+    const view = render(<OrgCurrency org={currentOrg} />);
+    await user.click(screen.getByRole("combobox"));
+    await user.click(screen.getByRole("option", { name: option }));
+    expect(state.mutate).toHaveBeenNthCalledWith(1, attempted);
+    state.attemptedCurrency = attempted;
     state.saveFailed = true;
-    render(<OrgCurrency org={org} />);
+    view.rerender(<OrgCurrency org={currentOrg} />);
     expect(screen.getByRole("alert")).toHaveTextContent("could not be saved");
-    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
-    expect(state.reset).toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "Retry" }));
+    expect(state.mutate).toHaveBeenNthCalledWith(2, attempted);
+  });
+  it("shows the saved currency when its rate is removed and lets the user replace it", async () => {
+    const user = userEvent.setup();
+    const currentOrg = { ...org, currency: "EUR" };
+    const view = render(<OrgCurrency org={currentOrg} />);
+    expect(screen.getByRole("combobox")).toHaveTextContent("EUR");
+
+    state.rates = { USD: "1", PLN: "4" };
+    view.rerender(<OrgCurrency org={currentOrg} />);
+    const label = "EUR (exchange rate unavailable)";
+    expect(screen.getByRole("combobox")).toHaveTextContent(label);
+    expect(state.mutate).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("combobox"));
+    expect(screen.getByRole("option", { name: label })).toHaveAttribute("aria-disabled", "true");
+    await user.click(screen.getByRole("option", { name: "PLN" }));
+    expect(state.mutate).toHaveBeenCalledWith("PLN");
   });
 });

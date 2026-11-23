@@ -21283,6 +21283,7 @@
     "organization": "Organisationswährung",
     "organizationHint": "Übernehmen Sie den Bereitstellungsstandard oder wählen Sie eine Berichtswährung. Bestehende Preise und Limits behalten ihre ursprünglichen Einheiten.",
     "inherit": "Übernehmen ({currency})",
+    "rateUnavailable": "{currency} (Wechselkurs nicht verfügbar)",
     "loadFailed": "Währungseinstellungen konnten nicht geladen werden",
     "retry": "Erneut versuchen",
     "saveFailed": "Die Währung konnte nicht gespeichert werden"

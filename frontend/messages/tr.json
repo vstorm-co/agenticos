@@ -17136,6 +17136,7 @@
     "organization": "Kuruluş para birimi",
     "organizationHint": "Dağıtım varsayılanını devralın veya raporlama para birimini seçin. Mevcut fiyat ve limitler özgün birimlerini korur.",
     "inherit": "Devral ({currency})",
+    "rateUnavailable": "{currency} (döviz kuru yok)",
     "loadFailed": "Para birimi ayarları yüklenemedi",
     "retry": "Yeniden dene",
     "saveFailed": "Para birimi kaydedilemedi"

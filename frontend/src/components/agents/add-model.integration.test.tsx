@@ -2260,7 +2260,7 @@ it("requires budget authority to edit prices", async () => {
   expect(screen.queryByLabelText("Input tokens")).not.toBeInTheDocument();
 });
 
-it("edits and restores pricing for an existing subscription model", async () => {
+it("uses configured currencies when editing and restoring subscription pricing", async () => {
   const user = userEvent.setup();
   state.catalog = [
     capabilities("subscription_accounts", "Subscription accounts", { personal_gateway: true }),
@@ -2277,9 +2277,17 @@ it("edits and restores pricing for an existing subscription model", async () => 
   };
   mount({ selected });
   expect(screen.getByLabelText("Input tokens")).toHaveValue(2);
+  await user.click(screen.getByRole("combobox", { name: "Pricing currency" }));
+  await user.click(screen.getByRole("option", { name: "EUR" }));
+  await user.click(screen.getByRole("button", { name: "Update model" }));
+  expect(state.updateProfile.mutateAsync).toHaveBeenNthCalledWith(1, {
+    id: "sub",
+    changes: { custom_pricing: { input: "2", output: "5", currency: "EUR" } },
+  });
+
   await user.click(screen.getByRole("switch"));
   await user.click(screen.getByRole("button", { name: "Update model" }));
-  expect(state.updateProfile.mutateAsync).toHaveBeenCalledWith({
+  expect(state.updateProfile.mutateAsync).toHaveBeenNthCalledWith(2, {
     id: "sub",
     changes: { custom_pricing: null },
   });

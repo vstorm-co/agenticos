@@ -21597,6 +21597,7 @@
     "organization": "Organization currency",
     "organizationHint": "Inherit the deployment default or select a reporting currency. Existing prices and limits keep their original units.",
     "inherit": "Inherit ({currency})",
+    "rateUnavailable": "{currency} (exchange rate unavailable)",
     "loadFailed": "Currency settings could not be loaded",
     "retry": "Retry",
     "saveFailed": "The currency could not be saved"
