@@ -186,6 +186,7 @@ def _iteration(number: int, *, verdict="no_change", runs=("run",)) -> SimpleName
         ended_at=None,
         included_hunk_ids=None,
         previous_eval_run_ids=[],
+        search=None,
     )
 
 
@@ -198,6 +199,7 @@ def _session(status: str) -> SimpleNamespace:
         created_by_api_key_id=None,
         improver_agent_id=None,
         status=status,
+        mode="steps",
         stage="judging",
         iteration=2,
         max_iterations=2,

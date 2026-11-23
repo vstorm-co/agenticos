@@ -20,6 +20,7 @@ from app.db.models.improvement import (
     ACTIVE_STATUSES,
     OPEN_STATUSES,
     UNSETTLED_STATUSES,
+    ImprovementMode,
     ImprovementRun,
     ImprovementStage,
     ImprovementStatus,
@@ -30,7 +31,9 @@ from app.db.models.improvement import (
 _VERSIONS = Path(__file__).parents[1] / "alembic" / "versions"
 _MIGRATION = _VERSIONS / "0212_improvement_waiting.py"
 _CRITERIA = _VERSIONS / "0342_criterion_verdicts.py"
-"""The revision that last changed the verdicts and stop reasons."""
+"""The revision that last changed the verdicts."""
+_SEARCH = _VERSIONS / "0356_improvement_search.py"
+"""The revision that last changed the stages, the stop reasons and the modes."""
 
 
 def _migration(path: Path = _MIGRATION) -> ModuleType:
@@ -58,7 +61,7 @@ def _predicate(name: str) -> str:
     ("path", "constant", "members"),
     [
         (_MIGRATION, "_STATUSES", ImprovementStatus),
-        (_MIGRATION, "_STAGES", ImprovementStage),
+        (_SEARCH, "_STAGES", ImprovementStage),
         (_CRITERIA, "_VERDICTS", ImprovementVerdict),
         (_MIGRATION, "_ACTIVE", ACTIVE_STATUSES),
         (_MIGRATION, "_OPEN", OPEN_STATUSES),
@@ -84,11 +87,18 @@ def test_the_partial_indexes_cover_the_same_statuses(index: str, constant: str) 
     [
         (_MIGRATION, "ck_improvement_run_status", r"status IN \((.+)\)", ImprovementStatus),
         (
-            _CRITERIA,
+            _SEARCH,
             "ck_improvement_run_stop_reason",
             r"stop_reason IS NULL OR stop_reason IN \((.+)\)",
             StopReason,
         ),
+        (
+            _SEARCH,
+            "ck_improvement_run_stage",
+            r"stage IS NULL OR stage IN \((.+)\)",
+            ImprovementStage,
+        ),
+        (_SEARCH, "ck_improvement_run_mode", r"mode IN \((.+)\)", ImprovementMode),
     ],
 )
 def test_the_latest_constraints_match_the_model(
