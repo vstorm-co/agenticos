@@ -19,10 +19,15 @@ class TestTheSection:
         assert briefing is not None
         assert "Their console is in Turkish: answer in Turkish" in briefing
 
+    def test_french_console_informs_the_agent_of_the_users_language(self):
+        briefing = person_briefing(Person(locale="fr"))
+        assert briefing is not None
+        assert "Their console is in French: answer in French" in briefing
+
     def test_a_person_the_account_says_nothing_about_gets_no_section(self):
         assert person_briefing(Person()) is None
         # A language the console is not in is not one to answer in.
-        assert person_briefing(Person(locale="fr")) is None
+        assert person_briefing(Person(locale="es")) is None
 
     def test_their_own_words_cannot_open_a_section_or_a_variable(self):
         briefing = person_briefing(
