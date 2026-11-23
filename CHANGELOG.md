@@ -46,6 +46,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Fix a dark gap and clipped file names in the chat Files panel. Drag its left
+  edge to resize when space allows, or use **Maximize** to open it full-screen.
 - Drafting a knowledge-gap passage and a workflow's knowledge search now search
   exactly the knowledge base that was checked. Both looked the base up again by
   its collection name, which several bases of one organization can share, so

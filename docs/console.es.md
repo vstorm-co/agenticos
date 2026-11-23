@@ -1,5 +1,5 @@
 ---
-source_sha: "baecaa006c9c"
+source_sha: "66b387c1ee73"
 ---
 
 # La consola { #the-console }
@@ -18,7 +18,7 @@ Si el onboarding de tu organización actual no está terminado, **Completar conf
 
 Inbox mantiene el mismo marco de lista, espaciado de filas, marcas de origen, tipografía de títulos y detalles y alineación adaptable de acciones en Todas, Urgentes, Resultados de rutinas, Sugerencias y Terminadas. Las terminadas conservan el estado de la decisión y la acción de recuperar elementos descartados; origen y hora también se ven en el teléfono. Los formularios de aprobación mantienen el mismo margen exterior, sus campos obligatorios y controles de permisos.
 
-Archivos y Fuentes usan el mismo panel lateral compacto: inicialmente 400px, ajustable entre 360 y 420px y limitado al 38% del ancho del chat acoplado. En un escritorio estrecho pueden contraer temporalmente la lista de conversaciones; al cerrarlo se recupera la elección anterior, salvo cambios manuales. El navegador conserva más espacio de trabajo: inicialmente el 55%, ajustable del 35% al 65%. Una cita desplaza solo la lista de Fuentes y conserva la posición de la conversación.
+Archivos y Fuentes usan el mismo panel lateral compacto: inicialmente 400px, ajustable entre 360 y 420px y limitado al 38% del ancho del chat acoplado. Si el chat acoplado es demasiado estrecho para cambiar el ancho del panel, elige **Maximize** en su encabezado. En un escritorio estrecho pueden contraer temporalmente la lista de conversaciones; al cerrarlo se recupera la elección anterior, salvo cambios manuales. El navegador conserva más espacio de trabajo: inicialmente el 55%, ajustable del 35% al 65%. Una cita desplaza solo la lista de Fuentes y conserva la posición de la conversación.
 
 Si Archivos indica que el espacio de trabajo aún no se ha creado o ya no se conserva, lo distingue de un fallo de conexión y no demuestra que nunca hubiera archivos. Los adjuntos de la conversación siguen disponibles. Adjunte y envíe un archivo desde el cuadro de mensaje, o pida al agente que cree uno, para usar el espacio de trabajo; los fallos reales de conexión y archivo siguen siendo explícitos. En el chat, un enlace de archivo con un resultado satisfactorio coincidente de la herramienta abre el visor del espacio de trabajo. Las rutas no verificadas siguen como enlaces normales; un origen privado no disponible no se convierte en enlace.
 
