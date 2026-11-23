@@ -1,5 +1,5 @@
 ---
-source_sha: "30821f871326"
+source_sha: "a75a28347d24"
 ---
 
 # Modelle und Provider { #models-and-providers }
@@ -901,6 +901,8 @@ Cache-Lese- und Schreibpreise sind optional und übernehmen bei leerem Feld den
 Eingabepreis. Eine ausdrückliche Null ist ein Preis. Die API verwendet dafür
 `custom_pricing`: Auslassen beim Aktualisieren behält die Einstellung bei,
 `null` stellt die automatische Preisermittlung wieder her.
+
+Das Ändern oder Zurücksetzen von Preisen erfordert neben der Verwaltung von Modellverbindungen auch `budgets:manage`. Abonnementprofile unterstützen dieselben optionalen Tokenpreise; diese messen den Budgetverbrauch, nicht das Abonnementkontingent. Wenn eigene Preise die Abrechnung ersetzen, bleiben die ursprünglichen Anbieterbeträge in den Nutzungsmetadaten erhalten.
 
 Eigene Preise haben Vorrang vor Katalogpreisen und Anbieterrechnungen.
 Es gelten die Preise des tatsächlich antwortenden Profils, auch bei Fallbacks,

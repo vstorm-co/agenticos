@@ -221,8 +221,8 @@ class SkillCheck(Base):
     acknowledged_unknown_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
-    expected_usd: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False)
-    at_most_usd: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False)
+    expected_usd: Mapped[Decimal] = mapped_column(Numeric(38, 6), nullable=False)
+    at_most_usd: Mapped[Decimal] = mapped_column(Numeric(38, 6), nullable=False)
     created_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
@@ -338,8 +338,8 @@ class SkillCheckAgent(Base):
     fixed_confirmed: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     regressions_confirmed: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     noisy: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    expected_usd: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False)
-    at_most_usd: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False)
+    expected_usd: Mapped[Decimal] = mapped_column(Numeric(38, 6), nullable=False)
+    at_most_usd: Mapped[Decimal] = mapped_column(Numeric(38, 6), nullable=False)
     stages: Mapped[list[dict[str, Any]]] = mapped_column(
         JSONB, nullable=False, default=list, server_default=text("'[]'::jsonb")
     )

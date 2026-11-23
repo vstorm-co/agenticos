@@ -118,7 +118,7 @@ class Organization(Base, TimestampMixin):
     # against a sum of those, and a float would drift against the total the
     # Activity page shows.
     currency: Mapped[str | None] = mapped_column(String(3), nullable=True)
-    monthly_budget_usd: Mapped[Decimal | None] = mapped_column(Numeric(12, 6), nullable=True)
+    monthly_budget_usd: Mapped[Decimal | None] = mapped_column(Numeric(38, 6), nullable=True)
 
     # What the platform may spend on each person in a calendar month on work it
     # does on its own initiative - noticing a repeated request, writing their
@@ -126,7 +126,7 @@ class Organization(Base, TimestampMixin):
     # everybody's. Zero switches that work off; it is inside `monthly_budget_usd`,
     # never beside it.
     proactive_limit_usd: Mapped[Decimal] = mapped_column(
-        Numeric(12, 6), nullable=False, default=Decimal("1"), server_default=text("1")
+        Numeric(38, 6), nullable=False, default=Decimal("1"), server_default=text("1")
     )
     # Whether that work happens at all. Off until an organization turns it on:
     # it spends money nobody asked for in the moment, so it is a decision, made

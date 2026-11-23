@@ -333,7 +333,14 @@ def _environment():
             ModelProfileService,
             "resolve",
             new=AsyncMock(
-                return_value=SimpleNamespace(label="gpt-test", model="gpt-test", provider="openai")
+                return_value=SimpleNamespace(
+                    label="gpt-test",
+                    model="gpt-test",
+                    provider="openai",
+                    credential=SimpleNamespace(
+                        custom_pricing=None, exchange_rates={"USD": Decimal(1)}
+                    ),
+                )
             ),
         ),
         patch.object(AgentRegistryService, "validate_spec", new=AsyncMock()),

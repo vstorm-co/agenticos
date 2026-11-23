@@ -157,8 +157,8 @@ class SkillImprovementRun(Base):
         nullable=True,
         index=True,
     )
-    estimate_usd: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False)
-    budget_usd: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False)
+    estimate_usd: Mapped[Decimal] = mapped_column(Numeric(38, 6), nullable=False)
+    budget_usd: Mapped[Decimal] = mapped_column(Numeric(38, 6), nullable=False)
     best_iteration_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
         ForeignKey("skill_improvement_iterations.id", ondelete="SET NULL", use_alter=True),
@@ -315,7 +315,7 @@ class SkillImprovementIteration(Base):
     check_verdict: Mapped[str | None] = mapped_column(String(16), nullable=True)
     verdict: Mapped[str | None] = mapped_column(String(16), nullable=True)
     cost_usd: Mapped[Decimal] = mapped_column(
-        Numeric(12, 6), nullable=False, default=Decimal(0), server_default="0"
+        Numeric(38, 6), nullable=False, default=Decimal(0), server_default="0"
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

@@ -162,19 +162,42 @@ async def test_resolution_requires_a_personal_key_and_never_reads_the_shared_sec
 
 
 @pytest.mark.security
-async def test_resolution_unseals_only_the_callers_key_at_the_fixed_destination() -> None:
+@pytest.mark.parametrize("currency", ["USD", "EUR"])
+async def test_resolution_unseals_only_the_callers_key_at_the_fixed_destination(
+    currency: str,
+) -> None:
+    from decimal import Decimal
+
+    from app.core.currency import CurrencySettings
+    from app.schemas.token_pricing import TokenPricing
+
     ctx, held = context(), profile()
+    rates = TokenPricing(input="2", output="5", currency=currency)
+    held.custom_pricing = rates.model_dump(mode="json")
     assert ctx.user_id is not None
     sealed = seal_secret(
         ApiKeySecret(api_key="personal-private"), scope=VaultScope.user(ctx.user_id)
     )
     row = PersonalModelKey(sealed_secret=sealed.ciphertext, key_version=sealed.key_version)
-    with patch("app.services.personal_model_key.key_repo.get", AsyncMock(return_value=row)):
+    with (
+        patch("app.services.personal_model_key.key_repo.get", AsyncMock(return_value=row)),
+        patch(
+            "app.services.currency.CurrencyService.settings",
+            AsyncMock(
+                return_value=CurrencySettings(rates={"USD": Decimal(1), "EUR": Decimal("0.9")})
+            ),
+        ),
+    ):
         resolved = await PersonalModelKeyService(AsyncMock()).resolve(ctx, held)
     assert isinstance(resolved.credential.secret, ApiKeySecret)
     assert resolved.credential.secret.api_key.get_secret_value() == "personal-private"
     assert resolved.credential.base_url == held.base_url and resolved.model == held.model
     assert resolved.fallbacks == [] and resolved.secret_id is None
+    assert resolved.credential.custom_pricing == rates
+    assert resolved.credential.profile_id == held.id
+    assert resolved.credential.exchange_rates[currency] == (
+        Decimal(1) if currency == "USD" else Decimal("0.9")
+    )
     assert "personal-private" not in repr(resolved)
     held.fallback_profile_ids = [str(uuid4())]
     with pytest.raises(BadRequestError, match="fallback"):

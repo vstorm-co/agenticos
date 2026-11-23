@@ -215,7 +215,7 @@ beforeEach(() => {
   // The form only exists for a caller holding `connections:manage`, and most of
   // what is asserted below is about the form rather than about the vault - so
   // the default caller may also store a key, and the tests that care say so.
-  state.permissions = [Perm.secretsEdit];
+  state.permissions = [Perm.secretsEdit, Perm.budgetsManage];
   onCreatedSecret.handler = undefined;
 });
 
@@ -2231,4 +2231,56 @@ it("creates a model with custom rates only after both required prices are filled
       custom_pricing: { input: "0", output: "7.25", cache_read: null, cache_write: null },
     }),
   );
+});
+
+it("starts a different model with automatic pricing", async () => {
+  const user = userEvent.setup();
+  state.secrets = [secret()];
+  mount();
+  await pickProvider("OpenAI");
+  await user.click(screen.getByLabelText("Model"));
+  await user.click(screen.getByRole("option", { name: /gpt-5/i }));
+  await user.click(screen.getByRole("switch"));
+  await user.type(screen.getByLabelText("Input tokens"), "2");
+  await user.type(screen.getByLabelText("Output tokens"), "5");
+  await user.click(screen.getByLabelText("Model"));
+  await user.type(screen.getByPlaceholderText("Search models…"), "another-alias");
+  await user.click(screen.getByRole("option", { name: /another-alias/ }));
+  expect(screen.getByRole("switch")).not.toBeChecked();
+  await user.click(screen.getByRole("button", { name: "Add model" }));
+  expect(state.createProfile.mutateAsync).toHaveBeenCalledWith(
+    expect.not.objectContaining({ custom_pricing: expect.anything() }),
+  );
+});
+
+it("requires budget authority to edit prices", async () => {
+  state.permissions = [Perm.secretsEdit];
+  mount({ fixedProviderId: "openai" });
+  expect(screen.getByRole("switch")).toBeDisabled();
+  expect(screen.queryByLabelText("Input tokens")).not.toBeInTheDocument();
+});
+
+it("edits and restores pricing for an existing subscription model", async () => {
+  const user = userEvent.setup();
+  state.catalog = [
+    capabilities("subscription_accounts", "Subscription accounts", { personal_gateway: true }),
+  ];
+  const selected = {
+    id: "sub",
+    provider: "subscription_accounts",
+    model: "claude/sonnet",
+    label: "Claude Code (Pro, Max) · claude/sonnet",
+    secret_id: null,
+    params: {},
+    fallback_profile_ids: [],
+    custom_pricing: { input: "2", output: "5" },
+  };
+  mount({ selected });
+  expect(screen.getByLabelText("Input tokens")).toHaveValue(2);
+  await user.click(screen.getByRole("switch"));
+  await user.click(screen.getByRole("button", { name: "Update model" }));
+  expect(state.updateProfile.mutateAsync).toHaveBeenCalledWith({
+    id: "sub",
+    changes: { custom_pricing: null },
+  });
 });

@@ -299,11 +299,11 @@ class ImprovementRun(Base):
     # against a bar other than the one it started with.
     suite_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
     window_days: Mapped[int] = mapped_column(Integer, nullable=False)
-    estimate_usd: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False)
-    budget_usd: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False)
-    spent_usd: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False, default=Decimal(0))
+    estimate_usd: Mapped[Decimal] = mapped_column(Numeric(38, 6), nullable=False)
+    budget_usd: Mapped[Decimal] = mapped_column(Numeric(38, 6), nullable=False)
+    spent_usd: Mapped[Decimal] = mapped_column(Numeric(38, 6), nullable=False, default=Decimal(0))
     archived_cost_usd: Mapped[Decimal] = mapped_column(
-        Numeric(12, 6), nullable=False, default=Decimal(0), server_default="0"
+        Numeric(38, 6), nullable=False, default=Decimal(0), server_default="0"
     )
     """Cost of paid root runs already removed by activity retention; no evidence text."""
     best_iteration_id: Mapped[uuid.UUID | None] = mapped_column(
@@ -447,7 +447,7 @@ class ImprovementIteration(Base):
         ForeignKey("background_jobs.id", ondelete="SET NULL"),
         nullable=True,
     )
-    cost_usd: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False, default=Decimal(0))
+    cost_usd: Mapped[Decimal] = mapped_column(Numeric(38, 6), nullable=False, default=Decimal(0))
     started_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

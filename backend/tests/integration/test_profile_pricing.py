@@ -14,7 +14,7 @@ from app.schemas.model_profile import ModelProfileRead, ModelProfileUpdate
 from app.schemas.token_pricing import TokenPricing
 from app.services.model_profile import ModelProfileService
 
-pytestmark = pytest.mark.anyio
+pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
 
 async def tenant(db: AsyncSession) -> AuthContext:

@@ -277,7 +277,7 @@ class WorkflowRun(Base, TimestampMixin):
         PG_UUID(as_uuid=True), nullable=True
     )
     key_scopes: Mapped[list[str] | None] = mapped_column(JSONB, nullable=True)
-    budget_limit: Mapped[Decimal | None] = mapped_column(Numeric(12, 6), nullable=True)
+    budget_limit: Mapped[Decimal | None] = mapped_column(Numeric(38, 6), nullable=True)
     # The run's graph node count, stamped at creation. It is the run's worst-case
     # node work, and the admission quota (#1907) sums it over live runs to bound
     # queued work per organization and principal - a run that has barely started
@@ -287,9 +287,9 @@ class WorkflowRun(Base, TimestampMixin):
     # writer that predates the column can still insert; the service always stamps
     # a real count.
     node_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
-    spent_cost: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False, default=Decimal(0))
+    spent_cost: Mapped[Decimal] = mapped_column(Numeric(38, 6), nullable=False, default=Decimal(0))
     child_cost: Mapped[Decimal] = mapped_column(
-        Numeric(12, 6), nullable=False, default=Decimal(0), server_default="0"
+        Numeric(38, 6), nullable=False, default=Decimal(0), server_default="0"
     )
     inline_result_bytes: Mapped[int] = mapped_column(
         BigInteger, nullable=False, default=0, server_default="0"
@@ -550,11 +550,11 @@ class NodeAttempt(Base, TimestampMixin):
     # needs it - an `in_flight` attempt has genuinely no result yet, and that
     # must be SQL NULL, not a stored JSON `null`.
     result: Mapped[dict[str, Any] | None] = mapped_column(JSONB(none_as_null=True), nullable=True)
-    cost: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False, default=Decimal(0))
+    cost: Mapped[Decimal] = mapped_column(Numeric(38, 6), nullable=False, default=Decimal(0))
     cost_is_partial: Mapped[bool] = mapped_column(nullable=False, default=False)
     # What the attempt was handed to spend; counted against the run's budget only
     # while it is `in_flight`, so settling or resolving it releases it with no write.
-    reserved_usd: Mapped[Decimal | None] = mapped_column(Numeric(12, 6), nullable=True)
+    reserved_usd: Mapped[Decimal | None] = mapped_column(Numeric(38, 6), nullable=True)
     # A result reported after the attempt was resolved `uncertain`, kept for a person
     # to use; never changes the attempt's verdict.
     late_result: Mapped[dict[str, Any] | None] = mapped_column(
@@ -761,7 +761,7 @@ class WorkflowNodeSpend(Base, TimestampMixin):
     organization_id: Mapped[uuid.UUID] = mapped_column(
         PG_UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
     )
-    cost_usd: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False)
+    cost_usd: Mapped[Decimal] = mapped_column(Numeric(38, 6), nullable=False)
     cost_is_partial: Mapped[bool] = mapped_column(Boolean, nullable=False)
 
 

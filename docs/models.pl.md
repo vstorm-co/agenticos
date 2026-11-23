@@ -1,5 +1,5 @@
 ---
-source_sha: "30821f871326"
+source_sha: "a75a28347d24"
 ---
 
 # Modele i providery { #models-and-providers }
@@ -848,6 +848,8 @@ Ustaw stawki wejścia i wyjścia za milion tokenów w wybranej walucie (domyśln
 cache są opcjonalne; puste dziedziczą cenę wejścia. Jawne zero jest ceną.
 API udostępnia ten sam dokument jako `custom_pricing`: pominięcie przy aktualizacji
 zachowuje ustawienie, a `null` przywraca wycenę automatyczną.
+
+Zmiana cen lub przywrócenie cen automatycznych wymaga `budgets:manage` oraz uprawnienia do zarządzania połączeniami modeli. Profile subskrypcji obsługują te same opcjonalne ceny tokenów: służą do rozliczania budżetu, a nie limitu subskrypcji. Gdy własne ceny zastępują koszt w rozliczeniach, pierwotny rachunek dostawcy pozostaje w metadanych użycia.
 
 Własne stawki mają pierwszeństwo przed katalogiem i rachunkiem dostawcy.
 Podążają za profilem, który faktycznie odpowiada, również w fallbackach,

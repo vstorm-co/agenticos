@@ -27,6 +27,8 @@ from app.schemas.personal_model_key import (
     PersonalModelKeyCreate,
     PersonalModelKeyRead,
 )
+from app.schemas.token_pricing import TokenPricing
+from app.services.currency import CurrencyService
 from app.services.model_outputs import model_outputs
 
 
@@ -221,6 +223,14 @@ class PersonalModelKeyService:
         )
         if not isinstance(secret, ApiKeySecret):
             raise TypeError("A personal model key has the wrong secret kind")
+        pricing = (
+            TokenPricing.model_validate(profile.custom_pricing)
+            if profile.custom_pricing is not None
+            else None
+        )
+        rates = await CurrencyService(self.db).rates_for(pricing)
+        if profile.provider == "stav" and pricing is None:
+            rates = dict((await CurrencyService(self.db).settings()).rates)
         return ModelRequestSpec(
             profile_id=profile.id,
             label=profile.label,
@@ -232,6 +242,9 @@ class PersonalModelKeyService:
             credential=ResolvedCredential(
                 provider=profile.provider,
                 secret=secret,
+                profile_id=profile.id,
+                custom_pricing=pricing,
+                exchange_rates=rates,
                 credential_id=row.id,
                 token_source=PersonalCopilotToken(
                     ctx.organization_id, owner, row.id, sealed_fingerprint(row.sealed_secret)

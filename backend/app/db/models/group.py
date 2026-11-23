@@ -56,7 +56,7 @@ class Group(Base, TimestampMixin):
     # What the department's people may spend in a calendar month, across every
     # agent they run (#2072). Null is no cap of its own - the organization's
     # still applies.
-    monthly_budget_usd: Mapped[Decimal | None] = mapped_column(Numeric(12, 6), nullable=True)
+    monthly_budget_usd: Mapped[Decimal | None] = mapped_column(Numeric(38, 6), nullable=True)
     created_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("users.id", ondelete="SET NULL"),

@@ -81,8 +81,8 @@ export function ModelPricing({
                 ? {
                     input: automatic?.input ?? "",
                     output: automatic?.output ?? "",
-                    cache_read: null,
-                    cache_write: null,
+                    cache_read: automatic?.cache_read ?? null,
+                    cache_write: automatic?.cache_write ?? null,
                   }
                 : null,
             )

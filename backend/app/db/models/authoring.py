@@ -181,8 +181,8 @@ class AuthoringRequest(Base):
         String(16), nullable=False, default=AuthoringStatus.QUEUED.value
     )
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
-    estimate_usd: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False)
-    cost_usd: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False, default=Decimal(0))
+    estimate_usd: Mapped[Decimal] = mapped_column(Numeric(38, 6), nullable=False)
+    cost_usd: Mapped[Decimal] = mapped_column(Numeric(38, 6), nullable=False, default=Decimal(0))
     run_ids: Mapped[list[uuid.UUID]] = mapped_column(
         ARRAY(PG_UUID(as_uuid=True)), nullable=False, default=list, server_default="{}"
     )

@@ -105,7 +105,14 @@ def _providers(db, ctx, *, fail_draft=False):
             ModelProfileService,
             "resolve",
             new=AsyncMock(
-                return_value=SimpleNamespace(model="gpt-4o-mini", provider="openai", label="Helper")
+                return_value=SimpleNamespace(
+                    model="gpt-4o-mini",
+                    provider="openai",
+                    label="Helper",
+                    credential=SimpleNamespace(
+                        custom_pricing=None, exchange_rates={"USD": Decimal(1)}
+                    ),
+                )
             ),
         ),
         patch(
