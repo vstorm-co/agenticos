@@ -3323,7 +3323,8 @@
           "improve": "Poprawianie",
           "knowledge_gaps": "Luki w wiedzy",
           "test_questions": "Pytania testowe",
-          "key_drafts": "Szkice kluczy"
+          "key_drafts": "Szkice kluczy",
+          "key_coverage": "Pokrycie kluczy"
         },
         "open": {
           "openEvalRun": "Otwórz ewaluację",

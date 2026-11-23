@@ -7341,7 +7341,8 @@
           "improve": "Improve",
           "knowledge_gaps": "Wissenslücken",
           "test_questions": "Testfragen",
-          "key_drafts": "Schlüsselentwürfe"
+          "key_drafts": "Schlüsselentwürfe",
+          "key_coverage": "Schlüsselabdeckung"
         },
         "open": {
           "openEvalRun": "Eval-Run öffnen",

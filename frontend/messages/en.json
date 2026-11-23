@@ -8069,7 +8069,8 @@
           "improve": "Improve",
           "knowledge_gaps": "Knowledge gaps",
           "test_questions": "Test questions",
-          "key_drafts": "Key drafts"
+          "key_drafts": "Key drafts",
+          "key_coverage": "Key coverage"
         },
         "open": {
           "openEvalRun": "Open the eval run",

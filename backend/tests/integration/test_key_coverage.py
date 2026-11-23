@@ -23,7 +23,7 @@ from app.core.exceptions import (
     SystemAgentUnavailableError,
 )
 from app.core.permissions import AuthContext, OrgRoleName
-from app.db.models.agent import Agent, AgentVersion
+from app.db.models.agent import Agent, AgentKind, AgentVersion
 from app.db.models.agent_run import AgentRun
 from app.db.models.audit_log import AppAdminAuditLog
 from app.db.models.background_job import BackgroundJob
@@ -38,6 +38,7 @@ from app.db.models.user import User
 from app.schemas.dataset import DatasetCaseCreate, DatasetCreate
 from app.schemas.key_coverage import JudgedCoverage, JudgedKey
 from app.services import key_coverage as coverage_module
+from app.services.agent_runner import AgentRunnerService
 from app.services.api_key import KEY_GONE
 from app.services.dataset import DatasetService
 from app.services.key_coverage import (
@@ -555,6 +556,33 @@ class TestJudging:
         assert row is not None
         await db.refresh(row)
         assert (row.status, row.error) == ("failed", STOPPED)
+
+
+class TestActivity:
+    async def test_a_coverage_run_reads_as_key_coverage_of_its_dataset(
+        self, db, monkeypatch, searched
+    ) -> None:
+        owner = await _owner(db)
+        dataset, _, report = await _started(db, owner)
+        judge = Agent(
+            organization_id=owner.organization_id,
+            slug=f"source-coverage-{uuid.uuid4().hex[:8]}",
+            name="Source coverage",
+            kind=AgentKind.COVERAGE.value,
+        )
+        db.add(judge)
+        await db.flush()
+        run = await _run(db, owner, judge)
+        _answer(monkeypatch, JudgedCoverage(keys=[]), run)
+        await KeyCoverageService(db).judge(report.id, owner.organization_id)
+
+        origins = await AgentRunnerService(db).origins(owner, [run.id])
+
+        assert origins[run.id].model_dump(exclude_none=True) == {
+            "kind": "key_coverage",
+            "agent_name": "Source coverage",
+            "dataset_id": dataset.id,
+        }
 
 
 class TestReading:

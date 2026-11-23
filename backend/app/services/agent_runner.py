@@ -482,7 +482,8 @@ SPECIALIST_SKILLS_RESOURCE = "specialist_skills"
 _PREVIEW_CHARS = 80
 
 _ORIGIN_KINDS: dict[
-    str, Literal["grader", "improve", "knowledge_gaps", "test_questions", "key_drafts"]
+    str,
+    Literal["grader", "improve", "knowledge_gaps", "test_questions", "key_drafts", "key_coverage"],
 ] = {
     AgentKind.JUDGE.value: "grader",
     AgentKind.IMPROVER.value: "improve",
@@ -490,7 +491,7 @@ _ORIGIN_KINDS: dict[
     AgentKind.DRAFTER.value: "knowledge_gaps",
     AgentKind.GENERATOR.value: "test_questions",
     AgentKind.EXTRACTOR.value: "key_drafts",
-    AgentKind.COVERAGE.value: "test_questions",
+    AgentKind.COVERAGE.value: "key_coverage",
 }
 
 

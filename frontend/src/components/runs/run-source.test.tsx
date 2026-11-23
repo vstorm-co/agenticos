@@ -74,6 +74,13 @@ describe("RunSourceTag", () => {
       "Open the dataset",
       "/datasets/ds-1",
     ],
+    [
+      "key coverage judged",
+      run({ origin: origin({ kind: "key_coverage", dataset_id: "ds-1" }) }),
+      "Key coverage",
+      "Open the dataset",
+      "/datasets/ds-1?tab=coverage",
+    ],
   ])("names %s and links to where it is read", (_name, row, label, link, href) => {
     render(<RunSourceTag run={row} />);
     expect(screen.getByText(label)).toBeInTheDocument();

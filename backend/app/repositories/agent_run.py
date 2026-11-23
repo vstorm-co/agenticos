@@ -55,6 +55,7 @@ from app.db.models.channel_identity import ChannelIdentity
 from app.db.models.conversation import Conversation, Message
 from app.db.models.group import Group, GroupMember
 from app.db.models.intercepted_tool_call import InterceptedToolCall
+from app.db.models.key_coverage_report import KeyCoverageReport
 from app.db.models.knowledge_gap import (
     KnowledgeGapClassification,
     KnowledgeGapEvalClassification,
@@ -942,6 +943,16 @@ async def run_origins(
         )
     )
     for run_id, dataset_id in drafts.all():
+        found[run_id] = replace(found[run_id], dataset_id=dataset_id)
+    reports = await db.execute(
+        select(
+            type_coerce(KeyCoverageReport.run_id, run_id_of), KeyCoverageReport.dataset_id
+        ).where(
+            KeyCoverageReport.organization_id == organization_id,
+            KeyCoverageReport.run_id.in_(ids),
+        )
+    )
+    for run_id, dataset_id in reports.all():
         found[run_id] = replace(found[run_id], dataset_id=dataset_id)
     return found
 
