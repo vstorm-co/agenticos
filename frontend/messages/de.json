@@ -17102,7 +17102,6 @@
       "answerCount": "{passed} von {cases}"
     },
     "workspace": {
-      "records": "Sitzungsverlauf und Testdetails",
       "changes": "Was sich geändert hat",
       "changesHint": "Lesen Sie die Begründung. Öffnen Sie den Vergleich für den genauen Wortlaut.",
       "evidence": "Sind die Antworten besser?",

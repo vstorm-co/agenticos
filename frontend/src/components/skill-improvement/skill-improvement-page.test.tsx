@@ -214,9 +214,6 @@ describe("SkillImprovementPage", () => {
   it("reads an ended session through compact record tabs without wizard decisions", async () => {
     state.session = skillSession({ status: "rejected", best_iteration_id: null });
     mount();
-    await userEvent.click(
-      await screen.findByText("Session history and test details", { selector: "summary" }),
-    );
     expect(await screen.findByRole("tab", { name: "Changes" })).toBeVisible();
     expect(screen.queryByRole("button", { name: "Previous step" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Decide what to do" })).toBeNull();
@@ -326,9 +323,12 @@ it("allows retrying the initial skill read", async () => {
 it("opens a finished skill's attempts without offering another decision", async () => {
   state.session = skillSession({ status: "accepted", outcome: "applied" });
   mount();
-  await userEvent.click(
-    await screen.findByText("Session history and test details", { selector: "summary" }),
-  );
+  const navigation = await screen.findByRole("tablist");
+  expect(navigation).toBeVisible();
+  expect(
+    navigation.compareDocumentPosition(document.querySelector("[data-step-panel]")!) &
+      Node.DOCUMENT_POSITION_FOLLOWING,
+  ).toBeTruthy();
   await userEvent.click(await screen.findByRole("tab", { name: "Attempts" }));
   expect(screen.getByRole("heading", { name: "Attempts" })).toBeVisible();
   expect(screen.getByText(/^Attempt 1:/)).toBeVisible();

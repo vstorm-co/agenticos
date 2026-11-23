@@ -17189,7 +17189,6 @@
       "answerCount": "{passed} z {cases}"
     },
     "workspace": {
-      "records": "Historia sesji i szczegóły testu",
       "changes": "Co się zmieniło",
       "changesHint": "Przeczytaj uzasadnienie zmian. Rozwiń porównanie, aby zobaczyć dokładną treść.",
       "evidence": "Czy odpowiedzi są lepsze?",

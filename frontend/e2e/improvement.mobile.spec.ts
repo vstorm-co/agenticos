@@ -484,7 +484,6 @@ test("a session kept as a draft is history: Improve starts the next, and the his
   await page.goto(`/agents/${id(agent)}?tab=history`);
   await page.getByRole("link", { name: /Kept as draft/ }).click();
   await expect(page).toHaveURL(new RegExp(`/improve/${id(session)}$`));
-  await page.getByText("Session history and test details", { exact: true }).click();
   await expect(page.getByRole("tab", { name: "Result", exact: true })).toHaveAttribute(
     "aria-selected",
     "true",

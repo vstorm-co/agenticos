@@ -17416,7 +17416,6 @@
       "answerCount": "{passed} of {cases}"
     },
     "workspace": {
-      "records": "Session history and test details",
       "changes": "What changed",
       "changesHint": "Read why each change was made. Open the comparison for the exact wording.",
       "evidence": "Did the answers improve?",

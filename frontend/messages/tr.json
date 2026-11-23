@@ -16805,7 +16805,6 @@
     "newlyFixed": "İyileşen yanıtlar",
     "newlyBroken": "Kötüleşen yanıtlar",
     "workspace": {
-      "records": "Oturum geçmişi ve test ayrıntıları",
       "changes": "Neler değişti",
       "changesHint": "Her değişikliğin gerekçesini okuyun. Tam metin için karşılaştırmayı açın.",
       "evidence": "Yanıtlar iyileşti mi?",
