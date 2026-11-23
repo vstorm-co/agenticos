@@ -1,5 +1,5 @@
 ---
-source_sha: "4bd4dc67a376"
+source_sha: "1bb5de69e36e"
 ---
 
 # Departamentos y grupos { #departments-and-groups }
@@ -115,6 +115,16 @@ El filtro nunca amplía una lista: lo que quien lee
 no puede abrir no aparece. Los selectores del Builder muestran junto a cada
 recurso sus departamentos, y los cuatro endpoints de lista aceptan `group_id`
 para la misma restricción por la API.
+
+Los datasets no se agrupan por departamento. La lista de datasets no tiene filtro
+de grupo ni insignias de departamento, y un dataset no tiene la acción Add to an
+agent ni la lista `used_by`: al conjunto de pruebas de un agent se llega desde el
+agent - su pestaña **Evals**, **Improve** y los **Settings** del dataset. Aun
+así, un dataset se comparte como cualquier otro recurso, de modo que un
+departamento llega a él mediante un grant sobre el propio dataset; consulte
+[Datasets](datasets.md#access). Su evaluador es el modelo y las instrucciones
+definidos en los **Settings** del dataset, no un agent, así que allí nada se elige
+por departamento.
 
 ## El presupuesto de un departamento { #a-departments-budget }
 

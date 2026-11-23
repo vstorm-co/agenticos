@@ -1,5 +1,5 @@
 ---
-source_sha: "4bd4dc67a376"
+source_sha: "1bb5de69e36e"
 ---
 
 # Działy i grupy { #departments-and-groups }
@@ -110,6 +110,15 @@ Filtr
 nigdy nie poszerza listy: czego czytający nie może otworzyć, tego nie widzi.
 Pickery w Builderze pokazują przy każdym zasobie jego działy, a cztery endpointy
 list przyjmują `group_id`, żeby zawęzić tak samo przez API.
+
+Datasety nie są grupowane po dziale. Lista datasetów nie ma filtra grupy ani
+plakietek działów, a dataset nie ma akcji Add to an agent ani listy `used_by`:
+do zestawu testowego agenta dochodzi się od agenta - z jego karty **Ewaluacje**,
+z **Popraw** i z **Ustawień** datasetu. Dataset udostępnia się jednak jak każdy
+inny zasób, więc dział dostaje do niego dostęp przez grant na samym datasecie;
+zobacz [Datasety](datasets.md#access). Jego oceniającym jest model i instrukcje
+ustawione w **Ustawieniach** datasetu, a nie agent, więc niczego nie wybiera się
+tam po dziale.
 
 ## Budżet działu { #a-departments-budget }
 
