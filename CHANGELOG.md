@@ -33,7 +33,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 - Keep resources of disabled capabilities out of agent execution, setup instructions and routine source/action consent. Reopen consent dialogs with a fresh review.
 - Offer agents and specialists only knowledge bases from their active organization, keeping invalid existing bindings visible for removal. Workflows retain their broader authorized selection.
-- Deliver per-run routine answers to their originating private chat, show pending delivery, and stop duplicate or truncated Telegram replies. A send has one durable attempt; an unconfirmed submission is not automatically repeated, and provider exceptions cannot log bot credentials.
+- Deliver per-run routine answers to their originating private chat, show pending delivery, and stop duplicate or truncated Telegram replies and ambiguous Slack resubmissions. A send has one durable attempt; an unconfirmed submission is not automatically repeated, and provider exceptions cannot log bot credentials.
 - Let platform-connected agents create routines for themselves without guessing an agent ID; authorization remains on the selected agent.
 - Keep readiness checks isolated to each routine's identity, refresh them after source changes, and recover parked runs whose worker stopped before saving their last-run link. Limit concurrent checks per person and organization.
 - Preserve the recorded owner of a channel continuation when a stale approval decision conflicts with an API-key decision.
