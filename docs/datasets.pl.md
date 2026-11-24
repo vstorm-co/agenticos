@@ -1,5 +1,5 @@
 ---
-source_sha: "ef5a787328c9"
+source_sha: "cf07a5b19ce8"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -389,6 +389,7 @@ niej jest odrzucany ze wskazaniem `judge.pass_at`.
 | `max_latency_ms` | `value` | Run trwał nie dłużej niż tyle |
 | `length` | `unit` (`characters` lub `words`), `min` i/lub `max`, opcjonalnie `path` | Odpowiedź ma długość co najmniej `min` i najwyżej `max` |
 | `judge` | `criterion` | Sędzia ewaluacji ocenia kryterium na progu zaliczenia lub wyżej |
+| `keys` | `keys`: pary `key` (etykieta) i `value`, najwyżej 200 łącznie w sprawdzeniach kluczy przypadku - i w domyślnych sprawdzeniach datasetu; rodzina `keys`, chyba że podano inną | Odpowiedź zawiera każdą wartość; wynik to udział tych, które zawiera |
 
 `path` sięga do wnętrza odpowiedzi, która jest JSON-em: `items.0.name` to nazwa
 pierwszego elementu. Bez niego reguła czyta całą odpowiedź. Reguły tekstowe nie
@@ -407,6 +408,74 @@ potrzebuje co najmniej jednej granicy.
 Sprawdzenie `judge` to kryterium tylko dla jednego przypadku, oceniane w tym
 samym runie sędziego co rubryka datasetu. Używaj go do tego, czego reguła nie
 wyrazi, np. „odmawia i nie ujawnia adresu klienta”.
+
+Sprawdzenie `keys` wymienia fakty, które musi zawierać napisany dokument -
+numer faktury, kwotę, nazwę klienta - każdy jako etykietę i wartość z dokumentu.
+Sprawdzenie przechodzi, gdy odpowiedź zawiera każdą wartość; jego wynik to udział
+tych, które zawiera, a uzasadnienie wymienia brakujące etykiety.
+
+Każdej wartości szuka się w odpowiedzi:
+
+- jako całego tokenu: `12` nie zostanie znalezione w `120`, a `INV-1` w `INV-10`;
+- nie wewnątrz dłuższej liczby: `12` nie zostanie znalezione w `12,50`, `234` w
+  `1 234`, a `1 234` w `1 234 567`;
+- bez względu na wielkość liter, ciągi białych znaków i formy Unicode, takie jak
+  ligatura czy twarda spacja;
+- z dopuszczeniem spacji grupującej tysiące w liczbie, więc `1234` i `1 234` się
+  odnajdują;
+- z przecinkiem i kropką bez zmian, bo w jednym języku oddzielają tysiące, a w
+  innym część dziesiętną: zapisz wartość tak, jak pokazuje ją dokument.
+
+W konsoli zapisany przypadek z zapisaną odpowiedzią referencyjną ma przy
+sprawdzeniach przycisk **Wypisz klucze z odpowiedzi referencyjnej**. Ekstraktor
+kluczy, agent systemowy, czyta odpowiedź w jobie, jako osoba, która poprosiła,
+z rozliczeniem kosztu i wpisem w Aktywności, i wypisuje podane w niej fakty.
+Zostaje tylko wartość, którą odpowiedź zawiera dosłownie. **Użyj tych kluczy**
+wypełnia sprawdzenie kluczy przypadku do przejrzenia i zapisania; nic nie zapisuje
+się samo, a szkic jest usuwany po użyciu albo odrzuceniu,
+najpóźniej 7 dni po zleceniu.
+
+Każde sprawdzenie przyjmuje opcjonalne `family` (najwyżej 80 znaków): to, co
+sprawdza w całym datasecie, np. `total including VAT` przy regexie każdego
+przypadku dla jego własnej kwoty. Porównanie liczy sprawdzenia jednej rodziny
+razem, przypadek po przypadku, więc zmiana jest oceniana według tego, co
+przesunęło się w całym datasecie, a nie według wzorca jednego przypadku.
+Sprawdzenie bez rodziny jest osobną rodziną; sprawdzenie z rodziną ocenia - i
+wylicza odcisk swojego oceniania - dokładnie tak jak wcześniej.
+
+### Klucze bez źródła { #key-coverage }
+
+Sprawdzenie kluczy mówi, jakie fakty musi zawierać napisany dokument; nie mówi,
+czy agent mógł je znać. **Wyniki → Pokrycie kluczy** odpowiada na to dla
+wybranego opublikowanego agenta. Agent pokrycia źródeł, agent systemowy, czyta
+etykiety kluczy ze sprawdzeń kluczy najnowszej wersji - pierwszych 200 różnych -
+obok tego, do czego sięga opublikowana wersja agenta, i dla każdej etykiety
+mówi, że ma ją jakieś źródło, że nie ma jej żadne, albo że nie da się tego
+ocenić. Z każdego źródła czyta:
+
+- z bazy wiedzy: wyszukiwanie każdej etykiety;
+- z pliku kontekstu lub skilla: fragmenty, w których pada etykieta, ze skilla w
+  wersji lub forku wskazanym w powiązaniu agenta;
+- z włączonego serwera MCP organizacji: jego narzędzia i to, co według opisu
+  robią.
+
+Widzi etykiety kluczy, nigdy ich wartości. Działa w jobie, jako osoba, która
+zleciła sprawdzenie i musi móc edytować agenta, z naliczaniem kosztu i wpisem w
+Aktywności. Każda para agenta i datasetu ma jeden raport, który zastępuje
+następny. Źródło, którego zlecający nie widzi, nie jest czytane, podobnie jak serwer MCP
+działający przez konto każdej osoby albo platformy, a raport podaje, ile ich
+pominięto; czytelnik, który nie widzi źródła wskazanego w raporcie,
+widzi je bez nazwy, a ten, kto nie widzi każdego źródła przeczytanego przez
+agenta oceniającego, dostaje oceny bez uzasadnień.
+
+Klucz bez źródła musi trafić do agenta jako wiedza - dokument, plik kontekstu,
+narzędzie - bo żadna zmiana instrukcji go nie dostarczy.
+[Improve](authoring.md#background-improvement-sessions) traktuje go właśnie tak,
+ale tylko z pełnego raportu - z przeczytanym każdym źródłem - zrobionego dla
+wersji, którą agent uruchamia teraz. Po ponownej publikacji agenta, nowej wersji datasetu albo zmianie przeczytanego
+źródła - dodaniu lub usunięciu dokumentu z bazy wiedzy, edycji pliku kontekstu
+lub skilla, zmianie narzędzi serwera - raport jest oznaczony jako nieaktualny,
+dopóki nie sprawdzisz ponownie.
 
 ### Oczekiwane wywołania narzędzi { #trajectory }
 
@@ -659,7 +728,8 @@ Gdy osoba, która zadała pytanie przypadku, zostanie wymazana, znika też tekst
 Pytanie, wcześniejsze tury, obie odpowiedzi i notatka są zastępowane w każdej
 wersji, która zawiera przypadek, podobnie jak odpowiedzi i wywołania, które ewaluacja
 runy zapisały dla niego. Przypadek zachowuje swoje id, oczekiwane wywołania,
-sprawdzenia i tagi, i dostaje oznaczenie **Zanonimizowany po usunięciu osoby**,
+sprawdzenia i tagi - poza sprawdzeniem `keys`, którego wartości pochodziły z
+usuwanej odpowiedzi - i dostaje oznaczenie **Zanonimizowany po usunięciu osoby**,
 tak by jego kurator mógł go przepisać albo usunąć. Do tego czasu ewaluacja run go
 pomija, bo odpowiedź na placeholder niczego nie mierzy.
 

@@ -94,7 +94,7 @@ repos:
         # publishers' names.
         exclude: |
           (?x)^(
-            frontend/messages/(pl|de|tr)\.json|
+            frontend/messages/(pl|de|tr|fr)\.json|
             backend/app/core/catalog/mcp_registry\.json|
             backend/app/core/catalog/mcp_checks\.json|
             docs/howto/translate\.md

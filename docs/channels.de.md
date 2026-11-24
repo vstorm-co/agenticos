@@ -1,5 +1,5 @@
 ---
-source_sha: "dd51ad4f9078"
+source_sha: "5174c765a471"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -2168,11 +2168,11 @@ ihre Bestätigung verloren ging. Ausgeschöpfte Versuche stehen unter
 
 ### Routine-Antworten in einem privaten Chat { #routine-answers-in-a-private-chat }
 
-Eine Routine, die in einem privaten Chat auf Telegram, Slack, Mattermost, Teams, Discord oder Matrix angelegt wurde, antwortet in diesem Chat. Sobald die Antwort in der Unterhaltung gespeichert ist, postet der Bot sie auch dort, damit die Person sie dort liest, wo sie danach gefragt hat.
+Öffnet eine Routine, die in einem privaten Chat auf Telegram, Slack, Mattermost, Teams, Discord oder Matrix angelegt wurde, für jeden Lauf einen neuen Chat (`chat_mode=per_run`), postet der Bot die Antwort jedes Laufs auch in den Chat, in dem sie angelegt wurde, damit die Person sie dort liest, wo sie danach gefragt hat. Der ganze Lauf bleibt in seinem eigenen Chat in der Konsole.
 
 Vor dem Posten prüft die Plattform erneut das verknüpfte Konto der erstellenden Person, ihre Mitgliedschaft, den gebundenen Agenten und die Unterhaltung. Solange der Beitrag wartet, zeigt die Routine **Letzte Antwort wird an den Chat gesendet**. Nimmt der Chat die Antwort an, lautet der Status `delivered`. Kann der Chat sie nicht aufnehmen, zeigt die Routine **Letzte Antwort im Chat nicht verfügbar** und die besitzende Person erhält eine Benachrichtigung. Die Antwort bleibt im Laufprotokoll.
 
-Gruppenchats, SMS, iMessage und E-Mail speichern die Antwort nur. Nach `/new` gehört die alte Unterhaltung nicht mehr zum Chat, spätere Antworten bleiben daher in der Konsole. Leiten Sie die Benachrichtigungen der Routine nicht zusätzlich in denselben Chat: Die Antwort käme doppelt an.
+Eine Routine mit einem gemeinsamen Verlauf (`chat_mode=shared`) postet nichts in den Chat. Gruppenchats, SMS, iMessage und E-Mail lassen die Antwort in der Konsole. Nach `/new` gehört die alte Unterhaltung nicht mehr zum Chat, spätere Antworten bleiben daher in der Konsole. Leiten Sie die Benachrichtigungen der Routine nicht zusätzlich in denselben Chat: Die Antwort käme doppelt an.
 
 ### Nächste Schritte als Schaltflächen { #next-steps-as-buttons }
 

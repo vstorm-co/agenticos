@@ -64,7 +64,7 @@ async def test_the_voice_comes_back_as_wav_in_the_requested_language(client: Asy
 
 async def test_a_locale_the_console_does_not_speak_is_refused(client: AsyncClient, wired):
     resp = await client.post(
-        f"{_V1}/agents/{uuid.uuid4()}/voice/preview", json={**_BODY, "locale": "fr"}
+        f"{_V1}/agents/{uuid.uuid4()}/voice/preview", json={**_BODY, "locale": "es"}
     )
 
     assert resp.status_code == 422

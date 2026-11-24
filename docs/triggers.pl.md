@@ -1,5 +1,5 @@
 ---
-source_sha: "e98feb55dd96"
+source_sha: "60a9139b3d7e"
 ---
 
 # Konfigurowanie triggera zdarzeniowego { #setting-up-an-event-trigger }
@@ -73,7 +73,8 @@ trafia dodatkowo do osoby, która go utworzyła (#2575): `primary`, domyślnie, 
 agentem, więc wszystko, co jej mówi, jest w jednym miejscu; `conversation` to jeden z jej innych czatów
 (`delivery_conversation_id`), dla rutyny utworzonej w tym czacie; `run_log` nie wysyła nigdzie indziej.
 
-Gdy ten czat jest czatem prywatnym w komunikatorze, bot publikuje odpowiedź także tam (zob.
+Gdy rutyna utworzona w czacie prywatnym w komunikatorze otwiera nowy czat dla każdego
+uruchomienia (`chat_mode=per_run`), bot publikuje każdą odpowiedź także w tym czacie (zob.
 [Odpowiedzi rutyn w czacie prywatnym](channels.md#routine-answers-in-a-private-chat)); status to
 `pending`, dopóki nie zostanie wysłana.
 

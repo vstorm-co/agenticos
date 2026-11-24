@@ -22,21 +22,25 @@ is the shape of the tools and never a result.
 
 import asyncio
 import logging
+from collections.abc import Awaitable
 from dataclasses import dataclass
 from types import SimpleNamespace
 from typing import Any
 from uuid import UUID
 
+from pydantic import BaseModel
 from pydantic_ai import Agent as PydanticAgent
 from pydantic_ai.capabilities import AbstractCapability, CombinedCapability, WrapperCapability
 from pydantic_ai.models.test import TestModel
 from pydantic_ai.tools import RunContext
+from pydantic_ai.toolsets import AbstractToolset
 from pydantic_ai.usage import RunUsage
 
 from app.agents.capabilities import all_capabilities
 from app.agents.capabilities._registry import (
     CapabilityBinding,
     CapabilityBuildContext,
+    CapabilityDef,
     get,
 )
 from app.agents.capabilities.channel_tools import CHANNEL_DIRECTORY_RESOURCE
@@ -129,6 +133,7 @@ _DOCUMENTATION_STUB: dict[str, Any] = {
 # so the widest setting is the one worth documenting: a tool nobody can describe
 # is exactly the one somebody reaching for this page needs described.
 _DOCUMENTATION_CONFIGS: dict[str, dict[str, Any]] = {
+    "external_acp": {"agent_id": "documentation-probe"},
     "phone_calls": {"endpoint_id": str(UUID(int=0))},
     "mirage": {"mounts": [{"path": "/scratch/", "backend": "ram"}]},
     "channel_tools": {"tools": sorted(get("channel_tools").tool_ids)},
@@ -139,7 +144,9 @@ _DOCUMENTATION_CONFIGS: dict[str, dict[str, Any]] = {
 }
 
 
-def _documentation_secret(definition: Any) -> ApiKeySecret | None:
+def _documentation_secret(
+    definition: CapabilityDef, config: BaseModel | None
+) -> ApiKeySecret | None:
     """A stand-in credential for a capability that will not build without one.
 
     Read for its *shape* and never used: nothing here calls the service, so the
@@ -153,7 +160,7 @@ def _documentation_secret(definition: Any) -> ApiKeySecret | None:
     contract rather than be quietly stubbed with the wrong shape.
     """
     requirement = definition.secret
-    if requirement is None or not definition.needs_secret(definition.validate_config({})):
+    if requirement is None or not definition.needs_secret(config):
         return None
     if requirement.kind is not SecretKind.API_KEY:
         return None
@@ -269,27 +276,36 @@ def real_tool_definition(tool: Any) -> Any:
     return getattr(tool, "tool_def", tool)
 
 
-async def _contracts_for(definition: Any) -> dict[str, ToolContract]:
+async def _contracts_for(definition: CapabilityDef) -> dict[str, ToolContract]:
     if definition.id == "mirage" and not mirage_catalog():
         return {}
     blob = _DOCUMENTATION_CONFIGS.get(definition.id, {})
+    config = definition.validate_config(blob)
     built = definition.builder(
         CapabilityBuildContext(
             binding=CapabilityBinding(capability_id=definition.id, config=blob),
-            config=definition.validate_config(blob),
+            config=config,
             resources=_DOCUMENTATION_STUB,
-            secret=_documentation_secret(definition),
+            secret=_documentation_secret(definition, config),
         )
     )
-    toolset = built.get_toolset() if built is not None else None
+    if built is None:
+        return {}
+    ctx = probe_context(built)
+    toolset = built.get_toolset()
+    if callable(toolset):
+        resolved = toolset(ctx)
+        toolset = await resolved if isinstance(resolved, Awaitable) else resolved
     if toolset is None:
         return {}
+    if not isinstance(toolset, AbstractToolset):
+        raise TypeError("A capability documentation probe requires a toolset")
 
     # Asked for, not read off: `get_tools` is what a run calls, so this is the
     # list after any filtering or wrapping the capability does - which is the
     # list the model is actually sent.
     contracts: dict[str, ToolContract] = {}
-    for tool_id, tool in (await toolset.get_tools(probe_context(built))).items():
+    for tool_id, tool in (await toolset.get_tools(ctx)).items():
         definition_for_model = real_tool_definition(tool)
         contracts[tool_id] = ToolContract(
             description=getattr(definition_for_model, "description", "") or "",

@@ -65,6 +65,8 @@ from app.repositories import context_proposal as context_proposal_repo
 from app.repositories import case_score as case_score_repo
 from app.repositories import dataset as dataset_repo
 from app.repositories import case_generation as case_generation_repo
+from app.repositories import case_key_draft as case_key_draft_repo
+from app.repositories import key_coverage_report as key_coverage_report_repo
 from app.repositories import eval_run as eval_run_repo
 from app.repositories import eval_suite as eval_suite_repo
 from app.repositories import improvement as improvement_repo
@@ -174,6 +176,8 @@ __all__ = [
     "case_score_repo",
     "dataset_repo",
     "case_generation_repo",
+    "case_key_draft_repo",
+    "key_coverage_report_repo",
     "eval_run_repo",
     "eval_suite_repo",
     "improvement_repo",

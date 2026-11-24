@@ -1,5 +1,5 @@
 ---
-source_sha: "ef5a787328c9"
+source_sha: "cf07a5b19ce8"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -393,6 +393,7 @@ encima de ella se rechaza nombrando `judge.pass_at`.
 | `max_latency_ms` | `value` | El run no tardó más que esto |
 | `length` | `unit` (`characters` o `words`), `min` y/o `max`, opcional `path` | La respuesta mide como mínimo `min` y como máximo `max` |
 | `judge` | `criterion` | El juez de evals califica el criterio en la nota de aprobado o por encima |
+| `keys` | `keys`: pares de `key` (una etiqueta) y `value`, como mucho 200 entre todas las comprobaciones `keys` de un caso - y entre las comprobaciones por defecto del dataset; familia `keys` salvo que se indique otra | La respuesta contiene cada valor; la puntuación es la parte que contiene |
 
 `path` lee dentro de una respuesta que es JSON: `items.0.name` es el nombre del
 primer elemento. Sin él, una regla lee la respuesta entera. Las reglas de texto
@@ -412,6 +413,77 @@ son espacios en blanco, y necesita al menos un límite.
 Una comprobación `judge` es un criterio solo para un caso, calificado en el
 mismo run del juez que la rúbrica del dataset. Úsala para lo que una regla no
 puede expresar, como "se niega y no revela la dirección del cliente".
+
+Una comprobación `keys` enumera los datos que debe contener un documento escrito
+- un número de factura, un total, el nombre de un cliente -, cada uno como una
+etiqueta y el valor que tiene el documento. La comprobación se supera cuando la
+respuesta contiene cada valor; su puntuación es la parte que contiene, y su
+motivo nombra las etiquetas que faltan.
+
+Cada valor se busca en la respuesta:
+
+- como un token completo: `12` no se encuentra en `120`, ni `INV-1` en `INV-10`;
+- no dentro de un número más largo: `12` no se encuentra en `12,50`, ni `234` en
+  `1 234`, ni `1 234` en `1 234 567`;
+- sin tener en cuenta las mayúsculas, las secuencias de espacios en blanco ni
+  las formas Unicode, como una ligadura o un espacio de no separación;
+- con un espacio que puede agrupar los miles de un número, así que `1234` y
+  `1 234` se encuentran;
+- con la coma y el punto tal como están, porque en un idioma separan los miles
+  y en otro los decimales: escriba el valor como lo muestra el documento.
+
+En la consola, un caso guardado con una respuesta de referencia guardada ofrece
+**List keys from the reference answer** junto a sus comprobaciones. El key
+extractor, un agent de sistema, lee la respuesta en un job, como la persona que
+lo pidió, con su coste medido y en Activity, y enumera los datos que contiene.
+Solo se conserva un valor que la respuesta contiene tal cual. **Use these keys**
+rellena la comprobación de claves del caso para que la revise y la guarde; nada
+se guarda solo, y el borrador se elimina al usarse o descartarse,
+o 7 días después de pedirlo.
+
+Cada comprobación admite un `family` opcional (como máximo 80 caracteres): lo que
+prueba en todo el dataset, como `total including VAT` en la regex de cada caso
+para su propio importe. Una comparación cuenta juntas las comprobaciones de una
+familia, caso por caso, así que un cambio se juzga por lo que se movió en todo el
+dataset y no por el patrón de un caso. Una comprobación sin familia es una
+familia propia; una con familia puntúa, y calcula la huella de su puntuación,
+exactamente igual que antes.
+
+### Claves sin fuente { #key-coverage }
+
+Una comprobación `keys` dice qué datos debe contener un documento escrito; no
+dice si el agent podía conocerlos. **Resultados → Cobertura de claves** lo
+responde para un agent publicado que elijas. El agent de cobertura de fuentes,
+un agent de sistema, lee las etiquetas de las claves de las comprobaciones
+`keys` de la versión más reciente - las primeras 200 distintas - junto a lo que
+alcanza la versión publicada del agent, y dice para cada etiqueta que una
+fuente la contiene, que ninguna lo hace o que no puede saberse. De cada fuente
+lee:
+
+- de una base de conocimiento: una búsqueda de cada etiqueta;
+- de un archivo de contexto o un skill: los pasajes que nombran una etiqueta, de
+  un skill en la versión o el fork que indica el vínculo del agent;
+- de un servidor MCP de la organización que esté activado: sus herramientas,
+  según lo que cada una dice hacer.
+
+Ve etiquetas y nunca sus valores. Se ejecuta en un job, como la persona que lo
+pidió, que debe poder editar el agent, con coste medido y en Actividad. Cada
+agent y dataset conserva un informe, que sustituye el siguiente. Una fuente que
+la persona que lo pidió no puede ver no se lee, como tampoco un servidor MCP que
+funciona con la cuenta de cada persona o de la plataforma, y el informe dice
+cuántas se omitieron; quien no puede ver una fuente que el informe nombra la ve sin nombre, y quien
+no puede ver todas las fuentes que leyó el juez recibe veredictos sin motivos.
+
+Una clave sin fuente tiene que llegar al agent como conocimiento - un
+documento, un archivo de contexto, una herramienta -, porque ningún cambio en
+sus instrucciones puede aportarla.
+[Improve](authoring.md#background-improvement-sessions) la lee así, pero solo
+desde un informe completo - con cada fuente leída - hecho para la versión que el
+agent ejecuta ahora. Cuando el
+agent se publica de nuevo, el dataset gana una versión o cambia una fuente leída
+- un documento añadido a una base de conocimiento o quitado de ella, un archivo
+de contexto o un skill editado, las herramientas de un servidor cambiadas -, el
+informe aparece como desactualizado hasta que vuelvas a comprobarlo.
 
 ### Llamadas a herramientas esperadas { #trajectory }
 
@@ -667,9 +739,12 @@ Cuando se borra a la persona que hizo la pregunta de un caso, el texto también 
 La pregunta, los turnos anteriores, ambas respuestas y la nota se sustituyen en
 todas las versiones que contienen el caso, y también las respuestas y llamadas
 que los eval runs registraron para él. El caso conserva su id, sus llamadas
-esperadas, sus comprobaciones y sus etiquetas, y se marca como anonimizado tras
+esperadas, sus comprobaciones y sus etiquetas - salvo una comprobación `keys`,
+cuyos valores venían de la respuesta que se elimina - y se marca como anonimizado tras
 el borrado (**Anonymised after erasure**), para que su curador pueda reescribirlo
-o eliminarlo. Hasta entonces un eval run lo deja fuera, porque una respuesta al
+o eliminarlo.
+
+Hasta entonces un eval run lo deja fuera, porque una respuesta al
 texto de sustitución no mide nada.
 
 Un caso guarda de quién son las palabras que contiene: quién hizo su pregunta,

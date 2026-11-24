@@ -94,7 +94,7 @@ async def test_the_sentence_is_in_the_sections_language_where_one_is_written(wor
 
 async def test_another_language_hears_the_consoles_sentence(world):
     service, _ = _service(world)
-    await service.preview(_ctx(), _block(language="fr"), locale="de")
+    await service.preview(_ctx(), _block(language="es"), locale="de")
     assert world.said == [PREVIEW_LINES["de"]]
 
 
@@ -102,6 +102,12 @@ async def test_turkish_console_has_a_turkish_preview(world):
     service, _ = _service(world)
     await service.preview(_ctx(), _block(), locale="tr")
     assert world.said == [PREVIEW_LINES["tr"]]
+
+
+async def test_french_console_has_a_french_preview(world):
+    service, _ = _service(world)
+    await service.preview(_ctx(), _block(), locale="fr")
+    assert world.said == [PREVIEW_LINES["fr"]]
 
 
 @pytest.mark.parametrize(
@@ -238,3 +244,4 @@ def test_every_console_language_has_a_voice_preview_line() -> None:
 
     assert set(PREVIEW_LINES) == set(get_args(ConsoleLocale))
     assert VoicePreviewRequest.model_validate({"voice": _block(), "locale": "tr"}).locale == "tr"
+    assert VoicePreviewRequest.model_validate({"voice": _block(), "locale": "fr"}).locale == "fr"

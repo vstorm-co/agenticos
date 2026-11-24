@@ -1,9 +1,10 @@
-"""A routine answer stored in a private chat's conversation is posted by the channel bot.
+"""A routine made in a private bot chat posts each per-run answer back to that chat.
 
-Storing the answer shows it in the console only. When the delivery conversation
-belongs to a private chat on a chat platform, the fire queues one send and the
-status reads `pending` until that job settles it. Group chats, SMS and plain web
-conversations keep the stored answer and read `delivered`.
+A `per_run` fire answers in its own console chat. When the routine was created
+in a conversation bound to a private chat on a chat platform, the fire also
+queues one send of that answer, and the status reads `pending` until the job
+settles it. Group chats, SMS, plain web conversations and shared routines keep
+the console answer alone.
 """
 
 import uuid
@@ -32,12 +33,23 @@ CHAT_ID = "777001"
 
 
 class _Fired:
-    def __init__(self) -> None:
+    def __init__(self, chat_mode: str | None = "per_run") -> None:
         self.enqueue = AsyncMock(return_value=uuid.uuid4())
         self.session_lookup = AsyncMock()
         self.bot_lookup = AsyncMock()
         self.resolve = AsyncMock()
-        self.run = MagicMock(id=uuid.uuid4(), status=RunStatus.COMPLETED.value)
+        self.run_chat = uuid.uuid4()
+        self.run = MagicMock(
+            id=uuid.uuid4(),
+            status=RunStatus.COMPLETED.value,
+            conversation_id=self.run_chat,
+            routine_policy={} if chat_mode is None else {"chat_mode": chat_mode},
+        )
+        self.answer = SimpleNamespace(id=uuid.uuid4(), role="assistant", guardrail_refused=False)
+        self.run_messages: list[SimpleNamespace] = [
+            SimpleNamespace(id=uuid.uuid4(), role="user", guardrail_refused=False),
+            self.answer,
+        ]
         self.agent = _agent(name="Nightly")
         self.service = _service(self.agent)
 
@@ -61,13 +73,16 @@ def _bot(platform: str) -> SimpleNamespace:
     return SimpleNamespace(id=uuid.uuid4(), platform=platform)
 
 
+def _chat_routine(target: uuid.UUID) -> MagicMock:
+    return _trigger(answer_to="conversation", delivery_conversation_id=target, chat_mode="per_run")
+
+
 async def _fire(
     fired: _Fired,
     trigger: MagicMock,
     *,
     session: SimpleNamespace | None,
     bot: SimpleNamespace | None,
-    archived: bool = False,
     answer: str = "Three PRs merged.",
 ) -> None:
     fired.session_lookup.return_value = session
@@ -93,76 +108,28 @@ async def _fire(
         members.get_active = AsyncMock(return_value=MagicMock(role=OrgRoleName.OWNER))
         conversations.get_conversation_by_id = AsyncMock(
             side_effect=lambda _db, target, **kw: MagicMock(
-                is_archived=archived,
+                is_archived=False,
                 id=target,
                 organization_id=trigger.organization_id,
                 user_id=trigger.created_by_user_id,
             )
         )
-        conversations.create_conversation = AsyncMock(return_value=MagicMock(id=uuid.uuid4()))
+        conversations.create_conversation = AsyncMock(return_value=MagicMock(id=fired.run_chat))
         conversations.create_message = AsyncMock(return_value=MagicMock(id=uuid.uuid4()))
+        conversations.get_messages_by_run = AsyncMock(
+            side_effect=lambda *_a, **_k: list(reversed(fired.run_messages))
+        )
         runner_cls.return_value.execute = AsyncMock(return_value=(answer, fired.run))
         fired.service.agents.get = AsyncMock(return_value=fired.agent)
         await fired.service.fire(trigger.id)
         fired.messages = conversations.create_message
 
 
-async def test_a_group_chat_answer_queues_no_send_and_reads_delivered(fired: _Fired) -> None:
-    target = uuid.uuid4()
-    trigger = _trigger(answer_to="conversation", delivery_conversation_id=target)
-
-    await _fire(fired, trigger, session=_session(target, chat_type="group"), bot=_bot("telegram"))
-
-    fired.enqueue.assert_not_awaited()
-    assert trigger.last_delivery_status == "delivered"
-
-
-async def test_an_sms_conversation_queues_no_send_and_reads_delivered(fired: _Fired) -> None:
-    target = uuid.uuid4()
-    trigger = _trigger(answer_to="conversation", delivery_conversation_id=target)
-
-    await _fire(fired, trigger, session=_session(target), bot=_bot("sms"))
-
-    fired.enqueue.assert_not_awaited()
-    assert trigger.last_delivery_status == "delivered"
-
-
-async def test_a_plain_web_conversation_is_delivered_without_a_chat_send(fired: _Fired) -> None:
-    target = uuid.uuid4()
-    trigger = _trigger(answer_to="conversation", delivery_conversation_id=target)
-
-    await _fire(fired, trigger, session=None, bot=None)
-
-    fired.enqueue.assert_not_awaited()
-    assert trigger.last_delivery_status == "delivered"
-    fired.resolve.assert_awaited_once()
-
-
-async def test_an_answer_that_could_not_be_stored_queues_no_send(fired: _Fired) -> None:
-    target = uuid.uuid4()
-    trigger = _trigger(answer_to="conversation", delivery_conversation_id=target)
-
-    await _fire(fired, trigger, session=_session(target), bot=_bot("telegram"), archived=True)
-
-    fired.enqueue.assert_not_awaited()
-    assert trigger.last_delivery_status == "unavailable"
-
-
-async def test_a_run_log_routine_never_looks_for_a_chat(fired: _Fired) -> None:
-    trigger = _trigger(answer_to="run_log")
-
-    await _fire(fired, trigger, session=_session(uuid.uuid4()), bot=_bot("telegram"))
-
-    fired.session_lookup.assert_not_awaited()
-    fired.enqueue.assert_not_awaited()
-    assert trigger.last_delivery_status == "run_log"
-
-
-async def test_a_private_chat_bound_answer_queues_one_send_and_reads_pending(
+async def test_a_per_run_answer_from_a_private_chat_queues_one_send_and_reads_pending(
     fired: _Fired,
 ) -> None:
     target = uuid.uuid4()
-    trigger = _trigger(answer_to="conversation", delivery_conversation_id=target)
+    trigger = _chat_routine(target)
     session = _session(target)
 
     await _fire(fired, trigger, session=session, bot=_bot("telegram"))
@@ -171,7 +138,6 @@ async def test_a_private_chat_bound_answer_queues_one_send_and_reads_pending(
     args, kwargs = fired.enqueue.await_args
     assert args[1] is ROUTINE_CHAT_ANSWER
     payload = args[2]
-    stored = fired.messages.await_args
     assert isinstance(payload, RoutineChatAnswer)
     assert payload.model_dump() == {
         "organization_id": trigger.organization_id,
@@ -179,9 +145,12 @@ async def test_a_private_chat_bound_answer_queues_one_send_and_reads_pending(
         "run_id": fired.run.id,
         "conversation_id": target,
         "session_id": session.id,
-        "message_id": fired.messages.return_value.id,
+        "message_id": fired.answer.id,
     }
-    assert stored.kwargs["content"].endswith("Three PRs merged.")
+    fired.session_lookup.assert_awaited_once()
+    assert fired.session_lookup.await_args.args[1] == target
+    # The answer stays in the fire's own chat; nothing is written into the bot chat.
+    fired.messages.assert_not_awaited()
     assert kwargs["organization_id"] == trigger.organization_id
     assert kwargs["dedupe_key"] == f"routine-chat-answer:{fired.run.id}"
     assert kwargs["concurrency_key"] == f"channel-handback:{session.bot_id}:{CHAT_ID}"
@@ -194,7 +163,7 @@ async def test_a_private_chat_on_another_chat_platform_also_queues_a_send(
     fired: _Fired,
 ) -> None:
     target = uuid.uuid4()
-    trigger = _trigger(answer_to="conversation", delivery_conversation_id=target)
+    trigger = _chat_routine(target)
 
     await _fire(fired, trigger, session=_session(target), bot=_bot("slack"))
 
@@ -206,9 +175,86 @@ async def test_a_private_chat_whose_bot_is_gone_still_queues_so_the_job_settles_
     fired: _Fired,
 ) -> None:
     target = uuid.uuid4()
-    trigger = _trigger(answer_to="conversation", delivery_conversation_id=target)
+    trigger = _chat_routine(target)
 
     await _fire(fired, trigger, session=_session(target), bot=None)
 
     fired.enqueue.assert_awaited_once()
     assert trigger.last_delivery_status == "pending"
+
+
+@pytest.mark.parametrize(
+    ("chat_type", "platform"),
+    [("group", "telegram"), ("private", "sms")],
+    ids=["group-chat", "sms"],
+)
+async def test_a_group_chat_or_sms_queues_no_send_and_reads_delivered(
+    fired: _Fired, chat_type: str, platform: str
+) -> None:
+    target = uuid.uuid4()
+    trigger = _chat_routine(target)
+
+    await _fire(fired, trigger, session=_session(target, chat_type=chat_type), bot=_bot(platform))
+
+    fired.enqueue.assert_not_awaited()
+    assert trigger.last_delivery_status == "delivered"
+
+
+async def test_a_routine_made_in_the_web_console_is_delivered_without_a_chat_send(
+    fired: _Fired,
+) -> None:
+    target = uuid.uuid4()
+    trigger = _chat_routine(target)
+
+    await _fire(fired, trigger, session=None, bot=None)
+
+    fired.enqueue.assert_not_awaited()
+    assert trigger.last_delivery_status == "delivered"
+    fired.resolve.assert_awaited_once()
+
+
+async def test_a_per_run_routine_with_no_chat_of_origin_never_looks_for_one(
+    fired: _Fired,
+) -> None:
+    trigger = _trigger(answer_to="primary", delivery_conversation_id=None, chat_mode="per_run")
+
+    await _fire(fired, trigger, session=_session(uuid.uuid4()), bot=_bot("telegram"))
+
+    fired.session_lookup.assert_not_awaited()
+    fired.enqueue.assert_not_awaited()
+    assert trigger.last_delivery_status == "delivered"
+
+
+async def test_a_per_run_fire_with_no_answer_to_send_queues_nothing(fired: _Fired) -> None:
+    target = uuid.uuid4()
+    trigger = _chat_routine(target)
+    fired.answer.guardrail_refused = True
+
+    await _fire(fired, trigger, session=_session(target), bot=_bot("telegram"))
+
+    fired.enqueue.assert_not_awaited()
+    assert trigger.last_delivery_status == "delivered"
+
+
+async def test_a_shared_routine_never_looks_for_a_chat() -> None:
+    fired = _Fired(chat_mode="shared")
+    target = uuid.uuid4()
+    trigger = _trigger(answer_to="conversation", delivery_conversation_id=target)
+
+    await _fire(fired, trigger, session=_session(target), bot=_bot("telegram"))
+
+    fired.session_lookup.assert_not_awaited()
+    fired.enqueue.assert_not_awaited()
+    assert trigger.last_delivery_status == "run_log"
+
+
+async def test_a_run_admitted_before_chat_modes_stores_its_answer_without_a_send() -> None:
+    fired = _Fired(chat_mode=None)
+    target = uuid.uuid4()
+    trigger = _trigger(answer_to="conversation", delivery_conversation_id=target)
+
+    await _fire(fired, trigger, session=_session(target), bot=_bot("telegram"))
+
+    fired.messages.assert_awaited_once()
+    fired.enqueue.assert_not_awaited()
+    assert trigger.last_delivery_status == "delivered"

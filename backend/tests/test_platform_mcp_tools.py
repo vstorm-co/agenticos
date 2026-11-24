@@ -2470,13 +2470,10 @@ def test_create_routine_says_a_private_chat_routine_is_posted_there() -> None:
     text = " ".join((tool.function.__doc__ or "").split())
 
     assert (
-        "private chat in a chat app (Telegram, Slack, Mattermost, Teams, Discord, Matrix)" in text
-    )
-    assert "the bot also posts the answer there" in text
+        "A per_run routine created from a private chat in a chat app (Telegram, Slack, "
+        "Mattermost, Teams, Discord, Matrix) also has the bot post each answer to that chat"
+    ) in text
     assert "do not add `notification_channels` to reach the same chat" in text
-    assert "In a group chat the answer is only kept in the conversation" in text
-    assert "never use it for a message the person wants in this chat" in text
-    assert "answers wherever the routine answers, including this chat" in text
 
 
 OWN = uuid.UUID("00000000-0000-4000-8000-0000000000a2")
@@ -2529,23 +2526,6 @@ async def test_create_routine_without_an_agent_schedules_the_agent_whose_run_thi
     )
 
 
-async def test_create_routine_hands_the_inbox_in_a_chat_refusal_to_the_caller(
-    api: MagicMock, server: FastMCP
-) -> None:
-    message = "Inbox mode files findings in the Inbox and never answers in a chat."
-    api.request = AsyncMock(
-        side_effect=[
-            {"organization_id": ORG, "user_id": str(uuid.uuid4()), "run_agent_id": str(OWN)},
-            ToolError(message),
-        ]
-    )
-
-    with pytest.raises(ToolError, match="never answers in a chat"):
-        await server.call_tool(
-            "create_routine", {"prompt": "Joke", "every_minutes": 5, "result_mode": "inbox"}
-        )
-
-
 async def test_create_routine_with_an_agent_never_asks_who_is_calling(
     api: MagicMock, server: FastMCP
 ) -> None:
@@ -2572,3 +2552,14 @@ def test_create_routine_tells_an_agent_to_omit_its_own_id() -> None:
 
     assert "Omit `agent_id` to schedule yourself" in text
     assert "run_agent_id" in (tools["whoami"].function.__doc__ or "")
+
+
+@pytest.mark.parametrize("tool", ["create_routine", "update_routine"])
+async def test_routine_chat_mode_reaches_the_public_api(tool: str, server: FastMCP, api: MagicMock):
+    arguments: dict[str, str] = {"agent_id": str(AGENT), "chat_mode": "shared"}
+    if tool == "create_routine":
+        arguments["prompt"] = "Prepare the weekly report"
+    else:
+        arguments["routine_id"] = str(RUN)
+    await server.call_tool(tool, arguments)
+    assert api.request.await_args.kwargs["json"]["chat_mode"] == "shared"

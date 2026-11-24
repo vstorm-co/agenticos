@@ -73,15 +73,9 @@ export function useRuns(
     modelLabel?: string;
     /** Who the run ran as. */
     userId?: string;
-    /**
-     * The thread the runs ran inside.
-     *
-     * How a trigger's fires are listed: every fire appends to one run-log
-     * conversation, so the conversation is the trigger's identity in the run
-     * history - and read as *runs* each fire carries its own status, cost and a
-     * link to its detail, which a transcript of the same thread cannot give.
-     */
+    /** Narrow to one conversation, or to a routine across its execution chats. */
     conversationId?: string;
+    triggerId?: string;
     /** The frozen spec the run executed - "did v4 behave better than v3", as rows. */
     agentVersionId?: string;
     /** Only test runs from the Builder's panel (true), only the rest (false) (#2074). */
@@ -103,6 +97,7 @@ export function useRuns(
     modelLabel,
     userId,
     conversationId,
+    triggerId,
     agentVersionId,
     isTest,
     skip,
@@ -122,6 +117,7 @@ export function useRuns(
       modelLabel,
       userId,
       conversationId,
+      triggerId,
       agentVersionId,
       isTest,
       skip,
@@ -147,6 +143,7 @@ export function useRuns(
       if (modelLabel) params.model_label = modelLabel;
       if (userId) params.user_id = userId;
       if (conversationId) params.conversation_id = conversationId;
+      if (triggerId) params.trigger_id = triggerId;
       if (agentVersionId) params.agent_version_id = agentVersionId;
       if (skip) params.skip = String(skip);
       return apiClient.get<AgentRunList>(

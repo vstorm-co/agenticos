@@ -318,38 +318,51 @@ async fn verify(app: &tauri::AppHandle, address: &str) -> Result<(), String> {
     Ok(())
 }
 
-pub fn run() {
-    let server = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
-    let address = format!("http://{}/", server.local_addr().unwrap());
-    std::thread::spawn(move || {
-        for mut connection in server.incoming().flatten() {
-            let mut request = [0; 4096];
-            let _ = connection.read(&mut request);
-            if std::str::from_utf8(&request)
-                .unwrap_or("")
-                .starts_with("GET /redirect ")
-            {
-                let _ = write!(
-                    connection,
-                    "HTTP/1.1 302 Found\r\nLocation: /after-redirect\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
-                );
-                continue;
-            }
-            let javascript = std::str::from_utf8(&request).unwrap_or("").starts_with("GET /app.js");
-            let body = if javascript {
-                "document.querySelector('button').onclick=()=>document.querySelector('output').textContent='clicked';"
-            } else {
-                "<!doctype html><title>Native fixture</title><button>Open</button><input aria-label='Name'><output></output><script src='/app.js'></script>"
-            };
-            let content_type = if javascript { "text/javascript" } else { "text/html" };
+// Chromium can open an idle speculative connection before its document request.
+// A fixture must serve connections independently or that socket blocks the page.
+fn accept_fixture(server: &std::net::TcpListener) -> std::io::Result<std::thread::JoinHandle<()>> {
+    let (mut connection, _) = server.accept()?;
+    Ok(std::thread::spawn(move || {
+        if connection
+            .set_read_timeout(Some(std::time::Duration::from_secs(5)))
+            .is_err()
+        {
+            return;
+        }
+        let mut request = [0; 4096];
+        if !matches!(connection.read(&mut request), Ok(count) if count > 0) {
+            return;
+        }
+        if std::str::from_utf8(&request)
+            .unwrap_or("")
+            .starts_with("GET /redirect ")
+        {
             let _ = write!(
+                connection,
+                "HTTP/1.1 302 Found\r\nLocation: /after-redirect\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+            );
+            return;
+        }
+        let javascript = std::str::from_utf8(&request).unwrap_or("").starts_with("GET /app.js");
+        let body = if javascript {
+            "document.querySelector('button').onclick=()=>document.querySelector('output').textContent='clicked';"
+        } else {
+            "<!doctype html><title>Native fixture</title><button>Open</button><input aria-label='Name'><output></output><script src='/app.js'></script>"
+        };
+        let content_type = if javascript { "text/javascript" } else { "text/html" };
+        let _ = write!(
                 connection,
                 "HTTP/1.1 200 OK\r\nContent-Type: {content_type}\r\nContent-Security-Policy: default-src 'self'; script-src 'self'; connect-src 'self'\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
                 body.len(),
                 body
             );
-        }
-    });
+    }))
+}
+
+pub fn run() {
+    let server = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = format!("http://{}/", server.local_addr().unwrap());
+    std::thread::spawn(move || while accept_fixture(&server).is_ok() {});
     tauri::Builder::default()
         .manage(native_browser::NativeBrowsers::default())
         .invoke_handler(tauri::generate_handler![
@@ -382,4 +395,32 @@ pub fn run() {
         })
         .run(tauri::generate_context!())
         .expect("isolated native browser app");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn an_idle_preconnection_cannot_block_the_fixture_document() {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let idle = std::net::TcpStream::connect(address).unwrap();
+        let idle_worker = accept_fixture(&listener).unwrap();
+        let mut request = std::net::TcpStream::connect(address).unwrap();
+        request
+            .set_read_timeout(Some(std::time::Duration::from_secs(2)))
+            .unwrap();
+        let request_worker = accept_fixture(&listener).unwrap();
+        request
+            .write_all(b"GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
+            .unwrap();
+        let mut response = String::new();
+        request.read_to_string(&mut response).unwrap();
+        assert!(response.starts_with("HTTP/1.1 200 OK"));
+        assert!(response.contains("<title>Native fixture</title>"));
+        drop(idle);
+        idle_worker.join().unwrap();
+        request_worker.join().unwrap();
+    }
 }

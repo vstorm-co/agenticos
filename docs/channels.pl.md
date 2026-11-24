@@ -1,5 +1,5 @@
 ---
-source_sha: "dd51ad4f9078"
+source_sha: "5174c765a471"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -2019,11 +2019,11 @@ Wyczerpane próby widać w **Admin → Background jobs** (`deliver-channel-handb
 
 ### Odpowiedzi rutyn w czacie prywatnym { #routine-answers-in-a-private-chat }
 
-Rutyna utworzona w czacie prywatnym na Telegramie, Slacku, Mattermoście, Teams, Discordzie lub Matrixie odpowiada w tym czacie. Gdy odpowiedź trafi do rozmowy, bot publikuje ją także tam, więc osoba czyta ją tam, gdzie o nią poprosiła.
+Gdy rutyna utworzona w czacie prywatnym na Telegramie, Slacku, Mattermoście, Teams, Discordzie lub Matrixie otwiera nowy czat dla każdego uruchomienia (`chat_mode=per_run`), bot publikuje odpowiedź każdego uruchomienia także w czacie, w którym ją utworzono, więc osoba czyta ją tam, gdzie o nią poprosiła. Całe uruchomienie zostaje w osobnym czacie w konsoli.
 
 Przed publikacją platforma ponownie sprawdza powiązane konto twórcy, jego członkostwo, przypisanego agenta i rozmowę. Dopóki publikacja czeka, rutyna pokazuje **Wysyłanie ostatniego wyniku do czatu**. Gdy czat przyjmie odpowiedź, status to `delivered`. Gdy czat jej nie przyjmie, rutyna pokazuje **Ostatni wynik niedostępny w czacie**, a jej właściciel dostaje powiadomienie. Odpowiedź zostaje w dzienniku uruchomień.
 
-Czaty grupowe, SMS, iMessage i e-mail tylko zapisują odpowiedź. Po `/new` stara rozmowa nie jest już rozmową czatu, więc późniejsze odpowiedzi zostają w konsoli. Nie kieruj dodatkowo powiadomień rutyny do tego samego czatu: odpowiedź przyszłaby dwa razy.
+Rutyna z jedną wspólną historią (`chat_mode=shared`) niczego nie publikuje w czacie. Czaty grupowe, SMS, iMessage i e-mail zostawiają odpowiedź w konsoli. Po `/new` stara rozmowa nie jest już rozmową czatu, więc późniejsze odpowiedzi zostają w konsoli. Nie kieruj dodatkowo powiadomień rutyny do tego samego czatu: odpowiedź przyszłaby dwa razy.
 
 ### Następne kroki jako przyciski { #next-steps-as-buttons }
 

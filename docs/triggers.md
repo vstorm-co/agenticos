@@ -65,7 +65,8 @@ to the person who made it (#2575): `primary`, the default, is their own conversa
 everything it tells them is in one place; `conversation` is one of their other chats
 (`delivery_conversation_id`), for a routine made in that chat; `run_log` posts nowhere else.
 
-When that chat is a private chat on a chat app, the bot also posts the answer there (see
+A routine made in a private chat on a chat app that opens a new chat for each run
+(`chat_mode=per_run`) also has the bot post each answer to that chat (see
 [Routine answers in a private chat](channels.md#routine-answers-in-a-private-chat)); the status reads
 `pending` until it is sent.
 

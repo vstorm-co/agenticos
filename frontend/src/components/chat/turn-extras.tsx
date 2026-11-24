@@ -53,11 +53,7 @@ export function TurnExtras({ message, agentName }: TurnExtrasProps) {
         <CapabilityRequestCard key={card.callId} card={card} agentName={agentName} />
       ))}
       {proposals.length > 0 && (
-        <SetupProposals
-          proposals={proposals}
-          agentId={message.agentId ?? null}
-          conversationId={message.conversationId}
-        />
+        <SetupProposals proposals={proposals} agentId={message.agentId ?? null} />
       )}
     </div>
   );

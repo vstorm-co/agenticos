@@ -126,3 +126,16 @@ async def test_a_delegation_listing_can_still_be_narrowed_by_status(monkeypatch)
     kwargs = list_runs.call_args.kwargs
     assert kwargs["filters"].statuses == ["failed"]
     assert kwargs["include_delegations"] is True
+
+
+async def test_a_routine_filter_reaches_the_repository_without_a_conversation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    list_runs = AsyncMock(return_value=([], 0))
+    monkeypatch.setattr("app.services.agent_runner.agent_run_repo.list_runs", list_runs)
+    trigger_id = uuid4()
+    async with _client() as client:
+        response = await client.get("/api/v1/runs", params={"trigger_id": str(trigger_id)})
+    assert response.status_code == 200
+    assert list_runs.call_args.kwargs["filters"].trigger_id == trigger_id
+    assert list_runs.call_args.kwargs["filters"].conversation_id is None

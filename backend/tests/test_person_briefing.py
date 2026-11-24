@@ -17,12 +17,18 @@ class TestTheSection:
     def test_turkish_console_informs_the_agent_of_the_users_language(self):
         briefing = person_briefing(Person(locale="tr"))
         assert briefing is not None
-        assert "Their console is in Turkish: answer in Turkish" in briefing
+        assert "Their preferred language is Turkish: answer in Turkish" in briefing
+        assert "unless they explicitly request another language" in briefing
 
-    def test_a_person_the_account_says_nothing_about_gets_no_section(self):
-        assert person_briefing(Person()) is None
-        # A language the console is not in is not one to answer in.
-        assert person_briefing(Person(locale="fr")) is None
+    def test_french_console_informs_the_agent_of_the_users_language(self):
+        briefing = person_briefing(Person(locale="fr"))
+        assert briefing is not None
+        assert "Their preferred language is French: answer in French" in briefing
+        assert "unless they explicitly request another language" in briefing
+
+    @pytest.mark.parametrize("locale", [None, "es"])
+    def test_an_account_without_a_supported_preference_uses_english(self, locale):
+        assert "preferred language is English" in person_briefing(Person(locale=locale))
 
     def test_their_own_words_cannot_open_a_section_or_a_variable(self):
         briefing = person_briefing(
@@ -37,9 +43,8 @@ class TestTheSection:
     def test_the_section_follows_the_agents_own_instructions(self):
         spec = with_person(AgentSpec(name="A", instructions="Help."), Person(job_title="CFO"))
 
-        assert spec.instructions == (
-            "Help.\n\n# The person you are talking to\n\n- Their role: CFO."
-        )
+        assert spec.instructions.startswith("Help.\n\n# The person you are talking to\n\n")
+        assert spec.instructions.endswith("- Their role: CFO.")
 
     def test_an_agent_with_no_instructions_is_told_only_about_the_person(self):
         spec = with_person(AgentSpec(name="A", instructions=""), Person(time_zone="UTC"))
@@ -47,11 +52,10 @@ class TestTheSection:
         assert spec.instructions is not None
         assert spec.instructions.startswith("# The person you are talking to")
 
-    @pytest.mark.parametrize("person", [None, Person()])
-    def test_nobody_known_leaves_the_spec_as_it_was(self, person):
+    def test_nobody_known_leaves_the_spec_as_it_was(self):
         spec = AgentSpec(name="A", instructions="Help.")
 
-        assert with_person(spec, person) is spec
+        assert with_person(spec, None) is spec
 
 
 class TestTheAccountFields:

@@ -22,8 +22,9 @@ from app.core.config import settings
 from app.core.oauth import oauth
 from app.core.security import verify_token
 from app.main import app
+from app.schemas.token import SignInToken
 from app.services.oauth_exchange import OAuthExchangeService
-from app.services.user import UserService
+from app.services.user import OAuthAccount, UserService
 
 pytestmark = pytest.mark.anyio
 
@@ -51,7 +52,7 @@ class _FakeRedis:
 async def test_a_code_redeems_its_pair_exactly_once() -> None:
     service = OAuthExchangeService(_FakeRedis())
     code = await service.issue(access_token="acc", refresh_token="ref")
-    assert await service.redeem(code) == ("acc", "ref")
+    assert await service.redeem(code) == SignInToken(access_token="acc", refresh_token="ref")
     assert await service.redeem(code) is None
 
 
@@ -60,10 +61,12 @@ async def test_an_unknown_code_redeems_to_none() -> None:
     assert await service.redeem("never-issued") is None
 
 
+@pytest.mark.parametrize("is_new_user", [False, True])
 async def test_the_callback_redirect_carries_a_code_not_the_tokens(
-    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch, is_new_user: bool
 ) -> None:
-    app.dependency_overrides[get_redis] = _FakeRedis
+    fake = _FakeRedis()
+    app.dependency_overrides[get_redis] = lambda: fake
     monkeypatch.setattr(
         oauth.google,
         "authorize_access_token",
@@ -75,8 +78,10 @@ async def test_the_callback_redirect_carries_a_code_not_the_tokens(
     )
     monkeypatch.setattr(
         UserService,
-        "get_or_create_oauth_user",
-        AsyncMock(return_value=SimpleNamespace(id=uuid4(), is_active=True)),
+        "get_or_create_oauth_account",
+        AsyncMock(
+            return_value=OAuthAccount(SimpleNamespace(id=uuid4(), is_active=True), is_new_user)
+        ),
     )
 
     resp = await client.get(_CALLBACK)
@@ -86,6 +91,11 @@ async def test_the_callback_redirect_carries_a_code_not_the_tokens(
     assert "code=" in location
     assert "access_token" not in location
     assert "refresh_token" not in location
+
+    code = parse_qs(urlparse(location).query)["code"][0]
+    tokens = await OAuthExchangeService(fake).redeem(code)
+    assert tokens is not None
+    assert tokens.is_new_user is is_new_user
 
 
 async def test_exchange_returns_the_pair_for_a_valid_code(client: AsyncClient) -> None:
@@ -130,8 +140,8 @@ async def test_the_oauth_login_binds_its_access_token_to_a_session(
     )
     monkeypatch.setattr(
         UserService,
-        "get_or_create_oauth_user",
-        AsyncMock(return_value=SimpleNamespace(id=uuid4(), is_active=True)),
+        "get_or_create_oauth_account",
+        AsyncMock(return_value=OAuthAccount(SimpleNamespace(id=uuid4(), is_active=True), False)),
     )
 
     redirect = await client.get(_CALLBACK)
@@ -165,8 +175,8 @@ async def test_a_failed_code_issue_leaves_no_session_row(
     )
     monkeypatch.setattr(
         UserService,
-        "get_or_create_oauth_user",
-        AsyncMock(return_value=SimpleNamespace(id=uuid4(), is_active=True)),
+        "get_or_create_oauth_account",
+        AsyncMock(return_value=OAuthAccount(SimpleNamespace(id=uuid4(), is_active=True), False)),
     )
     monkeypatch.setattr(
         OAuthExchangeService, "issue", AsyncMock(side_effect=RuntimeError("exchange store down"))
@@ -198,8 +208,8 @@ async def test_a_desktop_sign_in_returns_through_the_deep_link(
     )
     monkeypatch.setattr(
         UserService,
-        "get_or_create_oauth_user",
-        AsyncMock(return_value=SimpleNamespace(id=uuid4(), is_active=True)),
+        "get_or_create_oauth_account",
+        AsyncMock(return_value=OAuthAccount(SimpleNamespace(id=uuid4(), is_active=True), False)),
     )
     started = AsyncMock(return_value=Response(status_code=302))
     monkeypatch.setattr(oauth.google, "authorize_redirect", started)
@@ -242,8 +252,8 @@ async def test_a_second_sign_in_does_not_steal_the_first_ones_destination(
     )
     monkeypatch.setattr(
         UserService,
-        "get_or_create_oauth_user",
-        AsyncMock(return_value=SimpleNamespace(id=uuid4(), is_active=True)),
+        "get_or_create_oauth_account",
+        AsyncMock(return_value=OAuthAccount(SimpleNamespace(id=uuid4(), is_active=True), False)),
     )
     started = AsyncMock(return_value=Response(status_code=302))
     monkeypatch.setattr(oauth.google, "authorize_redirect", started)
@@ -277,8 +287,8 @@ async def test_a_callback_with_no_state_goes_to_the_console(
     )
     monkeypatch.setattr(
         UserService,
-        "get_or_create_oauth_user",
-        AsyncMock(return_value=SimpleNamespace(id=uuid4(), is_active=True)),
+        "get_or_create_oauth_account",
+        AsyncMock(return_value=OAuthAccount(SimpleNamespace(id=uuid4(), is_active=True), False)),
     )
     monkeypatch.setattr(
         oauth.google, "authorize_redirect", AsyncMock(return_value=Response(status_code=302))
@@ -301,8 +311,8 @@ async def test_an_ordinary_sign_in_still_returns_to_the_console(
     )
     monkeypatch.setattr(
         UserService,
-        "get_or_create_oauth_user",
-        AsyncMock(return_value=SimpleNamespace(id=uuid4(), is_active=True)),
+        "get_or_create_oauth_account",
+        AsyncMock(return_value=OAuthAccount(SimpleNamespace(id=uuid4(), is_active=True), False)),
     )
 
     redirect = await client.get(_CALLBACK)
@@ -324,8 +334,8 @@ async def test_the_return_scheme_is_the_deployments_not_the_callers(
     )
     monkeypatch.setattr(
         UserService,
-        "get_or_create_oauth_user",
-        AsyncMock(return_value=SimpleNamespace(id=uuid4(), is_active=True)),
+        "get_or_create_oauth_account",
+        AsyncMock(return_value=OAuthAccount(SimpleNamespace(id=uuid4(), is_active=True), False)),
     )
 
     redirect = await client.get(f"{_CALLBACK}?client=desktop&scheme=evil")
@@ -345,7 +355,9 @@ async def test_native_proof_rejects_an_intercepted_code_without_consuming_it():
     assert await service.redeem(code, code_verifier=challenge) is None
     assert await service.redeem(code, code_verifier="x" * 43) is None
     assert await service.redeem(code, code_verifier="invalid") is None
-    assert await service.redeem(code, code_verifier=verifier) == ("access", "refresh")
+    assert await service.redeem(code, code_verifier=verifier) == SignInToken(
+        access_token="access", refresh_token="refresh"
+    )
     assert await service.redeem(code, code_verifier=verifier) is None
 
 
@@ -367,7 +379,7 @@ async def test_concurrent_native_redemption_has_exactly_one_winner():
     service = OAuthExchangeService(RacingRedis())
     code = await service.issue(access_token="access", refresh_token="refresh")
     answers = await asyncio.gather(service.redeem(code), service.redeem(code))
-    assert answers.count(("access", "refresh")) == 1
+    assert answers.count(SignInToken(access_token="access", refresh_token="refresh")) == 1
     assert answers.count(None) == 1
 
 
@@ -400,3 +412,19 @@ async def test_a_changed_cache_value_is_not_redeemed_using_an_earlier_proof():
     service = OAuthExchangeService(ChangedRedis())
     code = await service.issue(access_token="access", refresh_token="refresh")
     assert await service.redeem(code) is None
+
+
+@pytest.mark.parametrize("is_new_user", [False, True])
+async def test_exchange_preserves_trusted_account_creation(
+    client: AsyncClient, is_new_user: bool
+) -> None:
+    fake = _FakeRedis()
+    app.dependency_overrides[get_redis] = lambda: fake
+    code = await OAuthExchangeService(fake).issue(
+        access_token="acc", refresh_token="ref", is_new_user=is_new_user
+    )
+    response = await client.post(_EXCHANGE, json={"code": code, "is_new_user": not is_new_user})
+    assert response.status_code == 200
+    assert response.json()["is_new_user"] is is_new_user
+    replay = await client.post(_EXCHANGE, json={"code": code})
+    assert replay.status_code == 401

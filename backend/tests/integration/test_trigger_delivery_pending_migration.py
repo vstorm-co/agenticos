@@ -16,7 +16,7 @@ pytestmark = pytest.mark.anyio
 
 async def test_pending_is_accepted_and_downgrade_reads_it_as_delivered(engine: AsyncEngine) -> None:
     spec = importlib.util.spec_from_file_location(
-        "trigger_delivery_pending", Path("alembic/versions/0350_trigger_delivery_pending.py")
+        "trigger_delivery_pending", Path("alembic/versions/0363_trigger_delivery_pending.py")
     )
     assert spec is not None and spec.loader is not None
     migration = importlib.util.module_from_spec(spec)

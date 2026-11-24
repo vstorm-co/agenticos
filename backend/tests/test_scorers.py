@@ -13,9 +13,12 @@ import pytest
 from jsonschema import Draft202012Validator
 from pydantic import TypeAdapter, ValidationError
 
+from app.schemas.dataset import DatasetCaseCreate
 from app.schemas.scoring import (
     CHECK,
+    MAX_KEYS,
     CaseScoreRead,
+    ChecksScorer,
     DatasetScoring,
     JudgeCheck,
     JudgeScorer,
@@ -43,6 +46,7 @@ from app.services.scorers import (
     holds,
     judge_criteria,
     judge_prompt,
+    missing_keys,
     not_graded,
     repeats,
     restates,
@@ -215,6 +219,23 @@ class TestStoredChecks:
 
         assert results == []
         assert judged == [JudgeCheck(type="judge", criterion="Refuses politely")]
+
+    def test_a_check_s_family_rides_on_its_result_and_none_without_one(self) -> None:
+        results, judged = run_checks(
+            [
+                {"type": "regex", "value": "£913", "family": "total including VAT"},
+                {"type": "contains", "value": "days"},
+                {"type": "judge", "criterion": "Names Tom", "family": "account manager"},
+            ],
+            _answer("£913 in 14 days"),
+            required=True,
+        )
+
+        assert [(r.name, r.family) for r in results] == [
+            ("regex '£913'", "total including VAT"),
+            ("contains 'days'", None),
+        ]
+        assert judged[0].family == "account manager"
 
 
 SEARCH = {"tool": "search_kb", "args": {"query": "refunds"}}
@@ -522,6 +543,26 @@ class TestGrades:
             ("tone", "fail", 0.4, "2/5: Curt"),
         ]
         assert {r.judge_run_id for r in results} == {run_id}
+
+    def test_a_case_criterion_s_family_rides_on_its_grade_and_on_an_ungraded_one(self) -> None:
+        criteria = judge_criteria(
+            _case(),
+            TestJudgeCriteria()._scoring(),
+            [JudgeCheck(type="judge", criterion="Names Tom", family="account manager")],
+        )
+        verdict = JudgeVerdict(
+            grades=[
+                JudgeGrade(id="r1", score=4, reason="Right date"),
+                JudgeGrade(id="r2", score=4, reason="Warm"),
+                JudgeGrade(id="c1", score=2, reason="No manager"),
+            ]
+        )
+
+        results = graded(criteria, verdict, answer="", scale_max=5, pass_at=4, run_id=None)
+        skipped = not_graded(criteria, skipped=True, code="judge_budget", reason="Cap")
+
+        assert [r.family for r in results] == [None, None, "account manager"]
+        assert [r.family for r in skipped] == [None, None, "account manager"]
 
     @pytest.mark.parametrize("grades", [[], [JudgeGrade(id="r1", score=9, reason="")]])
     def test_a_criterion_left_ungraded_or_off_the_scale_is_an_error(self, grades) -> None:
@@ -1172,3 +1213,134 @@ def test_judge_schema_keeps_lenient_evidence_and_accepts_any_criterion_order() -
         ("b", ["Exact passage"], ""),
         ("a", ["Other passage"], ""),
     ]
+
+
+def _keys(*pairs: tuple[str, str], **extra) -> dict:
+    return {"type": "keys", "keys": [{"key": k, "value": v} for k, v in pairs], **extra}
+
+
+class TestKeysCheck:
+    @pytest.mark.parametrize(
+        ("value", "text", "carried"),
+        [
+            ("12", "Room 120 is booked", False),
+            ("12", "Room 12 is booked.", True),
+            ("INV-1", "Invoice INV-10 is due", False),
+            ("INV-10", "Invoice INV-10 is due", True),
+            ("1234", "A total of 1 234 PLN", True),
+            ("1 234", "A total of 1234 PLN", True),
+            ("1\u00a0234", "A total of 1 234 PLN", True),
+            ("1\u2009234", "A total of 1\u202f234 PLN", True),
+            ("1,234", "A total of 1234 PLN", False),
+            ("1.234", "A total of 1,234 PLN", False),
+            ("1234", "A total of 1.234 PLN", False),
+            ("1,5", "A rate of 1.5", False),
+            ("1.5", "A rate of 1.5%", True),
+            ("1.5", "A rate of 1.55", False),
+            ("1234567", "Paid 1 234 567 in full", True),
+            ("1 234 567,89", "Paid 1234567,89 in full", True),
+            ("913.68", "Invoice INV-7, total 913.68", True),
+            ("12", "Rooms 5 12", True),
+            ("£913.68", "Total: £913.68.", True),
+            ("234", "Total: 1 234 PLN", False),
+            ("1 234", "Total 1 234 567", False),
+            ("234 567", "Total 1 234 567", False),
+            ("234567", "Total 1 234 567", False),
+            ("345678", "Total 12 345 678", False),
+            ("12", "Amount 12,50", False),
+            ("1,234", "A total of 1,234.", True),
+            ("12", "Pay 12 PLN", True),
+            ("13", "Rooms 12, 13 and 14", True),
+            ("12", "Rooms 12, 13 and 14", True),
+            ("ACME  Ltd", "Billed to acme ltd today", True),
+            ("\ufb01le 7", "the file 7 attached", True),
+        ],
+    )
+    def test_a_value_counts_only_as_a_whole_token(self, value, text, carried) -> None:
+        result = _check(_keys(("Fact", value)), _answer(text))
+        assert (result.status == "pass") is carried
+
+    def test_the_score_is_the_share_of_keys_carried_and_only_all_of_them_pass(self) -> None:
+        check = _keys(("Invoice", "INV-7"), ("Total", "913.68"), ("Due", "2026-12-01"))
+
+        result = _check(check, _answer("Invoice INV-7, total 913.68"))
+
+        assert result.name == "keys"
+        assert result.status == "fail"
+        assert result.score == pytest.approx(2 / 3)
+        assert result.reason == "Missing 1 of 3 keys: Due"
+
+    def test_every_key_carried_passes(self) -> None:
+        result = _check(
+            _keys(("Invoice", "INV-7"), ("Total", "913.68")), _answer("INV-7, total 913.68")
+        )
+        assert (result.status, result.score, result.reason) == ("pass", 1.0, "Carries all 2 keys")
+
+    def test_the_reason_names_at_most_twenty_missing_keys(self) -> None:
+        check = _keys(*((f"Fact {n}", f"value-{n}") for n in range(25)))
+
+        result = _check(check, _answer("nothing here"))
+
+        assert result.reason.startswith("Missing 25 of 25 keys: Fact 0, Fact 1")
+        assert "Fact 19" in result.reason and "Fact 20" not in result.reason
+        assert result.reason.endswith(", and 5 more")
+        assert result.score == 0.0
+
+    def test_its_family_is_carried_onto_the_result(self) -> None:
+        result = _check(_keys(("Invoice", "INV-7"), family="invoice facts"), _answer("INV-7"))
+        assert result.family == "invoice facts"
+
+    def test_absent_keys_are_refused_without_scanning_a_long_answer(self) -> None:
+        answer = _answer(("Invoice INV-7 for Fernhill Ltd, total 1 234,50 PLN. " * 2000)[:100_000])
+        check = _keys(*((f"Key {n}", f"VAL-{n}-{'x' * 50} 98{n:03d}.5") for n in range(MAX_KEYS)))
+
+        started = time.perf_counter()
+        result = _check(check, answer)
+
+        assert result.score == 0.0
+        # A pattern run per key over this answer takes about 0.4 s; a substring refusal, ms.
+        assert time.perf_counter() - started < 0.15
+
+    def test_a_keys_check_naming_no_family_is_in_the_keys_family(self) -> None:
+        assert _check(_keys(("Invoice", "INV-7")), _answer("INV-7")).family == "keys"
+
+    def test_the_keys_of_a_cases_checks_are_bounded_together(self) -> None:
+        half = [(f"k{n}", "v") for n in range(MAX_KEYS // 2 + 1)]
+        checks = [_keys(*half), _keys(*half, family="totals")]
+
+        with pytest.raises(ValidationError, match="keys together"):
+            DatasetCaseCreate(input="Write the invoice", checks=checks)
+        with pytest.raises(ValidationError, match="keys together"):
+            ChecksScorer(defaults=checks)
+        assert ChecksScorer(defaults=checks[:1]).defaults
+
+    @pytest.mark.parametrize(
+        "check",
+        [
+            {"type": "keys", "keys": []},
+            _keys(("Invoice", "INV-7"), ("invoice ", "INV-8")),
+            _keys(("Invoice", "")),
+            _keys(("", "INV-7")),
+            _keys(*((f"k{n}", "v") for n in range(201))),
+        ],
+    )
+    def test_a_malformed_keys_check_is_refused(self, check) -> None:
+        with pytest.raises(ValidationError):
+            CHECK.validate_python(check)
+
+
+def test_the_keys_an_answer_misses_are_listed_by_label() -> None:
+    checks = [
+        {"type": "contains", "value": "INV"},
+        {"type": "keys", "keys": "broken"},
+        {
+            "type": "keys",
+            "keys": [
+                {"key": "Invoice number", "value": "INV-7"},
+                {"key": "Total", "value": "1 234,50"},
+            ],
+        },
+    ]
+
+    assert missing_keys(checks, "Invoice INV-7, total 1234,50") == []
+    assert missing_keys(checks, "Invoice INV-70") == ["Invoice number", "Total"]

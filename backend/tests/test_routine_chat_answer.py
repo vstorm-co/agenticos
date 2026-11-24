@@ -47,8 +47,10 @@ class _World:
             last_run_id=self.job.run_id,
             last_delivery_status="pending",
         )
+        self.run_chat = uuid4()
         self.run = SimpleNamespace(
             id=self.job.run_id,
+            conversation_id=self.run_chat,
             started_at=datetime(2026, 1, 1, tzinfo=UTC),
             ended_at=datetime(2026, 1, 1, 0, 1, tzinfo=UTC),
         )
@@ -85,9 +87,9 @@ class _World:
         )
         self.message = SimpleNamespace(
             id=self.job.message_id,
-            conversation_id=self.job.conversation_id,
+            conversation_id=self.run_chat,
             run_id=self.job.run_id,
-            content="**Nightly**\n\nThree PRs merged.",
+            content="Three PRs merged.",
         )
         self.verdict = "admitted"
         self.open_sessions = 0
@@ -100,6 +102,7 @@ class _World:
         self.admission_subject: object = None
         self.trigger_get = AsyncMock(return_value=self.trigger)
         self.found: dict[str, bool] = {"session": True, "identity": True, "message": True}
+        self.run_found = True
 
     async def _send(self, token: str, message: object) -> None:
         self.sent_while_open.append(self.open_sessions)
@@ -125,7 +128,11 @@ def world() -> Iterator[_World]:
     with (
         patch.object(routine_answer, "get_db_context", w.context),
         patch.object(routine_answer.agent_trigger_repo, "get", new=w.trigger_get),
-        patch.object(routine_answer.agent_run_repo, "get_run", new=AsyncMock(return_value=w.run)),
+        patch.object(
+            routine_answer.agent_run_repo,
+            "get_run",
+            new=AsyncMock(side_effect=lambda *_a, **_k: w.run if w.run_found else None),
+        ),
         patch.object(routine_answer.agent_repo, "get", new=AsyncMock(return_value=w.agent)),
         patch.object(
             routine_answer.channel_session_repo,
@@ -277,7 +284,8 @@ async def test_the_answer_is_posted_to_the_private_chat_with_the_bots_current_to
     token, message = world.sent
     assert token == TOKEN
     assert message.platform_chat_id == "777001"
-    assert message.text == world.message.content
+    # The fire's answer from its own chat, under the routine's name as in the console.
+    assert message.text == "**Nightly**\n\nThree PRs merged."
     assert world.trigger.last_delivery_status == "delivered"
     world.resolved.assert_awaited_once()
     assert world.resolved.await_args.kwargs["reason"] == "delivery"
@@ -497,3 +505,12 @@ async def test_an_answer_that_arrived_in_part_is_not_sent_again(world: _World) -
 
     assert world.trigger.last_delivery_status == "unavailable"
     world.blocked.assert_awaited_once()
+
+
+async def test_an_answer_whose_run_is_gone_is_not_sent(world: _World) -> None:
+    world.run_found = False
+
+    await send_routine_answer(world.job)
+
+    world.adapter.send_message.assert_not_awaited()
+    assert world.trigger.last_delivery_status == "unavailable"

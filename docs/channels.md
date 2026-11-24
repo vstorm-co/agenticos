@@ -1964,11 +1964,11 @@ are visible in **Admin → Background jobs** (`deliver-channel-handback`).
 
 ### Routine answers in a private chat { #routine-answers-in-a-private-chat }
 
-A routine made in a private chat on Telegram, Slack, Mattermost, Teams, Discord or Matrix answers in that chat. Once the answer is stored in the conversation, the bot also posts it there, so the person reads it where they asked for it.
+A routine made in a private chat on Telegram, Slack, Mattermost, Teams, Discord or Matrix that opens a new chat for each run (`chat_mode=per_run`) also has the bot post each run's answer to the chat it was made in, so the person reads it where they asked for it. The whole run stays in its own console chat.
 
 Before it posts, the platform checks again the creator's linked account, their membership, the bound agent and the conversation. While the post is waiting, the routine reads **Sending last answer to chat**. When the chat accepts the answer, the status is `delivered`. When the chat cannot take it, the routine reads **Last answer unavailable in chat** and its owner gets a notice. The answer stays in the run log.
 
-Group chats, SMS, iMessage and email only store the answer. After `/new` the old conversation is no longer the chat's, so later answers stay in the console. Do not also route the routine's notifications to the same chat: the answer would arrive twice.
+A routine with one shared history (`chat_mode=shared`) posts nothing to the chat. Group chats, SMS, iMessage and email keep the answer in the console. After `/new` the old conversation is no longer the chat's, so later answers stay in the console. Do not also route the routine's notifications to the same chat: the answer would arrive twice.
 
 ### Next steps as buttons { #next-steps-as-buttons }
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "e98feb55dd96"
+source_sha: "60a9139b3d7e"
 ---
 
 # Configurar un trigger de evento { #setting-up-an-event-trigger }
@@ -76,7 +76,8 @@ conversación con el agente, así que todo lo que le dice está en un solo lugar
 sus otros chats (`delivery_conversation_id`), para una rutina creada en ese chat; `run_log` no la publica
 en ningún otro sitio.
 
-Cuando ese chat es un chat privado de una aplicación de chat, el bot también publica allí la respuesta (véase
+Cuando una rutina creada en un chat privado de una aplicación de chat abre un chat nuevo
+para cada ejecución (`chat_mode=per_run`), el bot también publica cada respuesta en ese chat (véase
 [Respuestas de rutinas en un chat privado](channels.md#routine-answers-in-a-private-chat)); el estado es
 `pending` hasta que se envía.
 

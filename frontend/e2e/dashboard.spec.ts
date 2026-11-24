@@ -51,6 +51,12 @@ test.describe("Dashboard", () => {
   });
 
   test("keeps the scope switcher fixed below the greeting across views", async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem(
+        "motion-storage",
+        JSON.stringify({ state: { motion: "system" }, version: 0 }),
+      );
+    });
     await page.emulateMedia({ reducedMotion: "no-preference" });
     for (const width of [1440, 390]) {
       await page.setViewportSize({ width, height: 1000 });
@@ -63,7 +69,7 @@ test.describe("Dashboard", () => {
       await expect(pageHeading(page, DASHBOARD_GREETING)).toBeVisible();
       const panel = page.locator('[data-dashboard-view="org"]');
       await expect(panel).toBeVisible();
-      await expect(panel).toHaveCSS("animation-name", "tab-panel-enter");
+      await expect(panel).not.toHaveAttribute("data-state", "active");
       if (width >= 768) {
         const period = await page
           .getByRole("button", { name: "Period", exact: true })

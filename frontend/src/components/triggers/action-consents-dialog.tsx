@@ -62,7 +62,7 @@ export function ActionConsentsDialog({
   const { data, isLoading, error, replace, refetch } = useRoutineActions(
     trigger.agent_id,
     trigger.id,
-    { enabled: !!sourcesData && sourceMode === "restricted" },
+    { enabled: !!sourcesData },
   );
   const [chosen, setChosen] = useState<{ token: string; keys: Set<string> } | null>(null);
   const selected =
@@ -77,7 +77,7 @@ export function ActionConsentsDialog({
     sources.isLoading ||
     routineSourceBlockers(sources.data, sourceMode).length > 0;
   async function save(data: RoutineActionOptions | undefined, sourceReview: RoutineSourceReview) {
-    if (sourceMode === "restricted" && !data) return;
+    if (!data) return;
     setSaving(true);
     try {
       if (onSaved || sourceNeedsSave)
@@ -85,7 +85,7 @@ export function ActionConsentsDialog({
           review_token: sourceReview.review_token,
           mode: sourceMode,
         });
-      if (sourceMode === "restricted" && data && (data.can_waive || onSaved)) {
+      if (data.can_waive || onSaved) {
         await replace.mutateAsync(
           data.can_waive
             ? data.items
@@ -108,13 +108,7 @@ export function ActionConsentsDialog({
       <DialogContent className={cn(DIALOG_WIDE, DIALOG_COLUMN)}>
         <DialogHeader>
           <DialogTitle>{onSaved ? setup("setupReviewTitle") : t("title")}</DialogTitle>
-          <DialogDescription>
-            {sourceMode === "follow_agent"
-              ? setup("sourceConsents.followApprovals")
-              : onSaved
-                ? setup("setupReviewDescription")
-                : t("description")}
-          </DialogDescription>
+          <DialogDescription>{t("description")}</DialogDescription>
         </DialogHeader>
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto">
           <SourceConsentsPanel
@@ -126,7 +120,7 @@ export function ActionConsentsDialog({
               sourcesData && setSourceChoice({ token: sourcesData.review_token, mode })
             }
           />
-          {sourceMode === "follow_agent" ? null : isLoading ? (
+          {isLoading ? (
             <Spinner />
           ) : error ? (
             <ErrorState cta={{ label: t("retry"), onClick: () => void refetch() }} />
@@ -211,7 +205,7 @@ export function ActionConsentsDialog({
               {setup("finishLater")}
             </Button>
           )}
-          {!onSaved && sourceMode === "restricted" && (
+          {!onSaved && (
             <Button
               variant="outline"
               disabled={!data || pending}
@@ -224,13 +218,11 @@ export function ActionConsentsDialog({
             disabled={
               pending ||
               sourceUnavailable ||
-              (sourceMode === "restricted"
-                ? !data ||
-                  !!error ||
-                  isLoading ||
-                  overLimit ||
-                  (!data.can_waive && !onSaved && !sourceNeedsSave)
-                : !onSaved && !sourceNeedsSave)
+              !data ||
+              !!error ||
+              isLoading ||
+              overLimit ||
+              (!data.can_waive && !onSaved && !sourceNeedsSave)
             }
             onClick={sourcesData ? () => void save(data, sourcesData) : undefined}
           >

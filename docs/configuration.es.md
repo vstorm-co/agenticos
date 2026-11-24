@@ -1,5 +1,5 @@
 ---
-source_sha: "b190a21ae0c5"
+source_sha: "b67c12b7a802"
 ---
 
 # Configuración { #configuration }
@@ -1701,3 +1701,37 @@ permanecen hasta su eliminación manual y no sustituyen copias externas. Prueba 
 restauración en un despliegue desechable antes de producción. Varios hosts,
 superposiciones Compose propias y almacenamiento externo requieren tu pipeline:
 `UPDATE_PIPELINE_URL` muestra su enlace HTTPS sin iniciar el despliegue.
+
+## Cuentas de suscripción { #subscription-accounts }
+
+El servicio `subscription-gateway` ejecuta los inicios de sesión de las personas
+en sus propias suscripciones ([cuentas de suscripción](models.md#subscription-accounts)).
+Usa la imagen del backend con `python -m app.subscription_gateway`, no publica
+ningún puerto y guarda los inicios de sesión en el volumen
+`subscription_accounts`.
+
+| Variable | La lee | Significado |
+|---|---|---|
+| `SUBSCRIPTION_GATEWAY_URL` | API, worker | La dirección de la pasarela, `http://subscription-gateway:8400` en compose. Sin valor, las cuentas de suscripción se desactivan. |
+| `SUBSCRIPTION_GATEWAY_TOKEN` | API, worker, pasarela | El token compartido, de 32 caracteres como mínimo. La pasarela rechaza cualquier petición sin él, y la API no arranca con una URL pero sin ese token. |
+| `SUBSCRIPTION_GATEWAY_IDLE_SECONDS` | pasarela | Cuánto puede estar inactivo el proceso de una persona antes de detenerse. Por defecto 600. |
+| `SUBSCRIPTION_GATEWAY_MAX_PROCESSES` | pasarela | Cuántos procesos de personas pueden ejecutarse a la vez. Por defecto 64; por encima, se detiene el proceso inactivo usado hace más tiempo. |
+
+El token se genera solo. `make dev` y `scripts/deploy.sh` escriben un
+`SUBSCRIPTION_GATEWAY_TOKEN` aleatorio en `backend/.env` la primera vez que se
+ejecutan y lo conservan después; `make dev` se lo pasa a `docker-compose.yml`.
+Para elegir el tuyo, escríbelo ahí antes (`openssl rand -hex 32`).
+
+En `docker-compose-prod.yml` y `docker-compose-dev.yml` el servicio está en el
+perfil `subscriptions`. `scripts/deploy.sh` y el actualizador del host activan
+ese perfil y definen `SUBSCRIPTION_GATEWAY_URL` cuando `backend/.env` contiene un
+token, así que un servidor ejecuta la pasarela por defecto. Para mantenerla
+apagada, deja la línea vacía en `backend/.env`: `SUBSCRIPTION_GATEWAY_TOKEN=`.
+
+`docker-compose.yml` arrancado por sí solo, sin un clon, usa un token local
+fijo. Define tu propio `SUBSCRIPTION_GATEWAY_TOKEN` en `.env` para cualquier
+despliegue así al que lleguen otras personas.
+
+## GitHub Copilot OAuth { #github-copilot-oauth }
+
+Establece `GITHUB_COPILOT_OAUTH_CLIENT_ID` (vacío por defecto) con la aplicación OAuth propia del despliegue y habilita device flow. Sin ella se rechaza el inicio personal Copilot. Es distinto de GitHub Models y las credenciales del conector GitHub. Autorizar GitHub no confirma acceso Copilot; también debe pasar la comprobación de modelos de chat de la cuenta. No se admiten concesiones GitHub App caducables ni gateways Enterprise propios. Consulta [cuentas Copilot](models.md#github-copilot-accounts).

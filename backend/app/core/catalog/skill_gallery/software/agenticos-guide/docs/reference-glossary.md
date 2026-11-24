@@ -87,6 +87,8 @@ rename.
 | Noise | Answers graded differently when asked again with nothing changed; a result it could explain is within noise, and **Ask each question twice** measures it | `measurement_noise`, `purpose: stability` |
 | Review | Scores waiting for a person to confirm or overrule them | `review_state` |
 | Case generator | The system agent that drafts cases from an agent, its knowledge, real chats and red teaming | `kind: generator` |
+| Key extractor | The system agent that lists the facts of a case's reference answer for its keys check | `kind: extractor` |
+| Source coverage | The system agent that says which of a dataset's keys none of an agent's sources holds | `kind: coverage` |
 | Proposed case | A drafted case waiting under **Generated** until a person accepts or dismisses it | `case_proposal` |
 | Red teaming | Cases checking that an agent refuses what it must | `red-team` tag |
 
@@ -129,6 +131,7 @@ in [Capabilities](https://vstorm-co.github.io/agenticos/reference/capabilities/)
 | Date and time | `clock` |
 | Calculations | `code_execution` |
 | Coding agent | `coding_agent` |
+| External ACP agent | `external_acp` |
 | Long conversations | `compaction` |
 | Computer use | `computer_use` |
 | Context | `context` |

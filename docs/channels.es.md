@@ -1,5 +1,5 @@
 ---
-source_sha: "dd51ad4f9078"
+source_sha: "5174c765a471"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -2068,11 +2068,11 @@ la confirmación. Los intentos agotados aparecen en **Admin → Background jobs*
 
 ### Respuestas de rutinas en un chat privado { #routine-answers-in-a-private-chat }
 
-Una rutina creada en un chat privado de Telegram, Slack, Mattermost, Teams, Discord o Matrix responde en ese chat. Cuando la respuesta queda guardada en la conversación, el bot también la publica allí, para que la persona la lea donde la pidió.
+Cuando una rutina creada en un chat privado de Telegram, Slack, Mattermost, Teams, Discord o Matrix abre un chat nuevo para cada ejecución (`chat_mode=per_run`), el bot también publica la respuesta de cada ejecución en el chat donde se creó, para que la persona la lea donde la pidió. La ejecución completa queda en su propio chat de la consola.
 
 Antes de publicar, la plataforma vuelve a comprobar la cuenta vinculada de quien la creó, su membresía, el agente vinculado y la conversación. Mientras la publicación espera, la rutina muestra **Enviando la última respuesta al chat**. Cuando el chat acepta la respuesta, el estado es `delivered`. Cuando el chat no puede aceptarla, la rutina muestra **Última respuesta no disponible en el chat** y su propietario recibe un aviso. La respuesta queda en el registro de ejecuciones.
 
-Los chats de grupo, SMS, iMessage y el correo solo guardan la respuesta. Tras `/new`, la conversación anterior deja de ser la del chat, así que las respuestas posteriores quedan en la consola. No dirija además las notificaciones de la rutina al mismo chat: la respuesta llegaría dos veces.
+Una rutina con un historial compartido (`chat_mode=shared`) no publica nada en el chat. Los chats de grupo, SMS, iMessage y el correo dejan la respuesta en la consola. Tras `/new`, la conversación anterior deja de ser la del chat, así que las respuestas posteriores quedan en la consola. No dirija además las notificaciones de la rutina al mismo chat: la respuesta llegaría dos veces.
 
 ### Pasos siguientes como botones { #next-steps-as-buttons }
 

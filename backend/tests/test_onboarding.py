@@ -491,3 +491,58 @@ async def test_snooze_uses_the_membership_frequency_without_claiming_completion(
     result = await service.state(ctx)
     assert result.snoozed_until == member.onboarding_dismissed_at + timedelta(days=days)
     assert result.dismissed and not result.completed
+
+
+async def test_reports_the_explicit_current_step_without_claiming_completion(
+    start: StartFixture,
+) -> None:
+    ctx, member, _, service = start
+    result = await service.update(ctx, OnboardingUpdate(current_step="member.models"))
+    assert result.current_step == "member.models"
+    assert result.updated_at is member.onboarding_updated_at
+    assert result.updated_at is not None and result.updated_at.tzinfo is UTC
+    assert not result.completed and result.completed_at is None
+    assert not result.has_result
+    previous = result.updated_at
+    unchanged = await service.update(ctx, OnboardingUpdate(current_step="member.models"))
+    assert unchanged.updated_at == previous
+    cleared = await service.update(ctx, OnboardingUpdate(current_step=None))
+    assert cleared.current_step is None and not cleared.completed
+
+
+async def test_completion_clears_the_step_and_delayed_progress_cannot_reopen_it(
+    start: StartFixture,
+) -> None:
+    ctx, member, _, service = start
+    await service.update(ctx, OnboardingUpdate(current_step="admin.tools"))
+    completed = await service.update(ctx, OnboardingUpdate(completed=True))
+    assert completed.completed_at is member.onboarding_completed_at
+    assert completed.updated_at == completed.completed_at
+    assert completed.current_step is None
+    delayed = await service.update(ctx, OnboardingUpdate(current_step="admin.models"))
+    assert delayed.completed and delayed.current_step is None
+    assert delayed.updated_at == completed.updated_at
+
+
+@pytest.mark.parametrize("step", ["member.unknown", "admin.passwords", "", "member.models/private"])
+def test_refuses_unrecognized_progress_steps(step: str) -> None:
+    with pytest.raises(ValidationError):
+        OnboardingUpdate.model_validate({"current_step": step})
+
+
+async def test_legacy_completion_hides_stale_steps_without_claiming_new_memberships_complete(
+    start: StartFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ctx, member, _, service = start
+    member.onboarding_current_step = "member.profile"
+    legacy = member.joined_at + timedelta(hours=1)
+    monkeypatch.setattr(
+        user_repo,
+        "get_by_id",
+        AsyncMock(return_value=User(email="legacy@example.com", onboarding_completed_at=legacy)),
+    )
+    result = await service.state(ctx)
+    assert result.completed_at == legacy and result.current_step is None
+    member.joined_at = legacy + timedelta(hours=1)
+    result = await service.state(ctx)
+    assert result.completed_at is None and result.current_step == "member.profile"

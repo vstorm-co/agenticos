@@ -751,6 +751,7 @@ it("describes the start of an improvement on the page that starts one", () => {
   ).toEqual([
     "improvement-start",
     "improvement-quote",
+    "improvement-mode",
     "improvement-question-set",
     "improvement-details",
   ]);
@@ -791,4 +792,10 @@ it("spotlights binding on the channels page, optional and gated on channels:mana
     optional: true,
   });
   expect(ids.indexOf("channels-binding")).toBe(ids.indexOf("channels-diagnostics") + 1);
+});
+
+it("gives subscription settings their own help instead of hunting for the old profile card", () => {
+  expect(stepsForPage(ROUTES.SETTINGS_SUBSCRIPTIONS, () => true).map((step) => step.id)).toEqual([
+    "personal-subscription-accounts",
+  ]);
 });

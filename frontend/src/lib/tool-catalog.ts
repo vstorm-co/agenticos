@@ -524,6 +524,19 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
   // coding_agent - Claude Code or Codex in the sandbox. Its steps stream into a
   // panel of their own while it works; what it read, ran and changed opens under
   // the step afterwards, because that is what a person checks before trusting it.
+  inspect_acp_agent: {
+    kind: "list",
+    render: "generic",
+    captionKey: "readingAcpModels",
+    displayNameKey: "inspectAcpAgent",
+  },
+  run_acp_agent: {
+    kind: "code",
+    render: "coding-agent",
+    captionKey: "runningAcpAgent",
+    displayNameKey: "runAcpAgent",
+    opensWhenDone: true,
+  },
   run_coding_agent: {
     kind: "code",
     render: "coding-agent",

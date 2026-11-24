@@ -2,8 +2,6 @@
 
 import { RoutineDialogFrame } from "./routine-dialog-frame";
 
-import { ResultModeField, type RoutineResultMode } from "./result-mode-field";
-
 import { useState } from "react";
 import { Check } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -37,6 +35,7 @@ import { TriggerTemplateSelector } from "@/components/triggers/trigger-template-
 import { usePortalTargets } from "@/hooks/use-portal-targets";
 import { useTriggers } from "@/hooks/use-triggers";
 import { useAgentSelectionStore } from "@/stores";
+import { useAuthStore } from "@/stores/auth-store";
 import { cn } from "@/lib/utils";
 import { FILTER_KEYS, eventFilterConfig } from "@/lib/trigger-format";
 import type { PortalCatalogEntry } from "@/types/portals";
@@ -124,6 +123,7 @@ export function PortalTriggerDialog({
 }: PortalTriggerDialogProps) {
   const t = useTranslations("portals");
   const tt = useTranslations("triggers");
+  const impersonating = useAuthStore((state) => Boolean(state.user?.impersonation));
 
   const { agents } = useAgents();
   const { can } = usePermissions();
@@ -158,7 +158,6 @@ export function PortalTriggerDialog({
   // Which seeded template the message started from, or null for "from scratch".
   // Only tracked to light the picked card; the prompt stays freely editable.
   const [templateKey, setTemplateKey] = useState<string | null>(null);
-  const [resultMode, setResultMode] = useState<RoutineResultMode>("report");
   const [created, setCreated] = useState<TriggerCreated | null>(null);
 
   const eventSource = portal.event_source as EventSource;
@@ -183,12 +182,12 @@ export function PortalTriggerDialog({
     const eventConfig = { ...extraConfig, ...eventFilterConfig(eventSource, [filterA, filterB]) };
     const payload: TriggerCreate = {
       prompt,
-      ...(resultMode === "inbox" ? { result_mode: resultMode } : {}),
       name: name.trim() || null,
       trigger_type: "event",
       portal_key: portal.key,
       preset_key: preset.key,
       environment_id: environmentId === DEFAULT_ENV ? null : environmentId,
+      ...(impersonating ? { runs_as_creator: false } : {}),
       ...(connectionId ? { connection_id: connectionId } : {}),
       ...(needsTarget && target.trim() ? { target: target.trim() } : {}),
       ...(Object.keys(eventConfig).length ? { event_config: eventConfig } : {}),
@@ -369,7 +368,6 @@ export function PortalTriggerDialog({
               </Select>
             </FormField>
 
-            <ResultModeField value={resultMode} onChange={setResultMode} />
             <FormField label={tt("nameLabel")} htmlFor="portal-name" description={tt("nameHelp")}>
               <Input
                 id="portal-name"

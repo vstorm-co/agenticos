@@ -1,12 +1,13 @@
 """Posting a stored routine answer to the private chat it was asked in.
 
-A routine created in a private chat answers into that chat's conversation. The
-fire stores the answer and queues one job; this module is that job. It re-checks
-everything the fire decided, because minutes can pass and the person may have
-left the chat, unlinked their account or lost access since: the chat's session,
-the bot, the conversation, the stored message, the person's chat account and the
-same admission a chat run is held to. Any definite no leaves the answer in the
-console, marks the routine's delivery `unavailable` and tells its owner.
+A routine created in a private chat posts each fire's answer back to that chat.
+The fire answers in its own console chat and queues one job; this module is that
+job. It re-checks everything the fire decided, because minutes can pass and the
+person may have left the chat, unlinked their account or lost access since: the
+chat's session, the bot, the chat's conversation, the fire's answer in its own
+chat, the person's chat account and the same admission a chat run is held to.
+Any definite no leaves the answer in the console, marks the routine's delivery
+`unavailable` and tells its owner.
 
 The platform is called with no database session open, and a send that fails
 escapes as a fixed error so the worker retries without a vendor's text, which
@@ -92,6 +93,7 @@ async def send_routine_answer(job: RoutineChatAnswer) -> None:
             db, job.conversation_id, fresh=True
         )
         message = await conversation_repo.get_message_by_id(db, job.message_id)
+        run = await agent_run_repo.get_run(db, job.run_id, organization_id=job.organization_id)
         identity = (
             None
             if session is None
@@ -110,8 +112,9 @@ async def send_routine_answer(job: RoutineChatAnswer) -> None:
             or conversation.is_archived
             or conversation.organization_id != job.organization_id
             or conversation.user_id != creator
+            or run is None
             or message is None
-            or message.conversation_id != job.conversation_id
+            or message.conversation_id != run.conversation_id
             or message.run_id != job.run_id
             or identity is None
             or not identity.is_active
@@ -142,13 +145,18 @@ async def send_routine_answer(job: RoutineChatAnswer) -> None:
         if admission.verdict != "admitted":
             await _settle_unavailable(db, job)
             return
+        title = trigger.name
+        if not title:
+            agent = await agent_repo.get(db, trigger.agent_id, organization_id=job.organization_id)
+            title = None if agent is None else agent.name
         adapter = get_adapter(bot.platform)
         post = _Post(
             platform=bot.platform,
             token=unseal_bot_token(bot),
             message=OutgoingMessage(
                 platform_chat_id=session.platform_chat_id,
-                text=message.content,
+                # Under the routine's name, as the console shows a routine's answer.
+                text=message.content if not title else f"**{title}**\n\n{message.content}",
                 api_base_url=bot.api_base_url,
             ),
         )

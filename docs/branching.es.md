@@ -1,5 +1,5 @@
 ---
-source_sha: "cd7998714012"
+source_sha: "98b351796193"
 ---
 
 # Ramas y qué las protege { #branches-and-what-protects-them }
@@ -382,6 +382,8 @@ no puede fusionarse. Los PR listos conservan los checks obligatorios y la protec
 de code scanning; cambiar de estado no elimina esos requisitos.
 
 ## Cortes y versiones con varios cambios { #release-cuts-and-release-trains }
+
+La cadencia sigue la [decisión del mantenedor en la discusión #3208](https://github.com/vstorm-co/agenticos/discussions/3208#discussioncomment-19796269). No se exige una versión por cada PR integrado.
 
 Mantén PR separados y prepara **una publicación manual al día** cuando haya
 cambios en Unreleased. No hay un cut programado ni publicación automática.

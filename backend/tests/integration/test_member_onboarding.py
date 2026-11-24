@@ -63,3 +63,38 @@ async def test_the_database_refuses_unknown_start_goals(db: AsyncSession) -> Non
                 .where(OrganizationMember.id == member.id)
                 .values(onboarding_goal="unknown")
             )
+
+
+async def test_current_step_is_durable_and_scoped_to_the_membership(db: AsyncSession) -> None:
+    person = User(id=uuid4(), email=f"{uuid4().hex}@example.com", is_active=True)
+    db.add(person)
+    await db.flush()
+    orgs = [
+        Organization(id=uuid4(), name="Progress", slug=uuid4().hex, created_by_user_id=person.id)
+        for _ in range(2)
+    ]
+    db.add_all(orgs)
+    await db.flush()
+    members = [
+        OrganizationMember(organization_id=org.id, user_id=person.id, role="member") for org in orgs
+    ]
+    db.add_all(members)
+    await db.flush()
+    await onboarding_repo.save(
+        db, member=members[0], data=OnboardingUpdate(current_step="member.models")
+    )
+    await db.refresh(members[0])
+    await db.refresh(members[1])
+    assert members[0].onboarding_current_step == "member.models"
+    assert members[0].onboarding_updated_at is not None
+    assert members[1].onboarding_current_step is None
+    assert members[1].onboarding_updated_at is None
+    from sqlalchemy import update
+
+    with pytest.raises(IntegrityError, match="ck_org_member_onboarding_step"):
+        await db.execute(
+            update(OrganizationMember)
+            .where(OrganizationMember.id == members[0].id)
+            .values(onboarding_current_step="not-a-real-step")
+        )
+    await db.rollback()

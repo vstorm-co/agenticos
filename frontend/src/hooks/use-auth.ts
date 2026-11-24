@@ -9,7 +9,11 @@ import { toast } from "sonner";
 import { resetSessionState, useAuthStore } from "@/stores";
 import { apiClient, ApiError } from "@/lib/api-client";
 import type { DirectoryLoginRequest, User, LoginRequest, RegisterRequest } from "@/types";
-import { goToDestination, postSignInDestination } from "@/lib/auth-landing";
+import {
+  goToDestination,
+  postRegistrationDestination,
+  postSignInDestination,
+} from "@/lib/auth-landing";
 import { ROUTES } from "@/lib/constants";
 import { INVITATION_FLOW_PARAM } from "@/lib/invitation-links";
 import { isNetworkFailure, offlineAvailable } from "@/lib/offline/device-cache";
@@ -76,6 +80,7 @@ export const SIGN_IN_TIMEOUT_MS = 20_000;
 
 /** What a sign-in route answers: the account, and the token the chat socket needs. */
 interface SignInResponse {
+  is_new_user?: boolean;
   user: User;
   access_token: string;
 }
@@ -312,7 +317,12 @@ export function useAuth() {
         adoptUser(queryClient, setUser, response.user);
         useAuthStore.getState().setAccessToken(response.access_token);
         authChecked = true; // login already populated user + token; skip /auth/me
-        goToDestination(postSignInDestination(returnTo), (href) => router.push(href));
+        goToDestination(
+          response.is_new_user === true
+            ? postRegistrationDestination(returnTo)
+            : postSignInDestination(returnTo),
+          (href) => router.push(href),
+        );
         return response;
       } finally {
         setLoading(false);

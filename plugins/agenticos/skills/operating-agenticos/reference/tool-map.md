@@ -80,8 +80,10 @@ The connected server is the authority: if a tool here is missing from the connec
 | `list_task_boards`, `list_tasks`, `get_task` | `tables:view` | no |
 | `ensure_task_board` | `tables:create` on first use | yes, when the board is missing |
 | `create_task`, `update_task` | `tables:edit` on the scope | yes |
+| `publish_inbox_finding` | a live routine or monitor run credential; only its own owner, no arbitrary recipient | yes; automatically available with no general platform scopes when unbound |
 | `list_inbox_items` | the signed-in person in an unshared private chat or console session; refused for an external MCP client | no, at most 30 summaries; use `item_id` for one card |
 | `list_inbox_cases`, `settle_inbox_case` | the person's own chat or console session; refused for an external MCP client | no / yes |
+| `list_inbox_items` | the person's own chat or console session | no |
 
 ## Knowledge and context
 

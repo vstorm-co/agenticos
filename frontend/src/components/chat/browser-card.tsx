@@ -4,7 +4,7 @@ import { toolLookupName } from "@/lib/tool-identity";
 
 import { createContext, useContext, useEffect, useRef } from "react";
 
-import { Maximize2, Monitor } from "lucide-react";
+import { Minimize2, Monitor } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { useShell } from "@/hooks/use-shell";
@@ -93,7 +93,7 @@ function InlineBrowser({
   onComment?: (comment: PageComment) => void;
 }) {
   const t = useTranslations("chat");
-  const expand = useBrowserPanelStore((state) => state.open);
+  const toggle = useBrowserPanelStore((state) => state.toggle);
   const expanded = useBrowserPanelStore((state) => state.openCallId === streamed.callId);
   const running = isRunning(streamed);
   const live = useLiveBrowse(
@@ -110,10 +110,12 @@ function InlineBrowser({
       {expanded ? (
         <button
           type="button"
-          onClick={() => expand(streamed.callId)}
+          onClick={() => toggle(streamed.callId)}
+          aria-expanded
+          title={t("browserClose")}
           className="text-muted-foreground hover:text-foreground flex h-full w-full flex-col items-center justify-center gap-2 text-sm"
         >
-          <Maximize2 className="size-5" aria-hidden />
+          <Minimize2 className="size-5" aria-hidden />
           {t("browserShownInPanel", { host: hostOf(browse.url) ?? t("browserHeading") })}
         </button>
       ) : (
@@ -126,7 +128,7 @@ function InlineBrowser({
               : null
           }
           maximizeLabel={t("browserOpenPanel")}
-          onMaximize={() => expand(streamed.callId)}
+          onMaximize={() => toggle(streamed.callId)}
           newTabHref={streamed.runId ? `/browse/${streamed.runId}/${streamed.callId}` : undefined}
           onComment={onComment}
         />
@@ -135,11 +137,19 @@ function InlineBrowser({
   );
 }
 
-/** A compact transcript entry that reopens the browser side panel. */
+/** A compact transcript entry that toggles its browser side panel. */
 function BrowserLink({ browse }: { browse: Browse }) {
-  const open = useBrowserPanelStore((state) => state.open);
+  const toggle = useBrowserPanelStore((state) => state.toggle);
+  const expanded = useBrowserPanelStore((state) => state.openCallId === browse.callId);
   const page = recordedBrowserPage({ args: { url: browse.url }, result: undefined });
-  return <BrowserVisit url={page.url} title={browse.title} onOpen={() => open(browse.callId)} />;
+  return (
+    <BrowserVisit
+      url={page.url}
+      title={browse.title}
+      expanded={expanded}
+      onOpen={() => toggle(browse.callId)}
+    />
+  );
 }
 
 /** Open each running browser session once, without overriding a reader's selection or closure. */

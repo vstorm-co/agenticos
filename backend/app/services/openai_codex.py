@@ -14,6 +14,11 @@ The Codex CLI's own `~/.codex/auth.json` is deliberately *not* accepted. It
 holds the CLI's grant, and the refresh token below is single-use: whichever of
 the two refreshed first would sign the other out.
 
+**Or it can be a device code.** The Codex CLI's own device sign-in avoids the
+pasted address: ChatGPT shows a short code on `auth.openai.com/codex/device`, this
+service polls until it is approved, and the resulting grant is sealed under the
+organization's vault scope in Redis until the form that started it redeems it once.
+
 **It changes while it is used.** A refresh spends the refresh token it presents,
 so the new pair has to reach the vault before the process ends, or the next run
 finds a token the authorization server has already retired.
@@ -26,11 +31,15 @@ instant can still race, and the loser is asked to sign in again.
 
 import json
 import logging
+import secrets
+from dataclasses import dataclass
 from urllib.parse import parse_qs, urlsplit
 from uuid import UUID
 
 import httpx2
+from pydantic import AliasChoices, BaseModel, Field, ValidationError
 from pydantic_ai.providers.openai_codex import (
+    _PUBLIC_CLIENT_ID,
     CredentialsRefreshError,
     OpenAICodexCredentials,
     OpenAICodexCredentialSource,
@@ -60,6 +69,41 @@ _PENDING_KEY = "openai-codex:sign-in:{state}"
 # Long enough to sign in, pass a second factor and find the address bar; short
 # enough that an abandoned verifier does not outlive the afternoon.
 _PENDING_TTL_SECONDS = 15 * 60
+
+_DEVICE_KEY = "openai-codex:device:{state}"
+_ISSUER = "https://auth.openai.com"
+DEVICE_VERIFICATION_URL = f"{_ISSUER}/codex/device"
+_DEVICE_REDIRECT_URI = f"{_ISSUER}/deviceauth/callback"
+
+
+@dataclass(frozen=True, slots=True)
+class DeviceSignIn:
+    """A device code to show the person, and the state that redeems it."""
+
+    state: str
+    user_code: str
+    verification_url: str
+    interval_seconds: int
+
+
+class _UserCode(BaseModel):
+    device_auth_id: str = Field(min_length=1, max_length=512)
+    user_code: str = Field(
+        min_length=1, max_length=64, validation_alias=AliasChoices("user_code", "usercode")
+    )
+    # ChatGPT sends the interval as a string; lax validation reads "5" as 5.
+    interval: int = 5
+
+
+class _Approved(BaseModel):
+    authorization_code: str = Field(min_length=1, max_length=4096)
+    code_verifier: str = Field(min_length=1, max_length=512)
+
+
+async def _device_call(path: str, payload: dict[str, str]) -> httpx2.Response:
+    """One call to ChatGPT's device-authorization API; a seam for tests."""
+    async with httpx2.AsyncClient(timeout=15) as client:
+        return await client.post(f"{_ISSUER}/api/accounts/deviceauth/{path}", json=payload)
 
 
 def _as_secret(credentials: OpenAICodexCredentials) -> OpenAICodexSecret:
@@ -255,10 +299,129 @@ class OpenAICodexService:
         )
         return flow.authorization_url()
 
+    async def start_device_sign_in(self, ctx: AuthContext) -> DeviceSignIn:
+        """Ask ChatGPT for a device code, bound to whoever asked for it."""
+        try:
+            response = await _device_call("usercode", {"client_id": _PUBLIC_CLIENT_ID})
+            offer = _UserCode.model_validate_json(response.content) if response.is_success else None
+        except httpx2.HTTPError, ValidationError:
+            offer = None
+        if offer is None:
+            raise BadRequestError(
+                message="ChatGPT did not offer a device code. Sign in with the address instead"
+            )
+        state = secrets.token_urlsafe(24)
+        await self.redis.set(
+            _DEVICE_KEY.format(state=state),
+            json.dumps(
+                {
+                    "device_auth_id": offer.device_auth_id,
+                    "user_code": offer.user_code,
+                    "user_id": str(ctx.subject_id),
+                    "organization_id": str(ctx.organization_id),
+                    "sealed": None,
+                }
+            ),
+            ttl=_PENDING_TTL_SECONDS,
+        )
+        return DeviceSignIn(
+            state, offer.user_code, DEVICE_VERIFICATION_URL, max(1, min(offer.interval, 30))
+        )
+
+    async def _pending_device(self, ctx: AuthContext, state: str) -> dict[str, str | None]:
+        raw = await self.redis.get(_DEVICE_KEY.format(state=state))
+        pending = json.loads(raw) if raw is not None else None
+        if (
+            not isinstance(pending, dict)
+            or pending.get("user_id") != str(ctx.subject_id)
+            or pending.get("organization_id") != str(ctx.organization_id)
+        ):
+            raise refused_field(
+                "device_state", "This device sign-in has expired or was already used. Start again"
+            )
+        return pending
+
+    async def poll_device_sign_in(self, ctx: AuthContext, state: str) -> bool:
+        """Whether ChatGPT approved the code; an approval is sealed until it is redeemed.
+
+        Raises:
+            FieldError: The sign-in is unknown, someone else's, expired or refused.
+        """
+        pending = await self._pending_device(ctx, state)
+        if pending.get("sealed") is not None:
+            return True
+        try:
+            response = await _device_call(
+                "token",
+                {
+                    "device_auth_id": str(pending["device_auth_id"]),
+                    "user_code": str(pending["user_code"]),
+                },
+            )
+        except httpx2.HTTPError:
+            logger.warning("ChatGPT could not be reached while polling a device sign-in")
+            return False
+        if response.status_code in (403, 404):
+            return False
+        try:
+            approved = (
+                _Approved.model_validate_json(response.content) if response.is_success else None
+            )
+        except ValidationError:
+            approved = None
+        if approved is None:
+            await self.redis.delete(_DEVICE_KEY.format(state=state))
+            raise refused_field("device_state", "ChatGPT refused this device sign-in. Start again")
+        flow = OpenAICodexOAuthFlow(redirect_uri=_DEVICE_REDIRECT_URI)
+        flow.code_verifier = approved.code_verifier
+        try:
+            credentials = await flow.exchange_code(approved.authorization_code)
+        except CredentialsRefreshError, httpx2.HTTPError:
+            logger.warning("ChatGPT did not exchange an approved device code", exc_info=True)
+            await self.redis.delete(_DEVICE_KEY.format(state=state))
+            raise refused_field(
+                "device_state", "ChatGPT did not finish this device sign-in. Start again"
+            ) from None
+        sealed = seal_secret(
+            _as_secret(credentials), scope=VaultScope.organization(ctx.organization_id)
+        )
+        pending["sealed"] = sealed.ciphertext
+        pending["key_version"] = str(sealed.key_version)
+        await self.redis.set(
+            _DEVICE_KEY.format(state=state), json.dumps(pending), ttl=_PENDING_TTL_SECONDS
+        )
+        return True
+
+    async def _redeem_device(self, ctx: AuthContext, state: str) -> OpenAICodexSecret:
+        pending = await self._pending_device(ctx, state)
+        sealed = pending.get("sealed")
+        if sealed is None:
+            raise refused_field("device_state", "Approve the code on ChatGPT first")
+        if await self.redis.getdel(_DEVICE_KEY.format(state=state)) is None:
+            raise refused_field("device_state", "This device sign-in was already used. Start again")
+        value = unseal_secret(
+            sealed,
+            kind=SecretKind.OPENAI_CODEX,
+            scope=VaultScope.organization(ctx.organization_id),
+            key_version=int(pending.get("key_version") or 1),
+        )
+        if not isinstance(value, OpenAICodexSecret):
+            raise refused_field("device_state", "This device sign-in is unusable. Start again")
+        return value
+
     async def finish_personal_sign_in(
-        self, ctx: AuthContext, callback_url: str
+        self, ctx: AuthContext, callback_url: str | None, device_state: str | None = None
     ) -> OpenAICodexSecret:
         """Redeem a fresh owner-bound grant for storage under that person's vault scope."""
+        return await self._finish(ctx, callback_url, device_state)
+
+    async def _finish(
+        self, ctx: AuthContext, callback_url: str | None, device_state: str | None
+    ) -> OpenAICodexSecret:
+        if device_state is not None:
+            return await self._redeem_device(ctx, device_state)
+        if callback_url is None:
+            raise refused_field("callback_url", "Paste the address or use a device code")
         return await self._finish_sign_in(ctx, callback_url)
 
     async def _finish_sign_in(self, ctx: AuthContext, callback_url: str) -> OpenAICodexSecret:
@@ -306,13 +469,14 @@ class OpenAICodexService:
         self,
         ctx: AuthContext,
         *,
-        callback_url: str,
+        callback_url: str | None,
         name: str,
         description: str | None,
         visibility: Visibility,
+        device_state: str | None = None,
     ) -> OrganizationSecret:
         """Finish a sign-in and store it as a new vault secret."""
-        value = await self._finish_sign_in(ctx, callback_url)
+        value = await self._finish(ctx, callback_url, device_state)
         return await OrganizationSecretService(self.db).create(
             ctx,
             name=name,
@@ -323,7 +487,12 @@ class OpenAICodexService:
         )
 
     async def reconnect(
-        self, ctx: AuthContext, secret_id: UUID, *, callback_url: str
+        self,
+        ctx: AuthContext,
+        secret_id: UUID,
+        *,
+        callback_url: str | None,
+        device_state: str | None = None,
     ) -> OrganizationSecret:
         """Finish a sign-in and put it in place of an existing one.
 
@@ -331,5 +500,5 @@ class OpenAICodexService:
         model keyed by this secret keeps its id. Permission and kind are checked
         by the rotation itself, as for any other secret.
         """
-        value = await self._finish_sign_in(ctx, callback_url)
+        value = await self._finish(ctx, callback_url, device_state)
         return await OrganizationSecretService(self.db).update(ctx, secret_id, value=value)

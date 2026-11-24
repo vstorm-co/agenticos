@@ -490,7 +490,7 @@ async def test_paired_criteria_read_score_json_in_bounded_batches(mock_db_sessio
 
     from app.core.permissions import AuthContext
     from app.db.models.case_score import CaseScore
-    from app.services.eval_comparison import criterion_flipped
+    from app.services.eval_comparison import family_flipped
 
     ctx = AuthContext(user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role="owner")
     candidate, baseline = EvalRunArm(id=uuid.uuid4()), EvalRunArm(id=uuid.uuid4())
@@ -551,7 +551,8 @@ async def test_paired_criteria_read_score_json_in_bounded_batches(mock_db_sessio
     assert [len(page) for page in pages] == [50, 1]
     assert read_sizes == [50, 50, 1, 1]
     assert {case_id for page in pages for case_id, _ in page} == set(case_ids)
-    assert criterion_flipped(pages[-1][0][1].baseline, pages[-1][0][1].candidate)
+    last = pages[-1][0][1]
+    assert family_flipped(last.baseline, last.candidate, last.named, {f"{case_ids[-1]} check 49"})
 
 
 @pytest.mark.parametrize(

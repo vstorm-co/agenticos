@@ -3,8 +3,11 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import RoutinesPage from "./page";
 
-const state = vi.hoisted(() => ({ create: true, monitor: true }));
-vi.mock("@/hooks", () => ({ useCanCreateTrigger: () => state.create }));
+const state = vi.hoisted(() => ({ create: true, monitor: true, enabled: true }));
+vi.mock("@/hooks", () => ({
+  useCanCreateTrigger: () => state.create,
+  useOrganizations: () => ({ activeOrg: { proactive_watches_enabled: state.enabled } }),
+}));
 vi.mock("@/components/triggers/routines-list", () => ({
   RoutinesList: ({ emptyAction }: { emptyAction?: { label: string; onClick: () => void } }) => (
     <div data-testid="all-routines">
@@ -25,6 +28,7 @@ vi.mock("@/components/watches/watch-dialog", () => ({
 beforeEach(() => {
   state.create = true;
   state.monitor = true;
+  state.enabled = true;
 });
 
 describe("RoutinesPage", () => {
@@ -66,15 +70,29 @@ describe("RoutinesPage", () => {
     expect(screen.queryByRole("menuitem", { name: "Run on a schedule" })).toBeNull();
     expect(screen.getByRole("menuitem", { name: "Monitor and inform" })).toBeVisible();
   });
-  it("hides monitoring when unavailable and hides creation when neither is allowed", async () => {
+  it("explains unavailable monitoring and hides creation when neither is allowed", async () => {
     state.monitor = false;
     const { unmount } = render(<RoutinesPage />);
     await userEvent.click(screen.getByRole("button", { name: "New routine" }));
-    expect(screen.queryByRole("menuitem", { name: "Monitor and inform" })).toBeNull();
+    expect(screen.getByRole("menuitem", { name: /Monitor and inform/ })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
+    expect(screen.getByText("Connect an MCP account in Connections first.")).toBeVisible();
     unmount();
     state.create = false;
     render(<RoutinesPage />);
     expect(screen.queryByRole("button", { name: "New routine" })).toBeNull();
     expect(screen.getByTestId("all-routines")).toBeInTheDocument();
   });
+});
+
+it("explains that organization monitoring must be enabled", async () => {
+  state.monitor = false;
+  state.enabled = false;
+  render(<RoutinesPage />);
+  await userEvent.click(screen.getByRole("button", { name: "New routine" }));
+  expect(screen.getByText("Enable monitoring in Organization settings.")).toBeVisible();
+  await userEvent.click(screen.getByRole("menuitem", { name: /Monitor and inform/ }));
+  expect(screen.queryByRole("dialog", { name: "monitor" })).toBeNull();
 });

@@ -89,6 +89,8 @@ services:
       # starts the pinning path too. Set BROWSER_EGRESS_PROXY= (empty) in the root
       # .env only for a browser outside compose that cannot reach it.
       - BROWSER_EGRESS_PROXY=${BROWSER_EGRESS_PROXY-http://browser-egress:3128}
+      - SUBSCRIPTION_GATEWAY_URL=${SUBSCRIPTION_GATEWAY_URL-http://subscription-gateway:8400}
+      - SUBSCRIPTION_GATEWAY_TOKEN=${SUBSCRIPTION_GATEWAY_TOKEN:-agenticos-local-subscription-gateway-token}
       # Empty outside compose, so a bare `uvicorn` run degrades to "no container
       # workspace available" rather than erroring. Note what is absent here:
       # no docker.sock, which is the whole point of the sandbox service below.
@@ -226,6 +228,8 @@ services:
       # starts the pinning path too. Set BROWSER_EGRESS_PROXY= (empty) in the root
       # .env only for a browser outside compose that cannot reach it.
       - BROWSER_EGRESS_PROXY=${BROWSER_EGRESS_PROXY-http://browser-egress:3128}
+      - SUBSCRIPTION_GATEWAY_URL=${SUBSCRIPTION_GATEWAY_URL-http://subscription-gateway:8400}
+      - SUBSCRIPTION_GATEWAY_TOKEN=${SUBSCRIPTION_GATEWAY_TOKEN:-agenticos-local-subscription-gateway-token}
     networks:
       - backend
       - render
@@ -541,6 +545,29 @@ services:
       - backend
     restart: unless-stopped
 
+  # Subscription accounts (docs/models.md): people sign in to their own Claude,
+  # ChatGPT, Antigravity, Kimi, Grok and other accounts from the console, and
+  # this service runs a separate CLIProxyAPI for each person on demand, stopping
+  # it when idle. Only `app` and `worker` reach it, with the shared token; it
+  # publishes no port. Sign-ins live in its own volume.
+  subscription-gateway:
+    image: ${AGENTICOS_IMAGE_PREFIX:-ghcr.io/vstorm-co/agenticos}-backend:${AGENTICOS_VERSION:-latest}
+    command: python -m app.subscription_gateway
+    init: true
+    environment:
+      - SUBSCRIPTION_GATEWAY_TOKEN=${SUBSCRIPTION_GATEWAY_TOKEN:-agenticos-local-subscription-gateway-token}
+    volumes:
+      - subscription_accounts:/data/subscription-gateway
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8400/health', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+
 networks:
   backend:
     # No fixed name: every service that joins this network is in this file, so
@@ -557,6 +584,7 @@ networks:
     driver: bridge
 
 volumes:
+  subscription_accounts:
   media_data:
   minio_data:
   postgres_data:

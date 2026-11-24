@@ -1,15 +1,28 @@
 "use client";
 
-import { useId, useState } from "react";
-import { Check, ChevronDown } from "lucide-react";
+import { useId, useState, type ComponentType } from "react";
+import { ChevronDown } from "lucide-react";
 
 import {
   AddModel,
+  endpointProfileLabel,
   modelIdIsWellFormed,
   modelPlaceholder,
   placeholderWords,
 } from "@/components/agents/add-model";
-import { ChatModelLibrary } from "./chat-model-library";
+import { ModelConnectionIntro } from "@/components/agents/model-connection-intro";
+import { ModelSourceSelect, modelSourceOptions } from "@/components/agents/model-source-select";
+import {
+  subscriptionBelongsTo,
+  subscriptionChoice,
+  subscriptionFromChoice,
+  subscriptionLabelMatches,
+  subscriptionProviderFor,
+} from "@/lib/subscription-accounts-api";
+import { subscriptionModelId } from "@/lib/subscription-model-id";
+import { useSubscriptionAccounts } from "@/hooks/use-subscription-accounts";
+import { SubscriptionModelForm } from "@/components/agents/subscription-model-form";
+import { ChatModelPane, ChatModelLibrary, type ChatModelLibraryProps } from "./chat-model-library";
 import { ModelCombobox } from "@/components/agents/model-combobox";
 import { getErrorMessage } from "@/lib/api-error";
 import { ModelIcon } from "@/components/icons/model-icon";
@@ -40,6 +53,10 @@ import { useTranslations } from "next-intl";
 interface ChatModelPickerProps {
   compact?: boolean;
   presentation?: "form" | "library";
+  /** Initial catalog when setup has no agent model or conversation override yet. */
+  defaultProviderId?: string;
+  /** A dedicated setup surface reuses selection/credential contracts for one provider. */
+  providerView?: { id: string; component: ComponentType<ChatModelLibraryProps> };
   /** The model profile this conversation overrides to, or null for the agent's own. */
   value: string | null;
   /** The agent's published model, shown as the current one when there is no override. */
@@ -77,6 +94,8 @@ export function ChatModelPicker({
   onChange,
   compact = false,
   presentation = "form",
+  defaultProviderId = "",
+  providerView,
 }: ChatModelPickerProps) {
   const [expanded, setExpanded] = useState(false);
   const panelId = useId();
@@ -94,7 +113,7 @@ export function ChatModelPicker({
     isLoading: loadingProfiles,
     profilesStatus,
     refetchProfiles,
-  } = useModelProviders();
+  } = useModelProviders({ silentCreate: true });
   const { purposes, isLoading: loadingPurposes } = useSecretPurposes();
   const {
     secrets,
@@ -114,7 +133,25 @@ export function ChatModelPicker({
     model: string;
   } | null>(null);
   const edited = draft?.source === sourceKey ? draft : null;
-  const providerId = edited?.providerId ?? current?.provider ?? "";
+  const personalAccounts = useSubscriptionAccounts({
+    enabled:
+      !providerView &&
+      (current?.provider === "subscription_accounts" ||
+        catalog.some((entry) => entry.personal_gateway)),
+  });
+  const currentSubscription = subscriptionProviderFor(
+    current,
+    personalAccounts.accounts.data?.items ?? [],
+    (provider) => tRoot(`subscriptionAccounts.providers.${provider}`),
+  );
+  const currentSource = currentSubscription
+    ? subscriptionChoice(currentSubscription)
+    : current?.provider === "subscription_accounts"
+      ? ""
+      : current?.provider;
+  const providerId = providerView?.id ?? edited?.providerId ?? currentSource ?? defaultProviderId;
+  const subscription = subscriptionFromChoice(providerId);
+  const personalSource = subscription !== undefined || providerId === "subscription_accounts";
   const model = edited?.model ?? current?.model ?? "";
   const setProviderId = (next: string) =>
     setDraft({ source: sourceKey, providerId: next, model: "" });
@@ -131,7 +168,23 @@ export function ChatModelPicker({
     providerKeys[0];
   const matchesKey = (profile: ModelProfile) =>
     !effectiveKey || profile.secret_id === effectiveKey.id;
-  const endpoint = inheritedProfile?.base_url ?? null;
+  const [pickedEndpoint, setPickedEndpoint] = useState<{
+    source: string;
+    value: string | null;
+  } | null>(null);
+  const endpoint =
+    providerId === "openrouter" && pickedEndpoint?.source === sourceKey
+      ? pickedEndpoint.value
+      : (inheritedProfile?.base_url ?? null);
+  const globalEndpoint = "https://openrouter.ai/api/v1";
+  const euEndpoint = "https://eu.openrouter.ai/api/v1";
+  const endpointIdentity = (value: string | null | undefined) =>
+    value?.replace(/\/+$/, "") || globalEndpoint;
+  const matchesEndpoint = (profile: Pick<ModelProfile, "base_url">) =>
+    providerId === "openrouter" && pickedEndpoint?.source === sourceKey
+      ? endpointIdentity(profile.base_url) === endpointIdentity(endpoint)
+      : !endpoint || profile.base_url?.replace(/\/+$/, "") === endpoint.replace(/\/+$/, "");
+  const currentEndpointMatches = currentProfile ? matchesEndpoint(currentProfile) : !endpoint;
   const providers = purposes.filter((entry) => entry.category === "model_provider");
   const provider = providers.find((entry) => entry.id === providerId);
   const requiresEndpoint = catalog.some(
@@ -144,8 +197,10 @@ export function ChatModelPicker({
     isLoading: loadingModels,
     hasCachedListing,
     refetch: refetchModels,
+    error: catalogError,
+    canRefresh,
   } = useProviderModels(
-    providerId,
+    subscription ? "" : providerId,
     providerId === "openrouter" ? (endpoint ?? undefined) : undefined,
     effectiveKey?.id,
   );
@@ -156,7 +211,8 @@ export function ChatModelPicker({
     (profile) =>
       profile.provider === providerId &&
       profile.model === model.trim() &&
-      (!endpoint || profile.base_url?.replace(/\/+$/, "") === endpoint.replace(/\/+$/, "")),
+      (providerId !== "openai_chatgpt" || profile.secret_id === effectiveKey?.id) &&
+      matchesEndpoint(profile),
   );
   const hasCustomEndpoint = matching.some(
     (profile) => matchesKey(profile) && !!profile.base_url && usableForAgents(profile),
@@ -187,9 +243,7 @@ export function ChatModelPicker({
     if (!modelIdIsWellFormed(provider.id, modelId)) return;
     const matching = profiles.filter(
       (profile) =>
-        profile.provider === providerId &&
-        profile.model === modelId &&
-        (!endpoint || profile.base_url?.replace(/\/+$/, "") === endpoint.replace(/\/+$/, "")),
+        profile.provider === providerId && profile.model === modelId && matchesEndpoint(profile),
     );
     if (
       loadingModels &&
@@ -202,6 +256,7 @@ export function ChatModelPicker({
     if (
       current?.provider === provider.id &&
       current.model === modelId &&
+      currentEndpointMatches &&
       (!currentProfile || matchesKey(currentProfile)) &&
       (currentProfile === undefined || usableForAgents(currentProfile))
     ) {
@@ -248,11 +303,19 @@ export function ChatModelPicker({
     }
 
     try {
+      const baseLabel =
+        providerKeys.length > 1
+          ? `${`${provider.label} · ${modelId}`.slice(0, 108)} · ${key.id.slice(0, 8)}`
+          : `${provider.label} · ${modelId}`;
       const profile = await createProfile.mutateAsync({
-        label:
-          providerKeys.length > 1
-            ? `${`${provider.label} · ${modelId}`.slice(0, 108)} · ${key.id.slice(0, 8)}`
-            : `${provider.label} · ${modelId}`,
+        label: profiles.some((profile) => profile.label === baseLabel)
+          ? endpointProfileLabel(
+              baseLabel,
+              endpoint ?? "",
+              profiles.map((profile) => profile.label),
+              globalEndpoint,
+            )
+          : baseLabel,
         provider: provider.id,
         model: modelId,
         secret_id: key.id,
@@ -276,7 +339,7 @@ export function ChatModelPicker({
   const credentialForm = !secretReadError &&
     !loadingSecrets &&
     provider !== undefined &&
-    !secrets.some((secret) => secret.purpose === provider.id) && (
+    (providerView || !secrets.some((secret) => secret.purpose === provider.id)) && (
       <ModelProviderCredential
         key={provider.id}
         provider={provider}
@@ -311,116 +374,220 @@ export function ChatModelPicker({
     t("changeModel")
   );
 
+  const catalogConnection =
+    providerId === "openrouter" ? (
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between gap-3">
+          <Label htmlFor={`${panelId}-catalog-region`}>{t("catalogRegion")}</Label>
+          <Select
+            value={endpointIdentity(endpoint)}
+            onValueChange={(next) => {
+              setPickedEndpoint({
+                source: sourceKey,
+                value: next === globalEndpoint ? null : next,
+              });
+              setFailure(null);
+            }}
+          >
+            <SelectTrigger id={`${panelId}-catalog-region`} className="h-8 w-auto min-w-32 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={globalEndpoint}>{t("catalogGlobal")}</SelectItem>
+              <SelectItem value={euEndpoint}>{t("catalogEu")}</SelectItem>
+              {![globalEndpoint, euEndpoint].includes(endpointIdentity(endpoint)) && (
+                <SelectItem value={endpointIdentity(endpoint)}>{t("catalogCustom")}</SelectItem>
+              )}
+            </SelectContent>
+          </Select>
+        </div>
+        <p className="text-muted-foreground text-xs">{t("catalogRegionHint")}</p>
+      </div>
+    ) : undefined;
+
+  const sourceProfiles = profiles.filter((profile) => {
+    const provider = subscription ? "subscription_accounts" : providerId;
+    if (
+      profile.provider !== provider ||
+      !usableForAgents(profile) ||
+      (!requiresEndpoint && !matchesKey(profile))
+    )
+      return false;
+    if (profile.provider !== "subscription_accounts") return true;
+    if (subscriptionModelId(profile.model) !== profile.model) {
+      return (personalAccounts.accounts.data?.items ?? []).some(
+        (account) =>
+          account.model_prefix &&
+          profile.model.startsWith(account.model_prefix + "/") &&
+          !account.disabled &&
+          !account.unavailable &&
+          (!subscription || subscriptionBelongsTo(account, subscription)),
+      );
+    }
+    return (
+      !subscription ||
+      subscriptionLabelMatches(
+        profile.label,
+        subscription,
+        tRoot(`subscriptionAccounts.providers.${subscription}`),
+      )
+    );
+  });
+
   const connectionUnavailable =
-    loadingProfiles || profilesStatus === "failed" || !!secretReadError || !!loadingSecrets;
+    loadingProfiles ||
+    profilesStatus === "failed" ||
+    (!personalSource && (!!secretReadError || !!loadingSecrets));
   const endpointForm =
-    requiresEndpoint && !connectionUnavailable ? (
+    (requiresEndpoint || personalSource) && !connectionUnavailable ? (
       <div className="space-y-3">
-        {presentation !== "library" &&
-          profiles.some(
-            (profile) => profile.provider === providerId && usableForAgents(profile),
-          ) && (
-            <div role="group" aria-label={t("savedModels")} className="grid gap-2">
-              <p className="text-muted-foreground text-xs">{t("savedModels")}</p>
-              {profiles
-                .filter((profile) => profile.provider === providerId && usableForAgents(profile))
-                .map((profile) => (
-                  <Button
-                    key={profile.id}
-                    type="button"
-                    variant="outline"
-                    className="h-auto min-h-10 justify-start text-left whitespace-normal"
-                    onClick={() => onChange(profile.id)}
-                  >
-                    {modelName(profile)}
-                  </Button>
-                ))}
-            </div>
-          )}
+        {profiles.some(
+          (profile) => profile.provider === providerId && usableForAgents(profile),
+        ) && (
+          <div
+            role="group"
+            aria-label={t(presentation === "library" ? "allModels" : "savedModels")}
+            className="grid gap-2"
+          >
+            <p className="text-muted-foreground text-xs">
+              {t(presentation === "library" ? "allModels" : "savedModels")}
+            </p>
+            {profiles
+              .filter((profile) => profile.provider === providerId && usableForAgents(profile))
+              .map((profile) => (
+                <Button
+                  key={profile.id}
+                  type="button"
+                  variant="outline"
+                  className="h-auto min-h-10 justify-start text-left whitespace-normal"
+                  onClick={() => onChange(profile.id)}
+                >
+                  {modelName(profile)}
+                </Button>
+              ))}
+          </div>
+        )}
         <AddModel
           key={providerId}
           fixedProviderId={providerId}
+          presentation={presentation}
+          selected={personalSource && currentSource === providerId ? currentProfile : undefined}
           purpose="chat"
           onCreated={(profile) => onChange(profile.id)}
         />
       </div>
     ) : null;
 
+  const credentialPicker = !requiresEndpoint && providerKeys.length > 1 && (
+    <div className="grid gap-1.5">
+      <Label htmlFor="chat-model-key">{tRoot("vault.key")}</Label>
+      <Select value={effectiveKey?.id} onValueChange={setPickedKey}>
+        <SelectTrigger id="chat-model-key">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {providerKeys.map((key) => (
+            <SelectItem key={key.id} value={key.id} textValue={key.name}>
+              <ProviderRow provider={providerId} name={key.name} hint={key.hint} />
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+
+  const Library = providerView?.component ?? ChatModelLibrary;
   if (presentation === "library" && can(Perm.connectionsManage))
     return (
-      <ChatModelLibrary
-        providers={providers.map((entry) => ({
-          id: entry.id,
-          label: entry.label,
+      <Library
+        pane={
+          subscription ? (
+            <SubscriptionModelForm
+              key={providerId}
+              provider={subscription}
+              initialModel={currentSource === providerId ? current?.model : undefined}
+              disabled={connectionUnavailable}
+              onCreated={(profile) => onChange(profile.id)}
+              libraryPane={ChatModelPane}
+            />
+          ) : undefined
+        }
+        providers={modelSourceOptions(
+          providers,
+          catalog.some((entry) => entry.personal_gateway),
+          tRoot,
+        ).map((entry) => ({
+          ...entry,
           connected:
-            secretReadError || loadingSecrets
-              ? null
-              : secrets.some((secret) => secret.purpose === entry.id) ||
-                profiles.some(
-                  (profile) => profile.provider === entry.id && usableForAgents(profile),
-                ),
+            entry.group === "subscriptions"
+              ? personalAccounts.accounts.data
+                ? personalAccounts.accounts.data.items.some((account) => {
+                    const provider = subscriptionFromChoice(entry.id);
+                    return (
+                      provider !== undefined &&
+                      subscriptionBelongsTo(account, provider) &&
+                      !account.disabled &&
+                      !account.unavailable
+                    );
+                  })
+                : null
+              : secretReadError || loadingSecrets
+                ? null
+                : secrets.some((secret) => secret.purpose === entry.id) ||
+                  profiles.some(
+                    (profile) => profile.provider === entry.id && usableForAgents(profile),
+                  ),
         }))}
         providerId={providerId}
+        connectionLabel={providerView ? effectiveKey?.name : undefined}
+        catalogConnection={catalogConnection}
+        catalogSource={source}
+        catalogError={!!catalogError}
+        onRefresh={
+          canRefresh && !personalSource && !requiresEndpoint
+            ? () => void refetchModels()
+            : undefined
+        }
         loadingProviders={loadingPurposes}
         configurationForm={endpointForm}
         needsCredential={
           !requiresEndpoint &&
           !!credentialForm &&
+          providerKeys.length === 0 &&
           !profiles.some((profile) => profile.provider === providerId && usableForAgents(profile))
         }
-        credentialPicker={
-          !requiresEndpoint &&
-          providerKeys.length > 1 && (
-            <div className="grid gap-1.5">
-              <Label htmlFor="chat-model-key">{tRoot("vault.key")}</Label>
-              <Select value={effectiveKey?.id} onValueChange={setPickedKey}>
-                <SelectTrigger id="chat-model-key">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {providerKeys.map((key) => (
-                    <SelectItem key={key.id} value={key.id} textValue={key.name}>
-                      <ProviderRow provider={providerId} name={key.name} hint={key.hint} />
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )
-        }
+        credentialPicker={credentialPicker}
         model={
-          current?.provider === providerId && (!currentProfile || matchesKey(currentProfile))
+          current?.provider === providerId &&
+          currentEndpointMatches &&
+          (!currentProfile || matchesKey(currentProfile))
             ? current.model
             : ""
         }
-        profileId={
-          currentProfile?.provider === providerId && matchesKey(currentProfile)
-            ? currentProfile.id
-            : undefined
-        }
         models={suggestions}
-        profiles={profiles.filter(
-          (profile) => usableForAgents(profile) && (requiresEndpoint || matchesKey(profile)),
-        )}
+        profiles={sourceProfiles}
+        catalogProfiles={sourceProfiles.filter(matchesEndpoint)}
         loading={(loadingModels && !hasCachedListing) || loadingProfiles}
         catalogRefreshing={loadingModels}
         applying={createProfile.isPending}
-        disabled={
-          loadingProfiles || profilesStatus === "failed" || !!secretReadError || !!loadingSecrets
-        }
+        disabled={connectionUnavailable}
         onProviderChange={(id) => {
           setProviderId(id);
           setPickedKey(null);
           setFailure(null);
         }}
         onModelChange={(id) => void apply(id)}
-        onProfileChange={(profile) => {
-          if (!createProfile.isPending && !loadingProfiles && profilesStatus !== "failed")
-            onChange(profile.id);
-        }}
-        credentialForm={requiresEndpoint ? null : credentialForm}
+        credentialForm={
+          requiresEndpoint ? null : providerView ? (
+            credentialForm
+          ) : credentialForm && provider ? (
+            <ModelConnectionIntro provider={provider.id} name={provider.label}>
+              {credentialForm}
+            </ModelConnectionIntro>
+          ) : null
+        }
         failure={
-          profilesStatus === "failed" || secretReadError ? (
+          profilesStatus === "failed" || (!personalSource && secretReadError) ? (
             <p role="alert" className="text-destructive text-xs">
               {t("profilesUnavailable")}{" "}
               <Button
@@ -490,7 +657,7 @@ export function ChatModelPicker({
               id={panelId}
               className="animate-in fade-in space-y-4 pt-5 duration-150 motion-reduce:animate-none"
             >
-              {(profilesStatus === "failed" || secretReadError) && (
+              {(profilesStatus === "failed" || (!personalSource && secretReadError)) && (
                 <p role="alert" className="text-destructive text-xs">
                   {t("profilesUnavailable")}{" "}
                   <Button
@@ -508,46 +675,26 @@ export function ChatModelPicker({
               )}
               <div className="space-y-1.5">
                 <Label htmlFor="chat-model-provider">{t("provider")}</Label>
-                <Select
+                <ModelSourceSelect
+                  id="chat-model-provider"
                   value={providerId}
-                  onValueChange={(next) => {
+                  providers={providers}
+                  subscriptions={catalog.some((entry) => entry.personal_gateway)}
+                  onChange={(next) => {
                     setProviderId(next);
                     setFailure(null);
                   }}
-                >
-                  <SelectTrigger id="chat-model-provider">
-                    <SelectValue placeholder={t("chooseProvider")} />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-80">
-                    {providers.map((entry) => {
-                      const keyed = secrets.some((secret) => secret.purpose === entry.id);
-                      return (
-                        <SelectItem
-                          key={entry.id}
-                          value={entry.id}
-                          // Type-to-search keys off this rather than off the mark's own
-                          // title, which is otherwise part of the item's text.
-                          textValue={entry.label}
-                          // Outside the row: the trigger mirrors an item's text, and a
-                          // tick there reads as "selected" rather than "has a key".
-                          trailing={
-                            keyed && (
-                              <Check className="text-muted-foreground ml-auto h-3.5 w-3.5 shrink-0" />
-                            )
-                          }
-                        >
-                          <ProviderRow provider={entry.id} name={entry.label} />
-                        </SelectItem>
-                      );
-                    })}
-                  </SelectContent>
-                </Select>
+                />
               </div>
 
-              {requiresEndpoint ? (
+              {requiresEndpoint ||
+              subscription !== undefined ||
+              providerId === "subscription_accounts" ? (
                 endpointForm
               ) : (
                 <>
+                  {catalogConnection}
+                  {credentialPicker}
                   <div className="space-y-1.5">
                     <Label htmlFor="chat-model-id">{t("model")}</Label>
                     {/* The Builder's own picker: the provider's catalog, searchable, and
@@ -562,10 +709,16 @@ export function ChatModelPicker({
                       }}
                       options={suggestions}
                       source={source}
+                      onRefresh={canRefresh ? () => void refetchModels() : undefined}
                       loading={loadingModels}
                       disabled={provider === undefined}
                       placeholder={placeholderWords(modelPlaceholder(provider?.id), tRoot)}
                     />
+                    {catalogError && (
+                      <p role="alert" className="text-destructive text-xs">
+                        {t("catalogFailed")}
+                      </p>
+                    )}
                     {failure !== null && <p className="text-destructive text-xs">{failure}</p>}
                   </div>
 

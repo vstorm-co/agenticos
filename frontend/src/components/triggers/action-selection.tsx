@@ -28,11 +28,9 @@ interface Section {
 }
 
 /**
- * The actions a routine's owner may let run without asking, in three kinds of
- * section: the agent's capabilities, this platform's own tools in the Builder's
- * groups, and each other MCP account. Only what the agent already runs without
- * asking is shown - an action it asks before cannot be consented to here, so it
- * is left out rather than listed and locked.
+ * Routine-specific standing permissions, grouped by capability and MCP account.
+ * Required agent/platform gates stay visible and locked; bulk selection covers
+ * only eligible tools, including eligible matches hidden by the search.
  */
 export function ActionSelection({
   items,
@@ -52,7 +50,7 @@ export function ActionSelection({
   const [query, setQuery] = useState("");
   const eligible = items.filter((item) => item.waivable);
   const sections = new Map<string, Section>();
-  for (const action of eligible) {
+  for (const action of items) {
     const [sectionKey, sectionName, groupKey, groupName] =
       "capability_id" in action
         ? [
@@ -87,7 +85,7 @@ export function ActionSelection({
     `${section.name} ${group.name ?? ""} ${action.name}`.toLowerCase().includes(needle);
   const choose = (actions: RoutineActionOption[], checked: boolean) => {
     const next = new Set(selected);
-    for (const action of actions) {
+    for (const action of actions.filter((item) => item.waivable)) {
       if (checked) next.add(identity(action));
       else next.delete(identity(action));
     }
@@ -113,19 +111,22 @@ export function ActionSelection({
     <div className="flex min-h-11 items-center gap-3">
       <Checkbox
         id={key}
-        checked={checked(actions)}
-        disabled={disabled}
+        checked={checked(actions.filter((action) => action.waivable))}
+        disabled={disabled || !actions.some((action) => action.waivable)}
         onCheckedChange={(value) => choose(actions, value === true)}
       />
       <Label htmlFor={key} className="flex min-h-11 flex-1 items-center break-words">
         {t("selectGroup", { name: label })}
       </Label>
       <span className="text-muted-foreground text-xs tabular-nums">
-        {t("groupCount", { selected: count(actions), total: actions.length })}
+        {t("groupCount", {
+          selected: count(actions),
+          total: actions.filter((action) => action.waivable).length,
+        })}
       </span>
     </div>
   );
-  if (eligible.length === 0) return null;
+  if (items.length === 0) return null;
   return (
     <div className="space-y-4">
       <div className="space-y-1">
@@ -194,7 +195,7 @@ export function ActionSelection({
                           : [`${id}-${sectionIndex}-${groupIndex}-name`]),
                       ].join(" ")}
                       checked={selected.has(identity(action))}
-                      disabled={disabled}
+                      disabled={disabled || !action.waivable}
                       onCheckedChange={(value) => choose([action], value === true)}
                     />
                     <Label
@@ -203,6 +204,9 @@ export function ActionSelection({
                     >
                       {action.name}
                     </Label>
+                    {!action.waivable && (
+                      <span className="text-muted-foreground text-xs">{t("alwaysAsks")}</span>
+                    )}
                   </div>
                 ))}
               </fieldset>
