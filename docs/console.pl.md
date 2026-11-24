@@ -1,5 +1,5 @@
 ---
-source_sha: "9767a5df8268"
+source_sha: "8252d40ce4c3"
 ---
 
 # Konsola { #the-console }
@@ -1123,19 +1123,17 @@ szkicu albo z sesji do jej runa trafia na wiersz, który lista pokazuje.
 
 ## Do czego służy każdy obszar { #what-each-area-is-for }
 
-**Home**, **Chat**, **Inbox** i **Agent messages** są na stałe na górze sidebara.
-Pod nimi są przypięte pozycje, w kolejności przypinania; każde konto zaczyna bez
-żadnej. **More** otwiera wszystko, co możesz zobaczyć, pogrupowane jako Pages, Build,
-Projects, Knowledge, Connections i Organization, a na końcu Admin dla
-administratorów platformy.
+**Overview** (Dashboard), **Chat** i **Inbox** są na początku sidebara.
+**Build & manage** pokazuje Agents, Workflows, Routines i Apps bez rozwijania;
+następne są Projects.
 
-Pin obok pozycji w More przypina ją lub odpina. Wybranie pozycji otwiera stronę i
-zamyka panel; przypięcie nie robi żadnego z tych dwóch. Esc zamyka panel, a strzałki
-przechodzą między pozycjami. W zwiniętym sidebarze More to ikona z tooltipem. Piny
-są zapisywane na serwerze osobno dla organizacji i nigdy nie dają dostępu: pozycja,
-której nie możesz zobaczyć albo którą ukrywa Twoja rola, pozostaje ukryta. Na
-stronie, która nie jest stała ani przypięta, pozycja pojawia się pod pinami z
-przyciskiem pinu, dopóki jej nie opuścisz.
+**Knowledge** jest domyślnie rozwinięte i zawiera Knowledge bases, Tables, Skills,
+Context i Documents. Ręczny wybór rozwinięcia lub zwinięcia jest zapamiętywany.
+**Monitoring** grupuje Activity i Background work i jest domyślnie zwinięte.
+
+**Connections** (MCP servers, Channels, Remote agents, Vault, Sandboxes) i
+**Organization** (Organizations, Groups) pozostają zwijane i zapamiętują wybór.
+Grupa zawierająca bieżącą stronę zawsze się otwiera, aby ta strona była widoczna.
 
 | Obszar            | Zawiera                                                                                        | Przeczytaj                                                               |
 | ----------------- | ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |

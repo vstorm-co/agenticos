@@ -7,13 +7,15 @@ import type { Permission } from "@/types/permissions";
 export function RoleNavigationPreview({
   hiddenItems,
   can,
+  isAdmin,
 }: {
   hiddenItems: readonly string[];
   can: (permission: Permission) => boolean;
+  isAdmin: boolean;
 }) {
   const t = useTranslations("pages.orgs.navigation");
   const nav = useTranslations("nav");
-  const groups = NAV_GROUPS.filter((group) => !group.adminOnly)
+  const groups = NAV_GROUPS.filter((group) => !group.adminOnly || isAdmin)
     .map((group) => ({
       ...group,
       items: group.items.filter((item) => navItemVisible(item, can, hiddenItems)),

@@ -12,6 +12,8 @@ import {
 } from "@/components/ui";
 import { useUpdateRoleNavigation } from "@/hooks/use-role-navigation";
 import { getErrorMessage } from "@/lib/api-error";
+import { isAppAdmin } from "@/lib/utils";
+import { useAuthStore } from "@/stores";
 import type { OrgRole } from "@/types/organization";
 import type { Permission, RoleCatalog } from "@/types/permissions";
 import type { RoleNavigationPolicy } from "@/types/role-navigation";
@@ -28,6 +30,7 @@ export function RoleNavigationForm({
   policy: RoleNavigationPolicy;
 }) {
   const t = useTranslations("pages.orgs.navigation");
+  const isAdmin = isAppAdmin(useAuthStore((state) => state.user));
   const errors = useTranslations("errors");
   const mutation = useUpdateRoleNavigation();
   const [role, setRole] = useState<OrgRole>("member");
@@ -85,12 +88,13 @@ export function RoleNavigationForm({
           hiddenItems={hiddenItems}
           configurableItems={policy.configurable_items}
           can={can}
+          isAdmin={isAdmin}
           disabled={!editable || mutation.isPending}
           onChange={(id, visible) =>
             change(visible ? hiddenItems.filter((item) => item !== id) : [...hiddenItems, id])
           }
         />
-        <RoleNavigationPreview hiddenItems={hiddenItems} can={can} />
+        <RoleNavigationPreview hiddenItems={hiddenItems} can={can} isAdmin={isAdmin} />
       </div>
 
       {mutation.isError ? (
