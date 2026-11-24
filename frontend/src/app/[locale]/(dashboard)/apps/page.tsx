@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useConsoleRouter as useRouter } from "@/hooks/use-console-router";
-import { Lock } from "lucide-react";
+import { Lock, Plus } from "lucide-react";
 import { AppIcon as PanelsTopLeft } from "@/components/icons/product-icons";
 import { useTranslations } from "next-intl";
 
@@ -15,6 +15,7 @@ import { ArtifactCard } from "@/components/artifacts/artifact-card";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { CatalogLoading } from "@/components/states/catalog-loading";
 import { EmptyState, ErrorState } from "@/components/states";
+import { Button } from "@/components/ui/button";
 import {
   ListCard,
   ListCardEmpty,
@@ -47,8 +48,10 @@ const SHOWN: readonly Shown[] = ["live", "all"];
 /**
  * The pages agents published that the caller may open.
  *
- * No create control: an artifact is written by an agent's run, through the
- * Artifacts capability, so the empty state says where one comes from instead.
+ * No create control of its own: an artifact is written by an agent's run,
+ * through the Artifacts capability. "Make a page" hands that off to chat
+ * instead - a fresh conversation with the ask already started, so the reader
+ * finishes the sentence and an agent publishes the page here.
  */
 export default function ArtifactsPage() {
   const t = useTranslations("artifacts");
@@ -92,7 +95,27 @@ export default function ArtifactsPage() {
         : undefined;
   const isFiltering =
     search.trim() !== "" || agentId !== null || groupId !== null || shown === "all";
+  // A fresh chat with the ask already started, so an agent's run can publish
+  // the page here. `new` starts the conversation; `prompt` is written into
+  // the composer by the shared useChatPrompt handler, not sent - the reader finishes it.
+  const makeApp = () =>
+    router.push(`${ROUTES.CHAT}?new=1&prompt=${encodeURIComponent(t("makeAppPrompt"))}`);
   const header = <PageHeader title={t("title")} description={t("description")} />;
+  // The header a reader who can see apps gets: the same title, with the
+  // hand-off to chat beside it. A reader who cannot see them gets the plain
+  // header and the ask-for-access state instead.
+  const headerWithMakeApp = (
+    <PageHeader
+      title={t("title")}
+      description={t("description")}
+      actions={
+        <Button data-tour="apps-make" onClick={makeApp}>
+          <Plus className="h-4 w-4" />
+          {t("makeApp")}
+        </Button>
+      }
+    />
+  );
 
   if (!isLoadingPermissions && !can(Perm.artifactsView)) {
     return (
@@ -105,7 +128,7 @@ export default function ArtifactsPage() {
 
   return (
     <div className="flex flex-1 flex-col space-y-4">
-      {header}
+      {headerWithMakeApp}
       <ListCard
         fill
         data-tour="artifacts-list"
@@ -195,12 +218,9 @@ export default function ArtifactsPage() {
             icon={PanelsTopLeft}
             title={isFiltering ? t("noMatches") : t("noneYet")}
             description={isFiltering ? t("noMatchesWhy") : t("noneYetWhy")}
-            // Somebody with no pages yet is one agent away from one (#2075).
-            cta={
-              isFiltering
-                ? undefined
-                : { label: t("noneYetCta"), onClick: () => router.push(ROUTES.AGENTS) }
-            }
+            // Somebody with no pages yet is one agent away from one (#2075):
+            // the same hand-off the header offers, as the empty state's call.
+            cta={isFiltering ? undefined : { label: t("makeApp"), onClick: makeApp }}
           />
         ) : (
           <div className="space-y-4">

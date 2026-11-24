@@ -5928,6 +5928,10 @@
         "title": "Published pages",
         "body": "Reports and dashboards your agents published. Open one to see it, pick an earlier version, share it with colleagues or give it a public link."
       },
+      "apps-make": {
+        "title": "Make a page",
+        "body": "Ask an agent for a page - a report, a dashboard, a tracker. The chat opens with the ask already started; finish the sentence and send it."
+      },
       "datasets-new": {
         "title": "Collect test cases",
         "body": "A dataset holds the questions an agent is tested on. Create one here, then add cases by hand, from a file, from an answer rated up or down in chat, or from a turn in Activity."
@@ -13173,7 +13177,8 @@
     "noMatchesWhy": "Titles and names are searched.",
     "noneYet": "Nothing published yet",
     "noneYetWhy": "An agent publishes a page here when you ask it for a report or a dashboard. It is private to you until you share it.",
-    "noneYetCta": "Open your agents",
+    "makeApp": "Make a page",
+    "makeAppPrompt": "Build me a page that…",
     "sharedOrg": "Whole organization",
     "publicBadge": "Public link",
     "liveBadge": "Live",
