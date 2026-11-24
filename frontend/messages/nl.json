@@ -580,7 +580,7 @@
     "specialistSameAsParent": "Hetzelfde als de bovenliggende agent",
     "specialistSkills": "Skills die hij mag lezen",
     "specialistUnnamed": "Nieuwe specialist",
-    "specialistsHeading": "Ingebouwde specialisten",
+    "specialistsHeading": "Specialisten binnen deze agent",
     "specialistsNotVersioned": "Hier gedefinieerd, niet gepubliceerd: een specialist heeft geen versie, kan niet worden vastgezet en verandert zodra deze agent wordt bewerkt.",
     "startsAsDraftNothing": "Hij begint als concept. Er draait niets tot je hem publiceert.",
     "statusArchived": "gearchiveerd",
@@ -779,11 +779,11 @@
     "connectYours": "Koppel je account",
     "cardOrganizationsAccount": "Van de organisatie · {name}",
     "cardOrganizationConnected": "Organisatie gekoppeld",
-    "cardYourAccountConnected": "Je bent gekoppeld",
+    "cardYourAccountConnected": "Je account is gekoppeld",
     "serverSettingsNamed": "Instellingen voor {name} in deze agent",
     "serverInThisAgent": "Wiens account, welke tools, en welke op jou wachten.",
     "whoseAccount": "Wiens account",
-    "personalConnectedState": "{count, plural, =1 {Je bent gekoppeld.} other {Je hebt # accounts gekoppeld, en de agent bereikt ze allemaal.}} Ieder ander koppelt zijn account bij zijn eerste chat.",
+    "personalConnectedState": "{count, plural, =1 {Je account is gekoppeld.} other {Je hebt # accounts gekoppeld. De agent heeft toegang tot al die accounts.}} Andere gebruikers koppelen hun eigen account bij hun eerste chat.",
     "personalNotConnectedState": "Iedereen koppelt zijn eigen account. Je hebt het jouwe nog niet gekoppeld.",
     "organizationHasNone": "De organisatie heeft nog geen {name}-account.",
     "connectForOrganization": "Koppelen voor de organisatie",
@@ -1030,7 +1030,7 @@
     "productionWaiting": "productie op v{version} (wacht op evals)",
     "productionHint": "Kanalen, widgets en de API antwoorden met v{version}: productie draait die tot een nieuwere versie wordt gepromoveerd.",
     "testConnectionsFor": "Testkoppelingen voor {name}",
-    "testConnectionsHint": "Runs in deze omgeving, ook evals, gebruiken voor elke koppeling hieronder het bijbehorende testsysteem. Een koppeling die je hier uitschakelt, doet niets: ze valt nooit terug op productie.",
+    "testConnectionsHint": "Runs in deze omgeving, ook evals, gebruiken voor elke koppeling hieronder het bijbehorende testsysteem. Een koppeling die je hier uitschakelt, doet niets; er wordt nooit teruggevallen op productie.",
     "testConnectionKindLabel": "Wat vervangen",
     "testConnectionKindMcp": "MCP-server",
     "testConnectionKindSecret": "Vault-sleutel",
@@ -1365,7 +1365,7 @@
       "approvalMode": "Goedkeuringsmodus",
       "backAgentAposS": "Terug naar het eigen model van de agent",
       "escToClose": "esc om te sluiten",
-      "howMuchToBeAsked": "Wanneer wil je een toolaanroep eerst goedkeuren?",
+      "howMuchToBeAsked": "Wanneer wil je dat de agent je om goedkeuring vraagt voor een toolaanroep?",
       "label": "Chatbediening",
       "mode": {
         "follow_agent": "De agent volgen",
@@ -2989,8 +2989,8 @@
         },
         "modelRepaired": "{model} · {repaired} hersteld",
         "notRecorded": "niet vastgelegd",
-        "title": "Modellen die de runs gebruikten",
-        "description": "Welke modellen de runs gebruikten, zoals elke run zijn eigen model vastlegde.",
+        "title": "Modellen achter de runs",
+        "description": "Welke modellen achter de runs zitten, zoals elke run zijn eigen model vastlegde.",
         "unit": "runs"
       },
       "my-activity": {
@@ -6013,11 +6013,11 @@
       },
       "project-graph": {
         "title": "Gekoppelde notities verkennen",
-        "body": "De grafiekweergave leidt links en backlinks af uit Markdown en frontmatter. Ze wordt vernieuwd zolang ze open is, en gebruikt alleen bestanden die je op deze locatie kunt lezen."
+        "body": "De netwerkweergave leidt links en backlinks af uit Markdown en frontmatter. Ze wordt vernieuwd zolang ze open is, en gebruikt alleen bestanden die je op deze locatie kunt lezen."
       },
       "workspace-graph": {
         "title": "Gekoppelde notities verkennen",
-        "body": "De grafiekweergave leidt links en backlinks af uit Markdown en frontmatter. Ze wordt vernieuwd zolang ze open is, en gebruikt alleen bestanden die je op deze locatie kunt lezen."
+        "body": "De netwerkweergave leidt links en backlinks af uit Markdown en frontmatter. Ze wordt vernieuwd zolang ze open is, en gebruikt alleen bestanden die je op deze locatie kunt lezen."
       },
       "chat-coding-settings": {
         "title": "Codeermodel en redeneren",
@@ -6705,7 +6705,7 @@
       },
       "runCausedByHidden": "een run die je niet kunt openen",
       "runOpenCalled": "Run {id} openen",
-      "liveRunStale": "De grafiek is veranderd sinds de laatste testrun.",
+      "liveRunStale": "De workflow is gewijzigd sinds de laatste testrun.",
       "moreActions": "Meer",
       "statusArchived": "Gearchiveerd",
       "statusNeverPublished": "Concept, niet gepubliceerd",
@@ -7273,8 +7273,8 @@
       "firstPublishNext": "Leg een basislijn vast: test deze versie op een paar vragen en controleer toekomstige wijzigingen daartegen.",
       "inCategoryUse": "Categorieën die al in gebruik zijn",
       "inTagUse": "Tags die al in gebruik zijn",
-      "mcpToolLoad": "Deze MCP-servers geven het model bij elk verzoek {count} tools - ruwweg {tokens, number} tokens voordat iemand iets typt, en meer tools dan een model goed kan kiezen. Tool search houdt ze uit de weg tot de agent er een opzoekt.",
-      "mcpToolLoadEnable": "MCP-tool search inschakelen",
+      "mcpToolLoad": "Deze MCP-servers geven het model bij elk verzoek {count} tools - ruwweg {tokens, number} tokens voordat iemand iets typt, en meer tools dan een model goed kan kiezen. Met Tools zoeken blijven ze verborgen tot de agent ernaar zoekt.",
+      "mcpToolLoadEnable": "Tools zoeken voor MCP inschakelen",
       "agentDescriptionLabel": "Beschrijving",
       "agentNameLabel": "Naam",
       "agentNameRequired": "Een agent heeft een naam nodig.",
@@ -7779,7 +7779,7 @@
       "anyVersion": "Elke versie",
       "approvalCount": "{count, plural, =1 {1 verzoek} other {# verzoeken}}",
       "approvals": "Goedkeuringen",
-      "approvalsCounted": "{waiting, plural, =0 {Er wacht niets} =1 {1 wacht} other {# wachten}} · {decided, plural, =1 {1 beslist in dit venster} other {# beslist in dit venster}}",
+      "approvalsCounted": "{waiting, plural, =0 {Er wacht niets} =1 {1 verzoek wacht} other {# verzoeken wachten}} · {decided, plural, =1 {1 verzoek afgehandeld in deze periode} other {# verzoeken afgehandeld in deze periode}}",
       "approvalsTitle": "Goedkeuringen",
       "approve": "Goedkeuren",
       "argumentSchema": "Argumentschema",
@@ -7817,7 +7817,7 @@
       "exportFailed": "De export kon niet worden gemaakt.",
       "fromDateToDate": "{from} tot {to}.",
       "fromDateToNow": "{from} tot nu.",
-      "inlineSpecialist": "Ingebouwde specialist",
+      "inlineSpecialist": "Specialist binnen de bovenliggende agent",
       "keyColumn": "Sleutel",
       "lastDays": "Afgelopen {days} dagen.",
       "lastRequestContext": "Wat het model het laatst zag",
@@ -7884,7 +7884,7 @@
       "codeRuns": "{count, plural, =1 {1 script} other {# scripts}}",
       "codeRunCalls": "{count, plural, =0 {Het riep geen tools aan} =1 {Het deed 1 toolaanroep} other {Het deed # toolaanroepen}}",
       "codeRunOmittedCalls": "{count, plural, =1 {en nog 1 aanroep, niet vermeld} other {en nog # aanroepen, niet vermeld}}",
-      "cacheBust": "cache ongeldig",
+      "cacheBust": "prefix gewijzigd",
       "cacheExpired": "cache verlopen",
       "cacheBustDetail": "{missed, number} gecachete tokens niet uit de cache teruggelezen - iets ervoor in de prompt is veranderd",
       "cacheExpiredDetail": "{missed, number} gecachete tokens niet uit de cache teruggelezen - de cache van de provider was verlopen",
@@ -7904,7 +7904,7 @@
       "runsViewIsMissing": "Rungeschiedenis en uitgaven lezen vereist het recht runs:view, en dat heeft dit account niet. Er is niets mislukt - de pagina heeft het niet gevraagd.",
       "settingPair": "{key} {value}",
       "showEveryAgent": "Elke agent tonen",
-      "showingTheNewestOf": "{shown, plural, =1 {De nieuwste van {total} beslist in dit venster wordt getoond} other {De nieuwste # van {total} beslist in dit venster worden getoond}}. Exporteer de CSV voor het volledige verslag.",
+      "showingTheNewestOf": "{shown, plural, =1 {Je ziet het nieuwste van {total} afgehandelde verzoeken in deze periode} other {Je ziet de nieuwste # van {total} afgehandelde verzoeken in deze periode}}. Exporteer het CSV-bestand voor het volledige overzicht.",
       "someRunsCouldNotBePriced": "{count, plural, =1 {Voor 1 run in dit venster kon geen prijs worden bepaald, dus de cijfers hieronder zijn een ondergrens} other {Voor # runs in dit venster kon geen prijs worden bepaald, dus de cijfers hieronder zijn een ondergrens}}",
       "specialistHasNoAgent": "Gedefinieerd binnen de bovenliggende agent in plaats van apart gepubliceerd, dus er is geen agentpagina om te openen.",
       "spend": "Uitgaven",
@@ -7985,10 +7985,10 @@
       "approvalNoArguments": "Zonder argumenten.",
       "cache": {
         "title": "Promptcache",
-        "description": "Verzoeken waarvan de gecachete prompt niet werd teruggelezen. Ongeldig betekent dat een prefix verschoof - tools in een andere volgorde, een tijdstempel in de instructies - en dat tegen het volledige invoertarief werd gefactureerd; verlopen betekent dat de cache van de provider intussen was verlopen.",
+        "description": "Verzoeken waarvan de gecachete prompt niet werd teruggelezen. Bij een gewijzigde prefix - tools in een andere volgorde, een tijdstempel in de instructies - werd het volledige invoertarief gefactureerd; bij een verlopen cache was de bewaartermijn van de providercache verstreken.",
         "agentAndModel": "Agent en model",
         "noModel": "model niet vastgelegd",
-        "busts": "Ongeldig",
+        "busts": "Prefix gewijzigd",
         "expiries": "Verlopen",
         "missedTokens": "Gemiste gecachete tokens"
       },
@@ -8079,7 +8079,7 @@
       "inputToolCount": "{matched} van {total} tools",
       "inputShowMore": "Meer tools tonen",
       "inputNoMatches": "Geen tools gevonden.",
-      "inputSearchEnabled": "Tool Search ingeschakeld",
+      "inputSearchEnabled": "Tools zoeken ingeschakeld",
       "inputSearchPolicy": "Tot {count} resultaten per zoekopdracht · {strategy}",
       "inputAlwaysVisible": "Uitzonderingen die altijd zichtbaar zijn",
       "inputNoExceptions": "Geen uitzonderingen die altijd zichtbaar zijn.",
@@ -8091,7 +8091,7 @@
       "inputLastRequest": "Laatste verzoek",
       "inputRequestTools": "Tools per modelverzoek",
       "inputRequest": "Verzoek {index}",
-      "inputRequestHint": "Zichtbaarheid wordt vastgelegd voor elk modelverzoek, nadat de provider Tool Search heeft afgehandeld.",
+      "inputRequestHint": "Per modelverzoek wordt vastgelegd welke tools zichtbaar waren, nadat de provider Tools zoeken heeft afgehandeld.",
       "inputNoVisibleNames": "Zichtbare toolnamen zijn niet in dit record bewaard.",
       "inputTokenInput": "Invoertokens",
       "inputTokenOutput": "Uitvoertokens",
@@ -11494,7 +11494,7 @@
     "versionPreviewRestoreHint": "Een gepubliceerde versie is alleen-lezen. Herstel haar om er weer het concept van te maken.",
     "versionRestore": "Herstellen naar concept",
     "versionRestoreTitle": "Versie {version} herstellen naar het concept?",
-    "versionRestoreBody": "Het concept wordt vervangen door de grafiek van versie {version}, en niet-gepubliceerde wijzigingen aan het concept worden verworpen. Versie {version} zelf verandert niet, en er wordt niets gepubliceerd tot je het concept publiceert.",
+    "versionRestoreBody": "Het concept wordt vervangen door de stappen en verbindingen van versie {version}, en niet-gepubliceerde wijzigingen aan het concept worden verworpen. Versie {version} zelf verandert niet, en er wordt niets gepubliceerd tot je het concept publiceert.",
     "versionRestored": "Versie {version} is weer het concept",
     "versionRestoreConflict": "Het concept veranderde tijdens het herstellen. Los het conflict op en herstel opnieuw.",
     "quickAdd": "Een stap toevoegen na {name} ({port})",
@@ -11508,7 +11508,7 @@
     "paletteNoMatches": "Geen nodes gevonden.",
     "canvasTitle": "Canvas",
     "canvasHint": "Voeg een stap toe om de workflow te starten.",
-    "canvasGraphLabel": "Editor voor de workflowgrafiek",
+    "canvasGraphLabel": "Workfloweditor",
     "connectFinish": "Verbinden met {port}",
     "deleteConnection": "Verbinding verwijderen",
     "connectFrom": "Een verbinding starten vanaf {name} poort {port}",
@@ -14165,7 +14165,7 @@
     },
     "subagents": {
       "inline": {
-        "title": "Ingebouwde specialisten",
+        "title": "Specialisten binnen deze agent",
         "description": "Specialisten die binnen deze agent zijn gedefinieerd, voor werk dat geen eigen gepubliceerde agent rechtvaardigt. Niet geversioneerd: als je deze agent bewerkt, veranderen ze mee, en niets anders kan ernaar verwijzen."
       },
       "mode": {
@@ -14258,11 +14258,11 @@
     "tool_search": {
       "strategy": {
         "title": "Zoekmethode",
-        "description": "auto: native tool search bij een provider die het ondersteunt, elders lokaal matchen op trefwoorden. keywords: altijd lokaal matchen, bij elke provider. local_bm25: id's, beschrijvingen en argumenten lokaal rangschikken bij elke provider. bm25 / regex: een native algoritme van Anthropic afdwingen; geeft een fout bij een provider zonder native tool search."
+        "description": "auto: de ingebouwde zoekfunctie voor tools bij een provider die die ondersteunt, elders lokaal matchen op trefwoorden. keywords: altijd lokaal matchen, bij elke provider. local_bm25: id's, beschrijvingen en argumenten lokaal rangschikken bij elke provider. bm25 / regex: een ingebouwd algoritme van Anthropic afdwingen; geeft een fout bij een provider zonder ingebouwde zoekfunctie voor tools."
       },
       "max_results": {
         "title": "Treffers per zoekopdracht",
-        "description": "Hoeveel treffers de lokale zoekopdracht teruggeeft; genegeerd bij native zoeken."
+        "description": "Hoeveel treffers de lokale zoekopdracht teruggeeft; genegeerd bij de ingebouwde zoekfunctie van de provider."
       },
       "defer_capabilities": {
         "title": "Tools van capabilities uitstellen",
@@ -17808,7 +17808,7 @@
     "admitsHint": "Een gekoppelde houder die nog geen lid is, wordt lid van deze organisatie met de rol hierboven, en verlaat haar wanneer de Discord-rol wordt afgenomen."
   },
   "wikiGraph": {
-    "title": "Grafiekweergave",
+    "title": "Netwerkweergave",
     "files": "Bestandsweergave",
     "search": "Een notitie, alias of tag zoeken",
     "refresh": "Vernieuwen",
@@ -17816,12 +17816,12 @@
     "automatic": "Wordt elke 30 seconden vernieuwd zolang hij zichtbaar is",
     "failed": "Kon deze workspace niet lezen. Probeer het opnieuw of controleer je toegang.",
     "counts": "{pages, plural, =1 {1 notitie} other {# notities}} · {links, plural, =1 {1 link} other {# links}}",
-    "partial": "Deze grafiek is onvolledig",
-    "limits": "De scan leest tot 200 notities, 256 KiB per bestand en 8 MiB in totaal, met tot 256 relaties per notitie en 2048 over de hele grafiek. Vernieuw na het bewerken, of beperk de bestandsset. Aliassen en tags delen een limiet van 128 items per notitie en 4096 over de hele grafiek.",
+    "partial": "Dit netwerk is onvolledig",
+    "limits": "De scan leest tot 200 notities, 256 KiB per bestand en 8 MiB in totaal, met tot 256 relaties per notitie en 2048 over het hele netwerk. Vernieuw na het bewerken, of beperk de bestandsset. Aliassen en tags delen een limiet van 128 items per notitie en 4096 over het hele netwerk.",
     "skipped": "Overgeslagen: {path}",
     "unreadable": "Kon niet lezen: {path}",
     "invalidFrontmatter": "Ongeldige YAML-frontmatter. Metadata genegeerd voor deze notities: {paths}",
-    "empty": "Voeg Markdown-notities toe met wikilinks, Markdown-links of frontmatter-relaties om een grafiek op te bouwen.",
+    "empty": "Voeg Markdown-notities toe met wikilinks, Markdown-links of frontmatter-relaties om een netwerk op te bouwen.",
     "open": "Notitie openen",
     "notes": "Notities",
     "noMatches": "Geen notities gevonden",
@@ -17834,7 +17834,7 @@
     "zoomIn": "Inzoomen",
     "zoomOut": "Uitzoomen",
     "reset": "Weergave herstellen",
-    "overview": "Grafiekoverzicht",
+    "overview": "Netwerkoverzicht",
     "details": "Notitiedetails",
     "closeDetails": "Notitiedetails sluiten",
     "showLabels": "Alle labels tonen",
@@ -17842,8 +17842,8 @@
     "fileBrowser": "Bestanden",
     "allFiles": "Alle bestanden",
     "clearFolder": "Mapfilter wissen",
-    "filterFolder": "Grafiek filteren op {path}",
-    "fileBrowserHint": "Alleen geïndexeerde Markdown-notities verschijnen in de grafiek. Andere bestanden openen in de bestandsviewer.",
+    "filterFolder": "Netwerk filteren op {path}",
+    "fileBrowserHint": "Alleen geïndexeerde Markdown-notities verschijnen in het netwerk. Andere bestanden openen in de bestandsviewer.",
     "groups": "Groepen",
     "resetFilters": "Filters herstellen",
     "groupBy": "Groeperen op",
