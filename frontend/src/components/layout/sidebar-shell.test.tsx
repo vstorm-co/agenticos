@@ -15,6 +15,9 @@ vi.mock("@/components/onboarding/onboarding-reminder", () => ({ OnboardingRemind
 vi.mock("@/hooks/use-release-update", () => ({
   useReleaseUpdate: () => ({ data: { latest: null } }),
 }));
+vi.mock("@/components/layout/sidebar-help", () => ({
+  SidebarHelp: () => <button>the help row</button>,
+}));
 vi.mock("@/components/layout/sidebar-search", () => ({
   SidebarSearch: () => <button>the search row</button>,
 }));
@@ -106,12 +109,13 @@ describe("SidebarShell", () => {
     }
   });
 
-  it("keeps the bell at both widths", () => {
-    // They are the footer's only two controls now - the language and the theme
-    // are named rows in the account menu, where somebody looks for a setting.
+  it("carries help and the bell at both widths", () => {
+    // They are the footer's controls now - the language and the theme are
+    // named rows in the account menu, where somebody looks for a setting.
     for (const collapsed of [false, true]) {
       const view = renderShell({ collapsed });
       expect(screen.queryByRole("button", { name: "the search row" })).toBeNull();
+      expect(screen.getByRole("button", { name: "the help row" })).toBeInTheDocument();
       expect(screen.getByRole("button", { name: "the bell" })).toBeInTheDocument();
       expect(
         screen.queryByRole("button", { name: "the language switcher" }),
@@ -119,6 +123,17 @@ describe("SidebarShell", () => {
       expect(screen.queryByRole("button", { name: "the theme toggle" })).not.toBeInTheDocument();
       view.unmount();
     }
+  });
+
+  it("puts help at the foot, outside the destinations", () => {
+    renderShell();
+
+    const help = screen.getByRole("button", { name: "the help row" });
+    const account = screen.getByRole("button", { name: "the account menu" });
+    expect(follows(help, account)).toBe(true);
+    const nav = screen.getByRole("navigation");
+    expect(nav).not.toContainElement(help);
+    expect(nav.parentElement).not.toContainElement(help);
   });
 
   it("hands the account its compact shape on the rail", () => {
