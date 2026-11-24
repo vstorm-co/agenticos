@@ -305,16 +305,22 @@ async def test_a_workflow_search_reads_every_same_named_base_it_checked(
     assert found == {"own chunk", "shared chunk"}
 
 
+@pytest.mark.parametrize("knowledge_enabled", [True, False])
 async def test_an_agent_reads_every_same_named_base_it_is_bound_to(
-    world: World, engine: AsyncEngine
+    world: World, engine: AsyncEngine, knowledge_enabled: bool
 ) -> None:
-    """Already true before #3249: the runner joins same-named bases into one scope."""
+    """Knowledge searches every selected base only while the capability is on."""
     ctx = AuthContext(
         user_id=world.member.id, organization_id=world.org.id, role=OrgRoleName.MEMBER
     )
     async with async_sessionmaker(engine, expire_on_commit=False)() as db:
         bound = await AgentRunnerService(db)._bound_collections(
-            AgentSpec(name="Handbook", collection_ids=[world.own.id, world.shared.id]), ctx
+            AgentSpec(
+                name="Handbook",
+                collection_ids=[world.own.id, world.shared.id],
+                capabilities=[{"id": "knowledge", "enabled": knowledge_enabled}],
+            ),
+            ctx,
         )
 
     found = await _search.search_knowledge_base(
@@ -324,6 +330,10 @@ async def test_an_agent_reads_every_same_named_base_it_is_bound_to(
         organization_id=world.org.id,
         top_k=10,
     )
+
+    if not knowledge_enabled:
+        assert found == "No active knowledge bases selected for this conversation."
+        return
 
     assert "own chunk" in found
     assert "shared chunk" in found
