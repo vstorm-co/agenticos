@@ -1,4 +1,4 @@
-"""The skills listing arranged into sections, against Postgres (#3281).
+"""The skills listing arranged into sections, against Postgres.
 
 What only a database shows:
 

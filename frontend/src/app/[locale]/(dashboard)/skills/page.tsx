@@ -91,7 +91,6 @@ export default function SkillsPage() {
   const search = useDebounced(query);
   // In the address, so a group's skills are a link somebody can send.
   const [groupId, setGroupId] = useUrlState("group");
-  // The layout too: by agent unless the address asks for another.
   const [arrangeParam, setArrangeParam] = useUrlState("arrange");
   const arrange = parseArrangement(arrangeParam);
   const arranged = arrange !== "none";
