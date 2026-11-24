@@ -42,6 +42,7 @@ Two things are versioned separately from this file and worth knowing about:
 - Migration `0350_trigger_delivery_pending.py` adds the `pending` delivery status. Its downgrade reads `pending` as `delivered`.
 - After the upgrade, existing routines whose answer conversation is a private chat start posting to that chat. A routine that also sets `notification_channels=["telegram"]` (or another chat app) posts the answer twice: remove that channel. The same applies to a routine whose Teams conversation is the same Teams chat it answers in.
 - Deploy the API before the workers, or together. The new `routine-chat-answer` job needs the new worker, and an API pod on older code cannot serialise a `pending` routine, so routine listings fail until every API pod is updated.
+- Replace all workers at once instead of rolling them. A worker on older code does not know the `routine-chat-answer` job and drops it, so a routine that fires during the rollout loses that answer and reads `pending` until its next fire.
 
 ## [1.91.0] - 2026-11-23
 

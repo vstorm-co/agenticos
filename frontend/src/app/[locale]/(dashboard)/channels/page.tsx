@@ -185,8 +185,8 @@ export default function ChannelsPage() {
             onToggleActive={(bot) => setActive.mutate({ botId: bot.id, isActive: !bot.is_active })}
             onDelete={setDeleting}
             onMapRoles={can(Perm.membersManage) ? setMapping : undefined}
-            onBind={canBind && !permissionsLoading ? setBinding : undefined}
-            onUnbind={canBind && !permissionsLoading ? startUnbind : undefined}
+            onBind={canBind ? setBinding : undefined}
+            onUnbind={canBind ? startUnbind : undefined}
             mayPublish={mayPublish}
           />
         )}
