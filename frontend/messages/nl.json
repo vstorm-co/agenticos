@@ -21772,7 +21772,6 @@
     "reuse": "Bestaande bron gebruiken",
     "skip": "Deze bron overslaan",
     "newName": "Naam van de nieuwe kopie",
-    "destinationId": "ID van de doelbron",
     "skipHint": "Koppelingen naar deze bron worden uit het geïmporteerde concept verwijderd.",
     "chooseFile": "Kies een YAML- of JSON-bestand",
     "pasteConfiguration": "Of plak de configuratie",
@@ -21783,6 +21782,14 @@
     "review": "Afhankelijkheden controleren",
     "operationError": "De bewerking kon niet worden voltooid. Probeer het opnieuw.",
     "createCopy": "Kopie maken",
-    "missingRoot": "Het importantwoord vermeldt geen nieuw concept. Vernieuw de agentenlijst voordat je het opnieuw probeert."
+    "missingRoot": "Het importantwoord vermeldt geen nieuw concept. Vernieuw de agentenlijst voordat je het opnieuw probeert.",
+    "destinationResource": "Doelresource",
+    "searchDestinations": "Resources zoeken",
+    "chooseDestination": "Kies een resource",
+    "selectedDestination": "Geselecteerde resource",
+    "noDestinations": "Geen overeenkomende resources.",
+    "previousDestinations": "Vorige resources",
+    "nextDestinations": "Volgende resources",
+    "chooseExistingOwner": "Kies eerst een bestaande doelagent of Skill om de versie of fork te selecteren."
   }
 }

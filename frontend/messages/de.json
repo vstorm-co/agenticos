@@ -21574,7 +21574,6 @@
     "reuse": "Bestehende Ressource verwenden",
     "skip": "Diese Ressource überspringen",
     "newName": "Name der neuen Kopie",
-    "destinationId": "ID der Zielressource",
     "skipHint": "Verknüpfungen mit dieser Ressource werden aus dem importierten Entwurf entfernt.",
     "chooseFile": "YAML- oder JSON-Datei auswählen",
     "pasteConfiguration": "Oder Konfiguration einfügen",
@@ -21585,6 +21584,14 @@
     "review": "Abhängigkeiten prüfen",
     "operationError": "Der Vorgang konnte nicht abgeschlossen werden. Versuchen Sie es erneut.",
     "createCopy": "Kopie erstellen",
-    "missingRoot": "Die Importantwort enthält keinen neuen Entwurf. Aktualisiere die Agentenliste vor einem erneuten Versuch."
+    "missingRoot": "Die Importantwort enthält keinen neuen Entwurf. Aktualisiere die Agentenliste vor einem erneuten Versuch.",
+    "destinationResource": "Zielressource",
+    "searchDestinations": "Ressourcen suchen",
+    "chooseDestination": "Ressource auswählen",
+    "selectedDestination": "Ausgewählte Ressource",
+    "noDestinations": "Keine passenden Ressourcen.",
+    "previousDestinations": "Vorherige Ressourcen",
+    "nextDestinations": "Weitere Ressourcen",
+    "chooseExistingOwner": "Wähle zuerst einen bestehenden Zielagenten oder Skill, um dessen Version oder Fork auszuwählen."
   }
 }

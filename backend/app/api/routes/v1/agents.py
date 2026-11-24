@@ -101,6 +101,8 @@ from app.schemas.mention import MentionableList
 from app.schemas.mirage import MirageBackendList, MirageBackendRead
 from app.schemas.ml import DictationRead, DictationStatusRead
 from app.schemas.resource_bundle import (
+    BundleDestinationList,
+    BundleDestinationQuery,
     BundleDocumentCreate,
     BundleDownloadCreate,
     BundleImportCreate,
@@ -114,6 +116,18 @@ from app.services.platform_mcp import platform_tool_catalog
 from app.services.shipped_agents import ShippedAgentService
 
 router = APIRouter(dependencies=[PUBLIC])
+
+
+@router.get(
+    "/import-destinations",
+    response_model=BundleDestinationList,
+    dependencies=[Depends(require(Perm.AGENTS_EDIT))],
+)
+async def list_import_destinations(
+    query: Annotated[BundleDestinationQuery, Query()], service: PortabilitySvc, ctx: Auth
+) -> Any:
+    """Browse accessible destination names; import checks access again when applying."""
+    return await service.destinations(ctx, query)
 
 
 @router.post(
@@ -142,7 +156,7 @@ async def import_agent_bundle(data: BundleImportCreate, service: PortabilitySvc,
 @router.get("/{agent_id}/export-preview", response_model=BundlePreview)
 async def preview_agent_export(agent_id: UUID, service: PortabilitySvc, ctx: Auth) -> Any:
     """List the draft's accessible dependencies before choosing what to download."""
-    return await service.export_agent(ctx, agent_id)
+    return await service.export_agent(ctx, agent_id, metadata_only=True)
 
 
 @router.post("/{agent_id}/export", response_class=Response)

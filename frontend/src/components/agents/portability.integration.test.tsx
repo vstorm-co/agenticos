@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -7,6 +7,7 @@ import type { BundlePreview } from "@/lib/portability-api";
 import {
   downloadAgentExport,
   importAgentBundle,
+  listImportDestinations,
   previewAgentExport,
   previewAgentImport,
 } from "@/lib/portability-api";
@@ -16,6 +17,7 @@ import { ImportAgentDialog } from "./import-dialog";
 vi.mock("@/lib/portability-api", () => ({
   downloadAgentExport: vi.fn(),
   importAgentBundle: vi.fn(),
+  listImportDestinations: vi.fn(),
   previewAgentExport: vi.fn(),
   previewAgentImport: vi.fn(),
 }));
@@ -80,6 +82,14 @@ function Wrapper({ children }: { children: ReactNode }) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.mocked(listImportDestinations).mockResolvedValue({
+    items: [
+      { id: "destination-policy", name: "Existing policy" },
+      { id: "chosen-policy", name: "Chosen policy" },
+    ],
+    total: 2,
+    searchable: true,
+  });
   vi.mocked(previewAgentExport).mockResolvedValue(preview);
   vi.mocked(previewAgentImport).mockResolvedValue(preview);
   vi.mocked(downloadAgentExport).mockResolvedValue();
@@ -141,9 +151,7 @@ describe("agent portability", () => {
     expect(screen.getByRole("combobox", { name: "Action for Researcher" })).toBeDisabled();
     const name = screen.getByRole("textbox", { name: "Name of the new copy" });
     fireEvent.change(name, { target: { value: "Researcher copy" } });
-    expect(screen.getByRole("textbox", { name: "Destination resource ID" })).toHaveValue(
-      "destination-policy",
-    );
+    expect(await screen.findByText("Existing policy")).toBeVisible();
     await userEvent.click(screen.getByRole("button", { name: "Import private drafts" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Connection lost");
     await userEvent.click(screen.getByRole("button", { name: "Import private drafts" }));
@@ -224,13 +232,12 @@ describe("agent portability", () => {
     await userEvent.click(screen.getByRole("combobox", { name: "Action for Policy" }));
     await userEvent.click(screen.getByRole("option", { name: "Skip this resource" }));
     expect(
-      screen.queryByRole("textbox", { name: "Destination resource ID" }),
+      screen.queryByRole("combobox", { name: "Destination resource" }),
     ).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole("combobox", { name: "Action for Policy" }));
     await userEvent.click(screen.getByRole("option", { name: "Use an existing resource" }));
-    fireEvent.change(screen.getByRole("textbox", { name: "Destination resource ID" }), {
-      target: { value: "chosen-policy" },
-    });
+    await userEvent.click(await screen.findByRole("combobox", { name: "Destination resource" }));
+    await userEvent.click(await screen.findByRole("option", { name: "Chosen policy" }));
     await userEvent.click(screen.getByRole("button", { name: "Import private drafts" }));
     await screen.findByText("Import complete");
     expect(vi.mocked(importAgentBundle).mock.calls[0]?.[0].choices["context/policy"]).toEqual({
@@ -293,5 +300,102 @@ describe("agent portability", () => {
     await userEvent.click(screen.getByRole("button", { name: "Open draft" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("did not identify the new draft");
     expect(push).not.toHaveBeenCalled();
+  });
+  it("selects export content from metadata without downloading linked bodies for the dialog", async () => {
+    vi.mocked(previewAgentExport).mockResolvedValue({
+      ...preview,
+      bundle: {
+        ...preview.bundle,
+        resources: preview.bundle.resources.map((item) => ({
+          ...item,
+          definition: null,
+          included: [],
+          references: [],
+        })),
+      },
+      options: preview.options.map((item) => ({
+        ...item,
+        layers: item.key === "secret/key" ? [] : ["definition"],
+      })),
+    });
+    render(<ExportAgentDialog agentId="source" open onOpenChange={vi.fn()} />, {
+      wrapper: Wrapper,
+    });
+    expect(await screen.findByRole("checkbox", { name: /Policy/ })).toBeChecked();
+    await userEvent.click(screen.getByRole("button", { name: "Download" }));
+    await waitFor(() =>
+      expect(downloadAgentExport).toHaveBeenCalledWith("source", "yaml", {
+        "agent/root": ["definition"],
+        "context/policy": ["definition"],
+        "secret/key": [],
+      }),
+    );
+  });
+  it("clears a version selection when its destination owner changes", async () => {
+    const owner = {
+      ...preview.bundle.resources[1]!,
+      key: "skill/owner",
+      kind: "skill",
+      name: "Skill owner",
+      source_id: "source-skill",
+      definition: { name: "Skill owner" },
+    };
+    const version = {
+      ...owner,
+      key: "skill_version/pin",
+      kind: "skill_version",
+      name: "Pinned version",
+      source_id: null,
+      source_parent_id: "source-skill",
+      source_version: "3",
+    };
+    vi.mocked(previewAgentImport).mockResolvedValue({
+      bundle: { ...preview.bundle, resources: [preview.bundle.resources[0]!, owner, version] },
+      options: [
+        preview.options[0]!,
+        { key: owner.key, available: true, can_create: true, reusable_id: "destination-policy" },
+        { key: version.key, available: true, can_create: true, reusable_id: "old-version" },
+      ],
+    });
+    vi.mocked(listImportDestinations).mockImplementation(async (query) =>
+      query.kind === "skill_version"
+        ? { items: [{ id: "new-version", name: "v3" }], total: 1, searchable: false }
+        : {
+            items: [
+              { id: "destination-policy", name: "Original skill" },
+              { id: "chosen-policy", name: "Other skill" },
+            ],
+            total: 2,
+            searchable: true,
+          },
+    );
+    render(<ImportAgentDialog open onOpenChange={vi.fn()} />, { wrapper: Wrapper });
+    fireEvent.change(screen.getByRole("textbox", { name: "Or paste the configuration" }), {
+      target: { value: "name: Agent" },
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Review dependencies" }));
+    const ownerRow = await screen.findByRole("group", { name: "Skill owner" });
+    await waitFor(() =>
+      expect(
+        within(ownerRow).getByRole("combobox", { name: "Destination resource" }),
+      ).toBeEnabled(),
+    );
+    await userEvent.click(within(ownerRow).getByRole("combobox", { name: "Destination resource" }));
+    await userEvent.click(await screen.findByRole("option", { name: "Other skill" }));
+    expect(screen.getByRole("button", { name: "Import private drafts" })).toBeDisabled();
+    const versionRow = screen.getByRole("group", { name: "Pinned version" });
+    await waitFor(() =>
+      expect(
+        within(versionRow).getByRole("combobox", { name: "Destination resource" }),
+      ).toBeEnabled(),
+    );
+    await userEvent.click(
+      within(versionRow).getByRole("combobox", { name: "Destination resource" }),
+    );
+    await userEvent.click(await screen.findByRole("option", { name: "v3" }));
+    expect(screen.getByRole("button", { name: "Import private drafts" })).toBeEnabled();
+    expect(listImportDestinations).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: "skill_version", parent_id: "chosen-policy" }),
+    );
   });
 });

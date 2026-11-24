@@ -19,6 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui";
+import { ImportDestinationPicker } from "./import-destination-picker";
 import { CodeArea } from "@/components/ui/code-area";
 import { useAgentImport } from "@/hooks/use-portability";
 import { useConsoleRouter } from "@/hooks/use-console-router";
@@ -64,6 +65,27 @@ export function ImportAgentDialog({
   const [receipt, setReceipt] = useState<ImportReceipt | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const busy = preview.isPending || apply.isPending;
+  const reusedOwners = new Map(
+    document?.bundle.resources.flatMap((resource) => {
+      const choice = choices[resource.key];
+      return resource.source_id && choice?.action === "reuse" && choice.destination_id
+        ? [[`${resource.kind}/${resource.source_id}`, choice.destination_id] as const]
+        : [];
+    }),
+  );
+  const destinationParent = (kind: string, sourceParentId: string | null) =>
+    sourceParentId
+      ? reusedOwners.get(`${kind === "agent_version" ? "agent" : "skill"}/${sourceParentId}`)
+      : undefined;
+  const incomplete = document?.bundle.resources.some((resource) => {
+    const choice = choices[resource.key];
+    return (
+      choice?.action === "reuse" &&
+      (!choice.destination_id ||
+        (resource.source_parent_id !== null &&
+          !destinationParent(resource.kind, resource.source_parent_id)))
+    );
+  });
   const close = (next: boolean) => {
     if (busy) return;
     if (!next) {
@@ -149,7 +171,27 @@ export function ImportAgentDialog({
                 const option = document.options.find((item) => item.key === resource.key);
                 const root = document.bundle.roots.includes(resource.key);
                 const update = (next: ImportChoice) =>
-                  setChoices((previous) => ({ ...previous, [resource.key]: next }));
+                  setChoices((previous) => {
+                    const updated = { ...previous, [resource.key]: next };
+                    const before = previous[resource.key];
+                    if (
+                      before?.action !== next.action ||
+                      before?.destination_id !== next.destination_id
+                    ) {
+                      for (const child of document.bundle.resources) {
+                        const ownerKind = child.kind === "agent_version" ? "agent" : "skill";
+                        if (
+                          resource.source_id &&
+                          child.source_parent_id === resource.source_id &&
+                          resource.kind === ownerKind &&
+                          previous[child.key]?.action === "reuse"
+                        ) {
+                          updated[child.key] = { action: "reuse", destination_id: "" };
+                        }
+                      }
+                    }
+                    return updated;
+                  });
                 return (
                   <fieldset
                     key={resource.key}
@@ -199,18 +241,22 @@ export function ImportAgentDialog({
                       </div>
                     )}
                     {choice.action === "reuse" && (
-                      <div className="space-y-2">
-                        <Label htmlFor={`${id}-destination-${index}`}>{t("destinationId")}</Label>
-                        <Input
-                          id={`${id}-destination-${index}`}
-                          value={choice.destination_id ?? ""}
-                          disabled={busy}
-                          onChange={(event) =>
-                            update({ action: "reuse", destination_id: event.target.value })
-                          }
-                          className="font-mono text-xs"
-                        />
-                      </div>
+                      <ImportDestinationPicker
+                        id={`${id}-destination-${index}`}
+                        kind={resource.kind}
+                        value={choice.destination_id ?? ""}
+                        selectedName={
+                          choice.destination_id === option?.reusable_id
+                            ? option?.reusable_name
+                            : undefined
+                        }
+                        key={`${resource.key}-${destinationParent(resource.kind, resource.source_parent_id) ?? "none"}`}
+                        parentId={destinationParent(resource.kind, resource.source_parent_id)}
+                        disabled={busy}
+                        onChange={(identity) =>
+                          update({ action: "reuse", destination_id: identity })
+                        }
+                      />
                     )}
                     {choice.action === "skip" && (
                       <p className="text-muted-foreground text-xs">{t("skipHint")}</p>
@@ -291,7 +337,10 @@ export function ImportAgentDialog({
                 {document && <ArrowLeft className="size-4" />}
                 {document ? t("back") : t("close")}
               </Button>
-              <Button disabled={busy || !text.trim()} onClick={document ? submit : review}>
+              <Button
+                disabled={busy || !text.trim() || Boolean(incomplete)}
+                onClick={document ? submit : review}
+              >
                 {busy ? t("working") : document ? t("importDrafts") : t("review")}
                 <ArrowRight className="size-4" />
               </Button>

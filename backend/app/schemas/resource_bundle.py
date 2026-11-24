@@ -233,10 +233,12 @@ class BundleImportCreate(BaseSchema):
 
 
 class BundleResourceOption(BaseSchema):
+    layers: frozenset[BundleContentLayer] = frozenset()
     key: BundleKey
     available: bool
     can_create: bool = False
     reusable_id: UUID | None = None
+    reusable_name: str | None = None
 
 
 class BundlePreview(BaseSchema):
@@ -259,3 +261,22 @@ class BundleDocumentCreate(BaseSchema):
 
 class BundleDownloadCreate(BundleSelection):
     file_format: Literal["yaml", "json"] = "yaml"
+
+
+class BundleDestinationQuery(BaseSchema):
+    kind: BundleResourceKind
+    parent_id: UUID | None = None
+    search: str = Field(default="", max_length=100)
+    skip: int = Field(default=0, ge=0)
+    limit: int = Field(default=25, ge=1, le=100)
+
+
+class BundleDestinationOption(BaseSchema):
+    id: UUID
+    name: str
+
+
+class BundleDestinationList(BaseSchema):
+    items: list[BundleDestinationOption]
+    total: int
+    searchable: bool = True

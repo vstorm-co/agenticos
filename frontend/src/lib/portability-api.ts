@@ -30,7 +30,14 @@ export interface ResourceBundle {
 
 export interface BundlePreview {
   bundle: ResourceBundle;
-  options: { key: string; available: boolean; can_create: boolean; reusable_id: string | null }[];
+  options: {
+    key: string;
+    available: boolean;
+    can_create: boolean;
+    reusable_id: string | null;
+    layers?: string[];
+    reusable_name?: string | null;
+  }[];
 }
 
 export interface ImportChoice {
@@ -69,3 +76,28 @@ export async function downloadAgentExport(
   });
   saveBlob(await response.blob(), `agent-${id}.${fileFormat}`);
 }
+
+export interface ImportDestinationQuery {
+  kind: string;
+  parent_id?: string;
+  search: string;
+  skip: number;
+  limit: number;
+}
+
+export interface ImportDestinationList {
+  items: { id: string; name: string }[];
+  total: number;
+  searchable: boolean;
+}
+
+export const listImportDestinations = (query: ImportDestinationQuery) => {
+  const params = new URLSearchParams({
+    kind: query.kind,
+    search: query.search,
+    skip: String(query.skip),
+    limit: String(query.limit),
+  });
+  if (query.parent_id) params.set("parent_id", query.parent_id);
+  return apiClient.get<ImportDestinationList>(`/agents/import-destinations?${params}`);
+};

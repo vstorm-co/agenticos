@@ -21661,7 +21661,6 @@
     "reuse": "Użyj istniejącego zasobu",
     "skip": "Pomiń ten zasób",
     "newName": "Nazwa nowej kopii",
-    "destinationId": "ID zasobu docelowego",
     "skipHint": "Powiązania z tym zasobem zostaną usunięte z importowanego szkicu.",
     "chooseFile": "Wybierz plik YAML lub JSON",
     "pasteConfiguration": "Lub wklej konfigurację",
@@ -21672,6 +21671,14 @@
     "review": "Sprawdź zależności",
     "operationError": "Nie udało się zakończyć operacji. Spróbuj ponownie.",
     "createCopy": "Utwórz kopię",
-    "missingRoot": "Odpowiedź importu nie wskazała nowego szkicu. Odśwież listę agentów przed ponowieniem próby."
+    "missingRoot": "Odpowiedź importu nie wskazała nowego szkicu. Odśwież listę agentów przed ponowieniem próby.",
+    "destinationResource": "Zasób docelowy",
+    "searchDestinations": "Szukaj zasobów",
+    "chooseDestination": "Wybierz zasób",
+    "selectedDestination": "Wybrany zasób",
+    "noDestinations": "Brak pasujących zasobów.",
+    "previousDestinations": "Poprzednie zasoby",
+    "nextDestinations": "Następne zasoby",
+    "chooseExistingOwner": "Najpierw wybierz istniejącego agenta lub Skill, aby wskazać jego wersję lub fork."
   }
 }

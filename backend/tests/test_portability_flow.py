@@ -235,8 +235,29 @@ async def test_inline_preview_and_download_use_the_same_validated_document(
     service = PortabilityService(mock_db_session)
     preview = await service.preview_document(actor(), "name: Agent")
     assert preview.options[0].can_create
+    identity = uuid4()
+    bundle = preview.bundle.model_copy(
+        update={
+            "resources": (preview.bundle.resources[0].model_copy(update={"source_id": identity}),)
+        }
+    )
+    preview = preview.model_copy(
+        update={
+            "bundle": bundle,
+            "options": (
+                preview.options[0].model_copy(
+                    update={"layers": frozenset({BundleContentLayer.DEFINITION})}
+                ),
+            ),
+        }
+    )
     export = AsyncMock(return_value=preview)
     monkeypatch.setattr(service, "export_agent", export)
+    monkeypatch.setattr(
+        service.sources,
+        "read",
+        AsyncMock(return_value=SourceDefinition(identity, "Agent", AgentSpec(name="Agent"))),
+    )
     data = await service.download_agent(
         actor(),
         uuid4(),
@@ -502,3 +523,103 @@ async def test_renamed_model_copy_uses_the_selected_destination_key(
     assert mapped_model["secret_id"] == str(new_key)
     assert mapped_model["params"] == {"temperature": 0.2}
     assert create.await_args_list[1].args[2]["model_profile_id"] == str(new_model)
+
+
+async def test_export_preview_does_not_read_skill_files_or_return_linked_bodies(
+    mock_db_session: AsyncMock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    identity, skill_id, context_id = uuid4(), uuid4(), uuid4()
+    spec = AgentSpec(name="Agent", skill_ids=[skill_id], context_ids=[context_id])
+    monkeypatch.setattr(
+        "app.services.portability.facade.AgentRegistryService.get",
+        AsyncMock(
+            return_value=Agent(id=identity, name=spec.name, draft_spec=spec.model_dump(mode="json"))
+        ),
+    )
+    service = PortabilityService(mock_db_session)
+    calls: list[tuple[BundleResourceKind, bool]] = []
+
+    async def read(
+        ctx: AuthContext, resource: BundleResource, *, with_content: bool = True
+    ) -> SourceDefinition:
+        calls.append((resource.kind, with_content))
+        if resource.kind == BundleResourceKind.AGENT:
+            return SourceDefinition(identity, spec.name, spec)
+        assert not with_content
+        return SourceDefinition(resource.source_id, resource.kind.value)
+
+    monkeypatch.setattr(service.sources, "read", read)
+    preview = await service.export_agent(actor(), identity, metadata_only=True)
+    assert all(item.definition is None and not item.references for item in preview.bundle.resources)
+    assert all(
+        item.layers == frozenset({BundleContentLayer.DEFINITION}) for item in preview.options
+    )
+    assert (BundleResourceKind.SKILL, False) in calls
+    assert (BundleResourceKind.CONTEXT, False) in calls
+
+
+@pytest.mark.parametrize(
+    "mode", ["unselected", "unknown", "unavailable", "disappeared", "changed", "oversized"]
+)
+async def test_download_loads_only_selected_current_content_and_refuses_stale_graphs(
+    mock_db_session: AsyncMock, monkeypatch: pytest.MonkeyPatch, mode: str
+) -> None:
+    from app.schemas.resource_bundle import (
+        BundleDownloadCreate,
+        BundlePreview,
+        BundleResourceOption,
+    )
+    from app.services.portability.documents import parse_document
+
+    identity, context_id = uuid4(), uuid4()
+    spec = AgentSpec(name="Agent", context_ids=[context_id])
+    bundle = agent_snapshot(spec, source_id=identity)
+    bundle = bundle.model_copy(
+        update={
+            "resources": tuple(
+                item.model_copy(
+                    update={"definition": None, "references": (), "included": frozenset()}
+                )
+                for item in bundle.resources
+            )
+        }
+    )
+    plan = BundlePreview(
+        bundle=bundle,
+        options=tuple(
+            BundleResourceOption(
+                key=item.key, available=True, layers=frozenset({BundleContentLayer.DEFINITION})
+            )
+            for item in bundle.resources
+        ),
+    )
+    service = PortabilityService(mock_db_session)
+    monkeypatch.setattr(service, "export_agent", AsyncMock(return_value=plan))
+    read = AsyncMock(return_value=SourceDefinition(identity, "Agent", spec))
+    monkeypatch.setattr(service.sources, "read", read)
+    resources = {bundle.roots[0]: frozenset({BundleContentLayer.DEFINITION})}
+    if mode == "unknown":
+        resources["context/unknown"] = frozenset({BundleContentLayer.DEFINITION})
+    elif mode == "unavailable":
+        resources[bundle.roots[0]] = frozenset({BundleContentLayer.KB_INDEX})
+    elif mode == "disappeared":
+        read.return_value = SourceDefinition(identity, "Agent")
+    elif mode == "changed":
+        read.return_value = SourceDefinition(
+            identity, "Agent", AgentSpec(name="Agent", context_ids=[uuid4()])
+        )
+    elif mode == "oversized":
+        monkeypatch.setattr("app.services.portability.facade.MAX_DOCUMENT_BYTES", 10)
+    selection = BundleDownloadCreate(resources=resources)
+    if mode == "unselected":
+        result = parse_document(
+            (await service.download_agent(actor(), identity, selection)).decode()
+        )
+        assert result.resources[1].definition is None
+        read.assert_awaited_once()
+        assert read.await_args.args[1].kind == BundleResourceKind.AGENT
+    else:
+        with pytest.raises((BadRequestError, ConflictError)):
+            await service.download_agent(actor(), identity, selection)
+        if mode in ("unknown", "unavailable"):
+            read.assert_not_awaited()

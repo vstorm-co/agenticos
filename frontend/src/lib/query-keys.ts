@@ -132,6 +132,13 @@ export const qk = {
     directoryMappings: (orgId: string) => ["organizations", orgId, "directory-mappings"] as const,
   },
   agents: {
+    importDestinations: (query: {
+      kind: string;
+      parent_id?: string;
+      search: string;
+      skip: number;
+      limit: number;
+    }) => ["agents", "import-destinations", query] as const,
     exportPreview: (agentId: string) => ["agents", agentId, "export-preview"] as const,
     all: () => ["agents"] as const,
     /** Every agent the caller sees, all pages read - the eval start dialog's picker. */

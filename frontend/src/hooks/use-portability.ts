@@ -3,6 +3,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   downloadAgentExport,
+  listImportDestinations,
+  type ImportDestinationQuery,
   importAgentBundle,
   previewAgentExport,
   previewAgentImport,
@@ -30,4 +32,12 @@ export function useAgentImport() {
     onSuccess: () => client.invalidateQueries({ queryKey: qk.agents.all() }),
   });
   return { preview, apply };
+}
+
+export function useImportDestinations(query: ImportDestinationQuery, enabled = true) {
+  return useQuery({
+    queryKey: qk.agents.importDestinations(query),
+    queryFn: () => listImportDestinations(query),
+    enabled,
+  });
 }

@@ -21772,7 +21772,6 @@
     "reuse": "Usar recurso existente",
     "skip": "Ignorar este recurso",
     "newName": "Nome da nova cópia",
-    "destinationId": "ID do recurso de destino",
     "skipHint": "As associações a este recurso serão removidas do rascunho importado.",
     "chooseFile": "Escolher ficheiro YAML ou JSON",
     "pasteConfiguration": "Ou colar a configuração",
@@ -21783,6 +21782,14 @@
     "review": "Rever dependências",
     "operationError": "Não foi possível concluir a operação. Tente novamente.",
     "createCopy": "Criar cópia",
-    "missingRoot": "A resposta à importação não identificou o novo rascunho. Atualize a lista de agentes antes de tentar novamente."
+    "missingRoot": "A resposta à importação não identificou o novo rascunho. Atualize a lista de agentes antes de tentar novamente.",
+    "destinationResource": "Recurso de destino",
+    "searchDestinations": "Pesquisar recursos",
+    "chooseDestination": "Escolher um recurso",
+    "selectedDestination": "Recurso selecionado",
+    "noDestinations": "Nenhum recurso correspondente.",
+    "previousDestinations": "Recursos anteriores",
+    "nextDestinations": "Próximos recursos",
+    "chooseExistingOwner": "Escolha primeiro um agente ou Skill de destino existente para selecionar a sua versão ou fork."
   }
 }

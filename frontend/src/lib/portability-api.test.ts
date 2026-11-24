@@ -4,6 +4,7 @@ import { saveBlob } from "./file-access";
 import {
   downloadAgentExport,
   importAgentBundle,
+  listImportDestinations,
   previewAgentExport,
   previewAgentImport,
 } from "./portability-api";
@@ -58,4 +59,22 @@ it("does not save an empty success file when the API refuses the export", async 
   vi.mocked(apiClient.raw).mockRejectedValue(new Error("Export refused"));
   await expect(downloadAgentExport("agent-1", "json", {})).rejects.toThrow("Export refused");
   expect(saveBlob).not.toHaveBeenCalled();
+});
+
+it("requests paginated authorized destination names, including an explicit version owner", async () => {
+  vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
+  await listImportDestinations({ kind: "context", search: "Policy & rules", skip: 25, limit: 25 });
+  expect(apiClient.get).toHaveBeenLastCalledWith(
+    "/agents/import-destinations?kind=context&search=Policy+%26+rules&skip=25&limit=25",
+  );
+  await listImportDestinations({
+    kind: "skill_version",
+    parent_id: "owner-id",
+    search: "",
+    skip: 0,
+    limit: 25,
+  });
+  expect(apiClient.get).toHaveBeenLastCalledWith(
+    "/agents/import-destinations?kind=skill_version&search=&skip=0&limit=25&parent_id=owner-id",
+  );
 });

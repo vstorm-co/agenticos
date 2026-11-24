@@ -21888,7 +21888,6 @@
     "reuse": "Use an existing resource",
     "skip": "Skip this resource",
     "newName": "Name of the new copy",
-    "destinationId": "Destination resource ID",
     "skipHint": "Bindings to this resource will be removed from the imported draft.",
     "chooseFile": "Choose a YAML or JSON file",
     "pasteConfiguration": "Or paste the configuration",
@@ -21899,6 +21898,14 @@
     "review": "Review dependencies",
     "operationError": "The operation could not be completed. Try again.",
     "createCopy": "Create a copy",
-    "missingRoot": "The import response did not identify the new draft. Refresh the agents list before retrying."
+    "missingRoot": "The import response did not identify the new draft. Refresh the agents list before retrying.",
+    "destinationResource": "Destination resource",
+    "searchDestinations": "Search resources",
+    "chooseDestination": "Choose a resource",
+    "selectedDestination": "Selected resource",
+    "noDestinations": "No matching resources.",
+    "previousDestinations": "Previous resources",
+    "nextDestinations": "Next resources",
+    "chooseExistingOwner": "Choose an existing destination agent or Skill first to select its version or fork."
   }
 }

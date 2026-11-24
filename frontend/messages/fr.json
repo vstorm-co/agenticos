@@ -21130,7 +21130,6 @@
     "reuse": "Utiliser une ressource existante",
     "skip": "Ignorer cette ressource",
     "newName": "Nom de la nouvelle copie",
-    "destinationId": "ID de la ressource cible",
     "skipHint": "Les liens vers cette ressource seront supprimés du brouillon importé.",
     "chooseFile": "Choisir un fichier YAML ou JSON",
     "pasteConfiguration": "Ou coller la configuration",
@@ -21141,6 +21140,14 @@
     "review": "Vérifier les dépendances",
     "operationError": "L’opération n’a pas pu être terminée. Réessayez.",
     "createCopy": "Créer une copie",
-    "missingRoot": "La réponse à l’import ne précise pas le nouveau brouillon. Actualisez la liste des agents avant de réessayer."
+    "missingRoot": "La réponse à l’import ne précise pas le nouveau brouillon. Actualisez la liste des agents avant de réessayer.",
+    "destinationResource": "Ressource de destination",
+    "searchDestinations": "Rechercher des ressources",
+    "chooseDestination": "Choisir une ressource",
+    "selectedDestination": "Ressource sélectionnée",
+    "noDestinations": "Aucune ressource correspondante.",
+    "previousDestinations": "Ressources précédentes",
+    "nextDestinations": "Ressources suivantes",
+    "chooseExistingOwner": "Choisissez d’abord un agent ou un Skill existant pour sélectionner sa version ou son fork."
   }
 }

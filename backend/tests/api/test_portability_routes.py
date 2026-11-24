@@ -99,3 +99,32 @@ async def test_invalid_file_format_is_refused_at_the_http_boundary(
     )
     assert response.status_code == 422
     service.download_agent.assert_not_awaited()
+
+
+async def test_destination_picker_is_typed_and_scoped_to_import_permission(
+    wired: tuple[AsyncClient, MagicMock, AuthContext],
+) -> None:
+    from app.schemas.resource_bundle import BundleDestinationList, BundleDestinationOption
+
+    client, service, ctx = wired
+    identity = uuid4()
+    service.destinations = AsyncMock(
+        return_value=BundleDestinationList(
+            items=[BundleDestinationOption(id=identity, name="Policy")], total=1
+        )
+    )
+    response = await client.get(
+        "/api/v1/agents/import-destinations?kind=context&search=Policy&limit=25"
+    )
+    assert response.status_code == 200
+    assert response.json()["items"] == [{"id": str(identity), "name": "Policy"}]
+    assert service.destinations.await_args.args[0] == ctx
+    assert service.destinations.await_args.args[1].search == "Policy"
+    assert (await client.get("/api/v1/agents/import-destinations?kind=invalid")).status_code == 422
+    assert (
+        await client.get("/api/v1/agents/import-destinations?kind=context&limit=101")
+    ).status_code == 422
+    viewer = AuthContext(user_id=uuid4(), organization_id=uuid4(), role="viewer")
+    app.dependency_overrides[deps.get_auth_context] = lambda: viewer
+    assert (await client.get("/api/v1/agents/import-destinations?kind=context")).status_code == 403
+    service.destinations.assert_awaited_once()

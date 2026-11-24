@@ -17334,7 +17334,6 @@
     "reuse": "Mevcut kaynağı kullan",
     "skip": "Bu kaynağı atla",
     "newName": "Yeni kopyanın adı",
-    "destinationId": "Hedef kaynak kimliği",
     "skipHint": "Bu kaynağa yapılan bağlantılar içe aktarılan taslaktan kaldırılacaktır.",
     "chooseFile": "YAML veya JSON dosyası seçin",
     "pasteConfiguration": "Veya yapılandırmayı yapıştırın",
@@ -17345,6 +17344,14 @@
     "review": "Bağımlılıkları incele",
     "operationError": "İşlem tamamlanamadı. Yeniden deneyin.",
     "createCopy": "Kopya oluştur",
-    "missingRoot": "İçe aktarma yanıtı yeni taslağı belirtmedi. Tekrar denemeden önce ajan listesini yenileyin."
+    "missingRoot": "İçe aktarma yanıtı yeni taslağı belirtmedi. Tekrar denemeden önce ajan listesini yenileyin.",
+    "destinationResource": "Hedef kaynak",
+    "searchDestinations": "Kaynak ara",
+    "chooseDestination": "Bir kaynak seçin",
+    "selectedDestination": "Seçilen kaynak",
+    "noDestinations": "Eşleşen kaynak yok.",
+    "previousDestinations": "Önceki kaynaklar",
+    "nextDestinations": "Sonraki kaynaklar",
+    "chooseExistingOwner": "Sürümünü veya çatallamasını seçmek için önce mevcut bir hedef ajan veya Skill seçin."
   }
 }

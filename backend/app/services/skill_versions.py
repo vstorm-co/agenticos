@@ -339,7 +339,7 @@ class SkillVersionService:
         limit: int = 50,
     ) -> SkillVersionList:
         """One line's versions, newest first: main's, or a fork's own."""
-        skill = await self.skill_for(ctx, skill_id, Perm.SKILLS_VIEW)
+        skill = await self.skill_for(ctx, skill_id, Perm.SKILLS_VIEW, include_resources=False)
         if fork_id is not None:
             await self._fork(ctx, skill, fork_id)
         versions, total = await skill_version_repo.list_versions(

@@ -45,7 +45,9 @@ export function ExportAgentDialog({
         const resources = Object.fromEntries(
           data.bundle.resources.map((item) => [
             item.key,
-            excluded.has(item.key) ? [] : item.included,
+            excluded.has(item.key)
+              ? []
+              : (data.options.find((option) => option.key === item.key)?.layers ?? item.included),
           ]),
         );
         download.mutate({ format, resources });
@@ -69,7 +71,9 @@ export function ExportAgentDialog({
               <legend className="mb-2 text-sm font-medium">{t("includedContent")}</legend>
               {data.bundle.resources.map((item, index) => {
                 const root = data.bundle.roots.includes(item.key);
-                const included = item.definition !== null;
+                const layers =
+                  data.options.find((option) => option.key === item.key)?.layers ?? item.included;
+                const included = layers.length > 0;
                 return (
                   <div
                     key={item.key}

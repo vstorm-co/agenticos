@@ -17,6 +17,8 @@ from app.schemas.mcp_connection import OrgMcpConnectionCreate, OrgMcpConnectionU
 from app.schemas.resource_bundle import (
     BundleContentLayer,
     BundleDestination,
+    BundleDestinationList,
+    BundleDestinationQuery,
     BundleDownloadCreate,
     BundleImportCreate,
     BundleImportRead,
@@ -43,13 +45,20 @@ from app.services.portability.content import (
 )
 from app.services.portability.contracts import (
     CREATE_PERMISSIONS,
+    DEFINITION_MODELS,
     agent_omissions,
     definition_model,
     owner_key,
     references_for,
     verify_references,
 )
-from app.services.portability.documents import document_bytes, parse_document, select_content
+from app.services.portability.destinations import BundleDestinations
+from app.services.portability.documents import (
+    MAX_DOCUMENT_BYTES,
+    document_bytes,
+    parse_document,
+    select_content,
+)
 from app.services.portability.mapping import rebind_definition
 from app.services.portability.snapshots import agent_snapshot
 from app.services.portability.sources import BundleSources
@@ -80,16 +89,51 @@ class PortabilityService:
         self.db = db
         self.sources = BundleSources(db)
 
+    async def destinations(
+        self, ctx: AuthContext, query: BundleDestinationQuery
+    ) -> BundleDestinationList:
+        return await BundleDestinations(self.db).list(ctx, query)
+
     async def preview_document(self, ctx: AuthContext, text: str) -> BundlePreview:
         return await self.preview_import(ctx, parse_document(text))
 
     async def download_agent(
         self, ctx: AuthContext, agent_id: UUID, selection: BundleDownloadCreate
     ) -> bytes:
-        preview = await self.export_agent(ctx, agent_id)
-        return document_bytes(select_content(preview.bundle, selection), selection.file_format)
+        preview = await self.export_agent(ctx, agent_id, metadata_only=True)
+        available = {option.key: option.layers for option in preview.options}
+        if not set(selection.resources).issubset(available):
+            raise BadRequestError(message="The selection names a resource outside this export")
+        if any(not layers.issubset(available[key]) for key, layers in selection.resources.items()):
+            raise BadRequestError(message="The selected content is not available in this export")
+        resources = []
+        inline_bytes = 0
+        for item in preview.bundle.resources:
+            if selection.resources.get(item.key):
+                _, loaded = await self._source(ctx, item)
+                if loaded.definition is None:
+                    raise ConflictError(
+                        message="An export resource changed; review the selection again"
+                    )
+                references = tuple(ref for ref, _ in references_for(definition_model(loaded)))
+                if any(reference.target not in available for reference in references):
+                    raise ConflictError(
+                        message="Export dependencies changed; review the selection again"
+                    )
+                item = loaded.model_copy(update={"references": references})
+                inline_bytes += len(json.dumps(item.definition, ensure_ascii=False).encode("utf-8"))
+                if inline_bytes > MAX_DOCUMENT_BYTES:
+                    raise BadRequestError(
+                        message="This configuration exceeds 4 MiB; use a ZIP bundle"
+                    )
+            resources.append(item)
+        bundle = preview.bundle.model_copy(update={"resources": tuple(resources)})
+        verify_references(bundle)
+        return document_bytes(select_content(bundle, selection), selection.file_format)
 
-    async def export_agent(self, ctx: AuthContext, agent_id: UUID) -> BundlePreview:
+    async def export_agent(
+        self, ctx: AuthContext, agent_id: UUID, *, metadata_only: bool = False
+    ) -> BundlePreview:
         agent = await AgentRegistryService(self.db).get(ctx, agent_id)
         bundle = agent_snapshot(AgentSpec.model_validate(agent.draft_spec), source_id=agent.id)
         resources = {item.key: item for item in bundle.resources}
@@ -99,7 +143,13 @@ class PortabilityService:
             if len(resources) > MAX_EXPORT_RESOURCES:
                 raise BadRequestError(message="Export at most 500 linked resources at once")
             resource = resources[key]
-            option, loaded = await self._source(ctx, resource)
+            include = not metadata_only or resource.kind not in (
+                BundleResourceKind.CONTEXT,
+                BundleResourceKind.SKILL,
+                BundleResourceKind.SKILL_VERSION,
+                BundleResourceKind.SKILL_FORK,
+            )
+            option, loaded = await self._source(ctx, resource, include=include)
             options[key] = option
             resources[key] = loaded
             if loaded.definition is not None:
@@ -120,6 +170,10 @@ class PortabilityService:
                         )
                         pending.append(pin.bundle_key)
                 resources[key] = loaded.model_copy(update={"references": tuple(references)})
+            if metadata_only:
+                resources[key] = loaded.model_copy(
+                    update={"definition": None, "references": (), "included": frozenset()}
+                )
         result = ResourceBundle(roots=bundle.roots, resources=tuple(resources.values()))
         verify_references(result)
         return BundlePreview(bundle=result, options=tuple(options.values()))
@@ -165,7 +219,11 @@ class PortabilityService:
         return BundleResourceOption(
             key=item.key,
             available=True,
+            layers=frozenset({BundleContentLayer.DEFINITION})
+            if item.kind in DEFINITION_MODELS
+            else frozenset(),
             reusable_id=source.id,
+            reusable_name=source.name,
             can_create=definition is not None
             and item.kind in CREATE_PERMISSIONS
             and ctx.has(Perm(CREATE_PERMISSIONS[item.kind])),
