@@ -323,7 +323,8 @@ class ApprovalGate(AbstractCapability[AgentDeps]):
             raise ApprovalRequired()
         if isinstance(decision, ApprovalRejected):
             if active_code.get() == call.tool_call_id:
-                raise RuntimeError("The tool call was not approved")
+                reason = "The tool call was not approved"
+                raise RuntimeError(f"{reason}: {decision.note}" if decision.note else reason)
             return refusal(tool_def.name, decision.note or "a reviewer rejected it")
         # The arguments approved are what runs. When they are this call's own, run
         # them as the tool validated them, so an id is a `UUID` again and not its text.

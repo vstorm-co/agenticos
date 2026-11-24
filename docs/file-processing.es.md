@@ -1,5 +1,5 @@
 ---
-source_sha: "8e0da94ccb26"
+source_sha: "b0a1ea4798cd"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -1028,6 +1028,12 @@ Tres ámbitos en la fila, y no hay un cuarto:
 | `org` | `collections:view` que alcance la fila | `collections:edit` que alcance la fila |
 | `app` | cualquiera en el deployment | el superadmin del deployment (`is_app_admin`) |
 
+Una base con ámbito `app` no pertenece a ninguna organización, y el esquema lo
+garantiza: su `organization_id` siempre está vacío. Por eso un agent no puede
+vincularla - la publicación la rechaza igual que cualquier colección ajena a la
+organización de quien publica -, mientras que el nodo Knowledge search de un
+workflow, que solo pregunta quién puede leerla, sí puede buscar en ella.
+
 "Alcanzar la fila" es `resolve_access`, la misma decisión que toma cada recurso
 compartible: el ámbito del llamante para ese permiso, ampliado por cualquier grant
 explícito sobre esa colección concreta. Un grant amplía lo que el rol permite y
@@ -1212,6 +1218,15 @@ termina con un error y no escribe nada
 Un agente busca en las bases de conocimiento a las que está vinculado con su propio
 ámbito, sin volver a resolver sus nombres. Un agente vinculado a dos bases con el
 mismo nombre busca en su ámbito combinado, excluyendo otras bases del mismo nombre.
+
+Un agente solo vincula bases de su propia organización: las bases de la
+organización y las bases personales creadas en ella. La publicación rechaza una
+base de toda la aplicación y una base personal que su propietario creó en otra
+organización. La lista de bases de conocimiento se las sigue mostrando al
+propietario, porque puede leerlas. El selector de colecciones de un agente y el
+de un especialista no las ofrecen. Una que un agente ya tiene sigue marcada y
+señalada para que se pueda quitar. El paso Knowledge search de un workflow lee
+toda base que quien llama puede leer y las sigue ofreciendo todas.
 
 **`GET /rag/collections/{name}/filter-values`** responde con los valores de
 `organizational_unit` realmente presentes en la colección, bajo ese mismo ámbito.

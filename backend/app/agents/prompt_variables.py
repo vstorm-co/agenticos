@@ -33,7 +33,15 @@ VARIABLE = re.compile(r"\{\{\s*([a-z][a-z0-9_]*)\s*\}\}")
 SYSTEM_TIME_ZONE = "system"
 PERSON_TIME_ZONE = "user"
 
-LANGUAGE_NAMES = {"en": "English", "pl": "Polish", "de": "German", "tr": "Turkish", "fr": "French"}
+LANGUAGE_NAMES = {
+    "en": "English",
+    "pl": "Polish",
+    "de": "German",
+    "tr": "Turkish",
+    "fr": "French",
+    "nl": "Dutch",
+    "pt": "Brazilian Portuguese",
+}
 """The account's console locales, rendered as language names for instructions."""
 
 

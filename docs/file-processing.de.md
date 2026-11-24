@@ -1,5 +1,5 @@
 ---
-source_sha: "8e0da94ccb26"
+source_sha: "b0a1ea4798cd"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -1077,6 +1077,12 @@ Drei Geltungsbereiche auf der Zeile, und keinen vierten:
 | `org` | `collections:view`, das die Zeile erreicht | `collections:edit`, das die Zeile erreicht |
 | `app` | jeder im Deployment | der Deployment-Superadmin (`is_app_admin`) |
 
+Eine Basis mit Scope `app` gehört keiner Organisation, und das Schema sorgt dafür:
+ihre `organization_id` ist immer leer. Deshalb kann ein Agent sie nicht binden - das
+Veröffentlichen lehnt sie ab wie jede Collection außerhalb der Organisation des
+Veröffentlichenden -, während der Knowledge-search-Knoten eines Workflows, der nur
+fragt, wer sie lesen darf, sie durchsuchen kann.
+
 "Die Zeile erreichen" ist `resolve_access`, dieselbe Entscheidung, die jede
 teilbare Ressource trifft: der Geltungsbereich des Aufrufers für diese
 Berechtigung, geweitet durch jeden ausdrücklichen Grant auf genau diese
@@ -1272,6 +1278,16 @@ Ein Agent durchsucht die Wissensbasen, an die er gebunden ist, in ihrem eigenen
 Scope, statt ihre Namen erneut aufzulösen. Ein Agent, der an zwei Basen desselben
 Namens gebunden ist, durchsucht ihren gemeinsamen Scope und schließt andere
 gleichnamige Basen aus.
+
+Ein Agent bindet nur Basen seiner eigenen Organisation: die Basen der
+Organisation und persönliche Basen, die in ihr angelegt wurden. Das
+Veröffentlichen lehnt eine app-weite Basis ab, ebenso eine persönliche Basis, die
+ihr Eigentümer in einer anderen Organisation angelegt hat. Die Liste der
+Wissensdatenbanken zeigt sie dem Eigentümer weiterhin, weil er sie lesen darf. Die
+Collection-Auswahl eines Agents und eines Spezialisten bietet sie nicht an. Eine,
+die ein Agent schon führt, bleibt ausgewählt und gekennzeichnet, damit sie sich
+entfernen lässt. Der Workflow-Schritt Knowledge search liest jede Basis, die der
+Aufrufer lesen darf, und bietet weiterhin alle an.
 
 **`GET /rag/collections/{name}/filter-values`** antwortet mit den
 `organizational_unit`-Werten, die in der Collection tatsächlich vorkommen, unter

@@ -37,6 +37,9 @@ class MyPermissions(BaseSchema):
     role: str
     is_app_admin: bool
     permissions: list[PermissionEntry]
+    run_agent_id: UUID | None = None
+    """The agent whose run this credential was minted for; null for a signed-in
+    session, a key a person issued and an MCP client."""
 
 
 class RoleDefinition(BaseSchema):

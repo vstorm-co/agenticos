@@ -39,6 +39,8 @@ describe("pageMetadata", () => {
       de: `${siteOrigin()}/de/legal/terms`,
       tr: `${siteOrigin()}/tr/legal/terms`,
       fr: `${siteOrigin()}/fr/legal/terms`,
+      nl: `${siteOrigin()}/nl/legal/terms`,
+      pt: `${siteOrigin()}/pt/legal/terms`,
     });
   });
 
@@ -52,6 +54,8 @@ describe("pageMetadata", () => {
       de: `${siteOrigin()}/de`,
       tr: `${siteOrigin()}/tr`,
       fr: `${siteOrigin()}/fr`,
+      nl: `${siteOrigin()}/nl`,
+      pt: `${siteOrigin()}/pt`,
     });
   });
 
@@ -119,6 +123,8 @@ describe("pageMetadata", () => {
       OG_LOCALE.de,
       OG_LOCALE.tr,
       OG_LOCALE.fr,
+      OG_LOCALE.nl,
+      OG_LOCALE.pt,
     ]);
   });
 

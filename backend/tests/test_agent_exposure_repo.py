@@ -155,25 +155,26 @@ class TestReading:
         assert "is_active" in statement
         assert "JOIN agents" in statement
 
-    async def test_the_agents_each_bot_serves_come_back_grouped_and_active_only(self):
-        """The channels listing's badges: one query over many bots, paused rows
-        excluded, grouped by the bot they answer on."""
+    async def test_every_binding_on_each_bot_comes_back_with_its_agent_paused_ones_included(self):
+        """The channels listing's rows: one query over many bots, grouped by the
+        bot they are bound to. A paused binding is listed, because it still takes
+        the bot under the unique constraint."""
         chatty, quiet = uuid.uuid4(), uuid.uuid4()
-        one, two = MagicMock(), MagicMock()
-        session = _RecordingSession(_rows([(chatty, one), (chatty, two)]))
+        one, two = (MagicMock(), MagicMock()), (MagicMock(), MagicMock())
+        session = _RecordingSession(_rows([(chatty, one[0], one[1]), (chatty, two[0], two[1])]))
 
-        found = await agent_exposure_repo.active_agents_for_bots(
+        found = await agent_exposure_repo.bindings_for_bots(
             session, channel_bot_ids=[chatty, quiet]
         )
 
         assert found == {chatty: [one, two]}
         assert [chatty, quiet] in _filters(session).values()
-        assert "is_active" in str(session.statements[-1])
+        assert "is_active" not in str(session.statements[-1].whereclause)
 
-    async def test_no_bots_asks_the_database_nothing_for_active_agents(self):
+    async def test_no_bots_asks_the_database_nothing_for_their_bindings(self):
         session = _RecordingSession()
 
-        found = await agent_exposure_repo.active_agents_for_bots(session, channel_bot_ids=[])
+        found = await agent_exposure_repo.bindings_for_bots(session, channel_bot_ids=[])
 
         assert found == {}
         assert session.statements == []

@@ -1689,6 +1689,27 @@ class TestTheWelcome:
         assert said.startswith("Acme kuruluşuna hoş geldiniz! Ben slack bot")
         assert "konsolu açabilirsiniz: http" in said
 
+    @pytest.mark.parametrize(
+        ("locale", "opening", "console_link"),
+        [
+            ("nl", "Welkom bij Acme! Ik ben slack bot", "open de console: http"),
+            ("pt", "Bem-vindo à Acme! Sou slack bot", "abra o console: http"),
+        ],
+    )
+    async def test_new_console_languages_follow_the_member_into_chat_apps(
+        self, locale: str, opening: str, console_link: str
+    ) -> None:
+        adapters = {"slack": MagicMock(welcome=AsyncMock(return_value=True))}
+        greeted = await self._welcome(
+            {"slack": [_bot("slack")]},
+            adapters,
+            user=SimpleNamespace(email="ada@acme.com", locale=locale, is_active=True),
+        )
+        assert greeted == 1
+        said = adapters["slack"].welcome.await_args.args[2]
+        assert said.startswith(opening)
+        assert console_link in said
+
     async def test_nobody_is_greeted_where_the_organization_has_not_turned_it_on(self):
         adapters = {"slack": MagicMock(welcome=AsyncMock(return_value=True))}
 

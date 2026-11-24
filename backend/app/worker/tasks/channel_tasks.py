@@ -13,9 +13,22 @@ from app.services import generated_media
 from app.services.channels.base import IncomingMessage, OutgoingAttachment
 from app.services.channels.continuation import ChatDelivery, deliver_in_chat
 from app.services.channels.discord_roles import sweep_discord_roles
+from app.services.channels.exceptions import PartlyDelivered
 from app.services.channels.handback import ChatNotice, ensure_channel_adapters, send_notice
+from app.services.channels.routine_answer import (
+    send_routine_answer,
+)
+from app.services.channels.routine_answer import (
+    settle_lost_routine_answer as settle_unsent_answer,
+)
 from app.services.transcript import RecordedToolCall
-from app.worker.jobs import ChannelDelivery, ChannelHandback, ChannelMessage, EmailDelivery
+from app.worker.jobs import (
+    ChannelDelivery,
+    ChannelHandback,
+    ChannelMessage,
+    EmailDelivery,
+    RoutineChatAnswer,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -29,42 +42,60 @@ async def deliver_handback(job: ChannelHandback) -> bool:
         message_id=job.message_id,
     )
     if job.notice:
-        await send_notice(ChatNotice(job.organization_id, job.run_id, destination, job.output))
+        try:
+            await send_notice(ChatNotice(job.organization_id, job.run_id, destination, job.output))
+        except PartlyDelivered:
+            # A retry would post the pieces already in the chat a second time.
+            logger.warning("channel_handback_partly_delivered", extra={"run_id": str(job.run_id)})
     else:
-        return await deliver_in_chat(
-            organization_id=job.organization_id,
-            run_id=job.run_id,
-            destination=destination,
-            said=ChatDelivery(
-                output=job.output,
-                tool_calls=tuple(
-                    RecordedToolCall(
-                        call.tool_call_id,
-                        call.tool_name,
-                        dict(call.args),
-                        call.result,
-                        call.tool_id,
-                        call.presentation_kind,
-                    )
-                    for call in job.tool_calls
-                ),
-                generated_files=job.generated_files,
-                outbound=tuple(
-                    [
-                        OutgoingAttachment(
-                            filename=file.filename,
-                            mime_type=file.mime_type,
-                            content=await generated_media.load_generated_media(
-                                job.organization_id, file.stored_leaf
-                            ),
+        try:
+            return await deliver_in_chat(
+                organization_id=job.organization_id,
+                run_id=job.run_id,
+                destination=destination,
+                said=ChatDelivery(
+                    output=job.output,
+                    tool_calls=tuple(
+                        RecordedToolCall(
+                            call.tool_call_id,
+                            call.tool_name,
+                            dict(call.args),
+                            call.result,
+                            call.tool_id,
+                            call.presentation_kind,
                         )
-                        for file in job.attachments
-                    ]
+                        for call in job.tool_calls
+                    ),
+                    generated_files=job.generated_files,
+                    outbound=tuple(
+                        [
+                            OutgoingAttachment(
+                                filename=file.filename,
+                                mime_type=file.mime_type,
+                                content=await generated_media.load_generated_media(
+                                    job.organization_id, file.stored_leaf
+                                ),
+                            )
+                            for file in job.attachments
+                        ]
+                    ),
                 ),
-            ),
-        )
+            )
+        except PartlyDelivered:
+            # Part of the answer is in the chat: not confirmed, and not retried.
+            logger.warning("channel_handback_partly_delivered", extra={"run_id": str(job.run_id)})
+            return False
 
     return True
+
+
+async def deliver_routine_answer(job: RoutineChatAnswer) -> None:
+    ensure_channel_adapters()
+    await send_routine_answer(job)
+
+
+async def settle_lost_routine_answer(job: RoutineChatAnswer, why: str) -> None:
+    await settle_unsent_answer(job, why)
 
 
 async def sync_discord_roles() -> dict[str, int]:

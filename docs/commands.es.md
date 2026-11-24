@@ -1,5 +1,5 @@
 ---
-source_sha: "87d1c88b4414"
+source_sha: "71182b8bda14"
 ---
 
 # Comandos { #commands }
@@ -453,6 +453,24 @@ no supere estrictamente.
 `make platform-bootstrap BOOTSTRAP_API_KEY=sk-...` envuelve `bootstrap` con las
 migraciones que necesita. Ejecuta antes `doctor` cuando algo funciona en local y
 no en un entorno recién hecho: es más rápido que leer logs.
+
+### Medir los resultados de herramientas reenviados { #measuring-re-sent-tool-output }
+
+```bash
+# Qué parte de la entrada del modelo de una organización son resultados de herramientas reenviados, por agente.
+# Solo tamaños, recuentos y estimaciones: nunca el contenido de un resultado ni de una petición.
+uv run agenticos cmd tool-output-report --org <org-id> --from 2026-11-01 --to 2026-11-22
+
+# Las mismas cifras en JSON, incluidos los runs de evaluación y las pruebas del Builder.
+uv run agenticos cmd tool-output-report --org <org-id> --from 2026-11-01 --to 2026-11-22 \
+  --include-eval --include-tests --json
+```
+
+Un resultado de herramienta permanece en el historial del run, así que cada petición posterior al modelo lo envía de nuevo. El informe mide cada resultado tal como lo recibió el modelo, después de `tool_output_limits`, y lo cuenta una vez por cada petición posterior a la que lo llamó, según el manifiesto del run. Desglosa las cifras por agente y por cómo el agente vincula `tool_output_limits` y `compaction`. También proyecta el ahorro de sustituir los resultados de más de 10.000 caracteres por un marcador breve tras dos envíos completos.
+
+Las cifras son una estimación, y el informe lo dice. Los tokens son caracteres divididos entre cuatro y, cuando una herramienta se ejecutó varias veces en un run, las posiciones de sus resultados se promedian. Un run queda fuera de la estimación cuando no tiene manifiesto, no tiene una conversación donde registrar los resultados de herramientas o esperó una aprobación o una respuesta a una pregunta.
+
+Un run posterior puede arrastrar resultados de runs anteriores de la misma conversación, y el informe los muestra aparte, como cota superior. Un delegado nunca se suma a su padre, y el trabajo de la plataforma no se cuenta al agente que lo inició. El informe no puede decir cómo cambiaría la caché del prompt al sustituir resultados, y marca los agentes con cualquier compaction, porque su cifra está sobrestimada.
 
 ### Levantar un despliegue { #getting-a-deployment-up }
 

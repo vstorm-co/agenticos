@@ -48,6 +48,18 @@ def _consent(monkeypatch: pytest.MonkeyPatch) -> AsyncMock:
 
 
 @pytest.fixture(autouse=True)
+def _default(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
+    """The agent's default environment, as the withdrawal looks it up; none of these
+    tests' environments unless a test makes it one."""
+    default = MagicMock(id=uuid.uuid4())
+    monkeypatch.setattr(
+        "app.services.agent_registry.agent_environment_repo.get_default_for_agent",
+        AsyncMock(return_value=default),
+    )
+    return default
+
+
+@pytest.fixture(autouse=True)
 def _no_suites(monkeypatch: pytest.MonkeyPatch) -> None:
     """No eval suite watches a promotion here; `integration/test_eval_suites` covers that."""
     monkeypatch.setattr(
@@ -335,9 +347,11 @@ class TestPromoteAndRename:
             "app.services.agent_registry.current_impersonator",
             return_value=uuid.uuid4() if delegated == "impersonation" else None,
         ):
-            await AgentRegistryService(MagicMock()).withdraw_creator_consent(ctx, agent)
+            await AgentRegistryService(MagicMock()).withdraw_creator_consent(
+                ctx, agent, environment_ids={uuid.uuid4()}
+            )
 
-        assert _consent.await_args.kwargs == {"agent_id": agent.id, "kept_for": None}
+        assert _consent.await_args.kwargs["kept_for"] is None
 
     @pytest.mark.security
     async def test_a_publish_through_the_creators_own_key_keeps_their_consent(
@@ -353,9 +367,11 @@ class TestPromoteAndRename:
         )
         agent = _agent()
         with patch("app.services.agent_registry.current_impersonator", return_value=None):
-            await AgentRegistryService(MagicMock()).withdraw_creator_consent(ctx, agent)
+            await AgentRegistryService(MagicMock()).withdraw_creator_consent(
+                ctx, agent, environment_ids={uuid.uuid4()}
+            )
 
-        assert _consent.await_args.kwargs == {"agent_id": agent.id, "kept_for": ctx.user_id}
+        assert _consent.await_args.kwargs["kept_for"] == ctx.user_id
 
     async def test_a_promotion_withdraws_other_peoples_run_as_me(self, _consent: AsyncMock):
         """Codex on #2062: a creator agreed to what the agent did then, not to a
@@ -380,7 +396,14 @@ class TestPromoteAndRename:
                 ctx, agent.id, environment.id, EnvironmentUpdate(version_id=version.id)
             )
 
-        assert _consent.await_args.kwargs == {"agent_id": agent.id, "kept_for": ctx.user_id}
+        # This environment's triggers alone; it is not the default, so a trigger
+        # naming no environment keeps running the version it was on (#3290).
+        assert _consent.await_args.kwargs == {
+            "agent_id": agent.id,
+            "kept_for": ctx.user_id,
+            "environment_ids": [environment.id],
+            "include_unscoped": False,
+        }
         assert withdrawn.await_args.kwargs["action"] == "agent_trigger.creator_consent_withdrawn"
         assert withdrawn.await_args.kwargs["details"] == {"triggers": 2}
         audit.assert_awaited()

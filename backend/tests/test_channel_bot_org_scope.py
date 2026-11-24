@@ -331,6 +331,10 @@ class TestWhoAnswersOnEachBot:
         )
 
     @staticmethod
+    def _binding(*, is_active: bool = True) -> MagicMock:
+        return MagicMock(id=uuid.uuid4(), is_active=is_active)
+
+    @staticmethod
     def _agent(slug: str = "support") -> MagicMock:
         agent = MagicMock(id=uuid.uuid4(), slug=slug, has_avatar=False)
         agent.name = slug.title()
@@ -347,7 +351,7 @@ class TestWhoAnswersOnEachBot:
                 new=AsyncMock(return_value=len(bots)),
             ),
             patch(
-                "app.services.channel_bot.agent_exposure_repo.active_agents_for_bots",
+                "app.services.channel_bot.agent_exposure_repo.bindings_for_bots",
                 new=AsyncMock(return_value=answering),
             ) as grouped,
         ):
@@ -362,9 +366,33 @@ class TestWhoAnswersOnEachBot:
         bot = self._row()
         agent = self._agent()
 
-        (row,) = await self._listed(bots=[bot], answering={bot.id: [agent]})
+        (row,) = await self._listed(bots=[bot], answering={bot.id: [(self._binding(), agent)]})
 
         assert [(found.slug, found.name) for found in row.agents] == [("support", "Support")]
+
+    @pytest.mark.anyio
+    async def test_a_bot_names_its_agent_with_the_bindings_id(self):
+        bot = self._row()
+        agent = self._agent()
+        binding = self._binding()
+
+        (row,) = await self._listed(bots=[bot], answering={bot.id: [(binding, agent)]})
+
+        (found,) = row.agents
+        assert found.exposure_id == binding.id
+        assert found.exposure_id != agent.id
+        assert found.is_active is True
+
+    @pytest.mark.anyio
+    async def test_a_paused_binding_is_listed_as_paused(self):
+        bot = self._row()
+
+        (row,) = await self._listed(
+            bots=[bot], answering={bot.id: [(self._binding(is_active=False), self._agent())]}
+        )
+
+        (found,) = row.agents
+        assert found.is_active is False
 
     @pytest.mark.anyio
     async def test_a_bot_nobody_bound_says_so_with_an_empty_list(self):

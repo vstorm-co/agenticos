@@ -5625,6 +5625,77 @@ class TestAPreRegisteredClientIsRefusedBeforeItIsStaged:
         assert (start.client_id, start.client_secret) == ("cid", None)
 
 
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    ("supported_methods", "expected_method", "response_metadata", "expected_secret"),
+    [
+        pytest.param(["none"], "none", {}, None, id="public-pkce"),
+        pytest.param(
+            ["none"],
+            "none",
+            {"client_secret": "secret"},
+            None,
+            id="unexpected-public-secret",
+        ),
+        pytest.param(
+            ["none", "client_secret_post"],
+            "client_secret_post",
+            {"token_endpoint_auth_method": "none", "client_secret": "secret"},
+            None,
+            id="registered-as-public",
+        ),
+        pytest.param(
+            ["none", "client_secret_post"],
+            "client_secret_post",
+            {"client_secret": "secret"},
+            "secret",
+            id="both",
+        ),
+        pytest.param(
+            None, "client_secret_post", {"client_secret": "secret"}, "secret", id="unadvertised"
+        ),
+    ],
+)
+async def test_dynamic_registration_follows_the_servers_auth_methods(
+    monkeypatch: pytest.MonkeyPatch,
+    supported_methods: list[str] | None,
+    expected_method: str,
+    response_metadata: dict[str, str],
+    expected_secret: str | None,
+) -> None:
+    metadata = OAuthMetadata(
+        issuer=AnyUrl("https://auth.example.com"),
+        authorization_endpoint=AnyUrl("https://auth.example.com/authorize"),
+        token_endpoint=AnyUrl("https://auth.example.com/token"),
+        registration_endpoint=AnyUrl("https://auth.example.com/register"),
+        response_types_supported=["code"],
+        code_challenge_methods_supported=["S256"],
+        token_endpoint_auth_methods_supported=supported_methods,
+    )
+    server = mcp_oauth.DiscoveredServer(
+        authorization_endpoint=str(metadata.authorization_endpoint),
+        token_endpoint=str(metadata.token_endpoint),
+        registration_endpoint=str(metadata.registration_endpoint),
+        resource="https://mcp.example.com/mcp",
+        scope=None,
+        metadata=metadata,
+    )
+
+    async def register(_client: PinnedAsyncClient, request: httpx2.Request) -> httpx2.Response:
+        registration = json.loads(request.content)
+        if registration["token_endpoint_auth_method"] != expected_method:
+            return httpx2.Response(400, json={"error": "invalid_client_metadata"}, request=request)
+        registered = {**registration, "client_id": "cid", **response_metadata}
+        return httpx2.Response(201, json=registered, request=request)
+
+    monkeypatch.setattr(mcp_oauth, "_send", register)
+
+    assert await mcp_oauth.register_client(server, "https://app.example.com/callback") == (
+        "cid",
+        expected_secret,
+    )
+
+
 class TestOAuthRequestSafety:
     """Discovery lets the remote server choose most of the URLs we call, so
     every hop - redirects included - is checked and then dialled at the address

@@ -947,6 +947,11 @@ Three scopes on the row, and no fourth:
 | `org` | `collections:view` reaching the row | `collections:edit` reaching the row |
 | `app` | anybody in the deployment | the deployment superadmin (`is_app_admin`) |
 
+An app-scoped base belongs to no organization, and the schema keeps it that way: its
+`organization_id` is always empty. So an agent cannot bind one - publish refuses it
+as it refuses any collection outside the publisher's organization - while a
+workflow's Knowledge search node, which asks only who may read it, can search it.
+
 "Reaching the row" is `resolve_access`, the same decision every shareable resource
 takes: the caller's scope for that permission, widened by any explicit grant on that
 one collection. A grant widens what a role allows and never narrows it, so **a Viewer
@@ -1119,6 +1124,14 @@ nothing
 An agent searches the knowledge bases it is bound to under their own scopes, not by
 resolving their names again. An agent bound to two bases that share a name
 searches their combined scope, excluding other same-named bases.
+
+An agent binds only bases of its own organization: the organization's bases
+and personal bases made in it. Publish refuses an app-scoped base, and a
+personal base its owner made in another organization. The knowledge base list
+still shows the owner those, because the owner may read them. The agent's
+collection picker and a specialist's do not offer them. One an agent already
+lists stays ticked and marked so it can be removed. A workflow's Knowledge
+search step reads every base the caller may read and still offers them all.
 
 **`GET /rag/collections/{name}/filter-values`** answers with the `organizational_unit`
 values actually present in the collection, under that same scope. It exists because

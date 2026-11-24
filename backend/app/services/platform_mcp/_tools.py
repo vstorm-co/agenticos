@@ -1261,7 +1261,7 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
     """Every operation, bound to `api`."""
 
     async def whoami() -> dict[str, Any]:
-        """Which organization this connection acts in, and the permissions it holds there."""
+        """Which organization this connection acts in, the permissions it holds there, and in an agent's own run which agent that is (`run_agent_id`)."""
         return await api.request("GET", "/me/permissions")
 
     async def list_projects(
@@ -1379,7 +1379,10 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         with `list_sandbox_connections` and inspect `get_sandbox_policy` first.
         `mcp_servers` binds organization connection ids or personal catalog keys,
         never a personal connection id. `skill_ids` and `collection_ids` bind
-        existing skills and knowledge bases. `context_ids` binds standing Context files;
+        existing skills and knowledge bases; an agent binds only bases whose
+        `organization_id` is this organization's (its org bases and personal bases
+        made in it), and publish refuses any other. `context_ids` binds
+        standing Context files;
         inspect inject/link mode and audience before binding. `model_profile_id` is
         one of `list_models`; a draft needs one before it can be tested or
         published. `starters` are up to four first messages the chat offers
@@ -1445,7 +1448,9 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         Bind organization connection ids or personal catalog keys, never personal
         connection ids. `skill_ids`,
         `collection_ids` (knowledge bases), `context_ids` and `starters` each replace their whole
-        list. The published version keeps answering until `publish_agent`.
+        list. `collection_ids` takes only bases whose `organization_id` is this
+        organization's; publish refuses any other. The published version keeps answering until
+        `publish_agent`.
         """
         agent = await api.request("GET", f"/agents/{agent_id}")
         if "draft_spec" not in agent:
@@ -2342,8 +2347,8 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         return {"deleted": str(watch_id)}
 
     async def create_routine(
-        agent_id: UUID,
         prompt: str,
+        agent_id: UUID | None = None,
         notification_channels: list[ExternalNotificationChannel] | None = None,
         cron_expression: str | None = None,
         every_minutes: int | None = None,
@@ -2359,6 +2364,13 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         result_mode: Literal["report", "inbox"] | None = None,
     ) -> dict[str, Any]:
         """Make an agent run itself on a schedule - a Routine. Needs `agents:run` on it.
+
+        Omit `agent_id` to schedule yourself, the agent this run belongs to; pass one
+        only to schedule another agent. A key or an MCP client must pass it. A
+        delegate that omits it schedules the agent its credential was issued for,
+        the one that started the run. If scheduling yourself is refused as not
+        found, the person may not run you on a schedule; say so instead of
+        searching for another id.
 
         The routine can publish actionable findings with publish_inbox_finding,
         automatically available even without an AgenticOS MCP binding. Include
@@ -2389,7 +2401,11 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         appends every execution to one read-only history. chat_mode="per_run"
         opens a private chat for each execution with its full transcript;
         the creator may fork an answer to continue. Follow-up chat messages never
-        edit the routine. answer_to is a legacy destination compatibility field. `ends_at` is an ISO timestamp with its UTC offset;
+        edit the routine. answer_to is a legacy destination compatibility field.
+        A per_run routine created from a private chat in a chat app (Telegram,
+        Slack, Mattermost, Teams, Discord, Matrix) also has the bot post each
+        answer to that chat while the person still has access; do not add
+        `notification_channels` to reach the same chat. `ends_at` is an ISO timestamp with its UTC offset;
         set it for time-bounded requests. `monthly_budget_usd` is a decimal USD cap.
         `pinned_version_id` keeps one published version; omitted, future fires
         follow the published version. New routines follow the agent's current
@@ -2407,6 +2423,14 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         agent bindings, retry with other identities, or create duplicates.
         The result names the routine and its next activation.
         """
+        if agent_id is None:
+            own = (await api.request("GET", "/me/permissions")).get("run_agent_id")
+            if not own:
+                return api.refuse(
+                    "Pass agent_id: only an agent's own run can leave it out, and this "
+                    "connection is not one. Find the agent with list_agents."
+                )
+            agent_id = UUID(own)
         body: dict[str, Any] = {"prompt": prompt, "runs_as_creator": runs_as_me}
         if result_mode is not None:
             body["result_mode"] = result_mode

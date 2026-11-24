@@ -616,7 +616,7 @@ created by somebody who did have a role.
 
 | Endpoint | Answers |
 | --- | --- |
-| `GET /me/permissions` | the caller's role, `is_app_admin`, and every permission with its scope |
+| `GET /me/permissions` | the caller's role, `is_app_admin`, every permission with its scope, and, for an agent's run credential, `run_agent_id` |
 | `GET /roles/catalog` | the whole catalog and what each role bundles |
 
 Both are **a convenience for the UI and nothing more**. The server re-checks every

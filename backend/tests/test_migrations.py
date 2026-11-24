@@ -2951,7 +2951,7 @@ def test_matrix_surface_migration_preserves_existing_exposures() -> None:
 def test_custom_pricing_upgrade_preserves_existing_profiles_and_downgrades_cleanly() -> None:
     result = _alembic("upgrade", "head")
     assert result.returncode == 0, result.stderr
-    result = _alembic("downgrade", "0362_merge_native_release")
+    result = _alembic("downgrade", "0364_merge_routine_and_kb")
     assert result.returncode == 0, result.stderr
     engine = create_engine(_url(MIGRATION_DATABASE))
     try:
@@ -3014,7 +3014,7 @@ def test_custom_pricing_upgrade_preserves_existing_profiles_and_downgrades_clean
                 text("UPDATE organizations SET monthly_budget_usd = NULL WHERE id = :id"),
                 {"id": org_id},
             )
-        result = _alembic("downgrade", "0362_merge_native_release")
+        result = _alembic("downgrade", "0364_merge_routine_and_kb")
         assert result.returncode == 0, result.stderr
         with engine.connect() as db:
             assert (

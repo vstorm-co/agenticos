@@ -5,6 +5,18 @@
     "description": "Twoje miejsce pracy z AI. Open source.",
     "ctaShort": "GitHub"
   },
+  "approvalFeedback": {
+    "savedApproval": "Już zatwierdzono: {action}",
+    "savedRejection": "Już odrzucono: {action}",
+    "retryResume": "Ponów wznowienie",
+    "trigger": "Odrzuć z uwagami",
+    "hint": "Proponowana akcja nie zostanie wykonana. Uwagi zostaną zapisane wraz z odrzuceniem.",
+    "batchHint": "Wszystkie wymienione wywołania zostaną odrzucone. Dodaj uwagi tylko do wybranych wywołań.",
+    "call": "Wywołanie {number}: {action}",
+    "comment": "Uwagi",
+    "submit": "Odrzuć i wyślij uwagi",
+    "rejectAll": "Odrzuć wszystkie i wyślij uwagi"
+  },
   "common": {
     "archiveNamedConfirm": "Zarchiwizować {name}?",
     "chooseSection": "Sekcja: {section}",
@@ -2660,6 +2672,15 @@
       "theAgentWillRunAsYou": "Bot musi wiedzieć, kim jesteś, zanim Ci odpowie."
     },
     "channels": {
+      "agentBound": "@{agent} odpowiada teraz na {bot}",
+      "agentUnbound": "@{agent} już nie odpowiada na {bot}",
+      "bindAgent": "Powiąż agenta",
+      "bindAgentConfirm": "Powiąż",
+      "bindAgentDescription": "Bot odpowiada jako jeden agent. Odpowiada w domyślnym środowisku agenta; środowisko, wstrzymanie i wyszukiwania zmienisz na karcie Dostępność agenta.",
+      "bindAgentPlaceholder": "Wybierz agenta",
+      "bindAgentTo": "Powiąż agenta z botem {bot}",
+      "bindingPaused": "Powiązanie wstrzymane",
+      "noBindableAgents": "Nie ma agenta, którego możesz tu powiązać. Potrzebujesz uprawnienia do jego publikowania.",
       "respondToBroadcasts": "Reaguj na wzmianki grupowe",
       "respondToBroadcastsHint": "Wyłączone: reaguj na bezpośrednie wywołania bota. Włączone: także na @all, @here i obsługiwane wzmianki grupowe. Wiadomości prywatne nie wymagają wzmianki.",
       "broadcastsTeamsHint": "Po włączeniu pobierz zaktualizowany pakiet aplikacji Teams i zainstaluj go ponownie lub uaktualnij w danym zespole albo czacie. Właściciel musi wyrazić zgodę na odbieranie wiadomości rozmowy.",
@@ -2716,7 +2737,7 @@
       "noAppToken": "Brak tokenu aplikacji",
       "noChannelsYet": "Nie zarejestrowano jeszcze kanału",
       "noSigningSecret": "Brak sekretu podpisu",
-      "pageDescription": "Platformy czatu, na których ta organizacja jest dostępna. Bot obsługuje każdego powiązanego agenta - powiąż go w zakładce Dostępność agenta.",
+      "pageDescription": "Platformy czatu, na których ta organizacja jest osiągalna. Bot odpowiada jako jeden agent – powiąż go tutaj lub na karcie Dostępność agenta.",
       "pauseBot": "Wstrzymaj {bot}",
       "paused": "Wstrzymany",
       "platform": "Platforma",
@@ -2737,6 +2758,9 @@
       "transcriptionOff": "Wyłączona",
       "transcriptionProvider": "Transkrypcja głosu",
       "transcriptionProviderHint": "Własny provider tego bota, niezależnie od tego, czego używa jego agent albo organizacja.",
+      "unbindAgent": "Odłącz @{agent} od {bot}",
+      "unbindAgentConfirm": "Odłącz",
+      "unbindAgentDescription": "{bot} przestanie odpowiadać, dopóki nie zostanie powiązany inny agent. Instrukcje, wyszukiwania i środowisko tego powiązania zostaną z nim usunięte.",
       "webhook": "Webhook",
       "webhookToken": "Brak tokenu webhooka",
       "slackManifestWhy": "Utwórz aplikację Slack z manifestu: w Slacku Create New App, From a manifest, i wklej. Przyciski, /agent, panel asystenta i App Home przychodzą razem z nim.",
@@ -5353,6 +5377,20 @@
           "cancelled": "anulowana",
           "awaiting_approval": "czeka na zatwierdzenie"
         },
+        "reason": {
+          "creator_inactive": "brak twórcy",
+          "creator_cannot_run": "twórca bez dostępu",
+          "agent_unavailable": "brak wersji do uruchomienia",
+          "ended": "zakończona",
+          "sources_setup": "do przeglądu",
+          "sources_review": "do ponownego przeglądu",
+          "routine_changed": "do ponownego przeglądu",
+          "platform_identity": "wymaga twórcy",
+          "awaiting_approval": "czeka na akceptację",
+          "awaiting_answer": "czeka na odpowiedź",
+          "budget_exhausted": "budżet wyczerpany",
+          "actions_need_approval": "zatrzyma się na akceptacji"
+        },
         "empty": {
           "title": "Nic jeszcze nie działa samo",
           "description": "Harmonogram uruchamia agenta według zegara; wyzwalacz - gdy coś nadejdzie."
@@ -6742,7 +6780,7 @@
       },
       "channels-list": {
         "title": "Podłączone kanały",
-        "body": "Platformy, na których osiągalna jest ta organizacja. Kanał należy do organizacji, nie do jednego agenta, więc ten sam bot obsługuje każdego przypisanego do niego agenta."
+        "body": "Platformy, na których ta organizacja jest osiągalna. Bot należy do organizacji i odpowiada jako jeden agent; jeden agent może odpowiadać na kilku botach."
       },
       "channels-new": {
         "title": "Docieraj tam, gdzie są ludzie",
@@ -7929,6 +7967,10 @@
         "title": "Sprawdź gotowość",
         "body": "Sprawdź połączenie bota, publikację agenta i własne powiązane konta bez uruchamiania zadania."
       },
+      "channels-binding": {
+        "title": "Wybierz, kto odpowiada",
+        "body": "Powiąż agenta z botem albo go odłącz. Bot odpowiada jako jeden agent; środowisko, wstrzymanie i wyszukiwania zostają na karcie Dostępność agenta."
+      },
       "agent-model-credentials": {
         "title": "Kto podaje klucz do modelu",
         "body": "Wybierz swoją subskrypcję i połącz ją tutaj albo użyj klucza API organizacji. Własne gatewaye i endpointy znajdziesz w zaawansowanych połączeniach. Modele subskrypcji korzystają z instrukcji i narzędzi AgenticOS; zainstalowane agenty konfigurujesz osobno w delegowaniu."
@@ -8965,6 +9007,7 @@
     "enableRoutine": "Włącz rutynę",
     "finishLater": "Dokończ później",
     "stopWaitingRun": "Zatrzymaj oczekujące uruchomienie",
+    "deliveryPending": "Wysyłanie ostatniego wyniku do czatu",
     "deliveryUnavailable": "Ostatni wynik niedostępny w czacie",
     "attemptsTitle": "Przed uruchomieniem agenta",
     "attemptsHint": "Te próby nie rozpoczęły runu agenta ani nie naliczyły kosztów modelu.",
@@ -8980,7 +9023,7 @@
       "preparation": "Przygotowanie agenta"
     },
     "attemptReason": {
-      "platform_identity_required": "Włącz Działaj jako twórca albo usuń powiązanie wbudowanego platformowego MCP z agenta i jego delegatów.",
+      "platform_identity_required": "Włącz „Uruchamiaj jako ja” albo usuń powiązanie wbudowanego platformowego MCP z agenta i jego delegatów.",
       "source_review_required": "Przejrzyj źródła procedury i sprawdź niedostępne połączenia przed kolejną próbą.",
       "agent_unavailable": "Sprawdź opublikowaną wersję, konfigurację i uprawnienia agenta, zanim ponownie włączysz procedurę.",
       "preparation_failed": "Przygotowanie nie powiodło się przed utworzeniem runu agenta. Poproś operatora o sprawdzenie logów workera z tego czasu.",
@@ -9255,7 +9298,6 @@
     "budgetCreatorOnly": "Tylko osoba, która utworzyła tę rutynę, może podnieść albo zdjąć jej limit, dopóki rutyna działa jako ona.",
     "budgetHint": "Ile ta rutyna może wydać w miesiącu. Po wykorzystaniu wstrzymuje się i rusza od pierwszego. Zawęża limity agenta i organizacji, nigdy ich nie podnosi.",
     "budgetPlaceholder": "Bez własnego limitu",
-    "pausedBudget": "Wstrzymana - budżet",
     "loadingRoutine": "Wczytywanie rutyny…",
     "routineLoadError": "Nie udało się wczytać rutyny.",
     "retryRoutine": "Spróbuj ponownie",
@@ -9301,7 +9343,8 @@
       "useAgent": "Użyj ustawień agenta",
       "useAgentHint": "Zaznacza dokładnie te działania, które agent już w czacie wykonuje bez pytania, i zastępuje obecne zaznaczenie. Zgoda tutaj może tylko zawęzić to, na co pozwalają ustawienia agenta, nigdy tego nie poszerza: działania, przed którym agent pyta, nie ma na liście. Nic się nie zapisuje, dopóki nie wybierzesz Zapisz zgody.",
       "allowHeading": "Pozwól tym działaniom działać bez pytania o zgodę",
-      "alwaysAsks": "Zawsze pyta: wymagane przez agenta lub platformę"
+      "alwaysAsks": "Zawsze pyta: wymagane przez agenta lub platformę",
+      "alwaysAsk": "{count, plural, one {1 akcja zawsze wymaga akceptacji, bo tak ustawiono w agencie lub połączeniu. Runy, które jej użyją, zatrzymają się na człowieku niezależnie od wyboru tutaj.} few {# akcje zawsze wymagają akceptacji, bo tak ustawiono w agencie lub połączeniu. Runy, które ich użyją, zatrzymają się na człowieku niezależnie od wyboru tutaj.} other {# akcji zawsze wymaga akceptacji, bo tak ustawiono w agencie lub połączeniu. Runy, które ich użyją, zatrzymają się na człowieku niezależnie od wyboru tutaj.}}"
     },
     "sourceConsents": {
       "title": "Źródła",
@@ -9335,9 +9378,6 @@
     "budgetInvalid": "Wpisz dodatnią kwotę albo zostaw puste pole, aby usunąć ten limit.",
     "clearSearch": "Wyczyść wyszukiwanie",
     "noRoutineMatchesHint": "Spróbuj nazwy agenta, tytułu rutyny lub słów z jej wiadomości.",
-    "setupRequired": "Wymaga konfiguracji",
-    "setupRequiredHint": "Zapisano i wstrzymano. Napraw źródła, sprawdź dostęp, a następnie włącz rutynę.",
-    "setupOwnerRequired": "Zapisana i wstrzymana. Jej twórca musi naprawić i sprawdzić źródła.",
     "filteredEventTitle": "Ostatnie odfiltrowane zdarzenie GitHub",
     "filteredEventHint": "Pokazujemy ostatnie zapisane odrzucenie przez filtr, aktualizowane najwyżej raz na minutę. Nie uruchomiło runa. Treść zdarzenia nie jest zapisywana.",
     "filteredEventEmpty": "Nie zapisano jeszcze odfiltrowanego zdarzenia. Nie potwierdza to otrzymania webhooka.",
@@ -9372,7 +9412,28 @@
       "per_run": "Po każdym uruchomieniu możesz kontynuować rozmowę. Wiadomości nie zmieniają rutyny.",
       "shared": "Wyniki trafiają do wspólnej historii tylko do odczytu. Zrób fork odpowiedzi, aby kontynuować w nowym chacie."
     },
-    "openExecutionChat": "Otwórz chat"
+    "openExecutionChat": "Otwórz chat",
+    "blockers": {
+      "label": "Gotowość rutyny",
+      "resumeBlocked": "Wznowienie nic nie da, dopóki tego nie naprawisz:",
+      "review": "Sprawdź dostęp",
+      "openRuns": "Otwórz runy",
+      "ownerOnly": "Naprawić to może tylko jej twórca.",
+      "creator_inactive": "Jej twórca nie jest już aktywnym członkiem, więc rutyna nie może się uruchomić.",
+      "creator_cannot_run": "Jej twórca nie może już uruchamiać tego agenta.",
+      "agent_unavailable": "Agent nie ma opublikowanej wersji, którą ta rutyna może uruchomić.",
+      "ended": "Minęła jej data zakończenia.",
+      "sources_setup": "Jej źródła nie zostały jeszcze sprawdzone.",
+      "sources_review": "Agent lub jego źródła zmieniły się od ostatniego przeglądu. Sprawdź je ponownie.",
+      "routine_changed": "Ustawienia rutyny zmieniły się od ostatniego przeglądu, na przykład w czyim imieniu działa albo skąd czyta i dokąd dostarcza. Przejrzyj jej dostęp ponownie.",
+      "platform_identity": "Serwer MCP platformy wymaga, by rutyna działała jako jej twórca.",
+      "awaiting_approval": "{held, select, yes {Poprzedni run czeka na zatwierdzenie. Nowy run nie wystartuje, dopóki ktoś nie podejmie decyzji.} other {Poprzedni run czeka na zatwierdzenie.}}",
+      "awaiting_answer": "{held, select, yes {Poprzedni run czeka na odpowiedź. Nowy run nie wystartuje, dopóki jej nie dostanie.} other {Poprzedni run czeka na odpowiedź.}}",
+      "budget_exhausted": "Budżet na ten miesiąc jest wyczerpany. Rutyna uruchomi się ponownie pierwszego dnia miesiąca.",
+      "actions_need_approval": "{count, plural, =1 {1 działanie nie ma stałej zgody i będzie wymagać zatwierdzenia, jeśli zostanie użyte.} few {# działania nie mają stałej zgody i będą wymagać zatwierdzenia, jeśli zostaną użyte.} other {# działań nie ma stałej zgody i będzie wymagać zatwierdzenia, jeśli zostaną użyte.}}",
+      "readiness_checking": "Sprawdzanie, czy rutyna może się uruchomić…",
+      "readiness_unavailable": "Nie udało się sprawdzić gotowości rutyny. Uruchom teraz nadal sprawdzi jej uprawnienia."
+    }
   },
   "portals": {
     "backToServices": "Wróć do usług",
@@ -9508,6 +9569,8 @@
     "allowedSites": "Dozwolone witryny",
     "answersCustomerQuestionsFrom": "Odpowiada na pytania klientów na podstawie wiki produktu.",
     "anyoneThoseSites": "Każdy na tych witrynach",
+    "appWide": "Dla całej aplikacji",
+    "appWideNotForAgents": "Agenci nie mogą korzystać z kolekcji dla całej aplikacji. Odznacz ją, aby ją usunąć.",
     "approval": "Zatwierdzenie",
     "approvalAlways": "Zawsze pytaj",
     "approvalHintDefaultReadOnly": "Działa bez zatwierdzenia, ponieważ ta capability tylko czyta.",
@@ -9799,6 +9862,8 @@
     "orphanedContext": "Ten agent odwołuje się także do {count, plural, =1 {1 pliku kontekstu, którego ta organizacja już nie ma} few {# plików kontekstu, których ta organizacja już nie ma} many {# plików kontekstu, których ta organizacja już nie ma} other {# plików kontekstu, których ta organizacja już nie ma}}. Publikowanie jest odrzucane, dopóki {count, plural, =1 {nie zostanie usunięty} other {nie zostaną usunięte}}:",
     "orphanedServers": "Ten agent odwołuje się także do {count, plural, =1 {1 serwera, którego ta organizacja nie oferuje} few {# serwerów, których ta organizacja nie oferuje} many {# serwerów, których ta organizacja nie oferuje} other {# serwerów, których ta organizacja nie oferuje}} - usuniętych od tego czasu albo przeniesionych z zaimportowanej spec. Publikowanie jest odrzucane, dopóki {count, plural, =1 {nie zostanie usunięty} other {nie zostaną usunięte}}:",
     "orphanedSkills": "Ten agent odwołuje się także do {count, plural, =1 {1 skilla, którego ta organizacja już nie ma} few {# skilli, których ta organizacja już nie ma} many {# skilli, których ta organizacja już nie ma} other {# skilli, których ta organizacja już nie ma}}. Publikowanie jest odrzucane, dopóki {count, plural, =1 {nie zostanie usunięty} other {nie zostaną usunięte}}:",
+    "otherOrganization": "Inna organizacja",
+    "otherOrganizationNotForAgents": "Ta kolekcja należy do innej organizacji, więc agenci tutaj nie mogą z niej korzystać. Odznacz ją, aby ją usunąć.",
     "staleReferences": "Ta wersja robocza wciąż odwołuje się do: {list}, których ta organizacja już nie ma. Publikacja jest odrzucana, dopóki ich nie usuniesz.",
     "staleCollections": "{count, plural, one {1 kolekcję wiedzy} few {# kolekcje wiedzy} many {# kolekcji wiedzy} other {# kolekcji wiedzy}}",
     "staleContext": "{count, plural, one {1 plik kontekstu} few {# pliki kontekstu} many {# plików kontekstu} other {# pliku kontekstu}}",

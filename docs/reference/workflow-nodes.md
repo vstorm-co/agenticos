@@ -649,6 +649,12 @@ collection that is gone, or no longer readable by the run's principal, fails
 the step with `COLLECTION_NOT_ACCESSIBLE`. The step never searches fewer
 collections than the graph names.
 
+Collections that share a collection name are searched together, each under its
+own base. One that shares its name with another of a different scope - an
+app-wide collection and an organization's - cannot be, so publishing refuses
+the step and a run fails it with `COLLECTIONS_SHARE_STORAGE`; search them in
+separate steps.
+
 ::: app.workflows.nodes.knowledge_search._handler.KnowledgeSearchConfig
 
 ::: app.workflows.contracts.io.SourceRef

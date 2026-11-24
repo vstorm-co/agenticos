@@ -1,5 +1,5 @@
 ---
-source_sha: "e2a19cf6c8da"
+source_sha: "f8bc977a8b57"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -87,7 +87,8 @@ no son un requisito para elegir la conexión.
 
 Al conectar la aplicación de escritorio, puedes pegar el enlace original de invitación en lugar de solo la dirección del servidor. La aplicación se conecta al servidor del enlace y abre la invitación, conservando el destino durante el inicio de sesión. No acepta la invitación automáticamente ni guarda su token en los ajustes nativos. La revisión opcional de conexión espera a que termine la invitación.
 
-El inicio nativo y la consola admiten inglés, polaco, alemán y turco. La elección
+El inicio nativo admite inglés, polaco, alemán, turco y portugués de Brasil; la consola admite además
+francés y neerlandés. La elección
 se pasa a la consola; el idioma guardado en una cuenta existente sigue teniendo
 prioridad. La instalación local pide un nombre de espacio; un nombre de organización
 separado es una opción avanzada. Tras revisar la conexión, **Get started** abre
@@ -280,6 +281,8 @@ Las flechas y Enter o Tab seleccionan; Escape cierra primero las sugerencias.
 Eliminar una mención quita su vínculo al recurso del siguiente mensaje.
 
 ## Una aplicación, no una pestaña { #an-application-not-a-tab }
+
+En macOS, los enlaces que solicitan una ventana nueva, también mediante **Abrir en una ventana nueva**, se abren en el navegador predeterminado. Solo se reenvían direcciones HTTP(S) sin credenciales incorporadas; no se crean ventanas emergentes integradas. El navegador tiene su propia sesión, por lo que un enlace privado a la consola puede pedir que se inicie sesión de nuevo.
 
 En macOS la barra lateral de la consola lleva los botones de la ventana y la
 arrastra, la ventana recuerda su tamaño y posición, y cerrarla deja la app en la

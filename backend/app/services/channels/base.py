@@ -214,6 +214,26 @@ def thread_key(channel_id: str, *, thread_id: str, message_id: str | None) -> st
     return f"{channel_id}:{message_id}"
 
 
+PLATFORM_NAMES: dict[str, str] = {
+    "slack": "Slack",
+    "telegram": "Telegram",
+    "mattermost": "Mattermost",
+    "teams": "Microsoft Teams",
+    "discord": "Discord",
+    "matrix": "Matrix",
+    "whatsapp": "WhatsApp",
+    "sms": "SMS",
+    "imessage": "iMessage",
+    "email": "Email",
+}
+"""A chat platform's name as the product writes it; its key capitalised says "Sms"."""
+
+
+def platform_name(platform: str) -> str:
+    """The platform's own name, or its key capitalised for one this table does not know."""
+    return PLATFORM_NAMES.get(platform, platform.capitalize())
+
+
 @dataclass(frozen=True)
 class IncomingAttachment:
     """A file somebody sent a bot, before it has been fetched.
@@ -340,6 +360,8 @@ class OutgoingMessage:
     reply_to_message_id: str | None = None
     image_png: bytes | None = None
     image_filename: str = "chart.png"
+    final: bool = False
+    """The last edit of a reply written in place: the answer is whole and may be formatted."""
     attachments: list[OutgoingAttachment] = field(default_factory=list)
     """Files to post with the reply.
 
@@ -588,11 +610,13 @@ class ChannelAdapter(ABC):
         """
         return None
 
-    async def update_reply(self, bot_token: str, msg: OutgoingMessage, handle: str) -> None:
+    async def update_reply(self, bot_token: str, msg: OutgoingMessage, handle: str) -> str | None:
         """Rewrite the message `handle` names.
 
         Only ever called with a handle this adapter returned, so an adapter that
-        cannot stream never reaches it.
+        cannot stream never reaches it. Returns the id of the message that now
+        ends the reply when that is not `handle` - a final edit too long for one
+        message continues in new ones - and `None` otherwise.
         """
         raise NotImplementedError(f"{self.platform} cannot edit a message it has sent")
 
