@@ -48,13 +48,13 @@ it("saves the current Kanban as a shared view and sets that exact view as the ta
       view: null,
       kind: "kanban",
       config,
-      names: ["Default Kanban", "Default Kanban 2"],
+      names: ["Default kanban", "Default kanban 2"],
     });
   });
   expect(createView).toHaveBeenCalledWith(
     "tasks",
     expect.objectContaining({
-      name: "Default Kanban 3",
+      name: "Default kanban 3",
       kind: "kanban",
       visibility: "shared",
       config,
