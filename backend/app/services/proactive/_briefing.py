@@ -26,7 +26,7 @@ HEADING = {
     "de": "Neu aus Ihren Beobachtungen ({count}):",
     "tr": "Watch'larınızdan {count} yeni bulgu:",
     "fr": "{count} nouveautés de vos veilles :",
-    "nl": "Nieuw uit je bewakingen ({count}):",
+    "nl": "Nieuwe bevindingen van je bewakingen ({count}):",
 }
 MORE = {
     "en": "…and {count} more.",

@@ -224,7 +224,7 @@
     "delegateNameClash": "Iets anders hier heet ook {name}. Het model spreekt een subagent aan op naam, dus een van de twee zou nooit worden bereikt.",
     "delegatePinBehind": "{by, plural, =1 {Eén versie achter} other {# versies achter}}: vastgezet op v{version}, en v{latest} is wat deze gedelegeerde nu publiceert. Hier verandert niets tot jij het zegt.",
     "delegatePinGoneDetail": "Deze versie bestaat niet meer, dus een run die deze gedelegeerde bereikt, faalt en noemt hem. Er is bewust geen terugval naar de huidige versie.",
-    "delegatePinnedTwice": "Twee keer vastgezet. Twee pins van één agent zijn twee gedelegeerden die naar één naam luisteren, dus het model kan niet zeggen welke het bedoelde - en de spec weigert dit nog voor het de server bereikt.",
+    "delegatePinnedTwice": "Twee keer vastgezet. Twee vastgezette versies van één agent zijn twee gedelegeerden die naar één naam luisteren, dus het model kan niet zeggen welke het bedoelde - en de spec weigert dit al voordat het de server bereikt.",
     "delegateUnreachable": "Een agent die je niet kunt zien",
     "delegateUnreachableDetail": "Deze organisatie heeft hem niet meer, of je mag hem niet zien. Publiceren weigert hem hoe dan ook - verwijder hem, of vraag er toegang toe.",
     "delegatesDetail": "Gepubliceerde agents waaraan deze werk mag overdragen, elk vastgezet op een versie.",
@@ -345,7 +345,7 @@
     "mapDetailRegion": "Details voor {name}",
     "mapHandsBack": "Geeft terug: {mode}",
     "mapNoAccessBadge": "Geen toegang",
-    "mapPinBehind": "Pin loopt achter",
+    "mapPinBehind": "Oudere versie vastgezet",
     "mapPinBehindDetail": "Deze gedelegeerde heeft voorbij de vastgezette versie gepubliceerd. Hier verandert niets tot iemand hem opnieuw vastzet.",
     "mapSpecialist": "Specialist",
     "mapSpecialistDetail": "Gedefinieerd binnen deze agent, zonder eigen pagina.",
@@ -561,7 +561,7 @@
     "artifactPagesHeading": "Paginastijl",
     "artifactPagesDetail": "Koppel de skill artifact-pages en de agent bouwt pagina's vanuit de sjablonen ervan, de meegeleverde grafiekbibliotheek en de stijl van je organisatie - bewerk de skill om je huisstijl in te stellen. De agent leest hem via de Skills-capability, dus schakel die ook in.",
     "artifactPagesMissing": "Deze organisatie heeft geen skill artifact-pages. Laad de meegeleverde skills om hem toe te voegen.",
-    "skillsOffButBound": "Skills is uitgeschakeld, dus geen van deze wordt geladen - de agent wordt ermee opgelost en leest er vervolgens geen. Ze blijven in de spec en worden bij het publiceren nog steeds gecontroleerd; schakel het hierboven in, of deselecteer ze.",
+    "skillsOffButBound": "Skills staat uit, dus geen van deze skills wordt geladen: ze horen bij de agent, maar hij leest er geen. Ze blijven in de spec en worden bij het publiceren nog steeds gecontroleerd. Schakel Skills hierboven in, of deselecteer ze.",
     "socketFramesAndCloseCodes": "Frames en sluitcodes",
     "socketIntegration": "WebSocket - voor een interface die je zelf bouwt",
     "specialistCapabilities": "Wat hij kan",
@@ -736,7 +736,7 @@
     "testPanelEnvironment": "{name} (versie {version})",
     "testPanelNew": "Nieuw gesprek",
     "testPanelPin": "Een testprompt vastzetten",
-    "testPanelPinPlaceholder": "Vraag iets, of zet een prompt vast om opnieuw uit te voeren…",
+    "testPanelPinPlaceholder": "Vraag iets, of zet een prompt vast om te herhalen…",
     "testPanelReplay": "Het laatste bericht opnieuw versturen",
     "testPanelResize": "Het testpaneel van grootte veranderen",
     "testPanelUnpin": "{text} losmaken",
@@ -776,14 +776,14 @@
     "toolsAddNew": "Tools toevoegen die de server later krijgt",
     "toolsAddNewHint": "{state, select, on {Een tool die de server later toevoegt, bereikt deze agent vanzelf.} narrowed {De agent houdt alleen de hier gekozen tools. Kies elke tool om dit in te schakelen.} other {De agent houdt alleen de hier opgesomde tools; een tool die de server later toevoegt, blijft erbuiten.}}",
     "eachPersonsOwnAccountShort": "Iedereen koppelt zijn eigen account; niet voor API-sleutels, de widget of routines.",
-    "connectYours": "Koppel het jouwe",
+    "connectYours": "Koppel je account",
     "cardOrganizationsAccount": "Van de organisatie · {name}",
     "cardOrganizationConnected": "Organisatie gekoppeld",
     "cardYourAccountConnected": "Je bent gekoppeld",
     "serverSettingsNamed": "Instellingen voor {name} in deze agent",
     "serverInThisAgent": "Wiens account, welke tools, en welke op jou wachten.",
     "whoseAccount": "Wiens account",
-    "personalConnectedState": "{count, plural, =1 {Je bent gekoppeld.} other {Je hebt # accounts gekoppeld, en hij bereikt ze allemaal.}} Iedereen anders koppelt het zijne de eerste keer dat hij chat.",
+    "personalConnectedState": "{count, plural, =1 {Je bent gekoppeld.} other {Je hebt # accounts gekoppeld, en de agent bereikt ze allemaal.}} Ieder ander koppelt zijn account bij zijn eerste chat.",
     "personalNotConnectedState": "Iedereen koppelt zijn eigen account. Je hebt het jouwe nog niet gekoppeld.",
     "organizationHasNone": "De organisatie heeft nog geen {name}-account.",
     "connectForOrganization": "Koppelen voor de organisatie",
@@ -951,7 +951,7 @@
     "speechAccountVoiceDetail": "{provider}-stemmen horen bij je account. Plak de id van een stem uit je stembibliotheek. Het is de standaard - de agent mag per fragment overschakelen naar een andere, uit de stemmen die hieronder zijn toegestaan.",
     "speechOtherVoices": "Toegestane stemmen",
     "speechOtherVoicesDetail": "De enige stemmen waarnaar de agent per fragment mag overschakelen - voor een dialoog, of een verteller en een personage.",
-    "speechAnyVoiceWarning": "{count, plural, =1 {Geen toegestaan: de agent mag spreken met de enige stem van dit model.} other {Geen toegestaan: de agent mag spreken met elk van de # stemmen van dit model.}}",
+    "speechAnyVoiceWarning": "{count, plural, =1 {Geen stemmen geselecteerd: de agent mag de enige stem van dit model gebruiken.} other {Geen stemmen geselecteerd: de agent mag elk van de # stemmen van dit model gebruiken.}}",
     "speechAnyAccountVoiceWarning": "Geen opgegeven: de agent mag spreken met elke stem in je {provider}-account via de id - gekloonde stemmen inbegrepen.",
     "speechOtherVoicesFull": "{count} andere stemmen is het maximum dat één agent kan krijgen.",
     "speechOtherVoiceId": "Stem-id {position}",
@@ -1030,7 +1030,7 @@
     "productionWaiting": "productie op v{version} (wacht op evals)",
     "productionHint": "Kanalen, widgets en de API antwoorden met v{version}: productie draait die tot een nieuwere versie wordt gepromoveerd.",
     "testConnectionsFor": "Testkoppelingen voor {name}",
-    "testConnectionsHint": "Runs in deze omgeving, evals inbegrepen, beantwoorden elke koppeling hieronder met het eigen testsysteem. Een koppeling die hier is uitgeschakeld, doet niets - ze valt nooit terug op productie.",
+    "testConnectionsHint": "Runs in deze omgeving, ook evals, gebruiken voor elke koppeling hieronder het bijbehorende testsysteem. Een koppeling die je hier uitschakelt, doet niets: ze valt nooit terug op productie.",
     "testConnectionKindLabel": "Wat vervangen",
     "testConnectionKindMcp": "MCP-server",
     "testConnectionKindSecret": "Vault-sleutel",
@@ -1077,7 +1077,7 @@
       "save": "Opslaan",
       "cancel": "Annuleren"
     },
-    "publishedSpec": "Gepubliceerde specificatie",
+    "publishedSpec": "Gepubliceerde spec",
     "systemAgentBadge": "{kind, select, judge {Systeemagent · Beoordelaar} drafter {Systeemagent · Lacune-opsteller} generator {Systeemagent · Testgevalgenerator} classifier {Systeemagent · Lacuneclassificator} improver {Systeemagent · Schrijfassistent} extractor {Systeemagent · Kernpuntextractor} coverage {Systeemagent · Brondekking} other {Systeemagent}}",
     "systemAgentBadgeHint": "Het platform draait hem voor de hele organisatie; niemand chat ermee.",
     "systemAgentSharedOnly": "Alleen wat met de hele organisatie is gedeeld, wordt aangeboden: het platform draait deze agent voor iedereen.",
@@ -1094,7 +1094,7 @@
     "loadFailedTitle": "Kon de agent niet laden",
     "retryLoad": "Opnieuw proberen",
     "modelApiFromModel": "{api}, gekozen op basis van het model",
-    "modelApiFromModelPending": "Wordt op basis van het model gekozen wanneer het is opgeslagen",
+    "modelApiFromModelPending": "Wordt bij het opslaan uit het model afgeleid",
     "modelApiStored": "{api}, ingesteld op dit model",
     "modelApiFromModelHint": "Stav.ai biedt de meeste modellen aan via Chat Completions en enkele alleen via Responses. Het model beslist.",
     "stavEndpointHint": "Laat leeg voor api.stav.ai. Stel het alleen in voor een regionaal of test-endpoint van Stav.ai.",
@@ -1205,14 +1205,14 @@
       "successHint": "Dit is nu het adres van je account. Log er vanaf hier mee in."
     },
     "magicLink": {
-      "errorHeading": "Kon je niet inloggen",
-      "errorInvalid": "Magic link is ongeldig of verlopen.",
+      "errorHeading": "Inloggen mislukt",
+      "errorInvalid": "De inloglink is ongeldig of verlopen.",
       "errorMissingToken": "Deze inloglink is onvolledig. Log in met je wachtwoord of reset het.",
       "signInWithPassword": "Inloggen met wachtwoord",
       "success": "Ingelogd",
       "successHint": "Doorsturen naar je workspace…",
       "verifying": "Je wordt ingelogd…",
-      "verifyingHint": "Even geduld terwijl we je magic link controleren."
+      "verifyingHint": "Even geduld terwijl we je inloglink controleren."
     },
     "n8Chars": "8+ tekens",
     "n8Chars2": "8+ tekens",
@@ -1365,12 +1365,12 @@
       "approvalMode": "Goedkeuringsmodus",
       "backAgentAposS": "Terug naar het eigen model van de agent",
       "escToClose": "esc om te sluiten",
-      "howMuchToBeAsked": "Hoeveel wil je gevraagd worden voordat een tool draait?",
+      "howMuchToBeAsked": "Wanneer wil je een toolaanroep eerst goedkeuren?",
       "label": "Chatbediening",
       "mode": {
         "follow_agent": "De agent volgen",
         "approve_all": "Alles goedkeuren",
-        "ask_all": "Overal naar vragen"
+        "ask_all": "Altijd vragen"
       },
       "modeHint": {
         "follow_agent": "De goedkeuringsregels van de agent gebruiken.",
@@ -1438,8 +1438,8 @@
           "agentWithHarness": "Instelling van de agent · {agent}",
           "model": "Codeermodel",
           "effort": "Redeneerniveau",
-          "ownModel": "Instellingen van de coding-agent gebruiken",
-          "ownEffort": "Instellingen van de coding-agent gebruiken",
+          "ownModel": "Coding-agent volgen",
+          "ownEffort": "Coding-agent volgen",
           "loadingSettings": "Instellingen van de coding-agent voorbereiden…",
           "refreshSettings": "Keuzes vernieuwen",
           "unavailableOption": "{value} (niet beschikbaar)",
@@ -1453,7 +1453,7 @@
         "primaryRuntime": "Runtime van het gesprek",
         "nativeClaude": "Claude Agent · deze computer",
         "nativeCodex": "Codex · deze computer",
-        "primaryRuntimeHelp": "De gekozen runtime antwoordt met de eigen CLI-login en modelinstellingen. Toolrechten en goedkeuringen van AgenticOS gelden. Alleen tekst; overschrijvingen van modelinstellingen, Code Mode, reviewers en samenvatten door het platform worden uitgeschakeld. Native gebruik blijft zonder prijs.",
+        "primaryRuntimeHelp": "De gekozen runtime antwoordt met de eigen CLI-login en modelinstellingen. Toolrechten en goedkeuringen van AgenticOS gelden. Alleen tekst; overschrijvingen van modelinstellingen, Code Mode, reviewers en samenvatten door het platform worden uitgeschakeld. Voor gebruik via deze runtime toont AgenticOS geen kosten.",
         "primaryRuntimeAccess": "Tooltoegang van de runtime",
         "primaryRuntimeEdit": "Wijzigingen toestaan volgens het beleid van de agent",
         "primaryRuntimeModel": "Native model-ID (optioneel)",
@@ -1558,7 +1558,7 @@
       "visualCompareTitle": "Vergelijken, dan in een grafiek",
       "visualComparePrompt": "Vergelijk de vijf grootste economieën van de EU op bevolking, bbp en bbp per persoon in een tabel.",
       "visualToolTitle": "Een rekenmachine maken",
-      "visualToolPrompt": "Maak een rekening-verdeler voor me: het totaal, de fooi en het aantal personen, herberekend terwijl ik typ.",
+      "visualToolPrompt": "Maak een tool waarmee ik de rekening kan verdelen: het totaal, de fooi en het aantal personen, herberekend terwijl ik typ.",
       "visualMapTitle": "Een reis plannen op een kaart",
       "visualMapPrompt": "Plan vijf dagen in Japan op een kaart: genummerde stops op volgorde, en wat je bij elke stop doet.",
       "greetingNight": "Nog laat op, {name}? Waar werken we aan?",
@@ -1923,7 +1923,7 @@
       "memoryRemembering": "Een feit onthouden",
       "memorySaving": "Opslaan in het geheugen",
       "memoryUpdating": "Een herinnering bijwerken",
-      "messageDelegate": "Gedelegeerde een bericht sturen",
+      "messageDelegate": "Bericht aan gedelegeerde",
       "moreEntries": "en {count, plural, =1 {nog 1} other {nog #}} - open de ruwe weergave voor alles",
       "noArguments": "Geen argumenten",
       "noContext": "Er zijn geen contextbestanden aan deze agent gekoppeld.",
@@ -1982,7 +1982,7 @@
       "listingArtifacts": "Gepubliceerde pagina's opsommen",
       "listArtifacts": "Gepubliceerde pagina's opsommen",
       "previewingArtifact": "Voorbeeld van een gepubliceerde pagina bekijken",
-      "previewArtifact": "Voorbeeld van een gepubliceerde pagina bekijken",
+      "previewArtifact": "Gepubliceerde pagina bekijken",
       "sharingArtifact": "Vragen om een gepubliceerde pagina te delen",
       "shareArtifact": "Vragen om een gepubliceerde pagina te delen",
       "artifactVersion": "Versie {version} · de pagina openen",
@@ -2045,7 +2045,7 @@
         "revertFailed": "De taak kon niet worden teruggedraaid.",
         "revertPending": "Deze taak terugdraaien…",
         "revertUnknown": "Het vorige terugdraaien kon niet worden bevestigd. De workspace blijft gereserveerd tot een nieuwe poging de bestanden controleert.",
-        "retryRevert": "Terugdraaien opnieuw proberen"
+        "retryRevert": "Opnieuw terugdraaien"
       },
       "runCodingAgent": "Het werk overdragen aan de coding-agent",
       "runningCodingAgent": "De coding-agent is aan het werk",
@@ -2088,7 +2088,7 @@
       "listApps": "De applicaties opsommen",
       "sendingChannelFile": "Een bestand naar het kanaal sturen",
       "sendChannelFile": "Kanaalbestand versturen",
-      "phoneCalling": "Een telefoongesprek in de wachtrij zetten",
+      "phoneCalling": "Telefoongesprek in de wachtrij zetten",
       "phoneContacts": "Doorverbindcontacten controleren",
       "phoneTransferring": "Het gesprek doorverbinden",
       "phoneEnding": "Het gesprek beëindigen",
@@ -2709,7 +2709,7 @@
       "key": "Voeg de API-sleutel toe, indien nodig",
       "publish": "Publiceer de agent en keer terug naar dit gesprek",
       "action": "Mijn AI-model koppelen",
-      "notice": "Instellingsantwoord · Er is geen AI-model aangeroepen en er is geen providergebruik aangerekend.",
+      "notice": "Configuratieantwoord · Er is geen AI-model aangeroepen en er is geen providergebruik in rekening gebracht.",
       "ownerHint": "De beheerder van je workspace kan AI koppelen voor het team. Je hoeft geen eigen sleutel op te geven.",
       "contact": "Neem contact op met je beheerder"
     },
@@ -4461,122 +4461,6 @@
     "operateMaintainImproveService": "Om de Dienst te laten werken, te onderhouden en te verbeteren;",
     "pageviewFeatureUsageCounters": "- tellers voor paginaweergaven en gebruik van functies.",
     "paidPlansRenewAutomatically": "Betaalde abonnementen worden automatisch verlengd tot ze worden opgezegd. Vergoedingen worden niet terugbetaald, behalve waar de wet dat vereist. Je kunt op elk moment opzeggen - je abonnement blijft actief tot het einde van de lopende factuurperiode.",
-    "pl": {
-      "accountResponsibility": "Je bent zelf verantwoordelijk voor het veilig houden van je inloggegevens en voor activiteit op je account. Meld het ons via <mail>security@example.com</mail> als je vermoedt dat je account is gecompromitteerd.",
-      "aiOutputDisclaimer": "AI-uitvoer kan onjuistheden bevatten. <strong>Vertrouw niet op de Dienst voor advies in domeinen waar fouten echte gevolgen hebben</strong> (medisch, juridisch, financieel) zonder onafhankelijke controle.",
-      "amaPrawoLubNarusza": "de wet te overtreden of de rechten van derden te schenden;",
-      "analityczne": "Analyse",
-      "analyticsSession2": "analytics.session",
-      "authSession2": "auth.session",
-      "byObsUgiwaUtrzymywa": "om de Dienst te laten werken, te onderhouden en te verbeteren;",
-      "byOdpowiadaNaZg": "om op ondersteuningsverzoeken te antwoorden;",
-      "byPrzetwarzaSubskrypcjeI": "om abonnementen te verwerken en fraude te voorkomen;",
-      "byWykrywaNaduYcia": "om misbruik op te sporen en onze Voorwaarden te handhaven.",
-      "byWysyEmaileTransakcyjne": "om transactionele e-mails te versturen (account, betalingen, beveiligingswaarschuwingen);",
-      "cieKiRequestW": "- verzoekpaden, responstijden, gebruik van functies, stacktraces van fouten.",
-      "contactQuestions": "Vragen? Mail naar <mail>legal@example.com</mail>. Op juridische correspondentie antwoorden we binnen vijf werkdagen.",
-      "cookieConsent2": "cookie.consent",
-      "cookiesSeeOurPolicy": "<strong>Cookies</strong> - zie ons <policy>Cookiebeleid</policy>.",
-      "cookiesStronTrzecich": "Cookies van derden",
-      "czymJestPlikCookie": "Wat is een cookie?",
-      "daneDoPAtno": "Betaalgegevens",
-      "daneKlienta": "Klantgegevens",
-      "daneKonta": "Accountgegevens",
-      "daneUYcia": "Gebruiksgegevens",
-      "daneUrzDzenia": "Apparaatgegevens",
-      "funkcjonalne": "Functioneel",
-      "gdyDoNasPiszesz": "- wanneer je ons schrijft.",
-      "gdyKorzystaszZFunkcji": "Wanneer je AI-functies gebruikt, worden je prompts en de relevante context ter verwerking naar de geconfigureerde modelproviders gestuurd (bijv. OpenAI, Anthropic, Google). We kiezen providers die contractueel akkoord gaan om je gegevens niet voor training te gebruiken.",
-      "generowaTreCiNielegalnych": "inhoud te genereren die illegaal, schadelijk voor minderjarigen, frauduleus of misleidend is;",
-      "hostujemyGWnieW": "We hosten vooral in de EU. Waar gegevens buiten je land worden verwerkt, steunen we op standaardcontractbepalingen of gelijkwaardige waarborgen.",
-      "imiEmailZhashowaneHas": "- naam, e-mailadres, gehasht wachtwoord, optionele avatar.",
-      "informacjeKtRePodajesz": "Informatie die je verstrekt",
-      "informacjeZbieraneAutomatycznie": "Automatisch verzamelde informatie",
-      "jeLiKorzystaszZ": "Als je de Dienst gebruikt namens een organisatie, aanvaard je de Voorwaarden namens die organisatie en bevestig je dat je daartoe bevoegd bent.",
-      "jeLiWymagaTego": "als de wet dat vereist, maar we verzetten ons waar we kunnen en brengen getroffen gebruikers op de hoogte waar dat wettelijk is toegestaan.",
-      "jesteWCicielemTego": "Jij bent eigenaar van wat je invoert - prompts, documenten, inhoud van gesprekken („Klantgegevens”). Je geeft ons een beperkte licentie om Klantgegevens te hosten, te verwerken en weer te geven, uitsluitend om de Dienst voor jou te leveren.",
-      "kategorie": "Categorieën",
-      "kontakt": "Contact",
-      "korespondencjaZeWsparciem": "Correspondentie met de ondersteuning",
-      "kredytyWygasajNaKo": "Tegoed vervalt aan het einde van elke factuurperiode. Opwaarderingen op basis van gebruik vervallen niet. Waar van toepassing wordt belasting berekend.",
-      "kropka": "Punt.",
-      "licznikWyWietleI": "- tellers voor weergaven en gebruik van functies.",
-      "locale2": "locale",
-      "maYPlikKt": "Een klein bestand dat je browser op je apparaat opslaat wanneer je een website bezoekt. Met cookies kunnen we je ingelogd houden, voorkeuren onthouden en begrijpen hoe functies worden gebruikt.",
-      "moEmyAktualizowaTen": "We kunnen deze Voorwaarden bijwerken naarmate de Dienst zich ontwikkelt. Wezenlijke wijzigingen kondigen we minstens 30 dagen voor de ingangsdatum aan per e-mail of in de app. Verder gebruik na de ingangsdatum geldt als aanvaarding.",
-      "moEszPrzestaKorzysta": "Je kunt op elk moment stoppen met het gebruik van de Dienst. We kunnen je toegang opschorten of beëindigen als je de Voorwaarden schendt of om veiligheidsredenen. Bepalingen die hun aard naar beëindiging overleven (IE, disclaimers, beperking van aansprakelijkheid, geschillenbeslechting), blijven gelden.",
-      "moEszTeBlokowa": "Je kunt cookies ook blokkeren in de instellingen van je browser. Let op: essentiële cookies blokkeren maakt delen van de Dienst onbruikbaar (je blijft bijvoorbeeld niet ingelogd).",
-      "moEszZaakceptowaOdrzuci": "Je kunt categorieën accepteren, weigeren of aanpassen via de cookiebanner die bij je eerste bezoek verschijnt. Je kunt je keuze op elk moment wijzigen via de link in de voettekst.",
-      "n10OgraniczenieOdpowiedzialnoCi": "10. Beperking van aansprakelijkheid",
-      "n10Zmiany": "10. Wijzigingen",
-      "n11Kontakt": "11. Contact",
-      "n11ZmianyRegulaminu": "11. Wijzigingen in de Voorwaarden",
-      "n12PrawoWCiwe": "12. Toepasselijk recht",
-      "n13Kontakt": "13. Contact",
-      "n1CoZbieramy": "1. Wat we verzamelen",
-      "n1UsUga": "1. De Dienst",
-      "n2PoCoTego": "2. Waarom we het gebruiken",
-      "n2TwojeKonto": "2. Je account",
-      "n3AkceptowalneUYcie": "3. Aanvaardbaar gebruik",
-      "n3PrzetwarzanieAi": "3. AI-verwerking",
-      "n4TwojeTreCi": "4. Je inhoud",
-      "n4UdostPnianieDanych": "4. Gegevens delen",
-      "n5Retencja": "5. Bewaring",
-      "n5SubskrypcjeIP": "5. Abonnementen en betalingen",
-      "n6TwojePrawa": "6. Je rechten",
-      "n6UsUgiStron": "6. Diensten van derden",
-      "n7TransferyMiDzynarodowe": "7. Internationale doorgifte",
-      "n7WAsnoIntelektualna": "7. Intellectueel eigendom",
-      "n8BezpieczeStwo": "8. Beveiliging",
-      "n8Wypowiedzenie": "8. Beëindiging",
-      "n9Dzieci": "9. Kinderen",
-      "n9WyCzeniaOdpowiedzialno": "9. Disclaimers",
-      "nabywcy": "Een overnemende partij",
-      "nieBDzieszKorzysta": "Je gebruikt de Dienst niet om:",
-      "nieTrenujemyAdnegoZ": "We trainen geen van onze modellen op je gegevens.",
-      "nieTrenujemyNaTwoich": "We trainen niet op je Klantgegevens.",
-      "nieUstawiamyReklamowychCookies": "We plaatsen geen advertentiecookies. Sommige ingebedde inhoud (video's, betaalwidgets) kan cookies plaatsen - daarvoor gelden de beleidsregels van die providers.",
-      "niezbDne": "Essentieel",
-      "niniejszyRegulaminPodlegaPrawu": "Deze Voorwaarden worden beheerst door het recht van het rechtsgebied waarin de exploiterende entiteit is geregistreerd, met uitsluiting van conflictregels. Geschillen worden voorgelegd aan de rechtbanken van dat rechtsgebied, tenzij dwingend recht anders bepaalt.",
-      "obsUgiwanePrzezNaszego": "- verwerkt door onze betalingsverwerker (Stripe). We zien nooit je kaartnummer.",
-      "organom": "Overheidsinstanties",
-      "pamiTajTwojeWybory": "Onthouden je keuzes zodat de Dienst minder herhalend aanvoelt. Optioneel.",
-      "planyPAtneOdnawiaj": "Betaalde abonnementen worden automatisch verlengd tot ze worden opgezegd. Vergoedingen worden niet terugbetaald, behalve waar de wet dat vereist. Je kunt op elk moment opzeggen - je abonnement blijft actief tot het einde van de lopende factuurperiode.",
-      "pomagajNamZrozumieJak": "Helpen ons begrijpen hoe de Dienst wordt gebruikt, zodat we hem kunnen verbeteren. We anonimiseren IP-adressen en delen ze niet met derden voor advertenties.",
-      "powiadomimyCiWAplikacji": "We brengen je in de app of per e-mail op de hoogte voordat een wezenlijke wijziging ingaat. Verder gebruik na de ingangsdatum geldt als aanvaarding.",
-      "preferencjaJasnyCiemny": "- voorkeur voor licht/donker.",
-      "privacyExampleCom2": "privacy@example.com",
-      "privacyExampleCom6": "privacy@example.com",
-      "privacyIntro": "Dit Privacybeleid legt uit hoe {appName} („wij”, „ons”) informatie verzamelt, gebruikt, deelt en beschermt wanneer je de Dienst gebruikt.",
-      "promptyWgrywaneDokumentyRozmowy": "- prompts, geüploade documenten, chatgesprekken, inhoud van kennisbanken.",
-      "przechowujemyDaneKlientaTak": "We bewaren Klantgegevens zolang je account actief is. Na verwijdering van het account worden back-ups binnen 30 dagen gewist. Logs en meetgegevens worden tot 90 dagen bewaard voor beveiliging en operationele analyse.",
-      "przeglDarkaOsAdres": "- browser, besturingssysteem, IP-adres (voor beveiliging en rate limiting).",
-      "pytania": "Vragen:",
-      "pytaniaLubDania": "Vragen of verzoeken:",
-      "reverseEngineerowaUsUgi": "de Dienst te reverse-engineeren om met ons te concurreren;",
-      "serviceDescription": "{appName} levert AI-ondersteunde productiviteitssoftware - chatagents, retrieval augmented generation (RAG) en bijbehorende ontwikkeltools. Functies ontwikkelen zich voortdurend; we kunnen ze toevoegen, wijzigen of verwijderen.",
-      "sondowaSkanowaLubTestowa": "de Dienst te onderzoeken, te scannen of op kwetsbaarheden te testen zonder voorafgaande schriftelijke toestemming;",
-      "subProcessorom": "Subverwerkers",
-      "termsIntro": "Deze Servicevoorwaarden („Voorwaarden”) regelen je toegang tot en gebruik van {appName} („de Dienst”). Door een account aan te maken, de Dienst te gebruiken of op „Ik ga akkoord” te klikken, aanvaard je deze Voorwaarden.",
-      "theme2": "theme",
-      "twojaOdpowiedNaBanner": "- je antwoord op de cookiebanner.",
-      "twojaUwierzytelnionaSesjaHttponly": "- je geauthenticeerde sessie (httpOnly).",
-      "twojeWybory": "Je keuzes",
-      "uYwamyPlikW": "We gebruiken cookies en vergelijkbare technologieën (samen „cookies”) om de Dienst te laten werken en te verbeteren. Deze pagina legt uit wat we gebruiken en hoe je dat beheert.",
-      "uYwamyTlsTransit": "We gebruiken TLS tijdens transport, AES-256 in opslag, op rollen gebaseerd toegangsbeheer en een auditlog van beheeracties.",
-      "uYwanymDoObs": "die we gebruiken om de Dienst te laten werken (hosting, modelproviders, betalingsverwerker, e-mailbezorging, foutmonitoring). Een actuele lijst is op aanvraag beschikbaar.",
-      "udostPniamyDaneTylko": "We delen gegevens alleen met:",
-      "usUgaJestDostarczana": "De Dienst wordt geleverd „zoals hij is”. Voor zover de wet het maximaal toestaat, wijzen we alle garanties af - uitdrukkelijk, impliciet of wettelijk - inclusief verkoopbaarheid, geschiktheid voor een bepaald doel en niet-inbreuk.",
-      "usUgaNieJest": "De Dienst is niet gericht op kinderen jonger dan 16. We verzamelen niet bewust informatie van hen.",
-      "usUgaPolegaNa": "De Dienst is afhankelijk van externe providers (bijv. model-API's, betalingsverwerkers). Voor het gebruik van die functies gelden ook de voorwaarden van die providers. We hebben geen zeggenschap over hen en zijn niet verantwoordelijk voor hun handelingen.",
-      "wPrzypadkuFuzjiLub": "bij een fusie of verkoop, met behoud van de verplichtingen uit dit Beleid.",
-      "wZakresieDozwolonymPrawem": "Voor zover de wet het toestaat, is onze totale aansprakelijkheid voor elke claim die voortkomt uit of verband houdt met de Dienst niet hoger dan het grootste van (a) het bedrag dat je ons betaalde in de 12 maanden voor de claim of (b) 100 USD. Geen van beide partijen is aansprakelijk voor indirecte, incidentele, gevolg- of punitieve schade.",
-      "wybranyJZyk": "- gekozen taal.",
-      "wymaganeDoDziaAnia": "Vereist om de Dienst te laten werken. Ze kunnen niet worden uitgeschakeld. Voorbeelden: sessietoken, CSRF-token, voorkeursthema.",
-      "yourRightsDescription": "Afhankelijk van waar je woont, heb je mogelijk het recht om je persoonsgegevens in te zien, te corrigeren, te verwijderen of te exporteren, en om bezwaar te maken tegen bepaalde verwerking of die te beperken. Mail naar <mail>privacy@example.com</mail> om ze uit te oefenen. We antwoorden binnen 30 dagen.",
-      "zachowujemyWszystkiePrawaDo": "We behouden alle rechten op de Dienst, inclusief software, ontwerp en handelsmerken. Jij behoudt alle rechten op je Klantgegevens en op de uitvoer die je met de Dienst genereert, onder voorbehoud van de voorwaarden van modelproviders.",
-      "zakCaKorzystaniaZ": "het gebruik van de Dienst door andere klanten te verstoren."
-    },
     "preferences": "Voorkeuren",
     "privacy": {
       "summary": "Wat we verzamelen, waarom, en wat je eraan kunt doen. We trainen nooit op je gegevens.",
@@ -4609,7 +4493,7 @@
     "serviceReliesThirdParty": "De Dienst is afhankelijk van externe providers (bijv. model-API's, betalingsverwerkers). Voor je gebruik van die functies gelden ook de voorwaarden van die providers. We hebben geen zeggenschap over hen en zijn niet verantwoordelijk voor hun handelingen.",
     "smallFileYourBrowser": "Een klein bestand dat je browser op je apparaat opslaat wanneer je een website bezoekt. Met cookies kunnen we je ingelogd houden, voorkeuren onthouden en begrijpen hoe functies worden gebruikt.",
     "subProcessors": "Subverwerkers",
-    "supportCorrespondence": "Correspondentie met de ondersteuning",
+    "supportCorrespondence": "Correspondentie met support",
     "terms": {
       "summary": "De juridische overeenkomst tussen jou en {appName}. Eenvoudige taal waar het kan; precies waar het moet.",
       "title": "Servicevoorwaarden"
@@ -5111,12 +4995,12 @@
         "body": "Wissel hier tussen je agents. Elk brengt zijn eigen instructies, tools en kennis mee, dus dezelfde vraag kan een heel ander antwoord krijgen."
       },
       "chat-approval-mode": {
-        "title": "Bepaal hoeveel je wordt gevraagd",
+        "title": "Kies wanneer je om goedkeuring wordt gevraagd",
         "body": "Volg de eigen instellingen van de agent, laat je vragen over elke tool die hij kan gebruiken, of - als jij over goedkeuringen mag beslissen - laat dit gesprek draaien zonder te stoppen. Elke aanroep zonder goedkeuring wordt nog steeds op jouw account vastgelegd."
       },
       "chat-your-connections": {
         "title": "Je eigen accounts, waar de agent ze gebruikt",
-        "body": "Een agent die is gekoppeld aan het eigen account van elke persoon, spreekt Notion of Jira aan als jou. Dit toont welke van zijn services een account van jou nodig hebben, en koppelt er een zonder de chat te verlaten."
+        "body": "Een agent die is gekoppeld aan het eigen account van elke persoon, spreekt Notion of Jira namens jou aan. Hier zie je welke van zijn services een account van jou nodig hebben, en je koppelt er een zonder de chat te verlaten."
       },
       "chat-composer": {
         "title": "Vraag wat je wilt",
@@ -5464,7 +5348,7 @@
       },
       "run-detail-input": {
         "title": "Wat het model echt kreeg",
-        "body": "De prompt zoals hij werd samengesteld en verstuurd, elke tool met de beschrijving die het model leest, de instellingen, en één balk per verzoek - vastgelegd vanaf de lijn, dus het is wat werd verstuurd in plaats van wat de spec zegt."
+        "body": "De prompt zoals hij werd samengesteld en verstuurd, elke tool met de beschrijving die het model leest, de instellingen, en één balk per verzoek. Alles is vastgelegd zoals het werkelijk werd verstuurd: je ziet wat het model kreeg, niet wat de spec zegt."
       },
       "sandboxes-connections": {
         "title": "Waar agents code uitvoeren",
@@ -5689,11 +5573,11 @@
       },
       "settings-api-keys": {
         "title": "Je API-sleutels",
-        "body": "Met een sleutel kan een script, Postman of een MCP-client als jou handelen, zonder browser. Kies wat hij mag doen; hij kan nooit meer dan jij, en hij stopt zodra je hem intrekt."
+        "body": "Met een sleutel kan een script, Postman of een MCP-client namens jou handelen, zonder browser. Kies wat hij mag doen; hij kan nooit meer dan jij, en hij stopt zodra je hem intrekt."
       },
       "settings-connected-apps": {
         "title": "Gekoppelde applicaties",
-        "body": "Apps waarbij je met dit account bent ingelogd, zoals Claude Code. Elke app handelt als jou binnen wat je toestond - ontkoppel er een om de toegang meteen te beëindigen."
+        "body": "Apps waarbij je met dit account bent ingelogd, zoals Claude Code. Elke app handelt namens jou binnen wat je toestond - ontkoppel er een om de toegang meteen te beëindigen."
       },
       "assistant-widget": {
         "title": "Je Architect",
@@ -5709,7 +5593,7 @@
       },
       "agent-test": {
         "title": "Probeer hem terwijl je bouwt",
-        "body": "Opent naast de Builder een chat die antwoordt als je niet-gepubliceerde concept, of als een willekeurige omgeving. Testruns worden geteld en gebudgetteerd, en gemarkeerd in Activiteit."
+        "body": "Opent naast de Builder een chat waarin je je niet-gepubliceerde concept test, of de versie in een omgeving naar keuze. Testruns worden geteld, tellen mee voor het budget en worden gemarkeerd in Activiteit."
       },
       "group-members": {
         "title": "Wie erin zit",
@@ -5809,7 +5693,7 @@
       },
       "artifact-actions": {
         "title": "Workflows die deze pagina kan uitvoeren",
-        "body": "Als de pagina workflows kan uitvoeren, staan ze hier met een link naar hun runs. De pagina kan alleen vragen: elke run wacht tot jij hem bevestigt, draait als jou, en toont wat hij zal versturen."
+        "body": "Als de pagina workflows kan uitvoeren, staan ze hier met een link naar hun runs. De pagina kan alleen vragen: elke run wacht tot jij hem bevestigt, draait namens jou, en toont wat hij zal versturen."
       },
       "artifact-change-owner": {
         "title": "Eigenaar wijzigen",
@@ -6784,7 +6668,7 @@
       "settingsErrorWorkflow": "Foutworkflow",
       "settingsErrorWorkflowNone": "Geen",
       "settingsErrorWorkflowGone": "Een workflow die niet meer kan worden gekozen",
-      "settingsErrorWorkflowHint": "Eén keer gestart wanneer een run van deze workflow mislukt, als jou. Publiceer hem met als start Bij een mislukte workflow om hem hier te kiezen.",
+      "settingsErrorWorkflowHint": "Wordt één keer namens jou gestart wanneer een run van deze workflow mislukt. Publiceer hem met als start Bij een mislukte workflow om hem hier te kunnen kiezen.",
       "settingsRetention": "Runs bewaren (dagen)",
       "settingsRetentionForever": "Voorgoed bewaard",
       "settingsKeepSucceeded": "Geslaagde runs bewaren",
@@ -7422,8 +7306,8 @@
     "auth": {
       "backSign": "Terug naar inloggen",
       "checkSpamFolder": "Zie je hem niet? Controleer je spammap, of <link>probeer het opnieuw</link>.",
-      "inboxIncoming": "Inbox, <em>onderweg.</em>",
-      "magicLink": "Magic link",
+      "inboxIncoming": "Je link is <em>onderweg.</em>",
+      "magicLink": "Inloglink",
       "magicLinkSent": "We hebben een inloglink gestuurd. Klik erop om verder te gaan - hij verloopt na 15 minuten.",
       "magicLinkSentTo": "We hebben een inloglink gestuurd naar <strong>{email}</strong>. Klik erop om verder te gaan - hij verloopt na 15 minuten.",
       "missingExpiredLink": "Ontbrekende of verlopen link",
@@ -7441,7 +7325,7 @@
       "disconnectAnyTime": "Je kunt het op elk moment ontkoppelen vanuit je profiel.",
       "goBackToTheChat": "Dit chataccount is nu van jou.",
       "nowSaySomething": "Ga terug naar de chat en vraag de agent iets.",
-      "runsWithYourPermissions": "De agent antwoordt als jou - jouw rechten, jouw budget, jouw naam in het audittrail.",
+      "runsWithYourPermissions": "De agent antwoordt namens jou - met jouw rechten, jouw budget en jouw naam in de audittrail.",
       "seeConnectedAccounts": "Je gekoppelde accounts bekijken",
       "thatAccount": "Dat chataccount",
       "theAgentWillRunAsYou": "De bot moet weten wie je bent voordat hij je antwoordt."
@@ -8252,7 +8136,7 @@
       "chatAccountNoAgentsHere": "Geen agent die je kunt zien, antwoordt op deze bot.",
       "chatAccountNotUsedYet": "Nog nergens gebruikt. Stuur een van de bots van je organisatie een bericht.",
       "chatAccounts": "Chataccounts",
-      "chatAccountsDescription": "Slack-, Microsoft Teams-, Telegram-, Mattermost-, Discord- en Matrix-accounts die aan jou zijn gekoppeld. Een agent die via een daarvan wordt bereikt, antwoordt als jou, met jouw rechten en jouw budget.",
+      "chatAccountsDescription": "Slack-, Microsoft Teams-, Telegram-, Mattermost-, Discord- en Matrix-accounts die aan jou zijn gekoppeld. Een agent die via een daarvan wordt bereikt, antwoordt namens jou, met jouw rechten en jouw budget.",
       "confirmNewPassword": "Nieuw wachtwoord bevestigen",
       "currentPassword": "Huidig wachtwoord",
       "deleteAccount": "Account verwijderen",
@@ -8285,7 +8169,7 @@
       "notificationPreferences": "Meldingsvoorkeuren",
       "notificationPreferencesDescription": "Kies welke gebeurtenissen elk kanaal bereiken. Privéchats hebben ook een bestemming nodig bij Meldingen in privéchats. Schakelaars voor gebeurtenissen staan aan tenzij je ze uitzet.",
       "nothingChanged": "Er is niets veranderd",
-      "nothingHereChargesYou": "Hier wordt je niets aangerekend, dus er zijn geen verlengingen, mislukte betalingen of tegoedwaarschuwingen.",
+      "nothingHereChargesYou": "Hier wordt niets in rekening gebracht, dus er zijn geen verlengingen, mislukte betalingen of tegoedwaarschuwingen.",
       "optionalApprovals": "Goedkeuringsverzoeken",
       "optionalApprovalsAudience": "Wie de agent noemt - standaard de persoon die de run startte, plus de beheerders, zodat de wachtrij van een geplande run niet onbewaakt blijft.",
       "optionalApprovalsTrigger": "Een run staat in de wacht omdat een toolaanroep wacht tot een persoon hem goedkeurt.",
@@ -8304,7 +8188,7 @@
       "prefWorkflowNotificationTrigger": "Een workflow die je kunt zien, stuurt je een bericht vanuit een van zijn stappen.",
       "prefWorkflowLogAlert": "Waarschuwingen uit workflowlogs",
       "prefWorkflowLogAlertTrigger": "Een workflow die je kunt zien, overschrijdt een waarschuwingsdrempel in zijn log.",
-      "prefArtifactOwnerChanged": "Wijzigingen in eigenaarschap van pagina's",
+      "prefArtifactOwnerChanged": "Nieuwe eigenaar van een pagina",
       "prefArtifactOwnerChangedTrigger": "Een pagina waarvan je eigenaar bent, of was, wordt aan een ander lid gegeven.",
       "prefIngestionCompleted": "Document ingelezen",
       "prefIngestionCompletedTrigger": "Een bestand is klaar met parsen en indexeren in een kennisbank.",
@@ -8552,7 +8436,7 @@
       "newWatch": "Bewaken en melden",
       "newRoutine": "Nieuwe routine",
       "scheduledTask": "Volgens een planning uitvoeren",
-      "eventTask": "Uitvoeren wanneer er een gebeurtenis binnenkomt",
+      "eventTask": "Uitvoeren bij een gebeurtenis",
       "watchNeedsEnabling": "Schakel bewaking in bij de instellingen van de organisatie.",
       "watchNeedsConnection": "Koppel eerst een MCP-account bij Koppelingen."
     },
@@ -9504,7 +9388,7 @@
         "fork": "Fork “{name}”, nieuwste",
         "unchecked": "{version} is niet gecontroleerd op {name}. De antwoorden ervan kunnen veranderen.",
         "understood": "Ik begrijp het, wijzig het toch",
-        "publishes": "Dit publiceert een nieuwe versie van {name} met alleen deze wijziging. Onafgewerkte wijzigingen in het concept blijven in het concept.",
+        "publishes": "Dit publiceert een nieuwe versie van {name} met alleen deze wijziging. Niet-afgeronde wijzigingen in het concept blijven in het concept.",
         "cancel": "Annuleren",
         "submit": "Wijzigen en publiceren",
         "published": "Gepubliceerd. {count, plural, =0 {{name} heeft een nieuwe versie.} other {De nieuwe versie van {name} draait nu in {environments}.}}",
@@ -9756,7 +9640,7 @@
         "inconclusive": "Niet gecontroleerd: de controle kon niet elk antwoord beoordelen.",
         "failed": "Niet gecontroleerd: zijn run is mislukt.",
         "other": "Niet gecontroleerd: de controle kon hem niet meten.",
-        "unscorable": "Niet gecontroleerd: niets kan zijn vragen beoordelen. Stel beoordeling in op hun dataset.",
+        "unscorable": "Niet gecontroleerd: de vragen hebben geen beoordelingsmethode. Stel een beoordeling in op hun dataset.",
         "all_evidence": "Niet gecontroleerd: elke vraag kwam uit de gesprekken waaruit deze wijziging werd geleerd.",
         "cancelled": "Niet gecontroleerd: de controle werd gestopt voordat ze klaar was.",
         "own_not_asked": "Niet gecontroleerd: zijn eigen vragen werden niet gesteld nadat die van de skill hem slechter toonden."
@@ -9864,7 +9748,7 @@
     "oneUrlAnybodyCan": "Eén URL die iedereen kan gebruiken om lid te worden, in plaats van een uitnodiging per adres. Plak hem in een kanaal en hij werkt tot hij verloopt, opgebruikt is, of je hem intrekt.",
     "onlyEmailDomain": "Alleen dit e-maildomein",
     "openLinkWarning": "Onbeperkt en open voor elk adres: wie deze URL bereikt, kan lid worden als <as>{role}</as>. Een link die uit een kanaal wordt doorgestuurd, werkt nog steeds.",
-    "optionalWorthSetting": "Optioneel, en de moeite waard om in te stellen.",
+    "optionalWorthSetting": "Optioneel, maar de moeite waard.",
     "organization": "Organisatie:",
     "organizationName": "Naam van de organisatie",
     "personal": "Persoonlijk",
@@ -10287,7 +10171,7 @@
     "attemptsTitle": "Voordat de agent startte",
     "attemptsHint": "Deze pogingen startten geen agentrun en kostten geen modelgeld.",
     "attemptsError": "Kon de pogingen van voor het aanmaken van de run niet lezen.",
-    "attemptsRetry": "Geschiedenis opnieuw proberen",
+    "attemptsRetry": "Geschiedenis opnieuw laden",
     "attemptCount": "{count, plural, one {# poging} other {# pogingen}}",
     "attemptStatus": {
       "blocked": "Geblokkeerd",
@@ -10583,7 +10467,7 @@
     "pinnedVersion": "Vastgezette versie",
     "chooseVersion": "Een gepubliceerde versie kiezen",
     "selectedVersionUnavailable": "Gekozen versie niet beschikbaar",
-    "endsAtLabel": "Eindigt op (tijd van het apparaat)",
+    "endsAtLabel": "Eindigt op (apparaattijd)",
     "endsAtHint": "Laat leeg om te draaien tot hij wordt gestopt. Deze tijd gebruikt {zone}, los van de tijdzone van de planning.",
     "endsAtInvalid": "Kies een geldige tijd in de toekomst, of maak het veld leeg om het einde te verwijderen.",
     "actionConsents": {
@@ -10640,7 +10524,7 @@
       "saveMode": "Toegangsmodus opslaan",
       "reviewBeforeActivation": "Toegang bekijken voor het inschakelen",
       "reviewBeforeActivationHint": "Optioneel: gepauzeerd opslaan, een momentopname van de bronnen van de agent bekijken, en dan de routine inschakelen.",
-      "runsAsYou": "Draait als jou. Je rechten en verplichte goedkeuringen blijven gelden.",
+      "runsAsYou": "Draait namens jou. Je rechten en verplichte goedkeuringen blijven gelden.",
       "agentIdentity": "Gebruikt de eigen toegang van de agent. Toegang tot persoonlijke accounts staat uit.",
       "requiredUnavailable": "Vereiste bronnen niet beschikbaar: {names}. Herstel de toegang voordat je deze routine opslaat of inschakelt."
     },
@@ -11025,7 +10909,7 @@
         "description": "Registreer een geïnstalleerd ACP-programma voor taken op deze computer. Het gebruikt zijn eigen login en model, kan bestanden wijzigen en commando's uitvoeren, en kan kosten maken buiten AgenticOS.",
         "id": "Agent-ID",
         "name": "Weergavenaam",
-        "program": "Absoluut pad naar het uitvoerbare bestand",
+        "program": "Absoluut pad naar het programma",
         "args": "Argumenten (JSON-array)",
         "save": "Agent registreren",
         "remove": "Verwijderen",
@@ -11265,7 +11149,7 @@
     },
     "addPhone": {
       "title": "Een telefoon toevoegen",
-      "description": "Log de AgenticOS-app in als jou door een code te scannen. De code werkt één keer, gedurende een minuut.",
+      "description": "Log de AgenticOS-app in met je account door een code te scannen. De code werkt één keer, gedurende een minuut.",
       "step1": "Installeer AgenticOS op je telefoon en open het.",
       "step2": "Kies Een code scannen, of richt de camera van de telefoon hierop.",
       "step3": "Scan de code en bevestig je account op de telefoon.",
@@ -11274,7 +11158,7 @@
       "expiresIn": "{seconds, plural, =1 {Werkt nog 1 seconde} other {Werkt nog # seconden}}",
       "expired": "Die code is verlopen.",
       "failed": "Er kon geen code worden gemaakt. Probeer het opnieuw.",
-      "qrLabel": "Een code die de AgenticOS-app inlogt als jou"
+      "qrLabel": "Een code die de AgenticOS-app met je account inlogt"
     },
     "pair": {
       "failed": "Deze code werkt niet meer",
@@ -11461,7 +11345,7 @@
         "waiting": {
           "understand": "De analyse voor {agent} is klaar: bekijk wat er misging en druk dan op Volgende stap.",
           "changes": "De wijzigingen voor {agent} zijn klaar om te reviewen; druk dan op Volgende stap om ze te testen.",
-          "blocked": "Je verbetering van {agent} heeft wijzigingen, maar er zijn te weinig testvragen over om ze te controleren: {needed, plural, one {er is nog # nodig} other {er zijn nog # nodig}}, en de vragen van deze sessie liggen vast. Beëindig ze, voeg vragen toe en start een nieuwe."
+          "blocked": "Je verbetering van {agent} heeft wijzigingen, maar er zijn te weinig testvragen over om ze te controleren: {needed, plural, one {er is nog # nodig} other {er zijn nog # nodig}}, en de vragen van deze sessie liggen vast. Beëindig deze sessie, voeg vragen toe en start een nieuwe sessie."
         },
         "attemptFinished": "Je verbetering van {agent} heeft een poging afgerond.",
         "criteria": "{better, select, none {} other {Beter op {better}. }}{worse, select, none {} other {Slechter op {worse}. }}Geen enkele vraag is volledig omgeslagen.",
@@ -11536,13 +11420,13 @@
       "evalSuiteCases": "{failed, select, yes {Falend} other {Onbeslist}}: {cases}{more, plural, =0 {.} other { en nog #.}}",
       "evalReason": {
         "passRateBelow": "slagingspercentage {value, number, percent} ligt onder {limit, number, percent}",
-        "nothingGraded": "geen enkel testgeval kon worden beoordeeld",
+        "nothingGraded": "geen testgeval kon worden beoordeeld",
         "regressions": "{count, plural, one {# testgeval verslechtert reproduceerbaar} other {# testgevallen verslechteren reproduceerbaar}}",
         "costRise": "kosten per geslaagd testgeval stegen met {value, number, percent}",
         "costRiseFromZero": "kosten per geslaagd testgeval stegen vanaf nul, boven elk percentageplafond uit",
         "latencyRise": "p95-latentie steeg met {value, number, percent}",
         "latencyRiseFromZero": "p95-latentie steeg vanaf nul, boven elk percentageplafond uit",
-        "ungraded": "{count, plural, one {# testgeval dat niets beoordeelt} other {# testgevallen die niets beoordeelt}}",
+        "ungraded": "{count, plural, one {# testgeval zonder beoordelingsmethode} other {# testgevallen zonder beoordelingsmethode}}",
         "incomplete": "{count, plural, one {# testgeval waarop de provider of een scorer faalde} other {# testgevallen waarop de provider of een scorer faalde}}",
         "crashed": "de run van de agent faalde op {count, plural, one {# testgeval} other {# testgevallen}}",
         "invalid": "de vergelijking is ongeldig",
@@ -11839,7 +11723,7 @@
     "dataValueSetOnce": "Eén keer per run ingesteld en nooit overschreven: latere stappen lezen deze waarde maar kunnen haar niet wijzigen. Om haar te wijzigen, voeg je een stap toe die er een nieuwe waarde uit opbouwt.",
     "triggerHintChat": "Leden kiezen deze workflow in de chat. De stappen erna lezen het bericht als prompt, met het gesprek en wie het stuurde.",
     "triggerHintWebhook": "Publiceren geeft deze workflow een eigen adres en ondertekeningsgeheim, die hetzelfde blijven wanneer je opnieuw publiceert. De stappen erna lezen de JSON van de levering als body.",
-    "publishTrigger": "Hij start vanaf {trigger}. Een webhook-, planning- of tabeltrigger draait als jou zodra hij is gepubliceerd.",
+    "publishTrigger": "Hij start vanaf {trigger}. Een webhook-, planning- of tabeltrigger draait namens jou zodra hij is gepubliceerd.",
     "publishStartsByHand": "Hij heeft geen trigger, dus hij start handmatig of vanuit de API.",
     "pickerBotLabel": "Bot",
     "pickerBotPlaceholder": "Een bot kiezen",
@@ -12233,7 +12117,7 @@
     "nodeSummaryOr": " of ",
     "cardAgentVersion": "{name} · v{version}",
     "pickerVersionLive": "Live",
-    "triggerHintForm": "Publiceren geeft deze workflow een openbare pagina met deze velden. Elk antwoord start een run als jou; Trigger toont de link. De stappen erna lezen de antwoorden als payload.",
+    "triggerHintForm": "Publiceren geeft deze workflow een openbare pagina met deze velden. Elk antwoord start namens jou een run; Trigger toont de link. De stappen erna lezen de antwoorden als payload.",
     "formPage": {
       "title": {
         "label": "Titel",
@@ -12377,7 +12261,7 @@
     "toolbarDisplay": "Canvasopties",
     "stepOutputFields": "Verwachte uitvoervelden",
     "stepReviewSetup": "Bekijk de instellingen voor het testen",
-    "noteSize": "Grootte van de notitie",
+    "noteSize": "Notitiegrootte",
     "noteSizeSmall": "Compact",
     "noteSizeWide": "Breed",
     "noteSizeLarge": "Groot",
@@ -12510,7 +12394,7 @@
     "everyAgent": "Elke agent",
     "environmentBadge": "Gepubliceerd vanuit deze omgeving",
     "actions": {
-      "why": "De pagina “{page}” vraagt om deze workflow uit te voeren als jou, met jouw toegang en jouw budget. Controleer wat hij zal versturen voordat je verdergaat.",
+      "why": "De pagina “{page}” vraagt om deze workflow namens jou uit te voeren, met jouw toegang en jouw budget. Controleer wat hij zal versturen voordat je verdergaat.",
       "pageWording": "Hoe de pagina het noemt",
       "sends": "Wat hij zal versturen",
       "sendsNothing": "Niets: de workflow neemt geen invoer.",
@@ -12569,7 +12453,7 @@
       "confirmed": "Gegevens bevestigd",
       "withdrawn": "Delen van gegevens gestopt",
       "withdraw": "Stoppen met het delen van gegevens",
-      "withdrawTitle": "Stoppen met het delen van de gegevens van deze pagina?",
+      "withdrawTitle": "De gegevens van deze pagina niet meer delen?",
       "withdrawWhy": "Anderen, behalve rollen die elke tabel zien, zien de pagina zonder gegevens tot {who, select, you {jij ze opnieuw bevestigt} unknown {de eigenaar ze opnieuw bevestigt} other {{owner} ze opnieuw bevestigt}}. Automatisch delen wordt uitgeschakeld, en “Kan bewerken, inclusief gegevens” wordt “Kan bewerken”.",
       "confirm": "Gegevens bevestigen",
       "cancel": "Annuleren",
@@ -13081,7 +12965,7 @@
       "blocks": {
         "todo": "Takenlijst",
         "heading": "Kop",
-        "bullet": "Lijst met opsommingstekens",
+        "bullet": "Opsomming",
         "numbered": "Genummerde lijst",
         "quote": "Citaat",
         "code": "Codeblok",
@@ -13341,7 +13225,7 @@
       "mostUsed": "Agents die de mensen ervan het meest gebruiken",
       "runs": "{count, plural, =1 {1 run} other {# runs}}",
       "notHelpful": "Laatste antwoorden die als niet nuttig zijn beoordeeld",
-      "noComment": "Geen opmerking achtergelaten",
+      "noComment": "Geen opmerking",
       "quoted": "“{comment}”",
       "ratedOn": "{agent} · {date}",
       "unknownAgent": "Een agent",
@@ -13397,9 +13281,9 @@
     "mappingDeleted": "Koppeling verwijderd"
   },
   "apiKeys": {
-    "personalMcpWhy": "Persoonlijke MCP-delegatie is uitgesloten van elke voorinstelling. Kies mcp:personal:use en agents:run onder Aangepast om deze sleutel of app je eigen MCP-koppelingen te laten gebruiken in externe agentruns. Iedereen met de referentie kan die koppelingen als jou gebruiken. Het geeft geen toegang tot persoonlijk geheugen, chatgeschiedenis of ingelogde browsersessies.",
+    "personalMcpWhy": "Persoonlijke MCP-delegatie is uitgesloten van elke voorinstelling. Kies mcp:personal:use en agents:run onder Aangepast om deze sleutel of app je eigen MCP-koppelingen te laten gebruiken in externe agentruns. Iedereen met de referentie kan die koppelingen namens jou gebruiken. Het geeft geen toegang tot persoonlijk geheugen, chatgeschiedenis of ingelogde browsersessies.",
     "title": "API-sleutels",
-    "why": "Met sleutels kan een script, een HTTP-client of een MCP-client de API van deze organisatie als jou aanroepen, beperkt tot wat je kiest. Een sleutel doet nooit meer dan jij vandaag kunt.",
+    "why": "Met sleutels kan een script, een HTTP-client of een MCP-client de API van deze organisatie namens jou aanroepen, beperkt tot wat je kiest. Een sleutel doet nooit meer dan jij vandaag kunt.",
     "createTitle": "Sleutel aanmaken",
     "createWhy": "Geef hem een naam naar wat hem gaat gebruiken, zodat je weet welke je moet intrekken.",
     "createdTitle": "Kopieer je sleutel",
@@ -13456,7 +13340,7 @@
     "couldNotLoadScopes": "Kon de beschikbare rechten niet laden"
   },
   "mcpOauth": {
-    "title": "{client} wil als jou handelen",
+    "title": "{client} wil namens jou handelen",
     "why": "Het gebruikt je rechten in de organisatie hieronder, beperkt tot wat je toestaat. Wat je ook kiest, je gaat terug naar {host}.",
     "organization": "Organisatie",
     "revokeLater": "Je kunt het op elk moment ontkoppelen onder Instellingen → API-sleutels.",
@@ -13465,7 +13349,7 @@
     "expiredTitle": "Dit verzoek is verlopen",
     "expiredWhy": "Start de koppeling opnieuw vanuit de applicatie die je hierheen stuurde.",
     "connectedTitle": "Gekoppelde applicaties",
-    "connectedWhy": "Applicaties waarbij je met dit account bent ingelogd, zoals Claude Code. Elke applicatie handelt als jou, binnen wat je toestond.",
+    "connectedWhy": "Applicaties waarbij je met dit account bent ingelogd, zoals Claude Code. Elke applicatie handelt namens jou, binnen wat je toestond.",
     "application": "Applicatie",
     "access": "Toegang",
     "connectedBy": "Gekoppeld door",
@@ -14101,7 +13985,7 @@
         "description": "Wat het samenvattende model te horen krijgt. `{messages}` is waar het gesprek dat wordt vervangen, wordt ingevoegd, en het is verplicht - een prompt zonder vat niets samen. Bewerk het om te behouden waar het werk van je agent van afhangt: de standaard behoudt bedoeling, beslissingen en open draden, en dat is niet hetzelfde als wat een supporttranscript of een codereview nodig heeft"
       },
       "context_window": {
-        "title": "Overschrijving van het contextvenster",
+        "title": "Contextvenster overschrijven",
         "description": "Overschrijf het venster waartegen dit wordt geactiveerd. Ook waardoor de contextmeter van de chat deelt, zodat de twee één plafond beschrijven. Stel het in wanneer het gevonden getal niet klopt voor je installatie - een bèta of een niveau kan minder krijgen dan de provider publiceert - of om een agent eerder te laten samenvatten dan zijn model vereist"
       },
       "fallback_context_window": {
@@ -14202,7 +14086,7 @@
       },
       "output_format": {
         "title": "Bestandsformaat",
-        "description": "Bestandsformaat van de afbeelding."
+        "description": "Afbeeldingsformaat."
       },
       "aspect_ratio": {
         "title": "Beeldverhouding",
@@ -14314,7 +14198,7 @@
       },
       "allow_any_agent": {
         "title": "Andere toegankelijke agents gebruiken",
-        "description": "Bied de huidige gepubliceerde versies aan van andere agents die deze persoon in deze organisatie mag uitvoeren, onder slug-handles met agent-prefix. Expliciete pins behouden hun gekozen versies. De catalogus wordt bepaald aan het begin van elke interactieve run; werk zonder toezicht blijft beperkt tot gecontroleerde pins. Grote catalogi verlengen de opstarttijd en de context."
+        "description": "Bied de huidige gepubliceerde versies aan van andere agents die deze persoon in deze organisatie mag uitvoeren, onder slug-handles met agent-prefix. Expliciet vastgezette versies blijven behouden. De catalogus wordt bepaald aan het begin van elke interactieve run; werk zonder toezicht blijft beperkt tot gecontroleerde vastgezette versies. Grote catalogi verlengen de opstarttijd en vergroten de context."
       }
     },
     "system_reminders": {
@@ -14377,7 +14261,7 @@
         "description": "auto: native tool search bij een provider die het ondersteunt, elders lokaal matchen op trefwoorden. keywords: altijd lokaal matchen, bij elke provider. local_bm25: identificaties, beschrijvingen en argumenten lokaal rangschikken bij elke provider. bm25 / regex: een native algoritme van Anthropic afdwingen; geeft een fout bij een provider zonder native tool search."
       },
       "max_results": {
-        "title": "Overeenkomsten per zoekopdracht",
+        "title": "Treffers per zoekopdracht",
         "description": "Hoeveel overeenkomsten de lokale zoekopdracht teruggeeft; genegeerd bij native zoeken."
       },
       "defer_capabilities": {
@@ -14753,7 +14637,7 @@
     "cardUrlHint": "De URL van de card, of het basisadres van de agent, waar /.well-known/agent-card.json wordt gelezen.",
     "handle": "Handle",
     "handleHint": "Hoe je agents hem noemen. Leeg gelaten wordt hij gemaakt uit de naam van de agent.",
-    "key": "Sleutel die hij meestuurt",
+    "key": "Meegestuurde sleutel",
     "keyHint": "Een API-sleutel uit de vault, verstuurd als bearer-token, wanneer de agent erom vraagt.",
     "noKey": "Geen sleutel",
     "suggestedKeyName": "Sleutel voor externe agent",
@@ -14926,7 +14810,7 @@
     "tracking": {
       "title": "Automatisch projecten opvolgen",
       "description": "Maak een takentabel met opgeslagen weergaven en publiceer een privékopie van een gekozen agent als geplande tracker ervan.",
-      "audience": "De routine handelt als jou en schrijft haar rapporten in het gedeelde gesprek van dit project. De bronagent blijft ongewijzigd.",
+      "audience": "De routine handelt namens jou en schrijft haar rapporten in het gedeelde gesprek van dit project. De bronagent blijft ongewijzigd.",
       "baseAgent": "Bronagent die je kunt bewerken",
       "chooseAgent": "Een gepubliceerde agent kiezen",
       "agentDefault": "Tracker van {name}",
@@ -14971,7 +14855,7 @@
     "simple": "Eenvoudig",
     "workflowNodesHint": "In kleur tekent elke stap volgens zijn familie. Eenvoudig houdt de tegels neutraal en de minimap grijs.",
     "look": "Stijl",
-    "lookHint": "Elke stijl heeft een lichte en een donkere kant; het thema hierboven kiest welke. In de desktop-app is Glass doorzichtig tot op je bureaublad.",
+    "lookHint": "Elke stijl heeft een lichte en een donkere kant; het thema hierboven kiest welke. In de desktop-app zie je bij de stijl Glas je bureaublad door het venster heen.",
     "looks": {
       "standard": {
         "name": "Standaard",
@@ -15121,7 +15005,7 @@
         "instructions": "Mislukte pipelines op mijn eigen open merge requests of op de standaardbranch van projecten waarin ik werk."
       },
       "linear-assigned": {
-        "title": "Issues die aan mij zijn toegewezen",
+        "title": "Aan mij toegewezen issues",
         "instructions": "Issues die nieuw aan mij zijn toegewezen, of aan mij zijn toegewezen en door iemand anders zijn gewijzigd sinds ik het laatst keek."
       },
       "linear-overdue": {
@@ -15165,15 +15049,15 @@
         "instructions": "Gesprekken die aan mij zijn toegewezen en op een antwoord wachten."
       },
       "asana-overdue": {
-        "title": "Taken die vandaag af moeten of achterstallig zijn",
+        "title": "Taken met deadline vandaag of eerder",
         "instructions": "Mijn taken die vandaag af moeten of achterstallig zijn."
       },
       "todoist-overdue": {
-        "title": "Taken die vandaag af moeten of achterstallig zijn",
+        "title": "Taken met deadline vandaag of eerder",
         "instructions": "Mijn taken die vandaag af moeten of achterstallig zijn."
       },
       "clickup-overdue": {
-        "title": "Taken die vandaag af moeten of achterstallig zijn",
+        "title": "Taken met deadline vandaag of eerder",
         "instructions": "Mijn taken die vandaag af moeten of achterstallig zijn."
       }
     },
@@ -15355,10 +15239,10 @@
       "close": "Sluiten",
       "problem": {
         "noScorer": "Schakel minstens één scorer in - met elke scorer uit kan geen testgeval worden gescoord.",
-        "noCriterion": "Geef de beoordelaar minstens één criterium, of schakel hem uit - hij heeft niets om te beoordelen."
+        "noCriterion": "Geef de beoordelaar minstens één criterium, of schakel hem uit - zonder criterium kan hij niets beoordelen."
       },
       "willRun": "Voert {scorers} uit.",
-      "judgeSpends": "De beoordeling door de beoordelaar is een run van de eval-beoordelaar, aangerekend op zijn budget.",
+      "judgeSpends": "De beoordeling door de beoordelaar is een run van de eval-beoordelaar, ten laste van zijn budget.",
       "aiOff": {
         "body": "AI-ondersteuning staat uit in deze organisatie, dus de beoordelaar en de vergelijking met de referentie worden overgeslagen en alleen de regelgebaseerde scorers scoren.",
         "enable": "AI-ondersteuning inschakelen",
@@ -15414,7 +15298,7 @@
       "hidePassed": "Geslaagde verbergen",
       "coverage": "{count} van {total} testgevallen",
       "unsaved": "Niet opgeslagen",
-      "ungraded": "{count, plural, =1 {1 testgeval heeft niets wat het beoordeelt. Schakel de vergelijking met de referentie in, geef de beoordelaar criteria, of voeg regels toe.} other {# testgevallen hebben niets wat ze beoordeelt. Schakel de vergelijking met de referentie in, geef de beoordelaar criteria, of voeg regels toe.}}",
+      "ungraded": "{count, plural, =1 {1 testgeval heeft geen beoordelingsmethode. Schakel de vergelijking met de referentie in, geef de beoordelaar criteria, of voeg regels toe.} other {# testgevallen hebben geen beoordelingsmethode. Schakel de vergelijking met de referentie in, geef de beoordelaar criteria, of voeg regels toe.}}",
       "mustPassRule": "Een testgeval slaagt wanneer alles wat met Moet slagen is gemarkeerd, slaagt.",
       "gradedBy": "Hier beoordeeld door {graders}.",
       "gradedByJudge": "de beoordelaar ({criteria})",
@@ -15476,7 +15360,7 @@
         "added": "Een regel die elk testgeval krijgt, controleert dit: <rule></rule>",
         "add": "De regel toevoegen",
         "startsWith": "Begint met “{text}”",
-        "bullets": "Heeft een lijst met opsommingstekens",
+        "bullets": "Bevat een opsomming",
         "json": "Is een JSON-object"
       },
       "criterionHelp": "Beschrijf één ding dat het antwoord goed moet hebben. Neem het verwachte feit of een duidelijke voorwaarde om te slagen op.",
@@ -15699,7 +15583,7 @@
       "json_schema": "Komt overeen met een JSON-schema",
       "max_cost_usd": "Kost hoogstens (USD)",
       "max_latency_ms": "Antwoordt binnen (ms)",
-      "judge": "Criterium van de beoordelaar",
+      "judge": "Beoordelaarscriterium",
       "length": "Heeft een lengte",
       "keys": "Gedekte kernpunten"
     },
@@ -16073,7 +15957,7 @@
         "judgeRubric": "{name} op {criteria}"
       },
       "judgeSameModel": "De beoordelaar beoordeelt op {model}, het model dat wordt getest, en kan antwoorden zoals de zijne bevoordelen. Geef de beoordelaar een ander model op zijn pagina.",
-      "ungraded": "{count, plural, =1 {1 testgeval heeft niets wat het beoordeelt.} other {# testgevallen hebben niets wat ze beoordeelt.}} Het resultaat wordt onbeslist."
+      "ungraded": "{count, plural, =1 {1 testgeval heeft geen beoordelingsmethode.} other {# testgevallen hebben geen beoordelingsmethode.}} Het resultaat wordt onbeslist."
     },
     "runFor": "Uitvoeren voor {amount}",
     "runTitle": "{dataset} v{version} · {candidate}",
@@ -16300,7 +16184,7 @@
       "passRate": "Slagingspercentage {from} → {to}, elk testgeval zoals de meeste pogingen uitvielen{undecided, plural, =0 {} other { · # van {cases} testgevallen onbeslist}}",
       "firstPassRate": "Alleen eerste antwoorden: {from} → {to}",
       "unsteady": "Voer het opnieuw uit, of test op een stabieler model: een model dat elke keer anders antwoordt, kan geen verandering bevestigen.",
-      "undecidedWhy": "Onbeslist tot elk testgeval is beslist: {ungraded, plural, =0 {} =1 {1 heeft niets wat het beoordeelt} other {# hebben niets wat ze beoordeelt}}{both, select, true {, en } other {}}{incomplete, plural, =0 {} =1 {1 kon niet worden beslist - de provider of een scorer faalde erop, of de pogingen eindigden gelijk} other {# konden niet worden beslist - de provider of een scorer faalde erop, of de pogingen eindigden gelijk}}.",
+      "undecidedWhy": "Onbeslist tot elk testgeval is beslist: {ungraded, plural, =0 {} =1 {1 heeft geen beoordelingsmethode} other {# hebben geen beoordelingsmethode}}{both, select, true {, en } other {}}{incomplete, plural, =0 {} =1 {1 kon niet worden beslist - de provider of een scorer gaf een fout, of de pogingen eindigden gelijk} other {# konden niet worden beslist - de provider of een scorer gaf een fout, of de pogingen eindigden gelijk}}.",
       "tooFew": "{candidate} en {baseline} kunnen nog niet worden vergeleken: er zijn te weinig apart gehouden vragen beoordeeld om een verandering te meten.",
       "tooFewInStage": "Deze fase heeft te weinig apart gehouden vragen om op zichzelf te oordelen. De controle beoordeelt de agent op al zijn fasen samen."
     },
@@ -16413,9 +16297,9 @@
         "current": "Bewaakt dataset v{pinned}, zoals die nu is.",
         "behind": "Vastgezet op dataset v{pinned}. De dataset staat nu op v{latest}.",
         "scoringChanged": "De beoordeling ervan is sindsdien veranderd.",
-        "move": "De pin verplaatsen naar v{latest}",
-        "needsOverride": "De pin verplaatsen vereist het recht om promoties te overschrijven.",
-        "judgeChanged": "De beoordelaar heeft een nieuwere publicatie. Deze bewaker blijft beoordelen met zijn vastgezette versie tot je de pin verplaatst."
+        "move": "v{latest} vastzetten",
+        "needsOverride": "Een andere versie vastzetten vereist het recht om promoties te overschrijven.",
+        "judgeChanged": "De beoordelaar heeft een nieuwere publicatie. Deze bewaker blijft beoordelen met de vastgezette versie tot je een andere versie vastzet."
       },
       "removed": "Suite verwijderd",
       "viewResults": "Resultaten van {name}",
@@ -16425,7 +16309,7 @@
         "publish": "Bij publicatie",
         "promotion": "Bij promotie",
         "dependency": "Wanneer een skill, kennisbank of contextbestand verandert",
-        "manualOnly": "Alleen wanneer met de hand uitgevoerd"
+        "manualOnly": "Alleen handmatig"
       },
       "schedule": {
         "daily": "Dagelijks om {time} ({zone})",
@@ -16474,12 +16358,12 @@
       },
       "reason": {
         "passRateBelow": "Slagingspercentage {value} ligt onder het minimum van {limit}.",
-        "nothingGraded": "Geen enkel testgeval kon worden beoordeeld.",
+        "nothingGraded": "Geen testgeval kon worden beoordeeld.",
         "regressions": "{count, plural, =1 {1 testgeval verslechtert} other {# testgevallen verslechteren}} reproduceerbaar; de suite staat er {limit} toe.",
         "costRise": "Kosten per geslaagd testgeval stegen met {value}, boven het plafond van {limit}.",
         "p95Rise": "p95-latentie steeg met {value}, boven het plafond van {limit}.",
         "invalid": "De twee kanten werden verschillend beoordeeld, dus ze kunnen niet worden vergeleken.",
-        "ungraded": "{count, plural, =1 {1 testgeval heeft niets wat het beoordeelt} other {# testgevallen hebben niets wat ze beoordeelt}}, dus de suite kan niet instaan voor dit resultaat.",
+        "ungraded": "{count, plural, =1 {1 testgeval heeft geen beoordelingsmethode} other {# testgevallen hebben geen beoordelingsmethode}}, dus de suite kan niet instaan voor dit resultaat.",
         "incomplete": "{count, plural, =1 {1 testgeval kon} other {# testgevallen konden}} niet worden beslist - de provider of een scorer faalde erop - dus de suite kan niet instaan voor dit resultaat.",
         "crashed": "De run van de agent faalde op {count, plural, =1 {1 testgeval} other {# testgevallen}}; een mislukte run laat de suite mislukken.",
         "costFromZero": "Kosten per geslaagd testgeval stegen vanaf nul, boven elk percentageplafond uit.",
@@ -16506,7 +16390,7 @@
       "form": {
         "newTitle": "Nieuwe suite",
         "editTitle": "Suite bewerken",
-        "intro": "Een suite laat een dataset vanzelf tegen deze agent draaien en houdt elk resultaat aan een drempel. Ze draait als jou: opslaan betekent dat je akkoord gaat met de uitgaven die hieronder worden getoond.",
+        "intro": "Een suite laat een dataset vanzelf tegen deze agent draaien en houdt elk resultaat aan een drempel. Ze draait namens jou: door op te slaan ga je akkoord met de kosten die hieronder staan.",
         "name": "Naam",
         "namePlaceholder": "Nachtelijke regressie",
         "dataset": "Dataset",
@@ -16555,7 +16439,7 @@
         "estimateRun": "Eén run: ongeveer {amount} voor {count, plural, =1 {1 testgeval} other {# testgevallen}}.",
         "estimatePaired": "Bij publicatie of promotie draait de vorige versie ernaast: ongeveer {amount}.",
         "estimateMonth": "De planning: {count, plural, =1 {1 run} other {# runs}} in 30 dagen, ongeveer {amount}.",
-        "runsAsYou": "De suite draait als jou. Iemand anders die haar opslaat, neemt haar over.",
+        "runsAsYou": "De suite draait namens jou. Iemand anders die haar opslaat, neemt haar over.",
         "enableAi": "AI-ondersteuning inschakelen",
         "cancel": "Annuleren",
         "save": "Opslaan",
@@ -16615,7 +16499,7 @@
       "undecidedCount": "{count} onbeslist"
     },
     "resultTitle": "Evaluatieresultaat",
-    "trendTitle": "Trend van het slagingspercentage",
+    "trendTitle": "Slagingspercentage over tijd",
     "executionFailure": {
       "title": "De opzet vraagt aandacht",
       "body": "Elk testgeval stopte met dezelfde fout. Deze resultaten meten de kwaliteit van antwoorden niet. Los de opzet op en voer de evaluatie opnieuw uit.",
@@ -16757,7 +16641,7 @@
     },
     "evidence": {
       "none": "Geen bewijs dat kon worden gecontroleerd.",
-      "dropped": "{count, plural, =1 {1 geciteerd item} other {# geciteerde items}} kon{count, plural, =1 {} other {den}} niet worden gevonden in de runs en {count, plural, =1 {is} other {zijn}} weggelaten.",
+      "dropped": "{count, plural, =1 {1 geciteerd item} other {# geciteerde items}} {count, plural, =1 {is niet gevonden in de runs en is weggelaten} other {zijn niet gevonden in de runs en zijn weggelaten}}.",
       "conversation": "gesprek {number}",
       "testQuestion": "testvraag {number}",
       "aConversation": "een gesprek"
@@ -17304,7 +17188,7 @@
       "title": "Hoe we het hebben gemeten",
       "body": "Van de {total} testvragen {train, plural, one {werd # getoond} other {werden # getoond}} aan de helper terwijl hij de wijzigingen schreef. De andere {heldOut, plural, one {# werd} other {# werden}} apart gehouden, en alleen die bepalen het resultaat, zodat de wijzigingen niet gewoon de antwoorden kunnen leren.",
       "excluded": "{count, plural, one {# vraag wordt} other {# vragen worden}} weggelaten omdat ze een vraag herhalen die gebruikt werd om de wijzigingen te schrijven.",
-      "needed": "Voeg {count, plural, one {nog # vraag} other {nog # vragen}} toe die niet gebruikt {count, plural, one {wordt} other {worden}} om de wijzigingen te schrijven, om een wijziging te meten."
+      "needed": "Voeg {count, plural, one {nog # vraag} other {nog # vragen}} toe om een wijziging te kunnen meten. Gebruik hiervoor vragen die niet zijn gebruikt om de wijzigingen op te stellen."
     },
     "barsExplained": "De balken tellen elk antwoord dat als goed is beoordeeld. Hersteld en verslechterd tellen alleen de antwoorden die op dezelfde manier veranderden toen ze opnieuw werden gesteld; {pending, plural, =0 {elke verandering hield stand.} one {# veranderde, maar niet consequent.} other {# veranderden, maar niet consequent.}}",
     "withinNoise": "{kind, select, one {Een verschil van één vraag valt binnen de ruis.} opposite {De twee balken wijzen in tegengestelde richtingen, dus het verschil valt binnen de ruis.} other {De test van deze sessie is onbetrouwbaar, dus een verschil dat zo klein is, kan ruis zijn.}}",
@@ -17414,7 +17298,7 @@
     "notConfirmedMore": "+{count} niet bevestigd",
     "notConfirmedHint": "Niet bevestigd: het antwoord veranderde één keer, maar niet op dezelfde manier toen het opnieuw werd gesteld.",
     "notConfirmedYet": "Nog niet bevestigd ({count})",
-    "tooFewHeldOut": "Te weinig vragen om een wijziging te meten: er {needed, plural, one {is nog # vraag} other {zijn nog # vragen}} nodig die niet gebruikt {needed, plural, one {wordt} other {worden}} om de wijzigingen te schrijven.",
+    "tooFewHeldOut": "Te weinig vragen om een wijziging te meten. Voeg {needed, plural, one {nog # vraag} other {nog # vragen}} toe. Gebruik hiervoor vragen die niet zijn gebruikt om de wijzigingen op te stellen.",
     "technicalDetails": "Technische details",
     "startWithNewQuestions": "Een nieuwe sessie starten met deze vragen",
     "resumeOpen": "Je hebt een verbetering in uitvoering ({status}, {date}). Open ze",
@@ -17635,7 +17519,7 @@
     "suiteSet": "{name} (vragen van de controle {suite})",
     "writeOwnInstead": "Of schrijf nieuwe testvragen voor deze agent",
     "todayBreakdown": "Van {total} vragen vandaag: {passed} goed afgehandeld, {failing} mislukt{asked, select, yes {, {unstable} anders beoordeeld toen ze opnieuw werden gesteld} other {}}.",
-    "knowledgeDraftCost": "Het opstellen van een document wordt aangerekend aan de kennisbank, buiten de limiet van deze sessie.",
+    "knowledgeDraftCost": "Het opstellen van een document komt ten laste van de kennisbank, buiten de limiet van deze sessie.",
     "knowledgeLoading": "De onderwerpen laden…",
     "notAProblemHint": "Hier automatisch gesorteerd, niet door een persoon: antwoorden die mensen positief beoordeelden, en antwoorden waaraan de classificator niets verkeerds vond.",
     "bothSources": "Testvraag en gespreksvoorbeeld",
@@ -17661,7 +17545,7 @@
     "freshAttempt": "Elke poging start vanaf de huidige versie; wijzigingen uit eerdere pogingen worden niet meegenomen.",
     "trainSignals": "Mislukte testantwoorden",
     "tryAgainNothingToLearn": "De laatste poging herstelde elke vraag waarvan ze leert, dus een nieuwe poging heeft niets om van te leren. Accepteer ze of beëindig de sessie.",
-    "tryAgainUnmeasurable": "Een nieuwe poging zou te weinig vragen hebben om te meten: {count, plural, one {er is nog # nodig} other {er zijn nog # nodig}}, en de vragen van deze sessie liggen vast. Beëindig ze, voeg vragen toe en start een nieuwe.",
+    "tryAgainUnmeasurable": "Een nieuwe poging zou te weinig vragen hebben om te meten: {count, plural, one {er is nog # nodig} other {er zijn nog # nodig}}, en de vragen van deze sessie liggen vast. Beëindig deze sessie, voeg vragen toe en start een nieuwe sessie.",
     "pipelineSettings": "Model en instructies instellen in de dataset",
     "startDescription": "Gebruik feedback en testgevallen om verbeteringen voor te stellen. Review elke stap voordat je wijzigingen toepast.",
     "startDataset": "Dataset",
@@ -18052,7 +17936,7 @@
     "taskTable": "Takentabel"
   },
   "setupHints": {
-    "title": "Instelling beschikbaar",
+    "title": "Nog in te stellen",
     "voiceModel": "Stem heeft geen standaardprovider of -model. Kies ze in AI en services → Stem om transcriptie via een provider te gebruiken.",
     "voiceKey": "Stem heeft een provider en model, maar geen sleutel. Selecteer een organisatiesleutel in AI en services → Stem.",
     "proactivityOff": "Nachtelijke suggesties staan uit. Schakel ze in via AI en services → Suggesties en bewaking van de assistent als je wilt dat de assistent suggesties voor je team voorbereidt.",
@@ -18136,7 +18020,7 @@
   },
   "mirage": {
     "folders": "Mappen",
-    "foldersDetail": "Voeg voor elke bron een integratie toe en kies dan de dienst, de inloggegevens en de toegang ervan. Elke integratie wordt een map die de agent kan oplijsten, doorzoeken en lezen.",
+    "foldersDetail": "Voeg voor elke bron een integratie toe en kies dan de dienst, de inloggegevens en de toegang ervan. Elke integratie wordt een map waarvan de agent de inhoud kan weergeven, doorzoeken en lezen.",
     "addFolder": "Integratie toevoegen",
     "folder": "Map",
     "service": "Integratie",
@@ -18181,9 +18065,9 @@
       "snooze": "Herinner me morgen",
       "saveFailed": "Kon de herinnering niet verbergen. Probeer het opnieuw.",
       "heading": "Maak deze workspace van jou",
-      "manualTitle": "Begeleide instelling",
-      "manualHint": "Keer terug naar de instelling wanneer je wilt, ook met herinneringen uit.",
-      "manualAction": "Instelling openen",
+      "manualTitle": "Begeleide configuratie",
+      "manualHint": "Keer terug naar de configuratie wanneer je wilt, ook met herinneringen uit.",
+      "manualAction": "Configuratie openen",
       "snoozeDays": "{days, plural, one {Herinner me morgen} other {Herinner me over # dagen}}"
     },
     "administration": {
@@ -18203,7 +18087,7 @@
       "createCompany": "Een organisatie aanmaken",
       "createCompanyHint": "Kies een naam. Je kunt alleen werken of later mensen uitnodigen.",
       "existingCompany": "Een bestaande organisatie gebruiken",
-      "existingCompanyHint": "Kies waar je de instelling voortzet, of maak een nieuwe organisatie aan.",
+      "existingCompanyHint": "Kies waar je verdergaat met instellen, of maak een nieuwe organisatie aan.",
       "teamTitle": "Je team uitnodigen",
       "teamIntro": "Uitnodigingen en rollen gelden voor {workspace}. Je kunt mensen uitnodigen voordat je een model of agent instelt.",
       "reachableAddress": "Deze installatie is geopend op een lokaal adres. Uitnodigingslinks werken niet op een andere computer. Gebruik een serveradres dat je team kan bereiken voordat je uitnodigingen verstuurt.",
@@ -18284,7 +18168,7 @@
       "getAccess": "Toegang krijgen tot een agent",
       "connectionHint": "Klaar om je eigen versie te proberen? Koppel een model wanneer je zover bent.",
       "setupChat": "Chat met {agent} openen",
-      "setupChatHint": "Je kunt de chat nu openen. De beheerder van je organisatie moet de AI-instelling afronden voordat de agent je taak kan beantwoorden.",
+      "setupChatHint": "Je kunt de chat nu openen. De beheerder van je organisatie moet AI eerst instellen voordat de agent je taak kan beantwoorden.",
       "actionPlan": "Een actieplan met de lacunes duidelijk in beeld",
       "task": "Actie",
       "owner": "Eigenaar",
@@ -18313,7 +18197,7 @@
       "seats": "Plaatsen",
       "support": "Support",
       "hours": "{count} u",
-      "offerInsight": "Kies B: die voldoet aan alle drie de vereisten. A is te traag; C gaat over het budget.",
+      "offerInsight": "Kies B: die voldoet aan alle drie de vereisten. A is te traag; C overschrijdt het budget.",
       "policyQuestion": "Heeft de reis van €650 goedkeuring nodig?",
       "policyAnswer": "Ja. Vraag goedkeuring voordat je boekt.",
       "policyQuote": "“Voor reizen boven €500 is goedkeuring van een manager nodig voordat je boekt.”",
@@ -18375,14 +18259,14 @@
       "document": {
         "title": "Een vraag stellen over een document",
         "description": "Vind een antwoord dat steunt op een kort fictief beleid.",
-        "prompt": "Antwoord met alleen dit fictieve beleid en citeer de zin die het antwoord onderbouwt.\n\nNorthwind-demobeleid: Voor reizen boven €500 is goedkeuring van een manager nodig voordat je boekt. Onkostennota's moeten binnen 14 dagen worden ingediend. Het beleid vermeldt geen uitrusting voor thuiswerk.\n\nHeb ik goedkeuring nodig voordat ik een reis van €650 boek? Wat zegt het over een monitor voor thuiswerk?",
+        "prompt": "Antwoord met alleen dit fictieve beleid en citeer de zin die het antwoord onderbouwt.\n\nNorthwind-demobeleid: Voor reizen boven €500 is goedkeuring van een manager nodig voordat je boekt. Onkostendeclaraties moeten binnen 14 dagen worden ingediend. Het beleid vermeldt geen uitrusting voor thuiswerk.\n\nHeb ik goedkeuring nodig voordat ik een reis van €650 boek? Wat zegt het over een monitor voor thuiswerk?",
         "result": "De reis van €650 heeft goedkeuring nodig voordat je boekt: “Voor reizen boven €500 is goedkeuring van een manager nodig voordat je boekt.”\nDit beleid bevat geen regel over een monitor voor thuiswerk."
       },
       "compare": {
         "title": "Drie offertes vergelijken",
         "description": "Maak een tabel en licht een keuze toe op basis van gegeven feiten.",
         "prompt": "Vergelijk deze fictieve offertes in een tabel en raad er een aan. Prioriteiten: niet meer dan €100/maand, minstens 5 plaatsen, support binnen 24 uur.\n\nA: €80/maand, 5 plaatsen, support binnen 48 uur.\nB: €95/maand, 8 plaatsen, support binnen 12 uur.\nC: €120/maand, 15 plaatsen, support binnen 4 uur.\nZoek niets op het web en ga niet uit van ontbrekende feiten.",
-        "result": "B voldoet aan alle drie de vereisten: €95/maand, 8 plaatsen, support binnen 12 uur.\nA voldoet aan de vereisten voor prijs en plaatsen, maar niet voor support.\nC gaat over het budget."
+        "result": "B voldoet aan alle drie de vereisten: €95/maand, 8 plaatsen, support binnen 12 uur.\nA voldoet aan de vereisten voor prijs en plaatsen, maar niet voor support.\nC overschrijdt het budget."
       }
     },
     "previewMember": "De toegang van een teamgenoot controleren",
@@ -18408,7 +18292,7 @@
       "profileGuide": "Nu is het jouw beurt. Een foto en een vertrouwde naam helpen je teamgenoten te weten met wie ze werken. Deze gegevens volgen je account over alle organisaties heen.",
       "contextGuide": "Vertel me iets over je werk. Je agents lezen deze context wanneer een gesprek start. Alles hier is optioneel.",
       "teamGuide": "Dit samen proberen is makkelijker. Nodig je teamgenoten nu uit, of laat de uitnodigingen voor later — beide zijn prima.",
-      "taskGuide": "Laten we iets nuttigs proberen. Kies een voorbeeld en verken het resultaat. Je kunt de instelling afronden zonder een model te koppelen of AI uit te voeren.",
+      "taskGuide": "Laten we iets nuttigs proberen. Kies een voorbeeld en verken het resultaat. Je kunt het instellen afronden zonder een model te koppelen of AI uit te voeren.",
       "accessTitle": "Wie moet kunnen deelnemen?",
       "accessGuide": "Eerst één beslissing: hoe krijgen mensen toegang? Ik behoud je bestaande regels voor e-maildomeinen. Een kaart kiezen slaat niets op tot je verdergaat.",
       "inviteTitle": "Op uitnodiging",
@@ -18457,7 +18341,7 @@
       "advancedVoice": "Spraakgesprekken",
       "openOrganizationSettings": "Alle organisatie-instellingen ↗",
       "memberReturningGuide": "Welkom in een nieuwe organisatie. Je persoonlijke profiel bestaat al, dus je kunt het behouden en meteen naar een eerste taak gaan. Je wordt niet gevraagd de organisatie in te stellen.",
-      "memberNewGuide": "Hoi! Ik help je je thuis te voelen: een korte kennismaking, wat context en dan een eerste taak. Je kunt alle persoonlijke gegevens overslaan. Je beheerder zorgt voor de instelling van de organisatie.",
+      "memberNewGuide": "Hoi! Ik help je je thuis te voelen: een korte kennismaking, wat context en dan een eerste taak. Je kunt alle persoonlijke gegevens overslaan. Je beheerder zorgt voor de configuratie van de organisatie.",
       "memberWelcome": "Welkom bij {workspace}",
       "memberWelcomeBody": "Je mensen, agents en gedeelde kennis zijn hier. Laten we je eerste bezoek nuttig maken — stap voor stap.",
       "memberExistingProfile": "Je naam, foto en werkcontext volgen je account. Je kunt ze hier gebruiken of ze bekijken voordat je verdergaat.",
@@ -18544,7 +18428,7 @@
       "appearanceHint": "Kies een stijl en een kleurmodus. Je keuze geldt meteen.",
       "position": "{current} van {total}",
       "continue": "Doorgaan",
-      "finish": "Doorgaan naar de instelling"
+      "finish": "Doorgaan met instellen"
     }
   },
   "skillImprovement": {
@@ -18583,7 +18467,7 @@
         "failed": "Niet gecontroleerd: zijn controle is mislukt.",
         "inconclusive": "Niet gecontroleerd: zijn run kon niet elk antwoord beoordelen. Controleer hem opnieuw.",
         "other": "Niet gecontroleerd: de controle kon hem niet meten.",
-        "unscorable": "Niet gecontroleerd: niets kan zijn vragen beoordelen - geen controle, verwachte toolaanroep of beoordelaar.",
+        "unscorable": "Niet gecontroleerd: de vragen hebben geen beoordelingsmethode - geen controle, verwachte toolaanroep of beoordelaar.",
         "all_evidence": "Niet gecontroleerd: elke vraag kwam uit de gesprekken waaruit de wijziging werd geleerd.",
         "cancelled": "Niet gecontroleerd: de controle werd gestopt voordat de runs klaar waren.",
         "own_not_asked": "Niet gecontroleerd: zijn eigen vragen werden niet gesteld, en die bepalen nu het oordeel.",
@@ -19044,7 +18928,7 @@
         "description": "Zoek kanalen op naam in een Mattermost-team waarin de bot zit."
       },
       "mattermost_members_list": {
-        "name": "Leden oplijsten",
+        "name": "Leden weergeven",
         "description": "Lijst de mensen in een Mattermost-kanaal op, met de id's die een vermelding nodig heeft."
       },
       "mattermost_message_send": {
@@ -19068,7 +18952,7 @@
         "description": "Zoek Slack-kanalen op naam."
       },
       "slack_members_list": {
-        "name": "Leden oplijsten",
+        "name": "Leden weergeven",
         "description": "Lijst de mensen in een Slack-kanaal op, met de id's die een vermelding nodig heeft."
       },
       "slack_message_send": {
@@ -19092,7 +18976,7 @@
         "description": "Vertak op basis van of er een tabel met deze naam bestaat."
       },
       "table_list": {
-        "name": "Tabellen oplijsten",
+        "name": "Tabellen weergeven",
         "description": "Lijst de tabellen op die deze run mag zien, gevonden op een deel van een naam."
       },
       "table_record_create": {
@@ -19112,7 +18996,7 @@
         "description": "Lees één record op zijn id of externe id."
       },
       "table_record_query": {
-        "name": "Records oplijsten",
+        "name": "Records weergeven",
         "description": "Lijst de records van een tabel op, gefilterd en gesorteerd."
       },
       "table_record_update": {
@@ -19124,7 +19008,7 @@
         "description": "Maak het record met een externe id aan of werk het bij."
       },
       "telegram_members_list": {
-        "name": "Beheerders oplijsten",
+        "name": "Beheerders weergeven",
         "description": "Lijst de beheerders van een Telegram-chat op - alles wat een bot te horen krijgt."
       },
       "telegram_message_send": {
@@ -20211,7 +20095,7 @@
           },
           "pagination__max_pages": {
             "title": "Max. pagina's",
-            "description": "Het maximaal aantal opgehaalde pagina's."
+            "description": "Maximumaantal opgehaalde pagina's."
           }
         },
         "input": {
@@ -20420,7 +20304,7 @@
           },
           "top_k": {
             "title": "Top K",
-            "description": "Het maximaal aantal passages om terug te geven."
+            "description": "Maximumaantal passages om terug te geven."
           }
         },
         "input": {
@@ -20512,7 +20396,7 @@
             "description": "Als welke Mattermost-bot van de organisatie deze stap handelt"
           },
           "limit": {
-            "title": "Op te lijsten kanalen",
+            "title": "Maximumaantal kanalen om te tonen",
             "description": "Hoogstens zoveel"
           }
         },
@@ -20534,7 +20418,7 @@
             "description": "Als welke Mattermost-bot van de organisatie deze stap handelt"
           },
           "limit": {
-            "title": "Op te lijsten mensen",
+            "title": "Maximumaantal mensen om te tonen",
             "description": "Hoogstens zoveel"
           }
         },
@@ -20665,7 +20549,7 @@
             "description": "Als welke Slack-bot van de organisatie deze stap handelt"
           },
           "limit": {
-            "title": "Op te lijsten kanalen",
+            "title": "Maximumaantal kanalen om te tonen",
             "description": "Hoogstens zoveel"
           }
         },
@@ -20687,7 +20571,7 @@
             "description": "Als welke Slack-bot van de organisatie deze stap handelt"
           },
           "limit": {
-            "title": "Op te lijsten mensen",
+            "title": "Maximumaantal mensen om te tonen",
             "description": "Hoogstens zoveel"
           }
         },
@@ -20854,7 +20738,7 @@
         "config": {
           "limit": {
             "title": "Limiet",
-            "description": "Het maximaal aantal tabellen om op te lijsten"
+            "description": "Maximumaantal tabellen om te tonen"
           }
         },
         "input": {
@@ -21088,7 +20972,7 @@
             "description": "Als welke Telegram-bot van de organisatie deze stap handelt"
           },
           "limit": {
-            "title": "Op te lijsten mensen",
+            "title": "Maximumaantal mensen om te tonen",
             "description": "Hoogstens zoveel"
           }
         },
@@ -21713,9 +21597,9 @@
       }
     },
     "remindersTitle": "Herinneringen voor het instellen",
-    "remindersPersonalHint": "Herinneringen over onafgewerkte instellingen in deze workspace. Als je ze uitzet, blijft de link naar de handmatige instelling in Instellingen staan.",
+    "remindersPersonalHint": "Herinneringen over configuratie die in deze workspace nog niet is afgerond. Als je ze uitzet, blijft de link naar de configuratie in Instellingen staan.",
     "remindersOrganizationHint": "Startinstellingen voor herinneringen voor leden. Mensen kunnen ze overschrijven; de beschikbaarheid op de installatie blijft gelden.",
-    "remindersDeploymentHint": "Herinneringen over onafgewerkte instellingen toestaan. Mensen kunnen de instelling altijd handmatig openen vanuit Instellingen.",
+    "remindersDeploymentHint": "Herinneringen over configuratie die nog niet is afgerond toestaan. Mensen kunnen de configuratie altijd handmatig openen vanuit Instellingen.",
     "remindersEnabled": "Herinneringen voor het instellen",
     "remindersFrequency": "Opnieuw herinneren na wegklikken",
     "inheritDays": "{count, plural, one {Overnemen (1 dag)} other {Overnemen (# dagen)}}",
@@ -21775,6 +21659,6 @@
     "notStarted": "Niet gestart",
     "inProgress": "Bezig",
     "unknown": "Niet beschikbaar",
-    "otherStep": "Instelling"
+    "otherStep": "Configuratie"
   }
 }
