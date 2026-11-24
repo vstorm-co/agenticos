@@ -227,6 +227,59 @@ describe("useNavPins", () => {
       await waitFor(() => expect(result.current.pinnedIds).toEqual(["agents", "skills"]));
     });
 
+    describe("a read that cannot be trusted, with nothing cached yet", () => {
+      function otherTab() {
+        const other = new QueryClient({
+          defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+        });
+        const wrap = ({ children }: { children: ReactNode }) => (
+          <QueryClientProvider client={other}>{children}</QueryClientProvider>
+        );
+        return renderHook(() => useNavPins(), { wrapper: wrap });
+      }
+
+      it("does not rewrite what the server confirmed when it began during a save", async () => {
+        const first = deferred<api.NavPins>();
+        const read = deferred<api.NavPins>();
+        vi.mocked(api.putNavPins)
+          .mockReturnValueOnce(first.promise)
+          .mockResolvedValueOnce({ item_ids: ["agents", "routines"] });
+        const result = await hook(["agents"]);
+        act(() => result.current.toggle("skills"));
+        await waitFor(() => expect(api.putNavPins).toHaveBeenCalledTimes(1));
+
+        vi.mocked(api.getNavPins).mockReturnValueOnce(read.promise);
+        const tab = otherTab();
+        await waitFor(() => expect(api.getNavPins).toHaveBeenCalledTimes(2));
+        await act(async () => read.resolve({ item_ids: [] }));
+        act(() => result.current.toggle("routines"));
+        await act(async () => first.reject(new Error("boom")));
+
+        // Built from what was confirmed before the failed save: `agents` is still there.
+        await waitFor(() =>
+          expect(api.putNavPins).toHaveBeenLastCalledWith(["agents", "routines"]),
+        );
+        tab.unmount();
+      });
+
+      it("does not rewrite what the server confirmed when it was cancelled", async () => {
+        const read = deferred<api.NavPins>();
+        vi.mocked(api.putNavPins).mockResolvedValue({ item_ids: ["agents", "routines"] });
+        const result = await hook(["agents"]);
+
+        vi.mocked(api.getNavPins).mockReturnValueOnce(read.promise);
+        const tab = otherTab();
+        await waitFor(() => expect(api.getNavPins).toHaveBeenCalledTimes(2));
+        tab.unmount();
+        await act(async () => read.resolve({ item_ids: ["skills"] }));
+        act(() => result.current.toggle("routines"));
+
+        await waitFor(() =>
+          expect(api.putNavPins).toHaveBeenLastCalledWith(["agents", "routines"]),
+        );
+      });
+    });
+
     it("passes the read's abort signal to the request", async () => {
       await hook([]);
       expect(vi.mocked(api.getNavPins).mock.calls[0]?.[0]).toBeInstanceOf(AbortSignal);

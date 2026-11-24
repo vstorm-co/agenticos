@@ -58,18 +58,16 @@ export function useNavPins(): UseNavPinsResult {
       const startedSaving = saving.get(scopeId) ?? 0;
       const startedSettled = settled.get(scopeId) ?? 0;
       const read = await getNavPins(signal);
-      // A read that began while a save ran, or before the latest save finished,
-      // describes a server the save has since changed: keep what we have.
-      const current = queryClient.getQueryData<NavPins>(queryKey);
-      if (
-        current &&
-        (signal.aborted ||
-          startedSaving > 0 ||
-          (saving.get(scopeId) ?? 0) > 0 ||
-          startedSettled !== (settled.get(scopeId) ?? 0))
-      ) {
-        return current;
-      }
+      // A cancelled read has no say. Nor has one that began while a save ran, or
+      // before the latest save finished: it describes a server the save has since
+      // changed. Neither may touch what the server last confirmed, whether or not
+      // anything is cached yet.
+      if (signal.aborted) throw signal.reason ?? new DOMException("Aborted", "AbortError");
+      const outdated =
+        startedSaving > 0 ||
+        (saving.get(scopeId) ?? 0) > 0 ||
+        startedSettled !== (settled.get(scopeId) ?? 0);
+      if (outdated) return queryClient.getQueryData<NavPins>(queryKey) ?? read;
       confirmed.set(scopeId, read.item_ids);
       return read;
     },
