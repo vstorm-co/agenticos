@@ -187,8 +187,8 @@ class SkillList(BaseSchema):
     categories: list[str] = Field(
         default_factory=list,
         description=(
-            "Every distinct category in the organization - the filter's choices, "
-            "unaffected by the search and paging that shaped `items`"
+            "Every distinct category among the skills the caller may see - the filter's "
+            "choices, unaffected by the search and paging that shaped `items`"
         ),
     )
     suggested_categories: list[str] = Field(
