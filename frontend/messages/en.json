@@ -5129,6 +5129,10 @@
         "title": "Published pages",
         "body": "Reports and dashboards your agents published. Open one to see it, pick an earlier version, share it with colleagues or give it a public link."
       },
+      "apps-make": {
+        "title": "Make an app",
+        "body": "Ask an agent for a page - a report, a dashboard, a tracker. The chat opens with the ask already started; finish the sentence and send it."
+      },
       "settings-api-keys": {
         "title": "Your API keys",
         "body": "A key lets a script, Postman or an MCP client act as you, without a browser. Pick what it may do; it can never do more than you can, and it stops the moment you revoke it."
@@ -10166,7 +10170,8 @@
     "noMatchesWhy": "Titles and names are searched.",
     "noneYet": "Nothing published yet",
     "noneYetWhy": "An agent with the Apps capability publishes an app here when you ask it for a report or a dashboard. It is private to you until you share it.",
-    "noneYetCta": "Open your agents",
+    "makeApp": "Make an app",
+    "makeAppPrompt": "Build me a page that…",
     "sharedOrg": "Whole organization",
     "publicBadge": "Public link",
     "liveBadge": "Live",

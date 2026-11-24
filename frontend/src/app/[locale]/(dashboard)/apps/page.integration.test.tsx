@@ -15,17 +15,23 @@ import type { Artifact } from "@/types/artifact";
  */
 
 let params = new URLSearchParams();
+const pushMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/api-client", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api-client")>("@/lib/api-client");
   return { ...actual, apiClient: { get: vi.fn(), post: vi.fn(), delete: vi.fn() } };
 });
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: vi.fn() }),
+  useRouter: () => ({ push: pushMock }),
   usePathname: () => "/apps",
   useSearchParams: () => params,
+  // next-intl's navigation reads these at module scope through
+  // locale-navigation, which the artifact frame pulls in (#8).
+  redirect: vi.fn(),
+  permanentRedirect: vi.fn(),
 }));
 let canEdit = true;
+let canView = true;
 vi.mock("@/hooks", async () => {
   // The real URL state: the archive choice is kept in the address.
   const { useUrlState } =
@@ -34,7 +40,8 @@ vi.mock("@/hooks", async () => {
     useUrlState,
     useGroups: () => ({ groups: [] }),
     usePermissions: () => ({
-      can: (perm: string) => perm !== "artifacts:edit" || canEdit,
+      can: (perm: string) =>
+        perm === "artifacts:view" ? canView : perm !== "artifacts:edit" || canEdit,
       isLoading: false,
     }),
   };
@@ -84,12 +91,17 @@ function listRequests(): string[] {
 
 beforeEach(() => {
   canEdit = true;
+  canView = true;
   params = new URLSearchParams();
+  pushMock.mockReset();
   window.history.replaceState({}, "", "/apps");
   vi.mocked(apiClient.get).mockReset();
   vi.mocked(apiClient.post).mockReset();
   vi.mocked(apiClient.delete).mockReset();
 });
+
+/** Where "Make an app" lands: a fresh chat with the ask already started. */
+const MAKE_APP_URL = "/chat?new=1&prompt=Build%20me%20a%20page%20that%E2%80%A6";
 
 describe("the artifacts list", () => {
   it("lists archived pages only once asked, marks them, and keeps the choice in the URL", async () => {
@@ -115,6 +127,17 @@ describe("the artifacts list", () => {
     expect(window.location.search).toBe("");
   });
 
+  it("offers Make an app in the header, opening a fresh chat with the ask started", async () => {
+    serve([page()], [page()]);
+    const user = userEvent.setup();
+    render(<ArtifactsPage />, { wrapper });
+
+    await screen.findByText("Weekly report");
+    await user.click(screen.getByRole("button", { name: "Make an app" }));
+
+    expect(pushMock).toHaveBeenCalledWith(MAKE_APP_URL);
+  });
+
   it("offers the archive even when every page is archived and the list is empty", async () => {
     serve([], []);
     render(<ArtifactsPage />, { wrapper });
@@ -122,6 +145,30 @@ describe("the artifacts list", () => {
     expect(await screen.findByText("Nothing published yet")).toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: "Which artifacts" })).toBeInTheDocument();
     expect(screen.queryByPlaceholderText("Search apps…")).toBeNull();
+  });
+
+  it("offers Make an app in the empty state instead of the agents list", async () => {
+    serve([], []);
+    const user = userEvent.setup();
+    render(<ArtifactsPage />, { wrapper });
+
+    expect(await screen.findByText("Nothing published yet")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Open your agents" })).toBeNull();
+    // The header carries one and the empty state the other; the empty state's
+    // is the second in the document.
+    const buttons = screen.getAllByRole("button", { name: "Make an app" });
+    expect(buttons).toHaveLength(2);
+    await user.click(buttons[1]!);
+
+    expect(pushMock).toHaveBeenCalledWith(MAKE_APP_URL);
+  });
+
+  it("offers no Make an app to a member who cannot see apps", async () => {
+    canView = false;
+    render(<ArtifactsPage />, { wrapper });
+
+    expect(await screen.findByText("You cannot see this organization's apps")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Make an app" })).toBeNull();
   });
 
   it("opens on the archive when a link asks for it", async () => {
