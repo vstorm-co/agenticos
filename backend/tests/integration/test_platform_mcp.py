@@ -1755,6 +1755,54 @@ async def test_global_mcp_can_reopen_maintenance_without_opening_ordinary_operat
     assert org.name == "Acme"
 
 
+@pytest.mark.security
+async def test_an_agent_schedules_itself_without_naming_itself_and_a_key_cannot(
+    db: AsyncSession, served: None
+) -> None:
+    from app.agents.spec import AgentSpec
+    from app.db.models.agent import AgentVersion
+    from app.db.models.agent_trigger import AgentTrigger
+
+    key, organization = await _owner_key(db, Perm.AGENTS_RUN, Perm.AGENTS_VIEW)
+    agent = Agent(
+        organization_id=organization.id,
+        owner_user_id=organization.created_by_user_id,
+        name="Reporter",
+        slug=f"reporter-{uuid.uuid4().hex[:8]}",
+        draft_spec=AgentSpec(name="Reporter").model_dump(mode="json"),
+    )
+    db.add(agent)
+    await db.flush()
+    version = AgentVersion(
+        id=uuid.uuid4(),
+        agent_id=agent.id,
+        organization_id=organization.id,
+        version=1,
+        spec=AgentSpec(name="Reporter").model_dump(mode="json"),
+    )
+    db.add(version)
+    await db.flush()
+    agent.current_version_id = version.id
+    ctx = AuthContext(
+        user_id=organization.created_by_user_id, organization_id=organization.id, role="owner"
+    )
+    run_key = await ApiKeyService(db).issue_for_run(ctx, agent_id=agent.id)
+    assert run_key is not None
+    await db.commit()
+    args = {"prompt": "Report", "every_minutes": 60, "runs_as_me": False}
+
+    async with _connected(key) as session:
+        refused = await session.call_tool("create_routine", args)
+    assert refused.is_error and "agent_id" in str(refused.content)
+    assert (await db.execute(select(AgentTrigger))).scalars().all() == []
+
+    async with _connected(run_key) as session:
+        created = await session.call_tool("create_routine", args)
+    assert not created.is_error, created
+    [saved] = (await db.execute(select(AgentTrigger))).scalars().all()
+    assert saved.agent_id == agent.id
+
+
 async def test_scope_free_routine_reporter_publishes_only_for_its_live_run(
     db: AsyncSession, served: None
 ) -> None:

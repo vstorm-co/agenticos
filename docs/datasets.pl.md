@@ -1,5 +1,5 @@
 ---
-source_sha: "cf07a5b19ce8"
+source_sha: "2971c06097fa"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -715,6 +715,10 @@ granty, opisuje strona [Uprawnienia](permissions.md).
 Tekst przypadku skopiowanego z rozmowy widzą tylko czytelnicy z `runs:view` lub dostępem do rozmowy źródłowej. Pozostali widzą metadane i placeholder, zarówno w najnowszej i historycznych wersjach, jak i eksportach CSV/JSONL. Brak źródła nie odsłania tekstu. Czytelnik nie może edytować ukrytej treści, a zmiana metadanych jej nie ujawnia. Ewaluacje nadal wykonują pełną zapisaną rewizję.
 
 Odpowiedzi, notatki recenzenta i dowody oceny w przeglądzie wymagają `runs:view` oraz dostępu do odpowiadającego agenta. Bez któregoś z nich pozostają wynik i status, ale tekst odpowiedzi, uzasadnienia, reguły i cytaty są usuwane. Przed dodaniem cudzej prywatnej rozmowy dialog wskazuje jej właściciela i ostrzega, że czytelnicy datasetu mogący odczytywać runy zobaczą jej tekst.
+
+Datasety nie są grupowane po dziale - lista nie ma filtra grupy ani plakietek
+działów - więc dział dostaje dostęp do datasetu przez grant na nim, jak przy
+każdym innym zasobie. Zobacz [Działy](departments.md#grouping-a-list-by-department).
 
 ## Dane osobowe { #personal-data }
 

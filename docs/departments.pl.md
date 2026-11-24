@@ -1,5 +1,5 @@
 ---
-source_sha: "1e728856566e"
+source_sha: "d315648a5edf"
 ---
 
 # Działy i grupy { #departments-and-groups }
@@ -113,6 +113,18 @@ Filtr
 nigdy nie poszerza listy: czego czytający nie może otworzyć, tego nie widzi.
 Pickery w Builderze pokazują przy każdym zasobie jego działy, a cztery endpointy
 list przyjmują `group_id`, żeby zawęzić tak samo przez API.
+
+Datasety nie są grupowane po dziale. Lista datasetów nie ma filtra grupy ani
+plakietek działów, a dataset nie ma akcji Add to an agent ani listy `used_by`:
+do zestawu testowego agenta dochodzi się od agenta - z jego karty **Ewaluacje**
+i z **Popraw** - albo z **Ustawień** datasetu. Dataset udostępnia się jednak jak każdy
+inny zasób, więc dział dostaje do niego dostęp przez grant na samym datasecie;
+zobacz [Datasety](datasets.md#access).
+
+Grupowanie po dziale nie służy do wyboru sędziego datasetu. Ocenianie konfiguruje
+się w **Ustawieniach** datasetu. Własny sędzia datasetu jest agentem typu `judge`;
+w przeciwnym razie działa domyślny sędzia ewaluacji platformy. Utworzenie własnego
+sędziego wymaga również `agents:edit`. Zobacz [Sędzia](datasets.md#judge).
 
 ## Budżet działu { #a-departments-budget }
 

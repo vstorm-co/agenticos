@@ -134,6 +134,19 @@ describe("TriggersPanel", () => {
     await mount();
     expect(await screen.findByText("Last answer unavailable in chat")).toBeInTheDocument();
   });
+  it("says the last answer is still being sent to the chat, not delivered or failed", async () => {
+    serve([trigger({ last_delivery_status: "pending" })]);
+    await mount();
+    expect(await screen.findByText("Sending last answer to chat")).toBeInTheDocument();
+    expect(screen.queryByText("Last answer unavailable in chat")).not.toBeInTheDocument();
+  });
+  it("shows no delivery badge once the last answer reached the chat", async () => {
+    serve([trigger({ name: "Morning digest", last_delivery_status: "delivered" })]);
+    await mount();
+    expect(await screen.findByText("Morning digest")).toBeInTheDocument();
+    expect(screen.queryByText("Sending last answer to chat")).not.toBeInTheDocument();
+    expect(screen.queryByText("Last answer unavailable in chat")).not.toBeInTheDocument();
+  });
   it("starts a watch with this agent only where the person may create it", async () => {
     watchState.allowed = true;
     serve([]);

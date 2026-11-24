@@ -1,5 +1,5 @@
 ---
-source_sha: "b5a555f17ceb"
+source_sha: "c74fb3dc560a"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -681,6 +681,12 @@ fragmentos como fuentes tipadas, la mejor primero. Un resultado vacío es una
 búsqueda correcta. Una colección que ya no existe, o que el principal del run ya
 no puede leer, hace fallar el paso con `COLLECTION_NOT_ACCESSIBLE`. El paso nunca
 busca en menos colecciones de las que nombra el grafo.
+
+Las colecciones que comparten nombre de colección se buscan juntas, cada una
+dentro de su propia base. Una que comparte el nombre con otra de distinto
+ámbito - una colección de todo el despliegue y una de la organización - no puede
+buscarse así, de modo que publicar rechaza el paso y un run lo hace fallar con
+`COLLECTIONS_SHARE_STORAGE`; búscalas en pasos separados.
 
 ::: app.workflows.nodes.knowledge_search._handler.KnowledgeSearchConfig
 

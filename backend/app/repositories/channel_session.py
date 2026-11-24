@@ -178,3 +178,19 @@ async def touch(db: AsyncSession, db_session: ChannelSession) -> ChannelSession:
     await db.flush()
     await db.refresh(db_session)
     return db_session
+
+
+async def get_for_conversation(db: AsyncSession, conversation_id: UUID) -> ChannelSession | None:
+    """The chat session a conversation belongs to, the most recently used one.
+
+    A conversation is not unique to a session, so the newest activity decides.
+    Inactive sessions are included: a switched-off chat must read as unavailable,
+    not as a conversation nobody is chatting in.
+    """
+    result = await db.execute(
+        select(ChannelSession)
+        .where(ChannelSession.conversation_id == conversation_id)
+        .order_by(ChannelSession.last_message_at.desc().nulls_last(), ChannelSession.id)
+        .limit(1)
+    )
+    return result.scalar_one_or_none()

@@ -673,6 +673,10 @@ A case copied from a conversation keeps its text visible only to readers with `r
 
 Review answers, reviewer notes and grading evidence need `runs:view` and access to the answering agent. Without either, the outcome and status remain visible but answer text, reasons, rules and quotes are removed. Before Add to dataset copies another person's private conversation, the dialog names its owner and warns that dataset readers who can read runs will see its text.
 
+Datasets are not grouped by department - the list has no group filter or
+department badges - so a department reaches a dataset through a grant on it,
+like any other resource. See [Departments](departments.md#grouping-a-list-by-department).
+
 ## Personal data { #personal-data }
 
 A case taken from a conversation is a copy of what a person wrote and what the

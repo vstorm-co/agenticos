@@ -260,6 +260,15 @@ describe("routine action consent", () => {
     for (const checkbox of screen.getAllByRole("checkbox")) expect(checkbox).toBeDisabled();
     expect(screen.getByRole("button", { name: "Use the agent's settings" })).toBeEnabled();
   });
+  it("says which actions always ask, since nothing chosen here changes them", () => {
+    render(<ActionConsentsDialog trigger={trigger} onClose={vi.fn()} />);
+    expect(
+      screen.getByText(
+        "1 action always asks for approval, as its agent or connection requires. Runs that use it stop for a person whatever you choose here.",
+      ),
+    ).toBeVisible();
+    expect(screen.getByRole("checkbox", { name: "publish" })).toBeDisabled();
+  });
   it("distinguishes an empty review from a failed connection check", () => {
     state.data.items = [];
     render(<ActionConsentsDialog trigger={trigger} onClose={vi.fn()} />);

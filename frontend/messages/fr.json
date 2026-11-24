@@ -130,6 +130,8 @@
     "allowedSites": "Sites autorisés",
     "answersCustomerQuestionsFrom": "Répond aux questions des clients à partir du wiki produit.",
     "anyoneThoseSites": "Toute personne sur ces sites",
+    "appWide": "Toute l’application",
+    "appWideNotForAgents": "Les agents ne peuvent pas utiliser les bases de connaissances de toute l’application. Décochez la base pour la retirer.",
     "approval": "Approbation",
     "approvalAlways": "Toujours demander",
     "approvalHintDefaultReadOnly": "S’exécute sans approbation, car cette capability ne fait que lire.",
@@ -421,6 +423,8 @@
     "orphanedContext": "Cet agent référence aussi {count, plural, =1 {1 fichier de contexte} other {# fichiers de contexte}} que cette organisation n’a plus. La publication est refusée tant qu’ils ne sont pas retirés :",
     "orphanedServers": "Cet agent référence aussi {count, plural, =1 {1 serveur} other {# serveurs}} que cette organisation ne propose pas - retiré depuis, ou importé avec un spec. La publication est refusée tant qu’ils ne sont pas retirés :",
     "orphanedSkills": "Cet agent référence aussi {count, plural, =1 {1 skill} other {# skills}} que cette organisation n’a plus. La publication est refusée tant qu’ils ne sont pas retirés :",
+    "otherOrganization": "Autre organisation",
+    "otherOrganizationNotForAgents": "Cette base de connaissances appartient à une autre organisation ; les agents d’ici ne peuvent pas l’utiliser. Décochez-la pour la retirer.",
     "staleReferences": "Ce brouillon référence encore {list} que cette organisation n’a plus. La publication est refusée tant qu’ils ne sont pas retirés.",
     "staleCollections": "{count, plural, =1 {1 collection de connaissances} other {# collections de connaissances}}",
     "staleContext": "{count, plural, =1 {1 fichier de contexte} other {# fichiers de contexte}}",
@@ -6100,6 +6104,10 @@
       "agent-model-credentials": {
         "title": "Qui fournit la clé du modèle",
         "body": "Choisissez votre abonnement et connectez-le ici, ou utilisez une clé API de l’organisation. Les passerelles et points d’accès personnalisés se trouvent dans les connexions avancées. Les modèles par abonnement conservent les instructions et outils AgenticOS ; les agents installés se configurent séparément dans la délégation."
+      },
+      "channels-binding": {
+        "title": "Choisir qui répond",
+        "body": "Associez un agent à un bot ou retirez l’association. Un bot répond comme un seul agent ; son environnement, sa pause et ses recherches restent dans l’onglet Disponibilité de l’agent."
       }
     },
     "chooseLanguage": "Langue",
@@ -7405,7 +7413,19 @@
           "blocked": "Bloqué",
           "unknown": "Non confirmé"
         }
-      }
+      },
+      "agentBound": "@{agent} répond maintenant sur {bot}",
+      "agentUnbound": "@{agent} ne répond plus sur {bot}",
+      "bindAgent": "Associer un agent",
+      "bindAgentConfirm": "Associer",
+      "bindAgentDescription": "Un bot répond comme un seul agent, dans son environnement par défaut. Modifiez l’environnement, mettez l’association en pause ou choisissez les recherches dans l’onglet Disponibilité de l’agent.",
+      "bindAgentPlaceholder": "Choisir un agent",
+      "bindAgentTo": "Associer un agent à {bot}",
+      "bindingPaused": "Association en pause",
+      "noBindableAgents": "Aucun agent que vous avez le droit de publier ne peut être associé ici.",
+      "unbindAgent": "Dissocier @{agent} de {bot}",
+      "unbindAgentConfirm": "Dissocier",
+      "unbindAgentDescription": "{bot} cesse de répondre jusqu’à ce qu’un autre agent soit associé. Les instructions, les recherches et l’environnement propres à l’association sont supprimés avec elle."
     },
     "invitations": {
       "acceptInvitation": "Accepter l’invitation",
@@ -10478,7 +10498,8 @@
       "mention": "Le commentaire ne contenait pas la mention requise.",
       "conclusion": "La conclusion du workflow ne correspondait pas.",
       "not_branch": "Le push a supprimé une branche ou n’était pas un push de branche."
-    }
+    },
+    "deliveryPending": "Envoi de la dernière réponse au chat"
   },
   "portals": {
     "backToServices": "Retour aux services",

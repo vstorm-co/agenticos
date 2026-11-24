@@ -123,9 +123,9 @@ class _Absent:
 
 _SERVICE_DEPS = (
     deps.get_agent_registry_service,
-    # The org-wide `GET /triggers` is the one gated trigger route, so past its gate
-    # the stub answers 404 like the rest; the per-agent routes are ungated and never
-    # reach this sweep.
+    # The org-wide `GET /triggers` and `POST /triggers/readiness` are the gated trigger
+    # routes, so past their gate the stub answers 404 like the rest; the per-agent
+    # routes are ungated and never reach this sweep.
     deps.get_agent_trigger_service,
     deps.get_agent_exposure_service,
     # Same shape again: a widget is one agent's public face, so who may publish
@@ -338,6 +338,7 @@ CALLS: tuple[Call, ...] = (
     # same coarse door as `GET /agents`. Per-agent trigger routes stay ungated and
     # let the service resolve `agents:run` per row.
     Call("GET", "/triggers", Perm.AGENTS_VIEW),
+    Call("POST", "/triggers/readiness", Perm.AGENTS_VIEW, body={"trigger_ids": [str(uuid4())]}),
     Call("GET", "/trigger-portals", Perm.AGENTS_VIEW),
     # The trigger-templates catalog, gated on `agents:view` like `/trigger-portals`
     # beside it - browsing ready-made schedules, not acting on one agent.
@@ -739,8 +740,9 @@ CALLS: tuple[Call, ...] = (
 )
 
 # Planning validates caller-supplied content without reading resources or writing;
-# POST keeps the manifest out of query strings and access logs.
-_READ_ONLY_POSTS = frozenset({"/solutions/plan"})
+# POST keeps the manifest out of query strings and access logs. Routine readiness
+# writes nothing either: POST carries up to 100 ids a query string would not.
+_READ_ONLY_POSTS = frozenset({"/solutions/plan", "/triggers/readiness"})
 WRITE_CALLS: tuple[Call, ...] = tuple(
     call for call in CALLS if call.method != "GET" and call.path not in _READ_ONLY_POSTS
 )
@@ -906,6 +908,7 @@ class TestPermissionIntrospectionIsOpenToEveryMember:
 
         assert response.status_code == 200
         assert response.json()["role"] == role.value
+        assert response.json()["run_agent_id"] is None
 
     @pytest.mark.parametrize("role", list(OrgRoleName), ids=lambda role: role.value)
     async def test_every_role_can_read_the_role_catalog(

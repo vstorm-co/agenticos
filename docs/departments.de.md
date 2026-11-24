@@ -1,5 +1,5 @@
 ---
-source_sha: "1e728856566e"
+source_sha: "d315648a5edf"
 ---
 
 # Abteilungen und Gruppen { #departments-and-groups }
@@ -119,6 +119,20 @@ Der Filter erweitert eine
 Liste nie: Was der Lesende nicht öffnen darf, wird nicht gezeigt. Die Picker im
 Builder nennen bei jeder Ressource ihre Abteilungen, und die vier
 Listen-Endpunkte nehmen `group_id` für dieselbe Einschränkung über die API.
+
+Datasets werden nicht nach Abteilung gruppiert. Die Datasets-Liste hat keinen
+Gruppenfilter und keine Abteilungsplaketten, und ein Dataset hat weder eine
+Aktion Add to an agent noch eine Liste `used_by`: Das Test-Set eines Agents
+erreicht man über den Agent - seinen Tab **Evals** und **Verbessern** - oder
+über die **Einstellungen** des Datasets. Ein Dataset wird trotzdem wie jede andere
+Ressource geteilt, sodass eine Abteilung es über einen Grant auf dem Dataset
+selbst erreicht; siehe [Datasets](datasets.md#access).
+
+Die Abteilungsgruppierung dient nicht zur Auswahl des Dataset-Bewerters. Die
+Bewertung wird in den **Einstellungen** des Datasets konfiguriert. Ein eigener
+Dataset-Bewerter ist ein Agent der Art `judge`; andernfalls gilt der
+Standard-Eval-Bewerter der Plattform. Das Erstellen eines eigenen Bewerters
+erfordert außerdem `agents:edit`. Siehe [Der Bewerter](datasets.md#judge).
 
 ## Das Budget einer Abteilung { #a-departments-budget }
 

@@ -608,6 +608,26 @@ class TestWhatAnAdapterActuallyBuilds:
         )
 
 
+class TestMembersInAPrivateTelegramChat:
+    async def test_listing_members_in_a_private_telegram_chat_answers_with_the_reason(self):
+        from app.services.channels.directory import BoundChannelDirectory
+
+        bot = MagicMock()
+        bot.get_chat_administrators = AsyncMock()
+        bot.session.close = AsyncMock()
+        directory = BoundChannelDirectory(
+            adapter=TelegramAdapter(), bot_token="t", channel_id="42", private_chat=True
+        )
+
+        with patch("app.services.channels.telegram.Bot", return_value=bot):
+            answer = await call(directory, "list_channel_members")
+
+        assert answer == (
+            "Telegram has no member list for a private chat: it is this person and the bot."
+        )
+        bot.get_chat_administrators.assert_not_awaited()
+
+
 class TestIsChannelMember:
     """The per-account membership question the participant model asks (#641).
 

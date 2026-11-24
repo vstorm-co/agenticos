@@ -130,6 +130,8 @@
     "allowedSites": "Allowed sites",
     "answersCustomerQuestionsFrom": "Answers customer questions from the product wiki.",
     "anyoneThoseSites": "Anyone on those sites",
+    "appWide": "App-wide",
+    "appWideNotForAgents": "App-wide knowledge bases can't be used by agents. Untick it to remove it.",
     "approval": "Approval",
     "approvalAlways": "Always ask",
     "approvalHintDefaultReadOnly": "Runs without approval, because this capability only reads.",
@@ -421,6 +423,8 @@
     "orphanedContext": "This agent also references {count, plural, =1 {1 context file} other {# context files}} this organization no longer has. Publishing is refused until they are cleared:",
     "orphanedServers": "This agent also references {count, plural, =1 {1 server} other {# servers}} this organization does not offer - removed since, or carried in from an imported spec. Publishing is refused until they are cleared:",
     "orphanedSkills": "This agent also references {count, plural, =1 {1 skill} other {# skills}} this organization no longer has. Publishing is refused until they are cleared:",
+    "otherOrganization": "Another organization",
+    "otherOrganizationNotForAgents": "This knowledge base belongs to another organization, so agents here can't use it. Untick it to remove it.",
     "staleReferences": "This draft still references {list} this organization no longer has. Publishing is refused until they are cleared.",
     "staleCollections": "{count, plural, =1 {1 knowledge collection} other {# knowledge collections}}",
     "staleContext": "{count, plural, =1 {1 context file} other {# context files}}",
@@ -2730,6 +2734,18 @@
     "routineHistoryReadOnly": "This is a read-only routine history. Fork an answer to continue in a new chat.",
     "routineContinueChat": "Continue in a new chat"
   },
+  "approvalFeedback": {
+    "savedApproval": "Already approved: {action}",
+    "savedRejection": "Already rejected: {action}",
+    "retryResume": "Retry resume",
+    "trigger": "Reject with feedback",
+    "hint": "The proposed action will not run. Your feedback is saved with the rejection.",
+    "batchHint": "All listed calls will be rejected. Leave a note only on the calls you want to give feedback on.",
+    "call": "Call {number}: {action}",
+    "comment": "Feedback",
+    "submit": "Reject and send feedback",
+    "rejectAll": "Reject all and send feedback"
+  },
   "common": {
     "archiveNamedConfirm": "Archive {name}?",
     "chooseSection": "Section: {section}",
@@ -3287,6 +3303,20 @@
           "running": "running",
           "cancelled": "cancelled",
           "awaiting_approval": "awaiting approval"
+        },
+        "reason": {
+          "creator_inactive": "creator gone",
+          "creator_cannot_run": "creator lacks access",
+          "agent_unavailable": "no runnable version",
+          "ended": "ended",
+          "sources_setup": "needs review",
+          "sources_review": "review again",
+          "routine_changed": "review again",
+          "platform_identity": "needs the creator",
+          "awaiting_approval": "held for approval",
+          "awaiting_answer": "held for an answer",
+          "budget_exhausted": "budget spent",
+          "actions_need_approval": "stops for approval"
         },
         "empty": {
           "title": "Nothing runs on its own yet",
@@ -5100,7 +5130,7 @@
       },
       "channels-list": {
         "title": "Connected channels",
-        "body": "The platforms this organization is reachable on. A channel belongs to the organization, not one agent, so the same bot can serve every agent bound to it."
+        "body": "The platforms this organization is reachable on. A bot belongs to the organization and answers as one agent; one agent can answer on several bots."
       },
       "channels-new": {
         "title": "Reach agents where people are",
@@ -6291,6 +6321,10 @@
         "title": "Check readiness",
         "body": "Inspect the bot connection, agent publication and your own linked accounts without running a task."
       },
+      "channels-binding": {
+        "title": "Choose who answers",
+        "body": "Bind an agent to a bot, or unbind it. A bot answers as one agent; its environment, pause and lookups stay on the agent's Availability tab."
+      },
       "agent-model-credentials": {
         "title": "Who supplies the model key",
         "body": "Choose your subscription and connect it here, or use an organization API key. Custom gateways and endpoints are under advanced connections. Subscription models keep AgenticOS instructions and tools; installed agents are configured separately under delegation."
@@ -7451,6 +7485,15 @@
       "theAgentWillRunAsYou": "The bot needs to know who you are before it will answer you."
     },
     "channels": {
+      "agentBound": "@{agent} now answers on {bot}",
+      "agentUnbound": "@{agent} no longer answers on {bot}",
+      "bindAgent": "Bind agent",
+      "bindAgentConfirm": "Bind",
+      "bindAgentDescription": "A bot answers as one agent. It answers on the agent's default environment; change the environment, pause it or choose its lookups on the agent's Availability tab.",
+      "bindAgentPlaceholder": "Choose an agent",
+      "bindAgentTo": "Bind an agent to {bot}",
+      "bindingPaused": "Binding paused",
+      "noBindableAgents": "There is no agent you may publish to bind here.",
       "respondToBroadcasts": "Respond to group mentions",
       "respondToBroadcastsHint": "Off: respond to direct invocations of this bot. On: also respond to @all, @here and supported group mentions. Direct messages require no mention.",
       "broadcastsTeamsHint": "After enabling, download the updated Teams app package and reinstall or upgrade it in the target team or chat. Its owner must consent to receiving conversation messages.",
@@ -7507,7 +7550,7 @@
       "noAppToken": "No app-level token",
       "noChannelsYet": "No channel registered yet",
       "noSigningSecret": "No signing secret",
-      "pageDescription": "The chat platforms this organization is reachable on. A bot serves every agent bound to it - bind one under an agent's Availability tab.",
+      "pageDescription": "The chat platforms this organization is reachable on. A bot answers as one agent - bind it here or on the agent's Availability tab.",
       "pauseBot": "Pause {bot}",
       "paused": "Paused",
       "platform": "Platform",
@@ -7528,6 +7571,9 @@
       "transcriptionOff": "Off",
       "transcriptionProvider": "Voice transcription",
       "transcriptionProviderHint": "This bot's own provider, whatever its agent or the organization use.",
+      "unbindAgent": "Unbind @{agent} from {bot}",
+      "unbindAgentConfirm": "Unbind",
+      "unbindAgentDescription": "{bot} stops answering until another agent is bound. The binding's own instructions, lookups and environment are deleted with it.",
       "webhook": "Webhook",
       "webhookToken": "No webhook token",
       "slackManifestWhy": "Create the Slack app from its manifest: in Slack, Create New App, From a manifest, and paste. Buttons, /agent, the assistant pane and App Home come with it.",
@@ -10305,6 +10351,7 @@
     "enableRoutine": "Enable routine",
     "finishLater": "Finish later",
     "stopWaitingRun": "Stop waiting run",
+    "deliveryPending": "Sending last answer to chat",
     "deliveryUnavailable": "Last answer unavailable in chat",
     "attemptsTitle": "Before the agent started",
     "attemptsHint": "These attempts did not start an agent run or incur model charges.",
@@ -10320,7 +10367,7 @@
       "preparation": "Preparing the agent"
     },
     "attemptReason": {
-      "platform_identity_required": "Enable Act as creator or remove the built-in platform MCP binding from the agent and its delegates.",
+      "platform_identity_required": "Turn on Run as me or remove the built-in platform MCP binding from the agent and its delegates.",
       "source_review_required": "Review the routine’s sources and check unavailable connections before trying again.",
       "agent_unavailable": "Review the agent’s published version, configuration and access before enabling this routine again.",
       "preparation_failed": "Preparation failed before an agent run was created. Ask an operator to inspect the worker logs for this time.",
@@ -10591,7 +10638,6 @@
     "budgetCreatorOnly": "Only the person who made this routine can raise or remove its limit while it runs as them.",
     "budgetHint": "What this routine may spend a month. Once spent it pauses and starts again on the first. It narrows the agent's and the organization's limits, never lifts them.",
     "budgetPlaceholder": "No limit of its own",
-    "pausedBudget": "Paused - budget",
     "loadingRoutine": "Loading routine…",
     "routineLoadError": "The routine could not be loaded.",
     "retryRoutine": "Try again",
@@ -10637,7 +10683,8 @@
       "useAgent": "Use the agent's settings",
       "useAgentHint": "Selects exactly the actions this agent already runs without asking in a chat, replacing the current selection. Consent here can only narrow what the agent's settings grant, never widen it: an action the agent asks before is not offered. Nothing is saved until you choose Save consent.",
       "allowHeading": "Allow these actions to run without asking for approval",
-      "alwaysAsks": "Always asks: required by the agent or platform"
+      "alwaysAsks": "Always asks: required by the agent or platform",
+      "alwaysAsk": "{count, plural, =1 {1 action always asks for approval, as its agent or connection requires. Runs that use it stop for a person whatever you choose here.} other {# actions always ask for approval, as their agent or connection requires. Runs that use them stop for a person whatever you choose here.}}"
     },
     "sourceConsents": {
       "title": "Sources",
@@ -10671,9 +10718,6 @@
     "budgetInvalid": "Enter a positive amount, or leave blank to remove this limit.",
     "clearSearch": "Clear search",
     "noRoutineMatchesHint": "Try an agent name, routine title or words from its message.",
-    "setupRequired": "Setup required",
-    "setupRequiredHint": "Saved and paused. Repair the sources, review access, then enable this routine.",
-    "setupOwnerRequired": "Saved and paused. Its creator must repair and review the sources.",
     "filteredEventTitle": "Latest filtered GitHub event",
     "filteredEventHint": "The latest retained sample of verified filter rejections is shown, updated at most once a minute. It did not start a run. Payload content is not stored.",
     "filteredEventEmpty": "No filtered event has been recorded yet. This does not confirm that a webhook has arrived.",
@@ -10708,7 +10752,28 @@
       "per_run": "Continue the conversation after each run. Follow-up messages do not change the routine.",
       "shared": "Keep runs in one read-only history. Fork an answer to continue in a new chat."
     },
-    "openExecutionChat": "Open chat"
+    "openExecutionChat": "Open chat",
+    "blockers": {
+      "label": "Routine readiness",
+      "resumeBlocked": "Resuming will not help until this is fixed:",
+      "review": "Review access",
+      "openRuns": "Open runs",
+      "ownerOnly": "Only its creator can fix this.",
+      "creator_inactive": "Its creator is no longer an active member, so it cannot run.",
+      "creator_cannot_run": "Its creator can no longer run this agent.",
+      "agent_unavailable": "The agent has no published version this routine can run.",
+      "ended": "Its end date has passed.",
+      "sources_setup": "Its sources have not been reviewed yet.",
+      "sources_review": "The agent or its sources changed since the last review. Review them again.",
+      "routine_changed": "The routine's settings changed since the last review, such as who it runs as or where it reads and delivers. Review its access again.",
+      "platform_identity": "The platform MCP server needs this routine to act as its creator.",
+      "awaiting_approval": "{held, select, yes {A previous run is waiting for approval. No new run starts until it is decided.} other {A previous run is waiting for approval.}}",
+      "awaiting_answer": "{held, select, yes {A previous run is waiting for an answer. No new run starts until it gets one.} other {A previous run is waiting for an answer.}}",
+      "budget_exhausted": "This month's budget is spent. It runs again on the first of the month.",
+      "actions_need_approval": "{count, plural, =1 {1 action has no standing consent and will need approval if used.} other {# actions have no standing consent and will need approval if used.}}",
+      "readiness_checking": "Checking whether this routine can run…",
+      "readiness_unavailable": "Could not check whether this routine can run. Run now will still check its permissions."
+    }
   },
   "portals": {
     "backToServices": "Back to services",

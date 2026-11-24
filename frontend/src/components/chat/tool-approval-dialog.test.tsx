@@ -61,6 +61,35 @@ function mount(actionRequests: ActionRequest[]) {
  * answers there actually are, and the arguments are read.
  */
 describe("the tool approval dialog", () => {
+  it("offers only resume when all choices were saved", async () => {
+    const onDecisions = vi.fn();
+    render(
+      <ToolApprovalDialog
+        actionRequests={[]}
+        savedDecisions={[{ request: action("a-1"), approved: true }]}
+        reviewConfigs={[]}
+        onDecisions={onDecisions}
+      />,
+    );
+    expect(screen.getByText(/Already approved:/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /approve|reject/i })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Retry resume" }));
+    expect(onDecisions).toHaveBeenCalledWith([]);
+  });
+
+  it("rejects a batch with feedback only on the call the reviewer annotated", async () => {
+    const onDecisions = mount([action("a-1"), action("a-2")]);
+
+    await userEvent.click(screen.getByRole("button", { name: "Reject with feedback" }));
+    expect(screen.getByRole("button", { name: "Reject all and send feedback" })).toBeDisabled();
+    await userEvent.type(screen.getByRole("textbox", { name: /^Call 2:/ }), "  Remove pricing  ");
+    await userEvent.click(screen.getByRole("button", { name: "Reject all and send feedback" }));
+
+    expect(onDecisions).toHaveBeenCalledWith([
+      { type: "reject" },
+      { type: "reject", note: "Remove pricing" },
+    ]);
+  });
   it("says what is waiting, and names each call", () => {
     mount([action("a-1", { tool_name: "run_python" })]);
 
@@ -241,6 +270,7 @@ describe("the tool approval dialog", () => {
     mount([action("a-1")]);
 
     expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Reject with feedback" })).toBeNull();
     expect(screen.getByText(/needs a permission you do not hold/)).toBeVisible();
   });
 

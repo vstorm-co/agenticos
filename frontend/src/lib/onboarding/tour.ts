@@ -1504,6 +1504,14 @@ export const TOUR_STEPS: readonly TourStep[] = [
     permission: Perm.channelsManage,
     optional: true,
   },
+  // Binding is on a bot's row, so it renders only once a bot exists.
+  {
+    id: "channels-binding",
+    page: ROUTES.CHANNELS,
+    target: "channels-binding",
+    permission: Perm.channelsManage,
+    optional: true,
+  },
   // A Discord bot's role mappings (#2569): only on a Discord row, and only for
   // somebody who may manage members, so optional - most organizations have none.
   {

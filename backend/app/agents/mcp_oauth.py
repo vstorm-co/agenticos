@@ -303,15 +303,17 @@ class DiscoveredServer:
     """The hosts and networks this flow may reach - see :func:`app.core.sanitize.allowlist_for`."""
 
 
-def client_metadata(redirect_uri: str, scope: str | None) -> OAuthClientMetadata:
-    """Our app's client metadata for dynamic registration / the auth request."""
+def client_metadata(redirect_uri: str, server: DiscoveredServer) -> OAuthClientMetadata:
+    """Use a public PKCE client when advertised and no POST secret is supported."""
+    methods = server.metadata.token_endpoint_auth_methods_supported or []
+    public_client = "none" in methods and "client_secret_post" not in methods
     return OAuthClientMetadata(
         client_name=f"{settings.PROJECT_NAME} assistant",
         redirect_uris=[AnyUrl(redirect_uri)],
         grant_types=list(_GRANT_TYPES),
         response_types=["code"],
-        token_endpoint_auth_method="client_secret_post",
-        scope=scope,
+        token_endpoint_auth_method="none" if public_client else "client_secret_post",
+        scope=server.scope,
     )
 
 
@@ -441,8 +443,8 @@ async def discover(server_url: str) -> DiscoveredServer:
 async def register_client(server: DiscoveredServer, redirect_uri: str) -> tuple[str, str | None]:
     """Dynamically register this app; return `(client_id, client_secret)`.
 
-    Public clients (no registration or no secret returned) get `None` for the
-    secret and use PKCE alone.
+    A public registration uses PKCE and discards any returned secret so the
+    subsequent token requests cannot send it.
     """
     if urlsplit(server.authorization_endpoint).hostname == "accounts.google.com":
         raise OAuthError(
@@ -451,7 +453,7 @@ async def register_client(server: DiscoveredServer, redirect_uri: str) -> tuple[
             "displayed redirect URL in Google Cloud. Select 'Use this client for an "
             "AI-powered agent' on that client."
         )
-    metadata = client_metadata(redirect_uri, server.scope)
+    metadata = client_metadata(redirect_uri, server)
     try:
         request = create_client_registration_request(
             server.metadata, metadata, server.authorization_endpoint
@@ -484,6 +486,8 @@ async def register_client(server: DiscoveredServer, redirect_uri: str) -> tuple[
             ) from exc
     if not info.client_id:
         raise OAuthError("The server did not return a client_id during registration.")
+    if "none" in (metadata.token_endpoint_auth_method, info.token_endpoint_auth_method):
+        return info.client_id, None
     return info.client_id, info.client_secret
 
 
