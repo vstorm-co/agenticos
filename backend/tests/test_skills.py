@@ -633,20 +633,6 @@ class TestSkillManagement:
             SkillCreate(name="x", description="d", category=name)
 
     @pytest.mark.anyio
-    async def test_the_category_choices_come_from_the_whole_organization(self):
-        """The chips must not shrink to what the current page happens to show."""
-        ctx = _ctx()
-
-        with patch(
-            "app.services.skills.skill_repo.list_categories",
-            new=AsyncMock(return_value=["devops", "marketing"]),
-        ) as list_categories:
-            categories = await SkillService(_db()).list_categories(ctx)
-
-        assert categories == ["devops", "marketing"]
-        assert list_categories.call_args.kwargs["organization_id"] == ctx.organization_id
-
-    @pytest.mark.anyio
     async def test_a_skill_is_created_on_the_shelf_it_was_given(self):
         with (
             patch("app.services.skills.skill_repo.get_by_name", new=AsyncMock(return_value=None)),

@@ -267,16 +267,36 @@ def _order_by(sort: SkillSort) -> tuple[ColumnElement[Any], ...]:
     return (Skill.name.asc(),)
 
 
-async def list_categories(db: AsyncSession, *, organization_id: UUID) -> list[str]:
-    """Every distinct category in one organization, for the listing's filter.
+async def list_categories(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    user_id: UUID,
+    see_all: bool,
+    shared_ids: list[UUID],
+    shared_with_me: bool = False,
+    only_ids: Sequence[UUID] | None = None,
+) -> list[str]:
+    """Every distinct category among the skills one member may see, for the listing's filter.
 
-    Independent of paging and search on purpose: a chip that disappears because
-    the current page happens not to show its skills is a filter nobody can use
-    to get back.
+    Drawn through `list_visible`'s own predicate, so a private skill the caller
+    cannot open never lends its shelf name to the filter. Independent of paging
+    and search on purpose: a chip that disappears because the current page
+    happens not to show its skills is a filter nobody can use to get back.
     """
+    where = _visible_where(
+        organization_id=organization_id,
+        user_id=user_id,
+        see_all=see_all,
+        shared_ids=shared_ids,
+        shared_with_me=shared_with_me,
+        search=None,
+        categories=None,
+        only_ids=only_ids,
+    )
     result = await db.execute(
         select(Skill.category)
-        .where(Skill.organization_id == organization_id, Skill.category.is_not(None))
+        .where(*where, Skill.category.is_not(None))
         .distinct()
         .order_by(Skill.category.asc())
     )

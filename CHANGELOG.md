@@ -23,6 +23,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 - **Arrange the Skills page** by agent, by origin or by category, or keep the plain grid. By agent, the default, has a section per agent whose published version uses a skill, then **Drafted only** and **Not used by an agent you can see**; a skill several agents use sits under each. By origin splits the organization's skills, private ones, the platform library and each skill gallery industry. Each section shows its count, folds closed and pages through the rest with **Show all**, under the same search and filters; the choice stays in the address as `?arrange=`. Arranging grants nothing: a section holds only skills the reader can already see. Over the API, `GET /api/v1/skills/sections?arrange=agent|origin|category` returns the counted sections, `GET /api/v1/skills?section=<key>` pages through one, and skill summaries carry `gallery_industry`. The category filter and its choices now ignore letter case, so `Security` and `security` are one shelf (#3281).
 
+### Fixed
+
+- The skills category filter no longer offers category names of skills the caller cannot see (#3282).
+
 ## [1.92.0] - 2026-11-23
 
 ### Added
