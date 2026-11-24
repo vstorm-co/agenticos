@@ -1815,6 +1815,21 @@ class AgentSpec(BaseModel):
         """
         return self.observability.content if self.observability else "full"
 
+    @property
+    def served_skill_ids(self) -> list[UUID]:
+        """The bound skills a run actually serves: none while `skills` is off.
+
+        `skill_ids` survives switching the capability off - the Builder keeps the
+        selection and publish still checks it - so every reader that decides what
+        reaches a run, as instructions or as workspace files, or what a routine's
+        owner is asked to consent to, reads this rather than the raw list.
+        """
+        if any(
+            binding.id == _SKILLS_CAPABILITY and binding.enabled for binding in self.capabilities
+        ):
+            return list(self.skill_ids)
+        return []
+
     @model_validator(mode="before")
     @classmethod
     def _withdraw_tables_capability(cls, data: Any) -> Any:

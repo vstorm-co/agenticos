@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- **Skills bound while Skills is off stay out of runs and routine reviews.** An agent with the **Skills** capability switched off no longer has its still-selected skills written into its workspace as files, which a sandbox or stored workspace did although the Builder says none are loaded, and its setup briefing no longer tells the model its skills are switched on. A routine's source review no longer lists those skills, or any switched-off capability, and editing such a skill no longer withdraws standing action consent. Switching **Skills** back on is a new source and asks for review again. A routine on such an agent that already had standing action consent asks its owner to review its actions once more, because that consent recorded the skills' text; until then those actions ask for approval. The bundled `artifact-pages` and `visual-design` skills the AgenticOS template binds were the usual case.
+
 ## [1.92.0] - 2026-11-23
 
 ### Added

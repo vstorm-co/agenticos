@@ -1,5 +1,5 @@
 ---
-source_sha: "4c4d606984ca"
+source_sha: "97c5bb2b6e3c"
 ---
 
 # Governance { #governance }
@@ -2525,7 +2525,7 @@ La lista muestra la pausa automática y el número de fallos. Se conservan como 
 
 ## Fuentes revisadas de las rutinas { #routine-sources }
 
-Las rutinas nuevas admiten automáticamente la configuración inicialmente disponible del agente publicado dentro de los permisos vigentes del creador. Las eliminaciones seguras de fuentes y los cambios exclusivamente de modelo o presentación del agente principal no requieren revisión. Las fuentes, cuentas o herramientas nuevas, los cambios de instrucciones o variables y los cambios de capacidades, skills efectivos, contexto o comportamiento delegado requieren la revisión de acceso del propietario antes de otra ejecución. Publicar el agente compartido no amplía por sí solo la autoridad permanente de una persona. Las cuentas MCP opcionales ausentes no bloquean otras tareas; siguen vigentes las entradas obligatorias de eventos, identidad, permisos, presupuestos y aprobaciones obligatorias.
+Las rutinas nuevas admiten automáticamente la configuración inicialmente disponible del agente publicado dentro de los permisos vigentes del creador. Las eliminaciones seguras de fuentes y los cambios exclusivamente de modelo o presentación del agente principal no requieren revisión. Las fuentes, cuentas o herramientas nuevas, los cambios de instrucciones o variables y los cambios de capacidades, skills efectivos, contexto o comportamiento delegado requieren la revisión de acceso del propietario antes de otra ejecución. Una capability desactivada y los skills vinculados mientras **Skills** está desactivada no son fuentes: ningún run los alcanza, ni como instrucciones ni como archivos del workspace, así que la revisión no los muestra y editar uno de esos skills no requiere un nuevo consentimiento. Activar la capability es una fuente nueva y se revisa. Publicar el agente compartido no amplía por sí solo la autoridad permanente de una persona. Las cuentas MCP opcionales ausentes no bloquean otras tareas; siguen vigentes las entradas obligatorias de eventos, identidad, permisos, presupuestos y aprobaciones obligatorias.
 
 Cambiar la versión fijada de un delegado requiere revisión, incluso si su publicación solo modifica el modelo.
 

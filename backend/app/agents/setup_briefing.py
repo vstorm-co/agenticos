@@ -120,7 +120,7 @@ def setup_briefing(spec: AgentSpec, *, agent_id: UUID | None) -> str:
             f"{unlock}."
         ),
     ]
-    if spec.skill_ids:
+    if spec.served_skill_ids:
         # Last, so the framework's list of capabilities to load follows this heading
         # rather than the paragraph about asking for what is missing.
         lines += [

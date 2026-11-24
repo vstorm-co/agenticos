@@ -102,7 +102,7 @@ async def instruction_fingerprint(
     spec: AgentSpec,
     project_id: UUID | None,
 ) -> str | None:
-    skills, contexts = set(spec.skill_ids), set(spec.context_ids)
+    skills, contexts = set(spec.served_skill_ids), set(spec.context_ids)
     pending = list(spec.subagents)
     seen: set[UUID] = set()
     while pending:
@@ -120,7 +120,7 @@ async def instruction_fingerprint(
                 message="A pinned delegate is no longer available for routine consent"
             )
         child = AgentSpec.model_validate(version.spec)
-        skills.update(child.skill_ids)
+        skills.update(child.served_skill_ids)
         contexts.update(child.context_ids)
         pending.extend(child.subagents)
     if not skills and not contexts and project_id is None:

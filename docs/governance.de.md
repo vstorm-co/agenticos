@@ -1,5 +1,5 @@
 ---
-source_sha: "4c4d606984ca"
+source_sha: "97c5bb2b6e3c"
 ---
 
 # Governance { #governance }
@@ -2673,7 +2673,7 @@ Die Liste zeigt automatische Pause und Fehlerzahl. Höchstens 50 Beobachtungen p
 
 ## Geprüfte Routinequellen { #routine-sources }
 
-Neue Routinen genehmigen automatisch die anfänglich verfügbare Konfiguration des veröffentlichten Agenten innerhalb der aktuellen Erstellerberechtigungen. Sichere Quellenentfernungen und reine Modell- oder Anzeigeänderungen des Hauptagenten benötigen keine Prüfung. Neue Quellen, Konten oder Werkzeuge, geänderte Anweisungen oder Variablen sowie Änderungen an Capabilities, tatsächlich verwendeten Skills, Kontext oder delegiertem Verhalten erfordern vor einer weiteren Ausführung die Zugriffsprüfung des Eigentümers. Eine Veröffentlichung des gemeinsamen Agenten erweitert allein keine dauerhafte Befugnis einer Person. Fehlende optionale MCP-Konten blockieren keine unabhängige Arbeit; erforderliche Ereigniseingänge, Identität, Ressourcenzugriffe, Budgets und verbindliche Freigaben gelten weiter.
+Neue Routinen genehmigen automatisch die anfänglich verfügbare Konfiguration des veröffentlichten Agenten innerhalb der aktuellen Erstellerberechtigungen. Sichere Quellenentfernungen und reine Modell- oder Anzeigeänderungen des Hauptagenten benötigen keine Prüfung. Neue Quellen, Konten oder Werkzeuge, geänderte Anweisungen oder Variablen sowie Änderungen an Capabilities, tatsächlich verwendeten Skills, Kontext oder delegiertem Verhalten erfordern vor einer weiteren Ausführung die Zugriffsprüfung des Eigentümers. Eine ausgeschaltete Capability und Skills, die bei ausgeschalteter Capability **Skills** gebunden sind, sind keine Quellen: Kein Run erreicht sie, weder als Anweisungen noch als Dateien im Workspace. Die Prüfung führt sie deshalb nicht auf, und die Bearbeitung eines solchen Skills erfordert keine neue Zustimmung. Das Einschalten der Capability ist eine neue Quelle und wird geprüft. Eine Veröffentlichung des gemeinsamen Agenten erweitert allein keine dauerhafte Befugnis einer Person. Fehlende optionale MCP-Konten blockieren keine unabhängige Arbeit; erforderliche Ereigniseingänge, Identität, Ressourcenzugriffe, Budgets und verbindliche Freigaben gelten weiter.
 
 Eine geänderte fixierte Delegatenversion erfordert eine Prüfung, auch bei einer reinen Modelländerung dieses Delegaten.
 

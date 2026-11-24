@@ -97,7 +97,7 @@ class TestWhatItSays:
     def test_its_skills_come_last_under_their_own_heading_with_how_to_load_them(self) -> None:
         """The framework lists the skills to load right after this text, so they follow
         the heading that says to load them, not the one about asking for what is missing."""
-        text = setup_briefing(_spec(skill_ids=[uuid.uuid4()]), agent_id=uuid.uuid4())
+        text = setup_briefing(_spec("skills", skill_ids=[uuid.uuid4()]), agent_id=uuid.uuid4())
 
         missing, skills = text.index("## Not switched on"), text.index("## Your skills")
         assert missing < skills
@@ -105,6 +105,16 @@ class TestWhatItSays:
         assert "call `read_skill` with its id before you answer" in last
         assert "Never ask for a skill with `request_capability`" in last
         assert "## Your skills" not in setup_briefing(_spec(), agent_id=uuid.uuid4())
+
+    def test_skills_kept_while_the_capability_is_off_are_not_claimed_as_switched_on(self) -> None:
+        """The Builder keeps the selection; none of it is served, so none is announced."""
+        spec = AgentSpec(
+            name="Helper",
+            capabilities=[{"id": "skills", "enabled": False}],
+            skill_ids=[uuid.uuid4()],
+        )
+
+        assert "## Your skills" not in setup_briefing(spec, agent_id=uuid.uuid4())
 
     def test_the_capability_hands_the_text_over_unchanged(self) -> None:
         assert SetupBriefing("# Your setup").get_instructions() == "# Your setup"

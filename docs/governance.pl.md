@@ -1,5 +1,5 @@
 ---
-source_sha: "4c4d606984ca"
+source_sha: "97c5bb2b6e3c"
 ---
 
 # Governance { #governance }
@@ -2514,7 +2514,7 @@ Lista pokazuje automatyczne wstrzymanie i liczbę błędów. Metadane zachowują
 
 ## Zatwierdzone źródła rutyn { #routine-sources }
 
-Nowe rutyny automatycznie zatwierdzają początkową dostępną konfigurację opublikowanego agenta w granicach bieżących uprawnień twórcy. Bezpieczne usunięcia źródeł oraz zmiany samego modelu lub etykiet głównego agenta nie wymagają przeglądu. Nowe źródła, konta i narzędzia, zmienione instrukcje lub zmienne oraz zmiany capabilities, faktycznie używanych skilli, kontekstu i delegowanego zachowania wymagają przeglądu dostępu przez właściciela przed kolejnym wykonaniem. Sama publikacja współdzielonego agenta nie rozszerza stałych uprawnień osoby. Brak opcjonalnego konta MCP nie blokuje innej pracy; wymagane wejścia zdarzeń, tożsamość, uprawnienia, budżety i obowiązkowe zatwierdzenia nadal obowiązują.
+Nowe rutyny automatycznie zatwierdzają początkową dostępną konfigurację opublikowanego agenta w granicach bieżących uprawnień twórcy. Bezpieczne usunięcia źródeł oraz zmiany samego modelu lub etykiet głównego agenta nie wymagają przeglądu. Nowe źródła, konta i narzędzia, zmienione instrukcje lub zmienne oraz zmiany capabilities, faktycznie używanych skilli, kontekstu i delegowanego zachowania wymagają przeglądu dostępu przez właściciela przed kolejnym wykonaniem. Wyłączona capability oraz skille podpięte przy wyłączonej capability **Skills** nie są źródłami: żaden run do nich nie sięga, ani jako instrukcje, ani jako pliki w workspace, więc przegląd ich nie wymienia, a edycja takiego skilla nie wymaga nowej zgody. Włączenie capability to nowe źródło i wymaga przeglądu. Sama publikacja współdzielonego agenta nie rozszerza stałych uprawnień osoby. Brak opcjonalnego konta MCP nie blokuje innej pracy; wymagane wejścia zdarzeń, tożsamość, uprawnienia, budżety i obowiązkowe zatwierdzenia nadal obowiązują.
 
 Zmiana przypiętej wersji delegata wymaga przeglądu, także gdy jego publikacja zmienia tylko model.
 

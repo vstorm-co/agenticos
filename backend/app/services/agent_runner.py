@@ -4512,7 +4512,7 @@ class AgentRunnerService:
         )
         own_bodies = _on_line(spec.skill_bindings, skill_bodies or {}, own=True)
         skills = await self.skills.resolve_for_agent(
-            ctx, spec.skill_ids, bindings=spec.skill_bindings, projected=own_bodies or None
+            ctx, spec.served_skill_ids, bindings=spec.skill_bindings, projected=own_bodies or None
         )
         context_files = await self.context.resolve_for_agent(
             ctx,
@@ -6540,7 +6540,7 @@ class AgentRunnerService:
         )
         projected = _on_line(spec.skill_bindings, run_bodies)
         skills = await self.skills.resolve_for_agent(
-            ctx, spec.skill_ids, bindings=spec.skill_bindings, projected=projected or None
+            ctx, spec.served_skill_ids, bindings=spec.skill_bindings, projected=projected or None
         )
         context_files = await self.context.resolve_for_agent(
             ctx, spec.context_ids, config=context_config(spec.capabilities)

@@ -8,7 +8,7 @@ from uuid import UUID, uuid4
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agents.spec import AgentSpec, PlatformMcpServerRef, SubagentRef
+from app.agents.spec import AgentSpec, CapabilityBindingSpec, PlatformMcpServerRef, SubagentRef
 from app.core.exceptions import AuthorizationError, ConflictError
 from app.core.permissions import AuthContext
 from app.db.models.agent import Agent, AgentVersion
@@ -1296,7 +1296,7 @@ async def test_the_review_names_each_source_and_never_another_organizations(db: 
             **spec.model_dump(mode="json"),
             "skill_ids": [str(skill.id), str(gone)],
             "collection_ids": [str(mine.id), str(foreign.id)],
-            "capabilities": [{"id": "thinking"}],
+            "capabilities": [{"id": "thinking"}, {"id": "skills"}],
             "table_bindings": [{"table_id": str(table), "operations": ["read", "create"]}],
         }
     ).model_dump(mode="json")
@@ -1322,6 +1322,64 @@ async def test_the_review_names_each_source_and_never_another_organizations(db: 
 
 
 @pytest.mark.security
+async def test_the_review_lists_only_what_a_run_can_reach_and_switching_skills_on_asks_again(
+    db: AsyncSession,
+) -> None:
+    """Skills bound while `skills` is off, and switched-off capabilities, are not
+    sources - a run serves none of them - so the owner is not asked about them.
+    Switching the capability back on is a new source and is reviewed again."""
+    from app.db.models.skill import Skill
+
+    ctx, trigger, spec, _ = await world(db)
+    skill = Skill(
+        organization_id=ctx.organization_id,
+        name="visual-design",
+        description="Draw",
+        content="# Draw",
+        visibility="org",
+    )
+    db.add(skill)
+    await db.flush()
+    version = await db.get(AgentVersion, trigger.pinned_version_id)
+    assert version is not None
+    off = spec.model_copy(
+        update={
+            "skill_ids": [skill.id],
+            "capabilities": [
+                CapabilityBindingSpec(id="skills", enabled=False),
+                CapabilityBindingSpec(id="clock", enabled=False),
+            ],
+        }
+    )
+    version.spec = off.model_dump(mode="json")
+    await db.flush()
+    service = RoutineSourceService(db)
+
+    review = await service.options(ctx, trigger)
+    assert [item for item in review.items if item.kind in {"skill", "capability"}] == []
+    assert not [name for name in review.resources if name.startswith(("Skill", "Capability"))]
+    await service.replace(
+        ctx, trigger, RoutineSourceConsent(review_token=review.review_token, mode="follow_agent")
+    )
+    policy = read_policy(trigger.approved_sources)
+    assert policy.behavior is not None
+    assert not [key for key in policy.behavior if ":skill:" in key]
+    assert (await service.require_current(ctx, trigger, expected_id=policy.id)).id == policy.id
+
+    version.spec = off.model_copy(
+        update={"capabilities": [CapabilityBindingSpec(id="skills")]}
+    ).model_dump(mode="json")
+    await db.flush()
+    with pytest.raises(RoutineSourcesRequired):
+        await service.require_current(ctx, trigger, expected_id=policy.id)
+    named = {
+        (item.kind, item.id): item.name for item in (await service.options(ctx, trigger)).items
+    }
+    assert named[("skill", str(skill.id))] == "visual-design"
+    assert named[("capability", "skills")] is not None
+
+
+@pytest.mark.security
 async def test_the_review_does_not_name_a_source_its_reader_may_not_view(db: AsyncSession) -> None:
     """Running a shared agent does not reveal the name of a private skill it uses."""
     from app.db.models.skill import Skill
@@ -1341,7 +1399,12 @@ async def test_the_review_does_not_name_a_source_its_reader_may_not_view(db: Asy
     shared, private = skill("deck-review", "org"), skill("salary-bands", "private")
     db.add_all([shared, private])
     await db.flush()
-    spec = spec.model_copy(update={"skill_ids": [shared.id, private.id]})
+    spec = spec.model_copy(
+        update={
+            "skill_ids": [shared.id, private.id],
+            "capabilities": [CapabilityBindingSpec(id="skills")],
+        }
+    )
     service = RoutineSourceService(db)
 
     def names(items: list[RoutineSourceItem]) -> dict[str, str | None]:
@@ -1401,6 +1464,7 @@ async def test_review_names_follow_view_grants_for_every_resource_kind(db: Async
     spec = spec.model_copy(
         update={
             "skill_ids": [skill.id],
+            "capabilities": [CapabilityBindingSpec(id="skills")],
             "context_ids": [context.id],
             "collection_ids": [knowledge.id],
         }
@@ -1414,6 +1478,7 @@ async def test_review_names_follow_view_grants_for_every_resource_kind(db: Async
     service = RoutineSourceService(db)
 
     async def names(ctx: AuthContext) -> dict[str, str | None]:
+        # A capability is named from the registry, not from a row with grants.
         return {
             item.kind: item.name
             for item in await service._named(
@@ -1422,6 +1487,7 @@ async def test_review_names_follow_view_grants_for_every_resource_kind(db: Async
                 delegates=[delegate.id],
                 credentials=[secret.id],
             )
+            if item.kind != "capability"
         }
 
     expected = {
@@ -1968,6 +2034,7 @@ async def test_follow_agent_requires_review_for_changed_materialized_instruction
     assert version is not None
     resource_spec = spec.model_copy(
         update={"skill_ids" if kind == "skill" else "context_ids": [resource.id]}
+        | ({"capabilities": [CapabilityBindingSpec(id="skills")]} if kind == "skill" else {})
     )
     namespace = "root"
     if topology == "published_delegate":
@@ -2013,6 +2080,7 @@ async def test_follow_agent_requires_review_for_changed_materialized_instruction
                                     "skill_ids" if kind == "skill" else "context_ids": [
                                         str(resource.id)
                                     ],
+                                    "capabilities": [{"id": "skills"}] if kind == "skill" else [],
                                 }
                             ]
                         },

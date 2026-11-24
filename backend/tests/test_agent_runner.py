@@ -2731,6 +2731,35 @@ class TestAThreadsEarlierAttachmentsAreBroughtBack:
         assert prepared.run.skill_version_ids == [before, now]
 
     @pytest.mark.anyio
+    async def test_skills_bound_while_the_capability_is_off_reach_neither_prompt_nor_workspace(
+        self,
+    ):
+        """Switched off means none are loaded, sandbox or not - the Builder says so."""
+        bound = _served_skill("refunds", uuid.uuid4())
+        spec = AgentSpec.model_validate(
+            {
+                "name": "Books",
+                "skill_ids": [str(bound.id)],
+                "capabilities": [{"id": "skills", "enabled": False}],
+            }
+        )
+        resolve = AsyncMock(
+            side_effect=lambda ctx, skill_ids, **_: [
+                skill for skill in (bound,) if skill.id in skill_ids
+            ]
+        )
+        document = StateBackend()
+
+        prepared, instructions, *_ = await self._prepare(
+            _sandbox(document), earlier=None, spec=spec, resolve_skills=resolve
+        )
+
+        assert [call.args[1] for call in resolve.await_args_list] == [[]]
+        assert prepared.run.skill_version_ids == []
+        assert SKILLS_ROOT not in instructions
+        assert prepared.materialised_skills is None or not prepared.materialised_skills.written
+
+    @pytest.mark.anyio
     async def test_a_run_records_its_specialists_skill_versions_from_one_resolve_each(self):
         """The specialist's skills are the ones it was built with, not resolved again."""
         own, specialist = (
@@ -2742,6 +2771,7 @@ class TestAThreadsEarlierAttachmentsAreBroughtBack:
                 "name": "Books",
                 "skill_ids": [str(own.id)],
                 "capabilities": [
+                    {"id": "skills"},
                     {
                         "id": "subagents",
                         "config": {
@@ -2751,10 +2781,11 @@ class TestAThreadsEarlierAttachmentsAreBroughtBack:
                                     "description": "Bills.",
                                     "instructions": "Bill.",
                                     "skill_ids": [str(specialist.id)],
+                                    "capabilities": [{"id": "skills"}],
                                 }
                             ]
                         },
-                    }
+                    },
                 ],
             }
         )

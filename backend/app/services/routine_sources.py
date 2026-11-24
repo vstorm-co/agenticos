@@ -483,8 +483,10 @@ class RoutineSourceService:
         for current in specs:
             resources.update(f"Knowledge · {identifier}" for identifier in current.collection_ids)
             resources.update(f"Context · {identifier}" for identifier in current.context_ids)
-            resources.update(f"Skill · {identifier}" for identifier in current.skill_ids)
-            resources.update(f"Capability · {binding.id}" for binding in current.capabilities)
+            resources.update(f"Skill · {identifier}" for identifier in current.served_skill_ids)
+            resources.update(
+                f"Capability · {binding.id}" for binding in current.capabilities if binding.enabled
+            )
             resources.update(
                 f"Table · {grant.table_id} · {'/'.join(operation.value for operation in grant.operations)}"
                 for grant in current.table_bindings
@@ -861,7 +863,7 @@ class RoutineSourceService:
                     )
             for resource_namespace, resource_spec in resource_specs:
                 skills = await SkillService(self.db).resolve_for_agent(
-                    ctx, resource_spec.skill_ids, bindings=resource_spec.skill_bindings
+                    ctx, resource_spec.served_skill_ids, bindings=resource_spec.skill_bindings
                 )
                 contexts = await ContextService(self.db).resolve_for_agent(
                     ctx,
@@ -905,7 +907,7 @@ class RoutineSourceService:
         another organization's.
         """
         organization_id = ctx.organization_id
-        skill_ids = sorted({identifier for spec in specs for identifier in spec.skill_ids})
+        skill_ids = sorted({identifier for spec in specs for identifier in spec.served_skill_ids})
         context_ids = sorted({identifier for spec in specs for identifier in spec.context_ids})
         collection_ids = sorted(
             {identifier for spec in specs for identifier in spec.collection_ids}
@@ -959,6 +961,7 @@ class RoutineSourceService:
             named.extend(
                 RoutineSourceItem(kind="capability", id=binding.id, name=labels.get(binding.id))
                 for binding in spec.capabilities
+                if binding.enabled
             )
             for grant in spec.table_bindings:
                 table = tables.get(grant.table_id)
