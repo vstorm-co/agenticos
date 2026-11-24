@@ -520,9 +520,11 @@ def assumptions(report: ToolOutputReport) -> list[str]:
     left = report.left_out
     placed = matched.exact + matched.averaged + matched.unmatched
     return [
-        "Sizes are the characters each model received, after tool_output_limits. A failed "
-        "call stores a short notice instead of what the model was sent, so it counts at the "
-        "notice's size.",
+        (
+            "Sizes are the characters each model received, after tool_output_limits. A failed "
+            "call stores a short notice instead of what the model was sent, so it counts at the "
+            "notice's size."
+        ),
         f"Tokens are estimated as characters / {CHARS_PER_TOKEN}.",
         (
             "Model requests come from each run's manifest. Left out of the re-send estimate: "
@@ -560,8 +562,10 @@ def assumptions(report: ToolOutputReport) -> list[str]:
             "any compaction binding are overstated (marked !). unknown is a run whose published "
             "version was deleted."
         ),
-        f"Projection: a result over {PACK_THRESHOLD:,} characters is sent in full "
-        f"{FULL_SENDS} times, then as a placeholder of " + " or ".join(PLACEHOLDERS) + ".",
+        (
+            f"Projection: a result over {PACK_THRESHOLD:,} characters is sent in full "
+            f"{FULL_SENDS} times, then as a placeholder of " + " or ".join(PLACEHOLDERS) + "."
+        ),
     ]
 
 
