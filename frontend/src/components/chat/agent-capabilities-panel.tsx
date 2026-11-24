@@ -26,15 +26,18 @@ import type { Agent } from "@/types/agents";
  * Generated from the agent's own bindings, never hand-written per agent: the
  * published version's enabled capabilities, in the plain words the capability
  * guide gives each one, with the guide's first example as something to try;
- * and the connected apps its published version is bound to, by name. It sits
+ * and the apps its published version is bound to, by name. Bound is all the page's
+ * data can say: it does not know whether the reader has connected a personal
+ * app or whether an organization connection is enabled, so the line makes no
+ * claim that either is usable. It sits
  * in the empty state rather than the Builder because that is where the
  * question "which agent do I talk to?" is asked - a person choosing an agent
  * should not have to open the Builder to learn what one does.
  *
  * An agent with no bindings says so plainly, so the panel never invents a
  * capability. It says nothing at all while any list it reads from is still
- * loading, or where a lookup failed and left it with no rows for an agent
- * that is bound to something: a "no tools" line drawn on a failed catalog
+ * loading, or where a lookup failed (catalog or version) and left it with no rows for an
+ * agent that may be bound to something: a "no tools" line drawn on a failed catalog
  * would be a lie about a capable agent.
  *
  * It is a compact control, closed by default: the lists open in a popover, or a
@@ -54,10 +57,11 @@ export function AgentCapabilitiesPanel({
   const phone = useNarrowScreen();
   const { capabilities, isLoading: catalogLoading } = useCapabilityCatalog();
   const guide = useCapabilityGuide();
-  const { version, isLoading: versionLoading } = useAgentVersion(
-    agent?.id ?? null,
-    agent?.current_version_id ?? null,
-  );
+  const {
+    version,
+    isLoading: versionLoading,
+    error: versionError,
+  } = useAgentVersion(agent?.id ?? null, agent?.current_version_id ?? null);
   const { connections, isLoading: connectionsLoading } = useMcpConnections();
   const { servers, isLoading: serversLoading } = useMcpCatalog();
 
@@ -69,7 +73,8 @@ export function AgentCapabilitiesPanel({
   if (rows.length === 0 && apps.length === 0) {
     const bound =
       (agent.published_capabilities ?? []).length > 0 ||
-      (version?.spec.mcp_servers ?? []).length > 0;
+      (version?.spec.mcp_servers ?? []).length > 0 ||
+      versionError !== null;
     if (bound) return null;
   }
 

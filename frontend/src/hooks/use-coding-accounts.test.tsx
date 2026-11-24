@@ -3,7 +3,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
 import type { ReactNode } from "react";
 import { useCodingAccounts } from "./use-coding-accounts";
-import { useAuthStore } from "@/stores";
+import { useAuthStore, useOrgStore } from "@/stores";
 import { qk } from "@/lib/query-keys";
 import type { CodingAccount } from "@/lib/coding-accounts-api";
 import * as api from "@/lib/coding-accounts-api";
@@ -62,6 +62,7 @@ function mount() {
 beforeEach(() => {
   vi.clearAllMocks();
   scope.tenant = "organization";
+  useOrgStore.setState({ activeOrgId: "organization" });
   useAuthStore.setState({
     user: {
       id: "person",
