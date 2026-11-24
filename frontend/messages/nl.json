@@ -1844,7 +1844,7 @@
     "thoughtAboutIt": "Erover nagedacht",
     "title": "Chat",
     "tokensDetail": "{input, number} invoer · {output, number} uitvoertokens",
-    "tokensDetailPartial": "{input, number} invoer · {output, number} uitvoertokens - een ondergrens: een model in deze run had geen prijs",
+    "tokensDetailPartial": "{input, number} invoer · {output, number} uitvoertokens - een ondergrens: voor een model in deze run is geen prijs bekend",
     "tokensWithCache": "{detail} - van de invoer werden {read, number} uit de cache gelezen en {write, number} erin geschreven",
     "toolApprovalRequired": "Goedkeuring voor tool vereist",
     "draftProposalTitle": "Een nieuw agentconcept",
@@ -2185,7 +2185,7 @@
       "threadTotal": "${cost}",
       "threadTotalDetail": "{input, number} in · {output, number} uit gefactureerd over dit gesprek",
       "threadTotalPartial": "≥ ${cost}",
-      "threadTotalPartialDetail": "{input, number} in · {output, number} uit gefactureerd over dit gesprek - een ondergrens: een model erin had geen prijs",
+      "threadTotalPartialDetail": "{input, number} in · {output, number} uit gefactureerd over dit gesprek - een ondergrens: voor een van de gebruikte modellen is geen prijs bekend",
       "unmeasured": "in gebruik - deze host gaf geen getal door",
       "workspace": "Workspace",
       "workspaceUsed": "Gebruikte workspace",
@@ -2250,7 +2250,7 @@
       "today": "Vandaag",
       "yesterday": "Gisteren"
     },
-    "exactCostPartial": "{cost} - een ondergrens: een model in deze beurt had geen prijs",
+    "exactCostPartial": "{cost} - een ondergrens: voor een model in deze beurt is geen prijs bekend",
     "sendNow": "Nu versturen",
     "sendNowHint": "Stuur het nu naar de lopende taak, in plaats van na het antwoord",
     "sendNowNotWithFiles": "Een bericht met bestanden wacht op het antwoord",
@@ -7827,7 +7827,7 @@
       "milliseconds": "{ms} ms",
       "model": "Model",
       "modelFilter": "Filteren op model",
-      "modelRunHadNo": "Een model in deze run had geen prijs, dus dit is een ondergrens",
+      "modelRunHadNo": "Voor een model in deze run is geen prijs bekend, dus dit bedrag is een ondergrens",
       "toolArgsRepaired": "{count, plural, =1 {De ongeldige argumenten van één toolaanroep hersteld in plaats van hem opnieuw te proberen} other {De ongeldige argumenten van # toolaanroepen hersteld in plaats van ze opnieuw te proberen}}",
       "cacheSplit": "Van de invoer werden {read, number} uit de cache van de provider gelezen en {write, number} erin geschreven - met een eigen prijs, los van de rest",
       "modelSettings": "Modelinstellingen",
@@ -7931,7 +7931,7 @@
       "surfaceTrigger": "Trigger",
       "surfaceWeb": "Web",
       "systemPrompt": "Systeemprompt",
-      "theCostIsAFloor": "Een model in deze runs had geen prijs, dus de kosten van deze agent zijn een ondergrens",
+      "theCostIsAFloor": "Voor een model in deze runs is geen prijs bekend, dus de kosten van deze agent zijn een ondergrens",
       "theMoneyWasStill": "Het geld is nog steeds uitgegeven. Het rapport faalt hier, niet de meter.",
       "theRunNamedIn": "De run die in deze link wordt genoemd, zit niet in deze organisatie, of is verwijderd.",
       "theseRunsHappenedThe": "De runs zijn hoe dan ook gebeurd. De lijst faalt hier, niet het verslag.",
@@ -9706,7 +9706,7 @@
     "acmeCom": "acme.com",
     "approvalWaiver": "Goedkeuringen overslaan in de chat",
     "approvalWaiverDescription": "Of een gesprek mag draaien zonder te stoppen voor goedkeuringen.",
-    "approvalWaiverHint": "Als dit aan staat, kan iemand die over goedkeuringen mag beslissen, één gesprek elke toolaanroep waarvoor goedkeuring nodig is laten uitvoeren zonder dat ernaar wordt gevraagd. Elke overgeslagen aanroep wordt nog steeds op zijn account vastgelegd.",
+    "approvalWaiverHint": "Als dit aan staat, kan iemand die over goedkeuringen mag beslissen, voor één gesprek alle toolaanroepen waarvoor goedkeuring nodig is laten uitvoeren zonder dat er om goedkeuring wordt gevraagd. Elke aanroep waarvoor de goedkeuring is overgeslagen, wordt nog steeds op het account van die persoon vastgelegd.",
     "cancel": "Annuleren",
     "cancel2": "Annuleren",
     "cancel3": "Annuleren",
@@ -12893,7 +12893,7 @@
       "problem": {
         "number": "geen getal",
         "integer": "geen geheel getal",
-        "boolean": "niet waar of onwaar",
+        "boolean": "geen geldige ja/nee-waarde (gebruik bijvoorbeeld true of false)",
         "date": "geen datum geschreven als JJJJ-MM-DD",
         "datetime": "geen datum en tijd",
         "option": "geen van de opties van de kolom",
@@ -21433,7 +21433,7 @@
       "trigger_table_record": {
         "config": {
           "table": {
-            "description": "De tabel, en de kolommen waarvan een wijziging hem start - een wijziging in elke kolom als er geen zijn gekozen."
+            "description": "De tabel en de kolommen waarop de trigger reageert. Kies je geen kolommen, dan kan elke kolomwijziging de workflow starten."
           },
           "table__kind": {
             "title": "Soort"
