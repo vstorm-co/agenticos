@@ -253,8 +253,6 @@ async def list_version_capabilities(
     db: AsyncSession, *, organization_id: UUID, version_ids: Sequence[UUID]
 ) -> dict[UUID, list[JsonValue]]:
     """The capability bindings each of these published versions declared."""
-    if not version_ids:
-        return {}
     rows = await db.execute(
         select(AgentVersion.id, AgentVersion.spec["capabilities"]).where(
             AgentVersion.organization_id == organization_id,
