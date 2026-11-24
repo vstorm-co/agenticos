@@ -1,5 +1,5 @@
 ---
-source_sha: "87d1c88b4414"
+source_sha: "71182b8bda14"
 ---
 
 # Befehle { #commands }
@@ -455,6 +455,24 @@ seine eigene nicht strikt überragt.
 Migrationen, die es braucht. Führen Sie zuerst `doctor` aus, wenn etwas lokal
 funktioniert und auf einer frischen Umgebung nicht — das ist schneller als Logs zu
 lesen.
+
+### Erneut gesendete Tool-Ergebnisse messen { #measuring-re-sent-tool-output }
+
+```bash
+# Wie viel der Modelleingabe einer Organisation erneut gesendete Tool-Ergebnisse sind, je Agent.
+# Nur Größen, Zahlen und Schätzungen - nie der Inhalt eines Ergebnisses oder Requests.
+uv run agenticos cmd tool-output-report --org <org-id> --from 2026-11-01 --to 2026-11-22
+
+# Dieselben Zahlen als JSON, mit Eval-Runs und Builder-Testläufen.
+uv run agenticos cmd tool-output-report --org <org-id> --from 2026-11-01 --to 2026-11-22 \
+  --include-eval --include-tests --json
+```
+
+Ein Tool-Ergebnis bleibt im Verlauf eines Runs, also sendet jeder spätere Request an das Modell es erneut. Der Bericht misst jedes Ergebnis so, wie das Modell es erhalten hat, nach `tool_output_limits`, und zählt es einmal für jeden Request nach dem, der es aufgerufen hat, laut Manifest des Runs. Er teilt die Zahlen nach Agent und danach, wie der Agent `tool_output_limits` und `compaction` bindet. Außerdem schätzt er, was es spart, Ergebnisse über 10.000 Zeichen nach zwei vollen Sendungen durch einen kurzen Platzhalter zu ersetzen.
+
+Die Zahlen sind eine Schätzung, und der Bericht sagt das. Tokens sind Zeichen geteilt durch vier, und wo ein Tool in einem Run mehrmals lief, werden die Positionen seiner Ergebnisse gemittelt. Ein Run fehlt in der Schätzung, wenn er kein Manifest hat, keine Unterhaltung, in der er Tool-Ergebnisse speichert, oder auf eine Freigabe oder eine Antwort gewartet hat.
+
+Ein Folge-Run kann Ergebnisse früherer Runs derselben Unterhaltung mitführen, und der Bericht zeigt sie getrennt, als Obergrenze. Ein Delegat wird nie zum Eltern-Run addiert, und Arbeit der Plattform zählt nicht für den Agent, der sie gestartet hat. Der Bericht kann nicht sagen, wie das Ersetzen das Prompt-Caching verändern würde, und markiert Agents mit irgendeiner Compaction, weil ihre Zahl zu hoch ist.
 
 ### Ein Deployment zum Laufen bringen { #getting-a-deployment-up }
 

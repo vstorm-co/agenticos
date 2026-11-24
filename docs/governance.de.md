@@ -1,5 +1,5 @@
 ---
-source_sha: "2dd047d9e7ea"
+source_sha: "1ca3e642d79f"
 ---
 
 # Governance { #governance }
@@ -77,12 +77,16 @@ Abschlussmeldungen verlinken den Chat erst nach erfolgreicher Zustellung.
 
 `last_delivery_status` unterscheidet Zustellung, nur Protokoll, keine Antwort und einen unvollständigen Lauf; historische Einträge bleiben bis zum nächsten Lauf unbekannt. Die Migration `0265_trigger_delivery_status.py` ergänzt diesen Status, ohne frühere Erfolge zu erraten.
 
+Für eine Routine, die in einem privaten Chat in einer Chat-App angelegt wurde und für jeden Lauf einen neuen Chat öffnet (`chat_mode=per_run`), lautet der Status `pending`, bis der Bot die Antwort gepostet hat, danach `delivered` oder `unavailable` mit einer Benachrichtigung an die besitzende Person. Die Migration `0363_trigger_delivery_pending.py` ergänzt `pending`; ihr Downgrade liest `pending` als `delivered`. Siehe [Routine-Antworten in einem privaten Chat](channels.md#routine-answers-in-a-private-chat).
+
 Setzen Sie `ends_at` mit UTC-Offset für zeitlich begrenzte Aufgaben und
 `monthly_budget_usd` für ein engeres Monatslimit. Das MCP-Aktualisierungstool kann
 beide Einstellungen entfernen. Ein gewöhnlicher API-Schlüssel kann keine Routine
 zur Nutzung der persönlichen Konten seines Ausstellers ermächtigen. Hintergrundläufe,
 Identitätsübernahmen und fortgesetzte Gruppen- oder öffentliche Runden erteilen
 ebenfalls keine solche Zustimmung.
+
+Wenn eine andere Person eine Version veröffentlicht, zurücksetzt oder befördert, wird **Act as creator** bei den Routinen ausgeschaltet, die diese Version erreicht: auf einer Umgebung, auf die sie wechselt, auch einer durch Prüfungen geschützten, die nach bestandenen Prüfungen wechselt, und bei Routinen ohne Umgebung, wenn sie die Standardumgebung bewegt. Eine solche Routine wartet auf die Prüfung ihres Eigentümers. Eine angeheftete Routine oder eine auf einer Umgebung, die die Version nicht erreicht, führt weiter aus, was ihr Ersteller genehmigt hat.
 
 Die minütlichen Durchläufe erledigen abgelaufene Endtermine unabhängig von der nächsten Aktivierung, auch bei pausierten Routinen und Beobachtungen. Sie deaktivieren aktive Arbeit, schließen offene Blockaden der Routine und stornieren deren ausstehende Benachrichtigungen ohne Modellaufruf. Nach einem Neustart holt der Worker dies nach; die Bereinigung kann auf einen Worker oder einen weiteren Stapel warten, während Prüfungen vor Werkzeugen und Antwortzustellung abgelaufene Arbeit sofort ablehnen.
 
@@ -102,9 +106,17 @@ Im Routineformular können Sie das Ende festlegen oder entfernen. Das Datum verw
 
 Eine Routine prüft vor jedem Werkzeug ihren Ersteller, aktive Mitgliedschaft, Rolle und Ausführungsrechte erneut, auch bei Delegationen und nach einer Freigabe. Pausieren, Löschen, Ablauf, Widerruf persönlicher Zustimmung oder Änderungen dieser Berechtigung verhindern weitere Werkzeugaufrufe. Bereits an externe Dienste gesendete Effekte werden dadurch nicht zurückgerufen. Migration `0260_routine_run_origin` bewahrt den Ursprung beim Löschen; ältere geparkte Zeitpläne mit verlorenem Ursprung werden abgelehnt, statt die Rechte der freigebenden Person zu übernehmen.
 
-Der integrierte AgenticOS-MCP-Server erfordert **Als Ersteller handeln**, auch wenn ein veröffentlichter Delegat ihn einbindet. Ohne eine personenbezogene Identität lehnen die Quellenprüfung und das Erstellen der Routine diese Konfiguration mit einer konkreten Erklärung ab. Aktivieren Sie die Option oder entfernen Sie die Plattformbindung aus dem Agenten und seinen Delegaten. Die Plattform übernimmt niemals automatisch die Identität des Erstellers.
+Der integrierte AgenticOS-MCP-Server erfordert **Als ich ausführen**, auch wenn ein veröffentlichter Delegat ihn einbindet. Ohne eine personenbezogene Identität lehnen die Quellenprüfung und das Erstellen der Routine diese Konfiguration mit einer konkreten Erklärung ab. Aktivieren Sie die Option oder entfernen Sie die Plattformbindung aus dem Agenten und seinen Delegaten. Die Plattform übernimmt niemals automatisch die Identität des Erstellers.
 
 Der Routinenverlauf zeigt auch blockierte oder fehlgeschlagene Versuche vor dem Erstellen eines Agentenlaufs. Jeder enthält Zeitpunkt, Phase und einen Reparaturhinweis. Es entstehen keine Modellkosten; Prompts, Anbieterfehler und Zugangsdaten werden nie gespeichert. Die Einträge bleiben bis zum Löschen der Routine oder Organisation erhalten, unabhängig von der Benachrichtigungszustellung. Der Worker-Job fire-trigger speichert ein separates blockiertes oder fehlgeschlagenes Ergebnis. Ein abgeschlossener Warteschlangenjob bedeutet nicht, dass ein Agent erfolgreich lief.
+
+Die Routinenliste zeigt außerdem schon vor der nächsten Aktivierung, ob sie laufen würde. Jede Routine stellt die Prüfungen, die ein Auslösen macht, im Namen ihres Erstellers und ohne Nebenwirkungen: die aktive Mitgliedschaft des Erstellers und seine Ausführungsberechtigung für den Agent, eine ausführbare Version, die Quellenprüfung, das Enddatum, das Monatsbudget, einen vorherigen Run, der auf Freigabe oder eine Antwort wartet, und Aktionen ohne dauerhafte Zustimmung.
+
+Eine Routine, die keinen Run starten würde, ist rot umrandet; eine mit Aktionen, die bei Verwendung eine Freigabe benötigen, ist bernsteinfarben; eine pausierte Routine ist ausgegraut und zeigt weiterhin, woran das Fortsetzen scheitern würde. Jede Zeile nennt den Grund und bietet dem Ersteller die passende Abhilfe. Während einer Prüfung oder bei fehlendem Ergebnis erscheint ein neutraler Hinweis statt einer vermeintlichen Bereitschaft. Eine fehlgeschlagene Prüfung lässt sich wiederholen; Jetzt ausführen prüft die Zulassung weiterhin selbst.
+
+Die Dashboard-Karte Routines stellt eine Routine, die nicht laufen würde, an den Anfang und nennt den Grund in ihrem Status. `POST /triggers/readiness` liefert dieselben Gründe als begrenzte Codes für bis zu 100 Routinen auf einmal, lässt Routinen aus, die der Aufrufer nicht sehen darf, und nennt keine Quellen, Konten oder Zugangsdaten. Prüfungen, die erst ein Anbieter zur Laufzeit beantworten kann, werden nicht vorhergesagt; ihre Ablehnungen bleiben im oben beschriebenen Verlauf.
+
+Pro Person innerhalb einer Organisation kann nur eine Bereitschaftsprüfung gleichzeitig laufen. Ein zweiter Tab wartet oder versucht es erneut, statt parallele umfangreiche Prüfungen zu starten. Änderungen an Quellressourcen aktualisieren die sichtbare Bereitschaft. Ein auf eine Person wartender Haupt-Run wird im Routineverlauf auch dann gefunden, wenn der Worker vor dem Speichern seiner Verknüpfung als letzter Run gestoppt wurde. Bei einem Redis-Ausfall gilt diese Nebenläufigkeitsgrenze je API-Prozess.
 
 ## Budgets { #budgets }
 
@@ -1587,6 +1599,19 @@ auch eine Komprimierung den gecachten Prompt verkleinern kann. Solange jeder Cac
 
 ## Freigaben { #approvals }
 
+Wählen Sie im Webchat, unter Aktivität → Freigaben oder im Posteingang
+**Mit Feedback ablehnen**, um den Grund oder eine Alternative anzugeben. Die
+vorgeschlagene Aktion wird nicht ausgeführt. Der Kommentar wird mit der Ablehnung
+gespeichert. Bei mehreren Aufrufen im Chat werden alle abgelehnt, aber jeder
+Kommentar gilt nur für den jeweiligen Aufruf. Ohne Kommentar wählen Sie **Ablehnen**.
+
+Bei einem normalen abgelehnten Agenten-Toolaufruf erhält der Agent den Kommentar,
+wenn der Lauf fortgesetzt wird. Benötigt die überarbeitete Aktion eine Freigabe,
+fragt er erneut. Beim Workflow-Schritt **Um Freigabe bitten** kann der Pfad
+**Abgelehnt** den Kommentar als `note` lesen, etwa um einen Entwurf zu überarbeiten.
+Eine Ablehnung startet keinen automatischen Wiederholungsversuch. Ein abgelehnter
+MCP-Tool-Schritt schlägt weiterhin fehl, ohne das Tool aufzurufen.
+
 Ein gesperrtes Tool parkt den Run und wartet auf eine Person. Der Builder bietet
 **Immer fragen** und **Nie fragen** für eine Capability; einzelne Tools können auch
 der Capability folgen. Neue Capabilities im Builder beginnen mit **Immer fragen**.
@@ -2676,6 +2701,8 @@ Die Liste zeigt automatische Pause und Fehlerzahl. Höchstens 50 Beobachtungen p
 ## Geprüfte Routinequellen { #routine-sources }
 
 Neue Routinen genehmigen automatisch die anfänglich verfügbare Konfiguration des veröffentlichten Agenten innerhalb der aktuellen Erstellerberechtigungen. Sichere Quellenentfernungen und reine Modell- oder Anzeigeänderungen des Hauptagenten benötigen keine Prüfung. Neue Quellen, Konten oder Werkzeuge, geänderte Anweisungen oder Variablen sowie Änderungen an Capabilities, tatsächlich verwendeten Skills, Kontext oder delegiertem Verhalten erfordern vor einer weiteren Ausführung die Zugriffsprüfung des Eigentümers. Eine Veröffentlichung des gemeinsamen Agenten erweitert allein keine dauerhafte Befugnis einer Person. Fehlende optionale MCP-Konten blockieren keine unabhängige Arbeit; erforderliche Ereigniseingänge, Identität, Ressourcenzugriffe, Budgets und verbindliche Freigaben gelten weiter.
+
+Eine ausgeschaltete Capability und das, was nur sie erreicht - Skills bei ausgeschalteter **Skills**, Kontextdateien bei ausgeschalteter **Context**, Sammlungen bei ausgeschalteter **Knowledge**, Delegierte und Remote-Agenten bei ausgeschalteter **Subagents** -, sind keine Quellen: Kein Run erreicht sie. Die Prüfung führt sie deshalb nicht auf, eine gelöschte blockiert die Routine nicht, und die Bearbeitung eines solchen Skills oder einer solchen Kontextdatei erfordert keine neue Zustimmung. Das Einschalten der Capability ist eine neue Quelle und wird geprüft.
 
 Eine geänderte fixierte Delegatenversion erfordert eine Prüfung, auch bei einer reinen Modelländerung dieses Delegaten.
 

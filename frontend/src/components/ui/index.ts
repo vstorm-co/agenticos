@@ -53,6 +53,7 @@ export { AvatarColorPicker, type AvatarColorPickerProps } from "./avatar-color-p
 export { Skeleton } from "./skeleton";
 export { Separator } from "./separator";
 export { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "./tooltip";
+export { ActionTooltip } from "./action-tooltip";
 export { Tabs, TabsList, TabsTrigger, TabsContent } from "./tabs";
 export {
   Select,

@@ -68,11 +68,15 @@ Completion notifications link to the conversation only after successful delivery
 
 `last_delivery_status` distinguishes delivery, log-only, no answer and an incomplete run; historical rows stay unknown until another fire. Migration `0265_trigger_delivery_status.py` adds this status without inferring past success.
 
+For a routine made in a private chat on a chat app that opens a new chat for each run (`chat_mode=per_run`), the status reads `pending` until the bot has posted the answer, then `delivered`, or `unavailable` with a notice to the owner. Migration `0363_trigger_delivery_pending.py` adds `pending`; its downgrade reads `pending` as `delivered`. See [Routine answers in a private chat](channels.md#routine-answers-in-a-private-chat).
+
 Set `ends_at` with a UTC offset for time-bounded work, and `monthly_budget_usd`
 for a tighter monthly limit. The MCP update tool can clear either setting.
 An ordinary API key cannot authorize a routine to use its issuer's personal accounts. Background runs, impersonation and resumed group or public turns cannot grant that personal authority either.
 
 Use the version policy to follow the default published version or pin one immutable version. A pin does not move on publication. Clear it to follow again. A named environment and a version pin are mutually exclusive; current access, budgets and approvals still apply.
+
+When another person publishes, rolls back or promotes a version, **Act as creator** is switched off on the routines that version reaches: those on an environment it moves to, including a guarded one that moves once its guards pass, and those naming no environment when it moves the default. Such a routine waits for its owner's review. A pinned routine, or one on an environment the version does not reach, keeps running what its creator agreed to.
 
 The routine form can set or clear its end. The date uses the device time zone shown beside the field, independently of the cron schedule zone, and is sent to the API as an offset-aware instant. Editing another field leaves the existing end unchanged.
 
@@ -90,9 +94,17 @@ Routine runs retain the MCP accounts and tool aliases admitted for that executio
 
 A parked routine without this admission state cannot continue managed-account MCP calls. Start a new run after reviewing its access. Ordinary interactive agent defaults and explicit approval policies are unchanged; account-specific routine approval exceptions are still separate from this source check.
 
-The built-in AgenticOS platform MCP server requires **Act as creator**, including when a published delegate binds it. Without a person-backed identity, source review and routine creation refuse this configuration with an explicit explanation. Enable Act as creator or remove the platform binding from the agent and its delegates. The platform never borrows the creator’s identity automatically.
+The built-in AgenticOS platform MCP server requires **Run as me**, including when a published delegate binds it. Without a person-backed identity, source review and routine creation refuse this configuration with an explicit explanation. Turn on Run as me or remove the platform binding from the agent and its delegates. The platform never borrows the creator’s identity automatically.
 
 Routine history also lists blocked or failed attempts that ended before an agent run existed. Each shows its time, stage and a repair direction. They incur no model charges and never contain prompts, provider errors or credentials. Records remain until their routine or organization is deleted. Notification delivery failure does not remove this history. The fire-trigger worker job records a separate blocked or failed outcome; completing the queue job does not imply an agent ran successfully.
+
+The routine list also says, before the next activation, whether it would run. Each routine asks the checks a fire makes, evaluated as its creator and without side effects: the creator's active membership and run grant on the agent, a runnable version, the source review, the end date, the monthly budget, a previous run parked on an approval or an answer, and the actions that lack standing consent.
+
+A routine that would not start a run is outlined red; one with actions requiring approval if used is amber; a paused routine is greyed out and still says what resuming would meet. Each line names the reason, and its creator gets the control that fixes it. While a check is pending or unavailable, a neutral message says so instead of implying the routine is ready. A failed check offers Retry; Run now still performs its own admission checks.
+
+The Routines dashboard card puts a routine that would not run first and names the reason in its pill. `POST /triggers/readiness` returns the same reasons as bounded codes for up to 100 routines at once, leaving out any the caller cannot see, without naming a source, account or credential. Checks that only a provider can answer at run time are not predicted; their refusals stay in the history above.
+
+Readiness requests are limited to one active check per person within an organization. A second tab waits or retries instead of starting parallel deep checks. Changes to source resources refresh the visible readiness; a parked top-level run is found in the routine history even if a worker stopped before linking it as the last run. During a Redis outage this concurrency guard is enforced per API process.
 
 ## Budgets
 
@@ -1402,6 +1414,18 @@ shrink the prompt the cache held. The card is not shown while every cache held.
 
 ## Approvals
 
+In web chat, Activity → Approvals, or Inbox, choose **Reject with feedback** to
+say why you are blocking an action or what to try instead. The proposed action
+does not run, and the comment is saved with the rejection. In a chat batch, all
+listed calls are rejected, but each comment belongs only to its own call. Use
+**Reject** if you do not need to leave a comment.
+
+On a standard agent tool denial, the agent receives the comment when the run resumes.
+If a revised action needs approval, it asks again. In a workflow's **Ask for
+approval** step, the **Rejected** branch can read the comment as `note`, for
+example to redraft a proposal. Rejection does not retry a step automatically:
+a rejected **Call an MCP tool** step still fails without calling the tool.
+
 A gated tool parks the run and waits for a person. The Builder offers **Always ask**
 and **Never ask** for a capability; individual tools can also **Follow the capability**.
 New capabilities added in the Builder start with **Always ask**. Existing bindings,
@@ -2378,6 +2402,8 @@ The list shows when a routine was paused automatically and its failure count. He
 ## Reviewed routine sources { #routine-sources }
 
 New routines automatically admit the selected published agent's initial available configuration within the creator's current permissions. Safe source removals and changes limited to the root agent’s model or display metadata can follow without review. New sources, accounts or tools, changed instructions or variables, and changed capability, effective skill, context or delegated behavior require the owner's access review before another execution. Publishing a shared agent alone cannot expand a person's standing authority. Missing optional MCP accounts do not block unrelated work; required event inputs, identity, resource grants, budgets and mandatory approvals remain enforced.
+
+A capability switched off, and what only it reaches - skills while **Skills** is off, context files while **Context** is off, collections while **Knowledge** is off, delegates and remote agents while **Subagents** is off - are not sources: no run reaches them, so the review does not list them, one that is gone does not block the routine, and editing such a skill or context file needs no new consent. Switching the capability on is a new source and is reviewed.
 
 Changing a pinned delegate version requires review, including a model-only publication of that delegate.
 

@@ -6,7 +6,7 @@ exist so a supervisor can tell "this session ended" from "this bot cannot be
 started at all", which are two loops apart.
 """
 
-from app.core.exceptions import AppException
+from app.core.exceptions import AppException, ExternalServiceError
 
 
 class ChannelNotConfigured(AppException):
@@ -24,3 +24,15 @@ class ChannelNotConfigured(AppException):
 
     message = "Channel bot is not configured"
     code = "CHANNEL_NOT_CONFIGURED"
+
+
+class PartlyDelivered(ExternalServiceError):
+    """A reply sent as several messages stopped after some of them arrived.
+
+    Sending it again would post the pieces already in the chat a second time,
+    so a caller that retries or re-posts on failure stops instead. `details`
+    names the platform, how many pieces arrived and how many there were.
+    """
+
+    message = "The chat platform accepted only part of the reply"
+    code = "CHANNEL_REPLY_PARTLY_DELIVERED"

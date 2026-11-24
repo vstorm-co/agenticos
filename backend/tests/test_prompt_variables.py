@@ -391,3 +391,76 @@ def test_the_browser_s_zone_is_taken_only_when_it_is_one() -> None:
     assert requested_time_zone({"time_zone": "Nowhere/Land"}) is None
     assert requested_time_zone({"time_zone": 3}) is None
     assert requested_time_zone({}) is None
+
+
+class TestChannelMembersInAPrivateTelegramChat:
+    """A private chat has no administrators to ask for, and that is not an error."""
+
+    @staticmethod
+    def _directory(monkeypatch: pytest.MonkeyPatch, *, private_chat: bool):
+        import contextlib
+        from types import SimpleNamespace
+        from unittest.mock import AsyncMock, MagicMock
+
+        from aiogram.exceptions import TelegramBadRequest
+
+        from app.services.channels.directory import BoundChannelDirectory
+        from app.services.channels.telegram import TelegramAdapter
+
+        bot = MagicMock()
+        if private_chat:
+            bot.get_chat_administrators = AsyncMock(
+                side_effect=TelegramBadRequest(
+                    MagicMock(), "Bad Request: there are no administrators in the private chat"
+                )
+            )
+        else:
+            admin = SimpleNamespace(
+                user=SimpleNamespace(id=7, username="ada", full_name="Ada Lovelace", is_bot=False)
+            )
+            bot.get_chat_administrators = AsyncMock(return_value=[admin])
+
+        @contextlib.asynccontextmanager
+        async def fake_bot(token: str, **_: object):
+            yield bot
+
+        monkeypatch.setattr(TelegramAdapter, "_bot", staticmethod(fake_bot))
+        directory = BoundChannelDirectory(
+            adapter=TelegramAdapter(),
+            bot_token="t",
+            channel_id="42" if private_chat else "-1001234567890",
+            private_chat=private_chat,
+        )
+        return directory, bot
+
+    @pytest.mark.parametrize("variable", ["channel_members", "member_list"])
+    async def test_the_administrators_are_not_asked_for_and_nothing_is_an_error(
+        self, variable: str, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        import logging
+
+        from app.services.channels import prompt_variables as channel_variables
+
+        directory, bot = self._directory(monkeypatch, private_chat=True)
+
+        with caplog.at_level(logging.DEBUG):
+            await channel_variables.resolve("Who: {" + variable + "}", directory)
+
+        bot.get_chat_administrators.assert_not_awaited()
+        assert [r for r in caplog.records if r.levelno >= logging.ERROR] == []
+        assert any(
+            r.levelno == logging.INFO and "channel_variable_unsupported" in r.getMessage()
+            for r in caplog.records
+        )
+
+    async def test_a_group_still_gets_its_administrators(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from app.services.channels import prompt_variables as channel_variables
+
+        directory, bot = self._directory(monkeypatch, private_chat=False)
+
+        filled = await channel_variables.resolve("Who: {channel_members}", directory)
+
+        bot.get_chat_administrators.assert_awaited_once_with(chat_id="-1001234567890")
+        assert "Ada Lovelace" in filled

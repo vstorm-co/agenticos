@@ -133,7 +133,7 @@ class TestABotThatDoesNotAskForRatings:
 class TestAnEditedAnswerIsRated:
     async def test_the_thumbs_follow_the_final_edit(self) -> None:
         router, _send = _router()
-        adapter = MagicMock(update_reply=AsyncMock(), offer_feedback=AsyncMock())
+        adapter = MagicMock(update_reply=AsyncMock(return_value=None), offer_feedback=AsyncMock())
 
         await _deliver(router, adapter, _answered(), handle="h1")
 
@@ -143,7 +143,8 @@ class TestAnEditedAnswerIsRated:
     async def test_thumbs_a_platform_refuses_cost_the_answer_nothing(self) -> None:
         router, send_reply = _router()
         adapter = MagicMock(
-            update_reply=AsyncMock(), offer_feedback=AsyncMock(side_effect=RuntimeError("no"))
+            update_reply=AsyncMock(return_value=None),
+            offer_feedback=AsyncMock(side_effect=RuntimeError("no")),
         )
 
         await _deliver(router, adapter, _answered(), handle="h1")

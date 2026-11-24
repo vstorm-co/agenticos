@@ -380,3 +380,25 @@ async def test_matrix_resumptions_retain_the_identitys_original_homeserver(acces
     else:
         assert admission == Admission("refused", "identity")
         access.mocks["platform_says_member"].assert_not_awaited()
+
+
+async def test_a_routine_turn_is_judged_on_the_same_checks_as_a_run(access) -> None:
+    from app.services.channels.router import ChatTurn
+
+    turn = ChatTurn(
+        organization_id=access.run.organization_id,
+        surface="slack",
+        conversation_id=access.run.conversation_id,
+        channel_identity_id=access.run.channel_identity_id,
+        agent_id=access.run.agent_id,
+        initiated_by_publisher_fallback=False,
+        user_id=access.run.user_id,
+    )
+    assert (await ChannelMessageRouter().admission(access.db, turn, access.incoming)).verdict == (
+        "admitted"
+    )
+
+    access.mocks["get_for_bot"].return_value = None
+    refused = await ChannelMessageRouter().admission(access.db, turn, access.incoming)
+
+    assert (refused.verdict, refused.reason) == ("refused", "binding")

@@ -19,12 +19,6 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
-### Upgrading
-
-- Apply `0365_currency_settings.py` for manual deployment exchange rates and nullable organization currency preferences. Existing prices and USD limits retain their units. Before downgrading, restore automatic pricing or explicitly reprice any non-USD custom model prices in USD.
-
-- Apply `0363_model_profile_pricing.py` and `0364_monetary_cost_capacity.py` before starting the API. Existing profiles retain automatic pricing. Monetary storage retains six fractional places and accepts high custom-priced costs; downgrading requires amounts to fit the former column range. Changing or restoring model prices requires `budgets:manage` as well as connection management.
-
 ### Added
 
 - Display dashboard spending, run history and conversation costs in the organization currency, independently of language. Show unknown amounts when a reporting rate is unavailable; preserve stored USD accounting and existing cap values.
@@ -32,6 +26,56 @@ Two things are versioned separately from this file and worth knowing about:
 - Select a currency for custom model token prices and convert usage to accounting USD with a recorded rate snapshot. Configure manual rates in administration or `CURRENCY_RATES`; retain `STAV_NOK_PER_USD` as a legacy fallback. Organization currency preferences are exposed separately; report and budget presentation in those currencies remains pending.
 
 - Set flat USD token prices per model profile in the console and API, including cache rates and explicit free usage. Fallbacks and delegates use their own profile prices; keyless usage reaches budgets and reports. Existing recorded costs remain unchanged.
+
+- Bind or unbind an agent from its bot row on Channels, with paused bindings shown explicitly.
+- Inspect re-sent tool-output estimates with the read-only `agenticos cmd tool-output-report` command, including per-agent/tool sizes, cache counts and projected packing savings.
+- Choose Nederlands or Brazilian Portuguese in the console, with complete message catalogs, localized agent language instructions, voice previews and channel greetings. Desktop connection setup also offers Portuguese.
+
+- Clarify that datasets use resource sharing rather than department list filters.
+- Show why a routine cannot run, with source/access review actions, parked-run links and the same diagnostics on the dashboard.
+- Reject tool calls and workflow approvals with feedback in chat, Activity and Inbox. Preserve already saved decisions when retrying a partially failed batch.
+
+### Fixed
+
+- Keep creator consent on routines whose environment a publish, rollback or promotion does not change. Re-promoting the same version leaves their consent intact.
+
+- Keep resources of disabled capabilities out of agent execution, setup instructions and routine source/action consent. Reopen consent dialogs with a fresh review.
+- Offer agents and specialists only knowledge bases from their active organization, keeping invalid existing bindings visible for removal. Workflows retain their broader authorized selection.
+- Deliver per-run routine answers to their originating private chat, show pending delivery, and stop duplicate or truncated Telegram replies and ambiguous Slack resubmissions. A send has one durable attempt; an unconfirmed submission is not automatically repeated, and provider exceptions cannot log bot credentials.
+- Let platform-connected agents create routines for themselves without guessing an agent ID; authorization remains on the selected agent.
+- Keep readiness checks isolated to each routine's identity, refresh them after source changes, and recover parked runs whose worker stopped before saving their last-run link. Limit concurrent checks per person and organization.
+- Preserve the recorded owner of a channel continuation when a stale approval decision conflicts with an API-key decision.
+- Search every explicitly selected knowledge base when several share a collection name, without including their unselected siblings. Reject incompatible tenant scopes when publishing a workflow.
+- Show folders in the chat Files panel without also showing the empty-files message.
+
+- Open chat links that request a new window in the default browser on macOS.
+- Restore the chat Files panel width, dragging and maximization without leaving a dark gap.
+- Register public PKCE clients when the MCP authorization server advertises `none` without `client_secret_post`.
+- Keep failed or unanswered routine checks visibly distinct from confirmed readiness, while leaving final run authorization to the server.
+- Use process-local keyed fingerprints for authenticated model-catalog caches instead of stable credential digests.
+
+### Upgrading
+
+- Apply `0367_currency_settings.py` for manual deployment exchange rates and nullable organization currency preferences. Existing prices and USD limits retain their units. Before downgrading, restore automatic pricing or explicitly reprice any non-USD custom model prices in USD.
+
+- Apply `0365_model_profile_pricing.py` and `0366_monetary_cost_capacity.py` before starting the API. Existing profiles retain automatic pricing. Monetary storage retains six fractional places and accepts high custom-priced costs; downgrading requires amounts to fit the former column range. Changing or restoring model prices requires `budgets:manage` as well as connection management.
+
+- Migration `0363_app_bases_have_no_org` sets `organization_id` to `NULL` on every app-scoped knowledge base. An agent bound to one through that id stops searching it: a published version's run goes on without it and logs `Agent references collection <id> which is gone from org <id>`, and a new version that still lists it is refused at publish with `Collection not found`. To see whether this concerns you, list those bases and the agents whose published version names one before upgrading:
+
+  ```sql
+  SELECT kb.id, kb.name, kb.organization_id,
+         (SELECT string_agg(a.name, ', ')
+          FROM agents a
+          JOIN agent_versions v ON v.id = a.current_version_id
+          WHERE a.organization_id = kb.organization_id
+            AND v.spec -> 'collection_ids' @> jsonb_build_array(kb.id::text)) AS bound_by_agents
+  FROM knowledge_bases kb
+  WHERE kb.scope = 'app' AND kb.organization_id IS NOT NULL;
+  ```
+
+  To keep such an agent searching those documents, move them into an organization base and bind that. The downgrade drops the check only; it does not restore the cleared organization ids.
+
+- Apply the migration chain through `backend/alembic/versions/0364_merge_routine_and_kb.py` before starting the updated API and workers. The chain joins app-wide knowledge-base isolation with the new pending chat-delivery status.
 
 ## [1.92.0] - 2026-11-23
 

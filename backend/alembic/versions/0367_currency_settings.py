@@ -11,8 +11,8 @@ from sqlalchemy.dialects import postgresql
 
 from alembic import op
 
-revision: str = "0365_currency_settings"
-down_revision: str = "0364_monetary_cost_capacity"
+revision: str = "0367_currency_settings"
+down_revision: str = "0366_monetary_cost_capacity"
 branch_labels: None = None
 depends_on: None = None
 

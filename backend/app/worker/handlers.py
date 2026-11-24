@@ -89,6 +89,7 @@ def production() -> Handlers:
             Handler(jobs.PROCESS_EMAIL_DELIVERY, channel_tasks.process_email_delivery),
             Handler(jobs.DELIVER_CHANNEL_REPLY, channel_tasks.deliver_initial_reply),
             Handler(jobs.DELIVER_CHANNEL_HANDBACK, channel_tasks.deliver_handback),
+            Handler(jobs.ROUTINE_CHAT_ANSWER, channel_tasks.deliver_routine_answer),
             Handler(jobs.FIRE_TRIGGER, trigger_tasks.fire_trigger),
             Handler(jobs.WAKE_TASK, task_tasks.wake_task),
             Handler(jobs.DELIVER_ROUTINE_ANSWER, trigger_tasks.deliver_routine_answer),
@@ -203,6 +204,7 @@ def _settlers() -> dict[str, Settler]:
         authoring_tasks,
         case_generation_tasks,
         case_key_tasks,
+        channel_tasks,
         conversation_tasks,
         eval_tasks,
         key_coverage_tasks,
@@ -237,6 +239,9 @@ def _settlers() -> dict[str, Settler]:
         jobs.RUN_EVAL.kind: _settler(jobs.RUN_EVAL, eval_tasks.settle_lost_eval),
         jobs.RUN_AUTHORING.kind: _settler(
             jobs.RUN_AUTHORING, authoring_tasks.settle_lost_authoring
+        ),
+        jobs.ROUTINE_CHAT_ANSWER.kind: _settler(
+            jobs.ROUTINE_CHAT_ANSWER, channel_tasks.settle_lost_routine_answer
         ),
     }
 

@@ -8,6 +8,8 @@ import en from "./en.json";
 import pl from "./pl.json";
 import tr from "./tr.json";
 import fr from "./fr.json";
+import nl from "./nl.json";
+import pt from "./pt.json";
 
 /**
  * That the catalog holds copy, and only copy.
@@ -159,6 +161,8 @@ describe.each([
   ["de.json", de],
   ["tr.json", tr],
   ["fr.json", fr],
+  ["nl.json", nl],
+  ["pt.json", pt],
 ])("%s", (_name, catalog) => {
   const all = entries(catalog);
 
@@ -348,6 +352,41 @@ it("French preserves the arguments, rich-text links and selector values supplied
     return JSON.stringify(icuContract(message)) === JSON.stringify(icuContract(value)) ? [] : [key];
   });
   expect(mismatches).toEqual([]);
+});
+
+it.each([
+  ["Dutch", nl],
+  ["Portuguese", pt],
+])(
+  "%s preserves the arguments, rich-text links and selector values supplied by callers",
+  (_language, catalog) => {
+    const translated = new Map(entries(catalog));
+    const mismatches = entries(en).flatMap(([key, message]) => {
+      const value = translated.get(key);
+      if (value === undefined) return [];
+      return JSON.stringify(icuContract(message)) === JSON.stringify(icuContract(value))
+        ? []
+        : [key];
+    });
+    expect(mismatches).toEqual([]);
+  },
+);
+
+describe.each([
+  ["Dutch", nl],
+  ["Portuguese", pt],
+])("%s catalog completeness", (_language, catalog) => {
+  it("covers every current console message without obsolete keys", () => {
+    const expected = entries(en)
+      .map(([key]) => key)
+      .filter((key) => !key.startsWith("legal.pl."))
+      .sort();
+    expect(
+      entries(catalog)
+        .map(([key]) => key)
+        .sort(),
+    ).toEqual(expected);
+  });
 });
 
 describe("Turkish ICU contracts", () => {
