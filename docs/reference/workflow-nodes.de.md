@@ -1,5 +1,5 @@
 ---
-source_sha: "8bc14e41e751"
+source_sha: "0ffe0c35d627"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -155,20 +155,27 @@ Schema-Objekt, bleibt die bisherige untypisierte JSON-Objekteingabe erhalten.
 Rohe Schemas sind bei der Veröffentlichung auf 256 KiB begrenzt. Vor dem
 Annehmen eines Runs muss die als JSON serialisierte Validierungsanfrage mit
 Schema und Eingabe in 1 MiB passen. Die Validierung läuft in einem isolierten
-Prozess mit einer Frist von zwei Sekunden einschließlich Prozessstart. Jede
+Prozess. Der Prozess importiert den Validator und meldet innerhalb einer
+Startfrist von zehn Sekunden, dass er bereit ist; danach begrenzt eine Frist von
+zwei Sekunden allein die Auswertung und die Kommunikation, sodass ein langsamer
+Host die Auswertungszeit nicht verkürzt. Jede
 Ereignisschleife der API oder eines Workers erlaubt höchstens zwei gleichzeitige
 Validierungen; sind beide Plätze belegt, wird der Run sofort mit `429` abgelehnt.
 Bestehende Verträge mit einfachen Feldern werden weiterhin ohne separaten
 Prozess validiert.
 
-Linux erzwingt zusätzlich ein Adressraumlimit von 256 MiB und ein CPU-Limit.
+Linux erzwingt zusätzlich ein Adressraumlimit von 256 MiB und ein CPU-Limit, das Start und Auswertung zusammen abdeckt.
 Bei nativer Entwicklung unter macOS bleiben CPU- und Zeitlimits bestehen, aber
 kein Adressraumlimit, da Darwin `RLIMIT_AS` nicht unterstützt.
 
 Eine Zeitüberschreitung, Speichermangel im Validator oder ein Größenlimit des Validierungsprotokolls lehnt
 den Run mit `422 WORKFLOW_RUN_INPUT_INVALID` ab; `error.details.fields` nennt
 `input`, und der Problemtyp `type` im bisherigen Format ist `validation_limit`.
-Ein Fehler beim Starten des Validators, ein abnormaler Prozessabbruch (auch durch
+
+Ein Validator, der innerhalb der Startfrist nicht bereit ist, liefert dasselbe
+`503` mit dem Grund `start_timeout`; ein Prozess, der nicht gestartet werden kann
+oder vor der Bereitschaft endet oder falsche Angaben macht, verwendet den Grund
+`not_started` oder `start_failed`. Ein späterer abnormaler Prozessabbruch (auch durch
 ein Ressourcenlimit des Betriebssystems) oder eine ungültige Ausgabe liefert
 `503 WORKFLOW_INPUT_VALIDATION_UNAVAILABLE`. Beide Ablehnungen legen keinen Run
 an. Diagnosen sind auf 50 Einträge und 4 KiB UTF-8-JSON begrenzt. Wird eine Grenze

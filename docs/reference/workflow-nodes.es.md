@@ -1,5 +1,5 @@
 ---
-source_sha: "8bc14e41e751"
+source_sha: "0ffe0c35d627"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -149,23 +149,32 @@ vacío, se conserva la entrada existente como objeto JSON sin tipado.
 
 Los esquemas sin procesar tienen un límite de 256 KiB al publicar. Antes de
 admitir un run, la petición de validación serializada como JSON, con el esquema
-y la entrada, debe caber en 1 MiB. La validación se ejecuta en un proceso aislado
-con un plazo de dos segundos, incluido el arranque. Cada bucle de eventos de la
+y la entrada, debe caber en 1 MiB. La validación se ejecuta en un proceso aislado.
+El proceso importa el validador e informa de que está listo dentro de un plazo de
+arranque de diez segundos; después, un plazo de dos segundos limita solo la
+evaluación y la comunicación, de modo que un host lento no reduce el tiempo de
+evaluación.
+
+Cada bucle de eventos de la
 API o de un worker admite como máximo dos validaciones simultáneas; si ambas
 plazas están ocupadas, la admisión se rechaza inmediatamente con `429`. Los
 contratos existentes de campos simples siguen validándose sin un proceso
 separado.
 
 Linux impone además un límite de espacio de direcciones de 256 MiB y un límite
-de CPU. El desarrollo nativo en macOS conserva los límites de CPU y tiempo,
+de CPU que cubre el arranque y la evaluación juntos. El desarrollo nativo en macOS conserva los límites de CPU y tiempo,
 pero no el de espacio de direcciones porque Darwin no admite `RLIMIT_AS`.
 
 Un tiempo de espera agotado, memoria agotada en el validador o un límite de tamaño del protocolo de validación
 rechaza la admisión con `422 WORKFLOW_RUN_INPUT_INVALID`, indicando `input` en
 `error.details.fields` y `validation_limit` como el `type` del problema en el
-formato existente. Un fallo al arrancar el validador, una terminación anormal
-(incluida la causada por un límite de recursos del sistema operativo) o una salida
-inválida devuelve `503 WORKFLOW_INPUT_VALIDATION_UNAVAILABLE`. Ninguno de estos
+formato existente.
+
+Un validador que no está listo dentro del plazo de arranque devuelve el mismo
+`503` con el motivo `start_timeout`; un proceso que no puede arrancar, o que termina
+o informa mal antes de estar listo, usa el motivo `not_started` o `start_failed`.
+Una terminación anormal posterior (incluida la causada por un límite de recursos
+del sistema operativo) o una salida inválida devuelve `503 WORKFLOW_INPUT_VALIDATION_UNAVAILABLE`. Ninguno de estos
 rechazos crea un run. Los diagnósticos se limitan a 50 entradas y 4 KiB de JSON UTF-8. Al alcanzar
 cualquiera de los límites, la última entrada resume el truncamiento. Los diagnósticos nunca citan los
 valores enviados.
