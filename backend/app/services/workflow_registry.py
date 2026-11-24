@@ -1528,6 +1528,8 @@ class WorkflowRegistryService:
             ):
                 require_human_publisher(ctx)
         graph = _without_pins(await validate_graph(self.db, ctx, draft_graph))
+        # Only publishing subscribes to a live source. Draft tests use supplied or
+        # pinned input, so source-use checks do not belong in graph validation.
         # Publishing records an audit before writing its entry registrations.
         # Take the source lock first, as source mutations and routine bindings do.
         for node in entry_nodes(graph):
@@ -1545,7 +1547,19 @@ class WorkflowRegistryService:
                 if config.source_id is not None:
                     from app.services.event_sources import EventSourceService
 
-                    await EventSourceService(self.db).require_use(ctx, config.source_id, lock=True)
+                    try:
+                        await EventSourceService(self.db).require_use(
+                            ctx, config.source_id, lock=True
+                        )
+                    except AuthorizationError, NotFoundError:
+                        raise GraphValidationError(
+                            [
+                                (
+                                    f"nodes.{node.id}.config.source_id",
+                                    "Choose an event source you have permission to use",
+                                )
+                            ]
+                        ) from None
         version_number = await workflow_repo.next_version_number(self.db, workflow_id=workflow.id)
         version = await workflow_repo.create_version(
             self.db,

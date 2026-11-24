@@ -74,6 +74,7 @@ from app.schemas.workflow_exposure import (
     WorkflowExposureUpdate,
     WorkflowFormSubmission,
 )
+from app.schemas.workflow_run import WorkflowStepTest
 from app.services.api_key import ApiKeyService
 from app.services.channels.base import IncomingMessage
 from app.services.event_source_samples import EventSourceSampleService
@@ -301,6 +302,72 @@ class TestMultipleEntries:
         assert all(item.is_active for item in await service.list_for_workflow(ctx, workflow.id))
         await _publish(db, ctx, workflow, _graph("trigger.manual"))
         assert await service.list_for_workflow(ctx, workflow.id) == []
+
+    @pytest.mark.security
+    @pytest.mark.parametrize("branch", ["manual", "pinned_webhook"])
+    async def test_offline_step_tests_use_the_workflow_not_its_private_source(
+        self, db, engine, tenant, branch
+    ):
+        owner, org, workflow = tenant
+        source = await EventSourceService(db).create(
+            _ctx(owner, org), EventSourceCreate(name="Private webhook")
+        )
+        builder = await _user(db)
+        await _member(db, org=org, user=builder, role="builder")
+        ctx = _ctx(builder, org, "builder")
+        with pytest.raises(NotFoundError):
+            await EventSourceService(db).require_use(ctx, source.id)
+
+        sample = {"body": {"message": "offline example"}, "delivery_id": "example"}
+        webhook = (
+            _graph("trigger.webhook", {"source_id": str(source.id)})
+            .nodes[0]
+            .model_copy(update={"pinned_output": sample})
+        )
+        manual, output = _graph("trigger.manual").nodes[0], _graph("core.output").nodes[0]
+        graph = WorkflowGraph(
+            entry_node_id=webhook.id,
+            nodes=(webhook, manual, output),
+            edges=(
+                Edge(
+                    id=uuid.uuid4(),
+                    source_node_id=webhook.id,
+                    source_port="out",
+                    target_node_id=output.id,
+                    target_port="in",
+                ),
+            ),
+            bindings=(
+                Binding(
+                    target_node_id=output.id,
+                    target_field="structured",
+                    source=NodeOutputRef(node_id=webhook.id, port="out", field_path=("body",)),
+                ),
+            ),
+        )
+        await WorkflowRegistryService(db).update_draft(
+            ctx,
+            workflow.id,
+            WorkflowDraftUpdate(
+                graph=graph.model_dump(mode="json"),
+                expected_revision=workflow.draft_revision,
+            ),
+        )
+        target = manual if branch == "manual" else output
+        started = await WorkflowExecutionService(db).start(
+            ctx, workflow.id, mode=WorkflowRunMode.TEST, step=WorkflowStepTest(node_id=target.id)
+        )
+        run = await db.get(WorkflowRun, started.id)
+        assert run is not None
+        await db.commit()
+        completed = await drive(
+            SeededRun(run, graph, builder, org, async_sessionmaker(engine, expire_on_commit=False))
+        )
+        assert completed.status == WorkflowRunStatus.SUCCEEDED.value
+        if branch == "manual":
+            assert completed.entry_node_id == manual.id and completed.node_count == 1
+        else:
+            assert completed.output["structured"] == sample["body"]
 
     async def test_duplicate_unattended_kinds_are_refused_before_registration(self, db, tenant):
         from app.workflows.graph.errors import GraphValidationError

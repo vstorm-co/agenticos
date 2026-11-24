@@ -1029,6 +1029,8 @@ Choose **Listen for event** to capture the next authenticated event on the confi
 
 The selected trigger's sample remains `{body, delivery_id}`. Pin it and use the existing field bindings and step tests; downstream nodes can consume the JSON directly. With multiple entries, capture and pin the intended Webhook node explicitly.
 
+Testing a Manual branch or using pinned JSON does not need **Use** on the webhook source. Publishing a workflow that subscribes to the source and listening for live events both require **Use**.
+
 A shared source acknowledges durable receipt asynchronously. Publishing refuses a shared-source entry whose reachable branch contains **Respond to webhook**. Choose a dedicated workflow endpoint when the sender needs that node's synchronous status, headers or body. Dedicated endpoint URLs, credentials, duplicate detection and response behavior remain unchanged.
 
 ### A webhook or a schedule { #a-webhook-or-a-schedule }

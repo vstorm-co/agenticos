@@ -6,27 +6,9 @@ hand the authenticated event on unchanged, as `body` and `delivery_id`.
 """
 
 from pydantic import BaseModel
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import AuthorizationError, NotFoundError
-from app.core.permissions import AuthContext
 from app.workflows.contracts.results import Completed, Failed, NodeResult
-from app.workflows.nodes._triggers import WebhookTriggerConfig, WebhookTriggerOutput, run_input_as
-
-
-async def check_resources(
-    db: AsyncSession, ctx: AuthContext, config: BaseModel
-) -> list[tuple[str, str]]:
-    """Require permission to use the selected source before publishing its subscription."""
-    if not isinstance(config, WebhookTriggerConfig) or config.source_id is None:
-        return []
-    from app.services.event_sources import EventSourceService
-
-    try:
-        await EventSourceService(db).require_use(ctx, config.source_id)
-    except AuthorizationError, NotFoundError:
-        return [("source_id", "Choose an event source you have permission to use")]
-    return []
+from app.workflows.nodes._triggers import WebhookTriggerOutput, run_input_as
 
 
 async def handle(config: BaseModel | None, node_input: BaseModel | None) -> NodeResult:

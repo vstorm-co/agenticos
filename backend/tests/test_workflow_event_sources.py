@@ -12,14 +12,15 @@ from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundErr
 from app.core.permissions import AuthContext
 from app.db.models.workflow import Workflow, WorkflowVersion
 from app.db.models.workflow_exposure import WorkflowExposure
+from app.schemas.workflow import WorkflowPublish
 from app.schemas.workflow_exposure import WebhookAdmitted, WebhookSkipped, WorkflowExposureUpdate
 from app.services import workflow_exposure as module
 from app.services.workflow_exposure import WorkflowExposureService
+from app.services.workflow_registry import WorkflowRegistryService
 from app.workflows.graph.errors import GraphValidationError
 from app.workflows.graph.model import Edge, NodeInstance, NodePosition, WorkflowGraph
 from app.workflows.graph.validate import validate_graph
 from app.workflows.nodes._triggers import WebhookTriggerConfig
-from app.workflows.nodes.trigger_webhook._handler import check_resources
 
 pytestmark = pytest.mark.anyio
 
@@ -377,11 +378,24 @@ async def test_queued_source_delivery_cannot_run_a_missing_or_unrelated_pinned_v
 
 @pytest.mark.security
 @pytest.mark.parametrize("error", [AuthorizationError, NotFoundError])
-async def test_source_publish_reports_revoked_access_on_the_config_field(source_api, error):
+async def test_source_publish_reports_revoked_access_on_the_config_field(
+    publisher, source_api, error, monkeypatch
+):
+    ctx, workflow, version, exposure = publisher
+    workflow.draft_graph = version.graph
+    workflow.draft_revision = 1
+    registry = WorkflowRegistryService(MagicMock())
+    monkeypatch.setattr(registry, "_load", AsyncMock(return_value=workflow))
     source_api.require_use.side_effect = error(message="Unavailable")
-    ctx = AuthContext(user_id=uuid4(), organization_id=uuid4(), role="owner")
-    problems = await check_resources(MagicMock(), ctx, WebhookTriggerConfig(source_id=uuid4()))
-    assert problems == [("source_id", "Choose an event source you have permission to use")]
+    with pytest.raises(GraphValidationError) as refused:
+        await registry.publish(ctx, workflow.id, WorkflowPublish(expected_revision=1))
+    assert refused.value.details["fields"] == [
+        {
+            "field": f"nodes.{exposure.node_instance_id}.config.source_id",
+            "message": "Choose an event source you have permission to use",
+        }
+    ]
+    source_api.require_use.assert_awaited_once_with(ctx, exposure.source_id, lock=True)
 
 
 async def test_shared_response_validation_follows_the_selected_branch(publisher, source_api):

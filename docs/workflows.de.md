@@ -1,5 +1,5 @@
 ---
-source_sha: "4ae6867bd4ca"
+source_sha: "dcb9a2eda587"
 ---
 
 # Workflows { #workflows }
@@ -1153,6 +1153,8 @@ Wer die Läufe dieses Workflows einsehen darf, kann im Verlauf auch die zugestel
 **Auf Ereignis warten** erfasst das nächste authentifizierte Ereignis an der konfigurierten Live-URL. Das Fenster dauert zwei Minuten; temporäre Beispiele bleiben zehn Minuten und unterliegen dem 64-KB-Pin-Limit. **Aktive Abonnenten werden weiter ausgeführt.** Die Erfassung erzeugt keinen zusätzlichen Lauf und ändert die Zustellung nicht. Eingefügtes Beispiel-JSON ist eine Alternative; Speichern und Veröffentlichen benötigen kein Beispiel.
 
 Das Beispiel des gewählten Triggers bleibt `{body, delivery_id}`. Pinnen Sie es und verwenden Sie vorhandene Feldbindungen und Schritttests; nachfolgende Knoten lesen JSON direkt. Wählen Sie bei mehreren Einstiegen ausdrücklich den gewünschten Webhook-Knoten für Erfassung und Pin.
+
+Für den Test eines manuellen Zweigs oder die Verwendung bereits angehefteter JSON-Daten ist keine Nutzungsberechtigung für die Webhook-Quelle erforderlich. Wer einen Workflow mit dieser Quelle als Abonnement veröffentlicht oder Live-Ereignisse abhört, benötigt diese Berechtigung.
 
 Eine gemeinsame Quelle bestätigt dauerhaften Empfang asynchron. Veröffentlichen verweigert einen solchen Einstieg, wenn sein erreichbarer Zweig **Auf Webhook antworten** enthält. Verwenden Sie einen dedizierten Workflow-Endpunkt, wenn der Absender dessen synchrone Statuscodes, Header oder Body benötigt. URL, Zugangsdaten, Duplikaterkennung und Antwortverhalten dedizierter Endpunkte bleiben unverändert.
 
