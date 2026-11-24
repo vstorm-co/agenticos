@@ -1,5 +1,7 @@
 import type { KnowledgeBase } from "@/types/knowledge-base";
 
+export type AgentBinding = "bindable" | "app" | "otherOrganization";
+
 /**
  * Whether an agent in `organizationId` can bind this collection, and if not, why.
  *
@@ -10,8 +12,6 @@ import type { KnowledgeBase } from "@/types/knowledge-base";
  * made in another organization, which `/kb` still lists because the owner may
  * read it there.
  */
-export type AgentBinding = "bindable" | "app" | "otherOrganization";
-
 export function agentBinding(collection: KnowledgeBase, organizationId: string): AgentBinding {
   if (collection.scope === "app") return "app";
   return collection.organization_id === organizationId ? "bindable" : "otherOrganization";
