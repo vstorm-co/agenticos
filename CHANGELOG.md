@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Changed
+
+- The Departments and Datasets pages say that datasets are not grouped by department: the Datasets list has no group filter or department badges, a dataset has no Add to an agent action or `used_by` list, and a department reaches a dataset through a grant on it (#2554).
+
 ## [1.92.0] - 2026-11-23
 
 ### Added
