@@ -641,7 +641,8 @@ class SkillService:
 
         Those the arrangement already read, or else read for these cards alone, so
         a card says the same "used by" and "drafted by" whatever the arrangement
-        and the work stays bounded by the cards rather than the library.
+        and the agents named stay bounded by the cards. Every served version and
+        live draft of the organization is still parsed once either way.
         """
         if arranged.bindings is not None:
             return arranged.bindings
