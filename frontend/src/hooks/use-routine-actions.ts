@@ -15,6 +15,11 @@ export function useRoutineActions(agentId: string, triggerId: string, { enabled 
     queryKey: key,
     queryFn: () => routineActionsApi.get(agentId, triggerId),
     enabled,
+    // A review is of what the routine reaches now. Publishing, a rollback, a
+    // promotion, or an edited skill, context file, delegate or connection all
+    // change that - more writers than any one invalidation list keeps up with -
+    // so every opening reads it again rather than showing the console's cache.
+    staleTime: 0,
   });
   const replace = useMutation({
     mutationFn: (actions: RoutineActionKey[]) =>
