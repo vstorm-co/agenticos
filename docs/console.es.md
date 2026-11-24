@@ -1,5 +1,5 @@
 ---
-source_sha: "412c83b8757b"
+source_sha: "8252d40ce4c3"
 ---
 
 # La consola { #the-console }
@@ -1305,7 +1305,7 @@ que un problema real se lea como algo tranquilo.
 - Una página que muestra "todavía nada" puede ser **una petición fallida**, no un
   recurso vacío.
 
-El pie de la barra lateral muestra la versión de compilación de la consola junto a la búsqueda y las notificaciones, y una entrada de Ayuda con la documentación, la ruta de aprendizaje y un informe de error con la versión ya rellenada, también en la barra contraída y el menú móvil. Procede de la versión del paquete frontend incluida en la compilación y no requiere solicitudes de red. El texto emergente la identifica como versión de la consola; un proceso API actualizado por separado puede ejecutar otra versión.
+El pie de la barra lateral muestra la versión de compilación de la consola junto a las notificaciones, y una entrada de Ayuda con la documentación, la ruta de aprendizaje y un informe de error con la versión ya rellenada, también en la barra contraída y el menú móvil. Procede de la versión del paquete frontend incluida en la compilación y no requiere solicitudes de red. El texto emergente la identifica como versión de la consola; un proceso API actualizado por separado puede ejecutar otra versión.
 
 Una versión estable más reciente de AgenticOS resalta el número con un punto verde. Al pulsarlo se ven las versiones en uso y disponible y un enlace al lanzamiento oficial. La comprobación en segundo plano se ejecuta al abrir la consola, cada 30 minutos durante el uso y, si los datos están obsoletos, al recuperar el foco o la conexión. El servidor comparte los resultados públicos durante cinco minutos y no envía a GitHub datos de la cuenta, organización o despliegue. Los fallos de red mantienen visible la versión en uso sin afirmar que sea la última. El aviso no recarga la página ni instala actualizaciones automáticamente.
 

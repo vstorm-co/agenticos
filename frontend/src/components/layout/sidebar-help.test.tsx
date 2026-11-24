@@ -19,6 +19,9 @@ it.each([false, true])(
       "href",
       `https://github.com/t3grp/agenticos/issues/new?template=bug_report.yml&version=v${version}`,
     );
+    expect(
+      screen.getByText("Opens a public GitHub issue with your version filled in"),
+    ).toBeInTheDocument();
     expect(screen.getByText(`Reports include console version v${version}`)).toBeInTheDocument();
   },
 );

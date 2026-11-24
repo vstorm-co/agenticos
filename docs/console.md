@@ -1236,7 +1236,7 @@ quiet one.
 - A page showing "nothing yet" may be **a failed request**, not an empty
   resource.
 
-The sidebar footer shows the console build version beside search and notifications, and a Help entry with the documentation, the Learn track and a bug report pre-filled with that version, including in the collapsed rail and mobile menu. It comes from the frontend package version embedded in that build, so checking it needs no network request. The tooltip identifies it as the console version; an API process upgraded separately can run another version.
+The sidebar footer shows the console build version beside notifications, and a Help entry with the documentation, the Learn track and a bug report pre-filled with that version, including in the collapsed rail and mobile menu. It comes from the frontend package version embedded in that build, so checking it needs no network request. The tooltip identifies it as the console version; an API process upgraded separately can run another version.
 
 A newer stable AgenticOS release highlights that version with a green dot. Click it to see the running and available versions and open the official release. A background check runs when the console opens, every 30 minutes while active, and when stale data is revisited after focus or connectivity returns. The server shares public release checks for five minutes and sends no account, organization or deployment data to GitHub. Network failures leave the running version visible without claiming it is current. The notice never reloads the page or installs an update automatically.
 

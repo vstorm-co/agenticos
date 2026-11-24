@@ -5285,7 +5285,7 @@
     "helpLearn": "Learn",
     "helpLearnHint": "A guided course for getting started",
     "helpReportProblem": "Report a problem",
-    "helpReportProblemHint": "Open a bug report with your version filled in",
+    "helpReportProblemHint": "Opens a public GitHub issue with your version filled in",
     "helpReportVersion": "Reports include console version {version}"
   },
   "navigation": {
