@@ -181,6 +181,7 @@ Two things are versioned separately from this file and worth knowing about:
 - Deleting an app waits for workflow worker mutations before changing its rows, preventing a deadlock while a worker finishes a run started by that app.
 - Completed room answers containing only text can recover a missed save acknowledgement from history, restoring reply, fork and rating actions. Local tool results, thinking, errors, and pending approvals or questions retain their existing state.
 - Table links expose only readable destination IDs and labels, including exports and projected reads. Link filters and counts use the same visible destinations, and legacy array replacements retain hidden existing links. Invalid stored row policies block record access with a repairable `ROW_POLICY_INVALID` error instead of disabling restrictions.
+- Creating a private task board or a workflow template now takes the table storage lock before the table name lock, as table creation does, so it no longer deadlocks with a table created at the same time (#273).
 - Chat followers recover saved-answer acknowledgements and final outcomes when a turn finishes during replay or a quiet interval. Sequence checks keep recovered frames in order without duplicating earlier output.
 - Room workers carry the persisted assistant message ID through their completion callback so connected participants receive a save acknowledgement before the turn ends. The acknowledgement still requires a separately committed message from the same run.
 
