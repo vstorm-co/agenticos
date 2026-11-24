@@ -74,6 +74,8 @@ An ordinary API key cannot authorize a routine to use its issuer's personal acco
 
 Use the version policy to follow the default published version or pin one immutable version. A pin does not move on publication. Clear it to follow again. A named environment and a version pin are mutually exclusive; current access, budgets and approvals still apply.
 
+When another person publishes, rolls back or promotes a version, **Act as creator** is switched off on the routines that version reaches: those on an environment it moves to, including a guarded one that moves once its guards pass, and those naming no environment when it moves the default. Such a routine waits for its owner's review. A pinned routine, or one on an environment the version does not reach, keeps running what its creator agreed to.
+
 The routine form can set or clear its end. The date uses the device time zone shown beside the field, independently of the cron schedule zone, and is sent to the API as an offset-aware instant. Editing another field leaves the existing end unchanged.
 
 A routine rechecks its creator, active membership, role and run grants before each tool, including delegates and calls released after approval. Pausing, deleting or expiring the routine, withdrawing personal consent, or changing that authority refuses subsequent tools. An effect already sent to an external service cannot be recalled by this check. Migration `0260_routine_run_origin` retains the origin when the routine is deleted; an old parked schedule whose origin was already lost is refused rather than borrowing the approver’s authority.

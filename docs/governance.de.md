@@ -1,5 +1,5 @@
 ---
-source_sha: "1670cd785e7d"
+source_sha: "45336ae51fcd"
 ---
 
 # Governance { #governance }
@@ -83,6 +83,8 @@ beide Einstellungen entfernen. Ein gewöhnlicher API-Schlüssel kann keine Routi
 zur Nutzung der persönlichen Konten seines Ausstellers ermächtigen. Hintergrundläufe,
 Identitätsübernahmen und fortgesetzte Gruppen- oder öffentliche Runden erteilen
 ebenfalls keine solche Zustimmung.
+
+Wenn eine andere Person eine Version veröffentlicht, zurücksetzt oder befördert, wird **Act as creator** bei den Routinen ausgeschaltet, die diese Version erreicht: auf einer Umgebung, auf die sie wechselt, auch einer durch Prüfungen geschützten, die nach bestandenen Prüfungen wechselt, und bei Routinen ohne Umgebung, wenn sie die Standardumgebung bewegt. Eine solche Routine wartet auf die Prüfung ihres Eigentümers. Eine angeheftete Routine oder eine auf einer Umgebung, die die Version nicht erreicht, führt weiter aus, was ihr Ersteller genehmigt hat.
 
 Die minütlichen Durchläufe erledigen abgelaufene Endtermine unabhängig von der nächsten Aktivierung, auch bei pausierten Routinen und Beobachtungen. Sie deaktivieren aktive Arbeit, schließen offene Blockaden der Routine und stornieren deren ausstehende Benachrichtigungen ohne Modellaufruf. Nach einem Neustart holt der Worker dies nach; die Bereinigung kann auf einen Worker oder einen weiteren Stapel warten, während Prüfungen vor Werkzeugen und Antwortzustellung abgelaufene Arbeit sofort ablehnen.
 
