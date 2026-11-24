@@ -139,19 +139,24 @@ input is preserved.
 
 Raw schemas are limited to 256 KiB at publication. Before admission, the
 serialized JSON validation request containing the schema and input must fit
-1 MiB. Validation runs in an isolated process with a two-second deadline,
-including startup. Each API or worker event loop permits at most two concurrent
+1 MiB. Validation runs in an isolated process. The process imports the validator and
+reports that it is ready within a ten-second startup deadline; a two-second
+deadline then bounds evaluation and communication alone, so a slow host does not
+shorten the evaluation allowance. Each API or worker event loop permits at most two concurrent
 validations; when both slots are busy, admission is refused immediately with
 `429`. Existing simple-field contracts continue to validate inline.
 
-Linux additionally enforces a 256 MiB address-space limit and a CPU limit.
+Linux additionally enforces a 256 MiB address-space limit and a CPU limit that
+covers startup and evaluation together.
 Native macOS development retains the CPU and wall-clock limits, but has no
 address-space limit because Darwin does not support `RLIMIT_AS`.
 
 A timeout, validator memory exhaustion or validation protocol-size limit refuses admission with
 `422 WORKFLOW_RUN_INPUT_INVALID`, naming `input` in `error.details.fields` and
-`validation_limit` as the legacy problem's `type`. Validator startup failure,
-abnormal exit (including termination by an OS resource limit), or invalid output
+`validation_limit` as the legacy problem's `type`. A validator that is not
+ready within the startup deadline returns the same `503` with reason
+`start_timeout`; a process that cannot start, or exits or misreports before it is
+ready, uses reason `not_started` or `start_failed`. A later abnormal exit (including termination by an OS resource limit), or invalid output
 returns `503 WORKFLOW_INPUT_VALIDATION_UNAVAILABLE`. Neither refusal creates a
 run. Diagnostics are limited to 50 entries and 4 KiB of UTF-8 JSON. When either
 limit is reached, the final entry summarizes truncation. Diagnostics never quote submitted values.
