@@ -8636,7 +8636,7 @@
         "nowShared": "Weergave gedeeld",
         "nowPrivate": "Weergave privé gemaakt",
         "groupedName": "Kanban op {column}",
-        "defaultName": "{kind} (standaard)",
+        "defaultName": "Standaard: {kind}",
         "defaultSaved": "Standaardweergave opgeslagen",
         "defaultHint": "Open deze weergave standaard voor iedereen met toegang tot de tabel. De opgeslagen weergave wordt gedeeld.",
         "setDefault": "Als standaard instellen",
