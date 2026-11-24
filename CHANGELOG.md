@@ -31,6 +31,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Keep creator consent on routines whose environment a publish, rollback or promotion does not change. Re-promoting the same version leaves their consent intact.
+
 - Keep resources of disabled capabilities out of agent execution, setup instructions and routine source/action consent. Reopen consent dialogs with a fresh review.
 - Offer agents and specialists only knowledge bases from their active organization, keeping invalid existing bindings visible for removal. Workflows retain their broader authorized selection.
 - Deliver per-run routine answers to their originating private chat, show pending delivery, and stop duplicate or truncated Telegram replies and ambiguous Slack resubmissions. A send has one durable attempt; an unconfirmed submission is not automatically repeated, and provider exceptions cannot log bot credentials.
