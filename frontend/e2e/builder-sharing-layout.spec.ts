@@ -132,7 +132,7 @@ test("context overrides persist and compact app sharing preserves optional setti
     await page.keyboard.press("Escape");
 
     await page.goto(`/apps/${app.id}`);
-    await page.getByRole("button", { name: "App controls", exact: true }).click();
+    await page.getByRole("button", { name: "Page controls", exact: true }).click();
     await page.getByRole("button", { name: "Share", exact: true }).click();
     const share = page.getByRole("dialog");
     await expect(
@@ -189,7 +189,7 @@ test("context overrides persist and compact app sharing preserves optional setti
     await expect(share.getByText("Password protected", { exact: true })).toBeVisible();
     await expect(options).not.toHaveAttribute("open");
     await page.reload();
-    await page.getByRole("button", { name: "App controls", exact: true }).click();
+    await page.getByRole("button", { name: "Page controls", exact: true }).click();
     await page.getByRole("button", { name: "Share", exact: true }).click();
     await expect(share.getByText("Password protected", { exact: true })).toBeVisible();
     await options.locator("summary").click();

@@ -533,7 +533,7 @@ it("keeps the active destination in view when collapsing the navigation", () => 
   currentPath.mockReturnValue("/dashboard");
 });
 
-describe("the Apps section", () => {
+describe("the Pages section", () => {
   const app = (n: number) => ({ id: `app-${n}`, title: `App ${n}`, name: `app-${n}` });
 
   beforeEach(() => {
@@ -563,7 +563,7 @@ describe("the Apps section", () => {
     expect(screen.queryByRole("link", { name: "allApps" })).not.toBeInTheDocument();
   });
 
-  it("keeps All apps, with the pin hint, when nothing is starred", () => {
+  it("keeps All pages, with the pin hint, when nothing is starred", () => {
     can.mockReturnValue(true);
     apps.mockReturnValue([]);
 

@@ -7,7 +7,7 @@ const catalogs = [
   ["/workflows", "Workflows", "/api/workflows"],
   ["/routines", "Routines", "/api/triggers"],
   ["/datasets", "Datasets", "/api/datasets"],
-  ["/apps", "Apps", "/api/apps"],
+  ["/apps", "Pages", "/api/apps"],
   ["/projects", "Projects", "/api/projects"],
   ["/rag", "Knowledge bases", "/api/kb"],
   ["/tables", "Tables", "/api/tables"],

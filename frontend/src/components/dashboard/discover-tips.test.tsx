@@ -36,7 +36,7 @@ describe("the dashboard's discover tips", () => {
         name: /Connect an app/,
       }),
     ).toHaveAttribute("href", "/settings/mcp");
-    expect(within(tile("Turn answers into apps")).getByRole("link")).toHaveAttribute(
+    expect(within(tile("Turn answers into pages")).getByRole("link")).toHaveAttribute(
       "href",
       "/apps",
     );
@@ -61,13 +61,13 @@ describe("the dashboard's discover tips", () => {
     const { unmount } = render(<DiscoverTips />);
 
     await userEvent.click(
-      screen.getByRole("button", { name: "Hide the tip Turn answers into apps" }),
+      screen.getByRole("button", { name: "Hide the tip Turn answers into pages" }),
     );
-    expect(screen.queryByRole("article", { name: "Turn answers into apps" })).toBeNull();
+    expect(screen.queryByRole("article", { name: "Turn answers into pages" })).toBeNull();
 
     unmount();
     render(<DiscoverTips />);
-    expect(screen.queryByRole("article", { name: "Turn answers into apps" })).toBeNull();
+    expect(screen.queryByRole("article", { name: "Turn answers into pages" })).toBeNull();
     expect(screen.getAllByRole("article")).toHaveLength(10);
   });
 

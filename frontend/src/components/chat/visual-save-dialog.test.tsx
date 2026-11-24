@@ -70,21 +70,21 @@ describe("VisualSaveDialog", () => {
       url: "/apps/a1",
     });
     const [said, options] = toast.success.mock.calls[0]!;
-    expect(said).toBe("Saved as an app, version 1");
+    expect(said).toBe("Saved as a page, version 1");
     options.action.onClick();
     expect(push).toHaveBeenCalledWith("/apps/a1");
   });
 
-  it("updates the app an earlier version was saved as", async () => {
+  it("updates the page an earlier version was saved as", async () => {
     mutateAsync.mockResolvedValue({ ...APP, version: 2, unchanged: true });
     open("flow");
-    expect(screen.getByText("Update the app")).toBeInTheDocument();
+    expect(screen.getByText("Update the page")).toBeInTheDocument();
     expect(screen.getByLabelText("Name")).toHaveValue("flow");
     fireEvent.change(screen.getByLabelText("Title"), { target: { value: "  " } });
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
     await waitFor(() =>
       expect(toast.success).toHaveBeenCalledWith(
-        "The app already has exactly this version",
+        "The page already has exactly this version",
         expect.anything(),
       ),
     );

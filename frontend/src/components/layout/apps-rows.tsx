@@ -13,17 +13,17 @@ import { ROUTES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { Perm } from "@/types/permissions";
 
-/** How many starred apps the column lists before "All apps" takes over. */
+/** How many starred pages the column lists before "All pages" takes over. */
 const SHOWN = 8;
 
 /**
- * The apps the caller starred, in the sidebar: a star pins an app here, and a
- * hover on its row unstars it. "All apps" stays below them, always.
+ * The pages the caller starred, in the sidebar: a star pins a page here, and a
+ * hover on its row unstars it. "All pages" stays below them, always.
  *
- * The list comes from the same endpoint the Apps page reads, with
- * `mine_or_shared` and `favourites`, so the server decides which apps appear.
+ * The list comes from the same endpoint the Pages page reads, with
+ * `mine_or_shared` and `favourites`, so the server decides which pages appear.
  * With nothing starred the column says how to pin one and still links to
- * "All apps". The whole section is absent when the caller lacks
+ * "All pages". The whole section is absent when the caller lacks
  * `artifacts:view`; the server refuses that list to them anyway.
  */
 export function AppsRows({

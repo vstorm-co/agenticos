@@ -1124,7 +1124,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     permission: Perm.artifactsView,
   },
   // The reader's starred apps in the sidebar, present once at least one app is
-  // starred. The Apps heading and All apps link remain available when empty.
+  // starred. The Pages heading and All pages link remain available when empty.
   {
     id: "nav-pinned",
     page: ROUTES.DASHBOARD,
