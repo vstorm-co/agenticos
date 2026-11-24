@@ -200,6 +200,111 @@ class TestListing:
         assert response.status_code == 422
 
 
+class TestSections:
+    """`GET /skills/sections`, with the rows stubbed where the database would answer.
+
+    Which rows a caller may see, and the agents behind them, are proven against
+    Postgres in `tests/integration/test_skill_sections.py`; here it is the
+    route's contract - its parameters, its bounds and the shape it answers with.
+    """
+
+    @pytest.fixture
+    def rows(self) -> dict[str, MagicMock]:
+        return {
+            name: _row(name, category=category, visibility=visibility)
+            for name, category, visibility in (
+                ("refund-policy", "Support", "org"),
+                ("quarterly-report", "support", "private"),
+                ("our-tone", None, "org"),
+            )
+        }
+
+    @pytest.fixture
+    def arranged(self, rows: dict[str, MagicMock]) -> Iterator[MagicMock]:
+        from app.repositories.skill import SkillKey
+
+        keys = [
+            SkillKey(id=row.id, name=row.name, category=row.category, visibility=row.visibility)
+            for row in rows.values()
+        ]
+        listed = AsyncMock(return_value=keys)
+        by_id = {row.id: row for row in rows.values()}
+        with (
+            patch("app.services.skills.skill_repo.list_visible_keys", listed),
+            patch(
+                "app.services.skills.skill_repo.get_many",
+                AsyncMock(side_effect=lambda _db, ids, **_kw: {i: by_id[i] for i in ids}),
+            ),
+        ):
+            yield listed
+
+    async def test_each_arrangement_answers_with_counted_sections(
+        self, client: OpenClient, arranged: MagicMock
+    ):
+        bodies = {}
+        async with client() as http:
+            for arrange in ("agent", "origin", "category"):
+                response = await http.get(_url(f"/sections?arrange={arrange}&per_section=1"))
+                assert response.status_code == 200
+                bodies[arrange] = response.json()
+
+        def laid_out(body: dict[str, Any]) -> list[tuple[str, int, int]]:
+            return [
+                (section["key"], section["count"], len(section["items"]))
+                for section in body["sections"]
+            ]
+
+        assert laid_out(bodies["agent"]) == [("unused", 3, 1)]
+        assert laid_out(bodies["origin"]) == [
+            ("origin:org", 1, 1),
+            ("origin:private", 1, 1),
+            ("origin:platform", 1, 1),
+        ]
+        assert laid_out(bodies["category"]) == [("category:support", 2, 1), ("category:", 1, 1)]
+        assert bodies["category"]["sections"][0]["category"] == "Support"
+        assert all(body["total"] == 3 for body in bodies.values())
+
+    async def test_the_filters_reach_the_query_that_counts(
+        self, client: OpenClient, arranged: MagicMock
+    ):
+        async with client() as http:
+            response = await http.get(
+                _url("/sections?arrange=category&q=refund&category=Support&sort=updated")
+            )
+
+        assert response.status_code == 200
+        kwargs = arranged.call_args.kwargs
+        assert (kwargs["search"], kwargs["categories"], kwargs["sort"]) == (
+            "refund",
+            ["Support"],
+            "updated",
+        )
+
+    async def test_an_arrangement_or_a_size_out_of_bounds_is_refused(self, client: OpenClient):
+        async with client() as http:
+            missing = await http.get(_url("/sections"))
+            unknown = await http.get(_url("/sections?arrange=folder"))
+            too_many = await http.get(_url("/sections?arrange=agent&per_section=51"))
+
+        assert [missing.status_code, unknown.status_code, too_many.status_code] == [422] * 3
+
+    async def test_a_section_of_the_flat_listing_is_one_arranged_section(
+        self, client: OpenClient, arranged: MagicMock, repo: MagicMock, rows: dict[str, MagicMock]
+    ):
+        async with client() as http:
+            response = await http.get(_url("?section=origin:private"))
+
+        assert response.status_code == 200
+        assert repo.list_visible.call_args.kwargs["only_ids"] == [rows["quarterly-report"].id]
+
+    async def test_a_section_key_that_names_no_section_is_refused(self, client: OpenClient):
+        async with client() as http:
+            response = await http.get(_url("?section=folder:sales"))
+
+        assert response.status_code == 400
+        assert response.json()["error"]["details"]["fields"][0]["field"] == "section"
+
+
 class TestUsage:
     async def test_the_window_reaches_the_service_and_is_bounded(self, client: OpenClient):
         skill_id = uuid.uuid4()

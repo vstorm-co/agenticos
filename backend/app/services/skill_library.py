@@ -187,6 +187,18 @@ def gallery() -> tuple[GalleryIndustry, ...]:
     return tuple(industries)
 
 
+@cache
+def gallery_industries() -> dict[str, str]:
+    """Each gallery skill's name mapped to the industry directory that ships it.
+
+    Installing copies a gallery folder into an ordinary row and keeps only the
+    name, so the name is how a listing finds an installed skill's industry again.
+    Names are unique across the library and the gallery - a new folder must not
+    reuse one - so the mapping is one to one.
+    """
+    return {skill.name: industry.id for industry in gallery() for skill in industry.skills}
+
+
 def architect_names() -> frozenset[str]:
     """The names of the skills the AI Architect's template binds, bundled or from the gallery.
 

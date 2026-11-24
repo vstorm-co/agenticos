@@ -2,6 +2,7 @@
 
 import re
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from pydantic import Field, field_validator
@@ -138,6 +139,13 @@ class SkillSummary(BaseSchema):
     built_in: bool = Field(
         description="Whether this skill shipped with the deployment, by library name"
     )
+    gallery_industry: str | None = Field(
+        default=None,
+        description=(
+            "The skill gallery industry that ships a skill by this name, such as `finance` - "
+            "None for the bundled library and for the organization's own skills"
+        ),
+    )
     architect: bool = Field(
         default=False,
         description=(
@@ -190,6 +198,65 @@ class SkillList(BaseSchema):
             "a suggestion beside the free-typed value, never a constraint on it"
         ),
     )
+
+
+SkillArrangement = Literal["agent", "origin", "category"]
+"""How the listing can be arranged into sections."""
+
+SkillSectionKind = Literal[
+    "agent",
+    "drafted",
+    "unused",
+    "org",
+    "private",
+    "platform",
+    "gallery",
+    "category",
+    "uncategorized",
+]
+
+
+class SkillSection(BaseSchema):
+    """One section of an arranged listing: what it holds, how many, and its first cards."""
+
+    key: str = Field(
+        description=(
+            "Names the section to `GET /skills?section=`, which pages through all of it: "
+            "`agent:<id>`, `drafted`, `unused`, `origin:org`, `origin:private`, "
+            "`origin:platform`, `origin:gallery:<industry>`, `category:<name>` or `category:`"
+        )
+    )
+    kind: SkillSectionKind
+    count: int = Field(description="How many skills the section holds, before `items` is cut short")
+    agent: AgentUsage | None = Field(
+        default=None, description="The agent whose served version binds these, for `agent`"
+    )
+    industry: str | None = Field(
+        default=None, description="The gallery industry these ship from, for `gallery`"
+    )
+    category: str | None = Field(
+        default=None,
+        description=(
+            "The shelf's name, for `category`: categories differing only in letter case "
+            "share one section"
+        ),
+    )
+    items: list[SkillSummary] = Field(description="The section's first skills, in listing order")
+
+
+class SkillSections(BaseSchema):
+    """The skills a caller may see, arranged into sections - with the filters' choices."""
+
+    arrange: SkillArrangement
+    sections: list[SkillSection]
+    total: int = Field(
+        description=(
+            "How many distinct skills the sections hold - fewer than the counts' sum when a "
+            "skill sits under several agents"
+        )
+    )
+    categories: list[str] = Field(default_factory=list)
+    suggested_categories: list[str] = Field(default_factory=list)
 
 
 class SkillCreate(AudienceChoice):

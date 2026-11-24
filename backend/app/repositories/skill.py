@@ -6,10 +6,10 @@ predicate pieces the access layer resolved rather than re-deriving them here.
 """
 
 from collections.abc import Collection, Sequence
-from typing import Any, Literal
+from typing import Any, Literal, NamedTuple
 from uuid import UUID
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import ColumnElement, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -126,23 +126,96 @@ async def list_visible(
             org-visible or explicitly granted, and not their own - whatever
             the role's scope.
         only_ids: Narrow to these rows, on top of the visibility rules - the
-            skills shared with one group, when the page is grouped by one.
+            skills shared with one group, or the ones in one section of an
+            arranged listing.
 
     The total is what a pager needs and a page cannot supply: "showing 50 of 50"
     and "50 of 380" are the same list until somebody counts the rest.
+    """
+    where = _visible_where(
+        organization_id=organization_id,
+        user_id=user_id,
+        see_all=see_all,
+        shared_ids=shared_ids,
+        shared_with_me=shared_with_me,
+        search=search,
+        categories=categories,
+        only_ids=only_ids,
+    )
+    items = await db.execute(
+        select(Skill).where(*where).order_by(*_order_by(sort)).offset(skip).limit(limit)
+    )
+    total = await db.scalar(select(func.count(Skill.id)).where(*where))
+    return list(items.scalars().all()), total or 0
+
+
+class SkillKey(NamedTuple):
+    """What arranging a listing needs of a skill - no body, no files."""
+
+    id: UUID
+    name: str
+    category: str | None
+    visibility: str
+
+
+async def list_visible_keys(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    user_id: UUID,
+    see_all: bool,
+    shared_ids: list[UUID],
+    shared_with_me: bool = False,
+    search: str | None = None,
+    categories: Sequence[str] | None = None,
+    only_ids: Sequence[UUID] | None = None,
+    sort: SkillSort = "name",
+) -> list[SkillKey]:
+    """Every skill `list_visible` would page through, unpaged and in its order.
+
+    The same predicate as `list_visible`, so an arranged listing counts exactly
+    the rows the flat one would show. Light columns only: sorting a whole
+    library into sections needs names and shelves, not bodies.
+    """
+    where = _visible_where(
+        organization_id=organization_id,
+        user_id=user_id,
+        see_all=see_all,
+        shared_ids=shared_ids,
+        shared_with_me=shared_with_me,
+        search=search,
+        categories=categories,
+        only_ids=only_ids,
+    )
+    result = await db.execute(
+        select(Skill.id, Skill.name, Skill.category, Skill.visibility)
+        .where(*where)
+        .order_by(*_order_by(sort))
+    )
+    return [SkillKey(*row) for row in result.tuples().all()]
+
+
+def _visible_where(
+    *,
+    organization_id: UUID,
+    user_id: UUID,
+    see_all: bool,
+    shared_ids: list[UUID],
+    shared_with_me: bool,
+    search: str | None,
+    categories: Sequence[str] | None,
+    only_ids: Sequence[UUID] | None,
+) -> list[ColumnElement[bool]]:
+    """The listing's predicate.
 
     Search covers the name and the description because those are the two things
     a person remembers about a skill - the body is what the *model* reads, and
     matching on it would return rows whose visible text explains nothing about
-    why they matched. A category, by contrast, is a shelf: it matches exactly
-    or not at all.
-
-    Sorting by "updated" falls back to `created_at` because `updated_at` is
-    null until the first edit - a skill written yesterday and never touched is
-    more recent than one rewritten last month, and a null sorted last would
-    say otherwise.
+    why they matched. A category, by contrast, is a shelf: it matches whole or
+    not at all, though in any letter case, since `Security` and `security` are
+    one shelf typed twice.
     """
-    where = [Skill.organization_id == organization_id]
+    where: list[ColumnElement[bool]] = [Skill.organization_id == organization_id]
     if shared_with_me:
         where.append(
             shared_with_caller(
@@ -171,20 +244,25 @@ async def list_visible(
             )
         )
     if categories:
-        where.append(Skill.category.in_(categories))
+        where.append(
+            func.lower(Skill.category).in_(sorted({category.lower() for category in categories}))
+        )
     if only_ids is not None:
         where.append(Skill.id.in_(only_ids))
+    return where
 
-    order_by = (
-        (func.coalesce(Skill.updated_at, Skill.created_at).desc(), Skill.name.asc())
-        if sort == "updated"
-        else (Skill.name.asc(),)
-    )
-    items = await db.execute(
-        select(Skill).where(*where).order_by(*order_by).offset(skip).limit(limit)
-    )
-    total = await db.scalar(select(func.count(Skill.id)).where(*where))
-    return list(items.scalars().all()), total or 0
+
+def _order_by(sort: SkillSort) -> tuple[ColumnElement[Any], ...]:
+    """The listing's order.
+
+    Sorting by "updated" falls back to `created_at` because `updated_at` is
+    null until the first edit - a skill written yesterday and never touched is
+    more recent than one rewritten last month, and a null sorted last would
+    say otherwise.
+    """
+    if sort == "updated":
+        return (func.coalesce(Skill.updated_at, Skill.created_at).desc(), Skill.name.asc())
+    return (Skill.name.asc(),)
 
 
 async def list_categories(db: AsyncSession, *, organization_id: UUID) -> list[str]:

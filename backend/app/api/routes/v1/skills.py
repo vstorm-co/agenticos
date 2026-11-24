@@ -30,6 +30,7 @@ from app.schemas.skill import (
     GalleryInstallRequest,
     GalleryInstallResult,
     GallerySkillPreview,
+    SkillArrangement,
     SkillCreate,
     SkillGallery,
     SkillList,
@@ -38,6 +39,7 @@ from app.schemas.skill import (
     SkillResourceList,
     SkillResourceRead,
     SkillResourceUpdate,
+    SkillSections,
     SkillUpdate,
 )
 from app.schemas.skill_usage import SkillUsageRead
@@ -67,11 +69,21 @@ async def list_skills(
     service: SkillSvc,
     ctx: Auth,
     q: str | None = Query(None, max_length=100, description="Match on name or description"),
-    category: list[str] | None = Query(None, description="Exact categories to filter to"),
+    category: list[str] | None = Query(
+        None, description="Categories to filter to, any letter case"
+    ),
     sort: SkillSort = Query("name", description="`name` A-Z, or `updated` newest change first"),
     group_id: UUID | None = Query(None, description="Only what is shared with this group"),
     shared_with_me: bool = Query(
         False, description="Only what was shared with the caller - never their own rows"
+    ),
+    section: str | None = Query(
+        None,
+        max_length=200,
+        description=(
+            "Only one section of `GET /skills/sections`, by its `key`, under the same "
+            "filters - how a section is paged through"
+        ),
     ),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
@@ -87,9 +99,55 @@ async def list_skills(
         search=q,
         categories=category,
         group_id=group_id,
+        section=section,
         sort=sort,
         skip=skip,
         limit=limit,
+    )
+
+
+@router.get(
+    "/sections",
+    response_model=SkillSections,
+    dependencies=[Depends(require(Perm.SKILLS_VIEW))],
+)
+async def list_skill_sections(
+    service: SkillSvc,
+    ctx: Auth,
+    arrange: SkillArrangement = Query(
+        description=(
+            "`agent` - one section per agent serving a skill, then drafted only and unused; "
+            "`origin` - the organization's, private, then shipped by library and gallery "
+            "industry; `category` - one per shelf, letter case folded"
+        )
+    ),
+    q: str | None = Query(None, max_length=100, description="Match on name or description"),
+    category: list[str] | None = Query(
+        None, description="Categories to filter to, any letter case"
+    ),
+    sort: SkillSort = Query("name", description="The order within each section"),
+    group_id: UUID | None = Query(None, description="Only what is shared with this group"),
+    shared_with_me: bool = Query(
+        False, description="Only what was shared with the caller - never their own rows"
+    ),
+    per_section: int = Query(12, ge=1, le=50, description="How many cards each section carries"),
+) -> Any:
+    """The skills the caller may see, arranged into sections with counts.
+
+    Arranging never widens a listing: the sections hold exactly what `GET
+    /skills` would page through under the same filters, and an agent the
+    caller cannot view is never a section. A skill several agents serve sits
+    under each, so the counts may add up to more than `total`.
+    """
+    return await service.list_sections(
+        ctx,
+        arrange,
+        shared_with_me=shared_with_me,
+        search=q,
+        categories=category,
+        group_id=group_id,
+        sort=sort,
+        per_section=per_section,
     )
 
 

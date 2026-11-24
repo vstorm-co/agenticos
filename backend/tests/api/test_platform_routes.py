@@ -372,6 +372,7 @@ CALLS: tuple[Call, ...] = (
         query="?from=2020-01-01T00:00:00&to=2020-01-02T00:00:00",
     ),
     Call("GET", "/skills", Perm.SKILLS_VIEW),
+    Call("GET", "/skills/sections", Perm.SKILLS_VIEW, query="?arrange=agent"),
     Call("GET", "/skills/gallery", Perm.SKILLS_VIEW),
     Call("GET", "/skills/gallery/preview", Perm.SKILLS_VIEW, query="?key=healthcare/consent"),
     Call("GET", "/skills/behind-main", Perm.SKILLS_VIEW),
