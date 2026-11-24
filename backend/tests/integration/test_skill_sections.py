@@ -58,6 +58,24 @@ async def _skill(
     return skill
 
 
+def _spec(name: str, skills: Sequence[Skill], *, specialist: bool) -> dict[str, Any]:
+    """A spec binding `skills` - the agent's own, or through an inline specialist it defines."""
+    ids = [str(skill.id) for skill in skills]
+    if not specialist:
+        return {"name": name, "skill_ids": ids}
+    billing = {
+        "name": "billing",
+        "description": "Bills.",
+        "instructions": "Bill.",
+        "skill_ids": ids,
+    }
+    return {
+        "name": name,
+        "skill_ids": [],
+        "capabilities": [{"id": "subagents", "config": {"inline": [billing]}}],
+    }
+
+
 async def _agent(
     db: AsyncSession,
     ctx: AuthContext,
@@ -66,9 +84,10 @@ async def _agent(
     serves: Sequence[Skill] = (),
     drafts: Sequence[Skill] = (),
     visibility: str = "org",
+    specialist: bool = False,
 ) -> Agent:
     """An agent whose default environment serves `serves` and whose draft adds `drafts`."""
-    served: dict[str, Any] = {"name": name, "skill_ids": [str(skill.id) for skill in serves]}
+    served = _spec(name, serves, specialist=specialist)
     agent = Agent(
         id=uuid.uuid4(),
         organization_id=ctx.organization_id,
@@ -77,7 +96,7 @@ async def _agent(
         slug=f"{name.lower()}-{uuid.uuid4().hex[:6]}",
         name=name,
         status="published" if serves else "draft",
-        draft_spec={**served, "skill_ids": [str(skill.id) for skill in (*serves, *drafts)]},
+        draft_spec=_spec(name, [*serves, *drafts], specialist=specialist),
     )
     db.add(agent)
     await db.flush()
@@ -151,6 +170,36 @@ class TestByAgent:
         assert _laid_out(as_member) == [("unused", 1, ["recipes"])]
         assert _laid_out(as_owner) == [(f"agent:{hidden.id}", 1, ["recipes"])]
 
+    async def test_a_skill_a_specialist_binds_counts_served_and_drafted_alike(
+        self, db: AsyncSession
+    ):
+        """An inline specialist is part of the version that defines it, in a draft
+        as much as in what an environment serves."""
+        owner = await _owner(db)
+        served = await _skill(db, owner, "served")
+        planned = await _skill(db, owner, "planned")
+        billing = await _agent(db, owner, "Billing", serves=[served], specialist=True)
+        await _agent(db, owner, "Builder", drafts=[planned], specialist=True)
+
+        sections = await SkillService(db).list_sections(owner, "agent")
+
+        assert _laid_out(sections) == [
+            (f"agent:{billing.id}", 1, ["served"]),
+            ("drafted", 1, ["planned"]),
+        ]
+        assert [agent.name for agent in sections.sections[1].items[0].drafted_by] == ["Builder"]
+
+    async def test_a_draft_that_does_not_parse_binds_nothing(self, db: AsyncSession):
+        owner = await _owner(db)
+        stray = await _skill(db, owner, "stray")
+        broken = await _agent(db, owner, "Broken")
+        broken.draft_spec = {"name": 5, "skill_ids": [str(stray.id)]}
+        await db.flush()
+
+        sections = await SkillService(db).list_sections(owner, "agent")
+
+        assert _laid_out(sections) == [("unused", 1, ["stray"])]
+
     async def test_per_section_cuts_the_cards_and_never_the_count(self, db: AsyncSession):
         owner = await _owner(db)
         for name in ("alpha", "beta", "gamma"):
@@ -159,6 +208,24 @@ class TestByAgent:
         sections = await SkillService(db).list_sections(owner, "agent", per_section=2)
 
         assert _laid_out(sections) == [("unused", 3, ["alpha", "beta"])]
+
+    async def test_the_cards_are_bounded_across_all_sections(
+        self, db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+    ):
+        """Past the bound a section keeps its count, and its cards wait for "show all"."""
+        monkeypatch.setattr("app.services.skills.MAX_SECTION_CARDS", 3)
+        owner = await _owner(db)
+        for shelf in ("alpha", "beta", "gamma"):
+            for index in range(2):
+                await _skill(db, owner, f"{shelf}-{index}", category=shelf)
+
+        sections = await SkillService(db).list_sections(owner, "category", per_section=2)
+
+        assert [(s.key, s.count, len(s.items)) for s in sections.sections] == [
+            ("category:alpha", 2, 2),
+            ("category:beta", 2, 1),
+            ("category:gamma", 2, 0),
+        ]
 
     async def test_arranging_costs_the_same_queries_however_many_sections(
         self, db: AsyncSession, engine: AsyncEngine
@@ -270,6 +337,17 @@ class TestByCategory:
         assert sections.sections[0].category == "security"
         assert sections.categories == ["security"]
         assert listed.total == 2
+
+    async def test_the_filter_matches_a_shelf_typed_with_stray_spaces(self, db: AsyncSession):
+        owner = await _owner(db)
+        await _skill(db, owner, "firewall", category="security ")
+        await _skill(db, owner, "loose")
+
+        listed = await SkillService(db).list_readable(owner, categories=["Security"])
+        sections = await SkillService(db).list_sections(owner, "category", categories=["Security"])
+
+        assert [item.name for item in listed.items] == ["firewall"]
+        assert _laid_out(sections) == [("category:security", 1, ["firewall"])]
 
     async def test_the_filters_narrow_the_sections_and_their_counts(self, db: AsyncSession):
         owner = await _owner(db)

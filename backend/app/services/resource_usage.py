@@ -175,6 +175,53 @@ async def agents_using_skill(
     )
 
 
+async def skill_bindings(
+    db: AsyncSession, ctx: AuthContext, *, skill_ids: Collection[UUID]
+) -> tuple[dict[UUID, list[AgentUsage]], dict[UUID, list[AgentUsage]]]:
+    """Across a whole library: per skill, the agents serving it, and those whose draft binds it.
+
+    What `agents_serving_skills` and `agents_using` answer for a page, read for any
+    number of skills at once: every served version and every live draft of the
+    organization is parsed once, instead of being matched once per skill. A skill
+    an inline specialist binds counts, in a draft as in a served version, and only
+    agents the caller may see are named. A draft that does not parse binds nothing
+    here - it serves no answer, and a listing is not a deletion check.
+    """
+    wanted = set(skill_ids)
+    live = {
+        agent.id: agent
+        for agent in await agent_repo.list_live(db, organization_id=ctx.organization_id)
+    }
+    serving: dict[UUID, set[UUID]] = {skill_id: set() for skill_id in skill_ids}
+    for environment, version in await agent_environment_repo.served(
+        db, organization_id=ctx.organization_id
+    ):
+        for skill_id in _bound_skills(version.spec) & wanted:
+            serving[skill_id].add(environment.agent_id)
+    drafting: dict[UUID, set[UUID]] = {skill_id: set() for skill_id in skill_ids}
+    for agent in live.values():
+        for skill_id in _bound_skills(agent.draft_spec) & wanted:
+            drafting[skill_id].add(agent.id)
+
+    def named(ids: set[UUID]) -> list[Agent]:
+        return sorted(
+            (live[agent_id] for agent_id in ids if agent_id in live), key=lambda a: a.name
+        )
+
+    used = await _visible_usage(db, ctx, {key: named(ids) for key, ids in serving.items()})
+    drafted = await _visible_usage(db, ctx, {key: named(ids) for key, ids in drafting.items()})
+    return used, drafted
+
+
+def _bound_skills(spec: dict[str, Any]) -> set[UUID]:
+    from app.services.eval_suite import bound_ids
+
+    try:
+        return bound_ids(AgentSpec.model_validate(spec), "skill")
+    except ValidationError:
+        return set()
+
+
 async def agents_serving_skills(
     db: AsyncSession, ctx: AuthContext, *, skill_ids: Collection[UUID]
 ) -> dict[UUID, list[AgentUsage]]:

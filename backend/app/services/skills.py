@@ -87,6 +87,7 @@ from app.services.resource_usage import (
     groups_sharing,
     in_use_by,
     shared_with_group,
+    skill_bindings,
 )
 from app.services.sharing import SharingService
 from app.services.skill_versions import SkillVersionService
@@ -106,6 +107,9 @@ SUGGESTED_CATEGORIES: tuple[str, ...] = catalog.load(
 # it cannot read is not a smaller feature - it is a file the agent is told
 # about and then cannot use.
 MAX_RESOURCE_BYTES = 512 * 1024
+
+MAX_SECTION_CARDS = 240
+"""The most cards one arranged listing carries across all its sections."""
 
 SKILL_BODY_CHARS = 4000
 """How much of one skill's body an agent's improver reads."""
@@ -535,6 +539,11 @@ class SkillService:
         number of queries does not grow with the number of sections: one reads
         the light columns of every visible skill, one batch reads the agents,
         and one batch builds the cards every section shows.
+
+        The cards are bounded in all, not only per section: past
+        `MAX_SECTION_CARDS` a section keeps its count and its "show all" and
+        carries no cards, so a library spread over many shelves cannot make one
+        request load every skill it has.
         """
         arranged = await self._arrange(
             ctx,
@@ -545,13 +554,12 @@ class SkillService:
             group_id=group_id,
             sort=sort,
         )
-        shown = list(
-            dict.fromkeys(
-                skill_id
-                for section in arranged.sections
-                for skill_id in section.skill_ids[:per_section]
-            )
-        )
+        budget = MAX_SECTION_CARDS
+        cards: dict[str, list[UUID]] = {}
+        for section in arranged.sections:
+            cards[section.key] = section.skill_ids[: min(per_section, budget)]
+            budget -= len(cards[section.key])
+        shown = list(dict.fromkeys(skill_id for ids in cards.values() for skill_id in ids))
         rows = await skill_repo.get_many(self.db, shown, organization_id=ctx.organization_id)
         summaries = {
             summary.id: summary
@@ -574,7 +582,7 @@ class SkillService:
                     category=section.category,
                     items=[
                         summaries[skill_id]
-                        for skill_id in section.skill_ids[:per_section]
+                        for skill_id in cards[section.key]
                         if skill_id in summaries
                     ],
                 )
@@ -614,9 +622,7 @@ class SkillService:
             return _Arranged(
                 keys=keys, sections=skill_sections.by_category(keys, suggested=SUGGESTED_CATEGORIES)
             )
-        ids = [key.id for key in keys]
-        used = await agents_serving_skills(self.db, ctx, skill_ids=ids)
-        drafted = await agents_using(self.db, ctx, field="skill_ids", resource_ids=ids)
+        used, drafted = await skill_bindings(self.db, ctx, skill_ids=[key.id for key in keys])
         return _Arranged(
             keys=keys,
             sections=skill_sections.by_agent(keys, used=used, drafted=drafted),
