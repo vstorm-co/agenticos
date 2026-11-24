@@ -2791,7 +2791,7 @@
     "current": "Huidig",
     "devicesCurrentlySignedYour": "Apparaten die nu bij je account zijn ingelogd.",
     "errors": {
-      "description": "Het verzoek is mislukt. De rest van de pagina heeft er geen last van - elke kaart faalt op zichzelf.",
+      "description": "Het verzoek is mislukt. De rest van de pagina heeft er geen last van - elke kaart kan los van de andere mislukken.",
       "retry": "Opnieuw proberen",
       "title": "Kon dit niet laden"
     },
@@ -2848,7 +2848,7 @@
         "delta": "t.o.v. de vorige periode",
         "empty": {
           "title": "Niets gedraaid in deze periode",
-          "description": "Kies een ruimer venster, of geef een agent een kanaal en de cijfers beginnen hier."
+          "description": "Kies een langere periode, of geef een agent een kanaal: dan verschijnen hier de cijfers."
         },
         "spendLabel": "{amount} uitgegeven"
       },
@@ -2876,7 +2876,7 @@
       "approvals": {
         "empty": {
           "description": "Over elke goedkeuring is beslist. Deze kaart bewijst haar nut door leeg te zijn.",
-          "title": "Niets wacht"
+          "title": "Er wacht niets"
         },
         "more": "Nog {count} in de wachtrij",
         "review": "Beoordelen",
@@ -2900,7 +2900,7 @@
       "conversations": {
         "continue": "Verdergaan",
         "empty": {
-          "description": "Start er een vanaf een agentkaart - hij staat hier op je te wachten.",
+          "description": "Start er een vanaf een agentkaart - het gesprek wacht hier op je.",
           "title": "Nog geen gesprekken"
         },
         "title": "Verder waar je was gebleven",
@@ -2916,7 +2916,7 @@
           "healthy": "ok",
           "not_checked": "niet gecontroleerd",
           "unconfigured": "niet geconfigureerd",
-          "unhealthy": "down"
+          "unhealthy": "offline"
         },
         "title": "Status van services",
         "description": "Of de database, de wachtrij en de vectoropslag antwoorden.",
@@ -2955,8 +2955,8 @@
       },
       "mcp-health": {
         "checked": "gecontroleerd {ago}",
-        "down": "down",
-        "downSince": "down sinds {ago}",
+        "down": "offline",
+        "downSince": "offline sinds {ago}",
         "empty": {
           "description": "Koppel er een vanuit de catalogus - de status ervan verschijnt hier.",
           "title": "Geen MCP-servers gekoppeld"
@@ -2989,8 +2989,8 @@
         },
         "modelRepaired": "{model} · {repaired} hersteld",
         "notRecorded": "niet vastgelegd",
-        "title": "Modellen achter de runs",
-        "description": "Welke modellen achter de runs zitten, zoals elke run zijn eigen model vastlegde.",
+        "title": "Modellen die de runs gebruikten",
+        "description": "Welke modellen de runs gebruikten, zoals elke run zijn eigen model vastlegde.",
         "unit": "runs"
       },
       "my-activity": {
@@ -3059,7 +3059,7 @@
           "other": "Bezig of geannuleerd"
         },
         "title": "Uitkomsten",
-        "description": "Hoe runs afliepen - voltooid, mislukt, over budget, wachtend."
+        "description": "Hoe runs afliepen - voltooid, mislukt, budget overschreden, wachtend."
       },
       "platform": {
         "active24h": "{count} actief in 24 u",
@@ -3094,7 +3094,7 @@
         "open": "Runs openen",
         "title": "Recente fouten",
         "unknownAgent": "Onbekende agent",
-        "description": "Runs die mislukten of zonder budget kwamen, meest recente eerst.",
+        "description": "Runs die mislukten of waarvan het budget op was, meest recente eerst.",
         "timesFailed": "{count, plural, other {# keer}}"
       },
       "runs": {
@@ -3103,7 +3103,7 @@
           "description": "Publiceer een agent en geef hem een kanaal - adoptie verschijnt hier.",
           "title": "Geen runs in deze periode"
         },
-        "title": "Runs in de tijd",
+        "title": "Runs per dag",
         "unit": "runs",
         "description": "Hoeveel runs er in de periode waren, dag per dag."
       },
@@ -3152,7 +3152,7 @@
         "hideActivity": "Verbergen",
         "idle": {
           "hours": "{count}u inactief",
-          "minutes": "{count}m inactief",
+          "minutes": "{count} min inactief",
           "seconds": "{count}s inactief"
         },
         "memoryOfLimit": "{used} van {limit}",
@@ -3167,7 +3167,7 @@
           "conversation": "gedeeld in één gesprek",
           "run": "alleen één run",
           "unknown": "een bereik dat deze versie niet herkent",
-          "user": "gedeeld door één persoon"
+          "user": "gedeeld per persoon"
         },
         "showActivity": "Activiteit",
         "title": "Open sandboxes",
@@ -3207,7 +3207,7 @@
         },
         "names": {
           "api": "HTTP-API",
-          "follow_ups": "Opvolgingen",
+          "follow_ups": "Follow-ups",
           "embed": "Widget",
           "eval": "Evals",
           "mattermost": "Mattermost",
@@ -3249,7 +3249,7 @@
         },
         "others": "{count, plural, =1 {Nog 1 persoon voerde minstens één agent uit} other {Nog # personen voerden minstens één agent uit}}",
         "title": "Wie het gebruikt",
-        "description": "De personen die het het meest gebruiken, op runs, met de kosten erbij.",
+        "description": "De personen die het het meest gebruiken, naar aantal runs, met de kosten erbij.",
         "disclosure": "Iedereen met runs:view ziet dit - builders en operators, en ook eigenaren en beheerders."
       },
       "version-compare": {
@@ -3264,7 +3264,7 @@
           "ratings": "Positieve beoordelingen",
           "runs": "Runs"
         },
-        "subline": "{agent} - {current} (huidig) t.o.v. {previous}, alleen runs die elke versie uitvoerden",
+        "subline": "{agent} - {current} (huidig) t.o.v. {previous}, alleen runs die op de betreffende versie draaiden",
         "title": "Versie tegenover versie",
         "description": "Of een nieuwe agentversie zich beter gedraagt dan de vorige."
       },
@@ -3283,14 +3283,14 @@
           "failed": "mislukt",
           "budget_exceeded": "budget overschreden",
           "guardrail_blocked": "geblokkeerd door guardrail",
-          "loop_stopped": "gestopt met lussen",
+          "loop_stopped": "gestopt wegens herhaling",
           "running": "bezig",
           "cancelled": "geannuleerd",
           "awaiting_approval": "wacht op goedkeuring"
         },
         "empty": {
           "title": "Er draait nog niets vanzelf",
-          "description": "Een planning voert een agent uit op de klok; een trigger voert er een uit als er iets binnenkomt."
+          "description": "Een planning voert een agent op vaste tijden uit; een trigger voert er een uit als er iets binnenkomt."
         }
       },
       "channels": {
@@ -3380,7 +3380,7 @@
       },
       "datasets": {
         "title": "Datasets",
-        "description": "De datasets die het laatst zijn gewijzigd, en waartegen hun testgevallen testen.",
+        "description": "De datasets die het laatst zijn gewijzigd, en waarop hun testgevallen toetsen.",
         "cases": "{count, plural, =1 {1 testgeval} other {# testgevallen}} · v{version}",
         "empty": {
           "title": "Nog geen datasets",
@@ -3414,7 +3414,7 @@
       },
       "department-spend": {
         "title": "Uitgaven per afdeling",
-        "description": "Wat de mensen van elke afdeling deze maand uitvoerden, tegenover de limiet ervan. Iemand in twee afdelingen telt in beide mee.",
+        "description": "Wat de mensen van elke afdeling deze maand uitgaven, tegenover de limiet van de afdeling. Iemand in twee afdelingen telt in beide mee.",
         "ofCap": "{spent} / {cap}",
         "empty": {
           "title": "Nog geen afdelingen",
@@ -3437,7 +3437,7 @@
         "finished": "Klaar",
         "finishedOf": "van {total} runs",
         "waiting": "Wacht op jouw review",
-        "nothingWaiting": "Niets wacht",
+        "nothingWaiting": "Er wacht niets",
         "spent": "Uitgegeven",
         "spentLabel": "{amount} uitgegeven",
         "waitingLabel": {
@@ -3448,7 +3448,7 @@
       },
       "eval-runs": {
         "title": "Eval-runs",
-        "description": "De nieuwste runs van agents over hun datasets, met slagingspercentages.",
+        "description": "De nieuwste runs van agents op hun datasets, met slagingspercentages.",
         "empty": {
           "title": "Nog geen eval-runs",
           "description": "Runs die vanaf het tabblad Evals van een agent zijn gestart, verschijnen hier."
@@ -3457,7 +3457,7 @@
           "running": "{count} bezig",
           "completed": "{count} voltooid",
           "failed": "{count} mislukt",
-          "budget_exceeded": "{count} zonder budget"
+          "budget_exceeded": "{count} budget overschreden"
         }
       },
       "projects": {
@@ -3546,21 +3546,21 @@
       },
       "eval-suites": {
         "title": "Eval-suites",
-        "description": "Datasets waaraan agents worden gehouden, en hoe elke de laatste keer uitkwam.",
+        "description": "Datasets waaraan agents moeten voldoen, en hoe elke suite de laatste keer uitviel.",
         "empty": "Nog geen suites. Stel er een in op het tabblad Evals van een agent.",
         "never": "Nog geen resultaat",
         "row": "{suite} · {agent}",
         "count": {
-          "failing": "{count} falend",
-          "passing": "{count} slagend",
-          "waiting": "{count} wachtend op een eerste run",
+          "failing": "{count} niet geslaagd",
+          "passing": "{count} geslaagd",
+          "waiting": "{count} nog zonder run",
           "paused": "{count} gepauzeerd",
           "inconclusive": "{count} onbeslist"
         }
       },
       "suggestions": {
         "title": "Briefing",
-        "description": "Wat je bewakingen vonden en wat de nachtelijke ronde voorstelde - wat niet kan wachten eerst.",
+        "description": "Wat je bewakingen vonden en wat de nachtelijke ronde voorstelde - het dringendste eerst.",
         "empty": {
           "title": "Nog niets voorgesteld",
           "description": "Bevindingen van je bewakingen en de nachtelijke suggesties verschijnen hier.",
@@ -3586,7 +3586,7 @@
         "title": "Wachtende suggesties",
         "description": "Wat de schrijfassistent voorstelde voor je agents, skills en contextbestanden, in afwachting van je beslissing.",
         "empty": {
-          "title": "Niets wacht",
+          "title": "Er wacht niets",
           "description": "Open Evals om een agent te verbeteren op basis van echte resultaten."
         },
         "counts": "{instructions, plural, =0 {} =1 {1 instructiewijziging} other {# instructiewijzigingen}}{tools, plural, =0 {} other { · {tools, plural, =1 {1 toolwijziging} other {# toolwijzigingen}}}}{fields, plural, =0 {} other { · {fields, plural, =1 {1 instellingswijziging} other {# instellingswijzigingen}}}}",
@@ -3599,17 +3599,17 @@
         "title": "Verbeteringen die op je wachten",
         "description": "Verbetersessies, skillcontroles en voorgestelde skillwijzigingen die wachten op je volgende stap of beslissing.",
         "empty": {
-          "title": "Niets wacht",
-          "description": "Een verbetering stopt hier nadat ze heeft gelezen wat er misging, nadat ze wijzigingen schrijft en wanneer het resultaat klaar is. Vastgezette agents en forks die main achter zich heeft gelaten, staan hier ook."
+          "title": "Er wacht niets",
+          "description": "Een verbetering stopt hier nadat ze heeft gelezen wat er misging, nadat ze wijzigingen heeft geschreven en wanneer het resultaat klaar is. Vastgezette agents en forks die main achter zich heeft gelaten, staan hier ook."
         },
         "open": "Openen",
         "what": {
           "understand": "Bekijken wat er misging",
           "changes": "De wijzigingen reviewen",
           "result": "Het resultaat reviewen",
-          "blocked": "Geblokkeerd: beëindig ze en start een nieuwe",
+          "blocked": "Geblokkeerd: beëindig deze sessie en start een nieuwe",
           "check": {
-            "running": "Controleert {count, plural, =1 {1 agent} other {# agents}}",
+            "running": "Controle op {count, plural, =1 {1 agent} other {# agents}} bezig",
             "done": "Controle klaar: beslis wat je met de wijziging doet"
           },
           "proposal": "Voorgesteld door een agent · {count, plural, =0 {bereikt nog geen agent} =1 {bereikt 1 agent} other {bereikt # agents}}"
@@ -3627,7 +3627,7 @@
       },
       "phone-calls": {
         "title": "Telefoongesprekken",
-        "description": "Recente voorgenomen telefoongesprekken en hun status; kanaalbeheerders zien de routeringsbewijzen van de organisatie.",
+        "description": "Recent aangevraagde telefoongesprekken en hun status; kanaalbeheerders zien de routeringsbewijzen van de organisatie.",
         "empty": {
           "title": "Nog geen telefoongesprekken",
           "description": "Stel toestemming voor telefoon in bij Meldingen en een Twilio-route bij Kanalen."
@@ -3648,7 +3648,7 @@
       "addDescription": "Kies een kaart en die komt in je dashboard, klaar om op zijn plaats te slepen. Beweeg over een rij om er een voorbeeld met live gegevens van te zien - je kunt dezelfde kaart meer dan eens toevoegen.",
       "searchPlaceholder": "Widgets zoeken…",
       "searchLabel": "Widgets zoeken",
-      "noResults": "Geen widgets komen overeen met “{query}”.",
+      "noResults": "Geen widgets gevonden voor “{query}”.",
       "groups": {
         "platform": "Platform",
         "attention": "Vraagt aandacht",
@@ -3698,7 +3698,7 @@
       "saveFailed": "Kon je dashboard niet opslaan. Probeer het opnieuw.",
       "resetFailed": "Kon je dashboard niet herstellen. Probeer het opnieuw.",
       "tempSaveTitle": "Deze indeling voorgoed bewaren?",
-      "tempSaveDescription": "Opslaan maakt dit je actieve dashboard, maar het is geen opgeslagen sjabloon. Standaard herstellen of een andere indeling toepassen vervangt het, en deze schikking gaat verloren. Sla het op als permanent sjabloon om het te bewaren en er altijd naar terug te kunnen.",
+      "tempSaveDescription": "Opslaan maakt dit je actieve dashboard, maar het is geen opgeslagen sjabloon. Standaard herstellen of een andere indeling toepassen vervangt het, en deze indeling gaat verloren. Sla het op als permanent sjabloon om het te bewaren en er altijd naar terug te kunnen.",
       "tempSaveAsTemplate": "Opslaan als sjabloon",
       "tempSaveKeep": "Alleen nu toepassen",
       "alreadyPlaced": "{count, plural, =1 {Op de pagina} other {Op de pagina ×#}}",
@@ -3711,7 +3711,7 @@
       "newBlank": "Nieuwe lege indeling",
       "empty": "Nog geen opgeslagen dashboards. Richt er een in en kies dan Opslaan als… om het hier te bewaren.",
       "saveTitle": "Dit dashboard opslaan",
-      "saveDescription": "Bewaar de huidige schikking onder een naam waarnaar je kunt terugschakelen.",
+      "saveDescription": "Bewaar de huidige indeling onder een naam waarnaar je kunt terugschakelen.",
       "nameLabel": "Naam",
       "namePlaceholder": "Maandagoverzicht",
       "saved": "“{name}” opgeslagen.",
@@ -3749,7 +3749,7 @@
       "reset": "Weer de pagina volgen"
     },
     "pageStatus": "Status",
-    "morePageActions": "Meer paginaacties",
+    "morePageActions": "Meer pagina-acties",
     "startChecklist": {
       "title": "Aan de slag",
       "progress": "{done} van {total} klaar",
@@ -3810,7 +3810,7 @@
       "morningNamed": "Goedemorgen, {name}",
       "afternoonNamed": "Goedemiddag, {name}",
       "eveningNamed": "Goedenavond, {name}",
-      "ran": "Je agents draaiden <b>{runs, plural, =0 {niets} =1 {één keer} other {# keer}}</b> in deze periode.",
+      "ran": "Je agents draaiden <b>{runs, plural, =0 {geen enkele keer} =1 {één keer} other {# keer}}</b> in deze periode.",
       "nothingWaiting": "Er wacht niets op jou.",
       "waitingOn": "Je hebt <b>{items}</b>.",
       "waiting": {
@@ -3820,7 +3820,7 @@
         "suites": "{count, plural, =1 {1 falende suite} other {# falende suites}}",
         "suggestions": "{count, plural, one {# suggestie in Inbox} other {# suggesties in Inbox}}"
       },
-      "summary": "Je agents draaiden <b>{runs, plural, =0 {niets} =1 {één keer} other {# keer}}</b> in deze periode. {waiting, plural, =0 {Er wacht niets op jou.} =1 {<b>Eén beslissing</b> wacht op jou.} other {<b># beslissingen</b> wachten op jou.}}"
+      "summary": "Je agents draaiden <b>{runs, plural, =0 {geen enkele keer} =1 {één keer} other {# keer}}</b> in deze periode. {waiting, plural, =0 {Er wacht niets op jou.} =1 {<b>Eén beslissing</b> wacht op jou.} other {<b># beslissingen</b> wachten op jou.}}"
     },
     "discover": {
       "title": "Ontdek AgenticOS",
@@ -3836,8 +3836,8 @@
           "cta": "Probeer het in de chat"
         },
         "commands": {
-          "title": "Sneltoetsen met /",
-          "body": "Typ / in de chat voor commando's - samenvatten, uitleggen, opnieuw beginnen - of schrijf je eigen onder Instellingen → Slash-commando's.",
+          "title": "Commando's met /",
+          "body": "Typ / in de chat voor commando's - samenvatten, uitleggen, opnieuw beginnen - of schrijf je eigen commando's onder Instellingen → Slash-commando's.",
           "cta": "De chat openen"
         },
         "mcp": {
@@ -3862,7 +3862,7 @@
         },
         "routines": {
           "title": "Agents volgens een planning uitvoeren",
-          "body": "Routines starten elke ochtend een agent, op een webhook of als er een e-mail binnenkomt, en sturen wat hij vond naar de plek waar je team leest.",
+          "body": "Routines starten elke ochtend een agent, bij een webhook of als er een e-mail binnenkomt, en sturen wat hij vond naar de plek waar je team leest.",
           "cta": "Een routine aanmaken"
         },
         "channels": {
@@ -3877,7 +3877,7 @@
         },
         "knowledge": {
           "title": "Antwoorden uit je documenten",
-          "body": "Upload handboeken, contracten of een hele drive, en agents antwoorden eruit en tonen van welke pagina elk antwoord komt.",
+          "body": "Upload handboeken, contracten of een hele drive, en agents antwoorden op basis daarvan en tonen van welke pagina elk antwoord komt.",
           "cta": "Kennis toevoegen"
         },
         "skills": {
@@ -5809,7 +5809,7 @@
       },
       "improvement-test-set": {
         "title": "Tijd en kosten",
-        "body": "De eigen testvragen van de agent zijn al gekozen en geprijsd. Beginnen met verbeteren is hier de enige beslissing; er wordt niets uitgegeven voordat je die neemt."
+        "body": "De eigen testvragen van de agent zijn al gekozen en de kosten zijn geschat. Beginnen met verbeteren is hier de enige beslissing; er wordt niets uitgegeven voordat je die neemt."
       },
       "improvement-start": {
         "title": "Verbeteren",
@@ -5841,7 +5841,7 @@
       },
       "flow-improvement-test-set": {
         "title": "Tijd en kosten",
-        "body": "De eigen testvragen van de agent zijn al gekozen en geprijsd. Beginnen met verbeteren is hier de enige beslissing; er wordt niets uitgegeven voordat je die neemt."
+        "body": "De eigen testvragen van de agent zijn al gekozen en de kosten zijn geschat. Beginnen met verbeteren is hier de enige beslissing; er wordt niets uitgegeven voordat je die neemt."
       },
       "flow-improvement-start": {
         "title": "Verbeteren",
@@ -15172,11 +15172,11 @@
         "criteria": "Je criteria",
         "reference": "Referentieantwoord"
       },
-      "checksHint": "De eigen controles van elk testgeval, plus de standaarden hieronder voor elk testgeval.",
+      "checksHint": "De eigen controles van elk testgeval, plus de standaardcontroles hieronder voor elk testgeval.",
       "defaults": "Controles die elk testgeval krijgt",
       "trajectoryHint": "De tools die de agent aanriep, tegenover de verwachte aanroepen van het testgeval, in de volgordemodus van het testgeval.",
       "judgeHint": "De beoordelaar beoordeelt elk antwoord op de criteria hieronder. Elke beoordeling is een run in Activiteit.",
-      "scaleMax": "Top van de schaal",
+      "scaleMax": "Maximum van de schaal",
       "passAt": "Geslaagd vanaf",
       "criterionName": "Naam van het criterium",
       "criterionNamePlaceholder": "juistheid",
@@ -15186,7 +15186,7 @@
       "removeCriterion": "Criterium verwijderen",
       "referenceHint": "De beoordelaar vergelijkt het antwoord met het referentieantwoord van het testgeval, als het testgeval er een heeft.",
       "counterExampleRow": "Tegenvoorbeeld",
-      "counterExampleHint": "Zolang je criteria of het referentieantwoord aan staan, controleert de beoordelaar ook dat een antwoord niet zegt wat het tegenvoorbeeld van het testgeval zegt. Een antwoord dat dat wel doet, faalt.",
+      "counterExampleHint": "Zolang je criteria of het referentieantwoord aan staan, controleert de beoordelaar ook of een antwoord niet zegt wat het tegenvoorbeeld van het testgeval zegt. Een antwoord dat dat wel doet, slaagt niet.",
       "scores": "Review",
       "scoreCount": "{count, plural, =1 {1 resultaat} other {# resultaten}}",
       "noScores": "Nog geen resultaten",
@@ -15230,7 +15230,7 @@
         "judgeReasonEcho": "De beoordelaar herhaalde het criterium in plaats van te zeggen waarom het antwoord eraan voldoet.",
         "judgeCounterUnsupported": "De beoordelaar keurde het antwoord goed als verschillend van het tegenvoorbeeld, hoewel het antwoord het herhaalt of de beoordelaar alleen citeerde wat de twee gemeen hebben."
       },
-      "scoreRun": "Scoren aan de hand van een testgeval",
+      "scoreRun": "Toetsen aan een testgeval",
       "scoreRunBody": "Voer elke scorer die de dataset instelt uit op het antwoord van deze run. Het resultaat wordt bij de dataset bewaard.",
       "noDatasetToScore": "Er is nog geen dataset om aan te toetsen. <link>Maak er een aan</link> en voeg een testgeval toe.",
       "noCaseToScore": "Deze dataset heeft nog geen testgeval",
@@ -15261,19 +15261,19 @@
       },
       "judgeCard": {
         "title": "Beoordelaar",
-        "description": "Beoordeel de kwaliteit van antwoorden met een model, met de instructies en criteria hieronder. Modelaanroepen worden betaald en vastgelegd in Activiteit."
+        "description": "Beoordeel de kwaliteit van antwoorden met een model, met de instructies en criteria hieronder. Modelaanroepen kosten geld en worden vastgelegd in Activiteit."
       },
       "reviewCard": {
         "title": "Details van het antwoord"
       },
-      "suggestReference": "{count, plural, =1 {1 testgeval heeft een referentieantwoord, en nog niets vergelijkt antwoorden ermee.} other {# testgevallen hebben een referentieantwoord, en nog niets vergelijkt antwoorden ermee.}}",
+      "suggestReference": "{count, plural, =1 {1 testgeval heeft een referentieantwoord, maar antwoorden worden er nog niet mee vergeleken.} other {# testgevallen hebben een referentieantwoord, maar antwoorden worden er nog niet mee vergeleken.}}",
       "suggestReferenceAction": "Vergelijken met de referentie",
       "judgeChanged": "Scores die door de vorige beoordelaar of het vorige model zijn gegeven, zijn niet vergelijkbaar met de scores die vanaf nu worden gegeven.",
       "cancel": "Annuleren",
       "agentGone": "Een agent die er niet meer is",
       "agentVersion": "{name} · v{version}",
       "answer": "Antwoord",
-      "answerHidden": "Antwoord en bewijs van de beoordeling verborgen: ze lezen vereist runs:view en toegang tot de agent die antwoordde.",
+      "answerHidden": "Antwoord en bewijs van de beoordeling verborgen: om ze te lezen heb je runs:view en toegang tot de agent die antwoordde nodig.",
       "answerGone": "Het antwoord wordt niet bewaard.",
       "showAll": "Alles tonen",
       "showLess": "Minder tonen",
@@ -15326,7 +15326,7 @@
       "noteAddedToRubric": "De notitie is nu een van de criteria van de beoordelaar voor elk testgeval, en de beoordelaar staat aan.",
       "rule": "Regel: {rule}",
       "judgeSaid": "De beoordelaar antwoordde: “{said}”",
-      "unverifiedGrade": "Niet geverifieerd: niets geciteerd uit het antwoord onderbouwt deze beoordeling.",
+      "unverifiedGrade": "Niet geverifieerd: geen citaat uit het antwoord onderbouwt deze beoordeling.",
       "agentDraft": "{name} · Concept",
       "criterionScope": "Geldt voor",
       "criterionEveryCase": "Elk testgeval",
@@ -15374,14 +15374,14 @@
       }
     },
     "title": "Datasets",
-    "pageDescription": "De vragen waarop je agents worden getest. Elke wijziging aan de testgevallen van een dataset maakt een nieuwe versie, zodat twee eval-runs op één versie dezelfde vragen zagen.",
+    "pageDescription": "De vragen waarop je agents worden getest. Elke wijziging aan de testgevallen van een dataset maakt een nieuwe versie, zodat twee eval-runs op dezelfde versie ook dezelfde vragen kregen.",
     "newDataset": "Nieuwe dataset",
     "newDatasetBody": "Maak een set testgevallen om je agents te testen.",
     "noAccess": "Je kunt de datasets van deze organisatie niet zien",
     "noAccessBody": "Vraag een beheerder om toegang tot datasets.",
     "datasetCount": "{count, plural, =1 {1 dataset} other {# datasets}}",
     "search": "Datasets zoeken",
-    "noMatches": "Geen dataset komt overeen",
+    "noMatches": "Geen datasets gevonden",
     "noMatchesBody": "Namen en beschrijvingen worden doorzocht.",
     "empty": "Nog geen datasets",
     "emptyBody": "Sla voorbeeldvragen en verwachte antwoorden op en voer dan evals uit om een agent te controleren. Gebruik dezelfde testgevallen opnieuw om modellen te vergelijken of regressies in een nieuwe versie op te sporen.",
@@ -15434,7 +15434,7 @@
     "noCases": "Geen testgevallen in deze versie",
     "noCasesBody": "Voeg een testgeval toe, importeer een bestand, of gebruik Toevoegen aan dataset bij een antwoord in een gesprek of in Activiteit.",
     "caseReadOnly": "Alleen lezen: dit is een oudere versie, of je kunt deze dataset niet wijzigen.",
-    "caseSavesVersion": "Opslaan maakt een nieuwe versie. De versie ervoor houdt dit testgeval zoals het was.",
+    "caseSavesVersion": "Opslaan maakt een nieuwe versie. De versie ervoor behoudt dit testgeval zoals het was.",
     "saveCase": "Testgeval opslaan",
     "needsInput": "Schrijf de input die de agent beantwoordt.",
     "needsExpectation": "Voeg een referentieantwoord, een tegenvoorbeeld, een verwachte toolaanroep of een controle toe: een testgeval heeft iets nodig om het antwoord aan te toetsen.",
@@ -15454,7 +15454,7 @@
       "reference_answer": "Referentieantwoord",
       "counter_example": "Tegenvoorbeeld",
       "note": "Notitie",
-      "history": "Gesprek voor de input",
+      "history": "Gesprek vóór de input",
       "expected_tool_calls": "Verwachte toolaanroepen",
       "checks": "Controles",
       "tags": "Tags",
@@ -15467,7 +15467,7 @@
       "note": "Voeg context toe voor iedereen die dit testgeval reviewt.",
       "history": "Eerdere beurten, oudste eerst. Laat leeg voor één bericht.",
       "expected_tool_calls": "Voeg de tools toe die de agent moet aanroepen. Alleen de argumenten die je opgeeft, worden gecontroleerd.",
-      "checks": "Regels waaraan het antwoord wordt getoetst - dat het een zin bevat, met een patroon overeenkomt, onder een bepaalde kost blijft.",
+      "checks": "Regels waaraan het antwoord wordt getoetst - dat het een zin bevat, met een patroon overeenkomt, binnen een kostenlimiet blijft.",
       "tags": "Gescheiden door komma's, om resultaten te groeperen."
     },
     "source": {
@@ -15514,7 +15514,7 @@
     "leftOutUnreadable": "{count, plural, =1 {1 testgeval kon niet worden gelezen en is weggelaten.} other {# testgevallen konden niet worden gelezen en zijn weggelaten.}}",
     "leftOutRejected": "{count, plural, =1 {Nog 1 testgeval is weggelaten: het hield zich niet aan zijn bron, ging verder dan wat werd gevraagd, of werd gevraagd door iemand die er niet meer is.} other {Nog # testgevallen zijn weggelaten: ze hielden zich niet aan hun bron, gingen verder dan wat werd gevraagd, of werden gevraagd door iemand die er niet meer is.}}",
     "proposedCases": "Voorgestelde testgevallen",
-    "proposalCount": "{count, plural, =0 {Niets wacht} =1 {1 testgeval wacht op een beslissing} other {# testgevallen wachten op een beslissing}}",
+    "proposalCount": "{count, plural, =0 {Er wacht niets} =1 {1 testgeval wacht op een beslissing} other {# testgevallen wachten op een beslissing}}",
     "dismissAll": "Alles verwerpen",
     "acceptAll": "Alles accepteren",
     "proposalsBody": "Opgesteld door de testgevalgenerator. Niets komt in de dataset tot je het accepteert, en één keer Accepteren is één nieuwe versie.",
@@ -15523,7 +15523,7 @@
     "proposalsAccepted": "{count, plural, =1 {1 testgeval} other {# testgevallen}} toegevoegd als versie {version}",
     "proposalsDismissed": "{count, plural, =1 {1 voorgesteld testgeval} other {# voorgestelde testgevallen}} verworpen",
     "estimate": "{count, plural, =1 {1 testgeval} other {# testgevallen}}, geschat {cost, number, ::currency/USD}",
-    "estimateUnderCent": "{count, plural, =1 {1 testgeval} other {# testgevallen}}, geschat onder $0.01",
+    "estimateUnderCent": "{count, plural, =1 {1 testgeval} other {# testgevallen}}, geschat op minder dan $0,01",
     "estimateUnpriced": "{count, plural, =1 {1 testgeval} other {# testgevallen}}. De kosten kunnen niet worden geschat voor het model van de generator.",
     "excludedCollections": "{count, plural, =1 {1 kennisbank} other {# kennisbanken}} van deze agent weggelaten: je kunt ze niet lezen.",
     "generationStarted": "{count, plural, =1 {1 testgeval wordt} other {# testgevallen worden}} opgesteld. Ze wachten hier op je beslissing.",
@@ -15531,7 +15531,7 @@
     "generateCasesBody": "De testgevalgenerator stelt testgevallen op die jij reviewt. Je ziet de geschatte kosten voordat er iets wordt uitgegeven.",
     "agent": "Agent",
     "chooseAgent": "Een agent kiezen",
-    "agentHint": "De agent op basis van wiens instructies, tools en chats de testgevallen worden geschreven. Er wordt niets tegen hem uitgevoerd.",
+    "agentHint": "De agent wiens instructies, tools en chats de basis vormen voor de testgevallen. De agent zelf wordt niet uitgevoerd.",
     "sources": "Opstellen vanuit",
     "sourceNeedsRunsView": "Vereist het recht om runs te bekijken",
     "caseNumber": "Aantal testgevallen",
@@ -15546,7 +15546,7 @@
     "anonymisedHint": "De persoon van wie dit testgeval kwam, is gewist, dus de tekst ervan is verwijderd. Eval-runs laten het weg tot je het herschrijft of verwijdert.",
     "anonymisedInput": "Verwijderd: de persoon van wie dit testgeval kwam, is gewist.",
     "editDetails": "Details bewerken",
-    "editDetailsBody": "Hoe de dataset heet en waarvoor hij dient. Ze wijzigen maakt geen nieuwe versie: er verandert geen testgeval.",
+    "editDetailsBody": "Hoe de dataset heet en waarvoor hij dient. Als je ze wijzigt, ontstaat er geen nieuwe versie: er verandert geen testgeval.",
     "saveDetails": "Opslaan",
     "detailsSaved": "Opgeslagen",
     "olderVersion": "Oudere versie #",
@@ -15594,7 +15594,7 @@
       "judge": "Weigert zonder het adres van de klant te onthullen"
     },
     "schemaNotObject": "Een schema wordt geschreven als JSON-object.",
-    "notNumber": "Deze controle neemt een getal.",
+    "notNumber": "Deze controle verwacht een getal.",
     "checkEmpty": "Zeg wat elke controle controleert, of verwijder ze.",
     "editCase": "Bewerken",
     "evals": "Evals",
@@ -15603,7 +15603,7 @@
     "argValue": "Aanroep {number}, argument {arg}: waarde",
     "removeArg": "Argument {arg} van aanroep {number} verwijderen",
     "addArg": "Een argument toevoegen",
-    "caseSavesVersionN": "Opslaan maakt datasetversie v{number}.",
+    "caseSavesVersionN": "Opslaan maakt datasetversie v{number} aan.",
     "caseJson": "Het testgeval als JSON",
     "caseJsonHint": "Dezelfde velden als een import of een export. Ga terug naar het formulier om te controleren of het klopt.",
     "caseJsonInvalid": "Dit is geen geldige JSON voor een testgeval. Controleer de veldnamen en waardetypes.",
@@ -15614,12 +15614,12 @@
     "caseTwinOpen": "Openen",
     "caseTwinAddAnyway": "Toch toevoegen",
     "addToDatasetBodyPlain": "De vraag gaat mee met het antwoord.",
-    "historyChoice": "Het gesprek voor de vraag",
+    "historyChoice": "Het gesprek vóór de vraag",
     "historyAlone": "Alleen deze vraag",
     "historyWith": "Met het gesprek",
     "historyFollowUp": "Dit lijkt een vervolg op het gesprek ervoor.",
     "newDatasetName": "Nieuwe dataset",
-    "newDatasetHere": "Je hebt nog geen dataset om aan toe te voegen, dus dit antwoord begint er een, zichtbaar voor de hele organisatie.",
+    "newDatasetHere": "Je hebt nog geen dataset om aan toe te voegen, dus met dit antwoord begin je er een, zichtbaar voor de hele organisatie.",
     "newDatasetFromActivity": "Antwoorden uit Activiteit",
     "backToDataset": "Terug naar {name}",
     "maskedConversation": "Uit een gesprek dat je niet kunt openen",
@@ -15657,16 +15657,16 @@
       "valuePlaceholder": "INV-2024-0042"
     },
     "keyDraft": {
-      "start": "Kernpunten opsommen uit het referentieantwoord",
+      "start": "Kernpunten halen uit het referentieantwoord",
       "retry": "Opnieuw proberen",
-      "running": "De feiten van het referentieantwoord opsommen…",
+      "running": "De feiten uit het referentieantwoord halen…",
       "none": "Het referentieantwoord vermeldt geen feiten om te controleren.",
       "found": "{count, plural, =1 {1 kernpunt} other {# kernpunten}} gevonden: {names}{more, plural, =0 {} other { en nog #}}.",
       "use": "Deze kernpunten gebruiken",
       "dismiss": "Verwerpen",
-      "failed": "De kernpunten konden niet worden opgesomd: {error}",
-      "noReference": "Sla een referentieantwoord op om de kernpunten ervan op te sommen.",
-      "saveFirst": "Sla eerst het referentieantwoord op: kernpunten worden opgesomd uit het opgeslagen antwoord.",
+      "failed": "De kernpunten konden niet worden bepaald: {error}",
+      "noReference": "Sla een referentieantwoord op om er kernpunten uit te halen.",
+      "saveFirst": "Sla eerst het referentieantwoord op: kernpunten worden uit het opgeslagen antwoord gehaald.",
       "failedToStart": "De kernpunten konden niet worden opgevraagd",
       "failedToDismiss": "De opgestelde kernpunten konden niet worden verworpen",
       "loading": "Controleren op opgestelde kernpunten…",
@@ -15679,7 +15679,7 @@
       "chooseAgent": "Een gepubliceerde agent kiezen",
       "agentsFailed": "De agents konden niet worden geladen",
       "noAgents": "Geen gepubliceerde agent om te controleren",
-      "noAgentsHint": "Publiceer eerst een agent: een rapport leest de versie die hij draait.",
+      "noAgentsHint": "Publiceer eerst een agent: een rapport leest de versie die de agent draait.",
       "check": "Dekking controleren",
       "recheck": "Opnieuw controleren",
       "none": "Nog niet gecontroleerd voor deze agent.",
@@ -15712,14 +15712,14 @@
       "expectations": "Verwacht resultaat",
       "tags": "Tags",
       "actions": "Acties",
-      "number": "Nummer van het testgeval"
+      "number": "Nummer"
     },
     "helpers": {
       "generatorTitle": "Testgevallen genereren",
       "generatorDescription": "Kies het model en de instructies waarmee testgevallen voor deze dataset worden opgesteld. Gegenereerde testgevallen wachten op je goedkeuring.",
       "improverTitle": "Agents verbeteren",
       "improverDescription": "Kies het model en de instructies die worden gebruikt bij het verbeteren van een agent aan de hand van deze dataset. Wijzigingen blijven voorstellen tot je ze accepteert.",
-      "saved": "Pipelineinstellingen opgeslagen",
+      "saved": "Pipeline-instellingen opgeslagen",
       "generationUsesSettings": "Gebruikt het model en de instructies die in de Instellingen van deze dataset zijn opgeslagen. Bekijk het bronmateriaal en de geschatte kosten voordat je begint.",
       "modelFallback": "Zonder gekozen model gebruikt deze helper het model van de agent die wordt getest. Kies hieronder een opgeslagen model of voeg er een toe om voor elke run hetzelfde model te gebruiken."
     },
@@ -15754,7 +15754,7 @@
     "counterPurpose": "Een fout antwoord dat de agent niet mag herhalen.",
     "loadingDatasets": "Datasets laden…",
     "chooseDataset": "Een dataset kiezen",
-    "noMatchingDatasets": "Geen datasets komen overeen met je zoekopdracht.",
+    "noMatchingDatasets": "Geen datasets gevonden.",
     "viewSourceMessages": "Bronberichten bekijken",
     "sourceUserMessage": "Bericht van de gebruiker",
     "sourceAgentAnswer": "Antwoord van de agent",
@@ -15764,7 +15764,7 @@
       "conversation": "Gesprek",
       "conversationHint": "Het bericht en de context die de agent ontvangt.",
       "expectations": "Verwacht gedrag",
-      "expectationsHint": "Wat een goed antwoord bevat, en hoe het te controleren."
+      "expectationsHint": "Wat een goed antwoord bevat, en hoe je het controleert."
     },
     "journey": {
       "next": {
@@ -15772,7 +15772,7 @@
         "evals": "Evals openen"
       },
       "guidance": {
-        "evals": "De beoordeling is ingesteld. Kies een agent en bekijk de kosten voordat je uitvoert."
+        "evals": "De beoordeling is ingesteld. Kies een agent en bekijk de kosten voordat je de eval uitvoert."
       },
       "status": {
         "cases": "Nog geen testgevallen",
@@ -15781,8 +15781,8 @@
       },
       "emptyTitle": "Begin met je eerste testvragen",
       "emptyBody": "Elk testgeval is een vraag en wat je van het antwoord verwacht. Kies hoe je je eerste testgevallen toevoegt.",
-      "writeHint": "Schrijf een vraag en een referentieantwoord. Het best om te beginnen.",
-      "importHint": "Breng bestaande vragen binnen uit een CSV- of JSONL-bestand.",
+      "writeHint": "Schrijf een vraag en een referentieantwoord. Ideaal om mee te beginnen.",
+      "importHint": "Importeer bestaande vragen uit een CSV- of JSONL-bestand.",
       "generateHint": "Stel vragen op uit kennis of gesprekken en review ze daarna.",
       "realAnswers": "Heb je al nuttige gesprekken?",
       "afterCreate": "Hierna voeg je testgevallen toe en kies je hoe je ze test.",
@@ -16946,9 +16946,9 @@
     "attributionUnconfirmed": "Wijziging {number}: het resultaat is niet bevestigd.",
     "includeInTest": "Opnemen in de test",
     "includeChange": "Wijziging {number} opnemen in de test",
-    "selectionBody": "Deze selectie wijzigen vraagt een nieuwe test voordat je kunt accepteren. Weggelaten wijzigingen blijven onbeslist. De schatting omvat het bevragen van beide versies en het opnieuw stellen van veranderde antwoorden om zeker te zijn.",
+    "selectionBody": "Deze selectie wijzigen vereist een nieuwe test voordat je kunt accepteren. Weggelaten wijzigingen blijven onbeslist. De schatting omvat het bevragen van beide versies en het opnieuw stellen van vragen waarvan het antwoord veranderde, om zeker te zijn.",
     "selectSomeChanges": "Selecteer minstens één wijziging om te controleren.",
-    "estimateSelection": "Het controleren van de geselecteerde wijzigingen schatten",
+    "estimateSelection": "Kosten van de controle schatten",
     "selectionQuote": "{count} geselecteerde wijzigingen controleren: tot {cost} (schatting).",
     "confirmSelection": "Bevestigen en de geselecteerde wijzigingen controleren",
     "selectionNeedsCheck": "De selectie is veranderd. Controleer haar opnieuw vanuit Wijzigingen voordat je accepteert.",
@@ -16975,7 +16975,7 @@
     "chatExample": "Gespreksvoorbeeld",
     "whyCause": "Waarom we dat denken",
     "causeUnknown": "Dit antwoord is niet geclassificeerd. Review het gesprek voordat je beslist wat er moet veranderen.",
-    "causeTraining": "Een testantwoord mislukte of heeft een reviewnotitie. Alleen vragen die gebruikt worden om de wijzigingen te schrijven, sturen ze bij.",
+    "causeTraining": "Een testantwoord mislukte of heeft een reviewnotitie. Alleen de vragen die voor het schrijven van de wijzigingen worden gebruikt, beïnvloeden ze.",
     "causeRecorded": "Gebaseerd op de bestaande feedback en classificatie van dit antwoord.",
     "openConversation": "Gesprek openen",
     "questionCount": "{count, plural, one {# testvraag} other {# testvragen}}",
@@ -16988,14 +16988,14 @@
     "editQuestions": "De vragenset openen",
     "title": "{name} verbeteren",
     "heading": "Verbeteren",
-    "intro": "We lezen wat er misging en stoppen dan zodat jij kunt kijken. Wijzigingen schrijven en ze testen wachten elk tot je op Volgende stap drukt, en elk krijgt eerst een prijs. Niets gaat live tot je het accepteert en publiceert.",
+    "intro": "We lezen wat er misging en stoppen dan zodat jij kunt kijken. Wijzigingen schrijven en ze testen wachten elk tot je op Volgende stap drukt, en voor elk zie je eerst de prijs. Niets gaat live tot je het accepteert en publiceert.",
     "chooseQuestions": "Een dataset kiezen",
     "writeQuestions": "Schrijf testvragen voor mij",
     "reviewQuestions": "De vragen reviewen",
     "baseline": "Testen hoe de agent vandaag antwoordt",
     "estimate": "Opnieuw schatten",
     "estimating": "De tijd en kosten schatten…",
-    "sessionQuote": "Tot {cost} (schatting) om {answers, plural, one {# geselecteerd bronvoorbeeld} other {# geselecteerde bronvoorbeelden}} te sorteren. Elke poging daarna duurt ongeveer {minutes, plural, one {# minuut} other {# minuten}} en kost ruwweg {perRound}, opnieuw geprijsd voordat je erop drukt; de limiet van {limit} begrenst de hele sessie.",
+    "sessionQuote": "Tot {cost} (schatting) om {answers, plural, one {# geselecteerd bronvoorbeeld} other {# geselecteerde bronvoorbeelden}} te sorteren. Elke poging daarna duurt ongeveer {minutes, plural, one {# minuut} other {# minuten}} en kost ruwweg {perRound}, met een nieuwe prijsschatting voordat je erop drukt; de limiet van {limit} begrenst de hele sessie.",
     "evidence": "Gebaseerd op {count, plural, one {# antwoord} other {# antwoorden}} met feedback.",
     "budget": "Uitgavenlimiet van de sessie (USD)",
     "start": "Beginnen met verbeteren",
@@ -17044,12 +17044,12 @@
     "resultDecision": {
       "title": "Resultaat",
       "options": "Wat je kunt doen",
-      "better": "De bijgewerkte agent beantwoordde {fixed} testvragen meer correct.",
+      "better": "De bijgewerkte agent beantwoordde {fixed} extra testvragen correct.",
       "chosen": "Je koos poging {number} om te accepteren.",
       "published": "{version, select, unknown {Wijzigingen gepubliceerd.} other {Gepubliceerd als versie {version}.}}",
       "acceptedDraft": "Opgeslagen in het concept van de agent.",
-      "failed": "De sessie stopte op een fout voordat ze klaar was.",
-      "noneBetter": "{count, plural, =0 {Er werd geen poging gemeten, dus niets toont of {agent} beter werd.} one {De poging maakte {agent} niet beter.} other {Geen van de # pogingen maakte {agent} beter.}}",
+      "failed": "De sessie stopte door een fout voordat ze klaar was.",
+      "noneBetter": "{count, plural, =0 {Er werd geen poging gemeten, dus het is niet bekend of {agent} beter werd.} one {De poging maakte {agent} niet beter.} other {Geen van de # pogingen maakte {agent} beter.}}",
       "worse": "Poging {number} maakte het slechter: {broken, plural, one {# vraag verslechterde} other {# vragen verslechterden}}.",
       "topics": "{count, plural, one {# onderwerp ontbreekt} other {# onderwerpen ontbreken}} in de kennisbank.",
       "limit": "{max, plural, one {Dat was de enige poging die deze sessie toelaat.} other {Daarmee zijn alle # pogingen gebruikt die deze sessie toelaat.}}",
@@ -17066,7 +17066,7 @@
       "criteriaBetter": "Poging {number} verbeterde enkele beoordelingscriteria voor {agent}; geen enkele volledige vraag veranderde."
     },
     "keep": {
-      "title": "Welke poging bewaren",
+      "title": "Welke poging je bewaart",
       "option": "Poging {number} bewaren",
       "keep": "Poging {number} bewaren",
       "keepAnyway": "Poging {number} toch bewaren",
@@ -17093,7 +17093,7 @@
       "movedBoth": "+{fixed} hersteld · {broken} verslechterd",
       "movedNone": "Geen",
       "skill": "Toegeschreven aan de skill “{skill}”",
-      "betterBeside": "Naast de vragen die ze verslechterde, maakte poging {number} {agent} beter op {count, plural, one {# criterium} other {# criteria}}: {list}. Behoud het deel dat hielp door het opnieuw te proberen met een notitie.",
+      "betterBeside": "Naast de vragen die verslechterden, maakte poging {number} {agent} beter op {count, plural, one {# criterium} other {# criteria}}: {list}. Behoud het deel dat hielp door het opnieuw te proberen met een notitie.",
       "skillWorse": "{agent} volgt de skill nu nauwer en mislukt vaker op {count, plural, one {# criterium} other {# criteria}} die de skill fout heeft: {list}. Herstel de skill in plaats van de agent."
     },
     "noise": {
@@ -17101,7 +17101,7 @@
       "headlineUnstable": "De test kan een betere versie niet van een slechtere onderscheiden: bij {within} van de {heldOut, plural, one {# apart gehouden vraag} other {# apart gehouden vragen}}{attempts, plural, =0 {} =1 {} other { over de # pogingen}} kwam er een ander cijfer uit toen ze opnieuw werden gesteld, terwijl er niets was gewijzigd.",
       "noteSpread": "De test is onbetrouwbaar: de versie van vandaag van {agent} scoorde {low} en {high} op de vragen die de pogingen gemeen hadden, dus controleer dit resultaat voordat je het accepteert.",
       "noteUnstable": "De test is onbetrouwbaar: bij {within} van de {heldOut, plural, one {# apart gehouden vraag} other {# apart gehouden vragen}}{attempts, plural, =0 {} =1 {} other { over de # pogingen}} kwam er een ander cijfer uit toen ze opnieuw werden gesteld, dus controleer dit resultaat voordat je het accepteert.",
-      "tooFewShared": "{shared, plural, =0 {De pogingen hielden geen enkele dezelfde vraag apart,} one {De pogingen hielden maar # dezelfde vraag apart,} other {De pogingen hielden maar # dezelfde vragen apart,}} te weinig om de ruis ertussen te beoordelen.",
+      "tooFewShared": "{shared, plural, =0 {De pogingen hielden geen enkele gemeenschappelijke vraag apart,} one {De pogingen hielden maar # gemeenschappelijke vraag apart,} other {De pogingen hielden maar # gemeenschappelijke vragen apart,}} te weinig om de ruis ertussen te beoordelen.",
       "fixTitle": "Maak de test betrouwbaar voordat je het opnieuw probeert",
       "yesNo": "Maak van de beoordelingscriteria ja-of-neevragen in plaats van een schaal van 1 tot 5",
       "yesNoHint": "Bijvoorbeeld: “Vermeldt het antwoord de terugbetalingslimiet?” – ja of nee.",
@@ -17169,14 +17169,14 @@
       "knowledge_only": "Er ontbreken enkele onderwerpen in de kennisbank. Maak een concept van de onderwerpen die je wilt, controleer elk concept en voeg het toe.",
       "draft": "Het opstellen van kennis is mislukt.",
       "expired": "Niemand heeft deze sessie 7 dagen lang verdergezet, dus ze is gesloten. Start een nieuwe om het opnieuw te proberen.",
-      "criteria_worse": "De wijzigingen maakten een criterium waarop de antwoorden worden beoordeeld slechter, al verslechterde er geen vraag.",
+      "criteria_worse": "Door de wijzigingen scoren de antwoorden slechter op een beoordelingscriterium, al verslechterde er geen vraag.",
       "no_variant": "De zoektocht vond geen variant die het beter deed dan de huidige instructies op de trainingsvragen."
     },
     "before": "Voor",
     "after": "Na",
     "unavailableAnswer": "Er is geen antwoord beschikbaar.",
     "whichChange": "Welke wijziging het veroorzaakte",
-    "notAttributed": "Niet afzonderlijk getest. Schat de afzonderlijke controles hieronder.",
+    "notAttributed": "Niet afzonderlijk getest. Schat hieronder de kosten van afzonderlijke controles.",
     "attributionWorking": "Wijziging {number} wordt nog gecontroleerd…",
     "attributionFailed": "De controle van wijziging {number} kon niet worden gelezen.",
     "changeBroke": "Wijziging {number}: nieuw verslechterd",
@@ -17210,19 +17210,19 @@
     "knowledgeQuestionsBody": "Selecteer onafhankelijke vragen over het onderwerp van het concept. Vragen die gebruikt worden om de wijzigingen te schrijven, brongesprekken en kopieën van bronvragen worden uit de test weggelaten.",
     "previousQuestions": "Vorige vragen",
     "nextQuestions": "Volgende vragen",
-    "estimateKnowledge": "Het controleren van het concept schatten",
+    "estimateKnowledge": "Kosten van de conceptcontrole schatten",
     "confirmKnowledge": "Bevestigen en het concept controleren",
     "unsupportedDraft": "Niet onderbouwd — controleer de feiten. Dit concept heeft geen brondocument in de kennisbank.",
-    "knowledgeQuote": "{count} onafhankelijke vragen · {excluded} weggelaten · tot {cost} (schatting, inclusief het bevragen van beide versies en het opnieuw stellen van veranderde antwoorden).",
+    "knowledgeQuote": "{count} onafhankelijke vragen · {excluded} weggelaten · tot {cost} (schatting, inclusief het bevragen van beide versies en het opnieuw stellen van vragen waarvan het antwoord veranderde).",
     "knowledgeUnmeasurable": "Kan niet worden gemeten. Kies minstens vijf onafhankelijke, beoordeelbare vragen over dit onderwerp.",
     "contextAssumption": "Ervan uitgaande dat zoeken deze passage vindt. Deze test geeft het concept rechtstreeks aan de agent; hij test niet of zoeken het vindt of dat de feiten kloppen.",
     "reviewKnowledgeDraft": "Review het concept en beslis of je het toevoegt",
     "noKnowledgeDrafts": "Nog geen concept om te testen. Maak eerst een concept van een onderwerp en test het dan hier.",
-    "draftToTest": "Maak een concept van een onderwerp om het te testen",
+    "draftToTest": "Stel een concept op om te testen",
     "topicQuestions": "Andere vragen over dit onderwerp",
     "knowledgeInvalidated": "Het concept is gewijzigd of verwijderd. Controleer het huidige concept opnieuw voordat je dit resultaat gebruikt.",
     "knowledgeUntracked": "Kan niet worden gemeten: dit oudere concept heeft niet al zijn bronvragen vastgelegd. Schrijf een nieuw concept voordat je het controleert.",
-    "knowledgeMode": "Hoe het concept testen",
+    "knowledgeMode": "Testmethode voor het concept",
     "contextMode": "Alsof zoeken het vond",
     "contextModeHint": "Het concept wordt bij elke vraag meegegeven, alsof zoeken het altijd vond.",
     "retrievalMode": "Via echt zoeken",
@@ -17234,11 +17234,11 @@
     "knowledgeSearchDisabled": "Deze wijzigingen zetten het zoeken in de kennisbank uit. Test met tijdelijke context, of schakel zoeken in en start een nieuwe sessie.",
     "knowledgeEstimate": "Inclusief {cost} voor het sorteren van de bronantwoorden en het groeperen van ontbrekende kennis (schatting). Er wordt pas een concept geschreven als je erom vraagt.",
     "classificationFailed": "We konden het groeperen van de feedback niet afronden. De brongesprekken blijven beschikbaar; onbekende oorzaken worden overgelaten aan de agentwijzigingen.",
-    "draftingFailed": "We konden het voorbereiden van de kennisconcepten niet afronden. Afgewerkte concepten blijven beschikbaar om te reviewen; er is niets automatisch toegevoegd.",
+    "draftingFailed": "We konden het voorbereiden van de kennisconcepten niet afronden. Voltooide concepten blijven beschikbaar om te reviewen; er is niets automatisch toegevoegd.",
     "stepState": {
       "done": "Klaar",
       "running": "Bezig",
-      "needs_you": "Heeft je nodig",
+      "needs_you": "Wacht op jou",
       "skipped": "Overgeslagen",
       "pending": "Niet gestart",
       "ended": "Beëindigd zonder wijzigingen"
@@ -17248,8 +17248,8 @@
     "raiseBudgetContinue": "De limiet verhogen en doorgaan",
     "resumeWithMyAccess": "Deze stap voortzetten met mijn toegang",
     "continuationBody": "Bekijk de schatting voordat je meer uitgeeft. Dezelfde bronnen, testvragen en limiet aan pogingen blijven gelden. Er wordt niets geaccepteerd of gepubliceerd.",
-    "estimateContinuation": "Het voortzetten van de sessie schatten",
-    "continuationQuote": "{mode, select, next_round {Poging {number} van {max}: tot {cost} (schatting) om de wijzigingen te schrijven; het testen ervan wordt bij de volgende stap geprijsd.} retry {Tot {cost} (schatting) om deze stap opnieuw te proberen; de stap erna wordt geprijsd wanneer je hem zet.} other {Tot {cost} (schatting) om deze stap af te ronden; de stap erna wordt geprijsd wanneer je hem zet.}}",
+    "estimateContinuation": "Kosten van het voortzetten schatten",
+    "continuationQuote": "{mode, select, next_round {Poging {number} van {max}: tot {cost} (schatting) om de wijzigingen te schrijven; voor het testen krijg je bij de volgende stap een prijsschatting.} retry {Tot {cost} (schatting) om deze stap opnieuw te proberen; voor de stap erna krijg je een prijsschatting wanneer je eraan begint.} other {Tot {cost} (schatting) om deze stap af te ronden; voor de stap erna krijg je een prijsschatting wanneer je eraan begint.}}",
     "continuationUnaffordable": "Deze schatting past niet binnen de gekozen limiet of het beschikbare budget. Verhoog de limiet en schat opnieuw.",
     "confirmContinuation": "De schatting bevestigen en doorgaan",
     "continuationStopped": "Hier kan geen nieuwe betaalde poging meer starten. Review een bestaande poging, los de reden van de stop op of start een nieuwe sessie.",
@@ -17277,7 +17277,7 @@
     "checkStage": {
       "asking": "De verbeterde agent bevragen…",
       "grading": "Beoordelen…",
-      "repeating": "{count, plural, =0 {Antwoorden waarvan het resultaat veranderde opnieuw stellen, om zeker te zijn…} one {# antwoord waarvan het resultaat veranderde opnieuw stellen, om zeker te zijn…} other {# antwoorden waarvan het resultaat veranderde opnieuw stellen, om zeker te zijn…}}"
+      "repeating": "{count, plural, =0 {Vragen waarvan het resultaat veranderde opnieuw stellen, om zeker te zijn…} one {# vraag waarvan het resultaat veranderde opnieuw stellen, om zeker te zijn…} other {# vragen waarvan het resultaat veranderde opnieuw stellen, om zeker te zijn…}}"
     },
     "showDetails": "Details tonen",
     "shouldFix": "Moet worden opgelost",
@@ -17288,7 +17288,7 @@
     "noKnowledgeDocuments": "Er ontbreekt niets in de kennisbank.",
     "reviewAndAdd": "Reviewen en toevoegen",
     "notNow": "Niet nu",
-    "acceptAgent": "In de agent: {version, plural, =0 {de nieuwe versie} other {versie #}} zal {fixed, plural, one {# vraag} other {# vragen}} herstellen en {broken} verslechteren{costKnown, select, yes {, voor {cost} per antwoord} other {}}. Getest op {total, plural, one {# vraag} other {# vragen}}, waarvan {heldOut} niet gebruikt om de wijzigingen te schrijven.",
+    "acceptAgent": "In de agent: {version, plural, =0 {de nieuwe versie} other {versie #}} zal {fixed, plural, one {# vraag} other {# vragen}} herstellen en {broken} verslechteren{costKnown, select, yes {, voor {cost} per antwoord} other {}}. Getest op {total, plural, one {# vraag} other {# vragen}}, waarvan {heldOut} niet gebruikt zijn om de wijzigingen te schrijven.",
     "guardedSwitch": "{environment} schakelt over naar versie {version} zodra de automatische controle slaagt, meestal binnen enkele minuten.",
     "noChangesFound": "We vonden geen wijziging die bij de huidige instructies past. Dit hebben we geprobeerd:",
     "triedAttempt": "Poging {number}: {verdict, select, better {de wijzigingen maakten het beter} criteria_better {de wijzigingen maakten het beter op enkele criteria, er sloeg nog geen vraag om} regression {de wijzigingen verslechterden vragen die werkten} criteria_worse {de wijzigingen maakten enkele criteria slechter} no_change {geen meetbare verandering} inconclusive {het resultaat kon niet worden gemeten} unmeasured {wijzigingen voorgesteld, nog niet getest} other {er werd geen wijziging voorgesteld}}{dropped, plural, =0 {} one {; # wijziging paste niet bij de huidige instructies} other {; # wijzigingen pasten niet bij de huidige instructies}}.",
@@ -17301,11 +17301,11 @@
     "tooFewHeldOut": "Te weinig vragen om een wijziging te meten. Voeg {needed, plural, one {nog # vraag} other {nog # vragen}} toe. Gebruik hiervoor vragen die niet zijn gebruikt om de wijzigingen op te stellen.",
     "technicalDetails": "Technische details",
     "startWithNewQuestions": "Een nieuwe sessie starten met deze vragen",
-    "resumeOpen": "Je hebt een verbetering in uitvoering ({status}, {date}). Open ze",
+    "resumeOpen": "Je hebt een verbetering in uitvoering ({status}, {date}). Openen",
     "baselineFirst": "Leg een basislijn vast: test de versie van vandaag op een paar vragen.",
     "writeQuestionsBody": "Deze agent heeft nog geen testvragen. We maken vragen van de antwoorden die mensen beoordeelden en schrijven er meer voor onderwerpen zonder voorbeeld.",
     "writeQuestionsQuote": "Tot {count, plural, one {# vraag} other {# vragen}} geschreven, ongeveer {cost} (schatting).",
-    "writeQuestionsUnpriced": "Het schrijven van vragen kan niet worden geprijsd: het model van de vragenschrijver heeft geen bekende prijs.",
+    "writeQuestionsUnpriced": "Voor het schrijven van vragen kan geen prijs worden bepaald: het model van de vragenschrijver heeft geen bekende prijs.",
     "writtenCounts": "{down} uit antwoorden die mensen negatief beoordeelden, {liked} uit antwoorden die ze goed vonden, {written} in de maak voor onderwerpen zonder voorbeeld.",
     "questionsWriting": "De vragen schrijven… De schatting wordt bijgewerkt wanneer ze klaar zijn.",
     "questionsWritingFailed": "Meer vragen schrijven is mislukt; de vragen uit beoordeelde antwoorden zijn klaar.",
@@ -17320,7 +17320,7 @@
       "one_model": "De beoordelaar gebruikt hetzelfde model als de agent, omdat er maar één model is ingesteld.",
       "ai_off": "Met AI-ondersteuning uit worden antwoorden vergeleken met het goede antwoord in plaats van beoordeeld.",
       "cannot_publish": "De beoordelaar kon met jouw toegang niet op een ander model worden ingesteld.",
-      "unknown_model": "Het model van de agent is onbekend, dus de beoordelaar kan hetzelfde gebruiken.",
+      "unknown_model": "Het model van de agent is onbekend, dus de beoordelaar gebruikt het misschien ook.",
       "shares_model": "De beoordelaar gebruikt hetzelfde model als de agent en kan antwoorden die op de zijne lijken bevoordelen."
     },
     "todayCheckBody": "Stel het concept de testvragen om te zien hoe het het doet voordat er iets verandert.",
@@ -17356,7 +17356,7 @@
       "discarded": "{name} verwierp de suggesties · {at}",
       "accepted": "{name} bewaarde de wijzigingen als concept · {at}",
       "published": "{name} publiceerde de nieuwe versie · {at}",
-      "nextStepPropose": "{name} vroeg om de wijzigingen te schrijven · {at}",
+      "nextStepPropose": "{name} liet de wijzigingen schrijven · {at}",
       "nextStepCheck": "{name} begon de gekozen wijzigingen te testen · {at}",
       "askedAgain": "{name} vroeg om een nieuwe poging{noted, select, yes {: “{note}”} other {}} · {at}"
     },
@@ -17385,7 +17385,7 @@
       "proposed": "Voorgestelde wijzigingen",
       "included": "Opgenomen in de test",
       "alreadyAdded": "{count, plural, one {# al toegevoegd} other {# al toegevoegd}}",
-      "partitionAbout": "Elke poging houdt ongeveer {holdout, plural, one {# vraag} other {# vragen}} apart om het resultaat te controleren; ongeveer {train, plural, one {# helpt} other {# helpen}} de wijzigingen te schrijven. Een vraag die ook gesteld werd in de gesprekken waarvan ze leert, helpt in plaats daarvan schrijven, dus er kunnen er minder apart worden gehouden.",
+      "partitionAbout": "Elke poging houdt ongeveer {holdout, plural, one {# vraag} other {# vragen}} apart om het resultaat te controleren; ongeveer {train, plural, one {# helpt} other {# helpen}} de wijzigingen te schrijven. Een vraag die ook gesteld werd in de gesprekken waarvan ze leert, helpt in plaats daarvan de wijzigingen te schrijven, dus er kunnen er minder apart worden gehouden.",
       "partitionAttempt": "Poging {attempt} hield {holdout, plural, one {# vraag} other {# vragen}} apart om het resultaat te controleren; {train, plural, one {# hielp} other {# hielpen}} de wijzigingen te schrijven.",
       "partitionStart": "De eerste poging houdt {holdout, plural, one {# vraag} other {# vragen}} apart om het resultaat te controleren; {train, plural, one {# helpt} other {# helpen}} de wijzigingen te schrijven, inclusief de vragen die ook gesteld werden in de gesprekken waarvan ze leert.",
       "criteriaPassed": "Geslaagde criteria",
@@ -17407,7 +17407,7 @@
         "published": "Gepubliceerd",
         "rejected": "Verworpen. Niets van wat ze voorstelde, werd bewaard.",
         "cancelled": "Gestopt voordat er iets werd beslist.",
-        "stale": "Opzijgezet: de agent, zijn concept of de testvragen veranderden terwijl ze liep."
+        "stale": "Opzijgezet: de agent, zijn concept of de testvragen veranderden terwijl ze bezig was."
       },
       "by": "Door {name}, {at}",
       "at": "Op {at}",
@@ -17456,7 +17456,7 @@
     "todayLoading": "Zoeken naar een eerdere test van het concept…",
     "todayTwice": "Elke vraag twee keer stellen",
     "todayTwiceHint": "Toont of de antwoorden of hun beoordeling veranderen terwijl er verder niets verandert.",
-    "todayNoisy": "Deze sessie toont hoogstwaarschijnlijk niets: de antwoorden of de beoordeling zijn onstabiel.",
+    "todayNoisy": "Deze sessie toont hoogstwaarschijnlijk niets: de antwoorden of de beoordeling zijn instabiel.",
     "todayNoisyCriteria": "Maak van de beoordelingscriteria ja-of-neevragen",
     "todayNoisyCriteriaHint": "Formuleer elk criterium als een ja-of-neevraag - die beoordeelt de beoordelaar het consequentst.",
     "todayNoisyModel": "Het beoordelingsmodel kiezen",
@@ -17464,13 +17464,13 @@
     "nextUp": {
       "label": "Volgende stap",
       "hint": {
-        "understand": "Lees wat er misging. De volgende stap wordt geprijsd voordat je drukt.",
-        "changes": "Vink de wijzigingen aan die je wilt testen en verbeter de formulering waar nodig. De volgende stap wordt geprijsd voordat je drukt."
+        "understand": "Lees wat er misging. Je ziet de prijs van de volgende stap voordat je drukt.",
+        "changes": "Vink de wijzigingen aan die je wilt testen en verbeter de formulering waar nodig. Je ziet de prijs van de volgende stap voordat je drukt."
       },
-      "pricing": "De volgende stap prijzen…",
-      "priceMoved": "De prijs is veranderd naar tot {cost}. Druk opnieuw om door te gaan.",
+      "pricing": "Prijs van de volgende stap berekenen…",
+      "priceMoved": "De prijs is veranderd: nu tot {cost}. Druk opnieuw om door te gaan.",
       "overLimit": "De volgende stap kost meer dan wat deze sessie nog over heeft. Verhoog de limiet om door te gaan.",
-      "raise": "Opnieuw prijzen",
+      "raise": "Prijs opnieuw berekenen",
       "go": {
         "understand": "Volgende stap: de wijzigingen schrijven · tot {cost}",
         "changes": "Volgende stap: de geselecteerde wijzigingen testen · tot {cost}"
@@ -17479,11 +17479,11 @@
         "understand": "Volgende stap: de wijzigingen schrijven",
         "changes": "Volgende stap: de geselecteerde wijzigingen testen"
       },
-      "hintSingle": "Verbeter de formulering indien nodig. De volgende stap wordt geprijsd voordat je drukt.",
+      "hintSingle": "Verbeter de formulering indien nodig. Je ziet de prijs van de volgende stap voordat je drukt.",
       "saveWordingFirst": "Sla de formulering eerst op of verwerp ze.",
-      "unmeasurable": "Deze poging kan niet worden getest: er {count, plural, one {zou nog # apart gehouden vraag} other {zouden nog # apart gehouden vragen}} nodig zijn zodra de vragen waar haar voorbeelden vandaan komen, worden weggelaten. Deze sessie behoudt de vragen waarmee ze startte, dus er nu toevoegen helpt niet: beëindig de sessie, voeg vragen toe en start een nieuwe.",
+      "unmeasurable": "Deze poging kan niet worden getest: er {count, plural, one {zou nog # apart gehouden vraag} other {zouden nog # apart gehouden vragen}} nodig zijn zodra de vragen waar haar voorbeelden vandaan komen, worden weggelaten. Deze sessie behoudt de vragen waarmee ze startte, dus er nu toevoegen helpt niet: beëindig de sessie, voeg vragen toe en start een nieuwe sessie.",
       "likely": "Hoogstwaarschijnlijk ongeveer {cost}: het hogere bedrag geldt alleen als antwoorden opnieuw moeten worden gesteld.",
-      "lineMoved": "De lijn van de skill kreeg intussen een nieuwere versie, dus de stap werd daarop opnieuw geprijsd: tot {cost}. Druk opnieuw om door te gaan."
+      "lineMoved": "De lijn van de skill kreeg intussen een nieuwere versie, dus de prijs van de stap werd opnieuw berekend: tot {cost}. Druk opnieuw om door te gaan."
     },
     "waitingFor": {
       "understand": "Wacht op jou: bekijk wat er misging",
@@ -17494,7 +17494,7 @@
     "endOpen": {
       "action": "Beëindigen en een nieuwe starten",
       "title": "De open sessie beëindigen?",
-      "body": "Een agent verbetert in één sessie tegelijk. Als je deze beëindigt, blijft ze in de geschiedenis van de agent en verandert er niets aan de agent; daarna kun je hier een nieuwe starten.",
+      "body": "Een agent kan maar in één sessie tegelijk worden verbeterd. Als je deze sessie beëindigt, blijft ze in de geschiedenis van de agent en verandert er niets aan de agent; daarna kun je hier een nieuwe starten.",
       "confirm": "Beëindigen"
     },
     "attemptChanges": {
@@ -17514,7 +17514,7 @@
       "editedReason": "De reden beschrijft de voorgestelde formulering, voordat je ze wijzigde.",
       "single": "Deze wijziging wordt getest."
     },
-    "limitHint": "Analyse ongeveer {analysis} · elke poging ruwweg {perRound}, opnieuw geprijsd voordat ze start · de limiet begrenst de hele sessie",
+    "limitHint": "Analyse ongeveer {analysis} · elke poging ruwweg {perRound}, met een nieuwe prijsschatting voordat ze start · de limiet begrenst de hele sessie",
     "triedChanges": "Wat elke poging probeerde",
     "suiteSet": "{name} (vragen van de controle {suite})",
     "writeOwnInstead": "Of schrijf nieuwe testvragen voor deze agent",
@@ -17544,7 +17544,7 @@
     },
     "freshAttempt": "Elke poging start vanaf de huidige versie; wijzigingen uit eerdere pogingen worden niet meegenomen.",
     "trainSignals": "Mislukte testantwoorden",
-    "tryAgainNothingToLearn": "De laatste poging herstelde elke vraag waarvan ze leert, dus een nieuwe poging heeft niets om van te leren. Accepteer ze of beëindig de sessie.",
+    "tryAgainNothingToLearn": "De laatste poging herstelde elke vraag waarvan ze leert, dus een nieuwe poging heeft niets om van te leren. Accepteer die poging of beëindig de sessie.",
     "tryAgainUnmeasurable": "Een nieuwe poging zou te weinig vragen hebben om te meten: {count, plural, one {er is nog # nodig} other {er zijn nog # nodig}}, en de vragen van deze sessie liggen vast. Beëindig deze sessie, voeg vragen toe en start een nieuwe sessie.",
     "pipelineSettings": "Model en instructies instellen in de dataset",
     "startDescription": "Gebruik feedback en testgevallen om verbeteringen voor te stellen. Review elke stap voordat je wijzigingen toepast.",
@@ -17552,7 +17552,7 @@
     "startDatasetHint": "Kies de testgevallen waarmee de antwoorden van deze agent worden gecontroleerd.",
     "analysisEstimate": "Geschatte kosten van de analyse",
     "startCostHint": "De analyse komt eerst. Elke latere poging wordt apart geschat, rond {cost}, binnen de sessielimiet.",
-    "comparisonInvalid": "Deze resultaten kunnen niet worden vergeleken. Review de afzonderlijke antwoorden zonder verschillen als herstellingen of regressies te beschouwen.",
+    "comparisonInvalid": "Deze resultaten kunnen niet worden vergeleken. Review de afzonderlijke antwoorden zonder verschillen als verbeteringen of regressies te beschouwen.",
     "skills": {
       "title": "Hoort bij een skill",
       "intro": "Een skill wordt gedeeld door andere agents, dus deze worden hier niet gewijzigd. Verbeter de skill zelf, waar de wijziging wordt gecontroleerd op elke agent die hem leest.",
@@ -17589,7 +17589,7 @@
       "unpriced": "Zoeken wordt beschikbaar zodra de schatting de trainingsvragen van deze dataset heeft geteld."
     },
     "search": {
-      "title": "Variantzoektocht",
+      "title": "Zoeken naar varianten",
       "progress": "{tried} van maximaal {max} varianten geprobeerd, elk op dezelfde {questions} trainingsvragen.",
       "spent": "{cost} van het zoekbudget van {budget} uitgegeven.",
       "scores": "Huidige instructies: {seed} van de vereiste controles geslaagd · beste variant: {best}.",
@@ -17615,7 +17615,7 @@
       "attempts": "Pogingen",
       "understand": "Analyse",
       "accept": "Beslissing",
-      "back": "Terug naar de bron",
+      "back": "Terug",
       "spent": "{spent} uitgegeven",
       "passRateScope": "Over alle vragen in de evaluatie",
       "more": "Sessiedetails",
