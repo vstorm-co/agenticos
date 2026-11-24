@@ -3599,7 +3599,7 @@ def test_personal_work_context_upgrades_a_database_at_the_t3_head() -> None:
         assert "personal_context_cache" in inspector.get_table_names()
         with engine.begin() as connection:
             assert connection.scalars(text("SELECT version_num FROM alembic_version")).all() == [
-                "0349_personal_work_context"
+                "0353_nav_pins"
             ]
             assert (
                 connection.scalar(

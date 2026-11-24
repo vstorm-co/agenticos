@@ -55,6 +55,7 @@ from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.local_service import LocalService
 from app.db.models.mcp_connection import McpConnection
 from app.db.models.memory import AgentMemoryFile
+from app.db.models.nav_pins import NavPins
 from app.db.models.notification_route import NotificationRoute
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.organization_assistant import OrganizationAssistant
@@ -111,6 +112,7 @@ from app.schemas.mcp_connection import (
 )
 from app.schemas.memory import MemoryNoteUpdate
 from app.schemas.model_profile import ModelProfileUpdate
+from app.schemas.nav_pins import NavPinsUpdate
 from app.schemas.notification import NotificationPreferenceUpdate
 from app.schemas.notification_route import NotificationRouteUpdate
 from app.schemas.onboarding import OnboardingUpdate
@@ -188,6 +190,8 @@ UPDATE_TARGETS: dict[type[BaseModel], type[DeclarativeBase] | None] = {
     # Sets `permission` on one share (`conversation_share.change_permission`).
     ConversationShareUpdate: ConversationShare,
     DashboardLayoutUpdate: DashboardLayout,
+    # Replaces `item_ids`, the one JSONB list column on the caller's own pin row.
+    NavPinsUpdate: NavPins,
     DeploymentSettingsUpdate: DeploymentSettings,
     EmbedUpdate: AgentEmbed,
     EnvironmentUpdate: AgentEnvironment,
