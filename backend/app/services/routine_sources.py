@@ -481,8 +481,10 @@ class RoutineSourceService:
         delegates: list[UUID] = []
         credentials: set[UUID] = set()
         for current in specs:
-            resources.update(f"Knowledge · {identifier}" for identifier in current.collection_ids)
-            resources.update(f"Context · {identifier}" for identifier in current.context_ids)
+            resources.update(
+                f"Knowledge · {identifier}" for identifier in current.served_collection_ids
+            )
+            resources.update(f"Context · {identifier}" for identifier in current.served_context_ids)
             resources.update(f"Skill · {identifier}" for identifier in current.served_skill_ids)
             resources.update(
                 f"Capability · {binding.id}" for binding in current.capabilities if binding.enabled
@@ -491,7 +493,7 @@ class RoutineSourceService:
                 f"Table · {grant.table_id} · {'/'.join(operation.value for operation in grant.operations)}"
                 for grant in current.table_bindings
             )
-            for delegate in current.subagents:
+            for delegate in current.served_subagents:
                 if delegate.agent_version_id in seen:
                     continue
                 if len(seen) >= 64:
@@ -622,7 +624,7 @@ class RoutineSourceService:
                 else:
                     phone_sources[endpoint.id] = endpoint_fingerprint(endpoint, bot)
         external_sources: dict[UUID, str] = {}
-        for ref in (ref for current in specs for ref in current.external_agents):
+        for ref in (ref for current in specs for ref in current.served_external_agents):
             remote = await external_repo.get(
                 self.db, ref.external_agent_id, organization_id=ctx.organization_id
             )
@@ -836,6 +838,16 @@ class RoutineSourceService:
                     {**material, "show_starters": False},
                 )
             )
+            dumped = spec.model_dump(mode="json")
+            # What a switched-off capability would reach is not behavior a run has.
+            served = spec.model_copy(
+                update={
+                    "collection_ids": spec.served_collection_ids,
+                    "subagents": spec.served_subagents,
+                    "external_agents": spec.served_external_agents,
+                }
+            ).model_dump(mode="json", include={"collection_ids", "subagents", "external_agents"})
+            dumped.update(served)
             for name in (
                 "capabilities",
                 "mcp_servers",
@@ -844,7 +856,7 @@ class RoutineSourceService:
                 "subagents",
                 "external_agents",
             ):
-                for value in spec.model_dump(mode="json")[name]:
+                for value in dumped[name]:
                     if name == "capabilities" and value.get("enabled") is False:
                         continue
                     if name == "mcp_servers" and value.get("allowed_tools") == []:
@@ -867,7 +879,7 @@ class RoutineSourceService:
                 )
                 contexts = await ContextService(self.db).resolve_for_agent(
                     ctx,
-                    resource_spec.context_ids,
+                    resource_spec.served_context_ids,
                     config=context_config(resource_spec.capabilities),
                 )
                 result.update(materialized_behavior(skills, contexts, namespace=resource_namespace))
@@ -908,9 +920,11 @@ class RoutineSourceService:
         """
         organization_id = ctx.organization_id
         skill_ids = sorted({identifier for spec in specs for identifier in spec.served_skill_ids})
-        context_ids = sorted({identifier for spec in specs for identifier in spec.context_ids})
+        context_ids = sorted(
+            {identifier for spec in specs for identifier in spec.served_context_ids}
+        )
         collection_ids = sorted(
-            {identifier for spec in specs for identifier in spec.collection_ids}
+            {identifier for spec in specs for identifier in spec.served_collection_ids}
         )
         table_ids = sorted({grant.table_id for spec in specs for grant in spec.table_bindings})
         skills = await self._viewable(

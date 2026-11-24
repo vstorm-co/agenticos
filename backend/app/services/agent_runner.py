@@ -3815,10 +3815,10 @@ class AgentRunnerService:
         unique and resolving it again would search whichever same-named base of
         the organization comes first rather than the one bound here (#2537).
         """
-        found = await knowledge_base_repo.get_by_ids(self.db, spec.collection_ids)
+        found = await knowledge_base_repo.get_by_ids(self.db, spec.served_collection_ids)
         names: list[str] = []
         scopes: dict[str, VectorScope] = {}
-        for collection_id in spec.collection_ids:
+        for collection_id in spec.served_collection_ids:
             collection = found.get(collection_id)
             if collection is None or collection.organization_id != ctx.organization_id:
                 # A collection deleted after publish degrades the agent's reach
@@ -4516,7 +4516,7 @@ class AgentRunnerService:
         )
         context_files = await self.context.resolve_for_agent(
             ctx,
-            spec.context_ids,
+            spec.served_context_ids,
             projected=context_bodies,
             config=context_config(spec.capabilities),
         )
@@ -6543,7 +6543,7 @@ class AgentRunnerService:
             ctx, spec.served_skill_ids, bindings=spec.skill_bindings, projected=projected or None
         )
         context_files = await self.context.resolve_for_agent(
-            ctx, spec.context_ids, config=context_config(spec.capabilities)
+            ctx, spec.served_context_ids, config=context_config(spec.capabilities)
         )
         routine = parent_resources.get("routine_authority")
         if isinstance(routine, RoutineAuthority):

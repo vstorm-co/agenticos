@@ -1012,6 +1012,7 @@ async def test_instruction_edits_invalidate_review_tokens_and_standing_consent(
         db.add(target)
         await db.flush()
         world.spec.context_ids = [target.id]
+        world.spec.capabilities = [*world.spec.capabilities, CapabilityBindingSpec(id="context")]
     else:
         target = Project(
             organization_id=world.org.id,
@@ -1153,6 +1154,45 @@ async def test_a_skill_bound_while_skills_is_off_is_not_part_of_the_instructions
     assert await fingerprint() is not None
 
 
+async def test_context_and_delegates_kept_while_switched_off_are_not_instructions(
+    db: AsyncSession, world: World
+) -> None:
+    """A context file no run reads and a delegate no run reaches add nothing to
+    the instructions consent covers; switched on, the delegate is walked again."""
+    from app.agents.spec import SubagentRef
+    from app.db.models.context import ContextFile
+    from app.services.routine_actions import instruction_fingerprint
+
+    context = ContextFile(
+        organization_id=world.org.id,
+        owner_user_id=world.ctx.user_id,
+        name="unread",
+        content="Original",
+    )
+    db.add(context)
+    await db.flush()
+    world.spec.context_ids = [context.id]
+    world.spec.subagents = [SubagentRef(agent_id=uuid4(), agent_version_id=uuid4())]
+    world.spec.capabilities = [
+        *world.spec.capabilities,
+        CapabilityBindingSpec(id="context", enabled=False),
+        CapabilityBindingSpec(id="subagents", enabled=False),
+    ]
+
+    async def fingerprint() -> str | None:
+        return await instruction_fingerprint(
+            db, organization_id=world.org.id, spec=world.spec, project_id=None
+        )
+
+    assert await fingerprint() is None
+    world.spec.capabilities = [
+        binding.model_copy(update={"enabled": True}) if binding.id == "subagents" else binding
+        for binding in world.spec.capabilities
+    ]
+    with pytest.raises(BadRequestError):
+        await fingerprint()
+
+
 @pytest.mark.parametrize("binding", ["skill", "context"])
 async def test_delegate_instruction_edits_invalidate_the_parent_fingerprint(
     db: AsyncSession, world: World, binding: str
@@ -1192,7 +1232,7 @@ async def test_delegate_instruction_edits_invalidate_the_parent_fingerprint(
         name="Delegate",
         context_ids=[target.id] if binding == "context" else [],
         skill_ids=[target.id] if binding == "skill" else [],
-        capabilities=[CapabilityBindingSpec(id="skills")] if binding == "skill" else [],
+        capabilities=[CapabilityBindingSpec(id="skills" if binding == "skill" else "context")],
     )
     version = AgentVersion(
         organization_id=world.org.id,
@@ -1203,6 +1243,7 @@ async def test_delegate_instruction_edits_invalidate_the_parent_fingerprint(
     db.add(version)
     await db.flush()
     world.spec.subagents = [SubagentRef(agent_id=child.id, agent_version_id=version.id)]
+    world.spec.capabilities = [*world.spec.capabilities, CapabilityBindingSpec(id="subagents")]
     before = await instruction_fingerprint(
         db, organization_id=world.org.id, spec=world.spec, project_id=None
     )

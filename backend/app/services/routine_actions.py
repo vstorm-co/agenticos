@@ -102,8 +102,8 @@ async def instruction_fingerprint(
     spec: AgentSpec,
     project_id: UUID | None,
 ) -> str | None:
-    skills, contexts = set(spec.served_skill_ids), set(spec.context_ids)
-    pending = list(spec.subagents)
+    skills, contexts = set(spec.served_skill_ids), set(spec.served_context_ids)
+    pending = spec.served_subagents
     seen: set[UUID] = set()
     while pending:
         delegate = pending.pop()
@@ -121,8 +121,8 @@ async def instruction_fingerprint(
             )
         child = AgentSpec.model_validate(version.spec)
         skills.update(child.served_skill_ids)
-        contexts.update(child.context_ids)
-        pending.extend(child.subagents)
+        contexts.update(child.served_context_ids)
+        pending.extend(child.served_subagents)
     if not skills and not contexts and project_id is None:
         return None
     material = await agent_repo.mutable_instruction_material(
