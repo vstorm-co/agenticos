@@ -21735,7 +21735,26 @@
     "output": "Uitvoertokens",
     "cache_read": "Tokens gelezen uit de cache",
     "cache_write": "Tokens geschreven naar de cache",
-    "override": "Aangepaste prijzen gebruiken (USD per miljoen tokens)",
-    "cacheDefault": "Laat leeg om de invoerprijs te gebruiken."
+    "cacheDefault": "Laat leeg om de invoerprijs te gebruiken.",
+    "overrideCurrency": "Aangepaste prijzen gebruiken (per miljoen tokens)",
+    "currency": "Prijsvaluta"
+  },
+  "currencies": {
+    "title": "Valuta en wisselkoersen",
+    "manualRates": "Voer het aantal valuta-eenheden per 1 USD in. Je stelt de koersen handmatig in. Geregistreerde kosten behouden de koers die gold toen ze werden gemaakt.",
+    "deploymentDefault": "Standaardvaluta voor organisaties",
+    "rate": "{currency} per USD",
+    "remove": "{currency} verwijderen",
+    "code": "Valutacode",
+    "newRate": "Eenheden per USD",
+    "add": "Valuta toevoegen",
+    "reset": "Standaardwaarden uit de omgeving gebruiken",
+    "organization": "Organisatievaluta",
+    "organizationHint": "Gebruik de standaardvaluta van de implementatie of kies een rapportagevaluta. Bestaande prijzen en limieten behouden hun oorspronkelijke eenheden.",
+    "inherit": "Overnemen ({currency})",
+    "rateUnavailable": "{currency} (wisselkoers niet beschikbaar)",
+    "loadFailed": "Valuta-instellingen konden niet worden geladen",
+    "retry": "Opnieuw proberen",
+    "saveFailed": "De valuta kon niet worden opgeslagen"
   }
 }

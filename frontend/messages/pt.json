@@ -21735,7 +21735,26 @@
     "output": "Tokens de saída",
     "cache_read": "Tokens lidos do cache",
     "cache_write": "Tokens gravados no cache",
-    "override": "Usar preços personalizados (USD por milhão de tokens)",
-    "cacheDefault": "Deixe em branco para usar o preço de entrada."
+    "cacheDefault": "Deixe em branco para usar o preço de entrada.",
+    "overrideCurrency": "Usar preços personalizados (por milhão de tokens)",
+    "currency": "Moeda dos preços"
+  },
+  "currencies": {
+    "title": "Moedas e taxas de câmbio",
+    "manualRates": "Informe quantas unidades da moeda equivalem a 1 USD. As taxas são manuais. Os custos registrados mantêm a taxa aplicada quando foram gerados.",
+    "deploymentDefault": "Moeda padrão das organizações",
+    "rate": "{currency} por USD",
+    "remove": "Remover {currency}",
+    "code": "Código da moeda",
+    "newRate": "Unidades por USD",
+    "add": "Adicionar moeda",
+    "reset": "Usar os padrões do ambiente",
+    "organization": "Moeda da organização",
+    "organizationHint": "Herde o padrão da implantação ou selecione uma moeda para os relatórios. Os preços e limites existentes mantêm suas unidades originais.",
+    "inherit": "Herdar ({currency})",
+    "rateUnavailable": "{currency} (taxa de câmbio indisponível)",
+    "loadFailed": "Não foi possível carregar as configurações de moeda",
+    "retry": "Tentar novamente",
+    "saveFailed": "Não foi possível salvar a moeda"
   }
 }
