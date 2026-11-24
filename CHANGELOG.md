@@ -26,6 +26,7 @@ Two things are versioned separately from this file and worth knowing about:
 ### Fixed
 
 - The skills category filter no longer offers category names of skills the caller cannot see (#3282).
+- A skill card's **Drafted by** now names agents whose draft binds the skill through an inline specialist, as the arranged view already did. A draft that no longer parses is no longer listed there (#3288).
 
 ## [1.93.0] - 2026-11-24
 
