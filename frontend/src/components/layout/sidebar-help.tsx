@@ -52,10 +52,8 @@ export function SidebarHelp({ collapsed = false }: { collapsed?: boolean }) {
           aria-label={collapsed ? t("help") : undefined}
           title={collapsed ? t("help") : undefined}
           className={cn(
-            "text-foreground/80 hover:bg-foreground/5 hover:text-foreground focus-visible:ring-ring flex items-center rounded-xl text-sm font-medium transition-colors outline-none focus-visible:ring-2",
-            collapsed
-              ? "touch:min-h-11 touch:min-w-11 h-9 w-9 justify-center"
-              : "h-9 w-full gap-2.5 px-2.5",
+            "text-foreground/80 hover:bg-foreground/5 hover:text-foreground focus-visible:ring-ring touch:min-h-11 flex items-center rounded-xl text-sm font-medium transition-colors outline-none focus-visible:ring-2",
+            collapsed ? "touch:min-w-11 h-9 w-9 justify-center" : "h-9 w-full gap-2.5 px-2.5",
           )}
         >
           <CircleHelp className="h-[18px] w-[18px] shrink-0" strokeWidth={1.75} aria-hidden />
