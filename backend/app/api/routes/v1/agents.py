@@ -990,11 +990,24 @@ async def run_agent(
     minutes does not hold a connection - or a proxy's read timeout - open. Only
     then is `Idempotency-Key` honoured; a synchronous call carrying one is refused
     rather than letting the caller believe a retry is safe when it is not.
+
+    With `steer: true`, a text follow-up can join the asynchronous run currently
+    working on the same conversation, agent and environment under the same
+    credential. Its poll receipt then reads `steered` and identifies the run.
+    If there is no match or no further model request takes the correction,
+    the worker handles it as a separate turn.
     """
     if respond_async and data.draft:
         raise refused_field(
             "draft", "A draft is tried synchronously - leave out Prefer: respond-async"
         )
+    if data.steer:
+        if not respond_async:
+            raise refused_field("steer", "Steering requires Prefer: respond-async")
+        if data.conversation_id is None:
+            raise refused_field("conversation_id", "Steering requires an existing conversation_id")
+        if data.file_ids:
+            raise refused_field("file_ids", "Steering takes text only; send files in a normal turn")
     if respond_async:
         queued = await api_runs.queue(ctx, agent_id, data, idempotency_key=idempotency_key)
         return JSONResponse(

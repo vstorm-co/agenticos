@@ -3341,9 +3341,16 @@ class TestRunAccounting:
             patch.object(service, "prepare", new=AsyncMock(return_value=prepared)),
             patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()) as finish,
             patch.object(service, "_notify", new=AsyncMock()),
+            patch.object(service.transcript, "record", new=AsyncMock()) as record,
         ):
-            output, _ = await service.execute(_ctx(), uuid.uuid4(), "hello")
+            output, _ = await service.execute(
+                _ctx(),
+                uuid.uuid4(),
+                "hello",
+                steering=SteeringInbox(transcript={None: ["previous correction"]}),
+            )
 
+        assert record.await_args.kwargs["steers"] is None
         assert output == ""
         assert finish.call_args.kwargs["status"] == RunStatus.GUARDRAIL_BLOCKED.value
         assert finish.call_args.kwargs["error"] == "This request was blocked by an input guardrail."

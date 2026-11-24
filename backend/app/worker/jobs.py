@@ -262,6 +262,10 @@ class RunAgent(Payload):
     file_ids: list[UUID]
     digest: str
     """The request's fingerprint: an idempotent retry must send the same one."""
+    execution_token: UUID | None = Field(default=None, exclude_if=lambda token: token is None)
+    """Transient claim metadata, never stored: a worker may steer only its own live attempt."""
+    steer_target: UUID | None = Field(default=None, exclude_if=lambda target: target is None)
+    """The compatible attempt running when this message arrived. Otherwise a normal turn."""
 
 
 class AdvanceImprovement(Payload):

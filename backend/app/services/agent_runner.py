@@ -7880,6 +7880,7 @@ class AgentRunnerService:
                 attachment_context=attachment_context,
                 message_history=message_history,
                 deferred_tool_results=None,
+                steers=steering.transcript if steering is not None else None,
                 on_run_open=on_run_open,
                 check_model_request=check_model_request,
                 on_segment=on_segment,
@@ -8979,6 +8980,7 @@ class AgentRunnerService:
         said: str | None,
         attachments: Sequence[ChatFile] = (),
         attachment_context: str | None = None,
+        steers: dict[str | None, list[str]] | None = None,
         message_history: Sequence[ModelMessage] | None,
         deferred_tool_results: DeferredToolResults | None,
         stream: RunStream | None = None,
@@ -9228,6 +9230,7 @@ class AgentRunnerService:
                         model_content=model_content,
                         answer=output,
                         attachments=attachments,
+                        steers=None if status is RunStatus.GUARDRAIL_BLOCKED else steers,
                         # Replayed after the prompt on every later turn, where the input
                         # edge no longer looks: a refused turn keeps none of it (#2578).
                         attachment_context=(

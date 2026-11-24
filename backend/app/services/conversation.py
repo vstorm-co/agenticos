@@ -1736,6 +1736,13 @@ class ConversationService:
                 origin="api",
             )
             return opened.id, None
+        await self.check_api_conversation(ctx, conversation_id)
+        return conversation_id, await self.model_history(
+            conversation_id, limit=API_HISTORY_MESSAGES
+        )
+
+    async def check_api_conversation(self, ctx: AuthContext, conversation_id: UUID) -> None:
+        """Authorize an API turn without reading the conversation's model history."""
         conversation = await self.get_conversation(
             conversation_id,
             organization_id=ctx.organization_id,
@@ -1748,9 +1755,6 @@ class ConversationService:
                 "conversation_id",
                 "Only a conversation opened over the API can be continued over the API",
             )
-        return conversation_id, await self.model_history(
-            conversation_id, limit=API_HISTORY_MESSAGES
-        )
 
     async def create_conversation(
         self,

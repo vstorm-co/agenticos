@@ -204,7 +204,7 @@ async def test_same_sender_additions_are_recorded_before_the_queue_receipt_is_co
     monkeypatch.setattr(ingress.channel_bot_repo, "get_for_inbound", AsyncMock(return_value=owner))
     monkeypatch.setattr(ingress.job_repo, "queued_channel_additions", AsyncMock(return_value=[row]))
     consume, record = AsyncMock(), AsyncMock()
-    monkeypatch.setattr(ingress.job_repo, "finish_channel_addition", consume)
+    monkeypatch.setattr(ingress.job_repo, "finish_run_addition", consume)
     monkeypatch.setattr(ingress.conversation_repo, "remember_channel_source", record)
     if stop:
         with pytest.raises(ChannelTurnStopped):
@@ -321,7 +321,7 @@ async def test_queued_additions_respect_ownership_liveness_and_message_shape(mon
         ),
     )
     consume = AsyncMock()
-    monkeypatch.setattr(ingress.job_repo, "finish_channel_addition", consume)
+    monkeypatch.setattr(ingress.job_repo, "finish_run_addition", consume)
     monkeypatch.setattr(ingress.conversation_repo, "remember_channel_source", AsyncMock())
     if scenario in {"lost_lease", "stopped", "no_source"}:
         with pytest.raises(BadRequestError if scenario == "no_source" else ChannelTurnStopped):

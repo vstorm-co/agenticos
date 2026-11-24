@@ -19,6 +19,14 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- Send a correction to an asynchronous agent run by conversation ID. With `"steer": true`, the agent takes the message before its next model call or processes it as a new turn if no running request takes it. Webhooks can retry safely with the same `Idempotency-Key`.
+
+### Upgrading
+
+- If you roll out API replicas and workers separately, update all of them before clients start sending `"steer": true`. Older versions cannot process steering requests or read their receipts. Ordinary run requests do not need a coordinated upgrade.
+
 ## [1.93.0] - 2026-11-24
 
 ### Added

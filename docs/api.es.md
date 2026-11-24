@@ -1,5 +1,5 @@
 ---
-source_sha: "58aaa4e50b4b"
+source_sha: "ce4c6fc377c9"
 ---
 
 # La API HTTP { #the-http-api }
@@ -353,6 +353,39 @@ el mismo cuerpo con el que responde la llamada síncrona - o `failed` con
 puede enviar un mensaje de seguimiento antes de que termine el run. Lo ejecuta
 un worker, con el mismo runner, budget y aprobaciones que cualquier otra
 superficie.
+
+**Corrige un run en curso.** Envía un mensaje sin adjuntos al mismo endpoint,
+con `Prefer: respond-async`, el `conversation_id` de la primera respuesta y
+`"steer": true`. Usa un `Idempotency-Key` distinto para cada entrega del
+webhook y conserva el mismo al reintentar esa entrega. No necesitas consultar
+antes el estado del run.
+
+```json
+{
+  "conversation_id": "c41652a2-3bb4-44c4-9e5c-82065e62b0d6",
+  "prompt": "Use the revised forecast instead.",
+  "steer": true
+}
+```
+
+Antes de cada petición al modelo, el agent puede recoger hasta ocho
+correcciones por orden de llegada. Las demás permanecen en la cola. No se
+interrumpe una llamada en curso a una herramienta o al modelo.
+
+Solo puede recoger una corrección una petición asíncrona de la API en curso
+para la misma conversación, agent y entorno. Debe usar la versión publicada
+seleccionada en ese momento y la misma clave de API (o el mismo usuario
+autenticado sin clave). Si ningún run de ese tipo recibe el mensaje, el worker
+lo procesa como un turno aparte. Omite `steer` para poner siempre un turno
+aparte en la cola.
+
+Consulta la petición del propio mensaje de seguimiento. El estado final
+`steered` indica que el run identificado por `steered_into_run_id` ha recogido
+la corrección para una petición al modelo, no que el run haya terminado. No
+hay un `result` aparte. Si ese run falla más tarde, la corrección no vuelve a
+la cola. Si el mensaje se procesa
+como turno independiente, devuelve el estado y el resultado habituales del run.
+Usa un turno normal para adjuntar archivos o hacer una petición síncrona.
 
 Lo que se puede comprobar al momento se comprueba al momento: una conversación
 o un adjunto desconocidos son un `404` en el `POST`, no un fallo que haya que

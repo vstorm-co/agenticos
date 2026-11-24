@@ -211,3 +211,52 @@ async def test_synchronous_runs_return_real_question_cards_instead_of_declining_
     assert response.json()["status"] == "awaiting_answer"
     assert response.json()["questions"][0]["tool_call_id"] == "ask-expert"
     assert response.json()["questions"][0]["questions"][0]["question"] == "Who are you?"
+
+
+async def test_steer_accepts_one_text_delivery_and_returns_its_poll_location() -> None:
+    api_runs = MagicMock(queue=AsyncMock(return_value=_QUEUED))
+    async with _client(api_runs) as client:
+        response = await client.post(
+            f"/api/v1/agents/{_AGENT_ID}/run",
+            json={
+                "conversation_id": str(_QUEUED.conversation_id),
+                "prompt": "Use EU",
+                "steer": True,
+            },
+            headers={"Prefer": "respond-async", "Idempotency-Key": "delivery-7"},
+        )
+
+    assert response.status_code == 202
+    assert response.headers["Location"] == f"/api/v1/run-requests/{_QUEUED.id}"
+    request = api_runs.queue.await_args.args[2]
+    assert request.steer and request.conversation_id == _QUEUED.conversation_id
+    assert api_runs.queue.await_args.kwargs == {"idempotency_key": "delivery-7"}
+
+
+@pytest.mark.parametrize(
+    ("asynchronous", "fields", "invalid"),
+    [
+        (False, {"conversation_id": str(_QUEUED.conversation_id)}, "steer"),
+        (True, {}, "conversation_id"),
+        (
+            True,
+            {"conversation_id": str(_QUEUED.conversation_id), "file_ids": [str(uuid4())]},
+            "file_ids",
+        ),
+        (True, {"conversation_id": str(_QUEUED.conversation_id), "draft": True}, "draft"),
+    ],
+)
+async def test_unsupported_steering_is_refused_before_dispatch(
+    asynchronous: bool, fields: dict[str, object], invalid: str
+) -> None:
+    api_runs = MagicMock(queue=AsyncMock())
+    async with _client(api_runs) as client:
+        response = await client.post(
+            f"/api/v1/agents/{_AGENT_ID}/run",
+            json={"prompt": "Use EU", "steer": True, **fields},
+            headers={"Prefer": "respond-async"} if asynchronous else {},
+        )
+
+    assert response.status_code == 400
+    assert response.json()["error"]["details"]["fields"][0]["field"] == invalid
+    api_runs.queue.assert_not_awaited()

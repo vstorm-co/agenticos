@@ -21,15 +21,28 @@ a key can neither read the run it names nor reserve it.
 
 import hashlib
 import json
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
+from functools import partial
 from uuid import UUID
 
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import AlreadyExistsError, AuthenticationError, NotFoundError
+from app.agents.deps import AgentDeps
+from app.agents.steering import SteeringInbox
+from app.core.exceptions import (
+    AlreadyExistsError,
+    AuthenticationError,
+    AuthorizationError,
+    BadRequestError,
+    NotFoundError,
+)
 from app.core.permissions import AuthContext
 from app.db.models.agent_run import RunSurface
 from app.db.models.background_job import BackgroundJob, JobStatus
+from app.db.session import get_db_context
+from app.repositories import agent_run_repo
 from app.repositories import background_job as background_job_repo
 from app.repositories import member as member_repo
 from app.repositories import user as user_repo
@@ -53,7 +66,9 @@ _STATUS: dict[JobStatus, RunRequestStatus] = {
 
 def digest(agent_id: UUID, request: AgentRunRequest) -> str:
     """A request's fingerprint, the same for the same agent and body however it is sent."""
-    body = {"agent_id": str(agent_id), **request.model_dump(mode="json")}
+    # Keep idempotent retries of ordinary requests queued before steering was added.
+    fields = request.model_dump(mode="json", exclude={"steer"} if not request.steer else set())
+    body = {"agent_id": str(agent_id), **fields}
     return hashlib.sha256(json.dumps(body, sort_keys=True).encode()).hexdigest()
 
 
@@ -129,6 +144,9 @@ class ApiRunService:
                     file_ids=[file.id for file in attached],
                     digest=fingerprint,
                 )
+                if request.steer:
+                    target = await background_job_repo.api_steering_target(self.db, job=payload)
+                    payload = payload.model_copy(update={"steer_target": target})
                 # One run of a conversation at a time: a follow-up sent before the
                 # previous answer was written would read the history without it,
                 # and both would write into the same thread and workspace at once.
@@ -188,6 +206,11 @@ class ApiRunService:
             environment_id=job.environment_id,
             attachments=attachments,
             reports_failure=True,
+            steering=(
+                SteeringInbox(poll=partial(self._steering, job, ctx), transcript={})
+                if job.execution_token is not None
+                else None
+            ),
         )
         return AgentRunResult(
             run_id=run.id,
@@ -202,6 +225,48 @@ class ApiRunService:
             cache_write_tokens=run.cache_write_tokens,
             parked=await runner.parked_calls(ctx, run),
         )
+
+    @staticmethod
+    @asynccontextmanager
+    async def _steering(
+        job: RunAgent, started_as: AuthContext, deps: AgentDeps
+    ) -> AsyncGenerator[list[str]]:
+        """Claim corrections for this worker attempt, never across a provider call.
+
+        A correction stays a runnable job unless the model-request hook exits
+        successfully with the screened text. After that handoff it is not
+        replayed, even if the provider or worker subsequently fails.
+        """
+        assert deps.run_id is not None, "an API run is persisted before its first model request"
+        async with get_db_context() as db:
+            pending = await background_job_repo.queued_api_steers(db, job=job)
+            if not pending or not await background_job_repo.lock_api_steering_target(db, job=job):
+                yield []
+                return
+            if not await ApiRunService(db)._may_steer(job, started_as, deps.run_id):
+                yield []
+                return
+            yield [RUN_AGENT.load(row.payload).prompt for row in pending]
+            for row in pending:
+                await background_job_repo.finish_run_addition(db, job_id=row.id, run_id=deps.run_id)
+
+    async def _may_steer(self, job: RunAgent, started_as: AuthContext, run_id: UUID) -> bool:
+        # These jobs share the exact starting key and asker. Rebuild their
+        # authority once: a revoked grant, or a narrowed key steering a run
+        # built with its old tools, must go through ordinary admission.
+        try:
+            current = await self._context(job, ApiKeyService(self.db))
+            if current != started_as:
+                return False
+            _, _, version_id = await AgentRegistryService(self.db).get_runnable_spec(
+                current, job.agent_id, environment_id=job.environment_id
+            )
+            await ConversationService(self.db).check_api_conversation(current, job.conversation_id)
+        except AuthenticationError, AuthorizationError, BadRequestError, NotFoundError:
+            return False
+        # A republish or promotion may have replaced tools or tightened guardrails.
+        run = await agent_run_repo.get_run(self.db, run_id, organization_id=job.organization_id)
+        return run is not None and run.agent_version_id == version_id
 
     async def _context(self, job: RunAgent, keys: ApiKeyService) -> AuthContext:
         """The asker's authority as it stands now, not as it stood when they asked."""
@@ -233,12 +298,19 @@ class ApiRunService:
     @staticmethod
     def _read(job: BackgroundJob) -> RunRequestRead:
         payload = RUN_AGENT.load(job.payload)
+        # An incorporated request did not start another run or produce a second answer.
+        result = job.result
+        marker = None if result is None else result.get("incorporated_in_run")
+        steered_into = UUID(marker) if isinstance(marker, str) else None
         return RunRequestRead(
             id=job.id,
-            status=_STATUS[job.status],
+            status="steered" if steered_into is not None else _STATUS[job.status],
+            steered_into_run_id=steered_into,
             conversation_id=payload.conversation_id,
             created_at=job.created_at,
             finished_at=job.finished_at,
             error=job.last_error if job.status == "dead" else None,
-            result=None if job.result is None else AgentRunResult.model_validate(job.result),
+            result=AgentRunResult.model_validate(result)
+            if result is not None and steered_into is None
+            else None,
         )

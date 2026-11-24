@@ -149,7 +149,7 @@ async def test_steering_consumes_only_the_same_senders_unstarted_messages(db: As
     assert [item.id for item in additions] == [first_id]
     assert first_id is not None
     run_id = uuid4()
-    await jobs.finish_channel_addition(db, job_id=first_id, run_id=run_id)
+    await jobs.finish_run_addition(db, job_id=first_id, run_id=run_id)
     assert not await jobs.queued_channel_additions(
         db, organization_id=organization_id, concurrency_key="thread", sender="alice"
     )

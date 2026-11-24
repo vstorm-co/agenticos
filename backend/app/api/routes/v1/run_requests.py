@@ -27,6 +27,8 @@ async def get_run_request(request_id: UUID, service: ApiRunSvc, ctx: Auth) -> An
     """Where a queued run is, and what it answered once it has finished.
 
     Only the person - or a key of the person - who asked can read it; anyone
-    else's answers `404`.
+    else's answers `404`. A correction consumed by an active run has terminal
+    status `steered`: `steered_into_run_id` identifies that run and `result`
+    is null.
     """
     return await service.get(ctx, request_id)
