@@ -71,6 +71,7 @@ export function useTableViews(tableId: string | null, kind?: ViewKind) {
 export function useTableDefaultView(tableId: string) {
   const client = useQueryClient();
   const t = useTranslations("pages.tables.views");
+  const tabs = useTranslations("pages.tables.detail.tabs");
   const errors = useTranslations("errors");
   return useMutation({
     mutationFn: async ({
@@ -88,7 +89,8 @@ export function useTableDefaultView(tableId: string) {
       if (selected?.can_manage)
         selected = await updateView(tableId, selected.id, { visibility: "shared", config });
       if (!selected) {
-        const base = t("defaultName", { kind });
+        // The view's tab label, not the `kind` enum, so the saved name is in the reader's language.
+        const base = t("defaultName", { kind: tabs(kind) });
         let name = base;
         for (let suffix = 2; names.includes(name); suffix += 1) name = `${base} ${suffix}`;
         selected = await createView(tableId, { name, kind, visibility: "shared", config });
