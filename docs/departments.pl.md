@@ -1,5 +1,5 @@
 ---
-source_sha: "4bd4dc67a376"
+source_sha: "1e728856566e"
 ---
 
 # Działy i grupy { #departments-and-groups }
@@ -104,7 +104,10 @@ Strony Apps, Skills, Context i Knowledge bases mają filtr **grupy**. Wybranie
 Finance zawęża listę do tego, co udostępniono grupie Finance, a wybór zostaje w
 adresie, więc widok jest linkiem, który można komuś wysłać. Grupa to jedyny
 sposób grupowania - folderów nie ma - bo grupa już decyduje, do kogo trafia
-zasób, a druga hierarchia byłaby drugą odpowiedzią na to samo pytanie.
+zasób, a druga hierarchia byłaby drugą odpowiedzią na to samo pytanie. Stronę
+Skills można też [ułożyć według agenta, pochodzenia lub
+kategorii](skills.md#finding-a-skill); to porządkuje to, co czytający już widzi,
+i niczego nie udostępnia.
 
 Filtr
 nigdy nie poszerza listy: czego czytający nie może otworzyć, tego nie widzi.

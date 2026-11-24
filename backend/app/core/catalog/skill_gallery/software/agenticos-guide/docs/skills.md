@@ -48,6 +48,30 @@ Tuesday afternoon. No deploy, no pull request, no engineer.
 
 In the Agent Builder, open **Skills → New skill** to write a skill without leaving the capability panel. Saving creates the library entry, attaches it to the current draft and enables the Skills capability. Publishing remains a separate step. The action requires permission to edit both the agent and skills.
 
+## Finding a skill in the library { #finding-a-skill }
+
+**Skills** opens arranged into sections, so the gallery's skills, the
+organization's own and a person's private ones are not one long grid.
+**Arrange by**, beside the search, picks how:
+
+| Arrange by | Sections |
+|---|---|
+| **By agent** (the default) | One per agent whose published version uses a skill, then **Drafted only** and **Not used by an agent you can see** |
+| **By origin** | **Organization**, **Private**, **Built-in · Platform** for the skills every organization starts with, then one per [gallery](#the-gallery-seventy-more-and-none-of-them-arrive-uninvited) industry |
+| **By category** | One per category, `Security` and `security` together, then **Uncategorized** |
+| **No sections** | The plain paged grid |
+
+A skill several agents use sits under each of them. Each section shows its count
+and its first cards, folds closed, and pages through the rest with **Show all**.
+The search and the filters narrow every section, and the choice stays in the
+address, so an arranged view is a link somebody can send.
+
+Arranging changes nothing about access. A section holds only skills you can
+already see, and an agent you cannot open is never a section: its skills read as
+not used. Gallery skills are recognised by name, as the **built-in** badge is.
+Over the API, `GET /api/v1/skills/sections?arrange=agent` returns the sections
+with their counts, and `GET /api/v1/skills?section=<key>` pages through one.
+
 ## The shape
 
 ```markdown
@@ -85,7 +109,8 @@ conversations need does not have to sit in the body every relevant conversation
 loads.
 
 `category` is one of twenty suggestions (`support`, `engineering`, `finance`,
-`legal`, `security`, `marketing`, …) and drives the filter on the skills listing.
+`legal`, `security`, `marketing`, …) and drives the filter on the skills listing,
+which, like the category sections, ignores letter case.
 It has no effect on what the agent sees — the model chooses by `description`, never
 by category.
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "4bd4dc67a376"
+source_sha: "1e728856566e"
 ---
 
 # Abteilungen und Gruppen { #departments-and-groups }
@@ -111,7 +111,9 @@ Die Seiten Apps, Skills, Context und Knowledge bases haben je einen Filter
 Auswahl bleibt in der Adresse, sodass die Ansicht ein Link ist, den man
 weitergeben kann. Eine Gruppe ist die einzige Gruppierung - Ordner gibt es nicht -,
 weil eine Gruppe schon entscheidet, wen eine Ressource erreicht, und eine zweite
-Hierarchie wäre eine zweite Antwort auf dieselbe Frage.
+Hierarchie wäre eine zweite Antwort auf dieselbe Frage. Die Seite Skills lässt sich
+außerdem [nach Agent, Herkunft oder Kategorie anordnen](skills.md#finding-a-skill);
+das ordnet, was man ohnehin sieht, und gewährt nichts.
 
 Der Filter erweitert eine
 Liste nie: Was der Lesende nicht öffnen darf, wird nicht gezeigt. Die Picker im

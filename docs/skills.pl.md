@@ -1,5 +1,5 @@
 ---
-source_sha: "cbdc4136f927"
+source_sha: "c4408e9dd30e"
 ---
 
 # Skille { #skills }
@@ -54,6 +54,30 @@ południu. Bez deployu, bez pull requesta, bez inżyniera.
 
 W kreatorze agenta wybierz **Skills → New skill**, aby napisać skill bez opuszczania panelu zdolności. Zapis tworzy wpis w bibliotece, dołącza go do bieżącego szkicu i włącza zdolność Skills. Publikacja pozostaje osobnym krokiem. Akcja wymaga uprawnień do edycji agenta i skilli.
 
+## Jak znaleźć skill w bibliotece { #finding-a-skill }
+
+Strona **Skills** otwiera się ułożona w sekcje, więc skille z galerii, własne
+skille organizacji i prywatne skille osób nie tworzą jednej długiej siatki.
+**Układ** obok wyszukiwarki decyduje, jak:
+
+| Układ | Sekcje |
+|---|---|
+| **Według agenta** (domyślnie) | Po jednej na agenta, którego opublikowana wersja używa skilla, potem **Tylko w szkicu** i **Nie używa ich żaden agent, którego widzisz** |
+| **Według pochodzenia** | **Organizacja**, **Prywatne**, **Wbudowane · Platforma** dla skilli, od których zaczyna każda organizacja, potem po jednej na branżę [galerii](#the-gallery-seventy-more-and-none-of-them-arrive-uninvited) |
+| **Według kategorii** | Po jednej na kategorię, `Security` i `security` razem, potem **Bez kategorii** |
+| **Bez sekcji** | Zwykła siatka ze stronicowaniem |
+
+Skill używany przez kilku agentów jest pod każdym z nich. Każda sekcja pokazuje
+liczbę skilli i pierwsze karty, zwija się, a resztę przegląda się stronami po
+**Pokaż wszystkie**. Wyszukiwarka i filtry zawężają każdą sekcję, a wybór zostaje
+w adresie, więc ułożony widok jest linkiem, który można komuś wysłać.
+
+Układ niczego nie zmienia w dostępie. Sekcja zawiera tylko skille, które już
+widzisz, a agent, którego nie możesz otworzyć, nigdy nie jest sekcją: jego skille
+wyglądają na nieużywane. Skille z galerii są rozpoznawane po nazwie, tak jak
+znaczek **built-in**. Przez API `GET /api/v1/skills/sections?arrange=agent` zwraca
+sekcje z liczbami, a `GET /api/v1/skills?section=<key>` przegląda jedną z nich.
+
 ## Kształt { #the-shape }
 
 ```markdown
@@ -91,7 +115,8 @@ To to samo stopniowe odsłanianie, tylko poziom niżej: szczegół potrzebny tyl
 części rozmów nie musi siedzieć w treści, którą wczytuje każda istotna rozmowa.
 
 `category` to jedna z dwudziestu sugestii (`support`, `engineering`, `finance`,
-`legal`, `security`, `marketing`, …) i steruje filtrem na liście skilli. Nie ma
+`legal`, `security`, `marketing`, …) i steruje filtrem na liście skilli,
+który, tak jak sekcje kategorii, nie rozróżnia wielkości liter. Nie ma
 wpływu na to, co widzi agent — model wybiera po `description`, nigdy po
 kategorii.
 

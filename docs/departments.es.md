@@ -1,5 +1,5 @@
 ---
-source_sha: "4bd4dc67a376"
+source_sha: "1e728856566e"
 ---
 
 # Departamentos y grupos { #departments-and-groups }
@@ -109,7 +109,9 @@ Las páginas Apps, Skills, Context y Knowledge bases tienen cada una un filtro d
 la elección queda en la dirección, así que la vista es un enlace que se puede
 enviar. Un grupo es la única forma de agrupar - no hay carpetas - porque un grupo
 ya decide a quién llega un recurso, y una segunda jerarquía sería una segunda
-respuesta a la misma pregunta.
+respuesta a la misma pregunta. La página Skills también se puede
+[ordenar por agent, origen o categoría](skills.md#finding-a-skill); eso ordena lo
+que el lector ya ve y no concede nada.
 
 El filtro nunca amplía una lista: lo que quien lee
 no puede abrir no aparece. Los selectores del Builder muestran junto a cada

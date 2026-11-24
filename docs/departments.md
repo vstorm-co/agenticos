@@ -101,7 +101,9 @@ filter. Choosing Finance narrows the list to what is shared with Finance, and th
 choice stays in the address, so the view is a link somebody can send. A group is
 the only grouping there is - there are no folders - because a group already
 decides who a resource reaches, and a second hierarchy would be a second answer
-to the same question.
+to the same question. The Skills page can also be
+[arranged by agent, origin or category](skills.md#finding-a-skill); that orders
+what a reader already sees and grants nothing.
 
 The filter never widens a list: what the reader cannot
 open is not shown. The Builder's pickers name each resource's departments beside

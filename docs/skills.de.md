@@ -1,5 +1,5 @@
 ---
-source_sha: "cbdc4136f927"
+source_sha: "c4408e9dd30e"
 ---
 
 # Skills { #skills }
@@ -55,6 +55,32 @@ kein Pull Request, kein Entwickler.
 
 Im Agent Builder öffnet **Skills → New skill** die Erstellung direkt im Fähigkeitspanel. Beim Speichern entsteht ein Bibliothekseintrag, der dem aktuellen Entwurf zugeordnet wird; zugleich wird die Fähigkeit Skills aktiviert. Das Veröffentlichen bleibt ein eigener Schritt. Die Aktion erfordert Bearbeitungsrechte für den Agenten und Skills.
 
+## Einen Skill in der Bibliothek finden { #finding-a-skill }
+
+**Skills** öffnet sich in Abschnitte geordnet, damit die Skills aus der Gallery,
+die eigenen der Organisation und die privaten einzelner Personen kein langes
+Raster bilden. **Anordnen nach** neben der Suche legt fest, wie:
+
+| Anordnen nach | Abschnitte |
+|---|---|
+| **Nach Agent** (Standard) | Einer je Agent, dessen veröffentlichte Version einen Skill nutzt, dann **Nur im Entwurf** und **Von keinem Agenten genutzt, den Sie sehen** |
+| **Nach Herkunft** | **Organisation**, **Privat**, **Mitgeliefert · Plattform** für die Skills, mit denen jede Organisation beginnt, dann einer je Branche der [Gallery](#the-gallery-seventy-more-and-none-of-them-arrive-uninvited) |
+| **Nach Kategorie** | Einer je Kategorie, `Security` und `security` zusammen, dann **Ohne Kategorie** |
+| **Ohne Abschnitte** | Das einfache Raster mit Seiten |
+
+Ein Skill, den mehrere Agents nutzen, steht unter jedem von ihnen. Jeder Abschnitt
+zeigt seine Anzahl und seine ersten Karten, lässt sich zuklappen und blättert mit
+**Alle anzeigen** durch den Rest. Suche und Filter schränken jeden Abschnitt ein,
+und die Wahl bleibt in der Adresse, sodass eine geordnete Ansicht ein Link ist, den
+man weitergeben kann.
+
+Die Anordnung ändert nichts am Zugriff. Ein Abschnitt enthält nur Skills, die Sie
+schon sehen, und ein Agent, den Sie nicht öffnen können, ist nie ein Abschnitt:
+Seine Skills gelten als nicht genutzt. Skills aus der Gallery werden am Namen
+erkannt, wie das Abzeichen **built-in**. Über die API liefert
+`GET /api/v1/skills/sections?arrange=agent` die Abschnitte mit ihren Anzahlen, und
+`GET /api/v1/skills?section=<key>` blättert durch einen davon.
+
 ## Die Form { #the-shape }
 
 ```markdown
@@ -94,7 +120,8 @@ relevante Unterhaltung lädt.
 
 `category` ist einer von zwanzig Vorschlägen (`support`, `engineering`,
 `finance`, `legal`, `security`, `marketing`, …) und steuert den Filter in der
-Skill-Liste. Auf das, was der Agent sieht, hat sie keine Wirkung — das Modell
+Skill-Liste, der wie die Kategorie-Abschnitte Groß- und Kleinschreibung nicht
+unterscheidet. Auf das, was der Agent sieht, hat sie keine Wirkung — das Modell
 wählt über `description`, nie über die Kategorie.
 
 Lange Textressourcen werden seitenweise gelesen, damit nicht jedes Modell-Request das ganze Handbuch enthält: standardmäßig 8.000, höchstens 20.000 Zeichen. Übergib `args` mit `offset` und `limit` an `read_skill_resource`; die Antwort nennt den nächsten Offset. Lies nur relevante Bereiche und verwende bereits geladenes Material erneut.

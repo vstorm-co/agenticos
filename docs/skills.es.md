@@ -1,5 +1,5 @@
 ---
-source_sha: "cbdc4136f927"
+source_sha: "c4408e9dd30e"
 ---
 
 # Skills { #skills }
@@ -55,6 +55,31 @@ request, sin ingeniero.
 
 En Agent Builder, **Skills → New skill** permite escribir un skill sin salir del panel de capacidades. Al guardar se crea la entrada de biblioteca, se vincula al borrador actual y se activa la capacidad Skills. La publicación sigue siendo un paso separado. La acción requiere permisos para editar tanto el agente como los skills.
 
+## Encontrar un skill en la biblioteca { #finding-a-skill }
+
+**Skills** se abre ordenada en secciones, para que los skills de la galería, los
+propios de la organización y los privados de cada persona no formen una sola
+cuadrícula larga. **Arrange by**, junto a la búsqueda, elige cómo:
+
+| Arrange by | Secciones |
+|---|---|
+| **By agent** (la opción por defecto) | Una por cada agent cuya versión publicada usa un skill, luego **Drafted only** y **Not used by an agent you can see** |
+| **By origin** | **Organization**, **Private**, **Built-in · Platform** para los skills con los que empieza toda organización, luego una por sector de la [galería](#the-gallery-seventy-more-and-none-of-them-arrive-uninvited) |
+| **By category** | Una por categoría, `Security` y `security` juntas, luego **Uncategorized** |
+| **No sections** | La cuadrícula paginada de siempre |
+
+Un skill que usan varios agents aparece bajo cada uno. Cada sección muestra su
+número y sus primeras tarjetas, se pliega y recorre el resto por páginas con
+**Show all**. La búsqueda y los filtros acotan cada sección, y la elección queda en
+la dirección, así que una vista ordenada es un enlace que se puede enviar.
+
+Ordenar no cambia nada del acceso. Una sección solo contiene skills que ya puedes
+ver, y un agent que no puedes abrir nunca es una sección: sus skills aparecen como
+no usados. Los skills de la galería se reconocen por el nombre, igual que la
+insignia **built-in**. Por la API, `GET /api/v1/skills/sections?arrange=agent`
+devuelve las secciones con sus números, y `GET /api/v1/skills?section=<key>`
+recorre una de ellas.
+
 ## La forma { #the-shape }
 
 ```markdown
@@ -93,7 +118,8 @@ algunas conversaciones necesitan no tiene por qué estar en el cuerpo que carga
 cada conversación relevante.
 
 `category` es una de veinte sugerencias (`support`, `engineering`, `finance`,
-`legal`, `security`, `marketing`, …) y alimenta el filtro del listado de skills.
+`legal`, `security`, `marketing`, …) y alimenta el filtro del listado de skills,
+que, como las secciones por categoría, no distingue mayúsculas de minúsculas.
 No tiene ningún efecto sobre lo que ve el agent — el modelo elige por
 `description`, nunca por categoría.
 
