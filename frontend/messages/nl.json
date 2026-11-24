@@ -89,6 +89,7 @@
     "sessionsCouldNotBeRead": "De sessies konden niet worden gelezen."
   },
   "agents": {
+    "pricedModelConnectionLocked": "Je hebt budgetrechten nodig om de sleutel of het eindpunt van een model met aangepaste prijzen te wijzigen.",
     "profileDefaults": "Modelstandaarden",
     "profileDefaultsHint": "Deze standaarden gelden overal waar dit opgeslagen model wordt gebruikt. Afzonderlijke agents kunnen ze overschrijven. Laat niet-ondersteunde parameters op de standaard van de provider staan.",
     "profileThinkingOn": "Aan · inspanning van de provider",
@@ -21725,5 +21726,16 @@
     "inProgress": "Bezig",
     "unknown": "Niet beschikbaar",
     "otherStep": "Configuratie"
+  },
+  "modelPricing": {
+    "title": "Prijzen",
+    "automaticAvailable": "Indicatieve automatische tarieven in USD per miljoen tokens. Het werkelijke tarief kan afhangen van verbruiksschijven of het door de provider gefactureerde bedrag.",
+    "automaticUnavailable": "Automatische tokenprijzen zijn niet beschikbaar. Na een aanvraag kan het door de provider gemelde bedrag wel worden vastgelegd.",
+    "input": "Invoertokens",
+    "output": "Uitvoertokens",
+    "cache_read": "Tokens gelezen uit de cache",
+    "cache_write": "Tokens geschreven naar de cache",
+    "override": "Aangepaste prijzen gebruiken (USD per miljoen tokens)",
+    "cacheDefault": "Laat leeg om de invoerprijs te gebruiken."
   }
 }
