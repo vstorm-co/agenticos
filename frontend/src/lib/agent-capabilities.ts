@@ -48,7 +48,8 @@ export function capabilityRows(
 }
 
 /**
- * The connected apps an agent's published version is bound to, by name.
+ * The apps an agent's published version is bound to, by name - bound, not
+ * necessarily connected or enabled for the reader.
  *
  * The organization's connections resolve by id; each person's own by catalog
  * key, falling back to the key itself where the catalog no longer names it.
