@@ -24,8 +24,9 @@ Two things are versioned separately from this file and worth knowing about:
 - `agenticos cmd tool-output-report --org <id> --from <day> --to <day>` estimates how much of
   one organization's model input is tool output sent again: result sizes per agent,
   capability and tool, turns, tool calls and model requests per run, the re-sent share of each
-  agent's own input with cache reads and writes, and the saving from replacing results over
-  10,000 characters after two full sends. Read-only; sizes and counts, never content. Eval and
+  agent's own input with cache reads and writes, what follow-up runs carry from earlier turns
+  as an upper bound, and the saving from replacing results over 10,000 characters after two
+  full sends. Read-only; sizes and counts, never content. Eval and
   Builder test runs are left out unless asked for (`--include-eval`, `--include-tests`), and
   `--json` prints the same figures.
 

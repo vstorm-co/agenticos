@@ -1,5 +1,5 @@
 ---
-source_sha: "f098d6edbef2"
+source_sha: "71182b8bda14"
 ---
 
 # Polecenia { #commands }
@@ -460,7 +460,9 @@ uv run agenticos cmd tool-output-report --org <org-id> --from 2026-11-01 --to 20
 
 Wynik narzędzia zostaje w historii runu, więc każdy kolejny request do modelu wysyła go ponownie. Raport mierzy każdy wynik w postaci, w jakiej dostał go model, czyli po `tool_output_limits`, i liczy go raz za każdy request po tym, który go wywołał, na podstawie manifestu runu. Dzieli liczby według agenta i tego, jak agent wiąże `tool_output_limits` i `compaction`. Prognozuje też oszczędność z zastąpienia wyników powyżej 10 000 znaków krótkim placeholderem po dwóch pełnych wysyłkach.
 
-Liczby są szacunkiem i raport to mówi. Tokeny to znaki podzielone przez cztery, run bez manifestu jest pominięty w szacunku, a gdy jedno narzędzie działało w runie kilka razy, pozycje jego wyników są uśredniane. Delegat jest osobnym runem i nigdy nie jest doliczany do rodzica. Raport nie pokazuje, jak zastąpienie wyników zmieniłoby cache promptu, i oznacza agentów, których compaction usuwa wyniki narzędzi, bo ich liczba jest zawyżona.
+Liczby są szacunkiem i raport to mówi. Tokeny to znaki podzielone przez cztery, a gdy jedno narzędzie działało w runie kilka razy, pozycje jego wyników są uśredniane. Run jest pominięty w szacunku, gdy nie ma manifestu, nie ma rozmowy, w której zapisałby wyniki narzędzi, albo czekał na zatwierdzenie lub odpowiedź na pytanie.
+
+Kolejny run w rozmowie może nieść wyniki wcześniejszych runów i raport pokazuje je osobno, jako górne oszacowanie. Delegat nigdy nie jest doliczany do rodzica, a praca platformy nie jest liczona agentowi, który ją uruchomił. Raport nie pokazuje, jak zastąpienie wyników zmieniłoby cache promptu, i oznacza agentów z dowolną compaction, bo ich liczba jest zawyżona.
 
 ### Uruchomienie wdrożenia { #getting-a-deployment-up }
 

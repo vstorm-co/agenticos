@@ -1,5 +1,5 @@
 ---
-source_sha: "f098d6edbef2"
+source_sha: "71182b8bda14"
 ---
 
 # Befehle { #commands }
@@ -470,7 +470,9 @@ uv run agenticos cmd tool-output-report --org <org-id> --from 2026-11-01 --to 20
 
 Ein Tool-Ergebnis bleibt im Verlauf eines Runs, also sendet jeder spätere Request an das Modell es erneut. Der Bericht misst jedes Ergebnis so, wie das Modell es erhalten hat, nach `tool_output_limits`, und zählt es einmal für jeden Request nach dem, der es aufgerufen hat, laut Manifest des Runs. Er teilt die Zahlen nach Agent und danach, wie der Agent `tool_output_limits` und `compaction` bindet. Außerdem schätzt er, was es spart, Ergebnisse über 10.000 Zeichen nach zwei vollen Sendungen durch einen kurzen Platzhalter zu ersetzen.
 
-Die Zahlen sind eine Schätzung, und der Bericht sagt das. Tokens sind Zeichen geteilt durch vier, ein Run ohne Manifest fehlt in der Schätzung, und wo ein Tool in einem Run mehrmals lief, werden die Positionen seiner Ergebnisse gemittelt. Ein Delegat ist ein eigener Run und wird nie zum Eltern-Run addiert. Der Bericht kann nicht sagen, wie das Ersetzen das Prompt-Caching verändern würde, und markiert Agents, deren Compaction Tool-Ergebnisse entfernt, weil ihre Zahl zu hoch ist.
+Die Zahlen sind eine Schätzung, und der Bericht sagt das. Tokens sind Zeichen geteilt durch vier, und wo ein Tool in einem Run mehrmals lief, werden die Positionen seiner Ergebnisse gemittelt. Ein Run fehlt in der Schätzung, wenn er kein Manifest hat, keine Unterhaltung, in der er Tool-Ergebnisse speichert, oder auf eine Freigabe oder eine Antwort gewartet hat.
+
+Ein Folge-Run kann Ergebnisse früherer Runs derselben Unterhaltung mitführen, und der Bericht zeigt sie getrennt, als Obergrenze. Ein Delegat wird nie zum Eltern-Run addiert, und Arbeit der Plattform zählt nicht für den Agent, der sie gestartet hat. Der Bericht kann nicht sagen, wie das Ersetzen das Prompt-Caching verändern würde, und markiert Agents mit irgendeiner Compaction, weil ihre Zahl zu hoch ist.
 
 ### Ein Deployment zum Laufen bringen { #getting-a-deployment-up }
 

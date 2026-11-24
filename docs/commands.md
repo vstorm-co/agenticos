@@ -446,7 +446,9 @@ uv run agenticos cmd tool-output-report --org <org-id> --from 2026-11-01 --to 20
 
 A tool result stays in a run's history, so every later model request sends it again. The report measures each result as the model received it, after `tool_output_limits`, and counts it once for every request after the one that called it, taken from the run's manifest. It splits the figures by agent and by how the agent binds `tool_output_limits` and `compaction`. It also projects what replacing results over 10,000 characters with a short placeholder after two full sends would save.
 
-The figures are an estimate, and the report says so. Tokens are characters divided by four, a run without a manifest is left out of the estimate, and where one tool ran several times in a run its results' positions are averaged. A delegate is a run of its own and never adds to its parent. The report cannot say how replacing results would change prompt caching, and it marks agents whose compaction clears tool results, because their figure is overstated.
+The figures are an estimate, and the report says so. Tokens are characters divided by four, and where one tool ran several times in a run its results' positions are averaged. A run is left out of the estimate when it has no manifest, has no conversation to record tool results in, or waited on an approval or a question.
+
+A follow-up run can carry earlier runs' results from the same conversation, and the report shows them apart, as an upper bound. A delegate never adds to its parent, and platform work is not counted under the agent that started it. The report cannot say how replacing results would change prompt caching, and it marks agents with any compaction, because their figure is overstated.
 
 ### Getting a deployment up
 

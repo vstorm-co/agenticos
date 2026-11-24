@@ -1,5 +1,5 @@
 ---
-source_sha: "f098d6edbef2"
+source_sha: "71182b8bda14"
 ---
 
 # Comandos { #commands }
@@ -468,7 +468,9 @@ uv run agenticos cmd tool-output-report --org <org-id> --from 2026-11-01 --to 20
 
 Un resultado de herramienta permanece en el historial del run, así que cada petición posterior al modelo lo envía de nuevo. El informe mide cada resultado tal como lo recibió el modelo, después de `tool_output_limits`, y lo cuenta una vez por cada petición posterior a la que lo llamó, según el manifiesto del run. Desglosa las cifras por agente y por cómo el agente vincula `tool_output_limits` y `compaction`. También proyecta el ahorro de sustituir los resultados de más de 10.000 caracteres por un marcador breve tras dos envíos completos.
 
-Las cifras son una estimación, y el informe lo dice. Los tokens son caracteres divididos entre cuatro, un run sin manifiesto queda fuera de la estimación y, cuando una herramienta se ejecutó varias veces en un run, las posiciones de sus resultados se promedian. Un delegado es un run propio y nunca se suma a su padre. El informe no puede decir cómo cambiaría la caché del prompt al sustituir resultados, y marca los agentes cuya compaction elimina resultados de herramientas, porque su cifra está sobrestimada.
+Las cifras son una estimación, y el informe lo dice. Los tokens son caracteres divididos entre cuatro y, cuando una herramienta se ejecutó varias veces en un run, las posiciones de sus resultados se promedian. Un run queda fuera de la estimación cuando no tiene manifiesto, no tiene una conversación donde registrar los resultados de herramientas o esperó una aprobación o una respuesta a una pregunta.
+
+Un run posterior puede arrastrar resultados de runs anteriores de la misma conversación, y el informe los muestra aparte, como cota superior. Un delegado nunca se suma a su padre, y el trabajo de la plataforma no se cuenta al agente que lo inició. El informe no puede decir cómo cambiaría la caché del prompt al sustituir resultados, y marca los agentes con cualquier compaction, porque su cifra está sobrestimada.
 
 ### Levantar un despliegue { #getting-a-deployment-up }
 
