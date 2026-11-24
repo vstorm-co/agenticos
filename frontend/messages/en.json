@@ -7590,7 +7590,7 @@
         "memory": "Agent memory",
         "knowledge_documents": "Uploaded documents",
         "audit": "Audit trail",
-        "artifacts": "Published apps and their versions"
+        "artifacts": "Published pages and their versions"
       }
     },
     "memory": {
