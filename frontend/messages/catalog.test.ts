@@ -8,6 +8,7 @@ import en from "./en.json";
 import pl from "./pl.json";
 import tr from "./tr.json";
 import fr from "./fr.json";
+import nl from "./nl.json";
 
 /**
  * That the catalog holds copy, and only copy.
@@ -159,6 +160,7 @@ describe.each([
   ["de.json", de],
   ["tr.json", tr],
   ["fr.json", fr],
+  ["nl.json", nl],
 ])("%s", (_name, catalog) => {
   const all = entries(catalog);
 
@@ -342,6 +344,16 @@ function icuContract(message: string): IcuContract {
 
 it("French preserves the arguments, rich-text links and selector values supplied by callers", () => {
   const translated = new Map(entries(fr));
+  const mismatches = entries(en).flatMap(([key, message]) => {
+    const value = translated.get(key);
+    if (value === undefined) return [];
+    return JSON.stringify(icuContract(message)) === JSON.stringify(icuContract(value)) ? [] : [key];
+  });
+  expect(mismatches).toEqual([]);
+});
+
+it("Dutch preserves the arguments, rich-text links and selector values supplied by callers", () => {
+  const translated = new Map(entries(nl));
   const mismatches = entries(en).flatMap(([key, message]) => {
     const value = translated.get(key);
     if (value === undefined) return [];

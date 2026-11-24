@@ -110,6 +110,12 @@ async def test_french_console_has_a_french_preview(world):
     assert world.said == [PREVIEW_LINES["fr"]]
 
 
+async def test_dutch_console_has_a_dutch_preview(world):
+    service, _ = _service(world)
+    await service.preview(_ctx(), _block(), locale="nl")
+    assert world.said == [PREVIEW_LINES["nl"]]
+
+
 @pytest.mark.parametrize(
     "block",
     [
@@ -245,3 +251,4 @@ def test_every_console_language_has_a_voice_preview_line() -> None:
     assert set(PREVIEW_LINES) == set(get_args(ConsoleLocale))
     assert VoicePreviewRequest.model_validate({"voice": _block(), "locale": "tr"}).locale == "tr"
     assert VoicePreviewRequest.model_validate({"voice": _block(), "locale": "fr"}).locale == "fr"
+    assert VoicePreviewRequest.model_validate({"voice": _block(), "locale": "nl"}).locale == "nl"

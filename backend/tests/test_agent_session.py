@@ -4241,7 +4241,14 @@ class TestStarterSetupReply:
     @pytest.mark.anyio
     @pytest.mark.parametrize(
         "locale, greeting",
-        [("pl", "Cześć"), ("de", "Hallo"), ("tr", "Merhaba"), ("fr", "Bonjour"), ("es", "Hi")],
+        [
+            ("pl", "Cześć"),
+            ("de", "Hallo"),
+            ("tr", "Merhaba"),
+            ("fr", "Bonjour"),
+            ("nl", "Hallo"),
+            ("es", "Hi"),
+        ],
     )
     @pytest.mark.parametrize("saved", ["saved", None])
     async def test_first_message_gets_a_persisted_setup_card_without_running_a_draft(

@@ -43,6 +43,7 @@ PREVIEW_LINES: dict[PreviewLocale, str] = {
     "de": "Hallo, so klingt meine Stimme. Frag mich etwas, und ich antworte laut.",
     "tr": "Merhaba, sesim böyle. Bana istediğini sor, sana sesli cevap vereyim.",
     "fr": "Bonjour, voici ma voix. Posez-moi une question, je vous répondrai à voix haute.",
+    "nl": "Hallo, zo klinkt mijn stem. Vraag me gerust iets, dan antwoord ik hardop.",
 }
 
 CACHE_SECONDS = 7 * 24 * 3600

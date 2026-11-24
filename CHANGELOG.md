@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- **Dutch console**: choose Nederlands as your language. Every console message has a Dutch translation, written informally (je) for readers in Belgium and the Netherlands. Welcome messages, watch briefings, voice previews and the model-setup reply follow it. Product nouns (agent, skill, run, workspace…) stay in English, as in the other languages.
+
 ## [1.92.0] - 2026-11-23
 
 ### Added

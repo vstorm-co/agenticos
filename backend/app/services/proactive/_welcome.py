@@ -56,6 +56,10 @@ GREETING = {
         "Bienvenue chez {organization} ! Je suis {bot}, l'assistant IA d'ici. Posez-moi vos "
         "questions directement dans ce chat, ou ouvrez la console : {url}"
     ),
+    "nl": (
+        "Welkom bij {organization}! Ik ben {bot}, de AI-assistent hier. Stel me gerust je "
+        "vragen in deze chat, of open de console: {url}"
+    ),
 }
 
 PLATFORMS = ("slack", "mattermost", "teams")
