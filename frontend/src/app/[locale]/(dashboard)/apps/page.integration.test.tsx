@@ -189,7 +189,7 @@ describe("the artifacts list", () => {
     canView = false;
     render(<ArtifactsPage />, { wrapper });
 
-    expect(await screen.findByText("You cannot see this organization's apps")).toBeInTheDocument();
+    expect(await screen.findByText("You cannot see this organization's pages")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Make a page" })).toBeNull();
   });
 
