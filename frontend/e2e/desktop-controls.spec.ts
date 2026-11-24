@@ -215,7 +215,7 @@ test.describe("desktop pointer controls", () => {
         page.getByRole("heading", { name: listingText(app.title), exact: true }),
       ).toBeVisible();
       await expect(page.locator("iframe")).toBeVisible();
-      const back = page.getByRole("link", { name: "Back to apps", exact: true });
+      const back = page.getByRole("link", { name: "Back to pages", exact: true });
       await expect(back).toBeVisible();
       const bounds = await back.boundingBox();
       expect(bounds?.y, "native controls occupy the first 48 pixels").toBeGreaterThanOrEqual(48);

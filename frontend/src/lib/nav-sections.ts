@@ -109,9 +109,9 @@ export const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
-    // The apps an agent published, listed by `AppsRows`, which lists only what the
+    // The pages an agent published, listed by `AppsRows`, which lists only what the
     // caller may open and hides the whole section when there is none. This entry
-    // is the route table's record of `/apps`; "All apps" is its one static row.
+    // is the route table's record of `/apps`; "All pages" is its one static row.
     labelKey: "apps",
     domain: "use",
     items: [

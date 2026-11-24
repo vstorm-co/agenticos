@@ -62,7 +62,7 @@ export default function ArtifactsPage() {
   // Kept in the URL like the tables list's, so a link can open the archive.
   const [shownParam, setShownParam] = useUrlState("show");
   const shown: Shown = shownParam === "all" ? "all" : "live";
-  // In the address, so a group's apps are a link somebody can send.
+  // In the address, so a group's pages are a link somebody can send.
   const [groupId, setGroupId] = useUrlState("group");
   const { artifacts, total, isLoading, error, refetch } = useArtifacts({
     search,
@@ -195,7 +195,7 @@ export default function ArtifactsPage() {
             icon={PanelsTopLeft}
             title={isFiltering ? t("noMatches") : t("noneYet")}
             description={isFiltering ? t("noMatchesWhy") : t("noneYetWhy")}
-            // Somebody with no apps yet is one agent away from one (#2075).
+            // Somebody with no pages yet is one agent away from one (#2075).
             cta={
               isFiltering
                 ? undefined

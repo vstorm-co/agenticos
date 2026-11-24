@@ -894,7 +894,7 @@ test.describe("artifact live data", () => {
         new URL(response.url()).pathname === `/api/apps/${fixture.artifactId}/thumbnail`,
     );
     await page.goto("/apps");
-    await page.getByPlaceholder("Search apps…").fill(fixture.title);
+    await page.getByPlaceholder("Search pages…").fill(fixture.title);
     const card = page.locator(`a[href$="/apps/${fixture.artifactId}"]`).locator("..");
     await expect(card).toContainText(fixture.title);
     await expect(card.getByText("Live", { exact: true })).toBeVisible();

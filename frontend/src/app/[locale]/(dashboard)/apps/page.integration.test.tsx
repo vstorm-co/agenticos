@@ -128,7 +128,7 @@ describe("the artifacts list", () => {
     expect(screen.queryByText("Old report")).toBeNull();
     expect(listRequests().every((path) => !path.includes("include_archived"))).toBe(true);
 
-    await user.click(screen.getByRole("combobox", { name: "Which apps" }));
+    await user.click(screen.getByRole("combobox", { name: "Which pages" }));
     await user.click(screen.getByRole("option", { name: "Archived included" }));
 
     expect(await screen.findByText("Old report")).toBeInTheDocument();
@@ -136,8 +136,8 @@ describe("the artifacts list", () => {
     expect(listRequests().at(-1)).toContain("include_archived=true");
     expect(window.location.search).toBe("?show=all");
 
-    await user.click(screen.getByRole("combobox", { name: "Which apps" }));
-    await user.click(screen.getByRole("option", { name: "Active apps" }));
+    await user.click(screen.getByRole("combobox", { name: "Which pages" }));
+    await user.click(screen.getByRole("option", { name: "Active pages" }));
     expect(window.location.search).toBe("");
   });
 
@@ -146,8 +146,8 @@ describe("the artifacts list", () => {
     render(<ArtifactsPage />, { wrapper });
 
     expect(await screen.findByText("Nothing published yet")).toBeInTheDocument();
-    expect(screen.getByRole("combobox", { name: "Which apps" })).toBeInTheDocument();
-    expect(screen.queryByPlaceholderText("Search apps…")).toBeNull();
+    expect(screen.getByRole("combobox", { name: "Which pages" })).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText("Search pages…")).toBeNull();
   });
 
   it("opens on the archive when a link asks for it", async () => {
@@ -156,7 +156,7 @@ describe("the artifacts list", () => {
     render(<ArtifactsPage />, { wrapper });
 
     await waitFor(() => expect(listRequests().at(-1)).toContain("include_archived=true"));
-    expect(await screen.findByText("No app matches")).toBeInTheDocument();
+    expect(await screen.findByText("No page matches")).toBeInTheDocument();
   });
 });
 
