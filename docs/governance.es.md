@@ -1,5 +1,5 @@
 ---
-source_sha: "811e5b0c4378"
+source_sha: "1670cd785e7d"
 ---
 
 # Governance { #governance }
@@ -2525,7 +2525,9 @@ La lista muestra la pausa automática y el número de fallos. Se conservan como 
 
 ## Fuentes revisadas de las rutinas { #routine-sources }
 
-Las rutinas nuevas admiten automáticamente la configuración inicialmente disponible del agente publicado dentro de los permisos vigentes del creador. Las eliminaciones seguras de fuentes y los cambios exclusivamente de modelo o presentación del agente principal no requieren revisión. Las fuentes, cuentas o herramientas nuevas, los cambios de instrucciones o variables y los cambios de capacidades, skills efectivos, contexto o comportamiento delegado requieren la revisión de acceso del propietario antes de otra ejecución. Una capability desactivada y lo que solo ella alcanza - los skills con **Skills** desactivada, los archivos de contexto con **Context** desactivada, las colecciones con **Knowledge** desactivada, los delegados y agentes remotos con **Subagents** desactivada - no son fuentes: ningún run los alcanza, así que la revisión no los muestra, uno eliminado no bloquea la rutina y editar uno de esos skills o archivos de contexto no requiere un nuevo consentimiento. Activar la capability es una fuente nueva y se revisa. Publicar el agente compartido no amplía por sí solo la autoridad permanente de una persona. Las cuentas MCP opcionales ausentes no bloquean otras tareas; siguen vigentes las entradas obligatorias de eventos, identidad, permisos, presupuestos y aprobaciones obligatorias.
+Las rutinas nuevas admiten automáticamente la configuración inicialmente disponible del agente publicado dentro de los permisos vigentes del creador. Las eliminaciones seguras de fuentes y los cambios exclusivamente de modelo o presentación del agente principal no requieren revisión. Las fuentes, cuentas o herramientas nuevas, los cambios de instrucciones o variables y los cambios de capacidades, skills efectivos, contexto o comportamiento delegado requieren la revisión de acceso del propietario antes de otra ejecución. Publicar el agente compartido no amplía por sí solo la autoridad permanente de una persona. Las cuentas MCP opcionales ausentes no bloquean otras tareas; siguen vigentes las entradas obligatorias de eventos, identidad, permisos, presupuestos y aprobaciones obligatorias.
+
+Una capability desactivada y lo que solo ella alcanza - los skills con **Skills** desactivada, los archivos de contexto con **Context** desactivada, las colecciones con **Knowledge** desactivada, los delegados y agentes remotos con **Subagents** desactivada - no son fuentes: ningún run los alcanza, así que la revisión no los muestra, uno eliminado no bloquea la rutina y editar uno de esos skills o archivos de contexto no requiere un nuevo consentimiento. Activar la capability es una fuente nueva y se revisa.
 
 Cambiar la versión fijada de un delegado requiere revisión, incluso si su publicación solo modifica el modelo.
 
