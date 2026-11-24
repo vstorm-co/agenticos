@@ -189,23 +189,37 @@ async def test_active_build_is_left_alone_and_an_exact_failed_build_can_be_retri
                         )
                     )
 
+            progress = text(
+                "SELECT EXISTS (SELECT 1 FROM pg_stat_progress_create_index WHERE pid = :pid)"
+            )
+            # The build waits on this lock before it registers its progress, so the first
+            # poll below always runs while the view has no row for it.
+            gate = await engine.connect()
+            await gate.execute(text("LOCK TABLE workflow_runs IN SHARE UPDATE EXCLUSIVE MODE"))
             task = asyncio.create_task(build())
             try:
                 await builder_started.wait()
                 async with asyncio.timeout(5):
-                    # The PostgreSQL process exposes progress through its view,
-                    # independently of this task's command-submission event.
-                    for _ in range(250):
-                        if await connection.scalar(
+                    async with engine.connect() as watcher:
+                        while not await watcher.scalar(
                             text(
-                                "SELECT EXISTS (SELECT 1 FROM pg_stat_progress_create_index WHERE pid = :pid)"
+                                "SELECT EXISTS (SELECT 1 FROM pg_locks WHERE pid = :pid AND NOT granted)"
                             ),
                             {"pid": pid[0]},
                         ):
-                            break
-                        await asyncio.sleep(0.02)
-                    else:
-                        pytest.fail("The owned index build did not enter its progress view")
+                            await watcher.rollback()
+                            await asyncio.sleep(0.02)
+                    assert not await connection.scalar(progress, {"pid": pid[0]})
+                    await gate.rollback()
+                try:
+                    async with asyncio.timeout(5):
+                        # The view is read from a snapshot held until the transaction ends,
+                        # so each poll must end its transaction to see the build appear.
+                        while not await connection.scalar(progress, {"pid": pid[0]}):
+                            await connection.rollback()
+                            await asyncio.sleep(0.02)
+                except TimeoutError:
+                    pytest.fail("The owned index build did not enter its progress view")
                 with pytest.raises(RuntimeError, match="being built"):
                     await step(connection, "upgrade")
                 if times_out:
@@ -217,6 +231,7 @@ async def test_active_build_is_left_alone_and_an_exact_failed_build_can_be_retri
                         )
                     )
             finally:
+                await gate.close()
                 await writer.rollback()
                 if not task.done():
                     await task
