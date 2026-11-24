@@ -54,6 +54,7 @@ test.describe("Make a page from /apps", () => {
     // A second, delayed write would double the text; a send would put it in a frame and the transcript.
     await expect(composer).toHaveText(PROMPT);
     expect(sent.filter((frame) => frame.includes(PROMPT))).toEqual([]);
+    expect(sent.filter((frame) => frame.includes(JSON.stringify(PROMPT).slice(1, -1)))).toEqual([]);
     await attachLayout(page, testInfo, "apps-entry-chat");
   });
 });
