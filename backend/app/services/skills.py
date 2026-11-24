@@ -169,8 +169,8 @@ class _Arranged:
 
     keys: list[SkillKey]
     sections: list[skill_sections.Section]
-    used: Mapping[UUID, list[AgentUsage]] | None = None
-    drafted: Mapping[UUID, list[AgentUsage]] | None = None
+    used: Mapping[UUID, list[AgentUsage]]
+    drafted: Mapping[UUID, list[AgentUsage]]
 
 
 def _clean_resource_path(raw: str) -> str:
@@ -482,6 +482,7 @@ class SkillService:
         of those needs a page that quietly writes rows while it reads.
         """
         section_ids = None
+        arranged = None
         if section is not None:
             arrangement = skill_sections.arrangement_of(section)
             if arrangement is None:
@@ -514,7 +515,12 @@ class SkillService:
             limit=limit,
         )
         return SkillList(
-            items=await self._summaries(ctx, items),
+            items=await self._summaries(
+                ctx,
+                items,
+                used=None if arranged is None else arranged.used,
+                drafted=None if arranged is None else arranged.drafted,
+            ),
             total=total,
             categories=await self.list_categories(ctx),
             suggested_categories=list(SUGGESTED_CATEGORIES),
@@ -604,31 +610,28 @@ class SkillService:
         group_id: UUID | None,
         sort: SkillSort,
     ) -> _Arranged:
-        """Every skill the filtered listing would page through, sorted into sections."""
+        """Every skill the filtered listing would page through, sorted into sections.
+
+        The agents behind every skill are read whatever the arrangement, so a
+        card says the same "used by" and "drafted by" under each of them and on
+        a section's own pages.
+        """
         scope = await self._listing_scope(ctx, shared_with_me=shared_with_me, group_id=group_id)
         keys = await skill_repo.list_visible_keys(
             self.db, **scope, search=search, categories=categories, sort=sort
         )
-        if arrange == "origin":
-            return _Arranged(
-                keys=keys,
-                sections=skill_sections.by_origin(
-                    keys,
-                    bundled_names=_bundled_names(),
-                    gallery_industries=skill_library.gallery_industries(),
-                ),
-            )
-        if arrange == "category":
-            return _Arranged(
-                keys=keys, sections=skill_sections.by_category(keys, suggested=SUGGESTED_CATEGORIES)
-            )
         used, drafted = await skill_bindings(self.db, ctx, skill_ids=[key.id for key in keys])
-        return _Arranged(
-            keys=keys,
-            sections=skill_sections.by_agent(keys, used=used, drafted=drafted),
-            used=used,
-            drafted=drafted,
-        )
+        if arrange == "origin":
+            sections = skill_sections.by_origin(
+                keys,
+                bundled_names=_bundled_names(),
+                gallery_industries=skill_library.gallery_industries(),
+            )
+        elif arrange == "category":
+            sections = skill_sections.by_category(keys, suggested=SUGGESTED_CATEGORIES)
+        else:
+            sections = skill_sections.by_agent(keys, used=used, drafted=drafted)
+        return _Arranged(keys=keys, sections=sections, used=used, drafted=drafted)
 
     async def _summaries(
         self,

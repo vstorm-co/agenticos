@@ -318,6 +318,26 @@ class TestByOrigin:
         assert sections.sections[2].items[0].gallery_industry is None
 
 
+class TestCardsAcrossArrangements:
+    async def test_a_card_names_a_specialists_draft_however_the_library_is_arranged(
+        self, db: AsyncSession
+    ):
+        """The same "drafted by" under every arrangement, and on a section's own pages."""
+        owner = await _owner(db)
+        await _skill(db, owner, "planned")
+        planned = await _skill(db, owner, "planned-too")
+        await _agent(db, owner, "Builder", drafts=[planned], specialist=True)
+
+        sections = await SkillService(db).list_sections(owner, "origin", per_section=1)
+        page = await SkillService(db).list_readable(owner, section="origin:org")
+
+        cards = {item.name: item for section in sections.sections for item in section.items}
+        paged = {item.name: item for item in page.items}
+        assert "planned-too" not in cards
+        assert [agent.name for agent in paged["planned-too"].drafted_by] == ["Builder"]
+        assert paged["planned"].drafted_by == []
+
+
 class TestByCategory:
     async def test_spellings_fold_into_one_shelf_and_the_filter_matches_any_case(
         self, db: AsyncSession

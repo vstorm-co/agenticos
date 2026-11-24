@@ -295,11 +295,13 @@ class TestSections:
     async def test_a_section_of_the_flat_listing_is_one_arranged_section(
         self, client: OpenClient, arranged: MagicMock, repo: MagicMock, rows: dict[str, MagicMock]
     ):
+        repo.list_visible.return_value = ([rows["quarterly-report"]], 1)
         async with client() as http:
             response = await http.get(_url("?section=origin:private"))
 
         assert response.status_code == 200
         assert repo.list_visible.call_args.kwargs["only_ids"] == [rows["quarterly-report"].id]
+        assert [item["name"] for item in response.json()["items"]] == ["quarterly-report"]
 
     async def test_a_section_key_that_names_no_section_is_refused(self, client: OpenClient):
         async with client() as http:

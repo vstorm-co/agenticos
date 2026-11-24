@@ -188,6 +188,8 @@ async def skill_bindings(
     here - it serves no answer, and a listing is not a deletion check.
     """
     wanted = set(skill_ids)
+    if not wanted:
+        return {}, {}
     live = {
         agent.id: agent
         for agent in await agent_repo.list_live(db, organization_id=ctx.organization_id)

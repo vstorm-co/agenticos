@@ -7,10 +7,15 @@ and that nothing is lost or invented on the way.
 """
 
 import uuid
+from unittest.mock import AsyncMock
 
+import pytest
+
+from app.core.permissions import AuthContext, OrgRoleName
 from app.repositories.skill import SkillKey
 from app.schemas.resource_usage import AgentUsage
 from app.services import skill_sections
+from app.services.resource_usage import skill_bindings
 from app.services.skill_sections import (
     arrangement_of,
     by_agent,
@@ -169,3 +174,13 @@ class TestSectionKeys:
     def test_a_key_that_names_no_section_is_refused(self):
         assert arrangement_of("origin:everywhere") is None
         assert arrangement_of("folder:sales") is None
+
+
+@pytest.mark.anyio
+async def test_no_skills_asked_reads_no_agents():
+    """A search that matched nothing has nothing to look the agents up for."""
+    db = AsyncMock()
+    ctx = AuthContext(user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role=OrgRoleName.OWNER)
+
+    assert await skill_bindings(db, ctx, skill_ids=[]) == ({}, {})
+    db.execute.assert_not_awaited()
