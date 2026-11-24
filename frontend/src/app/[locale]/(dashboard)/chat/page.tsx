@@ -77,9 +77,8 @@ export default function ChatPage() {
   // Desktop New Chat and pinned-agent links explicitly start a fresh conversation.
   useChatWith();
   // A `?prompt=` address — the workflows list's "Describe a workflow" — seeds
-  // the composer through the same hand-off as shared content, never sent
-  // on the reader's behalf.
-  const promptFiles = useChatPrompt();
+  // the composer as a draft, never sent on the reader's behalf.
+  const promptDraft = useChatPrompt();
   // The ?id= query param is read by useConversations.fetchConversations on mount;
   // it sets currentConversationId AND loads messages atomically. Pre-setting the
   // id here would short-circuit that loader and leave the chat empty on refresh.
@@ -92,8 +91,7 @@ export default function ChatPage() {
         <PhoneChatBar />
         <ChatLayout>
           <ChatContainer
-            composerDraft={composerDraft}
-            incomingFiles={promptFiles}
+            composerDraft={composerDraft ?? promptDraft}
             requestedQuestionRunId={
               questionConversationId === requestedConversationId ? questionRunId : null
             }

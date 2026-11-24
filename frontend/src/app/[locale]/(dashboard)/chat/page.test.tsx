@@ -49,17 +49,22 @@ it("uses the full-bleed content layout without compensating margins", () => {
   expect(page).not.toHaveClass("-mt-(--page-inset-top)", "-mx-3", "sm:-mx-6");
 });
 
-it("hands a ?prompt= address to the composer once and takes it off the address", () => {
+it("hands a ?prompt= address to the composer as a draft, once, after the new chat starts", () => {
   window.history.replaceState({}, "", "/chat?new=1&prompt=Draft%20a%20workflow");
   state.params = new URLSearchParams("new=1&prompt=Draft a workflow");
   const view = render(<ChatPage />);
-  const first = screen.getByTestId("incoming").textContent;
-  expect(first).toMatch(/^-?\d+:Draft a workflow$/);
-  expect(window.location.search).toBe("?new=1");
+  expect(screen.getByRole("status")).toHaveTextContent("No draft");
 
-  state.params = new URLSearchParams("new=1");
+  state.params = new URLSearchParams("prompt=Draft a workflow");
   view.rerender(<ChatPage />);
-  expect(screen.getByTestId("incoming")).toBeEmptyDOMElement();
+  expect(screen.getByRole("status")).toHaveTextContent("Draft a workflow");
+  expect(window.location.search).toContain("prompt=");
+  fireEvent.click(screen.getByRole("button", { name: "Consume draft" }));
+  expect(window.location.search).not.toContain("prompt=");
+
+  state.params = new URLSearchParams();
+  view.rerender(<ChatPage />);
+  expect(screen.getByRole("status")).toHaveTextContent("No draft");
 });
 
 it("reserves the phone toolbar space for both initial content and sent-turn scrolling", () => {
