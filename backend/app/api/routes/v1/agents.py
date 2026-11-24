@@ -270,6 +270,14 @@ async def list_mcp_servers(
     state: Literal["all", "connected", "not-connected"] = Query(
         "all", description="Whether an accessible saved account exists, regardless of its health"
     ),
+    reviewed_only: bool = Query(
+        False,
+        description=(
+            "Only servers somebody here reviewed: the curated catalog and saved "
+            "custom servers, not the mirrored public registry. A connected account "
+            "on a registry server still answers under state=connected."
+        ),
+    ),
 ) -> Any:
     """One paged list: curated servers, the local registry mirror and custom servers.
 
@@ -290,10 +298,19 @@ async def list_mcp_servers(
     is the publisher's, and there is no token hint because the registry has no such
     field. `verified` and `check` say what the last catalog check found. Browsing
     hides dead or duplicated registry listings; Connected keeps their saved
-    accounts manageable.
+    accounts manageable. `reviewed_only` keeps the mirror out of browsing
+    altogether, so the list defaults to what somebody here reviewed.
     """
     found = await mcp_listing.page(
-        db, ctx=ctx, query=q, category=category, auth=auth, state=state, skip=skip, limit=limit
+        db,
+        ctx=ctx,
+        query=q,
+        category=category,
+        auth=auth,
+        state=state,
+        skip=skip,
+        limit=limit,
+        reviewed_only=reviewed_only,
     )
     return McpCatalog(
         items=[McpCatalogEntry(**vars(server)) for server in found.items],
