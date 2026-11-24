@@ -7,7 +7,8 @@ What only a database shows:
   filtered set rather than of the cards a section carries;
 - arranging never widens the listing: another member's private skill, an agent
   the caller cannot view and anything in another organization stay out of
-  every section and every count;
+  every section and every count, and the category filter offers no shelf
+  whose skills the caller cannot open;
 - shipped skills split by library and gallery industry, and categories fold
   letter case - in the sections and in the filter alike;
 - a section pages like the flat listing, and arranging costs the same number
@@ -26,6 +27,7 @@ from app.core.exceptions import BadRequestError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_environment import AgentEnvironment
+from app.db.models.resource_grant import GrantLevel, ResourceGrant
 from app.db.models.skill import Skill
 from app.schemas.skill import SkillSections
 from app.services import skill_library
@@ -277,6 +279,7 @@ class TestNothingWidens:
             assert sections.total == 2, arrange
             assert sum(section.count for section in sections.sections) == 2, arrange
             assert all(section.category != "Secret" for section in sections.sections), arrange
+            assert sections.categories == ["ops"], arrange
 
     async def test_another_organizations_skills_and_agents_never_count(self, db: AsyncSession):
         mine = await _owner(db)
@@ -289,6 +292,64 @@ class TestNothingWidens:
         sections = await SkillService(db).list_sections(mine, "agent")
 
         assert _laid_out(sections) == [("unused", 1, ["handbook"])]
+
+
+class TestTheCategoryFilter:
+    """The filter's choices name only shelves the caller can open, on both listings."""
+
+    async def _choices(self, db: AsyncSession, ctx: AuthContext) -> list[str]:
+        flat = await SkillService(db).list_readable(ctx)
+        arranged = await SkillService(db).list_sections(ctx, "category")
+        assert flat.categories == arranged.categories
+        return flat.categories
+
+    async def test_another_members_private_shelf_is_offered_only_to_who_can_open_it(
+        self, db: AsyncSession
+    ):
+        owner = await _owner(db)
+        member = await _member(db, owner, OrgRoleName.MEMBER)
+        await _skill(db, owner, "layoffs", category="Restructuring", visibility="private")
+        await _skill(db, owner, "handbook", category="ops")
+
+        assert await self._choices(db, member) == ["ops"]
+        assert await self._choices(db, owner) == ["ops", "Restructuring"]
+
+    async def test_a_shelf_stays_while_one_of_its_skills_is_visible(self, db: AsyncSession):
+        owner = await _owner(db)
+        member = await _member(db, owner, OrgRoleName.MEMBER)
+        await _skill(db, owner, "payroll", category="Finance", visibility="private")
+        await _skill(db, owner, "invoices", category="finance")
+
+        assert await self._choices(db, member) == ["finance"]
+
+    async def test_the_callers_own_and_granted_private_skills_offer_their_shelves(
+        self, db: AsyncSession
+    ):
+        owner = await _owner(db)
+        member = await _member(db, owner, OrgRoleName.MEMBER)
+        await _skill(db, member, "my-notes", category="journal", visibility="private")
+        granted = await _skill(db, owner, "runbook", category="incidents", visibility="private")
+        await _skill(db, owner, "unshared", category="secret", visibility="private")
+        db.add(
+            ResourceGrant(
+                organization_id=owner.organization_id,
+                subject_user_id=member.user_id,
+                resource_type="skill",
+                resource_id=granted.id,
+                level=GrantLevel.READ.value,
+            )
+        )
+        await db.flush()
+
+        assert await self._choices(db, member) == ["incidents", "journal"]
+
+    async def test_another_organizations_shelves_are_never_offered(self, db: AsyncSession):
+        mine = await _owner(db)
+        theirs = await _owner(db)
+        await _skill(db, mine, "handbook", category="ops")
+        await _skill(db, theirs, "foreign", category="theirs")
+
+        assert await self._choices(db, mine) == ["ops"]
 
 
 class TestByOrigin:

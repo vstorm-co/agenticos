@@ -461,12 +461,12 @@ class SkillService:
 
         Three things that are not the page itself travel with it. `total` is the
         count before paging, which a pager needs and a page cannot supply.
-        `categories` is the whole organization's rather than the page's - a
-        filter chip that vanished with the page it filtered would strand
+        `categories` covers every skill the caller may see rather than the page -
+        a filter chip that vanished with the page it filtered would strand
         whoever pressed it. `suggested_categories` is the shipped list, for an
         organization that has not invented its own yet.
 
-        `categories` stays the organization's under `shared_with_me` too: the
+        `categories` stays that whole visible set under `shared_with_me` too: the
         chips describe what can be filtered to, and narrowing them to the
         shared subset would make the filter disappear as soon as it was used.
 
@@ -676,13 +676,16 @@ class SkillService:
         ]
 
     async def list_categories(self, ctx: AuthContext) -> list[str]:
-        """Every distinct category in this organization, for the listing's filter.
+        """Every distinct category among the skills this caller may see, for the listing's filter.
 
-        One choice per shelf: spellings differing only in letter case are one
-        shelf, which the filter matches in any case.
+        Scoped like the listing itself, so a chip never names a shelf whose
+        skills the caller cannot open - and never leads to an empty page. One
+        choice per shelf: spellings differing only in letter case are one shelf,
+        which the filter matches in any case.
         """
+        scope = await self._listing_scope(ctx, shared_with_me=False, group_id=None)
         return skill_sections.fold_categories(
-            await skill_repo.list_categories(self.db, organization_id=ctx.organization_id),
+            await skill_repo.list_categories(self.db, **scope),
             SUGGESTED_CATEGORIES,
         )
 
