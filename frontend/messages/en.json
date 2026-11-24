@@ -23047,6 +23047,7 @@
     "connectFailed": "We could not start authorization. Please try again.",
     "connectNamed": "Connect {name}",
     "connectionChecked": "Account status refreshed.",
+    "consentExplainer": "The sign-in page comes from Composio, the service that connects T3OS to this app, so it shows Composio — not T3OS — and may ask for broader access than T3OS uses. T3OS only uses this connection to find and read, never to send, delete, or change anything. You can revoke access at any time from your account with the provider.",
     "consentHint": "Continue to authorize this app, then return here to verify the connection.",
     "continue": "Continue",
     "continueToApp": "Continue to app",
@@ -23100,7 +23101,7 @@
     "retry": "Try again",
     "retryVerification": "Verify again",
     "searchApps": "Search all apps",
-    "setupRequiredHint": "An administrator needs to configure this app before you can connect.",
+    "setupRequiredHint": "Ask your administrator to add {name}'s sign-in details (COMPOSIO_AUTH_CONFIGS) and restart the backend. <link>How an administrator sets this up</link>",
     "skip": "Skip for now",
     "statuses": {
       "connected": "Connected",
