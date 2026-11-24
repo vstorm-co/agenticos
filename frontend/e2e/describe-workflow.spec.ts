@@ -70,6 +70,9 @@ test.describe("Describe a workflow", () => {
     await expect(input).toHaveText("");
     await nowListed(page.request, CONVERSATIONS, "title", earlier);
     await expect(page).toHaveURL(/[?&]id=/);
+    // Proves the transcript locator reaches the open conversation, so the
+    // absence check below means something.
+    await expect(page.locator("[data-transcript]").getByText(earlier)).toBeVisible();
 
     await page.goto("/workflows");
     const link = page.getByRole("link", { name: "Describe a workflow" });
@@ -82,7 +85,7 @@ test.describe("Describe a workflow", () => {
     await expect(page).toHaveURL(/\/chat/);
     await expect(page.getByText("Live")).toBeVisible();
     await expectDrafted(page, prompt, sent);
-    await expect(page.getByRole("main").getByText(earlier)).toHaveCount(0);
+    await expect(page.locator("[data-transcript]").getByText(earlier)).toHaveCount(0);
     await attachLayout(page, testInfo, "describe-from-workflows");
   });
 
