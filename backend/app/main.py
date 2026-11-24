@@ -178,7 +178,7 @@ async def _start_channel_polling(*platforms: str, bot_ids: Sequence[str] | None 
         )
 
 
-_POLLING_PLATFORMS = ("telegram", "mattermost", "slack", "discord")
+_POLLING_PLATFORMS = ("telegram", "mattermost", "slack", "discord", "matrix")
 
 _DISCOVER_BOTS_EVERY_SECONDS = 60.0
 """How often the keeper re-reads which bots should stream. Leases are checked on
@@ -246,6 +246,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState]:
     # Without the claim `get_db_context` builds an engine per call, which is
     # correct but pays a connect per request (#1079).
     claim_pooled_engines()
+    from app.db.table_rls import verify_table_runtime
+
+    async with get_db_context() as preflight_db:
+        await verify_table_runtime(preflight_db)
     watchdog = EventLoopWatchdog(wedged_after=settings.EVENT_LOOP_WEDGED_AFTER)
     # Again, now that the server has configured its own loggers: uvicorn's access
     # log has a handler of its own, and in some launch modes it is created after
@@ -315,7 +319,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState]:
     # that the API and the test suite pay for on every process start and never
     # use. The adapters are only ever needed from this point on: registered at
     # startup, and stopped after the yield below (#520).
+    from app.services.channels import matrix as channel_matrix
     from app.services.channels.discord import DiscordAdapter
+    from app.services.channels.matrix import MatrixAdapter
     from app.services.channels.mattermost import MattermostAdapter
     from app.services.channels.slack import SlackAdapter
     from app.services.channels.email import EmailAdapter
@@ -376,6 +382,16 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState]:
     except (OSError, ValueError, RuntimeError) as _discord_exc:
         logger.error("Discord: failed to open the Gateway: %s", _discord_exc)
 
+    # The sync position each Matrix bot has read up to lives in the shared Redis,
+    # so whichever worker takes over the stream resumes from it (#2081).
+    channel_matrix.configure(redis_client)
+    _matrix_adapter = MatrixAdapter()
+    register_adapter(_matrix_adapter)
+    try:
+        await _start_channel_polling("matrix")
+    except (OSError, ValueError, RuntimeError) as _matrix_exc:
+        logger.error("Matrix: failed to start the sync: %s", _matrix_exc)
+
     keeping_streams = asyncio.create_task(_keep_channel_streams(), name="keep_channel_streams")
 
     # Started once startup is done and stopped only at the very end, so it
@@ -410,6 +426,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState]:
         await _mattermost_adapter.stop_polling(_mbid)
     for _dbid in list(_discord_adapter._socket_tasks.keys()):
         await _discord_adapter.stop_polling(_dbid)
+    for _xbid in list(_matrix_adapter._sync_tasks.keys()):
+        await _matrix_adapter.stop_polling(_xbid)
     # Intake has stopped and serving is already drained, so what is left is
     # in-flight fire-and-forget work - an ingestion or a sync a request or a
     # channel message handed off. It reads the stores and the session below, so
@@ -432,6 +450,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState]:
         _email_adapter,
         _imessage_adapter,
         _discord_adapter,
+        _matrix_adapter,
     ):
         await _adapter.aclose()
     # The shared outbound clients web search and the model-catalog listings reuse,
@@ -448,6 +467,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState]:
     # a test, a reload - must not search through it once `close_db` has run.
     reset_retrieval_service()
     channel_dedupe.configure(None)
+    channel_matrix.configure(None)
     rate_limit.configure(None)
     channel_membership.configure(None)
     channel_connection_state.configure(None)

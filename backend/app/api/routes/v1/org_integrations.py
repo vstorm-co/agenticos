@@ -94,9 +94,12 @@ async def create_org_integration(
     to write the base its sync writes into, as on every other route that points
     a source at a collection (`CollectionAccessService.source_target`, #2537).
     """
-    if data.collection_name is not None:
-        await access.source_target(ctx, data.collection_name)
-    return await sync_source_svc.create_source(data, ctx=ctx)
+    target = (
+        None
+        if data.collection_name is None
+        else await access.source_target(ctx, data.collection_name)
+    )
+    return await sync_source_svc.create_source(data, ctx=ctx, knowledge_base=target)
 
 
 @router.delete(
@@ -112,7 +115,7 @@ async def delete_org_integration(
     ctx: Auth,
 ) -> None:
     """Delete an org integration by ID."""
-    source = await access.sync_source(ctx, str(source_id))
+    source = await access.writable_sync_source(ctx, str(source_id))
     await sync_source_svc.delete_source(str(source.id), ctx=ctx)
 
 
@@ -128,7 +131,8 @@ async def trigger_org_integration(
     ctx: Auth,
 ) -> Any:
     """Manually trigger a sync run for an org integration."""
-    source = await access.sync_source(ctx, str(source_id))
+    source = await access.writable_sync_source(ctx, str(source_id))
+    sync_source_svc.refuse_paused(source)
     sync_log = await sync_source_svc.trigger_sync(str(source.id), user_id=ctx.user_id)
     return RAGSyncResponse(
         id=str(sync_log.id),
@@ -151,4 +155,5 @@ async def list_org_integration_logs(
 ) -> Any:
     """List sync run history for a specific org integration."""
     source = await access.sync_source(ctx, str(source_id))
-    return await sync_source_svc.list_logs(source.id, limit=limit)
+    scope = await access.readable_sync_log_scope(ctx, None)
+    return await sync_source_svc.list_logs(source.id, scope=scope, limit=limit)

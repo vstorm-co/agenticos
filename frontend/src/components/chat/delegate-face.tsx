@@ -2,12 +2,15 @@
 
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { BrandIcon } from "@/components/icons/brand-icon";
+import { AvatarFace } from "@/components/ui/avatar-face";
 import type { DelegateRef } from "@/lib/delegations";
 import { cn } from "@/lib/utils";
 
 /**
  * Who a delegation went to, by face: the agent's own avatar, or the mark of the
- * coding harness - Claude Code, Codex - that the `coding_agent` capability ran.
+ * coding harness that the `coding_agent` capability ran - its brand mark for
+ * Claude Code and Codex, the seeded avatar for the rest, which have no brand
+ * glyph yet.
  *
  * A harness pulses while it works, as an agent's face thinks.
  */
@@ -31,7 +34,15 @@ export function DelegateFace({
           className,
         )}
       >
-        <BrandIcon name={who.harness} className="size-[60%]" aria-hidden />
+        {who.harness === "claude_code" || who.harness === "codex" ? (
+          <BrandIcon name={who.harness} className="size-[60%]" aria-hidden />
+        ) : (
+          // No brand glyph for the new harnesses yet: the icon generator owns
+          // those, so the face falls back to the seeded avatar.
+          <span className="size-full overflow-hidden rounded-full">
+            <AvatarFace seed={`harness:${who.harness}`} background={false} />
+          </span>
+        )}
       </span>
     );
   }

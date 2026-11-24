@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { MCP_LOGOS } from "@/lib/mcp-logos.generated";
+import { selectedMessageQuote } from "@/lib/selected-message-quote";
 import type { Mentionable } from "@/types/mention";
 import { LinkFavicon } from "./link-favicon";
 import { MentionChip, RichText } from "./mention-chip";
@@ -24,7 +25,7 @@ describe("a mention chip", () => {
     [{ kind: "collection", id: "k", name: "Contracts" }, "lucide-database"],
     [{ kind: "skill", id: "s", name: "refunds" }, "lucide-book-open"],
     [{ kind: "context", id: "c", name: "glossary" }, "lucide-file"],
-    [{ kind: "conversation", id: "chat", name: "Research topic" }, "lucide-chat"],
+    [{ kind: "conversation", id: "chat", name: "Research topic" }, "lucide-message-square"],
   ])("draws what kind of thing %o is", (item, icon) => {
     const { container } = render(<MentionChip item={item} />);
     expect(container.querySelector(`.${icon}`)).not.toBeNull();
@@ -117,14 +118,34 @@ describe("an address in the text", () => {
     expect(github).toHaveAttribute("href", "https://github.com/vstorm-co/agenticos");
     expect(github).toHaveTextContent("github.com/vstorm-co/agenticos");
     expect(github).toHaveAttribute("rel", "noopener noreferrer");
-    // A site with no bundled mark asks for its own favicon, and shows a globe when it has none.
+    // A site with no bundled mark asks the same-origin icon proxy, and shows a globe when it has none.
     const icon = example!.querySelector("img")!;
-    expect(icon).toHaveAttribute("src", "https://example.org/favicon.ico");
+    expect(icon).toHaveAttribute("src", "/api/link-icon?host=example.org");
     expect(icon).toHaveAttribute("referrerpolicy", "no-referrer");
     fireEvent.error(icon);
     expect(example!.querySelector("img")).toBeNull();
     expect(example!.querySelector(".lucide-globe")).not.toBeNull();
     expect(example).toHaveTextContent(/^example\.org$/);
+  });
+
+  it("excludes the normalized www LinkCard label from selected quote text", () => {
+    const { container } = render(
+      <p data-quoteable-content>
+        <RichText text="see https://www.example.org/guide" mentions={[]} />
+      </p>,
+    );
+    const message = container.firstElementChild as HTMLElement;
+    const link = screen.getByRole("link");
+    expect(link).toHaveTextContent("example.org/guide");
+    expect(link).toHaveAttribute("data-quote-exclude");
+
+    const range = document.createRange();
+    range.selectNodeContents(link.querySelector("span")!);
+    const selection = window.getSelection()!;
+    selection.removeAllRanges();
+    selection.addRange(range);
+
+    expect(selectedMessageQuote(selection, message)).toBeNull();
   });
 });
 

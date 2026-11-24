@@ -5,6 +5,10 @@ import type { FileSource } from "@/lib/workspace-files";
 import type { ChatMessage } from "@/types/chat";
 import { useWorkOnStore } from "@/stores/work-on-store";
 import { TurnFiles } from "./turn-files";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { apiClient } from "@/lib/api-client";
+
+vi.mock("@/lib/api-client", () => ({ apiClient: { get: vi.fn() } }));
 
 const env = vi.hoisted(() => ({ source: null as FileSource | null, access: vi.fn() }));
 vi.mock("@/hooks/use-shell", () => ({ useShell: () => ({ platform: "macos" }) }));
@@ -60,6 +64,47 @@ function message(paths: unknown = ["site/index.html", "site/style.css"]): ChatMe
 beforeEach(() => {
   env.source = { kind: "conversation", id: "c1" };
   env.access.mockReset();
+  vi.mocked(apiClient.get).mockReset();
+});
+
+it("takes shell edits and omitted-file counts from the stored change set", async () => {
+  vi.mocked(apiClient.get).mockResolvedValue({
+    id: "change-1",
+    files: [{ path: "shell-created.py" }],
+    omitted: 2,
+  });
+  const saved = message(["/workspace/wrong.py"]);
+  saved.toolCalls![0]!.result = JSON.stringify({
+    changes_id: "change-1",
+    files_changed: ["/workspace/wrong.py"],
+  });
+  const client = new QueryClient();
+  render(
+    <QueryClientProvider client={client}>
+      <TurnFiles message={saved} />
+    </QueryClientProvider>,
+  );
+  expect(await screen.findByRole("button", { name: "shell-created.py" })).toBeVisible();
+  expect(screen.getByText("Changed 3 files:")).toBeVisible();
+  expect(screen.getByText("2 more changed files are not listed.")).toBeVisible();
+  expect(screen.queryByText(/wrong.py/)).toBeNull();
+});
+
+it("keeps an empty stored change set authoritative over the harness list", async () => {
+  vi.mocked(apiClient.get).mockResolvedValue({ id: "change-1", files: [], omitted: 0 });
+  const saved = message();
+  saved.toolCalls![0]!.result = JSON.stringify({
+    changes_id: "change-1",
+    files_changed: ["wrong.py"],
+  });
+  const client = new QueryClient();
+  const { container } = render(
+    <QueryClientProvider client={client}>
+      <TurnFiles message={saved} />
+    </QueryClientProvider>,
+  );
+  await vi.waitFor(() => expect(apiClient.get).toHaveBeenCalledOnce());
+  expect(container).toBeEmptyDOMElement();
 });
 it("opens exact paths from a completed turn and navigates the reported file set", async () => {
   render(<TurnFiles message={message()} />);

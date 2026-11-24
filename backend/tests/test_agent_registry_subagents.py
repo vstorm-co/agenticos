@@ -466,6 +466,60 @@ class TestInlineSpecialists:
             "which the framework provides itself - two tools of that name abort the turn"
         ]
 
+    async def test_a_specialist_renaming_a_tool_onto_another_capability_s_is_refused(self):
+        """Two of its capabilities under one name abort its turn as they would the
+        parent's (#2890), so the check the parent gets runs on each specialist."""
+        problems = await _problems(
+            _ctx(),
+            _delegating(
+                {
+                    "inline": [
+                        _specialist(
+                            capabilities=[
+                                {
+                                    "id": "charts",
+                                    "tool_overrides": {"create_chart": {"name": "web_fetch"}},
+                                },
+                                {"id": "web_fetch"},
+                            ]
+                        )
+                    ]
+                }
+            ),
+        )
+
+        assert problems == [
+            "Specialist 'summariser': Capability 'charts' renames a tool to web_fetch, which "
+            "capability 'web_fetch' also offers - two tools of that name abort the turn"
+        ]
+
+    async def test_a_specialist_renaming_onto_a_tool_its_parent_shares_is_refused(self):
+        """It runs with the parent's shared bindings beside its own."""
+        problems = await _problems(
+            _ctx(),
+            _delegating(
+                {
+                    "share_with_delegates": ["web_fetch"],
+                    "inline": [
+                        _specialist(
+                            capabilities=[
+                                {
+                                    "id": "charts",
+                                    "tool_overrides": {"create_chart": {"name": "web_fetch"}},
+                                }
+                            ]
+                        )
+                    ],
+                },
+                capabilities=[{"id": "web_fetch"}],
+            ),
+        )
+
+        assert problems == [
+            "Specialist 'summariser': Capability 'charts' renames a tool to web_fetch, which "
+            "capability 'web_fetch' also offers - two tools of that name abort the turn"
+        ]
+
     async def test_a_specialist_naming_a_model_profile_that_is_gone_is_refused(self, monkeypatch):
         """A specialist may run on a model of its own, and that is a reference too.
 
@@ -620,6 +674,58 @@ class TestInlineSpecialists:
             "desktop sandbox to run it in. Share a 'sandbox' on the 'desktop' runtime with "
             "delegates too, or stop sharing 'computer_use'.",
         ]
+
+    async def test_a_pinned_delegate_lent_a_tool_its_own_rename_takes_is_refused(self, monkeypatch):
+        """Its rename passed at its own publish; beside what this agent lends it,
+        it is the same duplicate (#2890), and the fix is in this agent's share list."""
+        ctx = _ctx()
+        delegate = _published(ctx, "Tester")
+        version = _version(
+            delegate.id,
+            spec=_spec(
+                name="Tester",
+                capabilities=[
+                    {"id": "charts", "tool_overrides": {"create_chart": {"name": "web_fetch"}}}
+                ],
+            ),
+        )
+        _repos(monkeypatch, agents=_agents(delegate), versions=_versions(version))
+
+        problems = await _problems(
+            ctx,
+            _delegating(
+                {"share_with_delegates": ["web_fetch"]},
+                subagents=[_pin(delegate.id, version.id)],
+                capabilities=[{"id": "web_fetch"}],
+            ),
+        )
+
+        assert problems == [
+            "Delegate 'Tester', with what this agent shares: Capability 'charts' renames a "
+            "tool to web_fetch, which capability 'web_fetch' also offers - two tools of that "
+            "name abort the turn"
+        ]
+
+    async def test_a_pinned_delegate_s_own_clash_is_left_to_its_author(self, monkeypatch):
+        """Refusing this publish for it would block a parent on a problem only the
+        delegate's author can fix, as a pin to a version since deleted does."""
+        ctx = _ctx()
+        delegate = _published(ctx, "Tester")
+        version = _version(
+            delegate.id,
+            spec=_spec(
+                name="Tester",
+                capabilities=[
+                    {"id": "charts", "tool_overrides": {"create_chart": {"name": "web_fetch"}}},
+                    {"id": "web_fetch"},
+                ],
+            ),
+        )
+        _repos(monkeypatch, agents=_agents(delegate), versions=_versions(version))
+
+        await AgentRegistryService(_db()).validate_spec(
+            ctx, _delegating({}, subagents=[_pin(delegate.id, version.id)])
+        )
 
     async def test_a_delegation_config_that_does_not_parse_is_reported_once(self):
         """The binding check has already said so; a second guess adds nothing."""
@@ -1009,10 +1115,10 @@ class TestDelegationCycles:
             agent_id=uuid4(),
         )
 
-        assert problems == [
+        assert (
             "This agent reaches more than 1 pinned delegate versions, which is more than "
             "publish can check. Delegate to fewer agents."
-        ]
+        ) in problems
 
 
 class TestAnAgentThatDoesNotDelegate:
@@ -1063,3 +1169,153 @@ class TestAnAgentThatDoesNotDelegate:
             ),
             agent_id=uuid4(),
         )
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("separate_model", [False, True])
+async def test_personal_inline_specialists_validate_their_own_profile_without_an_org_key(
+    monkeypatch: pytest.MonkeyPatch,
+    separate_model: bool,
+) -> None:
+    from unittest.mock import patch
+
+    from app.db.models.credential import ModelProfile
+    from app.services.personal_model_key import PersonalModelKeyService
+
+    held = ModelProfile(
+        id=uuid4(),
+        provider="openai",
+        model="gpt-4.1",
+        base_url=None,
+        secret_id=None,
+        fallback_profile_ids=[],
+        api="chat",
+    )
+    monkeypatch.setattr(agent_registry.credential_repo, "get_profile", AsyncMock(return_value=held))
+    _repos(monkeypatch)
+    specialist = _specialist(model_profile_id=str(held.id))
+    if separate_model:
+        specialist["capabilities"] = [
+            {"id": "web_browser", "config": {"step_model_profile_id": str(uuid4())}}
+        ]
+    chosen = _delegating({"inline": [specialist]}).model_copy(
+        update={"model_credential_mode": "personal", "model_profile_id": held.id}
+    )
+    with patch.object(PersonalModelKeyService, "resolve", AsyncMock()) as key:
+        problems = await AgentRegistryService(_db())._delegation_problems(
+            _ctx(), chosen, agent_id=None
+        )
+    key.assert_not_awaited()  # Publishing never asks for the publisher's private key.
+    if separate_model:
+        assert any("separate capability models" in message for message in problems.messages)
+    else:
+        assert problems.messages == []
+
+
+@pytest.mark.security
+async def test_sharing_a_separate_step_model_with_a_personal_delegate_is_refused(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ctx = _ctx()
+    delegate = _published(ctx, "Personal")
+    version = _version(delegate.id, spec=_spec(name="Personal", model_credential_mode="personal"))
+    _repos(monkeypatch, agents=_agents(delegate), versions=_versions(version))
+    chosen = _delegating(
+        {"share_with_delegates": ["web_browser"]},
+        subagents=[_pin(delegate.id, version.id)],
+        capabilities=[{"id": "web_browser", "config": {"step_model_profile_id": str(uuid4())}}],
+    )
+    problems = await AgentRegistryService(_db())._delegation_problems(ctx, chosen, agent_id=None)
+    assert any("separate capability models" in message for message in problems.messages)
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("personal_root", [False, True])
+@pytest.mark.parametrize("same_profile", [False, True])
+@pytest.mark.parametrize("nested", [False, True])
+async def test_publish_checks_personal_consent_across_the_reachable_pinned_tree(
+    monkeypatch: pytest.MonkeyPatch,
+    personal_root: bool,
+    same_profile: bool,
+    nested: bool,
+) -> None:
+    ctx = _ctx()
+    profile = uuid4()
+    leaf_id, middle_id = uuid4(), uuid4()
+    leaf = _version(
+        leaf_id,
+        spec=_spec(
+            name="Personal leaf",
+            model_credential_mode="personal",
+            model_profile_id=str(profile if same_profile else uuid4()),
+        ),
+    )
+    middle = _version(
+        middle_id,
+        spec=_delegating(
+            {},
+            subagents=[_pin(leaf_id, leaf.id)],
+            name="Organization middle",
+        ),
+    )
+    _repos(monkeypatch, versions=_versions(leaf, middle))
+    root = _delegating(
+        {"max_depth": 2},
+        subagents=[_pin(middle_id, middle.id) if nested else _pin(leaf_id, leaf.id)],
+    ).model_copy(
+        update={
+            "model_profile_id": profile,
+            "model_credential_mode": "personal" if personal_root else "organization",
+        }
+    )
+    registry = AgentRegistryService(_db())
+    problems = await registry.personal_delegation_problems(ctx, root)
+    assert bool(problems) is not (personal_root and same_profile)
+    if not personal_root:
+        with pytest.raises(BadRequestError, match="personal web chat"):
+            await registry.require_organization_spec(ctx, root)
+    if nested:
+        root.capabilities[0].config["max_depth"] = 1
+        assert await registry.personal_delegation_problems(ctx, root) == []
+
+
+@pytest.mark.security
+async def test_personal_consent_walk_handles_repeated_and_missing_pins(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ctx = _ctx()
+    leaf_id, middle_id = uuid4(), uuid4()
+    leaf = _version(leaf_id, spec=_spec(name="Leaf"))
+    pin = _pin(leaf_id, leaf.id)
+    middle = _version(middle_id, spec=_delegating({}, subagents=[pin]))
+    missing = _pin(uuid4(), uuid4())
+    _repos(monkeypatch, versions=_versions(leaf, middle))
+    root = _delegating({"max_depth": 2}, subagents=[pin, _pin(middle_id, middle.id), missing])
+    root.subagents.append(root.subagents[0])
+    registry = AgentRegistryService(_db())
+    assert await registry.personal_delegation_problems(ctx, root) == []
+    await registry.require_organization_spec(ctx, root)
+
+
+@pytest.mark.security
+async def test_promotion_refuses_a_legacy_organization_root_with_personal_delegates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ctx = _ctx()
+    leaf = _version(uuid4(), spec=_spec(name="Personal", model_credential_mode="personal"))
+    root = _version(uuid4(), spec=_delegating({}, subagents=[_pin(leaf.agent_id, leaf.id)]))
+    _repos(monkeypatch, versions=_versions(leaf))
+    with pytest.raises(BadRequestError) as refused:
+        await AgentRegistryService(_db()).refuse_borrowed_sign_ins(ctx, root)
+    assert refused.value.code == "PERSONAL_MODEL_CONSENT"
+
+
+@pytest.mark.security
+async def test_personal_inline_specialist_cannot_select_an_unapproved_profile() -> None:
+    root = _delegating({"inline": [_specialist(model_profile_id=str(uuid4()))]}).model_copy(
+        update={"model_credential_mode": "personal"}
+    )
+    problems = await AgentRegistryService(_db()).personal_delegation_problems(_ctx(), root)
+    assert len(problems) == 1
+    assert "Specialist 'summariser'" in problems[0]
+    assert "same model connection" in problems[0]

@@ -1,6 +1,6 @@
 "use client";
 
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 import { Figure } from "@/components/ui";
 
@@ -36,6 +36,7 @@ const ROLE_ORDER = ["owner", "admin", "builder", "operator", "member", "viewer"]
  */
 export function MembersWidget({ title, hint, options }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.members");
+  const locale = useLocale();
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
   const { members, total, isLoading, error, refetch } = useMembers(activeOrgId ?? "");
   const style = resolveStyle("members", options?.style);
@@ -63,7 +64,7 @@ export function MembersWidget({ title, hint, options }: DashboardWidgetProps) {
         />
       ) : (
         <div className="flex h-full flex-col gap-4">
-          <Figure value={total.toLocaleString()} unit={t("unit", { count: total })} />
+          <Figure value={total.toLocaleString(locale)} unit={t("unit", { count: total })} />
           {style === "bars" ? (
             <BarList
               items={ROLE_ORDER.filter((role) => split.has(role)).map((role) => ({

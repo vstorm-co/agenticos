@@ -15,9 +15,12 @@ vi.mock("@/lib/api-client", async () => {
 });
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
-const state = vi.hoisted(() => ({ mayDecide: true }));
+const state = vi.hoisted(() => ({ decideScope: "all" as "all" | "own" | "none" }));
 vi.mock("@/hooks/use-permissions", () => ({
-  usePermissions: () => ({ can: () => state.mayDecide }),
+  usePermissions: () => ({
+    can: () => state.decideScope !== "none",
+    scopeOf: () => state.decideScope,
+  }),
 }));
 
 function wrapper({ children }: { children: ReactNode }) {
@@ -55,7 +58,7 @@ function org(overrides: Partial<Organization> = {}): Organization {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  state.mayDecide = true;
+  state.decideScope = "all";
   vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
   vi.mocked(apiClient.patch).mockImplementation(async (_path, body) =>
     org(body as Partial<Organization>),
@@ -108,7 +111,18 @@ describe("the approval waiver switch", () => {
     // Hidden rather than disabled, like the spending limit beside it: raising
     // the ceiling on standing consent is a decision about the approval queue,
     // and a section that could only report a refusal is worse than none.
-    state.mayDecide = false;
+    state.decideScope = "none";
+
+    render(<OrgApprovalWaiver org={org()} />, { wrapper });
+
+    expect(screen.queryByRole("switch")).toBeNull();
+  });
+
+  it("is not rendered for a member who holds the permission only for their own runs", () => {
+    // The switch waives approvals for the whole organization, so `OWN` is not
+    // this switch: a member may waive their own runs in chat, and still must
+    // not be offered the organization's ceiling.
+    state.decideScope = "own";
 
     render(<OrgApprovalWaiver org={org()} />, { wrapper });
 

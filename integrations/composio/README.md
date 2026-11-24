@@ -30,6 +30,35 @@ the chat workspace instead of requiring a connection to proceed.
 
 ## Configure the deployment
 
+### Google apps (Gmail, Drive, Calendar, Docs, Sheets)
+
+- Use a Composio-managed auth config for each Google toolkit. A custom OAuth
+  client needs Google's brand and restricted-scope verification first. An
+  unverified client may show “to continue to composio.dev” instead of an app
+  name, then fail with “This app is blocked” or `access_denied` after account
+  selection.
+- Keep Composio's default scope set for each managed toolkit. Do not narrow it
+  to a scope such as `gmail.readonly`; Composio's Google app is approved only
+  for its defaults, and a narrowed request can be blocked. Managed Gmail's
+  default includes `https://mail.google.com/`.
+- Keep agents read-only with the auth config's **tools available for execution**
+  allowlist and T3OS's reviewed read-only catalog actions, not OAuth scopes.
+  Google's consent screen will request full mail access even though T3OS only
+  executes read actions. Disclose this to customers before they connect Gmail.
+- Set each managed config ID in `COMPOSIO_AUTH_CONFIGS` for its toolkit, using
+  placeholders such as `<gmail-auth-config-id>` in examples. Disable leftover
+  custom Google auth configs in the Composio project to prevent fallback.
+  Changes to `COMPOSIO_AUTH_CONFIGS` require a backend restart. If the Compose
+  healthcheck start period is shorter than API startup, the frontend, which waits
+  for a healthy API, may not start after restart. Give the API healthcheck a
+  start period long enough for full startup (several minutes), then confirm both
+  containers are running.
+- A T3OS-branded consent screen requires a custom config with your own Google
+  OAuth client, Google app verification, and an annual security assessment for
+  restricted Gmail or Drive scopes. Allow about six weeks.
+- For Workspace customers who restrict third-party apps, their administrator
+  must allow the app in Admin console → Security → API controls.
+
 1. Create a Composio project for this deployment and obtain a runtime project API
    key. Give it only the connected-account operations and session management /
    execution permissions this integration uses. Store it in the deployment's
@@ -207,6 +236,9 @@ Before production activation, verify these cases with the configured project:
 
 - Connect each enabled toolkit, confirm the displayed account, and run one real
   read task with citations or permitted source links where the provider returns them.
+- After connecting a Google app, confirm its Composio connected account is ACTIVE,
+  not EXPIRED; “started but not completed within 10 minutes” means Google never
+  returned to Composio.
 - Cancel consent, deny provider permission, and let an attempt expire. The page
   must retain the selected goal and must not claim success.
 - Open a copied consent link while signed into a different T3OS member. Identity

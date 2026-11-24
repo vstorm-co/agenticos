@@ -16,12 +16,13 @@ from fastapi import WebSocketDisconnect
 from pydantic import SecretStr
 from pydantic_ai.usage import RunUsage
 
+from app.agents.deps import AgentDeps
 from app.core.permissions import AuthContext
 from app.core.secret_kinds import ApiKeySecret
 from app.db.models.agent_run import RunStatus
 from app.db.models.voice_call import VoiceEndReason
 from app.schemas.voice import ApprovalUnavailableFrame
-from app.services.voice.session import NOTICES, VoiceCallSession
+from app.services.voice.session import NOTICE_WAIT_SECONDS, NOTICES, VoiceCallSession
 from app.services.voice.starter import VoiceCaller
 
 pytestmark = pytest.mark.anyio
@@ -115,9 +116,10 @@ def _started(
         ),
         realtime=MagicMock(return_value=MagicMock()),
         built=SimpleNamespace(
+            deps=AgentDeps(),
             budget=SimpleNamespace(
                 can_afford_next_request=AsyncMock(return_value=True), refresh_baselines=MagicMock()
-            )
+            ),
         ),
         hand_off=None,
     )
@@ -163,6 +165,7 @@ async def _sessions():
 
 
 _MEMBER_CTX = AuthContext(user_id=uuid4(), organization_id=uuid4(), role="member")
+_VIEWER_CTX = AuthContext(user_id=uuid4(), organization_id=uuid4(), role="viewer")
 _DECIDER_CTX = AuthContext(user_id=uuid4(), organization_id=uuid4(), role="owner")
 
 
@@ -446,12 +449,37 @@ async def test_an_app_admin_revoked_mid_call_loses_the_flag_at_the_next_heartbea
 
 
 async def test_reaching_the_time_cap_speaks_a_notice_and_ends():
+    from pydantic_ai.realtime import (
+        RealtimeOutputSpeechEndEvent,
+        RealtimeOutputSpeechStartEvent,
+        RealtimeTurnCompleteEvent,
+    )
+
+    notice_requested = asyncio.Event()
+
+    class CompletingNotice(FakeRealtime):
+        async def send(self, content, *, respond=None):
+            await super().send(content, respond=respond)
+            notice_requested.set()
+
+        async def _iter(self):
+            # The provider can only answer the notice after it was requested.
+            # Drive the real event pump instead of hoping two timers interleave.
+            await notice_requested.wait()
+            yield RealtimeOutputSpeechStartEvent()
+            yield RealtimeTurnCompleteEvent()
+            yield RealtimeOutputSpeechEndEvent()
+            await asyncio.sleep(3600)
+
     socket = FakeSocket([_START])
-    realtime = FakeRealtime(hold=True)
+    realtime = CompletingNotice()
     started = _started(realtime, cap=0)
 
-    _, repo = await _run(socket, started)
+    # The production notice bound exceeds _run's unchanged five-second deadline:
+    # only the provider's speech completion can make this positive case pass.
+    _, repo = await _run(socket, started, notice_seconds=NOTICE_WAIT_SECONDS)
 
+    assert notice_requested.is_set()
     assert realtime.sent and "time" in realtime.sent[0].lower()
     assert repo.end.await_args.kwargs["reason"] is VoiceEndReason.TIME_LIMIT
 
@@ -910,7 +938,7 @@ async def test_a_caller_who_lost_approvals_decide_stops_deciding_at_the_next_hea
     socket = FakeSocket([_START, 0.1, json.dumps({"type": "end"})])
     started = _started(FakeRealtime(hold=True))
 
-    await _run(socket, started, reauthorize=AsyncMock(return_value=_MEMBER_CTX), heartbeat=0.01)
+    await _run(socket, started, reauthorize=AsyncMock(return_value=_VIEWER_CTX), heartbeat=0.01)
 
     started.bridge.refresh_decider.assert_called_with(None)
 
@@ -1644,3 +1672,35 @@ def test_a_visitor_is_told_a_budget_notice_as_calls_being_unavailable():
     assert isinstance(shown, NoticeFrame) and shown.kind == VISITOR_REASON
     guardrail = _visible(NoticeFrame(type="notice", kind="guardrail"), frozenset())
     assert isinstance(guardrail, NoticeFrame) and guardrail.kind == "guardrail"
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("during_seed", [False, True])
+async def test_a_refused_voice_snapshot_never_opens_the_provider(during_seed):
+    from app.agents.capabilities.guardrails import GuardrailBlocked
+    from app.services.message_history import ModelHistory
+
+    started = _started(FakeRealtime())
+    blocked = GuardrailBlocked(edge="input", message="Conversation history changed.")
+    seed = (
+        AsyncMock(side_effect=blocked)
+        if during_seed
+        else AsyncMock(return_value=ModelHistory([], revision=0))
+    )
+    with patch(f"{_M}.check_history_snapshot", AsyncMock(side_effect=blocked)):
+        _, repo = await _run(FakeSocket([_START]), started, seed=seed)
+    started.prepared.realtime.assert_not_called()
+    started.prepared.answer_offer.assert_not_awaited()
+    assert repo.end.await_args.kwargs["reason"] is VoiceEndReason.GUARDRAIL
+    assert started.runner.finish.await_args.kwargs["status"] is RunStatus.GUARDRAIL_BLOCKED
+
+
+async def test_a_current_voice_snapshot_opens_the_provider():
+    from app.services.message_history import ModelHistory
+
+    started = _started(FakeRealtime())
+    history = ModelHistory([], revision=7)
+    with patch(f"{_M}.check_history_snapshot", AsyncMock()) as check:
+        await _run(FakeSocket([_START]), started, seed=AsyncMock(return_value=history))
+    assert check.await_args.args[1:] == (started.conversation_id, history)
+    assert started.prepared.realtime.call_args.kwargs["message_history"] is history

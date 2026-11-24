@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { NextIntlClientProvider } from "next-intl";
@@ -45,4 +46,18 @@ describe("AvatarColorPicker", () => {
     await userEvent.click(screen.getByRole("radio", { name: "Automatic colour" }));
     expect(onChange).toHaveBeenCalledWith(null);
   });
+});
+
+it("uses native radio keyboard navigation with one chosen color", async () => {
+  function Picker() {
+    const [value, setValue] = useState<number | null>(null);
+    return <AvatarColorPicker value={value} onChange={setValue} />;
+  }
+  render(<Picker />);
+  screen.getByRole("radio", { name: "Automatic colour" }).focus();
+  await userEvent.keyboard("{ArrowRight}");
+  expect(screen.getByRole("radio", { name: "Colour 1" })).toBeChecked();
+  expect(screen.getByRole("radio", { name: "Colour 1" })).toHaveFocus();
+  await userEvent.keyboard("{ArrowLeft}");
+  expect(screen.getByRole("radio", { name: "Automatic colour" })).toBeChecked();
 });

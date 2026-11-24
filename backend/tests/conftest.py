@@ -88,7 +88,7 @@ if not _a_password_is_already_configured():
 
 
 from collections.abc import AsyncGenerator, Generator
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -279,6 +279,7 @@ def mock_redis() -> MagicMock:
     mock = MagicMock(spec=RedisClient)
     mock.ping = AsyncMock(return_value=True)
     mock.get = AsyncMock(return_value=None)
+    mock.getdel = AsyncMock(return_value=None)
     mock.set = AsyncMock(return_value=True)
     mock.delete = AsyncMock(return_value=1)
     mock.exists = AsyncMock(return_value=0)
@@ -300,10 +301,53 @@ async def mock_db_session() -> AsyncGenerator[AsyncMock]:
     # a coroutine and any service deferring work raises inside the mock rather than
     # in the code being tested.
     mock.info = {}
+    # AsyncSession's transaction inspection and no-autoflush context are synchronous.
+    # A stable transaction object also makes repeated tenant binding idempotent.
+    mock.get_transaction = MagicMock(return_value=MagicMock())
+    mock.in_nested_transaction = MagicMock(return_value=False)
+    mock.no_autoflush = MagicMock()
     yield mock
     from app.core.background import discard_deferred
 
     discard_deferred(mock)
+
+
+@pytest.fixture(autouse=True)
+def mock_table_rls_catalog(monkeypatch):
+    """Mock sessions model a deployment before activation, not PostgreSQL catalogs.
+
+    Existing service tests queue SQL business results on their mock sessions.
+    Keep metadata inspection out of that queue. Real AsyncSession objects always
+    inspect actual catalogs; active-policy unit cases override this state explicitly.
+    No binder, role check or policy enforcement is replaced.
+    """
+    from app.db import table_rls
+
+    read_catalog = table_rls.table_rls_state
+
+    async def catalog(db):
+        if isinstance(db, Mock):
+            return table_rls.TableRlsState(frozenset(), frozenset(), frozenset())
+        return await read_catalog(db)
+
+    monkeypatch.setattr(table_rls, "table_rls_state", catalog)
+
+
+@pytest.fixture
+def kb_contents_unread(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A knowledge base described over a mocked session: nothing in it, nothing using it.
+
+    `KnowledgeBaseService.describe` reads a base's documents, the agents bound to it
+    and the groups it is shared with, none of which a mocked session can answer.
+    """
+    monkeypatch.setattr(
+        "app.repositories.rag_document_repo.counts_by_scope", AsyncMock(return_value={})
+    )
+    for lookup in ("agents_using", "groups_sharing"):
+        monkeypatch.setattr(
+            f"app.services.knowledge_base.{lookup}",
+            AsyncMock(side_effect=lambda *_, resource_ids, **__: {i: [] for i in resource_ids}),
+        )
 
 
 @pytest.fixture

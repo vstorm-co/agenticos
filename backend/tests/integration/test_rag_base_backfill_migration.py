@@ -229,16 +229,21 @@ async def test_a_chunk_already_filed_is_not_refiled(
     assert await _filed_under(engine, "vd-app") == str(seeded["app"].id)
 
 
-async def test_after_the_backfill_the_app_base_no_longer_reads_the_persons_chunks(
+async def test_backfill_restores_each_bases_authorized_reads_from_quarantine(
     engine: AsyncEngine, schema_url: str, seeded: dict[str, KnowledgeBase]
 ) -> None:
-    """The point of the backfill: before it, both bases' chunks were unfiled with
-    no tenant, and the app base - read by every organization - listed the
-    person's document."""
+    """Legacy unfiled chunks stay quarantined until certain ownership is restored.
+
+    The modern reader already refuses ambiguous global chunks (#2773). The
+    earlier backfill can still restore authorized app and personal reads without
+    assigning the person's chunks to the app base.
+    """
     store = _store(engine)
     app_scope = seeded["app"].vector_scope
     before = {d.document_id for d in await store.get_documents(COLLECTION, app_scope)}
-    assert "vd-personal" in before
+    assert before == set()
+    raw = await store.get_documents(COLLECTION, VectorScope(tenant=None))
+    assert "vd-personal" in {document.document_id for document in raw}
 
     _run(schema_url, "up")
 

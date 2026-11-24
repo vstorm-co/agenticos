@@ -14,9 +14,9 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, status
 
-from app.agents.model_resolver import PROVIDERS
-from app.api.deps import Auth, ModelProfileSvc, SecretSvc, require
-from app.api.public_api import PUBLIC
+from app.agents.model_resolver import PROVIDERS, ModelApi, is_decision_api
+from app.api.deps import Auth, ModelProfileSvc, SecretSvc, require, require_media_catalog_access
+from app.api.public_api import ASSISTANT, PUBLIC
 from app.core.claude_subscription import CLAUDE_SUBSCRIPTION_PROVIDER
 from app.core.exceptions import AuthorizationError
 from app.core.field_errors import refused_field
@@ -56,6 +56,7 @@ from app.services.speech_to_text import LANGUAGES as SPEECH_TO_TEXT_LANGUAGES
 from app.services.speech_to_text import providers as speech_to_text_providers
 from app.services.text_to_speech_models import providers as text_to_speech_providers
 from app.services.video_models import providers as video_providers
+from app.services.workflow_media_catalog import video_support
 
 router = APIRouter()
 
@@ -63,7 +64,7 @@ router = APIRouter()
 @router.get(
     "/catalog",
     response_model=ProviderCatalog,
-    dependencies=[Depends(require(Perm.AGENTS_VIEW))],
+    dependencies=[ASSISTANT, Depends(require(Perm.AGENTS_VIEW))],
 )
 async def list_provider_catalog() -> Any:
     """Every selectable model provider, and the connection shape it needs.
@@ -109,7 +110,7 @@ async def list_model_profiles(service: ModelProfileSvc, ctx: Auth) -> Any:
     "/model-profiles",
     response_model=ModelProfileRead,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(require(Perm.CONNECTIONS_MANAGE))],
+    dependencies=[ASSISTANT, Depends(require(Perm.CONNECTIONS_MANAGE))],
 )
 async def create_model_profile(
     data: ModelProfileCreate, service: ModelProfileSvc, ctx: Auth
@@ -133,7 +134,7 @@ async def create_model_profile(
 @router.patch(
     "/model-profiles/{profile_id}",
     response_model=ModelProfileRead,
-    dependencies=[Depends(require(Perm.CONNECTIONS_MANAGE))],
+    dependencies=[ASSISTANT, Depends(require(Perm.CONNECTIONS_MANAGE))],
 )
 async def update_model_profile(
     profile_id: UUID, data: ModelProfileUpdate, service: ModelProfileSvc, ctx: Auth
@@ -172,7 +173,7 @@ async def delete_model_profile(profile_id: UUID, service: ModelProfileSvc, ctx: 
 @router.get(
     "/image-models",
     response_model=ImageProviderList,
-    dependencies=[Depends(require(Perm.AGENTS_VIEW))],
+    dependencies=[Depends(require_media_catalog_access)],
 )
 async def list_image_models() -> Any:
     """Which providers can draw an image, and which of their models may be asked to.
@@ -197,7 +198,12 @@ async def list_image_models() -> Any:
                 provider=entry.provider,
                 name=entry.name,
                 models=[
-                    ImageModelRead(id=model.id, name=model.name, description=model.description)
+                    ImageModelRead(
+                        id=model.id,
+                        name=model.name,
+                        description=model.description,
+                        workflow=model.workflow,
+                    )
                     for model in entry.models
                 ],
             )
@@ -284,6 +290,8 @@ async def list_realtime_models() -> Any:
                         supports_thinking=model.supports_thinking,
                         input_sample_rate=model.input_sample_rate,
                         output_sample_rate=model.output_sample_rate,
+                        unreported_token_usage=model.unreported_token_usage,
+                        default_language=model.default_language,
                     )
                     for model in entry.models
                 ],
@@ -348,7 +356,7 @@ async def list_text_to_speech_models() -> Any:
 @router.get(
     "/video-models",
     response_model=VideoProviderList,
-    dependencies=[Depends(require(Perm.AGENTS_VIEW))],
+    dependencies=[Depends(require_media_catalog_access)],
 )
 async def list_video_models() -> Any:
     """Which providers can make a video, and what each of their models can make.
@@ -379,6 +387,7 @@ async def list_video_models() -> Any:
                         resolutions=list(model.resolutions),
                         audio=model.audio,
                         first_frame=model.first_frame,
+                        workflow=video_support(model),
                     )
                     for model in entry.models
                 ],
@@ -400,6 +409,7 @@ async def list_provider_models(
     ctx: Auth,
     base_url: str | None = None,
     secret_id: UUID | None = None,
+    api: ModelApi | None = None,
 ) -> Any:
     """List suggestions; custom authenticated endpoints require a visible selected key."""
     if (
@@ -412,13 +422,18 @@ async def list_provider_models(
         if provider not in CUSTOM_LISTINGS:
             raise refused_field(
                 "base_url",
-                "Only OpenRouter, Stav and Otari support a custom model listing endpoint",
+                "Only OpenRouter, Stav, Otari, Custom (OpenAI-compatible) and Custom "
+                "(Anthropic-compatible) support a custom model listing endpoint",
             )
         if not ctx.has(Perm.CONNECTIONS_MANAGE):
             raise AuthorizationError(
                 message="Managing connections is required for a custom endpoint"
             )
         base_url = await validate_endpoint_url(base_url)
+        # The SDK's own path is below the endpoint, so an endpoint that already
+        # carries it is trimmed: the listing is asked for where the requests go.
+        if (spec := PROVIDERS.get(provider)) is not None:
+            base_url = spec.endpoint(base_url)
     if provider == CLAUDE_SUBSCRIPTION_PROVIDER and secret_id is not None:
         raise refused_field(
             "secret_id", "Claude subscriptions use the signed-in user's native connection"
@@ -435,7 +450,9 @@ async def list_provider_models(
         if sends_key
         else None
     )
-    models, source = await models_for(provider, api_key=api_key, base_url=base_url)
+    models, source = await models_for(
+        provider, api_key=api_key, base_url=base_url, **({"api": api} if api is not None else {})
+    )
     return ProviderModelList(
         items=[
             ProviderModelRead(
@@ -444,7 +461,8 @@ async def list_provider_models(
                 context_length=entry.context_length,
                 output_modalities=list(entry.output_modalities),
                 apis=[api for api in ("chat", "responses") if api in entry.surfaces],
-                chat_capable=stated_outputs(provider, entry.id, entry.output_modalities).chat,
+                chat_capable=not is_decision_api(provider, api)
+                and stated_outputs(provider, entry.id, entry.output_modalities).chat,
             )
             for entry in models
         ],

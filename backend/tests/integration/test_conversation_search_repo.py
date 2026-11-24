@@ -15,6 +15,7 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.channel_identity import ChannelIdentity
 from app.db.models.conversation import Conversation, Message
@@ -75,6 +76,7 @@ async def _say(
     at: datetime = _START,
     identity: ChannelIdentity | None = None,
     author: User | None = None,
+    thread_root_message_id: uuid.UUID | None = None,
 ) -> Message:
     message = Message(
         id=uuid.uuid4(),
@@ -84,6 +86,7 @@ async def _say(
         created_at=at,
         channel_identity_id=None if identity is None else identity.id,
         author_user_id=None if author is None else author.id,
+        thread_root_message_id=thread_root_message_id,
     )
     db.add(message)
     await db.flush()
@@ -103,7 +106,15 @@ async def _identity(db, name: str) -> ChannelIdentity:
 
 
 async def _search(
-    db, organization, user, query: str, *, participants=(), projects=(), limit: int = 10
+    db,
+    organization,
+    user,
+    query: str,
+    *,
+    participants=(),
+    projects=(),
+    limit: int = 10,
+    literal: bool = False,
 ):
     return await search_repo.search(
         db,
@@ -111,6 +122,7 @@ async def _search(
         organization_id=organization.id,
         readable=search_repo.readable_by(user.id, participants, projects),
         limit=limit,
+        literal=literal,
     )
 
 
@@ -175,6 +187,18 @@ class TestWhatTheIndexMatches:
 
         assert [hit.conversation_id for hit in found] == [wanted.id]
 
+    async def test_literal_search_treats_operator_punctuation_as_text(self, db):
+        organization = await _org(db)
+        owner = await _user(db)
+        both_terms = await _thread(db, organization, owner, title="both")
+        one_term = await _thread(db, organization, owner, title="one")
+        await _say(db, both_terms, "pricing for the hobby tier")
+        await _say(db, one_term, "pricing for the enterprise tier")
+
+        found = await _search(db, organization, owner, "pricing -hobby", literal=True)
+
+        assert [hit.conversation_id for hit in found] == [both_terms.id]
+
     async def test_a_query_of_nothing_matches_nothing_rather_than_everything(self, db):
         organization = await _org(db)
         owner = await _user(db)
@@ -209,6 +233,27 @@ class TestWhatComesBack:
         found = await _search(db, organization, owner, "pricing")
 
         assert "**pricing**" in found[0].snippet
+
+    async def test_a_hit_identifies_the_matching_room_reply(self, db):
+        organization = await _org(db)
+        owner = await _user(db)
+        thread = await _thread(db, organization, owner, title="#general")
+        parent = await _say(db, thread, "starting the thread")
+        matched_at = _START + timedelta(minutes=1)
+        reply = await _say(
+            db,
+            thread,
+            "transcriptneedle resolved",
+            at=matched_at,
+            thread_root_message_id=parent.id,
+        )
+
+        found = await _search(db, organization, owner, "transcriptneedle")
+
+        assert len(found) == 1
+        assert found[0].message_id == reply.id
+        assert found[0].thread_root_message_id == parent.id
+        assert found[0].matched_at == matched_at
 
     async def test_a_channel_hit_names_the_person_who_said_it(self, db):
         """A room has several people in it, so a snippet with no name is a quote
@@ -393,6 +438,39 @@ class TestWhoMayFindIt:
         window, _ = await search_repo.turns(db, conversation_id=thread.id, skip=0, limit=10)
         assert [turn.speaker_name for turn in window] == [teammate.email]
 
+    @pytest.mark.security
+    async def test_project_access_does_not_expose_internal_workflow_threads(
+        self, db: AsyncSession
+    ) -> None:
+        organization = await _org(db)
+        member = await _user(db)
+        project = await project_repo.create(
+            db,
+            organization_id=organization.id,
+            owner_user_id=member.id,
+            name="Launch",
+            description="",
+            instructions="",
+            default_agent_id=None,
+            backend="state",
+            visibility="org",
+        )
+        internal = await _thread(db, organization, None, title="internal workflow")
+        internal.project_id = project.id
+        internal.origin = "workflow"
+        await _say(db, internal, "private pricing context")
+
+        assert await _search(db, organization, member, "pricing", projects=[project.id]) == []
+        assert (
+            await search_repo.readable_conversation(
+                db,
+                conversation_id=internal.id,
+                organization_id=organization.id,
+                readable=search_repo.readable_by(member.id, (), [project.id]),
+            )
+            is None
+        )
+
     async def test_another_organizations_conversation_is_not_searchable(self, db):
         """Even the owner's own: the corpus is scoped to the organization the run
         is in, so switching organizations does not carry a thread across."""
@@ -472,3 +550,32 @@ class TestOpeningOne:
         turns, _ = await search_repo.turns(db, conversation_id=thread.id, skip=0, limit=10)
 
         assert [turn.speaker_name for turn in turns] == ["Anna Kowalska", None]
+
+
+@pytest.mark.security
+async def test_refused_text_cannot_rank_quote_or_title_a_model_search(db):
+    organization = await _org(db)
+    owner = await _user(db)
+    thread = await _thread(db, organization, owner, title="forbidden payload")
+    refused = await _say(db, thread, "forbidden payload pricing pricing pricing")
+    refused.guardrail_refused = True
+    await _say(db, thread, "pricing approved at forty")
+    await db.flush()
+
+    assert await _search(db, organization, owner, "forbidden") == []
+    found = await _search(db, organization, owner, "pricing")
+    assert len(found) == 1
+    assert found[0].hits == 1
+    assert found[0].title is None
+    assert "forbidden" not in found[0].snippet
+    turns, total = await search_repo.turns(db, conversation_id=thread.id, skip=0, limit=10)
+    assert total == 1
+    assert [turn.content for turn in turns] == ["pricing approved at forty"]
+
+    opened = await search_repo.readable_conversation(
+        db,
+        conversation_id=thread.id,
+        organization_id=organization.id,
+        readable=search_repo.readable_by(owner.id, ()),
+    )
+    assert opened is not None and opened.title is None

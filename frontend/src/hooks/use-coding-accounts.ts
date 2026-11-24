@@ -9,6 +9,8 @@ import {
   connectCodingAccount,
   disconnectCodingAccount,
   enableCodingAccount,
+  setCodingAccountDefault,
+  setCodingAccountPoolMember,
   completeCodingSignIn,
   startCodingSignIn,
 } from "@/lib/coding-accounts-api";
@@ -45,12 +47,16 @@ export function useCodingAccounts() {
   const complete = useMutation({ mutationFn: completeCodingSignIn, ...lifecycle });
   const disconnect = useMutation({ mutationFn: disconnectCodingAccount, ...lifecycle });
   const consent = useMutation({ mutationFn: enableCodingAccount, ...lifecycle });
+  const makeDefault = useMutation({ mutationFn: setCodingAccountDefault, ...lifecycle });
+  const poolMembership = useMutation({ mutationFn: setCodingAccountPoolMember, ...lifecycle });
   return {
     accounts,
     connect,
     complete,
     disconnect,
     consent,
+    makeDefault,
+    poolMembership,
     start,
     scope: `${tenant ?? ""}:${user ?? ""}`,
     ready: !!tenant && !!user,

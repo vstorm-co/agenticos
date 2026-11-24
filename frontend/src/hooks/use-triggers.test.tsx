@@ -3,7 +3,7 @@ import { renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useTriggers } from "./use-triggers";
+import { useTriggerAttempts, useTriggers } from "./use-triggers";
 import { apiClient } from "@/lib/api-client";
 import type { Trigger } from "@/types/triggers";
 
@@ -66,7 +66,9 @@ async function hook() {
 describe("useTriggers", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(apiClient.get).mockResolvedValue({ items: [trigger()], total: 1 });
+    vi.mocked(apiClient.get).mockImplementation(async (path) =>
+      path.includes("/attempts?") ? { items: [], total: 0 } : { items: [trigger()], total: 1 },
+    );
   });
 
   it("does not fetch until an agent is selected", () => {
@@ -134,10 +136,14 @@ describe("useTriggers", () => {
 
   it("fires a trigger on demand through its run endpoint", async () => {
     const { toast } = await import("sonner");
-    vi.mocked(apiClient.post).mockResolvedValue(trigger());
+    vi.mocked(apiClient.post).mockResolvedValue({
+      ...trigger(),
+      activation_id: "requested-fire",
+    });
     const result = await hook();
 
-    await result.current.runNow.mutateAsync("t1");
+    const pending = await result.current.runNow.mutateAsync("t1");
+    expect(pending.activation_id).toBe("requested-fire");
 
     expect(apiClient.post).toHaveBeenCalledWith("/agents/a1/triggers/t1/run", {});
     expect(toast.success).toHaveBeenCalledWith("Running now");
@@ -196,4 +202,18 @@ describe("useTriggers", () => {
     expect(toast.error).toHaveBeenCalledTimes(6);
     expect(toast.error).toHaveBeenCalledWith("You cannot run this agent");
   });
+});
+
+it.each([
+  { active: true, pending: false },
+  { active: false, pending: false },
+  { active: true, pending: true },
+])("reads bounded history while active=$active pending=$pending", async ({ active, pending }) => {
+  vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
+  const { result } = renderHook(
+    () => useTriggerAttempts(trigger({ is_active: active }), 2, pending),
+    { wrapper },
+  );
+  await waitFor(() => expect(result.current.isSuccess).toBe(true));
+  expect(apiClient.get).toHaveBeenCalledWith("/agents/a1/triggers/t1/attempts?skip=20&limit=10");
 });

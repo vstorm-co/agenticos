@@ -13,7 +13,12 @@ import { toast } from "sonner";
 import { ApiError, getErrorMessage } from "@/lib/api-error";
 import { apiClient } from "@/lib/api-client";
 import { invalidateSpeechSettings } from "@/lib/dictation-api";
-import { modelInUse, runsAgents } from "@/lib/model-profiles";
+import {
+  LISTED_ONLY_AT_ENDPOINT,
+  LISTED_WITH_KEY,
+  modelInUse,
+  runsAgents,
+} from "@/lib/model-profiles";
 import { qk } from "@/lib/query-keys";
 import type {
   ModelApi,
@@ -263,15 +268,25 @@ interface ProviderModelList {
   source: "live" | "curated" | "unlisted";
 }
 
-function providerModelsQuery(providerId: string, baseUrl?: string, secretId?: string) {
+function providerModelsQuery(
+  providerId: string,
+  baseUrl?: string,
+  secretId?: string,
+  decision = false,
+) {
   const params = new URLSearchParams();
+  if (decision) params.set("api", "decisions");
   if (baseUrl) params.set("base_url", baseUrl);
   if (secretId) params.set("secret_id", secretId);
   const query = params.size > 0 ? `?${params.toString()}` : "";
   return queryOptions({
-    queryKey: qk.providers.models(providerId, baseUrl, secretId),
+    queryKey: [
+      ...qk.providers.models(providerId, baseUrl, secretId),
+      ...(decision ? ["decisions"] : []),
+    ],
     queryFn: () => apiClient.get<ProviderModelList>(`/providers/${providerId}/models${query}`),
     staleTime: 60 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
     // An empty dropdown is the fallback the field is built for, so a provider
     // that cannot be reached must not retry three times behind an open form.
     retry: false,
@@ -290,22 +305,67 @@ function providerModelsQuery(providerId: string, baseUrl?: string, secretId?: st
  * ships something, which is on the order of weeks, but a deployment that added
  * its first key should not have to reload to see a list.
  */
-export function useProviderModels(providerId: string, baseUrl?: string, secretId?: string) {
-  const { data, isFetching } = useQuery({
-    ...providerModelsQuery(providerId, baseUrl, secretId),
+export function useProviderModels(
+  providerId: string,
+  baseUrl?: string,
+  secretId?: string,
+  decision = false,
+) {
+  const { data, isFetching, refetch } = useQuery({
+    ...providerModelsQuery(providerId, baseUrl, secretId, decision),
     enabled:
       providerId !== "" &&
-      !(providerId === "otari" && !baseUrl) &&
-      !(["stav", "otari"].includes(providerId) && baseUrl && !secretId),
+      !(LISTED_ONLY_AT_ENDPOINT.includes(providerId) && !baseUrl) &&
+      !(LISTED_WITH_KEY.includes(providerId) && baseUrl && !secretId),
   });
 
   // Both fields this fills choose a model to talk to, so a speech or embedding
   // model is not a suggestion (#2487). The field stays free text, so the ids
   // left out are returned too, for a form to refuse one typed in.
   const items = data?.items ?? [];
-  const models = items.filter(runsAgents);
-  const refused = items.filter((entry) => !runsAgents(entry)).map((entry) => entry.id);
-  return { models, refused, source: data?.source ?? null, isLoading: isFetching };
+  const models = decision ? items : items.filter(runsAgents);
+  const refused = decision
+    ? []
+    : items.filter((entry) => !runsAgents(entry)).map((entry) => entry.id);
+  return {
+    models,
+    refused,
+    source: data?.source ?? null,
+    isLoading: isFetching,
+    hasCachedListing: data !== undefined,
+    refetch,
+  };
+}
+
+/** Verified workflow options from the server; absence means the model is unavailable there. */
+export interface ImageWorkflowSupport {
+  reference_image: boolean;
+  qualities: string[];
+  sizes: string[];
+  aspect_ratios: string[];
+  backgrounds: string[];
+  output_formats: string[];
+  defaults: {
+    quality: string | null;
+    size: string | null;
+    aspect_ratio: string | null;
+    background: string | null;
+    output_format: string | null;
+  };
+  max_input_tokens: number;
+  max_output_tokens: number;
+  input_usd_per_million: string;
+  output_usd_per_million: string;
+  tool_prompt_max_characters: number;
+  tool_input_usd_per_million: string;
+  output_prices: {
+    size: string;
+    quality: string;
+    output_estimate_usd: string;
+    output_ceiling_usd: string;
+  }[];
+  pricing_as_of: string;
+  sources: string[];
 }
 
 /** One model that draws. */
@@ -314,6 +374,7 @@ export interface ImageModel {
   name: string;
   /** When to reach for this one rather than another. */
   description: string;
+  workflow?: ImageWorkflowSupport | null;
 }
 
 /** One provider that can draw, and what may be chosen on it. */
@@ -446,6 +507,18 @@ export function useTextToSpeechProviders() {
 }
 
 /** One model that makes video, and what it can make. */
+export interface VideoWorkflowSupport {
+  reference_image: boolean;
+  pricing_as_of: string;
+  usd_per_second: Record<string, string>;
+  defaults: {
+    resolution: string;
+    aspect_ratio: string;
+    seconds: number | null;
+    audio: boolean | null;
+  };
+}
+
 export interface VideoModel {
   id: string;
   name: string;
@@ -460,6 +533,7 @@ export interface VideoModel {
   resolutions: string[];
   audio: "always" | "optional" | "never";
   first_frame: boolean;
+  workflow?: VideoWorkflowSupport | null;
 }
 
 /** One provider that can make video, and what may be chosen on it. */

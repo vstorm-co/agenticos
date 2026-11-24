@@ -152,6 +152,7 @@ describe("the commands", () => {
     await commands.notify({ kind: "inbox", title: "t", body: "b", path: "/runs" });
     await commands.setBadge(3.7);
     await commands.setBadge(-2);
+    await commands.openConsent("https://consent.example");
     await commands.openInConsole("/chat");
     await commands.openChat();
     await commands.showConsole();
@@ -171,6 +172,7 @@ describe("the commands", () => {
       ["notify", { notice: { kind: "inbox", title: "t", body: "b", path: "/runs" } }],
       ["set_badge", { count: 3 }],
       ["set_badge", { count: 0 }],
+      ["open_consent", { url: "https://consent.example" }],
       ["open_in_console", { path: "/chat" }],
       ["open_chat"],
       ["show_console"],

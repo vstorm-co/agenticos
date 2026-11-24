@@ -28,6 +28,13 @@ from app.services.sandbox_workspace import WorkspaceContents
 
 pytestmark = pytest.mark.anyio
 
+
+@pytest.fixture(autouse=True)
+def context_change_dispatch():
+    with patch("app.services.proactive.ProactiveService.queue_context_change", new=AsyncMock()):
+        yield
+
+
 ORG = uuid.uuid4()
 
 
@@ -297,6 +304,9 @@ class TestCreatingAndChanging:
             patch.object(
                 module.project_repo, "ownerless_chat_ids", AsyncMock(return_value=[orphan])
             ),
+            patch.object(
+                module.personal_data_repo, "unlink_dataset_cases_from_conversation", AsyncMock()
+            ) as unlinked,
             patch.object(module.ConversationService, "forget_stored_files", AsyncMock()) as forgot,
             patch.object(module.project_repo, "detach_conversations", AsyncMock()) as detached,
             patch.object(module.resource_grant_repo, "delete_for_resource", AsyncMock()) as grants,
@@ -316,6 +326,7 @@ class TestCreatingAndChanging:
         service.workspaces.purge_project.assert_awaited_once()
         # The chats deleted with it take their files: nothing else would unlink them.
         assert forgot.await_args.args[1] == [orphan]
+        assert unlinked.await_args.args[1] == orphan
         detached.assert_awaited_once()
         assert grants.await_args.kwargs["resource_type"] == "project"
         deleted.assert_awaited_once()
@@ -840,3 +851,18 @@ async def test_project_sandbox_selection_refuses_inactive_unavailable_and_unauth
             pytest.raises(AuthorizationError),
         ):
             await service.create(_ctx(), ProjectCreate(name="Build", sandbox_connection_id=host.id))
+
+
+async def test_a_project_edit_refreshes_only_the_authenticated_person() -> None:
+    project = _project()
+    service = _service(project, Perm.PROJECTS_VIEW, Perm.PROJECTS_EDIT)
+    ctx = _ctx()
+    with (
+        patch.object(module.project_repo, "update", new=AsyncMock(return_value=project)),
+        patch.object(module, "record_audit", new=AsyncMock()),
+        patch(
+            "app.services.proactive.ProactiveService.queue_context_change", new=AsyncMock()
+        ) as queue,
+    ):
+        assert await service.update(ctx, project.id, ProjectUpdate(name="Updated")) is project
+    queue.assert_awaited_once_with(ORG, ctx.user_id)

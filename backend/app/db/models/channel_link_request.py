@@ -35,7 +35,9 @@ class ChannelLinkRequest(Base, TimestampMixin):
     __table_args__ = (
         # One outstanding request per chat account: asking again replaces it, so
         # a URL that scrolled out of view stops working rather than lingering.
-        UniqueConstraint("platform", "platform_user_id", name="channel_link_requests_identity_key"),
+        UniqueConstraint(
+            "platform", "platform_user_id", "server_url", name="channel_link_requests_identity_key"
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -43,10 +45,14 @@ class ChannelLinkRequest(Base, TimestampMixin):
     # sharing one would make which account gets claimed a matter of row order.
     token: Mapped[str] = mapped_column(String(64), unique=True, index=True, nullable=False)
     platform: Mapped[str] = mapped_column(String(20), nullable=False)
-    platform_user_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    server_url: Mapped[str] = mapped_column(
+        String(500), nullable=False, default="", server_default=""
+    )
+    """Matrix's asserting homeserver; empty retains other platforms' global keys."""
+    platform_user_id: Mapped[str] = mapped_column(String(255), nullable=False)
     # Shown on the confirmation page, so somebody can see *which* chat account
     # they are about to become - a token alone would ask them to trust a URL.
-    platform_username: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    platform_username: Mapped[str | None] = mapped_column(String(255), nullable=True)
     platform_display_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 

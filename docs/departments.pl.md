@@ -1,5 +1,5 @@
 ---
-source_sha: "5f28c27a069e"
+source_sha: "4bd4dc67a376"
 ---
 
 # Działy i grupy { #departments-and-groups }
@@ -17,6 +17,10 @@ zostaje otwarte dla całej organizacji.
 przyciskiem **Dodaj działy**, który proponuje Sprzedaż, Finanse, HR, Wsparcie,
 Inżynierię, Marketing, Dział prawny i Operacje, każdy z ikoną i krótkim opisem.
 Potem można zmienić im nazwę, ikonę albo je usunąć jak każdą inną grupę.
+
+Działy mają karty z ikoną, opisem i liczbą członków. Wyszukuj je po nazwie
+lub opisie. W formularzu **Nowa grupa** wybierz ikonę obok nazwy; opcjonalny
+miesięczny limit znajdziesz pod **Limitem budżetu**.
 
 Ludzi dodaje się do grupy na jej stronie, ręcznie, albo przez
 [mapowanie grupy katalogowej](directory.md#directory-group-mappings), jeśli firma
@@ -78,13 +82,18 @@ z poziomem udostępnienia każdego. Czytający widzi tylko to, co i tak mógłby
 otworzyć, więc członek Sprzedaży czytający stronę Finansów nie dowie się, co
 Finanse trzymają.
 
+Współdzielone zasoby są przed panelami użycia i jakości odpowiedzi. Na telefonie
+edycję grupy znajdziesz w dodatkowych akcjach strony. Podczas zapisywania zmian
+członkostwa lub udostępniania pola i zamknięcie okna są zablokowane. Odmowa
+zachowuje wybory, żeby można było ponowić zapis.
+
 **Dodaj do tej grupy** udostępnia kilka rzeczy naraz: pokazuje wszystko, co
 czytający może edytować, a czego grupa jeszcze nie ma, z wyszukiwarką, polem do
 zaznaczenia przy każdej rzeczy i poziomem udostępnienia. Każde to ten sam grant,
 który zapisuje panel Share, więc wymaga tego samego prawa do edycji.
 
 Członkowie dostają powiadomienie, gdy coś udostępniono ich grupie - w skrzynce i,
-jeśli chcą, e-mailem; *Shared with your group* w ustawieniach powiadomień to
+jeśli chcą, e-mailem; *Shared with you or your group* w ustawieniach powiadomień to
 wyłącza. Karty w całej konsoli mówią, dla kogo jest każda rzecz: *Wszyscy*, jej
 działy z nazwy - jedno i drugie, gdy jest dla wszystkich i należy do działu -
 albo *Prywatne*.

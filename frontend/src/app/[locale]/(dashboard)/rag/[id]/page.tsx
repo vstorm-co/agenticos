@@ -4,9 +4,10 @@ import { ListChecks, RefreshCw } from "lucide-react";
 import { DocumentIcon as Files } from "@/components/icons/product-icons";
 
 import { use, useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useConsoleRouter as useRouter } from "@/hooks/use-console-router";
 
 import { ROUTES } from "@/lib/constants";
+import { Perm } from "@/types/permissions";
 import {
   Alert,
   AlertDescription,
@@ -19,6 +20,7 @@ import {
   TabsTrigger,
 } from "@/components/ui";
 import { SyncSourceWizard } from "@/components/rag/sync-source-wizard";
+import { ErrorState } from "@/components/states";
 import { KBDetailSkeleton } from "@/components/rag/kb-detail-skeleton";
 import { KBDetailHeader } from "@/components/rag/kb-detail-header";
 import { KBStatsStrip } from "@/components/rag/kb-stats-strip";
@@ -31,11 +33,13 @@ import { EmbeddingDialog } from "@/components/kb/embedding-dialog";
 import { IngestionDialog } from "@/components/kb/ingestion-dialog";
 import { IngestionPanel } from "@/components/kb/ingestion-panel";
 import { UploadOverrideDialog } from "@/components/kb/upload-override-dialog";
+import { KnowledgeGapsPanel } from "@/components/knowledge-gaps/knowledge-gaps-panel";
+import { gapStatus } from "@/lib/knowledge-gap-status";
 import { useKBDetail, usePermissions, usePollWhileIngesting, useUrlState } from "@/hooks";
+import { useUrlOverlay } from "@/hooks/use-url-state";
 import { overrideSize } from "@/lib/ingestion-config";
 import type { SyncSourceRead } from "@/lib/rag-api";
 import type { IngestionOverride, KBDocument } from "@/types";
-import { Perm } from "@/types/permissions";
 import { useTranslations } from "next-intl";
 
 interface KBDetailPageProps {
@@ -43,14 +47,17 @@ interface KBDetailPageProps {
 }
 
 /** Which section of a knowledge base is on screen. `?tab=` from the start (#939). */
-type KBTab = "documents" | "ingestion" | "sync";
+type KBTab = "documents" | "ingestion" | "sync" | "gaps";
 
-function parseTab(value: string | null): KBTab {
+/** `gaps` only for a caller who may see it: a link naming it otherwise opens the documents. */
+function parseTab(value: string | null, maySeeGaps: boolean): KBTab {
+  if (value === "gaps") return maySeeGaps ? value : "documents";
   return value === "ingestion" || value === "sync" ? value : "documents";
 }
 
 export default function KBDetailPage({ params }: KBDetailPageProps) {
   const t = useTranslations("pages.kb");
+  const tGaps = useTranslations("knowledgeGaps");
   const router = useRouter();
   const { id } = use(params);
 
@@ -68,7 +75,9 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
   // hydration mismatch and flashes the documents before the named section
   // appears.
   const [tabParam, setTabParam] = useUrlState("tab");
-  const tab = parseTab(tabParam);
+  // A run in Activity links to the gap topic it drafted.
+  const [topicParam, topicView] = useUrlOverlay("topic");
+  const [gapStatusParam, setGapStatusParam] = useUrlState("status");
   const setTab = (next: KBTab) => setTabParam(next === "documents" ? null : next);
   const {
     kb,
@@ -102,11 +111,13 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
     deleteSyncSource,
   } = useKBDetail(id);
 
-  // Presentation, never enforcement - the write routes resolve access per
-  // row on the server. A Viewer holds `collections:view` only; offering them
-  // upload and delete would be offering actions that can only refuse.
+  // The same per-resource decision as the write routes, including grants.
+  const mayEdit = kb?.can_edit === true;
+  // A topic is made of people's questions, which the server shows only to a
+  // member who reads every run.
   const { can } = usePermissions();
-  const mayEdit = can(Perm.collectionsEdit);
+  const maySeeGaps = can(Perm.runsView);
+  const tab = parseTab(tabParam, maySeeGaps);
 
   const [wizardOpen, setWizardOpen] = useState(false);
   const [creatingSource, setCreatingSource] = useState(false);
@@ -189,19 +200,26 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
     }
   };
 
-  if (isLoading && !kb) return <KBDetailSkeleton />;
+  if (isLoading && !kb) return <KBDetailSkeleton tab={tab} showGaps={maySeeGaps} />;
   // A cold failure of a load-bearing read - the collection or its documents -
   // takes the whole page. A failed *refresh* does not reach here: it keeps `kb`
   // and shows the "may be stale" banner below instead.
   if (loadFailed) {
     return (
-      <div className="text-destructive flex h-64 items-center justify-center text-sm">{error}</div>
+      <ErrorState
+        description={error ?? undefined}
+        cta={{ label: t("retry"), onClick: () => refresh() }}
+      />
     );
   }
   if (!kb) return null;
 
   return (
-    <FileDropZone collectionName={kb.name} onFiles={handleFiles} className="flex flex-1 flex-col">
+    <FileDropZone
+      collectionName={kb.name}
+      onFiles={handleFiles}
+      className="flex min-h-0 flex-1 flex-col"
+    >
       <input
         ref={fileInputRef}
         type="file"
@@ -309,7 +327,7 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
       <Tabs
         value={tab}
         onValueChange={(next) => setTab(next as KBTab)}
-        className="flex flex-1 flex-col"
+        className="flex min-h-0 flex-1 flex-col"
       >
         <TabsList data-tour="kb-tabs">
           <TabsTrigger value="documents" data-tour="kb-tab-documents">
@@ -324,9 +342,14 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
             <RefreshCw className="size-4 shrink-0" aria-hidden />
             {t("syncSources")}
           </TabsTrigger>
+          {maySeeGaps && (
+            <TabsTrigger value="gaps" data-tour="kb-tab-gaps">
+              {tGaps("tab")}
+            </TabsTrigger>
+          )}
         </TabsList>
 
-        <TabsContent value="documents" className="flex flex-1 flex-col">
+        <TabsContent value="documents" className="flex min-h-0 flex-1 flex-col">
           <DocumentsTable
             kbId={id}
             documents={documents}
@@ -342,8 +365,8 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
           />
         </TabsContent>
 
-        <TabsContent value="ingestion" className="flex flex-1 flex-col">
-          <div className="flex flex-1 flex-col" data-tour="kb-ingestion">
+        <TabsContent value="ingestion" className="flex min-h-0 flex-1 flex-col">
+          <div className="flex min-h-0 flex-1 flex-col" data-tour="kb-ingestion">
             <IngestionPanel
               kb={kb}
               onEdit={mayEdit ? () => setIngestionOpen(true) : undefined}
@@ -352,7 +375,7 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
           </div>
         </TabsContent>
 
-        <TabsContent value="sync" className="flex flex-1 flex-col">
+        <TabsContent value="sync" className="flex min-h-0 flex-1 flex-col">
           <SyncSourcesSection
             kbId={id}
             syncSources={syncSources}
@@ -375,6 +398,22 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
             onRetry={() => refresh()}
           />
         </TabsContent>
+
+        {maySeeGaps && (
+          <TabsContent value="gaps" className="flex min-h-0 flex-1 flex-col">
+            <div className="flex min-h-0 flex-1 flex-col" data-tour="kb-gaps">
+              <KnowledgeGapsPanel
+                scope={{ kind: "collection", id }}
+                topicId={topicParam}
+                onTopicChange={(topic) =>
+                  topic === null ? topicView.close() : topicView.open(topic)
+                }
+                status={gapStatus(gapStatusParam)}
+                onStatusChange={(next) => setGapStatusParam(next === "open" ? null : next)}
+              />
+            </div>
+          </TabsContent>
+        )}
       </Tabs>
 
       {/* The count is the collection's, not the table's. Documents page in

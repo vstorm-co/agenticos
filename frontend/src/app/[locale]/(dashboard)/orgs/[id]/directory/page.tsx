@@ -7,7 +7,7 @@ import { useTranslations } from "next-intl";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { DirectoryMappingDialog } from "@/components/orgs/directory-mapping-dialog";
 import { DirectoryMappingList } from "@/components/orgs/directory-mapping-list";
-import { EmptyState, ErrorState, LoadingState } from "@/components/states";
+import { EmptyState, ErrorState } from "@/components/states";
 import { ConfirmDialog } from "@/components/ui";
 import { useDirectoryMappings, usePermissions } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
@@ -32,7 +32,7 @@ export default function DirectoryPage({ params }: PageProps) {
   const { can, isLoaded, error: permissionsError } = usePermissions();
   const canRead = can(Perm.membersManage);
   const canEdit = canRead && can(Perm.rolesManage);
-  const { mappings, isLoading, error, remove } = useDirectoryMappings(orgId, canRead);
+  const { mappings, isLoading, error, refetch, remove } = useDirectoryMappings(orgId, canRead);
   const [adding, setAdding] = useState(false);
   const [deleting, setDeleting] = useState<DirectoryMapping | null>(null);
 
@@ -60,12 +60,20 @@ export default function DirectoryPage({ params }: PageProps) {
   // retention page's reasoning (#1420 review).
   if (permissionsError || !isLoaded || !canRead) {
     return (
-      <div className="space-y-4">
+      <div className="flex min-h-0 flex-1 flex-col gap-4">
         {header}
         {permissionsError ? (
           <ErrorState />
         ) : !isLoaded ? (
-          <LoadingState variant="skeleton-table" columns={3} rows={4} />
+          <DirectoryMappingList
+            mappings={[]}
+            onRetry={() => void refetch()}
+            isLoading
+            error={null}
+            canEdit={false}
+            onAdd={() => setAdding(true)}
+            onDelete={setDeleting}
+          />
         ) : (
           <EmptyState icon={Network} title={t("notYours")} description={t("askAnAdmin")} />
         )}
@@ -73,17 +81,13 @@ export default function DirectoryPage({ params }: PageProps) {
     );
   }
 
-  const confirmDelete = async (mapping: DirectoryMapping) => {
-    await remove.mutateAsync(mapping.id).catch(() => undefined);
-    setDeleting(null);
-  };
-
   return (
-    <div className="space-y-4">
+    <div className="flex min-h-0 flex-1 flex-col gap-4">
       {header}
 
       <DirectoryMappingList
         mappings={mappings}
+        onRetry={() => void refetch()}
         isLoading={isLoading}
         error={error}
         canEdit={canEdit}
@@ -101,7 +105,7 @@ export default function DirectoryPage({ params }: PageProps) {
           confirmLabel={t("delete")}
           destructive
           loading={remove.isPending}
-          onConfirm={() => confirmDelete(deleting)}
+          onConfirm={() => remove.mutate(deleting.id, { onSuccess: () => setDeleting(null) })}
         />
       )}
     </div>

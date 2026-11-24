@@ -210,6 +210,22 @@ class TestKeepingATurn:
             await live_turn.publish(turn, kind, {})
         assert store.lists.get(turn.key("trace"), []) == []
 
+    async def test_a_parked_question_is_not_broadcast_to_other_conversation_readers(
+        self, store: _Store
+    ) -> None:
+        """Only the run's person may answer; other readers recover its saved
+        waiting step when the turn ends, rather than receiving its private card."""
+        turn = await _begin()
+
+        await live_turn.publish(
+            turn,
+            "user_question_required",
+            {"run_id": str(uuid4()), "questions": [{"tool_call_id": "ask-1", "questions": []}]},
+        )
+
+        assert store.lists.get(turn.key("trace"), []) == []
+        assert store.published == []
+
     async def test_a_browses_pictures_are_announced_and_never_kept(self, store: _Store) -> None:
         """A screenshot a twelfth of a second, kept, filled Redis on one long
         browse; a follower arriving mid-browse just gets the next one."""
@@ -312,6 +328,88 @@ class TestKeepingATurn:
             "3",
         ]
         assert frames[-1] == (live_turn.END, {"conversation_id": CONVERSATION})
+
+    @pytest.mark.parametrize("during_replay", [True, False], ids=["snapshot", "quiet"])
+    @pytest.mark.parametrize("saved", [True, False], ids=["saved", "unsaved"])
+    async def test_a_turn_finishing_during_follow_keeps_its_final_outcome(
+        self, store: _Store, during_replay: bool, saved: bool
+    ) -> None:
+        """A final outcome must reach the reader even if the writer ends before
+        the follower checks its alive key after replay or a quiet channel."""
+        turn = await _begin()
+        follower = live_turn.follow(CONVERSATION, turn.token)
+        outcome = (
+            ("message_saved", {"message_id": "saved-answer"})
+            if saved
+            else ("error", {"code": "message_save_failed", "message": "Could not save the answer"})
+        )
+        try:
+            await live_turn.publish(turn, "model_request_start", {})
+            await live_turn.publish(turn, "text_delta", {"content": "Ready"})
+            first = await anext(follower)
+
+            async def finish() -> None:
+                await live_turn.publish(turn, *outcome)
+                await live_turn.publish(turn, "complete", {})
+                await live_turn.end(turn)
+
+            if during_replay:
+                await finish()
+            else:
+                store.on_quiet = finish
+
+            frames = [first, *[frame async for frame in follower]]
+            assert [(frame["type"], frame["data"]) for frame in frames] == [
+                ("model_request_start", {}),
+                ("text_delta", {"content": "Ready"}),
+                outcome,
+                ("complete", {}),
+                (live_turn.END, {"conversation_id": CONVERSATION}),
+            ]
+            assert [frame["seq"] for frame in frames] == [1, 2, 3, 4, 5]
+        finally:
+            await follower.aclose()
+            await live_turn.end(turn)
+
+    async def test_a_final_trace_recovery_skips_malformed_frames(self, store: _Store) -> None:
+        turn = await _begin()
+        follower = live_turn.follow(CONVERSATION, turn.token)
+        try:
+            await live_turn.publish(turn, "text_delta", {"content": "Ready"})
+            assert (await anext(follower))["type"] == "text_delta"
+            await store.rpush(turn.key("trace"), "not json")
+            await live_turn.publish(turn, "message_saved", {"message_id": "saved-answer"})
+            await live_turn.end(turn)
+
+            frames = [frame async for frame in follower]
+            assert [(frame["type"], frame["data"]) for frame in frames] == [
+                ("message_saved", {"message_id": "saved-answer"}),
+                (live_turn.END, {"conversation_id": CONVERSATION}),
+            ]
+        finally:
+            await follower.aclose()
+            await live_turn.end(turn)
+
+    async def test_a_final_trace_read_that_stops_answering_ends_the_follow(
+        self, store: _Store, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(live_turn.redis_view, "TIMEOUT_SECONDS", 0.01)
+        turn = await _begin()
+        follower = live_turn.follow(CONVERSATION, turn.token)
+        try:
+            await live_turn.publish(turn, "text_delta", {"content": "Ready"})
+            assert (await anext(follower))["type"] == "text_delta"
+            await live_turn.end(turn)
+
+            async def never_answers(_key: str) -> list[str]:
+                return await asyncio.Future[list[str]]()
+
+            assert live_turn._redis is not None
+            monkeypatch.setattr(live_turn._redis, "list_range", never_answers)
+            assert [frame async for frame in follower] == []
+        finally:
+            await follower.aclose()
+            await live_turn.end(turn)
 
     async def test_a_writer_that_died_without_a_terminal_frame_is_not_waited_on(
         self, store: _Store
@@ -645,7 +743,7 @@ class TestFollowingFromAnotherSocket:
         await self._attach(session, CONVERSATION)
 
         assert _sent_events(session) == [
-            ("turn_attached", {"conversation_id": CONVERSATION}),
+            ("turn_attached", {"conversation_id": CONVERSATION, "thread_root_message_id": None}),
             ("model_request_start", {}),
             ("text_delta", {"index": 0, "content": "Reading"}),
             (live_turn.END, {"conversation_id": CONVERSATION}),
@@ -658,6 +756,28 @@ class TestFollowingFromAnotherSocket:
         session = _session()
         await self._attach(session, conversation)
         assert _sent_events(session) == []
+
+    @pytest.mark.parametrize("first_kind", ["turn_prompt", "model_request_start", "text_delta"])
+    async def test_attachment_names_its_thread_before_even_a_trimmed_replay(
+        self, store: _Store, first_kind: str
+    ) -> None:
+        root_id = str(uuid4())
+        turn = await _begin()
+        await live_turn.publish(
+            turn, first_kind, {"thread_root_message_id": root_id, "content": "Thread answer"}
+        )
+        store.on_listen = lambda: live_turn.end(turn)
+        session = _session()
+
+        await self._attach(session, CONVERSATION)
+
+        first, replayed, *_rest = _sent_events(session)
+        assert first == (
+            "turn_attached",
+            {"conversation_id": CONVERSATION, "thread_root_message_id": root_id},
+        )
+        assert replayed[0] == first_kind
+        assert replayed[1]["thread_root_message_id"] == root_id
 
     async def test_a_conversation_with_no_turn_running_is_answered_with_nothing(
         self, store: _Store
@@ -1256,6 +1376,62 @@ class TestTheRoom:
             await session._hear_room(CONVERSATION)
         assert reads.await_count == 1
 
+    @pytest.mark.parametrize(
+        ("kind", "field"),
+        [
+            ("room_message", "message_id"),
+            ("room_request", "request_id"),
+            ("room_reaction", "message_id"),
+            ("room_thread", "thread_root_message_id"),
+        ],
+    )
+    async def test_saved_room_events_name_the_room_and_durable_row_without_following_a_turn(
+        self,
+        kind: str,
+        field: str,
+    ) -> None:
+        session = _session()
+        session._room = CONVERSATION
+        room = self._room(events=[{"type": kind, field: "saved-1", "ignored": "not forwarded"}])
+        follow = AsyncMock()
+        with (
+            patch.object(session, "_still_reads", AsyncMock(return_value=True)),
+            patch.object(session, "_follow_if_running", follow),
+            patch.multiple("app.services.agent_session.chat_room", **room),
+        ):
+            await session._hear_room(CONVERSATION)
+        assert [data for event, data in _sent_events(session) if event == kind] == [
+            {"conversation_id": CONVERSATION, field: "saved-1"}
+        ]
+        follow.assert_not_awaited()
+
+    @pytest.mark.security
+    @pytest.mark.parametrize("allowed", [False, True])
+    async def test_membership_event_invalidates_cached_access_before_relay(self, allowed) -> None:
+        session = _session()
+        session._room = CONVERSATION
+        session._reads_until = float("inf")
+        room = self._room(events=[{"type": "room_participants", "members": ["private"]}])
+        reads, follow, stop = AsyncMock(return_value=allowed), AsyncMock(), AsyncMock()
+        with (
+            patch.object(session, "_send_presence", AsyncMock()),
+            patch.object(session, "_still_reads", reads),
+            patch.object(session, "_follow_if_running", follow),
+            patch.object(session, "_stop_following", stop),
+            patch.multiple("app.services.agent_session.chat_room", **room),
+        ):
+            await session._hear_room(CONVERSATION)
+        reads.assert_awaited_once_with(CONVERSATION)
+        sent = [data for kind, data in _sent_events(session) if kind == "room_participants"]
+        assert sent == ([{"conversation_id": CONVERSATION}] if allowed else [])
+        follow.assert_not_awaited()
+        if allowed:
+            stop.assert_not_awaited()
+        else:
+            stop.assert_awaited_once()
+            room["leave"].assert_awaited_once_with(CONVERSATION, session.user.id, session._socket)
+            assert session._room is None
+
     async def test_an_open_chat_keeps_saying_its_reader_is_here(self) -> None:
         session = _session()
         join = AsyncMock(side_effect=[None, asyncio.CancelledError()])
@@ -1286,7 +1462,7 @@ class TestTheRoom:
         session = _session()
         with patch.object(session, "_still_reads", AsyncMock(return_value=False)):
             await session._follow(CONVERSATION, turn.token)
-        assert [kind for kind, _ in _sent_events(session)] == ["turn_attached", live_turn.END]
+        assert [kind for kind, _ in _sent_events(session)] == [live_turn.END]
 
     async def test_a_followed_turn_still_readable_goes_on(
         self, store: _Store, monkeypatch: pytest.MonkeyPatch

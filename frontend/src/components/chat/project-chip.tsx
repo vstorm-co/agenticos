@@ -5,7 +5,8 @@ import { ProjectAvatar } from "@/components/projects/project-avatar";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { X } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { useTranslations } from "next-intl";
 import { useSearchParams } from "next/navigation";
 
@@ -19,11 +20,12 @@ import { useProjectOfConversation } from "@/hooks/use-projects";
 import { getProject } from "@/lib/projects-api";
 import { ROUTES } from "@/lib/constants";
 import { qk } from "@/lib/query-keys";
+import { apiClient } from "@/lib/api-client";
 import { setUrlParam } from "@/lib/utils";
 import { useAgentSelectionStore, useConversationStore } from "@/stores";
 
 /**
- * The project a chat is in, beside who answers it.
+ * The project a chat is in, above the composer.
  *
  * Before the first message it is a choice - picked from the `+`, or arriving as
  * `?project=` from a project's New chat - and can be dropped. Once the chat
@@ -33,12 +35,16 @@ export function ProjectChip({
   conversationId,
   pickerOpen,
   onPickerOpenChange,
+  readOnly = false,
 }: {
   conversationId: string | null;
   pickerOpen: boolean;
   onPickerOpenChange: (open: boolean) => void;
+  /** The thread is somebody else's, or its access is not known yet: the project can't be moved. */
+  readOnly?: boolean;
 }) {
   const t = useTranslations("projects");
+  const queryClient = useQueryClient();
   const searchParams = useSearchParams();
   const pending = useConversationStore((state) => state.pendingProjectId);
   const setPending = useConversationStore((state) => state.setPendingProjectId);
@@ -49,6 +55,26 @@ export function ProjectChip({
 
   const { data: started } = useProjectOfConversation(conversationId);
   const projectId = conversationId === null ? pending : (started ?? null);
+
+  const move = useMutation({
+    mutationFn: (nextProjectId: string | null) =>
+      apiClient.patch(`/conversations/${conversationId}`, { project_id: nextProjectId }),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: qk.conversations.all() }),
+        queryClient.invalidateQueries({
+          queryKey: qk.conversations.messages(conversationId ?? ""),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: qk.conversations.projectOf(conversationId ?? ""),
+        }),
+        queryClient.invalidateQueries({ queryKey: qk.projects.all() }),
+      ]);
+      onPickerOpenChange(false);
+      toast.success(t("moved"));
+    },
+    onError: () => toast.error(t("moveFailed")),
+  });
 
   const shell = useShell();
   const local = useProjectFolder(projectId);
@@ -98,12 +124,25 @@ export function ProjectChip({
         // mark where the avatar sits - so the two read as one row of choices.
         <span className="bg-foreground/[0.06] text-foreground inline-flex max-w-48 min-w-0 items-center gap-1.5 rounded-lg py-1 pr-1.5 pl-1">
           <ProjectAvatar name={project.name} size="sm" />
-          <Link
-            href={ROUTES.PROJECT_DETAIL(project.id)}
-            className="truncate text-sm font-medium hover:underline"
-          >
-            {project.name}
-          </Link>
+          {conversationId === null ? (
+            <Link
+              href={ROUTES.PROJECT_DETAIL(project.id)}
+              className="truncate text-sm font-medium hover:underline"
+            >
+              {project.name}
+            </Link>
+          ) : readOnly ? (
+            <span className="truncate text-sm font-medium">{project.name}</span>
+          ) : (
+            <button
+              type="button"
+              className="truncate text-left text-sm font-medium hover:underline"
+              onClick={() => onPickerOpenChange(true)}
+              aria-label={t("changeProject", { name: project.name })}
+            >
+              {project.name}
+            </button>
+          )}
           {conversationId === null && (
             <button
               type="button"
@@ -119,8 +158,12 @@ export function ProjectChip({
       <ProjectPickerDialog
         open={pickerOpen}
         onOpenChange={onPickerOpenChange}
-        selectedId={pending}
+        selectedId={projectId}
         onPick={(picked) => {
+          if (conversationId !== null) {
+            move.mutate(picked?.id ?? null);
+            return;
+          }
           setPending(picked?.id ?? null);
           if (picked?.default_agent_id) selectAgent(picked.default_agent_id);
         }}

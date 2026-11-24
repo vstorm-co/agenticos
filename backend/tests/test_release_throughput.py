@@ -160,7 +160,7 @@ def test_browser_key_invalidates_all_build_inputs() -> None:
 
 
 def test_retagging_still_scans_and_generates_every_sbom() -> None:
-    workflow = yaml.safe_load((ROOT / ".github/workflows/images.yml").read_text())
+    workflow = yaml.safe_load((ROOT / ".github/workflows-disabled/images.yml").read_text())
     for name in ("scan", "sbom"):
         condition = workflow["jobs"][name]["if"]
         assert "!cancelled()" in condition
@@ -169,7 +169,7 @@ def test_retagging_still_scans_and_generates_every_sbom() -> None:
 
 
 def test_production_automatic_deploys_follow_stable_releases() -> None:
-    workflow = yaml.safe_load((ROOT / ".github/workflows/deploy.yml").read_text())
+    workflow = yaml.safe_load((ROOT / ".github/workflows-disabled/deploy.yml").read_text())
     assert "push" not in workflow[True]
     assert workflow[True]["release"] == {"types": ["published"]}
     assert "workflow_dispatch" in workflow[True]
@@ -225,7 +225,7 @@ esac
 """)
     docker.chmod(0o755)
     output = tmp_path / "output"
-    workflow = yaml.safe_load((ROOT / ".github/workflows/images.yml").read_text())
+    workflow = yaml.safe_load((ROOT / ".github/workflows-disabled/images.yml").read_text())
     pin = next(step for step in workflow["jobs"]["resolve"]["steps"] if step.get("id") == "pin")
     bash = shutil.which("bash")
     assert bash is not None

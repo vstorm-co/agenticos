@@ -70,6 +70,7 @@ def configured(
         return configure(**kwargs, additional_span_processors=processors)
 
     monkeypatch.setattr(logfire, "configure", with_exporter)
+    monkeypatch.setattr("app.core.logfire_setup.settings.LOGFIRE_CONSOLE", True)
     setup_logfire()
     capsys.readouterr()
     try:

@@ -31,6 +31,18 @@ def _posted(**post: object) -> dict[str, object]:
 
 
 class TestNormalisation:
+    @pytest.mark.parametrize(
+        "post_type", ["system_add_to_channel", "system_join_channel", "system_header_change"]
+    )
+    def test_system_housekeeping_cannot_start_an_agent_run(self, post_type: str) -> None:
+        assert (
+            MattermostAdapter().parse_incoming(
+                _posted(type=post_type, message="agenticos added to the channel by kacper."),
+                "bot-1",
+            )
+            is None
+        )
+
     def test_a_direct_message_arrives_as_a_private_chat(self):
         incoming = MattermostAdapter().parse_incoming(_posted(), "bot-1")
 
@@ -185,6 +197,9 @@ class TestSending:
             def raise_for_status(self) -> None:
                 return None
 
+            def json(self) -> dict[str, str]:
+                return {"id": "reply-post"}
+
         class _Client:
             async def __aenter__(self):
                 return self
@@ -218,6 +233,9 @@ class TestSending:
         class _Response:
             def raise_for_status(self) -> None:
                 return None
+
+            def json(self) -> dict[str, str]:
+                return {"id": "reply-post"}
 
         class _Client:
             async def post(self, url: str, **_kwargs: object) -> _Response:
@@ -501,3 +519,34 @@ class TestMattermostReadsAThreadsEarlierFiles:
             )
 
         assert [a.filename for a in found] == ["first.png", "second.png"]
+
+
+class TestEditedMentions:
+    @pytest.mark.parametrize(
+        "text,accepted",
+        [
+            ("@helper please read the PDFs", True),
+            ("please read the PDFs", False),
+            ("@helper-other read it", False),
+            ("`@helper` is a handle", False),
+        ],
+    )
+    def test_only_an_explicit_bot_mention_can_trigger_an_edit(self, text, accepted):
+        adapter = MattermostAdapter()
+        adapter._own_names["bot-1"] = "helper"
+        adapter._own_ids["bot-1"] = "own-id"
+        frame = _posted(message=text, file_ids=["pdf-1", "pdf-2"])
+        frame["event"] = "post_edited"
+        frame["data"]["channel_type"] = "O"
+        incoming = adapter.parse_incoming(frame, "bot-1")
+        assert (incoming is not None) is accepted
+        if incoming is not None:
+            assert incoming.addressed is True
+            assert len(incoming.attachments) == 2
+            assert incoming.message_id == "p1"
+            assert incoming.raw["event"] == "post_edited"
+
+    def test_an_unresolved_bot_name_does_not_trigger_an_edit(self):
+        frame = _posted(message="@helper go")
+        frame["event"] = "post_edited"
+        assert MattermostAdapter().parse_incoming(frame, "bot-1") is None

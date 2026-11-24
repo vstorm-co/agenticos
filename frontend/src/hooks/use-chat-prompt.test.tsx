@@ -39,6 +39,15 @@ describe("useChatPrompt", () => {
     expect(window.location.search).toBe("?prompt=");
   });
 
+  it("keeps the same hand-off across re-renders so the composer writes it once", () => {
+    params.value = new URLSearchParams("prompt=Draft a workflow");
+    const { result, rerender } = renderHook(() => useChatPrompt());
+    const first = result.current;
+    rerender();
+    rerender();
+    expect(result.current).toBe(first);
+  });
+
   it("forgets the prompt once the address no longer carries it", () => {
     params.value = new URLSearchParams("prompt=Draft a workflow");
     const { result, rerender } = renderHook(() => useChatPrompt());

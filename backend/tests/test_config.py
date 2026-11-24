@@ -298,3 +298,19 @@ class TestOutboundPrivateAllowlist:
                 PUBLIC_BASE_URL="https://10.0.0.9",
                 OUTBOUND_PRIVATE_ALLOWLIST=["10.0.0.0/24"],
             )
+
+
+class TestLoggingConfiguration:
+    def test_defaults_emit_info_without_console_spans(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.delenv("LOG_LEVEL", raising=False)
+        monkeypatch.delenv("LOGFIRE_CONSOLE", raising=False)
+        settings = Settings(_env_file=None)
+        assert settings.LOG_LEVEL == "INFO"
+        assert settings.LOGFIRE_CONSOLE is False
+
+    def test_an_invalid_level_fails_at_startup(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("LOG_LEVEL", "DEBIG")
+        with pytest.raises(ValidationError, match="LOG_LEVEL"):
+            Settings(_env_file=None)

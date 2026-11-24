@@ -32,33 +32,43 @@ interface ChatGPTSignInStepsProps {
  * minted the sign-in. Opened after the request instead, a popup blocker eats it;
  * the link that stays behind is for when one does anyway.
  */
-export function ChatGPTSignInSteps({
+export function ChatGPTSignInSteps(props: ChatGPTSignInStepsProps) {
+  const { start } = useChatGPTSignIn();
+  return (
+    <ChatGPTCallbackSteps {...props} startSignIn={start.mutateAsync} starting={start.isPending} />
+  );
+}
+
+export function ChatGPTCallbackSteps({
   callbackUrl,
   onCallbackUrlChange,
   error,
   disabled,
   idPrefix,
-}: ChatGPTSignInStepsProps) {
+  startSignIn,
+  starting,
+}: ChatGPTSignInStepsProps & {
+  startSignIn: () => Promise<{ authorization_url: string }>;
+  starting: boolean;
+}) {
   const t = useTranslations("vault");
   const tErrors = useTranslations("errors");
-  const { start } = useChatGPTSignIn();
   const [authorizationUrl, setAuthorizationUrl] = useState<string | null>(null);
 
   function begin() {
     const tab = window.open("", "_blank");
-    start.mutate(undefined, {
-      onSuccess: ({ authorization_url }) => {
+    void startSignIn()
+      .then(({ authorization_url }) => {
         setAuthorizationUrl(authorization_url);
         if (tab) {
           tab.opener = null;
           tab.location.href = authorization_url;
         }
-      },
-      onError: (failure) => {
+      })
+      .catch((failure: unknown) => {
         tab?.close();
         toast.error(getErrorMessage(failure, tErrors));
-      },
-    });
+      });
   }
 
   return (
@@ -70,7 +80,7 @@ export function ChatGPTSignInSteps({
             type="button"
             variant="outline"
             size="sm"
-            disabled={disabled || start.isPending}
+            disabled={disabled || starting}
             onClick={begin}
           >
             <LogIn className="h-3.5 w-3.5" />

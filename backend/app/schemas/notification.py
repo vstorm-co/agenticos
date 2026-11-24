@@ -1,14 +1,15 @@
 """Schemas for the notification inbox (#1598)."""
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal, NotRequired, TypedDict
 from uuid import UUID
 
-from pydantic import Field, ValidationError
+from pydantic import Field, TypeAdapter, ValidationError
 
 from app.db.models.notification import Notification, NotificationChannel, NotificationEventType
 from app.db.models.notification_delivery import NotificationDelivery
 from app.schemas.base import BaseSchema
+from app.schemas.improvement import NextStepBlocked
 
 
 class NotificationAgent(BaseSchema):
@@ -41,6 +42,168 @@ def _agent_of(context: dict[str, Any] | None) -> NotificationAgent | None:
         return None
 
 
+class MovedCriterion(TypedDict):
+    """A criterion an improvement's selected attempt moved, when no whole question flipped."""
+
+    scorer: NotRequired[str]
+    name: str
+    display_name: NotRequired[str]
+    """A label qualified against the full result before the notification was shortened."""
+    graded: int
+    before: int
+    after: int
+    direction: Literal["better", "worse"]
+
+
+class CriterionSources(BaseSchema):
+    """Sources to recheck before exposing a persisted criterion-bearing notification."""
+
+    dataset_id: UUID
+    skill_ids: list[UUID] = Field(max_length=200)
+
+
+class NotificationOutcome(BaseSchema):
+    """How a finished session, test or question writing ended, as codes the console words."""
+
+    status: str
+    reason: str | None = None
+    next_step_blocked: NextStepBlocked | None = Field(
+        default=None, description="Why an improvement's next step cannot be taken, when it cannot"
+    )
+    criteria: list[MovedCriterion] = Field(
+        default_factory=list,
+        description="The criteria an improvement's selected attempt moved with no question flipped",
+    )
+
+
+_CRITERIA = TypeAdapter(list[MovedCriterion])
+_OUTCOME_EVENTS = {
+    NotificationEventType.IMPROVEMENT_FINISHED.value,
+    NotificationEventType.EVAL_RUN_FINISHED.value,
+    NotificationEventType.CASE_GENERATION_FINISHED.value,
+}
+
+
+def _outcome_of(notification: Notification) -> NotificationOutcome | None:
+    context = notification.render_context or {}
+    if notification.event_type not in _OUTCOME_EVENTS or not isinstance(context.get("status"), str):
+        return None
+    reason = context.get("reason")
+    try:
+        blocked = NextStepBlocked.model_validate(context.get("next_step_blocked"))
+    except ValidationError:
+        blocked = None
+    try:
+        criteria = _CRITERIA.validate_python(context.get("criteria") or [])
+    except ValidationError:
+        criteria = []
+    return NotificationOutcome(
+        status=context["status"],
+        reason=reason if isinstance(reason, str) else None,
+        next_step_blocked=blocked,
+        criteria=criteria,
+    )
+
+
+# What the console may word itself, per kind: named fields of `render_context` and
+# nothing else, since the rest of it holds links, ids and email-only copy.
+_PARAMS: dict[str, tuple[str, ...]] = {
+    NotificationEventType.APPROVAL_REQUESTED.value: ("agent_name",),
+    NotificationEventType.BUDGET_EXCEEDED.value: ("agent_name", "scope", "limit_usd", "spent_usd"),
+    NotificationEventType.BUDGET_WARNING.value: ("group_name", "share", "limit"),
+    # A workflow step's own notices share the kind and carry no `approval_title`.
+    NotificationEventType.WORKFLOW_NOTIFICATION.value: ("approval_title",),
+}
+
+
+# Named when the row has them, and the row is worded without them otherwise.
+_OPTIONAL_PARAMS: dict[str, tuple[str, ...]] = {
+    NotificationEventType.BUDGET_EXCEEDED.value: ("subject",),
+}
+
+
+# A row whose `render_context` names its `wording` is worded by it, whatever its kind:
+# several kinds are written in more than one sentence. Required values, then optional ones.
+_WORDINGS: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
+    "run_completed": (("agent_name",), ()),
+    "routine_finished": (("routine_name",), ("excerpt",)),
+    "answered_while_away": (("agent_name",), ()),
+    "answer_failed": (("agent_name", "error"), ()),
+    "run_failed": (("agent_name",), ("error",)),
+    "routine_budget_paused": (("routine_kind", "limit", "spent"), ("routine_name",)),
+    "routine_blocked": (("routine_detail",), ("routine_name", "failures")),
+    "capability_requested": (
+        ("requester_name", "capability_name", "agent_name", "reason"),
+        (),
+    ),
+    "suggestions_ready": (("count",), ()),
+    "briefing": (("count",), ()),
+    "ingestion_failed": (("filename", "error_message"), ()),
+    "sync_completed": (
+        ("collection_name", "ingested", "updated", "skipped", "removed", "failed"),
+        (),
+    ),
+    "sync_failed": (("collection_name", "error"), ()),
+    "artifact_version_published": (("artifact_title", "version"), ()),
+    "artifact_owner_given": (("by_name", "title"), ()),
+    "artifact_owner_taken": (("by_name", "title", "new_owner_name"), ()),
+    "resource_shared": (("resource_name", "group_name"), ()),
+    "conversation_shared": (("shared_by",), ("conversation_title",)),
+    "room_mention": (("sender", "title"), ()),
+    "room_thread_reply": (("sender", "title"), ()),
+    "mcp_server_down": (("server_name",), ()),
+    "mcp_server_recovered": (("server_name",), ()),
+    "eval_suite_reevaluated": (("suite_name", "agent_name", "previous_verdict", "status"), ()),
+    "eval_suite_failed": (
+        ("suite_name", "agent_name", "status", "reasons"),
+        ("version", "cases", "more_cases"),
+    ),
+    "promotion_overridden": (
+        ("version", "agent_name", "environment_name", "suite_names", "reason"),
+        (),
+    ),
+    "shared_change_applied": (("kind", "agent_name"), ("name",)),
+    "security_event": (("action",), ()),
+    "background_task_paused": (("kind", "reason"), ("organization_name",)),
+    "configuration_changed": ((), ()),
+    "usage_report": (("org_name",), ()),
+    "agent_usage_report": (("agent_name",), ()),
+    "workflow_log_alert": (("rule_name", "count", "workflow_name", "window_minutes"), ()),
+    "coalesced": (("coalesced",), ()),
+}
+
+
+def _plain(value: object) -> bool:
+    return isinstance(value, str | int) and not isinstance(value, bool)
+
+
+def _worded(context: dict[str, Any]) -> dict[str, str] | None:
+    wording = context.get("wording")
+    if not isinstance(wording, str) or wording not in _WORDINGS:
+        return None
+    required, optional = _WORDINGS[wording]
+    if any(not _plain(context.get(key)) for key in required):
+        return None
+    present = [key for key in (*required, *optional) if _plain(context.get(key))]
+    return {"wording": wording, **{key: str(context[key]) for key in present}}
+
+
+def _params_of(notification: Notification) -> dict[str, str] | None:
+    context = notification.render_context or {}
+    if "wording" in context:
+        return None
+    keys = _PARAMS.get(notification.event_type)
+    if keys is None or any(not isinstance(context.get(key), str | int) for key in keys):
+        return None
+    # An approval asked through a chat by somebody unverified says so in English
+    # only; its wording is not one the console has.
+    if context.get("asked_by"):
+        return None
+    optional = _OPTIONAL_PARAMS.get(notification.event_type, ())
+    present = [key for key in optional if isinstance(context.get(key), str | int)]
+    return {key: str(context[key]) for key in (*keys, *present)}
+
+
 class NotificationRead(BaseSchema):
     """One inbox row - `render_context` itself never leaves the service layer."""
 
@@ -54,9 +217,25 @@ class NotificationRead(BaseSchema):
         default=None,
         description="The agent the row is about, for its face; null for a row about none.",
     )
+    outcome: NotificationOutcome | None = Field(
+        default=None,
+        description="For a finished improvement, test or question writing: how it ended, "
+        "so the console can word it in the reader's language.",
+    )
     outcome_id: UUID | None = Field(
         default=None,
         description="The shared outcome this row is a delivery of; settling it clears every one.",
+    )
+    params: dict[str, str] | None = Field(
+        default=None,
+        description="Legacy approval and budget sentence values. Null for versioned wording, "
+        "missing values, and readers served another summary; never links or ids.",
+    )
+
+    wording_params: dict[str, str] | None = Field(
+        default=None,
+        description="Versioned sentence values for the current console. Kept separate from "
+        "legacy params so older consoles fall back to the stored summary.",
     )
 
     @classmethod
@@ -79,7 +258,10 @@ class NotificationRead(BaseSchema):
             read_at=notification.read_at,
             created_at=notification.created_at,
             agent=_agent_of(notification.render_context),
+            outcome=_outcome_of(notification),
             outcome_id=notification.outcome_id,
+            params=None if summary_override else _params_of(notification),
+            wording_params=None if summary_override else _worded(notification.render_context or {}),
         )
 
 
@@ -146,6 +328,12 @@ class FailedDeliveryRead(BaseSchema):
     attempts: int
     last_error: str | None = None
     created_at: datetime
+
+    wording_params: dict[str, str] | None = Field(
+        default=None,
+        description="Versioned sentence values for the current console. Kept separate from "
+        "legacy params so older consoles fall back to the stored summary.",
+    )
 
     @classmethod
     def from_row(

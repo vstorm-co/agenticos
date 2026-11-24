@@ -54,6 +54,8 @@ export interface Artifact {
   live: boolean;
   /** The groups it is shared with, by name (#2124). Only the listing carries it. */
   shared_groups?: string[];
+  /** Whether the caller has starred it; the sidebar lists only these. Absent until the server sends it. */
+  is_favourite?: boolean;
   published_at: string;
   current_version: ArtifactVersion | null;
   /**
@@ -466,7 +468,14 @@ export interface ArtifactData {
  * password - only that one is needed.
  */
 export type PublicArtifact =
-  | { password_required: false; title: string; published_at: string; view: ArtifactView }
+  | {
+      password_required: false;
+      title: string;
+      published_at: string;
+      view: ArtifactView;
+      /** Older servers omit this field; attribution is enabled by default. */
+      show_agenticos_attribution?: boolean;
+    }
   | { password_required: true; title: null; published_at: null; view: null };
 
 /** An opened public link: the page and nothing that says who made it. */
@@ -574,4 +583,11 @@ export interface ArtifactVersionReview {
   widens: boolean;
   /** Why the words are incomplete: a table nobody can read. */
   problem: string | null;
+}
+
+export interface ArtifactThumbnail {
+  version_id: string;
+  state: "ready" | "unavailable";
+  image: string | null;
+  retryable?: boolean;
 }

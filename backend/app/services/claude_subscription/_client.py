@@ -1,13 +1,20 @@
 """Bounded calls to the operator-configured native runtime, never to provider OAuth."""
 
 import json
+from base64 import b64encode
+from collections.abc import Sequence
 from typing import Literal
 from uuid import UUID
 
 import httpx
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, ValidationError
 
-from app.core.claude_subscription import ClaudeSubscriptionModel, ClaudeSubscriptionOwner
+from app.core.claude_subscription import (
+    ClaudeSubscriptionImage,
+    ClaudeSubscriptionModel,
+    ClaudeSubscriptionOwner,
+    ClaudeSubscriptionThinking,
+)
 from app.core.config import settings
 from app.core.exceptions import (
     BadRequestError,
@@ -112,6 +119,8 @@ class ClaudeSubscriptionRuntime:
         prompt: str,
         output_schema: dict[str, JsonValue],
         max_output_tokens: int | None = None,
+        images: Sequence[ClaudeSubscriptionImage] = (),
+        thinking: ClaudeSubscriptionThinking | None = None,
     ) -> ClaudeInference:
         if len(prompt.encode("utf-8")) > 800_000:
             raise BadRequestError(
@@ -125,6 +134,15 @@ class ClaudeSubscriptionRuntime:
         }
         if max_output_tokens is not None:
             payload["max_output_tokens"] = max_output_tokens
+        if thinking is not None:
+            payload["thinking"] = thinking
+        if images:
+            if sum((len(image.data) + 2) // 3 * 4 for image in images) > _MAX_REQUEST_BYTES:
+                raise BadRequestError(message="The Claude subscription request is too large")
+            payload["images"] = [
+                {"media_type": image.media_type, "data": b64encode(image.data).decode("ascii")}
+                for image in images
+            ]
         result = await self._post("infer", payload, timeout=610)
         try:
             return ClaudeInference.model_validate_json(result)

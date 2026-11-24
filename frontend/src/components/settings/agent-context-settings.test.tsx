@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -33,7 +33,7 @@ describe("AgentContextSettings", () => {
 
     expect(screen.getByLabelText("Your role")).toHaveValue("CFO");
     expect(screen.getByLabelText("What you work on")).toHaveValue("Budgets");
-    expect(screen.getByLabelText("Time zone")).toHaveValue("UTC");
+    expect(screen.getByRole("combobox", { name: "Time zone" })).toHaveTextContent("UTC");
   });
 
   it("saves what was typed, trimmed, and says agents know it", async () => {
@@ -41,7 +41,9 @@ describe("AgentContextSettings", () => {
     render(<AgentContextSettings user={user()} />);
 
     await userEvent.type(screen.getByLabelText("Your role"), "  Head of sales ");
-    await userEvent.type(screen.getByLabelText("Time zone"), "Europe/Warsaw");
+    await userEvent.click(screen.getByRole("combobox", { name: "Time zone" }));
+    await userEvent.type(screen.getByRole("combobox", { name: "Search time zones…" }), "Warsaw");
+    await userEvent.click(screen.getByRole("option", { name: "Europe/Warsaw" }));
     await userEvent.click(screen.getByRole("button", { name: "Save" }));
 
     expect(save).toHaveBeenCalledWith({
@@ -63,7 +65,8 @@ describe("AgentContextSettings", () => {
 
     await userEvent.clear(screen.getByLabelText("Your role"));
     await userEvent.clear(screen.getByLabelText("What you work on"));
-    await userEvent.clear(screen.getByLabelText("Time zone"));
+    await userEvent.click(screen.getByRole("combobox", { name: "Time zone" }));
+    await userEvent.click(screen.getByRole("option", { name: "Not set" }));
     await userEvent.click(screen.getByRole("button", { name: "Save" }));
 
     expect(save).toHaveBeenCalledWith({
@@ -127,4 +130,82 @@ describe("AgentContextSettings", () => {
 
     expect(save.mock.calls[0]?.[0].working_hours).toBeNull();
   });
+});
+
+it("advances guided setup only after profile and context saves succeed", async () => {
+  const beforeSave = vi.fn().mockResolvedValue(false);
+  const onSaved = vi.fn();
+  save.mockResolvedValue(user());
+  render(
+    <AgentContextSettings
+      user={user()}
+      beforeSave={beforeSave}
+      onSaved={onSaved}
+      saveLabel="Save and continue"
+    />,
+  );
+  await userEvent.click(screen.getByRole("button", { name: "Save and continue" }));
+  expect(save).not.toHaveBeenCalled();
+  expect(onSaved).not.toHaveBeenCalled();
+  beforeSave.mockResolvedValue(true);
+  save.mockRejectedValueOnce(new Error("offline"));
+  await userEvent.click(screen.getByRole("button", { name: "Save and continue" }));
+  expect(onSaved).not.toHaveBeenCalled();
+  await userEvent.click(screen.getByRole("button", { name: "Save and continue" }));
+  expect(onSaved).toHaveBeenCalledOnce();
+});
+
+it("highlights the next empty context field without treating it as an error", async () => {
+  render(<AgentContextSettings user={user()} onSaved={() => {}} saveLabel="Continue" />);
+  const role = screen.getByRole("textbox", { name: "Your role" });
+  expect(role).toHaveAttribute("data-guidance", "true");
+  await userEvent.type(role, "Engineer");
+  expect(role).not.toHaveAttribute("data-guidance");
+  expect(screen.getByRole("combobox", { name: "Time zone" })).toHaveAttribute(
+    "data-guidance",
+    "true",
+  );
+});
+
+it("filters time zones and selects the match with the keyboard", async () => {
+  save.mockResolvedValue(user());
+  render(<AgentContextSettings user={user()} />);
+  await userEvent.click(screen.getByRole("combobox", { name: "Time zone" }));
+  await userEvent.type(screen.getByRole("combobox", { name: "Search time zones…" }), "Warsaw");
+  expect(screen.queryByRole("option", { name: "Africa/Algiers" })).not.toBeInTheDocument();
+  await userEvent.keyboard("{Enter}");
+  expect(screen.getByRole("combobox", { name: "Time zone" })).toHaveTextContent("Europe/Warsaw");
+  await userEvent.click(screen.getByRole("button", { name: "Save" }));
+  expect(save.mock.calls[0]?.[0].time_zone).toBe("Europe/Warsaw");
+});
+
+it("shows an empty result and lets Escape preserve the stored alias", async () => {
+  render(<AgentContextSettings user={user({ time_zone: "US/Eastern" })} />);
+  await userEvent.click(screen.getByRole("combobox", { name: "Time zone" }));
+  expect(screen.getByRole("option", { name: "US/Eastern" })).toBeVisible();
+  await userEvent.type(
+    screen.getByRole("combobox", { name: "Search time zones…" }),
+    "no-such-zone",
+  );
+  expect(screen.getByText("No matching time zones")).toBeVisible();
+  await userEvent.keyboard("{Escape}");
+  expect(screen.getByRole("combobox", { name: "Time zone" })).toHaveTextContent("US/Eastern");
+});
+
+it("rejects an extra form submission while the first save is pending", async () => {
+  let complete!: (value: User) => void;
+  save.mockImplementation(
+    () =>
+      new Promise<User>((resolve) => {
+        complete = resolve;
+      }),
+  );
+  render(<AgentContextSettings user={user()} />);
+  const button = screen.getByRole("button", { name: "Save" });
+  await userEvent.click(button);
+  const form = button.closest("form");
+  if (!form) throw new Error("Missing context form");
+  fireEvent.submit(form);
+  expect(save).toHaveBeenCalledOnce();
+  complete(user());
 });

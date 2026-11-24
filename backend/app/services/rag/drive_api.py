@@ -175,9 +175,7 @@ class DriveClient:
         return DriveFile.model_validate(response.json())
 
     def download(self, file_id: str, dest_path: Path) -> None:
-        self._stream(
-            _file_path(file_id), {"alt": "media", "supportsAllDrives": "true"}, dest_path
-        )
+        self._stream(_file_path(file_id), {"alt": "media", "supportsAllDrives": "true"}, dest_path)
 
     def export(self, file_id: str, mime_type: str, dest_path: Path) -> None:
         self._stream(

@@ -15,15 +15,10 @@ summary and skips it at a ceiling (agenticos#1808), pins the summariser to a
 content-free copy of the run's model so the summary honours `content="none"`
 (agenticos#1809), and runs it under the run's own model settings (agenticos#1810).
 
-**A scope somebody can reason about.** This reaches the messages of *one run*.
-Between turns the history is rebuilt from the transcript by
-`app.services.agent.build_message_history`, which reconstructs a conversation as
-text and drops tool calls, tool returns and thinking - so no edit made here
-survives a turn boundary. That is not a defect in the capability: the history
-worth compacting is the hundred-step tool loop `DEFAULT_MAX_STEPS` allows, where
-one sandbox listing or one knowledge search can be tens of thousands of tokens.
-It does mean a summarizing pass is paid for once per run rather than amortised
-across a conversation, which is why the cheap tiers come first.
+**One conversation history.** Completed turns checkpoint structured model messages
+through `ConversationService.keep_summary`, including discovery and tool results.
+The next run continues that same history, so summaries survive turn boundaries.
+A separate storage ceiling bounds the checkpoint without charging a model call.
 
 What *does* cross the boundary is what each replayed answer cost, and it is what
 makes any of this fire. The estimator anchors on the most recent response carrying
@@ -35,12 +30,12 @@ window the gauge showed at 77% sat beside a trigger that had noticed nothing.
 """
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, Literal, cast
 
 from pydantic import BaseModel, Field, field_validator
 from pydantic_ai.capabilities import AbstractCapability, WrapperCapability
-from pydantic_ai.messages import ModelMessage, ModelResponse
+from pydantic_ai.messages import ModelMessage, ModelRequest, ModelResponse, ToolReturnPart
 from pydantic_ai.models import Model, ModelRequestContext
 from pydantic_ai.tools import AgentDepsT, RunContext
 from pydantic_ai_harness.compaction import (
@@ -62,6 +57,7 @@ from app.agents.capabilities.budget import (
 )
 from app.agents.compaction_events import CompactionEvent
 from app.agents.observability import auxiliary_model
+from app.agents.tool_errors import controlled_tool_error
 
 logger = logging.getLogger(__name__)
 
@@ -290,6 +286,45 @@ class NotifyingSummarizingCompaction(SummarizingCompaction[AgentDepsT]):
                 )
 
 
+@dataclass
+class _ErrorPreservingClearToolResults(ClearToolResults[AgentDepsT]):
+    """Keep actionable failures when ordinary tool output is cleared.
+
+    A failed return does not spend the framework's retry budget, but unlike a
+    retried return the harness considers it clearable before the model has read
+    it. Preserve the small controlled envelope so its first correction and the
+    transcript cannot disappear at a zero-pair setting or in a batch of failures.
+    """
+
+    async def compact(
+        self, messages: list[ModelMessage], ctx: RunContext[AgentDepsT]
+    ) -> list[ModelMessage]:
+        protected = {
+            part.tool_call_id: part
+            for message in messages
+            for part in message.parts
+            if isinstance(part, ToolReturnPart) and controlled_tool_error(part) is not None
+        }
+        compacted = await super().compact(messages, ctx)
+        if not protected:
+            return compacted
+        # The harness clears by copying parts, leaving these originals intact.
+        return [
+            replace(
+                message,
+                parts=[
+                    protected.get(part.tool_call_id, part)
+                    if isinstance(part, ToolReturnPart)
+                    else part
+                    for part in message.parts
+                ],
+            )
+            if isinstance(message, ModelRequest)
+            else message
+            for message in compacted
+        ]
+
+
 def build_strategy(
     config: CompactionConfig,
     *,
@@ -339,7 +374,7 @@ def build_strategy(
     fallback = config.fallback_context_window
 
     def clearing() -> ClearToolResults[Any]:
-        return ClearToolResults(
+        return _ErrorPreservingClearToolResults(
             max_fraction=config.max_fraction,
             keep_pairs=config.keep_tool_pairs,
             context_window=window,
@@ -520,6 +555,44 @@ class MeteredCompaction(WrapperCapability[AgentDepsT]):
             spent = usage_delta(before, ctx.usage)
             if spent is not None:
                 record_ambient_usage(_model_name(request_context), spent)
+        if spent is not None:
+            await assert_ambient_budget()
+        return compacted
+
+    async def compact_now(
+        self, messages: list[ModelMessage], ctx: RunContext[AgentDepsT]
+    ) -> list[ModelMessage] | None:
+        """Force the configured summarising tier for an idle chat maintenance run.
+
+        Automatic compaction enters through `before_model_request`, where the
+        strategy chooses whether its trigger fired. Manual compaction deliberately
+        bypasses that trigger, but still uses the same summarizer, progress events,
+        affordability check and run ledger as an automatic summary.
+        """
+        if isinstance(self.wrapped, SummarizingCompaction):
+            summarizer = self.wrapped
+        elif isinstance(self.wrapped, TieredCompaction):
+            summarizer = next(
+                (
+                    tier
+                    for tier in self.wrapped.tiers
+                    if isinstance(tier, NotifyingSummarizingCompaction)
+                ),
+                None,
+            )
+        else:
+            return None
+        if not isinstance(summarizer, NotifyingSummarizingCompaction):
+            return None
+
+        before = usage_counts(ctx.usage)
+        try:
+            compacted = await summarizer.compact(messages, ctx)
+        finally:
+            spent = usage_delta(before, ctx.usage)
+            if spent is not None:
+                model_name = getattr(ctx.model, "model_name", None) or "unknown"
+                record_ambient_usage(model_name, spent)
         if spent is not None:
             await assert_ambient_budget()
         return compacted

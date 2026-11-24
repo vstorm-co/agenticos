@@ -1,18 +1,13 @@
 ---
-source_sha: "a41c7a2c6e87"
+source_sha: "e885d6a41f7e"
 ---
 
 # Wdrożenie na serwer { #deploy-to-a-server }
 
-Jeden host, Docker Compose, reverse proxy z przodu. To cała dostarczana ścieżka i
-to na niej działają wdrożenia, w których ten projekt jest używany.
-
-Nie ma manifestów Kubernetes ani jednoklikowych quickstartów dla dostawców
-platform-as-a-service. To nie jest skromność co do skali. Stack to sześć
-kontenerów, z których dwa trzymają stan, jeden potrafi uruchamiać własne kontenery,
-a jeden jest Postgresem, który musi mieć pgvector - co już przekracza to, co
-modeluje cel wdrożeniowy typu `git push`, a przewodnik udający inaczej opisywałby
-wdrożenie, którego nikt nie uruchomił.
+Jeden host, Docker Compose i reverse proxy pozostają dostarczaną ścieżką dla
+pojedynczego serwera. Dla klastrów użyj utrzymywanego [charta Helm Kubernetes](kubernetes.md),
+z zewnętrznymi usługami danych i blokującym zadaniem migracji. Konfiguracja OpenShift
+jest propozycją i nie została jeszcze zweryfikowana. Nie ma jednoklikowych quickstartów PaaS.
 
 Poza jeden host - zarządzany Postgres, kilka hostów API, kilka wdrożeń - prowadzi
 [Skalowanie poza jeden host](scaling.md).
@@ -308,7 +303,7 @@ niosą etykiety, Traefik je odkrywa, prosi o certyfikat i go odnawia. Nic do
 przeładowania i żadnego drugiego pliku konfiguracji do utrzymania w zgodzie.
 
 Jeśli Traefika jeszcze nie ma, repozytorium dostarcza jednego:
-`traefik/traefik.yml` i `docker-compose-traefik.yml`, czyli entrypoint na 443 z
+`docker-compose-traefik.yml`, czyli entrypoint na 443 z
 resolverem Let's Encrypt i 80 przekierowującym na niego.
 
 ```bash
@@ -332,9 +327,16 @@ make prod-frontend PROXY=traefik
 `scripts/deploy.sh` — więc późniejsze wdrożenia trzymają się proxy, z którym ten
 host został postawiony, a nie tego, które założył jakiś skrypt.
 
+Dostarczony proxy czyta wszystkie ustawienia statyczne z argumentów polecenia w Compose,
+w tym `ACME_EMAIL` i `TRAEFIK_NETWORK`. Nie montuj dodatkowego statycznego pliku
+`traefik.yml`: Traefik wybiera jedno źródło i ignoruje te argumenty,
+gdy taki plik istnieje. `traefik/dynamic.yml` nadal zawiera konfigurację routingu
+dostawcy plikowego, w tym HSTS. WebSocket działa bez dodatkowego middleware;
+uploady są przesyłane strumieniowo bez limitu rozmiaru w proxy.
+
 !!! info "`exposedByDefault: false` wykonuje realną robotę"
 
-    To jedno ustawienie w `traefik/traefik.yml` warte przeczytania, zanim go
+    To jedno ustawienie w `docker-compose-traefik.yml` warte przeczytania, zanim go
     uruchomisz. Tylko `app` i `frontend` niosą `traefik.enable=true`, więc
     Postgres, Redis, worker i demon sandboksa są nieosiągalne z niczego
     spoza hosta — a to jest właściwość *nieoznaczenia etykietą*, więc przeżywa
@@ -385,7 +387,7 @@ host został postawiony, a nie tego, które założył jakiś skrypt.
     `skip`, `limit` i identyfikatory, są zachowywane.
 
     Traefik potrafi zachować, usunąć albo zredagować całe pole, ale nie potrafi
-    przepisać jego części, więc `traefik/traefik.yml` usuwa z logu dostępu
+    przepisać jego części, więc `docker-compose-traefik.yml` usuwa z logu dostępu
     Traefika `RequestPath`, który obejmuje też query string. Nginx potrafi
     przepisać część wartości, ale `nginx/nginx.conf` tak samo usuwa ścieżkę,
     query string i `Referer`, formatem logu
@@ -414,6 +416,26 @@ tak samo jak nagłówek `Strict-Transport-Security`, który backend celowo zosta
 temu, co terminuje TLS. Log dostępu w szablonie pomija ścieżkę żądania, query
 string i `Referer`; ostrzeżenie *Niektóre ścieżki żądań i query stringi są
 poświadczeniami* powyżej wyjaśnia dlaczego i co nadal zapisuje log błędów.
+
+Szablon wymaga **Nginx 1.25.1 lub nowszego**, ponieważ używa `http2 on`.
+Nginx 1.24 z Ubuntu 24.04 wymaga nowszego pakietu albo zastąpienia osobnych
+`http2 on;` dyrektywami `listen 443 ssl http2;` i ich odpowiednikami IPv6.
+Umieść szablon w kontekście `http`, np. jako
+`/etc/nginx/conf.d/agenticos.conf`, i uruchom `nginx -t` przed przeładowaniem.
+
+Host API i wymienione trasy uploadu multipart konsoli mają
+`client_max_body_size 55m;`: największy z limitów
+`MAX_UPLOAD_SIZE_MB`, `CHAT_MAX_UPLOAD_SIZE_MB`, `EMBED_MAX_UPLOAD_SIZE_MB` i
+`ML_MAX_UPLOAD_SIZE_MB` plus 5 MiB na opakowanie multipart. Zwiększ limity proxy
+na **obu** hostach, gdy podnosisz największe ustawienie. Domyślny limit Nginx
+wynosi 1 MiB razem z opakowaniem i odrzuca upload przed dotarciem do aplikacji.
+Konsola przekazuje pliki ze swojego hosta; hostowane strony używają hosta API.
+
+Strony konsoli, uwierzytelnianie i zwykły JSON zachowują limit 1 MiB. Dodając
+nową trasę uploadu konsoli, dopisz ją do listy lokalizacji w szablonie.
+Proxy API przekazuje nagłówki WebSocket na każdej ścieżce, w tym `/api/v1/ws/`,
+czatu i głosu w osadzonym widżecie oraz mediów telefonicznych. Zwykły HTTP
+zachowuje `Connection: close`.
 
 !!! warning "`BIND_HOST` jest ustawieniem bezpieczeństwa, a nie wygody"
 
@@ -609,7 +631,7 @@ ssh you@your-host "trap 'rm -f $remote' EXIT; bash $remote <commit-sha>"
 
 `scripts/deploy.sh` pobiera ten commit, czeka na obrazy, które CI dla niego
 opublikowało (`sha-<short>`, zwykle już tam są), ściąga je, restartuje i czeka, aż
-oba kontenery zgłoszą się jako zdrowe, zanim zwróci kod niezerowy albo nie.
+API, worker w tle i frontend zgłoszą się jako zdrowe, zanim zwróci kod niezerowy albo nie.
 Przyjmuje **commit**, a nie branch, więc tym, co jest wdrożone, jest to, co zostało
 zrecenzowane, a nie to, dokąd `main` przesunął się od tamtej pory - a tym, co
 działa, jest bajt w bajt to, co zbudowało CI, na hoście, który nigdy nie potrzebuje
@@ -629,6 +651,53 @@ działa, jest bajt w bajt to, co zbudowało CI, na hoście, który nigdy nie pot
 
 To nie jest wdrożenie bez przestoju. Compose odtwarza kontenery, których obraz się
 zmienił, więc witryna jest niedostępna przez te kilka sekund, które to zajmuje.
+
+### Retencja obrazów wydań { #release-image-retention }
+
+Przed pobraniem skrypt usuwa stare, nieużywane obrazy wydań wyłącznie z
+`ghcr.io/vstorm-co/agenticos-backend`, `agenticos-frontend` i `agenticos-browser`.
+Zachowuje dwa dodatkowe nieużywane identyfikatory obrazów na repozytorium, od
+najnowszych. Wiele tagów SHA lub wersji jednego ID liczy się jako jeden obraz.
+Usuwane mogą być wyłącznie tagi `sha-<hex>` i numery wersji. Wszystkie aliasy
+usuwanego ID znikają razem, bez `--force`. Flaga `--no-prune` zapobiega też
+niejawnemu usuwaniu obrazów nadrzędnych bez tagów.
+
+Każdy działający lub zatrzymany kontener na hoście chroni swój obraz, także w
+innym projekcie Compose. Obraz docelowy, dowolny tag zmienny lub ręczny oraz tag
+lub digest w innym repozytorium również chronią całe ID. Obrazy sandboxów i
+środowisk wykonawczych, obrazy bez tagów oraz wolumeny aplikacji pozostają poza
+sprzątaniem. Te zabezpieczenia mogą zachować więcej obrazów niż limit obrazów
+nieużywanych.
+
+Skrót katalogu wdrożenia rozdziela przypięcia stosów na wspólnym hoście.
+Lokalne tagi `deploy-<stack-hash>-current` i `deploy-<stack-hash>-rollback` zachowują ostatni zdrowy obraz
+każdego komponentu i jego poprzednika po wymianie kontenerów. Przy pierwszym
+uruchomieniu `deploy-<stack-hash>-current` powstaje ze zdrowych kontenerów tego stosu, nie z
+checkoutu; różne zdrowe ID tego samego komponentu zatrzymują wdrożenie. Przypięcia
+zmieniają się dopiero po pomyślnych testach zdrowia nowych usług. Nieudane
+wdrożenia zachowują zapisane przypięcia, a ponowne wdrożenie tego samego obrazu
+nie zastępuje jego rollbacku. Cofanie nadal wymaga zatwierdzonego SHA commita;
+te lokalne tagi są znacznikami retencji, nie wydaniami w rejestrze.
+
+Skrypt wymaga co najmniej **5 GiB wolnego miejsca** na systemie plików magazynu
+Dockera przed każdym pobraniem i po opcjonalnym przygotowaniu środowisk
+wykonawczych. Sprawdza `DockerRootDir` oraz domyślny magazyn
+`/var/lib/containerd`, jeżeli istnieje. To minimalny próg pojemności, nie
+rezerwacja ani oszacowanie wielkości obrazów; niestandardowe magazyny containerd
+monitoruj osobno. Obrazy backendu i frontendu są pobierane przed restartem
+którejkolwiek usługi. Odmowa z powodu braku miejsca podaje system plików i
+dostępną pojemność: zwolnij miejsce poza chronionymi zasobami lub powiększ
+magazyn, a następnie ponów zatwierdzone wdrożenie. Nie realizuj tej polityki
+przez globalne `docker image prune -a`.
+
+W Docker Desktop katalog magazynu znajduje się wewnątrz maszyny wirtualnej
+Linux. Skrypt mierzy wolne miejsce w VM za pomocą tymczasowego kontenera tylko
+do odczytu, bez sieci, z już lokalnie dostępnym obrazem backendu, najlepiej
+ostatnim zdrowym. Kontener pomiarowy nie może pobierać obrazów i jest usuwany
+automatycznie. Skrypt sprawdza też system plików hosta z katalogiem wdrożenia;
+system plików niestandardowego dysku VM monitoruj osobno. Ta procedura
+aktualizacji wymaga lokalnego obrazu backendu; najpierw zakończ zwykłą pierwszą
+instalację.
 
 ### Z GitHuba, z zatwierdzeniem { #from-github-with-an-approval }
 
@@ -757,3 +826,18 @@ ją, zanim cokolwiek założysz.
   wymaganych recenzentów na środowisku `production` każdy merge wdraża się sam.
 - **Rób kopię `postgres_data` i `backend/.env` razem.** Jedno bez drugiego nie jest
   odtworzeniem.
+
+## Obrazy forka i sprawdzenie lokalne { #fork-images-and-local-verification }
+
+Compose i `scripts/deploy.sh` przyjmują `AGENTICOS_IMAGE_PREFIX`, domyślnie
+`ghcr.io/vstorm-co/agenticos`. Ustaw prefiks obrazów aplikacji forka, a w
+`AGENTICOS_SOURCE_REPOSITORY` jego GitHub `właściciel/repozytorium`. Backend,
+frontend i przeglądarka używają tego prefiksu; osobno wersjonowany daemon sandboxu
+pozostaje zależnością upstream. Workflow Images domyślnie używa prefiksu GHCR
+własnego repozytorium małymi literami. Zmienna repozytorium GitHub o tej samej
+nazwie może go zastąpić; uprawnienia pakietów muszą obejmować ten cel.
+
+Fork nie konfiguruje sekretów SSH, osób zatwierdzających środowisko ani ochrony
+repozytorium. Sprawdź je przed włączeniem wdrożeń uruchamianych wydaniem.
+Plugin i lokalny test opublikowanych obrazów w osobnym środowisku opisuje
+[Zarządzaj AgenticOS przez klienta AI](howto/operate-with-ai.md).

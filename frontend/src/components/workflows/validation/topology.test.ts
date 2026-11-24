@@ -7,6 +7,7 @@ import {
   forwardEdges,
   indexCatalog,
   kahn,
+  loopItemOf,
   nodeIds,
   nodeScopeMap,
   resolveDefinitions,
@@ -16,13 +17,13 @@ const FOREACH = (id: string) =>
   makeDefinition({
     id,
     kind: "control",
-    ports: [port("in", "input", null), port("body", "output", null), port("done", "output", null)],
+    ports: [port("in", "input", null), port("done", "output", null)],
   });
 
-const SINGLE_PORT_CONTROL = makeDefinition({
-  id: "control.single_port",
+const NO_EXIT_CONTROL = makeDefinition({
+  id: "control.no_exit",
   kind: "control",
-  ports: [port("in", "input", null), port("out", "output", null)],
+  ports: [port("in", "input", null)],
 });
 
 describe("indexCatalog / resolveDefinitions / definitionFor", () => {
@@ -58,49 +59,59 @@ describe("nodeIds / forwardEdges", () => {
 });
 
 describe("deriveScopes", () => {
-  it("ignores a non-control node and a control node with fewer than two output ports", () => {
-    const catalog = makeCatalog([DEBUG_ECHO, SINGLE_PORT_CONTROL]);
+  it("ignores a non-control node and a control node with no way out", () => {
+    const catalog = makeCatalog([DEBUG_ECHO, NO_EXIT_CONTROL]);
     const g = graph({
       entry: "a",
-      nodes: [echo("a"), node("c", "control.single_port")],
+      nodes: [echo("a"), node("c", "control.no_exit")],
       edges: [edge("e1", "a", "out", "c", "in")],
     });
     expect(deriveScopes(g, resolveDefinitions(g, catalog))).toEqual([]);
   });
 
-  it("derives a body from the entry port without absorbing what is downstream of the loop", () => {
+  it("derives a body from the steps naming the loop, never what is wired after it", () => {
     const catalog = makeCatalog([DEBUG_ECHO, FOREACH("control.foreach")]);
     const g = graph({
       entry: "entry",
-      nodes: [echo("entry"), node("loop", "control.foreach"), echo("body"), echo("after")],
-      edges: [
-        edge("e1", "entry", "out", "loop", "in"),
-        edge("e2", "loop", "body", "body", "in"),
-        edge("e3", "loop", "done", "after", "in"),
+      nodes: [
+        echo("entry"),
+        node("loop", "control.foreach"),
+        { ...echo("body"), scope_id: "loop" },
+        echo("after"),
       ],
+      edges: [edge("e1", "entry", "out", "loop", "in"), edge("e3", "loop", "done", "after", "in")],
     });
     const [scope] = deriveScopes(g, resolveDefinitions(g, catalog));
     expect(scope?.body_node_ids).toEqual(["body"]);
-    expect(scope?.exit_node_id).toBe("loop");
+    expect(scope).toMatchObject({ exit_node_id: "loop", exit_port: "done" });
   });
 
-  it("visits each body node once through a diamond and a loop-back edge", () => {
+  it("holds a nested body in its outer one, and a loop named inside itself stays finite", () => {
     const catalog = makeCatalog([DEBUG_ECHO, FOREACH("control.foreach")]);
     const g = graph({
       entry: "entry",
-      nodes: [echo("entry"), node("loop", "control.foreach"), echo("b1"), echo("b2"), echo("b3")],
-      edges: [
-        edge("e1", "entry", "out", "loop", "in"),
-        edge("e2", "loop", "body", "b1", "in"),
-        edge("e3", "loop", "body", "b2", "in"),
-        edge("e4", "b1", "out", "b3", "in"),
-        edge("e5", "b2", "out", "b3", "in"),
-        edge("e6", "b3", "out", "loop", "in"),
-        edge("e7", "b3", "out", "b1", "in"),
+      nodes: [
+        echo("entry"),
+        node("outer", "control.foreach"),
+        { ...node("inner", "control.foreach"), scope_id: "outer" },
+        { ...echo("leaf"), scope_id: "inner" },
+        { ...node("a", "control.foreach"), scope_id: "b" },
+        { ...node("b", "control.foreach"), scope_id: "a" },
       ],
     });
-    const [scope] = deriveScopes(g, resolveDefinitions(g, catalog));
-    expect(new Set(scope?.body_node_ids)).toEqual(new Set(["b1", "b2", "b3"]));
+    const scopes = deriveScopes(g, resolveDefinitions(g, catalog));
+    const outer = scopes.find((scope) => scope.scope_node_id === "outer");
+    expect(new Set(outer?.body_node_ids)).toEqual(new Set(["inner", "leaf"]));
+    expect(scopes.find((scope) => scope.scope_node_id === "a")?.body_node_ids).toEqual(["b"]);
+  });
+
+  it("finds a loop's item step by membership", () => {
+    const g = graph({
+      entry: "entry",
+      nodes: [echo("entry"), { ...node("i", "loop.item"), scope_id: "loop" }],
+    });
+    expect(loopItemOf(g, "loop")).toBe("i");
+    expect(loopItemOf(g, "other")).toBeNull();
   });
 });
 
@@ -110,14 +121,12 @@ describe("nodeScopeMap", () => {
       {
         scope_node_id: "outer",
         body_node_ids: ["inner", "leaf"],
-        entry_port: "body",
         exit_node_id: "outer",
         exit_port: "done",
       },
       {
         scope_node_id: "inner",
         body_node_ids: ["leaf"],
-        entry_port: "body",
         exit_node_id: "inner",
         exit_port: "done",
       },

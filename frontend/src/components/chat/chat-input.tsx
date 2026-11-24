@@ -10,32 +10,28 @@ import {
   useMemo,
 } from "react";
 import type { ReactNode } from "react";
+import { isRenderSafeImage } from "@/lib/file-kinds";
 import { getErrorMessage } from "@/lib/api-error";
+import { cn } from "@/lib/utils";
 import { Button, Spinner } from "@/components/ui";
-import { Send, Mic, MicOff } from "lucide-react";
+import { ArrowUp, Mic, MicOff } from "lucide-react";
 import { toast } from "sonner";
 
 import { uploadFile, type FileUploadResponse } from "@/lib/file-api";
+import { CHAT_FILE_ACCEPT } from "@/lib/chat-file-accept";
 import { usePublicConfig } from "@/components/public-config/public-config-provider";
 import { createPortal } from "react-dom";
 
 import { AttachmentCard, PendingAttachmentCard } from "./attachment-card";
 import { AttachmentRow } from "./attachment-row";
 import { ReplyingTo } from "./reply-quote";
+import { browserSpeechFailure } from "./browser-speech-failure";
 import { useChatStore } from "@/stores";
+import { useMinimalComposer } from "./main-chat-context";
+import "./composer-action.css";
 import { ComposerSheet, type AttachSource } from "./composer-sheet";
 
-/**
- * Render `row` where the page wants it, or in place when it named nowhere.
- *
- * The attachments belong *above* the composer, and the box around the composer is
- * drawn by the page rather than by this component - so the row cannot simply be
- * the first child here. A portal keeps the state where the uploads happen and
- * puts the markup where it reads correctly; lifting `attachedFiles`, `pending`
- * and every upload path into the page would be a much larger change for a
- * question about layout. Without a slot it renders here, which is what any other
- * mounting of this composer gets.
- */
+/** Keep upload state here while the owning surface places its attachment tray. */
 function into(slot: HTMLElement | null | undefined, row: React.ReactNode): React.ReactNode {
   return slot == null ? row : createPortal(row, slot);
 }
@@ -74,6 +70,8 @@ import { wordCount, type DictationActions, type DictationState } from "@/hooks/u
 import type { ComposerDictation as DictationEngine } from "@/lib/dictation-api";
 
 import { movesOn } from "./dictation-strip";
+import { ChatSendModeControl } from "./chat-send-mode-control";
+import type { ChatSendMode } from "@/lib/chat-send-mode";
 
 /**
  * Dictation for the selected agent, as the composer needs it.
@@ -108,6 +106,7 @@ interface PendingUpload {
   key: number;
   name: string;
   size: number;
+  imageUrl?: string;
 }
 
 /**
@@ -123,18 +122,17 @@ interface Attachment {
   pasted: boolean;
 }
 
-/**
- * What the file picker offers: the types an attachment may be.
- *
- * Archives included (#2479): an agent with a workspace unpacks one into it, and one
- * without says it cannot - the composer does not know which agent will answer.
- */
-const ACCEPTED =
-  "image/jpeg,image/png,image/gif,image/webp,image/tiff,.tiff,.tif,.txt,.md,.csv,.json,.py,.js,.ts,.tsx,.html,.css,.yaml,.yml,.toml,.xml,.sql,.sh,.pdf,.docx,.doc,.xlsx,.xlsm,.xls,.pptx,.odt,.ods,.odp,.msg,application/msword,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.ms-outlook,application/vnd.oasis.opendocument.text,application/vnd.oasis.opendocument.spreadsheet,application/vnd.oasis.opendocument.presentation,application/xml,.zip,.tar.gz,.tgz,application/zip,application/x-zip-compressed,application/gzip,application/x-gzip";
+export interface ComposerDraft {
+  text: string;
+  consume: () => void;
+}
 
 interface ChatInputProps {
+  composerDraft?: ComposerDraft;
   /** Focus once the composer becomes writable on entry to the main chat. */
   autoFocus?: boolean;
+  /** A transcript link owns focus until the reader explicitly returns to the composer. */
+  preserveReadingFocus?: boolean;
   /** Re-arm entry focus for an explicit New chat without remounting the editor. */
   focusRequest?: number;
   onSend: (
@@ -143,6 +141,13 @@ interface ChatInputProps {
     files?: FileUploadResponse[],
     mentions?: Mentionable[],
   ) => void;
+  /** What to do with plain text while a turn is running. */
+  sendMode?: ChatSendMode;
+  onSendModeChange?: (mode: ChatSendMode) => void;
+  /** Send plain text into the current run; false leaves the draft untouched. */
+  onSteer?: (message: string) => boolean;
+  /** Context owned by the page or another recipient must keep the queue path. */
+  steerContextAvailable?: boolean;
   /**
    * The agent this turn is addressed to, whose servers, delegates and knowledge
    * `@` offers (#2189). Absent where the composer offers no mentions.
@@ -234,6 +239,8 @@ interface ChatInputProps {
   onTyping?: () => void;
   /** Whether the box holds words of the person's own, as it changes. */
   onDraftChange?: (drafting: boolean) => void;
+  /** Keeps plain text available if this composer is replaced by a room composer. */
+  onTextDraftChange?: (content: string) => void;
   /**
    * Projects `@` offers beside what the agent reaches, before the first message;
    * picking one starts the chat in it rather than mentioning it.
@@ -260,8 +267,13 @@ function touchKeyboard(): boolean {
 
 export function ChatInput({
   autoFocus = false,
+  preserveReadingFocus = false,
   focusRequest = 0,
   onSend,
+  sendMode,
+  onSendModeChange,
+  onSteer,
+  steerContextAvailable = true,
   disabled,
   isProcessing,
   canStop = isProcessing,
@@ -287,11 +299,15 @@ export function ChatInput({
   hints = false,
   onTyping,
   onDraftChange,
+  composerDraft,
+  onTextDraftChange,
   projects,
   onPickProject,
 }: ChatInputProps) {
+  const minimal = useMinimalComposer();
   const tErrors = useTranslations("errors");
   const t = useTranslations("chat.input");
+  const tSendMode = useTranslations("chat.sendMode");
   // The message this turn will answer, chosen with Reply on it.
   const replyTo = useChatStore((state) => state.replyTo);
   const setReplyTo = useChatStore((state) => state.setReplyTo);
@@ -299,13 +315,30 @@ export function ChatInput({
   const tDictation = useTranslations("chat.dictation");
   const { chatMaxUploadSizeMb } = usePublicConfig();
   const [message, setMessage] = useState("");
+  const [lastComposerDraft, setLastComposerDraft] = useState<string>();
+  if (composerDraft?.text !== lastComposerDraft) {
+    setLastComposerDraft(composerDraft?.text);
+    if (composerDraft) setMessage(composerDraft.text);
+  }
+  useEffect(() => {
+    composerDraft?.consume();
+  }, [composerDraft]);
   const [editing, setEditing] = useState(false);
-  const drafting = message.trim().length > 0;
+  const drafting = message.length > 0;
   useEffect(() => onDraftChange?.(drafting), [drafting, onDraftChange]);
+  useEffect(() => onTextDraftChange?.(message), [message, onTextDraftChange]);
   const [attachedFiles, setAttachedFiles] = useState<Attachment[]>([]);
   const [pending, setPending] = useState<PendingUpload[]>([]);
   const [isListening, setIsListening] = useState(false);
   const pendingKey = useRef(0);
+  const pendingPreviews = useRef(new Map<number, string>());
+  useEffect(() => {
+    const previews = pendingPreviews.current;
+    return () => {
+      for (const url of previews.values()) URL.revokeObjectURL(url);
+      previews.clear();
+    };
+  }, []);
   const isUploading = pending.length > 0;
   // Slash-command palette state. Open while message starts with "/" and the
   // caller wired a context - without one, commands have nothing to do.
@@ -341,7 +374,13 @@ export function ChatInput({
     };
   }, [disabled, focusRequest]);
   useEffect(() => {
-    if (!entryFocusRequested.current || disabled || initialFocusAttempted.current) return;
+    if (
+      preserveReadingFocus ||
+      !entryFocusRequested.current ||
+      disabled ||
+      initialFocusAttempted.current
+    )
+      return;
     initialFocusAttempted.current = true;
     // A phone must not open its keyboard or switch the composer's layout while
     // the person is reaching for an action after navigation.
@@ -356,11 +395,11 @@ export function ChatInput({
       )
     )
       return;
-    editorRef.current?.focus();
-  }, [disabled, focusRequest]);
+    editorRef.current?.focus({ preventScroll: true });
+  }, [disabled, focusRequest, preserveReadingFocus]);
   // Reply was just chosen on a message: the person goes on to type the answer.
   useEffect(() => {
-    if (replyTo) editorRef.current?.focus();
+    if (replyTo) editorRef.current?.focus({ preventScroll: true });
   }, [replyTo]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
@@ -419,7 +458,8 @@ export function ChatInput({
   useEffect(() => {
     const ended = wasDictating.current && !dictating;
     wasDictating.current = dictating;
-    if (ended && document.activeElement === document.body) editorRef.current?.focus();
+    if (ended && document.activeElement === document.body)
+      editorRef.current?.focus({ preventScroll: true });
   }, [dictating]);
 
   const startDictation = () => {
@@ -459,8 +499,22 @@ export function ChatInput({
     caretAfterPick.current = null;
   }, [message]);
 
+  const stopBrowserDictationForDraft = () => {
+    if (!minimal || !isListening) return;
+    const recognition = recognitionRef.current;
+    if (recognition) {
+      // A late result from the old recording could replace the edited draft.
+      recognition.onresult = null;
+      recognition.stop();
+    }
+    mic?.stop();
+    setIsListening(false);
+  };
+
   const typed = (text: string, at: number) => {
+    stopBrowserDictationForDraft();
     setMessage(text);
+    onTextDraftChange?.(text);
     setMentionQuery(mentionAt(text, at));
     if (text.trim()) onTyping?.();
   };
@@ -503,8 +557,15 @@ export function ChatInput({
   useEffect(() => {
     // Phones enter writing deliberately, rather than reopening the keyboard
     // on arrival or when a reply finishes while the person is reading.
-    if (!isProcessing && !isUploading && !touchKeyboard()) editorRef.current?.focus();
-  }, [isProcessing, isUploading]);
+    if (
+      !preserveReadingFocus &&
+      !isProcessing &&
+      !isUploading &&
+      !touchKeyboard() &&
+      document.activeElement === document.body
+    )
+      editorRef.current?.focus({ preventScroll: true });
+  }, [isProcessing, isUploading, preserveReadingFocus]);
 
   const runSlashCommand = useCallback(
     (cmd: SlashCommand) => {
@@ -534,21 +595,48 @@ export function ChatInput({
       runSlashCommand(filteredCommands[paletteIndex]);
       return;
     }
-    const trimmed = message.trim();
+    const trimmed =
+      minimal && isListening ? message.replaceAll("\u200B", "").trim() : message.trim();
     if (!trimmed && attachedFiles.length === 0) return;
     if (disabled || isUploading) return;
 
+    stopBrowserDictationForDraft();
     const files = attachedFiles.length > 0 ? attachedFiles.map((a) => a.file) : undefined;
-    onSend(
-      trimmed || t("analyzeFiles"),
-      files?.map((f) => f.id),
-      files,
-      mentions.length > 0 ? mentions : undefined,
-    );
-    setMessage("");
-    setAttachedFiles([]);
-    setPicked([]);
-    setMentionQuery(null);
+    const content = trimmed || t("analyzeFiles");
+    const fileIds = files?.map((f) => f.id);
+    const selectedMentions = mentions.length > 0 ? mentions : undefined;
+    const clearDraft = () => {
+      setMessage("");
+      setAttachedFiles([]);
+      setPicked([]);
+      setMentionQuery(null);
+    };
+
+    if (isProcessing && sendMode === "steer") {
+      // A disconnected run cannot accept a correction. Keep every part of the
+      // draft here; the user can reconnect or explicitly choose Queue.
+      if (offline) {
+        setAnnouncement(tSendMode("steerDisconnected"));
+        return;
+      }
+      // Corrections carry text only. Full turns keep their files, mentions,
+      // reply and frozen page submission by following the ordinary send path.
+      if (files?.length || selectedMentions?.length || replyTo !== null || !steerContextAvailable) {
+        onSend(content, fileIds, files, selectedMentions);
+        clearDraft();
+        return;
+      }
+      if (!onSteer?.(content)) {
+        setAnnouncement(tSendMode("steerFailed"));
+        return;
+      }
+      setAnnouncement("");
+      clearDraft();
+      return;
+    }
+
+    onSend(content, fileIds, files, selectedMentions);
+    clearDraft();
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -635,7 +723,8 @@ export function ChatInput({
     recognitionRef.current?.stop();
     micRef.current?.stop();
     setIsListening(false);
-  }, []);
+    if (minimal && !touchKeyboard()) editorRef.current?.focus({ preventScroll: true });
+  }, [minimal]);
   useEffect(() => {
     onListeningChange?.(isListening ? stopListening : null);
   }, [isListening, stopListening, onListeningChange]);
@@ -683,10 +772,17 @@ export function ChatInput({
       setMessage((prev) => prev.replace(/\u200B/g, ""));
     };
 
-    recognition.onerror = () => {
+    recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
       setIsListening(false);
       mic?.stop();
-      toast.error(t("speechError"));
+      const failure = browserSpeechFailure(event.error, window.isSecureContext);
+      if (failure === null) return;
+      if (failure === "generic") {
+        toast.error(t("speechError"));
+        return;
+      }
+      const notify = failure === "noSpeech" ? toast.info : toast.error;
+      notify(t(`speech.${failure}.title`), { description: t(`speech.${failure}.body`) });
     };
 
     recognitionRef.current = recognition;
@@ -729,11 +825,12 @@ export function ChatInput({
       // Every accepted file gets its card before the first request goes out, so
       // dropping four files shows four cards rather than one that moves along
       // the row. The key is a counter: two files can share a name and a size.
-      const queued = accepted.map((file) => ({
-        key: pendingKey.current++,
-        name: file.name,
-        size: file.size,
-      }));
+      const queued = accepted.map((file) => {
+        const key = pendingKey.current++;
+        const imageUrl = isRenderSafeImage(file.type) ? URL.createObjectURL(file) : undefined;
+        if (imageUrl) pendingPreviews.current.set(key, imageUrl);
+        return { key, name: file.name, size: file.size, imageUrl };
+      });
       setPending((prev) => [...prev, ...queued]);
 
       for (const [i, file] of accepted.entries()) {
@@ -743,6 +840,12 @@ export function ChatInput({
         } catch (err) {
           toast.error(`${file.name}: ${getErrorMessage(err, tErrors, t("uploadFailed"))}`);
         } finally {
+          const key = queued[i]!.key;
+          const url = pendingPreviews.current.get(key);
+          if (url) {
+            URL.revokeObjectURL(url);
+            pendingPreviews.current.delete(key);
+          }
           setPending((prev) => prev.filter((p) => p.key !== queued[i]!.key));
         }
       }
@@ -755,7 +858,7 @@ export function ChatInput({
     if (incoming === null || attachedIncoming.current === incoming.id) return;
     attachedIncoming.current = incoming.id;
     void uploadFiles(incoming.files);
-    if (incoming.text) editorRef.current?.focus();
+    if (incoming.text) editorRef.current?.focus({ preventScroll: true });
   }, [incoming, uploadFiles]);
 
   // The phone app (#2097): a tile in "+" opens the app's own picker for it,
@@ -778,7 +881,7 @@ export function ChatInput({
     if (!onPhone && input) {
       // One input, told each time what to offer: a phone's browser opens the
       // camera for `capture` and its photos for `image/*`.
-      input.accept = source === "files" ? ACCEPTED : "image/*";
+      input.accept = source === "files" ? CHAT_FILE_ACCEPT : "image/*";
       if (source === "camera") input.setAttribute("capture", "environment");
       else input.removeAttribute("capture");
       input.click();
@@ -879,6 +982,15 @@ export function ChatInput({
     setAttachedFiles((prev) => prev.filter((a) => a.file.id !== fileId));
   };
 
+  const hasDraft = message.trim().length > 0 || attachedFiles.length > 0;
+  const showPrimary = canStop || isProcessing || hasDraft;
+  const primary = canStop && onStop ? "stop" : isProcessing ? "busy" : showPrimary ? "send" : "mic";
+  const toggleDictation = server ? startDictation : toggleMic;
+  const micLabel = isListening ? t("stopRecording") : t("voiceInput");
+  const primaryLabel =
+    primary === "mic" ? micLabel : primary === "stop" ? t("stopGenerating") : t("send");
+  const sendDisabled = disabled || isUploading || !hasDraft;
+
   return (
     <form
       onSubmit={handleSubmit}
@@ -946,10 +1058,13 @@ export function ChatInput({
                 onRemove={() => removeFile(file.id)}
               />
             ))}
-            {/* After the finished ones, in the order they were dropped, so a card
-                does not move when its upload lands. */}
             {pending.map((p) => (
-              <PendingAttachmentCard key={p.key} name={p.name} size={p.size} />
+              <PendingAttachmentCard
+                key={p.key}
+                name={p.name}
+                size={p.size}
+                imageUrl={p.imageUrl}
+              />
             ))}
           </AttachmentRow>,
         )}
@@ -960,7 +1075,7 @@ export function ChatInput({
             reply={replyTo}
             onCancel={() => {
               setReplyTo(null);
-              editorRef.current?.focus();
+              editorRef.current?.focus({ preventScroll: true });
             }}
           />
         </div>
@@ -984,14 +1099,7 @@ export function ChatInput({
           onKeyDown={handleKeyDown}
           onPaste={handlePaste}
           placeholder={offline ? t("reconnecting") : t("placeholder")}
-          idle={
-            hints && !disabled ? (
-              <ComposerHints
-                offered={offered.items}
-                commands={allCommands.map((command) => command.name)}
-              />
-            ) : undefined
-          }
+          idle={hints && !disabled ? <ComposerHints /> : undefined}
           disabled={disabled}
           readOnly={dictating}
           // What a phone's keyboard offers: a return key that reads as a line
@@ -1013,7 +1121,7 @@ export function ChatInput({
           ref={fileInputRef}
           type="file"
           onChange={handleFileSelect}
-          accept={ACCEPTED}
+          accept={CHAT_FILE_ACCEPT}
           multiple
           className="hidden"
         />
@@ -1026,7 +1134,7 @@ export function ChatInput({
             slashContext
               ? () => {
                   setMessage("/");
-                  editorRef.current?.focus();
+                  editorRef.current?.focus({ preventScroll: true });
                 }
               : undefined
           }
@@ -1034,7 +1142,23 @@ export function ChatInput({
           phoneRows={phoneRows}
           disabled={disabled || isUploading}
         />
-        {isUploading && <Spinner className="text-muted-foreground h-4 w-4 shrink-0" />}
+        {isProcessing && sendMode !== undefined && onSendModeChange ? (
+          <ChatSendModeControl
+            value={sendMode}
+            onChange={onSendModeChange}
+            unavailableReason={
+              offline
+                ? "disconnected"
+                : attachedFiles.length > 0 ||
+                    pending.length > 0 ||
+                    mentions.length > 0 ||
+                    replyTo !== null ||
+                    !steerContextAvailable
+                  ? "context"
+                  : undefined
+            }
+          />
+        ) : null}
         {controlsSlot ? (
           <div className="chat-input-selection flex min-w-0 flex-[1_1_8rem] items-center gap-2">
             {controlsSlot}
@@ -1043,56 +1167,101 @@ export function ChatInput({
 
         <div className="chat-input-send ml-auto flex max-w-full min-w-0 flex-wrap items-center justify-end gap-1">
           {actionsSlot}
-          {/* Beside Send and the call, as in ChatGPT; the `+` offers it too. A
-              server recording takes the box over with its own bar, so this
-              button only ever starts one. */}
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            onClick={server ? startDictation : toggleMic}
-            disabled={disabled}
-            className="chat-input-mic h-9 w-9 shrink-0"
-            title={isListening ? t("stopRecording") : t("voiceInput")}
-            aria-label={isListening ? t("stopRecording") : t("voiceInput")}
-          >
-            {isListening ? (
-              <MicOff className="text-destructive h-4 w-4 animate-pulse" />
-            ) : (
-              <Mic className="text-muted-foreground h-4 w-4" />
-            )}
-          </Button>
-
-          {canStop && onStop ? (
+          {minimal ? (
             <Button
-              type="button"
-              size="icon"
-              onClick={onStop}
-              disabled={stopDisabled}
+              type={primary === "send" ? "submit" : "button"}
               variant="ghost"
-              className="chat-input-primary group h-9 w-9 shrink-0 rounded-lg hover:bg-transparent active:bg-transparent"
-              title={t("stopGenerating")}
+              size="icon"
+              onClick={
+                primary === "mic" ? toggleDictation : primary === "stop" ? onStop : undefined
+              }
+              disabled={
+                primary === "mic"
+                  ? disabled
+                  : primary === "stop"
+                    ? stopDisabled
+                    : primary === "busy" || sendDisabled
+              }
+              aria-label={primaryLabel}
+              title={primaryLabel}
+              className="chat-input-primary group size-9 shrink-0 rounded-full hover:bg-transparent active:bg-transparent"
             >
-              <span className={PRIMARY_ACTION_FACE} aria-hidden>
-                <span className="size-3 rounded-[3px] bg-current" />
+              <span
+                className={cn(PRIMARY_ACTION_FACE, "composer-action-face rounded-full")}
+                aria-hidden
+              >
+                <span className="composer-action-icon" data-active={primary === "mic"}>
+                  {isListening ? (
+                    <MicOff className="composer-primary-glyph stroke-[2.25]" />
+                  ) : (
+                    <Mic className="composer-primary-glyph stroke-[2.25]" />
+                  )}
+                </span>
+                <span className="composer-action-icon" data-active={primary === "send"}>
+                  <ArrowUp className="composer-primary-glyph stroke-[2.5]" />
+                </span>
+                {primary === "stop" && <span className="size-3 rounded-[3px] bg-current" />}
+                {primary === "busy" && <Spinner className="size-4" />}
               </span>
-              <span className="sr-only">{t("stopGenerating")}</span>
             </Button>
-          ) : idleSlot && !isProcessing && !message.trim() && attachedFiles.length === 0 ? (
-            idleSlot
           ) : (
             <Button
-              type="submit"
-              size="icon"
+              type="button"
               variant="ghost"
-              className="chat-input-primary group shrink-0 transition-transform hover:bg-transparent active:scale-90 active:bg-transparent"
-              disabled={disabled || isUploading || (!message.trim() && attachedFiles.length === 0)}
+              size="icon"
+              onClick={toggleDictation}
+              disabled={disabled}
+              className="h-9 w-9 shrink-0"
+              title={micLabel}
+              aria-label={micLabel}
             >
-              <span className={PRIMARY_ACTION_FACE} aria-hidden>
-                {isProcessing ? <Spinner className="size-4" /> : <Send className="size-4" />}
-              </span>
-              <span className="sr-only">{t("send")}</span>
+              {isListening ? (
+                <MicOff className="text-destructive motion-safe:animate-pulse" />
+              ) : (
+                <Mic className="text-muted-foreground" />
+              )}
             </Button>
+          )}
+          {!minimal && (
+            <>
+              {canStop && onStop ? (
+                <Button
+                  type="button"
+                  size="icon"
+                  onClick={onStop}
+                  disabled={stopDisabled}
+                  variant="ghost"
+                  className="chat-input-primary group h-9 w-9 shrink-0 rounded-lg hover:bg-transparent active:bg-transparent"
+                  title={t("stopGenerating")}
+                >
+                  <span className={PRIMARY_ACTION_FACE} aria-hidden>
+                    <span className="size-3 rounded-[3px] bg-current" />
+                  </span>
+                  <span className="sr-only">{t("stopGenerating")}</span>
+                </Button>
+              ) : idleSlot && !isProcessing && !message.trim() && attachedFiles.length === 0 ? (
+                idleSlot
+              ) : (
+                <Button
+                  type="submit"
+                  size="icon"
+                  variant="ghost"
+                  className="chat-input-primary group shrink-0 hover:bg-transparent active:bg-transparent"
+                  disabled={
+                    disabled || isUploading || (!message.trim() && attachedFiles.length === 0)
+                  }
+                >
+                  <span className={PRIMARY_ACTION_FACE} aria-hidden>
+                    {isProcessing ? (
+                      <Spinner className="size-4" />
+                    ) : (
+                      <ArrowUp className="composer-primary-glyph stroke-[2.5]" />
+                    )}
+                  </span>
+                  <span className="sr-only">{t("send")}</span>
+                </Button>
+              )}
+            </>
           )}
         </div>
       </div>

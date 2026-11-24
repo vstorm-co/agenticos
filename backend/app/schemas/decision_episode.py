@@ -1,6 +1,7 @@
 """Bounded evidence from one decision; never a generalized instruction."""
 
 from typing import Annotated, Literal
+from uuid import UUID
 
 from pydantic import Field, StringConstraints
 
@@ -19,17 +20,9 @@ class DecisionEpisode(BaseSchema):
 
 
 class ImproveCaseReview(BaseSchema):
-    """The human-reviewed fields that will leave personal memory in a dataset file."""
+    """The human-reviewed fields that leave personal memory as a case in a dataset."""
 
     confirmed: Literal[True]
+    dataset_id: UUID
     input: str = Field(min_length=1, max_length=32000)
     reference_answer: str = Field(min_length=1, max_length=32000)
-
-
-class ImproveDecisionCase(BaseSchema):
-    """The JSONL import subset of #2172's DatasetCaseContent, without auto-publication."""
-
-    input: str
-    reference_answer: str
-    tags: list[str]
-    note: str

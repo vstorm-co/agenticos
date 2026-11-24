@@ -1,21 +1,28 @@
 """Conversation repository."""
 
-from collections.abc import Collection
+from collections.abc import Collection, Mapping, Sequence
+from copy import deepcopy
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any, Literal, NamedTuple
-from uuid import UUID
+from uuid import UUID, uuid5
 
+from pydantic import JsonValue
 from sqlalchemy import (
+    BigInteger,
     ColumnElement,
+    DateTime,
     Integer,
     Numeric,
+    Select,
+    Text,
     and_,
     case,
     cast,
     distinct,
     exists,
     func,
+    literal,
     or_,
     select,
     type_coerce,
@@ -23,22 +30,28 @@ from sqlalchemy import (
 )
 from sqlalchemy import delete as sql_delete
 from sqlalchemy import update as sql_update
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import JSONB, distinct_on
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased, defer, load_only, raiseload, selectinload
 from sqlalchemy.orm.attributes import set_committed_value
 
+from app.agents.ask_user import parked_question_texts
+from app.db.locks import LockScope, hold_subject
 from app.db.models.agent import Agent
 from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
+from app.db.models.agent_trigger import AgentTrigger
 from app.db.models.channel_identity import ChannelIdentity
-from app.db.models.channel_session import ChannelSession
+from app.db.models.channel_session import ChannelMessageSource, ChannelSession
 from app.db.models.chat_file import ChatFile
 from app.db.models.conversation import Conversation, Message, ToolCall
 from app.db.models.conversation_favourite import ConversationFavourite
 from app.db.models.conversation_last_read import ConversationLastRead
+from app.db.models.conversation_share import ConversationShare
+from app.db.models.room_submission import RoomSubmission
 from app.db.models.user import User
 from app.repositories._search import contains_ci
+from app.schemas.conversation import HistoryCheckpointFrontier
 
 # What `MessageFileRead` serializes, plus the key selectin groups rows by. A
 # transcript never needs `parsed_content`, the upload's whole extracted text. It is
@@ -79,7 +92,7 @@ async def coding_agents_in_conversations(
         .join(ToolCall, ToolCall.message_id == Message.id)
         .where(
             Message.conversation_id.in_(conversation_ids),
-            ToolCall.tool_name == "run_coding_agent",
+            _tool_named(("run_coding_agent",)),
             harness.in_(("claude_code", "codex")),
             report["outcome"].astext.in_(("completed", "failed", "timed_out")),
         )
@@ -270,6 +283,29 @@ async def get_conversation_by_id(
     return await db.get(Conversation, conversation_id, options=summary_options)
 
 
+async def lock_for_deletion(
+    db: AsyncSession, *, conversation_id: UUID, organization_id: UUID
+) -> Conversation | None:
+    """Lock the authorized tenant's parent before workspace deletion takes child locks.
+
+    Refresh the identity-map row so authorization after the wait sees current ownership.
+    """
+    return await db.scalar(
+        select(Conversation)
+        .where(Conversation.id == conversation_id, Conversation.organization_id == organization_id)
+        .options(defer(Conversation.summary_messages, raiseload=True))
+        .execution_options(populate_existing=True)
+        .with_for_update()
+    )
+
+
+async def get_guardrail_revision(db: AsyncSession, conversation_id: UUID) -> int | None:
+    """The current refusal revision, independent of the session's identity map."""
+    return await db.scalar(
+        select(Conversation.guardrail_revision).where(Conversation.id == conversation_id)
+    )
+
+
 def _list_filters(
     *,
     search: str | None = None,
@@ -279,6 +315,8 @@ def _list_filters(
     hide_api: bool = False,
     hide_channels: bool = False,
     project_id: UUID | None = None,
+    for_model: bool = False,
+    project_scope: Literal["include", "only", "exclude"] = "include",
 ) -> list[ColumnElement[bool]]:
     """The predicates both conversation listings narrow by.
 
@@ -302,8 +340,19 @@ def _list_filters(
     nothing rather than confirming the agent exists.
     """
     filters: list[ColumnElement[bool]] = [Conversation.origin.is_distinct_from("workflow")]
+    if for_model:
+        filters.append(
+            ~select(Message.id)
+            .where(Message.conversation_id == Conversation.id, Message.guardrail_refused.is_(True))
+            .correlate(Conversation)
+            .exists()
+        )
     if project_id is not None:
         filters.append(Conversation.project_id == project_id)
+    if project_scope == "only":
+        filters.append(Conversation.project_id.is_not(None))
+    elif project_scope == "exclude":
+        filters.append(Conversation.project_id.is_(None))
     if hide_api:
         # Null for every conversation opened in the console or a channel.
         filters.append(or_(Conversation.origin.is_(None), Conversation.origin != "api"))
@@ -389,6 +438,75 @@ def _reachable_by(
     return or_(*ways_in)
 
 
+async def waiting_chat_questions(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    user_id: UUID,
+    usable_project_ids: Collection[UUID],
+    participant_ids: Collection[UUID],
+    asked_since: datetime,
+    skip: int,
+    limit: int,
+) -> tuple[Sequence[tuple[UUID, UUID, str | None, str, datetime]], int]:
+    """Page this person's unexpired web questions in chats they can continue."""
+    edit_share = select(ConversationShare.id).where(
+        ConversationShare.conversation_id == Conversation.id,
+        ConversationShare.shared_with == user_id,
+        ConversationShare.permission == "edit",
+    )
+    waiting = (
+        select(
+            AgentRun.id.label("run_id"),
+            Conversation.id.label("conversation_id"),
+            Conversation.title,
+            Agent.name,
+            type_coerce(AgentRun.ended_at, DateTime(timezone=True)).label("asked_at"),
+        )
+        .join(Conversation, Conversation.id == AgentRun.conversation_id)
+        .join(Agent, Agent.id == AgentRun.agent_id)
+        .where(
+            AgentRun.organization_id == organization_id,
+            Conversation.organization_id == organization_id,
+            Agent.organization_id == organization_id,
+            AgentRun.user_id == user_id,
+            AgentRun.surface == RunSurface.WEB.value,
+            AgentRun.parent_run_id.is_(None),
+            AgentRun.is_test.is_(False),
+            or_(AgentRun.key_scopes.is_(None), AgentRun.key_scopes == JSONB.NULL),
+            AgentRun.status == RunStatus.AWAITING_ANSWER.value,
+            AgentRun.ended_at > asked_since,
+            AgentRun.paused_state["questions"] != [],
+            # Resume refuses nonempty private history without destination proof.
+            # Do not turn the navigation read into a broader stored-state validator.
+            or_(
+                AgentRun.paused_state["messages"].astext.is_(None),
+                AgentRun.paused_state["messages"] == [],
+                func.jsonb_typeof(AgentRun.paused_state["history_provenance"]) == "object",
+            ),
+            or_(
+                AgentRun.paused_state["question_results"].astext.is_(None),
+                AgentRun.paused_state["question_results"] == {},
+            ),
+            Conversation.origin.is_distinct_from("workflow"),
+            Conversation.is_archived.is_(False),
+            or_(Conversation.project_id.is_(None), Conversation.project_id.in_(usable_project_ids)),
+            or_(
+                _reachable_by(user_id, participant_ids, usable_project_ids),
+                and_(Conversation.project_id.is_(None), edit_share.exists()),
+            ),
+        )
+    )
+    rows = await db.execute(
+        waiting.order_by(AgentRun.ended_at, AgentRun.id).offset(skip).limit(limit)
+    )
+    total = await db.scalar(select(func.count()).select_from(waiting.subquery()))
+    return [
+        (run_id, conversation_id, title, agent, asked_at)
+        for run_id, conversation_id, title, agent, asked_at in rows
+    ], total or 0
+
+
 class ParticipationClaim(NamedTuple):
     """One "I spoke there" fact, addressed well enough to check it.
 
@@ -454,16 +572,19 @@ async def participation_claims(
 # sidebar fetched and decoded it for thirty rows on every refresh. `raiseload`, so a
 # caller that starts reading one of them from a listed row fails in a test rather
 # than lazily loading per row.
-_LISTED_COLUMNS = (
+LISTED_COLUMNS = (
     Conversation.id,
     Conversation.user_id,
     Conversation.organization_id,
     Conversation.title,
+    Conversation.room_visibility,
     Conversation.is_archived,
     Conversation.project_id,
     Conversation.origin,
     Conversation.created_at,
     Conversation.updated_at,
+    Conversation.forked_from_conversation_id,
+    Conversation.forked_from_message_id,
 )
 
 
@@ -494,7 +615,7 @@ def _ordering(columns: dict[str, Any], sort_by: str, sort_dir: str) -> Any:
     return column.nulls_last()
 
 
-def _favourited_by(user_id: UUID) -> ColumnElement[bool]:
+def favourited_by(user_id: UUID) -> ColumnElement[bool]:
     """Whether this reader has starred the conversation the query is over.
 
     An `EXISTS` rather than a join, for the reason `agent_id` is one in
@@ -523,6 +644,13 @@ RUNNING_HORIZON = timedelta(hours=2)
 class RunningActivity(NamedTuple):
     since: datetime
     run_ids: list[UUID]
+    # The freshest heartbeat among the conversation's running runs. A live
+    # run stamps it every 15 seconds; a dead process leaves it behind, and
+    # the chat shows the run as stalled once it is old enough - the sweep
+    # that ends such a run only fires at 120 seconds, and meanwhile the
+    # person watching deserves to know the run is not at work. Defaulted so
+    # existing constructions of the tuple keep working.
+    heartbeat_at: datetime | None = None
 
 
 async def running_activity(
@@ -532,7 +660,12 @@ async def running_activity(
     if not conversation_ids:
         return {}
     result = await db.execute(
-        select(AgentRun.conversation_id, func.min(AgentRun.started_at), func.array_agg(AgentRun.id))
+        select(
+            AgentRun.conversation_id,
+            func.min(AgentRun.started_at),
+            func.array_agg(AgentRun.id),
+            func.max(AgentRun.heartbeat_at),
+        )
         .where(
             AgentRun.conversation_id.in_(list(conversation_ids)),
             AgentRun.parent_run_id.is_(None),
@@ -544,8 +677,8 @@ async def running_activity(
         .group_by(AgentRun.conversation_id)
     )
     return {
-        identifier: RunningActivity(since, list(run_ids))
-        for identifier, since, run_ids in result.all()
+        identifier: RunningActivity(since, list(run_ids), heartbeat_at)
+        for identifier, since, run_ids, heartbeat_at in result.all()
         if identifier is not None and since is not None
     }
 
@@ -558,6 +691,71 @@ async def running_since(
         identifier: activity.since
         for identifier, activity in (await running_activity(db, conversation_ids)).items()
     }
+
+
+class WaitingActivity(NamedTuple):
+    since: datetime
+    status: str
+    question: str | None
+    run_ids: list[UUID]
+
+
+async def waiting_activity(
+    db: AsyncSession, conversation_ids: Collection[UUID]
+) -> dict[UUID, WaitingActivity]:
+    """Parked top-level runs and what they are waiting on, in one page query.
+
+    A run parked on an unanswered question or an undecided approval is not at
+    work, so `running_activity` never sees it - and from another tab or device
+    the thread then looks done, which is exactly the lie Theo's rule forbids:
+    a question the agent cannot answer must surface as a visible waiting state.
+    The park time is `ended_at`, the same clock the expiry sweep reads; a run
+    the sweep ends leaves this set with it, so no horizon is needed here.
+
+    One row per parked run, grouped in Python: the question is the first of
+    the run's unanswered `ask_user` questions, read out of `paused_state`,
+    and the earliest park is what the row reports.
+    """
+    if not conversation_ids:
+        return {}
+    result = await db.execute(
+        select(
+            AgentRun.conversation_id,
+            AgentRun.status,
+            AgentRun.ended_at,
+            AgentRun.paused_state,
+            AgentRun.id,
+        )
+        .where(
+            AgentRun.conversation_id.in_(list(conversation_ids)),
+            AgentRun.parent_run_id.is_(None),
+            AgentRun.status.in_([RunStatus.AWAITING_ANSWER, RunStatus.AWAITING_APPROVAL]),
+            AgentRun.ended_at.is_not(None),
+        )
+        .order_by(AgentRun.ended_at)
+    )
+    activity: dict[UUID, WaitingActivity] = {}
+    for conversation_id, status, ended_at, paused_state, run_id in result.all():
+        if conversation_id is None or ended_at is None:
+            continue
+        state = paused_state or {}
+        question_ids = state.get("questions") or []
+        questions = parked_question_texts(
+            state.get("messages") or [],
+            [question_id for question_id in question_ids if isinstance(question_id, str)],
+        )
+        question = next(iter(questions), None)
+        current = activity.get(conversation_id)
+        if current is None:
+            activity[conversation_id] = WaitingActivity(
+                since=ended_at,
+                status=status.value if isinstance(status, RunStatus) else str(status),
+                question=question,
+                run_ids=[run_id],
+            )
+        else:
+            current.run_ids.append(run_id)
+    return activity
 
 
 async def running_users(db: AsyncSession, conversation_ids: Collection[UUID]) -> dict[UUID, UUID]:
@@ -613,6 +811,23 @@ async def messages_by_id(db: AsyncSession, message_ids: Collection[UUID]) -> dic
         return {}
     result = await db.execute(select(Message).where(Message.id.in_(set(message_ids))))
     return {message.id: message for message in result.scalars().all()}
+
+
+async def is_explicit_room(
+    db: AsyncSession, conversation_id: UUID, *, organization_id: UUID
+) -> bool:
+    """Room audience is a property of the tenant-scoped chat, even with one member."""
+    return bool(
+        await db.scalar(
+            select(
+                exists().where(
+                    Conversation.id == conversation_id,
+                    Conversation.organization_id == organization_id,
+                    Conversation.room_visibility.is_not(None),
+                )
+            )
+        )
+    )
 
 
 async def release_project_chats(db: AsyncSession, *, user_id: UUID) -> None:
@@ -765,6 +980,8 @@ async def get_conversations_by_user(
     hide_api: bool = False,
     hide_channels: bool = False,
     project_id: UUID | None = None,
+    for_model: bool = False,
+    project_scope: Literal["include", "only", "exclude"] = "include",
 ) -> list[Conversation]:
     """Get one organization's conversations, optionally narrowed to one user.
 
@@ -788,7 +1005,7 @@ async def get_conversations_by_user(
     """
     query = (
         select(Conversation)
-        .options(load_only(*_LISTED_COLUMNS, raiseload=True))
+        .options(load_only(*LISTED_COLUMNS, raiseload=True))
         .where(Conversation.organization_id == organization_id)
     )
     if user_id:
@@ -803,9 +1020,11 @@ async def get_conversations_by_user(
         hide_api=hide_api,
         hide_channels=hide_channels,
         project_id=project_id,
+        for_model=for_model,
+        project_scope=project_scope,
     ):
         query = query.where(condition)
-    orders = [] if favourites_first_for is None else [_favourited_by(favourites_first_for).desc()]
+    orders = [] if favourites_first_for is None else [favourited_by(favourites_first_for).desc()]
     orders.append(_ordering(_sort_columns(), sort_by, sort_dir))
     query = query.order_by(*orders).offset(skip).limit(limit)
     result = await db.execute(query)
@@ -882,6 +1101,8 @@ async def count_conversations(
     hide_api: bool = False,
     hide_channels: bool = False,
     project_id: UUID | None = None,
+    for_model: bool = False,
+    project_scope: Literal["include", "only", "exclude"] = "include",
 ) -> int:
     """Count one organization's conversations, optionally narrowed to one user.
 
@@ -905,6 +1126,8 @@ async def count_conversations(
         hide_api=hide_api,
         hide_channels=hide_channels,
         project_id=project_id,
+        for_model=for_model,
+        project_scope=project_scope,
     ):
         query = query.where(condition)
     result = await db.execute(query)
@@ -937,6 +1160,653 @@ async def create_conversation(
     await db.flush()
     await db.refresh(conversation)
     return conversation
+
+
+class ForkRowCounts(NamedTuple):
+    """Counts in a bounded prefix, saturated at each requested limit plus one."""
+
+    messages: int
+    tool_calls: int
+
+
+async def lock_fork_history(
+    db: AsyncSession,
+    *,
+    source: Conversation,
+    through: Message,
+    message_limit: int,
+    tool_call_limit: int,
+) -> ForkRowCounts | None:
+    """Lock the source and its bounded prefix without loading any transcript payload.
+
+    Parent and message locks also fence new messages and calls through their foreign
+    keys. Existing call rows are locked separately, so a draft edit cannot grow the
+    payload between measurement and copying. Missing source/answer means it was
+    deleted since authorization; oversized prefixes return counts above a limit.
+    The caller holds these locks through its transaction, including the copy.
+    """
+    parent = await db.scalar(
+        select(Conversation)
+        .options(defer(Conversation.summary_messages, raiseload=True), raiseload("*"))
+        .execution_options(populate_existing=True)
+        .where(
+            Conversation.id == source.id,
+            Conversation.user_id == source.user_id,
+            Conversation.organization_id == source.organization_id,
+        )
+        .with_for_update()
+    )
+    if parent is None:
+        return None
+    answer = await db.scalar(
+        select(Message)
+        .options(
+            load_only(
+                Message.id, Message.conversation_id, Message.role, Message.ordinal, raiseload=True
+            ),
+            raiseload("*"),
+        )
+        .execution_options(populate_existing=True)
+        .where(
+            Message.id == through.id,
+            Message.conversation_id == source.id,
+            Message.role == "assistant",
+        )
+        .with_for_update()
+    )
+    if answer is None:
+        return None
+    message_ids = list(
+        (
+            await db.scalars(
+                select(Message.id)
+                .where(Message.conversation_id == source.id, Message.ordinal <= through.ordinal)
+                .order_by(Message.ordinal)
+                .limit(message_limit + 1)
+                .with_for_update()
+            )
+        ).all()
+    )
+    tool_ids = (
+        await db.scalars(
+            select(ToolCall.id)
+            .where(ToolCall.message_id.in_(message_ids))
+            .order_by(ToolCall.id)
+            .limit(tool_call_limit + 1)
+            .with_for_update()
+        )
+    ).all()
+    return ForkRowCounts(len(message_ids), len(tool_ids))
+
+
+async def has_message_after(db: AsyncSession, *, source_id: UUID, ordinal: int) -> bool:
+    """Whether the current checklist could include work after this fork point."""
+    return bool(
+        await db.scalar(
+            select(
+                exists().where(
+                    Message.conversation_id == source_id,
+                    Message.ordinal > ordinal,
+                )
+            )
+        )
+    )
+
+
+async def fork_payload_bytes(db: AsyncSession, *, source_id: UUID, ordinal: int) -> int:
+    """Measure the locked prefix's UTF-8 payload in SQL, before loading or inserting it.
+
+    Called only after `lock_fork_history` has bounded and locked every row. Include
+    tool arguments/results, attachment text and the summary when it will be copied.
+    """
+    message_ids = select(Message.id).where(
+        Message.conversation_id == source_id, Message.ordinal <= ordinal
+    )
+    message_bytes = (
+        select(
+            func.coalesce(
+                func.sum(
+                    func.octet_length(func.coalesce(Message.content, ""))
+                    + func.octet_length(func.coalesce(Message.thinking, ""))
+                    + func.octet_length(func.coalesce(Message.attachment_context, ""))
+                    + func.octet_length(func.coalesce(Message.model_content, ""))
+                    + func.octet_length(func.coalesce(cast(Message.parts, Text), ""))
+                    + func.octet_length(
+                        func.coalesce(
+                            case(
+                                (
+                                    Message.reply_to_message_id.in_(message_ids),
+                                    Message.reply_to_excerpt,
+                                ),
+                                else_="",
+                            ),
+                            "",
+                        )
+                    )
+                ),
+                0,
+            )
+        )
+        .where(Message.id.in_(message_ids))
+        .scalar_subquery()
+    )
+    tool_bytes = (
+        select(
+            func.coalesce(
+                func.sum(
+                    func.octet_length(func.coalesce(cast(ToolCall.args, Text), ""))
+                    + func.octet_length(func.coalesce(ToolCall.result, ""))
+                    + func.octet_length(ToolCall.tool_name)
+                    + func.octet_length(ToolCall.tool_call_id)
+                    + func.octet_length(func.coalesce(ToolCall.tool_id, ""))
+                ),
+                0,
+            )
+        )
+        .where(ToolCall.message_id.in_(message_ids))
+        .scalar_subquery()
+    )
+    summary_bytes = (
+        select(
+            func.octet_length(func.coalesce(Conversation.title, ""))
+            + func.octet_length(func.coalesce(cast(Conversation.plan_items, Text), ""))
+            + case(
+                (
+                    Conversation.summary_ordinal <= ordinal,
+                    func.octet_length(func.coalesce(cast(Conversation.summary_messages, Text), "")),
+                ),
+                else_=0,
+            )
+        )
+        .where(Conversation.id == source_id)
+        .scalar_subquery()
+    )
+    return (
+        await db.execute(select(cast(message_bytes + tool_bytes + summary_bytes, BigInteger())))
+    ).scalar_one()
+
+
+class ForkSummary(NamedTuple):
+    messages: object
+    stored_bytes: int
+
+
+async def fork_summary(db: AsyncSession, *, source_id: UUID, ordinal: int) -> ForkSummary | None:
+    """Read only an eligible summary, after the prefix has passed its SQL byte quota."""
+    row = (
+        await db.execute(
+            select(
+                Conversation.summary_messages,
+                func.octet_length(cast(Conversation.summary_messages, Text)),
+            ).where(
+                Conversation.id == source_id,
+                Conversation.summary_ordinal <= ordinal,
+                Conversation.summary_messages.is_not(None),
+            )
+        )
+    ).one_or_none()
+    return ForkSummary(row[0], row[1]) if row is not None else None
+
+
+async def has_fork_visual_images(db: AsyncSession, *, source_id: UUID, ordinal: int) -> bool:
+    """Whether copying this prefix would retain references to source-only visual blobs."""
+    images = ToolCall.args["images"]
+    return bool(
+        await db.scalar(
+            select(
+                exists().where(
+                    ToolCall.message_id.in_(
+                        select(Message.id).where(
+                            Message.conversation_id == source_id, Message.ordinal <= ordinal
+                        )
+                    ),
+                    _tool_named(("draw", "revise_visual")),
+                    case(
+                        (func.jsonb_typeof(images) == "array", func.jsonb_array_length(images)),
+                        else_=0,
+                    )
+                    > 0,
+                )
+            )
+        )
+    )
+
+
+async def read_candidates(
+    db: AsyncSession, *, organization_id: UUID, ids: Collection[UUID]
+) -> list[Conversation]:
+    """Tenant-scoped metadata for one bounded access-gate batch."""
+    return list(
+        (
+            await db.scalars(
+                select(Conversation)
+                .options(load_only(*LISTED_COLUMNS, raiseload=True))
+                .where(Conversation.organization_id == organization_id, Conversation.id.in_(ids))
+            )
+        ).all()
+    )
+
+
+def _author_history_ids(user_id: UUID) -> Select[UUID]:
+    identities = select(ChannelIdentity.id).where(ChannelIdentity.user_id == user_id)
+    return select(Message.conversation_id).where(
+        Message.role == "user",
+        or_(Message.author_user_id == user_id, Message.channel_identity_id.in_(identities)),
+    )
+
+
+async def lock_authored_histories(db: AsyncSession, *, user_id: UUID) -> None:
+    """Lock owned and authored histories without waiting while deletion holds the user row."""
+    await db.execute(
+        select(Conversation.id)
+        .where(
+            or_(Conversation.user_id == user_id, Conversation.id.in_(_author_history_ids(user_id)))
+        )
+        .order_by(Conversation.id)
+        .with_for_update(nowait=True)
+    )
+
+
+async def invalidate_author_checkpoints(db: AsyncSession, *, user_id: UUID) -> None:
+    """Fence checkpoints before erasure removes the author that made them unsafe to replay.
+
+    Account deletion spans organizations. Own private conversations cascade;
+    other people's and retained project conversations lose only their checkpoint.
+    A run that began before the erasure cannot write it back with its old revision.
+    """
+    await db.execute(
+        sql_update(Conversation)
+        .where(
+            Conversation.id.in_(_author_history_ids(user_id)),
+            Conversation.user_id.is_distinct_from(user_id),
+        )
+        .values(
+            guardrail_revision=Conversation.guardrail_revision + 1,
+            summary_messages=None,
+            summary_ordinal=None,
+        )
+    )
+    await db.flush()
+
+
+async def has_non_owner_author(
+    db: AsyncSession,
+    *,
+    conversation_id: UUID,
+    owner_user_id: UUID,
+) -> bool:
+    """Detect another author even after an edit share or identity link is revoked."""
+    return bool(
+        await db.scalar(
+            select(
+                exists().where(
+                    Message.conversation_id == conversation_id,
+                    Message.role == "user",
+                    or_(
+                        Message.author_user_id.is_not(None)
+                        & (Message.author_user_id != owner_user_id),
+                        Message.channel_identity_id.is_not(None)
+                        & ~exists().where(
+                            ChannelIdentity.id == Message.channel_identity_id,
+                            ChannelIdentity.user_id == owner_user_id,
+                        ),
+                    ),
+                )
+            )
+        )
+    )
+
+
+async def has_shared_channel_history(db: AsyncSession, *, conversation_id: UUID) -> bool:
+    """Keep room checkpoints private even after a bot resets its session elsewhere."""
+    room = exists().where(
+        ChannelSession.conversation_id == conversation_id,
+        ChannelSession.chat_type != "private",
+    )
+    multiple_authors = (
+        select(Message.conversation_id)
+        .where(Message.conversation_id == conversation_id, Message.channel_identity_id.is_not(None))
+        .group_by(Message.conversation_id)
+        .having(func.count(distinct(Message.channel_identity_id)) > 1)
+        .exists()
+    )
+    return bool(await db.scalar(select(or_(room, multiple_authors))))
+
+
+async def channel_thread_ids(db: AsyncSession, ids: Collection[UUID]) -> set[UUID]:
+    """Which candidate threads still have a channel whose membership can be checked."""
+    return set(
+        (
+            await db.scalars(
+                select(Conversation.id)
+                .join(ChannelSession, ChannelSession.conversation_id == Conversation.id)
+                .where(Conversation.id.in_(ids))
+                .distinct()
+            )
+        ).all()
+    )
+
+
+async def trigger_log_ids(db: AsyncSession, ids: Collection[UUID]) -> set[UUID]:
+    """Narrow ownerless candidates to actual trigger logs before per-agent access checks."""
+    return set(
+        (
+            await db.scalars(
+                select(Conversation.id)
+                .join(AgentTrigger, AgentTrigger.conversation_id == Conversation.id)
+                .where(Conversation.id.in_(ids))
+                .distinct()
+            )
+        ).all()
+    )
+
+
+class ForkVolume(NamedTuple):
+    member_bytes: int
+    organization_bytes: int
+
+
+async def retained_fork_volume(
+    db: AsyncSession, *, organization_id: UUID, user_id: UUID
+) -> ForkVolume:
+    """Serialize admission and count retained copies, including source-less forks.
+
+    The transaction lock remains held through insertion and commit. Deletion
+    removes a charge with its row; rollback cannot leave a reservation behind.
+    """
+    await hold_subject(db, LockScope.CONVERSATION_FORK_STORAGE_PER_ORG, organization_id)
+    row = (
+        await db.execute(
+            select(
+                func.coalesce(
+                    func.sum(Conversation.fork_copy_bytes).filter(Conversation.user_id == user_id),
+                    0,
+                ),
+                func.coalesce(func.sum(Conversation.fork_copy_bytes), 0),
+            ).where(
+                Conversation.organization_id == organization_id, Conversation.fork_copy_bytes > 0
+            )
+        )
+    ).one()
+    return ForkVolume(int(row[0]), int(row[1]))
+
+
+async def fork_summary_bytes(db: AsyncSession, summary: dict[str, JsonValue]) -> int:
+    """Measure exactly what PostgreSQL will store, including expanded JSONB numbers."""
+    return (
+        await db.execute(select(func.octet_length(cast(literal(summary, type_=JSONB), Text))))
+    ).scalar_one()
+
+
+async def _fork_agent_attribution(
+    db: AsyncSession, *, source_id: UUID, through: Message, messages: Sequence[Message]
+) -> dict[UUID, tuple[UUID | None, UUID | None]]:
+    """Recover missing assistant attribution without inventing an ambiguous author.
+
+    Linked runs identify an exact version. Older unlinked rows can recover only
+    the sole agent known in the prefix; delegates and later runs are not evidence.
+    """
+    missing = [
+        message for message in messages if message.role == "assistant" and message.agent_id is None
+    ]
+    if not missing:
+        return {}
+    run_ids = {message.run_id for message in missing if message.run_id is not None}
+    linked = {
+        run_id: (agent_id, version_id)
+        for run_id, agent_id, version_id in (
+            await db.execute(
+                select(AgentRun.id, AgentRun.agent_id, AgentRun.agent_version_id).where(
+                    AgentRun.id.in_(run_ids),
+                    AgentRun.conversation_id == source_id,
+                    AgentRun.parent_run_id.is_(None),
+                )
+            )
+        ).all()
+    }
+    evidence = union_all(
+        select(Message.agent_id).where(
+            Message.conversation_id == source_id,
+            Message.ordinal <= through.ordinal,
+            Message.agent_id.is_not(None),
+        ),
+        select(AgentRun.agent_id).where(
+            AgentRun.conversation_id == source_id,
+            AgentRun.created_at <= through.created_at,
+            AgentRun.parent_run_id.is_(None),
+        ),
+    ).subquery()
+    agents = (await db.scalars(select(evidence.c.agent_id).distinct().limit(2))).all()
+    fallback = (agents[0], None) if len(agents) == 1 else (None, None)
+    return {message.id: linked.get(message.run_id, fallback) for message in missing}
+
+
+async def fork_conversation(
+    db: AsyncSession,
+    *,
+    source: Conversation,
+    through: Message,
+    copy_bytes: int,
+    restored_summary: dict[str, JsonValue] | None = None,
+    copy_summary: bool = True,
+) -> Conversation:
+    """A new conversation holding `source`'s messages up to and including `through`.
+
+    Owned by the source's owner, in its organization and project, with the same
+    title. Each message is copied with its tool calls, in the order it was
+    written, and flushed one at a time: the ordinal comes from an identity, and
+    one multi-row insert does not promise to hand it out in the order of the
+    rows.
+
+    What a copy leaves behind is what belongs to the source's runs, readers or
+    storage rather than to its history: the run and its cost, attachments, the
+    server a tool call reached, and a part's pointer at the source's workspace -
+    which would name the source to anybody the fork is shared with, and lead
+    them to files they cannot open. A reply to a message that was not copied
+    loses its target.
+
+    The source's summary comes too when it ends at or before the fork point:
+    a long conversation replays its summary and the turns after it, and
+    without it the fork's model would read only the recent window of turns
+    and lose everything older. It is re-anchored on the copy of the last turn
+    it covers, since ordinals are new. The service restores externalized media
+    before supplying `restored_summary`, so its bytes survive source deletion.
+    `copy_summary=False` deliberately omits both checkpoint and frontier for a
+    shared source: the clone then replays its visible transcript. A summary that
+    reaches past the fork point covers turns the fork does not have, and is left behind.
+    """
+    fork = Conversation(
+        user_id=source.user_id,
+        organization_id=source.organization_id,
+        title=source.title,
+        project_id=source.project_id,
+        forked_from_conversation_id=source.id,
+        forked_from_message_id=through.id,
+        fork_copy_bytes=copy_bytes,
+        plan_items=deepcopy(source.plan_items),
+    )
+    db.add(fork)
+    await db.flush()
+    originals = (
+        (
+            await db.execute(
+                select(Message)
+                .where(Message.conversation_id == source.id, Message.ordinal <= through.ordinal)
+                .options(selectinload(Message.tool_calls))
+                .execution_options(populate_existing=True)
+                .order_by(Message.ordinal.asc())
+            )
+        )
+        .scalars()
+        .all()
+    )
+    attribution = await _fork_agent_attribution(
+        db, source_id=source.id, through=through, messages=originals
+    )
+    copied: dict[UUID, UUID] = {}
+    for original in originals:
+        agent_id, version_id = attribution.get(
+            original.id, (original.agent_id, original.agent_version_id)
+        )
+        copied_reply_id = (
+            copied.get(original.reply_to_message_id)
+            if original.reply_to_message_id is not None
+            else None
+        )
+        copy = Message(
+            conversation_id=fork.id,
+            role=original.role,
+            content=original.content,
+            thinking=original.thinking,
+            model_name=original.model_name,
+            parts=_without_source_workspace(original.parts, source.id),
+            attachment_context=original.attachment_context,
+            context_used_tokens=original.context_used_tokens,
+            agent_id=agent_id,
+            agent_version_id=version_id,
+            channel_identity_id=original.channel_identity_id,
+            author_user_id=original.author_user_id,
+            reply_to_message_id=copied_reply_id,
+            reply_to_excerpt=(original.reply_to_excerpt if copied_reply_id is not None else None),
+            thread_root_message_id=copied[original.thread_root_message_id]
+            if original.thread_root_message_id is not None
+            else None,
+            interrupted=original.interrupted,
+            guardrail_refused=original.guardrail_refused,
+            model_content=original.model_content,
+            created_at=original.created_at,
+            tool_calls=[
+                ToolCall(
+                    tool_call_id=call.tool_call_id,
+                    tool_name=call.tool_name,
+                    tool_id=call.tool_id,
+                    presentation_kind=call.presentation_kind,
+                    args=call.args,
+                    result=call.result,
+                    status=call.status,
+                    started_at=call.started_at,
+                    completed_at=call.completed_at,
+                    duration_ms=call.duration_ms,
+                )
+                for call in original.tool_calls
+            ],
+        )
+        db.add(copy)
+        await db.flush()
+        copied[original.id] = copy.id
+    summary, summary_ordinal = (
+        await db.execute(
+            select(Conversation.summary_messages, Conversation.summary_ordinal).where(
+                Conversation.id == source.id
+            )
+        )
+    ).one()
+    if (
+        copy_summary
+        and summary is not None
+        and summary_ordinal is not None
+        and summary_ordinal <= through.ordinal
+    ):
+        covered = [original.id for original in originals if original.ordinal <= summary_ordinal]
+        fork.summary_messages = restored_summary if restored_summary is not None else summary
+        fork.summary_ordinal = (
+            await db.scalar(select(Message.ordinal).where(Message.id == copied[covered[-1]]))
+            if covered
+            else 0
+        )
+        await db.flush()
+    await db.refresh(fork)
+    return fork
+
+
+def _without_source_workspace(
+    parts: list[dict[str, object]] | None, source_id: UUID
+) -> list[dict[str, object]] | None:
+    """A message's parts with any pointer at the source conversation's workspace removed."""
+    if parts is None:
+        return None
+    kept: list[dict[str, object]] = []
+    for part in parts:
+        origin = part.get("file_source")
+        if (
+            isinstance(origin, dict)
+            and origin.get("kind") == "conversation"
+            and str(origin.get("id")) == str(source_id)
+        ):
+            part = {key: value for key, value in part.items() if key != "file_source"}
+        kept.append(part)
+    return kept
+
+
+async def run_ids_through(db: AsyncSession, *, conversation_id: UUID, ordinal: int) -> set[UUID]:
+    """The runs that wrote this conversation's messages up to and including `ordinal`."""
+    result = await db.execute(
+        select(Message.run_id)
+        .where(
+            Message.conversation_id == conversation_id,
+            Message.ordinal <= ordinal,
+            Message.run_id.is_not(None),
+        )
+        .distinct()
+    )
+    return {run_id for run_id in result.scalars().all() if run_id is not None}
+
+
+async def owned_titles(
+    db: AsyncSession, *, owner_id: UUID, conversation_ids: Collection[UUID]
+) -> dict[UUID, str | None]:
+    """The title of each of these conversations that `owner_id` owns, by id.
+
+    One query for a page of forks naming their sources: a source that is gone or
+    belongs to somebody else is simply absent.
+    """
+    if not conversation_ids:
+        return {}
+    result = await db.execute(
+        select(Conversation.id, Conversation.title).where(
+            Conversation.id.in_(list(conversation_ids)), Conversation.user_id == owner_id
+        )
+    )
+    return dict(result.tuples().all())
+
+
+async def list_conversation_forks(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    owner_id: UUID,
+    source_id: UUID,
+    message_id: UUID | None = None,
+    skip: int = 0,
+    limit: int = 100,
+) -> tuple[list[Conversation], int]:
+    """Personal, same-tenant child conversations of one owned source.
+
+    Archived children stay in the result so their owner can reopen them read-only.
+    Owner, tenant, source and personal scope all remain in SQL; a caller-supplied
+    source id cannot widen the set beyond the parent the service authorized.
+    """
+    filters = (
+        Conversation.organization_id == organization_id,
+        Conversation.user_id == owner_id,
+        Conversation.forked_from_conversation_id == source_id,
+        Conversation.project_id.is_(None),
+        *([Conversation.forked_from_message_id == message_id] if message_id is not None else []),
+    )
+    total = await db.scalar(select(func.count()).select_from(Conversation).where(*filters)) or 0
+    rows = (
+        await db.scalars(
+            select(Conversation)
+            .where(*filters)
+            .order_by(
+                func.coalesce(Conversation.updated_at, Conversation.created_at).desc(),
+                Conversation.id.desc(),
+            )
+            .offset(skip)
+            .limit(limit)
+        )
+    ).all()
+    return list(rows), total
 
 
 async def ensure_workflow_conversation(
@@ -1073,6 +1943,17 @@ class ToolCallArgs(NamedTuple):
     run_id: UUID | None = None
 
 
+def _tool_named(names: Collection[str]) -> ColumnElement[bool]:
+    return or_(
+        ToolCall.tool_id.in_(names),
+        and_(
+            ToolCall.tool_id.is_(None),
+            ToolCall.presentation_kind.is_distinct_from("generic"),
+            ToolCall.tool_name.in_(names),
+        ),
+    )
+
+
 def _succeeded(result_prefixes: Collection[str]) -> ColumnElement[bool]:
     """A completed call whose result says it did its work.
 
@@ -1096,11 +1977,16 @@ async def tool_calls_named(
     `result_prefixes` - see `_succeeded`.
     """
     newest = (
-        select(ToolCall.tool_call_id, ToolCall.tool_name, ToolCall.args, ToolCall.started_at)
+        select(
+            ToolCall.tool_call_id,
+            func.coalesce(ToolCall.tool_id, ToolCall.tool_name).label("tool_name"),
+            ToolCall.args,
+            ToolCall.started_at,
+        )
         .join(Message, Message.id == ToolCall.message_id)
         .where(
             Message.conversation_id == conversation_id,
-            ToolCall.tool_name.in_(names),
+            _tool_named(names),
             ToolCall.status == "completed",
             _succeeded(result_prefixes),
         )
@@ -1134,7 +2020,7 @@ async def tool_call_in_conversation(
     result = await db.execute(
         select(
             ToolCall.tool_call_id,
-            ToolCall.tool_name,
+            func.coalesce(ToolCall.tool_id, ToolCall.tool_name),
             ToolCall.args,
             Message.agent_id,
             Message.run_id,
@@ -1143,7 +2029,7 @@ async def tool_call_in_conversation(
         .where(
             Message.conversation_id == conversation_id,
             ToolCall.tool_call_id == tool_call_id,
-            ToolCall.tool_name.in_(names),
+            _tool_named(names),
             ToolCall.status == "completed",
             _succeeded(result_prefixes),
         )
@@ -1160,17 +2046,41 @@ class PersonRequest(NamedTuple):
     message: Message
     run: AgentRun | None
 
-    @property
-    def decided_at(self) -> datetime:
-        """When its verdict was in: its run's end, or its own writing where that is later.
 
-        A prompt can be written before a look and finish after it. Its age alone
-        then says the look saw it, when the look left it out. A parked run ends
-        again when it settles, so a prompt a look read while parked counts as new
-        once more: one look too many, in the direction that loses nothing.
-        """
-        ended = None if self.run is None else self.run.ended_at
-        return self.message.created_at if ended is None else max(self.message.created_at, ended)
+def retained_prompt_admitted() -> ColumnElement[bool]:
+    following = aliased(Message)
+    preceding = aliased(Message)
+    answered_by_a_lost_run = (
+        select(
+            and_(
+                following.role == "assistant",
+                following.model_name.is_not(None),
+                following.run_id.is_(None),
+            )
+        )
+        .where(
+            following.conversation_id == Message.conversation_id,
+            following.ordinal > Message.ordinal,
+        )
+        .order_by(following.ordinal)
+        .limit(1)
+        .scalar_subquery()
+    )
+    under_a_prompt = (
+        select(preceding.role == "user")
+        .where(
+            preceding.conversation_id == Message.conversation_id,
+            preceding.ordinal < Message.ordinal,
+        )
+        .order_by(preceding.ordinal.desc())
+        .limit(1)
+        .scalar_subquery()
+    )
+    return and_(
+        Message.run_id.is_(None),
+        answered_by_a_lost_run,
+        func.coalesce(under_a_prompt, False).is_(False),
+    )
 
 
 async def person_requests_since(
@@ -1205,34 +2115,6 @@ async def person_requests_since(
     never reached the edge either, and only the run's spec can say what it would
     have done.
     """
-    following = aliased(Message)
-    preceding = aliased(Message)
-    answered_by_a_lost_run = (
-        select(
-            and_(
-                following.role == "assistant",
-                following.model_name.is_not(None),
-                following.run_id.is_(None),
-            )
-        )
-        .where(
-            following.conversation_id == Message.conversation_id,
-            following.ordinal > Message.ordinal,
-        )
-        .order_by(following.ordinal)
-        .limit(1)
-        .scalar_subquery()
-    )
-    under_a_prompt = (
-        select(preceding.role == "user")
-        .where(
-            preceding.conversation_id == Message.conversation_id,
-            preceding.ordinal < Message.ordinal,
-        )
-        .order_by(preceding.ordinal.desc())
-        .limit(1)
-        .scalar_subquery()
-    )
     result = await db.execute(
         select(Message, AgentRun)
         .join(Conversation, Conversation.id == Message.conversation_id)
@@ -1243,11 +2125,7 @@ async def person_requests_since(
             Message.guardrail_refused.is_(False),
             or_(
                 AgentRun.status != RunStatus.RUNNING,
-                and_(
-                    Message.run_id.is_(None),
-                    answered_by_a_lost_run,
-                    func.coalesce(under_a_prompt, False).is_(False),
-                ),
+                retained_prompt_admitted(),
             ),
             Message.created_at >= since,
             or_(
@@ -1261,9 +2139,308 @@ async def person_requests_since(
     return [PersonRequest(message, run) for message, run in result.tuples().all()]
 
 
+async def mark_nightly_reads(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    user_id: UUID,
+    content_hashes: Mapping[UUID, str],
+) -> None:
+    """Remember the source snapshots read by a successful look in this transaction.
+
+    Recheck ownership and refusal after the model call. A changed message keeps
+    its old digest, so its new content remains unread. Sorted row locks keep
+    overlapping batches from taking the message locks in opposite orders.
+    """
+    if not content_hashes:
+        return
+    owned = (
+        select(Message.id)
+        .join(Conversation, Conversation.id == Message.conversation_id)
+        .where(
+            Conversation.organization_id == organization_id,
+            Message.role == "user",
+            Message.guardrail_refused.is_(False),
+            or_(
+                Message.author_user_id == user_id,
+                and_(Message.author_user_id.is_(None), Conversation.user_id == user_id),
+            ),
+        )
+    )
+    for message_id in sorted(content_hashes):
+        await db.execute(
+            sql_update(Message)
+            .where(Message.id == message_id, Message.id.in_(owned))
+            .values(
+                nightly_read_by_user_id=user_id,
+                nightly_read_content_hash=content_hashes[message_id],
+            )
+            .execution_options(synchronize_session="fetch")
+        )
+    await db.flush()
+
+
+async def get_fork_point(db: AsyncSession, message_id: UUID) -> Message | None:
+    """Read only an answer's identity and position before applying copy quotas."""
+    return await db.scalar(
+        select(Message)
+        .where(Message.id == message_id)
+        .options(
+            load_only(
+                Message.id,
+                Message.conversation_id,
+                Message.role,
+                Message.ordinal,
+                Message.run_id,
+                raiseload=True,
+            ),
+            raiseload("*"),
+        )
+    )
+
+
 async def get_message_by_id(db: AsyncSession, message_id: UUID) -> Message | None:
     """Get message by ID."""
     return await db.get(Message, message_id)
+
+
+async def get_thread_root(
+    db: AsyncSession, *, conversation_id: UUID, root_message_id: UUID
+) -> Message | None:
+    """Load an eligible root only inside the conversation already authorized by the caller."""
+    return await db.scalar(
+        select(Message)
+        .where(
+            Message.id == root_message_id,
+            Message.conversation_id == conversation_id,
+            Message.thread_root_message_id.is_(None),
+            Message.role.in_(("user", "assistant")),
+        )
+        .options(
+            selectinload(Message.tool_calls),
+            selectinload(Message.files).load_only(*_MESSAGE_FILE_COLUMNS, raiseload=True),
+        )
+        .execution_options(populate_existing=True)
+    )
+
+
+class ThreadSummary(NamedTuple):
+    reply_count: int
+    last_activity_at: datetime
+
+
+async def thread_summaries(
+    db: AsyncSession, *, conversation_id: UUID, root_ids: Collection[UUID]
+) -> dict[UUID, ThreadSummary]:
+    """Summarize the displayed roots in one query, including replies outside the page."""
+    if not root_ids:
+        return {}
+    rows = await db.execute(
+        select(Message.thread_root_message_id, func.count(), func.max(Message.created_at))
+        .where(
+            Message.conversation_id == conversation_id,
+            Message.thread_root_message_id.in_(root_ids),
+        )
+        .group_by(Message.thread_root_message_id)
+    )
+    summaries: dict[UUID, ThreadSummary] = {}
+    for root, count, latest in rows.all():
+        assert root is not None, "the aggregate is restricted to named thread roots"
+        summaries[root] = ThreadSummary(count, latest)
+    return summaries
+
+
+async def room_thread_for_run(
+    db: AsyncSession, *, run_id: UUID, conversation_id: UUID, organization_id: UUID
+) -> UUID | None:
+    """The persisted request owns the answer's scope, including resumed segments."""
+    return await db.scalar(
+        select(Message.thread_root_message_id)
+        .join(RoomSubmission, RoomSubmission.message_id == Message.id)
+        .where(
+            RoomSubmission.run_id == run_id,
+            RoomSubmission.organization_id == organization_id,
+            RoomSubmission.conversation_id == conversation_id,
+            Message.conversation_id == conversation_id,
+        )
+    )
+
+
+class RunMessageScope(NamedTuple):
+    thread_root_message_id: UUID | None
+
+
+async def message_scope_for_run(
+    db: AsyncSession, *, run_id: UUID, conversation_id: UUID, organization_id: UUID
+) -> RunMessageScope | None:
+    """One source run's surviving scope, never main merely because its post vanished.
+
+    A background result waits until its source run is terminal, when its prompt
+    or answer is committed. Missing or inconsistently scoped rows cannot identify
+    a destination; in particular deleting a thread removes its source turns.
+    """
+    roots = list(
+        (
+            await db.scalars(
+                select(Message.thread_root_message_id)
+                .join(AgentRun, AgentRun.id == Message.run_id)
+                .where(
+                    AgentRun.id == run_id,
+                    AgentRun.organization_id == organization_id,
+                    AgentRun.conversation_id == conversation_id,
+                    Message.conversation_id == conversation_id,
+                )
+                .distinct()
+                .limit(2)
+            )
+        ).all()
+    )
+    return RunMessageScope(roots[0]) if len(roots) == 1 else None
+
+
+async def _thread_with_parent_context(
+    db: AsyncSession,
+    *,
+    conversation_id: UUID,
+    root: Message,
+    replies: list[Message],
+    limit: int,
+) -> list[Message]:
+    remaining = limit - len(replies) - 1
+    earlier = (
+        await get_messages_by_conversation(
+            db,
+            conversation_id,
+            limit=remaining,
+            latest=True,
+            before=root.id,
+            include_tool_calls=True,
+            top_level_only=True,
+            fresh=True,
+        )
+        if remaining
+        else []
+    )
+    return [*earlier, root, *replies]
+
+
+async def get_thread_history_messages(
+    db: AsyncSession, conversation_id: UUID, *, root_message_id: UUID, limit: int
+) -> list[Message] | None:
+    """Current selected-thread context for an admitted background result."""
+    root = await get_thread_root(
+        db, conversation_id=conversation_id, root_message_id=root_message_id
+    )
+    if root is None:
+        return None
+    if limit < 1:
+        return []
+    replies = await get_messages_by_conversation(
+        db,
+        conversation_id,
+        limit=limit - 1,
+        latest=True,
+        fresh=True,
+        thread_root_message_id=root.id,
+    )
+    return await _thread_with_parent_context(
+        db,
+        conversation_id=conversation_id,
+        root=root,
+        replies=replies,
+        limit=limit,
+    )
+
+
+async def get_room_history_messages(
+    db: AsyncSession,
+    conversation_id: UUID,
+    *,
+    request_message_id: UUID,
+    limit: int,
+    request_id: UUID | None = None,
+) -> list[Message] | None:
+    """A queued request's bounded context, isolated from other subthreads.
+
+    A question can be saved while the previous agent is still answering. Its
+    history must include that completed answer, even though the answer's ordinal
+    is newer, without admitting questions submitted after this request. The
+    request ledger, rather than message adjacency, identifies those late answers.
+    A subthread prioritizes its own replies and retains the root. Any remaining
+    budget is filled by main-room context strictly before that root. Sibling
+    threads and later main-room turns cannot enter its model history.
+    None means the requested boundary or root is unavailable in this conversation.
+    """
+    boundary = (
+        await db.execute(
+            select(
+                Message.ordinal,
+                RoomSubmission.ordinal,
+                RoomSubmission.organization_id,
+                Message.thread_root_message_id,
+            )
+            .join(RoomSubmission, RoomSubmission.message_id == Message.id)
+            .where(
+                Message.id == request_message_id,
+                Message.conversation_id == conversation_id,
+                RoomSubmission.conversation_id == conversation_id,
+                RoomSubmission.id == request_id
+                if request_id is not None
+                else RoomSubmission.parent_submission_id.is_(None),
+            )
+        )
+    ).one_or_none()
+    if boundary is None:
+        return None
+    message_ordinal, submission_ordinal, organization_id, root_id = boundary
+    requested = aliased(Message)
+    preceding_runs = (
+        select(RoomSubmission.run_id)
+        .join(requested, requested.id == RoomSubmission.message_id)
+        .where(
+            RoomSubmission.organization_id == organization_id,
+            RoomSubmission.conversation_id == conversation_id,
+            RoomSubmission.ordinal < submission_ordinal,
+            RoomSubmission.run_id.is_not(None),
+            RoomSubmission.status.in_(("completed", "failed", "cancelled", "interrupted")),
+            requested.thread_root_message_id.is_not_distinct_from(root_id),
+        )
+    )
+    root = None
+    if root_id is not None:
+        root = await get_thread_root(db, conversation_id=conversation_id, root_message_id=root_id)
+        if root is None:
+            return None
+    if limit < 1:
+        return []
+    result = await db.execute(
+        select(Message)
+        .where(
+            Message.conversation_id == conversation_id,
+            Message.thread_root_message_id.is_not_distinct_from(root_id),
+            or_(
+                Message.ordinal < message_ordinal,
+                and_(Message.role == "assistant", Message.run_id.in_(preceding_runs)),
+            ),
+        )
+        .options(
+            selectinload(Message.tool_calls),
+            selectinload(Message.files).load_only(*_MESSAGE_FILE_COLUMNS, raiseload=True),
+        )
+        .order_by(Message.ordinal.desc())
+        .limit(limit if root is None else limit - 1)
+        .execution_options(populate_existing=True)
+    )
+    replies = list(reversed(result.scalars().all()))
+    if root is None:
+        return replies
+    return await _thread_with_parent_context(
+        db,
+        conversation_id=conversation_id,
+        root=root,
+        replies=replies,
+        limit=limit,
+    )
 
 
 async def get_messages_by_conversation(
@@ -1275,6 +2452,11 @@ async def get_messages_by_conversation(
     include_tool_calls: bool = False,
     latest: bool = False,
     before: UUID | None = None,
+    for_model: bool = False,
+    fresh: bool = False,
+    top_level_only: bool = False,
+    thread_root_message_id: UUID | None = None,
+    through_ordinal: int | None = None,
 ) -> list[Message]:
     """Get messages for a conversation, in the order they were written.
 
@@ -1289,28 +2471,52 @@ async def get_messages_by_conversation(
     planner felt like it. See `Message.ordinal`.
     """
     query = select(Message).where(Message.conversation_id == conversation_id)
-    if include_tool_calls:
+    if through_ordinal is not None:
+        query = query.where(Message.ordinal <= through_ordinal)
+    if top_level_only:
+        query = query.where(Message.thread_root_message_id.is_(None))
+    if thread_root_message_id is not None:
+        query = query.where(Message.thread_root_message_id == thread_root_message_id)
+    if for_model:
+        query = query.where(Message.guardrail_refused.is_(False))
+    if include_tool_calls or fresh:
         query = query.options(selectinload(Message.tool_calls))
     query = query.options(
         selectinload(Message.files).load_only(*_MESSAGE_FILE_COLUMNS, raiseload=True)
     )
     if before is not None:
-        boundary = (
-            select(Message.ordinal)
-            .where(Message.id == before, Message.conversation_id == conversation_id)
-            .scalar_subquery()
+        boundary = select(Message.ordinal).where(
+            Message.id == before, Message.conversation_id == conversation_id
         )
-        query = query.where(Message.ordinal < boundary)
+        if thread_root_message_id is not None:
+            boundary = boundary.where(Message.thread_root_message_id == thread_root_message_id)
+        query = query.where(Message.ordinal < boundary.scalar_subquery())
     order = Message.ordinal.desc() if latest else Message.ordinal.asc()
     query = query.order_by(order).offset(skip).limit(limit)
-    result = await db.execute(query)
+    result = await db.execute(query.execution_options(populate_existing=fresh))
     items = list(result.scalars().all())
     return list(reversed(items)) if latest else items
 
 
-async def count_messages(db: AsyncSession, conversation_id: UUID) -> int:
+async def count_messages(
+    db: AsyncSession,
+    conversation_id: UUID,
+    *,
+    for_model: bool = False,
+    top_level_only: bool = False,
+    thread_root_message_id: UUID | None = None,
+    through_ordinal: int | None = None,
+) -> int:
     """Count messages in a conversation."""
     query = select(func.count(Message.id)).where(Message.conversation_id == conversation_id)
+    if through_ordinal is not None:
+        query = query.where(Message.ordinal <= through_ordinal)
+    if top_level_only:
+        query = query.where(Message.thread_root_message_id.is_(None))
+    if thread_root_message_id is not None:
+        query = query.where(Message.thread_root_message_id == thread_root_message_id)
+    if for_model:
+        query = query.where(Message.guardrail_refused.is_(False))
     result = await db.execute(query)
     return result.scalar() or 0
 
@@ -1352,9 +2558,9 @@ async def conversation_cost(
     ).subquery()
     result = await db.execute(
         select(
-            type_coerce(func.coalesce(func.sum(costs.c.input_tokens), 0), Integer),
-            type_coerce(func.coalesce(func.sum(costs.c.output_tokens), 0), Integer),
-            type_coerce(func.coalesce(func.sum(costs.c.cost_usd), 0), Numeric),
+            type_coerce(func.coalesce(func.sum(costs.c.input_tokens), 0), Integer()),
+            type_coerce(func.coalesce(func.sum(costs.c.output_tokens), 0), Integer()),
+            type_coerce(func.coalesce(func.sum(costs.c.cost_usd), 0), Numeric()),
             func.bool_or(costs.c.cost_is_partial),
             func.count(costs.c.input_tokens),
         )
@@ -1389,11 +2595,11 @@ async def attributed_to_run(db: AsyncSession, run_id: UUID) -> Attributed:
     """
     result = await db.execute(
         select(
-            type_coerce(func.coalesce(func.sum(Message.input_tokens), 0), Integer),
-            type_coerce(func.coalesce(func.sum(Message.output_tokens), 0), Integer),
-            type_coerce(func.coalesce(func.sum(Message.cost_usd), 0), Numeric),
-            type_coerce(func.coalesce(func.sum(Message.cache_read_tokens), 0), Integer),
-            type_coerce(func.coalesce(func.sum(Message.cache_write_tokens), 0), Integer),
+            type_coerce(func.coalesce(func.sum(Message.input_tokens), 0), Integer()),
+            type_coerce(func.coalesce(func.sum(Message.output_tokens), 0), Integer()),
+            type_coerce(func.coalesce(func.sum(Message.cost_usd), 0), Numeric()),
+            type_coerce(func.coalesce(func.sum(Message.cache_read_tokens), 0), Integer()),
+            type_coerce(func.coalesce(func.sum(Message.cache_write_tokens), 0), Integer()),
         ).where(Message.run_id == run_id)
     )
     input_tokens, output_tokens, cost_usd, cache_read, cache_write = result.one()
@@ -1408,6 +2614,7 @@ class RunOutcome(NamedTuple):
     status: str
     duration_ms: int | None
     started_at: datetime | None = None
+    error: str | None = None
 
 
 async def run_outcomes(db: AsyncSession, run_ids: Collection[UUID]) -> dict[UUID, RunOutcome]:
@@ -1422,21 +2629,22 @@ async def run_outcomes(db: AsyncSession, run_ids: Collection[UUID]) -> dict[UUID
     if not run_ids:
         return {}
     result = await db.execute(
-        select(AgentRun.id, AgentRun.status, AgentRun.started_at, AgentRun.ended_at).where(
-            AgentRun.id.in_(list(run_ids))
-        )
+        select(
+            AgentRun.id, AgentRun.status, AgentRun.started_at, AgentRun.ended_at, AgentRun.error
+        ).where(AgentRun.id.in_(list(run_ids)))
     )
     return {
         run_id: RunOutcome(
             status=status,
             started_at=started,
+            error=error,
             duration_ms=(
                 round((ended - started).total_seconds() * 1000)
                 if started is not None and ended is not None
                 else None
             ),
         )
-        for run_id, status, started, ended in result.all()
+        for run_id, status, started, ended, error in result.all()
     }
 
 
@@ -1448,7 +2656,12 @@ def _refused(run_id: UUID) -> ColumnElement[bool]:
 
 
 async def get_recent_messages(
-    db: AsyncSession, conversation_id: UUID, *, limit: int
+    db: AsyncSession,
+    conversation_id: UUID,
+    *,
+    limit: int,
+    top_level_only: bool = False,
+    through_ordinal: int | None = None,
 ) -> list[Message]:
     """The last `limit` messages of a conversation, still oldest first.
 
@@ -1462,14 +2675,112 @@ async def get_recent_messages(
 
     One `COUNT(*)` on an indexed column is what the right offset costs.
     """
-    total = await count_messages(db, conversation_id)
+    total = await count_messages(
+        db,
+        conversation_id,
+        top_level_only=top_level_only,
+        through_ordinal=through_ordinal,
+    )
     return await get_messages_by_conversation(
-        db, conversation_id, skip=max(0, total - limit), limit=limit
+        db,
+        conversation_id,
+        skip=max(0, total - limit),
+        limit=limit,
+        fresh=True,
+        top_level_only=top_level_only,
+        through_ordinal=through_ordinal,
     )
 
 
+async def get_messages_before(
+    db: AsyncSession,
+    conversation_id: UUID,
+    *,
+    organization_id: UUID,
+    ordinal: int,
+    limit: int,
+    thread_root_message_id: UUID | None = None,
+) -> list[Message]:
+    """The last `limit` messages written before `ordinal`, still oldest first.
+
+    The conversation so far at one turn - what a test case taken from that turn
+    replays as its prefix. Bounded for the same reason `get_messages_after` is,
+    and without the attachments for the same reason too. A null root selects
+    main-room turns; a named root selects only its replies, never the root.
+    """
+    in_conversation = (
+        Message.conversation_id == conversation_id,
+        Message.ordinal < ordinal,
+        Message.thread_root_message_id.is_not_distinct_from(thread_root_message_id),
+        Message.conversation_id.in_(
+            select(Conversation.id).where(Conversation.organization_id == organization_id)
+        ),
+    )
+    total = await db.scalar(select(func.count(Message.id)).where(*in_conversation))
+    query = (
+        select(Message)
+        .where(*in_conversation)
+        .order_by(Message.ordinal.asc())
+        .offset(max(0, (total or 0) - limit))
+        .limit(limit)
+    )
+    result = await db.execute(query)
+    return list(result.scalars().all())
+
+
+async def get_messages_following(
+    db: AsyncSession,
+    conversation_id: UUID,
+    *,
+    organization_id: UUID,
+    ordinal: int,
+    limit: int,
+    thread_root_message_id: UUID | None = None,
+) -> list[Message]:
+    """The first `limit` messages written after `ordinal`, oldest first.
+
+    The rest of one turn: the steps an agent wrote after one of its own, up to
+    the next question in the selected discussion. A null root selects main-room
+    turns; a named root selects only its replies. Without the attachments, as
+    `get_messages_before`.
+    """
+    query = (
+        select(Message)
+        .where(
+            Message.conversation_id == conversation_id,
+            Message.ordinal > ordinal,
+            Message.thread_root_message_id.is_not_distinct_from(thread_root_message_id),
+            Message.conversation_id.in_(
+                select(Conversation.id).where(Conversation.organization_id == organization_id)
+            ),
+        )
+        .order_by(Message.ordinal.asc())
+        .limit(limit)
+    )
+    result = await db.execute(query)
+    return list(result.scalars().all())
+
+
+async def tool_calls_of_messages(db: AsyncSession, message_ids: list[UUID]) -> list[ToolCall]:
+    """The tool calls these messages made, in the order they were made."""
+    query = (
+        select(ToolCall)
+        .join(Message, Message.id == ToolCall.message_id)
+        .where(ToolCall.message_id.in_(message_ids))
+        .order_by(Message.ordinal.asc(), ToolCall.started_at.asc())
+    )
+    result = await db.execute(query)
+    return list(result.scalars().all())
+
+
 async def get_messages_after(
-    db: AsyncSession, conversation_id: UUID, *, ordinal: int, limit: int
+    db: AsyncSession,
+    conversation_id: UUID,
+    *,
+    ordinal: int,
+    limit: int,
+    top_level_only: bool = False,
+    through_ordinal: int | None = None,
 ) -> list[Message]:
     """The last `limit` messages written after `ordinal`, still oldest first.
 
@@ -1478,24 +2789,27 @@ async def get_messages_after(
     `get_recent_messages` is, and for the same reason: a thread nobody compacts
     again must not grow into an unbounded prompt.
 
-    Without the attachments its sibling loads: this answers what the *model*
-    reads, and a row's files reach that as text the prompt already carries. A
-    caller that needs them touches `Message.files` and gets a `MissingGreenlet`
-    saying so, which beats a join on every turn for nobody.
+    Refresh the refusal flag while keeping serializable relationships loaded:
+    the same identity-map rows can still be returned by the turn that wrote them.
     """
-    total = await db.scalar(
-        select(func.count(Message.id)).where(
-            Message.conversation_id == conversation_id, Message.ordinal > ordinal
-        )
-    )
+    conditions = [Message.conversation_id == conversation_id, Message.ordinal > ordinal]
+    if through_ordinal is not None:
+        conditions.append(Message.ordinal <= through_ordinal)
+    if top_level_only:
+        conditions.append(Message.thread_root_message_id.is_(None))
+    total = await db.scalar(select(func.count(Message.id)).where(*conditions))
     query = (
         select(Message)
-        .where(Message.conversation_id == conversation_id, Message.ordinal > ordinal)
+        .where(*conditions)
+        .options(
+            selectinload(Message.tool_calls),
+            selectinload(Message.files).load_only(*_MESSAGE_FILE_COLUMNS, raiseload=True),
+        )
         .order_by(Message.ordinal.asc())
         .offset(max(0, (total or 0) - limit))
         .limit(limit)
     )
-    result = await db.execute(query)
+    result = await db.execute(query.execution_options(populate_existing=True))
     return list(result.scalars().all())
 
 
@@ -1513,7 +2827,7 @@ async def capability_loads_in_messages(
         select(ToolCall)
         .where(
             ToolCall.message_id.in_(message_ids),
-            ToolCall.tool_name == "load_capability",
+            ToolCall.tool_name.in_(("load_capability", "read_skill")),
             ToolCall.status == "completed",
             ToolCall.result.is_not(None),
         )
@@ -1522,24 +2836,101 @@ async def capability_loads_in_messages(
     return list(result.all())
 
 
+async def has_room_submissions(db: AsyncSession, conversation_id: UUID) -> bool:
+    """Whether a room queue means this history is not a shared transcript prefix."""
+    return bool(
+        await db.scalar(select(exists().where(RoomSubmission.conversation_id == conversation_id)))
+    )
+
+
+async def has_unfinished_runs(db: AsyncSession, conversation_id: UUID) -> bool:
+    """Whether a top-level run is active or parked on a resumable human action."""
+    return bool(
+        await db.scalar(
+            select(
+                exists().where(
+                    AgentRun.conversation_id == conversation_id,
+                    AgentRun.parent_run_id.is_(None),
+                    AgentRun.status.in_(
+                        [
+                            RunStatus.RUNNING,
+                            RunStatus.AWAITING_APPROVAL,
+                            RunStatus.AWAITING_ANSWER,
+                        ]
+                    ),
+                )
+            )
+        )
+    )
+
+
 async def set_summary(
     db: AsyncSession,
     *,
     db_conversation: Conversation,
-    messages: list[dict[str, Any]],
+    messages: dict[str, Any],
     ordinal: int,
-) -> Conversation:
-    """Record the history a summary reduced this conversation to.
+    expected_revision: int,
+    expected_frontier: HistoryCheckpointFrontier | None = None,
+    through_message: Message | None = None,
+    expected_ordinal: int | None = None,
+) -> bool:
+    """Replace only the checkpoint and transcript frontier this turn actually read.
 
-    One row per conversation rather than a log of them: the newest summary is
-    written over the last, because it was produced *from* it and the older one
-    describes a thread that no longer exists.
+    A concurrent turn cannot replace a checkpoint it did not build on or cover
+    intervening rows it never saw. The turn's own run may persist its prompt
+    after reading history; those rows are already in its model result.
+
+    A room request reads a filtered history, not a contiguous transcript prefix.
+    Its compaction cannot replace this shared cache or claim to cover later queued
+    questions. Check this in the update itself so a concurrent first room message
+    cannot slip between a service-level check and the cache write. An idle
+    maintenance summary passes `expected_ordinal` instead of a frontier; it writes
+    no transcript rows of its own, so any later row invalidates its snapshot.
     """
-    db_conversation.summary_messages = messages
-    db_conversation.summary_ordinal = ordinal
+    conditions = [
+        Conversation.id == db_conversation.id,
+        Conversation.guardrail_revision == expected_revision,
+        ~exists().where(RoomSubmission.conversation_id == Conversation.id),
+    ]
+    if expected_ordinal is not None:
+        conditions.append(
+            ~exists().where(
+                Message.conversation_id == Conversation.id,
+                Message.ordinal > expected_ordinal,
+            )
+        )
+    if expected_frontier is not None:
+        unseen = select(Message.id).where(
+            Message.conversation_id == db_conversation.id,
+            Message.ordinal > expected_frontier.message_ordinal,
+            Message.ordinal <= ordinal,
+            Message.guardrail_refused.is_(False),
+        )
+        if through_message is not None:
+            unseen = unseen.where(
+                Message.run_id.is_distinct_from(through_message.run_id)
+                if through_message.run_id is not None
+                else Message.id != through_message.id
+            )
+        conditions.extend(
+            [
+                Conversation.summary_ordinal.is_not_distinct_from(
+                    expected_frontier.summary_ordinal
+                ),
+                literal(ordinal) >= expected_frontier.message_ordinal,
+                ~exists(unseen),
+            ]
+        )
+    updated = await db.scalar(
+        sql_update(Conversation)
+        .where(*conditions)
+        .values(summary_messages=messages, summary_ordinal=ordinal)
+        .returning(Conversation.id)
+    )
     await db.flush()
     await db.refresh(db_conversation)
-    return db_conversation
+    return updated is not None
 
 
 async def set_overhead(
@@ -1588,6 +2979,7 @@ async def get_messages_by_run(
     limit: int = 100,
     include_tool_calls: bool = False,
     newest: bool = False,
+    for_model: bool = False,
 ) -> list[Message]:
     """The turns one run produced, chronologically; optionally select its newest page.
 
@@ -1597,6 +2989,8 @@ async def get_messages_by_run(
     for a run that never ended.
     """
     query = select(Message).where(Message.run_id == run_id)
+    if for_model:
+        query = query.where(Message.guardrail_refused.is_(False))
     if include_tool_calls:
         query = query.options(selectinload(Message.tool_calls))
     query = query.options(
@@ -1607,9 +3001,44 @@ async def get_messages_by_run(
         .offset(skip)
         .limit(limit)
     )
-    result = await db.execute(query)
+    result = await db.execute(query.execution_options(populate_existing=for_model))
     rows = list(result.scalars().all())
     return list(reversed(rows)) if newest else rows
+
+
+async def first_user_turns(
+    db: AsyncSession, run_ids: Collection[UUID], *, chars: int
+) -> dict[UUID, str]:
+    """The first user turn each of these runs recorded, cut to `chars` characters."""
+    if not run_ids:
+        return {}
+    result = await db.execute(
+        select(Message.run_id, func.left(Message.content, chars))
+        .where(Message.run_id.in_(run_ids), Message.role == "user")
+        .distinct(Message.run_id)
+        .order_by(Message.run_id, Message.ordinal)
+    )
+    return {run_id: content for run_id, content in result.tuples().all() if run_id}
+
+
+async def last_answers_of_runs(
+    db: AsyncSession, run_ids: Collection[UUID], *, organization_id: UUID
+) -> dict[UUID, UUID]:
+    """The id of the last assistant turn each of this organization's runs recorded."""
+    if not run_ids:
+        return {}
+    result = await db.execute(
+        select(Message.run_id, Message.id)
+        .join(AgentRun, AgentRun.id == Message.run_id)
+        .where(
+            Message.run_id.in_(run_ids),
+            Message.role == "assistant",
+            AgentRun.organization_id == organization_id,
+        )
+        .ext(distinct_on(Message.run_id))
+        .order_by(Message.run_id, Message.ordinal.desc())
+    )
+    return {run_id: message_id for run_id, message_id in result.tuples().all() if run_id}
 
 
 async def last_answer_of_run(db: AsyncSession, run_id: UUID) -> str | None:
@@ -1628,11 +3057,22 @@ async def last_answer_of_run(db: AsyncSession, run_id: UUID) -> str | None:
     return result.scalar_one_or_none()
 
 
-async def count_messages_by_run(db: AsyncSession, run_id: UUID) -> int:
+async def count_messages_by_run(db: AsyncSession, run_id: UUID, *, for_model: bool = False) -> int:
     """Count the turns one run produced."""
     query = select(func.count(Message.id)).where(Message.run_id == run_id)
+    if for_model:
+        query = query.where(Message.guardrail_refused.is_(False))
     result = await db.execute(query)
     return result.scalar() or 0
+
+
+async def _lock_message_order(db: AsyncSession, conversation_id: UUID) -> None:
+    """Serialize ordinal allocation with checkpoint publication in this transaction."""
+    # Locking after INSERT lets an uncommitted older ordinal appear below a
+    # checkpoint already published by another transaction.
+    await db.execute(
+        select(Conversation.id).where(Conversation.id == conversation_id).with_for_update()
+    )
 
 
 async def create_message(
@@ -1641,6 +3081,7 @@ async def create_message(
     conversation_id: UUID,
     role: str,
     content: str,
+    model_content: str | None = None,
     client_message_id: str | None = None,
     thinking: str | None = None,
     parts: list[dict[str, object]] | None = None,
@@ -1659,18 +3100,24 @@ async def create_message(
     channel_identity_id: UUID | None = None,
     author_user_id: UUID | None = None,
     reply_to_message_id: UUID | None = None,
+    reply_to_excerpt: str | None = None,
+    thread_root_message_id: UUID | None = None,
     attachment_context: str | None = None,
 ) -> Message:
     """Create a new message."""
+    await _lock_message_order(db, conversation_id)
     message = Message(
         conversation_id=conversation_id,
         role=role,
         content=content,
+        model_content=model_content,
         client_message_id=client_message_id,
         attachment_context=attachment_context,
         channel_identity_id=channel_identity_id,
         author_user_id=author_user_id,
         reply_to_message_id=reply_to_message_id,
+        reply_to_excerpt=reply_to_excerpt,
+        thread_root_message_id=thread_root_message_id,
         thinking=thinking,
         parts=parts,
         model_name=model_name,
@@ -1702,6 +3149,68 @@ async def create_message(
         .values(updated_at=message.created_at)
     )
 
+    if message.guardrail_refused:
+        await _invalidate_refused_history(db, conversation_id, message.ordinal)
+    return message
+
+
+async def save_workflow_message(
+    db: AsyncSession,
+    *,
+    conversation_id: UUID,
+    workflow_run_id: UUID,
+    content: str,
+    parts: list[dict[str, object]],
+) -> Message:
+    """Keep the pending workflow card and its final answer in the same chat message.
+
+    A stable identity lets a reloaded chat discover a waiting workflow and keeps
+    terminal delivery from adding a second copy of the card.
+
+    The card is admitted early in the thread, but its answer can arrive after the
+    person has sent more turns and those turns have been compacted into a summary.
+    Left at its admission `ordinal`, the answer would sit at or below the summary
+    cutoff and vanish from the next turn's history - it is in neither the saved
+    summary nor the rows replayed after it. On a material change the row moves to
+    the `ordinal` this INSERT allocated: PostgreSQL evaluates the identity default
+    before `ON CONFLICT`, so `excluded.ordinal` is a fresh position even when no
+    row is inserted. An identical redelivery keeps its ordinal, so a terminal
+    answer already compacted into a summary is not replayed a second time.
+    """
+    await _lock_message_order(db, conversation_id)
+    statement = pg_insert(Message).values(
+        id=uuid5(workflow_run_id, "workflow-chat-message"),
+        conversation_id=conversation_id,
+        role="assistant",
+        content=content,
+        parts=parts,
+    )
+    advanced = case(
+        (
+            or_(
+                Message.content.is_distinct_from(statement.excluded.content),
+                Message.parts.is_distinct_from(statement.excluded.parts),
+            ),
+            statement.excluded.ordinal,
+        ),
+        else_=Message.ordinal,
+    )
+    statement = statement.on_conflict_do_update(
+        index_elements=[Message.id],
+        set_={
+            "content": content,
+            "parts": parts,
+            "ordinal": advanced,
+        },
+    ).returning(Message)
+    message = (await db.execute(statement)).scalar_one()
+    await db.execute(
+        sql_update(Conversation)
+        .where(Conversation.id == conversation_id)
+        .values(updated_at=datetime.now(UTC))
+    )
+    await db.flush()
+    await db.refresh(message)
     return message
 
 
@@ -1725,6 +3234,7 @@ async def create_voice_turn(
     retried write after a timeout must not leave the turn twice. Like
     :func:`create_message`, a written turn moves the conversation up the list.
     """
+    await _lock_message_order(db, conversation_id)
     statement = (
         pg_insert(Message)
         .values(
@@ -1772,11 +3282,84 @@ async def link_message_to_run(
     await db.execute(
         sql_update(Message)
         .where(Message.id == message_id, Message.conversation_id == conversation_id)
+        .values(run_id=run_id)
+    )
+    await _mark_refused(
+        db,
+        and_(
+            Message.id == message_id, Message.conversation_id == conversation_id, _refused(run_id)
+        ),
+    )
+
+
+async def _invalidate_refused_history(
+    db: AsyncSession, conversation_id: UUID, ordinal: int
+) -> None:
+    covered = Conversation.summary_ordinal >= ordinal
+    await db.execute(
+        sql_update(Conversation)
+        .where(Conversation.id == conversation_id)
         .values(
-            run_id=run_id,
-            # Kept if already set: a refusal is never taken back by a relink.
-            guardrail_refused=Message.guardrail_refused | _refused(run_id),
+            guardrail_revision=Conversation.guardrail_revision + 1,
+            summary_messages=case((covered, None), else_=Conversation.summary_messages),
+            summary_ordinal=case((covered, None), else_=Conversation.summary_ordinal),
         )
+    )
+
+
+async def _mark_refused(db: AsyncSession, predicate: ColumnElement[bool]) -> None:
+    rows = await db.execute(
+        sql_update(Message)
+        .where(predicate, Message.guardrail_refused.is_(False))
+        .values(guardrail_refused=True, attachment_context=None)
+        .returning(Message.conversation_id, Message.ordinal)
+    )
+    earliest: dict[UUID, int] = {}
+    for conversation_id, ordinal in rows.all():
+        earliest[conversation_id] = min(earliest.get(conversation_id, ordinal), ordinal)
+    for conversation_id, ordinal in earliest.items():
+        await _invalidate_refused_history(db, conversation_id, ordinal)
+
+
+async def mark_run_messages_refused(db: AsyncSession, *, run_id: UUID) -> None:
+    """Mark the run's rows and fence summaries built before its verdict."""
+    # Several room responders share one human source. A later responder's
+    # refusal must also fence that source, whose primary run link stays stable.
+    await _mark_refused(
+        db,
+        or_(
+            Message.run_id == run_id,
+            Message.id.in_(
+                select(RoomSubmission.message_id).where(RoomSubmission.run_id == run_id)
+            ),
+        ),
+    )
+
+
+async def message_refusal(
+    db: AsyncSession, *, message_id: UUID, conversation_id: UUID
+) -> bool | None:
+    """Read a source verdict freshly; None means the exact source no longer exists."""
+    return await db.scalar(
+        select(Message.guardrail_refused).where(
+            Message.id == message_id,
+            Message.conversation_id == conversation_id,
+            Message.role == "user",
+        )
+    )
+
+
+async def mark_message_refused(
+    db: AsyncSession, *, message_id: UUID, conversation_id: UUID
+) -> None:
+    """Record a workflow refusal on its exact source and fence summaries covering it."""
+    await _mark_refused(
+        db,
+        and_(
+            Message.id == message_id,
+            Message.conversation_id == conversation_id,
+            Message.role == "user",
+        ),
     )
 
 
@@ -1841,6 +3424,65 @@ async def get_open_tool_call_in_run(
     return result.scalar_one_or_none()
 
 
+async def question_of_run(db: AsyncSession, *, run_id: UUID, organization_id: UUID) -> str | None:
+    """The last turn a person wrote in one run - the question it answered - or None."""
+    return await db.scalar(
+        select(Message.content)
+        .join(Conversation, Conversation.id == Message.conversation_id)
+        .where(
+            or_(
+                Message.run_id == run_id,
+                Message.id.in_(
+                    select(RoomSubmission.message_id).where(
+                        RoomSubmission.run_id == run_id,
+                        RoomSubmission.organization_id == organization_id,
+                    )
+                ),
+            ),
+            Message.role == "user",
+            Conversation.organization_id == organization_id,
+        )
+        .order_by(Message.ordinal.desc())
+        .limit(1)
+    )
+
+
+async def list_tool_calls_for_run(
+    db: AsyncSession, *, run_id: UUID, organization_id: UUID
+) -> list[tuple[ToolCall, Message]]:
+    """Every call one run's transcript holds, with its turn, in the order made.
+
+    By start time, then turn. A turn writes every call it made with one
+    `started_at`, so inside a turn the order is the call's position in the
+    turn's `parts`, which record it as it happened. Only the chat writes
+    `parts`; a turn written without them - the API, a channel - falls back to
+    the provider's call id, which is stable but not the order the calls ran in.
+    """
+    result = await db.execute(
+        select(ToolCall, Message)
+        .join(Message, Message.id == ToolCall.message_id)
+        .join(Conversation, Conversation.id == Message.conversation_id)
+        .where(Message.run_id == run_id, Conversation.organization_id == organization_id)
+        .order_by(ToolCall.started_at, Message.created_at, Message.id)
+    )
+    rows = [(row[0], row[1]) for row in result.all()]
+    turns = {message.id: index for index, (_, message) in reversed(list(enumerate(rows)))}
+    return sorted(rows, key=lambda row: _call_order(row, turns))
+
+
+def _call_order(
+    row: tuple[ToolCall, Message], turns: dict[UUID, int]
+) -> tuple[datetime, int, int, str]:
+    call, message = row
+    positions = [
+        part.get("tool_call_id") for part in message.parts or [] if part.get("type") == "tool"
+    ]
+    position = (
+        positions.index(call.tool_call_id) if call.tool_call_id in positions else len(positions)
+    )
+    return call.started_at, turns[message.id], position, call.tool_call_id
+
+
 async def create_tool_call(
     db: AsyncSession,
     *,
@@ -1851,7 +3493,8 @@ async def create_tool_call(
     started_at: datetime,
     status: str = "running",
     mcp_connection_id: UUID | None = None,
-    presentation_kind: Literal["draft"] | None = None,
+    tool_id: str | None = None,
+    presentation_kind: Literal["draft", "generic", "platform"] | None = None,
 ) -> ToolCall:
     """Create a new tool call record.
 
@@ -1869,6 +3512,7 @@ async def create_tool_call(
         started_at=started_at,
         status=status,
         mcp_connection_id=mcp_connection_id,
+        tool_id=tool_id,
         presentation_kind=presentation_kind,
     )
     db.add(tool_call)
@@ -1905,7 +3549,16 @@ async def prompt_for_answer(db: AsyncSession, message: Message) -> str:
     result = await db.execute(
         select(Message.content)
         .where(
-            Message.run_id == message.run_id,
+            or_(
+                Message.run_id == message.run_id,
+                Message.id.in_(
+                    select(RoomSubmission.message_id).where(
+                        RoomSubmission.run_id == message.run_id,
+                        RoomSubmission.conversation_id == message.conversation_id,
+                        RoomSubmission.run_id.is_not(None),
+                    )
+                ),
+            ),
             Message.conversation_id == message.conversation_id,
             Message.role == "user",
             Message.ordinal < message.ordinal,
@@ -1981,3 +3634,162 @@ async def last_answer_message(
         .limit(1)
     )
     return result.scalar_one_or_none()
+
+
+async def set_model_content(
+    db: AsyncSession, *, message_id: UUID, conversation_id: UUID, content: str
+) -> None:
+    """Save the current user's screened projection before the run's opening commit."""
+    await db.execute(
+        sql_update(Message)
+        .where(
+            Message.id == message_id,
+            Message.conversation_id == conversation_id,
+            Message.role == "user",
+        )
+        .values(model_content=content)
+    )
+    await db.flush()
+
+
+async def add_channel_reference(
+    db: AsyncSession,
+    *,
+    conversation_id: UUID,
+    source_id: str,
+    content: str,
+    identity_id: UUID | None,
+    posted_at: datetime | None,
+) -> bool:
+    """Import a native post at most once, including after its transcript was compacted."""
+    if not await remember_channel_source(db, conversation_id=conversation_id, source_id=source_id):
+        return False
+    stamp = posted_at.isoformat() if posted_at is not None else "unknown"
+    result = await db.execute(
+        pg_insert(Message)
+        .values(
+            conversation_id=conversation_id,
+            role="user",
+            content=content,
+            channel_identity_id=identity_id,
+            model_content=f"[Thread reference, posted {stamp}]\n{content}",
+        )
+        .returning(Message.id)
+    )
+    return result.scalar_one_or_none() is not None
+
+
+async def bind_channel_source(
+    db: AsyncSession,
+    *,
+    run_id: UUID,
+    role: Literal["user", "assistant"],
+    source_id: str | None,
+) -> None:
+    """Associate the native prompt/reply with the turn already written by the runner."""
+    if source_id is None:
+        return
+    conversation_id = await db.scalar(
+        select(Message.conversation_id)
+        .where(Message.run_id == run_id, Message.role == role)
+        .limit(1)
+    )
+    if conversation_id is not None:
+        await remember_channel_source(db, conversation_id=conversation_id, source_id=source_id)
+
+
+async def remember_channel_source(
+    db: AsyncSession, *, conversation_id: UUID, source_id: str
+) -> bool:
+    result = await db.execute(
+        pg_insert(ChannelMessageSource)
+        .values(conversation_id=conversation_id, post_id=source_id)
+        .on_conflict_do_nothing()
+        .returning(ChannelMessageSource.post_id)
+    )
+    return result.scalar_one_or_none() is not None
+
+
+async def known_channel_posts(
+    db: AsyncSession, *, conversation_id: UUID, source_ids: Sequence[str]
+) -> set[str]:
+    result = await db.execute(
+        select(ChannelMessageSource.post_id).where(
+            ChannelMessageSource.conversation_id == conversation_id,
+            ChannelMessageSource.post_id.in_(source_ids),
+        )
+    )
+    return set(result.scalars())
+
+
+async def prepare_saved_room_prompt(
+    db: AsyncSession,
+    *,
+    message_id: UUID,
+    conversation_id: UUID,
+    organization_id: UUID,
+    requester_id: UUID,
+    run_id: UUID,
+    model_content: str | None,
+    attachment_context: str | None,
+) -> bool:
+    """Reuse a queued room post without creating or claiming another human turn.
+
+    Only the primary responder keeps the shared history projection. A second
+    agent routes the same files for its own workspace, but must not replace the
+    first agent's screened projection with a less restrictive one.
+    """
+    result = await db.execute(
+        select(RoomSubmission.parent_submission_id)
+        .join(Message, Message.id == RoomSubmission.message_id)
+        .where(
+            RoomSubmission.run_id == run_id,
+            RoomSubmission.organization_id == organization_id,
+            RoomSubmission.conversation_id == conversation_id,
+            RoomSubmission.requester_id == requester_id,
+            RoomSubmission.message_id == message_id,
+            RoomSubmission.status == "running",
+            Message.conversation_id == conversation_id,
+            Message.author_user_id == requester_id,
+            Message.role == "user",
+        )
+    )
+    row = result.one_or_none()
+    if row is None:
+        return False
+    if row.parent_submission_id is None:
+        await db.execute(
+            sql_update(Message)
+            .where(
+                Message.id == message_id,
+                Message.conversation_id == conversation_id,
+                Message.run_id == run_id,
+                Message.guardrail_refused.is_(False),
+            )
+            .values(model_content=model_content, attachment_context=attachment_context)
+        )
+        await db.flush()
+    return True
+
+
+async def native_question_answers(
+    db: AsyncSession, *, organization_id: UUID, run_id: UUID
+) -> list[ToolCall]:
+    """Bounded human answers identified by server-owned identity, never an MCP name."""
+    result = await db.scalars(
+        select(ToolCall)
+        .join(Message, Message.id == ToolCall.message_id)
+        .join(Conversation, Conversation.id == Message.conversation_id)
+        .where(
+            Conversation.organization_id == organization_id,
+            Message.run_id == run_id,
+            Message.guardrail_refused.is_(False),
+            ToolCall.tool_id == "ask_user_question",
+            ToolCall.presentation_kind.is_(None),
+            ToolCall.mcp_connection_id.is_(None),
+            ToolCall.status == "completed",
+        )
+        .order_by(ToolCall.started_at.desc(), ToolCall.id)
+        .limit(60)
+    )
+    return list(reversed(result.all()))

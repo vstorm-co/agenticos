@@ -100,6 +100,14 @@ async def seed(db: AsyncSession) -> Seed:
         provider="test",
         started_at=datetime.now(UTC),
     )
+    await conversation_repo.create_message(
+        db,
+        conversation_id=topic.id,
+        role="user",
+        content="Work in the source conversation",
+        run_id=source.id,
+        author_user_id=user.id,
+    )
     return Seed(
         AuthContext(user_id=user.id, organization_id=org.id, role="owner"), source, topic, agent
     )
@@ -373,6 +381,8 @@ async def test_worker_keeps_source_free_and_delivers_the_result_once_with_fresh_
         conversation_task_id: UUID,
         result_only: bool,
         model_profile_id: UUID | None,
+        thread_root_message_id: UUID | None,
+        check_model_request: Callable[[AsyncSession], Awaitable[None]] | None,
     ) -> tuple[str, AgentRun]:
         assert said == "" and parks_questions and local is None
         run = await run_repo.create_run(
@@ -389,6 +399,8 @@ async def test_worker_keeps_source_free_and_delivers_the_result_once_with_fresh_
         )
         await on_run_open(run)
         await self.db.commit()
+        if check_model_request is not None:
+            await check_model_request(self.db)
         if result_only:
             assert ctx.fired_as_creator == "event" and not acts_for_sender
             assert "while the task works" in str(message_history)
@@ -406,6 +418,7 @@ async def test_worker_keeps_source_free_and_delivers_the_result_once_with_fresh_
             content=answer,
             agent_id=agent_id,
             run_id=run.id,
+            thread_root_message_id=thread_root_message_id,
         )
         run.status = "completed"
         run.cost_usd = Decimal("0.01")
@@ -775,3 +788,22 @@ async def test_reconciliation_indexes_skip_archived_task_history(db: AsyncSessio
     )
     assert "conversation_tasks_unsettled_idx" in str(plan)
     assert [task.id for task, _run in await task_repo.unsettled_runs(db)] == [row.id]
+
+
+async def test_a_live_turn_claim_keeps_a_private_conversation_from_being_shared(
+    db: AsyncSession,
+) -> None:
+    example = await seed(db)
+    topic_id = example.topic.id
+    assert not await task_repo.has_live_conversation_work(db, topic_id)
+
+    claim_id = await task_repo.claim_turn(db, topic_id, background=False)
+    assert claim_id is not None
+    assert await task_repo.has_live_conversation_work(db, topic_id)
+
+    await db.execute(
+        update(ConversationTurnClaim)
+        .where(ConversationTurnClaim.id == claim_id)
+        .values(expires_at=datetime.now(UTC) - timedelta(seconds=1))
+    )
+    assert not await task_repo.has_live_conversation_work(db, topic_id)

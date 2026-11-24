@@ -56,7 +56,7 @@ class TestWhatTheCatalogOffers:
             for model in entry.models:
                 assert len(model.description) > 20
                 assert model.max_characters > 0
-                assert price_per_character(model, on=date(2026, 10, 20)) is not None
+                assert price_per_character(model, on=date(2026, 11, 17)) is not None
 
     def test_a_model_limited_to_some_voices_names_only_voices_the_provider_has(self):
         """A restriction naming a voice that is not listed would leave the model
@@ -156,8 +156,8 @@ class TestPrices:
             prices=(SpeechPrice(since=date(2030, 1, 1), usd_per_million_characters=Decimal("1")),),
         )
 
-        assert price_per_character(model, on=date(2026, 10, 20)) is None
-        assert piece_cost(model, on=date(2026, 10, 20), characters=10, seconds=1.0) is None
+        assert price_per_character(model, on=date(2026, 11, 17)) is None
+        assert piece_cost(model, on=date(2026, 11, 17), characters=10, seconds=1.0) is None
 
 
 class TestPieceCost:
@@ -168,7 +168,7 @@ class TestPieceCost:
         flash = _provider("google").model("gemini-3.8-flash-tts")
         assert flash is not None
 
-        cost = piece_cost(flash, on=date(2026, 10, 20), characters=400, seconds=10.0)
+        cost = piece_cost(flash, on=date(2026, 11, 17), characters=400, seconds=10.0)
 
         # 100 text tokens at $0.50/M and 250 audio tokens at $9.00/M.
         assert cost == (100 * Decimal("0.50") + 250 * Decimal("9.00")) / 1_000_000
@@ -177,8 +177,8 @@ class TestPieceCost:
         flash = _provider("google").model("gemini-3.8-flash-tts")
         assert flash is not None
 
-        brisk = piece_cost(flash, on=date(2026, 10, 20), characters=400, seconds=5.0)
-        slow = piece_cost(flash, on=date(2026, 10, 20), characters=400, seconds=20.0)
+        brisk = piece_cost(flash, on=date(2026, 11, 17), characters=400, seconds=5.0)
+        slow = piece_cost(flash, on=date(2026, 11, 17), characters=400, seconds=20.0)
 
         assert brisk is not None and slow is not None and slow > 3 * brisk
 
@@ -200,9 +200,9 @@ class TestPieceCost:
         chosen = _provider(provider).model(model)
         assert chosen is not None
 
-        cost = piece_cost(chosen, on=date(2026, 10, 20), characters=300, seconds=seconds)
+        cost = piece_cost(chosen, on=date(2026, 11, 17), characters=300, seconds=seconds)
 
-        assert cost == price_per_character(chosen, on=date(2026, 10, 20)) * 300
+        assert cost == price_per_character(chosen, on=date(2026, 11, 17)) * 300
 
     def test_a_price_states_all_three_token_rates_or_none(self):
         with pytest.raises(ValueError, match="all three token rates"):

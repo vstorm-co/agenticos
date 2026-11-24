@@ -7,6 +7,7 @@ a permission that has no rows to scope, is a bug the tests should catch before
 an endpoint does.
 """
 
+import dataclasses
 import operator
 import uuid
 
@@ -52,11 +53,23 @@ class TestCatalogInvariants:
             assert not empty, f"{role} lists {empty} at scope none; drop the entry instead"
 
     def test_global_permissions_are_never_partially_scoped(self):
-        """A global permission is binary - org-wide or not held at all."""
+        """A global permission is binary - org-wide or not held at all.
+
+        With one exception: `approvals:decide` is global but member and builder
+        hold it at `OWN`, for a run they started only. The scope is enforced
+        per run in the decide path, not by the role - see
+        `may_decide_approval` - because a role cannot see which run an
+        approval belongs to. No other global permission is partially scoped.
+        """
         for role, perms in ROLE_PERMS.items():
             for perm, scope in perms.items():
-                if perm not in RESOURCE_PERMS:
+                if perm not in RESOURCE_PERMS and perm is not Perm.APPROVALS_DECIDE:
                     assert scope is Scope.ALL, f"{role}.{perm} is global but scoped {scope}"
+        for role in ("member", "builder"):
+            assert ROLE_PERMS[role][Perm.APPROVALS_DECIDE] is Scope.OWN, (
+                f"{role} holds approvals:decide at "
+                f"{ROLE_PERMS[role][Perm.APPROVALS_DECIDE]}, not OWN"
+            )
 
     def test_owner_holds_everything(self):
         assert set(ROLE_PERMS[OrgRoleName.OWNER]) == set(Perm)
@@ -228,3 +241,54 @@ class TestRequireDependency:
             await dependency(ctx)
         assert exc.value.details is not None
         assert set(exc.value.details["required"]) == {"members:manage", "budgets:manage"}
+
+
+@pytest.mark.parametrize(
+    ("changes", "in_person"),
+    [
+        ({}, True),
+        ({"api_key_id": uuid.uuid4(), "key_scopes": frozenset()}, False),
+        ({"api_key_id": uuid.uuid4(), "key_scopes": frozenset({Perm.PERSONAL_CONSENT})}, True),
+        ({"api_key_id": uuid.uuid4()}, False),
+        (
+            {
+                "api_key_id": uuid.uuid4(),
+                "key_scopes": frozenset({Perm.PERSONAL_CONSENT}),
+                "role": "viewer",
+            },
+            False,
+        ),
+        ({"api_key_id": uuid.uuid4(), "key_scopes": frozenset(), "key_internal": True}, False),
+        (
+            {
+                "api_key_id": uuid.uuid4(),
+                "key_internal": True,
+                "source_conversation_id": uuid.uuid4(),
+            },
+            True,
+        ),
+        ({"key_scopes": frozenset()}, False),
+        ({"subject_is_publisher_fallback": True}, False),
+        ({"fired_as_creator": "schedule"}, False),
+        ({"routine_id": uuid.uuid4()}, False),
+        ({"user_id": None}, False),
+    ],
+    ids=[
+        "session",
+        "ordinary-key",
+        "consent-key",
+        "missing-scopes",
+        "narrowed-role",
+        "run-credential",
+        "private-chat",
+        "resumed-scopes",
+        "publisher",
+        "fired",
+        "routine",
+        "nobody",
+    ],
+)
+def test_acts_in_person_is_the_person_or_a_key_they_issued(changes, in_person) -> None:
+    """Standing consent needs its explicit key scope; a private chat keeps its live authority."""
+    ctx = AuthContext(user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role="owner")
+    assert dataclasses.replace(ctx, **changes).acts_in_person is in_person

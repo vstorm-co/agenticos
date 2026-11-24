@@ -89,7 +89,7 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("visual frames in history", () => {
-  it("mounts near the viewport, preserves the measured footprint, and releases resources offscreen", () => {
+  it("mounts lazily and preserves the same iframe and interaction state across scrolling", () => {
     const { container, unmount } = render(<ViewportVisualFrame {...props} />);
     const box = container.firstElementChild!;
     const observer = Visibility.instances[0]!;
@@ -105,13 +105,13 @@ describe("visual frames in history", () => {
       resize.emit(box, 0);
       resize.emit(box, 275);
     });
+    const frame = container.querySelector("iframe");
     act(() => observer.emit(box, false));
-    expect(container.querySelector("iframe")).toBeNull();
-    expect(box).toHaveStyle({ height: "275px" });
-    expect(lifecycle.unmount).toHaveBeenCalledTimes(1);
-    expect(resize.disconnect).toHaveBeenCalledTimes(1);
+    expect(container.querySelector("iframe")).toBe(frame);
+    expect(lifecycle.unmount).not.toHaveBeenCalled();
     act(() => observer.emit(box, true));
-    expect(lifecycle.mount).toHaveBeenCalledTimes(2);
+    expect(container.querySelector("iframe")).toBe(frame);
+    expect(lifecycle.mount).toHaveBeenCalledTimes(1);
     unmount();
     expect(observer.disconnect).toHaveBeenCalledTimes(1);
   });
@@ -122,8 +122,9 @@ describe("visual frames in history", () => {
     expect(container.querySelector("iframe")).not.toBeNull();
     act(() => Visibility.instances[0]!.emit(box, false));
     expect(container.querySelector("iframe")).not.toBeNull();
+    const frame = container.querySelector("iframe");
     rerender(<ViewportVisualFrame {...props} />);
-    expect(container.querySelector("iframe")).toBeNull();
+    expect(container.querySelector("iframe")).toBe(frame);
     act(() => Visibility.instances[0]!.emit(box, true));
     expect(container.querySelector("iframe")).not.toBeNull();
     rerender(<ViewportVisualFrame {...props} suspended />);

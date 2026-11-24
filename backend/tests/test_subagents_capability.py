@@ -2489,6 +2489,16 @@ class TestTheWorkspaceADelegationRunsIn:
         assert seen == [False]
 
 
+async def test_a_nested_delegate_uses_its_explicit_device_workspace():
+    approved_files, parent_files = StateBackend(), StateBackend()
+    approved = document_workspace(approved_files)
+    parent = document_workspace(parent_files)
+    delegate = _a_writing_delegate(approved)
+    await delegate_to(a_capability(a_runtime(delegate)), replace(a_context(), workspace=parent))
+    assert approved_files.read_bytes("/notes.md") == b"found it"
+    assert parent_files.files == {}
+
+
 class TestDelegateDeps:
     """What a delegation actually runs with, which is not what its build produced."""
 

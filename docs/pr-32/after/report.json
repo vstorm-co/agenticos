@@ -1,0 +1,63 @@
+{
+  "label": "after",
+  "base": "http://127.0.0.1:3218",
+  "viewports": [
+    1440,
+    390
+  ],
+  "note": "Checks are read from the review panel element; only text visible in the screenshot is listed.",
+  "captures": [
+    {
+      "width": 1440,
+      "state": "skill-try",
+      "file": "after-skill-try-1440.png",
+      "panel_checks": {
+        "Not eval-gated text": false,
+        "Try this text button visible": true,
+        "Apply button visible": true,
+        "Apply button disabled": false,
+        "Revert button visible": false
+      },
+      "page_errors": 0
+    },
+    {
+      "width": 1440,
+      "state": "applied-revert",
+      "file": "after-applied-revert-1440.png",
+      "panel_checks": {
+        "Not eval-gated text": false,
+        "Try this text button visible": false,
+        "Apply button visible": false,
+        "Apply button disabled": null,
+        "Revert button visible": true
+      },
+      "page_errors": 0
+    },
+    {
+      "width": 390,
+      "state": "skill-try",
+      "file": "after-skill-try-390.png",
+      "panel_checks": {
+        "Not eval-gated text": false,
+        "Try this text button visible": true,
+        "Apply button visible": true,
+        "Apply button disabled": false,
+        "Revert button visible": false
+      },
+      "page_errors": 0
+    },
+    {
+      "width": 390,
+      "state": "applied-revert",
+      "file": "after-applied-revert-390.png",
+      "panel_checks": {
+        "Not eval-gated text": false,
+        "Try this text button visible": false,
+        "Apply button visible": false,
+        "Apply button disabled": null,
+        "Revert button visible": true
+      },
+      "page_errors": 0
+    }
+  ]
+}

@@ -1,5 +1,5 @@
 ---
-source_sha: "512bef978a71"
+source_sha: "99083acac729"
 ---
 
 # Dodaj capability { #add-a-capability }
@@ -158,6 +158,8 @@ def _build(ctx: CapabilityBuildContext) -> Weather | None:
   jego `description` powinien być własnym podsumowaniem docstringa narzędzia —
   osoba wybierająca, co wymaga approvalu, i model wybierający, kiedy działać,
   powinni czytać ten sam tekst, a nie dwie rozjeżdżające się parafrazy.
+Zapisane wywołania zachowują stabilne `id` jako `tool_id`, obok rzeczywistej nazwy użytej przez model. Renderery czatu i udostępnione rysunki korzystają z tej tożsamości, więc zmiana nazwy dla agenta zachowuje widok po odświeżeniu. Starsze wywołania bez id korzystają z zapisanej nazwy; nowe wywołania zewnętrznych serwerów MCP mają jawnie ogólną prezentację i nie mogą uzyskać widoku wbudowanego narzędzia samą nazwą.
+
 - **`config_schema`** generuje formularz w Builderze i jest walidowany przy
   publikacji, więc zła wartość oblewa, kiedy ktoś patrzy na formularz, a nie w
   środku runa. Każde pole dostaje `title` i `description` napisane dla osoby,

@@ -15,7 +15,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 # Compiles the app's own Swift plugins (`ios/`) into the library, as Tauri's
 # plugins compile theirs.
-tauri-utils = { version = "2", features = ["build"] }
+tauri-utils = { version = "2", features = ["build-2"] }
 
 [dependencies]
 agenticos-shell-core = { path = "../../desktop/core" }
@@ -29,3 +29,12 @@ tauri-plugin-haptics = "2"
 
 [target.'cfg(any(target_os = "android", target_os = "ios"))'.dependencies]
 tauri-plugin-barcode-scanner = "2"
+
+# Backport of RUSTSEC-2024-0429 for Tauri v2's GTK 0.18 ABI.
+# https://github.com/gtk-rs/gtk-rs-core/pull/2009; keep all linked sys crates on one source.
+[patch.crates-io]
+glib = { git = "https://github.com/gtk-rs/gtk-rs-core", rev = "ea720152f28e293ef4362ee844ee5cc499f32d2a" }
+glib-sys = { git = "https://github.com/gtk-rs/gtk-rs-core", rev = "ea720152f28e293ef4362ee844ee5cc499f32d2a" }
+glib-macros = { git = "https://github.com/gtk-rs/gtk-rs-core", rev = "ea720152f28e293ef4362ee844ee5cc499f32d2a" }
+gobject-sys = { git = "https://github.com/gtk-rs/gtk-rs-core", rev = "ea720152f28e293ef4362ee844ee5cc499f32d2a" }
+gio-sys = { git = "https://github.com/gtk-rs/gtk-rs-core", rev = "ea720152f28e293ef4362ee844ee5cc499f32d2a" }

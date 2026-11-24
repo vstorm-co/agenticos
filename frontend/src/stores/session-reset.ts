@@ -1,5 +1,8 @@
 "use client";
 
+import { clearCopies } from "@/lib/unsaved-copies";
+import { resetAccountAppearance } from "@/lib/account-appearance";
+
 import { wipeDeviceCache } from "@/lib/offline/device-cache";
 import { useAgentSelectionStore } from "./agent-selection-store";
 import { useBrowserPanelStore } from "./browser-panel-store";
@@ -11,6 +14,7 @@ import { useOrgStore } from "./org-store";
 import { useSourcesPanelStore } from "./sources-panel-store";
 import { useTableViewStore } from "./table-view-store";
 import { resetVisualState } from "./visual-stream-store";
+import { useUnsavedChangesStore } from "./unsaved-changes-store";
 import { useWorkOnStore } from "./work-on-store";
 import { useWorkingStore } from "./working-store";
 
@@ -31,6 +35,7 @@ export function resetTenantState(): void {
   useConversationStore.getState().reset();
   useWorkOnStore.getState().resetDraft();
   useChatStore.getState().clearMessages();
+  useChatStore.getState().clearRoomDrafts();
   useChatStore.getState().setStreaming(false);
   useWorkingStore.getState().reset();
   useFilePreviewStore.getState().close();
@@ -42,7 +47,7 @@ export function resetTenantState(): void {
   // and would otherwise open the new tenant's conversation on the previous
   // one's page. Its width is a property of the window rather than the tenant, so
   // that is left where somebody dragged it.
-  useBrowserPanelStore.setState({ openCallId: null });
+  useBrowserPanelStore.getState().close();
   useAgentSelectionStore.getState().select(null);
   useAgentSelectionStore.getState().setDefault(null);
   // The guided flow is tenant-coupled too: it holds the id of an agent built in
@@ -59,6 +64,9 @@ export function resetTenantState(): void {
   // Visuals' pictures and saved apps are keyed by the provider's call id, which
   // another tenant's thread may reuse.
   resetVisualState();
+  // Unsaved edits kept in this browser are the organization's content too.
+  clearCopies();
+  useUnsavedChangesStore.setState({ sources: {}, prompt: null, saving: false });
   // And the copy on the disk: the apps keep the tenant's recent conversations
   // and outbox sealed on the device, for one tenant at a time (#2097).
   wipeDeviceCache();
@@ -74,12 +82,12 @@ export function resetTenantState(): void {
  *
  * Called where the query cache is cleared, and for the same reason: this state
  * belongs to a session, not to a browser. What is deliberately left alone is
- * anything about the browser rather than the account - the theme, and whether a
- * sidebar is collapsed. Signing out is not a reason to switch somebody back to
- * light mode.
+ * anything about the browser rather than the account, such as whether a sidebar
+ * is collapsed. Appearance belongs to the account and returns to system defaults.
  */
 export function resetSessionState(): void {
   resetTenantState();
+  resetAccountAppearance();
   // `refusedOrgIds` too, not only the selection: a refusal is a fact about one
   // account, and leaving it behind filters an organization out of the next
   // account's automatic pick even where that account is a member in good

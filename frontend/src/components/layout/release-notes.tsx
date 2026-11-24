@@ -5,7 +5,8 @@ import { version } from "../../../package.json";
 import { useAuthStore } from "@/stores/auth-store";
 import { useReleaseNotesStore } from "@/stores/release-notes-store";
 import { useCurrentRelease } from "@/hooks/use-current-release";
-import { isNewerRelease } from "@/lib/releases";
+import { isNewerRelease, memberReleaseNotes } from "@/lib/releases";
+import { isAppAdmin } from "@/lib/utils";
 import { MarkdownContent } from "@/components/chat/markdown-content";
 import {
   Button,
@@ -24,14 +25,24 @@ export function ReleaseNotes() {
 }
 function AccountReleaseNotes({ userId }: { userId: string }) {
   const t = useTranslations("nav");
+  const operator = useAuthStore((s) => isAppAdmin(s.user));
   const seen = useReleaseNotesStore((s) => s.acknowledged[userId]);
   const acknowledge = useReleaseNotesStore((s) => s.acknowledge);
   const unseen = seen === undefined || isNewerRelease(seen, version);
   const { data } = useCurrentRelease(unseen);
   const [open, setOpen] = useState(false);
   const release = data?.release;
+  // Upgrade steps and migration notes are for whoever runs the deployment; a
+  // release that holds only those has nothing to tell anyone else.
+  const notes = release ? (operator ? release.body : memberReleaseNotes(release.body)) : "";
+  // Nothing to tell this reader about the release: it is handled, so the notes
+  // are not asked for again on every return to the window.
+  const nothingForReader = release !== undefined && release !== null && !notes;
   useEffect(() => {
-    if (!unseen || !release || open) return;
+    if (unseen && nothingForReader) acknowledge(userId, version);
+  }, [unseen, nothingForReader, acknowledge, userId]);
+  useEffect(() => {
+    if (!unseen || !notes || open) return;
     const tryOpen = () => {
       if (!document.querySelector('[role="dialog"], [role="alertdialog"], .driver-popover'))
         setOpen(true);
@@ -46,8 +57,8 @@ function AccountReleaseNotes({ userId }: { userId: string }) {
       clearTimeout(timer);
       observer.disconnect();
     };
-  }, [unseen, release, open]);
-  if (!release) return null;
+  }, [unseen, notes, open]);
+  if (!release || !notes) return null;
   const close = () => {
     acknowledge(userId, version);
     setOpen(false);
@@ -65,7 +76,7 @@ function AccountReleaseNotes({ userId }: { userId: string }) {
           <DialogDescription>{t("whatsNewDescription")}</DialogDescription>
         </DialogHeader>
         <div className="min-h-0 flex-1 overflow-y-auto py-2 pr-2">
-          <MarkdownContent content={release.body} inertImages bareCode />
+          <MarkdownContent content={notes} inertImages bareCode />
         </div>
         <DialogFooter>
           <a

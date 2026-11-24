@@ -24,6 +24,7 @@ from fastapi import APIRouter, Depends, Query
 
 from app.api.deps import Auth, SkillProposalSvc, require
 from app.core.permissions import Perm
+from app.schemas.resource_usage import ProposalDecision
 from app.schemas.skill_proposal import SkillProposalList, SkillProposalRead
 
 router = APIRouter()
@@ -39,7 +40,7 @@ async def list_proposals(
     ),
 ) -> Any:
     """Every skill change an agent has proposed, newest first."""
-    items = await service.list_proposals(ctx, status=status)
+    items = await service.list_read(ctx, status=status)
     return SkillProposalList(items=items, total=len(items))
 
 
@@ -49,7 +50,7 @@ async def list_proposals(
     dependencies=[Depends(require(Perm.SKILLS_EDIT))],
 )
 async def read_proposal(proposal_id: UUID, service: SkillProposalSvc, ctx: Auth) -> Any:
-    return await service.get(ctx, proposal_id)
+    return await service.read(ctx, proposal_id)
 
 
 @router.post(
@@ -57,13 +58,15 @@ async def read_proposal(proposal_id: UUID, service: SkillProposalSvc, ctx: Auth)
     response_model=SkillProposalRead,
     dependencies=[Depends(require(Perm.SKILLS_EDIT))],
 )
-async def apply_proposal(proposal_id: UUID, service: SkillProposalSvc, ctx: Auth) -> Any:
+async def apply_proposal(
+    proposal_id: UUID, decision: ProposalDecision, service: SkillProposalSvc, ctx: Auth
+) -> Any:
     """Accept it: the skill is rewritten and its version moves.
 
     This reaches every agent bound to that skill on its next run, which is the
     point of skills and the reason this is a decision rather than a default.
     """
-    return await service.apply(ctx, proposal_id)
+    return await service.apply(ctx, proposal_id, decision)
 
 
 @router.post(
@@ -71,10 +74,12 @@ async def apply_proposal(proposal_id: UUID, service: SkillProposalSvc, ctx: Auth
     response_model=SkillProposalRead,
     dependencies=[Depends(require(Perm.SKILLS_EDIT))],
 )
-async def discard_proposal(proposal_id: UUID, service: SkillProposalSvc, ctx: Auth) -> Any:
+async def discard_proposal(
+    proposal_id: UUID, decision: ProposalDecision, service: SkillProposalSvc, ctx: Auth
+) -> Any:
     """Refuse it, keeping the record.
 
     Kept rather than deleted: an agent proposing the same edit repeatedly is
     saying something about the skill, and a deleted row makes that invisible.
     """
-    return await service.discard(ctx, proposal_id)
+    return await service.discard(ctx, proposal_id, decision)

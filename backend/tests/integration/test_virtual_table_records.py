@@ -6,6 +6,7 @@ import pytest
 from sqlalchemy import event, func, select
 
 from app.core.exceptions import AlreadyExistsError, NotFoundError
+from app.db.models.organization import OrganizationMember
 from app.db.models.resource_grant import GrantLevel
 from app.db.models.virtual_table import (
     VirtualTableOutbox,
@@ -572,6 +573,8 @@ async def test_a_viewer_reads_but_only_an_edit_grant_lets_them_write(db):
     written = await service.create_record(ctx, table.id, RecordCreate(external_id="A-1", values={}))
     colleague = await make_user(db)
     viewer = ctx_for(colleague, org, "viewer")
+    db.add(OrganizationMember(organization_id=org.id, user_id=colleague.id, role="viewer"))
+    await db.flush()
     await resource_grant_repo.upsert(
         db,
         organization_id=org.id,

@@ -58,6 +58,7 @@ from app.core.audit import record_audit
 from app.core.permissions import Perm, Scope
 from app.repositories import agent_run_repo
 from app.repositories.agent_run import ApprovalFilters, RunFilters
+from app.services.approvals import ApprovalService
 from app.services.exporting import (
     MAX_EXPORT_ROWS,
     ExportResult,
@@ -223,13 +224,16 @@ class RunExportService:
     ) -> ExportResult:
         """The approvals record as CSV, over exactly the rows `GET /approvals` lists.
 
-        Gated on `approvals:decide` at the route, which is organization-wide, so
-        there is no `Scope.OWN` floor to apply - an approver sees the whole queue.
-        The two emails are kept because the queue already resolves them on screen. A
-        chat stranger's call leaves them empty and fills the `asked_in_chat_*`
-        columns instead: the publisher the run ran as did not ask.
+        Gated on `approvals:decide` at the route, and narrowed the same way
+        the list is: a caller holding the permission only at `OWN` exports
+        their own runs' rows, not the organization's. The two emails are kept
+        because the queue already resolves them on screen. A chat stranger's
+        call leaves them empty and fills the `asked_in_chat_*` columns
+        instead: the publisher the run ran as did not ask.
         """
         require_range(filters.created_from, filters.created_to)
+        if ctx.scope_for(Perm.APPROVALS_DECIDE) is Scope.OWN:
+            filters = replace(filters, triggered_by_user_id=ctx.user_id)
 
         items, total = await agent_run_repo.list_approvals(
             self.db,
@@ -240,6 +244,7 @@ class RunExportService:
             limit=MAX_EXPORT_ROWS,
         )
         guard_cap(total, remedy="Narrow the date range and try again.")
+        items = await ApprovalService(self.db).as_read_by(ctx, items)
 
         content = _write(_APPROVALS_HEADER, [_approval_row(row) for row in items])
         now = datetime.now(UTC)

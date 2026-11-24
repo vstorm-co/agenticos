@@ -24,7 +24,7 @@ async def list_boards(ctx: Auth, service: DurableTaskSvc) -> Any:
 @router.post("/boards", response_model=TaskBoardRead)
 async def ensure_board(data: BoardEnsure, ctx: Auth, service: DurableTaskSvc) -> Any:
     """Create a scope's board on first use, or return the existing one."""
-    return await service.ensure_board(ctx, data)
+    return await service.open_board(ctx, data)
 
 
 @router.get("", response_model=TaskList)

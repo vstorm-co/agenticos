@@ -103,6 +103,7 @@ class OrganizationSecret(Base, TimestampMixin):
     )
 
     __table_args__ = (
+        UniqueConstraint("organization_id", "id", name="uq_organization_secrets_org_id"),
         UniqueConstraint("organization_id", "name", name="uq_organization_secret_org_name"),
         CheckConstraint("visibility IN ('private', 'team', 'org')", name="ck_secret_visibility"),
         CheckConstraint(

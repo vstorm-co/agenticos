@@ -1,0 +1,37 @@
+{{- if .Values.trustedProxy.enabled }}
+{{- range $component := list "api" "frontend" }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "agenticos.name" $ }}-{{ $component }}-ingress
+  labels:
+    {{- include "agenticos.labels" $ | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ $.Release.Name }}
+      app.kubernetes.io/component: {{ $component }}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              {{- toYaml (required "trustedProxy.namespaceLabels is required" $.Values.trustedProxy.namespaceLabels) | nindent 14 }}
+          podSelector:
+            matchLabels:
+              {{- toYaml (required "trustedProxy.podLabels is required" $.Values.trustedProxy.podLabels) | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: {{ if eq $component "api" }}8000{{ else }}3000{{ end }}
+    {{- if eq $component "api" }}
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/instance: {{ $.Release.Name }}
+              app.kubernetes.io/component: frontend
+      ports:
+        - {protocol: TCP, port: 8000}
+    {{- end }}
+{{- end }}
+{{- end }}

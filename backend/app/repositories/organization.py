@@ -5,9 +5,9 @@ import uuid
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import ColumnElement, Select, func, select
+from sqlalchemy import ColumnElement, Select, cast, func, null, select
 from sqlalchemy import update as sql_update
-from sqlalchemy.dialects.postgresql import distinct_on
+from sqlalchemy.dialects.postgresql import JSONB, distinct_on
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.permissions import OrgRoleName
@@ -185,10 +185,15 @@ async def generate_unique_slug(db: AsyncSession, base: str) -> str:
     if not await slug_exists(db, candidate):
         return candidate
     for i in range(2, 100):
-        suffixed = f"{candidate}-{i}"
+        suffixed = _with_suffix(candidate, f"-{i}")
         if not await slug_exists(db, suffixed):
             return suffixed
-    return f"{candidate}-{uuid.uuid4().hex[:6]}"
+    return _with_suffix(candidate, f"-{uuid.uuid4().hex[:6]}")
+
+
+def _with_suffix(slug: str, suffix: str) -> str:
+    """`slug` with `suffix`, cut first so the whole fits the column's 64 characters."""
+    return slug[: 64 - len(suffix)].rstrip("-") + suffix
 
 
 async def create(
@@ -226,6 +231,16 @@ async def update(
         org.name = name
     if avatar_url is not None:
         org.avatar_url = avatar_url
+    await db.flush()
+    await db.refresh(org)
+    return org
+
+
+async def make_shared(db: AsyncSession, org: Organization, *, name: str, slug: str) -> Organization:
+    """Turn a personal organization into an ordinary one called `name`."""
+    org.name = name
+    org.slug = slug
+    org.is_personal = False
     await db.flush()
     await db.refresh(org)
     return org
@@ -332,6 +347,36 @@ async def set_avatar_color(
     return org
 
 
+async def set_role_navigation(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    role: str,
+    hidden_items: list[str],
+) -> Organization | None:
+    """Replace one role's preferences without losing another role's concurrent edit.
+
+    Refresh an identity-map row after acquiring the lock: another request may
+    have changed it while this transaction waited for the organization.
+    """
+    result = await db.execute(
+        select(Organization)
+        .where(Organization.id == organization_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    organization = result.scalar_one_or_none()
+    if organization is None:
+        return None
+    organization.role_navigation = {
+        **(organization.role_navigation or {}),
+        role: list(hidden_items),
+    }
+    await db.flush()
+    await db.refresh(organization)
+    return organization
+
+
 async def set_chat_approval_waiver(
     db: AsyncSession, org: Organization, *, allowed: bool
 ) -> Organization:
@@ -346,6 +391,16 @@ async def set_chat_approval_waiver(
     return org
 
 
+async def set_public_agenticos_attribution(
+    db: AsyncSession, org: Organization, *, enabled: bool
+) -> Organization:
+    """Set the footer preference shared by this organization's public viewers."""
+    org.public_agenticos_attribution = enabled
+    await db.flush()
+    await db.refresh(org)
+    return org
+
+
 async def set_public_live_data(
     db: AsyncSession, org: Organization, *, allowed: bool
 ) -> Organization:
@@ -354,6 +409,16 @@ async def set_public_live_data(
     Its own function for the reason :func:`set_chat_approval_waiver` is.
     """
     org.public_live_data = allowed
+    await db.flush()
+    await db.refresh(org)
+    return org
+
+
+async def set_text_to_speech(
+    db: AsyncSession, org: Organization, *, defaults: dict[str, str | bool | None] | None
+) -> Organization:
+    """Replace or clear the validated default voice atomically with its key reference."""
+    org.text_to_speech = defaults
     await db.flush()
     await db.refresh(org)
     return org
@@ -595,3 +660,57 @@ async def admin_get_with_counts(db: AsyncSession, org_id: UUID) -> AdminOrganiza
         return None
     organization, members, agents, owner_id, owner_email, owner_name = row
     return organization, int(members), int(agents), owner_id, owner_email, owner_name
+
+
+async def set_chat_home_defaults(
+    db: AsyncSession,
+    org: Organization,
+    *,
+    changes: dict[str, bool | None] | None,
+) -> Organization:
+    """Patch only named console defaults without overwriting concurrent choices."""
+    value = (
+        null()
+        if changes is None
+        else func.jsonb_strip_nulls(
+            func.coalesce(Organization.chat_home_defaults, cast({}, JSONB)).op("||")(
+                cast(changes, JSONB)
+            )
+        )
+    )
+    result = await db.execute(
+        sql_update(Organization)
+        .where(Organization.id == org.id)
+        .values(chat_home_defaults=value)
+        .returning(Organization)
+        .execution_options(populate_existing=True)
+    )
+    await db.flush()
+    return result.scalar_one()
+
+
+async def set_onboarding_reminders(
+    db: AsyncSession,
+    org: Organization,
+    *,
+    changes: dict[str, bool | int | None] | None,
+) -> Organization:
+    """Patch only named console defaults without overwriting concurrent choices."""
+    value = (
+        null()
+        if changes is None
+        else func.jsonb_strip_nulls(
+            func.coalesce(Organization.onboarding_reminders, cast({}, JSONB)).op("||")(
+                cast(changes, JSONB)
+            )
+        )
+    )
+    result = await db.execute(
+        sql_update(Organization)
+        .where(Organization.id == org.id)
+        .values(onboarding_reminders=value)
+        .returning(Organization)
+        .execution_options(populate_existing=True)
+    )
+    await db.flush()
+    return result.scalar_one()

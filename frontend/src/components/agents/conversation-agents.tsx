@@ -1,7 +1,8 @@
 "use client";
 
 import { BrandIcon } from "@/components/icons/brand-icon";
-import { useConversationAgentLabel } from "@/hooks/use-conversation-agent-label";
+import { AvatarFace } from "@/components/ui/avatar-face";
+import { HARNESS_LABEL_KEY, useConversationAgentLabel } from "@/hooks/use-conversation-agent-label";
 import type { CodingHarness } from "@/types/chat";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { cn } from "@/lib/utils";
@@ -73,7 +74,7 @@ export function ConversationAgents({
       className={cn("relative inline-flex min-w-0 items-center gap-1.5", className)}
       title={[
         ...platform.map((agent) => agent.name),
-        ...codingAgents.map((harness) => tHarness(harness === "codex" ? "codex" : "claudeCode")),
+        ...codingAgents.map((harness) => tHarness(HARNESS_LABEL_KEY[harness])),
       ].join(" → ")}
     >
       <span className="group/stack flex shrink-0">
@@ -100,17 +101,27 @@ export function ConversationAgents({
             <span
               key={face.harness}
               role="img"
-              aria-label={tHarness(face.harness === "codex" ? "codex" : "claudeCode")}
+              aria-label={tHarness(HARNESS_LABEL_KEY[face.harness])}
               className={cn(
                 stack,
                 "bg-background border-foreground/10 flex shrink-0 items-center justify-center rounded-full border",
                 size === "md" ? "size-9" : "size-6",
               )}
             >
-              <BrandIcon
-                name={face.harness === "codex" ? "codex" : "claude_code"}
-                className={size === "md" ? "size-4" : "size-3.5"}
-              />
+              {face.harness === "claude_code" || face.harness === "codex" ? (
+                <BrandIcon name={face.harness} className={size === "md" ? "size-4" : "size-3.5"} />
+              ) : (
+                // No brand glyph for the new harnesses yet: the icon generator
+                // owns those, so the face falls back to the seeded avatar.
+                <span
+                  className={cn(
+                    "overflow-hidden rounded-full",
+                    size === "md" ? "size-9" : "size-6",
+                  )}
+                >
+                  <AvatarFace seed={`harness:${face.harness}`} background={false} />
+                </span>
+              )}
             </span>
           );
         })}

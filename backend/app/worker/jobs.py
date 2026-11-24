@@ -26,12 +26,16 @@ class Pool(enum.StrEnum):
 
     AGENT = "agent"
     """Agent runs: long, waiting on models, cheap in memory."""
+    EVAL = "eval"
+    """Eval runs: hours over a large dataset, so they never hold a slot an agent run needs."""
     INGEST = "ingest"
     """Parsing and embedding: CPU and memory heavy, each job in a child process."""
     SYSTEM = "system"
     """Sweeps, cleanups and reports: short, and nearly always idle."""
     WORKFLOW = "workflow"
     """Workflow nodes: HTTP, file and sandbox steps, mostly waiting, some holding a large file."""
+    NETWORK = "network"
+    """Isolated node lifecycles, bounded separately while people complete device sign-in."""
 
 
 class Priority(enum.IntEnum):
@@ -52,6 +56,38 @@ class WakeTask(Payload):
     organization_id: UUID
     task_id: UUID
     revision: int = Field(ge=1)
+
+
+class RunNetworkConnection(Payload):
+    organization_id: UUID
+    connection_id: UUID
+    enrollment_id: UUID | None
+    policy_generation: int = Field(ge=1)
+    mode: Literal["enroll", "status", "logout"]
+
+
+class RevertCodingTask(Payload):
+    organization_id: UUID
+    change_id: UUID
+    user_id: UUID
+    claim_id: UUID
+    api_key_id: UUID | None = None
+
+
+class RefreshCodingAccountUsage(Payload):
+    organization_id: UUID
+    user_id: UUID
+    account_id: UUID
+    generation: UUID
+    request_id: UUID
+
+
+class DraftBrowserProcedureTeaching(Payload):
+    organization_id: UUID
+    session_id: UUID
+    revision: int = Field(ge=1)
+    source_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
+    token: UUID
 
 
 class MoveProjectWorkspacePayload(Payload):
@@ -82,6 +118,42 @@ class ChannelDelivery(Payload):
     payload: dict[str, JsonValue]
 
 
+class ChannelMessageFile(Payload):
+    filename: str
+    mime_type: str
+    size: int
+    handle: str = Field(repr=False)
+    handle_key_version: int | None = None
+    duration_seconds: float | None = None
+    author_id: str | None = None
+
+
+class ChannelMessage(Payload):
+    """An authenticated native event, without webhook credentials or raw provider envelopes."""
+
+    receipt_id: UUID
+    organization_id: UUID
+    bot_id: UUID
+    authorization_generation: UUID
+    platform: Literal["slack", "telegram", "mattermost", "teams", "discord", "matrix"]
+    platform_user_id: str
+    server_url: str = ""
+    platform_chat_id: str
+    chat_type: Literal["private", "group"]
+    text: str
+    platform_username: str | None = None
+    platform_display_name: str | None = None
+    message_id: str | None = None
+    broadcast_mention: bool = False
+    addressed: bool | None = None
+    edit_admitted: bool = False
+    interaction_handle: str | None = Field(default=None, repr=False)
+    interaction_key_version: int = 1
+    platform_team_id: str | None = None
+    attachments: list[ChannelMessageFile] = Field(default_factory=list)
+    metadata: dict[str, JsonValue] = Field(default_factory=dict)
+
+
 class EmailDelivery(Payload):
     organization_id: UUID
     bot_id: UUID
@@ -90,13 +162,24 @@ class EmailDelivery(Payload):
 
 
 class ChannelHandbackCall(Payload):
+    tool_id: str | None = None
+    presentation_kind: Literal["draft", "generic", "platform"] | None = None
     tool_call_id: str
     tool_name: str
     args: dict[str, JsonValue]
     result: str | None = None
 
 
+class ChannelHandbackFile(Payload):
+    filename: str
+    mime_type: str
+    stored_leaf: str
+
+
 class ChannelHandback(Payload):
+    initial_reply_id: UUID | None = None
+    submission_started: bool = False
+    message_id: str | None = None
     organization_id: UUID
     run_id: UUID
     bot_id: UUID
@@ -106,10 +189,20 @@ class ChannelHandback(Payload):
     tool_calls: list[ChannelHandbackCall] = Field(default_factory=list)
     generated_files: frozenset[str] = frozenset()
     notice: bool = False
+    attachments: list[ChannelHandbackFile] = Field(default_factory=list)
 
 
 class NoPayload(Payload):
     """For a job whose work is to look at the current state."""
+
+
+class AnalyzeChannel(Payload):
+    organization_id: UUID
+    observation_id: UUID
+    generation: UUID
+    admission_hash: str = Field(min_length=64, max_length=64)
+    revision: int = Field(ge=1)
+    messages: list[dict[str, JsonValue]] = Field(min_length=1, max_length=20)
 
 
 class Tick(Payload):
@@ -156,6 +249,11 @@ class FireTrigger(Payload):
     source_policy_id: UUID | None = None
     activation_id: UUID | None = None
     event_context: str | None = None
+    event_payload: dict[str, JsonValue] | None = None
+    """The full event payload beside the rendered `event_context` (#14): a
+    GitHub delivery's `GithubTriggerOutput`-shaped dict, or `None` for a
+    scheduled fire and any event whose source sends none. Untrusted external
+    content, fenced again where the run reads it."""
     claimed_at: datetime | None = None
     """The `fire_in_flight_since` the scheduled claim stamped - its claim ticket."""
 
@@ -167,6 +265,11 @@ class DeliverRoutineAnswer(Payload):
 
 class ConversationTaskJob(Payload):
     task_id: UUID
+    organization_id: UUID
+
+
+class RoomRequestJob(Payload):
+    request_id: UUID
     organization_id: UUID
 
 
@@ -184,6 +287,84 @@ class RunAgent(Payload):
     file_ids: list[UUID]
     digest: str
     """The request's fingerprint: an idempotent retry must send the same one."""
+
+
+class AdvanceImprovement(Payload):
+    """One short, restartable transition; paid work runs in its own child job."""
+
+    run_id: UUID
+    organization_id: UUID
+
+
+class AdvanceSkillImprovement(Payload):
+    """One short, restartable step of a session on a skill line; paid work runs in a child."""
+
+    run_id: UUID
+    organization_id: UUID
+
+
+class AdvanceSkillCheck(Payload):
+    """Move a skill check's agents on once their runs have settled."""
+
+    check_id: UUID
+    organization_id: UUID
+
+
+class BuildTeachingProposal(Payload):
+    """Build the one skill proposal a reviewed browser demonstration asked for (#113).
+
+    Keyed by the session and the hash of the reviewed content; the job rechecks
+    authority, budget and the session's state before it writes anything.
+    """
+
+    organization_id: UUID
+    session_id: UUID
+    source_hash: str = Field(min_length=64, max_length=64)
+
+
+class RunEval(Payload):
+    """One eval run, answered, scored and compared case by case."""
+
+    eval_run_id: UUID
+    organization_id: UUID
+
+
+class GenerateCases(Payload):
+    """One case generation, drafted by the case generator."""
+
+    generation_id: UUID
+    organization_id: UUID
+
+
+class RunAuthoring(Payload):
+    """One Improve or Verify the authoring assistant was asked for."""
+
+    request_id: UUID
+    organization_id: UUID
+
+
+class ClassifyGaps(Payload):
+    """Answers read for the knowledge gaps of these knowledge bases, as the person who asked.
+
+    Without `message_ids`, a knowledge base's newest unread answers, as its
+    Knowledge gaps tab asks; with them, those answers alone, as an improvement
+    session sorts the answers it found bad.
+    """
+
+    organization_id: UUID
+    knowledge_base_ids: list[UUID] = Field(max_length=50)
+    user_id: UUID
+    message_ids: list[UUID] | None = Field(default=None, max_length=500)
+    improvement_run_id: UUID | None = None
+
+
+class DraftTopic(Payload):
+    """One knowledge gap topic drafted, as the person - or through the key - that asked."""
+
+    organization_id: UUID
+    topic_id: UUID
+    user_id: UUID | None
+    api_key_id: UUID | None = None
 
 
 class DispatchWorkflowNode(Payload):
@@ -208,6 +389,7 @@ class ThinkForPerson(Payload):
 
     organization_id: UUID
     user_id: UUID
+    refresh_open: bool = False
 
 
 class ExtractMemory(Payload):
@@ -312,6 +494,14 @@ class CleanupExternalState(Payload):
     empty, as `prefixes` is."""
 
 
+class SettleLater(Exception):
+    """A settler that cannot close what its job left yet - a worker still holds it.
+
+    The worker logs it without a traceback and leaves the end owed, so the
+    rescuer's next pass runs the settler again.
+    """
+
+
 @dataclass(frozen=True)
 class TaskKind:
     """What a worker needs to know about a claimed job: where it runs, for how long, how often."""
@@ -335,6 +525,8 @@ class TaskKind:
     # kind. Not when something else already stops a job that keeps killing its
     # worker, and a crash takes down every job the worker held at once.
     counts_deaths: bool = True
+    retry_refusal: str | None = None
+    """Why a dead job needs a new domain request instead of queue-level replay."""
 
 
 @dataclass(frozen=True)
@@ -445,6 +637,14 @@ RUN_CONVERSATION_TASK = Task(
     timeout=timedelta(hours=3),
     priority=Priority.INTERACTIVE,
 )
+RUN_ROOM_REQUEST = Task(
+    kind="run-room-request",
+    payload_type=RoomRequestJob,
+    pool=Pool.AGENT,
+    max_attempts=1,
+    timeout=timedelta(hours=3),
+    priority=Priority.INTERACTIVE,
+)
 RETURN_CONVERSATION_TASK = Task(
     kind="return-conversation-task",
     payload_type=ConversationTaskJob,
@@ -464,6 +664,64 @@ RUN_AGENT = Task(
     max_attempts=1,
     timeout=timedelta(hours=3),
     priority=Priority.INTERACTIVE,
+)
+# One attempt, for `RUN_AGENT`'s reason: the cases a dead worker answered were
+# paid for. A job that ends for good - withdrawn, timed out, its worker dead -
+# closes its run through the kind's settler, which frees the organization's eval
+# slots it held; `REAP_ABANDONED_EVALS` is the ceiling when that settler cannot
+# run. A pool of its own, because a run holds its slot for as long as it lasts -
+# waiting on the organization's eval slots included - and in a shared pool enough
+# of them would leave a person's API run and every trigger fire with no slot at
+# all.
+RUN_EVAL = Task(
+    kind="run-eval",
+    retry_refusal="Start a new eval run from Evals; a failed eval has already been settled",
+    payload_type=RunEval,
+    pool=Pool.EVAL,
+    max_attempts=1,
+    timeout=timedelta(hours=12),
+    priority=Priority.BULK,
+)
+# One attempt: each improver call is billed. A job that ends for good fails its
+# request through the kind's settler, and the request's own staleness check, when
+# it is next read, is the ceiling when that settler cannot run.
+RUN_AUTHORING = Task(
+    kind="run-authoring",
+    payload_type=RunAuthoring,
+    pool=Pool.AGENT,
+    max_attempts=1,
+    timeout=timedelta(hours=1),
+    priority=Priority.INTERACTIVE,
+)
+# One attempt each: every classifying and drafting call is billed, and what one
+# recorded stays recorded, so a session or a topic reads the job's end.
+CLASSIFY_GAPS = Task(
+    kind="classify-gaps",
+    payload_type=ClassifyGaps,
+    pool=Pool.AGENT,
+    max_attempts=1,
+    timeout=timedelta(minutes=10),
+    priority=Priority.INTERACTIVE,
+)
+DRAFT_TOPIC = Task(
+    kind="draft-knowledge-gap",
+    payload_type=DraftTopic,
+    pool=Pool.AGENT,
+    max_attempts=1,
+    timeout=timedelta(minutes=10),
+    priority=Priority.INTERACTIVE,
+)
+# One attempt: the generator's call is billed. A job that ends without the
+# handler finishing the generation - its worker killed - fails the generation
+# through its settler, so nothing waits on it for ever.
+GENERATE_CASES = Task(
+    kind="generate-cases",
+    payload_type=GenerateCases,
+    pool=Pool.AGENT,
+    max_attempts=1,
+    timeout=timedelta(minutes=30),
+    priority=Priority.INTERACTIVE,
+    cancellable=False,
 )
 # One attempt, like `RUN_AGENT`: `dispatch_outbox`, not the job, holds a node's
 # position, and a second attempt of the same job could only find its claim held.
@@ -567,6 +825,54 @@ DISCARD_VECTOR_DOCUMENT = Task(
     priority=Priority.SCHEDULED,
 )
 
+ADVANCE_IMPROVEMENT = Task(
+    kind="advance-improvement",
+    payload_type=AdvanceImprovement,
+    pool=Pool.SYSTEM,
+    max_attempts=3,
+    timeout=timedelta(minutes=2),
+    priority=Priority.INTERACTIVE,
+)
+SWEEP_IMPROVEMENTS = _sweep("sweep-improvements")
+ADVANCE_SKILL_IMPROVEMENT = Task(
+    kind="advance-skill-improvement",
+    payload_type=AdvanceSkillImprovement,
+    pool=Pool.SYSTEM,
+    max_attempts=3,
+    timeout=timedelta(minutes=2),
+    priority=Priority.INTERACTIVE,
+)
+SWEEP_SKILL_IMPROVEMENTS = _sweep("sweep-skill-improvements")
+
+ADVANCE_SKILL_CHECK = Task(
+    kind="advance-skill-check",
+    payload_type=AdvanceSkillCheck,
+    pool=Pool.SYSTEM,
+    max_attempts=3,
+    timeout=timedelta(minutes=2),
+    priority=Priority.INTERACTIVE,
+)
+SWEEP_SKILL_CHECKS = _sweep("sweep-skill-checks")
+
+ADVANCE_SKILL_CHECK = Task(
+    kind="advance-skill-check",
+    payload_type=AdvanceSkillCheck,
+    pool=Pool.SYSTEM,
+    max_attempts=3,
+    timeout=timedelta(minutes=2),
+    priority=Priority.INTERACTIVE,
+)
+SWEEP_SKILL_CHECKS = _sweep("sweep-skill-checks")
+
+SWEEP_BROWSER_TEACHINGS = _sweep("sweep-browser-teachings", timeout=timedelta(minutes=2))
+BUILD_TEACHING_PROPOSAL = Task(
+    kind="build-teaching-proposal",
+    payload_type=BuildTeachingProposal,
+    pool=Pool.SYSTEM,
+    max_attempts=3,
+    timeout=timedelta(minutes=2),
+    priority=Priority.INTERACTIVE,
+)
 CHECK_AGENT_TRIGGERS = _sweep("check-agent-triggers")
 POLL_PORTAL_GRANTS = _sweep("poll-portal-grants")
 DELIVER_NOTIFICATIONS = _sweep("deliver-notifications")
@@ -574,6 +880,7 @@ DISPATCH_DUE_SYNCS = _sweep("dispatch-due-syncs")
 RETRY_SANDBOX_DESTROYS = _sweep("retry-sandbox-destroys")
 SWEEP_SANDBOX_OPERATIONS = _sweep("sweep-sandbox-operations")
 SWEEP_MCP_CONNECTIONS = _sweep("sweep-mcp-connections")
+SWEEP_NETWORK_CONNECTIONS = _sweep("sweep-network-connections")
 SYNC_DISCORD_ROLES = _sweep("sync-discord-roles")
 EXPIRE_APPROVALS = _sweep("expire-approvals")
 EXPIRE_INVITATIONS = _sweep("expire-invitations")
@@ -585,6 +892,9 @@ SWEEP_NOTIFICATIONS = _sweep("sweep-notifications")
 SWEEP_BACKGROUND_JOBS = _sweep("sweep-background-jobs")
 CONSOLIDATE_MEMORY = _sweep("consolidate-memory", timeout=timedelta(minutes=10))
 REAP_VOICE_CALLS = _sweep("reap-voice-calls")
+CHECK_EVAL_SUITES = _sweep("check-eval-suites")
+REAP_ABANDONED_EVALS = _sweep("reap-abandoned-evals")
+GROUP_KNOWLEDGE_GAPS = _sweep("group-knowledge-gaps")
 WORKFLOW_DISPATCH_POLL = _sweep("workflow-dispatch-poll", timeout=timedelta(minutes=2))
 WORKFLOW_RECONCILE = _sweep("workflow-reconcile", timeout=timedelta(minutes=5))
 WORKFLOW_SCHEDULES_CHECK = _sweep("workflow-schedules-check", timeout=timedelta(minutes=5))
@@ -592,9 +902,20 @@ WORKFLOW_TABLE_TRIGGERS = _sweep("workflow-table-triggers", timeout=timedelta(mi
 WORKFLOW_RUN_RETENTION = _sweep("workflow-run-retention", timeout=timedelta(hours=2))
 WORKFLOW_LOG_ALERTS = _sweep("workflow-log-alerts", timeout=timedelta(minutes=5))
 RECONCILE_CONVERSATION_TASKS = _sweep("reconcile-conversation-tasks", timeout=timedelta(seconds=30))
+RECONCILE_ROOM_REQUESTS = _sweep("reconcile-room-requests", timeout=timedelta(seconds=30))
 SWEEP_GENERATED_MEDIA = _sweep("sweep-generated-media")
 SEND_DIAGNOSTICS = _sweep("send-diagnostics", timeout=timedelta(seconds=60))
 PROACTIVE_SWEEP = _sweep("proactive-sweep")
+CHANNEL_OBSERVATION_SWEEP = _sweep("channel-observation-sweep")
+ANALYZE_CHANNEL = Task(
+    kind="analyze-channel",
+    payload_type=AnalyzeChannel,
+    pool=Pool.AGENT,
+    max_attempts=1,
+    timeout=timedelta(minutes=5),
+    priority=Priority.SCHEDULED,
+    retry_refusal="Wait for new channel messages; automatic replies are not replayed",
+)
 WATCH_SWEEP = _sweep("watch-sweep")
 # Three attempts, unlike the sweeps above: a sweep's next tick is the same work
 # again, but the next report is a week or a month away and covers another window,
@@ -602,14 +923,73 @@ WATCH_SWEEP = _sweep("watch-sweep")
 # is idempotent across attempts (Codex, #2248).
 WEEKLY_USAGE_REPORT = _sweep("weekly-usage-report", timeout=timedelta(hours=1), max_attempts=3)
 MONTHLY_USAGE_REPORT = _sweep("monthly-usage-report", timeout=timedelta(hours=1), max_attempts=3)
+# One attempt, unlike the reports above: the digest mines a 7-day window
+# and a pattern stays untracked until a draft exists for it, so a tick
+# lost to a deploy or an outage is picked up by the following day's run.
+FAILURE_LEDGER_DIGEST = _sweep("failure-ledger-digest", timeout=timedelta(hours=1))
+
+REFRESH_CODING_ACCOUNT_USAGE = Task(
+    kind="refresh-coding-account-usage",
+    payload_type=RefreshCodingAccountUsage,
+    pool=Pool.WORKFLOW,
+    max_attempts=1,
+    timeout=timedelta(minutes=2),
+    priority=Priority.INTERACTIVE,
+    retry_refusal="Refresh usage from your coding account to recheck current owner consent",
+)
+
+
+DRAFT_BROWSER_PROCEDURE_TEACHING = Task(
+    kind="draft-browser-procedure-teaching",
+    payload_type=DraftBrowserProcedureTeaching,
+    pool=Pool.AGENT,
+    max_attempts=1,
+    timeout=timedelta(minutes=4),
+    priority=Priority.INTERACTIVE,
+    retry_refusal="Read the browser teaching receipt; an uncertain draft is never retried automatically",
+)
+SWEEP_BROWSER_PROCEDURE_TEACHINGS = _sweep(
+    "sweep-browser-procedure-teachings", timeout=timedelta(minutes=2)
+)
+
+REVERT_CODING_TASK = Task(
+    retry_refusal="Retry the revert from its conversation so its files and current access can be checked again",
+    kind="revert-coding-task",
+    payload_type=RevertCodingTask,
+    pool=Pool.AGENT,
+    max_attempts=3,
+    timeout=timedelta(minutes=3),
+    priority=Priority.INTERACTIVE,
+)
 
 MOVE_PROJECT_WORKSPACE = Task(
+    retry_refusal="Start a new transfer in the project's sandbox settings; retired transfer copies cannot be reused",
     kind="move-project-workspace",
     payload_type=MoveProjectWorkspacePayload,
     pool=Pool.INGEST,
     max_attempts=3,
     timeout=timedelta(minutes=30),
     priority=Priority.INTERACTIVE,
+)
+
+PROCESS_CHANNEL_CONTROL = Task(
+    kind="process-channel-control",
+    payload_type=ChannelMessage,
+    pool=Pool.SYSTEM,
+    max_attempts=1,
+    timeout=timedelta(minutes=1),
+    priority=Priority.INTERACTIVE,
+    retry_refusal="Send the control command again; the previous request is not replayed",
+)
+
+PROCESS_CHANNEL_MESSAGE = Task(
+    kind="process-channel-message",
+    payload_type=ChannelMessage,
+    pool=Pool.AGENT,
+    max_attempts=1,
+    timeout=timedelta(hours=1),
+    priority=Priority.INTERACTIVE,
+    retry_refusal="Send a new message after checking the run; an interrupted action may already have executed",
 )
 
 PROCESS_CHANNEL_DELIVERY = Task(
@@ -630,6 +1010,16 @@ PROCESS_EMAIL_DELIVERY = Task(
     priority=Priority.INTERACTIVE,
 )
 
+DELIVER_CHANNEL_REPLY = Task(
+    kind="deliver-channel-reply",
+    payload_type=ChannelHandback,
+    pool=Pool.SYSTEM,
+    max_attempts=1,
+    timeout=timedelta(minutes=2),
+    priority=Priority.INTERACTIVE,
+    retry_refusal="Check whether the answer arrived before sending the saved response again",
+)
+
 DELIVER_CHANNEL_HANDBACK = Task(
     kind="deliver-channel-handback",
     payload_type=ChannelHandback,
@@ -639,13 +1029,33 @@ DELIVER_CHANNEL_HANDBACK = Task(
     priority=Priority.INTERACTIVE,
 )
 
+RUN_NETWORK_CONNECTION = Task(
+    kind="run-network-connection",
+    payload_type=RunNetworkConnection,
+    pool=Pool.NETWORK,
+    max_attempts=1,
+    timeout=timedelta(minutes=11),
+    priority=Priority.INTERACTIVE,
+    retry_refusal="Reconnect from Devices & networks so the current person and session can be checked again",
+)
+
+
 TASKS: dict[str, TaskKind] = {
     task.kind: task
     for task in (
+        RUN_NETWORK_CONNECTION,
+        PROCESS_CHANNEL_CONTROL,
+        PROCESS_CHANNEL_MESSAGE,
         PROCESS_CHANNEL_DELIVERY,
         PROCESS_EMAIL_DELIVERY,
+        DELIVER_CHANNEL_REPLY,
         DELIVER_CHANNEL_HANDBACK,
         MOVE_PROJECT_WORKSPACE,
+        REVERT_CODING_TASK,
+        DRAFT_BROWSER_PROCEDURE_TEACHING,
+        SWEEP_BROWSER_PROCEDURE_TEACHINGS,
+        SWEEP_BROWSER_TEACHINGS,
+        REFRESH_CODING_ACCOUNT_USAGE,
         INGEST_DOCUMENT,
         SYNC_COLLECTION,
         SYNC_SOURCE,
@@ -655,9 +1065,22 @@ TASKS: dict[str, TaskKind] = {
         END_PHONE,
         DELIVER_ROUTINE_ANSWER,
         RUN_AGENT,
+        RUN_EVAL,
+        RUN_AUTHORING,
+        ADVANCE_IMPROVEMENT,
+        SWEEP_IMPROVEMENTS,
+        ADVANCE_SKILL_IMPROVEMENT,
+        SWEEP_SKILL_IMPROVEMENTS,
+        ADVANCE_SKILL_CHECK,
+        SWEEP_SKILL_CHECKS,
+        CLASSIFY_GAPS,
+        DRAFT_TOPIC,
+        GENERATE_CASES,
         RUN_CONVERSATION_TASK,
         RETURN_CONVERSATION_TASK,
         RECONCILE_CONVERSATION_TASKS,
+        RUN_ROOM_REQUEST,
+        RECONCILE_ROOM_REQUESTS,
         WORKFLOW_DISPATCH_NODE,
         THINK_FOR_PERSON,
         EXTRACT_MEMORY,
@@ -674,6 +1097,7 @@ TASKS: dict[str, TaskKind] = {
         RETRY_SANDBOX_DESTROYS,
         SWEEP_SANDBOX_OPERATIONS,
         SWEEP_MCP_CONNECTIONS,
+        SWEEP_NETWORK_CONNECTIONS,
         SYNC_DISCORD_ROLES,
         EXPIRE_APPROVALS,
         EXPIRE_INVITATIONS,
@@ -685,6 +1109,9 @@ TASKS: dict[str, TaskKind] = {
         SWEEP_BACKGROUND_JOBS,
         CONSOLIDATE_MEMORY,
         REAP_VOICE_CALLS,
+        CHECK_EVAL_SUITES,
+        REAP_ABANDONED_EVALS,
+        GROUP_KNOWLEDGE_GAPS,
         WORKFLOW_DISPATCH_POLL,
         WORKFLOW_RECONCILE,
         WORKFLOW_SCHEDULES_CHECK,
@@ -694,9 +1121,14 @@ TASKS: dict[str, TaskKind] = {
         SWEEP_GENERATED_MEDIA,
         SEND_DIAGNOSTICS,
         PROACTIVE_SWEEP,
+        CHANNEL_OBSERVATION_SWEEP,
+        ANALYZE_CHANNEL,
         WATCH_SWEEP,
         WEEKLY_USAGE_REPORT,
         MONTHLY_USAGE_REPORT,
+        SWEEP_BROWSER_TEACHINGS,
+        BUILD_TEACHING_PROPOSAL,
+        FAILURE_LEDGER_DIGEST,
     )
 }
 """Every kind, by name: what a worker looks a claimed job up in."""

@@ -62,6 +62,7 @@ from app.core.security import (
     verify_password,
     verify_special_token,
 )
+from app.db.locks import LOCK_NOT_AVAILABLE, LockScope, hold_subject
 from app.db.models.artifact import (
     SERVED_STATES,
     Artifact,
@@ -76,6 +77,7 @@ from app.db.models.artifact_share_request import (
 )
 from app.db.models.resource_grant import GrantLevel, Visibility
 from app.db.session import get_db_context
+from app.db.table_rls import bind_table_access
 from app.db.updates import writable
 from app.repositories import (
     agent_environment_repo,
@@ -114,6 +116,7 @@ from app.schemas.artifact import (
     ArtifactPublicLinkRead,
     ArtifactPublicLinkUpdate,
     ArtifactRead,
+    ArtifactThumbnailRead,
     ArtifactUpdate,
     ArtifactVersionList,
     ArtifactVersionRead,
@@ -209,6 +212,10 @@ from app.services.virtual_tables import ReadDeadline, TableSource, VirtualTableS
 from app.services.virtual_tables.exceptions import DeadlineReached, InvalidQueryError
 
 logger = logging.getLogger(__name__)
+
+_DELETE_LOCK_SECONDS = 2.0
+"""Bound source-lock contention before returning a retryable 409, with no writes."""
+
 
 NAME_PATTERN = r"^[a-z0-9][a-z0-9-]{0,63}$"
 """What a name may be. The same rule as the column's CHECK, stated once for the tool."""
@@ -495,6 +502,8 @@ ARTIFACT_LIBRARY: dict[str, str] = {
     "agenticos-2.js": "text/javascript; charset=utf-8",
     "agenticos-3.css": "text/css; charset=utf-8",
     "agenticos-3.js": "text/javascript; charset=utf-8",
+    "agenticos-4.css": "text/css; charset=utf-8",
+    "agenticos-4.js": "text/javascript; charset=utf-8",
     "mermaid-12.1.0.min.js": "text/javascript; charset=utf-8",
     "idiomorph-0.8.0.min.js": "text/javascript; charset=utf-8",
     # three.js is an ES module that imports its core by a relative path, so the
@@ -2318,10 +2327,10 @@ iframe {{ border: 0; width: 100%; height: 100%; display: block; }}
 
 
 def _refuse_key(ctx: AuthContext) -> None:
-    """Following a page is a person's preference; a key changes none of them."""
+    """Following or favouriting an app is a person's preference, not a key's."""
     if ctx.api_key_id is not None:
         raise AuthorizationError(
-            message="Following an app is a person's choice, made in the console, not by an API key",
+            message="App preferences belong to a person, not an API key",
             details={"subject": "api_key"},
         )
 
@@ -2462,6 +2471,17 @@ class ArtifactService:
         await artifact_repo.unfollow(self.db, artifact_id=artifact.id, user_id=ctx.subject_id)
         return await self.read(ctx, artifact.id)
 
+    async def set_favourite(
+        self, ctx: AuthContext, artifact_id: UUID, *, favourite: bool
+    ) -> ArtifactDetail:
+        """Star or unstar a readable app for this person."""
+        artifact = await self.get(ctx, artifact_id)
+        _refuse_key(ctx)
+        await artifact_repo.set_favourite(
+            self.db, user_id=ctx.subject_id, artifact_id=artifact.id, favourite=favourite
+        )
+        return await self.read(ctx, artifact.id)
+
     async def _detail(
         self, ctx: AuthContext, artifact: Artifact, *, can_edit: bool
     ) -> ArtifactDetail:
@@ -2479,7 +2499,18 @@ class ArtifactService:
             else None
         )
         return ArtifactDetail(
-            **self._read(artifact, current, names).model_dump(),
+            **self._read(
+                artifact,
+                current,
+                names,
+                is_favourite=(
+                    ctx.user_id is not None
+                    and ctx.api_key_id is None
+                    and await artifact_repo.is_favourite(
+                        self.db, user_id=ctx.user_id, artifact_id=artifact.id
+                    )
+                ),
+            ).model_dump(),
             can_edit=can_edit,
             following=ctx.user_id is not None
             and await artifact_repo.is_following(
@@ -2548,7 +2579,11 @@ class ArtifactService:
 
     @staticmethod
     def _read(
-        artifact: Artifact, current: ArtifactVersion | None, environment_names: dict[UUID, str]
+        artifact: Artifact,
+        current: ArtifactVersion | None,
+        environment_names: dict[UUID, str],
+        *,
+        is_favourite: bool = False,
     ) -> ArtifactRead:
         return ArtifactRead(
             id=artifact.id,
@@ -2572,6 +2607,7 @@ class ArtifactService:
             archived_at=artifact.archived_at,
             created_at=artifact.created_at,
             updated_at=artifact.updated_at,
+            is_favourite=is_favourite,
         )
 
     async def _visibility(self, ctx: AuthContext) -> tuple[bool, list[UUID]]:
@@ -2587,6 +2623,7 @@ class ArtifactService:
         *,
         shared_with_me: bool = False,
         mine_or_shared: bool = False,
+        favourites: bool = False,
         include_archived: bool = False,
         search: str | None = None,
         agent_id: UUID | None = None,
@@ -2600,6 +2637,8 @@ class ArtifactService:
         `mine_or_shared` narrows to what the caller owns or was shared with, even
         when their role reaches the whole organization - the sidebar's list. An admin
         keeps the whole organization on the management page, which does not set it.
+        `favourites` keeps only the caller's starred apps and orders them by when
+        they were starred.
 
         Archived ones only with `include_archived`, and then only those the caller may
         edit - the rule :meth:`read` applies. Each is read at the version the caller is
@@ -2615,6 +2654,8 @@ class ArtifactService:
         """
         if project_id is not None:
             await ProjectService(self.db).get(ctx, project_id)
+        if favourites:
+            _refuse_key(ctx)
         see_all, grant_ids = await self._visibility(ctx)
         if mine_or_shared and see_all:
             see_all = False
@@ -2659,6 +2700,7 @@ class ArtifactService:
                 self.db, ctx, resource_type=ARTIFACT, group_id=group_id
             ),
             project_id=project_id,
+            favourites_for=ctx.subject_id if favourites else None,
             skip=skip,
             limit=limit,
         )
@@ -2669,10 +2711,22 @@ class ArtifactService:
         names = await artifact_repo.environment_names(
             self.db, sorted({item.environment_id for item in items if item.environment_id})
         )
+        favourite_ids = (
+            await artifact_repo.favourite_ids(
+                self.db,
+                user_id=ctx.user_id,
+                artifact_ids=[item.id for item in items],
+            )
+            if ctx.user_id is not None and ctx.api_key_id is None
+            else set()
+        )
         return ArtifactList(
             items=[
                 self._read(item, current.get(item.id), names).model_copy(
-                    update={"shared_groups": groups[item.id]}
+                    update={
+                        "shared_groups": groups[item.id],
+                        "is_favourite": item.id in favourite_ids,
+                    }
                 )
                 for item in items
             ],
@@ -3151,13 +3205,42 @@ class ArtifactService:
         )
         return await self._detail(ctx, artifact, can_edit=True)
 
+    async def _lock_for_delete(self, artifact: Artifact) -> None:
+        """Release partial row locks before waiting for a busy writer to finish."""
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + _DELETE_LOCK_SECONDS
+        while True:
+            try:
+                async with self.db.begin_nested():
+                    await artifact_repo.lock_for_delete(self.db, artifact)
+            except DBAPIError as failure:
+                if getattr(failure.orig, "sqlstate", None) != LOCK_NOT_AVAILABLE:
+                    raise
+                if loop.time() >= deadline:
+                    raise ConcurrentChangeError(
+                        message="This App is being updated. Nothing was deleted; try again.",
+                        details={"artifact_id": artifact.id},
+                    ) from failure
+                await asyncio.sleep(0.05)
+            else:
+                return
+
     async def delete(self, ctx: AuthContext, artifact_id: UUID) -> None:
         """Delete an artifact, every version, its grants and its link - archived or not.
 
         The bytes go after the commit, so a rollback leaves rows that still point
         at what is stored.
+
+        Raises:
+            ConcurrentChangeError: Source locks stay busy beyond the short retry
+                window. No grants, rows or stored bytes have been removed.
         """
         artifact = await self.get(ctx, artifact_id, perm=Perm.ARTIFACTS_EDIT, archived=True)
+        # A late workflow update can recheck its artifact foreign key while holding
+        # the run row. Take the workers' guards before DELETE locks the artifact.
+        await hold_subject(self.db, LockScope.WORKFLOW_FILE_BYTES, ctx.organization_id)
+        await hold_subject(self.db, LockScope.WORKFLOW_INLINE_RESULTS_PER_ORG, ctx.organization_id)
+        await self._lock_for_delete(artifact)
         await resource_grant_repo.delete_for_resource(
             self.db,
             organization_id=ctx.organization_id,
@@ -3655,6 +3738,32 @@ class ArtifactService:
         shown.actions = offered
         return shown
 
+    async def thumbnail(
+        self, ctx: AuthContext, artifact_id: UUID, *, version_id: UUID | None = None
+    ) -> ArtifactThumbnailRead:
+        """A cached static preview of a version this caller may open, without live data.
+
+        Access and visible-version checks run before the cache. Snapshot data
+        already published in the page is visible; live records and actions are
+        never supplied to the renderer or cached across readers.
+        """
+        from app.services.artifact_render import RenderRequest
+        from app.services.artifact_thumbnails import render_thumbnail
+
+        shown = await self.view(ctx, artifact_id, version_id=version_id)
+        version = await artifact_repo.get_version(
+            self.db, shown.version.id, artifact_id=artifact_id
+        )
+        if version is None:
+            raise NotFoundError(
+                message="App version no longer available", details={"artifact_id": str(artifact_id)}
+            )
+        source = await _load_version(version, missing="App version no longer available")
+        document = render(version, source, title="", nonce=shown.nonce, live=bool(version.bindings))
+        return await render_thumbnail(
+            version.id, RenderRequest(document=document, nonce=shown.nonce, bindings={})
+        )
+
     async def start_action(
         self,
         ctx: AuthContext,
@@ -3919,6 +4028,7 @@ class ArtifactService:
         """The binding's table as its owner reads it now, or why the binding reads nothing."""
         if deadline.remaining_ms() <= 0:
             return self._unavailable(binding, Unavailable("timeout"))
+        await bind_table_access(self.db, owner)
         service = VirtualTableService(self.db)
         try:
             async with self.db.begin_nested():
@@ -3947,6 +4057,7 @@ class ArtifactService:
         """The rows of a binding whose `source` is known, at most `max_records` of them."""
         if deadline.remaining_ms() <= 0:
             return self._unavailable(binding, Unavailable("timeout"))
+        await bind_table_access(self.db, owner)
         service = VirtualTableService(self.db)
         try:
             async with self.db.begin_nested():
@@ -4093,8 +4204,12 @@ class ArtifactService:
                 raise AuthorizationError(
                     message="That password is not right.", details={"password_required": True}
                 )
+        org = await organization_repo.get_by_id(self.db, artifact.organization_id)
+        if org is None:
+            raise NotFoundError(message="App not found")
         await artifact_repo.count_public_view(self.db, artifact.id, at=datetime.now(UTC))
         return PublicArtifactRead(
+            show_agenticos_attribution=org.public_agenticos_attribution,
             title=artifact.title,
             published_at=artifact.published_at,
             # A stranger is nobody the data could be read as: the page is served with it

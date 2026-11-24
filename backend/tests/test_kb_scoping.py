@@ -30,8 +30,11 @@ def _a_free_name(monkeypatch: pytest.MonkeyPatch) -> None:
 
 @pytest.fixture(autouse=True)
 def _no_sync_sources(monkeypatch: pytest.MonkeyPatch) -> None:
-    """No connectors unless a teardown test explicitly supplies one."""
+    """No connectors or source history unless a teardown test supplies them."""
     monkeypatch.setattr("app.repositories.sync_source.get_all", AsyncMock(return_value=[]))
+    monkeypatch.setattr(
+        "app.repositories.sync_log_repo.detach_sources_from_base_history", AsyncMock()
+    )
 
 
 @pytest.fixture(autouse=True)
@@ -615,10 +618,18 @@ class TestKBAccessControl:
             await svc.delete(kb.id, ctx=_ctx(user_id=user_id))
 
         lock.assert_awaited_once_with(mock_db, kb.id)
-        get_all.assert_awaited_once_with(
-            mock_db, collection_name=kb.collection_name, for_update=True
+        get_all.assert_awaited_once_with(mock_db, knowledge_base_id=kb.id, for_update=True)
+        update.assert_awaited_once_with(
+            mock_db,
+            source.id,
+            collection_name=None,
+            knowledge_base_id=None,
+            is_active=False,
+            sync_state=None,
+            last_sync_at=None,
+            last_sync_status=None,
+            last_error=None,
         )
-        update.assert_awaited_once_with(mock_db, source.id, collection_name=None, is_active=False)
         dispatch.assert_awaited_once_with(mock_db, [], [kb.collection_name], base_purges=[])
 
     @pytest.mark.anyio
@@ -659,9 +670,7 @@ class TestKBAccessControl:
             [],
             base_purges=[BasePurge(collection=kb.collection_name, knowledge_base_id=kb.id)],
         )
-        get_all.assert_awaited_once_with(
-            mock_db, collection_name=kb.collection_name, for_update=True
-        )
+        get_all.assert_awaited_once_with(mock_db, knowledge_base_id=kb.id, for_update=True)
         update.assert_not_awaited()
 
     @pytest.mark.anyio
@@ -974,7 +983,7 @@ class TestKBAccessControl:
                 BasePurge(
                     collection="docs",
                     knowledge_base_id=kb.id,
-                    vector_document_ids=["legacy-1"],
+                    vector_document_ids=["doc-1", "legacy-1"],
                     takes_unfiled=True,
                     tenant=org_id,
                 ),
@@ -1010,7 +1019,7 @@ class TestKBAccessControl:
                 BasePurge(
                     collection="docs",
                     knowledge_base_id=kb.id,
-                    vector_document_ids=["legacy-1"],
+                    vector_document_ids=["doc-1", "legacy-1"],
                     takes_unfiled=True,
                     tenant=org_id,
                 ),
@@ -2046,3 +2055,85 @@ async def test_custom_embedding_endpoint_requires_connection_authority():
     )
     with pytest.raises(BadRequestError):
         await service._embedding_url(_ctx(), "openai", "https://example.com/v1")
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    ("scope", "role", "grant", "owned", "admin", "expected"),
+    [
+        ("org", "member", GrantLevel.READ, False, False, False),
+        ("org", "viewer", GrantLevel.EDIT, False, False, True),
+        ("org", "member", None, True, False, True),
+        ("app", "owner", None, False, False, False),
+        ("app", "viewer", None, False, True, True),
+        ("personal", "viewer", None, True, False, True),
+        ("personal", "owner", None, False, False, False),
+    ],
+)
+@pytest.mark.usefixtures("kb_contents_unread")
+async def test_detail_reports_effective_write_access(
+    mock_db_session: AsyncMock,
+    monkeypatch: pytest.MonkeyPatch,
+    scope: str,
+    role: str,
+    grant: GrantLevel | None,
+    owned: bool,
+    admin: bool,
+    expected: bool,
+) -> None:
+    ctx = _ctx(role=role, app_admin=admin)
+    kb = _readable_kb("handbook")
+    kb.scope = scope
+    kb.visibility = Visibility.PRIVATE.value
+    kb.organization_id = ctx.organization_id
+    kb.owner_user_id = ctx.user_id if owned else uuid.uuid4()
+    monkeypatch.setattr(
+        "app.repositories.resource_grant_repo.get_level", AsyncMock(return_value=grant)
+    )
+    monkeypatch.setattr(
+        "app.repositories.rag_document_repo.counts_by_scope", AsyncMock(return_value={})
+    )
+    detail = await KnowledgeBaseService(mock_db_session).describe(kb, ctx=ctx)
+    assert detail.model_dump(mode="json")["can_edit"] is expected
+    assert detail.id == kb.id
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("filled", [False, True])
+async def test_detail_keeps_the_listing_counts_and_usage(
+    mock_db_session: AsyncMock, monkeypatch: pytest.MonkeyPatch, filled: bool
+) -> None:
+    from app.schemas.resource_usage import AgentUsage
+
+    ctx = _ctx()
+    kb = _readable_kb("handbook")
+    kb.owner_user_id = ctx.user_id
+    kb.organization_id = ctx.organization_id
+    agents = [AgentUsage(id=uuid.uuid4(), name="Research", slug="research")]
+    monkeypatch.setattr(
+        "app.repositories.knowledge_base_repo.get_accessible", AsyncMock(return_value=[kb])
+    )
+    monkeypatch.setattr(
+        "app.repositories.rag_document_repo.counts_by_scope",
+        AsyncMock(
+            return_value={kb.id: CollectionCounts(documents=4, indexed=3, chunks=21)}
+            if filled
+            else {}
+        ),
+    )
+    monkeypatch.setattr(
+        "app.services.knowledge_base.agents_using", AsyncMock(return_value={kb.id: agents})
+    )
+    monkeypatch.setattr(
+        "app.services.knowledge_base.groups_sharing", AsyncMock(return_value={kb.id: ["Research"]})
+    )
+    service = KnowledgeBaseService(mock_db_session)
+    listing = await service.list_readable(ctx)
+    detail = await service.describe(kb, ctx=ctx)
+    assert detail.document_count == (4 if filled else 0)
+    assert detail.indexed_count == (3 if filled else 0)
+    assert detail.chunk_count == (21 if filled else 0)
+    assert detail.used_by == agents
+    assert detail.shared_groups == ["Research"]
+    assert detail.model_dump(exclude={"can_edit"}) == listing.items[0].model_dump()
+    assert detail.can_edit is True

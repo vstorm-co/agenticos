@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useMyMemory } from "./use-my-memory";
 import { toast } from "sonner";
 
+import type { MemoryNote } from "@/lib/memory-api";
 import { apiClient } from "@/lib/api-client";
 
 vi.mock("@/lib/api-client", () => ({
@@ -109,4 +110,35 @@ describe("when a privacy action fails", () => {
       expect(apiClient.get).toHaveBeenCalledWith("/memory/mine?skip=50&limit=50"),
     );
   });
+});
+
+it("saves a correction against its recorded revision and reports a refusal", async () => {
+  const note: MemoryNote = {
+    id: "n-1",
+    agent_id: "a-1",
+    agent_name: "AgenticOS",
+    name: "Preferences",
+    description: null,
+    content: "Original",
+    format: "markdown",
+    kind: "note",
+    created_at: null,
+    updated_at: "2026-11-14T00:00:00Z",
+    written_at: null,
+    deactivated_at: null,
+  };
+  const { result } = renderHook(() => useMyMemory(), { wrapper });
+  await waitFor(() => expect(result.current.page).toBeDefined());
+  await act(async () => {
+    expect(await result.current.update(note, "Corrected")).toBe(true);
+  });
+  expect(apiClient.patch).toHaveBeenCalledWith("/memory/mine/n-1/content", {
+    content: "Corrected",
+    expected_updated_at: note.updated_at,
+  });
+  vi.mocked(apiClient.patch).mockRejectedValueOnce(new Error("Conflict"));
+  await act(async () => {
+    expect(await result.current.update(note, "New edit")).toBe(false);
+  });
+  expect(toast.error).toHaveBeenCalled();
 });

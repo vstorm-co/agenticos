@@ -310,6 +310,7 @@ class TestTheSweep:
             "delete_finished_device_waits": AsyncMock(return_value=0),
             "delete_runs_keeping_their_spend": AsyncMock(return_value=(counts.get("runs", 0), [])),
             "delete_workspaces": AsyncMock(return_value=counts.get("workspaces", 0)),
+            "lock_expiring_coding_workspaces": AsyncMock(return_value=[]),
             "delete_memory": AsyncMock(return_value=counts.get("memory", 0)),
             "stored_paths_for_expiring_conversations": AsyncMock(return_value=[]),
             "expiring_documents": AsyncMock(return_value=[]),
@@ -322,6 +323,7 @@ class TestTheSweep:
         }
         for name, mock in mocks.items():
             monkeypatch.setattr(f"{MODULE}.retention_repo.{name}", mock)
+        monkeypatch.setattr(f"{MODULE}.SandboxWorkspaceService.purge_for_conversation", AsyncMock())
         # One active member, matching the budget the table-sweep tests below already assume.
         monkeypatch.setattr(f"{MODULE}.member_repo.count_active_for_org", AsyncMock(return_value=1))
         return mocks

@@ -1,3 +1,4 @@
+import { toolLookupName } from "@/lib/tool-identity";
 import type { ChatMessage, ToolCall } from "@/types/chat";
 
 export interface NextStepEvent {
@@ -57,7 +58,7 @@ export function retainNextSteps(incoming: ChatMessage, local: ChatMessage): Chat
   let message = incoming;
   for (const call of local.toolCalls ?? []) {
     if (
-      call.name !== "suggest_next_steps" ||
+      toolLookupName(call) !== "suggest_next_steps" ||
       call.id !== `next_steps_${local.id}` ||
       call.status !== "completed"
     )

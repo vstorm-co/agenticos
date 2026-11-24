@@ -1219,3 +1219,38 @@ async def test_telephone_uses_the_admitted_pin_relay_and_narrower_call_cap(world
     options = AgentRunnerService.prepare.await_args.kwargs["voice"].options
     assert options.briefing == '{"case_summary":"Production blocked"}'
     registry.assert_awaited_once()
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("headroom", [Decimal("50"), None])
+async def test_elevenlabs_unreported_token_cost_never_bypasses_a_budget(
+    world, monkeypatch, headroom
+):
+    from app.agents.spec import AgentSpec, VoiceSpec
+
+    spec = AgentSpec(
+        name="a",
+        voice=VoiceSpec(
+            provider="elevenlabs",
+            model="eleven_realtime_v1_mini",
+            secret_id=uuid4(),
+        ),
+    )
+    world.headroom = headroom
+    monkeypatch.setattr(f"{_M}.VoiceSettingsService.published_spec", AsyncMock(return_value=spec))
+    builder = MagicMock()
+    monkeypatch.setattr(f"{_M}.build_realtime_model", builder)
+    starter, db = _starter()
+    frame = StartFrame(type="start", agent_id=world.agent.id)
+    if headroom is not None:
+        with pytest.raises(VoiceRefused) as failure:
+            await starter.start(world.caller(), frame)
+        assert failure.value.reason == "not_priced"
+        builder.assert_not_called()
+        db.commit.assert_not_awaited()
+    else:
+        started = await starter.start(world.caller(), frame)
+        assert started.resolved.provider == "elevenlabs"
+        assert started.cost_limit is None
+        builder.assert_called_once()
+        db.commit.assert_awaited_once()

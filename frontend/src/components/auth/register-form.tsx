@@ -2,7 +2,8 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
+import { useConsoleRouter as useRouter } from "@/hooks/use-console-router";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { ArrowRight, Check, X } from "lucide-react";
@@ -13,6 +14,7 @@ import { OAuthBlock } from "@/components/auth/oauth-buttons";
 import { SignupClosed } from "@/components/auth/signup-closed";
 import { SignupPolicyNotice } from "@/components/auth/signup-policy-notice";
 import { LegalAnchor } from "@/components/legal/legal-anchor";
+import { AuthHeading } from "@/components/auth/auth-heading";
 import { Button, Input, Label } from "@/components/ui";
 import { useAuth } from "@/hooks";
 import { ApiError } from "@/lib/api-client";
@@ -26,7 +28,7 @@ export function RegisterForm() {
 
   const t = useTranslations("auth");
   const router = useRouter();
-  const { register } = useAuth();
+  const { register, login } = useAuth();
   const search = useSearchParams();
   const returnTo = search.get("returnTo");
   // Reached from an invitation when the landing it carries is the staged pending
@@ -83,8 +85,17 @@ export function RegisterForm() {
       toast.success(t("registerSuccess"));
       // The invitation is not accepted by registering - that needs a session - so a
       // person who arrived through one is sent back to it after signing in.
-      const next = returnTo ? `&returnTo=${encodeURIComponent(returnTo)}` : "";
-      router.push(`${ROUTES.LOGIN}?registered=true${next}`);
+      try {
+        await login(
+          { email, password },
+          returnTo || `${ROUTES.ONBOARDING}?welcome=1&entry=account`,
+        );
+      } catch {
+        // Account creation succeeded. A failed session must lead to sign-in,
+        // not invite the person to register the same account a second time.
+        const next = returnTo ? `&returnTo=${encodeURIComponent(returnTo)}` : "";
+        router.push(`${ROUTES.LOGIN}?registered=true${next}`);
+      }
     } catch (err) {
       const message =
         err instanceof ApiError ? getErrorMessage(err, tErrors) : t("registrationFailedPleaseTry");
@@ -105,14 +116,13 @@ export function RegisterForm() {
   return (
     <div className="space-y-8">
       <div className="space-y-2">
-        <span className="text-muted-foreground text-sm font-medium">{t("getStarted")}</span>
-        <h1 className="text-foreground text-[2rem] leading-tight font-semibold tracking-tight text-balance [&_em]:not-italic">
-          {t.rich("createHeading", { em: (chunks) => <em>{chunks}</em> })}
-        </h1>
+        <AuthHeading>{t.rich("createHeading", { em: (chunks) => <em>{chunks}</em> })}</AuthHeading>
         <p className="text-foreground/65 text-sm">
           {t("hasAccount")}{" "}
           <Link
-            href={ROUTES.LOGIN}
+            href={
+              returnTo ? `${ROUTES.LOGIN}?returnTo=${encodeURIComponent(returnTo)}` : ROUTES.LOGIN
+            }
             className="text-foreground hover:text-foreground/80 font-medium underline-offset-4 hover:underline"
           >
             {t("login")}
@@ -135,7 +145,6 @@ export function RegisterForm() {
             onChange={(e) => setName(e.target.value)}
             disabled={isLoading}
             autoComplete="name"
-            className="h-11 rounded-lg text-base md:text-[15px]"
           />
         </div>
 
@@ -153,7 +162,7 @@ export function RegisterForm() {
             required
             disabled={isLoading}
             autoComplete="email"
-            className={`h-11 rounded-lg text-base md:text-[15px] ${emailTouched && email && !emailValid ? "border-destructive" : ""}`}
+            aria-invalid={Boolean(emailTouched && email && !emailValid)}
           />
           {emailTouched && email && !emailValid && (
             <p className="text-destructive text-xs">{t("emailRequired")}</p>
@@ -173,7 +182,7 @@ export function RegisterForm() {
             required
             disabled={isLoading}
             autoComplete="new-password"
-            className={`h-11 rounded-lg text-base md:text-[15px] ${password && !passwordLongEnough ? "border-destructive" : ""}`}
+            aria-invalid={Boolean(password && !passwordLongEnough)}
           />
           {password && (
             <div className="space-y-1.5 pt-1">
@@ -220,7 +229,7 @@ export function RegisterForm() {
             required
             disabled={isLoading}
             autoComplete="new-password"
-            className={`h-11 rounded-lg text-base md:text-[15px] ${confirmPassword && !passwordsMatch ? "border-destructive" : ""}`}
+            aria-invalid={Boolean(confirmPassword && !passwordsMatch)}
           />
           {confirmPassword && !passwordsMatch && (
             <p className="text-destructive inline-flex items-center gap-1 text-xs">
@@ -236,7 +245,7 @@ export function RegisterForm() {
           </p>
         )}
 
-        <Button type="submit" disabled={isLoading} className="h-11 w-full text-[15px]">
+        <Button type="submit" disabled={isLoading} size="lg" className="w-full">
           {isLoading ? (
             t("creatingAccount")
           ) : (

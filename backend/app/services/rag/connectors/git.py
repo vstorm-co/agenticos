@@ -59,13 +59,14 @@ from app.core.sanitize import (
     deployment_allowlist,
     resolve_pinned_url,
 )
-from app.core.secret_kinds import GitTokenSecret, SecretKind, StorableSecret
+from app.core.secret_kinds import GitTokenSecret, SecretKind
 from app.services.rag.connectors import (
     BaseSyncConnector,
     ConfigRefusal,
     ConnectorConfig,
     RemoteFile,
     RemoteListing,
+    SyncCredential,
 )
 
 logger = logging.getLogger(__name__)
@@ -288,7 +289,7 @@ class GitConnector(BaseSyncConnector):
         return None
 
     async def remote_version(
-        self, config: ConnectorConfig, credential: StorableSecret | None, previous: str | None
+        self, config: ConnectorConfig, credential: SyncCredential | None, previous: str | None
     ) -> str:
         """The branch's head commit, read without cloning anything.
 
@@ -317,7 +318,7 @@ class GitConnector(BaseSyncConnector):
         return line.split()[0]
 
     async def list_files(
-        self, config: ConnectorConfig, credential: StorableSecret | None
+        self, config: ConnectorConfig, credential: SyncCredential | None
     ) -> RemoteListing:
         """Clone what the include patterns match and answer every regular file in it.
 
@@ -398,7 +399,7 @@ class GitConnector(BaseSyncConnector):
         file: RemoteFile,
         dest_path: Path,
         config: ConnectorConfig,
-        credential: StorableSecret | None,
+        credential: SyncCredential | None,
     ) -> None:
         """Copy one checked-out file to the path the base class chose.
 
@@ -525,7 +526,7 @@ class GitConnector(BaseSyncConnector):
         return files
 
     async def _environment(
-        self, parsed: GitConfig, credential: StorableSecret | None
+        self, parsed: GitConfig, credential: SyncCredential | None
     ) -> dict[str, str]:
         """Everything git is told, through the environment rather than argv.
 

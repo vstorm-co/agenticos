@@ -21,7 +21,7 @@ raises the same :class:`~app.agents.capabilities.budget.BudgetExceeded` so a
 refusal reads identically wherever it surfaces.
 """
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from uuid import UUID
 
@@ -34,6 +34,7 @@ from app.repositories import (
     organization_repo,
     retention_repo,
 )
+from app.repositories import workflow_media_operation as media_repo
 from app.repositories import (
     workflow_run as workflow_run_repo,
 )
@@ -48,6 +49,19 @@ def month_start(now: datetime | None = None) -> datetime:
     """
     moment = now or datetime.now(UTC)
     return moment.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+
+def budget_window(started_at: datetime | None) -> tuple[datetime, datetime]:
+    """The month a run's spend is checked against: the one it started in, `None` being now.
+
+    A run's whole cost is booked to the month it started, so a run resumed after
+    the first, or a call still talking past midnight on the last day, is weighed
+    against that month's spend, as every report counts it, rather than against a
+    month that never saw its earlier cost. The window is closed at the next first
+    so a baseline read again later stays that month's.
+    """
+    started = month_start(started_at)
+    return started, month_start(started.replace(day=28) + timedelta(days=4))
 
 
 async def organization_spend_since(
@@ -109,6 +123,27 @@ async def organization_monthly_spend(
     )
 
 
+async def organization_budget_usage_since(
+    db: AsyncSession,
+    organization_id: UUID,
+    since: datetime,
+    *,
+    until: datetime | None = None,
+    exclude_run_id: UUID | None = None,
+) -> Decimal:
+    """Admission usage: actual period fees plus every unresolved media amount.
+
+    A media journal contributes only its remaining hold and incurred fees not
+    yet in the canonical ledger. Booked fees are already in the period sum.
+    Holds survive lease expiry and calendar rollover until reconciled; reporting
+    APIs keep using the actual-spend functions above.
+    """
+    spent = await organization_spend_since(
+        db, organization_id, since, until=until, exclude_run_id=exclude_run_id
+    )
+    return spent + await media_repo.outstanding_usd(db, organization_id=organization_id)
+
+
 async def assert_organization_within_budget(db: AsyncSession, organization_id: UUID) -> None:
     """Refuse work that would spend past the organization's monthly cap.
 
@@ -124,7 +159,7 @@ async def assert_organization_within_budget(db: AsyncSession, organization_id: U
     organization = await organization_repo.get_by_id(db, organization_id)
     if organization is None or organization.monthly_budget_usd is None:
         return
-    spent = await organization_monthly_spend(db, organization_id)
+    spent = await organization_budget_usage_since(db, organization_id, month_start())
     if spent >= organization.monthly_budget_usd:
         raise BudgetExceeded(
             limit_usd=organization.monthly_budget_usd,

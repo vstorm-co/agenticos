@@ -92,6 +92,12 @@ const CATALOG = join(FRONTEND, "messages", "en.json");
 const SKIPPED_DIRS = ["/dev/"];
 const SKIPPED_NAMES = [".test.tsx", ".test.ts", ".spec.ts", ".stories.tsx", ".generated.ts"];
 
+/** Apply the same playground exclusion to native paths on every development platform. */
+export function isProductSource(path: string): boolean {
+  const normalized = path.replaceAll("\\", "/");
+  return !SKIPPED_DIRS.some((dir) => normalized.includes(dir));
+}
+
 /**
  * Props a component renders for a person to read.
  *
@@ -1094,7 +1100,7 @@ function main(argv: string[]): number {
     path,
     text: readFileSync(path, "utf8"),
   }));
-  const product = sources.filter(({ path }) => !SKIPPED_DIRS.some((dir) => path.includes(dir)));
+  const product = sources.filter(({ path }) => isProductSource(path));
 
   const failures: string[] = [];
   const absent: string[] = [];

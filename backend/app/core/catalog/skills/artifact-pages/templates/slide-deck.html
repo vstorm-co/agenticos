@@ -1,0 +1,759 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Fieldwork — a cooler city</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --paper: #f2f0e8;
+        --ink: #183c32;
+        --muted: #52665c;
+        --line: #c4cbbf;
+        --accent: #d0eb81;
+        --stage: #e0e6d9;
+      }
+      html[data-theme="night"] {
+        --paper: #142d28;
+        --ink: #f2f0e8;
+        --muted: #b1c5b9;
+        --line: #496358;
+        --stage: #23473b;
+      }
+      html[data-theme="clay"] {
+        --paper: #f5ece2;
+        --ink: #482c24;
+        --muted: #795c50;
+        --line: #d5bbac;
+        --accent: #f5b987;
+        --stage: #e6cdb7;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--paper);
+        color: var(--ink);
+        font:
+          17px/1.5 system-ui,
+          sans-serif;
+      }
+      main {
+        max-inline-size: min(1440px, calc((100dvh - 160px) * 16 / 9 + 48px));
+        margin: auto;
+        padding: 24px;
+      }
+      button,
+      select {
+        font: inherit;
+        color: inherit;
+        border: 1px solid var(--line);
+        background: transparent;
+        border-radius: 6px;
+        min-block-size: 44px;
+        padding: 8px 14px;
+        cursor: pointer;
+      }
+      button:disabled {
+        opacity: 0.4;
+        cursor: default;
+      }
+      button:hover:not(:disabled) {
+        background: var(--accent);
+        color: #183c32;
+      }
+      :focus-visible {
+        outline: 3px solid #4f8cc2;
+        outline-offset: 4px;
+      }
+      .toolbar,
+      .deck-nav {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+      .toolbar {
+        margin-block-end: 18px;
+      }
+      .toolbar p {
+        margin: 0;
+      }
+      .style {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .eyebrow {
+        font-size: 12px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        font-weight: 650;
+      }
+      .slide {
+        container: slide/inline-size;
+        min-block-size: 440px;
+        aspect-ratio: 16/9;
+        display: flex;
+        flex-direction: column;
+        padding: 44px;
+        background: var(--paper);
+        border: 1px solid var(--line);
+        position: relative;
+      }
+      .slide-head,
+      .folio {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 16px;
+        font-size: 11px;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+      }
+      .slide-head {
+        margin-block-end: 34px;
+      }
+      .folio {
+        margin-block-start: auto;
+        padding-block-start: 24px;
+        color: var(--muted);
+      }
+      h1,
+      h2,
+      p {
+        margin: 0;
+      }
+      h1 {
+        font:
+          clamp(48px, 7.7cqi, 96px)/0.96 Georgia,
+          serif;
+        letter-spacing: -0.045em;
+        max-inline-size: 10ch;
+      }
+      h2 {
+        font:
+          clamp(32px, 4.7cqi, 58px)/1.07 Georgia,
+          serif;
+        letter-spacing: -0.025em;
+        max-inline-size: 22ch;
+      }
+      .lead {
+        font-size: clamp(17px, 2cqi, 24px);
+        max-inline-size: 38ch;
+        color: var(--muted);
+      }
+      .cover {
+        display: grid;
+        grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+        gap: 32px;
+        align-items: center;
+        flex: 1;
+      }
+      .cover-copy {
+        display: grid;
+        gap: 28px;
+      }
+      .stamp {
+        display: inline-block;
+        background: var(--accent);
+        color: #183c32;
+        padding: 6px 10px;
+        font-size: 12px;
+        inline-size: fit-content;
+      }
+      .cover-art {
+        display: grid;
+        place-items: center;
+        min-inline-size: 0;
+        align-self: stretch;
+        background: var(--stage);
+      }
+      svg {
+        display: block;
+        inline-size: 100%;
+        block-size: auto;
+      }
+      .big-number {
+        font-size: clamp(110px, 18cqi, 230px);
+        line-height: 0.92;
+        font-weight: 600;
+        letter-spacing: -0.08em;
+      }
+      .big-number span {
+        font-size: 0.28em;
+        letter-spacing: -0.02em;
+      }
+      .evidence {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap: 60px;
+        align-items: center;
+        flex: 1;
+      }
+      .evidence-copy {
+        display: grid;
+        gap: 24px;
+      }
+      .number-note {
+        margin-block-start: 24px;
+        border-block-start: 1px solid var(--line);
+        padding-block-start: 16px;
+        max-inline-size: 38ch;
+        color: var(--muted);
+      }
+      .comparison {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+        gap: 52px;
+        align-items: center;
+        flex: 1;
+      }
+      .bars {
+        display: grid;
+        gap: 24px;
+      }
+      .bar-label {
+        display: flex;
+        justify-content: space-between;
+        margin-block-end: 8px;
+        font-size: 15px;
+      }
+      .track {
+        background: var(--stage);
+        block-size: 28px;
+      }
+      .bar {
+        background: var(--ink);
+        block-size: 100%;
+        inline-size: var(--value);
+      }
+      .bar.chosen {
+        background: #719344;
+      }
+      .chart-note {
+        font-size: 13px;
+        color: var(--muted);
+        margin-block-start: 18px;
+      }
+      .roadmap {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 32px;
+        margin-block: 40px;
+      }
+      .step {
+        border-block-start: 2px solid var(--ink);
+        padding-block-start: 16px;
+      }
+      .step strong {
+        font-size: 48px;
+        font-weight: 400;
+      }
+      .step h3 {
+        font-size: 21px;
+        margin-block: 18px 10px;
+      }
+      .step p {
+        color: var(--muted);
+        font-size: 17px;
+      }
+      .decision {
+        display: grid;
+        grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+        gap: 48px;
+        align-items: center;
+        flex: 1;
+      }
+      .decision h2 {
+        font-size: clamp(44px, 6vw, 80px);
+      }
+      .decision aside {
+        border-inline-start: 1px solid var(--line);
+        padding-inline-start: 32px;
+      }
+      .decision dl {
+        margin: 0;
+      }
+      .decision dt {
+        font-size: 12px;
+        color: var(--muted);
+        margin-block-start: 24px;
+      }
+      .decision dd {
+        margin: 4px 0;
+        font-size: 22px;
+      }
+      .deck-nav {
+        margin-block-start: 16px;
+      }
+      .deck-nav output {
+        font-variant-numeric: tabular-nums;
+        font-size: 14px;
+      }
+      .all-slides {
+        display: grid;
+        gap: 24px;
+      }
+      .all-slides .slide {
+        aspect-ratio: 16/9;
+      }
+      [hidden] {
+        display: none !important;
+      }
+      @media (prefers-reduced-motion: no-preference) {
+        .slide:not([hidden]) {
+          animation: appear 0.28s ease-out;
+        }
+        @keyframes appear {
+          from {
+            opacity: 0.35;
+            translate: 0 8px;
+          }
+          to {
+            opacity: 1;
+            translate: 0 0;
+          }
+        }
+      }
+      @media (max-width: 760px) {
+        main {
+          padding: 12px;
+          max-inline-size: none;
+        }
+        .slide {
+          aspect-ratio: auto;
+          padding: 24px;
+          min-block-size: 640px;
+        }
+        .cover,
+        .evidence,
+        .comparison,
+        .decision {
+          grid-template-columns: 1fr;
+          gap: 28px;
+        }
+        .cover-art {
+          min-block-size: 260px;
+        }
+        h1 {
+          font-size: 58px;
+        }
+        .big-number {
+          font-size: 130px;
+        }
+        .roadmap {
+          grid-template-columns: 1fr;
+          gap: 20px;
+          margin-block: 24px;
+        }
+        .step strong {
+          font-size: 30px;
+        }
+        .step h3 {
+          margin-block: 8px;
+        }
+        .slide-head {
+          margin-block-end: 28px;
+        }
+        .decision aside {
+          padding-inline-start: 20px;
+        }
+        .all-slides .slide {
+          aspect-ratio: auto;
+        }
+        .folio {
+          font-size: 10px;
+        }
+      }
+      @page {
+        size: 13.333in 7.5in;
+        margin: 0;
+      }
+      @media print {
+        html,
+        body {
+          background: #f2f0e8;
+          color: #183c32;
+        }
+        main {
+          padding: 0;
+          max-inline-size: none;
+        }
+        .toolbar,
+        .deck-nav {
+          display: none !important;
+        }
+        #slides .slide,
+        #slides .slide[hidden] {
+          display: flex !important;
+          inline-size: 13.333in;
+          block-size: 7.5in;
+          min-block-size: 0;
+          aspect-ratio: auto;
+          padding: 0.45in;
+          border: 0;
+          break-after: page;
+          margin: 0;
+          animation: none;
+          print-color-adjust: exact;
+        }
+        #slides .slide:last-child {
+          break-after: auto;
+        }
+        .slide h1 {
+          font-size: 66pt;
+        }
+        .slide h2 {
+          font-size: 36pt;
+        }
+        .slide .lead {
+          font-size: 17pt;
+        }
+        .big-number {
+          font-size: 155pt;
+        }
+        .roadmap {
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+        .cover,
+        .evidence,
+        .comparison,
+        .decision {
+          grid-template-columns: 1fr 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header class="toolbar">
+        <p class="eyebrow">Fieldwork / presentation study</p>
+        <div class="style">
+          <label for="theme">Palette</label
+          ><select id="theme">
+            <option value="editorial">Botanical</option>
+            <option value="night">After dark</option>
+            <option value="clay">Terracotta</option>
+          </select>
+        </div>
+      </header>
+      <div id="slides">
+        <section class="slide" aria-label="Slide 1: proposal">
+          <header class="slide-head">
+            <span>Fieldwork / urban futures</span
+            ><span>Strategy proposal · 2026</span>
+          </header>
+          <div class="cover">
+            <div class="cover-copy">
+              <span class="stamp">Illustrative proposal</span>
+              <h1>Make room<br />for a cooler city.</h1>
+              <p class="lead">
+                A street-scale pilot that puts shade where people actually walk.
+              </p>
+            </div>
+            <figure class="cover-art" style="margin: 0">
+              <svg
+                viewBox="0 0 500 440"
+                role="img"
+                aria-labelledby="city-title"
+              >
+                <title id="city-title">
+                  Original architectural illustration of a planted pedestrian
+                  corridor between buildings
+                </title>
+                <defs>
+                  <pattern
+                    id="windows"
+                    width="22"
+                    height="28"
+                    patternUnits="userSpaceOnUse"
+                  >
+                    <rect x="5" y="5" width="9" height="13" fill="#a6b7a5" />
+                  </pattern>
+                  <linearGradient id="ground" x2="1" y2="1">
+                    <stop stop-color="#bdcdb8" />
+                    <stop offset="1" stop-color="#e9eddf" />
+                  </linearGradient>
+                </defs>
+                <path
+                  d="M30 260 260 125 475 245 240 395Z"
+                  fill="url(#ground)"
+                />
+                <path d="m115 280 145-83 91 52-145 86Z" fill="#f6f2df" />
+                <path d="m250 198 20-12 95 54-20 12Z" fill="#bd9a70" />
+                <g fill="#eee9d9" stroke="#52705d" stroke-width="1.5">
+                  <path d="M65 241V105l112-64 72 42v137l-112 65Z" />
+                  <path d="m65 105 72 42 112-64M137 147v138" />
+                  <path d="M323 237V101l75-43 51 30v136l-75 43Z" />
+                  <path d="m323 101 51 30 75-43M374 131v136" />
+                </g>
+                <path
+                  d="M75 119v112l51 30V150Zm74 38v112l89-51V106Zm185-40v111l29 17V133Zm50 23v111l54-32V108Z"
+                  fill="url(#windows)"
+                />
+                <g stroke="#647e50" stroke-width="5">
+                  <path d="M188 297v-55m41 29v-63m41 40v-47m39 22v-49" />
+                </g>
+                <g fill="#719344">
+                  <ellipse cx="188" cy="231" rx="26" ry="33" />
+                  <ellipse cx="229" cy="196" rx="27" ry="36" />
+                  <ellipse cx="270" cy="187" rx="24" ry="30" />
+                  <ellipse cx="309" cy="163" rx="22" ry="29" />
+                </g>
+                <g fill="#173c32">
+                  <circle cx="232" cy="300" r="5" />
+                  <path d="m229 306-3 19h10l-2-19Z" />
+                  <circle cx="282" cy="270" r="5" />
+                  <path d="m279 276-3 19h10l-2-19Z" />
+                </g>
+                <path
+                  d="m63 330 74 43m-63-49-12 7 1-14m75 55-1-13 12 6"
+                  fill="none"
+                  stroke="#627361"
+                />
+                <text
+                  x="45"
+                  y="397"
+                  font-size="10"
+                  fill="#52665c"
+                  font-family="system-ui"
+                >
+                  CONCEPT DRAWING / NOT A SITE PLAN
+                </text>
+              </svg>
+            </figure>
+          </div>
+          <footer class="folio">
+            <span>Public realm / pilot programme</span><span>01 / 05</span>
+          </footer>
+        </section>
+        <section class="slide" aria-label="Slide 2: pilot target" hidden>
+          <header class="slide-head">
+            <span>Define the outcome</span><span>Planning assumption</span>
+          </header>
+          <div class="evidence">
+            <div>
+              <p class="eyebrow">Pilot coverage target</p>
+              <p class="big-number">40<span>%</span></p>
+              <p class="number-note">
+                Target share of the selected walking corridor covered by shade
+                at midday.
+              </p>
+            </div>
+            <div class="evidence-copy">
+              <h2>Measure shade.<br />Then scale what works.</h2>
+              <p class="lead">
+                Use the same route, season and observation window before
+                comparing results.
+              </p>
+              <p class="chart-note">
+                This is a proposed target, not a measured result. No temperature
+                reduction is claimed.
+              </p>
+            </div>
+          </div>
+          <footer class="folio">
+            <span>Baseline → pilot → repeat measurement</span
+            ><span>02 / 05</span>
+          </footer>
+        </section>
+        <section class="slide" aria-label="Slide 3: option comparison" hidden>
+          <header class="slide-head">
+            <span>Compare the options</span
+            ><span>Illustrative budget · EUR thousands</span>
+          </header>
+          <div class="comparison">
+            <div class="evidence-copy">
+              <h2>Start small enough to learn.</h2>
+              <p class="lead">
+                A corridor pilot provides a bounded first step before a
+                district-wide commitment.
+              </p>
+            </div>
+            <figure style="margin: 0">
+              <div
+                class="bars"
+                role="img"
+                aria-label="Illustrative budgets: one corridor 120 thousand euros; three corridors 280 thousand; district programme 460 thousand"
+              >
+                <div>
+                  <p class="bar-label">
+                    <span>One corridor · proposed</span><strong>€120k</strong>
+                  </p>
+                  <div class="track">
+                    <div class="bar chosen" style="--value: 26.09%"></div>
+                  </div>
+                </div>
+                <div>
+                  <p class="bar-label">
+                    <span>Three corridors</span><strong>€280k</strong>
+                  </p>
+                  <div class="track">
+                    <div class="bar" style="--value: 60.87%"></div>
+                  </div>
+                </div>
+                <div>
+                  <p class="bar-label">
+                    <span>District programme</span><strong>€460k</strong>
+                  </p>
+                  <div class="track">
+                    <div class="bar" style="--value: 100%"></div>
+                  </div>
+                </div>
+              </div>
+              <figcaption class="chart-note">
+                Demonstration estimates, not quotations. Bars start at zero;
+                scope and maintenance costs need validation.
+              </figcaption>
+            </figure>
+          </div>
+          <footer class="folio">
+            <span>Scope first / cost second / evidence before expansion</span
+            ><span>03 / 05</span>
+          </footer>
+        </section>
+        <section class="slide" aria-label="Slide 4: delivery plan" hidden>
+          <header class="slide-head">
+            <span>Delivery sequence</span><span>Proposed checkpoints</span>
+          </header>
+          <h2>Three gates.<br />One clear owner at each.</h2>
+          <div class="roadmap">
+            <article class="step">
+              <strong>01</strong>
+              <h3>Observe</h3>
+              <p>Map the walking route and record a comparable baseline.</p>
+              <p class="chart-note">Owner: research lead</p>
+            </article>
+            <article class="step">
+              <strong>02</strong>
+              <h3>Prototype</h3>
+              <p>
+                Test temporary shade and access before permanent construction.
+              </p>
+              <p class="chart-note">Owner: public realm team</p>
+            </article>
+            <article class="step">
+              <strong>03</strong>
+              <h3>Evaluate</h3>
+              <p>
+                Repeat the observations and publish the result with limitations.
+              </p>
+              <p class="chart-note">Owner: programme lead</p>
+            </article>
+          </div>
+          <footer class="folio">
+            <span>Progress depends on evidence, not a decorative timeline</span
+            ><span>04 / 05</span>
+          </footer>
+        </section>
+        <section class="slide" aria-label="Slide 5: decision" hidden>
+          <header class="slide-head">
+            <span>The decision</span><span>Discussion / next step</span>
+          </header>
+          <div class="decision">
+            <div class="evidence-copy">
+              <span class="stamp">Approve discovery</span>
+              <h2>Fund the learning.<br />Earn the expansion.</h2>
+              <p class="lead">
+                Confirm the route, owner and measurement plan before
+                commissioning the pilot.
+              </p>
+            </div>
+            <aside>
+              <dl>
+                <dt>DECISION NEEDED</dt>
+                <dd>Proceed to a scoped feasibility study</dd>
+                <dt>CHECK BEFORE COMMITTING</dt>
+                <dd>Access, maintenance and seasonal comparability</dd>
+                <dt>EVIDENCE STATUS</dt>
+                <dd>
+                  Original demonstration content; no external research cited
+                </dd>
+              </dl>
+            </aside>
+          </div>
+          <footer class="folio">
+            <span>Fieldwork / end of proposal</span><span>05 / 05</span>
+          </footer>
+        </section>
+      </div>
+      <nav class="deck-nav" aria-label="Presentation controls">
+        <button type="button" id="previous">Previous</button
+        ><output id="position" aria-live="polite">1 / 5</output
+        ><button type="button" id="next">Next</button
+        ><button type="button" id="overview" aria-pressed="false">
+          Show all slides
+        </button>
+      </nav>
+    </main>
+    <script>
+      const slides = [...document.querySelectorAll(".slide")];
+      const previous = document.getElementById("previous");
+      const next = document.getElementById("next");
+      const overview = document.getElementById("overview");
+      let current = 0;
+      let all = false;
+      function render() {
+        slides.forEach((slide, index) => {
+          slide.hidden = !all && index !== current;
+        });
+        document.getElementById("slides").classList.toggle("all-slides", all);
+        previous.disabled = all || current === 0;
+        next.disabled = all || current === slides.length - 1;
+        document.getElementById("position").value = all
+          ? `${slides.length} slides in overview`
+          : `${current + 1} / ${slides.length}`;
+        overview.textContent = all
+          ? "Return to presentation"
+          : "Show all slides";
+        overview.setAttribute("aria-pressed", String(all));
+      }
+      function move(delta) {
+        if (all) return;
+        current = Math.max(0, Math.min(slides.length - 1, current + delta));
+        render();
+      }
+      previous.addEventListener("click", () => move(-1));
+      next.addEventListener("click", () => move(1));
+      overview.addEventListener("click", () => {
+        all = !all;
+        render();
+      });
+      document.getElementById("theme").addEventListener("change", (event) => {
+        document.documentElement.dataset.theme = event.target.value;
+      });
+      document.addEventListener("keydown", (event) => {
+        if (
+          event.altKey ||
+          event.ctrlKey ||
+          event.metaKey ||
+          event.target.closest("input,textarea,select,button,[contenteditable]")
+        )
+          return;
+        if (event.key === "ArrowRight") {
+          event.preventDefault();
+          move(1);
+        }
+        if (event.key === "ArrowLeft") {
+          event.preventDefault();
+          move(-1);
+        }
+        if (event.key === "Home" && !all) {
+          event.preventDefault();
+          current = 0;
+          render();
+        }
+        if (event.key === "End" && !all) {
+          event.preventDefault();
+          current = slides.length - 1;
+          render();
+        }
+      });
+      render();
+    </script>
+  </body>
+</html>

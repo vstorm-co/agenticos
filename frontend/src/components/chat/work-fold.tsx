@@ -3,6 +3,7 @@
 import { useEffect, useId, useState, type ReactNode } from "react";
 import {
   ChevronRight,
+  CircleAlert,
   Check,
   MessageCircleQuestion,
   OctagonPause,
@@ -11,6 +12,7 @@ import {
 import { useTranslations } from "next-intl";
 
 import { ThinkingOrb } from "@/components/ui/thinking-orb";
+import { DisclosureContent } from "@/components/ui/disclosure-content";
 import { formatElapsed } from "@/lib/elapsed";
 import { cn } from "@/lib/utils";
 
@@ -41,6 +43,19 @@ export function useTurnElapsed(startedAt: Date | undefined, running: boolean): n
   }, [running, start]);
   return elapsed;
 }
+
+/**
+ * How long a running turn may go without its process stamping itself alive
+ * before the fold says so. A live run beats every 15 seconds, and the
+ * conversation listing re-reads every 30 seconds while the live-update
+ * socket is up (4 seconds while it is down), so a healthy run's last beat
+ * can read up to ~45 seconds old through this channel; 90 seconds is past
+ * that noise and still 30 seconds before the stale-run sweep ends the run
+ * at 120. A hung model call keeps beating, so this does not catch a hang -
+ * the per-request timeout ends that instead. What it catches is a process
+ * that has gone quiet.
+ */
+export const STALLED_AFTER_MS = 90_000;
 
 /** "Working for 5s…" over a turn still at work, with a light passing over it. */
 export function WorkingLine({
@@ -103,63 +118,86 @@ export function WorkFold({
   steps,
   durationMs,
   stopped = false,
+  failed = false,
   running = false,
   waiting,
   children,
   activity,
-  live = false,
+  lastHeartbeatAt,
 }: {
   /** Tool calls folded away; none means the turn only thought. */
   steps: number;
   durationMs: number | null;
   /** The run was stopped, which the line says instead of "Worked". */
   stopped?: boolean;
+  failed?: boolean;
   running?: boolean;
   waiting?: "awaiting_answer" | "awaiting_approval";
   children: ReactNode;
   /** A short live action label, never a streaming thought or a nested tool card. */
   activity?: string;
-  /** Show progress in place until the run settles; finished history stays scrollable. */
-  live?: boolean;
+  /** When the run behind this turn last stamped itself alive, if known. */
+  lastHeartbeatAt?: Date;
 }) {
   const t = useTranslations("chat.steps");
   const tChat = useTranslations("chat");
-  const [open, setOpen] = useState(live);
+  // Status changes preserve the disclosure and the reader's explicit choice.
+  // Neither streaming nor replay auto-expands diagnostic output.
+  const [open, setOpen] = useState(false);
   const historyId = useId();
   const toggleId = useId();
   const duration = durationMs === null ? null : formatElapsed(durationMs, t);
   const runText = useTranslations("pages.runs");
-  const label = waiting
-    ? runText("toolState", { status: waiting })
-    : running
-      ? duration === null
-        ? t("working")
-        : t("workingFor", { duration })
-      : stopped
-        ? duration === null
-          ? t("stopped", { count: steps })
-          : t("stoppedAfter", { duration, count: steps })
-        : steps === 0
+  // Stalled is a sub-state of running, not a terminal one: the run is still
+  // going as far as the console knows, but its process has gone quiet. The
+  // age is read off the same one-second tick as the turn's own elapsed time,
+  // so the label stays current without reading the clock during render.
+  // When the turn stops, the last reading stands - but the guard below
+  // keeps it from ever calling a finished turn stalled.
+  const heartbeatAgeMs = useTurnElapsed(lastHeartbeatAt, running);
+  const stalledMs = running ? heartbeatAgeMs : null;
+  const stalledFor =
+    stalledMs !== null && stalledMs > STALLED_AFTER_MS ? formatElapsed(stalledMs, t) : null;
+  const label = failed
+    ? duration === null
+      ? t("failedWork", { count: steps })
+      : t("failedAfter", { duration, count: steps })
+    : waiting
+      ? runText("toolState", { status: waiting })
+      : stalledFor !== null
+        ? t("stalledFor", { duration: stalledFor })
+        : running
           ? duration === null
-            ? tChat("thoughtAboutIt")
-            : t("thoughtFor", { duration })
-          : duration === null
-            ? t("worked", { count: steps })
-            : t("workedFor", { duration, count: steps });
+            ? t("working")
+            : t("workingFor", { duration })
+          : stopped
+            ? duration === null
+              ? t("stopped", { count: steps })
+              : t("stoppedAfter", { duration, count: steps })
+            : steps === 0
+              ? duration === null
+                ? tChat("thoughtAboutIt")
+                : t("thoughtFor", { duration })
+              : duration === null
+                ? t("worked", { count: steps })
+                : t("workedFor", { duration, count: steps });
 
   return (
     <div>
       <button
         type="button"
         id={toggleId}
+        data-message-disclosure
         aria-controls={open ? historyId : undefined}
         aria-expanded={open}
-        onClick={() => setOpen((was) => !was)}
-        className="group text-muted-foreground hover:text-foreground hover:bg-muted/60 focus-visible:ring-ring flex min-h-8 w-full min-w-0 items-center gap-2 rounded-lg py-1 text-left text-[13px] transition-colors focus-visible:ring-2 focus-visible:outline-none motion-reduce:transition-none"
+        onClick={() => setOpen(!open)}
+        className="group text-muted-foreground hover:text-foreground hover:bg-muted/60 focus-visible:ring-ring flex min-h-8 w-full min-w-0 items-center gap-2 rounded-lg px-2 py-1 text-left text-[13px] transition-colors focus-visible:ring-2 focus-visible:outline-none motion-reduce:transition-none"
       >
         <span className="flex size-5 shrink-0 items-center justify-center" aria-hidden>
-          {waiting === "awaiting_approval" ? (
-            <ShieldCheck className="size-3.5 text-amber-700 dark:text-amber-400" />
+          {failed ? (
+            <CircleAlert className="text-destructive size-3.5" />
+          ) : waiting === "awaiting_approval" ? (
+            <ShieldCheck className="text-foreground/75 size-3.5" />
           ) : waiting === "awaiting_answer" ? (
             <MessageCircleQuestion className="size-3.5" />
           ) : stopped ? (
@@ -201,7 +239,7 @@ export function WorkFold({
           </span>
         )}
       </button>
-      {open && (
+      <DisclosureContent open={open} triggerId={toggleId}>
         <div
           id={historyId}
           role="region"
@@ -211,12 +249,14 @@ export function WorkFold({
           tabIndex={0}
           className={cn(
             "focus-visible:ring-ring mt-2 rounded-lg p-1 focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset",
-            !live && "max-h-[min(24rem,50dvh)] scrollbar-thin overflow-y-auto overscroll-contain",
+            "max-h-[min(24rem,50dvh)] scrollbar-thin overflow-y-auto overscroll-contain",
           )}
         >
-          <div className="space-y-2">{children}</div>
+          <div data-chat-work-steps className="space-y-1.5">
+            {children}
+          </div>
         </div>
-      )}
+      </DisclosureContent>
     </div>
   );
 }

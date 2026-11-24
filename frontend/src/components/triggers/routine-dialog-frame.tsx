@@ -12,6 +12,7 @@ import {
 } from "@/components/ui";
 import { DIALOG_FORM, DIALOG_FRAMED } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
+import { useStepDirection } from "@/hooks/use-step-direction";
 
 /** One frame for scheduled, event-driven and monitoring routines. */
 export function RoutineDialogFrame({
@@ -21,6 +22,7 @@ export function RoutineDialogFrame({
   children,
   footer,
   disabled = false,
+  pending = false,
   bodyKey,
 }: {
   title: string;
@@ -29,23 +31,31 @@ export function RoutineDialogFrame({
   children: ReactNode;
   footer?: ReactNode;
   disabled?: boolean;
+  /** A request blocks dismissal; a prepared local-consent draft only disables fields. */
+  pending?: boolean;
   bodyKey?: string;
 }) {
+  const direction = useStepDirection(
+    progress?.steps.findIndex((step) => step.id === progress.current) ?? 0,
+  );
   return (
     <DialogContent
+      dismissible={!pending}
       className={cn(DIALOG_FRAMED, DIALOG_FORM, "gap-0 sm:gap-0 sm:p-0")}
       style={{ backgroundColor: "var(--color-card)" }}
     >
-      <DialogHeader className="border-foreground/10 border-b px-6 pt-4 pb-3">
+      <DialogHeader className="border-foreground/10 border-b px-4 pt-4 pb-3 sm:px-6">
         <DialogTitle className="text-base font-semibold">{title}</DialogTitle>
         <DialogDescription>{description}</DialogDescription>
-        {progress && <WizardSteps steps={progress.steps} current={progress.current} />}
+        {progress && <WizardSteps steps={progress.steps} current={progress.current} responsive />}
       </DialogHeader>
       <fieldset
         key={bodyKey}
+        data-direction={direction}
         disabled={disabled}
-        className="wizard-step-in min-h-0 min-w-0 scrollbar-thin overflow-y-auto px-6 py-4"
+        className="wizard-step-in min-h-0 min-w-0 scrollbar-thin overflow-y-auto px-4 py-4 sm:px-6"
       >
+        <legend className="sr-only">{title}</legend>
         {children}
       </fieldset>
       {footer}

@@ -1,5 +1,5 @@
 ---
-source_sha: "9d46f3e89ce9"
+source_sha: "087a50c95d4c"
 title: "Traduce documentos con tu propia terminología"
 description: "Vincula a un agent un glosario de diez términos y comprueba que se aplica cada término, que los términos que no se traducen y los números se conservan, y que una ambigüedad se señala en lugar de resolverse en silencio."
 ---
@@ -108,7 +108,7 @@ Lee el texto polaco frente al glosario término a término; no te fíes de un re
 
 !!! example "Registrado en v0.0.504, 25 de septiembre de 2026"
 
-    Modelo: Claude Sonnet 4.6 a través de OpenRouter. El agent llamó a `load_capability` para `fenwick-glossary` y luego tradujo todo el documento en una sola respuesta. Los cinco términos del glosario se tradujeron correctamente y los cinco que no se traducen (incluidos `workspace`, `API key` y `sandbox` dentro de frases en polaco) se dejaron en inglés. `EUR 50,000` y `03/04/2026` se copiaron sin cambios. Coste: 0,017 USD.
+    Modelo: Claude Sonnet 4.6 a través de OpenRouter. El agent llamó a `read_skill` para `fenwick-glossary` y luego tradujo todo el documento en una sola respuesta. Los cinco términos del glosario se tradujeron correctamente y los cinco que no se traducen (incluidos `workspace`, `API key` y `sandbox` dentro de frases en polaco) se dejaron en inglés. `EUR 50,000` y `03/04/2026` se copiaron sin cambios. Coste: 0,017 USD.
 
     El agent añadió una nota señalada después de la traducción: leída con el día primero, 03/04/2026 es el 3 de abril de 2026 (la usada en la traducción); leída con el mes primero, es el 4 de marzo de 2026. Recomendó confirmar cuál se quería decir. Sin archivo adjunto, cargó el glosario y luego pidió el documento en lugar de traducir nada.
 

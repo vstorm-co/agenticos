@@ -1,4 +1,5 @@
 export { useAuth } from "./use-auth";
+export { useAppUpdate } from "./use-app-update";
 export { useClaudeSubscription } from "./use-claude-subscription";
 export { useCopyToClipboard } from "./use-copy-to-clipboard";
 export { useApiKeys } from "./use-api-keys";
@@ -14,9 +15,30 @@ export {
 export { useAdminOrganizationDetail } from "./use-admin-organization-detail";
 export { useWebSocket } from "./use-websocket";
 export { useChat } from "./use-chat";
-export { useCodingChanges } from "./use-coding-changes";
+export { useRoomRequests, useRoomActions, useRoomSync, useCreateTeamRoom } from "./use-room";
+export { useRoomThreadActions } from "./use-room-thread-actions";
+export { useRoomMessageReactions } from "./use-room-message-reactions";
+export {
+  useAddRoomParticipant,
+  useCreateRoomConversation,
+  useJoinPublicRoom,
+  useRemoveRoomParticipant,
+  useRoomDirectory,
+  useRoomMentionables,
+  useRoomParticipants,
+  useUpdateRoomAgentAutoReply,
+} from "./use-room-participants";
+export {
+  useCodingChanges,
+  useCodingChangeSets,
+  useRevertCodingChanges,
+} from "./use-coding-changes";
 export { useConversationWorkspace } from "./use-conversation-workspace";
+export { useConversationForks } from "./use-conversation-forks";
+export { useConversationMessageSearch } from "./use-conversation-message-search";
+export { useMessagePins } from "./use-message-pins";
 export { useConversationSearch, useConversations } from "./use-conversations";
+export { useWaitingChatQuestions } from "./use-waiting-chat-questions";
 export { useConversationShares } from "./use-conversation-shares";
 export { useOrganizations, useOrganizationList, preferredOrg } from "./use-organizations";
 export { useActiveOrganizationRecovery } from "./use-active-organization";
@@ -45,12 +67,19 @@ export { useLocalServices } from "./use-local-services";
 export { useExternalAgents } from "./use-external-agents";
 export { useMcpConnections } from "./use-mcp-connections";
 export { useAppConnections } from "./use-app-connections";
+export {
+  useNetworkConnections,
+  useNetworkConnectionState,
+  useNetworkPeers,
+  isCurrentNetworkConnectionScope,
+} from "./use-network-connections";
 export { useOrgMcpConnections, useOrgMcpToolCalls } from "./use-org-mcp-connections";
 export { useUsableMcpConnections } from "./use-usable-mcp-connections";
 export { useMcpToolServers } from "./use-mcp-tool-servers";
 export { useMyMemory } from "./use-my-memory";
 export { useMyClaims } from "./use-my-claims";
 export { usePermissions, useRoleCatalog, useAssignableRoles } from "./use-permissions";
+export { useRoleNavigation, useUpdateRoleNavigation } from "./use-role-navigation";
 export { useRetention } from "./use-retention";
 export {
   useAddDepartments,
@@ -73,6 +102,7 @@ export {
   useAgentVersion,
   useAgentVersions,
   useAllAgentVersions,
+  useDraftBase,
   VERSIONS_PAGE_SIZE,
   useCapabilityCatalog,
   useAddToAgent,
@@ -105,7 +135,7 @@ export {
 } from "./use-model-providers";
 export { useDeploymentSettings } from "./use-deployment-settings";
 export { useBrandingNotice } from "./use-branding-notice";
-export { useTables, useTable, useAllTables } from "./use-tables";
+export { useTables, useTable, useAllTables, useTableRecord } from "./use-tables";
 export { useTableRecords } from "./use-table-records";
 export { useTableRecordCount, useTableRecordPages } from "./use-table-record-pages";
 export { useTableViews, useTableDefaultView } from "./use-table-views";
@@ -125,6 +155,7 @@ export {
   useApprovals,
   useDelegatedRuns,
   usePrefetchRuns,
+  useRetryRun,
   useRun,
   useRunManifest,
   useRuns,
@@ -133,7 +164,9 @@ export {
   useRunTranscript,
   useSpend,
 } from "./use-runs";
+export { useStopParkedRun } from "./use-stop-parked-run";
 export {
+  useAgentAttention,
   usePeopleUsage,
   useRatingsSummary,
   useUsageByHour,
@@ -155,6 +188,13 @@ export { useAllWorkspaceFiles, useWorkspaceFiles } from "./use-sandbox-workspace
 export { useFileActions, useFileBytes, useFileText } from "./use-file-content";
 export { useSkillChanges } from "./use-skill-changes";
 export { useSkill, useSkillResource, useSkills } from "./use-skills";
+export {
+  useSkillAgents,
+  useSkillForks,
+  useSkillVersion,
+  useSkillVersions,
+  useSkillVersionWrites,
+} from "./use-skill-versions";
 export { useSharing } from "./use-sharing";
 export { useEmbeds } from "./use-embeds";
 export { useChannelBots } from "./use-channel-bots";
@@ -172,7 +212,9 @@ export {
 } from "./use-workflows";
 export { useWorkflowActions } from "./use-workflow-actions";
 export { useWorkflowTables, useWorkflowTable } from "./use-workflow-tables";
+export { useWorkflowTableDrift } from "./use-workflow-table-drift";
 export { useCausingRun, useRunHistory, useWorkflowRun, useWorkflowRuns } from "./use-workflow-runs";
+export { useWorkflowChatRun, useWorkflowRunQuestions } from "./use-workflow-questions";
 export { useWorkflowApprovalHistory, useWorkflowApprovals } from "./use-workflow-approvals";
 export { useWorkflowExposure } from "./use-workflow-exposure";
 export { useWorkflowLogs } from "./use-workflow-logs";
@@ -181,6 +223,13 @@ export { useRecentWorkflowLogs } from "./use-recent-workflow-logs";
 export { useWorkflowStats } from "./use-workflow-stats";
 export { useWorkflowApprovalsSummary, useWorkflowsSummary } from "./use-workflows-summary";
 export { useStepEvals } from "./use-step-evals";
+export {
+  ruleCounts,
+  useEvalTry,
+  useFailureLearning,
+  useOrgPatterns,
+  useProposal,
+} from "./use-failure-learning";
 export { useWebhookTest } from "./use-webhook-test";
 export { useWorkflowChat } from "./use-workflow-chat";
 export { useTableTriggerAdmissions, useTableTriggers } from "./use-table-triggers";
@@ -210,6 +259,9 @@ export { useWikiGraph } from "./use-wiki-graph";
 export { useDurableTasks } from "./use-durable-tasks";
 
 export { useCodingAccounts } from "./use-coding-accounts";
+
+export { usePersonalModelKeys } from "./use-personal-model-keys";
+export { useBrowserCredentialContinuation } from "./use-browser-credential-continuation";
 export {
   useAssistantPageContext,
   useRegisterAssistantPageContext,

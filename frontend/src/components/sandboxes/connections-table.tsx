@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo } from "react";
-import { Box, Cloud, Pencil, ShieldCheck, Star, Trash2 } from "lucide-react";
+import { useMemo, type ReactNode } from "react";
+import { Pencil, ShieldCheck, Star, Trash2 } from "lucide-react";
 
 import { Badge, Button, DataTable, type Column } from "@/components/ui";
 import { ConnectionKindIcon } from "./connection-kind-icon";
@@ -10,9 +10,12 @@ import { useTranslations } from "next-intl";
 
 interface ConnectionsTableProps {
   connections: readonly SandboxConnectionRecord[];
+  loading?: boolean;
+  empty?: ReactNode;
   onEdit: (connection: SandboxConnectionRecord) => void;
   onInspect: (connection: SandboxConnectionRecord) => void;
   onDelete: (connection: SandboxConnectionRecord) => void;
+  canManage?: boolean;
 }
 
 /** What kind of host this is, in words rather than the stored string. The mark
@@ -20,6 +23,7 @@ interface ConnectionsTableProps {
 function kindLabel(kind: string, t: (key: string) => string): string {
   if (kind === "daytona") return t("daytonaCloud");
   if (kind === "e2b") return t("e2bCloud");
+  if (kind === "opensandbox") return "OpenSandbox";
   return t("containerService");
 }
 
@@ -30,7 +34,7 @@ function kindLabel(kind: string, t: (key: string) => string): string {
  * misconfiguration rather than as the answer.
  */
 function addressLabel(connection: SandboxConnectionRecord): string {
-  if (connection.kind !== "docker") return "their API";
+  if (connection.kind === "daytona" || connection.kind === "e2b") return "their API";
   return connection.base_url ?? "—";
 }
 
@@ -44,9 +48,12 @@ function addressLabel(connection: SandboxConnectionRecord): string {
  */
 export function ConnectionsTable({
   connections,
+  loading = false,
+  empty,
   onEdit,
   onInspect,
   onDelete,
+  canManage = true,
 }: ConnectionsTableProps) {
   const t = useTranslations("sandboxes.table");
   const tc = useTranslations("common");
@@ -60,55 +67,49 @@ export function ConnectionsTable({
         // Takes what the others leave and cuts a long name short, rather than
         // pushing the actions off a phone.
         // Bound the name on wider screens instead of separating it from its metadata.
-        className: "w-full max-w-0 sm:w-[32%] pl-5",
+        className: "w-[28%] pl-5 @max-md/table:w-full",
         header: t("name"),
         sortable: true,
         sortValue: (connection) => connection.name,
         cell: (connection) => (
-          <div className="flex min-w-0 items-center gap-2">
-            {connection.kind !== "docker" ? (
-              <Cloud className="text-muted-foreground h-4 w-4 shrink-0" aria-hidden />
-            ) : (
-              <Box className="text-muted-foreground h-4 w-4 shrink-0" aria-hidden />
-            )}
-            <span title={connection.name} className="truncate font-medium">
-              {connection.name}
+          <div className="min-w-0">
+            <div className="flex min-w-0 items-center gap-2">
+              <ConnectionKindIcon
+                kind={connection.kind}
+                className="text-muted-foreground size-4 shrink-0"
+              />
+              <span title={connection.name} className="truncate font-medium">
+                {connection.name}
+              </span>
+              {connection.is_default && (
+                <Badge variant="secondary" className="shrink-0 gap-1">
+                  <Star className="h-3 w-3" aria-hidden />
+                  {t("default")}
+                </Badge>
+              )}
+              {!connection.is_active && <Badge variant="outline">{t("off")}</Badge>}
+            </div>
+            <span className="text-muted-foreground mt-1 block pl-6 text-xs">
+              {kindLabel(connection.kind, t)}
             </span>
-            {connection.is_default && (
-              <Badge variant="secondary" className="shrink-0 gap-1">
-                <Star className="h-3 w-3" aria-hidden />
-                {t("default")}
-              </Badge>
-            )}
-            {!connection.is_active && <Badge variant="outline">{t("off")}</Badge>}
           </div>
         ),
       },
       {
-        // Not on a phone, where they pushed the actions off the screen; the connection's dialog has them all.
-        key: "kind",
-        hideBelow: "sm",
-        header: t("kind"),
-        cell: (connection) => (
-          <span className="text-muted-foreground flex items-center gap-2 whitespace-nowrap">
-            <ConnectionKindIcon kind={connection.kind} className="h-3.5 w-3.5" />
-            {kindLabel(connection.kind, t)}
-          </span>
-        ),
-      },
-      {
         key: "address",
-        hideBelow: "sm",
+        className: "w-[26%] @max-md/table:w-full",
         header: t("address"),
         cell: (connection) => (
-          <span className="text-muted-foreground font-mono text-xs whitespace-nowrap">
+          <span
+            title={addressLabel(connection)}
+            className="text-muted-foreground block truncate font-mono text-xs"
+          >
             {addressLabel(connection)}
           </span>
         ),
       },
       {
         key: "credential",
-        hideBelow: "sm",
         header: t("credential"),
         cell: (connection) =>
           connection.secret_id === null ? (
@@ -122,7 +123,6 @@ export function ConnectionsTable({
       },
       {
         key: "defaultRuntime",
-        hideBelow: "sm",
         header: t("defaultRuntime"),
         cell: (connection) =>
           // A runtime's name is an identifier and reads as one; "the service's
@@ -139,50 +139,61 @@ export function ConnectionsTable({
       },
       {
         key: "actions",
-        className: "pr-5",
+        className: "pr-5 @max-md/table:w-full @max-md/table:text-left",
         header: t("actions"),
         align: "right",
         cell: (connection) => (
-          <div className="flex justify-end gap-1">
+          <div className="flex justify-end gap-1 @max-md/table:justify-start">
             {connection.kind === "docker" && (
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => onInspect(connection)}
                 aria-label={t("whatNamedAllows", { name: connection.name })}
+                title={t("whatNamedAllows", { name: connection.name })}
               >
                 {/* An icon on a phone, where the words took the name's room. */}
-                <ShieldCheck className="h-4 w-4 sm:hidden" aria-hidden />
-                <span className="max-sm:hidden">{t("whatAllows")}</span>
+                <ShieldCheck className="hidden h-4 w-4 @max-[64rem]/table:block" aria-hidden />
+                <span className="@max-[64rem]/table:hidden">{t("whatAllows")}</span>
               </Button>
             )}
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => onEdit(connection)}
-              aria-label={tc("editNamed", { name: connection.name })}
-            >
-              <Pencil className="h-4 w-4" aria-hidden />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => onDelete(connection)}
-              aria-label={tc("deleteNamed", { name: connection.name })}
-            >
-              <Trash2 className="h-4 w-4" aria-hidden />
-            </Button>
+            {canManage && (
+              <>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => onEdit(connection)}
+                  aria-label={tc("editNamed", { name: connection.name })}
+                >
+                  <Pencil className="h-4 w-4" aria-hidden />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => onDelete(connection)}
+                  aria-label={tc("deleteNamed", { name: connection.name })}
+                >
+                  <Trash2 className="h-4 w-4" aria-hidden />
+                </Button>
+              </>
+            )}
           </div>
         ),
       },
     ],
-    [t, tc, onEdit, onInspect, onDelete],
+    [t, tc, onEdit, onInspect, onDelete, canManage],
   );
 
   return (
     <DataTable<SandboxConnectionRecord>
+      clientPagination
+      empty={empty}
+      fillHeight
       columns={columns}
       rows={rows}
+      loading={loading}
+      skeletonRows={3}
+      stackOnNarrow
       getRowKey={(connection) => connection.id}
       className="rounded-none border-0 bg-transparent"
     />

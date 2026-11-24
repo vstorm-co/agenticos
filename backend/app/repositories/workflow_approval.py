@@ -1,14 +1,16 @@
 """The decisions workflow runs wait on (`human.approval`), and the steps parked on them."""
 
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from datetime import date, datetime
 from typing import Literal, NamedTuple
 from uuid import UUID
 
 from sqlalchemy import ColumnElement, func, or_, select
 from sqlalchemy import update as sql_update
+from sqlalchemy.dialects.postgresql import array
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.db.models.user import User
 from app.db.models.workflow import Workflow
 from app.db.models.workflow_approval import (
     ProposalFormat,
@@ -29,6 +31,15 @@ from app.repositories import workflow as workflow_repo
 OutcomeLevel = Literal["total", "step", "workflow"]
 
 
+class StepDecision(NamedTuple):
+    """How one step's request was settled, and by whom - for a run's own view of it."""
+
+    node_run_id: UUID
+    status: str
+    decided_at: datetime | None
+    decided_by_name: str | None
+
+
 async def create(
     db: AsyncSession,
     *,
@@ -40,6 +51,7 @@ async def create(
     details: str | None,
     approver_user_ids: list[UUID],
     expires_at: datetime | None,
+    approver_group_ids: list[UUID] | None = None,
     editable: bool = False,
     proposal: str | None = None,
     proposal_format: ProposalFormat = "text",
@@ -54,6 +66,7 @@ async def create(
         title=title,
         details=details,
         approver_user_ids=[str(user_id) for user_id in approver_user_ids],
+        approver_group_ids=[str(group_id) for group_id in approver_group_ids or []],
         expires_at=expires_at,
         editable=editable,
         proposal=proposal,
@@ -115,11 +128,16 @@ async def list_with_workflow(
     created_from: datetime | None = None,
     created_to: datetime | None = None,
     oldest_first: bool = True,
+    decidable_by: UUID | None = None,
+    through_groups: Collection[str] = (),
 ) -> tuple[list[tuple[WorkflowApproval, str]], int]:
     """One organization's requests in `statuses`, each with its workflow's name.
 
     Oldest first unless `oldest_first` is false, and narrowed to those asked
-    within `created_from` .. `created_to` when given.
+    within `created_from` .. `created_to` when given. `decidable_by` keeps the
+    requests that person may decide: those naming nobody, those naming them,
+    and those naming one of `through_groups` - the groups they decide through.
+    The page and the count are narrowed alike.
     """
     where = [
         WorkflowApproval.organization_id == organization_id,
@@ -129,6 +147,17 @@ async def list_with_workflow(
         where.append(WorkflowApproval.created_at >= created_from)
     if created_to is not None:
         where.append(WorkflowApproval.created_at <= created_to)
+    if decidable_by is not None:
+        audience = [
+            (func.jsonb_array_length(WorkflowApproval.approver_user_ids) == 0)
+            & (func.jsonb_array_length(WorkflowApproval.approver_group_ids) == 0),
+            WorkflowApproval.approver_user_ids.contains([str(decidable_by)]),
+        ]
+        if through_groups:
+            audience.append(
+                WorkflowApproval.approver_group_ids.has_any(array(sorted(through_groups)))
+            )
+        where.append(or_(*audience))
     ordering = (
         (WorkflowApproval.created_at, WorkflowApproval.id)
         if oldest_first
@@ -144,6 +173,32 @@ async def list_with_workflow(
         .limit(limit)
     )
     return [(approval, name) for approval, name in rows.all()], total or 0
+
+
+async def step_decisions(
+    db: AsyncSession, *, organization_id: UUID, node_run_ids: Sequence[UUID]
+) -> list[StepDecision]:
+    """The requests these steps made, each with the decider's name or email.
+
+    The name is null when nobody decided (pending, expired, cancelled) and when the
+    decider's account is gone - the foreign key is set null on delete.
+    """
+    if not node_run_ids:
+        return []
+    rows = await db.execute(
+        select(
+            WorkflowApproval.node_run_id,
+            WorkflowApproval.status,
+            WorkflowApproval.decided_at,
+            func.coalesce(func.nullif(User.full_name, ""), User.email),
+        )
+        .outerjoin(User, User.id == WorkflowApproval.decided_by_user_id)
+        .where(
+            WorkflowApproval.organization_id == organization_id,
+            WorkflowApproval.node_run_id.in_(node_run_ids),
+        )
+    )
+    return [StepDecision(*row) for row in rows.all()]
 
 
 async def update(

@@ -4,18 +4,10 @@ import Link from "next/link";
 import { CircleDollarSign, Hand, PieChart, X } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
-import {
-  Button,
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-  Checkbox,
-  Label,
-  Switch,
-} from "@/components/ui";
+import { Button, Checkbox, Label, Switch } from "@/components/ui";
+import { BuildSection } from "./build-section";
 import { MemberIdentity, displayName } from "@/components/orgs/member-identity";
+import { GroupPicker } from "@/components/orgs/group-picker";
 import { MemberPicker } from "@/components/orgs/member-picker";
 import type { IdentifiedMember } from "@/components/orgs/member-identity";
 import { useMembers } from "@/hooks";
@@ -29,6 +21,8 @@ interface AlertsPanelProps {
   value: NotificationSpec | undefined;
   onChange: (notifications: NotificationSpec) => void;
   disabled?: boolean;
+  /** Whether the agent can wait on an approval at all; a system agent never does. */
+  approvals?: boolean;
 }
 
 /**
@@ -104,7 +98,7 @@ const ALERTS: readonly AlertKindMeta[] = [
  * settings, and an agent's author cannot raise it - so its alert goes to the
  * people who can, and no agent can redirect or silence it.
  */
-export function AlertsPanel({ value, onChange, disabled }: AlertsPanelProps) {
+export function AlertsPanel({ value, onChange, disabled, approvals = true }: AlertsPanelProps) {
   const t = useTranslations("agents");
   /* v8 ignore next -- the selector never runs: every test here mocks the store */
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
@@ -117,21 +111,26 @@ export function AlertsPanel({ value, onChange, disabled }: AlertsPanelProps) {
     onChange({ ...spec, [key]: alert });
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{t("alerts")}</CardTitle>
-        <CardDescription>
-          {t.rich("alertsDescription", {
-            link: (chunks) => (
-              <Link href={ROUTES.SETTINGS_NOTIFICATIONS} className="underline underline-offset-4">
-                {chunks}
-              </Link>
-            ),
-          })}
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        {ALERTS.map((meta) => (
+    <BuildSection
+      title={t("alerts")}
+      summary={t("buildSummary.alerts", {
+        count: ALERTS.filter(
+          (meta) => (approvals || meta.key !== "approvals") && spec[meta.key].enabled,
+        ).length,
+      })}
+      description={t.rich("alertsDescription", {
+        link: (chunks) => (
+          <Link
+            href={ROUTES.SETTINGS_NOTIFICATIONS}
+            className="text-brand underline underline-offset-4"
+          >
+            {chunks}
+          </Link>
+        ),
+      })}
+    >
+      <div className="space-y-3">
+        {ALERTS.filter((meta) => approvals || meta.key !== "approvals").map((meta) => (
           <AlertRow
             key={meta.key}
             meta={meta}
@@ -143,8 +142,8 @@ export function AlertsPanel({ value, onChange, disabled }: AlertsPanelProps) {
         ))}
 
         <p className="text-muted-foreground text-xs">{t("organizationAposSOwn")}</p>
-      </CardContent>
-    </Card>
+      </div>
+    </BuildSection>
   );
 }
 
@@ -172,6 +171,7 @@ function AlertRow({
       // spec carrying ids without it - so dropping the audience drops the list
       // rather than leaving one the save would reject.
       user_ids: to.includes("chosen") ? alert.user_ids : [],
+      group_ids: to.includes("chosen") ? (alert.group_ids ?? []) : [],
     });
   };
 
@@ -188,7 +188,7 @@ function AlertRow({
   const problem =
     alert.enabled && alert.to.length === 0
       ? t("nobodySetHearAdd")
-      : alert.to.includes("chosen") && alert.user_ids.length === 0
+      : alert.to.includes("chosen") && alert.user_ids.length === 0 && !alert.group_ids?.length
         ? "“Specific people” is chosen and nobody is named, so this would mail nobody."
         : null;
 
@@ -313,6 +313,17 @@ function AlertRow({
                 )}
               </div>
             ))}
+
+          {alert.to.includes("chosen") && (
+            <div className="mt-3 space-y-2">
+              <GroupPicker
+                selected={alert.group_ids ?? []}
+                onChange={(group_ids) => onChange({ ...alert, group_ids })}
+                disabled={disabled}
+              />
+              <p className="text-muted-foreground text-xs">{t("groupsNotifyOnly")}</p>
+            </div>
+          )}
 
           {problem && (
             // A span rather than a `Badge`: that component renders a `div`, and a

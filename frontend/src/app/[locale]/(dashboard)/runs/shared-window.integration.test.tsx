@@ -29,6 +29,9 @@ vi.mock("@/hooks/use-permissions", () => ({
 
 const params = new URLSearchParams();
 vi.mock("next/navigation", () => ({
+  // The browser continuation panel reaches next-intl's navigation, which reads these.
+  redirect: vi.fn(),
+  permanentRedirect: vi.fn(),
   useSearchParams: () => params,
   useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
   // The header's "?" reads the path to decide whether this page has tips.
@@ -159,7 +162,7 @@ describe("the Runs figure and the Spend figure", () => {
     });
 
     await userEvent.click(screen.getByRole("button", { name: "Period" }));
-    await userEvent.click(await screen.findByRole("menuitemradio", { name: "Last 7 days" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Last 7 days" }));
 
     expect(new URL(window.location.href).searchParams.get("period")).toBe("7d");
     await waitFor(() => {

@@ -1,5 +1,5 @@
 ---
-source_sha: "f415e83adfe5"
+source_sha: "531cae3a8bfb"
 title: "Conversaciones de voz"
 seo_title: "Conversaciones de voz: habla con un agent publicado"
 description: "Llama a un agent publicado y habla con él: modelos realtime, aprobaciones en la llamada, límites de tiempo y budgets, redes de seguridad y transcripciones."
@@ -40,8 +40,7 @@ Las inserciones públicas conservan su ámbito independiente de visitante.
 llamadas: un agent publicado con una voz atiende llamadas, acotado por su propia
 llamada más larga y por los budgets, como cualquier run.
 
-**El agent.** Su tarjeta Voice en el Builder tiene una pestaña **Voice calls**,
-que se escribe en el [campo `voice`](reference/spec.md#voice) de la spec. Nombra
+**El agent.** Su tarjeta Voice en el Builder muestra **Voice calls** y **Dictation** en una sola lista vertical, sin pestañas internas. Cada sección tiene su propio interruptor. Los ajustes de transcripción siguen disponibles con el dictado desactivado porque también se aplican a las notas de voz de los canales. La sección de llamadas se escribe en el [campo `voice`](reference/spec.md#voice) de la spec. Nombra
 el provider, el modelo (o, para Azure, el nombre del deployment y el modelo base
 que ejecuta), la clave del vault con la que se mantienen las llamadas, la voz,
 un idioma opcional, una llamada más larga opcional (10 minutos si no se fija, 50
@@ -59,7 +58,7 @@ idioma.
 de Enviar mientras el cuadro está vacío, y Enviar vuelve en cuanto se escribe algo,
 en cada agent. Para uno sin voz, o con una clave que ya no puede
 mantener una llamada, aparece tachado, y su motivo lleva a quien puede editar el
-agent a la pestaña de llamadas de su tarjeta Voice. La ventana del Architect y el
+agent a la sección de llamadas de su tarjeta Voice. La ventana del Architect y el
 panel de pruebas del Builder lo ofrecen igual; en el panel de pruebas la llamada
 ejecuta la versión publicada, no el borrador que se prueba, y el botón lo dice.
 
@@ -82,6 +81,7 @@ sitio donde se nombra un modelo realtime.
 | Azure OpenAI | un deployment de `gpt-realtime` | Relay | **No verificado en vivo** |
 | Google | Gemini Live: `gemini-2.5-flash-native-audio-latest`, `gemini-3.1-flash-live-preview` | Relay | **No verificado en vivo** |
 | xAI | `grok-voice-latest`, facturado por minuto | Relay | **No verificado en vivo** |
+| ElevenLabs | `eleven_realtime_v1_mini`, `eleven_realtime_v1_max` | Relay | **No verificado en vivo** |
 
 Solo OpenAI se pudo probar contra una cuenta real. Azure, Gemini y xAI están
 construidos a partir de la documentación de los providers y de Pydantic AI, y
@@ -183,6 +183,10 @@ la llamada lo dice en voz alta.
   llama el modelo de texto, o uno de sus subagents, muestra la misma tarjeta de
   aprobación que una que llama la llamada. La llamada de un visitante tampoco
   lleva aquí herramientas con aprobación.
+- **Una llamada que pregunta siempre se decide por escrito.** Una herramienta
+  como `share_memory` espera a alguien que lea exactamente lo que cambiaría, y una
+  tarjeta de voz no puede mostrarlo. La llamada la rechaza y el agent propone
+  preguntar en el chat de texto.
 - **Un traspaso cada vez.** Cada uno continúa lo que hizo el anterior en esa
   llamada, así que «ahora envía ese archivo» funciona después de «redáctalo».
 - **Un fallo se dice, no se oculta.** Un traspaso que se queda sin presupuesto o
@@ -433,3 +437,9 @@ Confirmar, resolver o silenciar el caso, o leer su notificación, cancela las ll
 No se permite eliminar cuentas ni organizaciones mientras haya llamadas telefónicas sin finalizar. Finaliza las llamadas y espera su estado final antes de volver a intentar la eliminación; así se conservan los callbacks del proveedor y los límites de duración. La exportación personal incluye todos los casos, incluso sin intento telefónico, y todo su contenido cuenta para el límite de tamaño de la exportación.
 
 También se rechaza cambiar las credenciales del bot SMS hasta que terminen sus llamadas telefónicas. La cancelación durante una solicitud de llamada guarda la intención de finalizar y cuelga en cuanto llega el identificador del proveedor. La limpieza confirma esa intención antes de contactar al proveedor, permitiendo que los callbacks de estado firmados liquiden el registro a la vez.
+
+ElevenLabs Realtime incorpora `eleven_realtime_v1_mini` y `eleven_realtime_v1_max` mediante el relay PCM de 24 kHz, con la voz predeterminada `brian` y detección semántica de turnos.
+
+El SDK no informa los cargos por tokens. Las llamadas con un presupuesto de gasto se rechazan antes de conectar. Las llamadas sin presupuesto conservan el límite de tiempo y registran el coste de audio como límite inferior, no como factura completa. La tarifa de audio es de 0,08 USD/minuto (0,16 USD con burst); los tokens se cobran aparte. El contexto de 16k es un límite conservador de historial de la plataforma, no una ventana de contexto publicada por el proveedor. La integración se ha probado sin conexión mediante la construcción de modelos SDK y transportes controlados, no con cuentas reales. [SDK](https://pydantic.dev/docs/ai/api/realtime/elevenlabs/), [ElevenLabs API pricing](https://elevenlabs.io/pricing/api).
+
+Si se omite el idioma de la llamada se usa inglés; el selector muestra ese valor en lugar de ofrecer detección automática.

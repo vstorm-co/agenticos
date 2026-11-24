@@ -8,6 +8,7 @@ from pydantic_ai.capabilities import AbstractCapability
 from app.agents.capabilities._registry import (
     CapabilityBuildContext,
     CapabilityToolInfo,
+    NativeOnly,
     ProviderExecuted,
     register,
 )
@@ -127,6 +128,7 @@ class WebFetchConfig(BaseModel):
 
 @register(
     id="web_fetch",
+    read_only=True,
     name="Read web pages",
     category="research",
     description="Read the page behind a URL, so an agent can follow a link it found.",
@@ -150,6 +152,7 @@ class WebFetchConfig(BaseModel):
         field="method",
         equals=tuple(sorted(PROVIDER_EXECUTED_METHODS)),
     ),
+    native_only=NativeOnly(field="method", equals=("native",)),
 )
 def _build(ctx: CapabilityBuildContext) -> AbstractCapability[object]:
     config = ctx.config if isinstance(ctx.config, WebFetchConfig) else WebFetchConfig()

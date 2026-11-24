@@ -71,6 +71,14 @@ struct Me {
     email: String,
 }
 
+/// An expired/replaced session ends interactive authority; explicitly unlinking
+/// or changing servers also revokes the person's standing routine permission.
+#[derive(Clone, Copy)]
+enum AuthorityScope {
+    Session,
+    All,
+}
+
 /// Why a connection attempt ended.
 enum Ended {
     /// The server refused the session: signed out, or disconnected from Devices.
@@ -250,7 +258,7 @@ pub async fn device_link(app: AppHandle, code: String) -> Result<DeviceStatus, S
         return Err("Not linked.".to_owned());
     }
     ensure_connection(&app, &server, &revision)?;
-    unlink(&app).await?;
+    unlink(&app, AuthorityScope::Session).await?;
     ensure_connection(&app, &server, &revision)?;
     let pair: TokenPair = client
         .post(endpoints.api_route("/api/v1/auth/pairing-codes/redeem"))
@@ -272,11 +280,15 @@ pub async fn device_link(app: AppHandle, code: String) -> Result<DeviceStatus, S
             .and_then(reqwest::Response::error_for_status)
             .map_err(|e| e.to_string())?;
         ensure_connection(&app, &server, &revision)?;
-        store_refresh(&server, &pair)
+        let verified = DeviceIdentity::from_access_token(server.origin().ascii_serialization(), &pair.access_token)
+            .map_err(str::to_owned)?;
+        store_refresh(&server, &pair)?;
+        crate::routine_access::retain_shared(&app, Some(&verified))
     }
     .await;
     if let Err(error) = activated {
         revoke_session(&client, &endpoints, &pair.refresh_token).await;
+        forget(&server);
         return Err(error);
     }
     start(&app);
@@ -287,14 +299,16 @@ pub async fn device_link(app: AppHandle, code: String) -> Result<DeviceStatus, S
 #[tauri::command]
 pub async fn device_unlink(app: AppHandle) -> Result<DeviceStatus, String> {
     let _transition = transition(&app).await;
-    unlink(&app).await
+    unlink(&app, AuthorityScope::All).await
 }
 
-async fn unlink(app: &AppHandle) -> Result<DeviceStatus, String> {
+async fn unlink(app: &AppHandle, authority: AuthorityScope) -> Result<DeviceStatus, String> {
     let server = settings::current(app).server_url;
     let token = server.as_ref().and_then(stored_refresh);
-    clear_authority(app).await?;
+    clear_authority_scope(app, authority).await?;
     if let Some(server) = server {
+        // Stop queued native calls from authenticating during the logout request.
+        forget(&server);
         if let Some(token) = token {
             match http() {
                 Ok(client) => match endpoints(&client, &server).await {
@@ -304,7 +318,6 @@ async fn unlink(app: &AppHandle) -> Result<DeviceStatus, String> {
                 Err(error) => eprintln!("Could not revoke the device session: {error}"),
             }
         }
-        forget(&server);
     }
     set_connected(app, false);
     Ok(status(app))
@@ -336,14 +349,36 @@ async fn revoke_session(client: &reqwest::Client, endpoints: &Endpoints, token: 
 }
 
 pub(crate) async fn clear_authority(app: &AppHandle) -> Result<(), String> {
+    clear_authority_scope(app, AuthorityScope::All).await
+}
+
+async fn clear_authority_scope(app: &AppHandle, authority: AuthorityScope) -> Result<(), String> {
     stop(app);
     crate::screen::stop(app);
     crate::computer_access::clear(app)?;
-    crate::routine_access::clear(app)?;
+    match authority {
+        AuthorityScope::All => crate::routine_access::clear(app)?,
+        AuthorityScope::Session => {
+            // No verified old identity means only dormant owner-bound grants may
+            // remain; the fresh pairing identity must match before activation.
+            let previous = identity(app).ok();
+            crate::routine_access::retain_shared(app, previous.as_ref())?;
+        }
+    }
     settings::update(app, settings::clear_local_authority)?;
     crate::local_browser::close_all(app).await;
+    crate::agent_session::close_all(app).await;
     set_connected(app, false);
     Ok(())
+}
+
+fn connection_is_current(app: &AppHandle, stopper: &Arc<Notify>) -> bool {
+    app.state::<Device>()
+        .stop
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .as_ref()
+        .is_some_and(|current| Arc::ptr_eq(current, stopper))
 }
 
 fn stop(app: &AppHandle) {
@@ -375,18 +410,19 @@ pub fn start(app: &AppHandle) {
         let mut failures = 0;
         loop {
             let ended = tokio::select! {
-                _ = stopper.notified() => {
-                    crate::agent_session::close_all(&app).await;
-                    return;
-                }
+                _ = stopper.notified() => return,
                 ended = connection(&app, &server) => ended,
             };
+            let connection_guard = transition(&app).await;
+            if !connection_is_current(&app, &stopper) {
+                return;
+            }
             set_connected(&app, false);
             // Nothing is left to hear what a started agent writes.
             crate::agent_session::close_all(&app).await;
             match ended {
                 Ended::Revoked => {
-                    if let Err(error) = clear_authority(&app).await {
+                    if let Err(error) = clear_authority_scope(&app, AuthorityScope::Session).await {
                         eprintln!("Could not clear revoked device access: {error}");
                     }
                     forget(&server);
@@ -398,6 +434,7 @@ pub fn start(app: &AppHandle) {
                     failures += 1;
                 }
             }
+            drop(connection_guard);
             tokio::select! {
                 _ = stopper.notified() => return,
                 _ = tokio::time::sleep(backoff(failures)) => {}

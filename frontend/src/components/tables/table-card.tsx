@@ -2,12 +2,18 @@
 
 import Link from "next/link";
 import { Building2, Lock, Users } from "lucide-react";
-import { TableIcon as Table2 } from "@/components/icons/product-icons";
-import { useLocale, useTranslations } from "next-intl";
+import { ResourceIcon } from "@/components/ui/resource-icon";
+import { useTranslations } from "next-intl";
 
-import { Badge } from "@/components/ui";
+import {
+  Badge,
+  ResourceCard,
+  ResourceCardHeader,
+  ResourceCardDescription,
+  ResourceCardFooter,
+} from "@/components/ui";
 import { ROUTES } from "@/lib/constants";
-import { timeAgo } from "@/lib/utils";
+import type { TaskBoard } from "@/lib/tasks-api";
 import type { TableListItem } from "@/types/tables";
 
 const VISIBILITY_ICON = { org: Building2, team: Users, private: Lock } as const;
@@ -16,56 +22,51 @@ const VISIBILITY_ICON = { org: Building2, team: Users, private: Lock } as const;
  * One table in the catalog - the agents gallery's card, for a table: what it
  * is called, how much it holds, who may reach it and when it last changed.
  */
-export function TableCard({ table }: { table: TableListItem }) {
+export function TableCard({ table, taskBoard }: { table: TableListItem; taskBoard?: TaskBoard }) {
   const t = useTranslations("pages.tables");
+  const tasks = useTranslations("durableTasks");
   const tc = useTranslations("common");
-  const tt = useTranslations("time");
-  const locale = useLocale();
   const VisibilityIcon = VISIBILITY_ICON[table.visibility];
-  const edited = table.updated_at ?? table.created_at;
 
   return (
-    <div className="h-full rounded-xl">
-      <div className="border-foreground/8 bg-card hover:border-foreground/25 relative flex h-full flex-col gap-3 rounded-xl border p-4 transition-colors">
-        <Link
-          href={ROUTES.TABLE_DETAIL(table.id)}
-          className="focus-visible:ring-ring absolute inset-0 rounded-xl outline-none focus-visible:ring-2"
-          aria-label={tc("openNamed", { name: table.name })}
-        />
-        <div className="pointer-events-none relative flex items-start gap-3">
-          <span className="bg-foreground/[0.04] text-muted-foreground flex size-10 shrink-0 items-center justify-center rounded-lg">
-            <Table2 aria-hidden="true" className="size-5" />
-          </span>
-          <div className="min-w-0 flex-1">
-            <div className="flex items-start justify-between gap-2">
-              <p className="text-foreground truncate font-medium">{table.name}</p>
-              {(table.archived_at !== null || !table.can_edit) && (
-                <Badge variant="outline" className="text-muted-foreground shrink-0 font-normal">
-                  {table.archived_at !== null ? t("archivedBadge") : t("readOnly")}
-                </Badge>
-              )}
-            </div>
-            <p className="text-muted-foreground text-xs">
-              {t("cardSize", { records: table.record_count, columns: table.column_count })}
-            </p>
-            <p className="text-muted-foreground mt-2 line-clamp-2 min-h-10 text-sm">
-              {table.description}
-            </p>
-          </div>
-        </div>
-        <div className="text-muted-foreground pointer-events-none relative mt-auto flex items-center gap-2 pt-3 text-xs">
+    <ResourceCard className="min-h-52">
+      <Link
+        href={ROUTES.TABLE_DETAIL(table.id)}
+        className="focus-visible:ring-ring absolute inset-0 rounded-[inherit] outline-none focus-visible:ring-2"
+        aria-label={tc("openNamed", { name: table.name })}
+      />
+      <ResourceCardHeader className="pointer-events-none">
+        <ResourceIcon kind="table" icon={table.icon} />
+        <div className="min-w-0 flex-1 space-y-1.5">
+          <p className="text-foreground line-clamp-2 font-semibold break-words">{table.name}</p>
           <span
             role="img"
             aria-label={t(`visibility.${table.visibility}`)}
             title={t(`visibility.${table.visibility}`)}
-            className="pointer-events-auto inline-flex items-center gap-1"
+            className="text-muted-foreground flex items-center gap-1.5 text-xs"
           >
-            <VisibilityIcon className="h-3.5 w-3.5" aria-hidden />
+            <VisibilityIcon className="size-3 shrink-0" aria-hidden />
             <span>{t(`visibility.${table.visibility}`)}</span>
           </span>
-          {t("editedWhen", { when: timeAgo(edited, tt, locale) })}
         </div>
-      </div>
-    </div>
+      </ResourceCardHeader>
+      <ResourceCardDescription className="pointer-events-none my-4 line-clamp-2">
+        {table.description}
+      </ResourceCardDescription>
+      <ResourceCardFooter className="text-muted-foreground pointer-events-none border-0 pt-0 text-xs">
+        {(table.archived_at !== null || !table.can_edit) && (
+          <Badge variant="outline" className="font-normal">
+            {table.archived_at !== null ? t("archivedBadge") : t("readOnly")}
+          </Badge>
+        )}
+        <span>{t("cardSize", { records: table.record_count, columns: table.column_count })}</span>
+        {taskBoard && (
+          <span>
+            {tasks(`scope.${taskBoard.scope_kind}`)}
+            {taskBoard.scope_name && ` · ${taskBoard.scope_name}`}
+          </span>
+        )}
+      </ResourceCardFooter>
+    </ResourceCard>
   );
 }

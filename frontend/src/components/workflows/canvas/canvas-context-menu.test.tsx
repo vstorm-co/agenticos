@@ -16,6 +16,13 @@ const CATALOG = [
     name: "HTTP",
     ports: [port("in", "input", null), port("out", "output", null)],
   }),
+  makeDefinition({
+    id: "loop.item",
+    name: "Loop item",
+    kind: "control",
+    ports: [port("out", "output", null)],
+    loop_body_only: true,
+  }),
 ];
 
 function step(id: string, layout: NodeInstance["layout"]): NodeInstance {
@@ -69,5 +76,29 @@ describe("a step's right-click menu", () => {
   it("does not offer it for a step that was never resized", async () => {
     await openMenu("b");
     expect(screen.queryByText("Reset size")).not.toBeInTheDocument();
+  });
+});
+
+describe("the right-click menu of a loop's item or result step", () => {
+  it("offers neither deleting nor duplicating it: it goes only with its loop", async () => {
+    store.getState().seedGraph({
+      entry_node_id: "loop",
+      nodes: [
+        {
+          id: "item",
+          definition_id: "loop.item",
+          definition_version: 1,
+          config: {},
+          layout: { x: 0, y: 0 },
+          scope_id: "loop",
+        },
+      ],
+      edges: [],
+      bindings: [],
+      scopes: [],
+    });
+    await openMenu("item");
+    expect(screen.queryByText("Delete step")).toBeNull();
+    expect(screen.queryByText("Duplicate")).toBeNull();
   });
 });

@@ -161,12 +161,12 @@ describe("the workflows list", () => {
     expect(prompt).toContain("It should do this:");
   });
 
-  it("offers describing a workflow from the empty state", async () => {
+  it("keeps the describe entry in the header of the empty state", async () => {
     serve([]);
     render(<WorkflowsPage />, { wrapper });
 
     expect(await screen.findByText("No workflows yet")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Describe a workflow" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Describe a workflow" })).toBeInTheDocument();
   });
 
   it("offers no describe entry to a caller who may only view", async () => {
@@ -211,6 +211,23 @@ describe("the workflows list", () => {
       expect(screen.getByRole("combobox", { name: "Filter by status" })).toBeInTheDocument(),
     );
     expect(apiClient.get).not.toHaveBeenCalledWith("/workflows");
+  });
+
+  it("offers a first workflow inside the empty catalog, only to a caller who may create", async () => {
+    serve([]);
+    const { unmount } = render(<WorkflowsPage />, { wrapper });
+    await screen.findByText("No workflows yet");
+    // The header's, and the empty catalog's own.
+    const offered = screen.getAllByRole("button", { name: "New workflow" });
+    expect(offered).toHaveLength(2);
+    await userEvent.click(offered[1]!);
+    expect(await screen.findByText("How does it start?")).toBeInTheDocument();
+    unmount();
+
+    perms.can = (permission: string) => permission === "workflows:view";
+    render(<WorkflowsPage />, { wrapper });
+    await screen.findByText("No workflows yet");
+    expect(screen.queryByRole("button", { name: "New workflow" })).toBeNull();
   });
 
   it("opens named creation and keeps templates in their own library", async () => {
@@ -327,7 +344,7 @@ describe("the workflows list past one page", () => {
       serve(ROWS);
       params = new URLSearchParams("status=draft");
       render(<WorkflowsPage />, { wrapper });
-      await userEvent.click(await screen.findByRole("button", { name: "Clear filter" }));
+      await userEvent.click(await screen.findByRole("button", { name: "Clear filters" }));
       await screen.findByRole("link", { name: "Open Beta" });
 
       await showFilters();

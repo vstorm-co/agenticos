@@ -1,15 +1,21 @@
 """Private, durable histories for agent steps, separate from workflow result delivery."""
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 from uuid import UUID, uuid5
 
 from pydantic_ai.messages import ModelMessage
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.capabilities.guardrails import GuardrailBlocked
 from app.core.exceptions import NotFoundError
+from app.db.models.agent_run import AgentRun, RunStatus
 from app.repositories import conversation as conversation_repo
 from app.services.conversation import API_HISTORY_MESSAGES, ConversationService
-from app.services.workflow_execution.context import DispatchContext
+from app.services.workflow_execution.context import ChatSource, DispatchContext
+
+if TYPE_CHECKING:
+    from app.services.agent_runner import RunSegment
 
 _NAMESPACE = UUID("cc293fe2-ad7d-4270-a2ed-69699035347f")
 
@@ -77,3 +83,46 @@ async def for_agent_step(
         raise NotFoundError(message="Conversation not found")
     history = await ConversationService(db).model_history(opened.id, limit=API_HISTORY_MESSAGES)
     return AgentConversation(opened.id, history)
+
+
+@dataclass(frozen=True)
+class ChatSourceGuard:
+    """Share a chat source verdict across queued workflow branches and continuations."""
+
+    db: AsyncSession
+    source: ChatSource | None
+
+    async def check(self, _run: AgentRun | None = None) -> None:
+        """Check admission and again at the runner's pre-model commit boundary."""
+        await self.check_request(self.db)
+
+    async def check_request(self, db: AsyncSession) -> None:
+        """Check the shared source using a request-local database session."""
+        if self.source is None:
+            return
+        refused = None
+        if self.source.message_id is not None and self.source.conversation_id is not None:
+            refused = await conversation_repo.message_refusal(
+                db,
+                message_id=self.source.message_id,
+                conversation_id=self.source.conversation_id,
+            )
+        if refused is not False:
+            raise GuardrailBlocked(
+                edge="input",
+                message="The workflow's source turn is no longer available to agents.",
+            )
+
+    async def keep_refusal(self, segment: RunSegment) -> None:
+        """Commit the shared verdict with the agent's terminal refusal."""
+        if (
+            segment.run.status == RunStatus.GUARDRAIL_BLOCKED.value
+            and self.source is not None
+            and self.source.message_id is not None
+            and self.source.conversation_id is not None
+        ):
+            await conversation_repo.mark_message_refused(
+                self.db,
+                message_id=self.source.message_id,
+                conversation_id=self.source.conversation_id,
+            )

@@ -97,3 +97,32 @@ describe("ReplyingTo", () => {
     expect(screen.getByText("Replying to yourself")).toBeInTheDocument();
   });
 });
+
+it("jumps to a root or reply inside the current thread before the main-room copy", async () => {
+  const media = vi
+    .spyOn(window, "matchMedia")
+    .mockReturnValue({ matches: false } as MediaQueryList);
+  const { container } = render(
+    <>
+      <div data-message-id="root" />
+      <aside data-tour="chat-room-thread-panel">
+        <div data-thread-root="root" />
+        <div data-message-id="thread-reply" />
+        <ReplyQuote reply={{ messageId: "root", role: "user", excerpt: "Root quote" }} />
+        <ReplyQuote reply={{ messageId: "thread-reply", role: "user", excerpt: "Reply quote" }} />
+      </aside>
+    </>,
+  );
+  const main = container.querySelector<HTMLElement>("[data-message-id=root]")!;
+  const root = container.querySelector<HTMLElement>("[data-thread-root=root]")!;
+  const reply = container.querySelector<HTMLElement>("[data-message-id=thread-reply]")!;
+  main.scrollIntoView = vi.fn();
+  root.scrollIntoView = vi.fn();
+  reply.scrollIntoView = vi.fn();
+  await userEvent.click(screen.getByRole("button", { name: /Root quote/ }));
+  expect(root.scrollIntoView).toHaveBeenCalledOnce();
+  expect(main.scrollIntoView).not.toHaveBeenCalled();
+  await userEvent.click(screen.getByRole("button", { name: /Reply quote/ }));
+  expect(reply.scrollIntoView).toHaveBeenCalledOnce();
+  media.mockRestore();
+});

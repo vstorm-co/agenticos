@@ -72,12 +72,24 @@ native volume.
   resolves the version and reports the actual model and token usage.
 - Each native request produces one structured T3OS decision. No filesystem,
   shell, browser, MCP, plugin or hook action is exposed to that model request.
-- The full text conversation, current instructions and currently available
+- The full conversation, current instructions and currently available
   application tool schemas go over stdin. Tool results return through T3OS;
   the model cannot authorize or execute an application action itself.
-- Text and application tools are supported. Attachments and provider-native
-  tools are rejected before inference. Responses arrive when the model step
-  completes, using the existing chat/tool event stream.
+- Text, inline JPEG/PNG/GIF/WebP image bytes and application tools are supported.
+  Computer and browser screenshots keep their originating tool-call association
+  and reach the native model as image blocks. Image requests use one `stream-json`
+  user event and a bounded terminal result; text requests retain the JSON path.
+  Image URLs, documents, audio/video and provider-native tools are rejected before
+  inference. Responses arrive when the model step completes, using the existing
+  chat/tool event stream. Screenshots retain T3OS's ephemeral-history handling.
+- The Thinking capability reaches the native CLI as `--effort` and
+  `alwaysThinkingEnabled`. `minimal` maps to the CLI's lowest effort, `low`.
+  Off requests disable thinking where the model permits it and request low effort
+  for models that always think; On preserves the provider's default effort.
+  Numeric token budgets and unrelated sampling controls remain unsupported.
+- The existing 1 MiB total HTTP request limit includes image base64 expansion,
+  conversation and output schema. Oversized requests fail before native work;
+  the runtime does not fetch remote images or save screenshot files.
 - Stopping the API request cancels the native process. Timeouts and output
   limits also terminate it, including detached processes with that native UID.
 - The client uses `--safe-mode`, an empty native-tool list, strict empty MCP

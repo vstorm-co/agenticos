@@ -61,6 +61,12 @@ _NOT_POSSIBLE = (
     "suggest asking in text chat, where the request can wait for somebody who can approve it."
 )
 _NOT_POSSIBLE_NOTE = "Not decided: the caller may not approve tool calls."
+_IN_WRITING = (
+    "This action is approved only by somebody reading exactly what it would do, which a "
+    "voice call cannot show. Say so plainly, and suggest asking in text chat, where the "
+    "request shows it."
+)
+_IN_WRITING_NOTE = "Not decided: this action is approved in text, where its card shows it."
 
 
 @dataclass
@@ -140,15 +146,20 @@ class VoiceApprovalBridge:
                 agent_id=channel.agent_id,
                 tool_id=parked.tool_name,
                 tool_args=parked.tool_args,
+                always_asks=parked.always_asks,
             )
-        if self._decider is None:
-            await self._expire(channel, parked, note=_NOT_POSSIBLE_NOTE)
+        if self._decider is None or parked.always_asks:
+            await self._expire(
+                channel,
+                parked,
+                note=_IN_WRITING_NOTE if parked.always_asks else _NOT_POSSIBLE_NOTE,
+            )
             await self._send(
                 ApprovalUnavailableFrame(
                     type="approval_unavailable", tool=parked.tool_name, args=parked.tool_args
                 )
             )
-            return ToolDenied(_NOT_POSSIBLE)
+            return ToolDenied(_IN_WRITING if parked.always_asks else _NOT_POSSIBLE)
         future: asyncio.Future[bool | None] = asyncio.get_running_loop().create_future()
         waiting = _Waiting(tool_call_id=call.tool_call_id, future=future)
         self._waiting[approval_id] = waiting

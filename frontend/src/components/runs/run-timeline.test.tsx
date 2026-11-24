@@ -6,12 +6,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import messages from "../../../messages/en.json";
 import { RunTimeline } from "./run-timeline";
+import { getTable } from "@/lib/tables-api";
 import type { RunTranscript, RunTranscriptMessage } from "@/types/runs";
+import type { TableRead } from "@/types/tables";
 
 /**
  * The trace view's claims: the whole thread is asked for and the focused run's
  * turns are the marked ones; a tool call reads raw - name, status, input JSON,
- * recorded output - not through the chat's renderers; and a run with no
+ * recorded output - not through the chat's renderers, with a platform table call
+ * also named in its table's labels above that; and a run with no
  * conversation says so rather than drawing an empty page. And what the model was
  * actually handed: the files attached to a turn, and what that turn cost.
  */
@@ -26,6 +29,37 @@ const useRunTranscriptMock = vi.fn();
 // thing this stub has to preserve.
 vi.mock("@/components/chat/markdown-content", () => ({
   MarkdownContent: ({ content }: { content: string }) => <div>{content}</div>,
+}));
+
+vi.mock("@/components/datasets/add-to-dataset-button", () => ({
+  AddToDatasetButton: ({
+    messageId,
+    ratedDown,
+    asked,
+    answer,
+  }: {
+    messageId: string;
+    ratedDown: boolean;
+    asked?: { question: string; earlier: boolean };
+    answer?: string;
+  }) => (
+    <button
+      type="button"
+      data-message={messageId}
+      data-rated-down={String(ratedDown)}
+      data-question={asked?.question}
+      data-earlier={String(asked?.earlier)}
+      data-answer={answer}
+    >
+      Add to dataset
+    </button>
+  ),
+}));
+
+vi.mock("@/lib/tables-api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/tables-api")>()),
+  getTable: vi.fn(),
+  getRecord: vi.fn().mockRejectedValue(new Error("Not found")),
 }));
 
 vi.mock("@/hooks", async (importOriginal) => ({
@@ -236,6 +270,58 @@ describe("a tool call, raw", () => {
     expect(within(step).getByText("3 results")).toBeVisible();
   });
 
+  it("reads a platform table call in the table's labels, above the raw input", async () => {
+    const status = "e30bcc3d-2c44-4aae-86ff-cb149b75f8a1";
+    vi.mocked(getTable).mockResolvedValue({
+      id: "t1",
+      name: "hacker_news_table",
+      columns: [
+        {
+          id: status,
+          label: "status",
+          type: "text",
+          nullable: true,
+          default: null,
+          options: [],
+          archived: false,
+        },
+      ],
+    } as unknown as TableRead);
+    serve({
+      items: [
+        turn({
+          id: "m-1",
+          parts: [{ type: "tool", tool_call_id: "call-1" }],
+          tool_calls: [
+            {
+              tool_call_id: "call-1",
+              tool_name: "agenticos_update_virtual_table_record",
+              args: {
+                table_id: "t1",
+                record_id: "r1",
+                update: { expected_revision: 1, values: { [status]: "Not worth sharing" } },
+              },
+              result: null,
+              status: "completed",
+            },
+          ],
+        }),
+      ],
+    });
+
+    renderTimeline();
+    const step = screen
+      .getByText("agenticos_update_virtual_table_record")
+      .closest("details") as HTMLElement;
+    // Folded, the step reads nothing: a long run must not fetch every table it touched.
+    expect(getTable).not.toHaveBeenCalled();
+    await userEvent.click(within(step).getByText("agenticos_update_virtual_table_record"));
+
+    expect(await within(step).findByRole("link", { name: "hacker_news_table" })).toBeVisible();
+    expect(within(step).getByText("Not worth sharing", { selector: "dd" })).toBeVisible();
+    expect(within(step).getByText(/"expected_revision": 1/)).toBeVisible();
+  });
+
   it("keeps the stored order: reasoning, tools and text interleaved as written", () => {
     serve({
       items: [
@@ -297,6 +383,43 @@ describe("what people said about it", () => {
 
     expect(screen.getByText("Rated down 2 times")).toBeVisible();
     expect(screen.getByText("wrong currency")).toBeVisible();
+  });
+});
+
+describe("adding an answer to a dataset", () => {
+  it("carries the question and prior history across run groups into the add flow", () => {
+    serve({
+      items: [
+        turn({ id: "q0", role: "user", run_id: "run-0", content: "Previous question" }),
+        turn({ id: "a0", run_id: "run-0", content: "Previous answer" }),
+        turn({ id: "q1", role: "user", content: "And what about Canada?" }),
+        turn({ id: "a1", content: "  First part. " }),
+        turn({ id: "a2", content: " Second part.  " }),
+      ],
+    });
+    renderTimeline();
+    const action = screen.getByRole("button", { name: "Add to dataset" });
+    expect(action).toHaveAttribute("data-question", "And what about Canada?");
+    expect(action).toHaveAttribute("data-earlier", "true");
+    expect(action).toHaveAttribute("data-answer", "First part.\n\nSecond part.");
+  });
+
+  it("offers a reply written in steps once, on its last step, as rated down by any", () => {
+    serve({
+      items: [
+        turn({ id: "q-1", role: "user", content: "Remember I prefer email" }),
+        turn({ id: "a-1", content: "", rating_count: { likes: 0, dislikes: 1 } }),
+        turn({ id: "a-2", content: "Noted - email it is." }),
+        turn({ id: "q-2", role: "user", content: "Thanks" }),
+        turn({ id: "a-3", content: "Any time." }),
+      ],
+    });
+
+    renderTimeline();
+
+    const offered = screen.getAllByRole("button", { name: "Add to dataset" });
+    expect(offered.map((button) => button.dataset.message)).toEqual(["a-2", "a-3"]);
+    expect(offered.map((button) => button.dataset.ratedDown)).toEqual(["true", "false"]);
   });
 });
 

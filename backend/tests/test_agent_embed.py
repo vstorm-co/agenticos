@@ -97,6 +97,8 @@ def _turns(answer: str = "hi", history: list[MagicMock] | None = None):
     turn asked it to do.
     """
     messages = history or []
+    for ordinal, message in enumerate(messages, start=1):
+        message.ordinal = ordinal
     with (
         patch("app.services.embed_session.AgentRunnerService") as runner_cls,
         patch(
@@ -118,7 +120,12 @@ def _turns(answer: str = "hi", history: list[MagicMock] | None = None):
         patch(
             "app.services.embed_session.conversation_repo.get_conversation_by_id",
             new=AsyncMock(
-                return_value=MagicMock(summary_messages=None, summary_ordinal=None, project_id=None)
+                return_value=MagicMock(
+                    summary_messages=None,
+                    summary_ordinal=None,
+                    guardrail_revision=0,
+                    project_id=None,
+                )
             ),
         ),
         patch(
@@ -490,6 +497,7 @@ class TestTheWidgetRemembersWhatWasSaid:
             role=role,
             content=content,
             attachment_context=None,
+            model_content=None,
             author_user_id=None,
             reply_to_message_id=None,
             guardrail_refused=False,
@@ -1522,6 +1530,7 @@ def _published_agent(**overrides) -> MagicMock:
     agent.name = "Support"
     agent.current_version_id = uuid.uuid4()
     agent.status = "published"
+    agent.kind = "agent"
     for key, value in overrides.items():
         setattr(agent, key, value)
     return agent
@@ -1998,3 +2007,9 @@ class TestTheWidgetsPicture:
         service.find_public = AsyncMock(return_value=_embed(is_active=True))
         with patch(f"{MODULE}.agent_repo.get", new=AsyncMock(return_value=_faced_agent())):
             assert await service.widget_avatar_path("key-123") is None
+
+
+@pytest.fixture(autouse=True)
+def organization_model_surface(monkeypatch: pytest.MonkeyPatch) -> None:
+    """This suite's fake registry represents an organization-key agent."""
+    monkeypatch.setattr("app.services.agent_embed.require_organization_agent", AsyncMock())

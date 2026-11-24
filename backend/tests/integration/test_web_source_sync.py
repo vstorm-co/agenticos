@@ -30,13 +30,16 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.core.config import settings
 from app.db.locks import LockScope, try_hold_subject_on_connection
+from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.db.models.organization import Organization
 from app.db.models.rag_document import DocumentStatus, RAGDocument
 from app.db.models.rag_document_claim import RAGDocumentClaim
 from app.db.models.sync_log import SyncLog
+from app.db.models.sync_source import SyncSource
 from app.db.models.user import User
 from app.repositories import sync_log as sync_log_repo
 from app.repositories import sync_source as sync_source_repo
+from app.repositories.rag_document import CollectionScope
 from app.services.rag.connectors.web import WebConnector
 from app.services.rag.embeddings import EmbeddingService
 from app.services.rag.filters import RetrievalQuery, UnscopedScope
@@ -144,6 +147,20 @@ def _site() -> Iterator[_Site]:
         yield site
 
 
+def _base(organization_id: uuid.UUID) -> KnowledgeBase:
+    """The organization base the source syncs into - a source records one (#2551)."""
+    return KnowledgeBase(
+        id=uuid.uuid4(),
+        name=COLLECTION,
+        scope=KBScope.ORG.value,
+        collection_name=COLLECTION,
+        embedding_model="text-embedding-3-small",
+        embedding_dim=settings.rag.embeddings_config.dim,
+        organization_id=organization_id,
+        visibility="org",
+    )
+
+
 async def _source(
     engine: AsyncEngine, *, beside: str | None = None, sync_mode: str = "new_only"
 ) -> str:
@@ -159,10 +176,15 @@ async def _source(
             db.add(organization)
             await db.flush()
             organization_id = organization.id
+            base = _base(organization_id)
+            db.add(base)
+            await db.flush()
+            knowledge_base_id = base.id
         else:
             neighbour = await sync_source_repo.get_by_id(db, uuid.UUID(beside))
-            assert neighbour is not None
+            assert neighbour is not None and neighbour.knowledge_base_id is not None
             organization_id = neighbour.organization_id
+            knowledge_base_id = neighbour.knowledge_base_id
         source = await sync_source_repo.create(
             db,
             name="Docs site",
@@ -170,6 +192,7 @@ async def _source(
             config={"root_url": "https://docs.example.com/"},
             organization_id=organization_id,
             collection_name=COLLECTION,
+            knowledge_base_id=knowledge_base_id,
             sync_mode=sync_mode,
         )
         await db.commit()
@@ -188,12 +211,16 @@ async def _narrow_to_start_page(engine: AsyncEngine, source_id: str) -> None:
 
 async def _sync(engine: AsyncEngine, source_id: str) -> SyncLog:
     async with async_sessionmaker(engine, expire_on_commit=False)() as db:
+        source = await db.get(SyncSource, uuid.UUID(source_id))
+        assert source is not None
         log = await sync_log_repo.create(
             db,
             source="web",
             collection_name=COLLECTION,
             mode="new_only",
             sync_source_id=uuid.UUID(source_id),
+            knowledge_base_id=source.knowledge_base_id,
+            organization_id=source.organization_id,
         )
         await db.commit()
         log_id = log.id
@@ -313,6 +340,11 @@ async def _add_claimed(
 ) -> None:
     """A row, and the claim `source_id` holds on it when there is one."""
     row = _row(path, status)
+    if source_id is not None:
+        source = await sync_source_repo.get_by_id(session, source_id)
+        assert source is not None
+        row.knowledge_base_id = source.knowledge_base_id
+        row.organization_id = source.organization_id
     session.add(row)
     # The claim's foreign key needs its row written first.
     await session.flush()
@@ -340,8 +372,12 @@ async def test_only_this_sources_settled_documents_are_candidates_for_removal(
             await _add_claimed(session, claimant, path, status)
         await session.commit()
 
+    source = await sync_source_repo.get_by_id(db, mine)
+    assert source is not None and source.knowledge_base_id is not None
+    base = await db.get(KnowledgeBase, source.knowledge_base_id)
+    assert base is not None
     unlisted = await RAGDocumentService(db).unlisted_by_source(
-        sync_source_id=mine, collection_name=COLLECTION, listed={"web://docs.example.com/kept"}
+        sync_source_id=mine, scope=CollectionScope.of(base), listed={"web://docs.example.com/kept"}
     )
 
     assert {row.source_path for row in unlisted} == {

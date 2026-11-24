@@ -2,8 +2,9 @@
 
 Four ceilings, all deployment settings and all per organization, so one tenant's usage
 never counts against another's: how many tables it has, how many records one table
-holds, how large one record's values may be, and aggregate JSONB payload storage. The third bounds what history and
-receipts copy, since a create's snapshot, a delete's snapshot and a receipt's outcome
+holds, how large one record's values may be, and aggregate payload and relationship
+storage. The third bounds what history and receipts copy, since a create's snapshot,
+a delete's snapshot and a receipt's outcome
 each hold one record at most and an update's history holds only the cells that changed.
 
 A refusal is **audited without content**: the entry names the quota and its ceiling,
@@ -138,11 +139,14 @@ async def enforce_record_size(
 
 
 async def lock_storage(db: AsyncSession, ctx: AuthContext) -> None:
-    """Serialize record mutations before their row/count locks, through commit."""
+    """Serialize storage mutations before their table/row/count locks, through commit."""
+    from app.db.table_rls import bind_table_access
+
+    await bind_table_access(db, ctx)
     await hold_subject(db, LockScope.VIRTUAL_TABLE_STORAGE_PER_ORG, ctx.organization_id)
 
 
-async def enforce_storage(db: AsyncSession, ctx: AuthContext, table: VirtualTable) -> None:
+async def enforce_storage(db: AsyncSession, ctx: AuthContext, table_id: UUID) -> None:
     """Refuse the whole mutation if its uncommitted rows exceed the tenant ceiling.
 
     Called inside the mutation's savepoint, after all copies (including the receipt
@@ -156,7 +160,7 @@ async def enforce_storage(db: AsyncSession, ctx: AuthContext, table: VirtualTabl
             quota="storage_bytes",
             limit=limit,
             message=f"An organization's table payloads may take at most {limit} stored bytes",
-            target_id=table.id,
+            target_id=table_id,
         )
 
 
@@ -192,6 +196,10 @@ async def enforce_record_count(db: AsyncSession, ctx: AuthContext, table: Virtua
     """Refuse a new record when the table already holds as many as it may."""
     limit = settings.TABLES_MAX_RECORDS_PER_TABLE
     await lock_record_count(db, table)
+    # Deliberately table-wide, not filtered by the caller's row policy: the
+    # limit is on how many records the table holds, not on how many its
+    # caller may see. A policy-filtered count would let a caller who sees
+    # few rows add rows past the limit the table was meant to stop at.
     held = await virtual_table_repo.count_records_up_to(
         db, table_id=table.id, organization_id=ctx.organization_id, ceiling=limit
     )

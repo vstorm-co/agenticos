@@ -10,6 +10,7 @@ import { McpBindingsEditor, toolChoice } from "./mcp-bindings-editor";
 
 const state = vi.hoisted(() => ({
   canManage: true,
+  canManageHosts: true,
   probe: vi.fn(),
   toolsForBinding: vi.fn(),
   picker: null as ToolPickerState | null,
@@ -27,7 +28,10 @@ const toast = vi.hoisted(() => ({ error: vi.fn() }));
 
 vi.mock("sonner", () => ({ toast }));
 vi.mock("@/hooks", () => ({
-  usePermissions: () => ({ can: () => state.canManage }),
+  usePermissions: () => ({
+    can: (permission: string) =>
+      permission === "mcp:manage" ? state.canManage : state.canManageHosts,
+  }),
   useOrgMcpConnections: () => ({ connections: [], test: state.probe }),
   useMcpCatalog: () => ({ servers: [] }),
   useMcpConnections: () => ({ connections: [] }),
@@ -53,7 +57,6 @@ const specWith = (mcp_servers: McpServerRef[]) =>
   ({ mcp_servers, capabilities: [] }) as unknown as AgentSpec;
 
 vi.mock("@/components/agents/mcp-server-picker", () => ({
-  bindingKey: (binding: McpServerRef) => JSON.stringify(binding),
   McpServerPicker: ({
     onTools,
     onConnect,
@@ -128,6 +131,7 @@ vi.mock("@/components/agents/connect-server-dialog", () => ({
 
 beforeEach(() => {
   state.canManage = true;
+  state.canManageHosts = true;
   state.toolsForBinding.mockReset();
   state.picker = null;
   toast.error.mockReset();
@@ -170,7 +174,7 @@ describe("McpBindingsEditor", () => {
     expect(screen.queryByText("picker:Notion")).toBeNull();
   });
 
-  it("does not probe for somebody who may not manage connections, and says why it could not", async () => {
+  it("does not let host-management permission authorize probing an MCP server", async () => {
     state.canManage = false;
     state.toolsForBinding.mockResolvedValue({ connection: connection(null), error: "No list yet" });
     render(<McpBindingsEditor spec={specWith([ref])} onChange={vi.fn()} />);
@@ -259,7 +263,41 @@ describe("McpBindingsEditor", () => {
     act(() => state.enableSearch?.());
 
     expect(onChange).toHaveBeenCalledWith({
-      capabilities: [expect.objectContaining({ id: "tool_search" })],
+      capabilities: [
+        expect.objectContaining({
+          id: "tool_search",
+          enabled: true,
+          config: { defer_mcp_servers: true },
+        }),
+      ],
+    });
+  });
+
+  it("enables MCP deferral from the notice without resetting a capability-only configuration", () => {
+    const onChange = vi.fn();
+    const search = {
+      id: "tool_search",
+      enabled: true,
+      approval: "default",
+      tool_approval: {},
+      tool_overrides: {},
+      secret_id: null,
+      config: {
+        defer_capabilities: true,
+        defer_mcp_servers: false,
+        exclude_capabilities: ["knowledge"],
+        exclude_mcp_servers: ["github_work"],
+        exclude_tools: ["renamed_search"],
+      },
+    } satisfies AgentSpec["capabilities"][number];
+    render(
+      <McpBindingsEditor spec={{ ...specWith([]), capabilities: [search] }} onChange={onChange} />,
+    );
+
+    act(() => state.enableSearch?.());
+
+    expect(onChange).toHaveBeenCalledWith({
+      capabilities: [{ ...search, config: { ...search.config, defer_mcp_servers: true } }],
     });
   });
 });

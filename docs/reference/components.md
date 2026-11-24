@@ -103,6 +103,7 @@ they are not in this project's SBOM.
 | Brand and provider glyphs | `frontend/src/components/brand/`, `backend/app/core/catalog/icons/` | Font Awesome, Simple Icons and hand-drawn marks; the sources are named in `NOTICE` |
 | The MCP server catalog | `backend/app/core/catalog/` | This project's own data about third-party servers, not the servers |
 | Model profile defaults | `backend/app/core/catalog/` | This project's own data; the models themselves are never shipped |
+| Third-party finance and accounting agent templates and skills | `backend/app/core/catalog/agent_templates/finance/`, `backend/app/core/catalog/skill_gallery/finance/` | Adapted from Anthropic’s `financial-services` and `knowledge-work-plugins` (Apache-2.0) and community Agency Agents (MIT). Each adapted folder carries pinned source references, modification notes and its full licence; `NOTICE` and `licenses/components.toml` record the components |
 
 ## Models, providers and services: the deployment's half
 

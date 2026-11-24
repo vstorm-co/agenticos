@@ -69,7 +69,7 @@ def next_steps_of(called: list[RecordedToolCall]) -> list[str]:
     the retry notice as its result rather than JSON, and offers nothing.
     """
     for call in reversed(called):
-        if call.tool_name != SUGGEST_NEXT_STEPS or call.result is None:
+        if call.renderer_name != SUGGEST_NEXT_STEPS or call.result is None:
             continue
         try:
             steps = json.loads(call.result).get("steps")
@@ -239,6 +239,7 @@ async def incoming_for_run(
         platform_chat_id=platform_chat_id,
         chat_type=session.chat_type,
         text="",
+        raw={"server_url": identity.server_url} if identity.platform == "matrix" else {},
     )
 
 

@@ -130,4 +130,11 @@ describe("readCsvFile", () => {
     expect(await readCsvFile(new File(["A,B\n"], "f.csv"))).toBeNull();
     expect(await readCsvFile(new File([""], "f.csv"))).toBeNull();
   });
+
+  it("keeps a row of the wrong width, so the import can list it", async () => {
+    expect(await readCsvFile(new File(["A,B\nShort\nWide,1,2\n"], "f.csv"))).toEqual({
+      headers: ["A", "B"],
+      rows: [["Short"], ["Wide", "1", "2"]],
+    });
+  });
 });

@@ -43,7 +43,11 @@ describe("VoiceCallButton", () => {
     );
 
     expect(screen.getByRole("button", { name: NAME }).className).not.toBe(quiet);
-    expect(screen.getByRole("button", { name: NAME }).className).toContain("active:scale-90");
+    expect(screen.getByRole("button", { name: NAME })).toHaveClass(
+      "bg-action",
+      "pressable-control",
+      "pressable-icon",
+    );
   });
 
   it("says, beside a draft being tested, that a call runs the published version", () => {
@@ -245,5 +249,19 @@ describe("VoiceCallButton", () => {
     expect(popover()).toBeInTheDocument();
     fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" });
     expect(popover()).toBeNull();
+  });
+
+  it("is still drawn inside the composer form, which its reason is anchored to", () => {
+    render(
+      <form>
+        <VoiceCallButton
+          readiness={{ ...READY, available: false, unavailable: "no_key" }}
+          failed={false}
+          onStart={vi.fn()}
+          setUpHref={null}
+        />
+      </form>,
+    );
+    expect(screen.getByRole("button", { name: NAME })).toBeInTheDocument();
   });
 });

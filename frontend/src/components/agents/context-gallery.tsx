@@ -45,12 +45,9 @@ interface ContextGalleryProps {
 }
 
 /**
- * Every context file the organization has, as a gallery to pick from.
- *
- * A gallery rather than a checkbox list for the same reason skills use one: a
- * file is chosen on what its description says, then the selected tile exposes
- * its per-agent mode and availability. Files that no longer exist are named rather than dropped, so
- * the Builder shows an orphan rather than letting it vanish silently.
+ * Choose context files and override how this agent uses each one.
+ * Compact rows keep long descriptions from setting the height of neighbouring
+ * files. Missing references stay visible instead of being silently dropped.
  */
 export function ContextGallery({
   files,
@@ -111,6 +108,11 @@ export function ContextGallery({
     <div className="space-y-3">
       {(files.length > 8 || onCreate) && (
         <div className="flex flex-wrap items-center justify-end gap-2">
+          {files.length <= 8 && (
+            <span className="text-muted-foreground mr-auto text-xs">
+              {t("contextCount", { count: total })}
+            </span>
+          )}
           {files.length > 8 && (
             <div className="min-w-40 flex-1">
               <SearchInput
@@ -129,11 +131,11 @@ export function ContextGallery({
         </div>
       )}
 
-      <div className="grid gap-2 sm:grid-cols-2">
+      <ul className="divide-border divide-y">
         {list.visible.map((file) => {
           const isOn = chosen.has(file.id);
           return (
-            <div key={file.id} className="overflow-hidden rounded-xl border">
+            <li key={file.id} className="min-w-0">
               <button
                 type="button"
                 role="checkbox"
@@ -142,8 +144,8 @@ export function ContextGallery({
                 disabled={disabled}
                 onClick={() => onToggle(file.id)}
                 className={cn(
-                  "flex w-full items-start gap-3 p-4 text-left transition-colors",
-                  isOn ? "bg-foreground/[0.04]" : "hover:bg-muted/40",
+                  "focus-visible:outline-ring flex min-h-12 w-full min-w-0 items-start gap-3 rounded-lg px-3 py-2.5 text-left transition-colors focus-visible:outline-2 focus-visible:outline-offset-[-2px]",
+                  !disabled && "hover:bg-muted/60",
                   disabled && "cursor-not-allowed opacity-60",
                 )}
               >
@@ -157,67 +159,82 @@ export function ContextGallery({
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="flex flex-wrap items-center gap-2">
-                    <span className="font-mono text-sm font-medium">{file.name}</span>
-                    <Badge
-                      variant={
-                        (settings[file.id]?.mode ?? file.mode) === "inject"
-                          ? "secondary"
-                          : "outline"
-                      }
-                    >
-                      {tContext(
-                        (settings[file.id]?.mode ?? file.mode) === "inject"
-                          ? "modeInject"
-                          : "modeLink",
-                      )}
-                    </Badge>
+                    <span className="text-sm font-medium [overflow-wrap:anywhere]">
+                      {file.name}
+                    </span>
+                    {(!isOn || !onSettingsChange) && (
+                      <Badge
+                        variant={
+                          (settings[file.id]?.mode ?? file.mode) === "inject"
+                            ? "secondary"
+                            : "outline"
+                        }
+                      >
+                        {tContext(
+                          (settings[file.id]?.mode ?? file.mode) === "inject"
+                            ? "modeInject"
+                            : "modeLink",
+                        )}
+                      </Badge>
+                    )}
                     {!(settings[file.id]?.enabled ?? file.enabled) && (
                       <Badge variant="outline">{t("disabled")}</Badge>
                     )}
                     <GroupsChip groups={file.shared_groups} />
                   </span>
                   {file.description !== null && (
-                    <span className="text-muted-foreground mt-1 block text-sm">
+                    <span
+                      title={file.description}
+                      className="text-muted-foreground mt-1 line-clamp-2 text-[13px] leading-relaxed [overflow-wrap:anywhere]"
+                    >
                       {file.description}
                     </span>
                   )}
                 </span>
               </button>
               {isOn && onSettingsChange && (
-                <div className="space-y-3 border-t p-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <Label htmlFor={`use-context-${file.id}`}>{tContext("useForAgent")}</Label>
-                    <Switch
-                      id={`use-context-${file.id}`}
-                      disabled={disabled}
-                      checked={settings[file.id]?.enabled ?? file.enabled}
-                      onCheckedChange={(enabled) =>
-                        onSettingsChange({
-                          ...settings,
-                          [file.id]: { mode: settings[file.id]?.mode ?? file.mode, enabled },
-                        })
-                      }
-                    />
+                <div className="space-y-2 px-3 pt-1 pb-3 sm:pl-10">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex shrink-0 items-center justify-between gap-3">
+                      <Label htmlFor={`use-context-${file.id}`}>{tContext("useForAgent")}</Label>
+                      <Switch
+                        id={`use-context-${file.id}`}
+                        disabled={disabled}
+                        checked={settings[file.id]?.enabled ?? file.enabled}
+                        onCheckedChange={(enabled) =>
+                          onSettingsChange({
+                            ...settings,
+                            [file.id]: { mode: settings[file.id]?.mode ?? file.mode, enabled },
+                          })
+                        }
+                      />
+                    </div>
+                    <Select
+                      value={settings[file.id]?.mode ?? file.mode}
+                      disabled={disabled || !(settings[file.id]?.enabled ?? file.enabled)}
+                      onValueChange={(mode) => {
+                        if (mode === "inject" || mode === "link")
+                          onSettingsChange({
+                            ...settings,
+                            [file.id]: {
+                              mode,
+                              enabled: settings[file.id]?.enabled ?? file.enabled,
+                            },
+                          });
+                      }}
+                    >
+                      <SelectTrigger
+                        className="w-full sm:w-44"
+                        aria-label={tContext("usageForAgent", { name: file.name })}
+                      >
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="inject">{tContext("modeInject")}</SelectItem>
+                        <SelectItem value="link">{tContext("modeLink")}</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
-                  <Select
-                    value={settings[file.id]?.mode ?? file.mode}
-                    disabled={disabled || !(settings[file.id]?.enabled ?? file.enabled)}
-                    onValueChange={(mode) => {
-                      if (mode === "inject" || mode === "link")
-                        onSettingsChange({
-                          ...settings,
-                          [file.id]: { mode, enabled: settings[file.id]?.enabled ?? file.enabled },
-                        });
-                    }}
-                  >
-                    <SelectTrigger aria-label={tContext("usageForAgent", { name: file.name })}>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="inject">{tContext("modeInject")}</SelectItem>
-                      <SelectItem value="link">{tContext("modeLink")}</SelectItem>
-                    </SelectContent>
-                  </Select>
                   <p className="text-muted-foreground text-xs">
                     {tContext(
                       (settings[file.id]?.mode ?? file.mode) === "inject"
@@ -227,10 +244,10 @@ export function ContextGallery({
                   </p>
                 </div>
               )}
-            </div>
+            </li>
           );
         })}
-      </div>
+      </ul>
 
       <Pager
         page={list.page}

@@ -410,3 +410,38 @@ class TestTheWidgetsAdmission:
 
         assert socket.close.await_args.kwargs["code"] == 4029
         socket.receive_json.assert_not_called()
+
+
+class TestCodingTaskRevertAdmission:
+    async def test_exhausted_member_cannot_queue_a_revert(self, signed_in):
+        limiter = _redis(used=7)
+        rate_limit.configure(limiter)
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.post(f"/api/v1/conversations/coding-changes/{uuid4()}/revert")
+        assert response.status_code == 429
+        assert response.headers["Retry-After"] == "60"
+        assert (
+            limiter.count_in_window.await_args.args[0] == f"ratelimit:coding_revert:user:{_CALLER}"
+        )
+
+    async def test_organization_allowance_is_shared_across_members(self, signed_in):
+        limiter = _redis(used=1)
+        limiter.count_in_window.side_effect = [1, 21]
+        rate_limit.configure(limiter)
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.post(f"/api/v1/conversations/coding-changes/{uuid4()}/revert")
+        assert response.status_code == 429
+        assert (
+            limiter.count_in_window.await_args.args[0]
+            == f"ratelimit:coding_revert:org:{_ORGANIZATION}"
+        )
+
+    async def test_a_cache_outage_keeps_a_local_admission_ceiling(self, signed_in):
+        from app.core.exceptions import RateLimitError
+
+        context = AuthContext(user_id=uuid4(), organization_id=uuid4(), role="owner")
+        rate_limit.configure(None)
+        for _ in range(6):
+            await deps.limit_coding_revert(context)
+        with pytest.raises(RateLimitError):
+            await deps.limit_coding_revert(context)

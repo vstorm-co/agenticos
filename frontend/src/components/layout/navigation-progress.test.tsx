@@ -8,6 +8,7 @@ import {
   SHOW_AFTER_MS,
   navigationTarget,
 } from "./navigation-progress";
+import { signalNavigation } from "@/lib/navigation-progress";
 
 const place = vi.hoisted(() => ({ path: "/chat", search: "" }));
 
@@ -46,6 +47,17 @@ afterEach(() => {
 });
 
 describe("NavigationProgress", () => {
+  it("also follows a run detail opened imperatively from a table row", () => {
+    const { rerender } = render(<NavigationProgress />);
+    act(() => signalNavigation("/workflows/example/runs/one"));
+    act(() => vi.advanceTimersByTime(SHOW_AFTER_MS));
+    expect(bar()).toHaveAttribute("data-phase", "pending");
+    place.path = "/workflows/example/runs/one";
+    rerender(<NavigationProgress />);
+    expect(bar()).toHaveAttribute("data-phase", "done");
+    act(() => vi.advanceTimersByTime(FINISH_MS));
+    expect(bar()).toBeNull();
+  });
   it("shows once a navigation takes longer than a blink, and finishes when the page arrives", () => {
     const { rerender } = render(<NavigationProgress />);
     fireEvent.click(link("/dashboard").firstElementChild!);

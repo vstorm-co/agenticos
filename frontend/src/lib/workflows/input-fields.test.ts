@@ -5,12 +5,28 @@ import {
   fieldCaption,
   initialValues,
   inputFieldsOf,
+  inputSchemaOf,
   payloadSchema,
   runInputFrom,
   serverFieldProblems,
   typedPayloadPort,
 } from "./input-fields";
 import type { Port } from "./types";
+
+describe("inputSchemaOf", () => {
+  it("reads an object contract without changing nested references and ignores absent contracts", () => {
+    const schema = {
+      type: "object",
+      $defs: { row: { type: "object" } },
+      properties: { rows: { type: "array", items: { $ref: "#/$defs/row" } } },
+    };
+    expect(inputSchemaOf({ input_schema: schema })).toBe(schema);
+    expect(inputSchemaOf({ input_schema: {} })).toEqual({});
+    for (const value of [undefined, null, [], "object", true]) {
+      expect(inputSchemaOf({ input_schema: value })).toBeNull();
+    }
+  });
+});
 
 function field(patch: Partial<InputField> = {}): InputField {
   return {

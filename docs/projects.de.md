@@ -2,7 +2,7 @@
 title: Projekte
 seo_title: Projekte - gemeinsame Dateien und Anweisungen
 description: Ein Projekt gibt laufender Arbeit einen Container mit Dateien und eine Reihe von Anweisungen, die jeder Chat darin teilt, egal welcher Agent antwortet.
-source_sha: "e9573cb4bf21"
+source_sha: "f150b8228dc8"
 ---
 
 # Projekte { #projects }
@@ -72,6 +72,17 @@ Zwei Wege hinein:
 
 Ein Chat bleibt in dem Projekt, in dem er begonnen wurde. Der Chip in einem
 bestehenden Chat führt zurück zum Projekt.
+
+Ein Agent mit Sandbox kann `select_project_workspace` mit der ID eines
+zugänglichen Projekts aufrufen, um dessen Dateien und Shell im aktuellen Lauf zu
+verwenden, auch in einem verbundenen Kanal. Die Antwort zeigt die ausgewählten
+Projekte. Ohne ID wird der ursprüngliche Workspace wiederhergestellt.
+Fortsetzungen nach Freigaben behalten die Auswahl; die nächste Nachricht beginnt
+im ursprünglichen Workspace. Die Auswahl verschiebt keinen Chatverlauf, kopiert
+keine privaten Dateien und ändert keine Anweisungen. Jede Operation prüft den
+Zugriff erneut. Routinen bleiben auf geprüfte Quellen beschränkt; isolierte
+Evaluationen können keine aktiven Projekte auswählen. Dateien bleiben im Projekt;
+zum Ausliefern eine App veröffentlichen oder eine Datei ausdrücklich senden.
 
 ## Was ein Agent im Projekt bekommt { #what-an-agent-gets-in-a-project }
 
@@ -260,22 +271,122 @@ mehrere gearbeitet haben, sagt, wer was gefragt hat. Umbenennen, Archivieren und
 Löschen bleibt bei der Person, die den Chat begonnen hat. Auf dem Tab **Chats**
 sagt jede Zeile, wessen Chat es ist, welche Agents darin antworten, wann sich
 zuletzt etwas getan hat oder wer gerade darin arbeitet, und wer ihn geöffnet hat - die letzten Gesichter, alle Namen beim Darüberfahren; wer ihn gerade
-offen hat, steht vorn, mit einem grünen Punkt. Ein Chat
-außerhalb eines Projekts bleibt bei seinem Autor, wie überall sonst in der Konsole.
+offen hat, steht vorn, mit einem grünen Punkt. Ein Chat außerhalb eines Projekts
+beginnt privat. Sein Eigentümer kann ausdrücklich Personen oder Agents hinzufügen
+und die bestehende Unterhaltung ohne Verlust ihres Verlaufs in einen gemeinsamen
+Raum umwandeln.
 
 Ein Chat eines Projekts wird nicht für sich geteilt, weder per Link noch mit einer
 Person: Gelesen wird er über das Projekt, also teile das Projekt.
 
-**Gemeinsam in einem Chat arbeiten.** In einem Chat eines Projekts können mehrere
-Personen zugleich sein. Eine Leiste über dem Verlauf zeigt, wer ihn noch geöffnet
-hat, und sein Besitzer kann von dort jemanden einladen. Während jemand schreibt,
-sehen die anderen über dem Eingabefeld sein Gesicht und „Anna schreibt“. Eine
-Frage, die eine von ihnen stellt, und die Antwort des Agent erscheinen bei allen im Chat, während sie
-geschrieben werden. **Antworten** bei einer beliebigen Nachricht zitiert sie über
-dem Eingabefeld, und die Antwort trägt das Zitat - auf dem Bildschirm und zum
-Agent, der die Nachricht jeder Person unter ihrem Namen liest und weiß, dass im
-Chat mehrere Personen sein können, sodass er weiß, wer was gefragt hat und worauf
-sich „ja, mach das“ bezieht.
+## Teamräume { #team-rooms }
+
+Wähle auf dem Tab **Chats** eines Projekts **Neuer Teamraum (New team room)**,
+um eine leere gemeinsame Unterhaltung anzulegen. In der Hauptkonsole zeigen
+Projektchats einen Raumkopf mit der Zielgruppe des Projekts und den anwesenden
+Personen, auch wenn du allein dort bist. **Teilen (Share)** verwaltet den
+Projektzugriff; ein Teilnehmer mit Leserecht kann den Verlauf verfolgen, aber
+keine Nachrichten senden.
+
+Gib `@` ein und wähle eine Person oder einen Agenten aus, um sie zu erwähnen.
+Personen werden benachrichtigt; jeder ausgewählte Agent erhält eine eigene Antwort
+in der Raumwarteschlange auf dieselbe menschliche Nachricht. Ähnliche Anzeigenamen
+bleiben getrennte Optionen. Einen Namen ohne Auswahl eines Vorschlags einzugeben,
+bestimmt keinen antwortenden Agenten. Nachrichten und Antworten zeigen ihren
+Absender; **Antworten (Reply)** übernimmt ein Zitat in die Nachricht und den
+Kontext des Agenten.
+
+Öffne die Teilnehmerliste, um einen berechtigten Agenten hinzuzufügen, bevor du ihn
+erwähnst. Die Projektfreigabe bestimmt weiterhin, welche Personen lesen oder
+schreiben dürfen; die Raum-Mitgliedschaft kann niemandem Projektzugriff gewähren.
+Agents reagieren standardmäßig nur auf Erwähnungen. Ein Raum-Manager kann
+automatische Antworten für ausgewählte Agents aktivieren; eine Nachricht ohne
+Erwähnung kann dann bis zu vier dieser Agents erreichen. Erwähnungen, die nur
+Personen nennen, rufen diese Agents nicht auf.
+
+Die Chat-Seitenleiste bietet auch Räume außerhalb eines Projekts. Erstelle einen
+privaten oder organisationsweit sichtbaren Raum oder tritt einem bestehenden
+öffentlichen Raum bei, bevor du dort schreibst. Eine Person zu einem bestehenden
+Agent-Chat hinzuzufügen, wandelt ihn an Ort und Stelle um. Die Bestätigung erklärt,
+dass der neue Teilnehmer den gespeicherten Verlauf lesen kann. Laufende private
+Arbeit muss vor dieser Umwandlung abgeschlossen oder abgebrochen werden.
+
+Agent-Anfragen kommen in eine dauerhafte Warteschlange pro Raum. Ein Run, der auf
+eine Genehmigung oder Antwort wartet, behält seinen Platz bis zur Klärung. Du
+kannst deine eigene Anfrage abbrechen, solange sie wartet. Die aktuellen Projekt-
+und Agent-Berechtigungen des Auftraggebers werden beim Start und beim Fortsetzen
+erneut geprüft. Eine Folgefrage sieht frühere Nachrichten und fertige Antworten
+auf vorherige Anfragen, ohne später gestellte Fragen zu lesen.
+
+Die Warteschlange zeigt den gespeicherten Status und aktualisiert sich nach einer
+erneuten Verbindung. Ist das Ergebnis des Sendens unklar, wiederhole die wartende
+Nachricht mit derselben Identität. Eine unterbrochene Agent-Anfrage wird nicht
+automatisch neu gestartet; prüfe den gespeicherten Run vor einer neuen Anfrage.
+
+Hänge bis zu zehn Dateien direkt an eine Raumnachricht an, mit oder ohne
+Beschriftung. Es gelten die vorhandenen Upload-Typ- und Größenlimits. Dieselben
+Anhänge erreichen jeden ausgewählten antwortenden Agenten; bei einem erneuten
+Sendeversuch werden sie nicht noch einmal angehängt. Der Tab **Dateien (Files)**
+des Projekts bleibt der gemeinsame Workspace für länger benötigtes
+Referenzmaterial. Raum-Antworten kommen von veröffentlichten, cloud-kompatiblen
+Agents; Desktop- und persönliche Sandbox-Agents benötigen weiterhin ihren
+gerätespezifischen Chat-Ablauf.
+
+Mit der Reaktionssteuerung an einer gespeicherten Nachricht einer Person oder eines
+Agents kannst du dein Emoji hinzufügen oder entfernen. Die Zähler fassen die
+Reaktionen aller zusammen; deine eigene Auswahl bleibt markiert. Pro Nachricht
+sind bis zu zwanzig verschiedene Emoji möglich.
+
+### Seitenthreads { #side-threads }
+
+Wähle **Im Thread antworten (Reply in thread)** an einer gespeicherten Raumnachricht, um ihren Thread zu
+öffnen. Die Seitenansicht zeigt die ursprüngliche Nachricht über den Antworten;
+die Antwortanzahl im Raum öffnet die Diskussion erneut. Die Adresse enthält Raum
+und Thread, sodass ein Link oder Neuladen zur gleichen Diskussion führt. Auf einem
+schmalen Bildschirm nutzt der Thread die verfügbare Breite. **Antworten (Reply)**
+fügt weiterhin ein Zitat innerhalb der aktuellen Diskussion hinzu.
+
+Ein Thread hat dieselbe Zielgruppe und dieselben Schreibrechte wie sein Raum.
+Das Öffnen fordert keine Agent-Antwort an. Wähle einen Agenten mit `@`, um eine
+Antwort anzufordern, oder erwähne nur Personen, um mit ihnen zu sprechen. Die
+Antwort gehört zu diesem Thread, auch wenn der Run nach einer Frage oder
+Genehmigung fortgesetzt wird. Hauptraum und Threads teilen eine Warteschlange für
+Agent-Anfragen; ein wartender Run hält spätere Anfragen in der Warteschlange.
+
+Im Gesprächskontext eines Agenten haben die ursprüngliche Nachricht und die
+Antworten des Threads Vorrang. Freier Platz im Verlauf kann ältere Nachrichten
+des Hauptraums vor der ursprünglichen Nachricht aufnehmen. Antworten anderer
+Threads und spätere Nachrichten des Hauptraums sind ausgeschlossen.
+Projektanweisungen, gemeinsame Dateien und Projektwissen gelten weiterhin.
+Zitate im Thread beziehen sich auf dessen ursprüngliche Nachricht oder eine Antwort darin.
+
+Pläne und offene Schritte gehören zum jeweiligen Run. Beim Fortsetzen bleiben sie
+erhalten; eine separate Agent-Anfrage im Thread beginnt mit einem neuen Plan.
+
+Der Thread-Starter und Personen, die antworten, folgen dem Thread standardmäßig.
+Mit explizitem Folgen oder Entfolgen steuerst du Benachrichtigungen zu Antworten;
+eine direkte `@`-Erwähnung benachrichtigt dich weiterhin. Das Lesen des Hauptraums
+markiert ungelesene Thread-Antworten nicht als gelesen. Der Raum zeigt die Zahl
+ungelesener Antworten neben der Thread-Zusammenfassung; beim Öffnen eines Threads
+werden nur tatsächlich angesehene Antworten als gelesen markiert.
+
+Der Thread-Starter oder ein Raum-Manager kann einen Thread schließen oder
+archivieren. Eine Antwort öffnet einen geschlossenen Thread wieder. Ein
+archivierter Thread ist schreibgeschützt; beim Wiederherstellen kehrt er zu seinem
+vorherigen offenen oder geschlossenen Zustand zurück. Diese Aktionen bewahren die
+ursprünglichen Nachrichten und Antworten.
+
+Jede Diskussion behält ihren Entwurf und einen ausstehenden Wiederholungsversuch,
+während du in der aktuellen Sitzung zwischen Threads wechselst. Kehre zur
+ursprünglichen Diskussion zurück, um eine ungewisse Sendung mit derselben
+Identität zu wiederholen; die Auswahl eines anderen Threads leitet sie nicht um.
+Ein Konto- oder Organisationswechsel löscht diese Entwürfe.
+
+Wird der Chat aus seinem Projekt entfernt, bleiben bestehende Threads für alle
+lesbar, die weiterhin auf diesen Chat zugreifen dürfen. Thread-Antworten sind
+schreibgeschützt, sofern der Eigentümer den Chat nicht ausdrücklich in einen
+eigenständigen Raum umwandelt. Die frühere Projektmitgliedschaft allein gewährt
+keinen Zugriff mehr.
 
 ## Ein Projekt löschen { #deleting-a-project }
 

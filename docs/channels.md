@@ -78,6 +78,20 @@ counted per address like the widget's.
     running an agent over HTTP, the two WebSocket endpoints and the error
     envelope.
 
+## Automatic channel participation
+
+Automatic participation is off on every binding until a member with **Manage channels** enables it in **Availability → Chat apps → Configure**. Choose a separate decision model, a focus prompt, automatic observation of all channels the bot can access, and two intervals: 20 minutes before the agent is mentioned in a conversation and 1 minute afterwards by default. An explicit mention still runs immediately. Only new human messages trigger a check; empty intervals cause no model call.
+
+The worker batches at most 20 messages of 2,000 characters each. Native delivery receipts deduplicate messages for seven days, and reference windows expire after seven days without activity. Jobs survive restarts, but a paid analysis/reply is never retried automatically. Editing or disabling the binding, revoking its execution account, or answering a direct mention supersedes queued participation. Activity records the small-model decision separately from the full agent's answer and records both costs, including failed calls.
+
+Automatic replies use the published agent's main model and instructions, preserving its budget, guardrails and tool search settings.
+
+They may use only organization MCP accounts explicitly bound to that agent, within the connection and binding allowlists. Personal connections, platform MCP credentials and other action capabilities are unavailable. Existing MCP approval policies still apply: a call needing approval is refused without parking or performing it. The agent explains the next step and asks someone to mention it in the thread; the ordinary run then follows that person’s identity and normal approval settings.
+
+The execution account is the member who saves the configuration, and its current membership and channel-management permission are checked again before model requests and delivery.
+
+Passive observation requires an actual group-message feed: Mattermost's WebSocket stream or a watched outgoing webhook; Slack full message events rather than only `app_mention`; Teams all-message resource-specific consent; Telegram delivery with the necessary privacy/admin settings; or Discord message access and intents. Only messages the provider delivers are observed. SMS, email and iMessage retain their normal request/reply behavior; they do not offer this ambient channel mode.
+
 ## The website widget
 
 The shortest path. Publish the agent, create an embed, paste two lines.
@@ -252,6 +266,13 @@ sequenceDiagram
 
 That is the whole inbound vocabulary, plus `context` (what the page says about the
 visitor) and `file_ids` (what they attached, on a page that takes files).
+
+Every `message` frame counts toward a per-connection limit, including empty or
+malformed messages. Valid messages also spend the existing visitor allowance;
+malformed input cannot exhaust a bucket shared with other anonymous visitors.
+A frame may name at most three file IDs; oversized lists are refused before
+parsing. Invalid IDs in a bounded list are dropped and recorded as one aggregate
+log entry without their values.
 
 **It deliberately does not include the three fields the dashboard's own frame
 carries:** the agent, the model profile and the environment.
@@ -1038,7 +1059,7 @@ is written out in full - and is cut at about 1,500 characters with a note that t
 in AgenticOS, so one question costs a few segments, not a dozen. SMS cannot stream, edit a
 message or press a button, so an approval or a question arrives as numbered lines and is
 answered by texting the number. A lone number that names a choice
-of a prompt sent to that number is the answer. Prompts waiting at once never share numbers - the second carries on where the first stopped, so 3 and 4 follow 1 and 2 - and deciding one leaves the other open. A prompt stays open for a day, so a multi-select takes several numbers; any other text is an ordinary message.
+of a prompt sent to that number is the answer. Prompts waiting at once never share numbers - the second carries on where the first stopped, so 3 and 4 follow 1 and 2 - and deciding one leaves the other open. A prompt stays open for a day, so a multi-select takes several numbers; any other text is an ordinary message. Numbers run to 999 and then start again at 1, skipping any still open and any handed out in the last week, so a reply to an old text cannot decide a newer request unless it is more than a week late.
 
 Incoming MMS files, including messages with no text, use the ordinary channel
 attachment pipeline after identity and access checks. Up to ten files are read;
@@ -1692,10 +1713,122 @@ Directory access takes priority when both sources grant membership. At sign-in,
 a directory grant takes over the Discord-managed row; when it ends, a remaining
 Discord grant takes over without revoking credentials. See [membership handover](directory.md#what-the-sync-never-touches).
 
+## Matrix { #matrix }
+
+A Matrix bot is an ordinary account on your own homeserver, spoken to over the
+Client-Server API with no library between (#2081). Everything arrives over the
+bot's `/sync` long-poll, so **a deployment needs no public address for Matrix**,
+and a Matrix bot has no webhook mode. Where the bot stopped reading is kept in
+the deployment's Redis, so a restart resumes there. The first start of an account
+skips the room history rather than answering it.
+
+A limited `/sync` batch is recovered in chronological pages of 50 from the last
+saved sync cursor, including after a restart. Each page is admitted before the
+next is read; the cursor advances only after the whole batch succeeds.
+
+!!! warning "Unencrypted rooms only, for now"
+
+    The bot reads rooms without end-to-end encryption. It declines an
+    invitation to an encrypted room or direct chat, with a reason the inviter
+    sees, and stays silent in a room whose encryption is switched on later.
+    Encryption is the second stage of #2081. The adapter checks current room
+    encryption before admitting messages and before posting replies, edits or
+    reactions. If the state cannot be read, it sends no plaintext.
+    If the invitation omits encryption state, the bot checks after joining and
+    leaves when encryption is present.
+
+1. Create an account for the bot on the homeserver, for example `@agent:example.org`.
+2. Get an **access token** for it:
+    - On a homeserver behind the Matrix Authentication Service (MAS), issue a
+      compatibility token on the MAS host:
+      `mas-cli manage issue-compatibility-token <username>`. MAS 1.5 and later
+      can also create a personal session in the account's settings.
+    - On a homeserver without MAS, sign in once with the account's password:
+      `curl -XPOST https://matrix.example.org/_matrix/client/v3/login -d
+      '{"type":"m.login.password","identifier":{"type":"m.id.user","user":"agent"},"password":"…"}'`
+      and keep `access_token` from the answer. Do not sign that session out: its
+      token is the bot's.
+3. Register it: **Channels → Add channel**, platform `matrix`, with the token and
+   the homeserver's **client URL** (`https://matrix.example.org`). When the
+   stream opens, the bot asks the homeserver who it is. A token the homeserver
+   rejects stops the bot, and its row says so.
+4. Invite the bot to a room, or start a direct chat with it. It joins when the
+   person inviting is someone its access policy admits, and declines otherwise.
+
+**Lift the rate limit for the bot.** An answer is one message edited once a
+second while it streams, and Synapse's default message rate limit throttles that
+after a few seconds. The bot waits when the homeserver says how long, so nothing
+is lost, but a long answer then appears in jumps. On Synapse, an administrator
+exempts the bot with
+`POST /_synapse/admin/v1/users/@agent:example.org/override_ratelimit` and
+`{"messages_per_second": 0, "burst_count": 0}`.
+
+| Where | When it answers |
+|---|---|
+| A direct chat (a room of the bot and one person) | Every message |
+| A room | When the message mentions the bot. The answer opens a thread on the question, and the thread is the conversation |
+| A thread the bot was asked in | Every message in it |
+
+A mention is the bot named in the message's `m.mentions`, a pill linking to it,
+or a typed handle: `@` and the bot's user ID, localpart or display name, as in
+`@AgenticOS what can you do?`. Some clients send a typed handle as plain text,
+so it counts without a pill. The name without the `@`, a handle inside code and
+a longer handle such as `@agent-ops` do not.
+
+`@room` is answered only when the bot's policy says to answer
+channel-wide mentions. Like everywhere else, a direct chat is threaded too: a
+reply in the answer's thread continues the conversation, and a new message at
+the bottom starts a new one.
+
+**The answer is written in place.** The bot posts one message and edits it with
+`m.replace` as the answer streams. Past 4,000 characters the answer runs into
+further messages in the same thread. Only text the guardrails have already
+screened is written. Nothing the bot posts can notify anybody: every message
+carries an empty `m.mentions`. Answers are sent as Markdown rendered to HTML, and
+HTML in the model's output is escaped, never sent as markup.
+
+**Approvals and questions are numbered.** Matrix has no buttons, and polls are
+not in the specification, so a prompt lists its choices as numbered lines in the
+thread. A reply that is just the number decides it, as with
+[SMS](#sms). The bot reacts with 👀 to a question as it arrives, and shows that
+it is typing while it works.
+
+**Commands in Element.** Element reads a message that starts with `/` as one of
+its own commands. `/help` opens Element's own help and never reaches the bot.
+Any other bot command, such as `/new` or `/link`, opens Element's *Unknown
+command* dialog, where **Send as message** sends it. Starting the message with
+`//`, as in `//help`, sends it straight away.
+
+Private-chat classification rechecks current joined members before every message,
+so a silent third joiner cannot retain private access. Group classifications
+are cached only within the current sync batch. Private replies, edits, prompts
+and uploads also recheck the original recipient immediately before delivery,
+including resumed runs. A room gaining members or replacing the recipient cannot
+receive that private turn; group turns use a separate conversation.
+
+Media downloads do not follow redirects. The homeserver must serve authenticated
+media directly; redirected CDN downloads are refused.
+
+**Files** people post are fetched over the homeserver's authenticated media with
+the bot's token, up to the upload limit; files and charts the agent sends are
+uploaded the same way. **A thread the bot is brought into partway is read first**,
+as on Slack and Mattermost. Each message is read as its latest edit says, and
+files the bot posted itself are left out. Where the binding allows it, the agent
+can describe the room, list its members and read its history.
+
+**Who is speaking** is the Matrix user ID (`@ada:example.org`) together with the
+configured homeserver client URL. `/link` confirms that pair; another homeserver
+requires a separate link, even if it claims the same user ID. The confirmation
+page and connected accounts show the server URL. Host case, default ports and
+trailing slashes are normalized; different paths remain separate authorities.
+Changing the bot's server cannot resume an old identity or send an old answer
+through the new server. A conversation from a room is shown in the console to
+those still joined to that room.
+
 ## A bot that cannot start stops, rather than retrying
 
-Telegram polling, Slack Socket Mode, the Mattermost event stream and the Discord
-Gateway all run under one supervisor that reconnects a dropped session. A missing or rejected
+Telegram polling, Slack Socket Mode, the Mattermost event stream, the Discord
+Gateway and the Matrix sync all run under one supervisor that reconnects a dropped session. A missing or rejected
 configuration value is not a dropped session, and the supervisor treats it
 differently: it records the bot as down with the reason, logs once and stops.
 Nothing it does would change the row — an operator has to add the Slack `xapp-`
@@ -1850,6 +1983,9 @@ nothing else. Slack needs the
 
 ## Reactions and ratings
 
+New bots acknowledge questions with 👀 (`eyes`) on Slack, Telegram and Mattermost, or the native `emphasize` tapback on iMessage. Answer ratings start disabled. Both settings can be changed; existing bots keep their saved choices. Mattermost approval and question cards retain the request and show the final decision after their buttons are removed. Repeated clicks on an answered request are acknowledged silently. A mention added by an edit can start a turn only for a post observed and ignored within the last 15 minutes; already handled or older posts never start a new turn from an edit, and unavailable shared receipts disable edit admission.
+
+
 Two touches every chat platform here shares, both switched in the bot's
 settings:
 
@@ -1878,68 +2014,31 @@ surface, so a difference between the console and Mattermost remains visible.
 
 ## What every channel shares
 
-- **A message sent while the agent works joins its task.** From the person whose
-  turn it is, a plain message in the same chat reaches the running turn at its next
-  step instead of waiting for a turn of its own; one that arrives after the agent's
-  last step is answered as the next message. `/btw` followed by a question asks on
-  the side: answered at once from the thread so far, without tools, while the turn
-  keeps going. A colleague's message in a group chat is always a turn of its own.
+- **Only the current thread is loaded automatically.** A new thread starts fresh. When the agent joins an existing thread, it imports a bounded provider page of up to 100 posts, restricted by the bot's access policy. Each later mention refreshes the discussion since the previous turn, including human posts between mentions. Other conversations in the channel require `read_channel_history` and the binding's channel-history permission.
 
-- **The model is reminded of the most recent turns, not the first ones.** A
-  channel thread is keyed to the chat and never rolls over, so a support channel
-  passes the window in days. Two hundred turns for a channel against forty for a
-  widget, and the two numbers are different on purpose: a widget is a public URL
-  with somebody else's budget behind it, and a channel is a room the operator's own
-  colleagues work in. Bounded either way, because a prompt is not a transcript and
-  one thread's whole history is a per-turn bill that grows for ever.
+    Imported posts retain their original author and timestamp as reference data, never assistant turns or new requests. Native post receipts prevent importing a post twice, including after compaction. A truncated provider page leaves a persistent notice that earlier context is missing and can be read with the history tool. A failed refresh also tells the agent it may lack context.
 
-    It read from the wrong end until #638: the repository orders oldest-first, so
-    the bot was told how the conversation opened and nothing said since — and it
-    answered plausibly, from a version of the thread that had stopped hundreds of
-    turns ago. Nothing errored, which is why it needed a test rather than a fix.
+    The canonical conversation uses the same history and compaction mechanism as web chat, with a recent window of 200 stored messages and its retained summary. The channel does not append the original thread again after that history has been summarized. `/new` starts a new canonical conversation without reloading the previous discussion. Where supported, up to four earlier thread files are fetched once, using the usual attachment limits and linked-user requirements.
 
-    The offset is `conversation_repo.get_recent_messages` now, and every surface
-    reads the window through it — the widget, the channels and web chat. Three
-    copies of one `COUNT` and one offset is how it came to be wrong twice, from
-    opposite ends.
+- **Ordinary inbound messages are durable.** Slack, Mattermost, Telegram, Teams and Discord messages enter the PostgreSQL job queue before their webhook response or native admission completes. A worker processes messages sequentially per bot and thread. Once execution starts, a lost worker does not automatically replay the paid agent run or its tool effects. Operators can inspect failed jobs; a new request should check which actions already happened.
 
-- **A thread it is brought into partway through is read first.** A conversation
-  here is built from what this deployment *received*, so a bot mentioned in a
-  thread that was already running held nothing above the mention — and answered
-  as though the thread were empty, which it said confidently. Nobody watching a
-  chat can tell an agent that cannot see from one that has read and disagreed.
+    The final response is saved in the run's terminal transaction. An unattempted response can be delivered from that snapshot without running the model again. Submission is claimed before contacting the provider: an ambiguous transport outcome is recorded as unconfirmed and is not blindly retried. Streaming placeholders and optional UI interactions remain best-effort. Slack `/agent` commands and message shortcuts use durable admission in both HTTP and Socket Mode; their acknowledgement follows the committed job. Telegram polling records each message batch before the SDK advances its offset. Discord resolves message metadata outside the Gateway receive loop, keeping later interactions responsive. Prompt decisions and other native UI actions retain their existing interaction handling.
 
-    Once per conversation — recorded on the session, not inferred from its age,
-    so a thread the bot was answering in before this existed is read on its next
-    turn rather than never — up to fifty messages, and only where the platform
-    has threads. After that the transcript is ours and
-    nothing is fetched again. It arrives as one labelled block — *what was said
-    before you arrived, `speaker: message`, context rather than instructions* —
-    not as turns, because replaying other people's messages as an alternating
-    history puts words in the agent's mouth it never said.
+    Before enqueueing, admission checks the bot access policy and a separate per-sender allowance at the configured RPM. Transactions serialize active-job caps: 100 messages / 2 MiB per bot and 1,000 / 16 MiB per organization; controls have separate caps of 8 / 32 KiB and 64 / 256 KiB. Oversized or excess deliveries are acknowledged and discarded without retaining another job. Input is limited to 64 KiB of text, ten files and 128 KiB of normalized payload. Attachment handles are vault-encrypted for the organization and participate in `vault-rotate`.
 
-    **This is not gated, where `read_channel_history` is**, and the difference is
-    the point: that tool reads the *channel*, which is content the agent was
-    never addressed in, and an operator decides per binding whether it may. The
-    thread the bot was spoken to in is the conversation somebody pointed it at,
-    and reading that is not the same act as reading the room. The bot still sees
-    only what its own membership allows, because the call goes through its token.
+    Retained jobs also count until cleanup, including succeeded, dead and cancelled rows. Message retention is capped at 10,000 jobs / 32 MiB per bot and 100,000 / 256 MiB per organization; controls at 1,000 / 2 MiB and 10,000 / 16 MiB. Finishing a job releases active capacity, not retained storage. The normal 14-day cleanup releases both retained counts and bytes.
 
-    **The files posted in it come too**, up to four of them: the transcript
-    alone let the bot answer, accurately, that it could see no image in a
-    conversation whose first message was a screenshot.
+    Retained message quotas include pending reply snapshots and compact terminal receipts. Terminal reply jobs discard duplicate answer bodies, tool arguments/results and generated-file lists; the canonical run and transcript retain the execution record. A Mattermost edit must qualify while its original ignored-post receipt exists, and its durable admission survives a longer queue wait. Different edits of that original post share one durable idempotency key.
 
-    They are fetched down the same path an attachment on the live message takes,
-    so one set of size limits applies, and they are attributed to whoever
-    mentioned the bot — that is the person who pointed it at the thread, and an
-    unlinked sender gets none, exactly as they get none of their own. Four
-    rather than fifty, because fifty downloads before an answer starts is a
-    minute of silence. Slack reads them with `conversations.replies`, Mattermost
-    with `GET /posts/{root}/thread`; Telegram has no threads and reads neither.
+    Required account linking is checked before retaining an addressed message. Telegram addressing is resolved before selecting the control lane. Access-policy and rate-limit refusals still reply to an addressed sender. A sender's retained usage is capped at 1,000 messages / 4 MiB and 100 controls / 256 KiB per bot, preserving room for other senders.
 
-    A read that fails costs the context and never the answer: no thread, a
-    platform without them, a refusal or an error all produce an answer without
-    the history above it, which is worse than one with and better than none.
+    Discord slash commands and message-context commands also use durable admission. Deferred reply credentials are organization-vault encrypted, rotated with attachment handles and restored only during routing. Requested reply files are stored under the organization's generated-file quota and retention before the final snapshot commits, so recovery can deliver them without replaying tools. Empty terminal replies use the run's status notice rather than internal error text. A stop request commits before its confirmation and prefers the sender's running root task over a newer completed side question. Native thread imports exclude `/btw` questions.
+
+- **The sender can add context while a run works.** Before its next model request, the worker consumes up to eight queued text additions from the same sender in the same thread. Access and input guardrails are checked again. Another person's message, a file, an unrelated command or a late addition stays queued for its own turn. Only messages addressed to the bot are consumed. This also works across workers. `/status` and `/stop` (or plain `status` and `stop`) refer only to the sender's own latest root run in that thread. Stop takes effect before the next model request; an already running action may finish. `/btw` uses an independent queue entry and always runs without tools, including when another worker owns the main turn.
+
+- **Missing personal services explain their requirements.** If the agent needs a personal MCP service that is unavailable, `check_service_access` returns a reason, the missing steps and a settings link where appropriate. Linking the channel identity and connecting the service are separate steps. No remote operation starts and no publisher's or organization's account substitutes for the sender's personal account. A response using a personal source still goes to the participants in the current thread.
+
+- **Readiness separates configuration from confirmed access.** The Channels table's inspection action checks the bot, transport, binding, published agent and the signed-in caller's linked identity and personal connections. It performs no model call or provider authorization probe. Webhooks and missing heartbeats are unconfirmed, rather than a claim that delivery works. The dashboard also distinguishes disconnected, unknown and paused bots.
 
 - **One bot answers as one agent.** A bot user is a single identity in the chat:
   the same avatar, the same name, whichever agent produced the reply. So a bot
@@ -2238,13 +2337,17 @@ surface, so a difference between the console and Mattermost remains visible.
     Teams requires the updated app package to be installed or upgraded in the target team or chat, with owner consent to `ChannelMessage.Read.Group` and `ChatMessage.Read.Chat`. Those grants are requested only when this switch is on. Telegram uses explicit text aliases `@all`, `@here`, `@channel` and `@everyone`; these do not notify the group. Telegram must deliver group messages to the bot, so check BotFather privacy mode. Own mentions, commands and replies are resolved against the bot's actual Telegram identity. Discord counts `@everyone` and `@here` only when the sender may ping them, which is when Discord notifies the room.
 
 - **Requested workspace-file delivery also requires approval.** Granting `send_channel_file` makes it available; a request still waits for explicit confirmation before bytes are posted.
-- **Linked senders' MCP reads use the binding's approval policy; writes still require approval.** Read-only tools do not ask solely because a run is in a chat app. Tools without a `readOnlyHint: true` still ask, and an explicit `all` policy includes reads. This applies to personal, organization and platform connections, delegates and resumed calls. Personal connections still belong to the current sender, never the publisher or another participant.
+- **Channel runs use the same MCP and Mirage approval settings as web chat.** The binding’s policy and each tool’s override apply, including Run freely for a tool without a read-only annotation. Required approvals still ask. Platform connections keep their platform-wide minimum policy. This applies to personal and organization connections, delegates and resumed calls. Personal connections require the current sender's linked identity and authorized connection; linking does not grant additional permissions. Unlinked participants use organization MCP tools under the same configured approval policy. Channel reference metadata is sent after tool results, including after repeated approval resumptions.
+
+The full room history remains available, including messages from other participants. Run freely therefore also permits tool calls influenced by that context; choose it only for trusted tools and rooms, and use Ask first when each write needs confirmation.
 
 Channel messages store only the sender’s text. Author labels are resolved from channel identities immediately before model dispatch, outside system instructions. The console and copy, pin and shortcut actions receive the plain body. Persisted histories and paused runs keep opaque identity references, and manifests omit the injected channel reference parts. Deleting an account removes its channel identities, so future requests cannot resolve that person’s platform labels; shared message bodies remain.
 
+The console and messaging channels use the same conversation history. When history is shared, each assistant turn retains the recorded tool names and statuses in order. Arguments and results can depend on the original sender’s permissions. To answer a follow-up that needs those data, the agent can make a fresh, authorized read.
+
 Editable channel names, topics, purposes and author labels pass the configured input checks before reaching the model. Redacted values replace the originals; blocked reference values are withheld while an otherwise allowed question can continue. Fixed envelope syntax, platform identifiers and chat-type enums are not screened as question text.
 
-Author reference data is supplied separately from the current message, so input guardrails screen the actual question. Unlinked channel participants still need approval for every MCP call, including organization reads.
+Author reference data is supplied separately from the current message, so input guardrails screen the actual question.
 
 Both explicit `@slug` invocations and default replies receive the saved conversation history together with the initial channel thread context.
 
@@ -2809,7 +2912,7 @@ five, which is why there is no such switch: publishing refuses a spec that
 carries `channel_tools`, and the run assembles the binding from the row that
 admitted the message, the same way it appends that binding's prompt.
 
-Nothing is granted by default. What a platform cannot answer is not offered:
+New bindings enable every tool supported by their platform. Existing bindings keep their saved selection; turn off any tool the agent should not use. What a platform cannot answer is not offered:
 Telegram gives a bot no directory of chats to search and no way to read messages
 it was not sent, and `getChatAdministrators` is the whole of what it may list —
 so a Telegram member list is a list of administrators and says so.
@@ -2883,7 +2986,7 @@ A channel post containing only the bot mention or whitespace is ignored after me
 
 ## Current channel defaults
 
-Channel formatting and conversation guidance come from the current deployment on every run. A binding prompt stores only custom additions. Upgrades remove exact recognized copies of previously shipped defaults while preserving surrounding custom text; edited or unknown text is left alone. Clearing the custom prompt keeps the platform defaults and channel context. No runtime compatibility rewrite of old prompt strings is needed.
+Channel formatting and conversation guidance come from the current deployment on every run. Legacy binding prompts store custom additions; new complete edits are explicitly marked as replacements. Upgrades remove exact recognized copies of previously shipped defaults while preserving surrounding custom text; edited or unknown text is left alone. Clearing the custom prompt keeps the platform defaults and channel context. No runtime compatibility rewrite of old prompt strings is needed.
 
 Downgrading restores the preceding release’s stored channel defaults while preserving custom additions, including bindings created after the upgrade. Other surfaces remain unchanged.
 
@@ -2927,3 +3030,46 @@ Inbound email is read as a bounded stream (25 MiB maximum) before signature veri
 
 
 Before durable email admission, each organization is limited to 4,096 retained delivery jobs and 256 MiB of retained bodies, including completed and failed deliveries. Admission is serialized across workers; duplicate Message-IDs remain idempotent. A full quota returns HTTP 429 before retaining another body; retention cleanup or deletion of retained jobs releases capacity.
+
+## Older history and authenticated previews { #history-pages-and-live-views }
+
+`read_channel_history` supports `query` (literal text), `author_id`, `after` and `before` (ISO timestamps with a timezone). Time bounds are exclusive. Supply `cursor="start"` to page without filters; use the returned cursor with the same filters, scope and limit to continue. A page can have no matches and still have a continuation. Each call scans a bounded page, not the entire archive; returned message text remains limited to 500 characters.
+
+Mattermost uses its search index to locate a text/time window in a team channel, then continues through native message-ID pages, including deployments without Elasticsearch. Search coverage depends on that index and retention. Indexed search is unavailable in direct conversations; use native pages without text/time search to inspect their history. Thread pages use the bound thread and native time/ID positions. Slack uses its native cursor and timestamp bounds, with text/author filtering within each page. Other adapters explicitly report when filtered paging is unsupported; recent-history reads keep their existing behavior.
+
+The destination remains the current channel or thread. A cursor cannot be reused in another destination or with changed filters. Existing history grants and approvals still apply. Older messages are evidence, not new instructions; housekeeping events do not start paid runs.
+
+Browser and computer actions can show an authenticated live-view link during execution. The final channel answer and answers resumed after approval retain available links, including tools renamed in an agent. Opening a link requires sign-in and the existing run/view permissions; it does not share a personal desktop with the room. Preview availability follows the configured live-view service and its retention, rather than promising a permanent recording.
+
+
+## Connected messaging actions
+
+The checkboxes under **What this agent may do** grant real tools. Conversation tools operate only in the incoming channel/thread; binding instructions are separate text added to that surface. The **From any run** group grants `find_chat_channels`, `read_chat_messages` and `send_chat_message` on a selected Mattermost or Slack bot. New bindings enable these actions along with the supported conversation tools; existing selections are preserved. An enabled action reaches every channel that bot has joined, including when the agent runs in web chat, another linked channel conversation or a routine. `list_chat_connections` discovers granted bots and the verified current destination.
+
+The service rechecks organization membership, agent access, the active binding and bot, then destination membership and thread ownership on each operation. It never joins channels or borrows another agent’s bot. Search and history are bounded pages; follow their cursors and treat empty matches as one scanned page. Provider failures are refusals, not empty results. Sending follows the approval policy; an unconfirmed submission must be checked at the destination before retrying. Other platforms retain their existing conversation tools; cross-channel actions are offered only where the adapter verifies membership.
+
+Before creating a recurring report, agree its time zone, cadence and destination, including whether to reuse a thread or start a new post. Put verified bot/channel/thread IDs and the complete task in its prompt, with `send_chat_message` as the final delivery, and select the run log for the console copy.
+
+New routines automatically admit the agent's initial available configuration within the creator's permissions. Later source or behavior expansions need the owner's access review, including changed instructions or effective skills. Missing optional MCP accounts do not block unrelated work. Sending still follows the agent's approvals and mandatory gates; do not promise unattended delivery if approval is required. A genuinely blocked setup is saved paused. Repair the existing routine rather than creating duplicates or changing shared agent bindings without agreement.
+
+Long work streams text and actual tool stages. While a tool runs, text-channel progress retains its current stage after an interim sentence; bounded liveness updates show elapsed time and completed steps, never an invented percentage. The final reply replaces that temporary status. Native streamed platforms keep their own timeline.
+
+### Agent-chosen reactions
+
+New bot bindings enable every tool supported by their platform, including **React with emoji** where available. Existing bindings keep their saved choices. Reactions accompany a text answer: a brief acknowledgement for a simple request or a substantial report when needed. The bot never deletes its progress post after reacting. It may react to several earlier messages read from its admitted channel history; an unlinked sender gains no access to other channels. Failed or partial reactions are reported honestly.
+
+| Platform | Native reactions through this connection | Limit and scope |
+| --- | --- | --- |
+| Mattermost, Slack | Yes | Up to eight distinct standard emoji names; verified accessible message |
+| Discord | Yes | Up to eight distinct standard emoji names; current admitted message |
+| Telegram | Yes | One reaction; current admitted message; Telegram may restrict available emoji |
+| iMessage | BlueBubbles tapbacks | One supported tapback on the current admitted message; Private API required |
+| Microsoft Teams | Not with the current Bot Connector credential | Graph reactions require delegated user permission; application permission is unsupported |
+| Twilio SMS, email | No native reaction protocol in these adapters | Emoji can be sent as ordinary text |
+
+Slack installations need `reactions:read` as well as `reactions:write`; reinstall the app after updating its manifest. The reactions tool reports the actual outcome rather than silently replacing an unsupported choice. Connection discovery reports each platform's reaction limit and destination scope. The current-message restriction on Telegram, Discord and iMessage prevents a model from guessing a recipient or borrowing an unrelated message ID.
+
+Email, iMessage and Twilio MMS also expose explicit workspace file delivery in the current conversation. MMS remains subject to the deployment's media settings and Twilio attachment limits. Generated charts sent by email become image attachments.
+
+
+The channel instruction input displays the current defaults, including `{{channel_name}}` and `{{channel_members}}` references. Saving an edited complete prompt sets `prompt_replaces_defaults`; it replaces presentation guidance once, without duplicating the default text. Legacy custom prompts retain their additive meaning. Clearing the input restores live deployment defaults. Identity, permissions and trusted runtime context cannot be changed through this field. A bot may react to its admitted incoming message or earlier messages actually read from the bound channel without borrowing an unlinked sender’s accounting publisher identity; other-channel actions still require an identified member and explicit grants.

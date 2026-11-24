@@ -1,129 +1,244 @@
 "use client";
 
+import { ActionSelection } from "./action-selection";
+import { DIALOG_COLUMN, DIALOG_WIDE } from "@/lib/dialog-sizes";
+import { cn } from "@/lib/utils";
 import { SourceConsentsPanel } from "@/components/triggers/source-consents-panel";
-import { useId, useState } from "react";
+import Link from "next/link";
+import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { useRoutineActions } from "@/hooks/use-routine-actions";
+import { useRoutineSources } from "@/hooks/use-routine-sources";
+import { useOrgStore } from "@/stores";
 import {
   Button,
-  Checkbox,
   Dialog,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  Label,
   Spinner,
 } from "@/components/ui";
 import { ErrorState } from "@/components/states/error-state";
 import type { Trigger } from "@/types/triggers";
-import { routineActionIdentity as identity, routineActionKey } from "@/lib/routine-actions-api";
+import {
+  routineActionIdentity as identity,
+  routineActionKey,
+  type RoutineActionOptions,
+} from "@/lib/routine-actions-api";
+import {
+  routineSourceBlockers,
+  type RoutineSourceReview,
+  type RoutineSourceMode,
+} from "@/lib/routine-sources-api";
 
 export function ActionConsentsDialog({
   trigger,
   onClose,
+  onSaved,
 }: {
   trigger: Trigger;
   onClose: () => void;
+  /** Finish a newly created routine only after its displayed access is saved. */
+  onSaved?: () => Promise<void>;
 }) {
   const t = useTranslations("triggers.actionConsents");
-  const controlsId = useId();
+  const setup = useTranslations("triggers");
+  const activeOrgId = useOrgStore((state) => state.activeOrgId);
+  const sources = useRoutineSources(trigger.agent_id, trigger.id);
+  const sourcesData = sources.data;
+  const [sourceChoice, setSourceChoice] = useState<{
+    token: string;
+    mode: RoutineSourceMode;
+  } | null>(null);
+  const sourceMode =
+    (sourceChoice?.token === sourcesData?.review_token ? sourceChoice?.mode : undefined) ??
+    sourcesData?.mode ??
+    "restricted";
+  const sourceNeedsSave =
+    !!sourcesData && (!sourcesData.current || sourceMode !== (sourcesData.mode ?? "restricted"));
+  const [saving, setSaving] = useState(false);
   const { data, isLoading, error, replace, refetch } = useRoutineActions(
     trigger.agent_id,
     trigger.id,
+    { enabled: !!sourcesData && sourceMode === "restricted" },
   );
   const [chosen, setChosen] = useState<{ token: string; keys: Set<string> } | null>(null);
   const selected =
     (chosen?.token === data?.review_token ? chosen?.keys : null) ??
-    new Set(data?.items.filter((item) => item.consented).map(identity));
+    new Set(data?.items.filter((item) => item.consented && item.waivable).map(identity));
+  const maxActions = data?.max_actions ?? 100;
+  const overLimit = selected.size > maxActions;
+  const pending = saving || replace.isPending || sources.replace.isPending;
+  const sourceUnavailable =
+    !sources.data ||
+    !!sources.error ||
+    sources.isLoading ||
+    routineSourceBlockers(sources.data, sourceMode).length > 0;
+  async function save(data: RoutineActionOptions | undefined, sourceReview: RoutineSourceReview) {
+    if (sourceMode === "restricted" && !data) return;
+    setSaving(true);
+    try {
+      if (onSaved || sourceNeedsSave)
+        await sources.replace.mutateAsync({
+          review_token: sourceReview.review_token,
+          mode: sourceMode,
+        });
+      if (sourceMode === "restricted" && data && (data.can_waive || onSaved)) {
+        await replace.mutateAsync(
+          data.can_waive
+            ? data.items
+                .filter((item) => item.waivable && selected.has(identity(item)))
+                .map(routineActionKey)
+            : [],
+        );
+      }
+      await onSaved?.();
+      onClose();
+    } catch {
+      // Each mutation reports its refusal and refreshes its review; keep the
+      // displayed selection available for correction instead of closing it.
+    } finally {
+      setSaving(false);
+    }
+  }
   return (
-    <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent>
+    <Dialog open onOpenChange={(open) => !open && !pending && onClose()}>
+      <DialogContent className={cn(DIALOG_WIDE, DIALOG_COLUMN)}>
         <DialogHeader>
-          <DialogTitle>{t("title")}</DialogTitle>
-          <DialogDescription>{t("description")}</DialogDescription>
+          <DialogTitle>{onSaved ? setup("setupReviewTitle") : t("title")}</DialogTitle>
+          <DialogDescription>
+            {sourceMode === "follow_agent"
+              ? setup("sourceConsents.followApprovals")
+              : onSaved
+                ? setup("setupReviewDescription")
+                : t("description")}
+          </DialogDescription>
         </DialogHeader>
-        <SourceConsentsPanel trigger={trigger} />
-        {isLoading ? (
-          <Spinner />
-        ) : error ? (
-          <ErrorState cta={{ label: t("retry"), onClick: () => void refetch() }} />
-        ) : (
-          data && (
-            <div className="space-y-4">
-              {!data.can_waive && (
-                <p className="text-muted-foreground text-sm">{t("notAllowed")}</p>
-              )}
-              {!!data.unavailable_sources?.length && (
-                <p className="text-muted-foreground text-sm">
-                  {t("checkConnections", { names: data.unavailable_sources.join(", ") })}
-                </p>
-              )}
-              {data.items.length === 0 && (
-                <p className="text-muted-foreground text-sm">{t("empty")}</p>
-              )}
-              {data.items.map((action, index) => (
-                <div key={identity(action)} className="flex items-start gap-3">
-                  <Checkbox
-                    id={`${controlsId}-${index}`}
-                    aria-describedby={`${controlsId}-${index}-source`}
-                    checked={selected.has(identity(action))}
-                    disabled={replace.isPending || !action.waivable || !data.can_waive}
-                    onCheckedChange={(checked) => {
-                      const next = new Set(selected);
-                      if (checked) next.add(identity(action));
-                      else next.delete(identity(action));
-                      setChosen({ token: data.review_token, keys: next });
-                    }}
-                  />
-                  <div className="min-w-0">
-                    <Label className="break-all" htmlFor={`${controlsId}-${index}`}>
-                      {action.name}
-                    </Label>
-                    <p
-                      id={`${controlsId}-${index}-source`}
-                      className="text-muted-foreground text-xs break-words"
-                    >
-                      {"capability_id" in action
-                        ? action.capability_id
-                        : t(
-                            action.account_scope === "personal"
-                              ? "personalAccount"
-                              : "organizationAccount",
-                            {
-                              name: action.account_name,
-                            },
-                          )}
-                      {!action.waivable && ` · ${t("required")}`}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )
-        )}
-        <DialogFooter>
-          <Button
-            variant="outline"
-            disabled={!data || replace.isPending}
-            onClick={() => replace.mutate([], { onSuccess: onClose })}
-          >
-            {t("revokeAll")}
-          </Button>
-          <Button
-            disabled={!data || !data.can_waive || replace.isPending || !!error}
-            onClick={() =>
-              replace.mutate(
-                data?.items.filter((item) => selected.has(identity(item))).map(routineActionKey) ??
-                  [],
-                {
-                  onSuccess: onClose,
-                },
-              )
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto">
+          <SourceConsentsPanel
+            trigger={trigger}
+            showApprove={false}
+            mode={sourceMode}
+            disabled={pending}
+            onModeChange={(mode) =>
+              sourcesData && setSourceChoice({ token: sourcesData.review_token, mode })
             }
+          />
+          {sourceMode === "follow_agent" ? null : isLoading ? (
+            <Spinner />
+          ) : error ? (
+            <ErrorState cta={{ label: t("retry"), onClick: () => void refetch() }} />
+          ) : (
+            data && (
+              <div className="space-y-4">
+                {!data.can_waive && (
+                  // Which half refused, so a greyed-out list does not read as broken.
+                  <div role="note" className="bg-muted/50 space-y-1 rounded-lg border p-3 text-sm">
+                    <p>
+                      {t(
+                        data.waive_blocked_reason === "permission"
+                          ? "notAllowedPermission"
+                          : "notAllowedOrganization",
+                      )}
+                    </p>
+                    {/* The organization half is refused only to a caller who may decide
+                        approvals, which is who can change the setting. */}
+                    {data.waive_blocked_reason === "organization" && activeOrgId && (
+                      <Link
+                        href={`/orgs/${activeOrgId}/members?tab=governance`}
+                        className="text-foreground underline underline-offset-4"
+                      >
+                        {t("openApprovalSettings")}
+                      </Link>
+                    )}
+                  </div>
+                )}
+                {!!data.unavailable_sources?.length && (
+                  <p className="text-muted-foreground text-sm">
+                    {t("checkConnections", { names: data.unavailable_sources.join(", ") })}
+                  </p>
+                )}
+                {!data.items.some((item) => item.waivable) && (
+                  <p className="text-muted-foreground text-sm">{t("empty")}</p>
+                )}
+                {data.review_changes?.map((change) => (
+                  <p key={change} role="status" className="text-sm">
+                    {t(`changed.${change}`)}
+                  </p>
+                ))}
+                {data.items.some(
+                  (item) => item.previously_consented && !item.consented && item.waivable,
+                ) && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={pending || !data.can_waive}
+                    onClick={() =>
+                      setChosen({
+                        token: data.review_token,
+                        keys: new Set([
+                          ...selected,
+                          ...data.items
+                            .filter((item) => item.previously_consented && item.waivable)
+                            .map(identity),
+                        ]),
+                      })
+                    }
+                  >
+                    {t("reselectPrevious")}
+                  </Button>
+                )}
+                {overLimit && (
+                  <p role="alert" className="text-sm">
+                    {t("tooMany", { count: selected.size, limit: maxActions })}
+                  </p>
+                )}
+                <ActionSelection
+                  items={data.items}
+                  selected={selected}
+                  disabled={pending || !data.can_waive}
+                  onChange={(keys) => setChosen({ token: data.review_token, keys })}
+                />
+              </div>
+            )
+          )}
+        </div>
+        <DialogFooter>
+          {onSaved && (
+            <Button variant="outline" disabled={pending} onClick={onClose}>
+              {setup("finishLater")}
+            </Button>
+          )}
+          {!onSaved && sourceMode === "restricted" && (
+            <Button
+              variant="outline"
+              disabled={!data || pending}
+              onClick={() => replace.mutate([], { onSuccess: onClose })}
+            >
+              {t("revokeAll")}
+            </Button>
+          )}
+          <Button
+            disabled={
+              pending ||
+              sourceUnavailable ||
+              (sourceMode === "restricted"
+                ? !data ||
+                  !!error ||
+                  isLoading ||
+                  overLimit ||
+                  (!data.can_waive && !onSaved && !sourceNeedsSave)
+                : !onSaved && !sourceNeedsSave)
+            }
+            onClick={sourcesData ? () => void save(data, sourcesData) : undefined}
           >
-            {t("save")}
+            {onSaved
+              ? setup("enableRoutine")
+              : sourceMode === "follow_agent"
+                ? setup("sourceConsents.saveMode")
+                : t("save")}
           </Button>
         </DialogFooter>
       </DialogContent>

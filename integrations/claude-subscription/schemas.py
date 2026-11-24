@@ -1,10 +1,19 @@
 """Bounded internal protocol between the API and the native Claude runtime."""
 
 import json
+from base64 import b64decode
+from binascii import Error as Base64Error
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, JsonValue, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    JsonValue,
+    StrictBool,
+    field_validator,
+)
 
 ModelAlias = Literal["sonnet", "opus", "haiku"]
 LoginState = Literal[
@@ -46,11 +55,31 @@ class ConnectionStatus(BaseModel):
     error_code: str | None = None
 
 
+class ImageInput(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    media_type: Literal["image/jpeg", "image/png", "image/gif", "image/webp"]
+    data: str = Field(min_length=1, max_length=1024 * 1024, repr=False)
+
+    @field_validator("data")
+    @classmethod
+    def image_bytes(cls, value: str) -> str:
+        try:
+            b64decode(value, validate=True)
+        except (ValueError, Base64Error):
+            raise ValueError("Invalid image bytes") from None
+        return value
+
+
 class InferRequest(OwnerRequest):
     model: ModelAlias
     prompt: str = Field(min_length=1, max_length=800000, repr=False)
     output_schema: dict[str, JsonValue] = Field(repr=False)
     max_output_tokens: int = Field(default=8192, ge=256, le=32000, strict=True)
+    images: list[ImageInput] = Field(default_factory=list, repr=False)
+    thinking: (
+        StrictBool | Literal["minimal", "low", "medium", "high", "xhigh", "max"] | None
+    ) = None
 
     @field_validator("prompt")
     @classmethod

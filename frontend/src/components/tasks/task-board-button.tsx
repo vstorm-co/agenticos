@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useConsoleRouter as useRouter } from "@/hooks/use-console-router";
 import { useTranslations } from "next-intl";
 import { ListTodo } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -39,7 +39,7 @@ export function TaskBoardButton({ scope, scopeId }: { scope: TaskScope; scopeId?
       }}
     >
       <ListTodo className="size-4" aria-hidden />
-      {t("tasks")}
+      {t("taskTable")}
     </Button>
   );
 }

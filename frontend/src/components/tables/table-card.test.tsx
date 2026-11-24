@@ -22,13 +22,29 @@ const TABLE: TableListItem = {
 };
 
 describe("TableCard", () => {
+  it("identifies a managed agent backlog in the Tables catalog", () => {
+    render(
+      <TableCard
+        table={TABLE}
+        taskBoard={{
+          id: "board",
+          table_id: TABLE.id,
+          scope_kind: "agent",
+          scope_id: "agent",
+          scope_name: "Researcher",
+          can_edit: false,
+        }}
+      />,
+    );
+    expect(screen.getByText("Agent tasks · Researcher")).toBeInTheDocument();
+  });
   it("shows how much a table holds, who may reach it, and that this caller only reads it", () => {
     render(<TableCard table={TABLE} />);
     expect(screen.getByRole("link", { name: "Open Leads" })).toHaveAttribute("href", "/tables/t");
     expect(screen.getByText("14 records · 1 column")).toBeTruthy();
     expect(screen.getByRole("img", { name: "Team" })).toBeTruthy();
     expect(screen.getByText("Read only")).toBeTruthy();
-    expect(screen.getByText(/^edited /)).toBeTruthy();
+    expect(screen.queryByText(/^edited /)).toBeNull();
     // No description, and none said to be missing.
     expect(screen.queryByText("No description yet.")).toBeNull();
   });

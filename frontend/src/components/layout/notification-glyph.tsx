@@ -4,12 +4,18 @@ import type { ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import {
   AlertCircle,
+  AtSign,
   BarChart3,
   Bell,
   Check,
+  Sparkles,
+  GitPullRequest,
   KeyRound,
+  ListChecks,
+  ShieldAlert,
   Lightbulb,
   Megaphone,
+  MessageCircle,
   Plug,
   Unplug,
   Radar,
@@ -35,6 +41,7 @@ const KINDS: Record<string, { icon: LucideIcon; attention?: "error" | "warning" 
   run_completed: { icon: Check },
   run_failed: { icon: AlertCircle, attention: "error" },
   approval_requested: { icon: ShieldCheck, attention: "warning" },
+  approval_expired: { icon: ShieldAlert, attention: "warning" },
   budget_warning: { icon: Wallet, attention: "warning" },
   budget_exceeded: { icon: Wallet, attention: "error" },
   ingestion_completed: { icon: KnowledgeIcon },
@@ -46,12 +53,21 @@ const KINDS: Record<string, { icon: LucideIcon; attention?: "error" | "warning" 
   announcement: { icon: Megaphone },
   artifact_version_published: { icon: PanelsTopLeft },
   resource_shared: { icon: Share2 },
+  room_mention: { icon: AtSign },
+  room_thread_reply: { icon: MessageCircle },
   mcp_server_down: { icon: Unplug, attention: "error" },
   mcp_server_recovered: { icon: Plug },
   background_task_paused: { icon: BackgroundIcon, attention: "error" },
   capability_requested: { icon: Wrench, attention: "warning" },
   suggestion: { icon: Lightbulb },
   finding: { icon: Radar, attention: "warning" },
+  eval_run_finished: { icon: ListChecks },
+  case_generation_finished: { icon: Sparkles },
+  improvement_finished: { icon: Sparkles },
+  eval_suite_failed: { icon: ListChecks, attention: "error" },
+  eval_suite_reevaluated: { icon: ListChecks },
+  promotion_overridden: { icon: ShieldAlert, attention: "warning" },
+  shared_change_applied: { icon: GitPullRequest, attention: "warning" },
 };
 const UNKNOWN = { icon: Bell };
 
@@ -78,7 +94,7 @@ export function NotificationGlyph({ item }: { item: Notification }) {
   return (
     <span
       aria-hidden
-      className="bg-foreground/[0.06] text-foreground/75 grid size-8 shrink-0 place-items-center rounded-lg"
+      className="text-foreground/70 grid size-8 shrink-0 place-items-center rounded-lg"
     >
       <Icon className="size-[18px]" strokeWidth={1.75} />
     </span>

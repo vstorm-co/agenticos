@@ -38,8 +38,21 @@ const AGENT_LABEL: Record<AgentStatus, string> = {
   archived: "statusArchived",
 };
 
-export function AgentStatusBadge({ status }: { status: AgentStatus }) {
+export function AgentStatusBadge({
+  status,
+  compact = false,
+}: {
+  status: AgentStatus;
+  compact?: boolean;
+}) {
   const t = useTranslations("agents");
+  if (compact)
+    return (
+      <span className="text-muted-foreground inline-flex items-center gap-1.5 text-xs">
+        <StatusDot className={AGENT_DOT[status]} />
+        {t(AGENT_LABEL[status])}
+      </span>
+    );
   return (
     <Badge variant="outline" className="text-muted-foreground">
       <StatusDot className={AGENT_DOT[status]} />
@@ -62,6 +75,7 @@ const RUN_DOT: Record<RunStatus, string> = {
   budget_exceeded: "bg-warning",
   guardrail_blocked: "bg-warning",
   loop_stopped: "bg-warning",
+  timed_out: "bg-warning",
   cancelled: "bg-muted-foreground/50",
   failed: "bg-destructive",
 };
@@ -76,6 +90,7 @@ export const RUN_LABEL: Record<RunStatus, string> = {
   budget_exceeded: "runBudgetExceeded",
   guardrail_blocked: "runGuardrailBlocked",
   loop_stopped: "runLoopStopped",
+  timed_out: "runTimedOut",
   cancelled: "runCancelled",
   failed: "runFailed",
 };

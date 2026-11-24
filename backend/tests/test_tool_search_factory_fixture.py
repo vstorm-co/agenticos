@@ -23,12 +23,10 @@ pytestmark = pytest.mark.anyio
 _TARGET_INDEX = 7
 _TARGET_NAME = "catalog_lookup_record_0007"
 _FIRST_REQUEST_BYTES = {12: 3_480, 100: 28_736, 1000: 287_036}
-# 786 before `search_tools` was given a return shape. The tool a model reaches
-# for when it is already lost is the worst place to leave it guessing what an
-# empty answer means, and 238 bytes is what saying so costs on the one request
-# that carries this tool alone.
-_SEARCH_ONLY_BYTES = 1_024
-_REVEALED_TARGET_BYTES = 1_346
+# The discovery schema includes guidance distinguishing searchable capability
+# tools from skills opened through `load_capability`, plus the empty-result rule.
+_SEARCH_ONLY_BYTES = 1_075
+_REVEALED_TARGET_BYTES = 1_397
 
 
 @dataclass(frozen=True)

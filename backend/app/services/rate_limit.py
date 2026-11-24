@@ -42,20 +42,23 @@ control - a channel bot's `rate_limit_rpm` - can keep a per-process floor under
 the caller for as long as the outage lasts rather than none at all.
 """
 
+import asyncio
 import hashlib
 import logging
 import secrets
 import time
 from collections.abc import AsyncGenerator, Callable
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from dataclasses import dataclass
 from uuid import UUID
 
+from redis.exceptions import RedisError
 from starlette.requests import HTTPConnection
 
 from app.clients.redis import RedisClient
 from app.core.config import settings
 from app.core.exceptions import RateLimitError
+from app.core.permissions import AuthContext
 
 logger = logging.getLogger(__name__)
 
@@ -68,6 +71,8 @@ _redis: RedisClient | None = None
 # this bound the caller becomes a fixed-size hash; a real identifier (an email is
 # at most 254 characters, plus a short prefix) never reaches it (#947).
 _MAX_CALLER_LEN = 320
+_MFA_FAILURE_LIMIT = 3
+_MFA_FAILURE_WINDOW_SECONDS = 300
 
 
 def configure(redis: RedisClient | None) -> None:
@@ -173,6 +178,56 @@ async def consume(*, surface: str, caller: str, limit: Limit) -> Decision:
     return Decision(allowed=True, retry_after_seconds=0)
 
 
+def _mfa_backoff_key(user_id: str, suffix: str) -> str:
+    # The identifier is internal, but hashing keeps Redis key shape independent
+    # of the identifier format and avoids storing account IDs in key listings.
+    digest = hashlib.sha256(user_id.encode()).hexdigest()
+    return f"auth:mfa:backoff:{digest}:{suffix}"
+
+
+async def mfa_backoff_locked(user_id: str) -> bool:
+    """Whether this account is locked after repeated failed MFA challenges."""
+    if _redis is None:
+        logger.warning("MFA backoff not configured - auth_mfa_verify reached unmetered")
+        return False
+    try:
+        return await _redis.get(_mfa_backoff_key(user_id, "locked")) is not None
+    except Exception:
+        logger.warning("mfa_backoff_redis_unavailable", exc_info=True)
+        return False
+
+
+async def record_mfa_failure(user_id: str) -> int:
+    """Count a failed MFA challenge in the account's fixed five-minute window."""
+    if _redis is None:
+        logger.warning("MFA backoff not configured - auth_mfa_verify reached unmetered")
+        return 0
+    try:
+        count = await _redis.count_in_window(
+            _mfa_backoff_key(user_id, "failures"), ttl=_MFA_FAILURE_WINDOW_SECONDS
+        )
+        if count >= _MFA_FAILURE_LIMIT:
+            await _redis.set(
+                _mfa_backoff_key(user_id, "locked"), "1", ttl=_MFA_FAILURE_WINDOW_SECONDS
+            )
+    except Exception:
+        logger.warning("mfa_backoff_redis_unavailable", exc_info=True)
+        return 0
+    else:
+        return count
+
+
+async def reset_mfa_failures(user_id: str) -> None:
+    """Clear the failure window and any lock after a successful challenge."""
+    if _redis is None:
+        return
+    try:
+        await _redis.delete(_mfa_backoff_key(user_id, "failures"))
+        await _redis.delete(_mfa_backoff_key(user_id, "locked"))
+    except Exception:
+        logger.warning("mfa_backoff_redis_unavailable", exc_info=True)
+
+
 class LocalWindows:
     """A per-process fixed window, for the attempts the shared limiter could not count.
 
@@ -272,6 +327,21 @@ def ml_limit() -> Limit:
     return Limit(attempts=settings.RATE_LIMIT_ML_PER_MINUTE)
 
 
+FORKS_PER_MINUTE = 10
+"""How many conversations one member may fork in one organization, per minute."""
+
+
+def fork_limit() -> Limit:
+    """What one member may fork in one organization, per minute.
+
+    A fork is a small request that stores a copy of a whole conversation, so the
+    thing rationed is how fast one member can grow the shared database by forking
+    the same long thread again and again. Ten a minute is far past what somebody
+    trying approaches by hand does.
+    """
+    return Limit(attempts=FORKS_PER_MINUTE)
+
+
 def table_write_limit() -> Limit:
     """What one member may write to Virtual Tables in one organization, per minute.
 
@@ -336,23 +406,42 @@ async def _release(redis: RedisClient, key: str, token: str) -> None:
         logger.warning("in_flight_limit_release_failed", exc_info=True)
 
 
+async def _renew_claim(redis: RedisClient, key: str, token: str, ttl_seconds: int) -> None:
+    """Renew an active claim; Redis outages retain the documented per-process floor."""
+    while True:
+        await asyncio.sleep(ttl_seconds / 3)
+        try:
+            held = await redis.expire_if_equals(key, token, ttl_seconds)
+        except RedisError, OSError, TimeoutError:
+            logger.warning("in_flight_limit_renewal_unavailable", exc_info=True)
+            continue
+        if not held:
+            logger.warning("in_flight_limit_claim_lost", extra={"key": key})
+            return
+
+
 @asynccontextmanager
 async def one_in_flight(
-    surface: str, caller: str, *, ttl_seconds: int, message: str
+    surface: str, caller: str, *, ttl_seconds: int, message: str, renew: bool = False
 ) -> AsyncGenerator[None]:
     """Hold the one claim `caller` has on `surface` for the body, or refuse at once.
 
     The claim is a Redis key taken with `SET NX EX`, holding a token of this call's
-    own, and released by deleting it only while it still holds that token. A body
-    that outlives `ttl_seconds` loses its claim to the next caller, and its release
-    then leaves that caller's claim alone. While Redis is down or unconfigured the
-    claim is held in this process instead, which bounds a caller per worker only,
-    not across workers.
+    own, and released by deleting it only while it still holds that token. With
+    `renew=True` the holder extends it every third of the TTL until the body exits;
+    the TTL then recovers crashed holders. Otherwise a body outliving the TTL may
+    lose its claim, and its release leaves a successor's claim alone. While Redis is
+    down or a renewal fails, the logged fallback bounds the caller per process. The
+    fallback cannot enforce a limit across workers.
 
     Raises:
         RateLimitError: `caller` already holds the claim; `message` says so.
     """
+    if ttl_seconds <= 0:
+        raise ValueError("An in-flight claim needs a positive TTL")
     key = f"inflight:{surface}:{_bounded(caller)}"
+    if renew and key in _held_here:
+        raise RateLimitError(message=message, details={"retry_after_seconds": 1})
     token = secrets.token_urlsafe(16)
     redis = _redis
     claimed = None if redis is None else await _claim(redis, key, token, ttl_seconds)
@@ -364,13 +453,57 @@ async def one_in_flight(
             _held_here.add(key)
     if not claimed:
         raise RateLimitError(message=message, details={"retry_after_seconds": 1})
+    local_claim = redis is None or renew
+    if local_claim:
+        _held_here.add(key)
+    renewer = (
+        asyncio.create_task(_renew_claim(redis, key, token, ttl_seconds))
+        if renew and redis is not None
+        else None
+    )
     try:
         yield
     finally:
-        if redis is None:
-            _held_here.discard(key)
-        else:
-            await _release(redis, key, token)
+        try:
+            if renewer is not None:
+                renewer.cancel()
+                with suppress(asyncio.CancelledError):
+                    await renewer
+        finally:
+            if local_claim:
+                _held_here.discard(key)
+            if redis is not None:
+                await _release(redis, key, token)
+
+
+@asynccontextmanager
+async def eval_computation(ctx: AuthContext) -> AsyncGenerator[None]:
+    """Shared admission for comparisons and eval-backed verdict writes.
+
+    The caller checks the operation's own permissions first: comparison readers
+    need runs:view, while a dataset editor may hold only an explicit edit grant.
+    """
+    async with one_in_flight(
+        "eval_comparison",
+        f"org:{ctx.organization_id}",
+        ttl_seconds=120,
+        renew=True,
+        message="A comparison is already running for this organization. Wait and try again.",
+    ):
+        # A busy refusal must not spend the shared work budget.
+        for caller, attempts in (
+            (f"org:{ctx.organization_id}:user:{ctx.subject_id}", 30),
+            (f"org:{ctx.organization_id}", 60),
+        ):
+            decision = await consume_with_local_floor(
+                surface="eval_comparison", caller=caller, limit=Limit(attempts=attempts)
+            )
+            if not decision.allowed:
+                raise RateLimitError(
+                    message="Too many comparisons and eval verdict updates. Wait and try again.",
+                    details={"retry_after_seconds": decision.retry_after_seconds},
+                )
+        yield
 
 
 def dictation_limit() -> Limit:
@@ -837,3 +970,30 @@ async def count_refused_key(connection: HTTPConnection) -> None:
         caller=f"ip:{caller_ip(connection)}",
         limit=auth_limit(),
     )
+
+
+async def enforce_conversation_share(
+    *, organization_id: UUID, actor_id: UUID, recipient_id: UUID
+) -> None:
+    """Bound direct-share delivery across conversations and notification channels.
+
+    IDs of newly created conversations cannot reset any quota. Count valid share
+    attempts before persisting the share or enqueueing its notification; all four
+    counters retain a local floor if Redis is unavailable.
+    """
+    org = f"org:{organization_id}"
+    # A refused pair must not spend the allowance shared with other members.
+    for scope, caller, attempts in (
+        ("pair", f"{org}:actor:{actor_id}:recipient:{recipient_id}", 5),
+        ("actor", f"{org}:actor:{actor_id}", 20),
+        ("recipient", f"{org}:recipient:{recipient_id}", 20),
+        ("organization", org, 100),
+    ):
+        decision = await consume_with_local_floor(
+            surface=f"conversation_share_{scope}", caller=caller, limit=Limit(attempts=attempts)
+        )
+        if not decision.allowed:
+            raise RateLimitError(
+                message="Too many conversation shares. Wait and try again.",
+                details={"retry_after_seconds": decision.retry_after_seconds},
+            )

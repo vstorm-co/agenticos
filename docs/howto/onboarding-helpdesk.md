@@ -104,7 +104,7 @@ How do I get access to the CRM?
 | Check | Reference |
 | --- | --- |
 | Payroll and laptop question | Answered directly, no tool call — the context file is already in the prompt |
-| CRM access question | Calls `load_capability` for `request-access` before answering |
+| CRM access question | Calls `read_skill` for `request-access` before answering |
 | The CRM answer | Names the manager's written approval as the first step, not just "post in #it-help" |
 | A question the context file does not cover (e.g. "what's the dress code?") | Says it does not know, rather than inventing a policy |
 | Editing the context file afterwards | The next run reflects the edit with nothing republished on the agent |
@@ -120,7 +120,7 @@ either happens the other way around, the wrong capability was reached for.
     the last business day of the month... The standard laptop is a MacBook
     Pro"*. Cost 0.004 USD.
 
-    The CRM question called `load_capability` with `{"id": "request-access"}`,
+    The CRM question called `read_skill` with `{"id": "request-access"}`,
     got back the skill's full body, and answered: *"Since the CRM touches
     customer data, there's a specific process... Get your manager's written
     approval first... Post in #it-help. Tag your manager in the same

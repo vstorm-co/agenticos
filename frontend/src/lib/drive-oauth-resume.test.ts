@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { clearDriveResume, readDriveResume, saveDriveResume } from "./drive-oauth-resume";
 import type { SyncSourceCreate } from "./rag-api";
@@ -23,10 +23,30 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.restoreAllMocks();
   window.sessionStorage.clear();
 });
 
 describe("the snapshot a Google consent leaves behind", () => {
+  it("starts without a draft when the browser refuses storage reads", () => {
+    saveDriveResume(FORM, ["account-1"], 1_000);
+    const read = vi.spyOn(window.sessionStorage, "getItem").mockImplementation(() => {
+      throw new DOMException("Storage is blocked", "SecurityError");
+    });
+
+    expect(readDriveResume(2_000)).toBeNull();
+    expect(read).toHaveBeenCalledExactlyOnceWith(KEY);
+  });
+
+  it.each([null, 3, "draft", false])(
+    "ignores a parsed value that is not a draft object: %j",
+    (value) => {
+      window.sessionStorage.setItem(KEY, JSON.stringify(value));
+
+      expect(readDriveResume(0)).toBeNull();
+    },
+  );
+
   it("reads back the form and the accounts that were held, until it is cleared", () => {
     saveDriveResume(FORM, ["account-1"], 1_000);
 

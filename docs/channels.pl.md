@@ -1,5 +1,5 @@
 ---
-source_sha: "f895c76f1a38"
+source_sha: "3b887e9777b8"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -83,6 +83,16 @@ otwiera, a on jest liczony na adres, tak jak socket widgetu.
 
     [HTTP API](api.md) opisuje uwierzytelnianie, nagłówek organizacji,
     uruchamianie agenta po HTTP, dwa endpointy WebSocket i kopertę błędu.
+
+## Automatyczne uczestnictwo w kanałach {#automatic-channel-participation}
+
+Opcja jest domyślnie wyłączona na każdym powiązaniu. Osoba z uprawnieniem **Manage channels** włącza ją w **Availability → Chat apps → Configure**. Wybiera osobny model decyzyjny, instrukcję określającą cel, obserwację wszystkich kanałów dostępnych botowi oraz dwa interwały: domyślnie 20 minut przed oznaczeniem agenta w rozmowie i 1 minutę po oznaczeniu. Bezpośrednie oznaczenie nadal wywołuje odpowiedź natychmiast. Sprawdzane są tylko nowe wiadomości ludzi; puste interwały nie wywołują modelu.
+
+Worker grupuje maksymalnie 20 wiadomości po 2000 znaków. Identyfikatory dostarczenia zapobiegają duplikatom przez siedem dni; okna referencyjne wygasają po siedmiu dniach bez aktywności. Zadania przetrwają restart, lecz płatna analiza lub odpowiedź nie jest automatycznie ponawiana. Zmiana lub wyłączenie powiązania, odebranie kontu uprawnień oraz odpowiedź na bezpośrednie oznaczenie unieważniają oczekujące uczestnictwo. Activity oddzielnie zapisuje decyzję małego modelu i odpowiedź agenta oraz koszt obu, także przy błędzie.
+
+Automatyczne odpowiedzi korzystają z głównego modelu i instrukcji opublikowanego agenta oraz zachowują jego budżet, guardraile i ustawienia wyszukiwania narzędzi. Mogą używać wyłącznie kont MCP organizacji jawnie przypiętych do agenta, w granicach list narzędzi połączenia i powiązania. Połączenia prywatne, poświadczenia MCP platformy i pozostałe capabilities wykonujące akcje są niedostępne. Zwykłe zasady akceptacji MCP nadal obowiązują: wywołanie wymagające zgody nie wykona się ani nie zatrzyma przebiegu w oczekiwaniu. Agent wyjaśnia kolejny krok i prosi osobę o oznaczenie go w wątku. Zwykły przebieg korzysta wtedy z jej tożsamości i normalnych ustawień akceptacji. Konto wykonawcze należy do osoby zapisującej konfigurację; aktualne członkostwo i uprawnienie zarządzania kanałami są ponownie sprawdzane przed wywołaniem modelu i dostarczeniem odpowiedzi.
+
+Obserwacja wymaga strumienia wiadomości grupowych: WebSocket lub obserwowany webhook wychodzący Mattermosta; pełne zdarzenia wiadomości Slacka zamiast samego `app_mention`; zgody RSC na wszystkie wiadomości w Teams; odpowiednich ustawień prywatności lub administratora Telegrama; albo dostępu do wiadomości i intentów Discorda. Analizowane są wyłącznie wiadomości dostarczane przez platformę. SMS, email i iMessage zachowują zwykły tryb pytanie–odpowiedź, bez tej obserwacji kanału.
 
 ## Widget na stronie { #the-website-widget }
 
@@ -260,6 +270,13 @@ sequenceDiagram
 
 To całe słownictwo przychodzące, plus `context` (co strona mówi o odwiedzającym)
 i `file_ids` (co załączył, na stronie, która przyjmuje pliki).
+
+Każda ramka `message` wlicza się do limitu połączenia, także pusta lub
+niepoprawna. Poprawne wiadomości zużywają dodatkowo dotychczasowy limit
+odwiedzającego; błędne dane nie wyczerpują puli współdzielonej z innymi anonimowymi
+odwiedzającymi. Ramka może zawierać najwyżej trzy identyfikatory plików; dłuższa
+lista jest odrzucana przed parsowaniem. Niepoprawne identyfikatory w krótkiej liście
+są pomijane i zapisywane jako jeden zbiorczy log bez ich wartości.
 
 **Celowo nie obejmuje trzech pól, które niesie własna ramka dashboardu:** agenta,
 profilu modelu i środowiska.
@@ -1073,7 +1090,7 @@ Odpowiedź to zwykły tekst — znaczniki markdown są usuwane, a link wypisany 
 ucinana przy około 1500 znaków z informacją, że reszta jest w AgenticOS, więc jedno pytanie
 kosztuje kilka segmentów, nie kilkanaście. SMS nie umie strumieniować, edytować wiadomości ani
 przycisków, więc zatwierdzenie lub pytanie przychodzi jako ponumerowane linie, a odpowiada się
-SMS-em z numerem. Sam numer wskazujący wybór w którymś z pytań wysłanych na ten numer jest odpowiedzią. Pytania czekające jednocześnie nigdy nie dzielą numerów - drugie kontynuuje tam, gdzie skończyło się pierwsze, więc po 1 i 2 przychodzą 3 i 4 - a rozstrzygnięcie jednego zostawia drugie otwarte. Pytanie zostaje otwarte przez dobę, więc wielokrotny wybór przyjmuje kilka numerów; każdy inny tekst to zwykła wiadomość.
+SMS-em z numerem. Sam numer wskazujący wybór w którymś z pytań wysłanych na ten numer jest odpowiedzią. Pytania czekające jednocześnie nigdy nie dzielą numerów - drugie kontynuuje tam, gdzie skończyło się pierwsze, więc po 1 i 2 przychodzą 3 i 4 - a rozstrzygnięcie jednego zostawia drugie otwarte. Pytanie zostaje otwarte przez dobę, więc wielokrotny wybór przyjmuje kilka numerów; każdy inny tekst to zwykła wiadomość. Numery idą do 999, a potem znów od 1, z pominięciem wciąż otwartych i wydanych w ostatnim tygodniu, więc odpowiedź na stary SMS nie rozstrzygnie nowszego pytania, chyba że przyjdzie ponad tydzień później.
 
 Przychodzące pliki MMS, także bez tekstu, przechodzą przez zwykły mechanizm
 załączników kanałowych po weryfikacji tożsamości i dostępu. Odczytywanych jest
@@ -1742,10 +1759,128 @@ Gdy obie ścieżki dają członkostwo, przy logowaniu pierwszeństwo ma katalog.
 Po utracie dostępu z katalogu aktywna rola Discorda przejmuje ten sam wiersz bez
 cofania kluczy. Zobacz [przekazywanie członkostwa](directory.md#what-the-sync-never-touches).
 
+## Matrix { #matrix }
+
+Bot Matrixa to zwykłe konto na twoim własnym homeserverze, z którym wdrożenie
+rozmawia przez Client-Server API, bez biblioteki pośrodku (#2081). Wszystko
+przychodzi przez long-poll `/sync` bota, więc **wdrożenie nie potrzebuje
+publicznego adresu dla Matrixa**, a bot Matrixa nie ma trybu webhooka. Miejsce,
+w którym bot przestał czytać, jest przechowywane w Redisie wdrożenia, więc po
+restarcie bot wznawia od niego. Przy pierwszym starcie konta bot pomija historię
+pokoju, zamiast na nią odpowiadać.
+
+Luki w ograniczonym batchu `/sync` są odtwarzane chronologicznie stronami po
+50 wiadomości od ostatniego zapisanego kursora, także po restarcie. Każda strona
+trafia do kolejki przed odczytem następnej; kursor zmienia się dopiero po
+pomyślnym przyjęciu całego batcha.
+
+!!! warning "Na razie tylko pokoje nieszyfrowane"
+
+    Bot czyta pokoje bez szyfrowania end-to-end. Zaproszenie do zaszyfrowanego
+    pokoju lub czatu bezpośredniego odrzuca z powodem, który widzi zapraszający,
+    a w pokoju, w którym szyfrowanie włączono później, milczy. Szyfrowanie to
+    drugi etap #2081. Adapter sprawdza aktualny stan szyfrowania przed
+    przyjęciem wiadomości i przed wysłaniem odpowiedzi, edycji lub reakcji.
+    Jeśli nie może odczytać stanu, nie wysyła tekstu jawnego.
+    Jeśli zaproszenie pomija stan szyfrowania, bot sprawdza go po dołączeniu
+    i opuszcza pokój, gdy szyfrowanie jest włączone.
+
+1. Utwórz na homeserverze konto dla bota, na przykład `@agent:example.org`.
+2. Zdobądź dla niego **token dostępu** (access token):
+    - Na homeserverze za Matrix Authentication Service (MAS) wydaj token
+      zgodności na hoście MAS:
+      `mas-cli manage issue-compatibility-token <username>`. MAS 1.5 i nowsze
+      potrafią też utworzyć sesję osobistą w ustawieniach konta.
+    - Na homeserverze bez MAS zaloguj się raz hasłem konta:
+      `curl -XPOST https://matrix.example.org/_matrix/client/v3/login -d
+      '{"type":"m.login.password","identifier":{"type":"m.id.user","user":"agent"},"password":"…"}'`
+      i zachowaj `access_token` z odpowiedzi. Nie wylogowuj tej sesji: jej token
+      należy do bota.
+3. Zarejestruj go: **Kanały → Dodaj kanał**, platforma `matrix`, z tokenem i
+   **URL-em klienta** homeservera (`https://matrix.example.org`). Gdy strumień
+   się otwiera, bot pyta homeserver, kim jest. Token, który homeserver odrzuca,
+   zatrzymuje bota, a jego wiersz to mówi.
+4. Zaproś bota do pokoju albo zacznij z nim czat bezpośredni. Bot dołącza, gdy
+   zapraszający jest kimś, kogo dopuszcza jego polityka dostępu, a w przeciwnym
+   razie odmawia.
+
+**Znieś limit szybkości dla bota.** Odpowiedź to jedna wiadomość edytowana raz na
+sekundę, póki spływa, a domyślny limit wiadomości w Synapse dławi to po kilku
+sekundach. Bot czeka, gdy homeserver mówi, jak długo, więc nic nie przepada, ale
+długa odpowiedź pojawia się wtedy skokami. W Synapse administrator zwalnia bota
+z limitu przez
+`POST /_synapse/admin/v1/users/@agent:example.org/override_ratelimit` z
+`{"messages_per_second": 0, "burst_count": 0}`.
+
+| Gdzie | Kiedy odpowiada |
+|---|---|
+| Czat bezpośredni (pokój bota i jednej osoby) | Na każdą wiadomość |
+| Pokój | Gdy wiadomość wspomina bota. Odpowiedź otwiera wątek na pytaniu, a wątek jest rozmową |
+| Wątek, w którym zapytano bota | Na każdą wiadomość w nim |
+
+Wzmianka to bot wskazany w `m.mentions` wiadomości, „pigułka” (pill), która do
+niego linkuje, albo wpisany uchwyt: `@` i identyfikator użytkownika, część
+lokalna lub nazwa wyświetlana bota, np. `@AgenticOS co potrafisz?`. Niektóre
+klienty wysyłają wpisany uchwyt jako zwykły tekst, więc liczy się on także bez
+pigułki. Nazwa bez `@`, uchwyt w kodzie i dłuższy uchwyt, jak `@agent-ops`, się
+nie liczą.
+
+Na `@room` bot
+odpowiada tylko wtedy, gdy jego polityka każe odpowiadać na wzmianki całego
+kanału. Jak wszędzie indziej, czat bezpośredni też ma wątki: odpowiedź w wątku
+odpowiedzi kontynuuje rozmowę, a nowa wiadomość na dole zaczyna nową.
+
+**Odpowiedź jest pisana w miejscu.** Bot publikuje jedną wiadomość i edytuje ją
+przez `m.replace` w miarę, jak odpowiedź spływa. Po 4000 znakach odpowiedź
+przechodzi do kolejnych wiadomości w tym samym wątku. Zapisywany jest tylko
+tekst, który guardraile już sprawdziły. Nic, co publikuje bot, nie może nikogo
+powiadomić: każda wiadomość niesie puste `m.mentions`. Odpowiedzi są wysyłane
+jako Markdown wyrenderowany do HTML, a HTML w wyjściu modelu jest escapowany,
+nigdy nie jest wysyłany jako znaczniki.
+
+**Zatwierdzenia i pytania są numerowane.** Matrix nie ma przycisków, a ankiet nie
+ma w specyfikacji, więc prośba wypisuje swoje opcje jako ponumerowane wiersze w
+wątku. Odpowiedź, która jest samym numerem, rozstrzyga ją, tak jak w
+[SMS](#sms). Bot reaguje 👀 na pytanie, gdy ono przychodzi, i pokazuje, że pisze,
+gdy pracuje.
+
+**Polecenia w Element.** Element traktuje wiadomość zaczynającą się od `/` jako
+własne polecenie. `/help` otwiera pomoc Element i nigdy nie trafia do bota.
+Każde inne polecenie bota, np. `/new` lub `/link`, otwiera okno *Nieznane
+polecenie* w Element, w którym **Wyślij jako wiadomość** je wysyła. Wiadomość
+zaczynająca się od `//`, np. `//help`, jest wysyłana od razu.
+
+Przed każdą wiadomością klasyfikowaną jako prywatna bot sprawdza aktualną listę
+uczestników. Ciche dołączenie trzeciej osoby nie zachowuje dostępu do prywatnego
+kontekstu. Wynik klasyfikacji grupy jest pamiętany tylko w bieżącym batchu `/sync`.
+Prywatne odpowiedzi, edycje, pytania i pliki sprawdzają pierwotnego odbiorcę
+bezpośrednio przed wysłaniem, także po wznowieniu runu. Dołączenie osoby lub
+podmiana odbiorcy blokuje tę prywatną odpowiedź; rozmowa grupowa ma osobny kontekst.
+
+Pobieranie mediów nie podąża za przekierowaniami. Homeserver musi udostępniać
+uwierzytelnione media bezpośrednio; przekierowania do CDN są odrzucane.
+
+**Pliki** wrzucane przez ludzi są pobierane przez uwierzytelnione media
+homeservera tokenem bota, do limitu wysyłania; pliki i wykresy, które wysyła
+agent, są wysyłane tak samo. **Wątek, do którego bota dołączono w trakcie, jest
+czytany najpierw**, tak jak na Slacku i Mattermoście. Każda wiadomość jest
+czytana w brzmieniu jej ostatniej edycji, a pliki wrzucone przez samego bota są
+pomijane. Gdy pozwala na to powiązanie, agent może opisać pokój, wypisać jego
+członków i czytać jego historię.
+
+**Kto mówi**, określa identyfikator Matrixa (`@ada:example.org`) razem z adresem
+klienta skonfigurowanego homeservera. `/link` potwierdza tę parę; inny serwer
+wymaga osobnego powiązania, nawet gdy podaje ten sam identyfikator użytkownika.
+Adres serwera widać przed potwierdzeniem oraz na liście połączonych kont.
+Wielkość liter hosta, domyślne porty i końcowe ukośniki są normalizowane;
+różne ścieżki pozostają osobnymi źródłami tożsamości. Zmiana serwera bota nie
+pozwala wznowić starej tożsamości ani wysłać starej odpowiedzi przez nowy serwer.
+Rozmowę z pokoju widzą w konsoli osoby, które nadal do niego należą.
+
 ## Bot, który nie może wystartować, zatrzymuje się, zamiast ponawiać { #a-bot-that-cannot-start-stops-rather-than-retrying }
 
-Polling Telegrama, Socket Mode Slacka, strumień eventów Mattermosta i Gateway
-Discorda chodzą pod jednym supervisorem, który ponownie łączy zerwaną sesję. Brakująca albo odrzucona
+Polling Telegrama, Socket Mode Slacka, strumień eventów Mattermosta, Gateway
+Discorda i synchronizacja Matrixa chodzą pod jednym supervisorem, który ponownie łączy zerwaną sesję. Brakująca albo odrzucona
 wartość konfiguracyjna nie jest zerwaną sesją i supervisor traktuje ją inaczej:
 zapisuje bota jako położonego wraz z powodem, loguje raz i zatrzymuje się. Nic,
 co by zrobił, nie zmieniłoby tego wiersza — operator musi dodać slackowy token
@@ -1902,6 +2037,9 @@ do wyszukania scope'u `users:read.email`; Teams znajduje go w spisie tenanta.
 
 ## Reakcje i oceny { #reactions-and-ratings }
 
+Nowe boty potwierdzają pytania reakcją 👀 (`eyes`) w Slacku, Telegramie i Mattermost lub natywnym tapbackiem `emphasize` w iMessage. Oceny odpowiedzi są początkowo wyłączone. Oba ustawienia można zmienić; istniejące boty zachowują zapisane wybory. Karty akceptacji i pytań w Mattermost zachowują prośbę i pokazują decyzję po usunięciu przycisków. Ponowne kliknięcia rozstrzygniętej prośby są potwierdzane bez publicznej wiadomości. Wzmianka dodana przez edycję może uruchomić turę tylko dla wiadomości zaobserwowanej i pominiętej w ostatnich 15 minutach; edycje obsłużonych lub starszych postów nie uruchamiają nowej tury, a brak współdzielonych potwierdzeń wyłącza przyjmowanie edycji.
+
+
 Dwa elementy wspólne dla każdej platformy czatu tutaj, oba przełączane w
 ustawieniach bota:
 
@@ -1930,72 +2068,31 @@ więc różnica między konsolą a Mattermost pozostaje widoczna.
 
 ## Co jest wspólne dla każdego kanału { #what-every-channel-shares }
 
-- **Wiadomość wysłana, gdy agent pracuje, dołącza do jego zadania.** Od osoby,
-  której to tura, zwykła wiadomość w tym samym czacie trafia do trwającej tury w
-  jej następnym kroku, zamiast czekać na własną turę; ta, która przyjdzie po
-  ostatnim kroku agenta, dostaje odpowiedź jako następna wiadomość. `/btw` z
-  pytaniem pyta na boku: odpowiedź przychodzi od razu, na podstawie dotychczasowego
-  wątku, bez narzędzi, a tura trwa dalej. Wiadomość kolegi w czacie grupowym to
-  zawsze osobna tura.
+- **Automatycznie ładowany jest tylko bieżący wątek.** Nowy wątek zaczyna się bez wcześniejszej dyskusji. Gdy agent dołącza do istniejącego wątku, importuje ograniczoną stronę API dostawcy, do 100 postów, zgodnie z polityką dostępu bota. Każda kolejna wzmianka uzupełnia dyskusję od poprzedniej tury, także wiadomości ludzi między wzmiankami. Inne rozmowy w kanale wymagają `read_channel_history` i uprawnienia do historii kanału w powiązaniu.
 
-- **Modelowi przypominane są najnowsze tury, a nie pierwsze.** Wątek kanałowy
-  jest kluczowany na czat i nigdy się nie przewija, więc kanał wsparcia
-  przekracza okno w kilka dni. Dwieście tur dla kanału wobec czterdziestu dla
-  widgetu, a te dwie liczby różnią się celowo: widget to publiczny URL, za którym
-  stoi cudzy budżet, a kanał to pokój, w którym pracują właśni koledzy operatora.
-  Ograniczone w obu przypadkach, bo prompt to nie zapis rozmowy, a cała historia
-  jednego wątku to rachunek za turę, który rośnie bez końca.
+    Importowane posty zachowują autora i oryginalny czas jako dane referencyjne, nigdy jako odpowiedzi agenta lub nowe polecenia. Identyfikatory postów zapobiegają ponownemu importowi, również po compaction. Niepełna strona pozostawia trwałą informację o brakującym kontekście i możliwości doczytania historii toolem. Błąd odświeżania również informuje agenta o możliwej luce.
 
-    Do #638 czytało to z niewłaściwego końca: repozytorium sortuje od
-    najstarszych, więc botowi mówiono, jak rozmowa się zaczęła, i nic z tego, co
-    powiedziano od tamtej pory — a on odpowiadał wiarygodnie, z wersji wątku,
-    która zatrzymała się setki tur wcześniej. Nic nie rzucało błędu i dlatego
-    potrzebny był test, a nie poprawka.
+    Historia rozmowy korzysta z tego samego mechanizmu co web chat i compaction: okna 200 zapisanych wiadomości oraz zachowanego podsumowania. Kanał nie dokleja ponownie oryginalnego wątku po jego podsumowaniu. `/new` tworzy nową rozmowę bez ponownego ładowania wcześniejszej dyskusji. Jeśli platforma to obsługuje, maksymalnie cztery wcześniejsze pliki wątku są pobierane raz, z normalnymi limitami załączników i wymaganiem powiązanego użytkownika.
 
-    Offset siedzi teraz w `conversation_repo.get_recent_messages` i każda
-    powierzchnia czyta przez niego okno — widget, kanały i czat webowy. Trzy
-    kopie jednego `COUNT` i jednego offsetu to sposób, w jaki stało się to błędne
-    dwa razy, z przeciwnych końców.
+- **Zwykłe wiadomości przychodzące są trwałe.** Wiadomości Slacka, Mattermosta, Telegrama, Teams i Discorda trafiają do kolejki Postgresa przed odpowiedzią webhooka lub zakończeniem przyjęcia ze strumienia. Worker wykonuje je kolejno dla bota i wątku. Po rozpoczęciu wykonania utrata workera nie powoduje automatycznego powtórzenia płatnego runa ani skutków narzędzi. Operator może sprawdzić nieudane zadanie; nowe polecenie powinno uwzględnić już wykonane działania.
 
-- **Wątek, do którego bot zostaje wciągnięty w połowie, jest najpierw czytany.**
-  Rozmowa jest tu budowana z tego, co ten deployment *odebrał*, więc bot zawołany
-  w wątku, który już trwał, nie trzymał niczego sprzed wzmianki — i odpowiadał
-  tak, jakby wątek był pusty, i mówił to pewnym tonem. Nikt, kto patrzy na czat,
-  nie odróżni agenta, który nie widzi, od takiego, który przeczytał i się nie
-  zgodził.
+    Końcowa odpowiedź jest zapisywana w transakcji kończącej run. Niewysłaną odpowiedź można dostarczyć z zapisu bez kolejnego wywołania modelu. Przed kontaktem z dostawcą zajmowana jest próba wysyłki: niejednoznaczny wynik transportu pozostaje niepotwierdzony i nie jest ponawiany w ciemno. Placeholdery streamingu i opcjonalne interakcje UI pozostają best-effort. Polecenia `/agent` i skróty wiadomości Slacka korzystają z trwałego przyjęcia zarówno przez HTTP, jak i Socket Mode; potwierdzenie następuje po zatwierdzeniu zadania w bazie. Polling Telegrama zapisuje partię wiadomości, zanim SDK przesunie offset. Discord odczytuje metadane wiadomości poza pętlą odbioru Gateway, aby nie blokować kolejnych interakcji. Decyzje dotyczące promptów i inne natywne interakcje UI zachowują dotychczasową obsługę.
 
-    Raz na rozmowę — zapisane na sesji, a nie wnioskowane z jej wieku, więc
-    wątek, w którym bot odpowiadał, zanim to istniało, jest czytany przy swojej
-    następnej turze, a nie nigdy — do pięćdziesięciu wiadomości i tylko tam,
-    gdzie platforma ma wątki. Potem zapis rozmowy należy do nas i nic nie jest
-    pobierane ponownie. Przychodzi jako jeden oznaczony blok — *co zostało
-    powiedziane, zanim przyszedłeś, `speaker: message`, kontekst, a nie
-    instrukcje* — a nie jako tury, bo odtwarzanie cudzych wiadomości jako
-    naprzemiennej historii wkłada agentowi w usta słowa, których nigdy nie
-    powiedział.
+    Przed zapisem zadania sprawdzane są polityka dostępu bota i osobny limit nadawcy zgodny ze skonfigurowanym RPM. Transakcje serializują limity aktywnych zadań: 100 wiadomości / 2 MiB na bota i 1000 / 16 MiB na organizację; polecenia sterujące mają osobne limity 8 / 32 KiB oraz 64 / 256 KiB. Nadmiarowe i zbyt duże wiadomości są potwierdzane i odrzucane bez zapisywania zadania. Wejście mieści do 64 KiB tekstu, dziesięciu plików i 128 KiB znormalizowanego payloadu. Uchwyty załączników są szyfrowane vaultem dla organizacji i obsługiwane przez `vault-rotate`.
 
-    **To nie jest za bramką, a `read_channel_history` jest**, i o tę różnicę
-    chodzi: tamto narzędzie czyta *kanał*, czyli treść, w której nikt się do
-    agenta nie zwracał, i operator decyduje per powiązanie, czy wolno. Wątek,
-    w którym do bota mówiono, to rozmowa, na którą ktoś go skierował, a czytanie
-    jej to nie ten sam czyn co czytanie pokoju. Bot nadal widzi tylko to, na co
-    pozwala jego własne członkostwo, bo wywołanie idzie przez jego token.
+    Do czasu cleanupu liczą się też zachowane zadania, w tym zakończone sukcesem, błędem lub anulowaniem. Retencja wiadomości jest ograniczona do 10 000 zadań / 32 MiB na bota i 100 000 / 256 MiB na organizację; poleceń sterujących do 1000 / 2 MiB oraz 10 000 / 16 MiB. Zakończenie zadania zwalnia miejsce w aktywnej kolejce, lecz nie limit zapisanych danych. Zwykły cleanup po 14 dniach zwalnia zachowane liczniki i bajty.
 
-    **Wrzucone w nim pliki też przychodzą**, do czterech: sam zapis rozmowy
-    pozwalał botowi odpowiedzieć, zgodnie z prawdą, że nie widzi żadnego obrazu
-    w rozmowie, której pierwszą wiadomością był zrzut ekranu.
+    Limity retencji wiadomości obejmują oczekujące odpowiedzi i kompaktowe potwierdzenia zakończenia. Zakończone zadania odpowiedzi usuwają kopię treści, argumentów i wyników narzędzi oraz listy wygenerowanych plików; zapis wykonania pozostaje w uruchomieniu i transkrypcji. Edycja Mattermosta musi kwalifikować się, gdy istnieje jeszcze potwierdzenie zignorowania oryginału, a zapisane przyjęcie pozostaje ważne po dłuższym oczekiwaniu w kolejce. Różne edycje tego samego posta mają jeden trwały klucz idempotencji.
 
-    Są pobierane tą samą ścieżką co załącznik na bieżącej wiadomości, więc
-    obowiązuje jeden zestaw limitów rozmiaru, i są przypisywane temu, kto zawołał
-    bota — to osoba, która skierowała go na wątek, a nadawca bez powiązania nie
-    dostaje żadnych, dokładnie tak, jak nie dostaje żadnych własnych. Cztery,
-    a nie pięćdziesiąt, bo pięćdziesiąt pobrań przed rozpoczęciem odpowiedzi to
-    minuta ciszy. Slack czyta je przez `conversations.replies`, Mattermost przez
-    `GET /posts/{root}/thread`; Telegram nie ma wątków i nie czyta żadnego z nich.
+    Wymagane powiązanie konta jest sprawdzane przed zapisaniem adresowanej wiadomości. Adresowanie Telegrama jest rozstrzygane przed wyborem kolejki sterowania. Odmowy polityki dostępu i limitu częstotliwości nadal odpowiadają adresowanemu nadawcy. Jeden nadawca może zachować na bota najwyżej 1000 wiadomości / 4 MiB i 100 poleceń sterujących / 256 KiB, pozostawiając miejsce innym.
 
-    Nieudany odczyt kosztuje kontekst, a nigdy odpowiedź: brak wątku, platforma
-    bez wątków, odmowa albo błąd — wszystkie dają odpowiedź bez historii nad nią,
-    co jest gorsze niż z nią i lepsze niż żadna.
+    Polecenia slash i polecenia kontekstowe Discorda również korzystają z trwałej kolejki. Dane odroczonej odpowiedzi są szyfrowane sejfem organizacji, rotowane razem z uchwytami załączników i odtwarzane tylko na czas routingu. Zamówione pliki odpowiedzi są zapisywane z limitem i retencją plików generowanych organizacji przed zatwierdzeniem końcowej migawki, więc odzyskanie nie powtarza narzędzi. Pusta odpowiedź końcowa używa komunikatu statusu zamiast wewnętrznego błędu. Żądanie zatrzymania jest zatwierdzane przed potwierdzeniem i wybiera trwające zadanie główne nadawcy przed nowszym zakończonym pytaniem pobocznym. Import wątku pomija pytania `/btw`.
+
+- **Nadawca może dopisać kontekst podczas pracy.** Przed następnym wywołaniem modelu worker pobiera do ośmiu oczekujących dopisków tekstowych tej samej osoby w tym samym wątku. Ponownie sprawdza dostęp i guardrails wejścia. Wiadomość innej osoby, plik, inne polecenie lub spóźniony dopisek pozostają w kolejce na własną turę. Pobierane są tylko wiadomości skierowane do bota. Działa to także między workerami. `/status` i `/stop` (także samo `status` i `stop`) dotyczą wyłącznie ostatniego głównego runa nadawcy w tym wątku. Stop działa przed kolejnym wywołaniem modelu; rozpoczęta akcja może się zakończyć. `/btw` korzysta z niezależnego zadania i zawsze działa bez narzędzi, także gdy główny run wykonuje inny worker.
+
+- **Brak osobistej usługi zwraca konkretne wymagania.** Jeśli agent potrzebuje niedostępnej osobistej usługi MCP, `check_service_access` zwraca powód, brakujące kroki i odpowiedni link do ustawień. Powiązanie tożsamości kanału i połączenie usługi to osobne kroki. Żadna operacja zewnętrzna nie rusza, a konto publikującego lub organizacji nie zastępuje osobistego konta nadawcy. Odpowiedź oparta na osobistym źródle nadal widzą uczestnicy bieżącego wątku.
+
+- **Diagnostyka odróżnia konfigurację od potwierdzonego dostępu.** Akcja sprawdzania w tabeli kanałów ocenia bota, transport, powiązanie, opublikowanego agenta oraz tożsamość i osobiste połączenia zalogowanej osoby. Nie wywołuje modelu ani nie sprawdza autoryzacji u dostawcy. Webhook i brak heartbeat pozostają niepotwierdzone. Dashboard odróżnia rozłączenie, stan nieznany i wstrzymanie bota.
 
 - **Jeden bot odpowiada jako jeden agent.** Użytkownik-bot to pojedyncza
   tożsamość w czacie: ten sam awatar, ta sama nazwa, niezależnie od tego, który
@@ -2310,13 +2407,17 @@ więc różnica między konsolą a Mattermost pozostaje widoczna.
     Teams wymaga instalacji lub aktualizacji nowego pakietu aplikacji w danym zespole albo czacie i zgody właściciela na `ChannelMessage.Read.Group` oraz `ChatMessage.Read.Chat`. Pakiet prosi o nie tylko po włączeniu przełącznika. Telegram używa tekstowych aliasów `@all`, `@here`, `@channel` i `@everyone`; nie powiadamiają one grupy. Bot musi otrzymywać wiadomości grupy, więc sprawdź tryb prywatności w BotFather. Wzmianki, komendy i odpowiedzi są porównywane z rzeczywistą tożsamością bota Telegrama. Discord liczy `@everyone` i `@here` tylko wtedy, gdy nadawca ma prawo ich użyć, czyli gdy Discord rzeczywiście powiadamia kanał.
 
 - **Wysyłka pliku z workspace na żądanie również wymaga zatwierdzenia.** Nadanie `send_channel_file` udostępnia narzędzie; przesłanie bajtów do rozmowy nadal czeka na wyraźne potwierdzenie.
-- **Odczyty MCP powiązanego nadawcy podlegają polityce powiązania; zapisy nadal wymagają zatwierdzenia.** Narzędzie tylko do odczytu nie pyta o zgodę wyłącznie dlatego, że run działa w komunikatorze. Narzędzie bez `readOnlyHint: true` nadal pyta, a jawna polityka `all` obejmuje też odczyty. Dotyczy to połączeń osobistych, organizacyjnych i platformowych, delegatów oraz wznowień. Połączenia osobiste należą do bieżącego nadawcy, nigdy wydawcy ani innego uczestnika.
+- **Uruchomienia w kanałach stosują te same ustawienia akceptacji MCP i Mirage co chat internetowy.** Obowiązuje polityka powiązania i ustawienie każdego narzędzia, także Run freely bez deklaracji tylko do odczytu. Wymagane akceptacje nadal pytają. Połączenia platformy zachowują minimalną politykę platformową. Dotyczy to połączeń osobistych i organizacyjnych, delegatów i wznowień. Połączenia osobiste wymagają powiązanej tożsamości bieżącego nadawcy i jego autoryzowanego połączenia; powiązanie konta nie przyznaje dodatkowych uprawnień. Niepowiązani uczestnicy używają firmowych narzędzi MCP zgodnie z tą samą skonfigurowaną polityką akceptacji. Metadane kanału są wysyłane po wynikach narzędzi, także przy kolejnych wznowieniach po akceptacji.
+
+Pełna historia pokoju pozostaje dostępna, także wiadomości innych uczestników. Run freely pozwala więc również na wywołania narzędzi pod wpływem tego kontekstu; wybieraj je dla zaufanych narzędzi i pokoi, a Ask first, gdy każdy zapis wymaga potwierdzenia.
 
 Wiadomości kanałowe zapisują wyłącznie tekst nadawcy. Etykiety autora są odczytywane z tożsamości kanałowych tuż przed wysłaniem zapytania do modelu, poza instrukcjami systemowymi. Konsola oraz kopiowanie, przypinanie i skróty otrzymują samą treść. Zapisana historia i wstrzymane runy przechowują niejawne odwołania do tożsamości, a manifesty pomijają dopisane części kontekstu kanałowego. Usunięcie konta usuwa jego tożsamości, więc kolejne zapytania nie odczytają etykiet tej osoby; treść wspólnych wiadomości zostaje.
 
+Konsola i kanały komunikacji korzystają z tej samej historii rozmów. We współdzielonej historii każda odpowiedź agenta zachowuje nazwy i statusy wywołanych narzędzi w kolejności. Argumenty i wyniki mogą zależeć od uprawnień pierwotnego nadawcy. Gdy kolejna odpowiedź wymaga tych danych, agent może je odczytać ponownie z uprawnieniami osoby pytającej.
+
 Edytowalne nazwy kanałów, tematy, opisy i etykiety autora przechodzą skonfigurowane kontrole wejścia przed dotarciem do modelu. Wartości po redakcji zastępują oryginały; zablokowane wartości kontekstu są ukrywane, a dozwolone pytanie może być wykonane. Stała składnia metryki, identyfikatory platformy i typ rozmowy nie są sprawdzane jako treść pytania.
 
-Dane autora są przekazywane oddzielnie od bieżącej wiadomości, więc input guardrails sprawdzają właściwe pytanie. Niepowiązani uczestnicy kanału nadal potrzebują zatwierdzenia każdego wywołania MCP, także odczytów organizacyjnych.
+Dane autora są przekazywane oddzielnie od bieżącej wiadomości, więc input guardrails sprawdzają właściwe pytanie.
 
 Zarówno jawne wywołania `@slug`, jak i odpowiedzi domyślne dostają zapisaną historię rozmowy wraz z początkowym kontekstem wątku kanału.
 
@@ -2926,7 +3027,7 @@ pięciu i dlatego takiego przełącznika nie ma: publikacja odrzuca spec niosąc
 `channel_tools`, a run składa powiązanie z wiersza, który wpuścił wiadomość, tak
 samo jak dopisuje prompt tego powiązania.
 
-Domyślnie nie jest przyznawane nic. Czego platforma nie potrafi odpowiedzieć,
+Nowe powiązania mają włączone wszystkie obsługiwane narzędzia. Istniejące zachowują zapisany wybór; niepotrzebne narzędzia można wyłączyć. Czego platforma nie potrafi odpowiedzieć,
 tego się nie oferuje: Telegram nie daje botowi żadnego katalogu czatów do
 przeszukania ani żadnego sposobu na czytanie wiadomości, których do niego nie
 wysłano, a `getChatAdministrators` to całość tego, co może wylistować — więc lista
@@ -3000,7 +3101,7 @@ Wiadomość kanałowa zawierająca tylko wzmiankę bota lub białe znaki jest po
 
 ## Aktualne domyślne instrukcje kanałów {#current-channel-defaults}
 
-Formatowanie i zasady rozmowy w kanale pochodzą z bieżącego wdrożenia przy każdym uruchomieniu. Prompt powiązania przechowuje tylko własne dodatki. Migracja usuwa dokładnie rozpoznane kopie wcześniej dostarczonych instrukcji, zachowując otaczający je własny tekst; zmieniony lub nieznany tekst pozostaje bez zmian. Wyczyszczenie własnego promptu zachowuje domyślne zasady platformy i kontekst kanału. Nie potrzeba przepisywania starych promptów podczas działania agenta.
+Formatowanie i zasady rozmowy w kanale pochodzą z bieżącego wdrożenia przy każdym uruchomieniu. Wcześniejsze prompty powiązań przechowują własne dodatki; nowe pełne edycje są jawnie oznaczone jako zastępujące wskazówki prezentacji. Migracja usuwa dokładnie rozpoznane kopie wcześniej dostarczonych instrukcji, zachowując otaczający je własny tekst; zmieniony lub nieznany tekst pozostaje bez zmian. Wyczyszczenie własnego promptu zachowuje domyślne zasady platformy i kontekst kanału. Nie potrzeba przepisywania starych promptów podczas działania agenta.
 
 Cofnięcie migracji przywraca zapisane domyślne instrukcje kanałów z poprzedniej wersji i zachowuje własne dodatki, także dla powiązań utworzonych po aktualizacji. Pozostałe powierzchnie pozostają bez zmian.
 
@@ -3044,3 +3145,46 @@ Przychodzący e-mail jest odczytywany strumieniowo z limitem 25 MiB przed sprawd
 
 
 Przed trwałym zapisaniem e-maila organizację obowiązuje limit 4096 zachowanych zadań dostarczenia i 256 MiB treści, również zakończonych i nieudanych. Przyjęcia są serializowane między workerami; powtórzone Message-ID pozostają idempotentne. Przekroczenie limitu zwraca HTTP 429 przed zapisaniem kolejnej treści; retencja lub usunięcie zachowanych zadań zwalnia miejsce.
+
+## Starsza historia i uwierzytelnione podglądy { #history-pages-and-live-views }
+
+`read_channel_history` obsługuje `query` (tekst dosłowny), `author_id`, `after` i `before` (czas ISO ze strefą). Granice czasu są wyłączne. Podaj `cursor="start"`, aby stronicować bez filtrów; kolejne wywołanie musi użyć zwróconego kursora oraz tych samych filtrów, zakresu i limitu. Strona bez dopasowań może nadal mieć kontynuację. Wywołanie przegląda ograniczoną stronę, a nie całe archiwum; tekst wiadomości pozostaje ograniczony do 500 znaków.
+
+Mattermost używa indeksu wyszukiwania do znalezienia tekstu lub okresu w kanale zespołu, a następnie stronicuje po identyfikatorach wiadomości, także bez Elasticsearch. Wyniki zależą od indeksu i retencji. W rozmowach bezpośrednich wyszukiwanie indeksowe jest niedostępne; historię można przeglądać zwykłymi stronami bez wyszukiwania tekstu lub okresu. Strony wątku używają przypisanego wątku oraz natywnych pozycji czasu i identyfikatorów. Slack używa własnych kursorów i granic czasu, filtrując tekst i autora na każdej stronie. Pozostałe adaptery jawnie zgłaszają brak obsługi; dotychczasowy odczyt ostatnich wiadomości pozostaje dostępny.
+
+Miejscem docelowym pozostaje bieżący kanał lub wątek. Kursora nie można przenieść do innej rozmowy ani zmienić jego filtrów. Nadal obowiązują uprawnienia i akceptacje historii. Starsze wiadomości są materiałem źródłowym, a nie nowymi instrukcjami; zdarzenia systemowe nie uruchamiają płatnych runów.
+
+Działania przeglądarki i komputera mogą pokazywać link do uwierzytelnionego podglądu podczas pracy. Końcowa odpowiedź i odpowiedź po wznowieniu zachowują dostępne linki, także po zmianie nazwy narzędzia. Otwarcie wymaga logowania i dotychczasowych uprawnień do runu oraz podglądu; link nie udostępnia osobistego pulpitu całemu kanałowi. Dostępność zależy od usługi podglądu i jej retencji, bez obietnicy trwałego nagrania.
+
+
+## Działania w podłączonych komunikatorach { #connected-messaging-actions }
+
+Checkboxy w sekcji **Co agent może robić** przyznają prawdziwe narzędzia. Narzędzia rozmowy dotyczą wyłącznie bieżącego kanału i wątku; instrukcje powiązania są osobnym tekstem dla tej powierzchni. Grupa **Z dowolnego uruchomienia** przyznaje `find_chat_channels`, `read_chat_messages` i `send_chat_message` na wybranym bocie Mattermost lub Slack. W nowych powiązaniach te akcje i obsługiwane narzędzia rozmowy są włączone; istniejące ustawienia pozostają bez zmian. Włączona akcja obejmuje wszystkie kanały, do których dołączył bot, także przy pracy w chacie, innej rozmowie powiązanego użytkownika lub rutynie. `list_chat_connections` podaje dostępne boty i zweryfikowane bieżące miejsce rozmowy.
+
+Przy każdej operacji usługa ponownie sprawdza członkostwo w organizacji, dostęp do agenta, aktywne powiązanie i bota, a następnie członkostwo bota w kanale i przynależność wątku. Nie dołącza do kanałów ani nie pożycza botów innych agentów. Wyszukiwanie i historia zwracają ograniczone strony; puste dopasowanie nie kończy przeglądania, jeśli istnieje kursor. Błąd dostawcy jest odmową, nie pustym wynikiem. Wysyłanie podlega zasadom akceptacji; niepotwierdzoną wysyłkę trzeba sprawdzić przed ponowieniem. Pozostałe platformy zachowują dotychczasowe narzędzia rozmowy; akcje między kanałami są dostępne tylko tam, gdzie adapter weryfikuje członkostwo.
+
+Przed utworzeniem cyklicznego raportu ustal strefę czasową, harmonogram i miejsce dostarczenia, w tym użycie tego samego wątku lub nowego wpisu. Wpisz zweryfikowane identyfikatory bota, kanału i wątku oraz pełne zadanie do promptu rutyny, z końcowym dostarczeniem przez `send_chat_message`; kopia w konsoli trafia do dziennika rutyny.
+
+Nowe rutyny automatycznie zatwierdzają początkową dostępną konfigurację agenta w granicach uprawnień twórcy. Późniejsze rozszerzenia źródeł lub zmiany zachowania, w tym instrukcji i faktycznie używanych skilli, wymagają przeglądu dostępu przez właściciela. Brak opcjonalnego konta MCP nie blokuje innej pracy. Wysyłanie nadal podlega zgodom agenta i obowiązkowym zabezpieczeniom; nie obiecuj działania bez nadzoru, jeśli potrzebna jest zgoda. Rzeczywista blokada konfiguracji zapisuje rutynę jako wstrzymaną. Napraw istniejącą rutynę zamiast tworzyć duplikaty lub bez uzgodnienia zmieniać współdzielone powiązania agenta.
+
+Długie zadania strumieniują tekst i rzeczywiste etapy narzędzi. W komunikatorach tekstowych bieżący etap pozostaje widoczny także po zdaniu postępu; ograniczone aktualizacje pokazują upływ czasu i zakończone kroki, bez wymyślonego procentu. Końcowa odpowiedź zastępuje stan tymczasowy. Platformy z natywnym strumieniem zachowują własną oś czasu.
+
+### Reakcje wybierane przez agenta { #agent-chosen-reactions }
+
+Nowe podpięcia botów włączają wszystkie narzędzia obsługiwane przez daną platformę, w tym **React with emoji**, jeśli jest dostępne. Istniejące podpięcia zachowują wybrane ustawienia. Reakcjom towarzyszy odpowiedź tekstowa: krótkie potwierdzenie prostej prośby albo pełny raport, gdy jest potrzebny. Bot nie usuwa swojej wiadomości po dodaniu reakcji. Może reagować na kilka wcześniejszych wiadomości odczytanych z historii bieżącego kanału; niepowiązany nadawca nie uzyskuje dostępu do innych kanałów. Nieudane i częściowe reakcje są komunikowane zgodnie z wynikiem narzędzia.
+
+| Platforma | Natywne reakcje przez to połączenie | Limit i zakres |
+| --- | --- | --- |
+| Mattermost, Slack | Tak | Do ośmiu różnych standardowych nazw emoji; zweryfikowana dostępna wiadomość |
+| Discord | Tak | Do ośmiu różnych standardowych nazw emoji; bieżąca dopuszczona wiadomość |
+| Telegram | Tak | Jedna reakcja; bieżąca dopuszczona wiadomość; Telegram może ograniczać dostępne emoji |
+| iMessage | Tapbacki BlueBubbles | Jeden obsługiwany tapback na bieżącej dopuszczonej wiadomości; wymagane Private API |
+| Microsoft Teams | Nie z obecnym poświadczeniem Bot Connector | Reakcje Graph wymagają delegowanych uprawnień użytkownika; uprawnienia aplikacji nie są obsługiwane |
+| Twilio SMS, email | Brak natywnego protokołu reakcji w tych adapterach | Emoji można wysłać jako zwykły tekst |
+
+Instalacja Slacka potrzebuje `reactions:read` i `reactions:write`; po zmianie manifestu zainstaluj aplikację ponownie. Narzędzie zgłasza rzeczywisty wynik zamiast zastępować nieobsługiwany wybór. Lista połączeń podaje limit reakcji i zakres odbiorcy dla każdej platformy. Ograniczenie do bieżącej wiadomości w Telegramie, Discordzie i iMessage zapobiega zgadywaniu odbiorcy lub użyciu identyfikatora innej wiadomości.
+
+Email, iMessage i Twilio MMS udostępniają też jawne wysyłanie plików z workspace w bieżącej rozmowie. MMS podlega ustawieniom mediów wdrożenia i limitom załączników Twilio. Wygenerowane wykresy wysyłane emailem są załącznikami graficznymi.
+
+
+Pole instrukcji kanału wyświetla aktualne wartości domyślne, w tym odniesienia `{{channel_name}}` i `{{channel_members}}`. Zapis edytowanego pełnego promptu ustawia `prompt_replaces_defaults`: zastępuje wskazówki prezentacji bez ich dublowania. Wcześniejsze własne prompty nadal są dopisywane. Wyczyszczenie pola przywraca aktualne instrukcje wdrożenia. Tożsamość, uprawnienia i zaufany kontekst uruchomienia nie podlegają tej edycji. Bot może zareagować na przyjętą bieżącą wiadomość bez korzystania z tożsamości osoby rozliczającej niepowiązanego nadawcę; operacje na innych kanałach nadal wymagają zidentyfikowanego członka i jawnych uprawnień.

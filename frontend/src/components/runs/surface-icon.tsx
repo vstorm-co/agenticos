@@ -2,6 +2,7 @@ import {
   BellRing,
   CalendarClock,
   Code2,
+  FlaskConical,
   Globe,
   Mic,
   Network,
@@ -49,6 +50,7 @@ const MARKS = {
   email: Mail,
 
   discord: brandMark("discord"),
+  matrix: brandMark("matrix"),
   // Nobody sat at a keyboard for these two: a clock for the run a schedule was
   // due to make, a bolt for the one an event fired. They are in this table and
   // not yet in `SURFACES` on the filter bar, because the filter's vocabulary is
@@ -56,6 +58,7 @@ const MARKS = {
   // is a 422, and the branch that writes these surfaces adds them there.
   schedule: CalendarClock,
   trigger: Zap,
+  eval: FlaskConical,
   // A workflow's `agent.run` step - the workflows module's own mark, so a run a
   // graph asked for is recognisable as one.
   workflow: Workflow,
@@ -77,8 +80,10 @@ const LABEL_KEYS = {
   email: "surfaceEmail",
 
   discord: "surfaceDiscord",
+  matrix: "surfaceMatrix",
   schedule: "surfaceSchedule",
   trigger: "surfaceTrigger",
+  eval: "surfaceEval",
   workflow: "surfaceWorkflow",
   proactive: "surfaceProactive",
 } as const;

@@ -15,7 +15,17 @@ describe("CodeArea - a textarea that shows its own structure", () => {
     expect(underlay(container).textContent).toBe(`${text}\n`);
     expect(screen.getByText("bold")).toHaveClass("text-foreground");
     expect(screen.getAllByText("**")[0]).toHaveClass("text-muted-foreground/70");
-    expect(screen.getByText("{{user_name}}")).toHaveClass("text-violet-700");
+    expect(screen.getByText("{{user_name}}")).toHaveClass("code-area-variable");
+  });
+
+  it("lays both layers out identically, scrollbar gutter included", () => {
+    // Only the textarea scrolls; without a reserved gutter on both, its
+    // scrollbar narrowed its lines alone and the caret drifted off the text.
+    const { container } = render(<CodeArea name="a.md" aria-label="Body" value="x" />);
+    const box = screen.getByRole("textbox", { name: "Body" });
+    for (const layer of [underlay(container), box]) {
+      expect(layer).toHaveClass("[scrollbar-gutter:stable]", "[text-rendering:optimizeLegibility]");
+    }
   });
 
   it("draws a file with no syntax as it is", () => {

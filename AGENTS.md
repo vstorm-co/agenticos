@@ -54,6 +54,10 @@ template-inherited subsystems have different coverage gates, described below.
   `app.services.telephony.runtime` commits telephone admission, submission, transfer, hang-up and
   single-use media claims before external effects; unknown acceptance is retained
   for signed callbacks and cleanup, never automatic redial.
+  `PersonalCodingSessionFactory` commits private workspace ownership and initial source
+  before credential-bearing work, and retention or queued teardown in shielded cleanup;
+  `ChannelMessageRouter._route_inner` commits admitted channel identity/session/conversation
+  state before prompt resumption or independent platform MCP credential creation;
   `VoiceCallStarter.start` commits a call's row and its run before the call
   connects and `VoiceCallSession` commits again in its teardown (per-turn
   messages, heartbeats and approval writes use their own `get_db_context()`
@@ -225,27 +229,41 @@ retranslated is how a stale translation stops being visible.
 | Groups, directory group mappings, LDAP and Kerberos sign-in | `docs/directory.md` |
 | Departments: groups as audiences, the group page, where an agent's knowledge comes from | `docs/departments.md` |
 | Budgets, approvals, alerts, audit | `docs/governance.md` |
+| Failure learning: mining, ledger, eval cases, tries | `docs/failure-learning.md` |
 | What ships as a capability, its tools and config | `docs/reference/capabilities.md` |
 | The agent spec, field by field | `docs/reference/spec.md` |
 | Every workflow node: config, ports, errors, retries | `docs/reference/workflow-nodes.md` |
+| Image, Video and Asset workflows: configuration, holds and recovery | `docs/workflows.md#media-inputs-and-generation`; implementation boundaries in `docs/design/media-workflow-nodes.md` (repo only) |
 | What the console calls each thing, and its name in the API and spec | `docs/reference/glossary.md` |
 | MCP connections, the server catalog, OAuth, managed Composio apps | `docs/mcp.md` |
+| Tailscale connections and user-device access: design | `docs/design/tailscale-device-connections.md` (repo only) |
+| Tailscale enrollment, device snapshots, deployment and cleanup | `docs/mcp.md#tailscale-device-connections`; `docs/design/tailscale-enrollment-implementation.md` (repo only) |
+| AI client plugin, lifecycle operations and solution bundles | `docs/howto/operate-with-ai.md` |
 | Providers, model profiles, fallbacks, cost | `docs/models.md` |
+| Provider quota visibility and account pools: implementation and acceptance status | `docs/design/provider-quota-account-pools.md` (repo only) |
 | Which model to pick, open weights vs closed | `docs/choosing-models.md` |
 | Adoption, roles, cost, the security review | `docs/rollout.md` |
 | The vault, secret kinds, what never leaks | `docs/secrets.md` |
+| Browser login, TOTP and profile vault: implementation and protection boundaries | `docs/design/browser-credential-vault.md` (repo only) |
 | Where personal data lives, what leaves, deletion, the controls and the open gaps | `docs/data-protection.md` |
 | Third-party licences, the notices, the review and its open findings | `docs/licenses.md` |
 | Every component a deployment is made of, and the release SBOM | `docs/reference/components.md` |
 | Threat model, data flow, at-rest, the controls matrix | `docs/security.md` |
 | Skills — format, library, skills vs knowledge | `docs/skills.md` |
+| Browser teaching and site procedural memory: review and rollout boundaries | `docs/design/browser-teaching-site-memory.md` (repo only) |
 | Context files — standing knowledge bound to agents | `docs/context.md` |
+| Datasets — versioned eval cases, import/export, Add to dataset | `docs/datasets.md` |
+| Eval runs — estimate, isolation, baselines, confirmed regressions, model comparison | `docs/evals.md` |
+| Authoring assistant — suggestions from evidence, decisions, checking with evals | `docs/authoring.md` |
 | Virtual Tables — typed records, schema versions, revisions, idempotent writes, the `/tables` API | `docs/virtual-tables.md` |
 | Agent and team tasks: research and proposal only | `docs/design/agent-tasks.md` (repo only) |
+| Room lead routing and handoffs over existing tasks | `docs/design/room-lead-task-handoffs.md` (repo only; implementation and acceptance status) |
+| Shared human/agent chat, mentions, room membership and Agentes comparison | `docs/design/agentes-chat-parity.md` (repo only; behavior and validation boundaries) |
 | Workflows — the visual editor: canvas, palette, bindings, autosave, publish, versions | `docs/workflows.md` |
 | Projects: shared files, instructions and chats | `docs/projects.md` |
 | Agent messages: direct messages between agents, in a thread the console shows | `docs/agent-messages.md` |
-| Named environments, promotion, per-environment tracing | `docs/environments.md` |
+| Knowledge gaps — questions the knowledge base could not answer, grouped into topics | `docs/knowledge-gaps.md` |
+| Named environments, promotion, per-environment tracing, test connections, isolated (eval) runs | `docs/environments.md` |
 | Surfaces: widget, WebSocket, Slack, Telegram | `docs/channels.md` |
 | Voice conversations: calls, realtime models, limits, hang-up | `docs/voice.md` |
 | Published pages: artifacts, versions, public links, isolation | `docs/artifacts.md` |
@@ -263,12 +281,14 @@ retranslated is how a stale translation stops being visible.
 | Adding a feature end to end | `docs/adding_features.md` |
 | Test layers and what belongs in each | `docs/testing.md` |
 | The load suite: the workload, the thresholds, the measured runs | `docs/load-testing.md` |
+| The retrieval evaluation: the docs question set, hit@k and MRR, running it, its cost | `docs/retrieval-eval.md` |
 | Why the job queue is Postgres: ten engines, the OOM test, the limits | `docs/task-queue-benchmark.md` |
 | The automated pull request reviewer | `docs/code-review.md` |
 | Branches, rulesets and what protects `main` | `docs/branching.md` |
 | Recurring patterns | `docs/patterns.md` |
 | Translating a page, and the terminology that has to be exact | `docs/howto/translate.md` |
 | Getting it onto a host: sizing, TLS, the approved deploy | `docs/deploy.md` |
+| Kubernetes and the candidate OpenShift configuration | `docs/kubernetes.md` |
 | Past one host: an external Postgres, connection counts, more API hosts and workers, several deployments | `docs/scaling.md` |
 | The deployment's identity, sign-up policy, notices | `docs/deployment.md` |
 | Settings and the production checklist | `docs/configuration.md` |
@@ -329,7 +349,9 @@ judged by someone running a deployment, not by the size of the diff:
   `## [X.Y.Z] - YYYY-MM-DD` under a new empty `[Unreleased]`, and bumps
   `backend/pyproject.toml`, `backend/uv.lock` and `frontend/package.json`. Feature
   PRs write their changelog entries under `[Unreleased]`; the cut does not add new
-  ones.
+  ones. Entries only an operator acts on - migrations, upgrade steps - go under
+  `### Upgrading`, which the console's What's new shows to deployment
+  administrators alone.
 - Prepare a release train with `make release-cut BUMP=patch` (or `minor`); add
   `CREATE_PR=1` to create the cut PR from fresh `origin/main`. The default only
   prints a plan. CI and CodeQL may reuse successful full runs for a proven
@@ -339,9 +361,19 @@ judged by someone running a deployment, not by the size of the diff:
   section>`. Never push the tag first: it starts `images.yml` at once, and that
   attaches the release SBOMs only to a release that already exists. Production
   deploys wait for approval (`deploy.yml`).
-- One release per merged change, or one for a train merged together, numbered by
-  the largest change in it. Stacked PRs are released in merge order, each with its
-  own number.
+- Merge separate, reviewed PRs throughout the day. Prepare one manual release cut
+  per day when Unreleased contains changes; do not wait for an earlier PR's
+  release before merging the next ready PR. No scheduled release job is needed.
+  Number the release by the largest change in the train. Stacked PRs may share
+  that release after they merge in dependency order. Urgent hotfixes may ship
+  immediately through the same checks, cut and production approval.
+- Draft PRs run lint and dependency/security checks. Backend/frontend suites,
+  builds, E2E, docs builds and CodeQL start on Ready for review and subsequent
+  pushes. Returning to draft cancels the superseded heavy run. Test locally
+  with focused files while iterating; ready PRs retain every existing gate.
+- Before publishing, require successful CI and CodeQL for the cut merge SHA;
+  reuse is permitted only by the existing checked-source proof. Production
+  approval remains separate from publishing a release.
 - An agent asked to release may pick a PATCH or MINOR number by the table above.
   Never propose 2.0.0 or any later major; a number the maintainer has named is
   the maintainer's decision.

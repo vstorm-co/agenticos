@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=AgenticOS
+Comment=Chat, call and work with your AI agents
+Exec=agenticos %u
+Icon=co.vstorm.agenticos
+Terminal=false
+Categories=Office;Utility;
+MimeType=x-scheme-handler/agenticos;
+StartupWMClass=AgenticOS

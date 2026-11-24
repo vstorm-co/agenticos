@@ -1,9 +1,11 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { toast } from "sonner";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import { useUnsavedChangesStore } from "@/stores/unsaved-changes-store";
 
 import { ApiError } from "@/lib/api-error";
 import type { LocalTarget } from "@/lib/desktop/commands";
@@ -15,6 +17,11 @@ import { ProjectChats } from "./project-chats";
 import { ProjectFiles } from "./project-files";
 import { ProjectPickerDialog } from "./project-picker-dialog";
 import { ProjectSettings } from "./project-settings";
+
+vi.mock("@/hooks/use-room", async (original) => ({
+  ...(await original<typeof import("@/hooks/use-room")>()),
+  useCreateTeamRoom: () => ({ create: vi.fn(), isReady: true }),
+}));
 
 const nativeProject = vi.hoisted(() => ({
   enabled: false,
@@ -75,10 +82,12 @@ const projects = {
   list: vi.fn((): Project[] => []),
   loading: false,
   query: vi.fn(),
+  error: null as Error | null,
+  refetch: vi.fn(),
 };
 const project = {
   moveWorkspace: { isPending: false, mutateAsync: vi.fn() },
-  update: { mutate: vi.fn(), isPending: false },
+  update: { mutateAsync: vi.fn(), isPending: false },
   remove: { mutateAsync: vi.fn(), isPending: false },
 };
 const files = {
@@ -100,7 +109,13 @@ vi.mock("@/components/artifacts/artifact-card", () => ({
 vi.mock("@/hooks/use-projects", () => ({
   useProjects: (query: unknown) => {
     projects.query(query);
-    return { projects: projects.list(), isLoading: projects.loading, create: projects.create };
+    return {
+      projects: projects.list(),
+      isLoading: projects.loading,
+      create: projects.create,
+      error: projects.error,
+      refetch: projects.refetch,
+    };
   },
   useProject: () => project,
   useProjectFiles: () => ({
@@ -118,7 +133,11 @@ vi.mock("@/hooks/use-projects", () => ({
 
 function wrap(node: ReactNode) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(<QueryClientProvider client={client}>{node}</QueryClientProvider>);
+  return render(node, {
+    wrapper: ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    ),
+  });
 }
 
 function aProject(overrides: Partial<Project> = {}): Project {
@@ -146,10 +165,14 @@ function aProject(overrides: Partial<Project> = {}): Project {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  projects.create.isPending = false;
+  useUnsavedChangesStore.setState({ sources: {}, prompt: null, saving: false });
+  project.update.mutateAsync.mockReset().mockResolvedValue(undefined);
   nativeProject.enabled = false;
   nativeProject.target = null;
   projects.list.mockReturnValue([]);
   projects.loading = false;
+  projects.error = null;
   files.listing.mockReturnValue({
     scope: "project",
     backend: "service",
@@ -177,7 +200,7 @@ describe("ProjectCard", () => {
     expect(screen.getByText("L")).toHaveAttribute("aria-hidden", "true");
     expect(screen.getByText("2 chats")).toBeInTheDocument();
     expect(screen.getByText("Starts with Writer")).toBeInTheDocument();
-    expect(screen.getByText(/Active/)).toBeInTheDocument();
+    expect(screen.queryByText(/Active/)).toBeNull();
   });
 
   it("leaves out what a bare project does not have", () => {
@@ -188,6 +211,54 @@ describe("ProjectCard", () => {
 });
 
 describe("CreateProjectDialog", () => {
+  it("disables pending creation fields and dismissal", async () => {
+    projects.create.isPending = true;
+    const onOpenChange = vi.fn();
+    wrap(<CreateProjectDialog open onOpenChange={onOpenChange} onCreated={vi.fn()} />);
+    expect(screen.getByLabelText("Name")).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Instructions and defaults" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Close" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeDisabled();
+    await userEvent.keyboard("{Escape}");
+    expect(onOpenChange).not.toHaveBeenCalled();
+  });
+
+  it("guards a new project draft and resets it after an explicit discard", async () => {
+    const onOpenChange = vi.fn();
+    wrap(<CreateProjectDialog open onOpenChange={onOpenChange} onCreated={vi.fn()} />);
+    await userEvent.type(screen.getByLabelText("Name"), "Mobile workspace");
+    await userEvent.click(screen.getByRole("button", { name: "Instructions and defaults" }));
+    await userEvent.type(screen.getByLabelText("Instructions"), "Keep the draft.");
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    await act(() => useUnsavedChangesStore.getState().answer("stay"));
+    expect(screen.getByLabelText("Instructions")).toHaveValue("Keep the draft.");
+    await userEvent.keyboard("{Escape}");
+    await act(() => useUnsavedChangesStore.getState().answer("discard"));
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+    expect(screen.getByLabelText("Name")).toHaveValue("");
+    expect(screen.getByLabelText("Instructions")).toHaveValue("");
+  });
+
+  it("clears a name refusal when the rejected value changes", async () => {
+    projects.create.mutateAsync.mockRejectedValueOnce(
+      new ApiError(409, "Name already used", {
+        error: {
+          code: "ALREADY_EXISTS",
+          message: "Name already used",
+          details: { name: "Mobile workspace" },
+        },
+      }),
+    );
+    wrap(<CreateProjectDialog open onOpenChange={vi.fn()} onCreated={vi.fn()} />);
+    await userEvent.type(screen.getByLabelText("Name"), "Mobile workspace");
+    await userEvent.click(screen.getByRole("button", { name: "Create" }));
+    await waitFor(() =>
+      expect(screen.getByLabelText("Name")).toHaveAttribute("aria-invalid", "true"),
+    );
+    await userEvent.type(screen.getByLabelText("Name"), " revised");
+    expect(screen.getByLabelText("Name")).not.toHaveAttribute("aria-invalid", "true");
+  });
+
   it("creates a private project with the agent chosen, and hands it back", async () => {
     const created = aProject();
     projects.create.mutateAsync.mockResolvedValue(created);
@@ -195,6 +266,7 @@ describe("CreateProjectDialog", () => {
     wrap(<CreateProjectDialog open onOpenChange={vi.fn()} onCreated={onCreated} />);
 
     await userEvent.type(screen.getByLabelText("Name"), " Launch ");
+    await userEvent.click(screen.getByRole("button", { name: "Instructions and defaults" }));
     await userEvent.type(screen.getByLabelText("Description"), "Q3");
     await userEvent.type(screen.getByLabelText("Instructions"), "Be brief.");
     await userEvent.click(screen.getByLabelText("Default agent"));
@@ -228,7 +300,11 @@ describe("CreateProjectDialog", () => {
     wrap(<CreateProjectDialog open onOpenChange={vi.fn()} onCreated={vi.fn()} />);
     await userEvent.type(screen.getByLabelText("Name"), "Launch");
     await userEvent.click(screen.getByRole("button", { name: "Create" }));
-    expect(await screen.findByText("You cannot run it")).toBeInTheDocument();
+    expect(await screen.findByText("You cannot run it")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Instructions and defaults" })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
 
     projects.create.mutateAsync.mockRejectedValueOnce(new Error("down"));
     await userEvent.click(screen.getByRole("button", { name: "Create" }));
@@ -239,6 +315,7 @@ describe("CreateProjectDialog", () => {
     // Saving it is refused: a chat started with it would get no answer.
     assistant.mockReturnValue({ status: "disabled", agent_id: "a-1" });
     wrap(<CreateProjectDialog open onOpenChange={vi.fn()} onCreated={vi.fn()} />);
+    await userEvent.click(screen.getByRole("button", { name: "Instructions and defaults" }));
     await userEvent.click(screen.getByLabelText("Default agent"));
     expect(screen.queryByRole("option", { name: /Writer/ })).toBeNull();
     assistant.mockReturnValue(null);
@@ -247,6 +324,7 @@ describe("CreateProjectDialog", () => {
   it("closes on cancel, and choosing no default agent sends none", async () => {
     const onOpenChange = vi.fn();
     wrap(<CreateProjectDialog open onOpenChange={onOpenChange} onCreated={vi.fn()} />);
+    await userEvent.click(screen.getByRole("button", { name: "Instructions and defaults" }));
     await userEvent.click(screen.getByLabelText("Default agent"));
     await userEvent.click(screen.getByRole("option", { name: /Writer/ }));
     await userEvent.click(screen.getByLabelText("Default agent"));
@@ -298,10 +376,7 @@ describe("ProjectChats", () => {
     const row = screen.getByRole("row", { name: /Press release/ });
     expect(row).toHaveTextContent("Kacper");
     expect(screen.getByText("Untitled chat")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /New chat/ })).toHaveAttribute(
-      "href",
-      "/chat?project=p-1",
-    );
+    expect(screen.getByRole("button", { name: "New team room" })).toBeInTheDocument();
   });
 
   it("opens a chat from its row, sorts by any column and marks one unread", async () => {
@@ -446,7 +521,7 @@ describe("ProjectChats", () => {
   it("tells a reader who cannot chat that they can read, and offers no new chat", () => {
     wrap(<ProjectChats project={aProject({ can_use: false })} />);
     expect(screen.getByText(/but not chat in it/)).toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: /New chat/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "New team room" })).not.toBeInTheDocument();
   });
 
   it("invites a first chat, and says when the list failed", () => {
@@ -622,7 +697,7 @@ describe("ProjectSettings", () => {
     await userEvent.click(screen.getByRole("option", { name: /Writer/ }));
     await userEvent.click(save);
 
-    expect(project.update.mutate).toHaveBeenCalledWith({
+    expect(project.update.mutateAsync).toHaveBeenCalledWith({
       name: "Launch v2",
       description: null,
       instructions: "Be brief. Cite.",
@@ -635,11 +710,38 @@ describe("ProjectSettings", () => {
     await userEvent.type(screen.getByLabelText("Instructions"), " Cite.");
     await userEvent.click(screen.getByRole("button", { name: "Save" }));
 
-    expect(project.update.mutate).toHaveBeenCalledWith({
+    expect(project.update.mutateAsync).toHaveBeenCalledWith({
       name: "Launch",
       description: expect.anything(),
       instructions: "Be brief. Cite.",
     });
+  });
+
+  it("keeps a failed save in the editor and prevents leaving", async () => {
+    project.update.mutateAsync.mockRejectedValue(new ApiError(503, "Unavailable"));
+    wrap(<ProjectSettings project={aProject()} />);
+    await userEvent.type(screen.getByLabelText("Instructions"), " Cite.");
+    const proceed = vi.fn();
+    act(() => useUnsavedChangesStore.getState().leave(proceed));
+    await act(() => useUnsavedChangesStore.getState().answer("save"));
+    expect(proceed).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("Instructions")).toHaveValue("Be brief. Cite.");
+    expect(Object.keys(useUnsavedChangesStore.getState().sources)).toHaveLength(1);
+  });
+
+  it("discards all pending project fields before leaving", async () => {
+    wrap(<ProjectSettings project={aProject()} />);
+    await userEvent.type(screen.getByLabelText("Instructions"), " Cite.");
+    await userEvent.type(screen.getByLabelText("Name"), " changed");
+    await userEvent.clear(screen.getByLabelText("Description"));
+    const proceed = vi.fn();
+    act(() => useUnsavedChangesStore.getState().leave(proceed));
+    await act(() => useUnsavedChangesStore.getState().answer("discard"));
+    expect(proceed).toHaveBeenCalledOnce();
+    expect(screen.getByLabelText("Instructions")).toHaveValue("Be brief.");
+    expect(screen.getByLabelText("Name")).toHaveValue("Launch");
+    expect(screen.getByLabelText("Description")).toHaveValue("The October launch");
+    expect(project.update.mutateAsync).not.toHaveBeenCalled();
   });
 
   it("deletes after the name is typed, and goes back to the list", async () => {
@@ -712,6 +814,30 @@ describe("ProjectPickerDialog", () => {
       "aria-pressed",
       "true",
     );
+  });
+  it("explains the project choice when no usable projects exist", () => {
+    wrap(<ProjectPickerDialog open onOpenChange={vi.fn()} selectedId={null} onPick={vi.fn()} />);
+    expect(screen.getByText(/Keep related chats, files and instructions/)).toBeVisible();
+  });
+  it("shows a failed read as an error with retry, not an empty project list", async () => {
+    projects.error = new Error("Service unavailable");
+    wrap(<ProjectPickerDialog open onOpenChange={vi.fn()} selectedId={null} onPick={vi.fn()} />);
+    expect(screen.getByRole("alert")).toBeVisible();
+    expect(screen.queryByText(/Keep related chats, files and instructions/)).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(projects.refetch).toHaveBeenCalled();
+  });
+  it("explains a search with no results and closes when opening project management", async () => {
+    const onOpenChange = vi.fn();
+    wrap(
+      <ProjectPickerDialog open onOpenChange={onOpenChange} selectedId={null} onPick={vi.fn()} />,
+    );
+    await userEvent.type(screen.getByPlaceholderText("Search projects"), "missing");
+    expect(await screen.findByText(/No available project matches this search/)).toBeVisible();
+    const link = screen.getByRole("link", { name: "New or all projects" });
+    expect(link).toHaveAttribute("href", "/projects");
+    await userEvent.click(link);
+    expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 });
 
@@ -858,4 +984,29 @@ it("restores a Computer choice that arrives after local preference hydration", (
   );
   expect(screen.getByText("Local root: /approved")).toBeVisible();
   expect(screen.queryByRole("button", { name: "Approve folder" })).not.toBeInTheDocument();
+});
+
+it("does not submit a project twice when navigation also asks to save", async () => {
+  const view = wrap(<CreateProjectDialog open onOpenChange={vi.fn()} onCreated={vi.fn()} />);
+  await userEvent.type(screen.getByLabelText("Name"), "Pending workspace");
+  projects.create.isPending = true;
+  view.rerender(<CreateProjectDialog open onOpenChange={vi.fn()} onCreated={vi.fn()} />);
+  const proceed = vi.fn();
+  act(() => useUnsavedChangesStore.getState().leave(proceed));
+  await act(() => useUnsavedChangesStore.getState().answer("save"));
+  expect(projects.create.mutateAsync).not.toHaveBeenCalled();
+  expect(proceed).not.toHaveBeenCalled();
+});
+
+it("creates a project without asking for instructions, while keeping optional setup available", async () => {
+  projects.create.mutateAsync.mockResolvedValue(aProject());
+  wrap(<CreateProjectDialog open onOpenChange={vi.fn()} onCreated={vi.fn()} />);
+  expect(screen.queryByLabelText("Instructions")).toBeNull();
+  const settings = screen.getByRole("button", { name: "Instructions and defaults" });
+  expect(settings).toHaveAttribute("aria-expanded", "false");
+  await userEvent.type(screen.getByLabelText("Name"), "A small project");
+  await userEvent.click(screen.getByRole("button", { name: "Create" }));
+  expect(projects.create.mutateAsync).toHaveBeenCalledWith(
+    expect.objectContaining({ name: "A small project", instructions: "", visibility: "private" }),
+  );
 });

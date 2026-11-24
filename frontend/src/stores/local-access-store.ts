@@ -10,6 +10,8 @@ export interface LocalAccessAgent {
   name: string;
   /** Its coding agent runs as the person, so only full access can host it. */
   coding: boolean;
+  /** What the requesting turn needs the computer for. */
+  reason?: string;
 }
 
 interface LocalAccessState {

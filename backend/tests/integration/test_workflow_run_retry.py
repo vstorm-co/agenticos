@@ -12,9 +12,18 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
 from app.core.exceptions import AuthorizationError
+from app.core.permissions import AuthContext
 from app.db.models.artifact import Artifact
+from app.db.models.organization import OrganizationMember
+from app.db.models.resource_grant import Visibility
+from app.db.models.user import User
 from app.db.models.workflow import Workflow, WorkflowStatus
-from app.db.models.workflow_run import WorkflowRunMode, WorkflowRunStatus, WorkflowRunTrigger
+from app.db.models.workflow_run import (
+    WorkflowRun,
+    WorkflowRunMode,
+    WorkflowRunStatus,
+    WorkflowRunTrigger,
+)
 from app.repositories import workflow_run as workflow_run_repo
 from app.schemas.workflow_run import WorkflowRunFilters
 from app.services.workflow_execution import WorkflowExecutionService
@@ -203,6 +212,64 @@ class TestRetryingARun:
                 ):
                     # The second: a test run's retry also needs `workflows:edit`.
                     await WorkflowExecutionService(db).retry(seeded.ctx, seeded.run.id)
+
+    @staticmethod
+    async def _cancelled_real_run(engine: AsyncEngine, kinds) -> tuple[SeededRun, AuthContext]:
+        """A colleague's cancelled real run on an organization-visible workflow, and a
+        member who may run that workflow but did not start the run."""
+        seeded, _nodes = await _failed_run(engine, kinds)
+        async with seeded.factory() as db:
+            run = await db.get(WorkflowRun, seeded.run.id)
+            workflow = await db.get(Workflow, seeded.run.workflow_id)
+            assert run is not None and workflow is not None
+            run.status = WorkflowRunStatus.CANCELLED.value
+            run.mode = WorkflowRunMode.REAL.value
+            workflow.visibility = Visibility.ORG.value
+            member = User(
+                id=uuid.uuid4(),
+                email=f"{uuid.uuid4().hex}@x.com",
+                hashed_password="x",
+                is_active=True,
+            )
+            db.add(member)
+            await db.flush()
+            db.add(
+                OrganizationMember(
+                    id=uuid.uuid4(), organization_id=seeded.org.id, user_id=member.id, role="member"
+                )
+            )
+            await db.commit()
+        return seeded, AuthContext(user_id=member.id, organization_id=seeded.org.id, role="member")
+
+    @pytest.mark.security
+    async def test_a_member_who_could_not_cancel_it_cannot_retry_a_cancelled_run(
+        self, engine: AsyncEngine, kinds
+    ):
+        seeded, member = await self._cancelled_real_run(engine, kinds)
+
+        async with seeded.factory() as db:
+            with pytest.raises(AuthorizationError) as refused:
+                await WorkflowExecutionService(db).retry(member, seeded.run.id)
+            assert "cancelled" in refused.value.message
+            runs, _total = await workflow_run_repo.list_runs(
+                db, organization_id=seeded.org.id, workflow_id=seeded.run.workflow_id
+            )
+        assert [run.id for run in runs] == [seeded.run.id]
+
+    async def test_its_starter_and_an_editor_retry_a_cancelled_run(
+        self, engine: AsyncEngine, kinds
+    ):
+        seeded, member = await self._cancelled_real_run(engine, kinds)
+
+        async with seeded.factory() as db:
+            by_editor = await WorkflowExecutionService(db).retry(seeded.ctx, seeded.run.id)
+            run = await db.get(WorkflowRun, seeded.run.id)
+            assert run is not None
+            run.execution_principal_user_id = member.user_id
+            await db.flush()
+            by_starter = await WorkflowExecutionService(db).retry(member, seeded.run.id)
+
+        assert by_editor.retry_of_run_id == by_starter.retry_of_run_id == seeded.run.id
 
     async def test_an_archived_workflow_is_not_retried(self, engine: AsyncEngine, kinds):
         seeded, _nodes = await _failed_run(engine, kinds)

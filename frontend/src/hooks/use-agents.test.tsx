@@ -12,9 +12,11 @@ import {
   useAgentVersions,
   useAllAgentVersions,
   useAgents,
+  useDraftBase,
   useAddToAgent,
   useCapabilityCatalog,
   useDelegationTree,
+  useJudges,
   usePromptVariables,
 } from "./use-agents";
 import { useAgentEnvironments } from "./use-agent-environments";
@@ -54,6 +56,25 @@ function wrapper({ children }: { children: ReactNode }) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
 }
+
+describe("useJudges", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("asks for the organization's judges alone", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({
+      items: [{ id: "j1", slug: "eval-judge", name: "Eval judge", system_key: "eval_judge" }],
+      total: 1,
+    });
+
+    const { result } = renderHook(() => useJudges(), { wrapper });
+
+    await waitFor(() => expect(result.current.total).toBe(1));
+    expect(result.current.agents[0]?.name).toBe("Eval judge");
+    expect(apiClient.get).toHaveBeenCalledWith("/agents", {
+      params: { kind: "judge", limit: "100" },
+    });
+  });
+});
 
 beforeEach(() => {
   useOnboardingStore.setState({ isOpen: false, flowId: null, flowAgentId: null, index: 0 });
@@ -164,12 +185,83 @@ describe("useAgents", () => {
 describe("useAgent draft", () => {
   beforeEach(() => vi.clearAllMocks());
 
+  it("discards against the confirmed version and updates the cached draft without changing access", async () => {
+    const original = {
+      id: "a1",
+      name: "Draft",
+      can_edit: true,
+      current_version_id: "production",
+      draft_spec: { ...SPEC, name: "Draft" },
+      draft_revision: "base",
+    };
+    const reset = {
+      ...original,
+      name: SPEC.name,
+      can_edit: false,
+      draft_spec: SPEC,
+      draft_revision: "reset",
+    };
+    vi.mocked(apiClient.get)
+      .mockResolvedValueOnce(original)
+      .mockRejectedValueOnce(new Error("Offline"));
+    vi.mocked(apiClient.post).mockResolvedValueOnce(reset);
+    const { result } = renderHook(() => useAgent("a1"), { wrapper });
+    await waitFor(() => expect(result.current.agent?.name).toBe("Draft"));
+
+    const request = { expected_revision: "base", expected_version_id: "latest" };
+    await result.current.discardDraft.mutateAsync(request);
+
+    expect(apiClient.post).toHaveBeenCalledWith("/agents/a1/draft/discard", request);
+    expect(apiClient.put).not.toHaveBeenCalled();
+    await waitFor(() =>
+      expect(result.current.agent).toMatchObject({
+        name: SPEC.name,
+        draft_revision: "reset",
+        can_edit: true,
+        current_version_id: "production",
+      }),
+    );
+  });
+
+  it.each([
+    ["draft_changed", "This draft changed elsewhere.", false],
+    ["published_version_changed", "A newer version was published.", true],
+    ["server_error", "Refused", false],
+  ])("reports a %s discard refusal without writing the cache", async (reason, message, refetch) => {
+    const draft = { id: "a1", draft_spec: SPEC, draft_revision: "base" };
+    vi.mocked(apiClient.get).mockResolvedValue(draft);
+    const error =
+      reason === "server_error"
+        ? new Error("Refused")
+        : new ApiError(409, "Refused", {
+            error: { code: "CONFLICT", message: "Refused", details: { reason } },
+          });
+    vi.mocked(apiClient.post).mockRejectedValueOnce(error);
+    const { result } = renderHook(() => useAgent("a1"), { wrapper });
+    await waitFor(() => expect(result.current.agent).toEqual(draft));
+
+    await expect(
+      result.current.discardDraft.mutateAsync({
+        expected_revision: "base",
+        expected_version_id: "latest",
+      }),
+    ).rejects.toBe(error);
+
+    expect(toast.error).toHaveBeenCalledWith(expect.stringContaining(message));
+    expect(apiClient.get).toHaveBeenCalledTimes(refetch ? 2 : 1);
+    expect(result.current.agent).toEqual(draft);
+  });
+
   it("exposes a refused read and allows retrying after access is restored", async () => {
     const refusal = new ApiError(404, "Agent not found");
     vi.mocked(apiClient.get).mockRejectedValueOnce(refusal);
     const { result } = renderHook(() => useAgent("a1"), { wrapper });
     await waitFor(() => expect(result.current.error).toBe(refusal));
-    vi.mocked(apiClient.get).mockResolvedValue({ id: "a1", draft_spec: SPEC });
+    vi.mocked(apiClient.get).mockResolvedValue({
+      id: "a1",
+      draft_spec: SPEC,
+      draft_revision: "base",
+    });
     await result.current.refetch();
     await waitFor(() => expect(result.current.agent?.id).toBe("a1"));
     expect(result.current.error).toBeNull();
@@ -180,28 +272,36 @@ describe("useAgent draft", () => {
     // why a field added to the spec can go missing without anything failing.
     // A tool held for approval that arrives at the server unheld is the whole
     // feature quietly not existing.
-    vi.mocked(apiClient.get).mockResolvedValue({ id: "a1", draft_spec: SPEC });
+    vi.mocked(apiClient.get).mockResolvedValue({
+      id: "a1",
+      draft_spec: SPEC,
+      draft_revision: "base",
+    });
     vi.mocked(apiClient.put).mockResolvedValue({ id: "a1", name: "Support" });
 
     const { result } = renderHook(() => useAgent("a1"), { wrapper });
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
     await result.current.saveDraft.mutateAsync({
-      ...SPEC,
-      capabilities: [
-        {
-          id: "email",
-          config: {},
-          approval: "never",
-          tool_approval: { send_email: "required" },
-          tool_overrides: { send_email: { name: "send_invoice_email" } },
-          secret_id: "sec-1",
-          enabled: true,
-        },
-      ],
+      spec: {
+        ...SPEC,
+        capabilities: [
+          {
+            id: "email",
+            config: {},
+            approval: "never",
+            tool_approval: { send_email: "required" },
+            tool_overrides: { send_email: { name: "send_invoice_email" } },
+            secret_id: "sec-1",
+            enabled: true,
+          },
+        ],
+      },
+      expected_revision: "base",
     });
 
     expect(apiClient.put).toHaveBeenCalledWith("/agents/a1/draft", {
+      expected_revision: "base",
       spec: expect.objectContaining({
         capabilities: [
           expect.objectContaining({
@@ -228,7 +328,7 @@ describe("useAgent validation", () => {
     const { result } = renderHook(() => useAgent("a1"), { wrapper });
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
-    expect(await result.current.validate()).toEqual({ problems: [], fields: [] });
+    expect(await result.current.validate()).toEqual({ problems: [], fields: [], fixes: [] });
   });
 
   it("returns every problem rather than throwing", async () => {
@@ -257,7 +357,29 @@ describe("useAgent validation", () => {
     expect(await result.current.validate()).toEqual({
       problems: ["Unknown capability: typo", "No model selected"],
       fields: [],
+      fixes: [],
     });
+  });
+
+  it("carries the fixes the refusal offered", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ id: "a1", draft_spec: {} });
+    vi.mocked(apiClient.post).mockRejectedValue(
+      new ApiError(400, "This agent cannot be published yet", {
+        error: {
+          code: "BAD_REQUEST",
+          message: "This agent cannot be published yet",
+          details: {
+            problems: ["This organization has registered no sandbox connection."],
+            fixes: ["use_state_workspace"],
+          },
+        },
+      }),
+    );
+
+    const { result } = renderHook(() => useAgent("a1"), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    expect((await result.current.validate()).fixes).toEqual(["use_state_workspace"]);
   });
 
   it("carries the inputs a refused capability configuration named", async () => {
@@ -308,6 +430,7 @@ describe("useAgent validation", () => {
     expect(await result.current.validate()).toEqual({
       problems: ["Service unavailable"],
       fields: [],
+      fixes: [],
     });
   });
 
@@ -332,6 +455,7 @@ describe("useAgent validation", () => {
     expect(await result.current.validate()).toEqual({
       problems: ["You cannot edit this agent"],
       fields: [],
+      fixes: [],
     });
   });
 
@@ -494,7 +618,10 @@ describe("useAgents mutations", () => {
 
     await result.current.create.mutateAsync({ spec: SPEC });
 
-    expect(toast.success).toHaveBeenCalledWith("Created Support");
+    expect(toast.success).toHaveBeenCalledWith("Created Support", {
+      position: "bottom-center",
+      duration: 3000,
+    });
   });
 
   it("records its own created agent before refreshing a guided create's ceiling", async () => {
@@ -599,6 +726,7 @@ describe("useAgents mutations", () => {
     expect(apiClient.post).toHaveBeenCalledWith("/agents/a1/clone", {});
     expect(toast.success).toHaveBeenCalledWith(
       "Created Support copy - a draft, nothing published yet",
+      { position: "bottom-center", duration: 3000 },
     );
   });
 
@@ -846,7 +974,7 @@ describe("useAgent mutations", () => {
     vi.mocked(apiClient.put).mockResolvedValue({ id: "a1" });
     const { result } = renderHook(() => useAgent("a1"), { wrapper });
 
-    await result.current.saveDraft.mutateAsync(SPEC);
+    await result.current.saveDraft.mutateAsync({ spec: SPEC, expected_revision: "base" });
 
     expect(toast.success).not.toHaveBeenCalled();
   });
@@ -856,9 +984,24 @@ describe("useAgent mutations", () => {
     vi.mocked(apiClient.put).mockRejectedValue(new Error("conflict"));
     const { result } = renderHook(() => useAgent("a1"), { wrapper });
 
-    await expect(result.current.saveDraft.mutateAsync(SPEC)).rejects.toThrow();
+    await expect(
+      result.current.saveDraft.mutateAsync({ spec: SPEC, expected_revision: "base" }),
+    ).rejects.toThrow();
 
     expect(toast.error).toHaveBeenCalledWith("conflict");
+  });
+
+  it("explains a draft conflict in the reader's language", async () => {
+    const conflict = new ApiError(409, "Stale", {
+      error: { code: "CONFLICT", message: "Stale", details: { reason: "draft_changed" } },
+    });
+    vi.mocked(apiClient.get).mockResolvedValue({ id: "a1" });
+    vi.mocked(apiClient.put).mockRejectedValue(conflict);
+    const { result } = renderHook(() => useAgent("a1"), { wrapper });
+    await expect(
+      result.current.saveDraft.mutateAsync({ spec: SPEC, expected_revision: "base" }),
+    ).rejects.toBe(conflict);
+    expect(toast.error).toHaveBeenCalledWith(expect.stringContaining("saving is paused"));
   });
 
   it("names the version it published", async () => {
@@ -869,7 +1012,10 @@ describe("useAgent mutations", () => {
     await result.current.publish.mutateAsync("A note");
 
     expect(apiClient.post).toHaveBeenCalledWith("/agents/a1/publish", { note: "A note" });
-    expect(toast.success).toHaveBeenCalledWith("Published v4");
+    expect(toast.success).toHaveBeenCalledWith("Published v4", {
+      position: "bottom-center",
+      duration: 3000,
+    });
   });
 
   it("refetches the environments after a publish, because the default one moved", async () => {
@@ -928,6 +1074,37 @@ describe("useAgent mutations", () => {
     ).rejects.toThrow();
 
     expect(toast.error).toHaveBeenCalledWith("nope");
+  });
+
+  it("saves an environment's test connections as one list", async () => {
+    // The API replaces the whole set, so a switched-off binding travels with
+    // the rest rather than being dropped - dropping it means production.
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
+    vi.mocked(apiClient.patch).mockResolvedValue({ id: "e1" });
+    const { result } = renderHook(() => useAgentEnvironments("a1"), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    const connections = [
+      { kind: "mcp" as const, production_id: "crm", test_id: "sandbox" },
+      { kind: "secret" as const, production_id: "key", test_id: null },
+    ];
+
+    await result.current.setConnections.mutateAsync({ environmentId: "e1", connections });
+
+    expect(apiClient.patch).toHaveBeenCalledWith("/agents/a1/environments/e1", { connections });
+    expect(toast.success).toHaveBeenCalledWith("Test connections saved");
+  });
+
+  it("reports refused test connections", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
+    vi.mocked(apiClient.patch).mockRejectedValue(new Error("not in the vault"));
+    const { result } = renderHook(() => useAgentEnvironments("a1"), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await expect(
+      result.current.setConnections.mutateAsync({ environmentId: "e1", connections: [] }),
+    ).rejects.toThrow();
+
+    expect(toast.error).toHaveBeenCalledWith("not in the vault");
   });
 
   it("reports a refused publish", async () => {
@@ -1181,7 +1358,11 @@ describe("useAddToAgent", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("writes the draft with the resource bound", async () => {
-    vi.mocked(apiClient.get).mockResolvedValue({ id: "a1", draft_spec: SPEC });
+    vi.mocked(apiClient.get).mockResolvedValue({
+      id: "a1",
+      draft_spec: SPEC,
+      draft_revision: "base",
+    });
     vi.mocked(apiClient.put).mockResolvedValue({ id: "a1" });
     const { result } = renderHook(() => useAddToAgent(), { wrapper });
 
@@ -1193,6 +1374,7 @@ describe("useAddToAgent", () => {
     expect(answer).toEqual({ already: false });
     const [path, body] = vi.mocked(apiClient.put).mock.calls[0]!;
     expect(path).toBe("/agents/a1/draft");
+    expect(body).toEqual(expect.objectContaining({ expected_revision: "base" }));
     expect((body as { spec: AgentSpec }).spec.skill_ids).toEqual(["s1"]);
   });
 
@@ -1220,5 +1402,40 @@ describe("useAddToAgent", () => {
       result.current.mutateAsync({ agentId: "a1", resource: { kind: "skill", id: "s1" } }),
     ).rejects.toThrow();
     await waitFor(() => expect(toast.error).toHaveBeenCalled());
+  });
+});
+
+describe("useDraftBase", () => {
+  it("reads the latest published version with its spec, whatever production runs", async () => {
+    vi.mocked(apiClient.get).mockImplementation(async (url: string) =>
+      url === "/agents/a1/versions"
+        ? {
+            items: [
+              { id: "v2", version: 2 },
+              { id: "v1", version: 1 },
+            ],
+            total: 2,
+          }
+        : { id: "v2", version: 2, spec: SPEC },
+    );
+
+    const { result } = renderHook(() => useDraftBase("a1"), { wrapper });
+    await waitFor(() => expect(result.current.base?.version).toBe(2));
+
+    expect(apiClient.get).toHaveBeenCalledWith("/agents/a1/versions", {
+      params: { skip: "0", limit: "1" },
+    });
+    expect(apiClient.get).toHaveBeenCalledWith("/agents/a1/versions/v2");
+  });
+
+  it("has no base for an agent never published", async () => {
+    vi.mocked(apiClient.get).mockReset().mockResolvedValue({ items: [], total: 0 });
+
+    const { result } = renderHook(() => useDraftBase("a1"), { wrapper });
+    await waitFor(() => expect(apiClient.get).toHaveBeenCalled());
+
+    expect(result.current.base).toBeUndefined();
+    const urls = vi.mocked(apiClient.get).mock.calls.map(([url]) => url);
+    expect(urls.filter((url) => url.startsWith("/agents/a1/versions/"))).toEqual([]);
   });
 });

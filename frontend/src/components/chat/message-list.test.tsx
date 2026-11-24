@@ -3,10 +3,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   MessageList,
+  askedBefore,
   coalesceActivity,
   continuesTurn,
   endsTurn,
-  lastToolTurnIndex,
   layoutMessages,
 } from "./message-list";
 import type { ChatMessage } from "@/types";
@@ -84,6 +84,50 @@ function message(overrides: Partial<ChatMessage> = {}): ChatMessage {
 }
 
 const rendered = (id: string) => state.rendered.find((entry) => entry.id === id);
+
+it("keeps local and saved identities for every merged segment without duplicate anchors", () => {
+  const merged = coalesceActivity([
+    message({ id: "local-a", persistedId: "saved-a", runId: "run" }),
+    message({ id: "local-b", persistedId: "saved-b", runId: "run" }),
+    message({ id: "local-c", runId: "run" }),
+  ]);
+  expect(merged).toHaveLength(1);
+  expect(merged[0]?.coalescedMessageIds).toEqual([
+    "local-a",
+    "saved-a",
+    "local-b",
+    "saved-b",
+    "local-c",
+  ]);
+});
+
+it("keeps each quoted part tied to its saved source across repeated coalescing", () => {
+  const merged = coalesceActivity([
+    message({
+      id: "local-a",
+      persistedId: "saved-a",
+      isTemporaryId: true,
+      content: "First saved part",
+      runId: "run",
+    }),
+    message({ id: "unsaved", isTemporaryId: true, content: "Still unsaved", runId: "run" }),
+    message({ id: "saved-b", content: "Second saved part", runId: "run" }),
+  ]);
+
+  expect(merged).toHaveLength(1);
+  expect(
+    merged[0]?.parts
+      ?.filter((part) => part.type === "text")
+      .map((part) => ({
+        content: part.content,
+        sourceMessageId: part.sourceMessageId,
+      })),
+  ).toEqual([
+    { content: "First saved part", sourceMessageId: "saved-a" },
+    { content: "Still unsaved", sourceMessageId: null },
+    { content: "Second saved part", sourceMessageId: "saved-b" },
+  ]);
+});
 
 const TOOL = {
   id: "tc-1",
@@ -269,7 +313,7 @@ describe("the transcript", () => {
     expect(rendered("m-3")?.groupPosition).toBe("last");
   });
 
-  it("opens the last step of the last turn that used a tool, not of the last turn", async () => {
+  it("keeps diagnostic steps closed when the conversation is reopened", () => {
     // The case this got wrong: an agent writes a file and then answers about it in
     // prose. Anchoring on "the newest assistant message" left the file it had just
     // written folded away, which is the one thing somebody reopening the chat wants.
@@ -282,7 +326,7 @@ describe("the transcript", () => {
       />,
     );
 
-    expect(rendered("wrote")?.openLastStep).toBe(true);
+    expect(rendered("wrote")?.openLastStep).toBe(false);
     expect(rendered("spoke")?.openLastStep).toBe(false);
   });
 
@@ -290,44 +334,6 @@ describe("the transcript", () => {
     render(<MessageList messages={[message({ id: "a" }), message({ id: "b" })]} />);
 
     expect(state.rendered.every((entry) => !entry.openLastStep)).toBe(true);
-  });
-});
-
-/**
- * Which turn's work stays open.
- *
- * Its own function because the answer depends on the messages around a message, and
- * the awkward cases are all off-screen: a tool turn followed by prose, a user message
- * after both, and a transcript with no tool call in it at all.
- */
-describe("the last turn that used a tool", () => {
-  it("finds the most recent one, past anything said after it", () => {
-    const messages = [
-      message({ id: "a", parts: [{ id: "p1", type: "tool", toolCall: TOOL }] }),
-      message({ id: "b", parts: [{ id: "p2", type: "tool", toolCall: TOOL }] }),
-      message({ id: "c", content: "prose" }),
-      message({ id: "d", role: "user", content: "thanks" }),
-    ];
-
-    expect(lastToolTurnIndex(messages)).toBe(1);
-  });
-
-  it("counts a legacy message that carries its calls beside its parts", () => {
-    // Messages written before parts existed keep them on `toolCalls`.
-    expect(lastToolTurnIndex([message({ id: "a", toolCalls: [TOOL] })])).toBe(0);
-  });
-
-  it("answers -1 when nothing used a tool", () => {
-    expect(lastToolTurnIndex([message({ id: "a" })])).toBe(-1);
-    expect(lastToolTurnIndex([])).toBe(-1);
-  });
-
-  it("never answers with a user message, whatever it carries", () => {
-    const messages = [
-      message({ id: "u", role: "user", parts: [{ id: "p", type: "tool", toolCall: TOOL }] }),
-    ];
-
-    expect(lastToolTurnIndex(messages)).toBe(-1);
   });
 });
 
@@ -514,6 +520,26 @@ describe("where the transcript crosses into another day", () => {
   });
 });
 
+describe("askedBefore", () => {
+  it("finds the question an answer replied to, and whether a conversation came before it", () => {
+    const messages = [
+      message({ id: "u1", role: "user", content: "Do you gift wrap?" }),
+      message({ id: "a1" }),
+      message({ id: "u2", role: "user", content: "How long do refunds take?" }),
+      message({ id: "a2" }),
+      message({ id: "a3" }),
+    ];
+
+    expect(askedBefore(messages, 1)).toEqual({ question: "Do you gift wrap?", earlier: false });
+    expect(askedBefore(messages, 4)).toEqual({
+      question: "How long do refunds take?",
+      earlier: true,
+    });
+    expect(askedBefore(messages, 2)).toBeUndefined();
+    expect(askedBefore([message()], 0)).toBeUndefined();
+  });
+});
+
 describe("a console link an agent wrote", () => {
   it("opens the page in the console and points at the control it names", async () => {
     const { container } = render(<MessageList messages={[message({ id: "m-1" })]} />);
@@ -629,6 +655,7 @@ describe("chronological run segments", () => {
     expect(result[0]?.content).toBe("Finished.");
     expect(result[0]?.renderKey).toBe("segment-1");
     expect(result[0]?.id).toBe("segment-3");
+    expect(result[0]?.coalescedMessageIds).toEqual(["segment-1", "segment-2", "segment-3"]);
     expect(first.toolCalls).toEqual([task]);
   });
   it("retains intermediate prose inside its run and separates different runs", () => {
@@ -688,4 +715,15 @@ it("does not combine another agent or cross a user reply", () => {
     user,
     next,
   ]);
+});
+
+it("retains acknowledged tool results while coalescing a delayed opening segment", () => {
+  const completed = { ...TOOL, status: "completed" as const, result: "confirmed" };
+  const late = { ...TOOL, status: "pending" as const, result: undefined };
+  const [combined] = coalesceActivity([
+    message({ id: "a", runId: "r", toolCalls: [completed] }),
+    message({ id: "b", runId: "r", toolCalls: [late] }),
+  ]);
+  expect(combined?.toolCalls).toEqual([completed]);
+  expect(combined?.parts?.find((part) => part.type === "tool")?.toolCall).toEqual(completed);
 });

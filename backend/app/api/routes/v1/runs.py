@@ -15,24 +15,35 @@ from app.api.deps import (
     ApprovalSvc,
     Auth,
     ConversationSvc,
+    EvalRunSvc,
     ParkedRunSvc,
     RunExportSvc,
+    SkillSvc,
     require,
 )
 from app.api.public_api import INTERNAL, PUBLIC
 from app.api.responses import csv_response
 from app.api.routes.v1._chat_file_bytes import chat_file_response
 from app.api.routes.v1._run_results import run_result
+from app.core.exceptions import AuthorizationError
 from app.core.permissions import Perm
 from app.db.models.agent_run import (
     ApprovalStatus,
     RunOrder,
     RunRating,
+    RunSource,
     RunStatus,
     RunSurface,
 )
 from app.repositories.agent_run import ApprovalFilters, RunFilters
-from app.schemas.agent import AgentRunResult, ParkedCall, ParkedQuestion, QuestionAnswers
+from app.schemas.agent import (
+    AgentRunResult,
+    ParkedCall,
+    ParkedQuestion,
+    QuestionAnswers,
+    SecretRequestFulfil,
+    SecretRequestRead,
+)
 from app.schemas.agent_run import (
     AgentRunList,
     AgentRunRead,
@@ -51,7 +62,10 @@ from app.schemas.agent_run import (
 )
 from app.schemas.conversation import MessageList
 from app.schemas.run_manifest import RunManifestRead
+from app.services.approval_authority import may_decide_approval
+from app.services.approvals import withhold
 from app.services.channels.handback import continues_in_chat
+from app.services.parked_runs import waiting_update
 
 router = APIRouter(dependencies=[PUBLIC])
 
@@ -59,6 +73,7 @@ router = APIRouter(dependencies=[PUBLIC])
 @router.get("/runs", response_model=AgentRunList, dependencies=[Depends(require(Perm.RUNS_VIEW))])
 async def list_runs(
     service: AgentRunnerSvc,
+    evals: EvalRunSvc,
     ctx: Auth,
     agent_id: UUID | None = Query(None),
     status: str | None = Query(
@@ -71,6 +86,9 @@ async def list_runs(
         False, description="Include delegated runs - what one agent itself did"
     ),
     surface: RunSurface | None = Query(None, description="Where the run came from"),
+    exclude_surface: RunSurface | None = Query(
+        None, description="Leave out runs from this surface - the eval traffic, say"
+    ),
     user_id: UUID | None = Query(None, description="Who the run ran as"),
     conversation_id: UUID | None = Query(
         None,
@@ -97,6 +115,14 @@ async def list_runs(
     modality: Literal["text", "voice"] | None = Query(None, description="Text runs or voice calls"),
     test: bool | None = Query(
         None, description="Only runs from the Builder's test panel, or only the rest"
+    ),
+    source: RunSource | None = Query(
+        None,
+        description=(
+            "Conversations, the organization's agents answering evals, or the "
+            "platform's own agents at work - the judge, the assistant, the "
+            "knowledge-gap and case helpers"
+        ),
     ),
     order_by: RunOrder = Query(
         RunOrder.STARTED_AT, description="Sort by start time, duration, cost or tokens"
@@ -150,6 +176,7 @@ async def list_runs(
         filters=RunFilters(
             statuses=RunStatus.parse_csv(status),
             surface=None if surface is None else surface.value,
+            exclude_surface=None if exclude_surface is None else exclude_surface.value,
             user_id=user_id,
             conversation_id=conversation_id,
             model_label=model_label,
@@ -162,6 +189,7 @@ async def list_runs(
             modality=modality,
             one_row_per_call=True,
             is_test=test,
+            source=source,
         ),
         order_by=order_by,
         descending=descending,
@@ -171,11 +199,33 @@ async def list_runs(
     down_rated = (
         await service.down_rated_run_ids(ctx, [run.id for run in items]) if items else set()
     )
+    # An eval run's answer keeps no conversation to preview; its case's question is it.
+    evaluated = [run.id for run in items if run.surface == RunSurface.EVAL.value]
+    links = await evals.case_links(ctx, evaluated)
+    origins = await service.origins(ctx, evaluated)
+    previews = await service.previews(
+        [run.id for run in items],
+        questions={run_id: link.case_input for run_id, link in links.items()},
+    )
     chains = await service.voice_chains(ctx, [run.id for run in items if run.modality == "voice"])
+    channel_runs = [
+        run.id
+        for run in items
+        if run.initiated_by_publisher_fallback and run.channel_identity_id is not None
+    ]
+    askers = await service.run_chat_askers(ctx, channel_runs) if channel_runs else {}
     return AgentRunList(
         items=[
             AgentRunRead.model_validate(run).model_copy(
-                update={"down_rated": run.id in down_rated, "voice_chain": chains.get(run.id)}
+                update={
+                    "down_rated": run.id in down_rated,
+                    "voice_chain": chains.get(run.id),
+                    **waiting_update(run),
+                    "asked_in_chat": askers.get(run.id),
+                    "eval_case": links.get(run.id),
+                    "origin": origins.get(run.id),
+                    "preview": previews.get(run.id),
+                }
             )
             for run in items
         ],
@@ -198,6 +248,7 @@ async def export_runs(
     parent_run_id: UUID | None = Query(None),
     include_delegations: bool = Query(False),
     surface: RunSurface | None = Query(None),
+    exclude_surface: RunSurface | None = Query(None),
     user_id: UUID | None = Query(None),
     model_label: str | None = Query(None, max_length=255),
     environment_id: UUID | None = Query(None),
@@ -208,6 +259,7 @@ async def export_runs(
         None, description="Text runs or voice calls. Every run of a call is exported"
     ),
     test: bool | None = Query(None),
+    source: RunSource | None = Query(None),
 ) -> Any:
     """Run history as CSV, over exactly the rows `GET /runs` would list.
 
@@ -226,6 +278,7 @@ async def export_runs(
         filters=RunFilters(
             statuses=RunStatus.parse_csv(status),
             surface=None if surface is None else surface.value,
+            exclude_surface=None if exclude_surface is None else exclude_surface.value,
             user_id=user_id,
             model_label=model_label,
             started_from=started_from,
@@ -238,33 +291,58 @@ async def export_runs(
             # file has to add up to the bill (#54).
             modality=modality,
             is_test=test,
+            source=source,
         ),
     )
     return csv_response(result)
 
 
-@router.get(
-    "/runs/{run_id}", response_model=AgentRunRead, dependencies=[Depends(require(Perm.RUNS_VIEW))]
-)
-async def get_run(run_id: UUID, service: AgentRunnerSvc, ctx: Auth) -> Any:
+@router.get("/runs/{run_id}", response_model=AgentRunRead)
+async def get_run(
+    run_id: UUID, service: AgentRunnerSvc, evals: EvalRunSvc, skills: SkillSvc, ctx: Auth
+) -> Any:
     """One run, its trace link, and its neighbours in its conversation.
 
     `logfire_url` is on this read and not on the list: resolving it needs the
     version's stored spec, because an agent may redirect its traces to a client's
     own Logfire project, and fifty rows have no use for fifty trace links.
     `prev_run_id`/`next_run_id` ride here for the same reason - a detail view
-    walks to its neighbours, a list already is the neighbours.
+    walks to its neighbours, a list already is the neighbours. `eval_case` names
+    the eval run and the case an eval run's answer belongs to, which is where its
+    answer and grade are read - such a run keeps no conversation. `skills_used`
+    names the skills it opened or read, at the version each was served.
+
+    No `require(...)` gate, on purpose: `runs:view` opens any run, and the person
+    who started a run opens that one without it - the link in an expired-approval
+    notice. The service decides, and a reader without `runs:view` gets neither the
+    trace link nor the neighbouring runs, which are other runs' ids.
     """
-    run = await service.get_run(ctx, run_id)
+    run = await service.read_run(ctx, run_id)
+    reads_all = ctx.has(Perm.RUNS_VIEW)
+    evaluated = run.surface == RunSurface.EVAL.value
+    eval_case = await evals.case_link(ctx, run.id) if evaluated else None
+    origin = (await service.origins(ctx, [run.id])).get(run.id) if evaluated else None
     down_rated = await service.down_rated_run_ids(ctx, [run.id])
-    prev_run_id, next_run_id = await service.neighbor_run_ids(ctx, run)
+    prev_run_id, next_run_id = (
+        await service.neighbor_run_ids(ctx, run) if reads_all else (None, None)
+    )
+    askers = (
+        await service.run_chat_askers(ctx, [run.id])
+        if run.initiated_by_publisher_fallback and run.channel_identity_id is not None
+        else {}
+    )
     return AgentRunRead.model_validate(run).model_copy(
         update={
-            "logfire_url": await service.trace_url(ctx, run),
+            "asked_in_chat": askers.get(run.id),
+            "logfire_url": await service.trace_url(ctx, run) if reads_all else None,
             "down_rated": run.id in down_rated,
             "prev_run_id": prev_run_id,
             "next_run_id": next_run_id,
+            "eval_case": eval_case,
+            "origin": origin,
+            "skills_used": await skills.used_in_run(ctx, run.id),
             "continues_in_chat": continues_in_chat(run, ctx),
+            **waiting_update(run),
         }
     )
 
@@ -284,6 +362,10 @@ async def get_run_transcript(
             "still tell which ones are this run's"
         ),
     ),
+    for_model: bool = Query(
+        False,
+        description="Omit guardrail-refused turns before pagination and quoted reply excerpts",
+    ),
 ) -> Any:
     """The turns one run produced, for a run detail view to render as steps.
 
@@ -296,7 +378,8 @@ async def get_run_transcript(
 
     No `require(...)` gate, on purpose: reading a run is authorized rather than
     owned, so the decision belongs to the service, which resolves the run against
-    the caller's organization and then checks `runs:view`. A run in another tenant
+    the caller's organization and then checks `runs:view` - or that the caller
+    started the run, which a member without `runs:view` may read. A run in another tenant
     reads as absent - the same 404 an id that never existed answers with - so the
     response cannot be used to discover that a run exists. The conversation
     endpoint one route over stays owner-scoped; this does not widen it.
@@ -306,14 +389,21 @@ async def get_run_transcript(
     that reads as "the run did nothing".
     """
     run, messages, total = await service.get_run_transcript(
-        ctx, run_id, skip=skip, limit=limit, whole_conversation=scope == "conversation"
+        ctx,
+        run_id,
+        skip=skip,
+        limit=limit,
+        whole_conversation=scope == "conversation",
+        for_model=for_model,
     )
     ratings = await service.transcript_ratings(ctx, [m.id for m in messages])
     return RunTranscript(
         run_id=run.id,
         conversation_id=run.conversation_id,
         items=[
-            RunTranscriptMessage.model_validate(m).model_copy(update=ratings[m.id])
+            RunTranscriptMessage.model_validate(m).model_copy(
+                update={**ratings[m.id], **({"reply_to": None} if for_model else {})}
+            )
             for m in messages
         ],
         total=total,
@@ -331,6 +421,9 @@ async def get_conversation_transcript(
     ctx: Auth,
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=500),
+    for_model: bool = Query(
+        False, description="Omit guardrail-refused turns and quoted reply excerpts"
+    ),
 ) -> Any:
     """One of the caller's own conversations, turn by turn (#2122).
 
@@ -348,6 +441,7 @@ async def get_conversation_transcript(
         organization_id=ctx.organization_id,
         user_id=ctx.subject_id,
         ctx=ctx,
+        for_model=for_model,
     )
     return MessageList(items=items, total=total, cost=cost)  # ty: ignore[invalid-argument-type]
 
@@ -427,9 +521,17 @@ async def get_parked_calls(run_id: UUID, service: AgentRunnerSvc, ctx: Auth) -> 
     were all decided and which is now waiting to be resumed.
 
     Gated on `approvals:decide` like the resume and the queue, because the rows
-    are offered here to be decided.
+    are offered here to be decided - and narrowed to what the caller may
+    decide: a privileged decider reads any run's calls, anybody else only
+    their own run's, from a signed-in session. A colleague's parked run reads
+    as a refusal, not as an empty list.
     """
     run = await service.get_run(ctx, run_id)
+    if not may_decide_approval(ctx, run):
+        raise AuthorizationError(
+            message="Only the person who started this run, or somebody who may decide approvals, may read its parked calls",
+            details={"run_id": str(run_id)},
+        )
     return await service.parked_calls(ctx, run)
 
 
@@ -478,15 +580,37 @@ async def cancel_parked_run(run_id: UUID, service: AgentRunnerSvc, ctx: Auth) ->
     return await service.cancel_parked(ctx, run_id)
 
 
+@router.post("/runs/{run_id}/retry", response_model=AgentRunResult)
+async def retry_run(run_id: UUID, service: AgentRunnerSvc, ctx: Auth) -> Any:
+    """Run a finished run's request again, as a new run linked to it.
+
+    The original row is never mutated or re-executed: the answer comes from a
+    fresh run whose `parent_run_id` names the original, so the attempt it
+    replaced is still there to be read. Only the person who started the run
+    may retry it, from a signed-in session; a run that has not finished, has
+    no conversation, or has no user turn of its own is refused rather than
+    guessed at. A run that parks on an approval reports it in `parked`.
+
+    No `require(...)` gate, like the single-run read: the starter's own run is
+    open to them without `runs:view`, and the service refuses everybody else.
+    """
+    return await service.retry_run(ctx, run_id)
+
+
 @router.get("/runs/{run_id}/questions", response_model=list[ParkedQuestion])
-async def get_parked_questions(run_id: UUID, service: AgentRunnerSvc, ctx: Auth) -> Any:
+async def get_parked_questions(
+    run_id: UUID, service: AgentRunnerSvc, ctx: Auth, conversation_id: UUID | None = None
+) -> Any:
     """The questions this run is waiting on you to answer (#2064).
 
     A run whose agent asked something you left unanswered parks, and reopening the
     conversation is where the card comes back - the frame that carried it live
     went with the page. Empty unless the run is waiting on *your* answer.
+    A conversation deep link can require the run to belong to that conversation.
     """
     run = await service.get_run(ctx, run_id)
+    if conversation_id is not None and run.conversation_id != conversation_id:
+        return []
     return await service.parked_questions(ctx, run)
 
 
@@ -500,11 +624,66 @@ async def answer_run(
     resume, and its answer comes back in the response. On a run asked in a chat the
     answer is also posted to that chat (`continues_in_chat`), unless the room no
     longer admits the asker or the chat has started over.
+
+    For a workflow agent step, answers are saved and its owning workflow step
+    is queued instead. The workflow worker resumes the same agent conversation
+    under its current budget; this request does not run the model.
     """
     continued = await parked.answer(ctx, run_id, data.responses)
     return await run_result(
         service, ctx, continued.segment, continues_in_chat=continued.continues_in_chat
     )
+
+
+@router.get("/runs/{run_id}/secret-requests", response_model=list[SecretRequestRead])
+async def get_secret_requests(run_id: UUID, parked: ParkedRunSvc, ctx: Auth) -> Any:
+    """The secrets this run is waiting on you to provide (#13).
+
+    Empty unless the run is waiting on *your* answer. The values are never
+    part of the answer: fulfil seals one from the card, and this read
+    carries only the name and what it is for.
+    """
+    return await parked.secrets.list_for_run(ctx, run_id)
+
+
+@router.post("/runs/{run_id}/secret-requests/{request_id}/fulfil", response_model=AgentRunResult)
+async def fulfil_secret_request(
+    run_id: UUID,
+    request_id: UUID,
+    data: SecretRequestFulfil,
+    service: AgentRunnerSvc,
+    parked: ParkedRunSvc,
+    ctx: Auth,
+) -> Any:
+    """Provide the secret a run asked for, and continue it (#13).
+
+    The value is sealed into the vault from this call and never stored,
+    returned or logged. Only the person the run asked may provide it. The
+    run resumes once every secret it parked on is in; until then the answer
+    comes back with the run still parked and the remaining cards still up.
+    On a run asked in a chat the continuation is also posted to that chat
+    (`continues_in_chat`).
+    """
+    continued = await parked.fulfil_secret_request(ctx, run_id, request_id, value=data.value)
+    return await run_result(
+        service, ctx, continued.segment, continues_in_chat=continued.continues_in_chat
+    )
+
+
+@router.post(
+    "/runs/{run_id}/secret-requests/{request_id}/decline",
+    response_model=SecretRequestRead,
+)
+async def decline_secret_request(
+    run_id: UUID, request_id: UUID, parked: ParkedRunSvc, ctx: Auth
+) -> Any:
+    """Decline to provide the secret a run asked for (#13).
+
+    Only the person the run asked may decline. The run ends failed, with
+    the refusal as its error, rather than resuming to a model that would
+    ask again.
+    """
+    return await parked.decline_secret_request(ctx, run_id, request_id)
 
 
 @router.get(
@@ -522,6 +701,9 @@ async def list_approvals(
     created_from: datetime | None = Query(None, description="Parked at or after this instant"),
     created_to: datetime | None = Query(None, description="Parked at or before this instant"),
     oldest_first: bool = Query(True, description="The queue drains from the top"),
+    outside_live_calls: bool = Query(
+        False, description="Leave out the calls a live voice call is deciding"
+    ),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
 ) -> Any:
@@ -536,6 +718,10 @@ async def list_approvals(
     Oldest first by default, and the default is load-bearing. Nothing expires a
     parked call, so the oldest row can be from months ago; a newest-first queue
     would bury exactly the row somebody needs to see.
+
+    A caller holding `approvals:decide` only at `OWN` sees their own runs'
+    approvals here: the queue is the organization's, but the scope answers
+    which rows of it are theirs.
     """
     items, total = await service.list_approvals(
         ctx,
@@ -544,6 +730,7 @@ async def list_approvals(
             triggered_by_user_id=triggered_by_user_id,
             created_from=created_from,
             created_to=created_to,
+            outside_live_calls=outside_live_calls,
         ),
         oldest_first=oldest_first,
         skip=skip,
@@ -568,9 +755,10 @@ async def export_approvals(
 ) -> Any:
     """The approvals record as CSV, over exactly the rows `GET /approvals` lists.
 
-    Gated on `approvals:decide` like the list route - organization-wide, so no
-    `Scope.OWN` floor - with the same mandatory-range and row-cap rules the runs
-    export has. Absent `status`, the pending queue; asking for `approved` and
+    Gated on `approvals:decide` like the list route, with the same mandatory-range
+    and row-cap rules the runs export has - and the same `OWN` floor: a caller
+    holding the permission only at `OWN` exports their own runs' rows, not the
+    organization's. Absent `status`, the pending queue; asking for `approved` and
     `rejected` is the decided record, decider and note included.
     """
     result = await service.export_approvals(
@@ -589,12 +777,17 @@ async def export_approvals(
 @router.post(
     "/approvals/{approval_id}",
     response_model=ApprovalRead,
-    dependencies=[Depends(require(Perm.APPROVALS_DECIDE))],
 )
 async def decide_approval(
     approval_id: UUID, data: ApprovalDecision, service: ParkedRunSvc, ctx: Auth
 ) -> Any:
     """Approve or reject a parked tool call. A decision cannot be revisited.
+
+    No route gate: this is a per-resource route, and a role cannot see which
+    run the row belongs to. The service enforces it - a privileged decider
+    may decide any run, anybody else only a run they started, from a
+    signed-in web/chat session - so a member deciding their own run reaches
+    this endpoint and a colleague's does not.
 
     On a run asked in a chat, a person's decision on its last pending call makes
     the server continue the run as them and post the answer to the chat. A decision
@@ -609,8 +802,15 @@ async def decide_approval(
         note=data.note,
         **({"remember_scope": data.remember_scope} if data.remember_scope else {}),
     )
-    return ApprovalRead.model_validate(decided.approval).model_copy(
-        update={"continues_in_chat": decided.continues_in_chat}
+    read = ApprovalRead.model_validate(decided.approval)
+    tool_args, context = withhold(decided.hidden, tool_args=read.tool_args, context=read.context)
+    return read.model_copy(
+        update={
+            "continues_in_chat": decided.continues_in_chat,
+            "tool_args": tool_args,
+            "context": context,
+            "content_hidden": bool(decided.hidden),
+        }
     )
 
 

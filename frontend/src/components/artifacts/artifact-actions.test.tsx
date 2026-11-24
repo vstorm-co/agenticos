@@ -1,7 +1,17 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, fireEvent, render, renderHook, screen } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render as rtlRender,
+  renderHook,
+  screen,
+  type RenderOptions,
+} from "@testing-library/react";
+import { NextIntlClientProvider } from "next-intl";
+import type { ReactElement, ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import messages from "../../../messages/en.json";
 import { ArtifactFrame, ArtifactFrameView, type DataBridge } from "./artifact-frame";
 import { ArtifactThumbnail } from "./artifact-thumbnail";
 import { PublicArtifact } from "./public-artifact";
@@ -9,6 +19,23 @@ import { MAX_CANCELS, useArtifactActions, useAskingGate } from "@/hooks/use-arti
 import { apiClient } from "@/lib/api-client";
 import { ApiError } from "@/lib/api-error";
 import type { ArtifactActionRun, ArtifactActionView, ArtifactVersion } from "@/types/artifact";
+
+/**
+ * The intl provider the root layout mounts above every page. The frame and the
+ * thumbnail translate, and a component that translates throws without it. The
+ * zone is pinned so a date reads the same on every machine.
+ */
+function IntlProvider({ children }: { children: ReactNode }) {
+  return (
+    <NextIntlClientProvider locale="en" messages={messages} timeZone="UTC">
+      {children}
+    </NextIntlClientProvider>
+  );
+}
+
+function render(ui: ReactElement, options?: RenderOptions) {
+  return rtlRender(ui, { wrapper: IntlProvider, ...options });
+}
 
 /**
  * What the console does when a page asks to run a workflow (#1976).
@@ -32,6 +59,7 @@ const IDLE_READ = {
 };
 const useArtifactReasonsMock = vi.fn().mockReturnValue(IDLE_READ);
 vi.mock("@/hooks/use-artifacts", () => ({
+  useArtifactThumbnail: () => ({ data: { state: "unavailable", image: null }, isPending: false }),
   useArtifactView: (...args: unknown[]) => useArtifactViewMock(...args),
   useArtifactData: (...args: unknown[]) => useArtifactDataMock(...args),
   useArtifactReasons: (...args: unknown[]) => useArtifactReasonsMock(...args),
@@ -119,6 +147,22 @@ function page(node: React.ReactElement = FRAME, loaded = true) {
   const sent = () => post.mock.calls.map(([message]) => message as Record<string, unknown>);
   const rejected = () => sent().filter((message) => message.event === "rejected");
   return { ...view, frame, post, sent, rejected };
+}
+
+/**
+ * A new nonce is a new document, so the console remounts the frame: the element a
+ * test held, and the window it spied on, are gone. Re-reads the frame after the
+ * rerender and spies on the window the console posts to from here on.
+ */
+function reframe(rerender: (ui: ReactElement) => void) {
+  rerender(wrapped(FRAME));
+  const frame = screen.getByTitle("Q3 page") as HTMLIFrameElement;
+  const post = vi.spyOn(frame.contentWindow!, "postMessage").mockImplementation(() => {});
+  const rejected = () =>
+    post.mock.calls
+      .map(([message]) => message as Record<string, unknown>)
+      .filter((message) => message.event === "rejected");
+  return { frame, rejected };
 }
 
 function ask(frame: HTMLIFrameElement, data: unknown, source: unknown = frame.contentWindow) {
@@ -264,11 +308,9 @@ describe("a page asking the console to run an action", () => {
       vi.stubGlobal("ResizeObserver", undefined);
       useArtifactViewMock.mockReturnValue({ ...viewOf(), isError: false });
       const { container } = render(<ArtifactThumbnail artifactId="a1" title="Q3 page" />);
-      const frame = container.querySelector("iframe")!;
-      const post = vi.spyOn(frame.contentWindow!, "postMessage").mockImplementation(() => {});
-      ask(frame, REQUEST);
+      expect(container.querySelector("iframe")).toBeNull();
+      fireEvent(window, new MessageEvent("message", { data: REQUEST, source: window }));
       expect(dialog()).toBeNull();
-      expect(post).not.toHaveBeenCalled();
       vi.unstubAllGlobals();
     });
   });
@@ -476,9 +518,9 @@ describe("a page asking the console to run an action", () => {
       expect(rejected().at(-1)).toMatchObject({ id: "late", reason: "too_many_cancels" });
 
       useArtifactViewMock.mockReturnValue(viewOf({ nonce: "n2" }));
-      rerender(wrapped(FRAME));
-      fireEvent.load(frame);
-      ask(frame, { ...REQUEST, n: "n2", id: "fresh" });
+      const next = reframe(rerender);
+      fireEvent.load(next.frame);
+      ask(next.frame, { ...REQUEST, n: "n2", id: "fresh" });
       expect(dialog()).not.toBeNull();
     });
 
@@ -493,11 +535,11 @@ describe("a page asking the console to run an action", () => {
     });
 
     it("is not ready again for a new nonce until that load", () => {
-      const { frame, rejected, rerender } = page();
+      const { rerender } = page();
       useArtifactViewMock.mockReturnValue(viewOf({ nonce: "n2" }));
-      rerender(wrapped(FRAME));
-      ask(frame, { ...REQUEST, n: "n2" });
-      expect(rejected()).toEqual([expect.objectContaining({ reason: "not_ready", n: "n2" })]);
+      const next = reframe(rerender);
+      ask(next.frame, { ...REQUEST, n: "n2" });
+      expect(next.rejected()).toEqual([expect.objectContaining({ reason: "not_ready", n: "n2" })]);
     });
 
     it("asks about a link or a run, never both: a run is busy while a link is read", () => {
@@ -532,15 +574,21 @@ describe("a page asking the console to run an action", () => {
       expect(rejected()).toEqual([]);
     });
 
-    it("ends the dialog when another version is served", () => {
-      const { frame, rejected, rerender } = page();
+    it("ends the dialog when another version is served", async () => {
+      const { frame, rerender } = page();
       ask(frame, REQUEST);
       useArtifactViewMock.mockReturnValue(
         viewOf({ nonce: "n2", version: { id: "v2" } as ArtifactVersion }),
       );
       rerender(wrapped(FRAME));
       expect(dialog()).toBeNull();
-      expect(rejected()).toEqual([expect.objectContaining({ n: "n1", reason: "page_changed" })]);
+      // The refusal is posted in the commit that remounts the frame, so it reaches the
+      // new window. jsdom delivers a post as a later message event: listen there.
+      const posted: unknown[] = [];
+      const next = screen.getByTitle("Q3 page") as HTMLIFrameElement;
+      next.contentWindow!.addEventListener("message", (event) => posted.push(event.data));
+      await advance(0);
+      expect(posted).toEqual([expect.objectContaining({ n: "n1", reason: "page_changed" })]);
     });
 
     it("ends the dialog when the page is closed", () => {
