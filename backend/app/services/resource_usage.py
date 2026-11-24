@@ -165,7 +165,7 @@ async def agents_using_skill(
         if environment.agent_id not in using and _binds_skill(version.spec, skill_id):
             using.add(environment.agent_id)
     for agent in await agent_repo.drafts_mentioning(
-        db, str(skill_id), organization_id=organization_id
+        db, [str(skill_id)], organization_id=organization_id
     ):
         if agent.id not in using and _binds_skill(agent.draft_spec, skill_id):
             using.add(agent.id)
