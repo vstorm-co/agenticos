@@ -18,7 +18,7 @@ test.describe("Sidebar pins", () => {
     const sidebar = page.getByRole("navigation", { name: "Primary" });
     const more = page.getByRole("dialog", { name: "More" });
     const openMore = async () => {
-      await sidebar.getByRole("button", { name: "More", exact: true }).click();
+      await sidebar.getByRole("button", { name: /^More\b/ }).click();
       await expect(more).toBeVisible();
     };
     const closeMore = async () => {
