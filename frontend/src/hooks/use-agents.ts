@@ -305,7 +305,10 @@ export function useAgents({
   const remove = useMutation({
     mutationFn: (id: string) => apiClient.delete<void>(`/agents/${id}`),
     onSuccess: async () => {
-      await invalidate();
+      await Promise.all([
+        invalidate(),
+        queryClient.invalidateQueries({ queryKey: qk.eventSources.usage() }),
+      ]);
       toast.success(t("deleted"));
     },
     onError: (error) => toast.error(getErrorMessage(error, tErrors)),

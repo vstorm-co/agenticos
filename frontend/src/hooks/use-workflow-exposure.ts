@@ -43,7 +43,9 @@ export function useWorkflowExposure(
     mutationFn: ({ id, active }: { id: string; active: boolean }) =>
       updateWorkflowExposure(workflowId, id, { is_active: active }),
     onSuccess: (exposure) => {
-      refresh();
+      if (exposure.source_id) {
+        void queryClient.invalidateQueries({ queryKey: qk.eventSources.usage(exposure.source_id) });
+      }
       // The editor's Active switch and the list's card read the same state.
       void queryClient.invalidateQueries({ queryKey: qk.workflows.detail(workflowId) });
       void queryClient.invalidateQueries({ queryKey: qk.workflows.list() });
