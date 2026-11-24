@@ -11500,11 +11500,11 @@
     "quickAdd": "Een stap toevoegen na {name} ({port})",
     "stepApprovalDecided": "{known, select, no {{status, select, approved {Goedgekeurd} other {Afgewezen}}} other {{status, select, approved {Goedgekeurd door {name}} other {Afgewezen door {name}}}}} · {time}",
     "stepApprovalUndecided": "{status, select, expired {Verlopen: niemand besliste op tijd} cancelled {Geannuleerd met zijn run} other {Wacht op een beslissing}}",
-    "quickAddWired": "Een stap of een vertakking toevoegen na {name} ({port})",
+    "quickAddWired": "Een stap of een tak toevoegen na {name} ({port})",
     "quickAddPlacement": "Waar de nieuwe stap komt",
     "quickAddInsertBefore": "Invoegen voor {name}",
-    "quickAddBranch": "Een parallelle vertakking toevoegen",
-    "quickAddBranchBeside": "{count, plural, other {Deze uitvoer leidt al naar # stappen. De nieuwe stap draait ernaast als nog een vertakking.}}",
+    "quickAddBranch": "Een parallelle tak toevoegen",
+    "quickAddBranchBeside": "{count, plural, other {Deze uitvoer leidt al naar # stappen. De nieuwe stap draait ernaast als nog een tak.}}",
     "paletteNoMatches": "Geen nodes komen overeen met je zoekopdracht.",
     "canvasTitle": "Canvas",
     "canvasHint": "Voeg een stap toe om de workflow te starten.",
@@ -11529,30 +11529,30 @@
     "validationUnreachableNode": "Nog niet verbonden: verbind hem op het canvas na een andere stap.",
     "validationEdgeSourcePortUnknown": "Deze verbinding vertrekt via een poort die niet meer bestaat.",
     "validationEdgeTargetPortUnknown": "Deze verbinding komt aan bij een poort die niet meer bestaat.",
-    "validationEdgeIncompatible": "De twee poorten die deze verbinding koppelt, dragen verschillende vormen.",
+    "validationEdgeIncompatible": "De twee poorten die deze verbinding koppelt, hebben een verschillende gegevensvorm.",
     "validationBindingFieldPathUnknown": "Deze waarde leest een veld dat niet bestaat op de bron.",
     "validationBindingIncompatible": "De bronwaarde past niet bij het type dat dit veld verwacht.",
     "validationBindingSelfReference": "Deze waarde leest de eigen uitvoer van de stap, die nog niet klaar is.",
     "validationBindingUnavailable": "Deze waarde leest een stap die hier niet op elk pad heeft gedraaid.",
-    "validationMergeDuplicateBranch": "Deze samenvoeging koppelt dezelfde vertakking meer dan eens.",
-    "validationMergeWaitForAll": "Meerdere vertakkingen bereiken deze samenvoeging tegelijk. Zet Wachten op op Alle vertakkingen.",
-    "validationMergeWaitForOne": "Er kan maar één vertakking tegelijk deze samenvoeging bereiken. Zet Wachten op op De vertakking die draaide.",
-    "validationMergeKeyInvalid": "Elke vertakking heeft een eigen naam nodig.",
-    "validationMergeKeyUnknown": "Deze samenvoeging heeft geen vertakking met de naam {key}.",
-    "validationMergeTogetherUncertain": "Meerdere vertakkingen bereiken deze samenvoeging tegelijk, en het is niet zeker dat {name} aankomt.",
+    "validationMergeDuplicateBranch": "Deze samenvoeging koppelt dezelfde tak meer dan eens.",
+    "validationMergeWaitForAll": "Meerdere takken bereiken deze samenvoeging tegelijk. Zet Wachten op op Alle takken.",
+    "validationMergeWaitForOne": "Er kan maar één tak tegelijk deze samenvoeging bereiken. Zet Wachten op op De tak die draaide.",
+    "validationMergeKeyInvalid": "Elke tak heeft een eigen naam nodig.",
+    "validationMergeKeyUnknown": "Deze samenvoeging heeft geen tak met de naam {key}.",
+    "validationMergeTogetherUncertain": "Meerdere takken bereiken deze samenvoeging tegelijk, en het is niet zeker dat {name} aankomt.",
     "validationMergeLegNotGuaranteed": "Het is niet zeker dat {name} deze samenvoeging bereikt telkens als hij draait.",
-    "validationErrorHandlerShared": "Twee vertakkingen die samen draaien, sturen hun fouten hierheen. Geef elke vertakking een eigen foutafhandeling.",
-    "validationErrorHandlerDefaultUnwired": "De standaardvertakking van een foutafhandeling moet ergens naartoe leiden.",
+    "validationErrorHandlerShared": "Twee takken die samen draaien, sturen hun fouten hierheen. Geef elke tak een eigen foutafhandeling.",
+    "validationErrorHandlerDefaultUnwired": "De standaardtak van een foutafhandeling moet ergens naartoe leiden.",
     "validationErrorPortUnwired": "Deze stap leidt zijn fouten om, maar zijn foutpoort leidt nergens heen.",
     "validationApprovalOutcomeUnwired": "De uitkomst {outcome} leidt nergens heen, dus de run eindigt hier als die wordt gekozen. Als dat de bedoeling is, negeer dit dan.",
     "validationBranchOutputsUnwired": "Geen van de uitkomsten van deze stap leidt ergens heen, dus de run eindigt zodra hij beslist. Als dat de bedoeling is, negeer dit dan.",
-    "warningBadge": "{count, plural, =1 {1 ding om naar te kijken} other {# dingen om naar te kijken}}",
-    "publishWarnings": "Het bekijken waard - deze houden het publiceren niet tegen:",
+    "warningBadge": "{count, plural, =1 {1 aandachtspunt} other {# aandachtspunten}}",
+    "publishWarnings": "Aandachtspunten - deze houden het publiceren niet tegen:",
     "publishWarningAt": "{step}: {warning}",
     "validationOutputsBothRun": "Deze stap Uitvoer en een andere kunnen allebei in één run draaien, en een run antwoordt één keer.",
     "validationRespondBothRun": "Deze stap Webhook beantwoorden en een andere kunnen allebei in één run draaien, en een webhook wordt één keer beantwoord.",
-    "validationSplitRoutesErrors": "Een Splitsing kan haar fouten niet omleiden. Leid die van elke vertakking zelf om.",
-    "validationMergeSettingBound": "De instelling van een Samenvoeging kan niet worden gekoppeld. Stel haar in op de Samenvoeging zelf.",
+    "validationSplitRoutesErrors": "Een Splitsen-stap kan zijn fouten niet omleiden. Leid de fouten van elke tak zelf om.",
+    "validationMergeSettingBound": "De instelling van een Samenvoegen-stap kan niet worden gekoppeld. Stel haar in op de Samenvoegen-stap zelf.",
     "validationPortNameTaken": "`{name}` is al een poort op deze stap - geef het een andere naam.",
     "validationQuickLogOutputUnknown": "`{name}` is geen uitvoer van deze stap - open het quick log en sla het opnieuw op.",
     "validationQuickLogNotHere": "Een quick log hoort op de lus zelf, niet op de item- of resultaatstap ervan.",
@@ -11561,7 +11561,7 @@
     "validationEdgeCrossesScope": "Deze verbinding gaat de inhoud van een lus in of uit.",
     "validationBindingCrossesScope": "Deze waarde gaat de inhoud van een lus in of uit.",
     "validationNodeInCycle": "Deze stap maakt deel uit van een lus terug naar een eerdere stap.",
-    "validationNodeInScopeCycle": "Deze stap lust terug naar een eerdere stap binnen de inhoud van zijn lus.",
+    "validationNodeInScopeCycle": "Deze stap gaat binnen de inhoud van zijn lus terug naar een eerdere stap.",
     "validationLoopScopeMissing": "Deze stap hoort bij een lus die niet meer in de workflow zit.",
     "validationLoopScopeCycle": "Deze lus is in zichzelf geplaatst.",
     "validationLoopScopeNotALoop": "Deze stap is geplaatst in een stap die geen lus is.",
@@ -11622,11 +11622,11 @@
     "bindingNoSources": "Geen compatibele uitvoer van eerdere stappen",
     "conditionBuild": "Opbouwen uit voorwaarden",
     "conditionCannotBuild": "Deze expressie zegt meer dan voorwaarden kunnen tonen",
-    "conditionMatch": "Overeenkomen met",
+    "conditionMatch": "Voldoen aan",
     "conditionJoin": "Hoe de voorwaarden samengaan",
-    "conditionJoinAnd": "alle",
-    "conditionJoinOr": "een",
-    "conditionOfThese": "van deze",
+    "conditionJoinAnd": "elke",
+    "conditionJoinOr": "minstens één",
+    "conditionOfThese": "voorwaarde",
     "conditionField": "Veld van voorwaarde {index}",
     "conditionFieldItem": "Veld van het item, zoals score",
     "conditionFieldValue": "Veld, zoals status",
@@ -11691,7 +11691,7 @@
       "excel": "Excel",
       "microsoft_365": "Microsoft 365"
     },
-    "nodeSummaryBranches": "{count, plural, =0 {Alleen standaardvertakking} one {# vertakking en standaard} other {# vertakkingen en standaard}}",
+    "nodeSummaryBranches": "{count, plural, =0 {Alleen standaardtak} one {# tak en standaard} other {# takken en standaard}}",
     "nodeSummaryCollect": "Verzamelt mislukte items en gaat door",
     "nodeSummaryStop": "Stopt bij het eerste mislukte item",
     "nodeSummaryMappings": "{count, plural, one {# veld} other {# velden}}",
@@ -11718,8 +11718,8 @@
     "bindingPathLabel": "Veld daarbinnen",
     "bindingPathPlaceholder": "bijvoorbeeld record_id of fields.Email",
     "bindingJsonInvalid": "Dit is geen geldige JSON, dus het is niet opgeslagen.",
-    "validationTriggerNotEntry": "Gebruik één trigger van elke soort zonder toezicht.",
-    "triggerHintManual": "Start hem met Uitvoeren - rechtsboven in de editor - of vanaf de pagina met runs. Declareer velden om ernaar te laten vragen bij het starten.",
+    "validationTriggerNotEntry": "Gebruik van elke soort trigger zonder toezicht hoogstens één.",
+    "triggerHintManual": "Start hem met Uitvoeren - rechtsboven in de editor - of vanaf de pagina met runs. Declareer velden als je er bij het starten om wilt laten vragen.",
     "dataValueSetOnce": "Eén keer per run ingesteld en nooit overschreven: latere stappen lezen deze waarde maar kunnen haar niet wijzigen. Om haar te wijzigen, voeg je een stap toe die er een nieuwe waarde uit opbouwt.",
     "triggerHintChat": "Leden kiezen deze workflow in de chat. De stappen erna lezen het bericht als prompt, met het gesprek en wie het stuurde.",
     "triggerHintWebhook": "Publiceren geeft deze workflow een eigen adres en ondertekeningsgeheim, die hetzelfde blijven wanneer je opnieuw publiceert. De stappen erna lezen de JSON van de levering als body.",
@@ -11731,12 +11731,12 @@
     "pickerBotsEmpty": "Nog geen kanaalbots.",
     "pickerBotOrphaned": "De bot die deze stap noemt, is verdwenen - kies een andere.",
     "pickerBotWrongPlatform": "Deze bot kan hier niet worden gebruikt. Workflows antwoorden op Slack, Mattermost en Telegram - kies een andere.",
-    "pickerBotWrongPlatformOne": "Deze stap neemt {platform}-bots - kies een andere.",
+    "pickerBotWrongPlatformOne": "Deze stap werkt met {platform}-bots - kies een andere.",
     "pickerBotNeedsPermission": "Handelen als kanaalbot vereist channels:manage, en dat heb je niet.",
     "inputFields": {
       "title": "Invoervelden",
-      "noneHint": "Nog geen: een run neemt elk JSON-object. Voeg velden toe om elke waarde bij naam te vragen en het type ervan te laten controleren voordat de run start.",
-      "someHint": "Uitvoeren vraagt elk veld bij naam, en een run waarvan de invoer niet past, wordt geweigerd voordat hij start. Stappen na deze lezen elk veld onder payload, zoals de rij ervan toont.",
+      "noneHint": "Nog geen: een run accepteert elk JSON-object. Voeg velden toe om elke waarde bij naam te vragen en het type ervan te laten controleren voordat de run start.",
+      "someHint": "Uitvoeren vraagt om elk veld bij naam, en een run waarvan de invoer niet past, wordt geweigerd voordat hij start. Stappen na deze lezen elk veld onder payload, zoals de rij ervan toont.",
       "name": "Naam",
       "type": "Type",
       "remove": "{name} verwijderen",
@@ -11785,16 +11785,16 @@
     "pickerMcpToolPlaceholder": "Een tool kiezen",
     "pickerMcpRefresh": "Tools vernieuwen",
     "pickerMcpTestFailed": "Kon de server niet bereiken.",
-    "pickerMcpNeverTested": "Nog niemand heeft deze server getest, dus zijn tools worden niet vermeld. Vernieuw om ze op te sommen.",
-    "pickerMcpNeverTestedEditor": "Nog niemand heeft deze server getest, dus zijn tools worden niet vermeld. Vraag iemand die de servers van de organisatie beheert om hem te testen.",
+    "pickerMcpNeverTested": "Nog niemand heeft deze server getest, dus zijn tools worden niet getoond. Vernieuw om ze weer te geven.",
+    "pickerMcpNeverTestedEditor": "Nog niemand heeft deze server getest, dus zijn tools worden niet getoond. Vraag iemand die de servers van de organisatie beheert om hem te testen.",
     "categoryHint": {
       "triggers": "Hoe een run start",
       "agent": "Een van je agents uitvoeren",
       "decide": "Een model een getypeerde vraag stellen en op het resultaat routeren",
       "knowledge": "Een kennisbank doorzoeken, of eraan toevoegen",
       "logic": "Een pad kiezen, of ze weer samenvoegen",
-      "control": "Over items lussen, wachten of een andere workflow uitvoeren",
-      "error": "Een fout opvangen, of er een opwerpen",
+      "control": "Items doorlopen, wachten of een andere workflow uitvoeren",
+      "error": "Een fout opvangen, of er een genereren",
       "people": "Wachten op de beslissing van een persoon",
       "core": "Wat de workflow antwoordt",
       "tables": "Virtual Tables lezen en schrijven",
@@ -11897,8 +11897,8 @@
       "call": "Wacht op een aanroep",
       "bound": "Wacht een vaste tijd",
       "child": "Wacht op de aangeroepen workflow",
-      "askWrites": "Vraagt voor schrijfacties",
-      "askAll": "Vraagt voor elke aanroep"
+      "askWrites": "Vraagt vóór schrijfacties",
+      "askAll": "Vraagt vóór elke aanroep"
     },
     "toolbarShortcuts": "Sneltoetsen",
     "minimapLabel": "Minimap",
@@ -11916,7 +11916,7 @@
     "shortcutCancel": "Een verbinding die wordt getekend annuleren",
     "shortcutSheet": "Deze sneltoetsen tonen",
     "shortcutOr": "of",
-    "dataViews": "Hoe de gegevens tonen",
+    "dataViews": "Weergave van de gegevens",
     "dataView": {
       "table": "Tabel",
       "json": "JSON",
@@ -11942,19 +11942,19 @@
       "list": "lijst",
       "object": "object",
       "empty": "leeg",
-      "any": "een"
+      "any": "alles"
     },
     "stepTest": "Stap testen",
     "stepTestStop": "Stoppen",
     "stepTestStopHint": "Deze testrun stoppen",
-    "stepTestSkipped": "Deze stap draaide niet: de test ging ervoor een andere vertakking in.",
-    "stepTestNotReached": "Deze stap draaide niet: de test eindigde voordat hij hem bereikte.",
+    "stepTestSkipped": "Deze stap draaide niet: de test nam al eerder een andere tak.",
+    "stepTestNotReached": "Deze stap draaide niet: de test eindigde voordat deze stap werd bereikt.",
     "stepTestStopped": "Deze stap draaide niet: de test werd gestopt.",
     "stepTestHint": "Alleen deze stap uitvoeren, op wat de stappen ervoor de vorige keer doorgaven",
     "stepTestNotReachable": "Verbind deze stap met een trigger voordat je hem test.",
     "stepTestInsideALoop": "Een stap in een lus draait één keer per item; test in plaats daarvan de lus",
     "stepTestWriteTitle": "Een stap testen die schrijft?",
-    "stepTestWriteDescription": "Hem testen doet echt wat hij doet: records worden geschreven en berichten worden verstuurd, net als in een echte run.",
+    "stepTestWriteDescription": "Bij het testen doet de stap echt wat hij doet: records worden geschreven en berichten worden verstuurd, net als in een echte run.",
     "stepPin": "Bewaren als testgegevens",
     "stepPinWrite": "Testgegevens instellen",
     "stepPinEdit": "Testgegevens bewerken",
@@ -11966,7 +11966,7 @@
     "stepPinNotJson": "Dit is geen geldige JSON.",
     "stepPinNotObject": "Testgegevens zijn een JSON-object, tussen accolades.",
     "stepPinTooLarge": "Testgegevens mogen hoogstens {limit} bytes innemen.",
-    "stepHasPinnedData": "Heeft vastgezette gegevens: testruns gebruiken die in plaats van de stap uit te voeren",
+    "stepHasPinnedData": "Heeft testgegevens: testruns gebruiken die in plaats van de stap uit te voeren",
     "dataDragHint": "Sleep een veld naar een parameter om het daar te gebruiken.",
     "bindingDropIncompatible": "“{field}” is geen waarde die {target} kan aannemen.",
     "bindingDropUnreachable": "Deze stap kan die niet lezen: die draait niet altijd ervoor.",
@@ -11981,17 +11981,17 @@
     "pickerWorkflowGone": "De gekozen workflow kan niet meer worden aangeroepen: publiceer hem met als start Aangeroepen door een workflow.",
     "nodeSummaryRules": "{count, plural, one {# regel} other {# regels}}",
     "waitFor": "Wachten op",
-    "waitForOne": "De vertakking die draaide",
-    "waitForAll": "Alle vertakkingen",
-    "branchKey": "Naam van de vertakking",
-    "nodeSummarySplitBranches": "{count, plural, one {# vertakking} other {# vertakkingen}}",
+    "waitForOne": "De tak die draaide",
+    "waitForAll": "Alle takken",
+    "branchKey": "Naam van de tak",
+    "nodeSummarySplitBranches": "{count, plural, one {# tak} other {# takken}}",
     "webhookTestListen": "Luisteren naar testgebeurtenis",
     "webhookTestWaiting": "Wachten op een aanroep",
     "webhookTestUrl": "Test-URL",
-    "webhookTestHint": "Stuur binnen twee minuten één POST met een JSON-object als body. Die wordt hier bewaard en vastgezet als uitvoer van deze trigger, en er start geen run.",
+    "webhookTestHint": "Stuur binnen twee minuten één POST met een JSON-object als body. Die wordt hier bewaard als testgegevens van deze trigger, en er start geen run.",
     "webhookTestStop": "Stoppen met luisteren",
     "webhookTestExpired": "Er kwam geen aanroep op tijd.",
-    "webhookTestCaught": "Testaanroep opgevangen en vastgezet",
+    "webhookTestCaught": "Testaanroep opgevangen en als testgegevens bewaard",
     "nodeFormMapName": "Naam {index}",
     "nodeFormMapValue": "Waarde {index}",
     "nodeFormMapNamePlaceholder": "Naam",
@@ -12064,7 +12064,7 @@
       "min": "Kleinste {field}",
       "max": "Grootste {field}",
       "average": "Gemiddelde {field}",
-      "count_distinct": "Verschillende {field}"
+      "count_distinct": "Unieke waarden van {field}"
     },
     "nodeSummaryGrouped": "{what} per {groups}",
     "nodeSummarySets": "{count, plural, one {Stelt # veld in} other {Stelt # velden in}}",
@@ -12100,7 +12100,7 @@
     "stepTabParameters": "Parameters",
     "stepTabSettings": "Instellingen",
     "stepTabSettingsSet": "Sommige instellingen zijn gewijzigd",
-    "stepRunsHint": "Uitgeschakeld slaat de run hem over en geeft door wat erin kwam",
+    "stepRunsHint": "Als deze stap uitgeschakeld is, slaat de run hem over en geeft hij door wat erin kwam",
     "versionLive": "Live",
     "publishTitleVersion": "Versie {version} publiceren",
     "publishNothingChanged": "Er is niets veranderd sinds versie {version}, die live is: dit maakt een identieke versie.",
@@ -12205,7 +12205,7 @@
       "nothing": "niets",
       "openRun": "De run openen",
       "remove": "{name} verwijderen",
-      "fromLastTest": "Het testgeval neemt de invoer waarmee deze stap het laatst werd getest.",
+      "fromLastTest": "Het testgeval gebruikt de invoer waarmee deze stap het laatst werd getest.",
       "name": "Naam",
       "namePlaceholder": "Een verzoek om terugbetaling",
       "field": "Waar in het antwoord",
@@ -12222,7 +12222,7 @@
     },
     "appConnect": "Koppel {server} om de acties ervan toe te voegen",
     "appOrgOnly": "Acties komen van de MCP-koppelingen van de organisatie, niet van persoonlijke.",
-    "appUntested": "{connection} heeft nog geen tools vermeld. Test de koppeling om ze op te sommen.",
+    "appUntested": "{connection} heeft nog geen tools vermeld. Test de koppeling om ze weer te geven.",
     "appCardName": "{app} · {tool}",
     "appCardSubtitle": "{connection} · {tool}",
     "appPanelNote": "MCP-toolaanroep: {tool} ({raw}) op de koppeling {connection}.",
@@ -12232,11 +12232,11 @@
       "readMessages": "Berichten lezen",
       "readAttachment": "Bijlage lezen",
       "readThreads": "Threads lezen",
-      "listLabels": "Labels opsommen",
+      "listLabels": "Labels weergeven",
       "manageLabel": "Label beheren",
-      "listFilters": "Filters opsommen",
+      "listFilters": "Filters weergeven",
       "manageFilter": "Filter beheren",
-      "changeLabelsBatch": "Labels op meerdere wijzigen",
+      "changeLabelsBatch": "Labels van meerdere berichten wijzigen",
       "createDraft": "Concept aanmaken",
       "sendMessage": "Bericht versturen",
       "searchMail": "Mail doorzoeken",
@@ -12253,14 +12253,14 @@
     },
     "appNeedsPermission": "Acties van {app} worden niet getoond omdat je deze workflow niet kunt bewerken.",
     "stepSetupRemaining": "{count, plural, one {# item om het instellen af te ronden} other {# items om het instellen af te ronden}}",
-    "stepReviewNeeded": "{count, plural, one {Bekijk # item voor het testen} other {Bekijk # items voor het testen}}",
+    "stepReviewNeeded": "{count, plural, one {Bekijk # item vóór het testen} other {Bekijk # items vóór het testen}}",
     "toolbarSetup": "Instellen afronden · {count}",
     "pickerConnectAccount": "Account koppelen",
-    "pickerConnectAccountHint": "Koppel een organisatieaccount om het in deze workflow te gebruiken. Kies het als je klaar bent in het accountveld van de stap.",
+    "pickerConnectAccountHint": "Koppel een organisatieaccount om het in deze workflow te gebruiken. Kies het daarna in het accountveld van de stap.",
     "pickerApiKeyNew": "API-sleutel toevoegen",
     "toolbarDisplay": "Canvasopties",
     "stepOutputFields": "Verwachte uitvoervelden",
-    "stepReviewSetup": "Bekijk de instellingen voor het testen",
+    "stepReviewSetup": "Bekijk de instellingen vóór het testen",
     "noteSize": "Notitiegrootte",
     "noteSizeSmall": "Compact",
     "noteSizeWide": "Breed",
@@ -12276,14 +12276,14 @@
       "query": "API-sleutel in de URL",
       "basic": "Basic Auth"
     },
-    "httpAuthCredential": "API-referentie",
-    "httpAuthNewCredential": "Nieuwe API-referentie",
+    "httpAuthCredential": "API-inloggegevens",
+    "httpAuthNewCredential": "Nieuwe API-inloggegevens",
     "httpAuthHeader": "Naam van de header",
     "httpAuthQuery": "Naam van de queryparameter",
     "httpAuthPrefix": "Headerprefix (optioneel)",
     "httpAuthPrefixHint": "Vul voor Authorization: Token … Token in. Laat leeg om alleen de sleutel te versturen.",
-    "httpAuthVaultHint": "De sleutel blijft in de Vault. Deze stap bewaart de verwijzing ervan en verstuurt hem alleen naar de toegestane API-origins van de referentie.",
-    "httpAuthBasicHint": "Gebruik de gebruikersnaam en het token van de vault-referentie als gebruikersnaam en wachtwoord voor Basic Auth.",
+    "httpAuthVaultHint": "De sleutel blijft in de Vault. Deze stap bewaart de verwijzing ernaar en verstuurt hem alleen naar de API-origins die voor deze inloggegevens zijn toegestaan.",
+    "httpAuthBasicHint": "Gebruik de gebruikersnaam en het token van de inloggegevens in de vault als gebruikersnaam en wachtwoord voor Basic Auth.",
     "emailSmtpAccount": "SMTP-account",
     "emailSmtpNew": "Nieuw SMTP-account",
     "emailPlatformOption": "Afzender van het platform",
@@ -12302,13 +12302,13 @@
     "notificationChannelHint": "De meldingsvoorkeuren van elke persoon blijven gelden. Privéchatkanalen hebben ook een eigen meldingsroute nodig in Instellingen.",
     "fileBindingHint": "Kies met Gegevens een bestand uit een eerdere stap. Het type en de grootte ervan worden automatisch meegenomen. Om geplakte tekst te converteren, voeg je eerst een stap Tekst naar bestand toe.",
     "replyDraft": {
-      "enable": "Na de deadline een concept voor een opvolging voorbereiden",
-      "description": "Kies een model en maximale kosten. De workflow stelt een concept op uit de context die je geeft, slaat het resultaat op en brengt je op de hoogte. Hij verstuurt de opvolging nooit.",
+      "enable": "Na de deadline een concept voor een follow-up voorbereiden",
+      "description": "Kies een model en maximale kosten. De workflow stelt een concept op uit de context die je geeft, slaat het resultaat op en brengt je op de hoogte. Hij verstuurt de follow-up nooit.",
       "budget": "Maximale kosten per concept (USD)"
     },
     "stepEditorView": "Stapweergave",
     "stepEditorSettings": "Stapinstellingen",
-    "problemTableSchemaChanged": "Deze tabel is veranderd sinds de stap werd ingesteld: een kolom die hij leest, is verwijderd of van type veranderd. Werk hem bij naar het huidige schema en controleer wat deze stap leest.",
+    "problemTableSchemaChanged": "Deze tabel is veranderd sinds de stap werd ingesteld: een kolom die hij leest, is verwijderd of van type veranderd. Werk hem bij naar het huidige schema en controleer welke stappen deze stap lezen.",
     "problemTableDependenciesChanged": "Verwijder of vervang gewijzigde filter-, sorteer- en waardekoppelingen in deze stap voordat je het tabelschema ervan bijwerkt."
   },
   "artifacts": {
@@ -18844,7 +18844,7 @@
         "description": "Stuur een mislukking naar een tak die op basis van de foutcode wordt gekozen."
       },
       "error_raise": {
-        "name": "Fout opwerpen",
+        "name": "Fout genereren",
         "description": "Laat deze tak mislukken met een fout die je zelf definieert."
       },
       "file_read": {
@@ -18861,11 +18861,11 @@
       },
       "flow_resume_link": {
         "name": "Hervattingslink",
-        "description": "Het adres dat de Wachten-stappen van deze run hervat die op een aanroep wachten."
+        "description": "Het adres dat deze run hervat wanneer een Wachten-stap op een aanroep wacht."
       },
       "flow_wait": {
         "name": "Wachten",
-        "description": "Houd de run een tijdje vast, of tot een tijdstip, en ga dan verder."
+        "description": "Pauzeer de run een tijdje, of tot een tijdstip, en ga dan verder."
       },
       "html_parse": {
         "name": "HTML parsen",
@@ -18917,7 +18917,7 @@
       },
       "loop_item": {
         "name": "Lusitem",
-        "description": "Het element waaraan deze herhaling van een lus werkt."
+        "description": "Het element waarmee deze herhaling van de lus werkt."
       },
       "loop_yield": {
         "name": "Lusresultaat",
@@ -18929,7 +18929,7 @@
       },
       "mattermost_members_list": {
         "name": "Leden weergeven",
-        "description": "Lijst de mensen in een Mattermost-kanaal op, met de id's die een vermelding nodig heeft."
+        "description": "Toon de mensen in een Mattermost-kanaal, met de id's die een vermelding nodig heeft."
       },
       "mattermost_message_send": {
         "name": "Een bericht versturen",
@@ -18941,7 +18941,7 @@
       },
       "mcp_call": {
         "name": "Een MCP-tool aanroepen",
-        "description": "Roep één tool aan op een van de MCP-servers van de organisatie, en vraag het eerst aan een persoon voordat die iets wijzigt."
+        "description": "Roep één tool aan op een van de MCP-servers van de organisatie. Als de tool iets wijzigt, wordt het eerst aan een persoon gevraagd."
       },
       "notification_send": {
         "name": "Leden een melding sturen",
@@ -18953,7 +18953,7 @@
       },
       "slack_members_list": {
         "name": "Leden weergeven",
-        "description": "Lijst de mensen in een Slack-kanaal op, met de id's die een vermelding nodig heeft."
+        "description": "Toon de mensen in een Slack-kanaal, met de id's die een vermelding nodig heeft."
       },
       "slack_message_send": {
         "name": "Een bericht versturen",
@@ -18977,7 +18977,7 @@
       },
       "table_list": {
         "name": "Tabellen weergeven",
-        "description": "Lijst de tabellen op die deze run mag zien, gevonden op een deel van een naam."
+        "description": "Toon de tabellen die deze run mag zien, gevonden op een deel van een naam."
       },
       "table_record_create": {
         "name": "Een record toevoegen",
@@ -18997,7 +18997,7 @@
       },
       "table_record_query": {
         "name": "Records weergeven",
-        "description": "Lijst de records van een tabel op, gefilterd en gesorteerd."
+        "description": "Toon de records van een tabel, gefilterd en gesorteerd."
       },
       "table_record_update": {
         "name": "Een record bijwerken",
@@ -19009,7 +19009,7 @@
       },
       "telegram_members_list": {
         "name": "Beheerders weergeven",
-        "description": "Lijst de beheerders van een Telegram-chat op - alles wat een bot te horen krijgt."
+        "description": "Toon de beheerders van een Telegram-chat - meer krijgt een bot niet te horen."
       },
       "telegram_message_send": {
         "name": "Een bericht versturen",
@@ -19057,7 +19057,7 @@
       },
       "transform_summarize": {
         "name": "Samenvatten",
-        "description": "Tel, som of middel de items, per groep."
+        "description": "Bereken per groep het aantal, de som of het gemiddelde van de items."
       },
       "trigger_channel_message": {
         "name": "Kanaalbericht",
@@ -19065,7 +19065,7 @@
       },
       "trigger_chat": {
         "name": "Chatbericht",
-        "description": "Een lid stuurt een bericht in de chat, met deze workflow gekozen om te antwoorden."
+        "description": "Een lid stuurt een bericht in de chat, waarbij deze workflow is gekozen om te antwoorden."
       },
       "trigger_form": {
         "name": "Formulier",
@@ -19089,7 +19089,7 @@
       },
       "trigger_schedule": {
         "name": "Planning",
-        "description": "Draait op de klok: om de zoveel tijd, of volgens een cron-expressie in UTC."
+        "description": "Draait op vaste tijden: om de zoveel tijd, of volgens een cron-expressie in UTC."
       },
       "trigger_table_record": {
         "name": "Tabelrecord",
@@ -19104,11 +19104,11 @@
         "description": "De stap Een workflow uitvoeren van een andere workflow start hem met de velden die hij declareert."
       },
       "trigger_workflow_failed": {
-        "name": "Bij mislukking van een workflow",
-        "description": "Een run mislukt van een workflow die deze als zijn foutworkflow noemt."
+        "name": "Bij een mislukte workflow",
+        "description": "Een run van een workflow die deze workflow als foutworkflow heeft ingesteld, mislukt."
       },
       "webhook_respond": {
-        "name": "Op de webhook antwoorden",
+        "name": "Webhook beantwoorden",
         "description": "Beantwoord de webhookaanroep die de run startte: een status, headers en een body."
       },
       "workflow_run": {
@@ -19143,11 +19143,11 @@
             "description": "Een agent uit de catalogus, en de gepubliceerde versie die deze stap uitvoert."
           },
           "inline": {
-            "description": "Een agent die in deze stap is ingesteld - model, instructies, capabilities, kennis en MCP-servers - met versies samen met de workflow."
+            "description": "Een agent die in deze stap is ingesteld - model, instructies, capabilities, kennis en MCP-servers - met dezelfde versies als de workflow."
           },
           "max_cost_usd": {
             "title": "Max. kosten (USD)",
-            "description": "Het meeste dat één uitvoering van deze stap aan modelverzoeken mag uitgeven, in USD. Leeg laat alleen de limieten van de agent, de workflow en de organisatie gelden."
+            "description": "Het maximum dat één uitvoering van deze stap aan modelverzoeken mag uitgeven, in USD. Leeg laat alleen de limieten van de agent, de workflow en de organisatie gelden."
           },
           "structured_output_schema": {
             "title": "Schema voor gestructureerde uitvoer",
@@ -19163,7 +19163,7 @@
           },
           "attachments": {
             "title": "Bijlagen",
-            "description": "Afbeeldingen uit de bestanden van de run, als foto's aan de agent getoond."
+            "description": "Afbeeldingen uit de bestanden van de run, die de agent als beeld te zien krijgt."
           }
         }
       },
@@ -19183,7 +19183,7 @@
           },
           "max_cost_usd": {
             "title": "Max. kosten (USD)",
-            "description": "Het meeste dat één uitvoering van deze stap mag uitgeven. Leeg laat de limieten van de workflow en de organisatie gelden."
+            "description": "Het maximum dat één uitvoering van deze stap mag uitgeven. Leeg laat de limieten van de workflow en de organisatie gelden."
           },
           "categories": {
             "title": "Categorieën"
@@ -19194,7 +19194,7 @@
           },
           "min_confidence": {
             "title": "Minimaal vertrouwen",
-            "description": "Daaronder verlaat de stap via zijn onzeker-poort in plaats van via de categorie. Leeg verlaat hij altijd via de categorie."
+            "description": "Daaronder verlaat de stap via zijn onzeker-poort in plaats van via de categorie. Als dit leeg is, verlaat hij altijd via de categorie."
           },
           "categories__items__name": {
             "title": "Naam",
@@ -19227,7 +19227,7 @@
           },
           "max_cost_usd": {
             "title": "Max. kosten (USD)",
-            "description": "Het meeste dat één uitvoering van deze stap mag uitgeven. Leeg laat de limieten van de workflow en de organisatie gelden."
+            "description": "Het maximum dat één uitvoering van deze stap mag uitgeven. Leeg laat de limieten van de workflow en de organisatie gelden."
           },
           "output_schema": {
             "title": "Te extraheren velden",
@@ -19260,7 +19260,7 @@
           },
           "max_cost_usd": {
             "title": "Max. kosten (USD)",
-            "description": "Het meeste dat één uitvoering van deze stap mag uitgeven. Leeg laat de limieten van de workflow en de organisatie gelden."
+            "description": "Het maximum dat één uitvoering van deze stap mag uitgeven. Leeg laat de limieten van de workflow en de organisatie gelden."
           },
           "instructions": {
             "title": "Instructies",
@@ -19268,7 +19268,7 @@
           },
           "structured_output_schema": {
             "title": "Schema voor gestructureerde uitvoer",
-            "description": "Het JSON Schema van een object om mee te antwoorden. Leeg antwoordt in tekst."
+            "description": "Het JSON Schema van een object om mee te antwoorden. Als dit leeg is, antwoordt het model in tekst."
           }
         },
         "input": {
@@ -19293,7 +19293,7 @@
           },
           "max_cost_usd": {
             "title": "Max. kosten (USD)",
-            "description": "Het meeste dat één uitvoering van deze stap mag uitgeven. Leeg laat de limieten van de workflow en de organisatie gelden."
+            "description": "Het maximum dat één uitvoering van deze stap mag uitgeven. Leeg laat de limieten van de workflow en de organisatie gelden."
           },
           "task": {
             "title": "Taak",
@@ -19309,7 +19309,7 @@
           },
           "style": {
             "title": "Stijl",
-            "description": "Hoe het moet lezen, zoals 'formeel' of 'voor een klant'."
+            "description": "Hoe de tekst moet klinken, zoals 'formeel' of 'voor een klant'."
           }
         },
         "input": {
@@ -19322,7 +19322,7 @@
         "config": {
           "code": {
             "title": "Code",
-            "description": "De body van een async-functie: lees de gebonden waarden als `args`, invoerbestanden uit de map `inputs`, schrijf bestanden naar `outputs`, en `return` het antwoord."
+            "description": "De body van een async-functie: lees de gebonden waarden als `args` en invoerbestanden uit de map `inputs`, schrijf bestanden naar `outputs`, en geef het antwoord terug met `return`."
           },
           "timeout_seconds": {
             "title": "Tijdslimiet (seconden)"
@@ -19603,7 +19603,7 @@
           },
           "key": {
             "title": "Sleutel",
-            "description": "Het veld waarop de objecten van beide lijsten worden gematcht, voor by_key"
+            "description": "Het veld waarop de objecten van beide lijsten aan elkaar worden gekoppeld, voor by_key"
           }
         },
         "input": {
@@ -19619,7 +19619,7 @@
         "config": {
           "condition": {
             "title": "Voorwaarde",
-            "description": "Een JMESPath-expressie over elk item, zoals item.score > `50`"
+            "description": "Een JMESPath-expressie die op elk item wordt toegepast, zoals item.score > `50`"
           }
         },
         "input": {
@@ -19638,7 +19638,7 @@
           },
           "mappings__items__source_path": {
             "title": "Bronpad",
-            "description": "Een JMESPath-expressie over de invoer, bijvoorbeeld source.payload.email."
+            "description": "Een JMESPath-expressie die op de invoer wordt toegepast, bijvoorbeeld source.payload.email."
           },
           "mappings__items__coerce_to": {
             "title": "Omzetten naar"
@@ -19687,7 +19687,7 @@
           },
           "model": {
             "title": "Model",
-            "description": "Welke Jev antwoordt: de lopende release, de preview of een vastgezette versie",
+            "description": "Welke Jev antwoordt: de nieuwste release, de preview of een vastgezette versie",
             "options": {
               "jev_latest": "Jev (nieuwste)",
               "jev_preview": "Jev (preview)"
@@ -19931,7 +19931,7 @@
         "config": {
           "seconds": {
             "title": "Wachten gedurende (seconden)",
-            "description": "Hoe lang na het bereiken van de stap er wordt verdergegaan; hoogstens dertig dagen. Bij wachten op een aanroep, de langste wachttijd ervoor"
+            "description": "Hoe lang de run na het bereiken van de stap wacht voordat hij verdergaat; hoogstens dertig dagen. Bij wachten op een aanroep: de maximale wachttijd"
           },
           "until_called": {
             "title": "Wachten op een aanroep van de hervattingslink van de run",
@@ -19948,18 +19948,18 @@
         "config": {
           "selector": {
             "title": "CSS-selector",
-            "description": "De elementen om te kiezen, zoals in een stylesheet - bijvoorbeeld `table.prices td` of `a.download`. Leeg kiest niets."
+            "description": "De elementen om te kiezen, zoals in een stylesheet - bijvoorbeeld `table.prices td` of `a.download`. Laat leeg om niets te kiezen."
           },
           "max_matches": {
-            "title": "Meeste overeenkomsten",
-            "description": "Hoeveel gekozen elementen het doorgeeft"
+            "title": "Maximumaantal treffers",
+            "description": "Hoeveel gekozen elementen de stap doorgeeft"
           },
           "base_url": {
             "title": "Basisadres",
-            "description": "Relatieve links worden ertegen opgelost. Het wordt nooit opgehaald."
+            "description": "Relatieve links worden vanaf dit adres opgebouwd. Het adres wordt nooit opgehaald."
           },
           "max_chars": {
-            "title": "Meeste tekens tekst",
+            "title": "Maximumaantal tekens",
             "description": "De leesbare tekst wordt op deze lengte afgekapt"
           }
         },
@@ -20022,7 +20022,7 @@
           },
           "expected_content_types": {
             "title": "Verwachte inhoudstypen",
-            "description": "Aanvaard alleen deze mediatypen, zoals de eigen bytes van het bestand ze tonen - `application/pdf`, `image/png`. Leeg aanvaardt alles."
+            "description": "Accepteer alleen deze mediatypen, zoals de eigen bytes van het bestand ze tonen - `application/pdf`, `image/png`. Laat leeg om alles te accepteren."
           },
           "filename": {
             "title": "Bestandsnaam",
@@ -20069,7 +20069,7 @@
           },
           "idempotency_key_header": {
             "title": "Header voor idempotentiesleutel",
-            "description": "Stuur de stabiele operatiesleutel van deze stap in deze header (bijv. Idempotency-Key), zodat een nieuwe poging die de andere kant herkent veilig is."
+            "description": "Stuur de stabiele operatiesleutel van deze stap in deze header (bijv. Idempotency-Key), zodat een nieuwe poging veilig is als de andere kant die herkent."
           },
           "on_error_status": {
             "title": "Bij foutstatus",
@@ -20088,7 +20088,7 @@
           },
           "pagination__param": {
             "title": "Parameter",
-            "description": "Voor cursor en page: de queryparameter die hem meedraagt."
+            "description": "Voor cursor en page: de queryparameter waarin die wordt meegegeven."
           },
           "pagination__first_page": {
             "title": "Eerste pagina"
@@ -20143,7 +20143,7 @@
           },
           "idempotency_key_header": {
             "title": "Header voor idempotentiesleutel",
-            "description": "Stuur de stabiele operatiesleutel van deze stap in deze header (bijv. Idempotency-Key), zodat een nieuwe poging die de andere kant herkent veilig is."
+            "description": "Stuur de stabiele operatiesleutel van deze stap in deze header (bijv. Idempotency-Key), zodat een nieuwe poging veilig is als de andere kant die herkent."
           }
         },
         "input": {
@@ -20169,11 +20169,11 @@
           },
           "approvers": {
             "title": "Goedkeurders",
-            "description": "Wie mag beslissen. Iedereen die over goedkeuringen beslist als het leeg is."
+            "description": "Wie mag beslissen. Als dit leeg is: iedereen die over goedkeuringen beslist."
           },
           "timeout_hours": {
             "title": "Tijdslimiet (uren)",
-            "description": "Hoe lang de run wacht voordat het verzoek verloopt. Voor altijd als het leeg is."
+            "description": "Hoe lang de run wacht voordat het verzoek verloopt. Als dit leeg is, wacht de run onbeperkt."
           },
           "editable": {
             "title": "De goedkeurder laten bewerken",
@@ -20181,7 +20181,7 @@
           },
           "proposal_label": {
             "title": "Label van het voorstel",
-            "description": "Hoe het voorstel heet, zoals Antwoord. Voorstel als het leeg is."
+            "description": "Hoe het voorstel heet, zoals Antwoord. Als dit leeg is: Voorstel."
           },
           "proposal_format": {
             "title": "Formaat van het voorstel",
@@ -20189,7 +20189,7 @@
           },
           "choices": {
             "title": "Manieren om goed te keuren",
-            "description": "Bied deze aan in plaats van een gewone Goedkeuren: elk één knop en één uitvoerpoort, in deze volgorde, en de stap heeft geen poort voor goedgekeurd. Leeg: de stap keurt goed of wijst af."
+            "description": "Bied deze aan in plaats van een gewone knop Goedkeuren: per keuze één knop en één uitvoerpoort, in deze volgorde, en de stap heeft geen poort voor goedgekeurd. Als dit leeg is, keurt de stap goed of wijst ze af."
           },
           "approver_groups": {
             "title": "Groepen goedkeurders",
@@ -20197,7 +20197,7 @@
           },
           "choices__items__id": {
             "title": "Poort-ID",
-            "description": "Geeft de uitvoerpoort een naam, en wat latere stappen als keuze lezen. Kleine letters, cijfers en underscores; niet in, approved of rejected."
+            "description": "De naam van de uitvoerpoort, en wat latere stappen als keuze lezen. Kleine letters, cijfers en underscores; niet in, approved of rejected."
           },
           "choices__items__label": {
             "title": "Knoplabel",
@@ -20210,7 +20210,7 @@
           },
           "proposal": {
             "title": "Voorstel",
-            "description": "De tekst die de goedkeurder reviewt, en bewerkt als de stap bewerkbaar is."
+            "description": "De tekst die de goedkeurder bekijkt, en bewerkt als de stap bewerkbaar is."
           }
         }
       },
@@ -20238,7 +20238,7 @@
             "title": "Modus"
           },
           "rotate_degrees": {
-            "title": "Graden draaien",
+            "title": "Draaiing (graden)",
             "description": "Met de klok mee"
           },
           "output_format": {
@@ -20317,7 +20317,7 @@
         "config": {
           "condition": {
             "title": "Voorwaarde",
-            "description": "Een JMESPath-expressie over de invoer, gelezen als waar of onwaar - bijvoorbeeld value.status == 'approved'."
+            "description": "Een JMESPath-expressie die op de invoer wordt toegepast en als waar of onwaar wordt gelezen - bijvoorbeeld value.status == 'approved'."
           }
         },
         "input": {
@@ -20373,7 +20373,7 @@
           },
           "rules__items__condition": {
             "title": "Voorwaarde",
-            "description": "Een JMESPath-expressie over de invoer, zoals value.country == 'PL'"
+            "description": "Een JMESPath-expressie die op de invoer wordt toegepast, zoals value.country == 'PL'"
           }
         },
         "input": {
@@ -20396,7 +20396,7 @@
             "description": "Als welke Mattermost-bot van de organisatie deze stap handelt"
           },
           "limit": {
-            "title": "Maximumaantal kanalen om te tonen",
+            "title": "Te tonen kanalen",
             "description": "Hoogstens zoveel"
           }
         },
@@ -20418,7 +20418,7 @@
             "description": "Als welke Mattermost-bot van de organisatie deze stap handelt"
           },
           "limit": {
-            "title": "Maximumaantal mensen om te tonen",
+            "title": "Te tonen mensen",
             "description": "Hoogstens zoveel"
           }
         },
@@ -20482,7 +20482,7 @@
           },
           "idempotency_key_argument": {
             "title": "Argument voor idempotentiesleutel",
-            "description": "Stuur de stabiele operatiesleutel van deze stap als dit toolargument, wanneer de tool het declareert, zodat een nieuwe poging die de server herkent veilig is."
+            "description": "Stuur de stabiele operatiesleutel van deze stap als dit toolargument, wanneer de tool het declareert, zodat een nieuwe poging veilig is als de server die herkent."
           },
           "approval": {
             "title": "Om goedkeuring vragen",
@@ -20495,11 +20495,11 @@
           },
           "approvers": {
             "title": "Goedkeurders",
-            "description": "Wie de aanroep mag goedkeuren. Iedereen die over goedkeuringen beslist als het leeg is."
+            "description": "Wie de aanroep mag goedkeuren. Als dit leeg is: iedereen die over goedkeuringen beslist."
           },
           "timeout_seconds": {
             "title": "Time-out in seconden",
-            "description": "Hoe lang de tool mag doen over antwoorden."
+            "description": "Hoe lang de tool over een antwoord mag doen."
           },
           "on_tool_error": {
             "title": "Als de tool met een fout antwoordt",
@@ -20533,7 +20533,7 @@
           },
           "channels": {
             "title": "Kanalen",
-            "description": "Waar ze hen mag bereiken. De voorkeuren van elke persoon en hun uitdrukkelijke keuze voor privékanalen blijven gelden; een workflow kan geen chatbestemming voor hen kiezen."
+            "description": "Langs welke kanalen de melding hen mag bereiken. De voorkeuren van elke persoon en hun uitdrukkelijke keuze voor privékanalen blijven gelden; een workflow kan geen chatbestemming voor hen kiezen."
           }
         },
         "input": {
@@ -20549,7 +20549,7 @@
             "description": "Als welke Slack-bot van de organisatie deze stap handelt"
           },
           "limit": {
-            "title": "Maximumaantal kanalen om te tonen",
+            "title": "Te tonen kanalen",
             "description": "Hoogstens zoveel"
           }
         },
@@ -20571,7 +20571,7 @@
             "description": "Als welke Slack-bot van de organisatie deze stap handelt"
           },
           "limit": {
-            "title": "Maximumaantal mensen om te tonen",
+            "title": "Te tonen mensen",
             "description": "Hoogstens zoveel"
           }
         },
@@ -20678,7 +20678,7 @@
           },
           "columns__items__options__items__color": {
             "title": "Kleur",
-            "description": "Weergavekleur; leeg gebruikt het automatische palet"
+            "description": "Weergavekleur; laat leeg voor het automatische palet"
           },
           "columns__items__options__items__archived": {
             "title": "Gearchiveerd"
@@ -20704,7 +20704,7 @@
           },
           "columns__items__formula": {
             "title": "Formule",
-            "description": "Een formulekolom: een expressie over de andere kolommen van het record, elk genoemd bij zijn label tussen accolades, zoals '{'Prijs'}' * '{'Aantal'}'."
+            "description": "Een formulekolom: een expressie op basis van de andere kolommen van het record, elk aangeduid met zijn label tussen accolades, zoals '{'Prijs'}' * '{'Aantal'}'."
           }
         }
       },
@@ -20972,7 +20972,7 @@
             "description": "Als welke Telegram-bot van de organisatie deze stap handelt"
           },
           "limit": {
-            "title": "Maximumaantal mensen om te tonen",
+            "title": "Te tonen mensen",
             "description": "Hoogstens zoveel"
           }
         },
@@ -21015,7 +21015,7 @@
           },
           "ignore_whitespace": {
             "title": "Witruimte negeren",
-            "description": "Spaties binnen een regel samenvoegen, elke regel bijsnijden en lege regels weglaten; regeleinden tellen nog steeds mee"
+            "description": "Spaties binnen een regel samenvoegen, witruimte aan het begin en einde van elke regel verwijderen en lege regels weglaten; regeleinden tellen nog steeds mee"
           },
           "ignore_punctuation": {
             "title": "Leestekens negeren",
@@ -21023,7 +21023,7 @@
           },
           "strip_quoted": {
             "title": "Geciteerde mail en handtekeningen weglaten",
-            "description": "Geciteerde antwoordregels, de aanhef van het citaat en alles na een handtekening weglaten"
+            "description": "Geciteerde antwoordregels, de regel die het citaat inleidt en alles na een handtekening weglaten"
           }
         },
         "input": {
@@ -21102,7 +21102,7 @@
           },
           "format": {
             "title": "Formaat",
-            "description": "Hoe het uit te schrijven, zoals %d.%m.%Y"
+            "description": "Hoe het tijdstip wordt uitgeschreven, zoals %d.%m.%Y"
           },
           "timezone": {
             "title": "Tijdzone",
@@ -21124,7 +21124,7 @@
             "title": "Verwijderen"
           },
           "only_set": {
-            "title": "Alleen ingestelde",
+            "title": "Alleen ingestelde velden",
             "description": "Alleen de hier ingestelde velden behouden en alle andere weglaten"
           },
           "set__items__name": {
@@ -21132,7 +21132,7 @@
           },
           "set__items__expression": {
             "title": "Expressie",
-            "description": "Een JMESPath-expressie over het item, zoals item.first_name"
+            "description": "Een JMESPath-expressie die op het item wordt toegepast, zoals item.first_name"
           }
         },
         "input": {
@@ -21243,7 +21243,7 @@
           },
           "text_contains": {
             "title": "Alleen als het bericht bevat",
-            "description": "Een woord of zinsdeel, ongeacht hoofdletters; elk bericht als het leeg is"
+            "description": "Een woord of zinsdeel, ongeacht hoofdletters; laat leeg voor elk bericht"
           }
         }
       },
@@ -21324,7 +21324,7 @@
           },
           "actions": {
             "title": "Alleen deze acties",
-            "description": "Zoals opened of closed; elke actie als het leeg is. Een push heeft er geen"
+            "description": "Zoals opened of closed; laat leeg voor elke actie. Een push heeft er geen"
           },
           "register_with_account": {
             "title": "De webhook voor mij instellen",
@@ -21340,7 +21340,7 @@
           },
           "sender_contains": {
             "title": "Afzender bevat",
-            "description": "Alleen vergeleken met het adres van de afzender, nooit met de weergavenaam, ongeacht hoofdletters: @acme.com is precies dat domein (niet de subdomeinen ervan), een volledig adres is dat adres, andere tekst is een deel van het adres. Vereist mail die het afzenderdomein heeft geauthenticeerd"
+            "description": "Alleen vergeleken met het adres van de afzender, nooit met de weergavenaam, ongeacht hoofdletters: @acme.com is precies dat domein (niet de subdomeinen ervan), een volledig adres is dat adres, andere tekst is een deel van het adres. Werkt alleen met mail die door het afzenderdomein is geauthenticeerd"
           },
           "label": {
             "title": "Label",
@@ -21387,7 +21387,7 @@
           },
           "mailbox": {
             "title": "Gedeelde mailbox",
-            "description": "Een gedeelde mailbox die het gekoppelde account kan lezen; leeg voor zijn eigen mailbox. Er een noemen vereist het recht om koppelingen te beheren"
+            "description": "Een gedeelde mailbox die het gekoppelde account kan lezen; laat leeg voor de eigen mailbox. Om er een op te geven, heb je het recht nodig om koppelingen te beheren"
           },
           "subject_contains": {
             "title": "Onderwerp bevat",
@@ -21395,7 +21395,7 @@
           },
           "sender_contains": {
             "title": "Afzender bevat",
-            "description": "Alleen vergeleken met het adres van de afzender, nooit met de weergavenaam, ongeacht hoofdletters: @acme.com is precies dat domein (niet de subdomeinen ervan), een volledig adres is dat adres, andere tekst is een deel van het adres. Vereist mail die het afzenderdomein heeft geauthenticeerd"
+            "description": "Alleen vergeleken met het adres van de afzender, nooit met de weergavenaam, ongeacht hoofdletters: @acme.com is precies dat domein (niet de subdomeinen ervan), een volledig adres is dat adres, andere tekst is een deel van het adres. Werkt alleen met mail die door het afzenderdomein is geauthenticeerd"
           },
           "has_attachments": {
             "title": "Heeft bijlagen",
@@ -21449,7 +21449,7 @@
           },
           "events": {
             "title": "Start wanneer een record wordt",
-            "description": "Toegevoegd, gewijzigd of verwijderd. Een wijziging start hem alleen als een van de gekozen kolommen van de tabel veranderde, wanneer er kolommen zijn gekozen.",
+            "description": "Toegevoegd, gewijzigd of verwijderd. Als er kolommen zijn gekozen, start een wijziging hem alleen wanneer een van die kolommen verandert.",
             "options": {
               "created": "Toegevoegd",
               "deleted": "Verwijderd",
@@ -21527,7 +21527,7 @@
           },
           "wait": {
             "title": "Wachten tot hij klaar is",
-            "description": "Geef door wat hij antwoordt. Uit gaat de stap verder zodra hij start"
+            "description": "Geef door wat hij antwoordt. Als dit uit staat, gaat de stap verder zodra de workflow start"
           }
         },
         "input": {
