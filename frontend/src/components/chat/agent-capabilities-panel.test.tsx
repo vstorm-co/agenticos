@@ -15,6 +15,7 @@ const env = vi.hoisted(() => ({
   guides: {} as Record<string, CapabilityGuide>,
   bindings: [] as McpServerRef[],
   versionLoading: false,
+  versionError: null as Error | null,
   connections: [] as McpConnectionRecord[],
   connectionsLoading: false,
   servers: [] as McpCatalogEntry[],
@@ -29,7 +30,7 @@ vi.mock("@/hooks", () => ({
         ? undefined
         : { spec: { mcp_servers: env.bindings } },
     isLoading: env.versionLoading,
-    error: null,
+    error: env.versionError,
   }),
   useMcpConnections: () => ({ connections: env.connections, isLoading: env.connectionsLoading }),
   useMcpCatalog: () => ({ servers: env.servers, isLoading: env.serversLoading }),
@@ -73,6 +74,30 @@ const AGENT: Partial<Agent> = {
   published_capabilities: ["knowledge"],
 };
 
+const GMAIL: McpConnectionRecord = {
+  id: "gmail",
+  name: "Gmail",
+  url: "https://example.com/mcp",
+  has_auth_token: false,
+  allowed_tools: null,
+  is_enabled: true,
+  include_instructions: false,
+  auth_type: "oauth",
+  oauth_authorized: true,
+  authorized: true,
+  last_status: null,
+  last_error: null,
+  last_checked_at: null,
+  visibility: "org",
+  catalog_key: "gmail",
+  label: null,
+  is_default: false,
+  trust_read_only_hints: false,
+  last_tools: null,
+  created_at: "2026-01-01T00:00:00Z",
+  updated_at: null,
+};
+
 const open = () => userEvent.click(screen.getByRole("button", { name: "What can this agent do" }));
 
 function phone(matches: boolean) {
@@ -96,6 +121,7 @@ describe("AgentCapabilitiesPanel", () => {
     env.guides = { knowledge: KNOWLEDGE_GUIDE };
     env.bindings = [];
     env.versionLoading = false;
+    env.versionError = null;
     env.connections = [];
     env.connectionsLoading = false;
     env.servers = [];
@@ -208,7 +234,7 @@ describe("AgentCapabilitiesPanel", () => {
     ];
     render(<AgentCapabilitiesPanel agent={env.agent as Agent} onPick={vi.fn()} />);
     return open().then(() => {
-      expect(screen.getByText("Connected apps: Gmail · Notion")).toBeInTheDocument();
+      expect(screen.getByText("Apps set up for this agent: Gmail · Notion")).toBeInTheDocument();
     });
   });
 
@@ -217,7 +243,7 @@ describe("AgentCapabilitiesPanel", () => {
     render(<AgentCapabilitiesPanel agent={env.agent as Agent} onPick={vi.fn()} />);
     await open();
 
-    expect(screen.getByText(/This agent has no tools or connected apps yet\./)).toBeInTheDocument();
+    expect(screen.getByText(/This agent has no tools or apps yet\./)).toBeInTheDocument();
   });
 
   it("shows no control while any list it reads from is still loading", () => {
@@ -241,6 +267,29 @@ describe("AgentCapabilitiesPanel", () => {
     render(<AgentCapabilitiesPanel agent={env.agent as Agent} onPick={vi.fn()} />);
 
     expect(screen.queryByRole("button", { name: "What can this agent do" })).toBeNull();
+  });
+
+  it("shows no control when the version lookup failed for an app-only agent", () => {
+    // An agent bound only to apps has no published capabilities, so a failed
+    // version lookup leaves it looking empty: a lookup failure, not "no tools".
+    env.agent = { ...AGENT, published_capabilities: [] };
+    env.versionError = new Error("502");
+    render(<AgentCapabilitiesPanel agent={env.agent as Agent} onPick={vi.fn()} />);
+
+    expect(screen.queryByRole("button", { name: "What can this agent do" })).toBeNull();
+  });
+
+  it("makes no connection claim about a disabled org app or a personal app", async () => {
+    env.bindings = [
+      { account: "organization", connection_id: "gmail", allowed_tools: null, approval: "writes" },
+      { account: "personal", catalog_key: "notion", allowed_tools: null, approval: "writes" },
+    ];
+    env.connections = [{ ...GMAIL, is_enabled: false }];
+    render(<AgentCapabilitiesPanel agent={env.agent as Agent} onPick={vi.fn()} />);
+    await open();
+
+    expect(screen.getByText("Apps set up for this agent: Gmail · notion")).toBeInTheDocument();
+    expect(screen.queryByText(/connected/i)).toBeNull();
   });
 
   it("renders nothing before the agent resolves", () => {
