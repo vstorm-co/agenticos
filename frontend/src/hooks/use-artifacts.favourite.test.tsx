@@ -106,6 +106,19 @@ describe("useToggleArtifactFavourite", () => {
     expect(client.getQueryData<ArtifactList>(FAVOURITES)?.items[0]?.id).toBe("a1");
   });
 
+  it("says why and sends nothing when the cache cannot be prepared for the star", async () => {
+    const { result, client } = setup();
+    vi.spyOn(client, "cancelQueries").mockRejectedValue(new ApiError(500, "cache failed"));
+
+    await act(async () => {
+      result.current.mutate({ id: "a1", favourite: true });
+    });
+
+    await waitFor(() => expect(toastError).toHaveBeenCalled());
+    expect(apiClient.post).not.toHaveBeenCalled();
+    expect(client.getQueryData<ArtifactList>(ALL)?.items[0]?.is_favourite).toBe(false);
+  });
+
   it("leaves an unloaded detail and other apps untouched by an optimistic star", async () => {
     let finish!: (detail: ArtifactDetail) => void;
     vi.mocked(apiClient.get).mockReturnValue(

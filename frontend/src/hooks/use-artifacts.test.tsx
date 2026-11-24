@@ -102,6 +102,17 @@ describe("useArtifacts", () => {
     expect(result.current.total).toBe(7);
   });
 
+  it("asks for the caller's own and shared pages, or only their starred ones, when told to", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
+    const { result } = renderHook(() => useArtifacts({ mineOrShared: true, favourites: true }), {
+      wrapper,
+    });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(apiClient.get).toHaveBeenCalledWith(
+      "/apps?skip=0&limit=50&mine_or_shared=true&favourites=true",
+    );
+  });
+
   it("answers an empty page before the first response", () => {
     vi.mocked(apiClient.get).mockReturnValue(new Promise(() => {}));
     const { result } = renderHook(() => useArtifacts(), { wrapper });
@@ -692,6 +703,19 @@ describe("cached static App previews", () => {
     const third = renderHook(() => useArtifactThumbnail("a", "v1", true), { wrapper: wrap });
     expect(third.result.current.data?.version_id).toBe("v1");
     expect(apiClient.get).toHaveBeenCalledTimes(1);
+  });
+
+  it("asks for the current version when no version is named", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({
+      version_id: "v9",
+      state: "ready",
+      image: "data:image/jpeg;base64,aA==",
+    });
+    const { result } = renderHook(() => useArtifactThumbnail("a", null, true), {
+      wrapper: cachedWrapper(),
+    });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(apiClient.get).toHaveBeenCalledWith("/apps/a/thumbnail");
   });
 
   it("does not restart a failed preview on every Back navigation", async () => {
