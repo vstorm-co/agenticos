@@ -1,5 +1,5 @@
 ---
-source_sha: "4fce44b7cff8"
+source_sha: "def479e6997c"
 ---
 
 # Governance { #governance }
@@ -111,6 +111,8 @@ Die Routinenliste zeigt außerdem schon vor der nächsten Aktivierung, ob sie la
 Eine Routine, die keinen Run starten würde, ist rot umrandet; eine mit Aktionen, die bei Verwendung eine Freigabe benötigen, ist bernsteinfarben; eine pausierte Routine ist ausgegraut und zeigt weiterhin, woran das Fortsetzen scheitern würde. Jede Zeile nennt den Grund und bietet dem Ersteller die passende Abhilfe. Während einer Prüfung oder bei fehlendem Ergebnis erscheint ein neutraler Hinweis statt einer vermeintlichen Bereitschaft. Eine fehlgeschlagene Prüfung lässt sich wiederholen; Jetzt ausführen prüft die Zulassung weiterhin selbst.
 
 Die Dashboard-Karte Routines stellt eine Routine, die nicht laufen würde, an den Anfang und nennt den Grund in ihrem Status. `POST /triggers/readiness` liefert dieselben Gründe als begrenzte Codes für bis zu 100 Routinen auf einmal, lässt Routinen aus, die der Aufrufer nicht sehen darf, und nennt keine Quellen, Konten oder Zugangsdaten. Prüfungen, die erst ein Anbieter zur Laufzeit beantworten kann, werden nicht vorhergesagt; ihre Ablehnungen bleiben im oben beschriebenen Verlauf.
+
+Pro Person innerhalb einer Organisation kann nur eine Bereitschaftsprüfung gleichzeitig laufen. Ein zweiter Tab wartet oder versucht es erneut, statt parallele umfangreiche Prüfungen zu starten. Änderungen an Quellressourcen aktualisieren die sichtbare Bereitschaft. Ein auf eine Person wartender Haupt-Run wird im Routineverlauf auch dann gefunden, wenn der Worker vor dem Speichern seiner Verknüpfung als letzter Run gestoppt wurde. Bei einem Redis-Ausfall gilt diese Nebenläufigkeitsgrenze je API-Prozess.
 
 ## Budgets { #budgets }
 

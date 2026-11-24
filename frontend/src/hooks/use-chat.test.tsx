@@ -2105,6 +2105,46 @@ describe("useChat - approvals and questions", () => {
     },
   );
 
+  it("clears tentative chat ownership when the last approval was decided by a key", async () => {
+    post
+      .mockResolvedValueOnce({ status: "approved", continues_in_chat: true })
+      .mockRejectedValueOnce(
+        new ApiError(400, "Already approved", {
+          error: {
+            code: "BAD_REQUEST",
+            message: "Already approved",
+            details: {
+              approval_id: "ar-2",
+              status: "approved",
+              continues_in_chat: false,
+            },
+          },
+        }),
+      )
+      .mockResolvedValue({ status: "completed" });
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("tool_approval_required", {
+      run_id: "r-1",
+      action_requests: [
+        { id: "ar-1", tool_call_id: "tc-1", tool_name: "write", args: {} },
+        { id: "ar-2", tool_call_id: "tc-2", tool_name: "write", args: {} },
+      ],
+      review_configs: [],
+    });
+    await act(async () =>
+      result.current.sendResumeDecisions([{ type: "approve" }, { type: "approve" }]),
+    );
+    expect(result.current.pendingApproval?.actionRequests).toEqual([]);
+    expect(result.current.pendingApproval?.continuesInChat).toBe(false);
+    await act(async () => result.current.sendResumeDecisions([]));
+    expect(post.mock.calls).toEqual([
+      ["/approvals/ar-1", { approved: true }],
+      ["/approvals/ar-2", { approved: true }],
+      ["/runs/r-1/resume"],
+    ]);
+    expect(result.current.pendingApproval).toBeNull();
+  });
+
   it("retries only the resume and settles the previously approved step", async () => {
     post.mockResolvedValueOnce({}).mockRejectedValueOnce(new Error("Connection lost"));
     post.mockResolvedValueOnce({

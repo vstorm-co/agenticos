@@ -100,6 +100,8 @@ A routine that would not start a run is outlined red; one with actions requiring
 
 The Routines dashboard card puts a routine that would not run first and names the reason in its pill. `POST /triggers/readiness` returns the same reasons as bounded codes for up to 100 routines at once, leaving out any the caller cannot see, without naming a source, account or credential. Checks that only a provider can answer at run time are not predicted; their refusals stay in the history above.
 
+Readiness requests are limited to one active check per person within an organization. A second tab waits or retries instead of starting parallel deep checks. Changes to source resources refresh the visible readiness; a parked top-level run is found in the routine history even if a worker stopped before linking it as the last run. During a Redis outage this concurrency guard is enforced per API process.
+
 ## Budgets
 
 !!! abstract "Three levels, and they are not variations on one number"

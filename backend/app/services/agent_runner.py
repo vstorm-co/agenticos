@@ -1149,6 +1149,11 @@ class PausedRunState(BaseModel):
         default_factory=dict, exclude_if=lambda value: not value
     )
     channel_destination: ChannelDestination | None = None
+    chat_continuation_approval_id: UUID | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+        description="The decision that queued this park's server-owned channel continuation",
+    )
     selected_project_id: UUID | None = Field(default=None, exclude_if=lambda value: value is None)
     channel_file_attempts: int = Field(default=0, ge=0, le=3)
     channel_context: str = ""

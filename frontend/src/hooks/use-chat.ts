@@ -2977,7 +2977,7 @@ export function useChat(options: UseChatOptions = {}) {
         );
         if (alreadyDecided && (details?.status === "approved" || details?.status === "rejected")) {
           recordDecision(alreadyDecided, details.status === "approved");
-          if (details.continues_in_chat === true) continuesInChat = true;
+          continuesInChat = details.continues_in_chat === true;
         }
         // The decision failed to record, or the resume could not be built (a secret
         // deleted since the park): the run is still parked, so put the approval back

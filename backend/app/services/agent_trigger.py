@@ -620,6 +620,17 @@ class AgentTriggerService:
         )
 
     async def readiness(self, ctx: AuthContext, trigger_ids: list[UUID]) -> list[TriggerReadiness]:
+        """Evaluate one bounded screen per principal at a time, across API workers."""
+        async with rate_limit.one_in_flight(
+            "routine_readiness",
+            f"org:{ctx.organization_id}:user:{ctx.subject_id}",
+            ttl_seconds=120,
+            renew=True,
+            message="Routine readiness is already being checked. Wait and try again.",
+        ):
+            return await self._readiness(ctx, trigger_ids)
+
+    async def _readiness(self, ctx: AuthContext, trigger_ids: list[UUID]) -> list[TriggerReadiness]:
         """What would stop each named routine's next activation, for whoever can see it.
 
         One read for every routine a screen shows. Visibility is the org listing's
@@ -630,7 +641,8 @@ class AgentTriggerService:
         Each routine is evaluated as its creator, because a fire runs as them: a
         viewer learns that it is blocked and why, never the creator's sources or
         accounts. Paused routines are evaluated too, so the console can say whether
-        resuming would work. The creator's context is resolved once per creator.
+        resuming would work. Membership is resolved once per creator; each routine
+        gets its own identity and execution-mode context.
         """
         visible = await visible_resource_ids(
             self.db, ctx, resource_type=AGENT, perm=Perm.AGENTS_VIEW
@@ -656,7 +668,20 @@ class AgentTriggerService:
                     blockers=await routine_readiness.blockers(
                         self.db,
                         trigger,
-                        creator=creators[trigger.created_by_user_id],
+                        creator=(
+                            replace(
+                                creator,
+                                routine_id=trigger.id,
+                                subject_is_publisher_fallback=not trigger.runs_as_creator,
+                                fired_as_creator=(
+                                    cast(Literal["schedule", "event"], trigger.trigger_type)
+                                    if trigger.runs_as_creator
+                                    else None
+                                ),
+                            )
+                            if (creator := creators[trigger.created_by_user_id]) is not None
+                            else None
+                        ),
                         paused_for_budget=read.paused_for_budget,
                     ),
                 )

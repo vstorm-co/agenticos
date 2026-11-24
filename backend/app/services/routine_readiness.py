@@ -113,11 +113,17 @@ async def _parked_run(db: AsyncSession, trigger: AgentTrigger) -> RoutineBlocker
     nothing until somebody decides; an event or an overlapping schedule still
     fires, and the parked run is only something to act on.
     """
-    if trigger.last_run_id is None:
-        return None
-    run = await agent_run_repo.get_run(
-        db, trigger.last_run_id, organization_id=trigger.organization_id
+    run = (
+        await agent_run_repo.get_run(
+            db, trigger.last_run_id, organization_id=trigger.organization_id
+        )
+        if trigger.last_run_id is not None
+        else None
     )
+    if (run is None or run.status not in _PARKED) and trigger.conversation_id is not None:
+        run = await agent_run_repo.latest_parked_run_for_conversation(
+            db, conversation_id=trigger.conversation_id, organization_id=trigger.organization_id
+        )
     if run is None or run.status not in _PARKED:
         return None
     held = trigger.trigger_type == "schedule" and trigger.overlap != TriggerOverlap.ALLOW.value

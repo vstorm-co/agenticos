@@ -24,6 +24,7 @@ describe("staleQueries", () => {
     expect(staleQueries(change("organization"))).toEqual([
       qk.organizations.all(),
       qk.assistant(change("organization").organization_id),
+      qk.triggers.readinessAll(),
     ]);
     expect(staleQueries(change("trigger"))).toEqual([qk.triggers.all()]);
     expect(staleQueries(change("notification"))).toEqual([
@@ -73,13 +74,33 @@ describe("staleQueries", () => {
       qk.runs.assistantSignals(ORG),
       qk.triggers.readinessAll(),
     ]);
-    expect(staleQueries(change("skill"))).toEqual([qk.skills.all(), qk.sharing.all()]);
-    expect(staleQueries(change("context"))).toEqual([qk.context.all(), qk.sharing.all()]);
-    expect(staleQueries(change("knowledge_base"))).toEqual([qk.kb.all(), qk.sharing.all()]);
+    expect(staleQueries(change("skill"))).toEqual([
+      qk.skills.all(),
+      qk.sharing.all(),
+      qk.triggers.readinessAll(),
+    ]);
+    expect(staleQueries(change("context"))).toEqual([
+      qk.context.all(),
+      qk.sharing.all(),
+      qk.triggers.readinessAll(),
+    ]);
+    expect(staleQueries(change("knowledge_base"))).toEqual([
+      qk.kb.all(),
+      qk.sharing.all(),
+      qk.triggers.readinessAll(),
+    ]);
     expect(staleQueries(change("artifact"))).toEqual([qk.artifacts.all(), qk.sharing.all()]);
-    expect(staleQueries(change("table"))).toEqual([qk.tables.all(), qk.sharing.all()]);
+    expect(staleQueries(change("table"))).toEqual([
+      qk.tables.all(),
+      qk.sharing.all(),
+      qk.triggers.readinessAll(),
+    ]);
     expect(staleQueries(change("workflow"))).toEqual([qk.workflows.all(), qk.sharing.all()]);
-    expect(staleQueries(change("secret"))).toEqual([qk.secrets.all(), qk.sharing.all()]);
+    expect(staleQueries(change("secret"))).toEqual([
+      qk.secrets.all(),
+      qk.sharing.all(),
+      qk.triggers.readinessAll(),
+    ]);
     expect(staleQueries(change("mcp_connection"))).toEqual([
       qk.triggers.all(),
       qk.mcpConnections.all(),
@@ -104,7 +125,11 @@ describe("staleQueries", () => {
   });
 
   it("refreshes the surfaces an agent is exposed on with the channel bots", () => {
-    expect(staleQueries(change("channel"))).toEqual([qk.channelBots.list(), qk.exposures.all()]);
+    expect(staleQueries(change("channel"))).toEqual([
+      qk.channelBots.list(),
+      qk.exposures.all(),
+      qk.triggers.readinessAll(),
+    ]);
   });
 
   it("refreshes a member's groups and the reader's own permissions with the member list", () => {

@@ -16,7 +16,8 @@ import pytest
 from app.agents.capabilities.channel_tools._directory import ChannelDestination
 from app.core.exceptions import BadRequestError, NotFoundError, RunExecutionError
 from app.core.permissions import AuthContext, OrgRoleName
-from app.db.models.agent_run import ApprovalStatus, RunSurface
+from app.db.models.agent_run import AgentRun, ApprovalStatus, RunSurface
+from app.services.agent_runner import PausedRunState
 from app.services.approvals import ApprovalService
 from app.services.parked_runs import Continued, DecidedApproval, ParkedRunService
 
@@ -39,7 +40,7 @@ def _run(surface: str = "slack", *, destination: ChannelDestination | None = DES
         conversation_id=uuid.uuid4(),
         paused_state={
             "messages": [],
-            "tool_call_ids": {},
+            "tool_call_ids": {str(APPROVAL): "call-1"},
             "channel_destination": None
             if destination is None
             else destination.model_dump(mode="json"),
@@ -95,6 +96,14 @@ class _Patched:
         self.settle_open = AsyncMock(side_effect=settle)
         self.get_approval = AsyncMock(return_value=MagicMock(run_id=RUN))
         self.get_run = AsyncMock(return_value=self.run)
+
+        async def keep_state(
+            db: object, *, run: AgentRun, paused_state: dict[str, object]
+        ) -> AgentRun:
+            run.paused_state = paused_state
+            return run
+
+        self.keep_state = AsyncMock(side_effect=keep_state)
         self.claim = AsyncMock(side_effect=claim)
 
         def spawn_after_commit(db: Any, coro: Any, *, name: str) -> None:
@@ -104,6 +113,7 @@ class _Patched:
         self.patches = [
             patch(f"{_MODULE}.agent_run_repo.get_approval", new=self.get_approval),
             patch(f"{_MODULE}.agent_run_repo.get_run", new=self.get_run),
+            patch(f"{_MODULE}.agent_run_repo.keep_paused_state", new=self.keep_state),
             patch(f"{_MODULE}.agent_run_repo.claim_parked_run", new=self.claim),
             patch(
                 f"{_MODULE}.agent_run_repo.list_approvals_for_run",
@@ -243,8 +253,69 @@ class TestDeciding:
             with pytest.raises(BadRequestError) as caught:
                 await p.service.decide(_person(), APPROVAL, approved=True, note=None)
         assert caught.value.details == (
-            {"status": "approved", "continues_in_chat": True} if details else None
+            {"status": "approved", "continues_in_chat": False} if details else None
         )
+        assert p.spawned == []
+
+    async def test_a_conflict_keeps_the_recorded_continuation_owner_not_the_current_caller(
+        self,
+    ) -> None:
+        with _Patched() as p:
+            await p.service.decide(_person(), APPROVAL, approved=True, note=None)
+            p.keep_state.assert_awaited_once()
+            assert p.run.paused_state["chat_continuation_approval_id"] == str(APPROVAL)
+            checkpoint = PausedRunState.model_validate(p.run.paused_state)
+            assert checkpoint.chat_continuation_approval_id == APPROVAL
+            assert checkpoint.model_dump(mode="json")["chat_continuation_approval_id"] == str(
+                APPROVAL
+            )
+            p.approvals.decide.side_effect = BadRequestError(
+                message="Already decided", details={"status": "approved"}
+            )
+            with pytest.raises(BadRequestError) as caught:
+                await p.service.decide(_key(), APPROVAL, approved=True, note=None)
+        assert caught.value.details == {"status": "approved", "continues_in_chat": True}
+        assert len(p.spawned) == 1
+
+    async def test_a_key_decision_does_not_acquire_chat_ownership_on_a_persons_stale_retry(
+        self,
+    ) -> None:
+        with _Patched() as p:
+            await p.service.decide(_key(), APPROVAL, approved=True, note=None)
+            p.keep_state.assert_not_awaited()
+            p.approvals.decide.side_effect = BadRequestError(
+                message="Already decided", details={"status": "approved"}
+            )
+            with pytest.raises(BadRequestError) as caught:
+                await p.service.decide(_person(), APPROVAL, approved=True, note=None)
+        assert caught.value.details == {"status": "approved", "continues_in_chat": False}
+        assert p.spawned == []
+
+    @pytest.mark.parametrize(
+        "state",
+        [
+            None,
+            {},
+            {"chat_continuation_approval_id": str(APPROVAL), "tool_call_ids": []},
+            {"chat_continuation_approval_id": str(APPROVAL), "tool_call_ids": {}},
+            {
+                "chat_continuation_approval_id": str(APPROVAL),
+                "tool_call_ids": {str(APPROVAL): "call-1"},
+            },
+        ],
+    )
+    async def test_a_conflict_claims_no_chat_continuation_without_a_valid_current_park(
+        self, state: dict[str, object] | None
+    ) -> None:
+        run = _run()
+        run.paused_state = state
+        with _Patched(run) as p:
+            p.approvals.decide.side_effect = BadRequestError(
+                message="Already decided", details={"status": "rejected"}
+            )
+            with pytest.raises(BadRequestError) as caught:
+                await p.service.decide(_person(), APPROVAL, approved=False, note=None)
+        assert caught.value.details == {"status": "rejected", "continues_in_chat": False}
         assert p.spawned == []
 
     async def test_a_console_decision_still_wakes_a_workflow_waiting_on_its_run(self) -> None:

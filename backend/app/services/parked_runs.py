@@ -111,10 +111,28 @@ class ParkedRunService:
             )
         except BadRequestError as error:
             if error.details and "status" in error.details:
-                error.details["continues_in_chat"] = flag
+                state = run.paused_state
+                queued = state.get("chat_continuation_approval_id") if state else None
+                calls = state.get("tool_call_ids", {}) if state else {}
+                error.details["continues_in_chat"] = (
+                    isinstance(queued, str)
+                    and isinstance(calls, dict)
+                    and queued in calls
+                    and chat_destination(run) is not None
+                )
             raise
         destination = chat_destination(run)
         if flag and destination is not None and not await self._anything_pending(run):
+            # Ownership belongs to the queued continuation, not a later caller's identity.
+            assert run.paused_state is not None
+            await agent_run_repo.keep_paused_state(
+                self.db,
+                run=run,
+                paused_state={
+                    **run.paused_state,
+                    "chat_continuation_approval_id": str(approval_id),
+                },
+            )
             spawn_after_commit(
                 self.db,
                 continue_in_chat(

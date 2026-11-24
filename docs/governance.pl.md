@@ -1,5 +1,5 @@
 ---
-source_sha: "4fce44b7cff8"
+source_sha: "def479e6997c"
 ---
 
 # Governance { #governance }
@@ -106,6 +106,8 @@ Lista procedur mówi też, jeszcze przed kolejnym uruchomieniem, czy procedura s
 Procedura, która nie uruchomi runu, ma czerwoną ramkę; taka z akcjami wymagającymi zatwierdzenia w razie użycia jest oznaczona na bursztynowo; wstrzymana procedura jest wyszarzona i nadal mówi, na co trafiłoby wznowienie. Każda linia podaje powód, a twórca dostaje przycisk naprawy. Gdy sprawdzanie trwa lub jego wynik jest niedostępny, neutralny komunikat informuje o tym zamiast sugerować gotowość. Po błędzie można ponowić sprawdzanie; Uruchom teraz nadal wykonuje własne kontrole dopuszczenia.
 
 Karta Routines na pulpicie pokazuje procedurę, która się nie uruchomi, na samej górze i podaje powód w jej etykiecie. `POST /triggers/readiness` zwraca te same powody jako ograniczone kody dla maksymalnie 100 procedur naraz, pomija te, których wywołujący nie widzi, i nie podaje nazw źródeł, kont ani poświadczeń. Mechanizmy, na które odpowiada dopiero dostawca w czasie runu, nie są przewidywane; ich odmowy zostają w historii opisanej wyżej.
+
+Dla jednej osoby w organizacji może trwać tylko jedno sprawdzanie gotowości naraz. Druga karta czeka lub ponawia próbę zamiast rozpoczynać równoległe, rozbudowane sprawdzanie. Zmiany zasobów źródłowych odświeżają widoczną gotowość; run główny czekający na człowieka zostaje odnaleziony w historii procedury także wtedy, gdy worker zatrzymał się przed zapisaniem go jako ostatniego runu. Podczas awarii Redisa to ograniczenie współbieżności obowiązuje osobno w każdym procesie API.
 
 ## Budżety { #budgets }
 

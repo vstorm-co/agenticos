@@ -402,6 +402,26 @@ async def latest_run_for_conversation(
     return result.scalar_one_or_none()
 
 
+async def latest_parked_run_for_conversation(
+    db: AsyncSession, *, conversation_id: UUID, organization_id: UUID
+) -> AgentRun | None:
+    """Find a top-level parked run even if its trigger's completion link was never saved."""
+    result = await db.execute(
+        select(AgentRun)
+        .where(
+            AgentRun.conversation_id == conversation_id,
+            AgentRun.organization_id == organization_id,
+            AgentRun.parent_run_id.is_(None),
+            AgentRun.status.in_(
+                (RunStatus.AWAITING_APPROVAL.value, RunStatus.AWAITING_ANSWER.value)
+            ),
+        )
+        .order_by(AgentRun.created_at.desc(), AgentRun.id.desc())
+        .limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
 async def has_running_in_conversation(
     db: AsyncSession, *, organization_id: UUID, conversation_id: UUID, excluding: UUID | None = None
 ) -> bool:

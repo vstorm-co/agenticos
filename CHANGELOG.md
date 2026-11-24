@@ -29,6 +29,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Keep readiness checks isolated to each routine's identity, refresh them after source changes, and recover parked runs whose worker stopped before saving their last-run link. Limit concurrent checks per person and organization.
+- Preserve the recorded owner of a channel continuation when a stale approval decision conflicts with an API-key decision.
 - Search every explicitly selected knowledge base when several share a collection name, without including their unselected siblings. Reject incompatible tenant scopes when publishing a workflow.
 - Show folders in the chat Files panel without also showing the empty-files message.
 

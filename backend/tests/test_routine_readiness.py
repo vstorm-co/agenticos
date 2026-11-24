@@ -1,15 +1,17 @@
 """What stops a routine's next activation, asked of the checks a fire makes."""
 
 import uuid
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from typing import Literal
 from unittest.mock import ANY, AsyncMock, MagicMock
 
+import anyio
 import pytest
 
-from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
+from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError, RateLimitError
 from app.core.permissions import AuthContext, OrgRoleName, Perm
-from app.schemas.routine_readiness import RoutineBlocker
+from app.schemas.routine_readiness import RoutineBlocker, TriggerReadiness
 from app.schemas.routine_sources import RoutineSourcePolicy
 from app.services import routine_readiness
 from app.services.agent_trigger import AgentTriggerService
@@ -64,6 +66,7 @@ def _trigger(**overrides: object) -> MagicMock:
         "setup_required": False,
         "approved_sources": _policy().model_dump(mode="json"),
         "last_run_id": None,
+        "conversation_id": None,
         "trigger_type": "schedule",
         "overlap": "skip",
         "one_shot": False,
@@ -83,6 +86,7 @@ def engine(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
     checks.sources.current = AsyncMock()
     checks.actions.review = AsyncMock(return_value=MagicMock(can_waive=True, items=[]))
     checks.runs.get_run = AsyncMock(return_value=None)
+    checks.runs.latest_parked_run_for_conversation = AsyncMock(return_value=None)
     monkeypatch.setattr(routine_readiness, "AgentRegistryService", lambda db: checks.agents)
     monkeypatch.setattr(routine_readiness, "RoutineSourceService", lambda db: checks.sources)
     monkeypatch.setattr(routine_readiness, "RoutineActionService", lambda db: checks.actions)
@@ -284,7 +288,15 @@ async def test_a_stale_following_review_asks_for_the_review_and_counts_no_consen
 
 
 def _row(**overrides: object) -> MagicMock:
-    return MagicMock(**{"id": uuid.uuid4(), "created_by_user_id": _CREATOR, **overrides})
+    return MagicMock(
+        **{
+            "id": uuid.uuid4(),
+            "created_by_user_id": _CREATOR,
+            "runs_as_creator": False,
+            "trigger_type": "schedule",
+            **overrides,
+        }
+    )
 
 
 async def test_the_service_evaluates_each_visible_routine_as_its_creator(
@@ -293,7 +305,7 @@ async def test_the_service_evaluates_each_visible_routine_as_its_creator(
     from app.services import agent_trigger
 
     service = AgentTriggerService(MagicMock())
-    first, second = _row(), _row()
+    first, second = _row(), _row(runs_as_creator=True, trigger_type="event")
     other = _row(created_by_user_id=uuid.uuid4())
     shared = uuid.uuid4()
     repo = MagicMock(list_visible_by_ids=AsyncMock(return_value=[first, second, other]))
@@ -327,8 +339,16 @@ async def test_the_service_evaluates_each_visible_routine_as_its_creator(
     # One membership read per creator, not per routine.
     assert creator.await_count == 2
     assert [call.kwargs for call in evaluate.await_args_list] == [
-        {"creator": _CREATOR_CTX, "paused_for_budget": False},
-        {"creator": _CREATOR_CTX, "paused_for_budget": True},
+        {
+            "creator": replace(
+                _CREATOR_CTX, routine_id=first.id, subject_is_publisher_fallback=True
+            ),
+            "paused_for_budget": False,
+        },
+        {
+            "creator": replace(_CREATOR_CTX, routine_id=second.id, fired_as_creator="event"),
+            "paused_for_budget": True,
+        },
         {"creator": None, "paused_for_budget": False},
     ]
 
@@ -348,3 +368,64 @@ async def test_a_role_that_sees_every_agent_reads_without_a_grant_list(
     assert await service.readiness(caller, [uuid.uuid4()]) == []
     assert repo.list_visible_by_ids.await_args.kwargs["see_all"] is True
     assert repo.list_visible_by_ids.await_args.kwargs["shared_ids"] == []
+
+
+@pytest.mark.parametrize("last", [None, "completed", "missing"])
+async def test_a_crash_before_last_run_linking_still_exposes_the_parked_run(
+    engine: MagicMock, last: str | None
+) -> None:
+    conversation_id, parked_id = uuid.uuid4(), uuid.uuid4()
+    engine.runs.get_run.return_value = None if last == "missing" else MagicMock(status=last)
+    engine.runs.latest_parked_run_for_conversation.return_value = MagicMock(
+        id=parked_id, status="awaiting_answer"
+    )
+    trigger = _trigger(
+        last_run_id=None if last is None else uuid.uuid4(), conversation_id=conversation_id
+    )
+    [blocker] = await routine_readiness.blockers(
+        MagicMock(), trigger, creator=_CREATOR_CTX, paused_for_budget=False
+    )
+    assert (blocker.code, blocker.severity, blocker.run_id) == (
+        "awaiting_answer",
+        "blocked",
+        parked_id,
+    )
+    engine.runs.latest_parked_run_for_conversation.assert_awaited_once_with(
+        ANY, conversation_id=conversation_id, organization_id=_ORG
+    )
+
+
+async def test_an_empty_run_log_does_not_add_a_parked_blocker(engine: MagicMock) -> None:
+    assert await _codes(_trigger(conversation_id=uuid.uuid4())) == []
+
+
+async def test_parallel_readiness_requests_are_refused_before_database_work(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.services import rate_limit
+
+    monkeypatch.setattr(rate_limit, "_redis", None)
+    monkeypatch.setattr(rate_limit, "_held_here", set())
+    service = AgentTriggerService(MagicMock())
+    entered, finish = anyio.Event(), anyio.Event()
+    evaluated: list[AuthContext] = []
+
+    async def evaluate(ctx: AuthContext, trigger_ids: list[uuid.UUID]) -> list[TriggerReadiness]:
+        evaluated.append(ctx)
+        if ctx == _CREATOR_CTX:
+            entered.set()
+            await finish.wait()
+        return []
+
+    monkeypatch.setattr(service, "_readiness", evaluate)
+    async with anyio.create_task_group() as group:
+        group.start_soon(service.readiness, _CREATOR_CTX, [])
+        await entered.wait()
+        for _ in range(14):
+            with pytest.raises(RateLimitError):
+                await service.readiness(_CREATOR_CTX, [])
+        other = replace(_CREATOR_CTX, user_id=uuid.uuid4())
+        assert await service.readiness(other, []) == []
+        finish.set()
+    assert evaluated == [_CREATOR_CTX, other]
+    assert await service.readiness(other, []) == []

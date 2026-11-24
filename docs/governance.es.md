@@ -1,5 +1,5 @@
 ---
-source_sha: "4fce44b7cff8"
+source_sha: "def479e6997c"
 ---
 
 # Governance { #governance }
@@ -109,6 +109,8 @@ La lista de rutinas indica además, antes de la siguiente activación, si se eje
 Una rutina que no iniciaría un run aparece con borde rojo; una con acciones que necesitarían aprobación si se usan, en ámbar; una rutina en pausa aparece atenuada y sigue indicando qué encontraría al reanudarla. Cada línea nombra el motivo y ofrece a su creador el control para resolverlo. Mientras la comprobación está pendiente o no hay un resultado disponible, un mensaje neutral lo indica sin dar a entender que la rutina está lista. Una comprobación fallida se puede reintentar; Ejecutar ahora sigue realizando sus propias comprobaciones de admisión.
 
 La tarjeta Routines del panel coloca primero una rutina que no se ejecutaría y nombra el motivo en su estado. `POST /triggers/readiness` devuelve los mismos motivos como códigos acotados para hasta 100 rutinas a la vez, omite las que quien llama no puede ver y no nombra fuentes, cuentas ni credenciales. Las comprobaciones que solo un proveedor puede responder durante el run no se predicen; sus rechazos quedan en el historial descrito arriba.
+
+Solo puede haber una comprobación de preparación activa por persona dentro de una organización. Una segunda pestaña espera o reintenta en vez de iniciar comprobaciones exhaustivas en paralelo. Los cambios en los recursos de origen actualizan la preparación visible. Un run principal que espera a una persona se encuentra en el historial de la rutina incluso si el worker se detuvo antes de vincularlo como último run. Durante una caída de Redis, este límite de concurrencia se aplica por proceso de API.
 
 ## Budgets { #budgets }
 

@@ -24,11 +24,11 @@ const STALE: Record<ChangeResource, (orgId: string) => QueryKey[]> = {
     // A new version can stale a routine's source review or its consents.
     qk.triggers.readinessAll(),
   ],
-  skill: () => [qk.skills.all(), qk.sharing.all()],
-  context: () => [qk.context.all(), qk.sharing.all()],
-  knowledge_base: () => [qk.kb.all(), qk.sharing.all()],
+  skill: () => [qk.skills.all(), qk.sharing.all(), qk.triggers.readinessAll()],
+  context: () => [qk.context.all(), qk.sharing.all(), qk.triggers.readinessAll()],
+  knowledge_base: () => [qk.kb.all(), qk.sharing.all(), qk.triggers.readinessAll()],
   artifact: () => [qk.artifacts.all(), qk.sharing.all()],
-  table: () => [qk.tables.all(), qk.sharing.all()],
+  table: () => [qk.tables.all(), qk.sharing.all(), qk.triggers.readinessAll()],
   workflow: () => [qk.workflows.all(), qk.sharing.all()],
   member: (orgId) => [
     qk.organizations.members(orgId),
@@ -42,12 +42,16 @@ const STALE: Record<ChangeResource, (orgId: string) => QueryKey[]> = {
   // A group's members and shares are who reaches what it was shared.
   group: (orgId) => [qk.organizations.groups(orgId), qk.sharing.all(), qk.triggers.readinessAll()],
   // The organization's settings, the AI Architect's among them.
-  organization: (orgId) => [qk.organizations.all(), qk.assistant(orgId)],
+  organization: (orgId) => [
+    qk.organizations.all(),
+    qk.assistant(orgId),
+    qk.triggers.readinessAll(),
+  ],
   trigger: () => [qk.triggers.all()],
   // A bot is also the surface an agent is exposed on.
-  channel: () => [qk.channelBots.list(), qk.exposures.all()],
+  channel: () => [qk.channelBots.list(), qk.exposures.all(), qk.triggers.readinessAll()],
   notification: () => [qk.notifications.all(), qk.outcomes.all()],
-  secret: () => [qk.secrets.all(), qk.sharing.all()],
+  secret: () => [qk.secrets.all(), qk.sharing.all(), qk.triggers.readinessAll()],
   mcp_connection: () => [
     qk.triggers.all(),
     qk.mcpConnections.all(),
