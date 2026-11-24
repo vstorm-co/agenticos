@@ -134,8 +134,12 @@ describe("ConnectorsPage", () => {
     state.health = { apps: 1, mcp: 2, total: 3 };
     render(<ConnectorsPage />);
 
-    expect(screen.getByRole("tab", { name: "Apps1" })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "MCP servers2" })).toBeInTheDocument();
+    const apps = screen.getByRole("tab", { name: "Apps" });
+    const mcp = screen.getByRole("tab", { name: "MCP servers" });
+    expect(within(apps).getByText("1")).toBeInTheDocument();
+    expect(within(mcp).getByText("2")).toBeInTheDocument();
+    expect(apps).toHaveAccessibleDescription("1 connection needs attention");
+    expect(mcp).toHaveAccessibleDescription("2 connections need attention");
     expect(screen.getByRole("tab", { name: "More" })).toBeInTheDocument();
   });
 

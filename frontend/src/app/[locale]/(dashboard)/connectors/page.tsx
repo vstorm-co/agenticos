@@ -1,5 +1,7 @@
 "use client";
 
+import { useId } from "react";
+
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import {
@@ -96,6 +98,7 @@ export default function ConnectorsPage() {
   // fails, so each tab carries its own count.
   const { apps: appsNeedingAttention, mcp: mcpNeedingAttention } = useConnectionHealth();
   useMcpOAuthOutcome();
+  const countId = useId();
   const [tabParam, setTab] = useUrlState("tab");
   const search = useSearchParams();
   const manualRequest = search.has("server") || search.has("connect");
@@ -122,18 +125,26 @@ export default function ConnectorsPage() {
         onValueChange={(value) => setTab(value === "apps" && !manualRequest ? null : value)}
       >
         <TabsList>
-          <TabsTrigger value="apps" data-tour="connectors-apps">
+          <TabsTrigger
+            value="apps"
+            data-tour="connectors-apps"
+            aria-describedby={appsNeedingAttention > 0 ? `${countId}-apps` : undefined}
+          >
             {t("apps")}
             {appsNeedingAttention > 0 && (
-              <span className="text-destructive text-xs font-medium tabular-nums">
+              <span aria-hidden className="text-destructive text-xs font-medium tabular-nums">
                 {appsNeedingAttention}
               </span>
             )}
           </TabsTrigger>
-          <TabsTrigger value="mcp" data-tour="connectors-advanced">
+          <TabsTrigger
+            value="mcp"
+            data-tour="connectors-advanced"
+            aria-describedby={mcpNeedingAttention > 0 ? `${countId}-mcp` : undefined}
+          >
             {t("mcp")}
             {mcpNeedingAttention > 0 && (
-              <span className="text-destructive text-xs font-medium tabular-nums">
+              <span aria-hidden className="text-destructive text-xs font-medium tabular-nums">
                 {mcpNeedingAttention}
               </span>
             )}
@@ -142,6 +153,17 @@ export default function ConnectorsPage() {
             {t("more")}
           </TabsTrigger>
         </TabsList>
+
+        {appsNeedingAttention > 0 && (
+          <span id={`${countId}-apps`} className="sr-only">
+            {tNav("connectionHealthCount", { count: appsNeedingAttention })}
+          </span>
+        )}
+        {mcpNeedingAttention > 0 && (
+          <span id={`${countId}-mcp`} className="sr-only">
+            {tNav("connectionHealthCount", { count: mcpNeedingAttention })}
+          </span>
+        )}
 
         <TabsContent value="apps" className="mt-4">
           <AppsTab />
