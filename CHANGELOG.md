@@ -183,6 +183,7 @@ Two things are versioned separately from this file and worth knowing about:
 - Completed room answers containing only text can recover a missed save acknowledgement from history, restoring reply, fork and rating actions. Local tool results, thinking, errors, and pending approvals or questions retain their existing state.
 - Table links expose only readable destination IDs and labels, including exports and projected reads. Link filters and counts use the same visible destinations, and legacy array replacements retain hidden existing links. Invalid stored row policies block record access with a repairable `ROW_POLICY_INVALID` error instead of disabling restrictions.
 - Chat followers recover saved-answer acknowledgements and final outcomes when a turn finishes during replay or a quiet interval. Sequence checks keep recovered frames in order without duplicating earlier output.
+- Tools whose schema a strict grammar cannot express, such as `browser_fill_credential`, are sent non-strict, so an Anthropic model behind an OpenAI-style gateway no longer rejects the request with HTTP 400.
 - Room workers carry the persisted assistant message ID through their completion callback so connected participants receive a save acknowledgement before the turn ends. The acknowledgement still requires a separately committed message from the same run.
 
 ## [1.90.1] - 2026-11-22
