@@ -18,8 +18,17 @@ vi.mock("@/hooks/use-suggestions", () => ({
 }));
 vi.mock("@/components/chat", () => ({
   ConversationSidebar: () => <aside>Chats</aside>,
-  ChatContainer: ({ composerDraft }: { composerDraft?: { text: string; consume: () => void } }) => (
+  ChatContainer: ({
+    composerDraft,
+    incomingFiles,
+  }: {
+    composerDraft?: { text: string; consume: () => void };
+    incomingFiles?: { id: number; text?: string } | null;
+  }) => (
     <div>
+      <p data-testid="incoming">
+        {incomingFiles ? `${incomingFiles.id}:${incomingFiles.text}` : ""}
+      </p>
       <output>{composerDraft?.text ?? "No draft"}</output>
       {composerDraft && <button onClick={composerDraft.consume}>Consume draft</button>}
     </div>

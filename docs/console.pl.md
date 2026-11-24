@@ -1,5 +1,5 @@
 ---
-source_sha: "412c83b8757b"
+source_sha: "8252d40ce4c3"
 ---
 
 # Konsola { #the-console }
@@ -1269,7 +1269,7 @@ problem zostaje odczytany jako cisza.
 - Strona pokazująca "nic jeszcze nie ma" może być **nieudanym żądaniem**, a nie
   pustym zasobem.
 
-Stopka panelu bocznego pokazuje wersję kompilacji konsoli obok wyszukiwania i powiadomień, także w zwiniętym panelu i menu mobilnym. Numer pochodzi z wersji pakietu frontendu zapisanej w kompilacji, więc jego odczyt nie wymaga żądania sieciowego. Podpowiedź określa go jako wersję konsoli; osobno aktualizowany proces API może mieć inną wersję.
+Stopka panelu bocznego pokazuje wersję kompilacji konsoli obok powiadomień oraz wpis Pomoc z dokumentacją, ścieżką nauki i zgłoszeniem błędu z wstępnie wypełnioną wersją, także w zwiniętym panelu i menu mobilnym. Numer pochodzi z wersji pakietu frontendu zapisanej w kompilacji, więc jego odczyt nie wymaga żądania sieciowego. Podpowiedź określa go jako wersję konsoli; osobno aktualizowany proces API może mieć inną wersję.
 
 Nowsze stabilne wydanie AgenticOS podświetla ten numer i dodaje zieloną kropkę. Kliknięcie pokazuje uruchomioną i dostępną wersję oraz odnośnik do oficjalnego wydania. Sprawdzenie w tle odbywa się przy otwarciu konsoli, co 30 minut podczas pracy oraz po odzyskaniu fokusu lub połączenia, jeśli dane są nieaktualne. Serwer współdzieli wyniki publicznych sprawdzeń przez pięć minut i nie wysyła do GitHuba danych konta, organizacji ani wdrożenia. Awaria sieci pozostawia numer uruchomionej wersji bez stwierdzenia, że jest najnowsza. Powiadomienie nie przeładowuje strony ani nie instaluje aktualizacji automatycznie.
 

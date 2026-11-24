@@ -5284,7 +5284,15 @@
     "devicesNetworks": "Devices & networks",
     "failureLearning": "Failure learning",
     "noFavouriteApps": "Star a page to pin it here. <link>All pages</link>",
-    "onboarding": "Onboarding"
+    "onboarding": "Onboarding",
+    "help": "Help",
+    "helpDocumentation": "Documentation",
+    "helpDocumentationHint": "Guides, concepts and how-tos",
+    "helpLearn": "Learn",
+    "helpLearnHint": "A guided course for getting started",
+    "helpReportProblem": "Report a problem",
+    "helpReportProblemHint": "Opens a public GitHub issue with your version filled in",
+    "helpReportVersion": "Reports include console version {version}"
   },
   "navigation": {
     "dashboard": "Dashboard",
