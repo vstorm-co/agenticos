@@ -1118,7 +1118,7 @@
       "conversation": "Huidig gesprek",
       "conversationHint": "Beschikbaar tijdens het antwoorden in dit kanaal. Deze tools gebruiken alleen het huidige gesprek.",
       "connection": "Vanuit elke run",
-      "connectionHint": "Beschikbaar in webchat, gekoppelde kanaalgesprekken en routines. Elke ingeschakelde actie kan elk kanaal bereiken waaraan deze bot heeft deelgenomen. Versturen volgt het goedkeuringsbeleid."
+      "connectionHint": "Beschikbaar in webchat, gekoppelde kanaalgesprekken en routines. Elke ingeschakelde actie kan elk kanaal bereiken waarvan deze bot lid is. Versturen volgt het goedkeuringsbeleid."
     },
     "channelToolDetails": "Tooldetails",
     "channelActionNames": {
@@ -1453,7 +1453,7 @@
         "primaryRuntime": "Runtime van het gesprek",
         "nativeClaude": "Claude Agent · deze computer",
         "nativeCodex": "Codex · deze computer",
-        "primaryRuntimeHelp": "De gekozen runtime antwoordt met de eigen CLI-login en modelinstellingen. Toolrechten en goedkeuringen van AgenticOS gelden. Alleen tekst; overschrijvingen van modelinstellingen, Code Mode, reviewers en samenvatten door het platform worden uitgeschakeld. Voor gebruik via deze runtime toont AgenticOS geen kosten.",
+        "primaryRuntimeHelp": "De gekozen runtime antwoordt met de eigen CLI-login en modelinstellingen. Toolrechten en goedkeuringen van AgenticOS gelden. Alleen tekst; schakel overschrijvingen van modelinstellingen, Code Mode, reviewers en samenvatten door het platform uit. Voor gebruik via deze runtime toont AgenticOS geen kosten.",
         "primaryRuntimeAccess": "Tooltoegang van de runtime",
         "primaryRuntimeEdit": "Wijzigingen toestaan volgens het beleid van de agent",
         "primaryRuntimeModel": "Native model-ID (optioneel)",
@@ -8967,7 +8967,7 @@
       "kindOpenSandbox": "OpenSandbox",
       "secretNameOpenSandbox": "OpenSandbox-API-sleutel",
       "openSandboxAddressHint": "De API-server die vanaf de backend bereikbaar is. Verzoeken gebruiken de geauthenticeerde serverproxy ervan.",
-      "openSandboxKeyHint": "De vault-API-sleutel van deze server beheert al zijn sandboxes. Scherm de server en het netwerk af voor de bedoelde organisaties.",
+      "openSandboxKeyHint": "De vault-API-sleutel van deze server beheert al zijn sandboxes. Isoleer de server en het netwerk, zodat alleen de bedoelde organisaties erbij kunnen.",
       "openSandboxImage": "Sandboximage",
       "openSandboxImageHint": "Een OCI-image met een POSIX-shell en bestandstools, bijvoorbeeld python:3.12-slim.",
       "openSandboxSecureAccess": "Secure Access (Kubernetes)",
