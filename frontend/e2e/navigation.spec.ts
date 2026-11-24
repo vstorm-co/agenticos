@@ -53,7 +53,9 @@ const DASHBOARD_PAGES: {
     proof: (page) => agentCard(page, SEEDED_AGENT_HANDLE),
   },
   {
-    path: "/skills",
+    // The plain grid: arranged into sections, the seeded skill may sit behind
+    // its section's "show all", and the proof is that the listing loaded.
+    path: "/skills?arrange=none",
     heading: "Skills",
     proof: (page) => skillCard(page, SEEDED_SKILL_NAME),
   },

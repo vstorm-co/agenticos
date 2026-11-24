@@ -38,6 +38,10 @@ export interface SkillQuery {
   limit?: number;
   /** Only what is shared with this group (#2124); null for every group. */
   groupId?: string | null;
+  /** Only one section of the arranged listing, by its key; null for all of it. */
+  section?: string | null;
+  /** False while the page shows sections instead, which read their own. */
+  enabled?: boolean;
 }
 
 /**
@@ -58,6 +62,8 @@ export function useSkills({
   skip = 0,
   limit = PAGE_SIZE,
   groupId = null,
+  section = null,
+  enabled = true,
 }: SkillQuery = {}) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("skills");
@@ -72,6 +78,7 @@ export function useSkills({
       skip,
       limit,
       groupId: groupId ?? "",
+      ...(section === null ? {} : { section }),
     }),
     // The query string is built by hand because `category` repeats - the
     // server reads `?category=devops&category=data` as "either shelf" - and
@@ -84,8 +91,10 @@ export function useSkills({
       params.set("skip", String(skip));
       params.set("limit", String(limit));
       if (groupId) params.set("group_id", groupId);
+      if (section !== null) params.set("section", section);
       return apiClient.get<SkillList>(`/skills?${params}`);
     },
+    enabled,
     placeholderData: (previous) => previous,
   });
 

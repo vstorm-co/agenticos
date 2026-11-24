@@ -13,6 +13,12 @@ import {
 test.use({ storageState: AUTH_STATE });
 
 /**
+ * The plain grid. Arranged into sections, the default, a card can sit behind its
+ * section's "show all"; these specs are about a skill once found, not the layout.
+ */
+const SKILLS_GRID = "/skills?arrange=none";
+
+/**
  * A skill's save makes a new version on one line, live at once for every agent
  * following that line. The gallery has to list what exists, a skill's page has to
  * open its editor with what is actually stored, and the editor has to say out loud
@@ -29,7 +35,7 @@ test.describe("Skills", () => {
       page,
     }) => {
       await page.setViewportSize({ width, height: 900 });
-      await page.goto("/skills");
+      await page.goto(SKILLS_GRID);
       await skillCard(page, SEEDED_SKILL_NAME).click();
       const modal = page.getByRole("dialog", { name: SEEDED_SKILL_NAME, exact: true });
       await expect(modal).toBeVisible();
@@ -51,7 +57,7 @@ test.describe("Skills", () => {
   }
 
   test("the gallery lists the organization's skills", async ({ page }) => {
-    await page.goto("/skills");
+    await page.goto(SKILLS_GRID);
     await expect(pageHeading(page, "Skills")).toBeVisible();
 
     const card = skillCard(page, SEEDED_SKILL_NAME);
@@ -72,7 +78,7 @@ test.describe("Skills", () => {
   });
 
   test("opening a skill shows what the model actually reads", async ({ page }) => {
-    await page.goto("/skills");
+    await page.goto(SKILLS_GRID);
     await expect(pageHeading(page, "Skills")).toBeVisible();
     await skillCard(page, SEEDED_SKILL_NAME).click();
 
@@ -91,7 +97,7 @@ test.describe("Skills", () => {
   });
 
   test("editing a skill warns how far the save reaches", async ({ page }) => {
-    await page.goto("/skills");
+    await page.goto(SKILLS_GRID);
     await expect(pageHeading(page, "Skills")).toBeVisible();
     await skillCard(page, SEEDED_SKILL_NAME).click();
 
@@ -126,7 +132,7 @@ test.describe("Skills", () => {
     const name = `e2e-scratch-${Date.now().toString(36)}`;
     const edited = "Rewritten, and expected to stay that way.";
 
-    await page.goto("/skills");
+    await page.goto(SKILLS_GRID);
     await expect(pageHeading(page, "Skills")).toBeVisible();
 
     await page.getByRole("button", { name: "New skill" }).first().click();
@@ -177,7 +183,7 @@ test("search stays mounted and keeps typed text through the initial catalog load
     await route.continue();
   });
   try {
-    await page.goto("/skills");
+    await page.goto(SKILLS_GRID);
     const search = page.getByPlaceholder("Search skills");
     await expect(search).toBeVisible();
     await search.fill("A draft filter");

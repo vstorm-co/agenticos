@@ -726,6 +726,14 @@ export const TOUR_STEPS: readonly TourStep[] = [
     inTour: true,
   },
   { id: "skills-list", page: ROUTES.SKILLS, target: "skills-list", permission: Perm.skillsView },
+  // Arranging by agent, origin or category - drawn beside the search, so
+  // always there once the list may be read.
+  {
+    id: "skills-arrange",
+    page: ROUTES.SKILLS,
+    target: "skills-arrange",
+    permission: Perm.skillsView,
+  },
   // Grouping by department (#2124): only where the organization has groups.
   {
     id: "skills-groups",

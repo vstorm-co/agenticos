@@ -3847,6 +3847,13 @@
     "skills": {
       "agentsBoundSkillWill": "Bu skill’e bağlanan agentlar, bir sonraki runlarından itibaren skillsiz çalışır. Bu işlem geri alınamaz.",
       "allCategories": "Tüm kategoriler",
+      "arrange": {
+        "agent": "Agent'a göre",
+        "origin": "Kaynağa göre",
+        "category": "Kategoriye göre",
+        "none": "Bölümsüz"
+      },
+      "arrangeBy": "Düzen",
       "askAdministratorAccessSkills": "Skill erişimi için yöneticiden izin isteyin.",
       "categoryCount": "{count, plural, =1 {1 kategori} other {# kategori}}",
       "clearFilter": "Filtreyi temizle",
@@ -3861,6 +3868,17 @@
       "nobodyHasWrittenSkill": "Bu kuruluş için henüz kimse skill yazmadı.",
       "recentlyUpdated": "Yakın zamanda güncellendi",
       "searchSkills": "Skill ara…",
+      "section": {
+        "drafted": "Yalnızca taslakta",
+        "unused": "Görebildiğiniz hiçbir agent kullanmıyor",
+        "org": "Organizasyon",
+        "private": "Özel",
+        "platform": "Yerleşik · Platform",
+        "gallery": "Yerleşik · {industry}",
+        "uncategorized": "Kategorisiz"
+      },
+      "showAll": "{count, plural, =1 {1 göster} other {Tümünü göster (#)}}",
+      "showFewer": "Daha az göster",
       "skillCount": "{count, plural, =1 {1 skill} other {# skill}}",
       "skillKnowHowWritten": "Skill; geri ödemelerin nasıl işlendiği veya kurumun yazım biçimi gibi, bir kez yazılıp ihtiyacı olan agentlarla paylaşılan bilgidir. Burada düzenlerseniz, bu skill’e bağlı her agent sonraki runında güncel hâlini kullanır.",
       "skills": "Skills",
@@ -8809,6 +8827,10 @@
       "skills-groups": {
         "title": "Departmana göre",
         "body": "Listeyi bir grubun erişimine açılanlarla daraltın. Grup, bir öğenin kimlere ulaştığını belirlediği için listeyi gruba göre de düzenler."
+      },
+      "skills-arrange": {
+        "title": "Kütüphaneyi düzenle",
+        "body": "Skill'leri kullanan agent'a, kaynağına veya kategorisine göre görün. Düzen, bir skill'i kimin görebileceğini değiştirmez."
       },
       "context-groups": {
         "title": "Departmana göre",

@@ -183,6 +183,8 @@ export interface SkillSummary {
   file_count: number;
   /** Whether this skill shipped with the deployment, matched by library name. */
   built_in: boolean;
+  /** The skill gallery industry that ships a skill by this name; null for the library and own skills. */
+  gallery_industry?: string | null;
   /** Whether the AI Architect's template binds it: installed for the Architect, which reads it. */
   architect?: boolean;
   /** The body's first lines, front matter dropped - what the card's page shows. */
@@ -207,6 +209,47 @@ export interface SkillList {
    */
   categories: string[];
   /** The deployment's predefined shelf names - picker suggestions, never a constraint. */
+  suggested_categories: string[];
+}
+
+/** How the skills listing can be arranged into sections. */
+export type SkillArrangement = "agent" | "origin" | "category";
+
+/** What one section of an arranged skills listing holds. */
+export type SkillSectionKind =
+  | "agent"
+  | "drafted"
+  | "unused"
+  | "org"
+  | "private"
+  | "platform"
+  | "gallery"
+  | "category"
+  | "uncategorized";
+
+/** One section: what it is, how many skills it holds, and its first cards. */
+export interface SkillSection {
+  /** What `GET /skills?section=` takes to page through the whole section. */
+  key: string;
+  kind: SkillSectionKind;
+  /** How many skills the section holds - more than `items` when the cards are cut short. */
+  count: number;
+  /** The serving agent, for `agent`. */
+  agent?: AgentUsage | null;
+  /** The gallery industry, for `gallery`. */
+  industry?: string | null;
+  /** The shelf's name, for `category`. */
+  category?: string | null;
+  items: SkillSummary[];
+}
+
+/** The skills a caller may see, arranged into sections. */
+export interface SkillSections {
+  arrange: SkillArrangement;
+  sections: SkillSection[];
+  /** Distinct skills - fewer than the counts' sum when one sits under several agents. */
+  total: number;
+  categories: string[];
   suggested_categories: string[];
 }
 

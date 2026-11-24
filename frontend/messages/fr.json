@@ -5545,6 +5545,10 @@
         "title": "Par département",
         "body": "Réduisez la liste à ce qu’un groupe a reçu. Un groupe est ce que quelque chose atteint, c’est donc aussi la façon de regrouper la liste."
       },
+      "skills-arrange": {
+        "title": "Organiser la bibliothèque",
+        "body": "Affichez les skills par agent qui les utilise, par origine ou par catégorie. L’organisation ne change rien à qui peut voir un skill."
+      },
       "context-groups": {
         "title": "Par département",
         "body": "Réduisez la liste à ce qu’un groupe a reçu. Un groupe est ce que quelque chose atteint, c’est donc aussi la façon de regrouper la liste."
@@ -8251,6 +8255,13 @@
     },
     "skills": {
       "allCategories": "Toutes les catégories",
+      "arrange": {
+        "agent": "Par agent",
+        "origin": "Par origine",
+        "category": "Par catégorie",
+        "none": "Sans sections"
+      },
+      "arrangeBy": "Organiser par",
       "askAdministratorAccessSkills": "Demandez l’accès aux skills à un administrateur.",
       "categoryCount": "{count, plural, =1 {1 catégorie} other {# catégories}}",
       "clearFilter": "Effacer le filtre",
@@ -8265,6 +8276,17 @@
       "nobodyHasWrittenSkill": "Personne n’a encore rédigé de skill pour cette organisation.",
       "recentlyUpdated": "Mises à jour récentes",
       "searchSkills": "Rechercher des skills…",
+      "section": {
+        "drafted": "Brouillon uniquement",
+        "unused": "Utilisé par aucun agent que vous voyez",
+        "org": "Organisation",
+        "private": "Privé",
+        "platform": "Intégré · Plateforme",
+        "gallery": "Intégré · {industry}",
+        "uncategorized": "Sans catégorie"
+      },
+      "showAll": "{count, plural, =1 {Afficher 1} other {Tout afficher (#)}}",
+      "showFewer": "Afficher moins",
       "skillCount": "{count, plural, =1 {1 skill} other {# skills}}",
       "skillKnowHowWritten": "Une skill est un savoir-faire écrit une fois et partagé par tous les agents qui en ont besoin - comment les remboursements sont traités, quel est le style maison. Modifiez-la ici et chaque agent qui y est lié est à jour dès son prochain run.",
       "skills": "Skills",

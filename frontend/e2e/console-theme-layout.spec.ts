@@ -11,7 +11,8 @@ const catalogs = [
   ["/projects", "Projects", "/api/projects"],
   ["/rag", "Knowledge bases", "/api/kb"],
   ["/tables", "Tables", "/api/tables"],
-  ["/skills", "Skills", "/api/skills"],
+  // Skills open arranged into sections by default, read in one request.
+  ["/skills", "Skills", "/api/skills/sections"],
 ] as const;
 
 for (const theme of ["light", "dark"] as const) {

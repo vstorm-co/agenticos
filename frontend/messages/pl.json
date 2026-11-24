@@ -4528,6 +4528,13 @@
     },
     "skills": {
       "allCategories": "Wszystkie kategorie",
+      "arrange": {
+        "agent": "Według agenta",
+        "origin": "Według pochodzenia",
+        "category": "Według kategorii",
+        "none": "Bez sekcji"
+      },
+      "arrangeBy": "Układ",
       "askAdministratorAccessSkills": "Poproś administratora o dostęp do skilli.",
       "categoryCount": "{count, plural, one {1 kategoria} few {# kategorie} many {# kategorii} other {# kategorii}}",
       "clearFilter": "Wyczyść filtr",
@@ -4542,6 +4549,17 @@
       "nobodyHasWrittenSkill": "Nikt jeszcze nie napisał skilla dla tej organizacji.",
       "recentlyUpdated": "Ostatnio zaktualizowane",
       "searchSkills": "Szukaj skilli…",
+      "section": {
+        "drafted": "Tylko w szkicu",
+        "unused": "Nie używa ich żaden agent, którego widzisz",
+        "org": "Organizacja",
+        "private": "Prywatne",
+        "platform": "Wbudowane · Platforma",
+        "gallery": "Wbudowane · {industry}",
+        "uncategorized": "Bez kategorii"
+      },
+      "showAll": "{count, plural, one {Pokaż 1} few {Pokaż wszystkie #} many {Pokaż wszystkie #} other {Pokaż wszystkie #}}",
+      "showFewer": "Pokaż mniej",
       "skillCount": "{count, plural, one {1 skill} few {# skille} many {# skilli} other {# skilla}}",
       "skillKnowHowWritten": "Skill to wiedza spisana raz i dzielona przez każdego agenta, który jej potrzebuje - jak obsługiwane są zwroty, jaki jest styl firmy. Edytujesz go tutaj, a każdy związany z nim agent jest aktualny przy swoim następnym runie.",
       "skills": "Skille",
@@ -7376,6 +7394,10 @@
       "skills-groups": {
         "title": "Po dziale",
         "body": "Zawęź listę do tego, co dostała jedna grupa. Grupa decyduje, do kogo coś trafia, więc według niej też grupuje się listę."
+      },
+      "skills-arrange": {
+        "title": "Układ biblioteki",
+        "body": "Zobacz skille według agenta, który ich używa, według pochodzenia albo kategorii. Układ nie zmienia tego, kto widzi skill."
       },
       "context-groups": {
         "title": "Po dziale",

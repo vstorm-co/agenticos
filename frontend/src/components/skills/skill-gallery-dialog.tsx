@@ -3,21 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import {
-  ArrowLeft,
-  Building2,
-  Check,
-  ChevronDown,
-  Code2,
-  Factory,
-  HeartPulse,
-  Landmark,
-  Library,
-  Loader2,
-  Scale,
-  ShoppingBag,
-} from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+import { ArrowLeft, Check, ChevronDown, Loader2 } from "lucide-react";
 import {
   Badge,
   Button,
@@ -41,28 +27,8 @@ import {
 } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
 import { useGallerySkillPreview, useSkillGallery } from "@/hooks/use-skill-gallery";
+import { industryIcon } from "./industry-icon";
 import type { GalleryIndustry } from "@/types/providers";
-
-/**
- * Icon per industry id, keyed on the directory the backend ships.
- *
- * A table rather than a field on the response: the backend has no business
- * naming a component from an icon package, and an id it does not recognise
- * falls back rather than rendering nothing.
- */
-const INDUSTRY_ICONS: Record<string, LucideIcon> = {
-  healthcare: HeartPulse,
-  finance: Landmark,
-  ecommerce: ShoppingBag,
-  software: Code2,
-  "public-sector": Building2,
-  legal: Scale,
-  manufacturing: Factory,
-};
-
-function industryIcon(id: string): LucideIcon {
-  return INDUSTRY_ICONS[id] ?? Library;
-}
 
 export function SkillGalleryDialog({
   open,

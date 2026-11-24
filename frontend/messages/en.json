@@ -5735,6 +5735,10 @@
         "title": "By department",
         "body": "Narrow the list to what one group was given. A group is who something reaches, so it is also how the list is grouped."
       },
+      "skills-arrange": {
+        "title": "Arrange the library",
+        "body": "See skills by the agent that uses them, by where they came from or by category. Arranging changes nothing about who can see a skill."
+      },
       "context-groups": {
         "title": "By department",
         "body": "Narrow the list to what one group was given. A group is who something reaches, so it is also how the list is grouped."
@@ -8459,6 +8463,13 @@
     },
     "skills": {
       "allCategories": "All categories",
+      "arrange": {
+        "agent": "By agent",
+        "origin": "By origin",
+        "category": "By category",
+        "none": "No sections"
+      },
+      "arrangeBy": "Arrange by",
       "askAdministratorAccessSkills": "Ask an administrator for access to skills.",
       "categoryCount": "{count, plural, =1 {1 category} other {# categories}}",
       "clearFilter": "Clear filter",
@@ -8473,6 +8484,17 @@
       "nobodyHasWrittenSkill": "Nobody has written a skill for this organization yet.",
       "recentlyUpdated": "Recently updated",
       "searchSkills": "Search skills…",
+      "section": {
+        "drafted": "Drafted only",
+        "unused": "Not used by an agent you can see",
+        "org": "Organization",
+        "private": "Private",
+        "platform": "Built-in · Platform",
+        "gallery": "Built-in · {industry}",
+        "uncategorized": "Uncategorized"
+      },
+      "showAll": "{count, plural, =1 {Show 1} other {Show all #}}",
+      "showFewer": "Show fewer",
       "skillCount": "{count, plural, =1 {1 skill} other {# skills}}",
       "skillKnowHowWritten": "A skill is know-how written once and shared by every agent that needs it - how refunds are handled, what the house style is. Edit it here and each agent bound to it is current on its next run.",
       "skills": "Skills",

@@ -62,6 +62,24 @@ describe("useSkills", () => {
     expect(apiClient.get).toHaveBeenCalledWith("/skills?sort=name&skip=0&limit=50&group_id=g1");
   });
 
+  it("pages through one section of the arranged listing by its key", async () => {
+    const { result } = renderHook(() => useSkills({ section: "agent:a1", skip: 50 }), {
+      wrapper,
+    });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    expect(apiClient.get).toHaveBeenCalledWith(
+      "/skills?sort=name&skip=50&limit=50&section=agent%3Aa1",
+    );
+  });
+
+  it("asks for nothing while switched off", () => {
+    const { result } = renderHook(() => useSkills({ enabled: false }), { wrapper });
+
+    expect(result.current.isLoading).toBe(false);
+    expect(apiClient.get).not.toHaveBeenCalled();
+  });
+
   it("sends every picked category to the server, repeated, same as the search", async () => {
     // The filter is a multi-select and `category` repeats in the query string:
     // the server reads two occurrences as "either shelf". Joined or last-wins

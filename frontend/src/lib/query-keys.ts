@@ -506,7 +506,15 @@ export const qk = {
       skip: number;
       limit: number;
       groupId: string;
+      section?: string;
     }) => ["skills", "list", query] as const,
+    sections: (query: {
+      arrange: string;
+      search: string;
+      category: string;
+      sort: string;
+      groupId: string;
+    }) => ["skills", "sections", query] as const,
     detail: (id: string) => ["skills", id] as const,
     gallery: () => ["skills", "gallery"] as const,
     galleryPreview: (key: string) => ["skills", "gallery", "preview", key] as const,
