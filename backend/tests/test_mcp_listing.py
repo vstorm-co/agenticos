@@ -609,6 +609,50 @@ async def test_all_counts_custom_servers_and_pages_them_after_the_catalog(
     assert [row.connection_ids for row in last.items] == [(account.id,) for account in customs[1:]]
 
 
+async def test_reviewed_only_keeps_the_mirror_out_of_browsing(
+    caller: AuthContext,
+    catalog: tuple[CatalogEntry, ...],
+    repositories: ListingRepositories,
+    mock_db_session: AsyncSession,
+) -> None:
+    # The default the console asks for: only what somebody here reviewed, with
+    # the mirror neither listed nor counted - and never searched, since a page
+    # that shows none of its rows has no use for its count either.
+    mirrored = _mirrored()
+    repositories.search.return_value = ([(mirrored, None)], 1)
+
+    found = await mcp_listing.page(mock_db_session, ctx=caller, reviewed_only=True)
+
+    assert found.total == len(catalog)
+    assert [row.key for row in found.items] == [entry.key for entry in catalog[:50]]
+    assert all(row.reviewed for row in found.items)
+    repositories.search.assert_not_awaited()
+
+
+async def test_reviewed_only_keeps_a_connected_registry_account_manageable(
+    caller: AuthContext,
+    catalog: tuple[CatalogEntry, ...],
+    repositories: ListingRepositories,
+    mock_db_session: AsyncSession,
+) -> None:
+    # The exception, and the reason it is one: a registry server somebody
+    # already holds an account on stays under Connected, because hiding it
+    # would strand a credential no screen can revoke.
+    registry = _mirrored()
+    account = _connection(caller, name="registry-account", key=registry.id, url=registry.url)
+    repositories.organization.return_value = [account], 1
+    repositories.registry.return_value = [registry]
+
+    found = await mcp_listing.page(
+        mock_db_session, ctx=caller, state="connected", reviewed_only=True
+    )
+
+    assert found.total == 1
+    assert found.items[0].key == registry.id
+    assert found.items[0].reviewed is False
+    assert found.items[0].connection_ids == (account.id,)
+
+
 async def test_not_connected_excludes_curated_accounts_before_pagination_and_counts(
     caller: AuthContext,
     catalog: tuple[CatalogEntry, ...],

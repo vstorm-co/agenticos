@@ -44,7 +44,8 @@ async function expectMarked(page: Page, entry: string): Promise<void> {
   // Both halves matter: none marked is the reported bug, two marked is a nav
   // entry that has begun swallowing another's section.
   await expect(marked, "the sidebar marks no section, or more than one").toHaveCount(1);
-  await expect(marked).toHaveText(entry);
+  // The label, not the whole link text: the health count is a separate badge.
+  await expect(marked.getByText(entry, { exact: true })).toBeVisible();
 }
 
 test.describe("Sidebar section marking", () => {
