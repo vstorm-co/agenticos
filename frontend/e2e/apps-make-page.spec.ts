@@ -7,11 +7,14 @@ test.use({ storageState: AUTH_STATE });
 
 const PROMPT = "Build me a page that…";
 
-/** Every text frame the page sends over its sockets: a sent chat turn is one. */
+/** Every socket frame and non-GET request body the page sends: a sent chat turn is one. */
 function watchSentFrames(page: Page): string[] {
   const sent: string[] = [];
   page.on("websocket", (socket) => {
     socket.on("framesent", ({ payload }) => sent.push(String(payload)));
+  });
+  page.on("request", (request) => {
+    if (request.method() !== "GET") sent.push(request.postData() ?? "");
   });
   return sent;
 }
@@ -47,8 +50,8 @@ test.describe("Make a page from /apps", () => {
     await expect(composer).toBeEnabled();
     await expect(composer).toHaveText(PROMPT);
     await expect(page).not.toHaveURL(/[?&]prompt=/);
-    await expect(page.getByRole("main").getByText(PROMPT)).toHaveCount(0);
-    // A second, delayed write would double the text; a send would put it in a frame.
+    await expect(page.locator("[data-transcript]").getByText(PROMPT)).toHaveCount(0);
+    // A second, delayed write would double the text; a send would put it in a frame and the transcript.
     await expect(composer).toHaveText(PROMPT);
     expect(sent.filter((frame) => frame.includes(PROMPT))).toEqual([]);
     await attachLayout(page, testInfo, "apps-entry-chat");
