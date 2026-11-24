@@ -21,7 +21,16 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import BigInteger, DateTime, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import (
+    BigInteger,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    ForeignKeyConstraint,
+    Integer,
+    String,
+    UniqueConstraint,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
@@ -39,6 +48,17 @@ class AgentWorkspace(Base, TimestampMixin):
         # cross-tenant collision a database error instead of an impossibility,
         # and "impossible" is the property worth having.
         UniqueConstraint("organization_id", "scope_key", name="uq_agent_workspace_scope"),
+        ForeignKeyConstraint(
+            ["organization_id", "coding_account_id"],
+            ["coding_accounts.organization_id", "coding_accounts.id"],
+            name="fk_agent_workspace_coding_account_tenant",
+            ondelete="CASCADE",
+        ),
+        CheckConstraint(
+            "coding_account_id IS NULL OR (scope = 'user' AND backend = 'service' "
+            "AND owner_ref IS NOT NULL AND conversation_id IS NOT NULL AND project_id IS NULL)",
+            name="ck_agent_workspace_personal_coding_private",
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -88,6 +108,15 @@ class AgentWorkspace(Base, TimestampMixin):
     answers here. Attribution only; the scope key hashes this rather than
     embedding it.
     """
+
+    coding_account_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        nullable=True,
+        index=True,
+    )
+    """The personal account owning a resumable coding workspace, never a credential."""
+    coding_source_revision: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    """The initial source snapshot, kept stable while this named session continues."""
 
     scope: Mapped[str] = mapped_column(String(16), nullable=False)
     scope_key: Mapped[str] = mapped_column(String(64), nullable=False, index=True)

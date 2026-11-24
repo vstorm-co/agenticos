@@ -267,6 +267,11 @@ export async function unpinAgent(id: string): Promise<PinnedAgent[]> {
   return parsePinned(await invokeShell("unpin_agent", { id }));
 }
 
+/** Open an MCP provider's consent page in the person's own browser. */
+export async function openConsent(url: string): Promise<void> {
+  await invokeShell("open_consent", { url });
+}
+
 export async function openInConsole(path: string): Promise<void> {
   await invokeShell("open_in_console", { path });
 }

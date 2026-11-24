@@ -75,6 +75,7 @@ def _workflow(ctx: AuthContext, **overrides):
     workflow.slug = "import-orders"
     workflow.name = "Import orders"
     workflow.description = None
+    workflow.icon = None
     workflow.draft_revision = 0
     workflow.draft_graph = _empty_graph().model_dump(mode="json")
     workflow.current_version_id = None
@@ -123,6 +124,136 @@ class TestNodeCatalog:
         catalog = await WorkflowRegistryService(_db()).node_catalog()
         echo = next(item for item in catalog.items if item.id == "debug.echo")
         assert all(port.schema_ is not None for port in echo.ports)
+
+
+class TestInputSchemaDiscovery:
+    @pytest.mark.parametrize("default_call", [False, True])
+    async def test_only_the_call_entry_selected_by_child_admission_is_advertised(
+        self, default_call: bool
+    ) -> None:
+        ctx = _ctx()
+        workflow = _workflow(ctx, current_version_id=uuid.uuid4())
+        manual = NodeInstance(
+            id=uuid.uuid4(),
+            definition_id="trigger.manual",
+            definition_version=1,
+            config={},
+            layout=NodePosition(x=0, y=0),
+        )
+        first = manual.model_copy(
+            update={
+                "id": uuid.uuid4(),
+                "definition_id": "trigger.workflow_call",
+                "config": {"input_schema": {"required": ["first"]}},
+            }
+        )
+        second = first.model_copy(
+            update={"id": uuid.uuid4(), "config": {"input_schema": {"required": ["second"]}}}
+        )
+        graph = WorkflowGraph(
+            entry_node_id=second.id if default_call else manual.id,
+            nodes=(manual, first, second),
+        )
+        version = MagicMock(
+            id=workflow.current_version_id,
+            workflow_id=workflow.id,
+            graph=graph.model_dump(mode="json"),
+        )
+        with (
+            patch(f"{REGISTRY_PATH}.workflow_repo.get", new=AsyncMock(return_value=workflow)),
+            patch(
+                f"{REGISTRY_PATH}.workflow_repo.get_version", new=AsyncMock(return_value=version)
+            ),
+        ):
+            result = await WorkflowRegistryService(_db()).input_schema(ctx, workflow.id)
+        selected = second if default_call else first
+        call_entries = [item for item in result.entries if item.trigger == "trigger.workflow_call"]
+        assert len(call_entries) == 1
+        assert call_entries[0].entry_node_id == selected.id
+        assert call_entries[0].input_schema["required"] == ["second" if default_call else "first"]
+        assert manual.id in [item.entry_node_id for item in result.entries]
+
+    @pytest.mark.parametrize("explicit_version", [False, True])
+    async def test_discovery_reads_the_frozen_contract_instead_of_the_draft(
+        self, explicit_version: bool
+    ) -> None:
+        ctx = _ctx()
+        workflow = _workflow(ctx, current_version_id=uuid.uuid4())
+        schema = {
+            "type": "object",
+            "$defs": {"code": {"type": "string", "minLength": 2}},
+            "properties": {"code": {"$ref": "#/$defs/code"}},
+            "required": ["code"],
+            "additionalProperties": False,
+        }
+        primary = NodeInstance(
+            id=uuid.uuid4(),
+            definition_id="trigger.manual",
+            definition_version=1,
+            config={"input_schema": schema},
+            layout=NodePosition(x=0, y=0),
+        )
+        simple = primary.model_copy(
+            update={
+                "id": uuid.uuid4(),
+                "definition_id": "trigger.workflow_call",
+                "config": {"fields": [{"name": "count", "type": "integer"}]},
+            }
+        )
+        untyped = primary.model_copy(update={"id": uuid.uuid4(), "config": {}})
+        other = primary.model_copy(
+            update={"id": uuid.uuid4(), "definition_id": "trigger.chat", "config": {}}
+        )
+        graph = WorkflowGraph(entry_node_id=primary.id, nodes=(other, simple, untyped, primary))
+        selected_id = uuid.uuid4() if explicit_version else workflow.current_version_id
+        version = MagicMock(
+            id=selected_id, workflow_id=workflow.id, graph=graph.model_dump(mode="json")
+        )
+        with (
+            patch(f"{REGISTRY_PATH}.workflow_repo.get", new=AsyncMock(return_value=workflow)),
+            patch(
+                f"{REGISTRY_PATH}.workflow_repo.get_version", new=AsyncMock(return_value=version)
+            ) as fetched,
+        ):
+            result = await WorkflowRegistryService(_db()).input_schema(
+                ctx, workflow.id, version_id=selected_id if explicit_version else None
+            )
+        assert result.workflow_id == workflow.id and result.version_id == selected_id
+        assert fetched.await_args.args[1] == selected_id
+        assert fetched.await_args.kwargs["organization_id"] == ctx.organization_id
+        assert [entry.entry_node_id for entry in result.entries] == [
+            primary.id,
+            simple.id,
+            untyped.id,
+        ]
+        assert result.entries[0].input_schema == schema
+        assert result.entries[1].input_schema["properties"]["count"]["type"] == "integer"
+        assert result.entries[2].input_schema == {"type": "object"}
+
+    async def test_an_unpublished_workflow_has_no_contract_to_discover(self) -> None:
+        ctx = _ctx()
+        workflow = _workflow(ctx)
+        with (
+            patch(f"{REGISTRY_PATH}.workflow_repo.get", new=AsyncMock(return_value=workflow)),
+            pytest.raises(NotFoundError, match="no published version"),
+        ):
+            await WorkflowRegistryService(_db()).input_schema(ctx, workflow.id)
+
+    @pytest.mark.parametrize("missing", [False, True])
+    async def test_another_workflows_version_and_a_missing_version_are_refused(
+        self, missing: bool
+    ) -> None:
+        ctx = _ctx()
+        workflow = _workflow(ctx, current_version_id=uuid.uuid4())
+        version = None if missing else MagicMock(workflow_id=uuid.uuid4())
+        with (
+            patch(f"{REGISTRY_PATH}.workflow_repo.get", new=AsyncMock(return_value=workflow)),
+            patch(
+                f"{REGISTRY_PATH}.workflow_repo.get_version", new=AsyncMock(return_value=version)
+            ),
+            pytest.raises(NotFoundError, match="Workflow version not found"),
+        ):
+            await WorkflowRegistryService(_db()).input_schema(ctx, workflow.id)
 
 
 class TestCreate:
@@ -341,7 +472,6 @@ class TestUpdateDraft:
             ScopeBoundary(
                 scope_node_id=fake_node_id,
                 body_node_ids=frozenset({fake_node_id}),
-                entry_port="body",
                 exit_node_id=fake_node_id,
                 exit_port="done",
             ).model_dump(mode="json")
@@ -909,6 +1039,11 @@ async def test_template_sharing_refuses_if_its_new_table_cannot_be_loaded():
     with (
         patch(f"{REGISTRY_PATH}.VirtualTableService") as tables,
         patch(f"{REGISTRY_PATH}.virtual_table_repo.get_table", new=AsyncMock(return_value=None)),
+        patch(
+            f"{REGISTRY_PATH}.virtual_table_repo.get_live_table_by_name",
+            new=AsyncMock(return_value=None),
+        ),
+        patch(f"{REGISTRY_PATH}.hold_subject", new=AsyncMock()),
     ):
         tables.return_value.create_table = AsyncMock(return_value=SimpleNamespace(id=uuid.uuid4()))
         with pytest.raises(NotFoundError):
@@ -921,3 +1056,50 @@ async def test_template_sharing_refuses_if_its_new_table_cannot_be_loaded():
                     user_ids=[uuid.uuid4()],
                 ),
             )
+
+
+@pytest.mark.parametrize(
+    ("taken", "expected"),
+    [
+        (set(), "Markdown notes"),
+        ({"Markdown notes"}, "Markdown notes (2)"),
+        ({"Markdown notes", "Markdown notes (2)"}, "Markdown notes (3)"),
+    ],
+)
+async def test_template_table_is_named_after_the_workflow_without_an_id(taken, expected):
+    """A template's table reads as the workflow's name; a clash takes the next free number."""
+    from types import SimpleNamespace
+
+    ctx = _ctx()
+    service = WorkflowRegistryService(_db())
+    workflow = _workflow(ctx)
+    workflow.name = "Markdown notes"
+
+    order: list[str] = []
+
+    async def live(_db, name, *, organization_id):
+        order.append("lookup")
+        return SimpleNamespace(id=uuid.uuid4()) if name in taken else None
+
+    async def lock(_db, scope, subject):
+        order.append(f"lock:{scope.name}:{subject}")
+
+    class Created(Exception):
+        """Stops the template once its table is asked for; the graph after it is not under test."""
+
+    with (
+        patch(f"{REGISTRY_PATH}.VirtualTableService") as tables,
+        patch(f"{REGISTRY_PATH}.virtual_table_repo.get_live_table_by_name", new=live),
+        patch(f"{REGISTRY_PATH}.hold_subject", new=lock),
+        pytest.raises(Created),
+    ):
+        tables.return_value.create_table = AsyncMock(side_effect=Created)
+        await service._ready_template(
+            ctx, workflow, WorkflowCreate(name="Markdown notes", template_id="markdownNotes")
+        )
+
+    created = tables.return_value.create_table.await_args.args[1]
+    assert created.name == expected
+    # The name is chosen under the lock `create_table` claims names under, so a
+    # table created in between cannot take it.
+    assert order[0] == f"lock:VIRTUAL_TABLE_NAMES_PER_ORG:{ctx.organization_id}"

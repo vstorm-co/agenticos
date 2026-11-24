@@ -1,0 +1,119 @@
+import type { Translate } from "@/lib/agent-step-captions";
+import { ATTEMPT_RESULT_REASONS } from "@/lib/improvement-steps";
+import type { MovedCriterion, Notification } from "@/lib/notifications-api";
+import { usd, wordedSummary } from "@/lib/notification-wording";
+import { formatCostUsd } from "@/lib/utils";
+
+const IMPROVEMENT = ["ready", "stopped", "failed", "stale"];
+const TEST = ["completed", "failed", "cancelled", "budget_exceeded"];
+const GENERATION = ["ready", "failed"];
+const STOP_REASONS = [
+  "no_data",
+  "no_proposal",
+  "budget",
+  "inconclusive",
+  "regression",
+  "no_change",
+  "max_iterations",
+  "repeat_candidate",
+  "permission",
+  "stale",
+  "stalled",
+  "proposal",
+  "eval",
+  "superseded",
+  "knowledge_only",
+  "draft",
+  "expired",
+  "criteria_worse",
+];
+
+/**
+ * A finished improvement or one stopped for a person, a test or question writing in the
+ * reader's language, from the outcome the server keeps beside its English summary;
+ * anything else, or a status this console does not know yet, keeps that summary.
+ */
+export function notificationSummary(item: Notification, t: Translate, tStop: Translate): string {
+  const worded = paramsSummary(item, t);
+  if (worded !== null) return worded;
+  const outcome = item.outcome;
+  if (!outcome) return item.summary;
+  if (item.event_type === "improvement_finished" && outcome.status === "waiting") {
+    if (!item.agent?.name) return item.summary;
+    if (outcome.next_step_blocked)
+      return t("outcome.improvement.waiting.blocked", {
+        agent: item.agent.name,
+        needed: outcome.next_step_blocked.needed,
+      });
+    const stage = outcome.stage ?? outcome.reason;
+    return t(`outcome.improvement.waiting.${stage === "filtering" ? "changes" : "understand"}`, {
+      agent: item.agent.name,
+    });
+  }
+  if (item.event_type === "improvement_finished" && IMPROVEMENT.includes(outcome.status)) {
+    if (!item.agent?.name) return item.summary;
+    // A session ended as stale is said the way a stopped one is, with why it ended.
+    const status =
+      outcome.status === "stale"
+        ? "stopped"
+        : outcome.status === "stopped" && ATTEMPT_RESULT_REASONS.includes(outcome.reason ?? "")
+          ? "attemptFinished"
+          : outcome.status;
+    const head = t(`outcome.improvement.${status}`, { agent: item.agent.name });
+    const line =
+      outcome.status !== "ready" && outcome.reason && STOP_REASONS.includes(outcome.reason)
+        ? `${head} ${tStop(outcome.reason)}`
+        : head;
+    return outcome.criteria?.length ? `${line} ${criteriaSentence(outcome.criteria, t)}` : line;
+  }
+  if (item.event_type === "eval_run_finished" && TEST.includes(outcome.status))
+    return t(`outcome.test.${outcome.status}`);
+  if (item.event_type === "case_generation_finished" && GENERATION.includes(outcome.status))
+    return t(`outcome.questions.${outcome.status}`);
+  return item.summary;
+}
+
+/** What an attempt moved criterion by criterion, when no whole question flipped. */
+function criteriaSentence(criteria: MovedCriterion[], t: Translate): string {
+  const listed = (direction: MovedCriterion["direction"]) =>
+    criteria
+      .filter((item) => item.direction === direction)
+      .map((item) => {
+        const { scorer, display_name, ...counts } = item;
+        const duplicate = criteria.filter((other) => other.name === item.name).length > 1;
+        const name = display_name ?? (scorer && duplicate ? `${item.name} [${scorer}]` : item.name);
+        return t("outcome.improvement.criterion", { ...counts, name });
+      })
+      .join(", ") || "none";
+  return t("outcome.improvement.criteria", { better: listed("better"), worse: listed("worse") });
+}
+
+/** A row worded from the values the server kept: by its `wording` when it names one. */
+function paramsSummary(item: Notification, t: Translate): string | null {
+  if (item.wording_params) return wordedSummary(item.wording_params, t);
+  const params = item.params;
+  if (!params) return null;
+  switch (item.event_type) {
+    case "approval_requested":
+      return t("kind.approvalRequested", { agent: params.agent_name ?? "" });
+    case "budget_exceeded":
+      return t("kind.budgetExceeded", {
+        agent: params.agent_name ?? "",
+        // A department's cap names its department when the row says which.
+        scope: params.scope === "group" && params.subject ? "department" : (params.scope ?? ""),
+        department: params.subject ?? "",
+        spent: formatCostUsd(Number(params.spent_usd ?? "0")),
+        limit: usd(params.limit_usd ?? "0"),
+      });
+    case "workflow_notification":
+      return t("kind.workflowApproval", { title: params.approval_title ?? "" });
+    case "budget_warning":
+      return t("kind.budgetWarning", {
+        group: params.group_name ?? "",
+        share: params.share ?? "",
+        limit: usd(params.limit ?? "0"),
+      });
+    default:
+      return null;
+  }
+}

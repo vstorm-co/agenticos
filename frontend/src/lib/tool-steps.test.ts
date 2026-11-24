@@ -16,7 +16,6 @@ import { createTranslator } from "next-intl";
 
 import type { Translate } from "./agent-step-captions";
 import messages from "../../messages/en.json";
-import plMessages from "../../messages/pl.json";
 // Shared with the backend `tool_prefix` test, so the two normalisers cannot drift
 // apart behind two hand-copied expectation lists (#545, the #144 shape).
 import prefixCases from "./mcp-tool-prefix.cases.json";
@@ -40,6 +39,19 @@ const t = createTranslator({ locale: "en", messages, namespace: "chat.tools" }) 
  * is the part nobody reads.
  */
 describe("the line for one tool call", () => {
+  it("identifies a question from validated text and tolerates incomplete streamed arguments", () => {
+    expect(
+      toolStep(
+        "ask_user_question",
+        { questions: [null, "invalid", { question: 1 }, { question: " Which plans? " }] },
+        false,
+        t,
+      ).detail,
+    ).toBe("Which plans?");
+    expect(toolStep("ask_user_question", { questions: [{}] }, false, t).detail).toBeNull();
+    expect(toolStep("ask_user_question", { questions: "unfinished" }, false, t).detail).toBeNull();
+  });
+
   it("writes a workspace call in the tense it is true in", () => {
     const args = { path: "/workspace/notes/test1.md", content: "hej" };
 
@@ -68,16 +80,23 @@ describe("the line for one tool call", () => {
 
   it("joins the pattern to the file in the reader's language (#603)", () => {
     // The join used to be a literal `in`, English under every locale. The verb
-    // and the join both come from `pl.json` now, merged over `en.json` the way
-    // `src/i18n.ts` does it.
-    const tPl = createTranslator({
-      locale: "pl",
-      messages: { chat: { tools: { ...messages.chat.tools, ...plMessages.chat.tools } } },
+    // and the join both come from the catalog now, so a translation that
+    // replaces them replaces both.
+    const translated = createTranslator({
+      locale: "en",
+      messages: {
+        chat: {
+          tools: {
+            ...messages.chat.tools,
+            patternInFile: "{pattern} w {file}",
+          },
+        },
+      },
       namespace: "chat.tools",
     }) as Translate;
 
-    expect(toolStep("grep", { pattern: "TODO", path: "/src/app.py" }, true, tPl).label).toBe(
-      "Wyszukał TODO w app.py",
+    expect(toolStep("grep", { pattern: "TODO", path: "/src/app.py" }, true, translated).label).toBe(
+      "Searched for TODO w app.py",
     );
   });
 
@@ -98,10 +117,11 @@ describe("the line for one tool call", () => {
 
   it("says what happened rather than naming the tool, where the two differ", () => {
     // Which skill it was is the whole content of the step.
-    expect(toolStep("load_capability", { id: "refund_policy" }, true, t).label).toBe(
-      "Refund Policy",
+    expect(toolStep("load_capability", { id: "returns-and-exchanges" }, true, t).label).toBe(
+      "returns-and-exchanges",
     );
-    expect(toolStep("load_capability", {}, true, t).label).toBe("Load Skill");
+    expect(toolStep("load_capability", {}, true, t).label).toBe("Read Skill");
+    expect(toolStep("read_skill", { id: "refund_policy" }, true, t).label).toBe("refund_policy");
   });
 
   it("carries the query or the URL as the detail beside a finished call", () => {
@@ -251,7 +271,7 @@ describe("reading a call's arguments", () => {
   });
 
   it("names a skill only when the call said which", () => {
-    expect(toolStep("load_capability", { id: "  " }, true, t).label).toBe("Load Skill");
+    expect(toolStep("load_capability", { id: "  " }, true, t).label).toBe("Read Skill");
   });
 
   it("reads a path under any name a tool gives it, and a query when there is none", () => {
@@ -290,4 +310,18 @@ it("leads platform steps with the operation and the nested object title", () => 
   );
   expect(step.label).toBe("Create task");
   expect(step.detail).toBe("Review supplier draft");
+});
+
+it("keeps external server captions without letting a renamed registry tool become an MCP step", () => {
+  const servers = [{ name: "Linear", url: "https://mcp.linear.app/mcp" }];
+  const external = { name: "linear_create_issue", presentation_kind: "generic" as const };
+  expect(toolStep(external.name, {}, true, t, servers, external)).toMatchObject({
+    kind: "mcp",
+    label: "Linear · Create issue",
+  });
+  const renamed = { name: "linear_create_issue", tool_id: "create_chart" };
+  expect(toolStep(renamed.name, {}, true, t, servers, renamed)).toMatchObject({
+    kind: "chart",
+    label: "Linear Create Issue",
+  });
 });

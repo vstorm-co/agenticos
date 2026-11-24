@@ -324,7 +324,7 @@ async def mark_read(
     )
     statement = statement.on_conflict_do_update(
         index_elements=["thread_id", "user_id"],
-        set_={"read_at": read_at},
+        set_={"read_at": func.greatest(AgentMessageRead.read_at, statement.excluded.read_at)},
     )
     await db.execute(statement)
     await db.flush()

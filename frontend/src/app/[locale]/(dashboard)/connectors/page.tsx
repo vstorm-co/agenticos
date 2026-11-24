@@ -15,6 +15,7 @@ import { useTranslations } from "next-intl";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui";
 import { useMcpOAuthOutcome, usePermissions, useUrlState } from "@/hooks";
+import { useNetworkConnections } from "@/hooks/use-network-connections";
 import { ROUTES } from "@/lib/constants";
 import type { Permission } from "@/types/permissions";
 import { Perm } from "@/types/permissions";
@@ -23,9 +24,13 @@ import { AppsTab } from "./apps-tab";
 import { ManualConnections } from "./manual-connections";
 
 type MoreEntry = {
-  labelKey: "channels" | "remoteAgents" | "vault" | "sandboxes";
+  labelKey: "channels" | "remoteAgents" | "vault" | "sandboxes" | "devicesNetworks";
   descriptionKey:
-    "channelsDescription" | "remoteAgentsDescription" | "vaultDescription" | "sandboxesDescription";
+    | "channelsDescription"
+    | "remoteAgentsDescription"
+    | "vaultDescription"
+    | "sandboxesDescription"
+    | "devicesNetworksDescription";
   href: string;
   icon: LucideIcon;
   /** Gated on what the target page's backend gates reading on, as the nav was. */
@@ -65,6 +70,13 @@ const MORE: readonly MoreEntry[] = [
     icon: Boxes,
     permission: Perm.connectionsView,
   },
+  {
+    labelKey: "devicesNetworks",
+    descriptionKey: "devicesNetworksDescription",
+    href: ROUTES.CONNECTOR_DEVICES,
+    icon: Network,
+    permission: Perm.networksView,
+  },
 ];
 
 const TABS = ["apps", "mcp", "more"] as const;
@@ -90,7 +102,12 @@ export default function ConnectorsPage() {
     : manualRequest
       ? "mcp"
       : "apps";
-  const more = MORE.filter((entry) => can(entry.permission));
+  const networks = useNetworkConnections({ enabled: can(Perm.networksView), limit: 1 });
+  const more = MORE.filter(
+    (entry) =>
+      can(entry.permission) &&
+      (entry.href !== ROUTES.CONNECTOR_DEVICES || networks.available === true),
+  );
 
   return (
     <div className="flex flex-1 flex-col space-y-4">
@@ -127,6 +144,7 @@ export default function ConnectorsPage() {
               <li key={href}>
                 <Link
                   href={href}
+                  data-tour={href === ROUTES.CONNECTOR_DEVICES ? "connectors-devices" : undefined}
                   className="border-border hover:bg-muted/50 focus-visible:ring-ring flex items-start gap-3 rounded-xl border p-4 transition-colors focus-visible:ring-2 focus-visible:outline-none"
                 >
                   <Icon className="text-muted-foreground mt-0.5 h-5 w-5 shrink-0" aria-hidden />

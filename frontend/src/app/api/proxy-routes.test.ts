@@ -3,7 +3,7 @@
  *
  * Route handlers, in the environment they actually run in.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import * as adminBackgroundJobs from "./admin/background-jobs/[[...path]]/route";
 import * as adminConversations from "./admin/conversations/route";
@@ -13,6 +13,7 @@ import * as adminRatingsSummary from "./admin/ratings/summary/route";
 import * as adminSettings from "./admin/settings/[[...path]]/route";
 import * as adminStats from "./admin/stats/route";
 import * as adminSystem from "./admin/system/route";
+import * as adminUserPasswordReset from "./admin/users/[userId]/password-reset/route";
 import * as adminUserDetail from "./admin/users/[userId]/detail/route";
 import * as adminUser from "./admin/users/[userId]/route";
 import * as adminUsers from "./admin/users/route";
@@ -26,12 +27,19 @@ import * as audit from "./audit/[[...path]]/route";
 import * as catalog from "./catalog/[[...path]]/route";
 import * as phone from "./phone/[[...path]]/route";
 import * as channels from "./channels/[[...path]]/route";
+import * as personalModelKeys from "./personal-model-keys/[[...path]]/route";
 import * as codingAccounts from "./coding-accounts/[[...path]]/route";
 import * as context from "./context/[[...path]]/route";
 import * as conversations from "./conversations/[[...path]]/route";
+import * as datasets from "./datasets/[[...path]]/route";
+import * as authoring from "./authoring/[[...path]]/route";
+import * as evalRuns from "./eval-runs/[[...path]]/route";
+import * as evalSuites from "./eval-suites/[[...path]]/route";
 import * as externalAgents from "./external-agents/[[...path]]/route";
 import * as visuals from "./visuals/[[...path]]/route";
+import * as improvements from "./improvements/[[...path]]/route";
 import * as kb from "./kb/[[...path]]/route";
+import * as knowledgeGaps from "./knowledge-gaps/[[...path]]/route";
 import * as localServices from "./local-services/[[...path]]/route";
 import * as mcpConnections from "./mcp-connections/[[...path]]/route";
 import * as mcpOauth from "./mcp-oauth/[[...path]]/route";
@@ -41,6 +49,9 @@ import * as systemAgents from "./system-agents/[[...path]]/route";
 import * as mlCalls from "./ml/calls/[[...path]]/route";
 import * as projects from "./projects/[[...path]]/route";
 import * as browserSignIns from "./browser-sign-ins/[[...path]]/route";
+import * as browserTeachings from "./browser-teachings/[[...path]]/route";
+import * as browserProcedureTeachings from "./browser-procedures/teachings/[[...path]]/route";
+import * as browserTeachingPolicy from "./browser-teaching-policy/route";
 import * as channelLink from "./me/channel-link/[[...path]]/route";
 import * as notifications from "./notifications/[[...path]]/route";
 import * as permissions from "./me/permissions/route";
@@ -52,6 +63,8 @@ import * as myMcpConnection from "./me/mcp-connections/[id]/route";
 import * as myMcpConnectionTest from "./me/mcp-connections/[id]/test/route";
 import * as mcpOauthStart from "./me/mcp-connections/oauth/start/route";
 import * as slashCommands from "./me/slash-commands/[[...path]]/route";
+import * as receivedInvitations from "./invitations/received/route";
+import * as acceptReceivedInvitation from "./invitations/received/[id]/accept/route";
 import * as orgs from "./orgs/route";
 import * as org from "./orgs/[id]/route";
 import * as orgInvitations from "./orgs/[id]/invitations/route";
@@ -83,6 +96,9 @@ import * as secrets from "./secrets/[[...path]]/route";
 import * as push from "./push/[[...path]]/route";
 import * as sessions from "./sessions/[[...path]]/route";
 import * as skillChanges from "./skill-changes/[[...path]]/route";
+import * as skillChecks from "./skill-checks/[[...path]]/route";
+import * as skillImprovements from "./skill-improvements/[[...path]]/route";
+import * as contextChanges from "./context-changes/[[...path]]/route";
 import * as skills from "./skills/[[...path]]/route";
 import * as spend from "./spend/[[...path]]/route";
 import * as stats from "./stats/[[...path]]/route";
@@ -97,7 +113,10 @@ import * as workflowLogs from "./workflow-logs/[[...path]]/route";
 import * as workflowRuns from "./workflow-runs/[[...path]]/route";
 import * as workflows from "./workflows/[[...path]]/route";
 import * as userLocale from "./users/me/locale/route";
+import * as userAppearance from "./users/me/appearance/route";
+import * as consoleExperience from "./users/me/console-experience/route";
 import * as mySuggestions from "./me/suggestions/[[...path]]/route";
+import * as myOnboarding from "./me/onboarding/[[...path]]/route";
 import * as myWatches from "./me/watches/[[...path]]/route";
 import * as voice from "./voice/[[...path]]/route";
 
@@ -130,13 +149,22 @@ const MOUNTED: [string, Record<string, unknown>][] = [
   ["apps", apps],
   ["audit", audit],
   ["browser-sign-ins", browserSignIns],
+  ["browser-teachings", browserTeachings],
+  ["browser-procedures/teachings", browserProcedureTeachings],
+  ["browser-teaching-policy", browserTeachingPolicy],
   ["catalog", catalog],
   ["channels", channels],
   ["context", context],
   ["conversations", conversations],
+  ["datasets", datasets],
+  ["eval-runs", evalRuns],
+  ["eval-suites", evalSuites],
+  ["authoring", authoring],
   ["external-agents", externalAgents],
   ["visuals", visuals],
+  ["improvements", improvements],
   ["kb", kb],
+  ["knowledge-gaps", knowledgeGaps],
   ["local-services", localServices],
   ["mcp-connections", mcpConnections],
   ["mcp-oauth", mcpOauth],
@@ -183,6 +211,9 @@ const MOUNTED: [string, Record<string, unknown>][] = [
   ["push", push],
   ["sessions", sessions],
   ["skill-changes", skillChanges],
+  ["skill-checks", skillChecks],
+  ["skill-improvements", skillImprovements],
+  ["context-changes", contextChanges],
   ["skills", skills],
   ["spend", spend],
   ["stats", stats],
@@ -208,6 +239,38 @@ const MOUNTED: [string, Record<string, unknown>][] = [
 const VERBS = ["GET", "POST", "PUT", "PATCH", "DELETE"] as const;
 
 describe("the proxied route mounts", () => {
+  it("requires a session before issuing an administrator recovery link", async () => {
+    const { NextRequest } = await import("next/server");
+    expect(Object.keys(adminUserPasswordReset)).toEqual(["POST"]);
+    const response = await adminUserPasswordReset.POST(
+      new NextRequest("http://localhost/api/admin/users/user-1/password-reset", { method: "POST" }),
+    );
+    expect(response.status).toBe(401);
+  });
+  it("limits received invitations to session-authenticated reads and acceptance", async () => {
+    const { NextRequest } = await import("next/server");
+    expect(Object.keys(receivedInvitations)).toEqual(["GET"]);
+    expect(Object.keys(acceptReceivedInvitation)).toEqual(["POST"]);
+    expect(
+      (await receivedInvitations.GET(new NextRequest("http://localhost/api/invitations/received")))
+        .status,
+    ).toBe(401);
+    expect(
+      (
+        await acceptReceivedInvitation.POST(
+          new NextRequest("http://localhost/api/invitations/received/invite/accept", {
+            method: "POST",
+          }),
+        )
+      ).status,
+    ).toBe(401);
+  });
+  it("mounts only the supported start verbs behind session authentication", async () => {
+    const { NextRequest } = await import("next/server");
+    expect(Object.keys(myOnboarding).sort()).toEqual(["GET", "PATCH", "POST"]);
+    const response = await myOnboarding.GET(new NextRequest("http://localhost/api/me/onboarding"));
+    expect(response.status).toBe(401);
+  });
   it.each(MOUNTED)("%s handles every verb", (_name, module) => {
     for (const verb of VERBS) {
       expect(typeof module[verb], verb).toBe("function");
@@ -260,4 +323,73 @@ it("coding accounts forwards only credential operations and requires a session",
     new NextRequest("http://localhost:3000/api/coding-accounts"),
   );
   expect(response.status).toBe(401);
+});
+
+it("personal model keys require a signed-in session for every exposed verb", async () => {
+  const { NextRequest } = await import("next/server");
+  expect(Object.keys(personalModelKeys).sort()).toEqual(["DELETE", "GET", "PUT"]);
+  for (const method of ["GET", "PUT", "DELETE"] as const) {
+    const response = await personalModelKeys[method](
+      new NextRequest("http://localhost:3000/api/personal-model-keys", { method }),
+    );
+    expect(response.status).toBe(401);
+  }
+});
+
+it("appearance only exposes read, save and reset behind the session boundary", async () => {
+  const { NextRequest } = await import("next/server");
+  expect(Object.keys(userAppearance).sort()).toEqual(["DELETE", "GET", "PATCH"]);
+  for (const method of ["GET", "PATCH", "DELETE"] as const) {
+    const response = await userAppearance[method](
+      new NextRequest("http://localhost:3000/api/users/me/appearance", { method }),
+    );
+    expect(response.status, method).toBe(401);
+  }
+});
+
+it("forwards only authenticated console-experience reads and partial edits with their organization", async () => {
+  const { NextRequest } = await import("next/server");
+  const { ACCESS_TOKEN_COOKIE } = await import("@/lib/session-cookie");
+  expect(Object.keys(consoleExperience).sort()).toEqual(["GET", "PATCH"]);
+  const fetch = vi.spyOn(globalThis, "fetch");
+  try {
+    for (const method of ["GET", "PATCH"] as const) {
+      const body = { preferences: { inbox: false }, reminders: { snooze_days: 7 } };
+      const request = new NextRequest("http://localhost/api/users/me/console-experience", {
+        method,
+        headers: { "X-Organization-Id": "org-one", "Content-Type": "application/json" },
+        ...(method === "PATCH" ? { body: JSON.stringify(body) } : {}),
+      });
+      expect((await consoleExperience[method](request)).status).toBe(401);
+      expect(fetch).not.toHaveBeenCalled();
+      request.cookies.set(ACCESS_TOKEN_COOKIE, "own-session");
+      fetch.mockResolvedValueOnce(Response.json({ effective: { inbox: false } }));
+      expect((await consoleExperience[method](request)).status).toBe(200);
+      expect(fetch).toHaveBeenCalledWith(
+        expect.stringMatching(/\/api\/v1\/users\/me\/console-experience$/),
+        expect.objectContaining({
+          method,
+          headers: expect.objectContaining({
+            Authorization: "Bearer own-session",
+            "X-Organization-Id": "org-one",
+          }),
+        }),
+      );
+      if (method === "PATCH")
+        expect(await new Response(fetch.mock.calls[0]?.[1]?.body).json()).toEqual(body);
+      fetch.mockClear();
+      fetch.mockResolvedValueOnce(
+        Response.json({ error: { message: "Membership not found" } }, { status: 403 }),
+      );
+      const refused = new NextRequest(request.url, {
+        method,
+        headers: request.headers,
+        ...(method === "PATCH" ? { body: JSON.stringify(body) } : {}),
+      });
+      expect((await consoleExperience[method](refused)).status).toBe(403);
+      fetch.mockClear();
+    }
+  } finally {
+    fetch.mockRestore();
+  }
 });

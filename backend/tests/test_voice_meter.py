@@ -170,3 +170,14 @@ def test_a_response_priced_by_neither_is_booked_as_unpriced(monkeypatch):
     meter.book_response(RunUsage(input_tokens=1000, output_tokens=1000))
 
     assert ledger.has_unpriced_models and ledger.total_usd == 0
+
+
+def test_elevenlabs_audio_cost_is_a_floor_with_unreported_token_charges():
+    ledger = SpendLedger()
+    entry = realtime_models.offered("elevenlabs", "eleven_realtime_v1_mini")
+    assert entry is not None and entry.unreported_token_usage
+    meter = UsageMeter(ledger, entry=entry, model_name=entry.id, provider="elevenlabs")
+    meter.book_elapsed(90)
+    assert ledger.total_usd == Decimal("0.12")
+    assert ledger.has_unpriced_models
+    assert all(not item.priced for item in ledger.entries)

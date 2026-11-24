@@ -1,0 +1,7 @@
+# ci.yml runs on `v*` tags so releases get full CI, which makes zizmor treat it
+# as a release workflow and flag every cache. It only checks code: images are
+# built and published by images.yml, so a poisoned cache has nothing to ship.
+rules:
+  cache-poisoning:
+    ignore:
+      - ci.yml

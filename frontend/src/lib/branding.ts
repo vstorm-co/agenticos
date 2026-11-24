@@ -38,6 +38,7 @@ export interface BrandingResponse {
   allowed_email_domains: string[];
   maintenance_mode: boolean;
   maintenance_message: string | null;
+  maintenance_planned_end_at?: string | null;
 }
 
 /**
@@ -54,6 +55,7 @@ export interface NoticeResponse {
   level: NoticeLevel;
   maintenance_mode: boolean;
   maintenance_message: string | null;
+  maintenance_planned_end_at?: string | null;
 }
 
 /** The resolved answer every surface reads: no nulls where a built-in exists. */
@@ -72,6 +74,7 @@ export interface Branding {
   allowedEmailDomains: string[];
   maintenanceMode: boolean;
   maintenanceMessage: string | null;
+  maintenancePlannedEndAt?: string | null;
 }
 
 /**
@@ -94,6 +97,7 @@ export const BUILT_IN_BRANDING: Branding = {
   allowedEmailDomains: [],
   maintenanceMode: false,
   maintenanceMessage: null,
+  maintenancePlannedEndAt: null,
 };
 
 /**
@@ -135,5 +139,6 @@ export function resolveBranding(overrides: BrandingResponse | null | undefined):
     allowedEmailDomains: overrides.allowed_email_domains,
     maintenanceMode: overrides.maintenance_mode,
     maintenanceMessage: overrides.maintenance_message || null,
+    maintenancePlannedEndAt: overrides.maintenance_planned_end_at ?? null,
   };
 }

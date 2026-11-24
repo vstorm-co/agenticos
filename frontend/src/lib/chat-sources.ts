@@ -1,3 +1,4 @@
+import { toolLookupName } from "@/lib/tool-identity";
 import { parseRAGResults } from "@/components/chat/tool-results/rag";
 import { parseWebSearch } from "@/components/chat/tool-results/web-search";
 import type { Translate } from "@/lib/agent-step-captions";
@@ -41,7 +42,7 @@ export function extractSources(message: ChatMessage, t: Translate): SourceItem[]
     const result = typeof tc.result === "string" ? tc.result : "";
     if (!result) continue;
 
-    if (tc.name === "search_documents") {
+    if (toolLookupName(tc) === "search_documents") {
       for (const item of parseRAGResults(result)) {
         const source: SourceItem = {
           index: item.index,
@@ -61,7 +62,7 @@ export function extractSources(message: ChatMessage, t: Translate): SourceItem[]
         };
         if (fresh(source)) sources.push(source);
       }
-    } else if (tc.name === "web_search") {
+    } else if (toolLookupName(tc) === "web_search") {
       const payload = parseWebSearch(result);
       if (payload?.results) {
         payload.results.forEach((hit, i) => {

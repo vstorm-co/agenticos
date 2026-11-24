@@ -55,7 +55,7 @@ describe("SandboxConnectionPicker", () => {
     connections.mockReturnValue({ connections: [], isLoading: false });
     const { rerender } = render(<SandboxConnectionPicker value={null} onChange={vi.fn()} />);
     expect(screen.getByRole("link", { name: "Connect one" }).getAttribute("href")).toBe(
-      "/sandboxes",
+      "/connectors/sandboxes",
     );
 
     rerender(<SandboxConnectionPicker value="gone" onChange={vi.fn()} error="Pick a host" />);

@@ -59,7 +59,7 @@
     "category": "other",
     "kind": "api_key",
     "help_url": "https://elevenlabs.io/app/settings/api-keys",
-    "description": "Speech generated from text, in the voices on your ElevenLabs account.",
+    "description": "Transcribe recordings, generate speech and hold realtime voice conversations with ElevenLabs.",
     "icon": "elevenlabs"
   },
   {

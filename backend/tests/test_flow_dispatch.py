@@ -36,10 +36,18 @@ pytestmark = pytest.mark.anyio
 
 
 @pytest.fixture
-def session():
+def session(monkeypatch):
     """A session with no bind: the queued job is captured before it would reach one."""
     from sqlalchemy.ext.asyncio import AsyncSession
 
+    monkeypatch.setattr(
+        "app.services.sync_source.knowledge_base_repo.list_by_collection_name",
+        AsyncMock(return_value=[]),
+    )
+    monkeypatch.setattr(
+        "app.services.rag_sync.knowledge_base_repo.get_by_id",
+        AsyncMock(return_value=None),
+    )
     return AsyncSession()
 
 
@@ -93,7 +101,9 @@ async def test_a_triggered_source_sync_is_queued_waiting_behind_any_other_sync_o
         organization_id=uuid4(),
         connector_type="google_drive",
         collection_name="handbooks",
+        knowledge_base_id=uuid4(),
         sync_mode="full",
+        is_active=True,
     )
     sync_log = SimpleNamespace(id=uuid4())
     savepoint = SimpleNamespace(commit=AsyncMock(), rollback=AsyncMock())
@@ -112,13 +122,40 @@ async def test_a_triggered_source_sync_is_queued_waiting_behind_any_other_sync_o
     assert options["organization_id"] == source.organization_id
 
 
+@pytest.mark.security
+@pytest.mark.parametrize(
+    ("collection_name", "knowledge_base_id"),
+    [(None, None), ("handbooks", None)],
+    ids=["no collection", "a collection but no base"],
+)
+async def test_a_source_with_nowhere_to_write_is_not_queued(
+    session, queued, monkeypatch, collection_name, knowledge_base_id
+) -> None:
+    """A source naming a collection but no base - its base deleted, or the upgrade
+    could not attribute it - is refused rather than synced by its name (#2551)."""
+    source = SimpleNamespace(
+        id=uuid4(),
+        collection_name=collection_name,
+        knowledge_base_id=knowledge_base_id,
+        is_active=True,
+    )
+    monkeypatch.setattr(sync_source_repo, "get_by_id", AsyncMock(return_value=source))
+
+    with pytest.raises(BadRequestError):
+        await SyncSourceService(session).trigger_sync(str(source.id))
+
+    assert queued == []
+
+
 def _source() -> SimpleNamespace:
     return SimpleNamespace(
         id=uuid4(),
         organization_id=uuid4(),
         connector_type="google_drive",
         collection_name="handbooks",
+        knowledge_base_id=uuid4(),
         sync_mode="full",
+        is_active=True,
     )
 
 

@@ -28,6 +28,7 @@ browser treats it as a picture or as a script.
 import contextlib
 import logging
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Literal
 from uuid import UUID
 
@@ -42,6 +43,7 @@ from app.core.vault import VaultScope, current_key_version, seal
 from app.db.models.deployment_settings import DeploymentSettings
 from app.db.updates import writable
 from app.repositories import deployment_settings_repo, organization_repo
+from app.schemas.console_experience import ChatHomeOverrides
 from app.schemas.deployment_settings import (
     BrandingRead,
     DefaultOrganizationRole,
@@ -126,11 +128,17 @@ class DeploymentSettingsService:
         row = await deployment_settings_repo.get(self.db)
         if row is None:
             return NoticeRead()
+        expired = (
+            row.announcement_expires_at is not None
+            and row.announcement_expires_at <= datetime.now(UTC)
+        )
         return NoticeRead(
-            message=row.announcement or None,
+            message=None if expired else row.announcement or None,
+            announcement_expires_at=None if expired else row.announcement_expires_at,
             level=_notice_level(row.announcement_level),
             maintenance_mode=row.maintenance_mode,
             maintenance_message=row.maintenance_message,
+            maintenance_planned_end_at=row.maintenance_planned_end_at,
         )
 
     async def read(self) -> DeploymentSettingsRead:
@@ -138,6 +146,11 @@ class DeploymentSettingsService:
         row = await deployment_settings_repo.get(self.db)
         return DeploymentSettingsRead(
             **_branding(row).model_dump(),
+            chat_home_available=ChatHomeOverrides.model_validate(row.chat_home_available)
+            if row and row.chat_home_available is not None
+            else None,
+            onboarding_reminders_available=row.onboarding_reminders_available if row else None,
+            announcement_expires_at=row.announcement_expires_at if row else None,
             announcement=row.announcement if row else None,
             announcement_level=_notice_level(row.announcement_level) if row else "info",
             max_organizations_per_user=row.max_organizations_per_user if row else None,
@@ -448,6 +461,7 @@ def _branding(row: DeploymentSettings | None) -> BrandingRead:
         allowed_email_domains=list(row.allowed_email_domains),
         maintenance_mode=row.maintenance_mode,
         maintenance_message=row.maintenance_message,
+        maintenance_planned_end_at=row.maintenance_planned_end_at,
     )
 
 

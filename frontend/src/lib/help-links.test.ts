@@ -10,7 +10,7 @@ describe("help links", () => {
 
   it("opens the bug-report form with the running version filled in", () => {
     expect(reportProblemUrl("1.52.0")).toBe(
-      "https://github.com/vstorm-co/agenticos/issues/new?template=bug_report.yml&version=v1.52.0",
+      "https://github.com/t3grp/agenticos/issues/new?template=bug_report.yml&version=v1.52.0",
     );
   });
 });

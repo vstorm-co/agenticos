@@ -19,7 +19,11 @@ import {
 } from "@/components/ui";
 import { NodeTile } from "@/components/workflows/node-tile";
 import { StartRunDialog } from "@/components/workflows/runs/start-run-dialog";
-import { availableSourceNodes, validateGraph } from "@/components/workflows/validation";
+import {
+  availableSourceNodes,
+  validateGraph,
+  withTableDrift,
+} from "@/components/workflows/validation";
 import { useWorkflowRuns, useWorkflowTable } from "@/hooks";
 import {
   MAX_PINNED_BYTES,
@@ -28,12 +32,20 @@ import {
   jsonBytes,
   knownInput,
   knownOutputs,
+  stepDataAt,
+  testEntryGraph,
 } from "@/lib/workflows/step-data";
 import { effectiveDefinition } from "@/lib/workflows/ports";
-import { WEBHOOK_TRIGGER, declaredFields, sampleRunInput } from "@/lib/workflows/triggers";
+import {
+  WEBHOOK_TRIGGER,
+  declaredFields,
+  declaredInputSchema,
+  sampleRunInput,
+} from "@/lib/workflows/triggers";
 import type { NodeDefinition, NodeInstance, WorkflowGraph } from "@/lib/workflows/types";
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 
+import { ApprovalVerdict } from "./approval-verdict";
 import { DataView, DeclaredOutput } from "./data-view";
 import { StepTestRun } from "./step-test-run";
 import { WebhookListener } from "./webhook-listener";
@@ -91,6 +103,8 @@ export function InputPane({
 }) {
   const t = useTranslations("workflows");
   const stepData = useWorkflowEditorStore((state) => state.stepData);
+  const iterationData = useWorkflowEditorStore((state) => state.iterationData);
+  const iteration = useWorkflowEditorStore((state) => state.editingIteration);
   const steps = useMemo(
     () =>
       earlierSteps(
@@ -144,7 +158,7 @@ export function InputPane({
 
   const instance = graph.nodes.find((candidate) => candidate.id === source);
   const pinned = readOnly ? null : instance?.pinned_output;
-  const output = pinned ?? stepData[source]?.output ?? null;
+  const output = pinned ?? stepDataAt(stepData, iterationData, source, iteration)?.output ?? null;
   const definition = declared(source);
   const known = output !== null || (definition?.ports ?? []).some((port) => port.kind === "output");
 
@@ -240,7 +254,10 @@ export function OutputPane({
 }) {
   const t = useTranslations("workflows");
   const tp = useTranslations("pages.workflows");
+  const tableDrift = useWorkflowEditorStore((state) => state.tableDrift);
   const stepData = useWorkflowEditorStore((state) => state.stepData);
+  const iterationData = useWorkflowEditorStore((state) => state.iterationData);
+  const iteration = useWorkflowEditorStore((state) => state.editingIteration);
   const isDirty = useWorkflowEditorStore((state) => state.isDirty);
   const testingNodeId = useWorkflowEditorStore((state) => state.testingNodeId);
   const lastStepTest = useWorkflowEditorStore((state) => state.lastStepTest);
@@ -248,35 +265,49 @@ export function OutputPane({
   const revealProblems = useWorkflowEditorStore((state) => state.revealProblems);
   const editNode = useWorkflowEditorStore((state) => state.editNode);
   const updateNodeDetails = useWorkflowEditorStore((state) => state.updateNodeDetails);
-  const { start } = useWorkflowRuns(workflowId);
   const [confirming, setConfirming] = useState(false);
   const [asking, setAsking] = useState(false);
+  const { start } = useWorkflowRuns(workflowId, asking, { startFeedback: "inline" });
   const [draft, setDraft] = useState<string | null>(null);
   const [draftProblem, setDraftProblem] = useState<string | null>(null);
+  // The start a test admits from: the first entry (default first) whose branch
+  // reaches this step, matching the backend's choice when no entry is named.
+  const branch = useMemo(() => testEntryGraph(graph, node.id), [graph, node.id]);
 
   const problems = useMemo(
-    () => validateGraph(graph, { items: catalog, total: catalog.length }, t),
-    [graph, catalog, t],
+    () =>
+      withTableDrift(
+        validateGraph(graph, { items: catalog, total: catalog.length }, t),
+        tableDrift,
+        t,
+      ),
+    [graph, catalog, t, tableDrift],
   );
-  const data = stepData[node.id];
+  const data = stepDataAt(stepData, iterationData, node.id, iteration);
   const pinned = readOnly ? null : (node.pinned_output ?? null);
   const testing = testingNodeId === node.id || start.isPending;
   const canPin = !readOnly && definition.kind !== "control";
   const blocked = isInsideALoop(graph, node.id)
     ? t("stepTestInsideALoop")
-    : problems.length > 0
-      ? tp("runBlockedByProblems", { count: problems.length })
-      : isDirty
-        ? t("publishSaving")
-        : null;
+    : branch === null
+      ? t("stepTestNotReachable")
+      : problems.length > 0
+        ? tp("runBlockedByProblems", { count: problems.length })
+        : isDirty
+          ? t("publishSaving")
+          : null;
 
-  const test = (input: Record<string, unknown>) =>
+  const test = (input: Record<string, unknown>) => {
+    // A parked step can be valid without an entry reaching it. Keep this guard
+    // as well as the disabled button if the graph changes during confirmation.
+    if (branch === null) return;
     start.mutate(
       {
         workflow_id: workflowId,
+        entry_node_id: branch.entry_node_id,
         mode: "test",
         input,
-        step: { node_id: node.id, outputs: knownOutputs(graph, node.id, stepData) },
+        step: { node_id: node.id, outputs: knownOutputs(branch, node.id, stepData) },
       },
       {
         onSuccess: (run) => {
@@ -285,11 +316,14 @@ export function OutputPane({
         },
       },
     );
+  };
   const begin = () => {
-    const input = knownInput(graph, stepData);
+    if (branch === null) return;
+    const input = knownInput(branch, stepData);
     if (input !== null) test(input);
-    else if (declaredFields(graph).length > 0) setAsking(true);
-    else test(sampleRunInput(graph));
+    else if (declaredFields(branch).length > 0 || declaredInputSchema(branch) !== null)
+      setAsking(true);
+    else test(sampleRunInput(branch));
   };
   const ask = () => (definition.effect_kind === "write" ? setConfirming(true) : begin());
 
@@ -399,6 +433,9 @@ export function OutputPane({
               {t("stepReviewSetup")}
             </Button>
           )}
+          {readOnly && data?.approval !== undefined && (
+            <ApprovalVerdict approval={data.approval} output={data.output} />
+          )}
           {shown === null ? (
             failed == null && (
               <MoreOptions label={t("stepOutputFields")}>
@@ -469,7 +506,10 @@ export function OutputPane({
           canRunLive={false}
           canTest
           busy={start.isPending}
-          testFields={declaredFields(graph)}
+          error={start.error}
+          onInputChange={start.reset}
+          testFields={declaredFields(branch)}
+          testInputSchema={declaredInputSchema(branch)}
           onStart={({ input }) => test(input)}
         />
       )}

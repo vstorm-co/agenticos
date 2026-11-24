@@ -46,7 +46,7 @@ describe("QuickAdd", () => {
         nodeName="Search"
         portLabel="Out"
         onPick={onPick}
-        prominent
+        next={[]}
       />,
     );
     const trigger = screen.getByRole("button", { name: "Add a step after Search (Out)" });
@@ -64,7 +64,7 @@ describe("QuickAdd", () => {
     expect(screen.queryByText("Download a file")).toBeNull();
     await userEvent.click(screen.getByText("Notify members"));
 
-    expect(onPick).toHaveBeenCalledWith(NOTIFY, undefined);
+    expect(onPick).toHaveBeenCalledWith(NOTIFY, undefined, undefined);
     await waitFor(() => expect(screen.queryByPlaceholderText("Search steps")).toBeNull());
   });
 
@@ -75,14 +75,108 @@ describe("QuickAdd", () => {
         nodeName="Search"
         portLabel="Out"
         onPick={vi.fn()}
-        prominent={false}
+        next={[{ edgeId: "e1", name: "Output" }]}
       />,
     );
-    const trigger = screen.getByRole("button", { name: "Add a step after Search (Out)" });
+    const trigger = screen.getByRole("button", {
+      name: "Add a step or a branch after Search (Out)",
+    });
     expect(trigger.className).toContain("opacity-0");
 
     await userEvent.click(trigger);
     await userEvent.type(screen.getByPlaceholderText("Search steps"), "zzz");
     expect(screen.getByText("No nodes match your search.")).toBeTruthy();
+  });
+
+  it("puts the step before what the output leads to unless a branch is chosen", async () => {
+    const onPick = vi.fn();
+    render(
+      <QuickAdd
+        catalog={[NOTIFY]}
+        nodeName="Save a record"
+        portLabel="Out"
+        onPick={onPick}
+        next={[{ edgeId: "e1", name: "Output" }]}
+      />,
+    );
+    const trigger = screen.getByRole("button", {
+      name: "Add a step or a branch after Save a record (Out)",
+    });
+
+    await userEvent.click(trigger);
+    expect(screen.getByRole("radio", { name: "Insert before Output" })).toBeChecked();
+    await userEvent.type(screen.getByPlaceholderText("Search steps"), "notif");
+    await userEvent.click(screen.getByText("Notify members"));
+    expect(onPick).toHaveBeenLastCalledWith(NOTIFY, undefined, "e1");
+
+    await userEvent.click(trigger);
+    await userEvent.click(screen.getByRole("radio", { name: "Add a parallel branch" }));
+    expect(screen.getByRole("radio", { name: "Add a parallel branch" })).toBeChecked();
+    await userEvent.type(screen.getByPlaceholderText("Search steps"), "notif");
+    await userEvent.click(screen.getByText("Notify members"));
+    expect(onPick).toHaveBeenLastCalledWith(NOTIFY, undefined, undefined);
+
+    // The choice does not outlive the step it placed.
+    await userEvent.click(trigger);
+    expect(screen.getByRole("radio", { name: "Insert before Output" })).toBeChecked();
+  });
+
+  it("moves between the two placements with the arrow keys, one tab stop between them", async () => {
+    render(
+      <QuickAdd
+        catalog={[NOTIFY]}
+        nodeName="Save a record"
+        portLabel="Out"
+        onPick={vi.fn()}
+        next={[{ edgeId: "e1", name: "Output" }]}
+      />,
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Add a step or a branch after Save a record (Out)" }),
+    );
+    const before = screen.getByRole("radio", { name: "Insert before Output" });
+    const branch = screen.getByRole("radio", { name: "Add a parallel branch" });
+    expect(before).toHaveAttribute("tabindex", "0");
+    expect(branch).toHaveAttribute("tabindex", "-1");
+
+    before.focus();
+    await userEvent.keyboard("{ArrowRight}");
+    expect(branch).toBeChecked();
+    expect(branch).toHaveFocus();
+    expect(branch).toHaveAttribute("tabindex", "0");
+    await userEvent.keyboard("{ArrowUp}");
+    expect(before).toBeChecked();
+    expect(before).toHaveFocus();
+    // Any other key is the picker's to use.
+    await userEvent.keyboard("{Enter}");
+    expect(before).toBeChecked();
+  });
+
+  it("only branches from an output that already leads to several steps", async () => {
+    const onPick = vi.fn();
+    render(
+      <QuickAdd
+        catalog={[NOTIFY]}
+        nodeName="Split"
+        portLabel="Out"
+        onPick={onPick}
+        next={[
+          { edgeId: "e1", name: "A" },
+          { edgeId: "e2", name: "B" },
+        ]}
+      />,
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Add a step or a branch after Split (Out)" }),
+    );
+    expect(screen.queryByRole("radio")).toBeNull();
+    expect(
+      screen.getByText(
+        "This output already leads to 2 steps. The new step runs beside them as another branch.",
+      ),
+    ).toBeTruthy();
+    await userEvent.type(screen.getByPlaceholderText("Search steps"), "notif");
+    await userEvent.click(screen.getByText("Notify members"));
+    expect(onPick).toHaveBeenCalledWith(NOTIFY, undefined, undefined);
   });
 });

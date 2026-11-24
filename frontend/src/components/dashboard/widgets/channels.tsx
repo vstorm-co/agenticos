@@ -60,12 +60,22 @@ export function ChannelsWidget({ title, hint, seeAll, options }: DashboardWidget
             // has to be running. Which mode it is in is the difference between
             // "silent because nobody asked" and "silent because nothing is
             // listening", so the row says which.
-            pill: bot.is_active
-              ? bot.webhook_mode
-                ? t("webhook")
-                : t("polling")
-              : t("switchedOff"),
-            tone: bot.is_active ? "ok" : "neutral",
+            pill: !bot.is_active
+              ? t("switchedOff")
+              : bot.connection?.state === "down"
+                ? t("disconnected")
+                : bot.webhook_mode
+                  ? t("webhook")
+                  : bot.connection?.state === "up"
+                    ? t("polling")
+                    : t("unknown"),
+            tone: !bot.is_active
+              ? "neutral"
+              : bot.connection?.state === "down"
+                ? "err"
+                : bot.webhook_mode || bot.connection?.state === "up"
+                  ? "ok"
+                  : "neutral",
           }))}
         />
       )}

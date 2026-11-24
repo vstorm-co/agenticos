@@ -35,6 +35,7 @@ from pydantic_ai.realtime import (
     RealtimeTurnCompleteEvent,
 )
 
+from app.core.tool_identity import ToolIdentity
 from app.schemas.conversation import MessageRead
 from app.schemas.voice import CaptionFrame, NoticeFrame, StateFrame, ToolFrame, TurnSavedFrame
 from app.services.transcript import tool_failure_notice, tool_result_text
@@ -255,9 +256,15 @@ class EventPump:
     ) -> None:
         if isinstance(event, FunctionToolCallEvent):
             part = event.part
+            deps = self._started.prepared.built.deps
+            identity = deps.tool_identities.get(
+                part.tool_call_id, deps.tool_definitions.get(part.tool_name, ToolIdentity())
+            )
             self._tools[part.tool_call_id] = SpokenToolCall(
                 tool_call_id=part.tool_call_id,
                 tool_name=part.tool_name,
+                tool_id=identity.tool_id,
+                presentation_kind=identity.presentation_kind,
                 args=part.args_as_dict(),
                 started_at=datetime.now(UTC),
             )

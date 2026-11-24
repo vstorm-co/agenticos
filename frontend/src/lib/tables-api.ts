@@ -18,6 +18,7 @@ import type {
   RecordExportQuery,
   RecordList,
   RecordQuery,
+  SchemaVersionRead,
   RecordRead,
   RecordSource,
   RecordUpdate,
@@ -68,6 +69,17 @@ export function getTable(tableId: string): Promise<TableRead> {
   return apiClient.get<TableRead>(`/tables/${tableId}`);
 }
 
+/** Every version of a table's schema, each with the columns it had. */
+export function listSchemaVersions(
+  tableId: string,
+  version?: number,
+): Promise<{ items: SchemaVersionRead[] }> {
+  const path = `/tables/${tableId}/schema-versions`;
+  return version === undefined
+    ? apiClient.get<{ items: SchemaVersionRead[] }>(path)
+    : apiClient.get<{ items: SchemaVersionRead[] }>(path, { params: { version: String(version) } });
+}
+
 export function updateTable(tableId: string, data: TableUpdate): Promise<TableRead> {
   return apiClient.patch<TableRead>(`/tables/${tableId}`, data);
 }
@@ -92,15 +104,21 @@ export function countRecords(tableId: string, query: RecordCountQuery): Promise<
   return apiClient.post<RecordCount>(`/tables/${tableId}/records/count`, query);
 }
 
-/** Records created together, each on its own - at most 200 in one call. */
+/**
+ * Records created together, each on its own - at most 200 in one call. The
+ * first batch of an import omits `asOf` and the rest send the `as_of` it
+ * answered, so a record someone changed meanwhile is reported, not overwritten.
+ */
 export function createRecords(
   tableId: string,
   records: RecordCreate[],
   updateExisting = false,
+  asOf?: string,
 ): Promise<RecordBatchResult> {
   return apiClient.post<RecordBatchResult>(`/tables/${tableId}/records/batch`, {
     records,
     update_existing: updateExisting,
+    ...(asOf ? { as_of: asOf } : {}),
   });
 }
 

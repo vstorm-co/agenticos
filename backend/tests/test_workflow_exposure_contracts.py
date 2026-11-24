@@ -13,6 +13,7 @@ import pytest
 from pydantic import ValidationError
 
 from app.core.permissions import AuthContext, OrgRoleName
+from app.db.models.workflow_run import WorkflowRunStatus
 from app.services.workflow_execution import delivery
 from app.workflows.nodes._triggers import ScheduleTriggerConfig
 
@@ -62,7 +63,7 @@ async def test_a_chat_run_with_a_text_answer_says_it_in_the_message():
         error={"code": "X", "message": "The last step failed"},
     )
     with (
-        patch.object(delivery.conversation_repo, "create_message", new=AsyncMock()) as write,
+        patch.object(delivery.conversation_repo, "save_workflow_message", new=AsyncMock()) as write,
         patch.object(delivery.workflow_repo, "get", new=AsyncMock(return_value=None)),
     ):
         await delivery.deliver_result(MagicMock(), run=run)
@@ -73,6 +74,29 @@ async def test_a_chat_run_with_a_text_answer_says_it_in_the_message():
     assert "workflow_name" not in card
     assert card["error"] == "The last step failed"
     assert words == {"type": "text", "text": "Three leads are ready."}
+
+
+@pytest.mark.parametrize("name", [None, "Planner"])
+async def test_a_chat_run_is_saved_before_it_finishes(name: str | None):
+    run = MagicMock(id=uuid.uuid4(), workflow_id=uuid.uuid4(), status=WorkflowRunStatus.RUNNING)
+    conversation_id, organization_id = uuid.uuid4(), uuid.uuid4()
+    workflow = None if name is None else MagicMock(name=name)
+    if workflow is not None:
+        workflow.name = name
+    with (
+        patch.object(delivery.conversation_repo, "save_workflow_message", new=AsyncMock()) as write,
+        patch.object(delivery.workflow_repo, "get", new=AsyncMock(return_value=workflow)),
+    ):
+        await delivery.deliver_started(
+            MagicMock(), run=run, conversation_id=conversation_id, organization_id=organization_id
+        )
+    assert write.await_args is not None
+    kwargs = write.await_args.kwargs
+    assert kwargs["conversation_id"] == conversation_id
+    assert kwargs["workflow_run_id"] == run.id
+    assert kwargs["content"] == ""
+    assert kwargs["parts"][0]["status"] == "running"
+    assert kwargs["parts"][0].get("workflow_name") == name
 
 
 async def test_a_runs_files_are_listed_from_what_the_query_answers():

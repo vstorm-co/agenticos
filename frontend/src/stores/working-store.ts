@@ -5,6 +5,8 @@ import { create } from "zustand";
 export interface WorkingState {
   /** When this tab's turn began, by the conversation it is running in. */
   since: Readonly<Record<string, string>>;
+  /** When the run behind this tab's turn last stamped itself alive. */
+  heartbeatAt: Readonly<Record<string, string>>;
   /** Completed locally: ignore list responses that still contain the previous run. */
   finishedAt: Readonly<Record<string, string>>;
   finishedRuns: Readonly<Record<string, Readonly<Record<string, true>>>>;
@@ -16,6 +18,8 @@ export interface WorkingState {
   /** Threads whose turn this tab let go to the server - see `handOff`. */
   handedOff: Readonly<Record<string, true>>;
   start: (conversationId: string, since: string) => void;
+  /** Record the run's latest heartbeat, as the conversation listing reports it. */
+  setHeartbeat: (conversationId: string, at: string) => void;
   /** This tab's turn is over. A handed-off thread keeps its mark until `settle`. */
   stop: (conversationId: string) => void;
   /** A terminal socket frame confirmed this turn ended, rather than merely detached. */
@@ -45,6 +49,7 @@ export interface WorkingState {
  */
 export const useWorkingStore = create<WorkingState>()((set) => ({
   since: {},
+  heartbeatAt: {},
   finishedAt: {},
   finishedRuns: {},
   waiting: {},
@@ -56,21 +61,26 @@ export const useWorkingStore = create<WorkingState>()((set) => ({
   handedOff: {},
   start: (conversationId, since) =>
     set((state) => ({ since: { ...state.since, [conversationId]: since } })),
+  setHeartbeat: (conversationId, at) =>
+    set((state) => ({ heartbeatAt: { ...state.heartbeatAt, [conversationId]: at } })),
   stop: (conversationId) =>
     set((state) => {
       if (!(conversationId in state.since) || conversationId in state.handedOff) return state;
       const { [conversationId]: _stopped, ...rest } = state.since;
-      return { since: rest };
+      const { [conversationId]: _beat, ...heartbeatAt } = state.heartbeatAt;
+      return { since: rest, heartbeatAt };
     }),
   finish: (conversationId, runId) =>
     set((state) => {
       const { [conversationId]: _since, ...since } = state.since;
       const { [conversationId]: _handed, ...handedOff } = state.handedOff;
       const { [conversationId]: _waiting, ...waiting } = state.waiting;
+      const { [conversationId]: _beat, ...heartbeatAt } = state.heartbeatAt;
       return {
         since,
         handedOff,
         waiting,
+        heartbeatAt,
         finishedAt: { ...state.finishedAt, [conversationId]: new Date().toISOString() },
         finishedRuns: runId
           ? {
@@ -91,7 +101,16 @@ export const useWorkingStore = create<WorkingState>()((set) => ({
       if (!(conversationId in state.since) && !(conversationId in state.handedOff)) return state;
       const { [conversationId]: _since, ...since } = state.since;
       const { [conversationId]: _handed, ...handedOff } = state.handedOff;
-      return { since, handedOff };
+      const { [conversationId]: _beat, ...heartbeatAt } = state.heartbeatAt;
+      return { since, handedOff, heartbeatAt };
     }),
-  reset: () => set({ since: {}, finishedAt: {}, finishedRuns: {}, waiting: {}, handedOff: {} }),
+  reset: () =>
+    set({
+      since: {},
+      heartbeatAt: {},
+      finishedAt: {},
+      finishedRuns: {},
+      waiting: {},
+      handedOff: {},
+    }),
 }));

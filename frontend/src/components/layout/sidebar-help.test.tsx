@@ -17,7 +17,7 @@ it.each([false, true])(
     expect(screen.getByRole("link", { name: /Learn/ })).toHaveAttribute("href", LEARN_URL);
     expect(screen.getByRole("link", { name: /Report a problem/ })).toHaveAttribute(
       "href",
-      `https://github.com/vstorm-co/agenticos/issues/new?template=bug_report.yml&version=v${version}`,
+      `https://github.com/t3grp/agenticos/issues/new?template=bug_report.yml&version=v${version}`,
     );
     expect(screen.getByText(`Reports include console version v${version}`)).toBeInTheDocument();
   },

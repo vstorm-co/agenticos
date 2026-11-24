@@ -249,7 +249,8 @@ class TestWhichToolsAreDescribed:
             )
         assert "test_stray_describer" not in REGISTRY
 
-    def test_a_capability_may_describe_its_own_tools(self):
+    @pytest.mark.anyio
+    async def test_a_capability_may_describe_its_own_tools(self):
         @register(
             id="test_described",
             name="Described",
@@ -274,9 +275,11 @@ class TestWhichToolsAreDescribed:
                     )
                 ],
             )
-            assert approval_describers(spec) == {
-                "renamed": REGISTRY["test_described"].describers["real"]
-            }
+            described = approval_describers(spec)
+            assert set(described) == {"renamed"}
+            deps, args = MagicMock(), {"id": "1"}
+            await described["renamed"](deps, args)
+            REGISTRY["test_described"].describers["real"].assert_awaited_once_with(deps, args, None)
         finally:
             REGISTRY.pop("test_described")
 
@@ -352,6 +355,9 @@ async def test_replayed_skill_loads_cannot_bypass_the_current_gate(mode: str) ->
     assert any(part is restored for message in ctx.messages for part in message.parts) is (
         not gated
     )
-    assert any(part is approved for message in ctx.messages for part in message.parts)
+    # An approval from an earlier turn is evidence, not consent for this turn.
+    assert any(part is approved for message in ctx.messages for part in message.parts) is (
+        not gated
+    )
     assert request.parts == [prompt, restored, approved]
     assert response in ctx.messages

@@ -1,0 +1,3261 @@
+{
+  "kind": "retrieval_rescore",
+  "revision": 2,
+  "rescored_at": "2026-11-10T15:52:40.073857+00:00",
+  "source": {
+    "path": "evals/retrieval/results/2026-11-10-openrouter-gpt6-luna.json",
+    "sha256": "ae537c9848a49514ee005dcf142c57edb2ab9adc1a0db0505e54deda100a9933",
+    "dataset_sha256": "03a2e444e77dab09b3e6624557a9672815550604c5fd85e783320a3408f80417",
+    "source_revision": "e8e782562ccd88b44e34e3054572cd37da1f12cc"
+  },
+  "previous_rescore": {
+    "path": "evals/retrieval/results/2026-11-10-openrouter-gpt6-luna-rescored.json",
+    "sha256": "59c3246107897293756fd04800c6fd677550fa0b6ce4ab34846a98acdd1466c4"
+  },
+  "dataset": {
+    "path": "evals/retrieval/docs_questions.yaml",
+    "version": 1,
+    "sha256": "693400c86b9f6cb3966feff283dbe54150032c666a6cb67d836ed35a3e24b7cd"
+  },
+  "scoring": {
+    "path": "evals/retrieval/scoring.py",
+    "sha256": "0b8d8c09ba2c8e62c934ce6cce7eb0964d1837795473d826d5ab0cb0e13e157f"
+  },
+  "model_requests": 0,
+  "embedding_requests": 0,
+  "method": "Re-evaluate the source artifact's ranked page keys and unchanged answers with documented expected-page aliases and duration equivalents, normalized question echoes and English/Polish abstention-clause filtering. No retrieval, embedding or model calls are repeated. The source and first rescoring artifacts are unchanged.",
+  "expected_pages": {
+    "saml-single-sign-on": [
+      "directory.md"
+    ],
+    "scim-provisioning": [
+      "directory.md"
+    ],
+    "org-wide-default-model": [
+      "models.md"
+    ],
+    "api-client-sdk": [
+      "api.md"
+    ],
+    "per-document-access-in-collection": [
+      "file-processing.md"
+    ],
+    "admin-creates-account-when-closed": [
+      "deployment.md"
+    ],
+    "zapier-signed-webhook": [
+      "triggers.md"
+    ],
+    "deployment-wide-embedding-key": [
+      "data-protection.md",
+      "file-processing.md"
+    ],
+    "environment-without-version-pl": [
+      "environments.md",
+      "concepts.md"
+    ],
+    "voice-calls-recorded-pl": [
+      "voice.md"
+    ],
+    "vault-master-key-fallback": [
+      "secrets.md"
+    ],
+    "unanswered-question-expiry": [
+      "configuration.md",
+      "reference/capabilities.md"
+    ],
+    "job-queue-engine": [
+      "task-queue-benchmark.md"
+    ],
+    "table-record-limit": [
+      "virtual-tables.md"
+    ],
+    "podman-deployment": [
+      "deploy.md"
+    ],
+    "session-lifetime": [
+      "configuration.md",
+      "directory.md"
+    ],
+    "workflow-worker-concurrency": [
+      "workflows.md"
+    ],
+    "skill-file-name": [
+      "skills.md"
+    ],
+    "context-always-loaded": [
+      "context.md",
+      "howto/customize-agent-prompt.md"
+    ],
+    "embedding-providers": [
+      "data-protection.md",
+      "file-processing.md"
+    ],
+    "default-pdf-parser-pl": [
+      "data-protection.md",
+      "file-processing.md"
+    ],
+    "table-write-rate-limit-pl": [
+      "virtual-tables.md"
+    ],
+    "project-default-agent-pl": [
+      "projects.md"
+    ],
+    "role-approves-without-editing-pl": [
+      "permissions.md"
+    ],
+    "saml-single-sign-on-pl": [
+      "directory.md"
+    ],
+    "default-chunk-size-pl": [
+      "file-processing.md"
+    ],
+    "voice-call-length-pl": [
+      "voice.md",
+      "governance.md"
+    ],
+    "publish-reaches-production-pl": [
+      "environments.md",
+      "howto/competitor-monitoring.md"
+    ],
+    "model-weights-in-image-pl": [
+      "licenses.md"
+    ],
+    "redis-cluster-pl-corpus": [
+      "scaling.md"
+    ],
+    "desktop-app-framework-pl-corpus": [
+      "desktop.md"
+    ],
+    "approval-expiry-pl-corpus": [
+      "configuration.md",
+      "governance.md"
+    ],
+    "stdio-mcp-server-pl-corpus": [
+      "mcp.md"
+    ],
+    "sandbox-docker-in-docker-pl-corpus": [
+      "sandbox.md"
+    ]
+  },
+  "expected_facts": {
+    "saml-single-sign-on": [
+      [
+        "no",
+        "not",
+        "nie"
+      ],
+      [
+        "Keycloak*"
+      ]
+    ],
+    "scim-provisioning": [
+      [
+        "no",
+        "not",
+        "isn't",
+        "doesn't"
+      ],
+      [
+        "sign-in*",
+        "sign in",
+        "signs in",
+        "signing in",
+        "deactivat*"
+      ]
+    ],
+    "org-wide-default-model": [
+      [
+        "no",
+        "not",
+        "cannot",
+        "isn't"
+      ],
+      [
+        "spec*"
+      ]
+    ],
+    "api-client-sdk": [
+      [
+        "no",
+        "not",
+        "isn't"
+      ],
+      [
+        "OpenAPI",
+        "curl",
+        "API reference"
+      ]
+    ],
+    "per-document-access-in-collection": [
+      [
+        "no",
+        "not",
+        "cannot",
+        "isn't"
+      ],
+      [
+        "every document",
+        "all documents",
+        "whole collection",
+        "collection as a whole",
+        "collection level",
+        "collection-level",
+        "separate*",
+        "split*",
+        "different collection*",
+        "another collection"
+      ]
+    ],
+    "admin-creates-account-when-closed": [
+      [
+        "no",
+        "not",
+        "cannot"
+      ],
+      [
+        "invite_only",
+        "invite*"
+      ]
+    ],
+    "zapier-signed-webhook": [
+      [
+        "no",
+        "not",
+        "cannot"
+      ],
+      [
+        "code"
+      ]
+    ],
+    "deployment-wide-embedding-key": [
+      [
+        "no",
+        "not",
+        "cannot",
+        "isn't"
+      ],
+      [
+        "embedding_secret_id",
+        "vault*",
+        "each collection",
+        "each personal or organization collection",
+        "its own key",
+        "per collection",
+        "per-collection"
+      ]
+    ],
+    "environment-without-version-pl": [
+      [
+        "nie",
+        "no",
+        "not",
+        "brak"
+      ],
+      [
+        "domyśln*",
+        "default",
+        "opublikowan*",
+        "published"
+      ]
+    ],
+    "voice-calls-recorded-pl": [
+      [
+        "nie",
+        "no",
+        "not"
+      ],
+      [
+        "transkrypc*",
+        "transcript*",
+        "tekst*",
+        "text"
+      ]
+    ],
+    "vault-master-key-fallback": [
+      [
+        "SECRET_KEY"
+      ]
+    ],
+    "unanswered-question-expiry": [
+      [
+        "24"
+      ]
+    ],
+    "job-queue-engine": [
+      [
+        "Postgres*",
+        "pgqueue"
+      ]
+    ],
+    "table-record-limit": [
+      [
+        "100,000",
+        "100000",
+        "100 000",
+        "100k"
+      ]
+    ],
+    "podman-deployment": [
+      [
+        "yes",
+        "supported",
+        "can"
+      ],
+      [
+        "Compose"
+      ]
+    ],
+    "session-lifetime": [
+      [
+        "7",
+        "seven",
+        "10080"
+      ]
+    ],
+    "workflow-worker-concurrency": [
+      [
+        "five",
+        "5"
+      ]
+    ],
+    "skill-file-name": [
+      [
+        "SKILL.md"
+      ]
+    ],
+    "context-always-loaded": [
+      [
+        "inject*"
+      ]
+    ],
+    "embedding-providers": [
+      [
+        "openrouter"
+      ],
+      [
+        "ollama"
+      ],
+      [
+        "openai"
+      ]
+    ],
+    "default-pdf-parser-pl": [
+      [
+        "pymupdf"
+      ]
+    ],
+    "table-write-rate-limit-pl": [
+      [
+        "300"
+      ]
+    ],
+    "project-default-agent-pl": [
+      [
+        "domyśln*",
+        "default"
+      ]
+    ],
+    "role-approves-without-editing-pl": [
+      [
+        "operator*"
+      ]
+    ],
+    "saml-single-sign-on-pl": [
+      [
+        "nie",
+        "no",
+        "not",
+        "brak"
+      ],
+      [
+        "Keycloak*"
+      ]
+    ],
+    "default-chunk-size-pl": [
+      [
+        "2500",
+        "2 500",
+        "2,500"
+      ]
+    ],
+    "voice-call-length-pl": [
+      [
+        "50"
+      ]
+    ],
+    "publish-reaches-production-pl": [
+      [
+        "nie",
+        "no",
+        "not"
+      ],
+      [
+        "tracks_latest",
+        "tracks latest",
+        "promowa*",
+        "promocj*",
+        "śledzi najnowsz*",
+        "śledzenie najnowsz*"
+      ]
+    ],
+    "model-weights-in-image-pl": [
+      [
+        "nie",
+        "no",
+        "not",
+        "brak"
+      ],
+      [
+        "dostawc*",
+        "provider*",
+        "pobier*",
+        "download*",
+        "profil*"
+      ]
+    ],
+    "redis-cluster-pl-corpus": [
+      [
+        "no",
+        "not",
+        "nie",
+        "isn't"
+      ],
+      [
+        "one instance",
+        "single instance",
+        "primary",
+        "one endpoint",
+        "one Redis",
+        "single Redis",
+        "pojedyncz*"
+      ]
+    ],
+    "desktop-app-framework-pl-corpus": [
+      [
+        "Tauri"
+      ]
+    ],
+    "approval-expiry-pl-corpus": [
+      [
+        "72",
+        "three days",
+        "3 days",
+        "three-day",
+        "3-day",
+        "trzy dni",
+        "3 dni"
+      ]
+    ],
+    "stdio-mcp-server-pl-corpus": [
+      [
+        "no",
+        "not",
+        "cannot",
+        "nie"
+      ],
+      [
+        "bridge*",
+        "most",
+        "mostu",
+        "mostem",
+        "streamable HTTP",
+        "streamable-HTTP",
+        "SSE",
+        "server-sent events"
+      ]
+    ],
+    "sandbox-docker-in-docker-pl-corpus": [
+      [
+        "no",
+        "not",
+        "nie"
+      ],
+      [
+        "sibling*",
+        "host's daemon",
+        "host daemon",
+        "sandboxd",
+        "socket"
+      ]
+    ]
+  },
+  "configurations": [
+    {
+      "label": "top_k=5, query_analysis_mode=off",
+      "top_k": 5,
+      "query_analysis_mode": "off",
+      "summary": [
+        {
+          "category": "factual",
+          "questions": 14,
+          "hit_rate": 0.9285714285714286,
+          "recall": 0.8214285714285714,
+          "mrr": 0.6845238095238095,
+          "answered": 14,
+          "answers_correct": 12
+        },
+        {
+          "category": "negative",
+          "questions": 10,
+          "hit_rate": 1.0,
+          "recall": 0.9,
+          "mrr": 0.7833333333333333,
+          "answered": 10,
+          "answers_correct": 8
+        },
+        {
+          "category": "cross_language",
+          "questions": 10,
+          "hit_rate": 0.8,
+          "recall": 0.65,
+          "mrr": 0.5583333333333333,
+          "answered": 10,
+          "answers_correct": 7
+        },
+        {
+          "category": "all",
+          "questions": 34,
+          "hit_rate": 0.9117647058823529,
+          "recall": 0.7941176470588235,
+          "mrr": 0.6764705882352942,
+          "answered": 34,
+          "answers_correct": 27
+        }
+      ],
+      "items": [
+        {
+          "id": "saml-single-sign-on",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "scim-provisioning",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "org-wide-default-model",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 2,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "api-client-sdk",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "per-document-access-in-collection",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 2,
+          "recall": 1.0,
+          "original_answer_correct": false,
+          "previous_answer_correct": true,
+          "answer_correct": false,
+          "missing_facts": [
+            [
+              "no",
+              "not",
+              "cannot",
+              "isn't"
+            ]
+          ]
+        },
+        {
+          "id": "admin-creates-account-when-closed",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "zapier-signed-webhook",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "deployment-wide-embedding-key",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 0.5,
+          "original_answer_correct": false,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "environment-without-version-pl",
+          "original_hit": false,
+          "hit": true,
+          "first_hit_rank": 2,
+          "recall": 0.5,
+          "original_answer_correct": false,
+          "previous_answer_correct": false,
+          "answer_correct": false,
+          "missing_facts": [
+            [
+              "domyśln*",
+              "default",
+              "opublikowan*",
+              "published"
+            ]
+          ]
+        },
+        {
+          "id": "voice-calls-recorded-pl",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 3,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "vault-master-key-fallback",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 3,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "unanswered-question-expiry",
+          "original_hit": false,
+          "hit": true,
+          "first_hit_rank": 2,
+          "recall": 0.5,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "job-queue-engine",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "table-record-limit",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "podman-deployment",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "session-lifetime",
+          "original_hit": false,
+          "hit": false,
+          "first_hit_rank": null,
+          "recall": 0.0,
+          "original_answer_correct": false,
+          "previous_answer_correct": false,
+          "answer_correct": false,
+          "missing_facts": [
+            [
+              "7",
+              "seven",
+              "10080"
+            ]
+          ]
+        },
+        {
+          "id": "workflow-worker-concurrency",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "skill-file-name",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 2,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "context-always-loaded",
+          "original_hit": false,
+          "hit": true,
+          "first_hit_rank": 4,
+          "recall": 0.5,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "embedding-providers",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "default-pdf-parser-pl",
+          "original_hit": false,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 0.5,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "table-write-rate-limit-pl",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "project-default-agent-pl",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 2,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "role-approves-without-editing-pl",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 2,
+          "recall": 1.0,
+          "original_answer_correct": false,
+          "previous_answer_correct": false,
+          "answer_correct": false,
+          "missing_facts": [
+            [
+              "operator*"
+            ]
+          ]
+        },
+        {
+          "id": "saml-single-sign-on-pl",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "default-chunk-size-pl",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 4,
+          "recall": 1.0,
+          "original_answer_correct": false,
+          "previous_answer_correct": false,
+          "answer_correct": false,
+          "missing_facts": [
+            [
+              "2500",
+              "2 500",
+              "2,500"
+            ]
+          ]
+        },
+        {
+          "id": "voice-call-length-pl",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 0.5,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "publish-reaches-production-pl",
+          "original_hit": false,
+          "hit": true,
+          "first_hit_rank": 3,
+          "recall": 0.5,
+          "original_answer_correct": false,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "model-weights-in-image-pl",
+          "original_hit": false,
+          "hit": false,
+          "first_hit_rank": null,
+          "recall": 0.0,
+          "original_answer_correct": false,
+          "previous_answer_correct": false,
+          "answer_correct": false,
+          "missing_facts": [
+            [
+              "nie",
+              "no",
+              "not",
+              "brak"
+            ],
+            [
+              "dostawc*",
+              "provider*",
+              "pobier*",
+              "download*",
+              "profil*"
+            ]
+          ]
+        },
+        {
+          "id": "redis-cluster-pl-corpus",
+          "original_hit": false,
+          "hit": false,
+          "first_hit_rank": null,
+          "recall": 0.0,
+          "original_answer_correct": false,
+          "previous_answer_correct": false,
+          "answer_correct": false,
+          "missing_facts": [
+            [
+              "no",
+              "not",
+              "nie",
+              "isn't"
+            ],
+            [
+              "one instance",
+              "single instance",
+              "primary",
+              "one endpoint",
+              "one Redis",
+              "single Redis",
+              "pojedyncz*"
+            ]
+          ]
+        },
+        {
+          "id": "desktop-app-framework-pl-corpus",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 2,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "approval-expiry-pl-corpus",
+          "original_hit": false,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 0.5,
+          "original_answer_correct": false,
+          "previous_answer_correct": false,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "stdio-mcp-server-pl-corpus",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 2,
+          "recall": 1.0,
+          "original_answer_correct": false,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "sandbox-docker-in-docker-pl-corpus",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        }
+      ]
+    },
+    {
+      "label": "top_k=5, query_analysis_mode=multi_query",
+      "top_k": 5,
+      "query_analysis_mode": "multi_query",
+      "summary": [
+        {
+          "category": "factual",
+          "questions": 14,
+          "hit_rate": 0.9285714285714286,
+          "recall": 0.8214285714285714,
+          "mrr": 0.6845238095238095,
+          "answered": 14,
+          "answers_correct": 12
+        },
+        {
+          "category": "negative",
+          "questions": 10,
+          "hit_rate": 1.0,
+          "recall": 0.9,
+          "mrr": 0.6916666666666667,
+          "answered": 10,
+          "answers_correct": 8
+        },
+        {
+          "category": "cross_language",
+          "questions": 10,
+          "hit_rate": 0.8,
+          "recall": 0.7,
+          "mrr": 0.6166666666666667,
+          "answered": 10,
+          "answers_correct": 7
+        },
+        {
+          "category": "all",
+          "questions": 34,
+          "hit_rate": 0.9117647058823529,
+          "recall": 0.8088235294117647,
+          "mrr": 0.6666666666666667,
+          "answered": 34,
+          "answers_correct": 27
+        }
+      ],
+      "items": [
+        {
+          "id": "saml-single-sign-on",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "scim-provisioning",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "org-wide-default-model",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 4,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "api-client-sdk",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 3,
+          "recall": 1.0,
+          "original_answer_correct": false,
+          "previous_answer_correct": false,
+          "answer_correct": false,
+          "missing_facts": [
+            [
+              "OpenAPI",
+              "curl",
+              "API reference"
+            ]
+          ]
+        },
+        {
+          "id": "per-document-access-in-collection",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 2,
+          "recall": 1.0,
+          "original_answer_correct": false,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "admin-creates-account-when-closed",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "zapier-signed-webhook",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "deployment-wide-embedding-key",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 0.5,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "environment-without-version-pl",
+          "original_hit": false,
+          "hit": true,
+          "first_hit_rank": 3,
+          "recall": 0.5,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": false,
+          "missing_facts": [
+            [
+              "nie",
+              "no",
+              "not",
+              "brak"
+            ],
+            [
+              "domyśln*",
+              "default",
+              "opublikowan*",
+              "published"
+            ]
+          ]
+        },
+        {
+          "id": "voice-calls-recorded-pl",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 2,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "vault-master-key-fallback",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 3,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "unanswered-question-expiry",
+          "original_hit": false,
+          "hit": true,
+          "first_hit_rank": 2,
+          "recall": 0.5,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "job-queue-engine",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "table-record-limit",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "podman-deployment",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "session-lifetime",
+          "original_hit": false,
+          "hit": false,
+          "first_hit_rank": null,
+          "recall": 0.0,
+          "original_answer_correct": false,
+          "previous_answer_correct": false,
+          "answer_correct": false,
+          "missing_facts": [
+            [
+              "7",
+              "seven",
+              "10080"
+            ]
+          ]
+        },
+        {
+          "id": "workflow-worker-concurrency",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "skill-file-name",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 2,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "context-always-loaded",
+          "original_hit": false,
+          "hit": true,
+          "first_hit_rank": 4,
+          "recall": 0.5,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "embedding-providers",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "default-pdf-parser-pl",
+          "original_hit": false,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 0.5,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "table-write-rate-limit-pl",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "project-default-agent-pl",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 2,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "role-approves-without-editing-pl",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 2,
+          "recall": 1.0,
+          "original_answer_correct": false,
+          "previous_answer_correct": false,
+          "answer_correct": false,
+          "missing_facts": [
+            [
+              "operator*"
+            ]
+          ]
+        },
+        {
+          "id": "saml-single-sign-on-pl",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "default-chunk-size-pl",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 3,
+          "recall": 1.0,
+          "original_answer_correct": false,
+          "previous_answer_correct": false,
+          "answer_correct": false,
+          "missing_facts": [
+            [
+              "2500",
+              "2 500",
+              "2,500"
+            ]
+          ]
+        },
+        {
+          "id": "voice-call-length-pl",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 0.5,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "publish-reaches-production-pl",
+          "original_hit": false,
+          "hit": true,
+          "first_hit_rank": 3,
+          "recall": 0.5,
+          "original_answer_correct": false,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "model-weights-in-image-pl",
+          "original_hit": false,
+          "hit": false,
+          "first_hit_rank": null,
+          "recall": 0.0,
+          "original_answer_correct": false,
+          "previous_answer_correct": false,
+          "answer_correct": false,
+          "missing_facts": [
+            [
+              "nie",
+              "no",
+              "not",
+              "brak"
+            ],
+            [
+              "dostawc*",
+              "provider*",
+              "pobier*",
+              "download*",
+              "profil*"
+            ]
+          ]
+        },
+        {
+          "id": "redis-cluster-pl-corpus",
+          "original_hit": false,
+          "hit": false,
+          "first_hit_rank": null,
+          "recall": 0.0,
+          "original_answer_correct": false,
+          "previous_answer_correct": false,
+          "answer_correct": false,
+          "missing_facts": [
+            [
+              "no",
+              "not",
+              "nie",
+              "isn't"
+            ],
+            [
+              "one instance",
+              "single instance",
+              "primary",
+              "one endpoint",
+              "one Redis",
+              "single Redis",
+              "pojedyncz*"
+            ]
+          ]
+        },
+        {
+          "id": "desktop-app-framework-pl-corpus",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "approval-expiry-pl-corpus",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "stdio-mcp-server-pl-corpus",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 2,
+          "recall": 1.0,
+          "original_answer_correct": false,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "sandbox-docker-in-docker-pl-corpus",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        }
+      ]
+    },
+    {
+      "label": "top_k=5, query_analysis_mode=hyde",
+      "top_k": 5,
+      "query_analysis_mode": "hyde",
+      "summary": [
+        {
+          "category": "factual",
+          "questions": 14,
+          "hit_rate": 1.0,
+          "recall": 0.8571428571428571,
+          "mrr": 0.7642857142857142,
+          "answered": 14,
+          "answers_correct": 11
+        },
+        {
+          "category": "negative",
+          "questions": 10,
+          "hit_rate": 1.0,
+          "recall": 0.9,
+          "mrr": 0.8033333333333333,
+          "answered": 10,
+          "answers_correct": 9
+        },
+        {
+          "category": "cross_language",
+          "questions": 10,
+          "hit_rate": 0.9,
+          "recall": 0.8,
+          "mrr": 0.75,
+          "answered": 10,
+          "answers_correct": 9
+        },
+        {
+          "category": "all",
+          "questions": 34,
+          "hit_rate": 0.9705882352941176,
+          "recall": 0.8529411764705882,
+          "mrr": 0.7715686274509804,
+          "answered": 34,
+          "answers_correct": 29
+        }
+      ],
+      "items": [
+        {
+          "id": "saml-single-sign-on",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 2,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "scim-provisioning",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "org-wide-default-model",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "api-client-sdk",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "per-document-access-in-collection",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": false,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "admin-creates-account-when-closed",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "zapier-signed-webhook",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "deployment-wide-embedding-key",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 0.5,
+          "original_answer_correct": false,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "environment-without-version-pl",
+          "original_hit": false,
+          "hit": true,
+          "first_hit_rank": 5,
+          "recall": 0.5,
+          "original_answer_correct": false,
+          "previous_answer_correct": false,
+          "answer_correct": false,
+          "missing_facts": [
+            [
+              "domyśln*",
+              "default",
+              "opublikowan*",
+              "published"
+            ]
+          ]
+        },
+        {
+          "id": "voice-calls-recorded-pl",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 3,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "vault-master-key-fallback",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 2,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "unanswered-question-expiry",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 2,
+          "recall": 0.5,
+          "original_answer_correct": false,
+          "previous_answer_correct": false,
+          "answer_correct": false,
+          "missing_facts": [
+            [
+              "24"
+            ]
+          ]
+        },
+        {
+          "id": "job-queue-engine",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "table-record-limit",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "podman-deployment",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "session-lifetime",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 0.5,
+          "original_answer_correct": false,
+          "previous_answer_correct": false,
+          "answer_correct": false,
+          "missing_facts": [
+            [
+              "7",
+              "seven",
+              "10080"
+            ]
+          ]
+        },
+        {
+          "id": "workflow-worker-concurrency",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "skill-file-name",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 2,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "context-always-loaded",
+          "original_hit": false,
+          "hit": true,
+          "first_hit_rank": 2,
+          "recall": 0.5,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "embedding-providers",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "default-pdf-parser-pl",
+          "original_hit": false,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 0.5,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "table-write-rate-limit-pl",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "project-default-agent-pl",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 2,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "role-approves-without-editing-pl",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 5,
+          "recall": 1.0,
+          "original_answer_correct": false,
+          "previous_answer_correct": false,
+          "answer_correct": false,
+          "missing_facts": [
+            [
+              "operator*"
+            ]
+          ]
+        },
+        {
+          "id": "saml-single-sign-on-pl",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "default-chunk-size-pl",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 2,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "voice-call-length-pl",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 0.5,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "publish-reaches-production-pl",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 2,
+          "recall": 0.5,
+          "original_answer_correct": false,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "model-weights-in-image-pl",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "redis-cluster-pl-corpus",
+          "original_hit": false,
+          "hit": false,
+          "first_hit_rank": null,
+          "recall": 0.0,
+          "original_answer_correct": false,
+          "previous_answer_correct": false,
+          "answer_correct": false,
+          "missing_facts": [
+            [
+              "one instance",
+              "single instance",
+              "primary",
+              "one endpoint",
+              "one Redis",
+              "single Redis",
+              "pojedyncz*"
+            ]
+          ]
+        },
+        {
+          "id": "desktop-app-framework-pl-corpus",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "approval-expiry-pl-corpus",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "stdio-mcp-server-pl-corpus",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 2,
+          "recall": 1.0,
+          "original_answer_correct": false,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "sandbox-docker-in-docker-pl-corpus",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        }
+      ]
+    },
+    {
+      "label": "top_k=10, query_analysis_mode=off",
+      "top_k": 10,
+      "query_analysis_mode": "off",
+      "summary": [
+        {
+          "category": "factual",
+          "questions": 14,
+          "hit_rate": 1.0,
+          "recall": 0.8928571428571429,
+          "mrr": 0.6964285714285714,
+          "answered": 14,
+          "answers_correct": 13
+        },
+        {
+          "category": "negative",
+          "questions": 10,
+          "hit_rate": 1.0,
+          "recall": 0.95,
+          "mrr": 0.7833333333333333,
+          "answered": 10,
+          "answers_correct": 9
+        },
+        {
+          "category": "cross_language",
+          "questions": 10,
+          "hit_rate": 0.9,
+          "recall": 0.85,
+          "mrr": 0.5599999999999999,
+          "answered": 10,
+          "answers_correct": 7
+        },
+        {
+          "category": "all",
+          "questions": 34,
+          "hit_rate": 0.9705882352941176,
+          "recall": 0.8970588235294118,
+          "mrr": 0.6818627450980392,
+          "answered": 34,
+          "answers_correct": 29
+        }
+      ],
+      "items": [
+        {
+          "id": "saml-single-sign-on",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "scim-provisioning",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "org-wide-default-model",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 2,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "api-client-sdk",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "per-document-access-in-collection",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 2,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "admin-creates-account-when-closed",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "zapier-signed-webhook",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "deployment-wide-embedding-key",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "environment-without-version-pl",
+          "original_hit": false,
+          "hit": true,
+          "first_hit_rank": 2,
+          "recall": 0.5,
+          "original_answer_correct": false,
+          "previous_answer_correct": false,
+          "answer_correct": false,
+          "missing_facts": [
+            [
+              "nie",
+              "no",
+              "not",
+              "brak"
+            ],
+            [
+              "domyśln*",
+              "default",
+              "opublikowan*",
+              "published"
+            ]
+          ]
+        },
+        {
+          "id": "voice-calls-recorded-pl",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 3,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "vault-master-key-fallback",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 3,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "unanswered-question-expiry",
+          "original_hit": false,
+          "hit": true,
+          "first_hit_rank": 2,
+          "recall": 0.5,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "job-queue-engine",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "table-record-limit",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "podman-deployment",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "session-lifetime",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 6,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "workflow-worker-concurrency",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "skill-file-name",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 2,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "context-always-loaded",
+          "original_hit": false,
+          "hit": true,
+          "first_hit_rank": 4,
+          "recall": 0.5,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "embedding-providers",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "default-pdf-parser-pl",
+          "original_hit": false,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 0.5,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "table-write-rate-limit-pl",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "project-default-agent-pl",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 2,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "role-approves-without-editing-pl",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 2,
+          "recall": 1.0,
+          "original_answer_correct": false,
+          "previous_answer_correct": false,
+          "answer_correct": false,
+          "missing_facts": [
+            [
+              "operator*"
+            ]
+          ]
+        },
+        {
+          "id": "saml-single-sign-on-pl",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "default-chunk-size-pl",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 4,
+          "recall": 1.0,
+          "original_answer_correct": false,
+          "previous_answer_correct": false,
+          "answer_correct": false,
+          "missing_facts": [
+            [
+              "2500",
+              "2 500",
+              "2,500"
+            ]
+          ]
+        },
+        {
+          "id": "voice-call-length-pl",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 0.5,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "publish-reaches-production-pl",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 4,
+          "recall": 1.0,
+          "original_answer_correct": false,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "model-weights-in-image-pl",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 10,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "redis-cluster-pl-corpus",
+          "original_hit": false,
+          "hit": false,
+          "first_hit_rank": null,
+          "recall": 0.0,
+          "original_answer_correct": false,
+          "previous_answer_correct": false,
+          "answer_correct": false,
+          "missing_facts": [
+            [
+              "one instance",
+              "single instance",
+              "primary",
+              "one endpoint",
+              "one Redis",
+              "single Redis",
+              "pojedyncz*"
+            ]
+          ]
+        },
+        {
+          "id": "desktop-app-framework-pl-corpus",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 2,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "approval-expiry-pl-corpus",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "stdio-mcp-server-pl-corpus",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 2,
+          "recall": 1.0,
+          "original_answer_correct": false,
+          "previous_answer_correct": true,
+          "answer_correct": false,
+          "missing_facts": [
+            [
+              "no",
+              "not",
+              "cannot",
+              "nie"
+            ]
+          ]
+        },
+        {
+          "id": "sandbox-docker-in-docker-pl-corpus",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        }
+      ]
+    },
+    {
+      "label": "top_k=10, query_analysis_mode=multi_query",
+      "top_k": 10,
+      "query_analysis_mode": "multi_query",
+      "summary": [
+        {
+          "category": "factual",
+          "questions": 14,
+          "hit_rate": 1.0,
+          "recall": 0.8928571428571429,
+          "mrr": 0.6928571428571428,
+          "answered": 14,
+          "answers_correct": 13
+        },
+        {
+          "category": "negative",
+          "questions": 10,
+          "hit_rate": 1.0,
+          "recall": 0.95,
+          "mrr": 0.7583333333333333,
+          "answered": 10,
+          "answers_correct": 9
+        },
+        {
+          "category": "cross_language",
+          "questions": 10,
+          "hit_rate": 0.8,
+          "recall": 0.7,
+          "mrr": 0.6833333333333333,
+          "answered": 10,
+          "answers_correct": 7
+        },
+        {
+          "category": "all",
+          "questions": 34,
+          "hit_rate": 0.9411764705882353,
+          "recall": 0.8529411764705882,
+          "mrr": 0.7093137254901961,
+          "answered": 34,
+          "answers_correct": 29
+        }
+      ],
+      "items": [
+        {
+          "id": "saml-single-sign-on",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "scim-provisioning",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": false,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "org-wide-default-model",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 4,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "api-client-sdk",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 3,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "per-document-access-in-collection",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": false,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "admin-creates-account-when-closed",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "zapier-signed-webhook",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "deployment-wide-embedding-key",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": false,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "environment-without-version-pl",
+          "original_hit": false,
+          "hit": true,
+          "first_hit_rank": 2,
+          "recall": 0.5,
+          "original_answer_correct": false,
+          "previous_answer_correct": false,
+          "answer_correct": false,
+          "missing_facts": [
+            [
+              "nie",
+              "no",
+              "not",
+              "brak"
+            ],
+            [
+              "domyśln*",
+              "default",
+              "opublikowan*",
+              "published"
+            ]
+          ]
+        },
+        {
+          "id": "voice-calls-recorded-pl",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 2,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "vault-master-key-fallback",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 3,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "unanswered-question-expiry",
+          "original_hit": false,
+          "hit": true,
+          "first_hit_rank": 2,
+          "recall": 0.5,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "job-queue-engine",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "table-record-limit",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "podman-deployment",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "session-lifetime",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 5,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "workflow-worker-concurrency",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "skill-file-name",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 2,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "context-always-loaded",
+          "original_hit": false,
+          "hit": true,
+          "first_hit_rank": 6,
+          "recall": 0.5,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "embedding-providers",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "default-pdf-parser-pl",
+          "original_hit": false,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 0.5,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "table-write-rate-limit-pl",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "project-default-agent-pl",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 2,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "role-approves-without-editing-pl",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 2,
+          "recall": 1.0,
+          "original_answer_correct": false,
+          "previous_answer_correct": false,
+          "answer_correct": false,
+          "missing_facts": [
+            [
+              "operator*"
+            ]
+          ]
+        },
+        {
+          "id": "saml-single-sign-on-pl",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "default-chunk-size-pl",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": false,
+          "previous_answer_correct": false,
+          "answer_correct": false,
+          "missing_facts": [
+            [
+              "2500",
+              "2 500",
+              "2,500"
+            ]
+          ]
+        },
+        {
+          "id": "voice-call-length-pl",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 0.5,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "publish-reaches-production-pl",
+          "original_hit": false,
+          "hit": true,
+          "first_hit_rank": 3,
+          "recall": 0.5,
+          "original_answer_correct": false,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "model-weights-in-image-pl",
+          "original_hit": false,
+          "hit": false,
+          "first_hit_rank": null,
+          "recall": 0.0,
+          "original_answer_correct": false,
+          "previous_answer_correct": false,
+          "answer_correct": false,
+          "missing_facts": [
+            [
+              "dostawc*",
+              "provider*",
+              "pobier*",
+              "download*",
+              "profil*"
+            ]
+          ]
+        },
+        {
+          "id": "redis-cluster-pl-corpus",
+          "original_hit": false,
+          "hit": false,
+          "first_hit_rank": null,
+          "recall": 0.0,
+          "original_answer_correct": false,
+          "previous_answer_correct": false,
+          "answer_correct": false,
+          "missing_facts": [
+            [
+              "one instance",
+              "single instance",
+              "primary",
+              "one endpoint",
+              "one Redis",
+              "single Redis",
+              "pojedyncz*"
+            ]
+          ]
+        },
+        {
+          "id": "desktop-app-framework-pl-corpus",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "approval-expiry-pl-corpus",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "stdio-mcp-server-pl-corpus",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 2,
+          "recall": 1.0,
+          "original_answer_correct": false,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "sandbox-docker-in-docker-pl-corpus",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        }
+      ]
+    },
+    {
+      "label": "top_k=10, query_analysis_mode=hyde",
+      "top_k": 10,
+      "query_analysis_mode": "hyde",
+      "summary": [
+        {
+          "category": "factual",
+          "questions": 14,
+          "hit_rate": 1.0,
+          "recall": 0.9285714285714286,
+          "mrr": 0.7642857142857142,
+          "answered": 14,
+          "answers_correct": 12
+        },
+        {
+          "category": "negative",
+          "questions": 10,
+          "hit_rate": 1.0,
+          "recall": 0.95,
+          "mrr": 0.8033333333333333,
+          "answered": 10,
+          "answers_correct": 9
+        },
+        {
+          "category": "cross_language",
+          "questions": 10,
+          "hit_rate": 1.0,
+          "recall": 0.95,
+          "mrr": 0.7625,
+          "answered": 10,
+          "answers_correct": 9
+        },
+        {
+          "category": "all",
+          "questions": 34,
+          "hit_rate": 1.0,
+          "recall": 0.9411764705882353,
+          "mrr": 0.7752450980392157,
+          "answered": 34,
+          "answers_correct": 30
+        }
+      ],
+      "items": [
+        {
+          "id": "saml-single-sign-on",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 2,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "scim-provisioning",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "org-wide-default-model",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "api-client-sdk",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "per-document-access-in-collection",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "admin-creates-account-when-closed",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "zapier-signed-webhook",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "deployment-wide-embedding-key",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": false,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "environment-without-version-pl",
+          "original_hit": false,
+          "hit": true,
+          "first_hit_rank": 5,
+          "recall": 0.5,
+          "original_answer_correct": false,
+          "previous_answer_correct": false,
+          "answer_correct": false,
+          "missing_facts": [
+            [
+              "domyśln*",
+              "default",
+              "opublikowan*",
+              "published"
+            ]
+          ]
+        },
+        {
+          "id": "voice-calls-recorded-pl",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 3,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "vault-master-key-fallback",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 2,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "unanswered-question-expiry",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 2,
+          "recall": 0.5,
+          "original_answer_correct": false,
+          "previous_answer_correct": false,
+          "answer_correct": false,
+          "missing_facts": [
+            [
+              "24"
+            ]
+          ]
+        },
+        {
+          "id": "job-queue-engine",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "table-record-limit",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "podman-deployment",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "session-lifetime",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "workflow-worker-concurrency",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "skill-file-name",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 2,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "context-always-loaded",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 2,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "embedding-providers",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "default-pdf-parser-pl",
+          "original_hit": false,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 0.5,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "table-write-rate-limit-pl",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "project-default-agent-pl",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 2,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "role-approves-without-editing-pl",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 5,
+          "recall": 1.0,
+          "original_answer_correct": false,
+          "previous_answer_correct": false,
+          "answer_correct": false,
+          "missing_facts": [
+            [
+              "operator*"
+            ]
+          ]
+        },
+        {
+          "id": "saml-single-sign-on-pl",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "default-chunk-size-pl",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 2,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "voice-call-length-pl",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 0.5,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "publish-reaches-production-pl",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 2,
+          "recall": 1.0,
+          "original_answer_correct": false,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "model-weights-in-image-pl",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "redis-cluster-pl-corpus",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 8,
+          "recall": 1.0,
+          "original_answer_correct": false,
+          "previous_answer_correct": false,
+          "answer_correct": false,
+          "missing_facts": [
+            [
+              "one instance",
+              "single instance",
+              "primary",
+              "one endpoint",
+              "one Redis",
+              "single Redis",
+              "pojedyncz*"
+            ]
+          ]
+        },
+        {
+          "id": "desktop-app-framework-pl-corpus",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "approval-expiry-pl-corpus",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "stdio-mcp-server-pl-corpus",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 2,
+          "recall": 1.0,
+          "original_answer_correct": false,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "sandbox-docker-in-docker-pl-corpus",
+          "original_hit": true,
+          "hit": true,
+          "first_hit_rank": 1,
+          "recall": 1.0,
+          "original_answer_correct": true,
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        }
+      ]
+    }
+  ]
+}

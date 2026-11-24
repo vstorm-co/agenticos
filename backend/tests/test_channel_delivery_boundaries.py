@@ -145,3 +145,94 @@ async def test_numbered_channel_choices_reach_their_original_feedback_or_next_st
     await channel_tasks._route_inbound(incoming, db)
     assert rated.await_count == int(kind == "feedback")
     assert routed.await_count == int(kind == "next")
+
+
+@pytest.mark.parametrize(
+    "change", ["none", "missing", "inactive", "tenant", "platform", "generation"]
+)
+async def test_message_worker_rechecks_frozen_admission_before_routing(worker, monkeypatch, change):
+    from app.core.exceptions import BadRequestError
+    from app.repositories import channel_bot_repo
+    from app.services.channels.steering import current_receipt
+    from app.worker.jobs import ChannelMessage
+
+    bot, db = worker
+    bot.platform = "mattermost"
+    bot.authorization_generation = uuid4()
+    job = ChannelMessage(
+        receipt_id=uuid4(),
+        organization_id=bot.organization_id,
+        bot_id=bot.id,
+        authorization_generation=bot.authorization_generation,
+        platform="mattermost",
+        platform_user_id="alice",
+        platform_chat_id="room:thread",
+        chat_type="group",
+        text="Hi",
+        message_id="native",
+    )
+    if change == "missing":
+        channel_bot_repo.get_for_inbound.return_value = None
+    elif change == "inactive":
+        bot.is_active = False
+    elif change == "tenant":
+        bot.organization_id = uuid4()
+    elif change == "platform":
+        bot.platform = "slack"
+    elif change == "generation":
+        bot.authorization_generation = uuid4()
+
+    async def route(incoming, session):
+        assert current_receipt() == job.receipt_id
+        assert incoming.message_id == "native" and session is db
+
+    routed = AsyncMock(side_effect=route)
+    monkeypatch.setattr(channel_tasks, "_route_inbound", routed)
+    if change in {"platform", "generation"}:
+        with pytest.raises(BadRequestError):
+            await channel_tasks.process_channel_message(job)
+    else:
+        await channel_tasks.process_channel_message(job)
+    assert routed.await_count == int(change == "none")
+    assert current_receipt() is None
+
+
+@pytest.mark.parametrize("adapter_ok", [False, True])
+async def test_discord_worker_restores_the_encrypted_interaction_reply_scope(
+    worker, monkeypatch, adapter_ok
+):
+    from dataclasses import replace
+
+    from app.services import channels
+    from app.services.channels.discord import DiscordAdapter
+    from app.services.channels.ingress import normalize
+
+    bot, db = worker
+    bot.platform = "discord"
+    bot.authorization_generation = uuid4()
+    incoming = IncomingMessage(
+        platform="discord",
+        bot_id=str(bot.id),
+        platform_user_id="alice",
+        platform_chat_id="room:thread",
+        chat_type="group",
+        text="/status",
+        message_id="interaction",
+        discord_interaction=("application", "private-token"),
+    )
+    adapter = DiscordAdapter() if adapter_ok else MagicMock()
+    monkeypatch.setattr(channels, "get_adapter", lambda _: adapter)
+
+    async def route(restored, session):
+        assert restored.discord_interaction == ("application", "private-token")
+        assert adapter._interactions.get("interaction") == ("application", "private-token")
+
+    monkeypatch.setattr(channel_tasks, "_route_inbound", route)
+    if adapter_ok:
+        await channel_tasks.process_channel_message(normalize(bot, incoming))
+        assert adapter._interactions.get("interaction") is None
+        with adapter.restored_interaction(replace(incoming, discord_interaction=None)):
+            assert adapter._interactions.get("interaction") is None
+    else:
+        with pytest.raises(RuntimeError, match="requires the Discord"):
+            await channel_tasks.process_channel_message(normalize(bot, incoming))

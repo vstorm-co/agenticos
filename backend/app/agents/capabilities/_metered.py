@@ -31,6 +31,7 @@ from pydantic_ai.settings import ModelSettings
 from pydantic_ai.tools import RunContext
 
 from app.agents.capabilities.budget import assert_ambient_budget, record_ambient_usage
+from app.agents.model_context import check_model_context
 
 
 class MeteredModel(WrapperModel):
@@ -52,6 +53,7 @@ class MeteredModel(WrapperModel):
         Raises:
             BudgetExceeded: A ceiling this run is under has been reached.
         """
+        await check_model_context()
         await assert_ambient_budget()
         response = await self.wrapped.request(messages, model_settings, model_request_parameters)
         record_ambient_usage(
@@ -77,6 +79,7 @@ class MeteredModel(WrapperModel):
         Raises:
             BudgetExceeded: A ceiling this run is under has been reached.
         """
+        await check_model_context()
         await assert_ambient_budget()
         async with self.wrapped.request_stream(
             messages, model_settings, model_request_parameters, run_context

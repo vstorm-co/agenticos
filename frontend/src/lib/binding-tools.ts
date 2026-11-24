@@ -15,7 +15,7 @@ export interface BindingTools {
  * The picker lists a server's tools from the connection's **last successful
  * probe**, and a connection nobody has checked has none - which used to send
  * somebody to the servers page to press *Check* and come back. Probing dials
- * out to a third party and is gated on `connections:manage`, so `probe` is
+ * out to a third party and is gated on `mcp:manage`, so `probe` is
  * `null` for a caller who may not: they get the empty catalogue and the dialog's
  * sentence about where to get one, exactly as before. A probe that fails leaves
  * the connection as it was and hands back the reason, so the caller can say it

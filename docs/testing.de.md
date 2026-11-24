@@ -1,5 +1,5 @@
 ---
-source_sha: "76c60cd662bd"
+source_sha: "b4b7a56be679"
 ---
 
 # Tests { #testing }
@@ -690,9 +690,19 @@ importiert hat, und prüft den Payload, so wie die Fixture `queued_fires` in
 
 ## Verteilung in CI { #ci-distribution }
 
-Die Backend-Suite misst den gesamten Anwendungscode einmal. Der Plattformbericht
-verlangt weiterhin 100% Abdeckung; `make coverage-all REUSE_COVERAGE=1` berichtet
-über geerbten Code aus denselben Daten, ohne die Tests erneut auszuführen.
+Die Backend-Suite läuft in vier isolierten Jobs, jeweils mit eigenem PostgreSQL,
+Redis und Objektspeicher. Jede vollständige Testdatei wird genau einmal zugeteilt;
+die anfängliche Verteilung gleicht die Quellgrößen aus. Jeder Shard nutzt bis zu
+vier pytest-Worker und sammelt Coverage ohne Schwelle für eine Teilsuite. Der
+erforderliche Check `test` verweigert erfolglose Shards und fehlende, zusätzliche,
+leere oder beschädigte Daten, kombiniert alle vier Berichte und wendet die
+unveränderte **100%-Coverage-Schwelle der Plattform** an. Relative Pfade erlauben
+das Kombinieren von Daten aus unterschiedlichen Checkouts.
+
+JUnit-Berichte und die 30 langsamsten Testphasen bleiben pro Shard verfügbar.
+Dateigröße ist eine erste Schätzung; die tatsächliche Beschleunigung muss in CI
+gemessen werden. `make test` behält die vollständige lokale Suite samt Schwelle;
+`make coverage-all REUSE_COVERAGE=1` nutzt kombinierte Daten ohne erneute Tests.
 
 Frontend-Lint, Produktionsbuild und vier Test-Shards laufen unabhängig. Die Shards
 behalten die Dateiisolierung bei; ein zusammengeführter Bericht prüft die

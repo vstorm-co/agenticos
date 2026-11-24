@@ -19,6 +19,7 @@ function table(overrides: Partial<TableRead> = {}): TableRead {
     updated_at: null,
     can_edit: true,
     can_restore: false,
+    can_manage: true,
     columns: [
       {
         id: "c1",
@@ -709,6 +710,43 @@ describe("SchemaEditorDialog", () => {
       link_column_id: "c-items",
       target_column_id: "p1",
     });
+  });
+
+  it("says why a formula was refused in the reader's words, under that formula", () => {
+    const base = table().columns[0]!;
+    const refused = new ApiError(422, "That is not something a formula can contain", {
+      error: {
+        code: "INVALID_SCHEMA",
+        message:
+          "Write decimals with a dot, such as 1.23: a comma separates a function's arguments",
+        details: {
+          fields: [{ field: "columns.1.formula", message: "Write decimals with a dot…" }],
+          formula: { reason: "decimal_comma", params: {} },
+        },
+      },
+    });
+    render(
+      <SchemaEditorDialog
+        open
+        onOpenChange={vi.fn()}
+        table={table({
+          columns: [
+            { ...base, id: "c-price", label: "Price", type: "number" },
+            { ...base, id: "c-gross", label: "Gross", type: "formula", formula: "{Price} * 1,23" },
+          ],
+        })}
+        onSave={vi.fn()}
+        isSaving={false}
+        error={refused}
+      />,
+    );
+
+    expect(
+      screen.getByText(
+        "Write decimals with a dot, such as 1.23. A comma separates a function's arguments.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Formula")).toHaveAttribute("aria-invalid", "true");
   });
 
   it("offers a new row every type but those that read through a link", async () => {

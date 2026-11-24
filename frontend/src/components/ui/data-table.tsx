@@ -1,8 +1,14 @@
 "use client";
 
+import { Search } from "lucide-react";
+import { EmptyIllustration } from "@/components/illustrations/empty-illustration";
+
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
+import { PAGE_SIZE } from "@/components/ui/list-controls";
+import { PaginationBar } from "@/components/ui/pagination-bar";
 import { SortButton } from "@/components/ui/sort-button";
+import { StickyScrollbar } from "@/components/ui/sticky-scrollbar";
 import { cn } from "@/lib/utils";
 import { useTranslations } from "next-intl";
 
@@ -88,6 +94,10 @@ interface DataTableProps<T> {
    * becomes the vertical one too, and `sticky` resolves against it.
    */
   fillHeight?: boolean;
+  /** Page a complete in-memory collection after sorting. Never use with server paging or infinite loading. */
+  clientPagination?: boolean;
+  /** Stack compact, non-virtual tables into labeled rows in narrow containers. */
+  stackOnNarrow?: boolean;
   /** Number of skeleton rows while loading. */
   skeletonRows?: number;
   className?: string;
@@ -148,6 +158,8 @@ export function DataTable<T>({
   onRowClick,
   isRowActive,
   fillHeight = false,
+  clientPagination = false,
+  stackOnNarrow = false,
   skeletonRows = 6,
   className,
   sort,
@@ -157,6 +169,7 @@ export function DataTable<T>({
   onEndReached,
 }: DataTableProps<T>) {
   const t = useTranslations("ui");
+  const [page, setPage] = useState(0);
   const [clientSort, setClientSort] = useState<TableSort | null>(defaultSort ?? null);
 
   const serverSorted = onSort !== undefined;
@@ -167,6 +180,7 @@ export function DataTable<T>({
       activeSort?.by === key
         ? { by: key, dir: activeSort.dir === "asc" ? "desc" : "asc" }
         : { by: key, dir: "desc" };
+    setPage(0);
     if (onSort) onSort(next);
     else setClientSort(next);
   };
@@ -194,12 +208,20 @@ export function DataTable<T>({
     return () => observer.disconnect();
   }, [rowHeight]);
 
-  const total = visible?.length ?? 0;
+  const recordCount = visible?.length ?? 0;
+  const currentPage = Math.min(page, Math.max(0, Math.ceil(recordCount / PAGE_SIZE) - 1));
+  const pageOffset = clientPagination ? currentPage * PAGE_SIZE : 0;
+  const pageRows = clientPagination ? visible?.slice(pageOffset, pageOffset + PAGE_SIZE) : visible;
+  useEffect(() => {
+    if (clientPagination && scrollRef.current) scrollRef.current.scrollTop = 0;
+  }, [clientPagination, currentPage, clientSort]);
+
+  const total = pageRows?.length ?? 0;
   const first = rowHeight ? Math.max(0, Math.floor(scrollTop / rowHeight) - OVERSCAN) : 0;
   const last = rowHeight
     ? Math.min(total, Math.ceil((scrollTop + viewport) / rowHeight) + OVERSCAN)
     : total;
-  const drawn = rowHeight ? visible?.slice(first, last) : visible;
+  const drawn = rowHeight ? pageRows?.slice(first, last) : pageRows;
 
   const onScroll = (element: HTMLDivElement) => {
     if (rowHeight) setScrollTop(element.scrollTop);
@@ -216,6 +238,8 @@ export function DataTable<T>({
     <div
       className={cn(
         "border-border bg-card overflow-hidden rounded-xl border",
+        stackOnNarrow &&
+          "@container/table @max-md/table:[&_table]:block @max-md/table:[&_tbody]:block @max-md/table:[&_thead]:hidden @max-md/table:[&_tr]:flex @max-md/table:[&_tr]:flex-wrap",
         fillHeight && "flex min-h-0 flex-1 flex-col",
         className,
       )}
@@ -228,17 +252,26 @@ export function DataTable<T>({
           fillHeight && "min-h-0 flex-1 overflow-y-auto",
         )}
       >
-        <table className="w-full border-collapse text-sm" aria-busy={loading || undefined}>
+        {/* Explicit roles retain semantics when narrow-container CSS changes display types. */}
+        <table
+          role={stackOnNarrow ? "table" : undefined}
+          className="w-full border-collapse text-sm"
+          aria-busy={loading || undefined}
+        >
           {/* No column headings over no rows: an empty table read as a grid
               with a hole in it, the empty state boxed again inside it. */}
-          <thead className={cn(fillHeight && "bg-card sticky top-0 z-10", showEmpty && "hidden")}>
-            <tr className="border-border border-b">
+          <thead
+            role={stackOnNarrow ? "rowgroup" : undefined}
+            className={cn(fillHeight && "bg-card sticky top-0 z-10", showEmpty && "hidden")}
+          >
+            <tr role={stackOnNarrow ? "row" : undefined} className="border-border border-b">
               {columns.map((col) => {
                 const sortsHere = col.sortable && (serverSorted || col.sortValue !== undefined);
                 const sorted = sortsHere && activeSort?.by === col.key ? activeSort : null;
                 return (
                   <th
                     key={col.key}
+                    role={stackOnNarrow ? "columnheader" : undefined}
                     scope="col"
                     aria-sort={
                       sorted ? (sorted.dir === "asc" ? "ascending" : "descending") : undefined
@@ -268,20 +301,30 @@ export function DataTable<T>({
               })}
             </tr>
           </thead>
-          <tbody>
+          <tbody role={stackOnNarrow ? "rowgroup" : undefined}>
             {loading &&
               Array.from({ length: skeletonRows }).map((_, i) => (
-                <tr key={`sk-${i}`} className="border-border/60 border-b last:border-0">
+                <tr
+                  role={stackOnNarrow ? "row" : undefined}
+                  key={`sk-${i}`}
+                  className="border-border/60 border-b last:border-0"
+                >
                   {columns.map((col) => (
                     <td
+                      role={stackOnNarrow ? "cell" : undefined}
                       key={col.key}
                       className={cn(
-                        "px-4 py-3",
+                        "px-3 py-3 sm:px-4",
                         col.hideBelow && hideBelowClass[col.hideBelow],
                         col.className,
                       )}
                     >
-                      <div className="bg-foreground/10 h-4 w-2/3 animate-pulse rounded" />
+                      {stackOnNarrow && col.header && (
+                        <span className="text-muted-foreground mb-1 hidden text-xs font-medium @max-md/table:block">
+                          {col.header}
+                        </span>
+                      )}
+                      <div className="bg-foreground/10 h-4 w-24 max-w-full animate-pulse rounded" />
                     </td>
                   ))}
                 </tr>
@@ -293,7 +336,8 @@ export function DataTable<T>({
             {!loading &&
               drawn?.map((row, offset) => (
                 <tr
-                  key={getRowKey(row, first + offset)}
+                  role={stackOnNarrow ? "row" : undefined}
+                  key={getRowKey(row, pageOffset + first + offset)}
                   onClick={onRowClick ? () => onRowClick(row) : undefined}
                   tabIndex={onRowClick ? 0 : undefined}
                   onKeyDown={
@@ -326,6 +370,7 @@ export function DataTable<T>({
                 >
                   {columns.map((col) => (
                     <td
+                      role={stackOnNarrow ? "cell" : undefined}
                       key={col.key}
                       className={cn(
                         "text-foreground px-3 py-3 sm:px-4",
@@ -335,6 +380,11 @@ export function DataTable<T>({
                         col.className,
                       )}
                     >
+                      {stackOnNarrow && col.header && (
+                        <span className="text-muted-foreground mb-1 hidden text-xs font-medium @max-md/table:block">
+                          {col.header}
+                        </span>
+                      )}
                       {col.cell(row)}
                     </td>
                   ))}
@@ -368,10 +418,31 @@ export function DataTable<T>({
               !empty && "px-4 py-6",
             )}
           >
-            {empty ?? t("noResults")}
+            {typeof empty === "string" || empty == null ? (
+              <div className="flex flex-col items-center justify-center gap-3 py-5">
+                <EmptyIllustration icon={Search} />
+                <p className="text-foreground text-sm font-medium">{empty ?? t("noResults")}</p>
+              </div>
+            ) : (
+              empty
+            )}
           </div>
         )}
       </div>
+      {/* Its own bar is under the last row; this one floats while that is off screen. */}
+      <StickyScrollbar target={scrollRef} />
+      {clientPagination && !showError && (
+        <div className="border-border shrink-0 border-t px-4 py-3 sm:px-5">
+          <PaginationBar
+            showSinglePage
+            page={currentPage}
+            pageSize={PAGE_SIZE}
+            total={recordCount}
+            isLoading={loading || showError}
+            onPage={setPage}
+          />
+        </div>
+      )}
     </div>
   );
 }

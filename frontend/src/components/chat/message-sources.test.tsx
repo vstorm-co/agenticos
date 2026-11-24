@@ -37,7 +37,7 @@ describe("the sources under an answer", () => {
       <MessageSources sources={[page(1, "https://example.org/story")]} onOpen={vi.fn()} />,
     );
     const image = container.querySelector("img")!;
-    expect(image).toHaveAttribute("src", "https://example.org/favicon.ico");
+    expect(image).toHaveAttribute("src", "/api/link-icon?host=example.org");
     expect(image).toHaveAttribute("referrerpolicy", "no-referrer");
     fireEvent.error(image);
     expect(container.querySelector(".lucide-globe")).not.toBeNull();
@@ -51,8 +51,8 @@ describe("the sources under an answer", () => {
       image.getAttribute("src"),
     );
     expect(urls.slice(0, 2)).toEqual([
-      "https://a.example/favicon.ico",
-      "https://b.example/favicon.ico",
+      "/api/link-icon?host=a.example",
+      "/api/link-icon?host=b.example",
     ]);
   });
 });

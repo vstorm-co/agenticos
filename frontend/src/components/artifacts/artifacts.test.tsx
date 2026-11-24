@@ -1,8 +1,19 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render as rtlRender,
+  screen,
+  waitFor,
+  within,
+  type RenderOptions,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { useState, type ReactElement } from "react";
+import { NextIntlClientProvider } from "next-intl";
+import { Profiler, useState, type ReactElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import messages from "../../../messages/en.json";
 
 import { AgentFilter } from "./agent-filter";
 import { ArtifactCard } from "./artifact-card";
@@ -36,6 +47,23 @@ import type {
   BindingData,
 } from "@/types/artifact";
 
+/**
+ * The intl provider the root layout mounts above every page. The frame and the
+ * cards translate, and a component that translates throws without it. The zone
+ * is pinned so a date reads the same on every machine.
+ */
+function IntlProvider({ children }: { children: ReactNode }) {
+  return (
+    <NextIntlClientProvider locale="en" messages={messages} timeZone="UTC">
+      {children}
+    </NextIntlClientProvider>
+  );
+}
+
+function render(ui: ReactElement, options?: RenderOptions) {
+  return rtlRender(ui, { wrapper: IntlProvider, ...options });
+}
+
 const useArtifactViewMock = vi.fn();
 const useArtifactDataMock = vi.fn();
 const IDLE_READ = {
@@ -50,6 +78,7 @@ const IDLE_READ = {
 const useArtifactReasonsMock = vi.fn().mockReturnValue(IDLE_READ);
 const unlockMock = vi.fn();
 vi.mock("@/hooks/use-artifacts", () => ({
+  useArtifactThumbnail: () => ({ data: { state: "unavailable", image: null }, isPending: false }),
   useArtifactView: (...args: unknown[]) => useArtifactViewMock(...args),
   useArtifactData: (...args: unknown[]) => useArtifactDataMock(...args),
   useArtifactReasons: (...args: unknown[]) => useArtifactReasonsMock(...args),
@@ -181,24 +210,28 @@ describe("the frame", () => {
       isLoading: false,
       data: { url: "https://x/c/t", nonce: "n", live: false, version: version(2) },
     });
-    let renders = 0;
-    let lent: DataBridge | null = null;
+    let commits = 0;
     function Host() {
       const [bridge, setBridge] = useState<DataBridge | null>(null);
-      renders += 1;
-      lent = bridge;
       return (
-        <ArtifactFrame
-          artifactId="a1"
-          versionId={null}
-          title="Report"
-          onBridge={(next) => setBridge(next)}
-        />
+        <>
+          <ArtifactFrame
+            artifactId="a1"
+            versionId={null}
+            title="Report"
+            onBridge={(next) => setBridge(next)}
+          />
+          <output data-testid="bridge-state">{bridge ? "ready" : "waiting"}</output>
+        </>
       );
     }
-    render(<Host />);
-    expect(lent).not.toBeNull();
-    expect(renders).toBeLessThan(5);
+    render(
+      <Profiler id="artifact-bridge" onRender={() => (commits += 1)}>
+        <Host />
+      </Profiler>,
+    );
+    expect(screen.getByTestId("bridge-state")).toHaveTextContent("ready");
+    expect(commits).toBeLessThan(5);
   });
 
   it("shows a skeleton while the address is minted", () => {
@@ -1127,6 +1160,41 @@ describe("the public link card", () => {
     expect(onEnable).toHaveBeenCalled();
   });
 
+  it("keeps the link's settings out of sight until the link exists", () => {
+    const settings = <p>link settings</p>;
+    const { rerender } = render(
+      <PublicLinkCard
+        publicUrl={null}
+        link={link()}
+        canManage
+        busy={false}
+        onEnable={vi.fn()}
+        onDisable={vi.fn()}
+      >
+        {settings}
+      </PublicLinkCard>,
+    );
+    expect(screen.queryByText("link settings")).toBeNull();
+    expect(screen.queryByLabelText("Public link address")).toBeNull();
+
+    rerender(
+      <PublicLinkCard
+        publicUrl="https://console.example/a/key"
+        link={link()}
+        canManage
+        busy={false}
+        onEnable={vi.fn()}
+        onDisable={vi.fn()}
+      >
+        {settings}
+      </PublicLinkCard>,
+    );
+    expect(screen.getByText("link settings")).toBeInTheDocument();
+    expect(screen.getByLabelText("Public link address")).toHaveValue(
+      "https://console.example/a/key",
+    );
+  });
+
   it("lets a manager replace or turn off a live link", async () => {
     const onEnable = vi.fn();
     const onDisable = vi.fn();
@@ -1140,7 +1208,9 @@ describe("the public link card", () => {
         onDisable={onDisable}
       />,
     );
-    expect(screen.getByLabelText("Public link")).toHaveValue("https://console.example/a/key");
+    expect(screen.getByLabelText("Public link address")).toHaveValue(
+      "https://console.example/a/key",
+    );
     expect(screen.getByText("Not opened yet")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Replace the link" }));
     await userEvent.click(screen.getByRole("button", { name: "Turn off" }));
@@ -1269,8 +1339,53 @@ describe("the public link settings", () => {
         onSave={onSave}
       />,
     );
+    fireEvent.click(screen.getByText("Link settings", { selector: "summary" }));
     return onSave;
   }
+
+  it("starts with optional settings collapsed and preserves drafts across toggles", async () => {
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    render(
+      <PublicLinkSettings
+        link={link({ password_protected: true, embed_origins: ["https://example.com"] })}
+        publicDataConfirmed={false}
+        versions={[version(1)]}
+        saving={false}
+        onSave={onSave}
+      />,
+    );
+    const disclosure = screen.getByText("Link settings", { selector: "summary" });
+    expect(disclosure.parentElement).not.toHaveAttribute("open");
+    expect(screen.getByText("Password protected")).toBeVisible();
+    expect(screen.getByText("1 embedding site")).toBeVisible();
+    await userEvent.click(disclosure);
+    await userEvent.type(screen.getByLabelText("Password"), "demo-draft");
+    await userEvent.click(disclosure);
+    expect(disclosure.parentElement).not.toHaveAttribute("open");
+    await userEvent.click(disclosure);
+    expect(screen.getByLabelText("Password")).toHaveValue("demo-draft");
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it("freezes the options and keeps the disclosure open while saving", async () => {
+    const props = {
+      link: link(),
+      publicDataConfirmed: false,
+      versions: [version(1)],
+      onSave: vi.fn(),
+    };
+    const view = render(<PublicLinkSettings {...props} saving={false} />);
+    const disclosure = screen.getByText("Link settings", { selector: "summary" });
+    await userEvent.click(disclosure);
+    await userEvent.type(screen.getByLabelText("Sites that may embed it"), "https://example.com");
+    view.rerender(<PublicLinkSettings {...props} saving />);
+    expect(screen.getByLabelText("Sites that may embed it")).toBeDisabled();
+    expect(screen.getByRole("combobox", { name: "Shows" })).toBeDisabled();
+    await userEvent.click(disclosure);
+    expect(disclosure.parentElement).toHaveAttribute("open");
+    view.rerender(<PublicLinkSettings {...props} saving={false} />);
+    expect(screen.getByLabelText("Sites that may embed it")).toHaveValue("https://example.com");
+  });
 
   it("saves the expiry, the pinned version and the embedding sites together", async () => {
     const onSave = renderSettings();

@@ -40,15 +40,17 @@ interface UseOrgMcpConnectionsResult {
  * re-learn the other. What differs is only which endpoint it reads and which
  * cache key it owns.
  *
- * `enabled: false` is not offered: a caller without `connections:manage` gets a
- * 403 from the backend, which surfaces as `error` and is a truer thing to show
- * than an empty list that reads as "your organization has none".
+ * Personal management does not require `mcp:manage`. Its callers disable this
+ * query without exposing cached organization records or waiting for a refusal.
  *
  * Mutations patch the cache directly so the list does not flicker; a test
  * refetches instead, because the probe writes `last_status` server-side and the
  * response says nothing about the row it changed.
  */
-export function useOrgMcpConnections(): UseOrgMcpConnectionsResult {
+export function useOrgMcpConnections({
+  enabled = true,
+  retryOnMount = true,
+}: { enabled?: boolean; retryOnMount?: boolean } = {}): UseOrgMcpConnectionsResult {
   const t = useTranslations("mcp");
   const tErrors = useTranslations("errors");
   const queryClient = useQueryClient();
@@ -62,6 +64,8 @@ export function useOrgMcpConnections(): UseOrgMcpConnectionsResult {
   } = useQuery({
     queryKey: qk.mcpConnections.org(),
     queryFn: listOrgMcpConnections,
+    enabled,
+    retryOnMount,
   });
 
   const error = queryError ? getErrorMessage(queryError, tErrors, t("failedLoadOrgServers")) : null;
@@ -73,17 +77,21 @@ export function useOrgMcpConnections(): UseOrgMcpConnectionsResult {
       );
       void queryClient.invalidateQueries({ queryKey: qk.mcpServers.lists() });
       void queryClient.invalidateQueries({ queryKey: qk.mcpServers.entries() });
+      // Account changes also change routine source ceilings and action inventories.
+      void queryClient.invalidateQueries({ queryKey: qk.triggers.all() });
     },
     [queryClient],
   );
 
   const refresh = useCallback(async () => {
+    if (!enabled) return;
     await Promise.all([
       refetch(),
       queryClient.invalidateQueries({ queryKey: qk.mcpServers.lists() }),
       queryClient.invalidateQueries({ queryKey: qk.mcpServers.entries() }),
+      queryClient.invalidateQueries({ queryKey: qk.triggers.all() }),
     ]);
-  }, [refetch, queryClient]);
+  }, [enabled, refetch, queryClient]);
 
   const create = useCallback<UseOrgMcpConnectionsResult["create"]>(
     async (input) => {
@@ -120,7 +128,17 @@ export function useOrgMcpConnections(): UseOrgMcpConnectionsResult {
     [refresh],
   );
 
-  return { connections, isLoading, isFetching, error, refresh, create, update, remove, test };
+  return {
+    connections: enabled ? connections : [],
+    isLoading: enabled && isLoading,
+    isFetching: enabled && isFetching,
+    error: enabled ? error : null,
+    refresh,
+    create,
+    update,
+    remove,
+    test,
+  };
 }
 
 /**

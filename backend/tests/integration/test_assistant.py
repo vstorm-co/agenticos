@@ -1,5 +1,6 @@
 """The AI Architect, installed for every organization on first look (#2063)."""
 
+import logging
 import uuid
 
 import pytest
@@ -28,8 +29,10 @@ def _no_sandbox(monkeypatch: pytest.MonkeyPatch) -> None:
     depends on a `sandboxd` that happens to answer on the machine running it."""
     from unittest.mock import AsyncMock
 
+    from app.core.config import settings
     from app.services.sandbox_connection import SandboxConnectionService
 
+    monkeypatch.setattr(settings, "SANDBOXD_TOKEN", "")
     monkeypatch.setattr(
         SandboxConnectionService, "ensure_local_connection", AsyncMock(return_value=None)
     )
@@ -113,6 +116,7 @@ async def test_its_draft_is_not_held_to_the_only_model_it_was_installed_beside(
     ready = await service.state(ctx)
 
     assert ready.status == "ready"
+    assert ready.agent_id is not None
     agent = await agent_repo.get(db, ready.agent_id, organization_id=organization.id)
     assert agent is not None
     assert AgentSpec.model_validate(agent.draft_spec).model_profile_id == second.id
@@ -129,9 +133,8 @@ async def test_a_viewer_s_first_look_installs_it_and_a_model_publishes_it(
     assert waiting.status == "needs_model"
     assert waiting.name == "Architect"
     assert waiting.named_by_default
-    # It wears its mark from the start, as a picture any agent surface can draw,
-    # and the console knows the picture is the mark (drawn in the theme's colours).
-    assert waiting.avatar_url is not None
+    # Every surface uses the ordinary generated face until an organization uploads a picture.
+    assert waiting.avatar_url is None
     assert waiting.wears_mark
     assert not waiting.can_configure
 
@@ -557,8 +560,8 @@ async def test_a_model_chosen_in_the_builder_is_the_one_it_publishes_on(
     assert again == published
 
 
-async def test_a_picture_of_its_own_replaces_the_mark(db: AsyncSession) -> None:
-    from app.services.assistant import AVATAR
+async def test_an_uploaded_picture_replaces_the_generated_face(db: AsyncSession) -> None:
+    from app.services.agent_templates import TEMPLATES_ROOT
 
     organization, owner = await _organization(db)
     admin = AuthContext(user_id=owner.id, organization_id=organization.id, role="owner")
@@ -567,10 +570,56 @@ async def test_a_picture_of_its_own_replaces_the_mark(db: AsyncSession) -> None:
     assert installed.agent_id is not None
 
     await AgentRegistryService(db).set_avatar(
-        admin, installed.agent_id, file_data=AVATAR.read_bytes(), content_type="image/png"
+        admin,
+        installed.agent_id,
+        file_data=(TEMPLATES_ROOT / "general/agenticos/avatar.png").read_bytes(),
+        content_type="image/png",
     )
 
     assert not (await service.state(admin)).wears_mark
+
+
+async def test_avatar_backfill_clears_only_recorded_shipped_pictures(db: AsyncSession) -> None:
+    import runpy
+    from pathlib import Path
+    from unittest.mock import patch
+
+    from sqlalchemy.orm import Session
+
+    rows: list[tuple[Agent, str | None]] = []
+    for avatar, expected in (
+        ("marks/default.png", None),
+        ("uploads/custom.png", "uploads/custom.png"),
+        (None, None),
+    ):
+        organization, owner = await _organization(db)
+        ctx = AuthContext(user_id=owner.id, organization_id=organization.id, role="owner")
+        state = await AssistantService(db).state(ctx)
+        assert state.agent_id is not None
+        agent = await agent_repo.get(db, state.agent_id, organization_id=organization.id)
+        assert agent is not None
+        row = await organization_assistant_repo.get(db, organization.id)
+        assert row is not None
+        row.mark_path = "marks/default.png"
+        agent.avatar_url = avatar
+        rows.append((agent, expected))
+    await db.flush()
+
+    migration = runpy.run_path(
+        str(Path(__file__).parents[2] / "alembic/versions/0348_architect_generated_avatar.py")
+    )
+    upgrade = migration["upgrade"]
+    assert callable(upgrade)
+
+    def run(session: Session) -> None:
+        with patch("alembic.op.execute", session.execute):
+            upgrade()
+            upgrade()
+
+    await db.run_sync(run)
+    for agent, expected in rows:
+        await db.refresh(agent)
+        assert agent.avatar_url == expected
 
 
 def test_the_row_names_its_organization_and_agent() -> None:
@@ -786,3 +835,62 @@ async def test_a_publish_refusal_leaves_it_waiting_rather_than_failing_the_look(
     assert state.status == "needs_model"
     agent = (await db.execute(select(Agent).where(Agent.id == state.agent_id))).scalar_one()
     assert agent.current_version_id is None
+
+
+async def test_a_publish_refusal_is_one_line_naming_what_it_waits_for(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Every console open and every bootstrap retries it, so a traceback per look is noise
+    that hides the one thing an operator needs: what the draft is waiting for."""
+    from unittest.mock import AsyncMock
+
+    organization, owner = await _organization(db)
+    ctx = AuthContext(user_id=owner.id, organization_id=organization.id, role="owner")
+    await _model(db, organization)
+    monkeypatch.setattr(
+        AgentRegistryService,
+        "publish",
+        AsyncMock(
+            side_effect=BadRequestError(
+                message="This agent cannot be published yet",
+                details={
+                    "problems": [
+                        "This organization has registered no sandbox connection",
+                        {"field": "model_profile_id"},
+                    ]
+                },
+            )
+        ),
+    )
+
+    with caplog.at_level(logging.WARNING, logger="app.services.assistant"):
+        await AssistantService(db).state(ctx)
+
+    records = [r for r in caplog.records if r.name == "app.services.assistant"]
+    assert records
+    assert all(r.levelno == logging.WARNING and r.exc_info is None for r in records)
+    assert all("no sandbox connection" in r.getMessage() for r in records)
+
+
+async def test_an_unexpected_install_failure_keeps_its_traceback(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    from unittest.mock import AsyncMock
+
+    from app.services.shipped_agents import ShippedAgentService
+
+    organization, owner = await _organization(db)
+    ctx = AuthContext(user_id=owner.id, organization_id=organization.id, role="owner")
+    await AssistantService(db).state(ctx)
+    monkeypatch.setattr(
+        ShippedAgentService,
+        "refresh",
+        AsyncMock(side_effect=NotFoundError(message="The shipped agent template is missing")),
+    )
+
+    with caplog.at_level(logging.WARNING, logger="app.services.assistant"):
+        await AssistantService(db).state(ctx)
+
+    failures = [r for r in caplog.records if r.levelno == logging.ERROR]
+    assert failures
+    assert all(r.exc_info is not None for r in failures)

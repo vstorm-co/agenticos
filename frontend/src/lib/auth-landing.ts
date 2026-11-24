@@ -35,9 +35,14 @@ export function postSignInDestination(returnTo?: string | null): string {
  * depending on which button somebody pressed - which is the drift #135 is
  * about, one axis over.
  */
-export function goToDestination(destination: string, navigate: (href: string) => void): void {
+export function goToDestination(
+  destination: string,
+  navigate: (href: string) => void,
+  replace = false,
+): void {
   if (destination.includes("#")) {
-    window.location.assign(destination);
+    if (replace) window.location.replace(destination);
+    else window.location.assign(destination);
     return;
   }
   navigate(destination);

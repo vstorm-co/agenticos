@@ -20,6 +20,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.exceptions import RateLimitError
 from app.core.permissions import AuthContext, Perm
 from app.db.models.workflow import Workflow, WorkflowStatus, WorkflowVersion
 from app.db.models.workflow_run import WorkflowRun, WorkflowRunStatus
@@ -33,6 +34,7 @@ from app.services.workflow_execution.exceptions import (
     WorkflowBudgetHeldError,
     WorkflowBudgetReachedError,
     WorkflowInlineStorageLimitError,
+    WorkflowInputValidationUnavailableError,
     WorkflowNotRunnableError,
     WorkflowRunAlreadyTerminalError,
     WorkflowRunInputInvalidError,
@@ -326,7 +328,11 @@ async def _admit(
                 bypassable=False,
             )
         )
-    except WorkflowAdmissionQuotaError as refusal:
+    except (
+        WorkflowAdmissionQuotaError,
+        RateLimitError,
+        WorkflowInputValidationUnavailableError,
+    ) as refusal:
         # Too much work in flight: the next try may find room.
         return Failed(
             error=WorkflowError(

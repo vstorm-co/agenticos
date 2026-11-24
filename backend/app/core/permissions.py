@@ -24,6 +24,9 @@ from uuid import UUID
 
 from app.core.exceptions import AuthorizationError
 
+DEPLOYMENT_ADMIN_SCOPE = "deployment:admin"
+"""Explicit OAuth/run authority, never an organization permission or preset."""
+
 
 class Perm(StrEnum):
     """Everything a member can be allowed to do.
@@ -77,6 +80,11 @@ class Perm(StrEnum):
     # wrote it. `edit` covers managing it: sharing, the public link, deletion.
     ARTIFACTS_VIEW = "artifacts:view"
     ARTIFACTS_EDIT = "artifacts:edit"
+    # Cases are often copied from real conversations, so reading them, changing them
+    # and spending model budget running evals over them are three separate answers.
+    DATASETS_VIEW = "datasets:view"
+    DATASETS_EDIT = "datasets:edit"
+    DATASETS_RUN = "datasets:run"
     # A project: shared files in one container, standing instructions, and the
     # chats people have in it. Three levels because they are three acts - seeing
     # a project and reading its files, working in it (chatting, adding files), and
@@ -86,6 +94,9 @@ class Perm(StrEnum):
     PROJECTS_EDIT = "projects:edit"
 
     APPROVALS_DECIDE = "approvals:decide"
+    # Promoting past an environment's eval suites, with a reason the audit log keeps.
+    # Apart from `agents:publish`, so whoever promotes is not who waves the evals aside.
+    PROMOTIONS_OVERRIDE = "promotions:override"
     # Watching a host and managing one are separate authorities. Reading a
     # connection's session list, its activity log and the ceilings its service
     # enforces answers "why did that agent get a 429", which is the question an
@@ -94,7 +105,13 @@ class Perm(StrEnum):
     # permission for both meant the second had to be granted to permit the first.
     CONNECTIONS_VIEW = "connections:view"
     CONNECTIONS_MANAGE = "connections:manage"
+    # Selecting a server's tools does not authorize changing its address,
+    # credentials, sharing or tool ceiling.
+    MCP_USE = "mcp:use"
     MCP_MANAGE = "mcp:manage"
+    NETWORKS_VIEW = "networks:view"
+    NETWORKS_MANAGE = "networks:manage"
+    NETWORKS_USE = "networks:use"
     CHANNELS_MANAGE = "channels:manage"
     # Who is in the organization: names, emails, roles. Every role holds it - any
     # member may see who they work with - and it exists so an API key reads the
@@ -121,6 +138,10 @@ class Perm(StrEnum):
     # administration of that, and a separate authority.
     API_KEYS_CREATE = "api_keys:create"
     API_KEYS_MANAGE = "api_keys:manage"
+    PERSONAL_CONSENT = "personal:consent"
+    """Let an explicitly authorized key or client consent to the issuer's personal sources."""
+    MCP_PERSONAL_USE = "mcp:personal:use"
+    """Delegate the issuer's own MCP connections to external agent runs."""
 
 
 RESOURCE_PERMS: frozenset[Perm] = frozenset(
@@ -144,12 +165,19 @@ RESOURCE_PERMS: frozenset[Perm] = frozenset(
         Perm.SECRETS_EDIT,
         Perm.ARTIFACTS_VIEW,
         Perm.ARTIFACTS_EDIT,
+        Perm.DATASETS_VIEW,
+        Perm.DATASETS_EDIT,
+        Perm.DATASETS_RUN,
         Perm.PROJECTS_VIEW,
         Perm.PROJECTS_USE,
         Perm.PROJECTS_EDIT,
         # Per connection since an organization's MCP server can be narrowed to the
         # groups that use it (#2072): Finance's ledger server is Finance's.
+        Perm.MCP_USE,
         Perm.MCP_MANAGE,
+        Perm.NETWORKS_VIEW,
+        Perm.NETWORKS_MANAGE,
+        Perm.NETWORKS_USE,
     }
 )
 
@@ -257,10 +285,17 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.WORKFLOWS_RUN: Scope.ALL,
         Perm.ARTIFACTS_VIEW: Scope.ALL,
         Perm.ARTIFACTS_EDIT: Scope.ALL,
+        Perm.DATASETS_VIEW: Scope.ALL,
+        Perm.DATASETS_EDIT: Scope.ALL,
+        Perm.DATASETS_RUN: Scope.ALL,
         Perm.PROJECTS_VIEW: Scope.ALL,
         Perm.PROJECTS_USE: Scope.ALL,
         Perm.PROJECTS_EDIT: Scope.ALL,
+        Perm.MCP_USE: Scope.ALL,
         Perm.MCP_MANAGE: Scope.ALL,
+        Perm.NETWORKS_VIEW: Scope.ALL,
+        Perm.NETWORKS_MANAGE: Scope.ALL,
+        Perm.NETWORKS_USE: Scope.ALL,
     },
     # Admin runs the org day to day but cannot delete it.
     OrgRoleName.ADMIN: {
@@ -284,10 +319,17 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.WORKFLOWS_RUN: Scope.ALL,
         Perm.ARTIFACTS_VIEW: Scope.ALL,
         Perm.ARTIFACTS_EDIT: Scope.ALL,
+        Perm.DATASETS_VIEW: Scope.ALL,
+        Perm.DATASETS_EDIT: Scope.ALL,
+        Perm.DATASETS_RUN: Scope.ALL,
         Perm.PROJECTS_VIEW: Scope.ALL,
         Perm.PROJECTS_USE: Scope.ALL,
         Perm.PROJECTS_EDIT: Scope.ALL,
+        Perm.MCP_USE: Scope.ALL,
         Perm.MCP_MANAGE: Scope.ALL,
+        Perm.NETWORKS_VIEW: Scope.SHARED,
+        Perm.NETWORKS_MANAGE: Scope.SHARED,
+        Perm.NETWORKS_USE: Scope.SHARED,
     },
     # Builder sees the whole org to learn from it, but edits only what is theirs
     # or was shared with them - so one builder cannot rewrite another's agent.
@@ -311,6 +353,9 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.WORKFLOWS_RUN: Scope.ALL,
         Perm.ARTIFACTS_VIEW: Scope.ALL,
         Perm.ARTIFACTS_EDIT: Scope.SHARED,
+        Perm.DATASETS_VIEW: Scope.ALL,
+        Perm.DATASETS_EDIT: Scope.SHARED,
+        Perm.DATASETS_RUN: Scope.ALL,
         # A project holds people's own files, so unlike agents a builder does not
         # see every one of them - only what is theirs or shared with them.
         Perm.PROJECTS_VIEW: Scope.SHARED,
@@ -320,7 +365,11 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.SECRETS_EDIT: Scope.OWN,
         # The organization's servers, its own, and those shared with its groups -
         # not a department's server narrowed to somebody else's group.
+        Perm.MCP_USE: Scope.SHARED,
         Perm.MCP_MANAGE: Scope.SHARED,
+        Perm.NETWORKS_VIEW: Scope.SHARED,
+        Perm.NETWORKS_MANAGE: Scope.SHARED,
+        Perm.NETWORKS_USE: Scope.SHARED,
         # Both halves, spelled out. Nothing in this catalog models one permission
         # implying another - `agents:edit` does not carry `agents:view` either -
         # so a role that manages connections is given the read as well, or it
@@ -330,7 +379,14 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.RUNS_VIEW: Scope.ALL,
         Perm.ML_INVOKE: Scope.ALL,
         Perm.API_KEYS_CREATE: Scope.ALL,
+        Perm.PERSONAL_CONSENT: Scope.ALL,
+        Perm.MCP_PERSONAL_USE: Scope.ALL,
         Perm.MEMBERS_VIEW: Scope.ALL,
+        # Their own runs only: a builder may decide an approval on a run they
+        # started, from a signed-in web/chat session. Cross-person approvals
+        # stay with the privileged deciders - the decide path enforces the
+        # ownership, this entry only lets the caller reach it.
+        Perm.APPROVALS_DECIDE: Scope.OWN,
     },
     # Operator keeps the running system healthy: approves, watches, reruns -
     # but does not build. `connections:view` without `connections:manage` is
@@ -347,15 +403,21 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.WORKFLOWS_VIEW: Scope.ALL,
         Perm.WORKFLOWS_RUN: Scope.ALL,
         Perm.ARTIFACTS_VIEW: Scope.ALL,
+        Perm.DATASETS_VIEW: Scope.ALL,
+        Perm.DATASETS_RUN: Scope.ALL,
         Perm.PROJECTS_VIEW: Scope.SHARED,
         Perm.PROJECTS_USE: Scope.SHARED,
         Perm.PROJECTS_EDIT: Scope.OWN,
         Perm.SECRETS_VIEW: Scope.SHARED,
         Perm.APPROVALS_DECIDE: Scope.ALL,
         Perm.CONNECTIONS_VIEW: Scope.ALL,
+        Perm.NETWORKS_VIEW: Scope.SHARED,
+        Perm.NETWORKS_USE: Scope.SHARED,
         Perm.RUNS_VIEW: Scope.ALL,
         Perm.ML_INVOKE: Scope.ALL,
         Perm.API_KEYS_CREATE: Scope.ALL,
+        Perm.PERSONAL_CONSENT: Scope.ALL,
+        Perm.MCP_PERSONAL_USE: Scope.ALL,
         Perm.MEMBERS_VIEW: Scope.ALL,
     },
     # Member is the everyday user: builds their own agents, sees nobody else's
@@ -379,6 +441,9 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.WORKFLOWS_RUN: Scope.SHARED,
         Perm.ARTIFACTS_VIEW: Scope.SHARED,
         Perm.ARTIFACTS_EDIT: Scope.OWN,
+        Perm.DATASETS_VIEW: Scope.SHARED,
+        Perm.DATASETS_EDIT: Scope.OWN,
+        Perm.DATASETS_RUN: Scope.SHARED,
         Perm.PROJECTS_VIEW: Scope.SHARED,
         Perm.PROJECTS_USE: Scope.SHARED,
         Perm.PROJECTS_EDIT: Scope.OWN,
@@ -386,7 +451,19 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.SECRETS_EDIT: Scope.OWN,
         Perm.ML_INVOKE: Scope.ALL,
         Perm.API_KEYS_CREATE: Scope.ALL,
+        Perm.PERSONAL_CONSENT: Scope.ALL,
+        Perm.MCP_PERSONAL_USE: Scope.ALL,
         Perm.MEMBERS_VIEW: Scope.ALL,
+        Perm.NETWORKS_VIEW: Scope.OWN,
+        Perm.NETWORKS_MANAGE: Scope.OWN,
+        Perm.NETWORKS_USE: Scope.OWN,
+        # Their own runs only, as the builder's: a member may decide an
+        # approval on a run they started, from a signed-in web/chat session.
+        # The default invite role is `member`, so this is the entry that
+        # unblocks the standard new teammate - ask an agent to send an email,
+        # approve it themselves - while cross-person approvals stay
+        # privileged. The decide path enforces the ownership.
+        Perm.APPROVALS_DECIDE: Scope.OWN,
     },
     OrgRoleName.VIEWER: {
         Perm.AGENTS_VIEW: Scope.SHARED,
@@ -396,6 +473,7 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.WORKFLOWS_VIEW: Scope.SHARED,
         Perm.TABLES_VIEW: Scope.SHARED,
         Perm.ARTIFACTS_VIEW: Scope.SHARED,
+        Perm.DATASETS_VIEW: Scope.SHARED,
         Perm.PROJECTS_VIEW: Scope.SHARED,
         Perm.MEMBERS_VIEW: Scope.ALL,
     },
@@ -412,6 +490,18 @@ def role_has(role: str, permission: Perm) -> bool:
     check.
     """
     return ROLE_PERMS.get(role, {}).get(permission, Scope.NONE) is not Scope.NONE
+
+
+def role_has_at(role: str, permission: Perm, scope: Scope) -> bool:
+    """Whether a role holds a permission at least as widely as `scope`.
+
+    The scope-aware half of :func:`role_has`: a permission a role holds only
+    at `OWN` - `approvals:decide` for a member deciding their own run - is not
+    the authority to decide somebody else's, and a check that cannot tell the
+    two apart widens the narrower one. Workflow approvers, routine consent and
+    the organization waiver switch all read this, not `role_has`.
+    """
+    return ROLE_PERMS.get(role, {}).get(permission, Scope.NONE) >= scope
 
 
 def _reaches(holder: dict[Perm, Scope], offered: dict[Perm, Scope]) -> bool:
@@ -534,6 +624,14 @@ class AuthContext:
     A grant on a single row widens a role, never a key - see :meth:`key_allows`.
     """
 
+    key_internal: bool = False
+    """The key is a run credential the platform minted for an agent, not one the person issued.
+
+    A person-issued key or MCP token needs explicit `personal:consent` to make
+    standing decisions about personal sources. A run credential is an agent
+    acting for them, which may be following text nobody vetted.
+    """
+
     source_conversation_id: UUID | None = None
     """A private chat carried by a platform-issued run credential.
 
@@ -546,6 +644,9 @@ class AuthContext:
 
     routine_source_policy_id: UUID | None = None
     """Exact reviewed source ceiling admitted by the trigger worker."""
+
+    routine_dispatch_id: UUID | None = None
+    """Trusted trigger fire identity, recorded as immutable run provenance."""
 
     routine_activation_id: UUID | None = None
     """A durable device activation, set only by its trigger worker before run admission."""
@@ -569,6 +670,54 @@ class AuthContext:
         a role.
         """
         return cls(user_id=None, organization_id=organization_id, role=_NO_ROLE)
+
+    @property
+    def acts_in_person(self) -> bool:
+        """Whether this caller is the person themselves, deciding for themselves.
+
+        A signed-in session, a key or MCP token explicitly issued for
+        `personal:consent`, or the run credential of their own private chat (the
+        agent there acts on what the person just asked). Not a background turn - a fired routine, a publisher
+        fallback, a resumed run carrying only a key's scopes - and not an agent's
+        run credential outside a private chat. Impersonation lives in the request
+        context, so callers check `current_impersonator()` beside this.
+        """
+        if (
+            self.user_id is None
+            or self.subject_is_publisher_fallback
+            or self.fired_as_creator is not None
+            or self.routine_id is not None
+        ):
+            return False
+        if self.source_conversation_id is not None:
+            return True
+        if self.api_key_id is None:
+            return self.key_scopes is None
+        return (
+            not self.key_internal
+            and self.key_scopes is not None
+            and self.has(Perm.PERSONAL_CONSENT)
+        )
+
+    @property
+    def may_delegate_personal_mcp(self) -> bool:
+        """An external credential explicitly delegated its issuer's MCP accounts.
+
+        This opens no other personal state and is never inherited by a platform
+        run credential, publisher fallback, routine or private-chat hint.
+        """
+        return (
+            self.user_id is not None
+            and self.api_key_id is not None
+            and self.key_scopes is not None
+            and not self.key_internal
+            and not self.subject_is_publisher_fallback
+            and self.fired_as_creator is None
+            and self.routine_id is None
+            and self.source_conversation_id is None
+            and self.has(Perm.MCP_PERSONAL_USE)
+            and self.key_allows(Perm.AGENTS_RUN)
+        )
 
     @property
     def is_anonymous(self) -> bool:
@@ -646,7 +795,7 @@ class AuthContext:
         else:
             held = dict(ROLE_PERMS.get(self.role, {}))
         if self.key_scopes is not None:
-            return {perm: scope for perm, scope in held.items() if perm in self.key_scopes}
+            return {perm: scope for perm, scope in held.items() if self.key_allows(perm)}
         return held
 
     def key_allows(self, perm: Perm) -> bool:
@@ -657,7 +806,14 @@ class AuthContext:
         person do to this row", and a read-only key held by somebody with an edit
         grant must still not edit.
         """
-        return self.key_scopes is None or perm in self.key_scopes
+        # Before use and administration were separated, a management-scoped key
+        # also selected a connection. Preserve that narrower authority for issued
+        # keys; a use-scoped key never acquires management in the other direction.
+        return (
+            self.key_scopes is None
+            or perm in self.key_scopes
+            or (perm is Perm.MCP_USE and Perm.MCP_MANAGE in self.key_scopes)
+        )
 
     def scope_for(self, perm: Perm) -> Scope:
         """How far this permission reaches, or `Scope.NONE` if not held."""
@@ -671,3 +827,14 @@ class AuthContext:
         :func:`app.services.access.resolve_access`.
         """
         return self.scope_for(perm) is not Scope.NONE
+
+    def has_at(self, perm: Perm, scope: Scope) -> bool:
+        """Whether the permission is held at least as widely as `scope`.
+
+        The scope-aware half of :meth:`has`: a member holds
+        `approvals:decide` at `OWN` - their own runs only - and a check that
+        cannot tell that from `ALL` would let them decide, stop or waive
+        somebody else's run. Anything that means "may decide anyone's" reads
+        this with `Scope.ALL`.
+        """
+        return self.scope_for(perm) >= scope

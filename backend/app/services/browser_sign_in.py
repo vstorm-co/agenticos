@@ -77,6 +77,8 @@ async def load_for(organization_id: UUID, user_id: UUID) -> list[SignIn]:
         loaded: list[SignIn] = []
         used: list[UUID] = []
         for row in rows:
+            if row.protection_kind != "manual":
+                continue
             if not is_key_version_available(row.secret_key_version):
                 logger.warning("browser_sign_in_key_retired", extra={"sign_in_id": str(row.id)})
                 continue

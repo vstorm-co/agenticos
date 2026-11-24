@@ -1199,6 +1199,31 @@ describe("x-enum-when", () => {
     expect(onChange).toHaveBeenLastCalledWith({ harness: "codex", model: "anthropic:a" });
   });
 
+  it("restores a remembered model after the save response omits the inactive choice", async () => {
+    const onChange = vi.fn();
+    const form = (value: Record<string, unknown>) => (
+      <SchemaForm
+        schema={CODER}
+        value={value}
+        onChange={onChange}
+        idPrefix="coder"
+        rememberConditionalValues
+      />
+    );
+    const original = { harness: "claude_code", model: "anthropic:a" };
+    const { rerender } = render(form(original));
+    const user = userEvent.setup();
+
+    await user.click(screen.getByLabelText("Coding agent"));
+    await user.click(screen.getByRole("option", { name: "codex" }));
+    expect(onChange).toHaveBeenLastCalledWith({ harness: "codex", model: undefined });
+
+    rerender(form({ harness: "codex" }));
+    await user.click(screen.getByLabelText("Coding agent"));
+    await user.click(screen.getByRole("option", { name: "claude_code" }));
+    expect(onChange).toHaveBeenLastCalledWith(original);
+  });
+
   it("offers nothing for a value the map does not name", async () => {
     render(
       <SchemaForm
@@ -1430,6 +1455,40 @@ it("presents browser connections as one icon card choice and writes the selected
   for (const choice of choices) expect(choice.querySelector("svg")).not.toBeNull();
   await userEvent.click(choices[3]!);
   expect(change).toHaveBeenCalledWith(expect.objectContaining({ connection: "local" }));
+});
+
+it("shows the default sandbox and describes parallel coding in cloud and desktop modes", () => {
+  function CodingModes() {
+    const copyFor = useCapabilityFieldCopy("coding_agent");
+    return (
+      <SchemaForm
+        schema={{
+          type: "object",
+          properties: {
+            runs_on: {
+              type: "string",
+              enum: ["sandbox", "personal_sandbox", "this_computer"],
+              default: "sandbox",
+              "x-widget": "coding-environment",
+            },
+          },
+        }}
+        copyFor={copyFor}
+        value={{}}
+        onChange={vi.fn()}
+        idPrefix="coding-modes"
+      />
+    );
+  }
+  render(<CodingModes />);
+  const sandbox = screen.getByRole("radio", { name: "In the agent's sandbox", checked: true });
+  expect(sandbox).toHaveAccessibleDescription(/workspace.*organization/);
+  expect(
+    screen.getByRole("radio", { name: "Private cloud task with my account" }),
+  ).toHaveAccessibleDescription(/Claude Code and Codex in parallel in separate containers/);
+  expect(screen.getByRole("radio", { name: "On this computer" })).toHaveAccessibleDescription(
+    /Claude Code and Codex in parallel in separate sessions/,
+  );
 });
 
 it("offers local Codex read-only and clears it when returning to a sandbox", async () => {

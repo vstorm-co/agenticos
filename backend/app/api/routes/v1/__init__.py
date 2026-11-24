@@ -13,6 +13,7 @@ from app.api.routes.v1 import (
     admin_updates,
     health,
     mcp_oauth,
+    network_connections,
     public_openapi,
 )
 from app.api.routes.v1 import admin_users, auth, users
@@ -21,12 +22,14 @@ from app.api.routes.v1 import oauth
 from app.api.routes.v1 import push
 from app.api.routes.v1 import sessions
 from app.api.routes.v1 import conversations
+from app.api.routes.v1 import conversation_message_pins
 from app.api.routes.v1 import admin_conversations
 from app.api.routes.v1 import me_channel_link
 from app.api.routes.v1 import me_connected_accounts
 from app.api.routes.v1 import me_mcp_connections
 from app.api.routes.v1 import me_app_connections
 from app.api.routes.v1 import org_connected_accounts
+from app.api.routes.v1 import me_onboarding
 from app.api.routes.v1 import me_suggestions
 from app.api.routes.v1 import me_watches
 from app.api.routes.v1 import org_mcp_connections
@@ -50,13 +53,22 @@ from app.api.routes.v1 import secrets
 from app.api.routes.v1 import runs as agent_runs
 from app.api.routes.v1 import stats
 from app.api.routes.v1 import skill_changes
+from app.api.routes.v1 import browser_teaching
+from app.api.routes.v1 import auto_skill_learning
+from app.api.routes.v1 import context_changes, skill_checks
 from app.api.routes.v1 import workspaces as agent_workspaces
 from app.api.routes.v1 import skills as agent_skills
 from app.api.routes.v1 import artifacts
 from app.api.routes.v1 import visuals
 from app.api.routes.v1 import context as context_files
+from app.api.routes.v1 import datasets
+from app.api.routes.v1 import dataset_generations
+from app.api.routes.v1 import agent_test_sets, eval_runs, eval_suites
+from app.api.routes.v1 import knowledge_gaps
+from app.api.routes.v1 import authoring, improvements, skill_improvements
 from app.api.routes.v1 import virtual_tables, tasks
 from app.api.routes.v1 import (
+    failure_learning,
     workflow_approvals,
     workflow_evals,
     workflow_exposures,
@@ -68,8 +80,10 @@ from app.api.routes.v1 import (
 from app.api.routes.v1 import table_views
 from app.api.routes.v1 import virtual_table_triggers
 from app.api.routes.v1 import memory as memory_files
-from app.api.routes.v1 import outcomes, primary_conversations, system_agents
+from app.api.routes.v1 import onboarding, outcomes, primary_conversations, system_agents
 from app.api.routes.v1 import browser_sign_ins
+from app.api.routes.v1 import browser_credentials
+from app.api.routes.v1 import browser_procedure_teaching
 from app.api.routes.v1 import coding_accounts
 from app.api.routes.v1 import permissions
 from app.api.routes.v1 import email_webhook, imessage_webhook, sms_webhook, telegram_webhook, phone
@@ -140,9 +154,27 @@ v1_router.include_router(agent_embeds.router, prefix="/agents", tags=["agents:em
 v1_router.include_router(embed_widget.router, prefix="/embed", tags=["embed"])
 v1_router.include_router(embed_generated_media.router, prefix="/embed", tags=["embed"])
 v1_router.include_router(agent_runs.router, tags=["runs"])
+v1_router.include_router(browser_credentials.router, tags=["browser-credentials"])
+v1_router.include_router(browser_procedure_teaching.router, tags=["browser-procedure-teaching"])
 v1_router.include_router(stats.router, tags=["stats"])
 v1_router.include_router(agent_skills.router, prefix="/skills", tags=["skills"])
+v1_router.include_router(skill_checks.router, prefix="/skills", tags=["skills:checks"])
+v1_router.include_router(skill_checks.awaiting, tags=["skills:checks"])
 v1_router.include_router(context_files.router, prefix="/context", tags=["context"])
+v1_router.include_router(datasets.router, prefix="/datasets", tags=["datasets"])
+v1_router.include_router(
+    dataset_generations.router, prefix="/datasets", tags=["datasets:generation"]
+)
+v1_router.include_router(eval_runs.router, tags=["evals"])
+v1_router.include_router(eval_suites.router, tags=["evals"])
+v1_router.include_router(agent_test_sets.router, tags=["datasets"])
+v1_router.include_router(knowledge_gaps.router, prefix="/knowledge-gaps", tags=["knowledge-gaps"])
+v1_router.include_router(authoring.router, tags=["authoring"])
+v1_router.include_router(improvements.router, tags=["improvements"])
+v1_router.include_router(improvements.sessions, tags=["improvements"])
+v1_router.include_router(skill_improvements.router, tags=["skill-improvements"])
+v1_router.include_router(skill_improvements.sessions, tags=["skill-improvements"])
+v1_router.include_router(skill_improvements.merges, tags=["skill-improvements"])
 v1_router.include_router(virtual_tables.router, prefix="/tables", tags=["tables"])
 v1_router.include_router(tasks.router, prefix="/tasks", tags=["tasks"])
 v1_router.include_router(workflows.router, prefix="/workflows", tags=["workflows"])
@@ -158,6 +190,7 @@ v1_router.include_router(
     workflow_approvals.router, prefix="/workflow-approvals", tags=["workflow-approvals"]
 )
 v1_router.include_router(workflow_evals.router, prefix="/workflows", tags=["workflows:evals"])
+v1_router.include_router(failure_learning.router, tags=["failure-learning"])
 v1_router.include_router(
     workflow_log_alerts.router, prefix="/workflows", tags=["workflows:log-alerts"]
 )
@@ -198,11 +231,16 @@ v1_router.include_router(memory_files.router, prefix="/memory", tags=["memory"])
 v1_router.include_router(
     primary_conversations.router, prefix="/agents", tags=["primary-conversations"]
 )
+v1_router.include_router(onboarding.router, prefix="/onboarding", tags=["onboarding"])
 v1_router.include_router(system_agents.router, prefix="/system-agents", tags=["system-agents"])
 v1_router.include_router(
     browser_sign_ins.router, prefix="/browser-sign-ins", tags=["browser-sign-ins"]
 )
 v1_router.include_router(skill_changes.router, prefix="/skill-changes", tags=["skills:changes"])
+v1_router.include_router(auto_skill_learning.router, tags=["failure-learning"])
+v1_router.include_router(
+    context_changes.router, prefix="/context-changes", tags=["context:changes"]
+)
 v1_router.include_router(
     sharing.collection_sharing_router, prefix="/kb", tags=["collections:sharing"]
 )
@@ -210,6 +248,9 @@ v1_router.include_router(sharing.agent_sharing_router, prefix="/agents", tags=["
 v1_router.include_router(sharing.skill_sharing_router, prefix="/skills", tags=["skills:sharing"])
 v1_router.include_router(
     sharing.context_sharing_router, prefix="/context", tags=["context:sharing"]
+)
+v1_router.include_router(
+    sharing.dataset_sharing_router, prefix="/datasets", tags=["datasets:sharing"]
 )
 v1_router.include_router(sharing.table_sharing_router, prefix="/tables", tags=["tables:sharing"])
 v1_router.include_router(sharing.secret_sharing_router, prefix="/secrets", tags=["secrets:sharing"])
@@ -232,6 +273,11 @@ v1_router.include_router(sessions.router, prefix="/sessions", tags=["sessions"])
 v1_router.include_router(push.router, prefix="/push", tags=["push"])
 
 v1_router.include_router(conversations.router, prefix="/conversations", tags=["conversations"])
+v1_router.include_router(
+    conversation_message_pins.router,
+    prefix="/conversations",
+    tags=["conversation-message-pins"],
+)
 
 v1_router.include_router(
     org_mcp_connections.router, prefix="/mcp-connections", tags=["mcp-connections"]
@@ -270,6 +316,9 @@ v1_router.include_router(workflow_run_socket.router, tags=["workflow-runs"])
 v1_router.include_router(change_events.router, tags=["change-events"])
 v1_router.include_router(device_hub.router, tags=["devices"])
 v1_router.include_router(browse_live.router, tags=["browse-live"])
+v1_router.include_router(
+    browser_teaching.router, prefix="/browser-teachings", tags=["browser-teaching"]
+)
 
 v1_router.include_router(rag.router, prefix="/rag", tags=["rag"])
 
@@ -314,9 +363,7 @@ v1_router.include_router(invitations_org_router, prefix="/orgs", tags=["invitati
 v1_router.include_router(invitations_token_router, tags=["invitations"])
 
 v1_router.include_router(knowledge_bases.router, prefix="/kb", tags=["knowledge-bases"])
-v1_router.include_router(
-    sync_source_gdrive.router, prefix="/sync-sources", tags=["sync-sources"]
-)
+v1_router.include_router(sync_source_gdrive.router, prefix="/sync-sources", tags=["sync-sources"])
 v1_router.include_router(
     me_slash_commands.router, prefix="/me/slash-commands", tags=["me:slash-commands"]
 )
@@ -339,3 +386,21 @@ v1_router.include_router(phone.router, prefix="/phone", tags=["voice"])
 v1_router.include_router(
     coding_accounts.router, prefix="/coding-accounts", tags=["coding-accounts"]
 )
+
+v1_router.include_router(me_onboarding.router, prefix="/me/onboarding", tags=["me:onboarding"])
+
+
+from app.api.routes.v1 import personal_model_keys
+
+v1_router.include_router(
+    network_connections.router, prefix="/network-connections", tags=["network-connections"]
+)
+
+v1_router.include_router(
+    personal_model_keys.router, prefix="/personal-model-keys", tags=["personal-model-keys"]
+)
+
+
+from app.api.routes.v1 import solutions
+
+v1_router.include_router(solutions.router, prefix="/solutions", tags=["solutions"])

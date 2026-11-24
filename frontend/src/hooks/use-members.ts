@@ -82,7 +82,11 @@ export function useMembers(orgId: string) {
         );
         writeCache((prev) => ({
           ...prev,
-          items: prev.items.map((m) => (m.user_id === userId ? updated : m)),
+          items: prev.items.map((m) =>
+            m.user_id === userId
+              ? { ...updated, last_action_at: updated.last_action_at ?? m.last_action_at }
+              : m,
+          ),
         }));
         toast.success(t("roleUpdated"));
       } catch {
@@ -93,7 +97,7 @@ export function useMembers(orgId: string) {
   );
 
   const removeMember = useCallback(
-    async (userId: string) => {
+    async (userId: string): Promise<boolean> => {
       try {
         await apiClient.delete(`/orgs/${orgId}/members/${userId}`);
         writeCache((prev) => ({
@@ -101,8 +105,10 @@ export function useMembers(orgId: string) {
           total: prev.total - 1,
         }));
         toast.success(t("memberRemoved"));
+        return true;
       } catch {
         toast.error(t("failedRemove"));
+        return false;
       }
     },
     [orgId, writeCache, t],

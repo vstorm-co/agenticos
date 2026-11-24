@@ -13,10 +13,18 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from app.core.exceptions import BadRequestError, NotFoundError
-from app.core.vault import VaultScope, unseal
+from app.core.vault import VaultScope, seal, unseal
 from app.db.models.channel_bot import ChannelBot
 from app.schemas.channel_bot import AccessPolicy, ChannelBotCreate, ChannelBotUpdate
 from app.services.channel_bot import ChannelBotService, unseal_bot_token
+
+
+@pytest.fixture(autouse=True)
+def _audit_trail_is_not_the_test():
+    """The service writes the audit trail; a mocked session cannot take the
+    advisory lock it chains on, so these tests stand it aside."""
+    with patch("app.services.channel_bot.record_audit", new=AsyncMock()):
+        yield
 
 
 def _bot(organization_id=None, is_active: bool = True):
@@ -564,3 +572,128 @@ class TestTheSlackManifest:
             pytest.raises(BadRequestError, match="Only a Slack bot"),
         ):
             await service.slack_manifest(bot.id)
+
+
+class TestAuditTrail:
+    """A bot holds the credentials a channel answers with, so creating one,
+    changing it, switching it off, or deleting it is an access change the
+    trail should show - one entry, naming the caller and the bot."""
+
+    @staticmethod
+    def _row(org_id, platform="telegram"):
+        bot = MagicMock()
+        bot.id = uuid.uuid4()
+        bot.organization_id = org_id
+        bot.platform = platform
+        bot.name = "Support"
+        bot.webhook_mode = False
+        bot.is_active = True
+        bot.secret_key_version = 1
+        # Real envelope: reopening the bot's stream unseals its token.
+        bot.token_encrypted = seal(
+            "t" * 20, scope=VaultScope.organization(org_id), key_version=1
+        ).ciphertext
+        # No stored credentials besides the token: a MagicMock here would be
+        # handed to the vault as a ciphertext when the stream reopens.
+        bot.webhook_secret_encrypted = None
+        bot.slack_signing_secret_encrypted = None
+        bot.slack_app_token_encrypted = None
+        bot.command_token_encrypted = None
+        return bot
+
+    @pytest.mark.anyio
+    async def test_creating_a_bot_is_audited(self):
+        org_id = uuid.uuid4()
+        data = ChannelBotCreate(
+            platform="telegram",
+            name="Support",
+            token="t" * 20,
+            access_policy=AccessPolicy(),
+        )
+        bot = self._row(org_id)
+        ctx = MagicMock()
+        ctx.user_id = uuid.uuid4()
+        with (
+            patch(
+                "app.services.channel_bot.channel_bot_repo.create",
+                new=AsyncMock(return_value=bot),
+            ),
+            patch("app.services.channel_bot.record_audit", new=AsyncMock()) as audit,
+        ):
+            await ChannelBotService(MagicMock(), organization_id=org_id).create(data, ctx)
+
+        audit.assert_awaited_once()
+        entry = audit.await_args.kwargs
+        assert entry["action"] == "channel_bot.created"
+        assert entry["actor_user_id"] == ctx.user_id
+        assert entry["target_type"] == "channel_bot"
+        assert entry["target_id"] == str(bot.id)
+        assert entry["details"]["platform"] == "telegram"
+
+    @pytest.mark.anyio
+    async def test_updating_a_bot_is_audited_with_the_fields_that_changed(self):
+        org_id = uuid.uuid4()
+        bot = self._row(org_id, platform="slack")
+        ctx = MagicMock()
+        ctx.user_id = uuid.uuid4()
+        service = ChannelBotService(MagicMock(), organization_id=org_id)
+        with (
+            patch.object(service, "get", new=AsyncMock(return_value=bot)),
+            patch(
+                "app.services.channel_bot.channel_bot_repo.update",
+                new=AsyncMock(return_value=bot),
+            ),
+            patch("app.services.channel_bot.record_audit", new=AsyncMock()) as audit,
+        ):
+            await service.update(
+                bot.id,
+                ChannelBotUpdate.model_validate({"name": "Renamed"}),
+                ctx,
+            )
+
+        audit.assert_awaited_once()
+        entry = audit.await_args.kwargs
+        assert entry["action"] == "channel_bot.updated"
+        assert entry["details"]["fields"] == ["name"]
+
+    @pytest.mark.anyio
+    async def test_deleting_a_bot_is_audited(self):
+        org_id = uuid.uuid4()
+        bot = self._row(org_id)
+        ctx = MagicMock()
+        ctx.user_id = uuid.uuid4()
+        service = ChannelBotService(MagicMock(), organization_id=org_id)
+        with (
+            patch.object(service, "get", new=AsyncMock(return_value=bot)),
+            patch("app.services.channel_bot.channel_bot_repo.delete", new=AsyncMock()),
+            patch(
+                "app.services.channel_bot.discord_role_mapping_repo.list_for_bot",
+                new=AsyncMock(return_value=[]),
+            ),
+            patch("app.services.channel_bot.record_audit", new=AsyncMock()) as audit,
+        ):
+            await service.delete(bot.id, ctx)
+
+        audit.assert_awaited_once()
+        assert audit.await_args.kwargs["action"] == "channel_bot.deleted"
+        assert audit.await_args.kwargs["target_id"] == str(bot.id)
+
+    @pytest.mark.anyio
+    async def test_switching_a_bot_off_is_audited(self):
+        org_id = uuid.uuid4()
+        bot = self._row(org_id)
+        ctx = MagicMock()
+        ctx.user_id = uuid.uuid4()
+        service = ChannelBotService(MagicMock(), organization_id=org_id)
+        with (
+            patch.object(service, "get", new=AsyncMock(return_value=bot)),
+            patch(
+                "app.services.channel_bot.channel_bot_repo.update",
+                new=AsyncMock(return_value=bot),
+            ),
+            patch("app.services.channel_bot.record_audit", new=AsyncMock()) as audit,
+        ):
+            await service.deactivate(bot.id, ctx)
+
+        audit.assert_awaited_once()
+        assert audit.await_args.kwargs["action"] == "channel_bot.deactivated"

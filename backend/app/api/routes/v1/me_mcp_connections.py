@@ -23,7 +23,6 @@ from app.api.deps import (
 from app.api.public_api import PUBLIC
 from app.core.exceptions import NotFoundError
 from app.core.permissions import AuthContext, Perm
-from app.services.mcp_connection import is_google_mcp
 from app.schemas.mcp_connection import (
     McpConnectionCreate,
     McpConnectionList,
@@ -38,6 +37,7 @@ from app.schemas.mcp_connection import (
     McpSignInProbeResult,
     McpToolRead,
 )
+from app.services.mcp_connection import is_google_mcp
 
 router = APIRouter()
 
@@ -172,7 +172,11 @@ async def complete_mcp_oauth(
     )
 
 
-@router.post("/{connection_id}/test", response_model=McpConnectionTestResult)
+@router.post(
+    "/{connection_id}/test",
+    response_model=McpConnectionTestResult,
+    dependencies=[PUBLIC, Depends(key_needs(Perm.AGENTS_RUN))],
+)
 async def test_mcp_connection(
     connection_id: UUID,
     service: McpConnectionSvc,
@@ -183,5 +187,5 @@ async def test_mcp_connection(
     return McpConnectionTestResult(
         ok=error is None,
         error=error,
-        tools=[McpToolRead(name=t.name, description=t.description) for t in tools],
+        tools=[McpToolRead.model_validate(t, from_attributes=True) for t in tools],
     )

@@ -2,39 +2,19 @@
 
 import json
 from datetime import datetime
-from typing import Any, Literal, Self
+from typing import Any, Self
 from uuid import UUID
 
 from pydantic import Field, field_validator, model_validator
 
 from app.core.config import settings
 from app.schemas.base import BaseSchema
+from app.schemas.eval_judging import EvalExpectation
 from app.workflows.contracts.payload import json_byte_size
 from app.workflows.graph.model import jsonb_value_fits, pinned_output_fits
 
-ExpectationKind = Literal["contains", "not_contains", "equals"]
-
 MAX_CASES = 50
 """The most cases one step holds: a try starts a test run for each."""
-
-
-class EvalExpectation(BaseSchema):
-    """What the step's answer should say.
-
-    `field` is a path into the step's output - `text`, `category`,
-    `structured.amount` - read as text, or the whole output as JSON when empty.
-    Matching ignores case and the space around the value: an eval checks what a
-    model said, not how it was capitalised.
-    """
-
-    kind: ExpectationKind = "contains"
-    field: str | None = Field(
-        default="text",
-        max_length=200,
-        pattern=r"^[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)*$",
-        description="Where in the output to look; the whole output when null",
-    )
-    value: str = Field(min_length=1, max_length=2000)
 
 
 class _EvalCaseFields(BaseSchema):

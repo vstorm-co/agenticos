@@ -10,7 +10,7 @@ import { ChannelBotsTable } from "@/components/channels/channel-bots-table";
 import { DiscordRoleMappingsDialog } from "@/components/channels/discord-role-mappings-dialog";
 import { EditChannelDialog } from "@/components/channels/edit-channel-dialog";
 import { ErrorState } from "@/components/states";
-import { Button, ListCard, ListCardEmpty, Skeleton } from "@/components/ui";
+import { Button, ConfirmDialog, ListCard, ListCardEmpty } from "@/components/ui";
 import { useChannelBots, usePermissions } from "@/hooks";
 import { getErrorMessage } from "@/lib/api-error";
 import type { ChannelBot } from "@/types/channels";
@@ -23,10 +23,10 @@ function BotsCard({ count, children }: { count: number | null; children: ReactNo
   return (
     <ListCard
       fill
+      className="overflow-hidden"
       data-tour="channels-list"
       namedByPage
       title={t("bots")}
-      counted={count === null ? null : t("registeredCount", { count })}
       empty={count === 0}
       contentClassName="p-0"
     >
@@ -53,21 +53,29 @@ function BotsCard({ count, children }: { count: number | null; children: ReactNo
 export default function ChannelsPage() {
   const t = useTranslations("pages.channels");
   const tErrors = useTranslations("errors");
-  const { can, isLoading: permissionsLoading, error: permissionsError } = usePermissions();
+  const common = useTranslations("common");
+  const {
+    can,
+    isLoading: permissionsLoading,
+    error: permissionsError,
+    refetch: retryPermissions,
+  } = usePermissions();
   // The backend gates every write here on `channels:manage`, and the listing
   // too - so the hook is told not to fetch at all for somebody without it,
   // rather than putting a 403 in the network log of every member who visits.
   const canManage = can(Perm.channelsManage);
-  const { bots, isLoading, error, create, update, setActive, remove } = useChannelBots(canManage);
+  const { bots, isLoading, error, refetch, create, update, setActive, remove } =
+    useChannelBots(canManage);
   const [adding, setAdding] = useState(false);
   // The row being edited, which is also what opens the dialog: a bot and an
   // open flag can disagree, and the disagreement renders last row's answers.
   const [editing, setEditing] = useState<ChannelBot | null>(null);
+  const [deleting, setDeleting] = useState<ChannelBot | null>(null);
   const [mapping, setMapping] = useState<ChannelBot | null>(null);
 
   if (!permissionsLoading && !permissionsError && !canManage) {
     return (
-      <div className="flex flex-1 flex-col space-y-4">
+      <div className="flex min-h-0 flex-1 flex-col gap-4">
         <PageHeader title={t("channels")} description={t("pageDescription")} />
         <BotsCard count={0}>
           <p className="text-muted-foreground px-6 py-16 text-center text-sm">
@@ -78,32 +86,8 @@ export default function ChannelsPage() {
     );
   }
 
-  // The same card the page renders, with row skeletons in it. A skeleton that
-  // draws a different shape from what follows is a layout jump on every load.
-  if (isLoading || permissionsLoading) {
-    return (
-      <div className="flex flex-1 flex-col space-y-4">
-        <PageHeader title={t("channels")} description={t("pageDescription")} />
-        <BotsCard count={null}>
-          {[0, 1, 2].map((row) => (
-            <div
-              key={row}
-              className="border-border flex items-center gap-3 border-b px-5 py-4 last:border-b-0"
-            >
-              <Skeleton className="h-8 w-8 shrink-0 rounded-lg" />
-              <div className="min-w-0 flex-1 space-y-2">
-                <Skeleton className="h-4 w-40" />
-                <Skeleton className="h-3 w-72 max-w-full" />
-              </div>
-            </div>
-          ))}
-        </BotsCard>
-      </div>
-    );
-  }
-
   return (
-    <div className="flex flex-1 flex-col space-y-4">
+    <div className="flex min-h-0 flex-1 flex-col gap-4">
       <PageHeader
         title={t("channels")}
         description={t("pageDescription")}
@@ -118,48 +102,80 @@ export default function ChannelsPage() {
       />
 
       <BotsCard count={error || permissionsError ? null : bots.length}>
-        {error || permissionsError ? (
+        {isLoading || permissionsLoading ? (
+          <ChannelBotsTable
+            bots={[]}
+            busy
+            loading
+            onEdit={setEditing}
+            onToggleActive={(bot) => setActive.mutate({ botId: bot.id, isActive: !bot.is_active })}
+            onDelete={setDeleting}
+          />
+        ) : error || permissionsError ? (
           // A failed read has no rows either, and "No channels yet" over a 502
           // is a refusal dressed as reassurance (#32's shape).
           <ErrorState
             description={getErrorMessage(error ?? permissionsError, tErrors)}
-            className="m-5"
-          />
-        ) : bots.length === 0 ? (
-          <ListCardEmpty
-            icon={MessagesSquare}
-            title={t("noChannelsYet")}
-            description={t("addOneBecomesBindable")}
-            // Its own words, not the header's: two buttons reading "Add
-            // channel" is one control a screen reader announces twice.
             cta={{
-              label: (
-                <>
-                  <Plus className="h-3.5 w-3.5" />
-                  {t("addChannel")}
-                </>
-              ),
-              onClick: () => setAdding(true),
+              label: common("retry"),
+              onClick: () => {
+                if (permissionsError) void retryPermissions();
+                else void refetch();
+              },
             }}
+            className="m-5"
           />
         ) : (
           <ChannelBotsTable
+            empty={
+              <ListCardEmpty
+                icon={MessagesSquare}
+                title={t("noChannelsYet")}
+                description={t("addOneBecomesBindable")}
+                // Its own words, not the header's: two buttons reading "Add
+                // channel" is one control a screen reader announces twice.
+                cta={{
+                  label: (
+                    <>
+                      <Plus className="h-3.5 w-3.5" />
+                      {t("addChannel")}
+                    </>
+                  ),
+                  onClick: () => setAdding(true),
+                }}
+              />
+            }
             bots={bots}
             busy={setActive.isPending || remove.isPending}
             onEdit={setEditing}
             onToggleActive={(bot) => setActive.mutate({ botId: bot.id, isActive: !bot.is_active })}
-            onDelete={(bot) => remove.mutate(bot.id)}
+            onDelete={setDeleting}
             onMapRoles={can(Perm.membersManage) ? setMapping : undefined}
           />
         )}
       </BotsCard>
 
-      <AddChannelDialog
-        open={adding}
-        onOpenChange={setAdding}
-        onSubmit={create.mutateAsync}
-        isPending={create.isPending}
-      />
+      {canManage && !permissionsLoading && (
+        <AddChannelDialog
+          open={adding}
+          onOpenChange={setAdding}
+          onSubmit={create.mutateAsync}
+          isPending={create.isPending}
+        />
+      )}
+
+      {deleting && canManage && (
+        <ConfirmDialog
+          open
+          onOpenChange={(open) => !open && setDeleting(null)}
+          title={t("removeBot", { bot: deleting.name })}
+          description={t("removeBotDescription")}
+          confirmLabel={t("removeBotConfirm")}
+          destructive
+          loading={remove.isPending}
+          onConfirm={() => remove.mutate(deleting.id, { onSuccess: () => setDeleting(null) })}
+        />
+      )}
 
       <EditChannelDialog
         bot={editing}

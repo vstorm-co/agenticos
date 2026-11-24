@@ -34,6 +34,7 @@ from app.core.exceptions import AuthorizationError, BadRequestError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent import Agent
 from app.db.models.artifact import Artifact, ArtifactMediaType, ArtifactVersion
+from app.db.models.artifact_favourite import ArtifactFavourite
 from app.db.models.audit_log import AppAdminAuditLog
 from app.db.models.background_job import BackgroundJob
 from app.db.models.notification import Notification, NotificationEventType
@@ -1443,6 +1444,42 @@ class TestAProjectsApps:
 
         assert total == 1
         assert [item.id for item in items] == [made_here.artifact_id]
+
+
+async def test_favourites_keep_the_order_the_person_starred_apps(
+    db: AsyncSession, storage: LocalFileStorage
+) -> None:
+    organization, user, agent = await _tenant(db)
+    first = await _publish(
+        db, organization, user, agent, body="<p>first</p>", name="first", title="First"
+    )
+    second = await _publish(
+        db, organization, user, agent, body="<p>second</p>", name="second", title="Second"
+    )
+    # The second app is starred later, but the sidebar keeps the earlier pin first.
+    db.add_all(
+        [
+            ArtifactFavourite(
+                user_id=user.id, artifact_id=first.artifact_id, created_at=NOW - timedelta(days=2)
+            ),
+            ArtifactFavourite(
+                user_id=user.id, artifact_id=second.artifact_id, created_at=NOW - timedelta(days=1)
+            ),
+        ]
+    )
+    await db.flush()
+
+    items, total = await artifact_repo.list_visible(
+        db,
+        organization_id=organization.id,
+        user_id=user.id,
+        see_all=True,
+        shared_ids=[],
+        favourites_for=user.id,
+    )
+
+    assert total == 2
+    assert [item.id for item in items] == [first.artifact_id, second.artifact_id]
 
 
 async def test_another_conversation_edits_stored_source_without_the_original_sandbox(

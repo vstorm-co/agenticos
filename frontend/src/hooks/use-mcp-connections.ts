@@ -88,6 +88,8 @@ export function useMcpConnections(): UseMcpConnectionsResult {
       );
       void queryClient.invalidateQueries({ queryKey: qk.mcpServers.lists() });
       void queryClient.invalidateQueries({ queryKey: qk.mcpServers.entries() });
+      // Account changes also change routine source ceilings and action inventories.
+      void queryClient.invalidateQueries({ queryKey: qk.triggers.all() });
     },
     [queryClient],
   );
@@ -97,6 +99,7 @@ export function useMcpConnections(): UseMcpConnectionsResult {
       refetch(),
       queryClient.invalidateQueries({ queryKey: qk.mcpServers.lists() }),
       queryClient.invalidateQueries({ queryKey: qk.mcpServers.entries() }),
+      queryClient.invalidateQueries({ queryKey: qk.triggers.all() }),
     ]);
   }, [refetch, queryClient]);
 

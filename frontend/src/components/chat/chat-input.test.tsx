@@ -1,10 +1,11 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { toast } from "sonner";
 
 import { messageOf } from "./composer-editor";
+import { MainChatContext } from "./main-chat-context";
 import { ChatInput, type ComposerDictation } from "./chat-input";
 import type { DictationState } from "@/hooks/use-dictation";
 import { useChatStore } from "@/stores";
@@ -47,13 +48,38 @@ function uploaded(overrides: Partial<FileUploadResponse> = {}): FileUploadRespon
 const LONG = "x".repeat(50_000);
 const CHAT_MAX_UPLOAD_SIZE_MB = DEFAULT_PUBLIC_CONFIG.chatMaxUploadSizeMb;
 
+afterEach(() => vi.restoreAllMocks());
+
 beforeEach(() => {
+  // jsdom Files cannot be read by Node's object-URL implementation.
+  vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:pending-image");
+  vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
   state.upload.mockReset();
   state.upload.mockResolvedValue(uploaded());
+  useChatStore.getState().setReplyTo(null);
   // The toast mock is module-level, so without this a refusal asserted in one
   // test is still recorded in the next one that asserts none.
   vi.mocked(toast.error).mockClear();
   vi.mocked(toast.info).mockClear();
+});
+
+it("preserves transcript-link focus through arrival and completion while allowing an explicit reply", () => {
+  render(<button>Reading selected message</button>);
+  const reading = screen.getByRole("button", { name: "Reading selected message" });
+  reading.focus();
+  const props = { onSend: vi.fn(), autoFocus: true, preserveReadingFocus: true };
+  const view = render(<ChatInput {...props} />);
+  expect(reading).toHaveFocus();
+  view.rerender(<ChatInput {...props} isProcessing />);
+  view.rerender(<ChatInput {...props} isProcessing={false} />);
+  expect(reading).toHaveFocus();
+  act(() =>
+    useChatStore
+      .getState()
+      .setReplyTo({ messageId: "selected", role: "assistant", excerpt: "Chosen text" }),
+  );
+  expect(screen.getByRole("textbox")).toHaveFocus();
+  act(() => useChatStore.getState().setReplyTo(null));
 });
 
 describe("ChatInput replying", () => {
@@ -132,6 +158,112 @@ describe("ChatInput offline", () => {
     render(<ChatInput onSend={vi.fn()} offline disabled />);
 
     expect(screen.getByText("Reconnecting…")).toBeInTheDocument();
+  });
+
+  it("sends a safe plain-text draft directly to the active run", async () => {
+    const onSend = vi.fn();
+    const onSteer = vi.fn(() => true);
+    render(
+      <ChatInput
+        onSend={onSend}
+        onSteer={onSteer}
+        sendMode="steer"
+        onSendModeChange={vi.fn()}
+        isProcessing
+      />,
+    );
+    const editor = screen.getByRole("textbox");
+    await userEvent.type(editor, "Use the latest numbers");
+
+    fireEvent.submit(editor.closest("form")!);
+
+    expect(onSteer).toHaveBeenCalledWith("Use the latest numbers");
+    expect(onSend).not.toHaveBeenCalled();
+    expect(messageOf(editor)).toBe("");
+  });
+
+  it("keeps page-context turns on the full send path when Steer is selected", async () => {
+    const onSend = vi.fn();
+    const onSteer = vi.fn(() => true);
+    render(
+      <ChatInput
+        onSend={onSend}
+        onSteer={onSteer}
+        sendMode="steer"
+        onSendModeChange={vi.fn()}
+        steerContextAvailable={false}
+        isProcessing
+      />,
+    );
+    const editor = screen.getByRole("textbox");
+    await userEvent.type(editor, "Use this page as context");
+
+    fireEvent.submit(editor.closest("form")!);
+
+    expect(onSteer).not.toHaveBeenCalled();
+    expect(onSend).toHaveBeenCalledWith(
+      "Use this page as context",
+      undefined,
+      undefined,
+      undefined,
+    );
+  });
+
+  it("keeps a steer draft when the connection drops", async () => {
+    const onSend = vi.fn();
+    const onSteer = vi.fn(() => false);
+    render(
+      <ChatInput
+        onSend={onSend}
+        onSteer={onSteer}
+        sendMode="steer"
+        onSendModeChange={vi.fn()}
+        isProcessing
+        offline
+      />,
+    );
+    const editor = screen.getByRole("textbox");
+    await userEvent.type(editor, "Keep this while reconnecting");
+
+    fireEvent.submit(editor.closest("form")!);
+
+    expect(onSteer).not.toHaveBeenCalled();
+    expect(onSend).not.toHaveBeenCalled();
+    expect(messageOf(editor)).toBe("Keep this while reconnecting");
+    expect(screen.getByRole("status")).toHaveTextContent("Your draft is still in the composer.");
+  });
+
+  it("keeps files and reply context on the normal queued path", async () => {
+    const onSend = vi.fn();
+    const onSteer = vi.fn(() => true);
+    const { container } = render(
+      <ChatInput
+        onSend={onSend}
+        onSteer={onSteer}
+        sendMode="steer"
+        onSendModeChange={vi.fn()}
+        steerContextAvailable={false}
+        isProcessing
+      />,
+    );
+    act(() =>
+      useChatStore
+        .getState()
+        .setReplyTo({ messageId: "quoted", role: "assistant", excerpt: "Original" }),
+    );
+    await userEvent.upload(
+      container.querySelector<HTMLInputElement>('input[type="file"]')!,
+      new File(["notes"], "notes.txt", { type: "text/plain" }),
+    );
+    expect(await screen.findByText("pasted-2026-08-08.txt")).toBeVisible();
+    const editor = screen.getByRole("textbox");
+    await userEvent.type(editor, "Explain the notes");
+
+    fireEvent.submit(editor.closest("form")!);
+
+    expect(onSteer).not.toHaveBeenCalled();
+    expect(onSend).toHaveBeenCalledWith("Explain the notes", ["f-1"], [uploaded()], undefined);
+    expect(useChatStore.getState().replyTo).toMatchObject({ messageId: "quoted" });
   });
 });
 
@@ -643,6 +775,77 @@ describe("ChatInput listening in the browser", () => {
   });
 });
 
+describe("ChatInput when the browser's recognition fails", () => {
+  function failingWith(error: string) {
+    return class FailingRecognition {
+      onerror: ((event: { error: string }) => void) | null = null;
+      start = vi.fn(() => this.onerror?.({ error }));
+      stop = vi.fn();
+    };
+  }
+
+  async function dictateAndFail(error: string, { secure = true } = {}) {
+    vi.stubGlobal("SpeechRecognition", failingWith(error));
+    vi.stubGlobal("isSecureContext", secure);
+    render(<ChatInput onSend={vi.fn()} dictation={serverDictation({ engine: "browser" })} />);
+    await userEvent.click(screen.getByRole("button", { name: "Voice input" }));
+    vi.unstubAllGlobals();
+  }
+
+  it.each([
+    [
+      "not-allowed",
+      "Microphone blocked for this site",
+      "Click the icon left of the address bar, set Microphone to Allow, then try again.",
+    ],
+    [
+      "audio-capture",
+      "No microphone found",
+      "Connect a microphone, or check that your system lets the browser use it, then try again.",
+    ],
+    [
+      "service-not-allowed",
+      "Your browser's speech recognition isn't available",
+      "This agent has no speech-to-text provider for dictation, so the browser transcribes, and its service refused. Ask an admin to set up Dictation for this agent, or try another browser.",
+    ],
+    [
+      "network",
+      "Couldn't reach the speech service",
+      "Your browser sends what you say to its speech service, and the connection failed. Check your connection, then try again.",
+    ],
+  ])("says what to do about %s", async (error, title, description) => {
+    await dictateAndFail(error);
+    expect(toast.error).toHaveBeenCalledWith(title, { description });
+  });
+
+  it("names HTTPS when the page may not ask for the microphone at all", async () => {
+    await dictateAndFail("not-allowed", { secure: false });
+    expect(toast.error).toHaveBeenCalledWith("This page can't use the microphone", {
+      description:
+        "Browsers open the microphone only on HTTPS or on localhost. Ask your administrator to serve the console over HTTPS.",
+    });
+  });
+
+  it("says nothing was heard rather than that something broke", async () => {
+    await dictateAndFail("no-speech");
+    expect(toast.error).not.toHaveBeenCalled();
+    expect(toast.info).toHaveBeenCalledWith("No speech heard", {
+      description: "Check the microphone isn't muted, then try again.",
+    });
+  });
+
+  it("stays quiet when the recognition was stopped", async () => {
+    await dictateAndFail("aborted");
+    expect(toast.error).not.toHaveBeenCalled();
+    expect(toast.info).not.toHaveBeenCalled();
+  });
+
+  it("keeps the general error for anything else", async () => {
+    await dictateAndFail("language-not-supported");
+    expect(toast.error).toHaveBeenCalledWith("Speech recognition error");
+  });
+});
+
 describe("ChatInput while dictating", () => {
   it.each(["recording", "transcribing"] as const)(
     "while %s the box is read-only and nothing can be sent",
@@ -1064,4 +1267,86 @@ it("distinguishes an empty focus from writing so mobile welcome stays visible", 
   expect(form).toHaveAttribute("data-drafting", "true");
   await userEvent.click(screen.getByRole("button", { name: "Send message" }));
   expect(form).not.toHaveAttribute("data-drafting");
+});
+
+describe("clean composer draft actions", () => {
+  it("promotes dictation only for an empty main-chat composer", async () => {
+    const send = vi.fn();
+    render(
+      <MainChatContext.Provider value={true}>
+        <ChatInput onSend={send} idleSlot={<button>Call</button>} />
+      </MainChatContext.Provider>,
+    );
+    const mic = screen.getByRole("button", { name: "Voice input" });
+    expect(mic).toBeEnabled();
+    expect(screen.queryByRole("button", { name: "Send message" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Call" })).toBeNull();
+    await userEvent.type(screen.getByRole("textbox"), "Hello");
+    expect(screen.getByRole("button", { name: "Send message" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Send message" })).toBe(mic);
+    expect(screen.queryByRole("button", { name: "Voice input" })).toBeNull();
+    await userEvent.clear(screen.getByRole("textbox"));
+    expect(screen.getByRole("button", { name: "Voice input" })).toBeEnabled();
+    expect(screen.queryByRole("button", { name: "Send message" })).toBeNull();
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it("preserves Stop when the turn is waiting rather than streaming", async () => {
+    const stop = vi.fn();
+    render(
+      <MainChatContext.Provider value={true}>
+        <ChatInput onSend={vi.fn()} canStop onStop={stop} />
+      </MainChatContext.Provider>,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Stop generating" }));
+    expect(stop).toHaveBeenCalledOnce();
+  });
+});
+
+it("releases pending image previews when upload fails or the composer unmounts", async () => {
+  let rejectUpload: (reason: Error) => void = () => {};
+  state.upload.mockImplementation(
+    () =>
+      new Promise((_, reject) => {
+        rejectUpload = reject;
+      }),
+  );
+  const view = render(<ChatInput onSend={vi.fn()} />);
+  const file = new File(["png"], "photo.png", { type: "image/png" });
+  await userEvent.upload(
+    view.container.querySelector<HTMLInputElement>('input[type="file"]')!,
+    file,
+  );
+  expect(screen.getByRole("img", { name: file.name })).toHaveAttribute("src", "blob:pending-image");
+  rejectUpload(new Error("Unavailable"));
+  await waitFor(() => expect(URL.revokeObjectURL).toHaveBeenCalledOnce());
+  expect(toast.error).toHaveBeenCalled();
+  await userEvent.upload(
+    view.container.querySelector<HTMLInputElement>('input[type="file"]')!,
+    file,
+  );
+  view.unmount();
+  expect(URL.revokeObjectURL).toHaveBeenCalledTimes(2);
+  rejectUpload(new Error("Unmounted"));
+  await act(async () => {});
+  expect(URL.revokeObjectURL).toHaveBeenCalledTimes(2);
+});
+
+it("does not move focus from a reader's control when a reply finishes", () => {
+  const onSend = vi.fn();
+  const view = render(
+    <>
+      <button>Inspect source</button>
+      <ChatInput onSend={onSend} isProcessing />
+    </>,
+  );
+  const control = screen.getByRole("button", { name: "Inspect source" });
+  control.focus();
+  view.rerender(
+    <>
+      <button>Inspect source</button>
+      <ChatInput onSend={onSend} isProcessing={false} />
+    </>,
+  );
+  expect(control).toHaveFocus();
 });

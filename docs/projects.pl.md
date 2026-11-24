@@ -2,7 +2,7 @@
 title: Projekty
 seo_title: Projekty - wspólne pliki i instrukcje czatów
 description: Projekt daje bieżącej pracy jeden kontener plików i jeden zestaw instrukcji, wspólne dla każdego czatu w nim, niezależnie od tego, który agent odpowiada.
-source_sha: "e9573cb4bf21"
+source_sha: "f150b8228dc8"
 ---
 
 # Projekty { #projects }
@@ -69,6 +69,16 @@ Dwie drogi:
 
 Czat zostaje w projekcie, w którym został rozpoczęty. Chip w istniejącym czacie
 prowadzi z powrotem do projektu.
+
+Agent z włączonym Sandbox może wywołać `select_project_workspace` z ID dostępnego
+projektu, aby korzystać z jego plików i powłoki w bieżącym uruchomieniu, także na
+kanale. Przy odpowiedzi widać wybrane projekty. Brak ID przywraca pierwotny
+workspace. Wznowienie po akceptacji zachowuje wybór, a następna wiadomość zaczyna
+w pierwotnym workspace rozmowy. Wybór nie przenosi historii, nie kopiuje prywatnych
+plików i nie zmienia instrukcji agenta. Każda operacja ponownie sprawdza dostęp.
+Rutyny zachowują ograniczenie do zatwierdzonych źródeł, a izolowane ewaluacje nie
+mogą wybierać aktywnych projektów. Pliki pozostają w projekcie; do ich przekazania
+służy opublikowanie App lub jawne wysłanie pliku.
 
 ## Co agent dostaje w projekcie { #what-an-agent-gets-in-a-project }
 
@@ -245,20 +255,114 @@ zaczęła. Na zakładce **Czaty** każdy wiersz mówi, czyj jest czat, którzy a
 nim odpowiadają, kiedy ostatnio coś się w nim działo albo kto teraz w nim pracuje,
 i kto go otwierał - ostatnie twarze, a wszystkie imiona po najechaniu;
 kto ma go otwartego w tej chwili, jest pierwszy, z zieloną kropką.
-Czat poza projektem zostaje jego autora, jak wszędzie indziej w konsoli.
+Czat poza projektem zaczyna jako prywatny. Jego właściciel może jawnie dodać osoby
+lub agentów i przekształcić dotychczasową rozmowę we wspólny pokój bez utraty
+historii.
 
 Czatu projektu nie udostępnia się osobno, linkiem ani konkretnej osobie: czyta się
 go przez projekt, więc udostępnij projekt.
 
-**Wspólna praca w jednym czacie.** W czacie projektu może być naraz kilka osób.
-Pasek nad transkrypcją pokazuje, kto jeszcze go ma otwarty, a jego właściciel może
-stamtąd kogoś zaprosić. Gdy ktoś pisze, pozostali widzą nad polem wpisywania jego
-twarz i „Anna pisze”. Pytanie zadane przez jedną z nich i odpowiedź agenta
-pojawiają się u wszystkich w czacie na bieżąco. **Odpowiedz** przy dowolnej
-wiadomości cytuje ją nad polem wpisywania, a odpowiedź niesie ten cytat - na
-ekranie i do agenta, który czyta wiadomość każdej osoby pod jej imieniem i wie,
-że w czacie może być kilka osób, więc wie, kto o co pytał i do czego odnosi się
-„tak, zrób to”.
+## Pokoje zespołu { #team-rooms }
+
+Na karcie **Czaty** projektu wybierz **Nowy pokój zespołu (New team room)**, aby
+utworzyć pustą wspólną rozmowę. W głównej konsoli czaty projektu pokazują nagłówek
+pokoju z odbiorcami projektu i obecnymi osobami, nawet gdy jesteś tam sam.
+**Udostępnij (Share)** zarządza dostępem do projektu; uczestnik z prawem tylko do
+odczytu może śledzić transkrypcję, ale nie może wysyłać wiadomości.
+
+Wpisz `@` i wybierz osobę lub agenta z listy, aby wspomnieć tę osobę lub tego
+agenta. Osoby otrzymują
+powiadomienie; każdy wybrany agent otrzymuje własną odpowiedź w kolejce na tę samą
+wiadomość napisaną przez człowieka. Podobnie brzmiące nazwy pozostają osobnymi
+opcjami. Samo wpisanie nazwy bez wybrania propozycji nie wskazuje odpowiadającego.
+Wiadomości i odpowiedzi wskazują nadawcę; **Odpowiedz (Reply)** dodaje cytat do
+wiadomości i kontekstu agenta.
+
+Otwórz listę uczestników, aby dodać uprawnionego agenta przed wspomnieniem go.
+Udostępnienie projektu nadal określa, które osoby mogą czytać lub pisać; lista
+uczestników pokoju nie może przyznać nikomu dostępu do projektu. Agenci domyślnie
+odpowiadają tylko na wzmianki. Zarządzający pokojem może włączyć automatyczne
+odpowiedzi wybranym agentom; nieoznaczona wiadomość może wtedy trafić do maksymalnie
+czterech takich agentów. Wzmianki tylko do osób nie przywołują tych agentów.
+
+Pasek boczny czatu umożliwia też rozmowy poza projektem. Utwórz prywatny pokój albo
+pokój widoczny dla organizacji lub dołącz do istniejącego publicznego pokoju przed
+wysłaniem wiadomości. Dodanie współpracownika do istniejącego czatu z agentem
+przekształca go na miejscu. Potwierdzenie wyjaśnia, że nowy uczestnik może czytać
+zapisaną historię. Prywatną pracę już w toku trzeba zakończyć lub anulować przed
+taką zmianą.
+
+Żądania odpowiedzi agenta trafiają do jednej trwałej kolejki pokoju. Run czekający
+na zatwierdzenie lub odpowiedź zachowuje swoje miejsce do rozstrzygnięcia.
+Możesz anulować własne żądanie, gdy czeka w kolejce. Bieżące uprawnienia
+zlecającego do projektu i agenta są sprawdzane ponownie przy rozpoczęciu lub
+wznowieniu pracy. Kolejne pytanie widzi wcześniejsze wiadomości i ukończone
+odpowiedzi na poprzednie żądania, bez pytań wysłanych po nim.
+
+Kolejka pokazuje zapisany stan żądania i odświeża się po ponownym połączeniu.
+Jeśli wynik wysłania jest niepewny, ponów oczekującą wiadomość, aby użyć jej
+dotychczasowej tożsamości. Przerwane żądanie agenta nie uruchamia się ponownie
+automatycznie; sprawdź zapisany run przed nowym żądaniem.
+
+Do wiadomości pokoju możesz bezpośrednio dołączyć do dziesięciu plików, z podpisem
+lub bez. Obowiązują dotychczasowe limity typów i rozmiaru uploadu. Te same
+załączniki trafiają do każdego wybranego agenta odpowiadającego, a ponowienie
+wysłania nie dołącza ich drugi raz. Karta projektu **Pliki (Files)** pozostaje
+wspólnym workspace'em dla materiałów referencyjnych używanych dłużej.
+Odpowiadają opublikowani agenci zgodni z chmurą; agenci desktopowi i agenci
+korzystający z osobistego sandboxa nadal wymagają właściwego dla urządzenia
+przepływu czatu.
+
+Użyj kontrolki reakcji przy zapisanej wiadomości człowieka lub agenta, aby dodać
+albo usunąć swoją emoji. Liczniki sumują reakcje wszystkich osób, a twoje własne
+wybory pozostają oznaczone. Jedna wiadomość może mieć do dwudziestu różnych emoji.
+
+### Wątki boczne { #side-threads }
+
+Wybierz **Odpowiedz w wątku (Reply in thread)** przy zapisanej wiadomości pokoju, aby otworzyć jej
+wątek. Panel pokazuje pierwotną wiadomość nad odpowiedziami; liczba odpowiedzi
+w pokoju pozwala wrócić do dyskusji. Adres zawiera pokój i wątek, więc link lub
+odświeżenie otwiera tę samą dyskusję. Na wąskim ekranie wątek zajmuje dostępną
+szerokość. **Odpowiedz (Reply)** nadal dodaje cytat w bieżącej dyskusji.
+
+Wątek ma tych samych odbiorców i te same uprawnienia do pisania co jego pokój.
+Otwarcie go nie prosi agenta o odpowiedź. Wybierz agenta przez `@`, aby poprosić o
+odpowiedź, albo wspomnij tylko osoby, by z nimi rozmawiać. Odpowiedź należy do tego
+wątku, także gdy run jest wznawiany po pytaniu lub zatwierdzeniu. Główny pokój i
+jego wątki korzystają z jednej kolejki żądań agentów; oczekujący run zatrzymuje
+późniejsze żądania w kolejce.
+
+Kontekst rozmowy agenta daje pierwszeństwo pierwotnej wiadomości i odpowiedziom
+wątku. Pozostałe miejsce w historii może zawierać wiadomości głównego pokoju
+sprzed pierwotnej wiadomości. Odpowiedzi z innych wątków i późniejsze wiadomości
+głównego pokoju są wykluczone. Nadal obowiązują instrukcje projektu, wspólne
+pliki i wiedza projektu. Cytaty w wątku odnoszą się do jego pierwotnej wiadomości
+lub jednej z odpowiedzi.
+
+Plany i oczekujące kroki należą do danego runa. Wznowienie je zachowuje;
+osobne żądanie odpowiedzi agenta w wątku zaczyna nowy plan.
+
+Osoba rozpoczynająca wątek i osoby, które na niego odpowiadają, domyślnie go
+obserwują. Jawne obserwowanie lub rezygnacja z niego sterują powiadomieniami o
+odpowiedziach; bezpośrednia wzmianka `@` nadal cię powiadomi. Przeczytanie głównego
+pokoju nie usuwa nieprzeczytanych odpowiedzi wątku. Pokój pokazuje liczbę
+nieprzeczytanych odpowiedzi przy podsumowaniu wątku, a jego otwarcie oznacza jako
+przeczytane tylko te odpowiedzi, które faktycznie zobaczysz.
+
+Osoba rozpoczynająca wątek lub zarządzający pokojem może go zamknąć albo
+zarchiwizować. Odpowiedź ponownie otwiera zamknięty wątek. Zarchiwizowany wątek
+jest tylko do odczytu; cofnięcie archiwizacji przywraca jego poprzedni stan:
+otwarty lub zamknięty. Te działania zachowują pierwotne wiadomości i odpowiedzi.
+
+Każda dyskusja zachowuje własny szkic i oczekującą ponowną próbę wysłania, gdy
+przechodzisz między wątkami w bieżącej sesji. Wróć do pierwotnej dyskusji, aby
+ponowić niepewne wysłanie z tą samą tożsamością; wybranie innego wątku nie
+przekierowuje oczekującej wiadomości. Zmiana konta lub organizacji usuwa te szkice.
+
+Po odłączeniu czatu od projektu istniejące wątki pozostają widoczne dla osób,
+które nadal mają dostęp do tego czatu. Odpowiedzi w wątkach są tylko do odczytu,
+chyba że właściciel jawnie przekształci czat w samodzielny pokój. Samo wcześniejsze
+członkostwo w projekcie nie daje już dostępu.
 
 ## Usuwanie projektu { #deleting-a-project }
 

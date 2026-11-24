@@ -8,7 +8,7 @@
 import { apiClient } from "./api-client";
 import type { OutcomeStatus } from "./outcomes-api";
 
-export type SuggestionKind = "routine" | "agent" | "profile" | "role_pack" | "finding";
+export type SuggestionKind = "routine" | "agent" | "profile" | "role_pack" | "finding" | "personal";
 export type SuggestionStatus = "open" | "accepted" | "dismissed";
 
 export interface Suggestion {

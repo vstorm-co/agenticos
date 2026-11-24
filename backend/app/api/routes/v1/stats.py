@@ -15,7 +15,7 @@ from fastapi import APIRouter, Query
 
 from app.api.deps import Auth, StatsSvc
 from app.core.exceptions import ValidationError
-from app.schemas.stats import ScopedRatingSummary, UsageStats
+from app.schemas.stats import AgentAttentionList, ScopedRatingSummary, UsageStats
 
 router = APIRouter()
 
@@ -137,3 +137,17 @@ async def ratings_summary(
     `GET /admin/ratings/summary`, which is deployment-wide and app-admin only.
     """
     return await service.ratings_summary(ctx, scope=scope, from_date=from_, to_date=to)
+
+
+@router.get("/stats/attention", response_model=AgentAttentionList)
+async def agents_needing_attention(
+    service: StatsSvc,
+    ctx: Auth,
+    from_: date | None = Query(None, alias="from", description="First day, inclusive (UTC)"),
+    to: date | None = Query(None, description="Last day, inclusive (UTC)"),
+) -> Any:
+    """Agents the caller may see with answers rated down or own runs failed in the
+    window, or an eval suite whose latest result failed - counts only, those with
+    the most first. Reads everybody's runs, so it demands `runs:view`.
+    """
+    return await service.attention(ctx, from_date=from_, to_date=to)

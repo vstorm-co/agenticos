@@ -41,6 +41,20 @@ KEYWORDS = ("tenant", "permission", "budget", "approval", "secret", "plaintext")
 # honest by `TestNoStaleExemptions`, which fails if an entry no longer exists or
 # no longer matches the net.
 EXEMPT: dict[str, str] = {
+    "tests/test_matrix_adapter.py::TestPrompts::test_an_approval_is_numbered_in_its_thread": "numbered prompt rendering, not an authorization decision or refusal",
+    "tests/test_platform_mcp_disclosure.py::test_large_run_history_preserves_the_real_pending_approval_contract": "preserves pending-call metadata in a bounded response, not an approval authorization refusal",
+    "tests/test_platform_mcp_disclosure.py::test_large_pending_approvals_keep_bounded_identities_and_a_full_console_review_link": "bounds pending-call payloads and hands full review to the console, not an approval decision",
+    "tests/api/test_workflow_run_routes.py::TestNodesRoute::test_an_approval_step_says_who_decided_and_when": "decision metadata serialization, not an authorization refusal",
+    "tests/test_sandbox_workspace.py::TestRecordedTaskWorkspace::test_reading_undo_permissions_never_opens_a_provider_client": "authorized metadata reads must not create a provider client; no access refusal",
+    "tests/test_coverage_edges.py::TestRunNotifications::test_a_budget_stop_hands_its_limit_and_spend_to_the_notification": "budget notification values, not spend enforcement",
+    "tests/test_notification_params.py::test_a_budget_stop_hands_over_its_numbers_and_none_of_the_rest": "budget notification allowlist, not spend enforcement",
+    "tests/test_notification_params.py::test_a_department_s_budget_stop_names_the_department": "budget notification wording, not spend enforcement",
+    "tests/test_notification_params.py::test_worded_budget_rows_do_not_expose_legacy_budget_params": "budget notification backward compatibility, not spend enforcement",
+    "tests/test_notification_params.py::test_an_approval_request_hands_over_only_the_agent_name": "approval notification allowlist, not an authorization refusal",
+    "tests/test_notification_params.py::test_a_workflow_approval_hands_over_its_title_and_a_step_s_own_notice_nothing": "workflow approval notification allowlist, not an authorization refusal",
+    "tests/test_authoring_fields.py::TestSet::test_a_tool_approval_set_back_to_none_is_removed": "undoing a tightened tool approval restores the spec, no refusal",
+    "tests/test_workflow_execution_approval_wake.py::TestWakeAfterApprovalDecision::test_an_answered_or_ended_question_wakes_its_owning_step": "'approval' names the wake module; an accepted question continuation, not an authorization refusal",
+    "tests/test_workflow_run_status.py::test_a_question_is_visible_beside_running_approval_and_retry_siblings": "'approval' names a waiting status; severity reporting, not an authorization refusal",
     "tests/integration/test_artifact_log_bindings.py::TestReading::test_the_lines_are_cut_to_the_pages_byte_budget": "'budget' names the page's byte allowance for log lines, a size cut, not a spend cap or a refusal",
     "tests/integration/test_artifact_log_bindings.py::TestBesideATable::test_the_byte_budget_is_shared_fairly_between_a_table_and_a_log": "'budget' names the page's byte allowance for log lines, a size cut, not a spend cap or a refusal",
     "tests/integration/test_workflow_approval_metrics_migration.py::test_an_existing_request_reads_unmeasured": "'approval' names the approval step's stored column the migration adds, not an authorization refusal",
@@ -87,6 +101,7 @@ EXEMPT: dict[str, str] = {
     "tests/test_workflow_html_parse.py::test_a_matchs_markup_is_closed_where_its_node_budget_ends": "'budget' names the parser's node and length allowance, a size cut, not a spend cap or a refusal",
     "tests/test_workflow_html_parse.py::test_a_string_over_the_budget_is_cut_inside_its_open_tags": "'budget' names the parser's node and length allowance, a size cut, not a spend cap or a refusal",
     "tests/test_workflow_html_parse.py::test_a_string_that_exactly_fills_the_budget_ends_the_markup": "'budget' names the parser's node and length allowance, a size cut, not a spend cap or a refusal",
+    "tests/test_workflow_input_schema.py::test_diagnostic_byte_budget_uses_utf8_and_reserves_its_marker": "'budget' names encoded diagnostic size and its truncation marker, not a spend cap or authorization refusal",
     "tests/test_workflow_mcp_call.py::TestIdempotencyKey::test_a_keyed_call_lists_the_tools_even_without_approval": "'approval' names a tool's approval flag in a listing, no gate is exercised",
     "tests/test_workflow_stats_window.py::test_an_approval_after_the_window_is_left_out_not_a_failure": "'approval' names the approval step whose outcomes are counted, a report and not a refusal",
     "tests/integration/test_artifact_data.py::TestTheDeadline::test_a_page_past_its_budget_answers_timeout_and_commits": "'budget' names a live page's read deadline, answered as a timeout, not a spend cap or a refusal",
@@ -161,6 +176,8 @@ EXEMPT: dict[str, str] = {
     "tests/test_agent_session.py::TestTellingThePersonWhoLeft::test_a_turn_that_parked_on_an_approval_says_nothing_more": "a parked turn sends no away notice; notification wording, no approval decision",
     "tests/test_agent_session.py::TestATurnThatDidNotFinish::test_a_budget_stop_says_why_the_answer_stopped": "surfaces an error frame explaining the budget stop, display, no enforcement",
     "tests/test_agent_spec_and_factory.py::TestBudgetComposition::test_an_agent_with_no_budget_under_an_uncapped_org_is_unlimited": "no budget under an uncapped org yields no limit, config, no refusal",
+    "tests/test_agent_spec_and_factory.py::TestSpecContract::test_an_mcp_binding_stored_before_per_tool_approval_dumps_unchanged": "a stored binding re-dumps byte for byte, compatibility, no refusal",
+    "tests/test_agent_spec_and_factory.py::TestSpecContract::test_per_tool_mcp_approval_is_stored_sorted_and_only_where_decided": "how per-tool approval is serialized, format, no refusal",
     "tests/test_agent_spec_and_factory.py::TestBudgetComposition::test_budgets_are_decimal_not_float": "budgets are stored as exact Decimal, precision, no refusal",
     "tests/test_agent_templates.py::TestWhatAManifestMayCarry::test_a_budget_that_is_not_a_number_is_dropped_rather_than_guessed": "a non-numeric template budget is dropped, manifest parsing, no security refusal",
     "tests/test_capability_edges.py::TestFactoryHelpers::test_a_float_budget_becomes_an_exact_decimal": "a float budget becomes an exact Decimal, precision helper, no refusal",
@@ -235,6 +252,9 @@ EXEMPT: dict[str, str] = {
     "tests/test_workflow_joins.py::test_a_condition_comparison_without_a_budget_is_exact": "Budget names the bounded graph-analysis work, not a financial spend cap.",
     "tests/test_workflow_run_status.py::test_an_approval_wait_outranks_a_running_sibling": "Approval names the run status being prioritized; reporting, no refusal.",
     "tests/test_workflow_run_status.py::test_a_retry_wait_outranks_a_running_sibling_but_not_an_approval": "Approval names the run status being prioritized; reporting, no refusal.",
+    "tests/test_tool_errors.py::test_invalid_uuid_names_the_field_and_lookup_before_approval": "'approval' names validation ordering; this tests an argument schema, not an authorization decision",
+    "tests/test_tool_errors.py::test_repeated_unknown_names_are_unavailable_without_permission_claims": "'permission' names a diagnostic wording assertion; this tests tool registration, not permission enforcement",
+    "tests/integration/test_browser_teaching_gaps.py::test_a_step_that_would_overflow_the_byte_budget_pauses_capture": "byte budget for teaching capture, not a cost/limit refusal",
 }
 
 

@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { toast } from "sonner";
 
 import { LoginForm } from "./login-form";
 import { PublicConfigProvider } from "@/components/public-config/public-config-provider";
@@ -15,8 +16,9 @@ vi.mock("@/lib/api-client", async () => {
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 // The query the page was opened with, which a test sets before mounting.
 const query = vi.hoisted(() => ({ current: new URLSearchParams() }));
+const push = vi.hoisted(() => vi.fn());
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), prefetch: vi.fn() }),
+  useRouter: () => ({ push, replace: vi.fn(), prefetch: vi.fn() }),
   useSearchParams: () => query.current,
   usePathname: () => "/login",
   useParams: () => ({}),
@@ -62,6 +64,34 @@ beforeEach(() => {
 });
 
 describe("signing in with a directory account", () => {
+  it("shows the MFA step and can return to the same directory credentials", async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({
+      mfa_required: true,
+      mfa_token: "directory-challenge",
+      expires_in: 300,
+    });
+    mount();
+    await openDirectoryForm();
+
+    await signIn("jdoe", "pw");
+
+    expect(await screen.findByLabelText(/code/i)).toBeEnabled();
+    expect(screen.queryByLabelText("Active Directory username")).not.toBeInTheDocument();
+    expect(toast.success).not.toHaveBeenCalled();
+    expect(push).not.toHaveBeenCalled();
+
+    await userEvent.click(screen.getByRole("button", { name: /back/i }));
+
+    expect(screen.getByLabelText("Active Directory username")).toHaveValue("jdoe");
+    expect(screen.getByLabelText("Password")).toHaveValue("pw");
+    expect(screen.getByRole("button", { name: "Login" })).toBeEnabled();
+    await userEvent.click(screen.getByRole("button", { name: "Login" }));
+    expect(await screen.findByLabelText(/code/i)).toBeEnabled();
+    expect(apiClient.post).toHaveBeenCalledTimes(2);
+    expect(toast.success).not.toHaveBeenCalled();
+    expect(push).not.toHaveBeenCalled();
+  });
+
   it("swaps the email form for a username form named after the directory", async () => {
     mount();
     await openDirectoryForm();
@@ -193,4 +223,76 @@ describe("signing in with a directory account", () => {
     expect(screen.getByLabelText("Email")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Continue with Active Directory" })).toBeVisible();
   });
+});
+
+describe("credential refusal feedback", () => {
+  it.each([false, true])(
+    "marks only rejected credentials, including directory=%s",
+    async (directory) => {
+      vi.mocked(apiClient.post).mockRejectedValue(
+        new ApiError(401, "Invalid credentials", {
+          error: {
+            code: directory ? "DIRECTORY_CREDENTIALS_REJECTED" : "AUTHENTICATION_ERROR",
+            message: "Invalid credentials",
+            details: directory ? null : { reason: "invalid_credentials" },
+          },
+        }),
+      );
+      mount();
+      if (directory) await openDirectoryForm();
+      await userEvent.type(
+        screen.getByLabelText(directory ? "Active Directory username" : "Email"),
+        directory ? "jdoe" : "ada@example.com",
+      );
+      const password = screen.getByLabelText("Password");
+      await userEvent.type(password, "retained-password");
+      await userEvent.click(screen.getByRole("button", { name: "Login" }));
+      await waitFor(() => expect(password).toHaveAttribute("aria-invalid", "true"));
+      expect(password).toHaveValue("retained-password");
+      expect(password).toHaveAccessibleDescription();
+      await userEvent.type(password, "1");
+      expect(password).toHaveAttribute("aria-invalid", "false");
+      vi.mocked(apiClient.post).mockRejectedValue(new ApiError(503, "Unavailable"));
+      await userEvent.click(screen.getByRole("button", { name: "Login" }));
+      await screen.findByRole("alert");
+      expect(password).toHaveAttribute("aria-invalid", "false");
+    },
+  );
+  it.each([false, true])(
+    "keeps a disabled-account 401 separate from the password, directory=%s",
+    async (directory) => {
+      vi.mocked(apiClient.post).mockRejectedValue(
+        new ApiError(401, "User account is disabled", {
+          error: {
+            code: "AUTHENTICATION_ERROR",
+            message: "User account is disabled",
+            details: null,
+          },
+        }),
+      );
+      mount();
+      if (directory) await openDirectoryForm();
+      await userEvent.type(
+        screen.getByLabelText(directory ? "Active Directory username" : "Email"),
+        directory ? "jdoe" : "ada@example.com",
+      );
+      const password = screen.getByLabelText("Password");
+      await userEvent.type(password, "correct-password");
+      await userEvent.click(screen.getByRole("button", { name: "Login" }));
+      await expect(screen.findByRole("alert")).resolves.toHaveTextContent(
+        "User account is disabled",
+      );
+      expect(password).toHaveAttribute("aria-invalid", "false");
+      expect(password).toHaveValue("correct-password");
+    },
+  );
+});
+
+it("describes a malformed email with its field error", async () => {
+  mount();
+  const email = screen.getByRole("textbox", { name: "Email" });
+  await userEvent.type(email, "not-an-address");
+  await userEvent.tab();
+  expect(email).toHaveAttribute("aria-invalid", "true");
+  expect(email).toHaveAccessibleDescription("Please enter a valid email address");
 });

@@ -1,12 +1,15 @@
 """Schemas for the agent registry and the tool catalog."""
 
+import hashlib
+import json
 import unicodedata
 from datetime import datetime
 from decimal import Decimal
+from enum import StrEnum
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import Field, field_validator
+from pydantic import Field, SecretStr, computed_field, field_validator
 
 from app.agents.ask_user import QuestionItem
 from app.agents.capabilities import CapabilityToolInfo
@@ -19,8 +22,11 @@ from app.agents.spec import (
     StarterTitles,
 )
 from app.core.secret_kinds import SecretRequirement
+from app.db.models.agent import AgentKind
 from app.db.models.agent_run import RunStatus
+from app.db.models.resource_grant import Visibility
 from app.schemas.base import BaseSchema
+from app.schemas.promotion_gate import PromotionOverrideRead
 from app.schemas.resource_grant import AudienceChoice
 
 # The longest a single category/tag may be, matching the `String(32)` array
@@ -146,11 +152,35 @@ class AgentRead(BaseSchema):
     id: UUID
     slug: str
     name: str
+    is_starter: bool = Field(
+        default=False, description="Listing marker for the authentic shipped AgenticOS starter."
+    )
+    setup_required: bool = Field(
+        default=False,
+        description="Listing marker for a never-published starter draft eligible for setup guidance, not execution.",
+    )
     description: str | None = None
     status: str
     visibility: str
     owner_user_id: UUID | None = None
     current_version_id: UUID | None = None
+    system_key: str | None = Field(
+        default=None,
+        description=(
+            "Set on an agent the platform seeded and starts itself - `eval_judge` for "
+            "the default eval judge. It is edited and shared like any agent."
+        ),
+    )
+    kind: AgentKind = Field(
+        default=AgentKind.AGENT,
+        description=(
+            "`judge` for an agent that grades evals, `drafter` for the one that drafts a "
+            "knowledge gap's missing content, `generator` for the one that drafts dataset "
+            "cases and `classifier` for the one that reads answers for knowledge gaps: "
+            "only the platform runs them, and the console lists them apart, without "
+            "chat, channels or delegation."
+        ),
+    )
     workflow_id: UUID | None = Field(
         default=None,
         description=(
@@ -248,9 +278,38 @@ class AgentRead(BaseSchema):
             "not a security boundary, since every create endpoint re-checks server-side."
         ),
     )
+    can_edit: bool = Field(
+        default=False,
+        description=(
+            "Whether THIS caller may edit the agent - change its draft, test it on a "
+            "dataset, stop a run of it somebody else started. Resolved per caller like "
+            "can_run: an explicit edit grant reads true where the role-level check "
+            "would say false, and a role that may edit agents reads false on one it "
+            "cannot reach. Hides controls; every edit endpoint re-checks server-side."
+        ),
+    )
+    can_publish: bool = Field(
+        default=False,
+        description=(
+            "Whether THIS caller may publish the agent - a new version, a rollback, "
+            "its embeds, exposures and environments. Resolved per caller like "
+            "can_edit, and not the same answer: a Member edits the agents they own "
+            "but publishes none. Hides controls; every publish endpoint re-checks "
+            "server-side."
+        ),
+    )
     published_capabilities: list[str] | None = Field(
         default=None,
         description="Enabled capability ids from the published version, filled by the listing. Null when unknown.",
+    )
+    published_hosted_capabilities: list[str] | None = Field(
+        default=None,
+        description=(
+            "Enabled browser/computer capabilities whose frozen published configuration "
+            "explicitly selects a supported hosted target. Empty means none; null means "
+            "not loaded. This does not verify provider health, override local chat choices, "
+            "or grant permission to run the agent."
+        ),
     )
     local_coding_agent: LocalCodingAgent | None = Field(
         default=None,
@@ -264,10 +323,10 @@ class AgentRead(BaseSchema):
     personal_coding_harness: Literal["claude_code", "codex"] | None = Field(
         default=None,
         description=(
-            "The coding agent this agent's published version runs as a private cloud task "
-            "on the initiating person's own account, or null when it runs none that way. "
-            "Filled by the listing, so the chat can offer to connect that account where "
-            "the agent needs it."
+            "The default coding harness for this agent's personal cloud tasks, or null "
+            "when it does not use personal cloud coding. Each task may choose Claude Code "
+            "or Codex with the initiating person's own enabled account. Filled by the "
+            "listing so the chat can offer both personal connection doors."
         ),
     )
     local_workspace: bool = Field(
@@ -279,6 +338,7 @@ class AgentRead(BaseSchema):
             "before its first run. Filled by the listing."
         ),
     )
+    personal_model_key: bool = False
     published_model: PublishedModel | None = Field(
         default=None,
         description=(
@@ -298,6 +358,9 @@ class AgentRead(BaseSchema):
             "with none. Filled by the listing, same bargain as shared_user_count."
         ),
     )
+    show_starters: bool = Field(
+        default=True, description="Whether the published agent offers chat openers."
+    )
     starter_titles: StarterTitles = Field(
         default_factory=dict,
         description="Published opener card titles keyed by starter text; the message is their description.",
@@ -310,10 +373,48 @@ class AgentRead(BaseSchema):
     updated_at: datetime | None = None
 
 
+def agent_draft_revision(spec: AgentSpec) -> str:
+    """An opaque content revision, including changes made outside the Builder.
+
+    Normalize stored specs through AgentSpec before hashing, so omitted defaults
+    and JSON object ordering do not create conflicts on an unchanged draft.
+    """
+    content = json.dumps(spec.model_dump(mode="json"), sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(content.encode()).hexdigest()
+
+
 class AgentDetail(AgentRead):
-    """An agent plus the spec currently being edited."""
+    """An agent plus its draft, with the listing's same resource access hints.
+
+    Views additionally gate configuration by lifecycle and workflow ownership.
+    """
 
     draft_spec: AgentSpec
+    can_review_shipped_update: bool = False
+
+    @computed_field
+    @property
+    def draft_revision(self) -> str:
+        """Opaque revision to send as expected_revision when saving this draft."""
+        return agent_draft_revision(self.draft_spec)
+
+
+class ShippedAgentChange(BaseSchema):
+    """One field replaced in the saved draft or the version serving live traffic."""
+
+    version: Literal["draft", "published"]
+    field: str
+    before: str
+    after: str
+
+
+class ShippedAgentUpdate(BaseSchema):
+    revision: str
+    changes: list[ShippedAgentChange]
+
+
+class ApplyShippedAgentUpdate(BaseSchema):
+    expected_revision: str = Field(min_length=64, max_length=64)
 
 
 class AgentCeiling(BaseSchema):
@@ -355,6 +456,22 @@ class AgentList(BaseSchema):
     )
 
 
+SystemAgentKindLiteral = Literal["judge", "drafter", "generator", "classifier", "improver"]
+
+
+class SystemAgentCreate(BaseSchema):
+    """A system agent of the organization's own, made from its kind's definition."""
+
+    kind: SystemAgentKindLiteral = Field(
+        description="Which kind of system agent to create and pick where it runs"
+    )
+    name: str = Field(min_length=1, max_length=128)
+    model_profile_id: UUID | None = Field(
+        default=None, description="The model it runs on; the organization's oldest if omitted"
+    )
+    visibility: Visibility = Field(default=Visibility.ORG)
+
+
 class AgentCreate(AudienceChoice):
     """Create an agent from a spec. The handle is derived from the name."""
 
@@ -383,8 +500,30 @@ class AgentCreate(AudienceChoice):
         return normalize_labels_strict(v)
 
 
+class AgentDraftRevision(BaseSchema):
+    """The current draft token, available to callers authorized to edit it."""
+
+    draft_revision: str
+
+
 class AgentDraftUpdate(BaseSchema):
     spec: AgentSpec
+    expected_revision: str = Field(
+        pattern=r"^[0-9a-f]{64}$",
+        description="draft_revision from the draft this edit is based on; stale edits return 409",
+    )
+
+
+class AgentDraftDiscard(BaseSchema):
+    """Discard against both the draft and publication the editor confirmed."""
+
+    expected_revision: str = Field(
+        pattern=r"^[0-9a-f]{64}$",
+        description="Revision of the draft being discarded; a stale revision returns 409.",
+    )
+    expected_version_id: UUID = Field(
+        description="Latest published version shown at confirmation; a newer publication returns 409."
+    )
 
 
 class AgentAvatarColorRequest(BaseSchema):
@@ -499,6 +638,13 @@ class AgentVersionRead(BaseSchema):
         ),
     )
     created_at: datetime | None = None
+    overrides: list[PromotionOverrideRead] = Field(
+        default_factory=list,
+        description=(
+            "Each time this version was promoted onto an environment past eval suites "
+            "that had not passed on it - who, why, and each suite's state then"
+        ),
+    )
 
 
 class AgentVersionDetail(AgentVersionRead):
@@ -599,6 +745,7 @@ class AgentSpecImport(BaseSchema):
     """Import a spec written by hand or exported from another deployment."""
 
     yaml: str = Field(min_length=1)
+    expected_revision: str = Field(pattern=r"^[0-9a-f]{64}$")
 
 
 class CapabilityToolContract(BaseSchema):
@@ -630,6 +777,14 @@ class CapabilityCatalogEntry(BaseSchema):
     description: str
     side_effecting: bool = Field(
         description="The default answer for every tool below: gate it unless waived"
+    )
+    read_only: bool = Field(
+        default=False,
+        description=(
+            "The default answer for every tool below in an eval: run it on the normal "
+            "connections. False means it writes, and an eval blocks it unless the "
+            "environment gives it a test connection"
+        ),
     )
     tools: list[CapabilityToolInfo] = Field(
         description=(
@@ -768,17 +923,57 @@ class McpCatalog(BaseSchema):
     )
 
 
+class PlatformToolGroup(StrEnum):
+    """What a platform tool works on, as the Builder groups the tools.
+
+    Declared order is the order the Builder shows the groups in.
+    """
+
+    TABLES = "tables"
+    TASKS = "tasks"
+    WORKFLOWS = "workflows"
+    AGENTS = "agents"
+    KNOWLEDGE = "knowledge"
+    SKILLS = "skills"
+    PROJECTS = "projects"
+    AUTOMATIONS = "automations"
+    APPS = "apps"
+    RUNS = "runs"
+    CONNECTIONS = "connections"
+    ACCOUNT = "account"
+    ADMINISTRATION = "administration"
+
+
 class PlatformMcpTool(BaseSchema):
     name: str = Field(description="The tool's name on the platform's MCP server")
     description: str = Field(description="The first line of what the model reads")
+    group: PlatformToolGroup = Field(description="What the tool works on")
     writes: bool = Field(
-        description="Whether it changes something - held for approval under `approval: writes`"
+        description="Whether it changes persisted state; approval defaults are declared separately"
     )
     ungated: bool = Field(
         default=False,
         description=(
             "Whether it runs without approval under every policy - a write that changes "
             "only the caller's own preference, such as the console's language"
+        ),
+    )
+    default_approval_free: bool = Field(
+        default=False,
+        description=(
+            "Whether an authorized write runs under the default writes policy without confirmation; "
+            "an explicit per-tool required or binding all policy still asks"
+        ),
+    )
+    conditional_approval: bool = Field(
+        default=False,
+        description="Whether a task write still asks when it may start or reschedule agent work",
+    )
+    always_asks: bool = Field(
+        default=False,
+        description=(
+            "Whether every binding asks before it, whatever the binding or the tool's own "
+            "approval says; every call requires a fresh human confirmation"
         ),
     )
     held: bool = Field(
@@ -879,6 +1074,27 @@ class ParkedCall(BaseSchema):
         default=None,
         description="Which account of an MCP service the call acts as, where that is a question.",
     )
+    content_hidden: bool = Field(
+        default=False,
+        description="As `ApprovalRead.content_hidden`: what the call quotes was left out for this caller.",
+    )
+    always_asks: bool = Field(
+        default=False,
+        description=(
+            "As `ApprovalRead.always_asks`. With `content_hidden`, the caller may reject the "
+            "call but not approve it"
+        ),
+    )
+    can_decide: bool = Field(
+        default=False,
+        description=(
+            "Whether this caller may decide this call: a privileged decider, "
+            "or the person who started the run, from a signed-in session. "
+            "A surface shows its buttons only on this, so a member reading "
+            "somebody else's parked run is never offered a decision the API "
+            "would refuse."
+        ),
+    )
 
 
 class ParkedQuestion(BaseSchema):
@@ -888,6 +1104,57 @@ class ParkedQuestion(BaseSchema):
     questions: list[QuestionItem] = Field(
         description="The questions, as the console's question card draws them."
     )
+
+
+class ParkedSecretRequest(BaseSchema):
+    """A `request_secret` call a run is waiting on its person to answer (#13)."""
+
+    tool_call_id: str = Field(description="The call to answer, which is what a client posts.")
+    secret_name: str = Field(description="The name the secret will be stored under.")
+    what_for: str = Field(description="What the secret is for, in the agent's own words.")
+    kind: str = Field(default="api_key", description="The shape of the credential.")
+
+
+class SecretRequestRead(BaseSchema):
+    """One secret request, as the card draws it. Never carries the value."""
+
+    id: UUID = Field(description="The request to fulfil or decline.")
+    run_id: UUID
+    tool_call_id: str = Field(description="The call that raised the request.")
+    secret_name: str
+    kind: str
+    what_for: str
+    status: str = Field(description="pending, fulfilled, declined or expired.")
+    fulfilled_secret_id: UUID | None = Field(
+        default=None, description="The secret the fulfil created, once there is one."
+    )
+    fulfilled_hint: str | None = Field(
+        default=None, description="The stored secret's last four characters, once fulfilled."
+    )
+    created_at: datetime | None = None
+    decided_at: datetime | None = None
+
+
+class SecretRequestFulfil(BaseSchema):
+    """The value for a secret request, posted from the card (#13).
+
+    `SecretStr` so the value is masked in any repr or log line that ever
+    carries this object: the fulfil endpoint seals it and drops it, and
+    nothing after this schema holds it.
+    """
+
+    value: SecretStr = Field(
+        min_length=1,
+        max_length=8192,
+        description="The secret value, sealed into the vault on fulfil and never stored or returned.",
+    )
+
+    @field_validator("value", mode="after")
+    @classmethod
+    def _single_line_value(cls, value: SecretStr) -> SecretStr:
+        if "\n" in value.get_secret_value() or "\r" in value.get_secret_value():
+            raise ValueError("The secret must be a single line")
+        return value
 
 
 class QuestionAnswers(BaseSchema):
@@ -910,6 +1177,8 @@ class RunStep(BaseSchema):
         description="The provider's id for the call, so a surface can match it to a step it drew."
     )
     tool_name: str
+    tool_id: str | None = None
+    presentation_kind: Literal["draft", "generic", "platform"] | None = None
     args: dict[str, Any] = Field(default_factory=dict)
     result: str | None = Field(
         default=None,
@@ -1061,6 +1330,10 @@ class AgentTemplateRead(BaseSchema):
 
     key: str = Field(description="`<industry>/<folder>`, how an install request names it")
     name: str
+    slug: str
+    avatar_url: str | None = Field(
+        default=None, description="Bundled PNG as a data URL, if present"
+    )
     description: str
     capabilities: list[str] = Field(description="Capability ids it switches on")
     skills: list[str] = Field(description="Gallery keys installed with it, if missing")

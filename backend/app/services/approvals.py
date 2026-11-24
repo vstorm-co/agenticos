@@ -12,6 +12,7 @@ the model cannot change its mind between asking and acting.
 """
 
 import logging
+from collections.abc import Sequence
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from typing import Any, Final, Literal
@@ -20,12 +21,13 @@ from uuid import UUID
 from pydantic_ai_harness.ask_user import TIMED_OUT
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.capabilities.approval import private_approval_fields
 from app.agents.capabilities.channel_tools._directory import ChannelDestination
 from app.core.audit import current_impersonator, record_audit
 from app.core.background import spawn_after_commit
 from app.core.config import settings
 from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
-from app.core.permissions import AuthContext, Perm
+from app.core.permissions import AuthContext, Perm, Scope
 from app.db.models.agent_run import (
     CHANNEL_SURFACES,
     AgentRun,
@@ -34,18 +36,29 @@ from app.db.models.agent_run import (
     RunSurface,
     ToolApproval,
 )
-from app.repositories import agent_run_repo, channel_prompt_repo, organization_repo, voice_call_repo
+from app.db.models.secret_request import SecretRequestStatus
+from app.repositories import (
+    agent_repo,
+    agent_run_repo,
+    channel_prompt_repo,
+    organization_repo,
+    secret_request_repo,
+    voice_call_repo,
+)
 from app.repositories import workflow_run as workflow_run_repo
 from app.repositories.agent_run import ApprovalFilters, ApprovalRow
 from app.schemas.agent_run import ToolConsentRead
+from app.services.approval_authority import may_decide_approval
 from app.services.channels.handback import (
     EXPIRED_NOTICE,
     STRANDED_NOTICE,
     ChatNotice,
     chat_destination,
     decided_by_a_person,
+    question_nudge_notice,
 )
 from app.services.channels.handback_jobs import queue_notices
+from app.services.notifications import NotificationService
 from app.services.outcome import OutcomeService
 from app.services.transcript import TranscriptService
 from app.services.workflow_execution.approval_wake import wake_after_approval_decision
@@ -73,6 +86,10 @@ def _parked_tool_call_ids(run: AgentRun) -> list[str]:
     return list(parked.values())
 
 
+def _own_run(ctx: AuthContext, run_user_id: UUID | None) -> bool:
+    return ctx.user_id is not None and ctx.api_key_id is None and run_user_id == ctx.user_id
+
+
 def _notice(run: AgentRun, destination: ChannelDestination, text: str) -> ChatNotice:
     return ChatNotice(
         organization_id=run.organization_id, run_id=run.id, destination=destination, text=text
@@ -81,6 +98,16 @@ def _notice(run: AgentRun, destination: ChannelDestination, text: str) -> ChatNo
 
 def _hours(span: timedelta) -> str:
     return f"{int(span.total_seconds() // 3600)}h"
+
+
+def withhold(
+    fields: frozenset[str], *, tool_args: dict[str, Any], context: dict[str, str] | None
+) -> tuple[dict[str, Any], dict[str, str] | None]:
+    """A parked call's arguments and context without the keys only its run's readers see."""
+    kept = {key: value for key, value in tool_args.items() if key not in fields}
+    if context is None:
+        return kept, None
+    return kept, {key: value for key, value in context.items() if key not in fields}
 
 
 class ApprovalService:
@@ -104,6 +131,7 @@ class ApprovalService:
         subagent_name: str | None = None,
         subagent_agent_id: UUID | None = None,
         standing_consent_by: UUID | None = None,
+        always_asks: bool = False,
     ) -> ToolApproval:
         """Park a tool call until a human decides - or record one already decided.
 
@@ -139,6 +167,8 @@ class ApprovalService:
                 distinguishable from an agent that was never gated - that
                 distinction is the audit trail (#925). `None` is every other
                 approval: pending, waiting for somebody.
+            always_asks: Whether only a person's answer to this call could let it
+                run, which also means it can never be remembered.
         """
         approval = await agent_run_repo.create_approval(
             self.db,
@@ -154,6 +184,7 @@ class ApprovalService:
             subagent_name=subagent_name,
             subagent_agent_id=subagent_agent_id,
             standing_consent_by=standing_consent_by,
+            always_asks=always_asks,
         )
         logger.info(
             "Approval %s requested for tool %s on run %s (delegate: %s)",
@@ -183,7 +214,15 @@ class ApprovalService:
         acts on, and the decided list is the same rows read as an accountability
         trail - which is why it comes back with the decider's name and no way to
         decide again.
+
+        A caller holding `approvals:decide` only at `OWN` sees their own runs'
+        approvals and nothing else: the scope answers which rows of the
+        organization's queue are theirs, and the filter below is forced rather
+        than defaulted, so a `triggered_by_user_id` naming somebody else is
+        overwritten rather than honoured.
         """
+        if ctx.scope_for(Perm.APPROVALS_DECIDE) is Scope.OWN:
+            filters = replace(filters or ApprovalFilters(), triggered_by_user_id=ctx.user_id)
         rows, total = await agent_run_repo.list_approvals(
             self.db,
             organization_id=ctx.organization_id,
@@ -195,8 +234,77 @@ class ApprovalService:
         person = decided_by_a_person(ctx)
         return [
             replace(row, continues_in_chat=True) if person and row.parked_in_chat else row
-            for row in rows
+            for row in await self.as_read_by(ctx, rows)
         ], total
+
+    async def as_read_by(self, ctx: AuthContext, rows: Sequence[ApprovalRow]) -> list[ApprovalRow]:
+        """Each row as this reader may read it.
+
+        The queue is the organization's, but a call such as `share_memory` quotes
+        what the run's person reads. Its private keys stay for somebody who may see
+        the run - the person whose run it is, or a reader of every run who may view
+        the agent - and are left out for everyone else, with `content_hidden` set.
+        """
+        private = {
+            row.id: fields
+            for row in rows
+            if (fields := private_approval_fields(row.capability_tool_id))
+        }
+        if not private:
+            return list(rows)
+        blind = await self._agents_whose_runs_are_hidden(
+            ctx,
+            {
+                row.agent_id
+                for row in rows
+                if row.id in private and not _own_run(ctx, row.triggered_by_user_id)
+            },
+        )
+        read: list[ApprovalRow] = []
+        for row in rows:
+            if (
+                row.id in private
+                and row.agent_id in blind
+                and not _own_run(ctx, row.triggered_by_user_id)
+            ):
+                tool_args, context = withhold(
+                    private[row.id], tool_args=row.tool_args, context=row.context
+                )
+                row = replace(row, tool_args=tool_args, context=context, content_hidden=True)
+            read.append(row)
+        return read
+
+    async def hidden_fields(self, ctx: AuthContext, approval: ToolApproval) -> frozenset[str]:
+        """The keys of one approval this reader may not see; empty when they may see it all."""
+        fields = private_approval_fields(approval.capability_tool_id)
+        if not fields:
+            return frozenset()
+        run = await agent_run_repo.get_run(
+            self.db, approval.run_id, organization_id=ctx.organization_id
+        )
+        if run is not None and _own_run(ctx, run.user_id):
+            return frozenset()
+        blind = await self._agents_whose_runs_are_hidden(ctx, {approval.agent_id})
+        return fields if approval.agent_id in blind else frozenset()
+
+    async def _agents_whose_runs_are_hidden(
+        self, ctx: AuthContext, agent_ids: set[UUID]
+    ) -> set[UUID]:
+        from app.services.access import AGENT, resolve_access
+
+        if not agent_ids:
+            return set()
+        if ctx.scope_for(Perm.RUNS_VIEW) is not Scope.ALL:
+            return agent_ids
+        agents = await agent_repo.get_many(
+            self.db, list(agent_ids), organization_id=ctx.organization_id
+        )
+        return {
+            agent_id
+            for agent_id in agent_ids
+            if (agent := agents.get(agent_id)) is None
+            or not await resolve_access(self.db, ctx, agent, Perm.AGENTS_VIEW, resource_type=AGENT)
+        }
 
     async def decide(
         self,
@@ -215,6 +323,11 @@ class ApprovalService:
         refuses it while the call is live (#54).
 
         Raises:
+            AuthorizationError: If the caller may not decide this run - neither
+                a privileged decider nor the person who started it, from a
+                signed-in web/chat session - or if this is an approval of a
+                call that only a person's answer may let run, by somebody who
+                may not see what it quotes.
             NotFoundError: If the approval is not in this organization.
             BadRequestError: If it was already decided. Deciding twice would
                 make the audit trail ambiguous about who authorised the action.
@@ -228,6 +341,25 @@ class ApprovalService:
             raise NotFoundError(
                 message="Approval not found", details={"approval_id": str(approval_id)}
             )
+        # The route carries no gate - a per-resource route cannot see which run
+        # the row belongs to - so this is the enforcement point, for every
+        # caller but the voice bridge (`via_call`): a privileged decider may
+        # decide any run, anybody else only a run they started, from a
+        # signed-in web/chat session. Checked before the already-decided
+        # refusal, so a caller who may not decide this run learns nothing
+        # about its state.
+        if not via_call:
+            run = await agent_run_repo.get_run(
+                self.db, approval.run_id, organization_id=ctx.organization_id
+            )
+            if not may_decide_approval(ctx, run):
+                raise AuthorizationError(
+                    message=(
+                        "Only the person who started this run, or somebody who may "
+                        "decide approvals, may decide it"
+                    ),
+                    details={"approval_id": str(approval_id)},
+                )
         if approval.status != ApprovalStatus.PENDING.value:
             raise BadRequestError(
                 message=f"This request was already {approval.status}",
@@ -239,14 +371,32 @@ class ApprovalService:
                 details={"approval_id": str(approval_id)},
             )
 
+        # This namespace is reserved for the platform; MCP tools are not capability aliases.
+        if approved and approval.tool_id == "agenticos_change_deployment" and not ctx.is_app_admin:
+            raise AuthorizationError(
+                message="An application administrator must approve this deployment change"
+            )
+        if approved and approval.always_asks and await self.hidden_fields(ctx, approval):
+            raise AuthorizationError(
+                message=(
+                    "Only somebody who can see the run this call came from may approve it; "
+                    "you may reject it"
+                ),
+                details={"approval_id": approval_id},
+            )
         if remember_scope is not None:
             if not approved or via_call or approval.subagent_name is not None:
                 raise BadRequestError(
                     message="Remembered approval requires approving this agent's own chat tool"
                 )
-            run = await agent_run_repo.get_run(
-                self.db, approval.run_id, organization_id=ctx.organization_id
-            )
+            if approval.always_asks:
+                raise BadRequestError(
+                    message="This tool asks every time, so its approval cannot be remembered",
+                    details={"approval_id": approval_id, "tool_id": approval.tool_id},
+                )
+            # The run the authorization above already loaded: a remembered
+            # approval is only ever for the decider's own web run, which is
+            # what `can_remember_in_run` checks.
             if not self.can_remember_in_run(ctx, run) or not await self._may_remember(ctx):
                 raise AuthorizationError(message="This chat cannot remember tool approvals")
             approval.remember_scope = remember_scope
@@ -518,12 +668,32 @@ class ApprovalService:
         for run in claimed:
             if run is None or run.status != RunStatus.AWAITING_ANSWER.value:
                 continue
+            if (run.paused_state or {}).get("question_results"):
+                continue
             destination = chat_destination(run)
             if destination is not None:
                 await channel_prompt_repo.settle_open(self.db, run_id=run.id, by="expired")
             questions: list[str] = (run.paused_state or {}).get("questions", [])
+            secret_requests: list[str] = (run.paused_state or {}).get("secret_requests", [])
             await TranscriptService(self.db).record(
-                run, prompt=None, answer="", settled=dict.fromkeys(questions, TIMED_OUT)
+                run,
+                prompt=None,
+                answer="",
+                settled=dict.fromkeys([*questions, *secret_requests], TIMED_OUT),
+            )
+            for row in (
+                await secret_request_repo.list_for_run(
+                    self.db, run_id=run.id, organization_id=run.organization_id
+                )
+                if secret_requests
+                else []
+            ):
+                if row.status == SecretRequestStatus.PENDING:
+                    await secret_request_repo.mark_expired(self.db, request=row)
+            error = (
+                f"No answer within {settings.QUESTION_EXPIRY_HOURS}h - the secret request expired"
+                if secret_requests and not questions
+                else f"No answer within {settings.QUESTION_EXPIRY_HOURS}h - the question expired"
             )
             await agent_run_repo.finish_run(
                 self.db,
@@ -534,16 +704,79 @@ class ApprovalService:
                 cost_usd=run.cost_usd,
                 cost_is_partial=run.cost_is_partial,
                 ended_at=now,
-                error=f"No answer within {settings.QUESTION_EXPIRY_HOURS}h - the question expired",
+                error=error,
                 paused_state=None,
             )
             if destination is not None:
                 notices.append(_notice(run, destination, EXPIRED_NOTICE))
+            if run.surface == RunSurface.WORKFLOW.value:
+                spawn_after_commit(
+                    self.db,
+                    wake_after_approval_decision(run.id, organization_id=run.organization_id),
+                    name="workflow-question-expiry-wake",
+                )
             ended += 1
         await self._tell_chats(notices)
         if ended:
             logger.info("Question sweep: ended %d unanswered run(s)", ended)
         return ended
+
+    async def nudge_unanswered(self) -> int:
+        """Remind the chat once about an `ask_user` question nobody answered.
+
+        Halfway through the question window (`QUESTION_NUDGE_HOURS` into
+        `QUESTION_EXPIRY_HOURS`): early enough to act on, late enough not to
+        nag a person who just stepped away. One reminder per park - the run
+        is stamped `question_nudged_at`, and the stamp is what stops the next
+        hourly sweep sending it again. A run answered since the list was read
+        is left to its answer, and a run with no chat destination gets no
+        notice: the web console has no channel to post one to, and what tells
+        its person is the waiting state the run already shows there, not a
+        second message in a room nobody is in.
+
+        Returns:
+            How many runs were reminded.
+        """
+        now = datetime.now(UTC)
+        listed = await agent_run_repo.list_unnudged_runs(
+            self.db,
+            older_than=now - timedelta(hours=settings.QUESTION_NUDGE_HOURS),
+            younger_than=now - timedelta(hours=settings.QUESTION_EXPIRY_HOURS),
+        )
+        # The run before anything else, in id order, as `expire_unanswered`
+        # takes it: a press that answered the question since the list was read
+        # is waited for here, and the run is then left to it.
+        claimed = [
+            await agent_run_repo.claim_parked_run(self.db, run_id, organization_id=organization_id)
+            for run_id, organization_id in sorted({(run.id, run.organization_id) for run in listed})
+        ]
+        nudged = 0
+        notices: list[ChatNotice] = []
+        for run in claimed:
+            if run is None or run.status != RunStatus.AWAITING_ANSWER.value:
+                continue
+            if (run.paused_state or {}).get("question_results"):
+                continue
+            # A run parked only on a secret gets no question nudge: the
+            # reminder names a question nobody asked, and the Runs view
+            # already shows the secret it is waiting on (#13).
+            paused = run.paused_state or {}
+            if paused.get("secret_requests") and not paused.get("questions"):
+                continue
+            if run.question_nudged_at is not None:
+                continue
+            destination = chat_destination(run)
+            if destination is None:
+                continue
+            remaining = settings.QUESTION_EXPIRY_HOURS - settings.QUESTION_NUDGE_HOURS
+            notices.append(_notice(run, destination, question_nudge_notice(remaining)))
+            await agent_run_repo.record_question_nudge(self.db, run=run, at=now)
+            nudged += 1
+        if notices:
+            await self._tell_chats(notices)
+        if nudged:
+            logger.info("Question sweep: reminded %d run(s) about an unanswered question", nudged)
+        return nudged
 
     async def end_stranded(self) -> int:
         """End the channel runs a decision was recorded on and nothing continued (#2656).
@@ -711,6 +944,22 @@ class ApprovalService:
         )
         if destination is not None:
             notices.append(_notice(run, destination, EXPIRED_NOTICE))
+        else:
+            # No chat to tell: a web-console run's owner gets no proactive
+            # notice today - the run row just reads `cancelled`. Tell them
+            # through the centre instead, with the reason and the run to retry
+            # it from. A chat run's owner already heard it in the chat, so
+            # this is the web half only, not a second notice.
+            agent = await agent_repo.get(self.db, run.agent_id, organization_id=organization_id)
+            await NotificationService(self.db).approval_expired(
+                run,
+                agent=agent,
+                approvals=[
+                    approval
+                    for approval in approvals
+                    if approval.status == ApprovalStatus.EXPIRED.value
+                ],
+            )
         # A workflow node parked on this run wakes the same way a decision
         # wakes it (#1788): its handler sees the run ended and fails the node,
         # instead of the node waiting for ever on a run nothing will resume.

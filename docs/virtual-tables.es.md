@@ -1,8 +1,10 @@
 ---
-source_sha: "96494123ddae"
+source_sha: "2297a17a854b"
 ---
 
 # Virtual Tables { #virtual-tables }
+
+Elige el icono de una tabla junto a su nombre en la vista de detalle. La tarjeta del catálogo y la fila del dashboard usan el mismo símbolo. **Usar icono predeterminado** lo restablece; no cambian columnas, registros ni versiones del esquema. El control respeta el acceso de administración, incluidas las restricciones de los tableros de tareas.
 
 Una **virtual table** es una tabla tipada de registros que una organización mantiene
 para sus agents, [workflows](workflows.md) e integraciones: pedidos por conciliar, archivos por
@@ -53,6 +55,27 @@ llegan a la respuesta. `null` conserva el registro completo; `[]` devuelve solo
 metadatos. Las columnas calculadas se evalúan antes de la proyección, sin tener que
 seleccionar sus dependencias. Los mismos registros aparecen inmediatamente en la
 consola; el trigger de la tabla se ejecuta de forma asíncrona sin retrasar el CRUD.
+
+## Aislamiento de organizaciones en la base de datos { #database-tenant-isolation }
+
+Las tablas lógicas permanecen en la base de datos PostgreSQL del despliegue. La
+migración RLS instala las políticas sin activarlas; el operador las activa después
+de actualizar todos los procesos de API y workers y esperar a que terminen sus
+operaciones. Una vez activadas, las operaciones normales vinculan el ID de la
+organización autenticada a la transacción actual. Sin contexto no se muestran
+filas de Tables, y una transacción no puede cambiar de organización. El límite
+incluye esquemas, registros, historial, archivos multimedia, vistas, recibos de
+operaciones, triggers, enlaces normalizados y permisos compartidos de Tables.
+
+El servicio sigue aplicando los permisos Read/Write de tablas y filas. La
+exportación y eliminación global de una cuenta usan una conexión de mantenimiento
+configurada por separado, después de autenticar y comprobar de nuevo la autoridad.
+Eliminar una membresía de organización elimina en cascada los permisos de Tables
+de esa persona en la misma transacción, incluso durante cambios de directorio que
+abarcan varias organizaciones. Los demás tipos de recursos conservan sus reglas
+de autorización. La [guía de transición para operadores](https://github.com/t3grp/agenticos/blob/t3/docs/plans/table-tenant-cutover.md)
+describe la separación de credenciales, la comprobación previa, la activación y
+la reversión.
 
 ## Cómo se construye una tabla { #how-a-table-is-built }
 
@@ -138,12 +161,95 @@ una elección por su etiqueta. Un `rollup` calcula algo a partir de ellos:
 guardan, escriben, filtran ni ordenan.
 
 Lo que muestra una búsqueda no llega más allá de lo que su lector puede ver: una
-tabla enlazada que el lector no ve deja los enlaces sin nombre y vacía cada
-búsqueda y resumen a través de ellos. Un enlace conserva su tabla para siempre.
+tabla enlazada que el lector no ve deja vacíos los enlaces, las búsquedas y los
+resúmenes. También se aplica la política de filas del destino: los IDs de enlace sin procesar en `values`
+y las etiquetas en `links` incluyen solo registros legibles. Los campos de enlace
+archivados se omiten de los valores devueltos.
+
+Un enlace conserva su tabla para siempre.
 Una búsqueda lee una columna con valores, no otro enlace ni otra búsqueda, y
 archivar una columna de enlace se rechaza mientras algo lea a través de ella. Una
 exportación escribe un enlace con los nombres de sus registros y una búsqueda con
 lo que leyó.
+
+Los filtros de enlaces usan esos mismos destinos legibles. `contains` nunca
+coincide con un destino inaccesible o eliminado; `is_null: true` significa que no
+hay ningún destino legible, aunque se conserven enlaces ocultos. Listas, recuentos,
+exportaciones y consultas de páginas aplican esta condición antes de paginar.
+El array devuelto es el subconjunto visible para quien consulta. Sustituirlo desde
+un cliente antiguo conserva los enlaces existentes que el usuario no puede leer;
+editar otro campo conserva todos los enlaces.
+
+Cada ID de enlace enviado explícitamente debe ser legible, aunque ya esté
+enlazado o no cambie la fila. Un ID oculto se rechaza igual que uno desconocido.
+Solo se conservan en nombre del usuario los enlaces ocultos que este omite.
+
+Una política de filas almacenada que sea inválida bloquea la lectura y escritura
+de registros con `ROW_POLICY_INVALID` (409), sin desactivar la política. Los
+usuarios autorizados aún pueden leer los metadatos, que indican
+`row_policy_valid: false`, y un editor autorizado de la tabla puede repararla
+mediante `PUT /tables/{id}/row-policy`. Hasta entonces, un destino con una política
+inválida no proporciona registros enlazados ni acceso heredado de un proyecto.
+
+### Límites de relaciones y enlaces inversos { #relationship-limits-and-backlinks }
+
+Un campo de enlace acepta `link_limit` de 1 a 100. Omitirlo conserva el límite de
+un campo existente o usa 100 para uno nuevo. Se cuentan todos los destinos
+válidos almacenados, incluidos los ocultos para quien escribe. No se permite
+reducirlo hasta que las filas existentes cumplan el límite. Con 1, cada fila de
+origen admite un destino; varias filas pueden seguir apuntando al mismo destino.
+
+Las conexiones mantienen su orden y vinculan ambos extremos a las tablas
+declaradas de la misma organización. Las lecturas actuales, los filtros y el
+acceso heredado de proyectos usan esas conexiones canónicas. Los valores antiguos
+inválidos se conservan como evidencia para repararlos y no conceden acceso.
+Archivar un campo conserva sus conexiones; restaurar el mismo campo las recupera.
+Eliminar un destino quita las conexiones entrantes sin cambiar las revisiones de
+origen; las instantáneas históricas conservan sus datos originales.
+
+`GET /tables/{table_id}/records/{record_id}/backlinks` lee conexiones entrantes
+desde los parámetros obligatorios `source_table_id` y `column_id`. Admite `skip`
+de 0 a 10.000 y `limit` de 1 a 100, con 50 como valor predeterminado. El destino,
+la tabla de origen y cada fila de origen deben ser legibles; se comprueba antes
+de paginar. No se puede recorrer un campo de enlace archivado. El resultado
+contiene registros de origen normales, sin un total oculto ni permisos
+adicionales para editar ninguno de los extremos.
+
+### Cambios atómicos de enlaces { #atomic-link-changes }
+
+Usa `link_changes` en `PATCH /tables/{id}/records/{record_id}` para añadir o quitar
+destinos concretos. Las claves son los UUID inmutables de las columnas de enlace;
+`add` y `remove` contienen UUID de registros de destino. El campo opcional `values`
+permite cambiar otras celdas en la misma solicitud:
+
+```json
+{
+  "expected_revision": 7,
+  "link_changes": {
+    "00000000-0000-4000-8000-000000000001": {
+      "add": ["00000000-0000-4000-8000-000000000002"],
+      "remove": ["00000000-0000-4000-8000-000000000003"]
+    }
+  }
+}
+```
+
+El registro de origen debe permitir escritura, y cada destino añadido o quitado
+explícitamente debe poder leerse actualmente en la tabla enlazada y la organización.
+Los destinos ocultos, inexistentes o de otra tabla se rechazan sin distinguirlos.
+Los enlaces existentes que no se mencionan permanecen guardados, incluidos los
+ocultos para quien edita. La celda final, incluidos los enlaces ocultos, debe seguir
+respetando el límite de 100 destinos.
+
+Una columna no puede aparecer a la vez en `values` y `link_changes`. Se rechazan
+los destinos duplicados, las coincidencias entre añadir y quitar, las columnas
+desconocidas o archivadas y los cambios en columnas que no son enlaces. Todas las
+celdas cambian en la transacción existente con una revisión, una entrada de historial,
+un evento de trigger cuando corresponde y un recibo de idempotencia. Una revisión
+antigua falla incluso sin cambios; una operación autorizada sin cambios no crea
+historial ni recibo. La cuadrícula y el panel del registro envían estos cambios
+explícitos. Tras un conflicto, **Reload and reapply** repite las mismas elecciones
+con la revisión actual y conserva otros enlaces añadidos mientras tanto.
 
 ## Fórmulas { #formulas }
 
@@ -162,6 +268,19 @@ qué le pasa. Un valor que no puede calcular - una división por cero, texto en 
 suma, una celda vacía - deja vacía la celda de ese registro. Una fórmula se
 calcula al leer el registro y nunca se guarda, escribe, filtra ni ordena.
 
+Los decimales se escriben con punto, `{Price} * 1.23`, en cualquier idioma: una
+coma separa los argumentos de una función, así que `{Price} * 1,23` se rechaza con
+esa indicación en lugar de leerse como número, y lo mismo una llamada a la que la coma da un valor de
+más, como `IF({Price} > 0,5, "yes", "no")`.
+
+El número de valores de una llamada se comprueba al guardar su
+fórmula: una guardada antes sigue funcionando, y las demás columnas de la tabla se pueden
+cambiar, hasta que alguien la edite. El rechazo da un motivo estable en
+`details.formula.reason`, como `decimal_comma` o `not_a_column`, que la consola usa
+para decirlo en el idioma de quien lee. La consola muestra los números, también el
+resultado de una fórmula, con el separador decimal de quien lee - `12,177` en
+polaco - y no agrupa un número de cuatro cifras.
+
 ## Cambiar un esquema { #changing-a-schema }
 
 `PUT /tables/{id}/schema` recibe la lista completa de columnas que debe tener la tabla y
@@ -176,8 +295,11 @@ las columnas actuales:
   entero; una fecha pasa a fecha y hora; una elección pasa a varias y vuelve cuando es
   una. Cualquier otro cambio se rechaza, igual que uno que algún valor no supera - con
   cuántos y un ejemplo, y no se escribe nada. Lo que usa la columna lo rechaza como a un
-  archivado. La revisión del registro avanza, así que una edición contra su valor
-  antiguo es un conflicto.
+  archivado. Un registro cuyo valor se lee de otra forma en el nuevo tipo pasa a una
+  nueva revisión, así que una edición contra su valor antiguo es un conflicto, y su
+  historial registra el cambio a nombre de quien lo hizo; un valor que el cambio deja
+  igual mantiene la revisión de su registro. Un cambio de tipo no dispara ningún
+  [trigger](#triggers): una edición del esquema no inicia un workflow por registro.
 - El texto pasa a una columna `email`, `url`, `phone` o `rating` cuando cada valor se
   lee como tal, y un número pasa a valoración cuando es un entero de 1 a 5. Cada una
   vuelve a texto, y una valoración también a número.
@@ -197,7 +319,7 @@ las columnas actuales:
   opciones, no cambia nada: no se añade versión y se devuelve la tabla actual. Reordenar o
   cambiar una etiqueta es un cambio.
 
-Los registros no se reescriben. Un registro escrito con la versión 1 sigue siendo legible
+Salvo un cambio de tipo, los registros no se reescriben. Un registro escrito con la versión 1 sigue siendo legible
 y editable con la versión 4; una columna obligatoria que nunca tuvo recibe su valor por
 defecto la próxima vez que se edita el registro.
 
@@ -285,6 +407,12 @@ registro de nuevo y reintenta. Un upsert que encuentra un registro existente y n
 `expected_revision` obtiene `REVISION_REQUIRED` (428), de nuevo con la revision que debe
 enviar.
 
+Se comprueba el acceso Write actual antes de revelar una revision almacenada.
+Un upsert para un external id existente pero oculto y otro para un ID nuevo que
+el usuario no puede crear devuelven `NOT_FOUND` (404), con el mismo mensaje e ID
+de tabla. Crear una fila también requiere Edit en la tabla y una política que
+permita al creador leerla; un grant Write de fila no permite crear registros.
+
 Un external id tiene de 1 a 255 caracteres y puede contener `/`, como en `2026/ORD-1`. No puede contener NUL ni un salto de línea. El servicio lo comprueba
 igual que las rutas. Por HTTP la ruta lo rechaza primero, con `VALIDATION_ERROR`; un
 llamante que usa el servicio directamente recibe `INVALID_RECORD`.
@@ -328,7 +456,8 @@ obligatorios.
 Cada edición es un `PATCH` contra la revisión que se ve en pantalla, así que una
 edición que pierde frente a un cambio más reciente se rechaza en lugar de escribirse
 encima. El registro se abre entonces con el valor rechazado junto a **Reload and
-reapply**. Marcar filas ofrece **Delete** para todas, cada una contra su propia
+reapply**, y se vuelve a leer: el campo dice qué contiene ahora, quién cambió el
+registro por última vez y cuándo, y el título del panel se actualiza. Marcar filas ofrece **Delete** para todas, cada una contra su propia
 revisión: un registro que alguien cambió entretanto se conserva, y la consola dice
 cuántos. El panel del registro elimina uno solo de la misma forma.
 
@@ -351,7 +480,11 @@ El tipo de una columna cambia en **Columns**, a los tipos a los que se convierte
 En **Columns**, **Required** hace que una columna necesite un valor, y una columna
 archivada pasa a **Archived columns**, donde **Restore** la devuelve con sus valores.
 
+Leer la comparación conserva las ediciones sin guardar de otros campos y su revisión original. Un conflicto posterior obtiene otra comparación; la respuesta de un registro cerrado no cierra otro. Los valores largos muestran una vista previa abreviada.
+
 ### Importar y exportar { #import-and-export }
+
+En la importación CSV, asigna cada columna de tabla, incluida **External id**, una sola vez. Los destinos duplicados se marcan y bloquean la importación hasta que elijas otro destino u omitas una columna del archivo.
 
 Las exportaciones leen como máximo 4 MiB de JSON descomprimido por página (o un
 registro), con hasta 500 registros por página. Una organización puede transmitir
@@ -379,18 +512,27 @@ en el tipo de su columna hace fallar su fila antes de enviar nada. El resto va d
 enumera los rechazados con sus códigos, y la consola enumera cada fila fallida con su
 línea. Cada registro añadido inicia los disparadores de la tabla, como cualquier otro.
 
-Con **External id** asignado, **Update records already here** vuelve a importar un archivo
-para poner la tabla al día: una fila cuyo id externo ya tiene la tabla cambia las celdas
-que nombra de ese registro, en lugar de rechazarse como ocupada (`update_existing` en el
-lote), y la importación cuenta lo que añadió y lo que actualizó.
+Con **External id** asignado, **Update records already here** vuelve a importar un
+archivo para poner la tabla al día: una fila cuyo id externo ya tiene la tabla cambia
+las celdas que nombra de ese registro, en lugar de rechazarse como ocupada
+(`update_existing` en el lote), y la importación cuenta lo que añadió y lo que
+actualizó.
 
-**New table** empieza con una columna **Name**. Primero indica el nombre y las columnas; la descripción y la visibilidad están en **More options**, con visibilidad privada por defecto. En su lugar puede empezar desde un
+Un registro que alguien cambió después de empezar la importación se deja como estaba y
+se lista como `REVISION_CONFLICT`: el primer lote responde `as_of`, el momento en que
+empezó según el reloj del servidor, y los demás lo devuelven. Una fila que repite un id
+externo que el archivo ya nombró se lista en lugar de enviarse, y el lote rechaza con
+`INVALID_RECORD` una fila que repite un id que ya contiene.
+
+**New table** empieza con una columna **Name**. Indica el nombre, elige quién puede verla y añade las columnas; la descripción está en **More options**. Una tabla empieza como **Only me**; **Everyone** la abre a la organización y **Some people** la comparte con los grupos y miembros que elijas, cada uno con `read`, en la misma solicitud (`group_ids` y `user_ids` en `POST /tables`). En su lugar puede empezar desde un
 archivo: **Start from a CSV file** convierte la cabecera en columnas y da a cada una el tipo más estrecho
 en que se leen todos sus valores - entero, número, sí/no, fecha, fecha y hora ISO, una dirección de correo o un enlace -
 y si no, texto, o texto largo cuando un valor tiene un salto de línea o pasa de 1.000
 caracteres. El nombre sale del archivo, y ambos se pueden cambiar antes de crear, lo
 que cuesta menos que un cambio de tipo después. Cuando la tabla existe, la importación se abre
-con cada columna ya asignada, y después se abre la tabla.
+con cada columna ya asignada, y después se abre la tabla. Cada fila debe tener el mismo número de celdas que la cabecera:
+una fila con menos o más celdas se muestra como error y se omite, y no se importa ninguno
+de sus valores.
 
 ## Reintentos seguros { #safe-retries }
 
@@ -400,7 +542,7 @@ respuesta, con `Idempotent-Replayed: true`, y no escribe nada, aunque el registr
 cambiado entretanto. La misma clave con un cuerpo distinto se rechaza con
 `IDEMPOTENCY_KEY_REUSED`.
 
-La cabecera marca un create, update o upsert repetido. Un borrado repetido responde 204
+La cabecera marca un create, update, upsert o lote repetido. Un borrado repetido responde 204
 como la primera vez y no se marca.
 
 Una clave pertenece al llamante y al tipo de escritura, así que dos llamantes pueden usar
@@ -408,14 +550,26 @@ la misma cadena y un mismo llamante puede usarla para un create y un upsert. Sol
 guardan los éxitos: una escritura rechazada no deja recibo, de modo que la corriges y
 reintentas con la misma clave.
 
-Una repetición solo se responde a un llamante que aún pueda editar la tabla. Una vez
-revocado el acceso, el mismo reintento es un 404.
+Un reintento comprueba el acceso actual a la tabla, los ámbitos de la clave API y el
+permiso Write de la fila. Revocar el acceso produce un 404 sin revelar el ID ni la revisión
+de una fila oculta. Archivar una tabla permite leer un recibo que siga autorizado, con
+indicadores de registro de solo lectura; no permite una escritura nueva. Los lotes aún
+requieren Edit en la tabla porque pueden crear registros. Sus reintentos conservan los
+recuentos y `as_of` originales, pero vuelven a comprobar las filas identificadas por IDs
+externos o detalles de errores guardados antes de devolver el informe.
 
 Un receipt dura 24 horas. Después la clave se olvida, y la misma clave con el mismo cuerpo
 es una escritura nueva: se ejecuta de nuevo en vez de devolver la primera respuesta.
 Reintenta dentro de la ventana y trata una pausa más larga como una solicitud nueva. La duración se aplica al usar la
 clave, así que se cumple a la hora exacta; el barrido diario solo recupera el espacio de los
 receipts que nadie reintentó.
+
+Al eliminar un grupo, proyecto o cuenta se purgan los receipts asociados a la tabla
+de su tablero de tareas, incluidos los resultados de lotes. Durante la actualización
+se borran los resultados de lotes antiguos sin id de tabla, porque no se puede recuperar
+su tabla asociada. Sus claves se conservan hasta caducar: un reintento con la misma
+solicitud devuelve `IDEMPOTENCY_RESULT_PURGED` (409) y no escribe nada. Comprueba la tabla
+antes de iniciar una escritura nueva. Los demás tipos de receipts no cambian.
 
 ## Listar y filtrar { #listing-and-filtering }
 
@@ -472,6 +626,8 @@ El propietario de una vista la cambia entre **Private** y **Shared** con el bot�
 junto a **Rename**. Quien gestiona la vista de otro miembro, como un administrador, no
 recibe ese interruptor: compartir los filtros de una persona es decisión suya.
 
+En el teléfono, el menú **Views** de una vista guardada permite guardar otra vista, cambiar el nombre, compartir y eliminar, con los mismos permisos que los controles de escritorio.
+
 `GET/POST /tables/{id}/views` y `GET/PATCH/DELETE /tables/{id}/views/{view_id}` las
 listan, crean, leen, actualizan y borran. La lista se pagina con `skip` y `limit`
 (como máximo 100): primero las vistas propias del llamante, luego las compartidas,
@@ -487,7 +643,7 @@ El objeto `display` conserva `column_order`, `hidden_system_columns`, `wrap_text
 |---|---|
 | `kind` | `table`, `kanban` o `list` - una vista se guarda *para* un tipo |
 | `visibility` | `private` (solo su propietario) o `shared` (cualquiera que vea la tabla) |
-| `can_manage` | Si este llamante puede renombrarla, reconfigurarla o compartirla |
+| `can_manage` | Si este llamante puede renombrarla o reconfigurarla; solo su propietario la comparte |
 | `can_delete` | Si este llamante puede borrarla |
 
 Listar, leer y borrar se resuelven contra la tabla (`tables:view`); crear o cambiar
@@ -503,6 +659,13 @@ rechaza igual que cualquier otra escritura sobre un recurso individual aquí:
 `NOT_FOUND` (404), nunca un 403 que revelaría la existencia de una vista a un
 llamante al que se le niega. `can_manage` y `can_delete` dicen cuál de las dos cosas
 puede hacer este llamante.
+
+La vista privada de otro miembro es más estrecha todavía: incluso un llamante con
+scope `ALL` solo puede borrarla, nunca cambiarla ni leerla, así que un `PATCH`
+responde `NOT_FOUND` como lo haría con una vista que no existe. Y solo el
+propietario de una vista cambia su `visibility`: a cualquier otro que envíe un
+valor distinto se le rechaza con `AUTHORIZATION_ERROR` (403), porque esa vista ya
+la tiene delante.
 
 Archivar una columna se rechaza con `SCHEMA_DEPENDENCY`, nombrando la vista, cuando
 una vista que el llamante puede ver y también cambiar aún la usa para filtrar,
@@ -578,6 +741,12 @@ valores como `fields` por etiqueta y `author_id`, y en un cambio o un borrado ta
 `before` y las columnas `changed` por etiqueta. **Triggers**, en la página de la
 tabla, enumera los workflows, pausa y reanuda cada uno y abre su historial.
 
+Pausar uno allí requiere `tables:edit` en la tabla. Reanudarlo vuelve a ejecutar el
+workflow como la persona que lo publicó, así que también requiere `workflows:edit`
+y `workflows:run` en ese workflow, como el propio interruptor **Active** del
+workflow; a un miembro que puede editar la tabla pero no el workflow se le dice que
+el workflow no existe.
+
 Un trigger solo se inicia con los registros añadidos mientras está activo. Activarlo - una
 publicación o reanudarlo - toma el bloqueo de esquema de la tabla, el que espera toda escritura de
 registros, así que ningún registro confirmado antes de ese momento lo inicia y nada de lo
@@ -637,9 +806,11 @@ escritura lo superaría.
 | `TABLES_MAX_PER_ORGANIZATION` | 200 | Tablas de una organización. Las archivadas cuentan, porque una tabla nunca se borra |
 | `TABLES_MAX_RECORDS_PER_TABLE` | 100.000 | Registros en una tabla. Actualizar un registro en una tabla llena está permitido |
 | `TABLES_MAX_RECORD_BYTES` | 1.000.000 | Los valores serializados de un registro, en bytes |
-| `TABLES_MAX_STORAGE_BYTES_PER_ORGANIZATION` | 1,073,741,824 | Bytes JSONB almacenados en PostgreSQL por organización entre registros, historial, recibos y outbox; el espacio de tablas e índices se cuenta aparte |
+| `TABLES_MAX_STORAGE_BYTES_PER_ORGANIZATION` | 1,073,741,824 | Bytes JSONB de registros, historial, recibos y outbox, bytes de imágenes y filas de definiciones de relaciones, enlaces y evidencia conservada por organización; los índices y demás sobrecarga física se cuentan aparte |
 
 El límite total se comprueba en el savepoint de la modificación, bajo un bloqueo de la organización, antes del commit. Superarlo revierte el registro y todas sus copias, también en una fila de importación; las filas restantes se informan como rechazadas. Repetir un recibo, escribir sin cambios, leer y borrar siguen funcionando tras reducir el límite. La retención libera los bytes eliminados.
+
+La creación de tablas y los cambios de esquema usan el mismo límite de almacenamiento. Un rechazo revierte conjuntamente la nueva tabla o versión del esquema, las definiciones de relaciones, los valores reescritos y su historial, y cualquier recibo nuevo de creación. La auditoría normal de la tabla se registra solo después de comprobar el almacenamiento; la auditoría independiente del rechazo por cuota permanece tras la reversión.
 
 El rechazo nombra el límite y su techo en `details` (`{"quota": "records", "limit":
 100000}`), nunca el contenido, y escribe una entrada `table.quota_refused` en el
@@ -706,6 +877,74 @@ tienen que adivinar si sus controles de edición serían rechazados. El propio
 `can_manage` y `can_delete` de una vista guardada son la misma idea, un nivel más abajo (ver
 [Vistas guardadas](#saved-views)).
 
+### Lectura y escritura de filas individuales { #row-read-write }
+
+El acceso a filas tiene dos niveles. **Read** muestra la fila y sus registros enlazados
+visibles. **Write** incluye Read y cambios en celdas normales. Write por sí solo no
+permite borrar una fila, compartirla, cambiar sus campos de acceso, crear registros ni
+modificar el esquema. Los administradores de la tabla conservan sus derechos.
+La persona sigue necesitando acceso a la tabla superior; un grant de fila por sí solo
+no abre otra tabla ni un registro enlazado.
+
+En el diálogo de uso compartido de la tabla, **Row access rules** establece el valor
+predeterminado:
+
+| Regla | Acceso de lectura | Acceso de escritura |
+|---|---|---|
+| `none` | Todos los que pueden leer la tabla | Los editores actuales de la tabla y los grants Write de fila |
+| `grants` | Un grant Read o Write vigente para la fila | Un grant Write vigente para la fila |
+| `assignee` | El campo Read, el campo Write, la membresía opcional del proyecto o un grant de fila | El campo Write o un grant Write de fila |
+
+El propietario de la tabla, los roles Owner/Admin de la organización y el administrador
+del despliegue conservan su excepción a la política. Siguen sujetos al acceso a la tabla
+y a los límites de la clave API. En modo `grants`, configure los grants antes de cambiar
+a los usuarios existentes.
+
+Crear una fila sigue requiriendo administración de la tabla. En modo `grants`, una creación
+directa que ocultaría la fila a su editor devuelve 403:
+`You do not have permission to write this row`. La creación por lotes informa
+`AUTHORIZATION_ERROR` para esa fila. Upsert devuelve el mismo 404 para un ID externo
+existente pero oculto y para una creación no permitida, sin revelar si ese ID existe.
+
+Los tableros de tareas administrados
+conservan sus propias reglas y no ofrecen estos controles.
+
+Abra una fila y elija **Row access** para añadir una persona o grupo, seleccionar Read
+o Write, fijar un vencimiento opcional, cambiar un nivel o revocar acceso. Los grants
+personales pueden ser permanentes; los de grupo vencen por defecto a los 90 días.
+Se aplican las membresías actuales de organización y grupo y los grants no vencidos.
+Prevalece el grant vigente más fuerte. Revocar un grant no elimina el acceso concedido
+por otro grant o por una regla de la tabla.
+
+Los endpoints REST están bajo `/tables/{table_id}/records/{record_id}/access`:
+
+- `GET` lista los grants explícitos para un administrador de tabla que puede leer la fila.
+- `PUT /grants` establece un único `subject_user_id` o `subject_group_id`,
+  un `level` de `read` o `write` y un `expires_at` opcional.
+- `DELETE /grants/{subject_user_id}` y
+  `DELETE /group-grants/{subject_group_id}` revocan el grant indicado.
+
+El mismo servicio protege las escrituras de consola, API, agent y workflow. Los grants
+de fila se guardan en la tabla existente `resource_grants` bajo `table_record`;
+solo allí, el `write` de la API se guarda como `edit`. Nunca se convierte en
+administración de tablas. Las claves API necesitan `tables:view` para leer y
+`tables:edit` para escribir; un grant no amplía la clave. Borrar un registro elimina
+sus grants en la misma transacción.
+
+Cada registro devuelto incluye `access`, `can_delete`, `can_manage_access` y
+`read_only_column_ids`. Esta última lista incluye los campos de política y de membresía
+del proyecto usados por otra tabla. Las celdas, el panel de registro y los movimientos
+kanban usan estas respuestas. Las listas, contadores del catálogo, exportaciones y etiquetas
+enlazadas aplican la misma regla de lectura. Repetir una escritura idempotente comprueba
+los derechos actuales para que un recibo guardado no conserve un permiso Write revocado.
+
+Los triggers de workflow vuelven a comprobar el permiso Read actual de quien publicó
+el workflow sobre la fila de origen. Sus filtros y entradas incluyen solo registros
+enlazados que esa persona puede leer, tanto en los valores actuales como en los
+anteriores. Una actualización que solo cambia enlaces ocultos no inicia un workflow.
+Una política de destino inválida no revela IDs enlazados; una política de origen
+inválida filtra el evento. El evento y el historial guardados permanecen intactos.
+
 ## Errores { #errors }
 
 Cada rechazo responde `{"error": {"code", "message", "details"}}`, y el `code` es lo que
@@ -725,6 +964,7 @@ un cliente usa para bifurcar.
 | `INVALID_QUERY` | 422 | Un filtro u orden que la tabla no puede responder |
 | `INVALID_SCHEMA` | 422 | Un cambio de esquema incoherente |
 | `IDEMPOTENCY_KEY_REUSED` | 422 | La clave se usó para una solicitud distinta |
+| `IDEMPOTENCY_RESULT_PURGED` | 409 | Un resultado de lote antiguo se borró durante la actualización; su clave impide otra escritura hasta caducar |
 | `QUOTA_EXCEEDED` | 402 | La escritura superaría un límite de almacenamiento; `details` nombra el límite (`tables`, `records`, `record_bytes`, `storage_bytes`) y su techo |
 | `RATE_LIMIT_EXCEEDED` | 429 | Demasiadas escrituras de tablas en el último minuto; consulta `Retry-After` |
 | `VALIDATION_ERROR` | 422 | La solicitud misma es defectuosa: un tipo erróneo, un campo desconocido, un límite, o NUL, un salto de línea o un sustituto aislado en un id, clave o nombre. La ruta la rechaza antes de que se ejecute el servicio |
@@ -790,9 +1030,11 @@ Al crear una tabla vacía, las columnas obligatorias no necesitan valores predet
 
 ## Tareas duraderas {#durable-tasks}
 
+Un **agent** también puede tener una tabla compartida de tareas. El acceso sigue los permisos actuales del agent; editar tareas requiere además permiso de edición de tablas y de ejecución del agent. El propietario o un editor del agent puede administrar la tabla. Asignar un agent a una tarea privada no la comparte. AgenticOS MCP reutiliza la tabla del ámbito con `create_task` o `ensure_task_board` y la crea si todavía no existe. El ámbito privado sirve para asuntos personales, el proyecto para entregables del proyecto y el agent para una cola solicitada explícitamente. Si el ámbito es ambiguo, preguntar; nunca compartir contenido personal implícitamente.
+
 Puedes crear tareas de proyecto desde conversaciones privadas fuera del proyecto. Deja sin especificar la conversación de trabajo: la tarea abre su propia conversación en el proyecto sin enlazar tu transcripción privada. Se rechaza el enlace explícito a una conversación de otro proyecto.
 
-**Trabajo en segundo plano** (`/work`) muestra compromisos duraderos junto a los chats en ejecución. Una tarea es un registro de Virtual Table con un chat de trabajo y un caso de Inbox cuando requiere atención. Tabla, Kanban y API comparten la misma revisión, sin otra lista TODO sincronizada.
+Las tareas se gestionan en **Tables** (`/tables`). **Trabajo en segundo plano** (`/work`) muestra los chats en ejecución y su historial. Una tarea es un registro de Virtual Table con un chat de trabajo y un caso de Inbox cuando requiere atención. Tabla, Kanban y API comparten la misma revisión, sin otra lista TODO sincronizada.
 
 Se crea una tabla de tareas al primer uso para una **persona**, **proyecto**, **grupo** u **organización** y luego se reutiliza. Projects y Groups ofrecen **Tareas**; Tables abre la tabla privada. La instalación y las nuevas membresías no crean tablas vacías. La primera creación requiere `tables:create`. Los permisos actuales del proyecto y las membresías del grupo también se comprueban en la API de tablas, enlaces y vistas guardadas. Las tareas privadas permanecen ocultas incluso para otro propietario de la organización. Las tablas propias existentes y los ajustes de seguimiento de proyectos no se convierten automáticamente.
 
@@ -805,17 +1047,31 @@ AgenticOS MCP ofrece `list_task_boards`, `ensure_task_board`, `list_tasks`, `get
 
 La pertenencia al grupo permite leer su tablero de tareas; escribir requiere además permiso para editar tablas o una concesión explícita de edición. Si la persona asignada a un recordatorio pierde acceso, la tarea queda bloqueada y su creador recibe un caso en Inbox para transferirla. Las conversaciones nuevas de tareas de proyecto pertenecen al proyecto. La cuota de tablas puede impedir la tarea opcional de un resultado de rutina, pero su chat de trabajo, caso de Inbox y notificación siguen entregándose.
 
-Escribir en tableros de proyecto requiere acceso al proyecto y permiso de edición de tablas o una concesión Edit explícita. Eliminar un proyecto, grupo o propietario privado cancela las tareas en cola, resuelve sus casos y elimina la tabla gestionada de ese ámbito con registros, historial y medios en la misma transacción. Los demás ámbitos permanecen intactos. El panel vuelve a un tablero privado accesible si desaparece el seleccionado.
+Escribir en tableros de proyecto requiere acceso al proyecto y permiso de edición de tablas o una concesión Edit explícita. Eliminar un proyecto, grupo o propietario privado cancela las tareas en cola, resuelve sus casos y elimina la tabla gestionada de ese ámbito con registros, historial y medios en la misma transacción. Los demás ámbitos permanecen intactos.
+
+Cambiar el propio tablero de tareas es más estrecho que trabajar en él. Renombrar el
+tablero, cambiar sus columnas o su vista predeterminada, y archivarlo o restaurarlo
+requiere `tables:edit` con scope `ALL` (owner o admin) o ser quien lidera el ámbito del
+tablero: quien lidera el grupo, el propietario del proyecto, la persona a la que
+pertenece un tablero privado. Cualquier otra persona de su audiencia sigue añadiendo y
+editando tareas; `can_manage` de la tabla dice cuál de las dos cosas puede hacer quien
+llama, y la consola muestra los controles del propio tablero solo cuando es verdadero.
+Un intento sin él se rechaza con `AUTHORIZATION_ERROR` (403).
 
 ## Vista predeterminada {#default-view}
 
-Los editores pueden elegir **Establecer como predeterminada** en la barra de herramientas. El diseño, los filtros y la agrupación se guardan como vista compartida y se abren al visitar la tabla sin parámetros explícitos `view` o `viewId`. Las tablas nuevas de tareas empiezan en Kanban. La vista predeterminada debe ser compartida y pertenecer a la tabla; antes de hacerla privada hay que elegir otra. Eliminarla restaura el diseño de tabla simple. La API usa `PATCH /tables/{id}` con `default_view_id`; null elimina la selección.
+Los editores pueden elegir **Establecer como predeterminada** dentro de **Ajustes de vista**. El diseño, los filtros y la agrupación se guardan como vista compartida y se abren al visitar la tabla sin parámetros explícitos `view` o `viewId`. Las tablas nuevas de tareas empiezan en Kanban. La vista predeterminada debe ser compartida y pertenecer a la tabla; antes de hacerla privada hay que elegir otra. Eliminarla restaura el diseño de tabla simple. La API usa `PATCH /tables/{id}` con `default_view_id`; null elimina la selección.
 
 Las notas de tareas son documentos Markdown con el mismo editor rich text y vista previa que otras celdas documentales. Las relaciones separadas **Persona** y **Agente** conservan a la persona responsable y al agente que trabaja. **Siguiente paso** elige persona o agente y vuelve a la persona después del resultado. La persona responsable inicia el agente con su propia cuenta. Para transferir una tarea, elige primero a la persona como siguiente paso y deja que el destinatario inicie el trabajo con su cuenta.
 
 
-**Group by** se guarda automáticamente cuando un editor elige una columna. Actualiza una vista Kanban guardada que pueda administrar; si no existe, crea y selecciona una vista privada. Si se rechaza el guardado, se conserva la agrupación anterior. Los lectores pueden cambiarla temporalmente. **Set as default** en la barra de herramientas guarda el formato actual para todos; las tablas normales se abren como Table hasta que un editor elige otra vista predeterminada.
+**Group by** se guarda automáticamente cuando un editor elige una columna. Actualiza una vista Kanban guardada que pueda administrar; si no existe, crea y selecciona una vista privada. Si se rechaza el guardado, se conserva la agrupación anterior. Los lectores pueden cambiarla temporalmente. **Set as default** dentro de **View settings** guarda el formato actual para todos; las tablas normales se abren como Table hasta que un editor elige otra vista predeterminada.
 
 No se puede eliminar un agent mientras una tarea gestionada dependa de su ejecución programada. Reasigna, completa o cancela primero esas tareas; eliminar el agent no debe descartar su trabajo silenciosamente.
 
-Restaurar un tablero administrado archivado vuelve a poner en cola sus recordatorios planificados para personas, incluidos los que vencieron durante el archivo. La entrega sigue comprobando el acceso actual del creador original y del destinatario; restaurar el tablero no autoriza nuevo trabajo del agente.
+Restaurar un tablero administrado archivado vuelve a poner en cola sus recordatorios planificados para personas, incluidos los que vencieron durante el archivo. La entrega sigue comprobando el acceso actual del creador original y del destinatario; restaurar el tablero no autoriza nuevo trabajo del agente. Un tablero archivado tampoco acepta escrituras de sus tareas: un caso resuelto en Inbox mientras tanto deja su tarea como estaba, y al restaurar el tablero la tarea pasa entonces a hecha o cancelada. Reabrir un caso cuya tarea está en un tablero archivado se rechaza con `TABLE_ARCHIVED`.
+
+
+Los miembros con permiso para crear tablas reciben su tabla privada de tareas al visitar **Tables** por primera vez, si falta. Se reutilizan las existentes; no se crean automáticamente listas de organización o agente. Los proyectos ofrecen **Task table** para crear o abrir la suya. Sin permiso de creación siguen disponibles las tablas accesibles, sin intentar una escritura prohibida.
+
+Inbox muestra una tarea cuando alguien debe actuar o revisar su resultado; no es otro almacén de tareas. Los monitores, triggers de correo y rutinas pueden crear casos de Inbox sin registros de tareas. Una tarea representa un compromiso concreto, no cada evento recibido. Se puede recordar una convención acordada junto con su identificador verificado; el estado actual de la tarea permanece en la tabla.

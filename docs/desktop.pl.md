@@ -1,12 +1,14 @@
 ---
-source_sha: "700737c6ce4e"
+source_sha: "5eb8b938b5d7"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
 
 Natywne logowanie OAuth korzysta z PKCE S256. Aplikacja zachowuje prywatny weryfikator, a callback przenosi tylko jego publiczny skrót. Weryfikator jest wysyłany w treści żądania wymiany, nigdy w adresie URL. Wylogowanie usuwa natywne podglądy powiadomień telefonu.
 
-Odłączenie, wylogowanie, ponowne sparowanie lub zmiana serwera usuwa zgody na foldery, lokalne usługi, cały komputer i ekran. Parowanie pokazuje konto przed zużyciem jednorazowego kodu. Anulowanie lub przekroczenie limitu czasu komendy zatrzymuje też jej procesy potomne.
+Odłączenie, wylogowanie lub zmiana serwera usuwa zgody na foldery, lokalne usługi, cały komputer i ekran. Parowanie pokazuje konto przed zużyciem jednorazowego kodu. Wspólne zgody na foldery procedur przetrwają wygaśnięcie sesji i ponowne sparowanie z tym samym zweryfikowanym kontem i serwerem. Pozostają nieaktywne do ponownej weryfikacji tej tożsamości; jawne odłączenie, wylogowanie lub zmiana serwera albo konta je usuwa.
+
+Opublikowany delegat potrzebujący tego komputera może poprosić o zgodę w tej samej rozmowie, także gdy główny agent działa w chmurze. Zgoda należy do głównego agenta rozpoczynającego uruchomienie. Lokalny delegat kodujący prosi o pełny dostęp; zagnieżdżeni delegaci korzystają z zatwierdzonej przestrzeni urządzenia, bez udostępniania jej innym delegatom chmurowym. Anulowanie lub przekroczenie limitu czasu komendy zatrzymuje też jej procesy potomne.
 
 AgenticOS działa w przeglądarce i tak używa go większość ludzi. Aplikacja
 desktopowa jest dla tych, którzy chcą więcej na własnym komputerze: konsola we
@@ -64,13 +66,32 @@ Po aktualizacji z podpisem ad-hoc macOS może ponownie poprosić o dostęp do mi
 
 Gdy workflow wydania ma stały, samopodpisany certyfikat (tworzy go `scripts/create_macos_signing_cert.sh`), macOS zachowuje zgody na nagrywanie ekranu i mikrofon po aktualizacjach, bo są związane z tożsamością podpisu. Utwórz go raz i nigdy nie wymieniaj: nowy certyfikat ponownie pyta wszystkich użytkowników. Samopodpisanie nie usuwa ostrzeżenia Gatekeepera; robi to tylko podpis Developer ID z notaryzacją.
 
+## Natywny pakiet Arch Linux { #native-arch-linux-package }
+
+Pobierz `agenticos-VERSION-1-x86_64.pkg.tar.zst` z wydania GitHub i zainstaluj go poleceniem `sudo pacman -U ./agenticos-VERSION-1-x86_64.pkg.tar.zst`. Zastąp `VERSION` numerem wydania. Pacman rozwiązuje zadeklarowane zależności systemowe, w tym WebKitGTK 4.1. Pakiet nie zawiera własnego WebKitGTK ani biblioteki klienta Wayland.
+
+Przed instalacją pobierz obok pakietu plik `SHA256SUMS.arch` i sprawdź go przez `sha256sum -c SHA256SUMS.arch`. Pakiety wydania nie są podpisane kluczami dystrybucji Arch Linux.
+
+Aby zaktualizować aplikację, pobierz nowszy pakiet i ponownie użyj `pacman -U`. Usuń go przez `sudo pacman -R agenticos`; ustawienia osobiste pozostają w katalogu domowym. **Check for Updates…** wyjaśnia aktualizowanie przez menedżer pakietów zamiast pobierać AppImage. Nie ma automatycznego repozytorium pacmana ani oficjalnej publikacji w AUR.
+
+Utrzymywany przepis znajduje się w `packaging/arch/PKGBUILD.in`. `scripts/build_arch_package.sh OUTPUT_DIRECTORY` generuje wersjonowany przepis i archiwum z sumą kontrolną z bieżącego commita Git, a następnie uruchamia makepkg jako zwykły użytkownik. Buduj w aktualnym środowisku Arch x86_64 z zależnościami wskazanymi w przepisie. Workflow wydania powtarza ten proces dla każdego wydania platformy; zależności dystrybucji ciągłej są rozwiązywane podczas budowania.
+
+Zadanie CI dla natywnego Archa instaluje pakiet, aktualizuje jego rewizję, sprawdza własność plików i usuwanie oraz uruchamia izolowany test renderowania WebKit z zainstalowanego programu pod Xvfb/X11 i bezekranowym Westonem/Waylandem. Artefakt `arch-native` zawiera ścieżki bibliotek, wersje pakietów i logi renderowania. Testy z renderowaniem programowym nie potwierdzają zgodności ze wszystkimi fizycznymi GPU, wersjami Mesy, kompozytorami ani instalacjami CachyOS.
+
 ## Uruchamianie { #running-it }
 
-Przed wyborem lokalnej instalacji lub połączeniem z serwerem kreator pierwszego
-uruchomienia oferuje opcjonalne uprawnienia Screen Recording, Accessibility i Microphone na macOS.
-Każdy przycisk otwiera odpowiednie ustawienia systemowe; konfiguracja niczego nie
-przechwytuje ani nie steruje komputerem. Można kontynuować bez żadnego z nich. Powrót z
-ustawień odświeża ich status; macOS może wymagać restartu aplikacji. Dostęp do folderów jest nadal żądany przy użyciu. Mikrofon macOS prosi zwykłym okienkiem; pozostałe dwa otwierają Ustawienia systemowe. Pierwsze okno otwiera się na 80% ekranu, wyśrodkowane, a potem pamięta rozmiar i miejsce.
+Kreator zaczyna od języka oraz wyboru lokalnej przestrzeni albo serwera firmy.
+Nagrywanie ekranu, Accessibility i mikrofon to opcjonalne funkcje dostępne w
+App readiness lub przy użyciu, a nie wymagany krok przed wyborem połączenia.
+
+Przy łączeniu aplikacji desktopowej możesz wkleić oryginalny link zaproszenia zamiast samego adresu serwera. Aplikacja połączy się z serwerem z tego linku i otworzy zaproszenie, zachowując cel podczas logowania. Nie zaakceptuje go automatycznie ani nie zapisze tokenu w ustawieniach natywnych. Opcjonalny przegląd połączenia poczeka na zakończenie zaproszenia.
+
+Natywny start i konsola obsługują angielski, polski, niemiecki i turecki. Wybór
+z instalatora trafia do konsoli; zapisany język istniejącego konta nadal ma
+pierwszeństwo. Konfiguracja lokalna pyta o jedną nazwę przestrzeni; oddzielna
+nazwa organizacji to opcja zaawansowana. Po przeglądzie połączenia **Pierwsze kroki**
+otwierają wspólny start zadania. Lokalna przestrzeń może wysyłać materiał do
+zdalnego dostawcy AI; sama instalacja lokalna nie oznacza AI offline.
 
 Wymagane są Rust z [rustup](https://rustup.rs) i webview platformy - WebKit na
 macOS, WebView2 na Windows, WebKitGTK na Linuksie; listę dla każdej platformy ma
@@ -143,7 +164,7 @@ Zwykłe korzystanie z aplikacji nie wymaga Gita, Pythona, uv ani Node.js na hoś
 
 Nowe instancje mają przypiętą wersję platformy dostarczoną z aplikacją. Aktualizacja
 aplikacji desktopowej nie zmienia automatycznie wersji działającej instancji.
-**Update** pobiera pasujące obrazy platformy, wstrzymuje zapis i przed aktualizacją
+**Update local workspace** pobiera pasujące obrazy platformy, wstrzymuje zapis i przed aktualizacją
 tworzy kopię bazy, plików multimedialnych i kluczy wdrożenia w prywatnym katalogu
 `backups/` instancji. Nieudana kopia blokuje aktualizację. Kopie zawierają dane
 osobowe i wymagają ochrony. Błąd migracji jest zgłaszany; baza nie jest automatycznie
@@ -169,9 +190,7 @@ konfiguracja odrzuca starszy obraz przed utworzeniem właściciela i otwarciem s
 
 Ekran lokalny pokazuje zapisane instancje, adresy i stan uruchomienia. **Start and
 connect** uruchamia wybraną instancję; **Finish setup** ponawia przerwaną instalację
-z zachowaniem jej plików i kluczy. Start, Stop i Update w menu dotyczą połączonej,
-zarządzanej instancji. Połączenie do samodzielnie uruchomionego stosu deweloperskiego
-nie przekazuje aplikacji zarządzania nim.
+z zachowaniem jej plików i kluczy. Start i Stop w menu dotyczą połączonej, zarządzanej instancji. **Update local workspace…** otwiera listę lokalnych instancji. Połączenie ze stosem deweloperskim uruchomionym poza aplikacją nie czyni go zarządzanym przez aplikację.
 
 Lokalna instancja uruchamia API, workera, konsolę, bazę danych i Redis, bez
 usługi sandboxa, usługi przeglądarki i magazynu obiektów. Agenci dostają
@@ -186,6 +205,22 @@ do bootstrapu bez zapisywania w tych plikach ani umieszczania w argumentach Dock
 Klucze wdrożenia pozostają w prywatnym `.env` instancji, a klucze dostawców zapisuje
 sejf serwera. Natywny kreator używa neutralnego oznaczenia fokusu klawiatury i nie
 ustawia automatycznie fokusu na przyciskach wyboru.
+
+Aplikacja desktopowa i workspace aktualizują się osobno. W głównym menu macOS
+wybierz **AgenticOS → Update local workspace…**; w Windows i Linuksie użyj menu
+zasobnika. Przycisk jest też przy każdej zainstalowanej instancji w **Change
+server… → On this computer**. Lista pokazuje wersję aplikacji desktopowej,
+skonfigurowaną wersję workspace’u i wersję docelową dołączoną do aplikacji.
+Starszy workspace bez ustalonej wersji pokazuje ją jako niedostępną; updater
+sprawdza ją przed wprowadzeniem zmian. Nie można obniżyć wersji nowszego workspace’u. Dla aktualnej wersji przycisk **Reapply workspace update** pozwala ponowić aktualizację po przerwanym restarcie lub migracji.
+
+Wybierz **Update local workspace** i potwierdź w natywnym oknie utworzenie kopii
+zapasowej oraz restart. Lista pokazuje pobieranie obrazów, backup i restart,
+a potem pozwala ponownie się połączyć. W razie niepowodzenia wyświetla błąd
+i umożliwia ponowienie. Anulowanie pozostawia workspace bez zmian. **Check for
+Updates…** aktualizuje tylko aplikację desktopową i wskazuje osobną akcję dla
+workspace’u, także gdy sama aplikacja jest aktualna. Ta ścieżka działa również
+ze starszą konsolą.
 
 ## Konfiguracja połączenia i gotowość aplikacji { #connection-setup-and-app-readiness }
 
@@ -328,10 +363,11 @@ edycja, uruchamianie - sięgają tego folderu przez aplikację.
 **Połącz komputer raz.** W ustawieniach czatu wybierz **Pracuj na → Ten komputer**,
 aby połączyć go bezpośrednio. Potwierdź w natywnym oknie, a potem wybierz folder i
 tryb dostępu w tym samym panelu. **Ustawienia → Aplikacja desktopowa → Ten komputer
-→ Pozwól agentom tu pracować** oferuje tę samą akcję łączenia. Aplikacja dostaje
+→ Połącz ten komputer** oferuje tę samą akcję łączenia. Aplikacja dostaje
 własną sesję dla tego komputera i przechowuje jej refresh token w systemowym pęku
 kluczy. Trzyma jedno wychodzące połączenie WebSocket do device huba serwera
-(`/api/v1/ws/device`); nic nie nasłuchuje na komputerze. **Rozłącz** kończy tę sesję.
+(`/api/v1/ws/device`); nic nie nasłuchuje na komputerze. **Rozłącz** kończy tę sesję; najpierw pyta i
+wymienia, co usunie.
 
 **Wybierz to dla czatu.** W aplikacji desktopowej ustawienia czatu oferują
 **Pracuj na (Work on): Chmura / Ten komputer**. Wybranie tego komputera prosi o
@@ -357,7 +393,9 @@ transfer nie rozłączał urządzenia. Większy zapis jest odrzucany przed kodow
 i wysłaniem danych pliku.
 
 Windows oferuje tylko odczyt i pełny dostęp. Linux oferuje zapis w folderze tylko
-wtedy, gdy jest zainstalowany `bwrap`.
+wtedy, gdy jest zainstalowany `bwrap` z obsługą `--bind-fd`. Aplikacja utrzymuje uchwyt katalogu otwartego bez podążania za dowiązaniami do startu sandboxa, więc zmiana nazwy folderu ani podmiana go na dowiązanie symboliczne nie zmieni zatwierdzonego katalogu. Na Linuksie zmienne środowiskowe zadania są ustawiane wewnątrz sandboxa, a nie w procesie, który go uruchamia; ich wartości są przekazywane przez prywatny deskryptor.
+
+Ścieżka korzenia folderu routine nie może zawierać dowiązań symbolicznych ani junctions. Wybierz rzeczywisty folder w pickerze; dopuszczenie zadania w tle nie rozwiązuje dowiązań w ścieżce korzenia.
 
 **Decyduje komputer, nie serwer.** Wybrane foldery wraz z trybami są trzymane w
 ustawieniach aplikacji, a każda operacja podaje folder i tryb, które aplikacja z
@@ -385,9 +423,15 @@ Serwer sprawdza sesję przed przekazaniem każdej lokalnej operacji. Odwołana l
 W Builderze **Sandbox → Komputer** zapisuje `backend: local`, bez ścieżki i
 natywnej zgody. Każda osoba zatwierdza własne miejsce pracy w czacie desktopowym.
 Taki agent nie ma przestrzeni w chmurze, więc **Work on** nie oferuje dla niego
-chmury. Pierwsza wiadomość pyta raz, gdzie może pracować - **Cały komputer** albo
-folder - a odpowiedź jest zapamiętywana dla tego agenta na tym komputerze, więc jego
-kolejne czaty startują tam bez pytania. Przy
+chmury.
+
+Możesz do niego
+pisać, zanim cokolwiek udzielisz: odpowiada na to, co nie wymaga plików, i dopiero
+gdy prośba potrzebuje twoich plików, pyta, gdzie może pracować - **Cały komputer**
+albo folder. Przebieg czeka na twój wybór, a potem czat sam kontynuuje z plikami.
+Odpowiedź jest zapamiętywana dla tego agenta na tym komputerze, więc jego kolejne
+czaty startują tam bez pytania. W konsoli w przeglądarce, gdzie nie ma komputera do
+udostępnienia, agent mówi, że nie ma dostępu do twoich plików. Przy
 tworzeniu projektu **Sandbox projektu → Komputer · Twoje pliki** otwiera wybór
 prywatnego folderu; inni członkowie zachowują wspólny obszar projektu.
 
@@ -477,9 +521,12 @@ ktoś to zmienił - i co do własnego publicznego adresu.
 ## Czego celowo nie robi { #what-it-deliberately-does-not-do }
 
 - **Brak strażnika nawigacji.** Link wychodzący poza origin serwera otwiera się w
-  oknie, bo przepływ OAuth - podłączanie serwera MCP - musi wrócić do tego samego
-  webview, żeby jego ciasteczko trafiło na miejsce. Tytuł okna nazywa każdy inny
-  host, który pokazuje.
+  oknie, bo niektóre przepływy OAuth - podłączanie konta dla terminala - muszą
+  wrócić do tego samego webview, żeby ich ciasteczko trafiło na miejsce. Tytuł okna
+  nazywa każdy inny host, który pokazuje. Podłączanie serwera MCP do nich nie
+  należy: jego zgoda otwiera się w twojej przeglądarce, gdzie są twoje logowania i
+  passkeye, bo callback uwierzytelnia sam `state`. Dokończ tam i wróć; serwer
+  pojawi się w aplikacji po autoryzacji.
 
 - **Brak stałego dostępu.** Połączenie komputera samo niczego nie daje: run sięga
   tylko zatwierdzonych folderów lub całego komputera po osobnej zgodzie dla rozmowy, a ekranu dopiero po
@@ -608,6 +655,10 @@ nadal wymaga wyboru lokalnej przeglądarki.
 
 Workflow Apps buduje też instalatory deweloperskie i testuje instalację bez automatyzacji interfejsu: kopiowanie aplikacji Mac z DMG, cichą instalację i usunięcie na Windowsie, instalację i usunięcie pakietu Debian oraz rozpakowanie przenośnego AppImage. Sprawdza osadzony widget macOS i podpisy, izolację trwałej sesji oraz odrzucenie zmodyfikowanego pliku aktualizacji. Te kontrole używają buildów ad-hoc lub niepodpisanych i nie potwierdzają publicznej notaryzacji ani akceptacji sklepu.
 
+CI instalatorów i buildy wydań dla Linuksa sprawdzają też rozpakowany AppImage i odrzucają dołączoną bibliotekę klienta Waylanda (`libwayland-client.so*`), która może kolidować z systemowym sterownikiem Mesa i powodować awarię WebKitGTK. Walidacja wydania odbywa się przed wysłaniem instalatorów i podpisów aktualizacji. Ta kontrola bibliotek nie potwierdza zgodności renderowania z każdym kompozytorem Waylanda ani GPU.
+
+Przy ręcznym uruchomieniu dla starszego tagu bez `scripts/build_linux_desktop_release.sh` zadanie linuksowe buduje bezpośrednio przez Tauri i wypisuje ostrzeżenie o braku walidacji AppImage przed wysłaniem plików. Tagi zawierające wrapper zachowują tę walidację; błąd budowania lub walidacji nadal blokuje publikację manifestu aktualizacji.
+
 Workflow **Apps** w GitHub Actions sprawdza natywne crate'y na macOS, Windows i
 Linuksie, buduje debug APK Androida i aplikację symulatora iOS. Pełne sprawdzenia
 natywne wykonuje CI; lokalne `make desktop-check` pozostaje dostępne do zmian
@@ -673,9 +724,17 @@ Quick Ask ma przycisk mikrofonu do włączania dyktowania kliknięciem, obok ist
 
 ## Rutyny lokalne { #local-routines }
 
-Utwórz rutynę z opcją **Uruchamiaj jako ja**, wybierz folder oraz osobno odczyt, zapis i uruchamianie poleceń. Polecenia wymagają zapisu. Zapis najpierw tworzy wstrzymaną rutynę, a potem aplikacja komputerowa prosi w natywnym oknie o zgodę na jej identyfikator, organizację, serwer, folder i operacje. Anulowanie pozostawia tę samą rutynę wstrzymaną; ponowienie kończy konfigurację bez tworzenia kolejnej. Ogólna zgoda na folder w czacie nie upoważnia rutyny.
+Odmowa na komputerze zastępczym nie dowodzi cofnięcia zgody na zatwierdzonym komputerze: może on po prostu być offline. Właściciel otrzymuje powiadomienie bez duplikatów, aby połączyć komputer lub przejrzeć dostęp; procedura i dane jej zdarzeń nadal czekają. Odmowa na pierwotnie wybranej aktywnej sesji nadal zatrzymuje procedurę do przeglądu.
 
-**Ustawienia → Desktop → Uprawnienia rutyn** pokazuje zgody bieżącego konta i organizacji na tym komputerze. Cofnij zgodę, aby zatrzymać kolejne operacje. Ponowne parowanie, odłączenie, wylogowanie lub zmiana serwera usuwa te zgody. Zmiana folderu lub zwiększenie uprawnień wymaga nowego potwierdzenia natywnego. Zgoda na folder nie obejmuje przeglądarki, ekranu, lokalnych modeli, lokalnych usług MCP ani całego komputera. Opublikowany agent musi już mieć włączony Sandbox; lokalny cel nie włącza możliwości.
+Na Linuxie aplikacja sprawdza, czy zainstalowany bubblewrap udostępnia `--bind-fd`, zanim zaoferuje zapis w folderze lub uruchomi komendę w sandboxie. Brak programu, nieobsługiwana albo nieodpowiadająca wersja oznacza odmowę; zaktualizuj bubblewrap, aby włączyć ten tryb.
+
+JSON zgód procedur jest weryfikowany względem aktualnego skrótu SHA-256 w systemowym keychainie. Edycja pliku ani przywrócenie kopii sprzed cofnięcia zgody nie nadaje dostępu. Niedostępny keychain lub niezgodność blokuje procedury. **Aktualizacja:** starsze zgody nie mają skrótu i wymagają ponownego zatwierdzenia: jawnie odłącz komputer, powiąż go ponownie i przejrzyj procedury. Ten sam reset naprawia przerwany zapis zgód; aplikacja nigdy automatycznie nie ufa niezweryfikowanemu plikowi.
+
+Utwórz rutynę z opcją **Uruchamiaj jako ja**, wybierz folder oraz osobno odczyt, zapis i uruchamianie poleceń. Polecenia wymagają zapisu. Zapis najpierw tworzy wstrzymaną rutynę. Za pierwszym razem aplikacja komputerowa pyta raz, w natywnym oknie, czy **wszystkie twoje rutyny** w tej organizacji mogą pracować w tym folderze i jego podfolderach, z tymi operacjami; wybierz folder domowy, aby objąć cały komputer.
+
+Każda kolejna rutyna w tym folderze zapisuje się bez pytania, a zgoda przetrwa aktualizację aplikacji i ponowne zalogowanie. Anulowanie pozostawia tę samą rutynę wstrzymaną; ponowienie kończy konfigurację bez tworzenia kolejnej. Ogólna zgoda na folder w czacie nie upoważnia rutyny.
+
+**Ustawienia → Desktop → Uprawnienia rutyn** pokazuje zgody bieżącego konta i organizacji na tym komputerze. Cofnij zgodę, aby zatrzymać kolejne operacje. Zmiana serwera lub konta usuwa te zgody; zgoda na jedną rutynę, udzielona przez starszą aplikację, kończy się też razem z jej sesją. Zmiana folderu lub zwiększenie uprawnień wymaga nowego potwierdzenia natywnego. Zgoda na folder nie obejmuje przeglądarki, ekranu, lokalnych modeli, lokalnych usług MCP ani całego komputera. Opublikowany agent musi już mieć włączony Sandbox; lokalny cel nie włącza możliwości.
 
 Gdy konkretny zatwierdzony komputer jest offline przed wykonaniem, trwała aktywacja czeka w PostgreSQL. Wiersz rutyny pokazuje liczbę oczekujących aktywacji. Wywołania harmonogramu i ręczne łączą się podczas oczekiwania; odrębne zdarzenia zachowują własny kontekst i identyfikator aktywacji. Istniejący worker sprawdza połączenie co minutę. Sprawdzanie gotowości nie wywołuje modelu i nie zużywa prób błędnych uruchomień. Dopuszczenie do wykonania zatwierdza się z przebiegiem przed pierwszym wywołaniem modelu. Rozpoczęta aktywacja nie jest automatycznie powtarzana po awarii workera; niepewna operacja plikowa lub polecenie nie tworzy nowego przebiegu.
 

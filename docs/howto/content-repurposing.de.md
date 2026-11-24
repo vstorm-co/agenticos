@@ -1,5 +1,5 @@
 ---
-source_sha: "bc3d361ee1d5"
+source_sha: "c5a69d2f6d38"
 title: "Einen Artikel in Social-Media-Beiträge in Ihrer Markenstimme umwandeln"
 description: "Hängen Sie einen kurzen synthetischen Artikel an und lassen Sie einen Agent einen Beitrag pro Kanal schreiben, jeder auf die Quelle rückführbar und innerhalb der Grenzen seines Kanals."
 ---
@@ -133,7 +133,7 @@ Zählen Sie die Zeichen des X-Beitrags von Hand oder mit einem kurzen Skript. Ve
 
 !!! example "Festgehalten auf v0.0.504, 25. September 2026"
 
-    Modell: Claude Sonnet 4.6 über OpenRouter. Der Agent rief `load_capability` für `brand-voice` auf und antwortete dann direkt mit allen drei Beiträgen. Der X-Beitrag hatte 185 Zeichen. Der LinkedIn-Beitrag hatte 113 Wörter und der Newsletter-Teaser 50 Wörter, beide innerhalb ihrer Grenzen. In keinem Beitrag tauchte eine verbotene Formulierung auf. Jede Zahl in allen drei Beiträgen (25 %, 12 s auf 9 s, 40.000 Picks, die 4 cm Anhalteweg des Sensors und der Rollout im vierten Quartal auf 40 Standorte in vier Tranchen) stimmte mit dem Artikel überein. Kosten: 0,016 USD.
+    Modell: Claude Sonnet 4.6 über OpenRouter. Der Agent rief `read_skill` für `brand-voice` auf und antwortete dann direkt mit allen drei Beiträgen. Der X-Beitrag hatte 185 Zeichen. Der LinkedIn-Beitrag hatte 113 Wörter und der Newsletter-Teaser 50 Wörter, beide innerhalb ihrer Grenzen. In keinem Beitrag tauchte eine verbotene Formulierung auf. Jede Zahl in allen drei Beiträgen (25 %, 12 s auf 9 s, 40.000 Picks, die 4 cm Anhalteweg des Sensors und der Rollout im vierten Quartal auf 40 Standorte in vier Tranchen) stimmte mit dem Artikel überein. Kosten: 0,016 USD.
 
     Ohne angehängte Datei lud der Agent trotzdem den Skill, schrieb dann "I don't see any article attached to your message" und bat um den Artikel, statt Beiträge aus dem Nichts zu schreiben.
 

@@ -6,6 +6,7 @@ import { useFormatter, useTranslations } from "next-intl";
 
 import { ArtifactThemeToggle } from "@/components/artifacts/artifact-theme-toggle";
 import { ArtifactFrameView } from "@/components/artifacts/artifact-frame";
+import { AgenticosAttribution } from "@/components/shared/agenticos-attribution";
 import { Button, FormField, Input } from "@/components/ui";
 import { usePublicArtifactUnlock } from "@/hooks/use-artifacts";
 import { ApiError, getErrorMessage } from "@/lib/api-error";
@@ -31,9 +32,11 @@ export function OpenedArtifact({ artifact }: { artifact: OpenPublicArtifact }) {
   return (
     <main className="bg-background flex h-dvh flex-col gap-3 p-4">
       <header className="flex flex-wrap items-baseline justify-between gap-2">
-        <h1 className="text-foreground text-lg font-semibold">{artifact.title}</h1>
-        <div className="flex items-center gap-3">
-          <p className="text-muted-foreground text-xs">
+        <h1 className="text-foreground max-w-full min-w-0 text-lg font-medium wrap-anywhere">
+          {artifact.title}
+        </h1>
+        <div className="flex min-w-0 flex-wrap items-center gap-3">
+          <p className="text-muted-foreground text-xs wrap-anywhere">
             {t("publicUpdated", {
               when: format.dateTime(new Date(artifact.published_at), {
                 dateStyle: "medium",
@@ -44,7 +47,7 @@ export function OpenedArtifact({ artifact }: { artifact: OpenPublicArtifact }) {
           <ArtifactThemeToggle theme={theme} onChange={setTheme} />
         </div>
       </header>
-      <div className="flex min-h-0 flex-1 flex-col">
+      <div className="relative flex min-h-0 flex-1 flex-col">
         {/* No minimum: on a short window the frame shrinks with it rather than
             pushing the page into a scroll. */}
         <ArtifactFrameView
@@ -53,6 +56,9 @@ export function OpenedArtifact({ artifact }: { artifact: OpenPublicArtifact }) {
           className="min-h-0"
           theme={theme}
         />
+        <div className="pointer-events-none absolute right-3 bottom-3 left-3 flex justify-end sm:left-auto">
+          <AgenticosAttribution visible={artifact.show_agenticos_attribution} />
+        </div>
       </div>
     </main>
   );

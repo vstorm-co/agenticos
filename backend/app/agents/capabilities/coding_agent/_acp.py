@@ -37,6 +37,7 @@ from app.agents.capabilities.coding_agent._harness import (
     clip,
     last_steps,
 )
+from app.agents.model_context import check_model_context
 from app.agents.steering import SteeringInbox, screen_steer
 
 logger = logging.getLogger(__name__)
@@ -341,6 +342,8 @@ class Conversation:
         self, method: str, params: dict[str, Any], *, sent: anyio.Event | None = None
     ) -> Any:
         """Send a request and read until its answer, handling everything between."""
+        if method == "session/prompt":
+            await check_model_context()
         identifier = next(self._ids)
         await self._pipe.send(
             {"jsonrpc": "2.0", "id": identifier, "method": method, "params": params}

@@ -7,7 +7,6 @@ from typing import Any, Literal
 from uuid import UUID
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from croniter import CroniterBadDateError, croniter
 from pydantic import (
     AwareDatetime,
     ConfigDict,
@@ -18,10 +17,12 @@ from pydantic import (
 )
 
 from app.core.config import settings
+from app.core.cron import cron_has_next
 from app.db.models.agent_trigger import MIN_INTERVAL_SECONDS, EventSource, TriggerDeliveryStatus
 from app.schemas.base import BaseSchema, TimestampSchema
 from app.schemas.local_target import LocalTarget
 from app.schemas.routine_notifications import ExternalNotificationChannel
+from app.schemas.routine_sources import RoutineSourceMode
 
 # The interval floor is a database CHECK (`ck_trigger_interval_floor`); this
 # ceiling is input-only, and its job is a 422 rather than a 500. `interval_seconds`
@@ -43,35 +44,11 @@ def valid_time_zone(value: str | None) -> str | None:
     return value
 
 
-def _cron_has_next(expression: str) -> bool:
-    """Whether a cron expression is valid *and* ever actually fires.
-
-    `croniter.is_valid` checks only syntax, so `0 0 31 2 *` - the 31st of a
-    February that never has one - passes it, and then `_cron_next` exhausts its
-    forward search and raises `CroniterBadDateError`, turning a user's cadence
-    into a 500 at create or retime time. Resolving one occurrence here proves the
-    expression has a future, so an unschedulable one is refused as a 422 naming
-    the field instead.
-
-    Only the five-field crontab shape is accepted. croniter also parses a
-    six-field expression with a seconds column, but the heartbeat that fires
-    schedules ticks once a minute, so `* * * * * *` would be accepted promising
-    once a second and then fire once a minute, permanently overdue - a cadence
-    the platform cannot honour is refused rather than quietly rounded.
-    """
-    if len(expression.split()) != 5:
-        return False
-    if not croniter.is_valid(expression):
-        return False
-    try:
-        croniter(expression).get_next()
-    except CroniterBadDateError:
-        return False
-    return True
-
-
 TriggerOverlapName = Literal["skip", "queue", "allow"]
 """`app.db.models.agent_trigger.TriggerOverlap`, as the API spells it."""
+
+TriggerConversationModeName = Literal["continue", "fresh"]
+"""`app.db.models.agent_trigger.TriggerConversationMode`, as the API spells it."""
 
 # GitHub's `issues` webhook actions, so a typo like `opnened` is a 422 rather
 # than a filter stored to match nothing. From GitHub's webhook-events reference.
@@ -143,12 +120,14 @@ GithubConclusion = Literal[
 ]
 """A finished workflow run's `conclusion`, as GitHub spells it."""
 
-GithubAuthors = Literal["members", "anyone"]
+GithubAuthors = Literal["members", "contributors", "anyone"]
 """Whose issues, pull requests and comments may fire a trigger.
 
 `members` - the default - is an author GitHub calls the repository's `OWNER`,
 `MEMBER` or `COLLABORATOR`. On a public repository anyone can open an issue, and
-every one would otherwise be an agent run and a page of somebody's text in it."""
+every one would otherwise be an agent run and a page of somebody's text in it.
+`contributors` also admits `CONTRIBUTOR`; first-time contributors still need
+`anyone`. Bot and connected-account exclusions apply to all three choices."""
 
 # Where the filter's per-event fields belong, so one sent for another event is a
 # 422 rather than a filter that silently never applies.
@@ -164,8 +143,8 @@ class GithubTriggerConfig(BaseSchema):
 
     `event` is the webhook it fires on (the `X-GitHub-Event` header), `issues`
     unless it says otherwise; `actions` narrows which of that event's actions
-    fire, defaulting to the one somebody would act on. `authors` keeps issues,
-    pull requests and comments to the repository's own people, and a bot never
+    fire, defaulting to the one somebody would act on. `authors` chooses whose
+    issues, pull requests and comments may fire (members by default), and a bot never
     fires a trigger except through a workflow run.
 
     `mention` is a phrase a comment has to contain (`@agent`), `branches` the
@@ -266,14 +245,37 @@ class OutlookTriggerConfig(BaseSchema):
 
 
 class WebhookTriggerConfig(BaseSchema):
-    """The generic webhook source carries no filter - a signed delivery fires.
+    """Signature verification for generic JSON webhooks; filtering is the sender's job.
 
-    The catch-all for anything that can POST signed JSON. Filtering is the
-    sender's job (it chose to deliver); an empty model rather than no model so an
-    unknown key is still refused instead of stored to mean nothing.
+    The default preserves the original relay signature and optional signed time.
+    Raw-body HMAC modes use the named header and do not authenticate a timestamp.
     """
 
     model_config = ConfigDict(extra="forbid")
+    signature_scheme: Literal["legacy", "hmac-sha256-hex", "hmac-sha256-base64"] = "legacy"
+    signature_header: str | None = Field(default=None, min_length=1, max_length=128)
+
+    @model_validator(mode="after")
+    def _signature_header_matches_scheme(self) -> WebhookTriggerConfig:
+        if self.signature_scheme == "legacy":
+            if self.signature_header is not None:
+                raise ValueError("signature_header is only valid with a raw-body HMAC scheme")
+        elif self.signature_header is None or not re.fullmatch(
+            r"[!#$%&'*+.^_`|~0-9A-Za-z-]+", self.signature_header
+        ):
+            raise ValueError("raw-body HMAC requires a valid signature_header")
+        if self.signature_header is not None:
+            self.signature_header = self.signature_header.lower()
+        return self
+
+
+class LinearTriggerConfig(BaseSchema):
+    """Optional filters on Linear payload types and actions."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    event_types: list[str] | None = Field(default=None, min_length=1, max_length=50)
+    actions: list[str] | None = Field(default=None, min_length=1, max_length=50)
 
 
 class HubspotTriggerConfig(BaseSchema):
@@ -315,6 +317,7 @@ EventSourceName = Literal[
     "google_calendar",
     "google_drive",
     "hubspot",
+    "linear",
     "microsoft_files",
     "outlook",
     "outlook_calendar",
@@ -423,6 +426,7 @@ _EVENT_CONFIG_MODELS: dict[str, type[BaseSchema]] = {
     EventSource.GOOGLE_CALENDAR.value: CalendarTriggerConfig,
     EventSource.GOOGLE_DRIVE.value: GoogleDriveTriggerConfig,
     EventSource.HUBSPOT.value: HubspotTriggerConfig,
+    EventSource.LINEAR.value: LinearTriggerConfig,
     EventSource.MICROSOFT_FILES.value: MicrosoftFilesTriggerConfig,
     EventSource.OUTLOOK_CALENDAR.value: CalendarTriggerConfig,
     EventSource.OUTLOOK.value: OutlookTriggerConfig,
@@ -459,6 +463,14 @@ class TriggerCreate(BaseSchema):
 
     is_active: bool = Field(
         default=True, description="Create paused while configuring device consent."
+    )
+    source_mode: RoutineSourceMode = Field(
+        default="follow_agent",
+        description="Use the initial approved agent ceiling with current creator permissions; later source or behavior expansions require owner review. Restricted mode freezes all reviewed sources.",
+    )
+    review_before_activation: bool = Field(
+        default=False,
+        description="Save paused with source review required before the first activation.",
     )
     prompt: str = Field(min_length=1, max_length=10000)
     # An optional human title; null lists the trigger by its agent's name instead.
@@ -556,6 +568,15 @@ class TriggerCreate(BaseSchema):
             "`allow` fires on top of it. Schedules only; `skip` when omitted"
         ),
     )
+    conversation_mode: TriggerConversationModeName = Field(
+        default="continue",
+        description=(
+            "Which conversation a fire's run goes in: `continue` appends every "
+            "fire to the trigger's one run-log conversation; `fresh` opens a new "
+            "conversation per fire and stores none of them on the trigger. "
+            "There is no mode naming one conversation to keep appending to (#14)"
+        ),
+    )
 
     # Event fields.
     event_source: EventSourceName | None = None
@@ -605,7 +626,7 @@ class TriggerCreate(BaseSchema):
                 raise ValueError("cron_expression is required for a cron schedule")
             if self.interval_seconds is not None:
                 raise ValueError("interval_seconds is not valid for a cron schedule")
-            if not _cron_has_next(self.cron_expression):
+            if not cron_has_next(self.cron_expression):
                 raise ValueError(
                     "cron_expression is not a valid crontab expression that ever fires"
                 )
@@ -637,7 +658,9 @@ class TriggerCreate(BaseSchema):
         # (a GitHub trigger with no actions fires on issue creation) and refuses
         # an unknown key. `model_validate({})` cannot fail for any source.
         config_model = _EVENT_CONFIG_MODELS[self.event_source]
-        self.event_config = config_model.model_validate(self.event_config or {}).model_dump()
+        self.event_config = config_model.model_validate(self.event_config or {}).model_dump(
+            exclude_defaults=self.event_source == EventSource.WEBHOOK.value
+        )
 
     def _reject_event_fields(self) -> None:
         if self.event_source is not None:
@@ -669,6 +692,7 @@ _UPDATE_NOT_NULLABLE = (
     "overlap",
     "answer_to",
     "result_mode",
+    "conversation_mode",
 )
 
 
@@ -724,6 +748,10 @@ class TriggerUpdate(BaseSchema):
 
     overlap: TriggerOverlapName | None = Field(
         default=None, description="A schedule's overlap policy; see `TriggerCreate.overlap`"
+    )
+    conversation_mode: TriggerConversationModeName | None = Field(
+        default=None,
+        description="Which conversation a fire's run goes in; see `TriggerCreate.conversation_mode`",
     )
     is_active: bool | None = None
     environment_id: UUID | None = None
@@ -798,6 +826,33 @@ class TriggerUpdate(BaseSchema):
         return data
 
 
+GithubFilterReason = Literal[
+    "event",
+    "action",
+    "bot",
+    "ignored_login",
+    "author",
+    "draft",
+    "branch",
+    "mention",
+    "conclusion",
+    "not_branch",
+]
+
+
+class GithubFilteredEvent(BaseSchema):
+    """The latest retained sample of verified GitHub rejections, without event content."""
+
+    received_at: datetime
+    recorded_at: datetime | None = Field(default=None, exclude=True)
+    reason: GithubFilterReason
+    authors: GithubAuthors
+
+
+class TriggerFilteredEventRead(BaseSchema):
+    last_event: GithubFilteredEvent | None = None
+
+
 class TriggerRead(BaseSchema, TimestampSchema):
     one_shot: bool = False
 
@@ -833,6 +888,8 @@ class TriggerRead(BaseSchema, TimestampSchema):
     # The trigger's own title, or null to fall back to the agent's name.
     name: str | None = None
     created_by_user_id: UUID | None = None
+    setup_required: bool = False
+    setup_issues: list[str] = Field(default_factory=list)
     is_active: bool
     environment_id: UUID | None = None
     pinned_version_id: UUID | None = Field(
@@ -863,6 +920,10 @@ class TriggerRead(BaseSchema, TimestampSchema):
     cron_expression: str | None = None
     time_zone: str | None = None
     overlap: TriggerOverlapName = "skip"
+    conversation_mode: TriggerConversationModeName = Field(
+        default="continue",
+        description="Which conversation a fire's run goes in; see `TriggerCreate.conversation_mode`",
+    )
     event_source: EventSourceName | None = None
     event_config: dict[str, Any] = Field(default_factory=dict)
     prompt: str
@@ -911,6 +972,17 @@ class TriggerRead(BaseSchema, TimestampSchema):
         return webhook_url(self.event_source, self.id)
 
 
+class TriggerDispatchRead(TriggerRead):
+    """Accepted manual fire, identified through its queued activation."""
+
+    activation_id: UUID
+    job_id: UUID | None
+
+
+class TriggerActivationRead(BaseSchema):
+    state: Literal["pending", "recorded", "not_started"]
+
+
 class TriggerCreateRead(TriggerRead):
     """The create response - a `TriggerRead` that may carry the secret once.
 
@@ -930,3 +1002,37 @@ class TriggerCreateRead(TriggerRead):
 class TriggerList(BaseSchema):
     items: list[TriggerRead]
     total: int
+
+
+TriggerAttemptStatus = Literal["blocked", "failed"]
+TriggerAttemptStage = Literal["source_review", "preparation"]
+TriggerAttemptReason = Literal[
+    "platform_identity_required",
+    "source_review_required",
+    "agent_unavailable",
+    "preparation_failed",
+    "previous_run_active",
+]
+
+
+class TriggerAttemptRead(BaseSchema):
+    """A safely redacted failure before an agent run existed; never a billed run."""
+
+    id: UUID
+    activation_id: UUID
+    status: TriggerAttemptStatus
+    stage: TriggerAttemptStage
+    reason: TriggerAttemptReason
+    occurred_at: datetime
+
+
+class TriggerAttemptList(BaseSchema):
+    items: list[TriggerAttemptRead]
+    total: int
+
+
+class TriggerFireResult(BaseSchema):
+    """Worker processing is separate from successful execution by an agent."""
+
+    outcome: Literal["processed", "blocked", "failed"]
+    attempt_id: UUID | None = None

@@ -54,20 +54,26 @@ export function LiveRun({ workflowId, runId, onClose, onStale, children }: LiveR
       {children}
       <div
         role="status"
-        className="bg-background/95 border-border absolute bottom-4 left-1/2 z-20 flex -translate-x-1/2 items-center gap-3 rounded-xl border px-3 py-2 shadow-md backdrop-blur"
+        className="bg-background/95 border-border absolute bottom-4 left-1/2 z-20 flex w-max max-w-[calc(100%-2rem)] -translate-x-1/2 flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border px-3 py-2 shadow-md backdrop-blur"
       >
         <span className="text-sm font-medium">{t("liveRunTitle")}</span>
         {run !== null && <WorkflowRunStatusBadge status={run.status} />}
         <span className="text-muted-foreground text-xs tabular-nums">
           {t("liveRunSteps", { count: done })}
         </span>
-        <Button asChild size="sm" variant="ghost">
+        <Button asChild size="sm" variant="ghost" className="shrink-0">
           <Link href={ROUTES.WORKFLOW_RUN_DETAIL(workflowId, runId)}>
             <ExternalLink className="h-4 w-4" />
             {t("liveRunOpen")}
           </Link>
         </Button>
-        <Button size="icon" variant="ghost" aria-label={t("liveRunClose")} onClick={onClose}>
+        <Button
+          size="icon"
+          variant="ghost"
+          className="ml-auto shrink-0"
+          aria-label={t("liveRunClose")}
+          onClick={onClose}
+        >
           <X className="h-4 w-4" />
         </Button>
       </div>
@@ -93,16 +99,22 @@ export function StaleRun({
   return (
     <div
       role="status"
-      className="bg-background/95 border-border absolute bottom-4 left-1/2 z-20 flex -translate-x-1/2 items-center gap-3 rounded-xl border px-3 py-2 shadow-md backdrop-blur"
+      className="bg-background/95 border-border absolute bottom-4 left-1/2 z-20 flex w-max max-w-[calc(100%-2rem)] -translate-x-1/2 flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border px-3 py-2 shadow-md backdrop-blur"
     >
       <span className="text-muted-foreground text-sm">{t("liveRunStale")}</span>
-      <Button asChild size="sm" variant="ghost">
+      <Button asChild size="sm" variant="ghost" className="shrink-0">
         <Link href={ROUTES.WORKFLOW_RUN_DETAIL(workflowId, runId)}>
           <ExternalLink className="h-4 w-4" />
           {t("liveRunOpen")}
         </Link>
       </Button>
-      <Button size="icon" variant="ghost" aria-label={t("liveRunClose")} onClick={onClose}>
+      <Button
+        size="icon"
+        variant="ghost"
+        className="ml-auto shrink-0"
+        aria-label={t("liveRunClose")}
+        onClick={onClose}
+      >
         <X className="h-4 w-4" />
       </Button>
     </div>

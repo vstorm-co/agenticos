@@ -20,6 +20,7 @@ import { wordCount, type DictationActions, type DictationState } from "@/hooks/u
 import { useReducedMotion } from "@/hooks/use-reduced-motion";
 import { cn } from "@/lib/utils";
 
+import type { BrowserSpeechFailure } from "./browser-speech-failure";
 import { clock } from "./dictation-bar";
 
 /** One hint, prompt or error under the composer. */
@@ -368,29 +369,29 @@ export function dictationHint(input: DictationHintInput, t: Translate): StripHin
   }
 }
 
-/**
- * What the strip says while the browser transcribes for an agent whose Dictation
- * switch is off: it works, but not the way the agent could, and where to change
- * that - the agent's Voice card, for whoever may edit it.
- */
-export function browserDictationHint(agentHref: string | null, t: Translate): StripHint {
+/** The visitor's `hint.*` sentence for each way the browser's own recognition fails. */
+const BROWSER_FAILURE_HINTS = {
+  micDenied: "micDenied",
+  micInsecure: "micInsecure",
+  micNotFound: "micNotFound",
+  unavailable: "browserUnavailable",
+  network: "browserNetwork",
+  noSpeech: "browserNoSpeech",
+  generic: "browserFailed",
+} as const satisfies Record<BrowserSpeechFailure, string>;
+
+/** Why the browser's own recognition stopped on a hosted page, and what the visitor can do. */
+export function browserFailureHint(
+  failure: BrowserSpeechFailure,
+  onDismiss: () => void,
+  t: Translate,
+): StripHint {
   return {
-    key: "browserOff",
-    tone: "hint",
-    icon: Info,
-    message: (
-      <>
-        {t.rich("hint.browserOff", { strong })}
-        {agentHref !== null && (
-          <>
-            {" "}
-            <Link href={agentHref} className={SETUP_LINK}>
-              {t("openBuilder")}
-            </Link>
-          </>
-        )}
-      </>
-    ),
+    key: `browser-${failure}`,
+    tone: failure === "noSpeech" ? "warn" : "error",
+    icon: failure === "noSpeech" ? TriangleAlert : MicOff,
+    message: t.rich(`hint.${BROWSER_FAILURE_HINTS[failure]}`, { strong }),
+    actions: <StripButton onClick={onDismiss}>{t("dismiss")}</StripButton>,
   };
 }
 
@@ -417,6 +418,7 @@ export function browserDictationHint(agentHref: string | null, t: Translate): St
 export function DictationStrip({
   hint,
   placement = "below",
+  detached = false,
 }: {
   hint: StripHint | null;
   /**
@@ -424,6 +426,7 @@ export function DictationStrip({
    * pill it belongs to, and slides up from behind the box; `below` hangs under it.
    */
   placement?: "above" | "below";
+  detached?: boolean;
 }) {
   const reduced = useReducedMotion();
   const slide = reduced ? { duration: 0 } : { duration: 0.23, ease: EASE_OUT };
@@ -431,7 +434,11 @@ export function DictationStrip({
   const error = hint?.tone === "error";
 
   return (
-    <div data-testid="dictation-strip" aria-live={error || hint?.quiet ? "off" : "polite"}>
+    <div
+      className={cn(detached && hint && "mx-auto mb-2 w-full max-w-[760px]")}
+      data-testid="dictation-strip"
+      aria-live={error || hint?.quiet ? "off" : "polite"}
+    >
       <AnimatePresence initial={false}>
         {hint && (
           <motion.div
@@ -450,8 +457,12 @@ export function DictationStrip({
               transition={slide}
               className={cn(
                 "border-border text-muted-foreground relative border px-3.5 py-2.5 text-[12.5px] leading-[1.45] break-words transition-colors",
-                placement === "above" ? "rounded-t-2xl border-b-0" : "rounded-b-2xl border-t-0",
-                error ? "bg-destructive/10" : "bg-muted",
+                detached
+                  ? "rounded-xl"
+                  : placement === "above"
+                    ? "rounded-t-2xl border-b-0"
+                    : "rounded-b-2xl border-t-0",
+                error ? "bg-destructive/10" : detached ? "bg-muted/40" : "bg-muted",
               )}
             >
               <AnimatePresence mode="popLayout" initial={false}>

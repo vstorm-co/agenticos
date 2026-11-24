@@ -128,17 +128,26 @@ async def take_attachment(handle: str) -> str | None:
 @asynccontextmanager
 async def in_worker() -> AsyncGenerator[None]:
     """Own the channel stores for the lifetime of a worker, including numbered replies."""
-    from app.services.channels import dedupe, sms_prompts
+    from app.services import rate_limit
+    from app.services.channels import connection_state, dedupe, membership, sms_prompts, teams
 
     client = RedisClient()
     await client.connect()
     configure(client)
     sms_prompts.configure(client)
     dedupe.configure(client)
+    rate_limit.configure(client)
+    membership.configure(client)
+    connection_state.configure(client)
+    teams.configure(client)
     try:
         yield
     finally:
         configure(None)
         sms_prompts.configure(None)
         dedupe.configure(None)
+        rate_limit.configure(None)
+        membership.configure(None)
+        connection_state.configure(None)
+        teams.configure(None)
         await client.close()

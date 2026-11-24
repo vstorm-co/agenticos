@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import type { ReactNode } from "react";
 import {
   ArchiveRestore,
+  CircleAlert,
   Archive,
   Building2,
   Copy,
@@ -16,8 +18,20 @@ import {
 
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { AgentStatusBadge } from "@/components/agents/status-badge";
+import { SystemAgentBadge } from "@/components/agents/system-agent-badge";
 import {
   Badge,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+  ResourceCard,
+  ResourceCardHeader,
+  ResourceCardDescription,
+  ResourceCardFooter,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -28,10 +42,13 @@ import {
 } from "@/components/ui";
 import { ROUTES } from "@/lib/constants";
 import { cn, formatDate } from "@/lib/utils";
+import { isSystemAgent } from "@/lib/system-agents";
 import type { Agent } from "@/types/agents";
 import { useLocale, useTranslations } from "next-intl";
 
 import { groupsLabel } from "@/components/sharing/audience-chip";
+import { attentionParts } from "@/lib/attention";
+import type { AgentAttention } from "@/types/stats";
 
 /** Chip labels for the surfaces an agent answers on. Unknown values pass through. */
 /**
@@ -77,11 +94,18 @@ export function AgentCard({
   canEdit,
   actions,
   busy,
+  footer,
+  attention,
 }: {
   agent: Agent;
   canEdit: boolean;
-  actions: AgentCardActions;
+  /** The card's menu - duplicate, archive, delete. Absent for an agent the platform owns. */
+  actions?: AgentCardActions;
   busy?: boolean;
+  /** A line under the labels, such as the datasets a judge grades. */
+  footer?: ReactNode;
+  /** What makes the agent need a look lately, for a reader who may see runs. */
+  attention?: AgentAttention;
 }) {
   const t = useTranslations("agents");
   const tc = useTranslations("common");
@@ -90,52 +114,59 @@ export function AgentCard({
 
   return (
     <div className="h-full">
-      <div
-        className={cn(
-          "border-foreground/8 bg-card relative flex h-full flex-col rounded-xl border p-4 transition-colors",
-          "hover:border-foreground/25",
-          busy && "pointer-events-none opacity-50",
-        )}
-      >
+      <ResourceCard className={cn(busy && "pointer-events-none opacity-50")}>
         <Link
-          href={ROUTES.AGENT_DETAIL(agent.id)}
+          href={
+            attention && !isSystemAgent(agent.kind)
+              ? `${ROUTES.AGENT_DETAIL(agent.id)}?tab=evals`
+              : ROUTES.AGENT_DETAIL(agent.id)
+          }
           className="focus-visible:ring-ring absolute inset-0 rounded-xl outline-none focus-visible:ring-2"
           aria-label={tc("openNamed", { name: agent.name })}
         />
 
-        <div className="pointer-events-none relative mb-3 grid grid-cols-[auto_minmax(0,1fr)] items-start gap-3 sm:flex">
+        <ResourceCardHeader className="pointer-events-none">
           <AgentAvatar
             agentId={agent.id}
             slug={agent.slug}
             hasAvatar={agent.has_avatar}
             colorSlot={agent.avatar_color}
             size="lg"
-            className="max-sm:size-12"
           />
-          <div className="contents sm:block sm:min-w-0 sm:flex-1">
-            <div className="flex min-w-0 flex-col items-start gap-1.5 sm:flex-row sm:justify-between sm:gap-2">
-              <div className="w-full min-w-0 sm:w-auto">
-                <h3
-                  className={cn(
-                    "text-foreground line-clamp-2 font-semibold break-words sm:truncate",
-                    archived && "text-muted-foreground",
-                  )}
-                >
-                  {agent.name}
-                </h3>
-              </div>
-              <AgentStatusBadge status={agent.status} />
-            </div>
-            <p className="text-foreground/85 col-span-2 line-clamp-2 min-h-[2.5rem] text-sm sm:mt-2">
-              {agent.description || t("noDescription")}
-            </p>
-            <div className="col-span-2 flex flex-wrap items-center gap-1.5 sm:mt-2">
-              <AccessChip agent={agent} />
-            </div>
+          <div className="min-w-0 flex-1 space-y-1.5">
+            <h3
+              className={cn(
+                "text-foreground line-clamp-2 font-semibold break-words",
+                archived && "text-muted-foreground",
+              )}
+            >
+              {agent.name}
+            </h3>
+            <AccessChip agent={agent} />
           </div>
-        </div>
+        </ResourceCardHeader>
+        <ResourceCardDescription className="pointer-events-none">
+          {agent.description || t("noDescription")}
+        </ResourceCardDescription>
+        <ResourceCardFooter className="pointer-events-none min-h-12">
+          <AgentStatusBadge status={agent.status} compact />
+          {attention && <AttentionBadge attention={attention} />}
+          {isSystemAgent(agent.kind) &&
+            (agent.system_key ? (
+              <Badge
+                variant="secondary"
+                className="font-normal"
+                title={t(`defaultBadge.${agent.kind}Hint`)}
+              >
+                {t(`defaultBadge.${agent.kind}`)}
+              </Badge>
+            ) : (
+              <SystemAgentBadge kind={agent.kind} />
+            ))}
+          {footer !== undefined && <div className="w-full text-xs">{footer}</div>}
+        </ResourceCardFooter>
 
-        <div className="relative mt-auto flex items-start justify-between gap-2 pt-3">
+        <div className="relative flex items-start justify-between gap-2 pt-3">
           <span
             className="text-muted-foreground pointer-events-none py-2 text-xs"
             title={`@${agent.slug}`}
@@ -156,61 +187,63 @@ export function AgentCard({
                 // of many still returns to the right one.
                 agentId={agent.id}
               />
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button
-                    type="button"
-                    aria-label={t("moreActionsFor", { name: agent.name })}
-                    className="text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-ring touch:min-h-11 touch:min-w-11 inline-flex h-8 w-8 touch-manipulation items-center justify-center rounded-md transition-colors outline-none focus-visible:ring-2"
-                  >
-                    <MoreHorizontal className="h-4 w-4" />
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-64">
-                  <DropdownMenuItem className={DESCRIBED_ITEM} onSelect={actions.onDuplicate}>
-                    <Copy className="h-4 w-4" />
-                    <DropdownMenuItemText
-                      label={t("duplicate")}
-                      description={t("menuDuplicateHint")}
-                    />
-                  </DropdownMenuItem>
-                  {archived ? (
-                    <DropdownMenuItem className={DESCRIBED_ITEM} onSelect={actions.onRestore}>
-                      <ArchiveRestore className="h-4 w-4" />
+              {actions && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      type="button"
+                      aria-label={t("moreActionsFor", { name: agent.name })}
+                      className="text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-ring touch:min-h-11 touch:min-w-11 inline-flex h-8 w-8 touch-manipulation items-center justify-center rounded-md transition-colors outline-none focus-visible:ring-2"
+                    >
+                      <MoreHorizontal className="h-4 w-4" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-64">
+                    <DropdownMenuItem className={DESCRIBED_ITEM} onSelect={actions.onDuplicate}>
+                      <Copy className="h-4 w-4" />
                       <DropdownMenuItemText
-                        label={t("restore")}
-                        description={t("menuRestoreHint")}
+                        label={t("duplicate")}
+                        description={t("menuDuplicateHint")}
                       />
                     </DropdownMenuItem>
-                  ) : (
-                    <DropdownMenuItem className={DESCRIBED_ITEM} onSelect={actions.onArchive}>
-                      <Archive className="h-4 w-4" />
-                      <DropdownMenuItemText
-                        label={t("archive")}
-                        description={t("menuArchiveHint")}
-                      />
-                    </DropdownMenuItem>
-                  )}
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    className={cn(
-                      DESCRIBED_ITEM,
-                      "text-destructive-ink focus:text-destructive-ink",
+                    {archived ? (
+                      <DropdownMenuItem className={DESCRIBED_ITEM} onSelect={actions.onRestore}>
+                        <ArchiveRestore className="h-4 w-4" />
+                        <DropdownMenuItemText
+                          label={t("restore")}
+                          description={t("menuRestoreHint")}
+                        />
+                      </DropdownMenuItem>
+                    ) : (
+                      <DropdownMenuItem className={DESCRIBED_ITEM} onSelect={actions.onArchive}>
+                        <Archive className="h-4 w-4" />
+                        <DropdownMenuItemText
+                          label={t("archive")}
+                          description={t("menuArchiveHint")}
+                        />
+                      </DropdownMenuItem>
                     )}
-                    onSelect={actions.onDelete}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                    <DropdownMenuItemText
-                      label={t("deletePermanently")}
-                      description={t("menuDeleteHint")}
-                    />
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      className={cn(
+                        DESCRIBED_ITEM,
+                        "text-destructive-ink focus:text-destructive-ink",
+                      )}
+                      onSelect={actions.onDelete}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      <DropdownMenuItemText
+                        label={t("deletePermanently")}
+                        description={t("menuDeleteHint")}
+                      />
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
             </div>
           )}
         </div>
-      </div>
+      </ResourceCard>
     </div>
   );
 }
@@ -220,10 +253,12 @@ function AccessChip({ agent }: { agent: Agent }) {
   const tAudience = useTranslations("audience");
   const { icon: Icon, label } = accessSummary(agent, t, tAudience);
   return (
-    <Badge variant="outline" className="text-muted-foreground gap-1 font-normal">
-      <Icon className="h-3 w-3" aria-hidden />
-      {label}
-    </Badge>
+    <span className="text-muted-foreground flex min-w-0 items-center gap-1.5 text-xs">
+      <Icon className="size-3 shrink-0" aria-hidden />
+      <span className="truncate" title={label}>
+        {label}
+      </span>
+    </span>
   );
 }
 
@@ -249,5 +284,45 @@ function IconAction({
     >
       <Icon className="h-4 w-4" />
     </Link>
+  );
+}
+
+/** A small, keyboard- and touch-readable signal with the concrete reasons. */
+function AttentionBadge({ attention }: { attention: AgentAttention }) {
+  const tAttention = useTranslations("attention");
+  const reasons = attentionParts(attention, tAttention).join(" · ");
+  const label = `${tAttention("badge")}: ${reasons}`;
+  const content = (
+    <>
+      <p className="font-medium">{tAttention("badge")}</p>
+      <p>{reasons}</p>
+    </>
+  );
+  return (
+    <TooltipProvider delayDuration={150}>
+      <Popover>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                aria-label={label}
+                title={reasons}
+                className="text-warning-ink focus-visible:outline-ring hover:bg-warning/10 pointer-events-auto relative inline-flex size-7 shrink-0 items-center justify-center rounded-full focus-visible:outline-2 focus-visible:outline-offset-2"
+              >
+                <CircleAlert className="size-4" aria-hidden />
+              </button>
+            </PopoverTrigger>
+          </TooltipTrigger>
+          <TooltipContent className="max-w-xs space-y-1">{content}</TooltipContent>
+        </Tooltip>
+        <PopoverContent
+          className="max-w-[calc(100vw-2rem)] space-y-1 text-sm"
+          onOpenAutoFocus={(event) => event.preventDefault()}
+        >
+          {content}
+        </PopoverContent>
+      </Popover>
+    </TooltipProvider>
   );
 }

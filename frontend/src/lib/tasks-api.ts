@@ -1,6 +1,6 @@
 import { apiClient } from "@/lib/api-client";
 
-export type TaskScope = "private" | "project" | "group" | "organization";
+export type TaskScope = "private" | "agent" | "project" | "group" | "organization";
 export type TaskStatus =
   "planned" | "in_progress" | "waiting_for_user" | "blocked" | "done" | "cancelled";
 export interface TaskBoard {

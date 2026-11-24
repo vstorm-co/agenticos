@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import userEvent from "@testing-library/user-event";
 import { useSidebarStore } from "@/stores/sidebar-store";
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -13,6 +13,7 @@ import { CommandPalette } from "./command-palette";
 import { apiClient } from "@/lib/api-client";
 
 const can = vi.fn<(permission: string) => boolean>();
+const navigation = { hiddenItems: [] as string[], isLoaded: true };
 const currentUser = vi.fn<() => { is_app_admin?: boolean } | null>(() => ({
   is_app_admin: false,
 }));
@@ -27,7 +28,13 @@ vi.mock("next/navigation", () => ({
   redirect: vi.fn(),
   permanentRedirect: vi.fn(),
 }));
-vi.mock("@/hooks/use-permissions", () => ({ usePermissions: () => ({ can }) }));
+vi.mock("@/hooks/use-permissions", () => ({
+  usePermissions: () => ({
+    can,
+    hiddenNavigationItems: navigation.hiddenItems,
+    isLoaded: navigation.isLoaded,
+  }),
+}));
 vi.mock("@/hooks", () => ({ useAuth: () => ({ user: currentUser(), logout: vi.fn() }) }));
 vi.mock("@/lib/api-client", () => ({ apiClient: { get: vi.fn() } }));
 
@@ -52,6 +59,8 @@ async function openPalette() {
 beforeEach(() => {
   vi.clearAllMocks();
   can.mockReturnValue(true);
+  navigation.hiddenItems = [];
+  navigation.isLoaded = true;
   currentUser.mockReturnValue({ is_app_admin: false });
   vi.mocked(apiClient.get).mockImplementation((endpoint: string) =>
     endpoint in ANSWERS
@@ -93,14 +102,15 @@ describe("the palette's destinations", () => {
     expect(screen.getByRole("option", { name: "agents" })).toBeInTheDocument();
   });
 
-  it("hides Connectors from a role that holds none of its three areas", async () => {
-    // Connectors shows to any holder of agents, secrets or connections view.
+  it("hides Connectors from a role that holds none of its four areas", async () => {
+    // Connectors shows to any holder of agents, secrets, connections or networks view.
     // The palette must follow the sidebar, not the single `permission` field.
     can.mockImplementation(
       (permission) =>
         permission !== "agents:view" &&
         permission !== "secrets:view" &&
-        permission !== "connections:view",
+        permission !== "connections:view" &&
+        permission !== "networks:view",
     );
 
     await openPalette();
@@ -153,6 +163,55 @@ describe("the palette's destinations", () => {
 });
 
 describe("the palette's named entities", () => {
+  it("does not fetch or offer shortcuts for hidden sections", async () => {
+    navigation.hiddenItems = ["agents", "knowledgeBases", "chat"];
+    await openPalette();
+
+    for (const name of [
+      "agents",
+      "knowledgeBases",
+      "chat",
+      "startNewChat",
+      "Getting Started",
+      "E2E Handbook",
+      "Refund policy",
+    ]) {
+      expect(screen.queryByRole("option", { name })).not.toBeInTheDocument();
+    }
+    expect(apiClient.get).not.toHaveBeenCalled();
+  });
+
+  it("removes cached entity shortcuts when an administrator hides their sections", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const contents = () => (
+      <QueryClientProvider client={client}>
+        <CommandPalette />
+      </QueryClientProvider>
+    );
+    const { rerender } = render(contents());
+    act(() => window.dispatchEvent(new CustomEvent("command-palette:open")));
+    await screen.findByRole("option", { name: "Getting Started" });
+    await screen.findByRole("option", { name: "E2E Handbook" });
+    await screen.findByRole("option", { name: "Refund policy" });
+
+    navigation.hiddenItems = ["agents", "knowledgeBases", "chat"];
+    rerender(contents());
+
+    for (const name of ["Getting Started", "E2E Handbook", "Refund policy", "startNewChat"]) {
+      expect(screen.queryByRole("option", { name })).not.toBeInTheDocument();
+    }
+  });
+
+  it("waits for the policy before offering configurable navigation or loading entities", async () => {
+    navigation.isLoaded = false;
+    await openPalette();
+    expect(screen.queryByRole("option", { name: "chat" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "startNewChat" })).not.toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "dashboard" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "organizations" })).toBeInTheDocument();
+    expect(apiClient.get).not.toHaveBeenCalled();
+  });
+
   it("finds an agent by name and opens that agent", async () => {
     await openPalette();
 
@@ -175,6 +234,58 @@ describe("the palette's named entities", () => {
     render(<CommandPalette />, { wrapper });
 
     expect(apiClient.get).not.toHaveBeenCalled();
+  });
+
+  it.each(["pointer", "keyboard"])(
+    "exposes an unavailable entity read and retries only that source via %s",
+    async (method) => {
+      let broken = true;
+      vi.mocked(apiClient.get).mockImplementation(async (endpoint: string) => {
+        if (endpoint === "/agents" && broken) throw new Error("internal details stay private");
+        return ANSWERS[endpoint];
+      });
+      await openPalette();
+      expect(await screen.findByRole("alert")).toHaveTextContent("searchUnavailable");
+      expect(screen.queryByText("internal details stay private")).toBeNull();
+      expect(await screen.findByRole("option", { name: "E2E Handbook" })).toBeVisible();
+      broken = false;
+      const retry = screen.getByRole("button", { name: "retry" });
+      if (method === "pointer") await userEvent.click(retry);
+      else {
+        retry.focus();
+        await userEvent.keyboard("{Enter}");
+      }
+      expect(push).not.toHaveBeenCalled();
+      expect(await screen.findByRole("option", { name: "Getting Started" })).toBeVisible();
+      expect(apiClient.get).toHaveBeenCalledTimes(4);
+      expect(vi.mocked(apiClient.get).mock.calls.filter(([path]) => path === "/kb")).toHaveLength(
+        1,
+      );
+      expect(
+        vi.mocked(apiClient.get).mock.calls.filter(([path]) => path === "/conversations"),
+      ).toHaveLength(1);
+    },
+  );
+
+  it("does not render cached names after their permission is withdrawn", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const view = render(
+      <QueryClientProvider client={client}>
+        <CommandPalette />
+      </QueryClientProvider>,
+    );
+    act(() => window.dispatchEvent(new CustomEvent("command-palette:open")));
+    expect(await screen.findByRole("option", { name: "Getting Started" })).toBeVisible();
+    can.mockImplementation(
+      (permission) => !["agents:view", "collections:view"].includes(permission),
+    );
+    view.rerender(
+      <QueryClientProvider client={client}>
+        <CommandPalette />
+      </QueryClientProvider>,
+    );
+    expect(screen.queryByRole("option", { name: "Getting Started" })).toBeNull();
+    expect(screen.queryByRole("option", { name: "E2E Handbook" })).toBeNull();
   });
 
   it("does not ask for entities the caller may not see", async () => {
@@ -208,4 +319,69 @@ it("closes mobile navigation when a search result opens a page", async () => {
   await userEvent.click(await screen.findByRole("option", { name: "Getting Started" }));
   expect(push).toHaveBeenCalledWith("/agents/a1");
   expect(useSidebarStore.getState().isOpen).toBe(false);
+});
+
+async function openFromFocusedInvoker() {
+  render(
+    <>
+      <button
+        type="button"
+        onClick={() => window.dispatchEvent(new CustomEvent("command-palette:open"))}
+      >
+        Open search
+      </button>
+      <CommandPalette />
+    </>,
+    { wrapper },
+  );
+  const invoker = screen.getByRole("button", { name: "Open search" });
+  await userEvent.click(invoker);
+  await screen.findByRole("dialog", { name: "commandPalette" });
+  await waitFor(() => expect(screen.getByRole("combobox")).toHaveFocus());
+  return invoker;
+}
+
+it.each(["escape", "close", "close-enter", "shortcut"])(
+  "dismisses through %s without navigating and restores its external invoker",
+  async (method) => {
+    const invoker = await openFromFocusedInvoker();
+    const focus = vi.spyOn(invoker, "focus");
+    if (method === "close")
+      await userEvent.click(screen.getByRole("button", { name: "close", hidden: true }));
+    else if (method === "close-enter") {
+      screen.getByRole("button", { name: "close", hidden: true }).focus();
+      await userEvent.keyboard("{Enter}");
+    } else if (method === "escape") await userEvent.keyboard("{Escape}");
+    else await userEvent.keyboard("{Control>}k{/Control}");
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    await waitFor(() => expect(invoker).toHaveFocus());
+    expect(focus).toHaveBeenCalledWith({ preventScroll: true });
+    expect(push).not.toHaveBeenCalled();
+  },
+);
+
+it("keeps cmdk arrow selection and explicit Enter navigation while typing never navigates", async () => {
+  const invoker = await openFromFocusedInvoker();
+  const focus = vi.spyOn(invoker, "focus");
+  await userEvent.type(screen.getByRole("combobox"), "Getting Started");
+  await screen.findByRole("option", { name: "Getting Started" });
+  expect(push).not.toHaveBeenCalled();
+  await userEvent.keyboard("{ArrowDown}{Enter}");
+  await waitFor(() => expect(push).toHaveBeenCalledWith("/agents/a1"));
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  expect(focus).not.toHaveBeenCalledWith({ preventScroll: true });
+});
+
+it("cancels deferred invoker restoration if its owner unmounts", async () => {
+  const invoker = await openFromFocusedInvoker();
+  const focus = vi.spyOn(invoker, "focus");
+  vi.useFakeTimers();
+  try {
+    act(() => screen.getByRole("button", { name: "close", hidden: true }).click());
+    cleanup();
+    await vi.runAllTimersAsync();
+    expect(focus).not.toHaveBeenCalledWith({ preventScroll: true });
+  } finally {
+    vi.useRealTimers();
+  }
 });

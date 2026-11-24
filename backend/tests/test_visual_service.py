@@ -625,7 +625,13 @@ class TestSharedThread:
         result: str | None = "Drew it as visual.",
     ):
         return SimpleNamespace(
-            tool_call_id=call_id, tool_name=name, args=args, status=status, result=result
+            tool_call_id=call_id,
+            tool_name=name,
+            tool_id=None,
+            presentation_kind=None,
+            args=args,
+            status=status,
+            result=result,
         )
 
     async def test_each_visual_is_sent_finished_with_its_pictures_inlined(self) -> None:
@@ -916,3 +922,76 @@ class TestThumbnailDrawnOnDemand:
         assert visuals.svg_aspect('<svg viewBox="0 0 200 100">') == 0.5
         assert visuals.svg_aspect("<svg>") is None
         assert visuals.svg_aspect('<svg viewBox="0 0 0 1">') is None
+
+
+@pytest.mark.security
+async def test_shared_renamed_drawings_and_revisions_ignore_external_name_collisions() -> None:
+    harness = TestSharedThread()
+    draw = harness._call("d", "sketch", {"kind": "svg", "content": "<svg><text>old</text></svg>"})
+    draw.tool_id = "draw"
+    revise = harness._call(
+        "r", "adjust", {"visual_id": "d", "edits": [{"old": "old", "new": "new"}]}
+    )
+    revise.tool_id = "revise_visual"
+    external = harness._call("m", "draw", {"kind": "svg", "content": SVG})
+    external.presentation_kind = "generic"
+    conversation, message = harness._thread(draw, revise, external)
+    shared = await visuals.shared_visuals(conversation)
+    assert [item["id"] for item in shared[message.id]] == ["d", "r"]
+    assert "new" in shared[message.id][1]["content"]
+
+
+class TestDashboardPreview:
+    @pytest.mark.security
+    @pytest.mark.parametrize("owner", ["mine", "other", "none", "missing"])
+    async def test_only_the_owner_can_read_the_rebuilt_drawing(self, owner: str) -> None:
+        ctx = _ctx()
+        row = SimpleNamespace(
+            user_id=ctx.user_id if owner == "mine" else uuid.uuid4() if owner == "other" else None,
+            organization_id=ctx.organization_id,
+            conversation_id=uuid.uuid4(),
+            tool_call_id="draw-1",
+        )
+        args = ToolCallArgs(
+            "draw-1", "draw", {"kind": "html", "title": "Preview", "content": "<h1>Drawing</h1>"}
+        )
+        with (
+            patch(
+                "app.services.visual.visual_repo.get",
+                new=AsyncMock(return_value=None if owner == "missing" else row),
+            ) as get,
+            patch(
+                "app.services.visual.conversation_repo.tool_call_in_conversation",
+                new=AsyncMock(return_value=args),
+            ) as lookup,
+        ):
+            service = VisualService(MagicMock())
+            if owner == "mine":
+                result = await service.preview(ctx, uuid.uuid4())
+                assert result.kind == "html"
+                assert result.title == "Preview"
+                assert "Drawing" in result.content
+                assert lookup.await_args.kwargs["conversation_id"] == row.conversation_id
+            else:
+                with pytest.raises(NotFoundError):
+                    await service.preview(ctx, uuid.uuid4())
+                lookup.assert_not_awaited()
+            assert get.await_args.kwargs["organization_id"] == ctx.organization_id
+
+    async def test_missing_transcript_is_a_not_found(self) -> None:
+        ctx = _ctx()
+        row = SimpleNamespace(
+            user_id=ctx.user_id,
+            organization_id=ctx.organization_id,
+            conversation_id=uuid.uuid4(),
+            tool_call_id="missing",
+        )
+        with (
+            patch("app.services.visual.visual_repo.get", new=AsyncMock(return_value=row)),
+            patch(
+                "app.services.visual.conversation_repo.tool_call_in_conversation",
+                new=AsyncMock(return_value=None),
+            ),
+            pytest.raises(NotFoundError),
+        ):
+            await VisualService(MagicMock()).preview(ctx, uuid.uuid4())

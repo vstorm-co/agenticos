@@ -80,6 +80,13 @@ class TestAccessToken:
         assert payload["sub"] == subject
         assert payload["type"] == "access"
 
+    def test_create_access_token_can_record_authentication_time(self):
+        token = create_access_token("user123", auth_time=1_762_943_040)
+        payload = verify_token(token)
+
+        assert payload is not None
+        assert payload["auth_time"] == 1_762_943_040
+
     def test_verify_access_token(self):
         """Test verifying access token."""
         subject = "user123"

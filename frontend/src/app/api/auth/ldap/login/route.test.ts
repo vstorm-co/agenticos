@@ -35,6 +35,23 @@ const CREDENTIALS = { username: "jdoe", password: "secret" };
 beforeEach(() => vi.clearAllMocks());
 
 describe("signing in with a directory account", () => {
+  it("returns a second-factor challenge without creating a session", async () => {
+    const challenge = { mfa_required: true, mfa_token: "directory-challenge", expires_in: 300 };
+    vi.mocked(backendFetch).mockResolvedValueOnce(challenge);
+
+    const response = await ldapLogin(request(CREDENTIALS));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual(challenge);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(response.headers.getSetCookie()).toEqual([]);
+    expect(backendFetch).toHaveBeenCalledExactlyOnceWith("/api/v1/auth/ldap/login", {
+      method: "POST",
+      headers: {},
+      body: JSON.stringify(CREDENTIALS),
+    });
+  });
+
   it("posts the username as JSON, not the OAuth2 form the password login takes", async () => {
     vi.mocked(backendFetch)
       .mockResolvedValueOnce({ access_token: "at", refresh_token: "rt" })

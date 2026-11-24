@@ -19,6 +19,28 @@ model profile → credential → unsealed secret → provider client → Model
 
 Nothing about which model an agent uses lives in `.env`.
 
+## Personal model keys
+
+In the Builder's **Model access**, keep **Use the organization’s key** (the default), or select **Each user connects their own key**. Personal mode keeps the administrator's model and endpoint fixed. It supports API-key chat providers, without model fallbacks or per-conversation model overrides.
+
+A signed-in member opens the agent in web chat and connects their key through the private form above the composer or in chat controls. Keys never enter messages, prompts or agent instructions. The same connection is reused across agents in this organization with the same provider and endpoint. A missing key blocks the run before a model request; authentication errors never switch to the organization's key. Replace the key in chat settings, or remove the connection in **Vault → Your model connection**. Saving a key does not test it against the provider.
+
+The private-key form submits the expected profile, provider, endpoint and model shown to the user. If that destination changes before saving, the server refuses the key with a conflict; the form reloads the destination and clears the typed key before another attempt.
+
+Personal mode currently excludes channels (private and group), widgets, hosted pages, HTTP API runs, schedules, triggers, background topics, voice, reviewers and separate capability models. Pause or remove active channels, public surfaces and routines before publishing this mode. Creating or reactivating an incompatible surface is refused, and the runtime enforces the same rule. Hosted pages and widget JWTs do not identify a signed-in member of the instance.
+
+Delegation is supported in signed-in web chat. A personal-mode subagent must use the exact model profile selected on a personal-mode root agent. Organization-mode parents cannot spend personal keys, and personal delegates cannot select another model or endpoint. These limits are checked at publication, surface admission, promotion and runtime, including nested delegations and approval resumes.
+
+Organization-mode delegates retain their own credentials. Inline specialists inherit their parent's mode; dynamic specialists in personal mode stay on their parent's configured model. Personal MCP access keeps its existing caller boundaries.
+
+A missing subagent connection names the agent and model connection. Open that agent's chat settings to connect your key; ask its owner for access if it is not visible. The runner checks the delegation tree before model calls and checks again on resume. A key for another endpoint, another member's key or an approver's key never substitutes for the caller's missing connection.
+
+Credentials are encrypted for their owner in the vault, and are deleted when their membership or user account is removed. Changing the approved endpoint requires a new connection. Rotating one member's key does not change another member's key or the shared model profile.
+
+Impersonating another member never grants access to their personal model connections: requests to inspect, change or use their key are refused before vault access.
+
+Private conversation history follows the approved model destinations, including fallbacks; see [chat history](console.md#chat) for switching connections and resuming waiting runs.
+
 ## A model profile
 
 A row in an organization: a label, a provider, a model id, default settings, and
@@ -210,21 +232,38 @@ used by the runner and checked at publish. One provider's outage should
 not take an organization's agents down when it has a second key or a second
 provider configured.
 
-!!! warning "A fallback is invisible in the run record"
+A fallback is no longer invisible in the run record. When a fallback model
+serves any request of the run, the run row records `fallback_used` and the bare
+model id that answered the last successful request as `serving_model`, and the
+run detail view says "Served by … (fallback)" under the facts strip. The row
+is still written before the first request, so it names the primary profile
+until the run finishes; a run parked awaiting approval carries what its
+finished segments recorded so far.
 
-    The run row is written before the first request, carrying the **primary**
-    profile's label, provider and secret id. If a fallback served the turn, the run
-    still names the primary.
+Two blind spots remain, worth knowing before trusting the numbers during an
+outage:
 
-    So "what did we spend at OpenAI" and "which key is costing the most" answer
-    with the profile that was *asked* first, not the one that answered. Worth
-    knowing before you rely on those numbers during an outage.
+- "What did we spend at OpenAI" and "which key is costing the most" are still
+  answered by the profile that was *asked* first, not the one that answered —
+  cost is attributed to the primary's profile. The new columns say which model
+  answered, not which profile paid.
+- A failure **after** the first streamed event never fails over. Pydantic AI
+  hands the stream over to the caller at the first event, so a mid-stream
+  failure ends the run rather than trying the next model in the chain.
 
 ### Model settings
 
 Per profile, and overridable per agent through the spec's `model_settings`:
-`temperature`, `top_p`, `max_tokens`, `parallel_tool_calls`, `timeout`. See
+`temperature`, `top_p`, `max_tokens`, `parallel_tool_calls`, `timeout`,
+`request_timeout`, `first_event_timeout`. See
 [the spec reference](reference/spec.md#model-settings).
+
+A request also has deadlines by default: 300 seconds for one model request
+(`request_timeout`, and `timeout` per attempt) and 120 seconds for the first
+streamed event (`first_event_timeout`). A profile or an agent spec can raise
+or lower them. When the deadline passes, the run ends as `timed_out` — with
+the deadline in its stored error — rather than showing "Working" for ever;
+where a fallback chain is configured, it is tried first.
 
 **Prompt caching is on by default**, through Pydantic AI's provider-neutral
 `cache` setting. Every request of a run re-sends the instructions, the tool
@@ -329,6 +368,7 @@ Standard providers use Pydantic AI's model and provider inference. The platform 
 | OpenAI | `openai` | API key, or none | ✓ |
 | Anthropic | `anthropic` | API key | ✓ |
 | Google Gemini | `google` | API key | ✓ |
+| TypeSafe (Jev) | `typesafe` | API key | ✓ |
 | OpenRouter | `openrouter` | API key |  ✓ |
 | Otari | `otari` | API key | ✓ |
 | Alibaba Cloud | `alibaba` | API key | ✓ |
@@ -338,6 +378,7 @@ Standard providers use Pydantic AI's model and provider inference. The platform 
 | GitHub Models | `github` | API key | |
 | Groq | `groq` | API key | |
 | Heroku AI | `heroku` | API key | ✓ |
+| LLMTR | `llmtr` | API key | |
 | Mistral | `mistral` | API key | |
 | Moonshot AI | `moonshotai` | API key | |
 | Nebius AI Studio | `nebius` | API key | |
@@ -351,10 +392,13 @@ Standard providers use Pydantic AI's model and provider inference. The platform 
 | Cohere | `cohere` | API key | |
 | Hugging Face | `huggingface` | API key | ✓ |
 
+LLMTR lists only models advertising `CHAT_COMPLETIONS`. A model without a reviewed price in the bundled snapshot can run only without an active dollar ceiling; its cost remains marked incomplete. A budgeted run also refuses further LLMTR calls when earlier usage has an unknown cost.
+
 ### Self-hosted
 
 | Provider | id | Credential | Custom URL |
 |---|---|---|---|
+| System One API | `system-one` | API key, or none | ✓ |
 | Ollama | `ollama` | none | ✓ |
 | LiteLLM proxy | `litellm` | none | ✓ (`api_base`) |
 
@@ -380,6 +424,40 @@ authenticate with.
     which makes the second case ordinary. A run resolves a keyless profile only
     when it carries an endpoint; otherwise it is refused with the same "no key
     configured" message it always had.
+
+### Your own endpoint
+
+| Provider | id | Credential | Custom URL |
+|---|---|---|---|
+| Custom (OpenAI-compatible) | `openai_compatible` | API key | ✓ |
+| Custom (Anthropic-compatible) | `anthropic_compatible` | API key | ✓ |
+
+These two are an API *shape* rather than a vendor. You type the address of a
+server you run or a gateway you trust, and the key that authenticates it. Pick
+the one that matches what your endpoint answers:
+
+| Your endpoint answers | Choose | The address to enter |
+|---|---|---|
+| `POST /chat/completions` — vLLM, LM Studio, a LiteLLM proxy, most gateways | `openai_compatible` | the `/v1` root, such as `https://llm.example/v1` |
+| `POST /v1/messages` — Anthropic's own API shape | `anthropic_compatible` | the API root, such as `https://llm.example` |
+
+Both need an endpoint and a key. There is no public API to fall back on, so a
+profile without one is refused rather than sent somewhere else.
+
+The key is stored in the vault under the provider's own name, which says there
+that it authenticates *that* endpoint rather than a vendor's public API. That is
+why they are entries of their own rather than an `openai` or an `anthropic`
+profile with an endpoint: a key filed under a vendor names that vendor.
+
+!!! info "The Anthropic address carries no `/v1`"
+
+    Anthropic's SDK posts to `<endpoint>/v1/messages`, so the endpoint is the
+    API root. An address that already ends in `/v1` is trimmed for you, so
+    either spelling works — but the root is what the platform asks for.
+
+**Load models** reads the list from the same endpoint, with the same key, so
+the dropdown offers what your server actually serves. The model id stays free
+text: a server that publishes no list can still be used by typing the id.
 
 ### When the credential is not an API key
 
@@ -577,11 +655,13 @@ a typo or a retired model is caught rather than shipped as a dropdown the provid
 answers 404 to. A model the snapshot knows but does not price simply has no window,
 which is the null described below.
 
+The subscription picker reads the deployment’s curated list when opened. It has no live account-specific catalog. GPT-6.2 entries were checked against the Codex app server and leave context blank until the pricing snapshot records it.
+
 | Provider | Curated ids |
 |---|---|
 | `anthropic` | `claude-opus-5`, `claude-sonnet-5`, `claude-fable-5`, `claude-haiku-4-5` |
 | `openai` | `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna`, `gpt-5.3-codex` |
-| `openai_codex` | the same four as `openai` |
+| `openai_codex` | GPT-6.2 Sol and Astra, GPT-6.1 Sol and Terra, GPT-6 Sol, Astra and Luna, and the earlier Codex IDs |
 | `google` | `gemini-3.6-flash`, `gemini-3.5-flash`, `gemini-3.5-flash-lite`, `gemini-3.1-pro-preview` |
 | `deepseek` | `deepseek-v4-pro`, `deepseek-v4-flash` |
 | `xai` | `grok-4.5`, `grok-4.3` |
@@ -616,14 +696,14 @@ right when an agent moves to another model.
 !!! danger "Why it is stored rather than resolved per run"
 
     The request path must not call a provider, and the only thing it could
-    otherwise consult is the bundled price snapshot — which is wrong here in the
-    direction that breaks a run.
-
-    That snapshot records 1,000,000 for `anthropic:claude-sonnet-4-5` against a
-    real 200,000, so a trigger at 90% lands above the real ceiling and compaction
-    never fires before the provider refuses the request. A profile with fallbacks
-    is worse: it builds a `FallbackModel` whose composite id resolves to nothing at
-    all.
+    otherwise consult is the bundled price snapshot — a third-party bundle
+    whose numbers are not authoritative: an earlier snapshot recorded
+    1,000,000 for `anthropic:claude-sonnet-4-5` against a real 200,000, so a
+    trigger at 90% landed above the real ceiling and compaction never fired
+    before the provider refused the request (#773). The pinned snapshot
+    records the right 200,000 today, but a bundle bump can move a number
+    without this repo noticing. A profile with fallbacks is worse: it builds
+    a `FallbackModel` whose composite id resolves to nothing at all.
 
 Null means **not recorded**, not zero: a profile older than the column, a provider
 that publishes no length, a curated list, or a listing that could not be reached.
@@ -751,3 +831,19 @@ A regional endpoint serves fewer embedding models than the global one: `eu.openr
 Upgrade every API and worker process before configuring regional endpoints. Earlier builds ignore the OpenRouter endpoint override.
 
 For another endpoint with the same provider and model, choose **Add separate model** in the Builder. Its automatic name includes the endpoint, and the existing profile stays unchanged. **Update model** edits the shared profile instead. Custom catalog downloads are limited to 2 MiB, 2,048 models and bounded field lengths, with at most 16 catalogs cached per process. A compressed or oversized response leaves the model ID editable without falling back to a global listing.
+
+## Decision models
+
+Decision profiles use a native `decisions` API instead of text generation. Select the provider, model and vault key in the model builder. OpenAI, Google and OpenRouter offer both chat and decision APIs; TypeSafe and a custom System One endpoint serve decisions. A decision profile cannot be the conversational model of an agent or a fallback to a chat model.
+
+The native adapters come from Pydantic AI. Current suggestions include OpenAI `gpt-6-luna`, Google `gemini-decision-1` and TypeSafe `jev-1.14.0` / `jev-latest`. OpenRouter reads its decision-model catalog separately from its text-model catalog. A custom System One endpoint requires its own URL and model identifier. Availability and account access depend on the provider; suggestions are not a guarantee of access.
+
+Workflow **Decision models** steps select a native profile. Existing `decide.*` ids and TypeSafe key configurations still load. Answers below the configured confidence follow the `unsure` port. Credentials and authorization are checked again for each execution, and provider spend counts toward workflow and organization budgets.
+
+Channel **Join conversations automatically** can use a native decision profile or an ordinary LLM with structured output. A native yes/no decision returns the probability of joining; a bounded numeric output preserves that probability. An LLM returns a usefulness assessment from 0 to 100, not a calibrated probability. Both compare against **Run the agent from (%)**, including the threshold itself. The classifier has no tools. Joining remains opt-in and uses the configured intervals; the main agent can use organization MCP accounts, never a participant's private credentials.
+
+Provider references: [Pydantic AI](https://pydantic.dev/docs/ai/models/decision/), [OpenAI](https://developers.openai.com/api/docs/guides/decisions), [Google](https://ai.google.dev/gemini-api/docs/decisions-api), [TypeSafe](https://docs.typesafe.ai/models), [OpenRouter](https://github.com/OpenRouterTeam/skills/tree/main/skills/openrouter-decisions).
+
+ElevenLabs Realtime adds `eleven_realtime_v1_mini` and `eleven_realtime_v1_max` over the 24 kHz PCM relay, using the `brian` default voice and semantic turn detection.
+
+The SDK does not report token charges. Calls with a configured spending budget are refused before connecting; calls without a spending budget retain the time cap and record connected audio as a cost floor, not a full bill. The catalog audio rate is $0.08/minute ($0.16 burst); token charges are additional. The 16k context value is a conservative platform history-seeding budget, not a published vendor context window. The integration is tested offline against SDK construction and controlled transports, not live accounts. [SDK](https://pydantic.dev/docs/ai/api/realtime/elevenlabs/), [ElevenLabs API pricing](https://elevenlabs.io/pricing/api).

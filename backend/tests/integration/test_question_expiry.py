@@ -102,6 +102,33 @@ async def test_an_empty_sweep_ends_nothing(db: AsyncSession) -> None:
     assert await ApprovalService(db).expire_unanswered() == 0
 
 
+async def test_a_saved_workflow_answer_is_not_selected_for_question_expiry(
+    db: AsyncSession,
+) -> None:
+    agent = await _agent(db)
+    accepted = await _parked(
+        db,
+        agent,
+        status=RunStatus.AWAITING_ANSWER,
+        parked_for=timedelta(hours=settings.QUESTION_EXPIRY_HOURS + 1),
+    )
+    await agent_run_repo.keep_paused_state(
+        db,
+        run=accepted,
+        paused_state={
+            "messages": [],
+            "tool_call_ids": {},
+            "questions": ["ask-1"],
+            "question_results": {"ask-1": {"Audience": ["My team"]}},
+        },
+    )
+
+    assert await ApprovalService(db).expire_unanswered() == 0
+    await db.refresh(accepted)
+    assert accepted.status == RunStatus.AWAITING_ANSWER.value
+    assert accepted.paused_state["question_results"] == {"ask-1": {"Audience": ["My team"]}}
+
+
 async def test_a_press_that_continued_the_run_at_the_last_moment_is_not_overwritten_by_the_sweep(
     db: AsyncSession, engine: AsyncEngine
 ) -> None:

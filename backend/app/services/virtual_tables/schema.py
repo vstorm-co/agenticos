@@ -213,6 +213,13 @@ def _column(index: int, submitted: ColumnInput, previous: ColumnDef | None) -> C
         options=options,
         archived=submitted.archived,
         link_table_id=submitted.link_table_id,
+        link_limit=(
+            submitted.link_limit
+            if submitted.link_limit is not None
+            else previous.link_limit
+            if previous
+            else None
+        ),
         link_column_id=submitted.link_column_id,
         target_column_id=submitted.target_column_id,
         aggregate=submitted.aggregate,
@@ -235,6 +242,8 @@ def _check_reference(where: str, submitted: ColumnInput, previous: ColumnDef | N
     them, is the service's to ask: it takes the database (`TableOperations`).
     """
     kind = submitted.type
+    if submitted.link_limit is not None and kind != "link":
+        raise InvalidSchemaError(f"{where}.link_limit", "Only a link column limits linked records")
     if (submitted.link_table_id is not None) != (kind == "link"):
         raise InvalidSchemaError(
             f"{where}.link_table_id",
@@ -288,9 +297,18 @@ def _renamed(columns: Sequence[ColumnDef], previous: Sequence[ColumnDef]) -> dic
     }
 
 
-def _check_formulas(columns: list[ColumnDef], renamed: Mapping[str, str]) -> list[ColumnDef]:
+def _check_formulas(
+    columns: list[ColumnDef], renamed: Mapping[str, str], previous: Sequence[ColumnDef]
+) -> list[ColumnDef]:
     """`columns` with every formula reading renamed columns by their new labels, each
-    checked: it parses, and names live columns of the table that hold values."""
+    checked: it parses, and names live columns of the table that hold values. A call's
+    count of values is checked only in a formula this change writes; one carried over as
+    it was saved keeps working."""
+    stored = {
+        column.id: rename_references(column.formula, renamed)
+        for column in previous
+        if column.formula is not None
+    }
     checked: list[ColumnDef] = []
     for index, column in enumerate(columns):
         if column.type == "formula" and column.formula is not None:
@@ -299,9 +317,18 @@ def _check_formulas(columns: list[ColumnDef], renamed: Mapping[str, str]) -> lis
             )
             if not column.archived:
                 try:
-                    check_formula(column.formula or "", column, columns)
+                    check_formula(
+                        column.formula or "",
+                        column,
+                        columns,
+                        strict=stored.get(column.id) != column.formula,
+                    )
                 except FormulaProblem as problem:
-                    raise InvalidSchemaError(f"columns.{index}.formula", str(problem)) from None
+                    raise InvalidSchemaError(
+                        f"columns.{index}.formula",
+                        str(problem),
+                        formula={"reason": problem.reason, "params": problem.params},
+                    ) from None
         checked.append(column)
     return checked
 
@@ -327,6 +354,7 @@ def _meaning(
         column.type,
         column.archived,
         column.link_table_id,
+        (column.link_limit or 100) if column.type == "link" else None,
         column.link_column_id,
         column.target_column_id,
         column.aggregate,
@@ -410,7 +438,7 @@ def build_columns(
         raise InvalidSchemaError("columns", "Two live columns have the same label")
     _check_links(columns)
     # Revised after the formulas are renamed, so each reads its columns by their new labels.
-    checked = _check_formulas(columns, _renamed(columns, previous))
+    checked = _check_formulas(columns, _renamed(columns, previous), previous)
     before, after = _live_ids(previous), _live_ids(checked)
     return [
         _revised(column, known.get(column.id), before=before, after=after) for column in checked

@@ -54,18 +54,12 @@ def _polled(**fields: Any) -> AiogramMessage:
 
 async def _routed(message: AiogramMessage) -> IncomingMessage | None:
     """What the polling path hands the router, or `None` if it handed it nothing."""
-    router = MagicMock(route=AsyncMock())
-    context = MagicMock(__aenter__=AsyncMock(return_value=MagicMock()), __aexit__=AsyncMock())
-
-    with (
-        patch("app.services.channels.telegram.ChannelMessageRouter", return_value=router),
-        patch("app.services.channels.telegram.get_db_context", return_value=context),
-    ):
+    admission = AsyncMock()
+    with patch("app.services.channels.ingress.admit_message", admission):
         await TelegramAdapter()._handle_update(message, "bot-1")
-
-    if not router.route.await_args_list:
+    if not admission.await_args_list:
         return None
-    routed = router.route.await_args.args[0]
+    routed = admission.await_args.args[0]
     assert isinstance(routed, IncomingMessage)
     return routed
 

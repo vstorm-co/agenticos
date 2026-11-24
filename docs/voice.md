@@ -37,7 +37,7 @@ embeds keep their separate visitor scope.
 a published agent with a voice takes calls, bounded by its own longest call and
 by the budgets, as any run is.
 
-**The agent.** Its Voice card in the Builder has a **Voice calls** tab, written
+**The agent.** Its Voice card in the Builder lists **Voice calls** and **Dictation** vertically, without inner tabs. Each has its own switch. Transcription settings remain editable when Dictation is off because they also apply to channel voice notes. The calls section is written
 to the spec's [`voice` field](reference/spec.md#voice). It names the provider,
 the model (or, for Azure, the deployment name and the base model it runs), the
 vault key calls are held with, the voice, an optional language, an optional
@@ -55,7 +55,7 @@ language.
 **Every agent offers the button.** In `/chat` the call button stands in Send's
 place while the box is empty, and Send comes back once something is typed. For one with no voice, or a key that can no longer
 hold a call, it is crossed out, and its reason links whoever may edit the agent
-to the Calls tab of its Voice card. The Architect's window and the Builder's
+to the calls section of its Voice card. The Architect's window and the Builder's
 test panel offer it the same way; in the test panel the call runs the published
 version, not the draft being tested, and the button says so.
 
@@ -78,8 +78,9 @@ model is named.
 | Azure OpenAI | a deployment of `gpt-realtime` | Relay | **Not verified live** |
 | Google | Gemini Live: `gemini-2.5-flash-native-audio-latest`, `gemini-3.1-flash-live-preview` | Relay | **Not verified live** |
 | xAI | `grok-voice-latest`, billed per minute | Relay | **Not verified live** |
+| ElevenLabs | `eleven_realtime_v1_mini`, `eleven_realtime_v1_max` | Relay | **Not verified live** |
 
-Only OpenAI could be tested against a real account. Azure, Gemini and xAI are
+Only OpenAI could be tested against a real account. Azure, Gemini, ElevenLabs and xAI are
 built from the providers' and Pydantic AI's documentation and tested with fakes.
 Expect them to work, and check them on your own account before you rely on them.
 
@@ -172,6 +173,9 @@ answers with what it did, and the call's model says that aloud.
 - **Approvals are the call's.** A gated tool the text model calls, or one of its
   subagents calls, shows the same approval card as one the call makes. A
   visitor's call carries no gated tool here either.
+- **A call that always asks is decided in text.** A tool such as `share_memory`
+  waits for somebody reading exactly what it would change, which a voice card
+  cannot show. The call refuses it and the agent suggests asking in text chat.
 - **One hand-off at a time.** Each continues from what the last one did in that
   call, so "now send that file" works after "write it up".
 - **A failure is said, not hidden.** A hand-off that runs out of budget or
@@ -402,3 +406,9 @@ Acknowledging, resolving or muting that outcome, or reading its notification, ca
 Account and organization deletion is refused while telephone calls remain unfinished. End those calls and wait for their final status before retrying deletion; this preserves the provider callbacks and duration limits. Personal export includes all outcomes, including cases with no telephone attempt, with full content counted against the export size limit.
 
 SMS bot credential replacement is also refused until its telephone calls finish. Cancelling while a dial request is still in flight records the stop intent and hangs up as soon as the provider call ID arrives. Cleanup commits that intent before contacting the provider, allowing signed status callbacks to settle the receipt concurrently.
+
+ElevenLabs Realtime adds `eleven_realtime_v1_mini` and `eleven_realtime_v1_max` over the 24 kHz PCM relay, using the `brian` default voice and semantic turn detection.
+
+The SDK does not report token charges. Calls with a configured spending budget are refused before connecting; calls without a spending budget retain the time cap and record connected audio as a cost floor, not a full bill. The catalog audio rate is $0.08/minute ($0.16 burst); token charges are additional. The 16k context value is a conservative platform history-seeding budget, not a published vendor context window. The integration is tested offline against SDK construction and controlled transports, not live accounts. [SDK](https://pydantic.dev/docs/ai/api/realtime/elevenlabs/), [ElevenLabs API pricing](https://elevenlabs.io/pricing/api).
+
+Omitting the realtime language uses English; the Voice picker shows that default instead of offering automatic language detection.

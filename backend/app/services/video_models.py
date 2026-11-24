@@ -41,6 +41,9 @@ from pydantic import TypeAdapter
 from app.core import catalog, secret_purposes
 from app.core.secret_kinds import SecretKind
 
+USUAL_SECONDS = 5
+"""The shared initial clip length, clamped to the selected model's range."""
+
 
 @dataclass(frozen=True)
 class VideoPrice:

@@ -19,7 +19,7 @@ import {
 import { usePermissions, useSecrets } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
 import { Perm } from "@/types/permissions";
-import type { StorableSecretKind } from "@/types/secrets";
+import type { SecretUsageScope, StorableSecretKind } from "@/types/secrets";
 
 export interface SecretPickerProps {
   /** What the control is called: the field's own name, or the picker's when it has none. */
@@ -34,6 +34,10 @@ export interface SecretPickerProps {
    * build has no type for simply offers nothing rather than everything.
    */
   kind?: StorableSecretKind | (string & {});
+  /** A provider-bound step accepts only this exact purpose, including when creating a key. */
+  purpose?: string;
+  /** Explicit usage boundary; an absent scope never satisfies an organization-only step. */
+  usageScope?: SecretUsageScope;
   /** A validation message from the property panel, shown under the control. */
   error?: string;
   /** Non-secret defaults shown for review when a credential is created. */
@@ -59,6 +63,8 @@ export function SecretPicker({
   onChange,
   disabled,
   kind,
+  purpose,
+  usageScope,
   error,
   label,
   initialValue,
@@ -78,7 +84,12 @@ export function SecretPicker({
   const { secrets, kinds, isLoading, create } = useSecrets();
   const { can } = usePermissions();
   const [adding, setAdding] = useState(false);
-  const offered = kind === undefined ? secrets : secrets.filter((secret) => secret.kind === kind);
+  const offered = secrets.filter(
+    (secret) =>
+      (kind === undefined || secret.kind === kind) &&
+      (purpose === undefined || secret.purpose === purpose) &&
+      (usageScope === undefined || secret.usage_scope === usageScope),
+  );
   // The field's kind as this build knows it. One it has no form for offers no
   // dialog; a field naming none takes any shape, so the whole vault form opens.
   const shape = kind === undefined ? undefined : kinds.find((entry) => entry.kind === kind);
@@ -169,7 +180,12 @@ export function SecretPicker({
           kinds={kinds}
           kind={shape?.kind}
           isPending={create.isPending}
-          onSubmit={async (data) => onChange((await create.mutateAsync(data)).id)}
+          onSubmit={async (data) => {
+            const scoped = { ...data };
+            if (purpose !== undefined) scoped.purpose = purpose;
+            if (usageScope !== undefined) scoped.usage_scope = usageScope;
+            onChange((await create.mutateAsync(scoped)).id);
+          }}
         />
       )}
     </div>

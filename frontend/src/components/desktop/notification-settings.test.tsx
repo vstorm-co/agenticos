@@ -48,6 +48,7 @@ it("scopes preferences, repairs OS permission and reports test delivery failure"
   expect(env.request).toHaveBeenCalledWith("notifications");
   await user.click(screen.getByRole("button", { name: "Send a test notification" }));
   expect(env.notify).toHaveBeenCalled();
+  expect(JSON.stringify(env.notify.mock.calls[0])).not.toMatch(/macOS/);
   env.notify.mockRejectedValueOnce(new Error("denied"));
   await user.click(screen.getByRole("button", { name: "Send a test notification" }));
   expect(await screen.findByRole("alert")).toHaveTextContent("Could not send");

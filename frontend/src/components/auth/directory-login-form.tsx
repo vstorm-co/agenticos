@@ -1,16 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 
 import { usePublicConfig } from "@/components/public-config/public-config-provider";
+import { MfaCodeForm } from "@/components/auth/mfa-code-form";
 import { Button, Input, Label } from "@/components/ui";
-import { useAuth } from "@/hooks";
+import { useAuth, type MfaChallenge } from "@/hooks/use-auth";
 import { ApiError } from "@/lib/api-client";
-import { getErrorMessage, isTimeout } from "@/lib/api-error";
+import { credentialsRejected, getErrorMessage, isTimeout } from "@/lib/api-error";
 import { invitationFlowFrom } from "@/lib/invitation-links";
+import { useRejectedFieldMotion } from "@/hooks/use-rejected-field-motion";
 
 const LABEL = "text-foreground text-sm font-medium";
 
@@ -32,6 +34,12 @@ export function DirectoryLoginForm({ onBack }: { onBack: () => void }) {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  // The password step passed and the sign-in is waiting on the second
+  // factor: the form swaps to the code step instead of signing in.
+  const [mfa, setMfa] = useState<MfaChallenge | null>(null);
+  const [rejectedAttempts, setRejectedAttempts] = useState(0);
+  const passwordRef = useRejectedFieldMotion(rejectedAttempts);
+  const errorId = useId();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,9 +48,20 @@ export function DirectoryLoginForm({ onBack }: { onBack: () => void }) {
     try {
       // Read off the URL at submit time, as the password form does.
       const returnTo = new URLSearchParams(window.location.search).get("returnTo");
-      await loginWithDirectory({ username, password }, returnTo, invitationFlowFrom(returnTo));
+      const result = await loginWithDirectory(
+        { username, password },
+        returnTo,
+        invitationFlowFrom(returnTo),
+      );
+      if ("mfa_required" in result) {
+        setMfa(result);
+        setIsLoading(false);
+        return;
+      }
       toast.success(t("loginSuccess"));
     } catch (err) {
+      if (credentialsRejected(err)) setRejectedAttempts((count) => count + 1);
+      else setRejectedAttempts(0);
       const message =
         err instanceof ApiError
           ? getErrorMessage(err, tErrors)
@@ -54,6 +73,10 @@ export function DirectoryLoginForm({ onBack }: { onBack: () => void }) {
       setIsLoading(false);
     }
   };
+
+  if (mfa) {
+    return <MfaCodeForm challenge={mfa} onBack={() => setMfa(null)} />;
+  }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
@@ -67,15 +90,18 @@ export function DirectoryLoginForm({ onBack }: { onBack: () => void }) {
         </Label>
         <Input
           id="directory-username"
+          name="username"
           type="text"
           value={username}
-          onChange={(e) => setUsername(e.target.value)}
+          onChange={(e) => {
+            setUsername(e.target.value);
+            setRejectedAttempts(0);
+          }}
           required
           disabled={isLoading}
           autoComplete="username"
           autoCapitalize="none"
           spellCheck={false}
-          className="h-11 rounded-lg text-base md:text-[15px]"
         />
       </div>
 
@@ -85,23 +111,33 @@ export function DirectoryLoginForm({ onBack }: { onBack: () => void }) {
         </Label>
         <Input
           id="directory-password"
+          name="password"
+          ref={passwordRef}
+          aria-invalid={rejectedAttempts > 0 && Boolean(error)}
+          aria-describedby={error ? errorId : undefined}
           type="password"
           value={password}
-          onChange={(e) => setPassword(e.target.value)}
+          onChange={(e) => {
+            setPassword(e.target.value);
+            setRejectedAttempts(0);
+          }}
           required
           disabled={isLoading}
           autoComplete="current-password"
-          className="h-11 rounded-lg text-base md:text-[15px]"
         />
       </div>
 
       {error && (
-        <p className="border-destructive/35 bg-destructive/[0.07] text-foreground rounded-lg border px-3 py-2 text-sm">
+        <p
+          id={errorId}
+          role="alert"
+          className="border-destructive/35 bg-destructive/[0.07] text-foreground rounded-lg border px-3 py-2 text-sm"
+        >
           {error}
         </p>
       )}
 
-      <Button type="submit" disabled={isLoading} className="h-11 w-full text-[15px]">
+      <Button type="submit" disabled={isLoading} size="lg" className="w-full">
         {isLoading ? (
           t("loggingIn")
         ) : (

@@ -27,6 +27,7 @@ from uuid import UUID
 import anyio
 from pydantic import BaseModel, TypeAdapter, ValidationError
 from redis.asyncio.client import PubSub
+from redis.exceptions import RedisError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.clients.redis import RedisClient
@@ -55,6 +56,9 @@ _server_frame = TypeAdapter(Call | Cancel)
 
 PRESENCE_TTL_SECONDS = 90
 """How long a device stays listed after its host last vouched for it."""
+
+CLEANUP_TIMEOUT_SECONDS = 5.0
+"""A stopped caller waits only this long for each best-effort Redis cleanup."""
 
 HEARTBEAT_SECONDS = 30
 """How often the serving host renews a device's presence - well inside its lifetime."""
@@ -193,36 +197,16 @@ async def call(
         DeviceCallTimedOut: No answer within `timeout`; the app is told to stop.
         DeviceCallFailed: The app answered with an error.
     """
-    redis = await _require()
-    presence = await redis.get(_presence_key(session_id))
-    if presence is None:
-        raise DeviceUnavailable(message="Your computer is not connected", details={"op": op})
-    device = Device.model_validate_json(presence)
-    inbox = _inbox(session_id, device.connection)
-    call_id = new_call_id()
-    async with _subscribed(redis, _reply(call_id)) as replies:
-        delivered = await redis.raw.publish(
-            inbox, Call(id=call_id, op=op, args=args).model_dump_json()
-        )
-        if not delivered:
-            raise DeviceUnavailable(
-                message="Your computer is not connected: the AgenticOS app is closed or offline",
-                details={"op": op},
-            )
-        try:
-            with anyio.fail_after(timeout):
-                result = await _first_result(replies)
-        except BaseException as exc:
-            # A timeout, or the run being stopped: either way the app should stop
-            # the work rather than finish something nobody will read.
-            with anyio.CancelScope(shield=True):
-                await redis.raw.publish(inbox, Cancel(id=call_id).model_dump_json())
-            if isinstance(exc, TimeoutError):
-                raise DeviceCallTimedOut(
-                    message=f"Your computer did not answer within {timeout:g} seconds",
-                    details={"op": op},
-                ) from None
-            raise
+    request = Call(id=new_call_id(), op=op, args=args)
+    try:
+        with anyio.fail_after(timeout):
+            result = await _exchange(session_id, request)
+    except TimeoutError:
+        raise DeviceCallTimedOut(
+            message=f"Your computer did not answer within {timeout:g} seconds",
+            details={"op": op},
+        ) from None
+    await anyio.lowlevel.checkpoint_if_cancelled()
     if not result.ok:
         raise DeviceCallFailed(
             message=result.error or "Your computer refused the operation",
@@ -231,14 +215,73 @@ async def call(
     return result.value
 
 
+async def _exchange(session_id: UUID, request: Call) -> Result:
+    """Own the reply channel for one deadline-bound device exchange."""
+    redis = await _require()
+    presence = await redis.get(_presence_key(session_id))
+    if presence is None:
+        raise DeviceUnavailable(
+            message="Your computer is not connected", details={"op": request.op}
+        )
+    device = Device.model_validate_json(presence)
+    inbox = _inbox(session_id, device.connection)
+    async with _subscribed(redis, _reply(request.id)) as replies:
+        try:
+            # Delivery can be accepted before PUBLISH returns. Cancellation must
+            # cover that await too, so accepted work still receives its stop signal.
+            await _dispatch(redis, inbox, request)
+            return await _first_result(replies)
+        except DeviceUnavailable:
+            raise
+        except BaseException:
+            await _cancel_call(redis, inbox, request.id)
+            raise
+
+
+async def _dispatch(redis: RedisClient, inbox: str, request: Call) -> None:
+    """A publish with no subscriber cannot have admitted work on the device."""
+    delivered = await redis.raw.publish(inbox, request.model_dump_json())
+    if not delivered:
+        raise DeviceUnavailable(
+            message="Your computer is not connected: the AgenticOS app is closed or offline",
+            details={"op": request.op},
+        )
+
+
+async def _cancel_call(redis: RedisClient, inbox: str, call_id: str) -> None:
+    """Try to stop possibly accepted work without masking cancellation or its cause."""
+    with anyio.move_on_after(CLEANUP_TIMEOUT_SECONDS, shield=True) as cleanup:
+        try:
+            await redis.raw.publish(inbox, Cancel(id=call_id).model_dump_json())
+        except RedisError:
+            logger.warning(
+                "Device call cancellation delivery failed",
+                extra={"call_id": call_id},
+                exc_info=True,
+            )
+    if cleanup.cancelled_caught:
+        logger.warning("Device call cancellation delivery timed out", extra={"call_id": call_id})
+
+
+async def _close_channel(pubsub: PubSub) -> None:
+    """Close even a partially subscribed channel while the caller is cancelled."""
+    with anyio.move_on_after(CLEANUP_TIMEOUT_SECONDS, shield=True) as cleanup:
+        try:
+            await pubsub.aclose()
+        except RedisError:
+            logger.warning("Device hub channel cleanup failed", exc_info=True)
+    if cleanup.cancelled_caught:
+        logger.warning("Device hub channel cleanup timed out")
+
+
 @contextlib.asynccontextmanager
 async def _subscribed(redis: RedisClient, channel: str) -> AsyncGenerator[PubSub]:
     pubsub = redis.raw.pubsub(ignore_subscribe_messages=True)
-    await pubsub.subscribe(channel)
     try:
+        await pubsub.subscribe(channel)
         yield pubsub
     finally:
-        await pubsub.aclose()
+        await _close_channel(pubsub)
 
 
 async def _first_result(replies: PubSub) -> Result:

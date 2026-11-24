@@ -1,5 +1,7 @@
 "use client";
 
+import { NativeDisclosure } from "@/components/ui/native-disclosure";
+
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { ChevronRight, ShieldAlert, SlidersHorizontal, Wrench } from "lucide-react";
@@ -8,6 +10,8 @@ import { CODING_AGENT_ID, capabilityConfigErrors } from "@/lib/agent-spec";
 import { getErrorMessage } from "@/lib/api-error";
 import type { FieldProblem } from "@/lib/api-error";
 import { useCapabilityFieldCopy } from "@/components/agents/capability-field-copy";
+import { CouncilMembersField } from "@/components/agents/council-members-field";
+import { BrowserCredentialsField } from "@/components/agents/browser-credentials-field";
 import { SchemaForm } from "@/components/agents/schema-form";
 import { ContextHelp } from "@/components/ui/context-help";
 import {
@@ -66,9 +70,8 @@ interface CapabilitySettingsProps {
   configProblems?: readonly FieldProblem[];
 }
 
-/** The three modes, in order. Their words live in the catalog under `approval*`. */
+/** Explicit capability policies; a tool additionally offers inheritance. */
 const APPROVAL_OPTIONS: { value: ApprovalMode; words: string }[] = [
-  { value: "default", words: "approvalFollow" },
   { value: "required", words: "approvalAlways" },
   { value: "never", words: "approvalNever" },
 ];
@@ -126,9 +129,8 @@ export function resolveToolApproval(
 }
 
 /**
- * What a capability's own mode comes out to. `default` is no approval: a gate
- * nobody chose parks runs in channels and routines where nobody is there to
- * answer it, so a person is asked only once the author says so.
+ * Legacy `default` remains ungated. Newly added bindings use `required`, while
+ * opening an existing spec must neither change its policy nor write it back.
  */
 function resolveCapabilityApproval(mode: ApprovalMode): ResolvedApproval {
   return mode === "required" ? "required" : "never";
@@ -201,6 +203,8 @@ interface CapabilityDetailProps {
    * the same for every capability and is not worth a second implementation.
    */
   hideConfigForm?: boolean;
+  /** An inherited credential is configured by its organization rather than this binding. */
+  hideSecret?: boolean;
   /**
    * What publish validation said about the inputs on these forms.
    *
@@ -280,6 +284,12 @@ interface CapabilityDetailProps {
    * picker writes what it read, so choosing a key pins the provider it is for.
    */
   resolvedConfig?: Record<string, unknown>;
+  /**
+   * Whether a person may be asked to approve this capability's tools. False on a
+   * system agent's, which runs with nobody there to answer and whose save refuses
+   * any approval set on it, so neither the capability's nor a tool's is offered.
+   */
+  approvals?: boolean;
 }
 
 /**
@@ -302,6 +312,7 @@ export function CapabilityDetail({
   onChange,
   disabled,
   hideConfigForm,
+  hideSecret,
   configProblems,
   onToggleEnabled,
   readOnly,
@@ -309,6 +320,7 @@ export function CapabilityDetail({
   settingsExtra,
   settingsFooter,
   resolvedConfig,
+  approvals = true,
 }: CapabilityDetailProps) {
   const t = useTranslations("agents");
   const keyed =
@@ -323,22 +335,56 @@ export function CapabilityDetail({
 
       {definition.config_schema && !hideConfigForm && (
         <SchemaForm
-          hiddenFields={binding.id === "context" ? ["file_settings"] : undefined}
+          hiddenFields={
+            binding.id === "context"
+              ? ["file_settings"]
+              : binding.id === "council"
+                ? ["members"]
+                : binding.id === "browser_use"
+                  ? ["browser_credential_ids"]
+                  : undefined
+          }
           idPrefix={binding.id}
           schema={definition.config_schema}
           value={binding.config}
           disabled={disabled}
           errors={configErrors}
           copyFor={copyFor}
+          rememberConditionalValues={binding.id === CODING_AGENT_ID}
           onChange={(config) => onChange({ ...binding, config })}
         />
       )}
+
+      {binding.id === "council" && (
+        <CouncilMembersField
+          idPrefix={binding.id}
+          value={binding.config.members}
+          disabled={disabled}
+          onChange={(members) => onChange({ ...binding, config: { ...binding.config, members } })}
+        />
+      )}
+
+      {binding.id === "browser_use" &&
+        !hideConfigForm &&
+        definition.config_schema?.properties?.browser_credential_ids &&
+        (keyed.config.connection ?? definition.config_schema.properties.connection?.default) ===
+          "built_in" && (
+          <BrowserCredentialsField
+            idPrefix={binding.id}
+            value={keyed.config.browser_credential_ids}
+            disabled={disabled || readOnly}
+            onChange={(browser_credential_ids) =>
+              onChange({ ...binding, config: { ...binding.config, browser_credential_ids } })
+            }
+          />
+        )}
 
       {/* Only when *this* configuration needs one. A capability offering a
             free provider and a paid one declares the requirement once and
             names the configurations it applies to; asking for a key the server
             will not demand is as wrong as not asking for one it will. */}
-      {definition.requires_secret !== null &&
+      {!hideSecret &&
+        definition.requires_secret !== null &&
         secretIsOffered(definition.requires_secret, keyed.config) && (
           <SecretField
             binding={keyed}
@@ -350,7 +396,7 @@ export function CapabilityDetail({
           />
         )}
 
-      {definition.requires_secret === null && binding.secret_id !== null && (
+      {!hideSecret && definition.requires_secret === null && binding.secret_id !== null && (
         <StaleSecretNotice binding={binding} onChange={onChange} disabled={disabled} />
       )}
 
@@ -360,31 +406,35 @@ export function CapabilityDetail({
           <StaleToolSettingsNotice binding={binding} onChange={onChange} disabled={disabled} />
         )}
 
-      <div className="space-y-2">
-        <Label htmlFor={`${binding.id}-approval`}>{t("humanApproval")}</Label>
-        <Select
-          value={binding.approval}
-          disabled={disabled}
-          onValueChange={(approval) => onChange({ ...binding, approval: approval as ApprovalMode })}
-        >
-          <SelectTrigger id={`${binding.id}-approval`}>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {APPROVAL_OPTIONS.map((option) => (
-              <SelectItem key={option.value} value={option.value}>
-                {t(option.words)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <p className="text-muted-foreground text-xs">
-          {t(approvalHint(binding.approval, definition.side_effecting))}
-          {definition.tools.length > 0 &&
-            definition.tool_settings !== false &&
-            ` ${t("everyToolFollowsThis")}`}
-        </p>
-      </div>
+      {approvals && (
+        <div className="space-y-2">
+          <Label htmlFor={`${binding.id}-approval`}>{t("humanApproval")}</Label>
+          <Select
+            value={resolveCapabilityApproval(binding.approval)}
+            disabled={disabled}
+            onValueChange={(approval) =>
+              onChange({ ...binding, approval: approval as ApprovalMode })
+            }
+          >
+            <SelectTrigger id={`${binding.id}-approval`}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {APPROVAL_OPTIONS.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {t(option.words)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-muted-foreground text-xs">
+            {t(approvalHint(binding.approval, definition.side_effecting))}
+            {definition.tools.length > 0 &&
+              definition.tool_settings !== false &&
+              ` ${t("everyToolFollowsThis")}`}
+          </p>
+        </div>
+      )}
 
       {definition.config_schema && <SchemaPreview schema={definition.config_schema} />}
 
@@ -401,6 +451,7 @@ export function CapabilityDetail({
       contracts={definition.contracts}
       onChange={onChange}
       disabled={disabled}
+      approvals={approvals}
     />
   );
 
@@ -411,7 +462,9 @@ export function CapabilityDetail({
       <CardContent className="space-y-4 p-4 sm:p-5">
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-sm font-medium">{definition.name}</span>
-          <span className="text-muted-foreground font-mono text-xs">{definition.id}</span>
+          {definition.name.toLowerCase() !== definition.id.toLowerCase() && (
+            <span className="text-muted-foreground font-mono text-xs">{definition.id}</span>
+          )}
           {definition.side_effecting && (
             <Badge variant="outline" className="gap-1">
               <ShieldAlert className="h-3 w-3" />
@@ -487,7 +540,7 @@ export function CapabilityDetail({
 function SchemaPreview({ schema }: { schema: JsonSchema }) {
   const t = useTranslations("agents");
   return (
-    <details className="group">
+    <NativeDisclosure className="group">
       <summary className="text-muted-foreground hover:text-foreground flex cursor-pointer items-center gap-1.5 text-xs">
         <ChevronRight className="h-3 w-3 transition-transform group-open:rotate-90" />
         {t("configurationSchema")}
@@ -495,7 +548,7 @@ function SchemaPreview({ schema }: { schema: JsonSchema }) {
       <pre className="text-muted-foreground bg-muted/50 mt-1.5 max-h-64 overflow-auto rounded-md p-3 text-xs">
         {JSON.stringify(schema, null, 2)}
       </pre>
-    </details>
+    </NativeDisclosure>
   );
 }
 
@@ -845,11 +898,14 @@ const SECRET_HELP: Record<string, string | undefined> = {
  * Which subscription sign-in a capability offers beside its key, as it is set up.
  *
  * Only the coding agent has one, and which is the harness's: Codex signs in with
- * ChatGPT, Claude Code with the token `claude setup-token` prints.
+ * ChatGPT, Claude Code with the token `claude setup-token` prints. The new
+ * harnesses offer none - they take an API key only - so they get no sign-in.
  */
 function signInFor(binding: CapabilityBindingSpec): "chatgpt" | "claudeToken" | null {
   if (binding.id !== CODING_AGENT_ID) return null;
-  return binding.config.harness === "codex" ? "chatgpt" : "claudeToken";
+  if (binding.config.harness === "codex") return "chatgpt";
+  if (binding.config.harness === "claude_code") return "claudeToken";
+  return null;
 }
 
 /**
@@ -976,6 +1032,8 @@ interface ToolListProps {
   contracts: CapabilityToolContract[];
   onChange: (binding: CapabilityBindingSpec) => void;
   disabled?: boolean;
+  /** `CapabilityDetailProps.approvals`: false leaves each tool's approval out. */
+  approvals: boolean;
 }
 
 /**
@@ -987,7 +1045,7 @@ interface ToolListProps {
  * because the alternative is walking back through every row to find which of
  * them stopped following it.
  */
-function ToolList({ binding, tools, contracts, onChange, disabled }: ToolListProps) {
+function ToolList({ binding, tools, contracts, onChange, disabled, approvals }: ToolListProps) {
   const t = useTranslations("agents");
   const changed = tools.filter((tool) => isToolOverridden(binding, tool.id));
 
@@ -1026,6 +1084,7 @@ function ToolList({ binding, tools, contracts, onChange, disabled }: ToolListPro
             contract={contracts.find((entry) => entry.tool_id === tool.id)}
             onChange={onChange}
             disabled={disabled}
+            approvals={approvals}
           />
         ))}
       </ul>
@@ -1040,9 +1099,10 @@ interface ToolRowProps {
   contract?: CapabilityToolContract;
   onChange: (binding: CapabilityBindingSpec) => void;
   disabled?: boolean;
+  approvals: boolean;
 }
 
-function ToolRow({ binding, tool, contract, onChange, disabled }: ToolRowProps) {
+function ToolRow({ binding, tool, contract, onChange, disabled, approvals }: ToolRowProps) {
   const t = useTranslations("agents");
   const fieldId = (suffix: string) => `${binding.id}-tool-${tool.id}-${suffix}`;
   const approval = overrideFor(binding, tool.id);
@@ -1078,7 +1138,7 @@ function ToolRow({ binding, tool, contract, onChange, disabled }: ToolRowProps) 
         {changed && <Badge variant="secondary">{t("overridden")}</Badge>}
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className={cn("grid gap-3", approvals && "sm:grid-cols-2")}>
         <ToolField
           htmlFor={fieldId("name")}
           label={t("name2")}
@@ -1098,31 +1158,33 @@ function ToolRow({ binding, tool, contract, onChange, disabled }: ToolRowProps) 
           />
         </ToolField>
 
-        <ToolField htmlFor={fieldId("approval")} label={t("approval")} disabled={disabled}>
-          <Select
-            value={approval ?? "default"}
-            disabled={disabled}
-            onValueChange={(mode) =>
-              onChange(withToolApproval(binding, tool.id, mode as ApprovalMode))
-            }
-          >
-            <SelectTrigger id={fieldId("approval")}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="default">
-                {resolveCapabilityApproval(binding.approval) === "required"
-                  ? t("followCapabilityAlwaysAsk")
-                  : t("followCapabilityNeverAsk")}
-              </SelectItem>
-              {APPROVAL_OPTIONS.filter((option) => option.value !== "default").map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {t(option.words)}
+        {approvals && (
+          <ToolField htmlFor={fieldId("approval")} label={t("approval")} disabled={disabled}>
+            <Select
+              value={approval ?? "default"}
+              disabled={disabled}
+              onValueChange={(mode) =>
+                onChange(withToolApproval(binding, tool.id, mode as ApprovalMode))
+              }
+            >
+              <SelectTrigger id={fieldId("approval")}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="default">
+                  {resolveCapabilityApproval(binding.approval) === "required"
+                    ? t("followCapabilityAlwaysAsk")
+                    : t("followCapabilityNeverAsk")}
                 </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </ToolField>
+                {APPROVAL_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {t(option.words)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </ToolField>
+        )}
       </div>
 
       <ToolField
@@ -1173,7 +1235,7 @@ function ToolContract({ contract }: { contract: CapabilityToolContract }) {
   return (
     <div className="space-y-1.5">
       {names.length > 0 && (
-        <details className="group">
+        <NativeDisclosure className="group">
           <summary className="text-muted-foreground hover:text-foreground flex cursor-pointer items-center gap-1.5 text-xs">
             <ChevronRight className="h-3 w-3 transition-transform group-open:rotate-90" />
             {t("argumentsCount", { count: names.length })}
@@ -1191,7 +1253,7 @@ function ToolContract({ contract }: { contract: CapabilityToolContract }) {
               </li>
             ))}
           </ul>
-        </details>
+        </NativeDisclosure>
       )}
     </div>
   );

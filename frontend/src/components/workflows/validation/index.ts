@@ -26,6 +26,7 @@
  * set filtered by rule 3's compatibility.
  */
 
+import type { TableDrift } from "@/lib/workflows/table-drift";
 import { entryGraph, entryNodes } from "@/lib/workflows/triggers";
 import type { NodeCatalog, WorkflowGraph } from "@/lib/workflows/types";
 
@@ -51,6 +52,7 @@ import {
   sharedErrorHandlerProblems,
   errorRoutingProblems,
   answeringStepProblems,
+  loopBodyProblems,
 } from "./rules";
 import { analyse } from "./joins";
 import { deriveScopes, nodeScopeMap, resolveDefinitions } from "./topology";
@@ -69,6 +71,7 @@ export {
   schemaTypeToken,
 } from "./schema";
 export { deriveScopes, resolveDefinitions } from "./topology";
+export { graphWarnings } from "./warnings";
 export type { ValidationCode, ValidationTranslator } from "./types";
 export { MESSAGE_KEYS } from "./types";
 
@@ -99,6 +102,31 @@ function render(problem: RawProblem, t: ValidationTranslator): ValidationProblem
     code: problem.code,
     message: t(MESSAGE_KEYS[problem.code], problem.params),
   };
+}
+
+/**
+ * `problems` with one more per table reference the editor could not move onto
+ * its table's current schema (`tableDrift` in the editor store) - the server's
+ * `table_ref_problems`, said before a run or a publish is refused for it.
+ */
+export function withTableDrift(
+  problems: ValidationProblem[],
+  drift: readonly TableDrift[],
+  t: ValidationTranslator,
+): ValidationProblem[] {
+  if (drift.length === 0) return problems;
+  return [
+    ...problems,
+    ...drift.map((entry) => ({
+      nodeId: entry.nodeId,
+      edgeId: null,
+      field: entry.field ?? "table",
+      code: "table-schema-changed",
+      message: t(
+        entry.requiresReview ? "problemTableDependenciesChanged" : "problemTableSchemaChanged",
+      ),
+    })),
+  ];
 }
 
 /**
@@ -164,6 +192,7 @@ function validateSingleGraph(
     ...portNameClashes(graph, definitions),
     ...quickLogProblems(graph, definitions),
     ...rule6NestedScopeBoundaries(graph, scopes, nodeScope),
+    ...loopBodyProblems(graph, definitions, nodeScope),
     ...rule8OnePort(graph, definitions),
     ...errorRoutingProblems(graph, definitions),
     ...sharedErrorHandlerProblems(analysis),
@@ -219,7 +248,8 @@ function computeSinglePrecede(
 /**
  * The nodes whose output a binding on `targetNodeId` may read: every node that must
  * precede it, excluding the target itself (rule 4 forbids a node reading its own
- * output). The binding picker filters these further by rule 3 compatibility.
+ * output) and every step switched off, which does nothing and so offers nothing to
+ * read. The binding picker filters these further by rule 3 compatibility.
  */
 export function availableSourceNodes(
   graph: WorkflowGraph,
@@ -230,5 +260,6 @@ export function availableSourceNodes(
   if (precede === undefined) return new Set();
   const available = new Set(precede);
   available.delete(targetNodeId);
+  for (const node of graph.nodes) if (node.disabled === true) available.delete(node.id);
   return available;
 }

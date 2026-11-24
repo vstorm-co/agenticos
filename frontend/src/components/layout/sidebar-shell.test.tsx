@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { SidebarShell } from "./sidebar-shell";
@@ -11,6 +11,7 @@ import { version } from "../../../package.json";
  * full: a long nav that scrolls the organization out of reach, or pushes
  * signing out past the bottom of the screen.
  */
+vi.mock("@/components/onboarding/onboarding-reminder", () => ({ OnboardingReminder: () => null }));
 vi.mock("@/hooks/use-release-update", () => ({
   useReleaseUpdate: () => ({ data: { latest: null } }),
 }));
@@ -28,14 +29,27 @@ vi.mock("@/components/layout/sidebar-user", () => ({
     <button>{compact ? "the account avatar" : "the account menu"}</button>
   ),
 }));
+vi.mock("@/components/layout/organization-switcher", () => ({
+  OrganizationSwitcher: ({
+    collapsed,
+    onNavigate,
+  }: {
+    collapsed?: boolean;
+    onNavigate?: () => void;
+  }) => (
+    <button onClick={onNavigate}>
+      {collapsed ? "the organization avatar" : "the organization switcher"}
+    </button>
+  ),
+}));
 vi.mock("@/components/language-switcher", () => ({
   LanguageSwitcherIcon: () => <button>the language switcher</button>,
 }));
 vi.mock("@/components/theme", () => ({ ThemeToggle: () => <button>the theme toggle</button> }));
 
-function renderShell(props: { collapsed?: boolean } = {}) {
+function renderShell(props: { collapsed?: boolean; onNavigate?: () => void } = {}) {
   return render(
-    <SidebarShell collapsed={props.collapsed}>
+    <SidebarShell collapsed={props.collapsed} onNavigate={props.onNavigate}>
       <nav aria-label="Primary">the destinations</nav>
     </SidebarShell>,
   );
@@ -46,21 +60,27 @@ function follows(earlier: HTMLElement, later: HTMLElement): boolean {
 }
 
 describe("SidebarShell", () => {
-  it("keeps labelled search above the destinations", () => {
+  it("shows organization context before chat, search and destinations", () => {
     renderShell();
-    expect(
-      follows(
-        screen.getByRole("button", { name: "the search row" }),
-        screen.getByRole("navigation"),
-      ),
-    ).toBe(true);
+    const switcher = screen.getByRole("button", { name: "the organization switcher" });
+    for (const following of [
+      screen.getByRole("link", { name: "New chat" }),
+      screen.getByRole("navigation"),
+    ]) {
+      expect(follows(switcher, following)).toBe(true);
+    }
+  });
+
+  it("leaves search to the sidebar header", () => {
+    renderShell();
+    expect(screen.queryByRole("button", { name: "the search row" })).toBeNull();
   });
 
   it("puts the account last", () => {
     renderShell();
 
     const account = screen.getByRole("button", { name: "the account menu" });
-    for (const before of ["the search row", "the bell"]) {
+    for (const before of ["the bell"]) {
       expect(follows(screen.getByRole("button", { name: before }), account)).toBe(true);
     }
   });
@@ -73,7 +93,9 @@ describe("SidebarShell", () => {
     const scroller = screen.getByRole("navigation").parentElement;
     expect(scroller).toHaveClass("overflow-y-auto");
     expect(scroller).not.toContainElement(screen.getByRole("button", { name: "the account menu" }));
-    expect(scroller).not.toContainElement(screen.getByRole("button", { name: "the search row" }));
+    expect(scroller).not.toContainElement(
+      screen.getByRole("button", { name: "the organization switcher" }),
+    );
   });
 
   it("keeps the actions out of the destination list", () => {
@@ -82,17 +104,17 @@ describe("SidebarShell", () => {
     renderShell();
 
     const nav = screen.getByRole("navigation");
-    for (const outside of ["the search row", "the bell"]) {
+    for (const outside of ["the bell"]) {
       expect(nav).not.toContainElement(screen.getByRole("button", { name: outside }));
     }
   });
 
-  it("carries search, help and the bell at both widths", () => {
+  it("carries help and the bell at both widths", () => {
     // They are the footer's controls now - the language and the theme are
     // named rows in the account menu, where somebody looks for a setting.
     for (const collapsed of [false, true]) {
       const view = renderShell({ collapsed });
-      expect(screen.getByRole("button", { name: "the search row" })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "the search row" })).toBeNull();
       expect(screen.getByRole("button", { name: "the help row" })).toBeInTheDocument();
       expect(screen.getByRole("button", { name: "the bell" })).toBeInTheDocument();
       expect(
@@ -118,6 +140,22 @@ describe("SidebarShell", () => {
     renderShell({ collapsed: true });
 
     expect(screen.getByRole("button", { name: "the account avatar" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "the organization avatar" })).toBeInTheDocument();
+    expect(
+      follows(
+        screen.getByRole("button", { name: "the organization avatar" }),
+        screen.getByRole("navigation"),
+      ),
+    ).toBe(true);
+  });
+
+  it("lets organization selection dismiss the mobile navigation", () => {
+    const onNavigate = vi.fn();
+    renderShell({ onNavigate });
+
+    fireEvent.click(screen.getByRole("button", { name: "the organization switcher" }));
+
+    expect(onNavigate).toHaveBeenCalledOnce();
   });
 
   it("draws no collapse control, which belongs on the column's own title bar", () => {

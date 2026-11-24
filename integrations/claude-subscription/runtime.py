@@ -47,6 +47,56 @@ _ADAPTER_INSTRUCTION = (
 )
 
 
+def _inference_input(request: InferRequest) -> bytes:
+    if not request.images:
+        return request.prompt.encode("utf-8")
+    content: list[JsonValue] = [{"type": "text", "text": request.prompt}]
+    for number, image in enumerate(request.images, 1):
+        content.extend(
+            [
+                {"type": "text", "text": f"[image:{number}]"},
+                {
+                    "type": "image",
+                    "source": {
+                        "type": "base64",
+                        "media_type": image.media_type,
+                        "data": image.data,
+                    },
+                },
+            ]
+        )
+    # One line and one user event: no queued turns, external files or URL reads.
+    event = {
+        "type": "user",
+        "session_id": "",
+        "parent_tool_use_id": None,
+        "message": {"role": "user", "content": content},
+    }
+    return (json.dumps(event, ensure_ascii=False, separators=(",", ":")) + "\n").encode(
+        "utf-8"
+    )
+
+
+def _inference_result(output: bytes, *, streamed: bool) -> dict[str, JsonValue]:
+    if not streamed:
+        data = json.loads(output)
+        if not isinstance(data, dict):
+            raise TypeError
+        return data
+    result: dict[str, JsonValue] | None = None
+    for line in output.splitlines():
+        if not line.strip():
+            continue
+        event = json.loads(line)
+        if not isinstance(event, dict) or result is not None:
+            raise TypeError
+        if event.get("type") == "result":
+            result = event
+    if result is None:
+        raise TypeError
+    return result
+
+
 def authorization_url(output: bytes) -> str | None:
     """A complete provider URL and paste prompt must both exist before stdin is usable."""
     text = _ANSI.sub("", output.decode("utf-8", errors="replace")).replace("\r", "\n")
@@ -366,24 +416,43 @@ class ClaudeRuntime:
                 "--model",
                 request.model,
                 "--output-format",
-                "json",
+                "stream-json" if request.images else "json",
                 "--json-schema",
                 json.dumps(request.output_schema),
                 "--system-prompt",
                 _ADAPTER_INSTRUCTION,
             ]
+            if request.images:
+                arguments.extend(["--input-format", "stream-json", "--verbose"])
+            if request.thinking is not None:
+                arguments.extend(
+                    [
+                        "--settings",
+                        json.dumps(
+                            {"alwaysThinkingEnabled": request.thinking is not False}
+                        ),
+                    ]
+                )
+                # Unified False means off, or the lowest effort on always-on models.
+                # The pinned CLI's lowest effort is low; True leaves its default effort.
+                if request.thinking is not True:
+                    effort = (
+                        "low"
+                        if request.thinking in (False, "minimal")
+                        else request.thinking
+                    )
+                    arguments.extend(["--effort", effort])
             output, code = await self.command(
                 home,
                 arguments,
-                payload=request.prompt.encode("utf-8"),
+                payload=_inference_input(request),
                 timeout=INFER_SECONDS,
                 output_limit=INFER_OUTPUT_BYTES,
                 max_output_tokens=request.max_output_tokens,
+                disable_thinking=request.thinking is False,
             )
             try:
-                data = json.loads(output)
-                if not isinstance(data, dict):
-                    raise TypeError
+                data = _inference_result(output, streamed=bool(request.images))
                 if (
                     code != 0
                     or data.get("type") != "result"
@@ -441,12 +510,15 @@ class ClaudeRuntime:
         arguments: list[str],
         *,
         max_output_tokens: int | None = None,
+        disable_thinking: bool = False,
         merge_stderr: bool = False,
     ) -> asyncio.subprocess.Process:
         self.check_storage(home)
         environment = native_environment(home)
         if max_output_tokens is not None:
             environment["CLAUDE_CODE_MAX_OUTPUT_TOKENS"] = str(max_output_tokens)
+        if disable_thinking:
+            environment["MAX_THINKING_TOKENS"] = "0"
         process = await asyncio.create_subprocess_exec(
             *arguments,
             cwd=home.path,
@@ -476,9 +548,13 @@ class ClaudeRuntime:
         timeout: int,
         output_limit: int = LOGIN_OUTPUT_BYTES,
         max_output_tokens: int | None = None,
+        disable_thinking: bool = False,
     ) -> tuple[bytes, int]:
         process = await self.spawn(
-            home, [self.cli_path, *arguments], max_output_tokens=max_output_tokens
+            home,
+            [self.cli_path, *arguments],
+            max_output_tokens=max_output_tokens,
+            disable_thinking=disable_thinking,
         )
         output = bytearray()
 

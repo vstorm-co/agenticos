@@ -1,4 +1,57 @@
-import { test as base, expect } from "@playwright/test";
+import { readFile, writeFile } from "node:fs/promises";
+
+import { test as base, expect, type BrowserContext, type Cookie } from "@playwright/test";
+
+import { AUTH_STATE } from "./helpers";
+
+type StoredState = Awaited<ReturnType<BrowserContext["storageState"]>>;
+
+function sessionCookie(cookies: Cookie[], kind: "access_token" | "refresh_token") {
+  return cookies.find(
+    (cookie) => cookie.name.startsWith("agenticos_") && cookie.name.endsWith(kind),
+  );
+}
+
+function sessionClaims(token: string | undefined): { sub?: unknown; sid?: unknown; act?: unknown } {
+  const payload = token?.split(".")[1];
+  if (!payload) return {};
+  try {
+    return JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * Write the owner session's rotated cookies back to `AUTH_STATE`.
+ *
+ * Every spec opens a new context from that file, but the session it holds
+ * rotates its refresh token once the 15-minute access cookie lapses, and the
+ * backend refuses a refresh token two rotations old. Without this, every spec
+ * that starts more than 15 minutes after sign-in replays a spent token and lands
+ * on /login. Only the two session cookies are copied, and only when they still
+ * belong to the same, unimpersonated session: a spec that signed out, signed in
+ * as someone else or switched an organization in local storage leaves the file
+ * as it found it.
+ */
+async function keepSharedSession(context: BrowserContext): Promise<void> {
+  const stored = JSON.parse(await readFile(AUTH_STATE, "utf8")) as StoredState;
+  const current = await context.cookies();
+  const access = sessionCookie(current, "access_token");
+  const refresh = sessionCookie(current, "refresh_token");
+  const storedRefresh = sessionCookie(stored.cookies, "refresh_token");
+  if (!access || !refresh || !storedRefresh || refresh.value === storedRefresh.value) return;
+  const was = sessionClaims(sessionCookie(stored.cookies, "access_token")?.value);
+  const now = sessionClaims(access.value);
+  if (now.act || !now.sid || now.sid !== was.sid || now.sub !== was.sub) return;
+  const renewed = new Set([access.name, refresh.name]);
+  stored.cookies = [
+    ...stored.cookies.filter((cookie) => !renewed.has(cookie.name)),
+    access,
+    refresh,
+  ];
+  await writeFile(AUTH_STATE, JSON.stringify(stored, null, 2));
+}
 
 /**
  * The suite's `test`, with one thing added: a page whose data layer failed
@@ -18,7 +71,18 @@ import { test as base, expect } from "@playwright/test";
  * Only 5xx counts. A 401 from a deliberately wrong password and a 403 from a
  * refusal are the product working; those are what several specs are *for*.
  */
-export const test = base.extend<{ apiFailures: string[]; releaseMetadata: void }>({
+export const test = base.extend<{
+  apiFailures: string[];
+  releaseMetadata: void;
+  sharedSession: void;
+}>({
+  sharedSession: [
+    async ({ context, storageState }, use) => {
+      await use();
+      if (storageState === AUTH_STATE) await keepSharedSession(context);
+    },
+    { auto: true },
+  ],
   releaseMetadata: [
     async ({ page }, use) => {
       // Public GitHub releases change independently of the seeded deployment.

@@ -1,5 +1,6 @@
 "use client";
 
+import { GithubAuthorsField } from "./github-authors-field";
 import { useTranslations } from "next-intl";
 import { Checkbox, FormField, Input, Label } from "@/components/ui";
 import type { EventSource } from "@/types/triggers";
@@ -57,6 +58,7 @@ export function EventOptions({
   }
   return (
     <div className="space-y-4">
+      {source === "github" && <GithubAuthorsField config={config} onChange={onChange} />}
       {source === "gmail" && text("label", "mailLabelFilter")}
       {source === "outlook" && text("folder", "mailFolderFilter")}
       {source === "outlook" && canManageConnections && text("mailbox", "sharedMailboxFilter")}

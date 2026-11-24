@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useStepDirection } from "@/hooks/use-step-direction";
 import { Copy, Plus } from "lucide-react";
 import { toast } from "sonner";
 
@@ -51,7 +52,7 @@ interface SyncSourceWizardProps {
   collections: { name: string; scope: KBScope }[];
   /** Which of {@link collections} the picker starts on, and what clone mode fills. */
   defaultCollection?: string;
-  /** Existing org integrations (without this KB's collection_name) for "pick existing" flow. */
+  /** Existing org integrations (not already recorded on this KB) for "pick existing" flow. */
   orgIntegrations?: SyncSourceRead[];
   /** The connector list request failed; an empty list is not a fact yet. */
   connectorsFailed?: boolean;
@@ -190,6 +191,7 @@ export function SyncSourceWizard({
     [connectors, form.connector_type],
   );
   const order = form.connector_type === "gdrive" ? DRIVE_STEP_ORDER : STEP_ORDER;
+  const direction = useStepDirection(order.indexOf(step));
 
   // Which of the server's complaints this wizard can show beside an input. The
   // backend reports them below the document it was sent - `config.folder_id` -
@@ -393,7 +395,11 @@ export function SyncSourceWizard({
           )}
         </DialogHeader>
 
-        <div key={step} className="wizard-step-in min-h-0 scrollbar-thin overflow-y-auto px-6 py-5">
+        <div
+          key={step}
+          data-direction={direction}
+          className="wizard-step-in min-h-0 scrollbar-thin overflow-y-auto px-6 py-5"
+        >
           {mode === "clone" ? (
             <CloneStep
               integrations={orgIntegrations}

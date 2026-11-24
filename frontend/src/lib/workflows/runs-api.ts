@@ -18,6 +18,8 @@ import type {
   WorkflowRunFileList,
   WorkflowRunList,
   WorkflowRunRead,
+  WorkflowQuestionRead,
+  WorkflowQuestionResponses,
   WorkflowRunStart,
 } from "@/lib/workflows/types";
 
@@ -42,6 +44,7 @@ export async function listRunHistory(query: RunHistoryQuery): Promise<WorkflowRu
   if (query.workflowId !== undefined) params["workflow_id"] = query.workflowId;
   if (query.status !== undefined) params["status"] = query.status;
   if (query.mode !== undefined) params["mode"] = query.mode;
+  if (query.stepTest !== undefined) params["step_test"] = String(query.stepTest);
   if (query.triggeredBy !== undefined) params["triggered_by"] = query.triggeredBy;
   if (query.createdAfter !== undefined) params["created_after"] = query.createdAfter;
   return apiClient.get<WorkflowRunList>(ROOT, { params });
@@ -132,4 +135,20 @@ export async function editReplyExpectation(
     `${ROOT}/${runId}/steps/${nodeRunId}/reply-expectation`,
     body,
   );
+}
+
+/** Pending questions visible to the signed-in person who started the agent step. */
+export async function listWorkflowRunQuestions(runId: string): Promise<WorkflowQuestionRead[]> {
+  return apiClient.get<WorkflowQuestionRead[]>(`${ROOT}/${runId}/questions`);
+}
+
+/** Save answers for the suspended step and queue its existing agent conversation. */
+export async function answerWorkflowRunQuestions(
+  runId: string,
+  nodeRunId: string,
+  responses: WorkflowQuestionResponses,
+): Promise<WorkflowRunRead> {
+  return apiClient.post<WorkflowRunRead>(`${ROOT}/${runId}/nodes/${nodeRunId}/answers`, {
+    responses,
+  });
 }

@@ -1,7 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
-import { BookmarkCheck, BookmarkX, Sparkles } from "lucide-react";
+import { FolderOpen, BookmarkCheck, BookmarkX, Sparkles } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
@@ -14,6 +15,7 @@ import { useRouter } from "@/lib/locale-navigation";
 import {
   capabilityCardsOf,
   memoryChangesOf,
+  projectsUsedOf,
   setupProposalsOf,
   type CapabilityCard,
 } from "@/lib/turn-extras";
@@ -36,14 +38,16 @@ interface TurnExtrasProps {
 export function TurnExtras({ message, agentName }: TurnExtrasProps) {
   if (message.role !== "assistant" || message.isStreaming) return null;
   const changes = memoryChangesOf(message.toolCalls);
+  const projects = projectsUsedOf(message.toolCalls);
   // Historical table requests cannot enable the withdrawn capability.
   const cards = capabilityCardsOf(message.toolCalls).filter(
     (card) => card.capabilityId !== "virtual_tables",
   );
   const proposals = setupProposalsOf(message.toolCalls);
-  if (!changes.length && !cards.length && !proposals.length) return null;
+  if (!changes.length && !cards.length && !proposals.length && !projects.length) return null;
   return (
     <div className="mt-1 space-y-2">
+      {projects.length > 0 && <ProjectLinks projects={projects} />}
       {changes.length > 0 && <MemoryLine labels={changes} />}
       {cards.map((card) => (
         <CapabilityRequestCard key={card.callId} card={card} agentName={agentName} />
@@ -55,6 +59,25 @@ export function TurnExtras({ message, agentName }: TurnExtrasProps) {
           conversationId={message.conversationId}
         />
       )}
+    </div>
+  );
+}
+
+function ProjectLinks({ projects }: { projects: ReturnType<typeof projectsUsedOf> }) {
+  const t = useTranslations("chat.extras");
+  return (
+    <div className="flex flex-wrap items-center gap-2 text-xs" aria-label={t("projectsUsed")}>
+      <span className="text-muted-foreground">{t("projectsUsed")}</span>
+      {projects.map((project) => (
+        <Link
+          key={project.id}
+          href={ROUTES.PROJECT_DETAIL(project.id)}
+          className="bg-muted/50 hover:bg-muted inline-flex max-w-full items-center gap-1.5 rounded-md border px-2 py-1"
+        >
+          <FolderOpen className="size-3.5 shrink-0" aria-hidden />
+          <span className="truncate">{project.name}</span>
+        </Link>
+      ))}
     </div>
   );
 }

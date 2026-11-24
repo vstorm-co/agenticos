@@ -22,8 +22,13 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.spec import AgentSpec, BudgetSpec
-from app.core.exceptions import AppException, AuthorizationError, NotFoundError
-from app.core.permissions import AuthContext, OrgRoleName, Perm
+from app.core.exceptions import (
+    AppException,
+    AuthorizationError,
+    BadRequestError,
+    NotFoundError,
+)
+from app.core.permissions import AuthContext, OrgRoleName, Perm, Scope
 from app.db.models.agent import Agent, AgentStatus
 from app.db.models.agent_run import RunStatus
 from app.db.models.organization_assistant import OrganizationAssistant
@@ -37,8 +42,13 @@ from app.repositories import (
     organization_assistant_repo,
     skill_repo,
 )
-from app.repositories.agent_run import RunFilters
-from app.schemas.assistant import AssistantRead, AssistantSignals, AssistantUpdate
+from app.repositories.agent_run import ApprovalFilters, RunFilters
+from app.schemas.assistant import (
+    AssistantConfigurationRead,
+    AssistantRead,
+    AssistantSignals,
+    AssistantUpdate,
+)
 from app.services import agent_templates, skill_library
 from app.services.agent_registry import AgentRegistryService, slugify
 from app.services.model_profile import choosable_for_others
@@ -47,10 +57,7 @@ from app.services.skills import LibraryRefresh, SkillService
 
 logger = logging.getLogger(__name__)
 
-TEMPLATE_KEY = "general/platform-assistant"
-# Its mark, worn as an ordinary agent picture so every place an agent's face is
-# drawn - the catalog, a picker, the transcript, Slack - draws the Architect's.
-AVATAR = agent_templates.TEMPLATES_ROOT / TEMPLATE_KEY / "avatar.png"
+TEMPLATE_KEY = agent_templates.ARCHITECT_KEY
 """The shipped template every organization's assistant is installed from."""
 RECENT_FAILURE = timedelta(days=1)
 """How far back a failed run is still worth the bubble raising."""
@@ -76,6 +83,19 @@ class AssistantService:
         self.db = db
         self.registry = AgentRegistryService(db)
 
+    async def configuration(self, ctx: AuthContext) -> AssistantConfigurationRead:
+        """Read only an existing row; install and refresh are separate explicit changes."""
+        if not ctx.has(Perm.ORG_SETTINGS):
+            raise AuthorizationError(
+                message="Reading assistant configuration requires org:settings"
+            )
+        row = await organization_assistant_repo.get(self.db, ctx.organization_id)
+        if row is None:
+            return AssistantConfigurationRead(installed=False)
+        return AssistantConfigurationRead(
+            installed=True, agent_id=row.agent_id, enabled=row.enabled, greeting=row.greeting
+        )
+
     async def state(self, ctx: AuthContext) -> AssistantRead:
         """The organization's assistant as the widget needs it, installing it first.
 
@@ -92,8 +112,8 @@ class AssistantService:
             # the assistant unavailable.
             async with self.db.begin_nested():
                 row, agent = await self._installed(ctx.organization_id)
-        except AppException:
-            logger.exception("Could not install the assistant in %s", ctx.organization_id)
+        except AppException as exc:
+            _log_install_failure(exc, "Could not install the assistant in %s", ctx.organization_id)
             return AssistantRead(
                 status="unavailable",
                 agent_id=None,
@@ -129,21 +149,23 @@ class AssistantService:
                             and starter.current_version_id is None
                         ):
                             await self._publish_when_possible(ctx.organization_id, starter)
-            except AppException:
+            except AppException as exc:
                 # A missing model/service may block a refresh, but must not hide
                 # the existing assistant. The next console open retries it.
-                logger.exception(
-                    "Could not refresh shipped agent %s in %s", key, ctx.organization_id
+                _log_install_failure(
+                    exc, "Could not refresh shipped agent %s in %s", key, ctx.organization_id
                 )
                 agent = await self.registry.get(installer, row.agent_id)
         if row.enabled and agent.current_version_id is None:
             try:
                 async with self.db.begin_nested():
                     agent = await self._publish_when_possible(ctx.organization_id, agent)
-            except AppException:
+            except AppException as exc:
                 # Publish refusing the draft - a binding this deployment cannot
                 # serve - leaves it waiting, not every console load erroring.
-                logger.exception("Could not publish the assistant in %s", ctx.organization_id)
+                _log_install_failure(
+                    exc, "Could not publish the assistant in %s", ctx.organization_id
+                )
                 agent = await self.registry.get(installer, row.agent_id)
         return self._read(row, agent, can_use=can_use, can_configure=can_configure)
 
@@ -157,8 +179,19 @@ class AssistantService:
         """
         pending = 0
         if ctx.has(Perm.APPROVALS_DECIDE):
+            # Counted the way the queue is read: a caller holding the
+            # permission only at `OWN` counts their own runs' approvals, not
+            # the organization's - the bubble must never speak to a queue its
+            # page would not show.
             _rows, pending = await agent_run_repo.list_approvals(
-                self.db, organization_id=ctx.organization_id, limit=1
+                self.db,
+                organization_id=ctx.organization_id,
+                filters=(
+                    ApprovalFilters(triggered_by_user_id=ctx.user_id)
+                    if ctx.scope_for(Perm.APPROVALS_DECIDE) is Scope.OWN
+                    else None
+                ),
+                limit=1,
             )
         failed_run_id = None
         if ctx.has(Perm.RUNS_VIEW) and ctx.user_id is not None:
@@ -426,9 +459,7 @@ class AssistantService:
                 ),
             },
         )
-        return await self.registry.set_avatar(
-            installer, agent.id, file_data=AVATAR.read_bytes(), content_type="image/png"
-        )
+        return agent
 
     async def _publish_when_possible(self, organization_id: UUID, agent: Agent) -> Agent:
         """Publish the draft on the organization's first chat model, once it has one.
@@ -516,6 +547,25 @@ class AssistantService:
             can_use=can_use,
             can_configure=can_configure,
         )
+
+
+def _log_install_failure(exc: AppException, failure: str, *args: object) -> None:
+    """Log a step of installing the shipped agents that did not go through.
+
+    A refusal from publish names what the draft is waiting for - a sandbox
+    connection, a chat model - and is retried on every console open and every
+    bootstrap, so it is one warning line rather than a traceback each time.
+    Anything else is a failure and keeps its traceback.
+    """
+    problems = (exc.details or {}).get("problems") if isinstance(exc, BadRequestError) else None
+    if problems:
+        logger.warning(
+            "%s: it waits to publish - %s",
+            failure % args,
+            "; ".join(str(problem) for problem in problems),
+        )
+        return
+    logger.error(failure, *args, exc_info=exc)
 
 
 def _fallback_name(template: agent_templates.AgentTemplate) -> str:

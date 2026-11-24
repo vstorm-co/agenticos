@@ -25,6 +25,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query, status
 
 from app.api.deps import Auth, OpenAICodexSvc, SecretSvc, require
+from app.api.public_api import ASSISTANT
 from app.core.permissions import Perm
 from app.core.secret_kinds import describe_kinds
 from app.core.secret_purposes import all_purposes
@@ -39,10 +40,29 @@ from app.schemas.secret import (
     SecretPurposeList,
     SecretPurposeRead,
     SecretRead,
+    SecretReferenceList,
+    SecretReferenceRead,
     SecretUpdate,
 )
 
 router = APIRouter()
+
+
+@router.get(
+    "/references",
+    response_model=SecretReferenceList,
+    dependencies=[ASSISTANT, Depends(require(Perm.SECRETS_VIEW))],
+)
+async def list_secret_references(service: SecretSvc, ctx: Auth) -> Any:
+    """List authorized vault references for model and embedding setup, without hints.
+
+    OAuth platform tools can select an existing key; entering or rotating its
+    value remains a console action. Ordinary organization keys are not admitted.
+    """
+    items = await service.list_secrets(ctx)
+    return SecretReferenceList(
+        items=[SecretReferenceRead.model_validate(item) for item in items], total=len(items)
+    )
 
 
 @router.get(
@@ -107,7 +127,7 @@ async def list_secrets(
     dependencies=[Depends(require(Perm.SECRETS_EDIT))],
 )
 async def create_secret(data: SecretCreate, service: SecretSvc, ctx: Auth) -> Any:
-    """Store a secret, sealed for this organization."""
+    """Store a secret; personal browser records bind both this organization and their owner."""
     return await service.create(
         ctx,
         name=data.name,

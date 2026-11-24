@@ -2,14 +2,21 @@
 
 import { useEffect } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
+
+import { formatUsd } from "@/components/dashboard/format";
 import {
+  FlaskConical,
   Activity,
+  AlertTriangle,
   ArrowLeft,
   ArrowRight,
   CornerLeftUp,
   ExternalLink,
   Play,
+  RotateCcw,
+  Puzzle,
   Wrench,
   X,
 } from "lucide-react";
@@ -19,6 +26,7 @@ import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { RunStatusBadge } from "@/components/agents/status-badge";
 import { ModalityBadge, SurfaceIcon, surfaceLabel } from "@/components/runs/surface-icon";
 import { RunManifest } from "@/components/runs/run-manifest";
+import { RunMoreMenu } from "@/components/runs/run-more-menu";
 import { RunTimeline } from "@/components/runs/run-timeline";
 import { ProviderIcon } from "@/components/vault/provider-icon";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
@@ -29,15 +37,31 @@ import {
   usePermissions,
   usePrefetchRuns,
   useResumeRun,
+  useRetryRun,
   useRun,
 } from "@/hooks";
+import { useRunsADataset } from "@/hooks/use-eval-runs";
 import { useAuthStore } from "@/stores";
 import { ApiError } from "@/lib/api-client";
 import { ROUTES } from "@/lib/constants";
-import { cn, formatDateTime, formatRunDuration, timeAgo } from "@/lib/utils";
+import { modelShortName } from "@/lib/model-profiles";
+import { cn, formatDateTime, formatRunDuration, timeAgo, timeUntil } from "@/lib/utils";
 import { Perm } from "@/types/permissions";
-import type { AgentRun } from "@/types/runs";
+import type { AgentRun, EvalCaseLink, RunSkillUse, RunStatus } from "@/types/runs";
 import { RunTable } from "./run-table";
+
+/**
+ * The statuses after which a run has nothing left to say - the only ones
+ * whose `error` is an explanation rather than a stale field.
+ */
+const TERMINAL_RUN_STATUSES: readonly RunStatus[] = [
+  "failed",
+  "cancelled",
+  "budget_exceeded",
+  "guardrail_blocked",
+  "loop_stopped",
+  "timed_out",
+];
 
 /**
  * One run as a trace: what went in, what the agent did, what it cost, and the
@@ -89,11 +113,18 @@ export function FocusedRun({
   const t = useTranslations("pages.runs");
   const tTime = useTranslations("time");
   const locale = useLocale();
-  const { can } = usePermissions();
+  const { can, scopeOf } = usePermissions();
   const meId = useAuthStore((state) => state.user?.id ?? null);
-  const { run, isLoading, error } = useRun(runId);
+  const { run, isLoading, error, refetch } = useRun(runId);
+  const common = useTranslations("common");
+  // Scoring a run takes `datasets:run` on the dataset scored against, which a grant on
+  // one widens past the role - so the menu is for who may run a dataset with a case.
+  const scoresRuns = useRunsADataset({ enabled: run?.conversation_id != null });
+  // `?view=input` opens on what went in - how an eval case links to what its model saw.
+  const view = useSearchParams().get("view");
   const { runs: delegated } = useDelegatedRuns(runId);
   const resume = useResumeRun({ continuesInChat: run?.continues_in_chat ?? false });
+  const retry = useRetryRun({ onRetried: (newRunId) => onFocusRun(newRunId) });
   // What is on screen is the answer being held, which during a step is the run
   // stepped away from. Nothing that navigates may act on it: its neighbours are
   // its own, so an arrow pressed twice quickly would otherwise walk back to
@@ -101,6 +132,9 @@ export function FocusedRun({
   const settling = run !== undefined && run.id !== runId;
   const prevRunId = settling ? null : (run?.prev_run_id ?? null);
   const nextRunId = settling ? null : (run?.next_run_id ?? null);
+  // How long the parked question has left to be answered, for the waiting
+  // section below; null when this run is not parked on one.
+  const waitingExpiresIn = timeUntil(run?.waiting_expires_at);
   // Warmed on arrival, so the step itself is a cache hit rather than a request.
   usePrefetchRuns([prevRunId, nextRunId]);
 
@@ -142,6 +176,21 @@ export function FocusedRun({
     return () => window.removeEventListener("keydown", step);
   }, [prevRunId, nextRunId, onFocusRun]);
 
+  const unavailableHeader = onClose !== undefined && (
+    <div className="border-border flex items-center justify-between border-b px-4 py-3">
+      <h2 className="text-sm font-medium">{t("runDetail")}</h2>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon-sm"
+        aria-label={t("closeRunDetail")}
+        onClick={onClose}
+      >
+        <X className="size-4" aria-hidden />
+      </Button>
+    </div>
+  );
+
   // Before the wait, because holding the previous run's row means `isLoading` is
   // false while a failure for *this* one is already known - and the held row
   // would otherwise be drawn as though it were the answer to the id in the URL.
@@ -151,14 +200,27 @@ export function FocusedRun({
     // the link. Anything else is a fact about the request, and saying "no such
     // run" for a refused permission sends somebody looking for a run that is
     // there.
-    return error instanceof ApiError && error.status === 404 ? (
-      <EmptyState icon={Activity} title={t("noSuchRun")} description={t("theRunNamedIn")} />
-    ) : (
-      <ErrorState title={t("runCouldNotBeRead")} />
+    return (
+      <div className="flex min-h-0 flex-1 flex-col">
+        {unavailableHeader}
+        {error instanceof ApiError && error.status === 404 ? (
+          <EmptyState icon={Activity} title={t("noSuchRun")} description={t("theRunNamedIn")} />
+        ) : (
+          <ErrorState
+            title={t("runCouldNotBeRead")}
+            cta={{ label: common("retry"), onClick: () => void refetch() }}
+          />
+        )}
+      </div>
     );
   }
   if (isLoading || run === undefined) {
-    return <LoadingState variant="skeleton-table" columns={6} rows={2} />;
+    return (
+      <div className="flex min-h-0 flex-1 flex-col">
+        {unavailableHeader}
+        <LoadingState variant="skeleton-table" columns={6} rows={2} />
+      </div>
+    );
   }
 
   return (
@@ -166,7 +228,7 @@ export function FocusedRun({
     // to the header that stays and the panels belong to the part that scrolls -
     // and Radix is happy for its list and its content to sit in different rows.
     <Tabs
-      defaultValue="timeline"
+      defaultValue={view === "input" ? "input" : "timeline"}
       className="flex h-full min-h-0 flex-col gap-0"
       aria-busy={settling}
     >
@@ -188,6 +250,17 @@ export function FocusedRun({
               header simply starts at the status - never a request that 403s. */}
             {can(Perm.agentsView) && <AgentIdentity agentId={run.agent_id} />}
             <RunStatusBadge status={run.status} />
+            {run.eval_case && (
+              <Link
+                href={evalCaseHref(run.eval_case)}
+                className="text-muted-foreground hover:text-foreground max-w-md truncate text-sm underline-offset-4 hover:underline"
+              >
+                {t(run.eval_case.graded ? "evalCaseGraded" : "evalCase", {
+                  dataset: run.eval_case.dataset_name,
+                  input: run.eval_case.case_input,
+                })}
+              </Link>
+            )}
           </div>
           {/* The run's conversation, one step either way - resolved server-side
             on this read, disabled at the edges (and on a conversationless run)
@@ -197,20 +270,46 @@ export function FocusedRun({
             {/* A parked run whose approvals were all decided is a run somebody
               still has to nudge: the resume endpoint is idempotent about the
               decision - a call still parked answers a refusal, not a second
-              decision - so the button asks for approvals:decide, the same
-              permission the endpoint carries. */}
-            {run.status === "awaiting_approval" && can(Perm.approvalsDecide) && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="mr-1"
-                disabled={resume.isPending}
-                onClick={() => resume.mutate(run.id)}
-              >
-                <Play className="h-4 w-4" aria-hidden />
-                {t("resumeRun")}
-              </Button>
-            )}
+              decision - so the button asks for the decide permission, at the
+              scope the reader holds it. A member holds it at `OWN`, for
+              their own runs only, so the run's own person sees it beside the
+              privileged decider; anybody else is refused by the endpoint. */}
+            {run.status === "awaiting_approval" &&
+              (scopeOf(Perm.approvalsDecide) === "all" ||
+                (run.user_id !== null && run.user_id === meId)) && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mr-1"
+                  disabled={resume.isPending}
+                  onClick={() => resume.mutate(run.id)}
+                >
+                  <Play className="h-4 w-4" aria-hidden />
+                  {t("resumeRun")}
+                </Button>
+              )}
+            {/* A finished run, asked again. Only the person who started it
+                sees it - the endpoint refuses anybody else, and a retry
+                spends real money as them - and only while the run is
+                finished: a live or parked run has a resume or a stop, not a
+                second copy of itself. A run with no conversation has no
+                request to re-issue, so there is nothing to retry from. */}
+            {TERMINAL_RUN_STATUSES.includes(run.status) &&
+              run.conversation_id !== null &&
+              run.user_id !== null &&
+              run.user_id === meId && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mr-1"
+                  disabled={retry.isPending}
+                  onClick={() => retry.mutate(run.id)}
+                >
+                  <RotateCcw className="h-4 w-4" aria-hidden />
+                  {t("retryRun")}
+                </Button>
+              )}
+            {run.conversation_id !== null && scoresRuns && <RunMoreMenu runId={run.id} />}
             <Button
               variant="ghost"
               size="icon-sm"
@@ -266,6 +365,7 @@ export function FocusedRun({
               {timeAgo(run.started_at, tTime, locale)}
             </span>
           )}
+          {run.skills_used && run.skills_used.length > 0 && <SkillsUsed uses={run.skills_used} />}
         </div>
 
         {/* The three numbers somebody opens a run to check, on one filled
@@ -283,20 +383,69 @@ export function FocusedRun({
             {run.output_tokens.toLocaleString(locale)}
           </Fact>
           <Fact label={t("cost")}>
-            ${Number(run.cost_usd).toFixed(4)}
+            {formatUsd(run.cost_usd, locale, 4)}
             {run.cost_is_partial && (
               <span className="text-muted-foreground" title={t("modelRunHadNo")}>
                 {" +"}
               </span>
             )}
           </Fact>
-          <Fact label={t("took")}>{formatRunDuration(run.started_at, run.ended_at)}</Fact>
+          <Fact label={t("took")}>{formatRunDuration(run.started_at, run.ended_at, locale)}</Fact>
         </dl>
+
+        {/* A run parked on a question is not finished, and the detail is where
+            the whole question is read rather than the row's first line: every
+            unanswered question, and how long is left to answer it. The answer
+            goes in the chat behind the run - the button below - not here. */}
+        {run.status === "awaiting_answer" &&
+          ((run.waiting_questions?.length ?? 0) > 0 ||
+            (run.waiting_secret_requests?.length ?? 0) > 0) && (
+            <section
+              aria-label={t("waitingSection")}
+              className="space-y-1.5 rounded-xl border px-3 py-2.5"
+            >
+              <h3 className="text-foreground text-sm font-semibold">{t("waitingSection")}</h3>
+              <ul className="space-y-1">
+                {(run.waiting_questions ?? []).map((question, index) => (
+                  <li key={index} className="text-sm">
+                    {question}
+                  </li>
+                ))}
+                {(run.waiting_secret_requests ?? []).map((secretName) => (
+                  <li key={secretName} className="text-sm">
+                    {t("needsSecret", { name: secretName })}
+                  </li>
+                ))}
+              </ul>
+              {waitingExpiresIn !== null && (
+                <p className="text-muted-foreground text-xs">
+                  {t("questionExpiresIn", { duration: waitingExpiresIn })}
+                </p>
+              )}
+            </section>
+          )}
 
         {!!run.tool_args_repaired && (
           <p className="text-muted-foreground flex items-center gap-1.5 text-xs">
             <Wrench className="size-3.5 shrink-0" aria-hidden />
             {t("toolArgsRepaired", { count: run.tool_args_repaired })}
+          </p>
+        )}
+
+        {/* Why it stopped, where the operator looks first. The row has
+            carried `error` all along and nothing in the console rendered
+            it, so a failed run read as a badge with no reason - the
+            transcript or the server log was the only way to learn why.
+            Terminal runs only: a live or parked run has no error to
+            explain, and a `cancelled` run without one was stopped, not
+            failed. */}
+        {run.error !== null && TERMINAL_RUN_STATUSES.includes(run.status) && (
+          <p className="text-destructive flex items-start gap-1.5 text-xs">
+            <AlertTriangle className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+            <span>
+              <span className="font-medium">{t("whyItStopped")}: </span>
+              {run.error}
+            </span>
           </p>
         )}
 
@@ -311,28 +460,48 @@ export function FocusedRun({
           </p>
         )}
 
+        {/* Shown only when a fallback served the run: the header above names
+            the primary profile, so without this line a bad answer could not be
+            traced to the model that gave it. `serving_model` is a bare model
+            id; `modelShortName` strips the provider prefix the same way the
+            history table does. A null serving model falls back to the label
+            rather than rendering a dash. */}
+        {run.fallback_used === true && (
+          <p className="text-muted-foreground text-xs">
+            {t("servedByFallback", {
+              model:
+                run.serving_model !== null && run.serving_model !== undefined
+                  ? modelShortName(run.serving_model)
+                  : (run.model_label ?? "-"),
+            })}
+          </p>
+        )}
+
         {/* Hidden when it holds none of the three, rather than repeating all
             three conditions around it. */}
         <div className="flex flex-wrap items-center gap-1.5 empty:hidden">
-          {run.parent_run_id !== null && (
+          {(run.retry_of_run_id ?? run.parent_run_id) !== null && (
             <Button
               variant="outline"
               size="sm"
               className="h-7 text-xs"
-              onClick={() => onFocusRun(run.parent_run_id)}
+              onClick={() => onFocusRun(run.retry_of_run_id ?? run.parent_run_id)}
             >
               <CornerLeftUp className="h-3.5 w-3.5" aria-hidden />
               {t("openTheRunItCame")}
             </Button>
           )}
-          {run.conversation_id !== null && run.user_id !== null && run.user_id === meId && (
-            <Button variant="outline" size="sm" className="h-7 text-xs" asChild>
-              <Link href={`${ROUTES.CHAT}?id=${run.conversation_id}`}>
-                <MessageSquare className="h-3.5 w-3.5" aria-hidden />
-                {t("openTheChatBehind")}
-              </Link>
-            </Button>
-          )}
+          {run.conversation_id !== null &&
+            !run.initiated_by_publisher_fallback &&
+            run.user_id !== null &&
+            run.user_id === meId && (
+              <Button variant="outline" size="sm" className="h-7 text-xs" asChild>
+                <Link href={`${ROUTES.CHAT}?id=${run.conversation_id}`}>
+                  <MessageSquare className="h-3.5 w-3.5" aria-hidden />
+                  {t("openTheChatBehind")}
+                </Link>
+              </Button>
+            )}
           {/* The trace, where one can be read. The URL is this read's own field,
               resolved server-side because an agent may redirect its traces to a
               client's Logfire project - a link only when there is genuinely
@@ -368,7 +537,22 @@ export function FocusedRun({
         className="min-h-0 flex-1 scrollbar-thin space-y-6 overflow-y-auto px-4 py-4"
       >
         <TabsContent value="timeline">
-          <RunTimeline runId={runId} />
+          {/* An eval case keeps no conversation: its answer and grade live on
+              the eval run, so the timeline says where rather than that nothing
+              was recorded. */}
+          {run.eval_case ? (
+            <EmptyState
+              icon={FlaskConical}
+              title={t(run.eval_case.graded ? "evalCaseGradedTitle" : "evalCaseTitle")}
+              description={t(run.eval_case.graded ? "evalCaseGradedBody" : "evalCaseBody")}
+              cta={{
+                label: t("evalCaseOpen"),
+                href: evalCaseHref(run.eval_case),
+              }}
+            />
+          ) : (
+            <RunTimeline runId={runId} />
+          )}
         </TabsContent>
         <TabsContent value="input">
           <RunManifest runId={runId} />
@@ -389,6 +573,11 @@ export function FocusedRun({
 }
 
 /** The agent's face and name, linking to its Builder page. */
+/** The eval run a case belongs to, opened on that case. */
+function evalCaseHref(link: EvalCaseLink): string {
+  return `${ROUTES.AGENTS}/${link.agent_id}/evals/${link.eval_run_id}?case=${link.case_id}`;
+}
+
 function AgentIdentity({ agentId }: { agentId: string }) {
   const t = useTranslations("pages.runs");
   const { agent } = useAgent(agentId);
@@ -418,5 +607,32 @@ function Fact({ label, children }: { label: string; children: React.ReactNode })
       <dt className="text-muted-foreground text-xs">{label}</dt>
       <dd className="text-foreground truncate text-sm font-medium tabular-nums">{children}</dd>
     </div>
+  );
+}
+
+/** The skills a run opened or read, each by name and the version it was served. */
+function SkillsUsed({ uses }: { uses: RunSkillUse[] }) {
+  const t = useTranslations("pages.runs");
+  return (
+    <span className="flex flex-wrap items-center gap-1.5">
+      <Puzzle className="h-3.5 w-3.5" aria-hidden />
+      {t("skillsUsed")}
+      {uses.map((use) => (
+        <Link
+          key={`${use.skill_id}:${use.fork ?? ""}:${use.version ?? ""}`}
+          href={ROUTES.SKILL_DETAIL(use.skill_id)}
+          className="hover:text-foreground font-mono underline-offset-4 hover:underline"
+        >
+          {use.version === null
+            ? use.name
+            : t("skillVersion", {
+                name: use.name,
+                version: use.version,
+                fork: use.fork ?? "",
+                onFork: use.fork === null ? "no" : "yes",
+              })}
+        </Link>
+      ))}
+    </span>
   );
 }

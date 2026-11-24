@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { notFound } from "next/navigation";
-import { Sparkles, Trash2 } from "lucide-react";
+import { Brain, Sparkles, Trash2 } from "lucide-react";
 
 import { PageHeader } from "@/components/dashboard/page-header";
 import { EmptyState } from "@/components/states";
@@ -18,8 +18,26 @@ import {
   FormField,
   IconButton,
   Input,
+  Textarea,
+  NativeSelect,
+  NativeDisclosure,
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+  Switch,
+  Checkbox,
+  AvatarColorPicker,
   SectionHeading,
 } from "@/components/ui";
+
+import { ServiceCard } from "@/components/settings/service-card";
+import { AgentCursor } from "@/components/chat/browser-window";
+import { AgentStep, AgentSteps } from "@/components/chat/agent-step";
+import { DraftCardView } from "@/components/chat/draft-card";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
+import { SwipeToDecide } from "@/components/ui/swipe-to-decide";
 
 /**
  * Dev-only component gallery - a lightweight stand-in for Storybook that keeps
@@ -86,6 +104,9 @@ function AccentPalette() {
 
 function Gallery() {
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [steps, setSteps] = useState(2);
+  const [memory, setMemory] = useState(false);
+  const [cursorStep, setCursorStep] = useState(0);
 
   return (
     <div className="space-y-4 pb-8">
@@ -93,6 +114,103 @@ function Gallery() {
         title="Component gallery"
         description="Core design-system primitives, in one place."
       />
+
+      <Section title="Interaction and chat regression examples">
+        <div className="w-full min-w-0 space-y-4">
+          <ServiceCard
+            title="Example service"
+            description="A draft stays intact while this section closes and reopens."
+            icon={Brain}
+            collapsible
+            action={
+              <Switch
+                aria-label="Enable example service"
+                checked={memory}
+                onCheckedChange={setMemory}
+              />
+            }
+          >
+            <Input aria-label="Retained draft" defaultValue="Unsaved settings" />
+          </ServiceCard>
+          <Button onClick={() => setSteps((current) => current + 1)}>Append streamed step</Button>
+          <AgentSteps>
+            {Array.from({ length: steps }, (_, index) => (
+              <AgentStep
+                key={index}
+                label={`Read source ${index + 1}`}
+                kind="read"
+                state="done"
+                expanded
+              >
+                <Input aria-label={`Step ${index + 1} draft`} defaultValue="Keep this value" />
+              </AgentStep>
+            ))}
+          </AgentSteps>
+          <DraftCardView
+            card={{
+              id: "demo",
+              title: "A draft with a long subject that wraps without hiding its actions",
+              kind: "email",
+              versions: [
+                {
+                  label: "First",
+                  fields: [
+                    { name: "Subject", format: "text", text: "A short follow-up" },
+                    {
+                      name: "Body",
+                      format: "markdown",
+                      text: "Hello **team**,\n\nPlease review [the proposal](https://example.com).\n\n[Recipient name]",
+                    },
+                  ],
+                },
+                {
+                  label: "Revised",
+                  fields: [
+                    {
+                      name: "Body",
+                      format: "markdown",
+                      text: "Hello **team**,\n\nThe revised proposal is ready.",
+                    },
+                  ],
+                },
+              ],
+            }}
+          />
+          <div className="flex gap-2">
+            {["First hint", "Next hint"].map((label) => (
+              <Tooltip key={label}>
+                <TooltipTrigger asChild>
+                  <Button variant="outline">{label}</Button>
+                </TooltipTrigger>
+                <TooltipContent>{label} details</TooltipContent>
+              </Tooltip>
+            ))}
+          </div>
+          <Button variant="outline" onClick={() => setCursorStep((step) => step + 1)}>
+            Move example cursor
+          </Button>
+          <div
+            aria-label="Example browser viewport"
+            className="bg-muted relative aspect-video w-full overflow-hidden rounded-xl border"
+          >
+            <AgentCursor
+              pointer={{
+                x: cursorStep % 2 ? 0.8 : 0.25,
+                y: cursorStep % 2 ? 0.2 : 0.5,
+                step: cursorStep,
+              }}
+            />
+          </div>
+          <SwipeToDecide
+            onApprove={() => {}}
+            onReject={() => {}}
+            approveLabel="Approve example"
+            rejectLabel="Reject example"
+          >
+            <div className="rounded-lg border p-4">Swipe example; no action is sent.</div>
+          </SwipeToDecide>
+        </div>
+      </Section>
 
       <Section title="Accent palette - change --brand-h in globals.css to retheme">
         <AccentPalette />
@@ -137,6 +255,15 @@ function Gallery() {
         </div>
       </Section>
 
+      <Section title="Native disclosures">
+        <NativeDisclosure id="g-native-disclosure" className="w-full rounded-xl border px-3">
+          <summary>Native details</summary>
+          <div className="pb-3">
+            <Input aria-label="Native draft" defaultValue="Keep this draft" />
+          </div>
+        </NativeDisclosure>
+      </Section>
+
       <Section title="FormField">
         <div className="w-full max-w-sm space-y-4">
           <FormField label="Display name" htmlFor="g-name" description="Visible to teammates.">
@@ -145,6 +272,39 @@ function Gallery() {
           <FormField label="Email" htmlFor="g-email" error="That email is already taken." required>
             <Input id="g-email" type="email" defaultValue="taken@example.com" />
           </FormField>
+          <FormField label="Notes" htmlFor="g-notes">
+            <Textarea id="g-notes" placeholder="Context for your teammates" />
+          </FormField>
+          <FormField label="Native select" htmlFor="g-native-select">
+            <NativeSelect id="g-native-select" defaultValue="one">
+              <option value="one">First option</option>
+              <option value="two">Second option</option>
+            </NativeSelect>
+          </FormField>
+          <FormField label="Select" htmlFor="g-select">
+            <Select defaultValue="one">
+              <SelectTrigger id="g-select">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="one">First option</SelectItem>
+                <SelectItem value="two">Second option</SelectItem>
+              </SelectContent>
+            </Select>
+          </FormField>
+          <FormField label="Unavailable" htmlFor="g-disabled">
+            <Input id="g-disabled" disabled defaultValue="Unavailable field" />
+          </FormField>
+          <FormField label="Enable notifications" htmlFor="g-switch" layout="switch">
+            <Switch id="g-switch" />
+          </FormField>
+          <FormField label="Checked switch" htmlFor="g-switch-checked" layout="switch">
+            <Switch id="g-switch-checked" defaultChecked />
+          </FormField>
+          <FormField label="Accept updates" htmlFor="g-checkbox" layout="switch">
+            <Checkbox id="g-checkbox" />
+          </FormField>
+          <AvatarColorPicker value={null} onChange={() => undefined} />
         </div>
       </Section>
 

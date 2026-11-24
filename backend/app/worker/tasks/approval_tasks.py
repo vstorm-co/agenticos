@@ -22,7 +22,8 @@ logger = logging.getLogger(__name__)
 async def expire_approvals() -> int:
     """Deny by timeout every parked call past `APPROVAL_EXPIRY_HOURS`, and end its run.
 
-    The same pass also ends runs parked on an unanswered question and runs on a
+    The same pass also reminds a chat once about a question halfway to
+    expiry, ends runs parked on an unanswered question, and ends runs on a
     chat surface that were decided but never continued, each in its own transaction,
     and first registers the chat adapters this worker needs to tell a chat about it.
 
@@ -41,6 +42,10 @@ async def expire_approvals() -> int:
     # while the next one claims its rows.
     async with get_db_context() as db:
         expired = await ApprovalService(db).expire_stale()
+    # A question halfway to expiry gets one reminder first, so a person who
+    # missed the card still has half the window left to answer it.
+    async with get_db_context() as db:
+        nudged = await ApprovalService(db).nudge_unanswered()
     # Questions an agent asked that nobody answered park their runs the same
     # way, on their own shorter clock (#2064).
     async with get_db_context() as db:
@@ -48,6 +53,9 @@ async def expire_approvals() -> int:
     # Runs a decision was recorded on and nothing continued (#2656).
     async with get_db_context() as db:
         stranded = await ApprovalService(db).end_stranded()
+
+    if nudged:
+        logger.info("Question sweep: %d run(s) reminded about an unanswered question", nudged)
 
     if unanswered:
         logger.warning("Question sweep: %d run(s) ended with a question unanswered", unanswered)
