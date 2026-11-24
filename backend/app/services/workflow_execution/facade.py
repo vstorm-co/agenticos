@@ -646,19 +646,19 @@ class WorkflowExecutionService:
         )
 
         now = datetime.now(UTC)
-        settings = StoredWorkflowSettings.model_validate(workflow.settings)
+        workflow_settings = StoredWorkflowSettings.model_validate(workflow.settings)
         await limits.enforce_workflow_limits(
             self.db,
             organization_id=ctx.organization_id,
             workflow_id=workflow.id,
-            settings=settings,
+            settings=workflow_settings,
             mode=mode,
             now=now,
         )
-        budget_limit = limits.run_budget(budget_limit, settings)
+        budget_limit = limits.run_budget(budget_limit, workflow_settings)
         if deadline_seconds is None:
             # Nothing that started the run named a deadline: the workflow's own.
-            deadline_seconds = settings.default_deadline_seconds
+            deadline_seconds = workflow_settings.default_deadline_seconds
         deadline_at = (
             now + timedelta(seconds=deadline_seconds) if deadline_seconds is not None else None
         )
@@ -671,7 +671,13 @@ class WorkflowExecutionService:
             self.db, organization_id=ctx.organization_id, run_bytes=0, requested=initial_bytes
         )
         if storage_scope is not None:
-            raise WorkflowInlineStorageLimitError(scope=storage_scope)
+            raise WorkflowInlineStorageLimitError(
+                scope=storage_scope,
+                can_fit_when_idle=(
+                    storage_scope == "organization"
+                    and initial_bytes <= settings.WORKFLOW_ORG_MAX_INLINE_RESULT_BYTES
+                ),
+            )
         run = await workflow_run_repo.create_run(
             self.db,
             organization_id=ctx.organization_id,
@@ -705,7 +711,7 @@ class WorkflowExecutionService:
             budget_limit=budget_limit,
             node_count=node_count,
             deadline_at=deadline_at,
-            timezone=settings.timezone,
+            timezone=workflow_settings.timezone,
             root_run_id=causation.root_run_id if causation else None,
             causation_run_id=causation.causation_run_id if causation else None,
             visited_trigger_ids=causation.visited_trigger_ids if causation else [],

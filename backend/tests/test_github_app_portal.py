@@ -120,6 +120,7 @@ def _trigger(
         organization_id=ORG,
         portal_key=portal_key,
         event_source="github",
+        source_id=None,
         provider_target=target,
         event_config={"actions": list(actions)},
         approved_sources=RoutineSourcePolicy(

@@ -1,5 +1,5 @@
 ---
-source_sha: "b8db2c1cf551"
+source_sha: "4de3886f9c87"
 ---
 
 # Workflows { #workflows }
@@ -1139,6 +1139,24 @@ genau dort weiter, wo er aufgehört hat. Ereignisse werden geschrieben, bevor si
 gesendet werden, sodass nichts verloren geht und nichts zweimal läuft. Der Socket
 prüft die Sitzung und den Zugriff des Mitglieds vor jedem Frame und jedem Lesen des
 Streams erneut. Die Frames stehen in [Die HTTP-API](api.md#following-a-run-over-a-websocket).
+
+### Wiederverwendbare Webhook-Quellen { #reusable-webhook-sources }
+
+Neue **Webhook**-Schritte im Workflow-Editor fragen zuerst nach einer vorhandenen oder neuen Ereignisquelle. Sie können den Entwurf speichern und mit eingefügtem JSON testen, auch bevor Sie eine Quelle ausgewählt haben. Zum Veröffentlichen müssen Sie eine Quelle oder ausdrücklich einen **dedizierten Endpunkt** wählen. Verwenden Sie einen dedizierten Endpunkt, wenn der Absender eine synchrone Antwort benötigt. Vorhandene dedizierte Schritte behalten ihre Einstellungen und URLs.
+
+Wählen Sie im **Webhook**-Trigger eine vorhandene **Ereignisquelle** oder erstellen Sie eine. Veröffentlichen abonniert diesen Workflow-Einstieg; bei unveränderter Quelle und unverändertem Einstieg bleibt das Abonnement bestehen. Die Quelle verwahrt Zugangsdaten außerhalb der Workflow-Definition. Andere verbundene Routinen und Workflows empfangen dieselben authentifizierten Ereignisse unabhängig. [Ereignisquellen](triggers.md#reusable-event-sources) erklärt Provider, Authentifizierung, Rechte, Pausen und Aufbewahrung.
+
+Sie können eine Quelle, die Sie nicht mehr nutzen dürfen, durch eine für Sie nutzbare Quelle ersetzen. Das aktive Abonnement ändert sich erst beim Veröffentlichen. Um ein Beispiel im Workflow-Entwurf anzuheften, benötigen Sie Bearbeitungsrechte.
+
+Wer die Läufe dieses Workflows einsehen darf, kann im Verlauf auch die zugestellten Ereignisdaten sehen, selbst wenn die Quelle privat ist. Eine spätere Freigabe des Workflows kann Daten aus früheren Läufen sichtbar machen. Sie gewährt kein Recht, neue Ereignisse direkt von der Quelle zu empfangen.
+
+**Auf Ereignis warten** erfasst das nächste authentifizierte Ereignis an der konfigurierten Live-URL. Das Fenster dauert zwei Minuten; temporäre Beispiele bleiben zehn Minuten und unterliegen dem 64-KB-Pin-Limit. **Aktive Abonnenten werden weiter ausgeführt.** Die Erfassung erzeugt keinen zusätzlichen Lauf und ändert die Zustellung nicht. Eingefügtes Beispiel-JSON ist eine Alternative; Speichern und Veröffentlichen benötigen kein Beispiel.
+
+Das Beispiel des gewählten Triggers bleibt `{body, delivery_id}`. Pinnen Sie es und verwenden Sie vorhandene Feldbindungen und Schritttests; nachfolgende Knoten lesen JSON direkt. Wählen Sie bei mehreren Einstiegen ausdrücklich den gewünschten Webhook-Knoten für Erfassung und Pin. Es gibt weder eine zusätzliche Payload-Transformation noch Prompt-Interpolation wie bei Routinen.
+
+Für den Test eines manuellen Zweigs oder die Verwendung bereits angehefteter JSON-Daten ist keine Nutzungsberechtigung für die Webhook-Quelle erforderlich. Wer einen Workflow mit dieser Quelle als Abonnement veröffentlicht oder Live-Ereignisse abhört, benötigt diese Berechtigung.
+
+Eine gemeinsame Quelle bestätigt dauerhaften Empfang asynchron. Veröffentlichen verweigert einen solchen Einstieg, wenn sein erreichbarer Zweig **Auf Webhook antworten** enthält. Verwenden Sie einen dedizierten Workflow-Endpunkt, wenn der Absender dessen synchrone Statuscodes, Header oder Body benötigt. URL, Zugangsdaten, Duplikaterkennung und Antwortverhalten dedizierter Endpunkte bleiben unverändert.
 
 ### Ein Webhook oder ein Zeitplan { #a-webhook-or-a-schedule }
 

@@ -1,8 +1,12 @@
 "use client";
 
+import { RoutinePrompt } from "@/components/event-sources/routine-prompt";
+import { PromptField } from "./prompt-field";
+import { SourceSelector } from "@/components/event-sources/source-selector";
+import { SubscriptionFields } from "@/components/event-sources/subscription-fields";
 import { NativeDisclosure } from "@/components/ui/native-disclosure";
-
 import { sameLocalTarget } from "@/lib/desktop/local-target-content";
+import type { EventSource as ReusableSource } from "@/lib/event-sources-api";
 import { ZoneField, isTimeZone } from "./zone-field";
 import { RoutineDialogFrame } from "./routine-dialog-frame";
 import { ActionConsentsDialog } from "./action-consents-dialog";
@@ -34,9 +38,6 @@ import {
   FormField,
   Input,
   Label,
-  MarkdownEditor,
-  MarkdownModeToggle,
-  type MarkdownMode,
   Select,
   SelectContent,
   SelectItem,
@@ -161,6 +162,8 @@ interface TriggerFormDialogProps {
   /** Which concept a new trigger starts on. Ignored when editing. */
   initialResultMode?: RoutineResultMode;
   initialType?: TriggerType;
+  /** The explicit reusable-source creation path omits dedicated endpoint setup. */
+  reusableSourceOnly?: boolean;
   /** A template the new trigger starts from - an idea picked on the Routines page. */
   initialTemplate?: TriggerTemplate | null;
   /** Told once a new trigger exists - a suggestion is taken only then, not when the form opens. */
@@ -174,12 +177,9 @@ interface TriggerFormDialogProps {
  * schedule defines the task then its cadence, an API trigger picks what
  * fires it then the task. Editing keeps a single panel - see below.
  *
- * A trigger's shape is set once: creating chooses schedule-or-event and its
- * cadence or source, and editing may change only the prompt and the environment -
- * the shape controls are read-only, because switching an interval to cron or
- * repointing an event is a different trigger, made by deleting this one and
- * creating that. That mirrors exactly what the server's shape CHECK and its
- * update schema allow, so the form never offers an edit the API will refuse.
+ * A trigger remains a schedule or an event. Existing dedicated endpoints keep
+ * their source and credential; shared-source routines may select another source
+ * they can use.
  */
 export function TriggerFormDialog({
   agentId,
@@ -188,6 +188,7 @@ export function TriggerFormDialog({
   trigger = null,
   initialResultMode = "report",
   initialType = "schedule",
+  reusableSourceOnly = false,
   initialTemplate = null,
   onCreated,
 }: TriggerFormDialogProps) {
@@ -221,16 +222,20 @@ export function TriggerFormDialog({
   const { agents } = useAgents();
   const { can } = usePermissions();
   const defaultAgentId = useAgentSelectionStore((state) => state.defaultAgentId);
-  // Only agents the caller may actually run: a published version to run, and a
-  // `can_run` that resolves the caller's role scope plus any run grant. Seeding
-  // the default from this set never points at an agent the create would refuse.
-  const runnable = agents.filter((agent) => agent.status === "published" && agent.can_run);
+  const [sourceId, setSourceId] = useState<string | null>(trigger?.source_id ?? null);
+  const publishedRunnable = agents.filter((agent) => agent.status === "published" && agent.can_run);
+  const sourceTargets = publishedRunnable.filter((agent) => agent.can_edit);
+  const canAttachSource = sourceTargets.some((agent) => agentId === null || agent.id === agentId);
+  // Binding a reusable source needs edit as well as run, whichever creation path was used.
+  const runnable = sourceId || reusableSourceOnly ? sourceTargets : publishedRunnable;
   const [pickedAgentId, setPickedAgentId] = useState("");
-  // The user's starred default, or the first published agent, the moment the
-  // list arrives - the same resolution the chat's own picker makes.
-  const seededAgentId =
-    pickedAgentId || (runnable.find((agent) => agent.id === defaultAgentId) ?? runnable[0])?.id;
-  const effectiveAgentId = agentId ?? seededAgentId ?? null;
+  const seededAgent = pickedAgentId
+    ? runnable.find((agent) => agent.id === pickedAgentId)
+    : (runnable.find((agent) => agent.id === defaultAgentId) ?? runnable[0]);
+  const effectiveAgentId = agentId ?? seededAgent?.id ?? null;
+  const canUseSourceTarget = agents.some(
+    (agent) => agent.id === effectiveAgentId && agent.can_edit && agent.can_run,
+  );
 
   const { create, update, runNow, rotateSecret } = useTriggers(effectiveAgentId);
   const { environments } = useAgentEnvironments(effectiveAgentId);
@@ -250,6 +255,7 @@ export function TriggerFormDialog({
   // Schedules fit one panel; the event flow still has source-specific steps.
   const [step, setStep] = useState<WizardStepId>(type === "event" ? "event" : "configure");
   const [prompt, setPrompt] = useState(trigger?.prompt ?? "");
+  const [promptMode, setPromptMode] = useState(trigger?.prompt_mode ?? "literal");
   const [name, setName] = useState(trigger?.name ?? "");
   const [environmentId, setEnvironmentId] = useState(trigger?.environment_id ?? DEFAULT_ENV);
   const [pinnedVersion, setPinnedVersion] = useState(trigger?.pinned_version_id ?? null);
@@ -524,6 +530,27 @@ export function TriggerFormDialog({
     };
   }
 
+  function selectSource(source: ReusableSource | null) {
+    if (!editing && agentId === null) {
+      // Going back to change the source can disqualify the previously chosen agent.
+      // Its environment and pinned version must not follow the replacement target.
+      if (source && !sourceTargets.some((agent) => agent.id === effectiveAgentId)) {
+        setPickedAgentId("");
+        changeEnvironment(DEFAULT_ENV);
+      } else {
+        setPickedAgentId(effectiveAgentId ?? "");
+      }
+    }
+    setSourceId(source?.id ?? null);
+    if (source) {
+      setSecret("");
+      setEventSource(source.provider);
+      setExtraConfig({});
+      setFilterA("");
+      setFilterB("");
+    }
+  }
+
   function buildCreate(): TriggerCreate {
     const base = {
       prompt,
@@ -562,9 +589,11 @@ export function TriggerFormDialog({
     return {
       ...base,
       event_source: eventSource,
-      event_secret: secret,
-      event_config:
-        eventSource === "webhook" && Object.keys(extraConfig).length
+      ...(promptMode === "template" ? { prompt_mode: promptMode } : {}),
+      ...(sourceId ? { source_id: sourceId } : { event_secret: secret }),
+      event_config: sourceId
+        ? { ...extraConfig, ...eventFilterConfig(eventSource, [filterA, filterB]) }
+        : eventSource === "webhook" && Object.keys(extraConfig).length
           ? extraConfig
           : eventFilterConfig(eventSource, [filterA, filterB]),
     };
@@ -648,7 +677,15 @@ export function TriggerFormDialog({
                 : "per_tool";
         if (maxFailures !== (trigger.max_failures === undefined ? 3 : trigger.max_failures))
           patch.max_failures = maxFailures;
+        if (promptMode !== (trigger.prompt_mode ?? "literal")) patch.prompt_mode = promptMode;
         if (prompt !== trigger.prompt) patch.prompt = prompt;
+        if (sourceId !== (trigger.source_id ?? null)) {
+          patch.source_id = sourceId;
+          patch.event_config = {
+            ...extraConfig,
+            ...eventFilterConfig(eventSource, [filterA, filterB]),
+          };
+        }
         const nextName = name.trim() || null;
         if (nextName !== (trigger.name ?? null)) patch.name = nextName;
         const env = environmentId === DEFAULT_ENV ? null : environmentId;
@@ -700,7 +737,11 @@ export function TriggerFormDialog({
         // keys and nothing else: the server stores the config whole, so sending
         // only the slots dropped what this form does not show - a Gmail label,
         // an Outlook folder or shared mailbox - and moved the trigger.
-        if (trigger.trigger_type === "event" && trigger.event_source) {
+        if (
+          trigger.trigger_type === "event" &&
+          trigger.event_source &&
+          sourceId === (trigger.source_id ?? null)
+        ) {
           const keys: readonly string[] = FILTER_KEYS[trigger.event_source] ?? [];
           const changed = keys.some(
             (key, index) => ([filterA, filterB][index]?.trim() ?? "") !== seededFilter(index),
@@ -791,7 +832,10 @@ export function TriggerFormDialog({
     taskValid &&
     (type !== "schedule" || scheduleValid) &&
     eventOptionsValid(extraConfig) &&
-    (type !== "event" || eventSource !== "webhook" || webhookSignatureValid(extraConfig)) &&
+    (type !== "event" ||
+      sourceId !== null ||
+      eventSource !== "webhook" ||
+      webhookSignatureValid(extraConfig)) &&
     !pending;
 
   const steps: WizardStep[] =
@@ -814,11 +858,12 @@ export function TriggerFormDialog({
         budgetLimit !== undefined &&
         (type !== "schedule" || (prompt.trim().length > 0 && scheduleValid))
       : step === "message"
-        ? prompt.trim().length > 0
+        ? prompt.trim().length > 0 && (!sourceId || (effectiveAgentId !== null && canAttachSource))
         : step === "schedule"
           ? scheduleValid
-          : secret.length >= MIN_SECRET &&
-            (eventSource !== "webhook" || webhookSignatureValid(extraConfig));
+          : sourceId !== null ||
+            (secret.length >= MIN_SECRET &&
+              (eventSource !== "webhook" || webhookSignatureValid(extraConfig)));
   const onFirstStep = stepIdx === 0;
 
   function handleNext() {
@@ -914,22 +959,27 @@ export function TriggerFormDialog({
   }
 
   if (created !== null) {
+    const setupSecret = created.source_id ? null : (created.reveal_secret ?? secret);
     return (
       <Dialog open={open} onOpenChange={changeOpen}>
         <DialogContent className={DIALOG_CONFIRM}>
           <DialogHeader>
-            <DialogTitle>{t("createdTitle")}</DialogTitle>
+            <DialogTitle>{t(created.source_id ? "created" : "createdTitle")}</DialogTitle>
             <DialogDescription>
-              {eventSource === "linear" ? t("createdDescriptionLinear") : t("createdDescription")}
+              {created.source_id
+                ? t("createdDescriptionShared")
+                : created.event_source === "linear"
+                  ? t("createdDescriptionLinear")
+                  : t("createdDescription")}
             </DialogDescription>
           </DialogHeader>
           {created.webhook_url && <WebhookField url={created.webhook_url} />}
           {/* A generated secret must be copied before this dialog closes. The
               raw form's local state holds the caller's secret; `reveal_secret`
               covers a server-minted one. */}
-          {(created.reveal_secret ?? secret) && (
+          {setupSecret && (
             <SecretRevealField
-              secret={created.reveal_secret ?? secret}
+              secret={setupSecret}
               label={t("secret")}
               note={t("createdSecretNote")}
               id="created-secret"
@@ -974,6 +1024,20 @@ export function TriggerFormDialog({
     />
   );
 
+  const eventPrompt = (
+    <RoutinePrompt
+      key={`${effectiveAgentId}:${sourceId ?? "dedicated"}`}
+      value={prompt}
+      onChange={setPrompt}
+      mode={promptMode}
+      onModeChange={setPromptMode}
+      sourceId={sourceId}
+      agentId={effectiveAgentId}
+      triggerId={trigger?.id}
+      disabled={pending}
+    />
+  );
+
   if (editing) {
     return (
       <Dialog open={open} onOpenChange={changeOpen}>
@@ -993,23 +1057,44 @@ export function TriggerFormDialog({
                 {type === "event" ? t("editTitleEvent") : t("editTitleSchedule")}
               </legend>
               <NameField value={name} onChange={setName} />
-              <PromptField value={prompt} onChange={setPrompt} disabled={pending} />
+              {type === "event" && trigger.source_id && (
+                <SourceSelector
+                  value={sourceId}
+                  onChange={selectSource}
+                  disabled={pending || !canUseSourceTarget}
+                />
+              )}
+              {sourceId && eventSource !== "webhook" && (
+                <SubscriptionFields
+                  provider={eventSource}
+                  config={extraConfig}
+                  onChange={setExtraConfig}
+                  disabled={pending}
+                />
+              )}
+              {type === "event" ? (
+                eventPrompt
+              ) : (
+                <PromptField value={prompt} onChange={setPrompt} disabled={pending} />
+              )}
 
               {scheduleFields}
 
-              {trigger.trigger_type === "event" && trigger.webhook_url && (
+              {trigger.trigger_type === "event" && !sourceId && trigger.webhook_url && (
                 <WebhookField url={trigger.webhook_url} />
               )}
-              {trigger.trigger_type === "event" && trigger.event_source === "webhook" && (
-                <WebhookSignatureFields config={extraConfig} onChange={setExtraConfig} />
-              )}
+              {trigger.trigger_type === "event" &&
+                !sourceId &&
+                trigger.event_source === "webhook" && (
+                  <WebhookSignatureFields config={extraConfig} onChange={setExtraConfig} />
+                )}
 
-              {/* The source stays fixed; filters and webhook signature settings
-                can be edited, and eligible secrets can be rotated below. */}
+              {/* Dedicated endpoint settings remain on the routine; shared sources
+                own their credentials and verification settings. */}
               {trigger.trigger_type === "event" &&
                 trigger.event_source &&
                 (() => {
-                  const filters = FILTER_KEYS[trigger.event_source];
+                  const filters = FILTER_KEYS[eventSource];
                   return filters ? (
                     <div className="grid gap-4 sm:grid-cols-2">
                       <FormField
@@ -1040,9 +1125,9 @@ export function TriggerFormDialog({
                   ) : null;
                 })()}
 
-              {trigger.trigger_type === "event" && trigger.event_source && (
+              {trigger.trigger_type === "event" && !sourceId && trigger.event_source && (
                 <EventOptions
-                  source={trigger.event_source}
+                  source={eventSource}
                   config={extraConfig}
                   onChange={setExtraConfig}
                   canManageConnections={can("mcp:manage")}
@@ -1050,6 +1135,7 @@ export function TriggerFormDialog({
               )}
               {trigger.trigger_type === "event" &&
                 trigger.can_manage &&
+                !sourceId &&
                 trigger.event_source !== "linear" &&
                 trigger.delivery_mode !== "polling" &&
                 trigger.delivery_mode !== "app_webhook" && (
@@ -1178,18 +1264,36 @@ export function TriggerFormDialog({
         }
       >
         {step === "event" && (
-          <EventFields
-            eventSource={eventSource}
-            onEventSource={setEventSource}
-            secret={secret}
-            onSecret={setSecret}
-            config={extraConfig}
-            onConfig={setExtraConfig}
-            filterA={filterA}
-            onFilterA={setFilterA}
-            filterB={filterB}
-            onFilterB={setFilterB}
-          />
+          <div className="space-y-4">
+            {(canAttachSource || sourceId) && (
+              <SourceSelector
+                value={sourceId}
+                onChange={selectSource}
+                allowDedicated={!reusableSourceOnly}
+              />
+            )}
+            {!sourceId && !reusableSourceOnly && (
+              <EventFields
+                eventSource={eventSource}
+                onEventSource={setEventSource}
+                secret={secret}
+                onSecret={setSecret}
+                config={extraConfig}
+                onConfig={setExtraConfig}
+                filterA={filterA}
+                onFilterA={setFilterA}
+                filterB={filterB}
+                onFilterB={setFilterB}
+              />
+            )}
+            {sourceId && eventSource !== "webhook" && (
+              <SubscriptionFields
+                provider={eventSource}
+                config={extraConfig}
+                onChange={setExtraConfig}
+              />
+            )}
+          </div>
         )}
 
         {step === "configure" && (
@@ -1333,7 +1437,7 @@ export function TriggerFormDialog({
 
             {/* The step is the message's own, so the editor gets the room a
                   long prompt needs. */}
-            <PromptField value={prompt} onChange={setPrompt} rows={8} disabled={pending} />
+            {eventPrompt}
           </div>
         )}
 
@@ -1355,48 +1459,6 @@ function NameField({ value, onChange }: { value: string; onChange: (value: strin
         maxLength={120}
       />
     </FormField>
-  );
-}
-
-function PromptField({
-  value,
-  onChange,
-  rows = 6,
-  disabled = false,
-}: {
-  value: string;
-  disabled?: boolean;
-  onChange: (value: string) => void;
-  /** The wizard's message step passes more - a prompt is often long. */
-  rows?: number;
-}) {
-  const t = useTranslations("triggers");
-  const [mode, setMode] = useState<MarkdownMode>("source");
-  return (
-    <div className="space-y-1.5">
-      <MarkdownEditor
-        id="trigger-prompt"
-        disabled={disabled}
-        toolbar={
-          <>
-            <Label htmlFor="trigger-prompt" className="flex-1">
-              {t("prompt")}
-            </Label>
-            <MarkdownModeToggle mode={mode} onChange={setMode} />
-          </>
-        }
-        label={t("prompt")}
-        value={value}
-        onChange={onChange}
-        placeholder={t("promptPlaceholder")}
-        rows={rows}
-        describedBy="trigger-prompt-desc"
-        mode={mode}
-      />
-      <p id="trigger-prompt-desc" className="text-muted-foreground text-xs leading-relaxed">
-        {t("promptHelp")}
-      </p>
-    </div>
   );
 }
 

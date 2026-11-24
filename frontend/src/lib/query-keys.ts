@@ -10,6 +10,16 @@ import type { LogQuery, RunHistoryQuery } from "@/lib/workflows/types";
 import type { SharingResourceType } from "@/types/sharing";
 
 export const qk = {
+  eventSources: {
+    all: () => ["event-sources"] as const,
+    list: () => ["event-sources", "list"] as const,
+    detail: (id: string) => ["event-sources", id] as const,
+    usage: (id?: string) =>
+      id === undefined
+        ? (["event-sources", "usage"] as const)
+        : (["event-sources", "usage", id] as const),
+    capture: (id: string, token: string) => ["event-sources", id, "capture", token] as const,
+  },
   consoleExperience: {
     all: () => ["console-experience"] as const,
     member: (org: string | null, user: string | null) => ["console-experience", org, user] as const,

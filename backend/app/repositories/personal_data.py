@@ -1584,6 +1584,9 @@ async def routine_device_wait_export_size(db: AsyncSession, user_id: UUID) -> in
     size = await db.scalar(
         select(
             func.coalesce(func.sum(func.length(RoutineDeviceWait.event_context)), 0)
+            + func.coalesce(
+                func.sum(func.octet_length(cast(RoutineDeviceWait.event_body, Text))), 0
+            )
             + func.count(RoutineDeviceWait.id) * 1024
         ).where(RoutineDeviceWait.user_id == user_id)
     )

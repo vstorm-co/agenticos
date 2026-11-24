@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 
 import { ApiError } from "@/lib/api-client";
+import { qk } from "@/lib/query-keys";
 import * as api from "@/lib/workflows/workflows-api";
 import type { WorkflowDetail } from "@/lib/workflows/types";
 
@@ -81,7 +82,10 @@ describe("useWorkflowActions", () => {
     vi.mocked(api.archiveWorkflow).mockRejectedValue(new ApiError(409, "Still in use"));
     const { result } = renderHook(() => useWorkflowActions(), { wrapper });
 
+    const usage = qk.eventSources.usage("source");
+    client.setQueryData(usage, []);
     await act(() => result.current.remove.mutateAsync("wf"));
+    expect(client.getQueryState(usage)?.isInvalidated).toBe(true);
     expect(client.getQueryData(["workflows", "wf"])).toBeUndefined();
     expect(toast.success).toHaveBeenCalledWith("Workflow deleted.");
 

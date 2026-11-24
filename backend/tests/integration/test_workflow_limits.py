@@ -545,7 +545,7 @@ class TestTheSummary:
 async def test_dashboard_summary_includes_a_workflow_beyond_the_old_500_row_page(db, owner):
     oldest, _graph_ = await _two_step(db, owner)
     oldest.created_at = datetime.now(UTC) - timedelta(days=20)
-    await _ran(db, owner, oldest, status="succeeded", seconds=1, cost="1")
+    run = await _ran(db, owner, oldest, status="succeeded", seconds=1, cost="1")
     await _ran(db, owner, oldest, status="needs_attention", seconds=1, cost="0.5")
     db.add_all(
         [
@@ -561,8 +561,9 @@ async def test_dashboard_summary_includes_a_workflow_beyond_the_old_500_row_page
         ]
     )
     await db.flush()
-    today = datetime.now(UTC).date()
-    summary = await WorkflowStatsService(db).summary(owner, first=today, last=today)
+    # Both runs are timestamped by the same PostgreSQL transaction, even across midnight.
+    run_day = run.created_at.astimezone(UTC).date()
+    summary = await WorkflowStatsService(db).summary(owner, first=run_day, last=run_day)
     assert (summary.runs, summary.succeeded, summary.needs_you) == (2, 1, 1)
     assert summary.cost_usd == pytest.approx(1.5)
     assert [row.id for row in summary.workflows] == [oldest.id]

@@ -1,5 +1,5 @@
 ---
-source_sha: "b67c12b7a802"
+source_sha: "c4b835c4514a"
 ---
 
 # Configuración { #configuration }
@@ -1374,7 +1374,7 @@ API debería llevar un techo es una decisión aparte, no esta.
 | `RATE_LIMIT_HOSTED_PAGE_PER_MINUTE` | `240` | La configuración de una página alojada, **por página** — y su logo, en un contador propio. El [formulario](workflows.md#from-a-form) de un workflow se lee en un contador de este tamaño por formulario. Ver más abajo |
 | `RATE_LIMIT_FORM_SUBMISSIONS_PER_MINUTE` | `20` | Las respuestas que admite un [formulario](workflows.md#from-a-form) de un workflow, **por formulario**: cada una es una ejecución que paga quien lo publicó, y el servidor de la consola las reenvía todas, así que una dirección no contaría a nadie |
 | `RATE_LIMIT_WORKFLOW_WEBHOOK_PER_MINUTE` | `60` | Entregas que admite un [webhook](workflows.md) de un workflow o un disparador de GitHub, **por webhook**, contadas cuando la firma se verifica y la entrega iniciaría un run, así que desconocidos y entregas omitidas no gastan nada: cada una es una ejecución |
-| `RATE_LIMIT_WORKFLOW_WEBHOOK_IP_PER_MINUTE` | `600` | Peticiones que una dirección puede enviar a las direcciones de webhook y de disparador de GitHub de los workflows en un minuto, sea cual sea su contenido, contadas antes de leer nada. Amplio, porque remitentes como GitHub entregan para muchos hooks desde pocas direcciones |
+| `RATE_LIMIT_WORKFLOW_WEBHOOK_IP_PER_MINUTE` | `600` | Peticiones por minuto desde una dirección IP, contadas en conjunto para los webhooks de los workflows, sus disparadores de GitHub y las URL de las fuentes de eventos reutilizables. El límite se aplica antes de leer el cuerpo de la petición. El valor predeterminado tiene en cuenta a proveedores como GitHub, que envían muchos webhooks desde unas pocas direcciones |
 | `WORKFLOW_EMAIL_MAX_PER_PRINCIPAL_PER_HOUR` | `100` | Destinatarios únicos por usuario, abarcando claves y organizaciones; [email.send](reference/workflow-nodes.md#email-send) |
 | `WORKFLOW_EMAIL_MAX_PER_ORG_PER_HOUR` | `500` | Destinatarios únicos por organización; [email.send](reference/workflow-nodes.md#email-send) |
 | `WORKFLOW_EMAIL_MAX_PER_DEPLOYMENT_PER_HOUR` | `1000` | Destinatarios únicos en todo el despliegue; [email.send](reference/workflow-nodes.md#email-send) |

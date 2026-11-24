@@ -3042,3 +3042,208 @@ def test_routine_chat_mode_migration_maps_destinations_without_changing_authorit
                 )
     finally:
         engine.dispose()
+
+
+@pytest.mark.parametrize(
+    ("field", "previous_revision", "message"),
+    [
+        ("event_source_id", "0362_merge_native_release", "source-bound fire-trigger jobs"),
+        ("event_body", "0363_reusable_event_sources", "structured fire jobs"),
+    ],
+)
+def test_event_source_downgrade_preserves_runnable_fire_jobs(
+    field: str, previous_revision: str, message: str
+) -> None:
+    from app.db.models.background_job import BackgroundJob
+
+    result = _alembic("upgrade", "head")
+    assert result.returncode == 0, result.stderr
+    engine = create_engine(_url(MIGRATION_DATABASE))
+    legacy = {"trigger_id": str(uuid4()), "event_context": "already rendered"}
+    if field == "event_body":
+        # #3105 workers still need the receipt's identity after the template-only downgrade.
+        legacy["event_source_id"] = str(uuid4())
+    nullable = {**legacy, field: None}
+    try:
+        with engine.begin() as connection:
+            connection.execute(
+                insert(BackgroundJob),
+                [
+                    {
+                        "kind": "fire-trigger",
+                        "pool": "agent",
+                        "max_attempts": 3,
+                        "status": status,
+                        "payload": nullable,
+                    }
+                    for status in ("queued", "running", "dead")
+                ],
+            )
+            source_job = connection.scalar(
+                insert(BackgroundJob)
+                .values(
+                    kind="fire-trigger",
+                    pool="agent",
+                    max_attempts=3,
+                    status="queued",
+                    payload={**legacy, field: {} if field == "event_body" else str(uuid4())},
+                )
+                .returning(BackgroundJob.id)
+            )
+        for status in ("queued", "dead"):
+            with engine.begin() as connection:
+                connection.execute(
+                    update(BackgroundJob)
+                    .where(BackgroundJob.id == source_job)
+                    .values(status=status)
+                )
+            refused = _alembic("downgrade", previous_revision)
+            assert refused.returncode != 0 and message in refused.stderr
+        with engine.begin() as connection:
+            connection.execute(
+                update(BackgroundJob)
+                .where(BackgroundJob.id == source_job)
+                .values(status="cancelled")
+            )
+        result = _alembic("downgrade", previous_revision)
+        assert result.returncode == 0, result.stderr
+        with engine.connect() as connection:
+            assert connection.scalars(
+                select(BackgroundJob.payload).where(
+                    BackgroundJob.payload["trigger_id"].astext == legacy["trigger_id"],
+                    BackgroundJob.status != "cancelled",
+                )
+            ).all() == [legacy, legacy, legacy]
+    finally:
+        with engine.begin() as connection:
+            connection.execute(
+                delete(BackgroundJob).where(
+                    BackgroundJob.payload["trigger_id"].astext == legacy["trigger_id"]
+                )
+            )
+        engine.dispose()
+        result = _alembic("upgrade", "head")
+        assert result.returncode == 0, result.stderr
+
+
+def test_event_source_downgrade_retires_only_obsolete_queue_work() -> None:
+    from app.db.models.background_job import BackgroundJob
+    from app.db.models.background_schedule import BackgroundSchedule
+    from app.db.models.background_task_kind import BackgroundTaskKind
+    from app.db.models.event_source import (
+        EventDelivery,
+        EventDispatch,
+        EventSource,
+        EventSourceCredential,
+    )
+    from app.db.models.organization import Organization
+
+    result = _alembic("upgrade", "head")
+    assert result.returncode == 0, result.stderr
+    engine = create_engine(_url(MIGRATION_DATABASE))
+    owner, org, credential, source, receipt, dispatch, job, sweep = (uuid4() for _ in range(8))
+    retention = "source-delivery-retention"
+    try:
+        with engine.begin() as conn:
+            conn.execute(_HISTORICAL_USER_INSERT, {"id": owner, "email": f"{owner}@example.com"})
+            conn.execute(
+                _HISTORICAL_ORGANIZATION_INSERT,
+                {"id": org, "slug": str(org), "name": "Test", "owner": owner},
+            )
+            conn.execute(
+                insert(EventSourceCredential).values(
+                    id=credential, organization_id=org, sealed_secret="sealed", secret_key_version=1
+                )
+            )
+            conn.execute(
+                insert(EventSource).values(
+                    id=source,
+                    organization_id=org,
+                    secret_id=credential,
+                    name="Events",
+                    provider="webhook",
+                    auth={},
+                )
+            )
+            conn.execute(
+                insert(EventDelivery).values(
+                    id=receipt,
+                    organization_id=org,
+                    source_id=source,
+                    body={"event": "still needed"},
+                )
+            )
+            conn.execute(
+                insert(EventDispatch).values(
+                    id=dispatch, organization_id=org, delivery_id=receipt, status="pending"
+                )
+            )
+            conn.execute(
+                insert(BackgroundJob).values(
+                    id=job,
+                    kind="dispatch-source-event",
+                    pool="system",
+                    max_attempts=3,
+                    payload={"dispatch_id": str(dispatch), "organization_id": str(org)},
+                )
+            )
+            conn.execute(
+                insert(BackgroundJob).values(
+                    id=sweep, kind=retention, pool="system", max_attempts=1, status="running"
+                )
+            )
+            conn.execute(
+                insert(BackgroundSchedule).values(
+                    name=retention,
+                    kind=retention,
+                    interval_seconds=86400,
+                    next_run_at=datetime.now(UTC),
+                )
+            )
+            conn.execute(insert(BackgroundTaskKind).values(kind=retention))
+        blocked = _alembic("downgrade", "0362_merge_native_release")
+        assert blocked.returncode != 0 and "settle pending source work" in blocked.stderr
+        with engine.begin() as conn:
+            # A refused downgrade must leave the accepted input and job intact.
+            assert conn.scalar(select(EventDelivery.body).where(EventDelivery.id == receipt)) == {
+                "event": "still needed"
+            }
+            assert (
+                conn.scalar(select(BackgroundJob.status).where(BackgroundJob.id == job)) == "queued"
+            )
+            conn.execute(
+                update(EventDispatch)
+                .where(EventDispatch.id == dispatch)
+                .values(status="skipped", completed_at=datetime.now(UTC))
+            )
+        blocked = _alembic("downgrade", "0362_merge_native_release")
+        assert blocked.returncode != 0 and "running event source jobs" in blocked.stderr
+        with engine.begin() as conn:
+            conn.execute(
+                update(BackgroundJob)
+                .where(BackgroundJob.id == sweep)
+                .values(status="dead", last_error="original failure")
+            )
+        result = _alembic("downgrade", "0362_merge_native_release")
+        assert result.returncode == 0, result.stderr
+        with DatabaseSession(engine) as db:
+            for retired in (job, sweep):
+                row = db.get(BackgroundJob, retired)
+                assert row is not None and row.status == "cancelled"
+                assert row.finished_at is not None and row.settled_at is not None
+            assert db.get(BackgroundJob, sweep).last_error == "original failure"
+            assert db.get(BackgroundSchedule, retention) is None
+            assert (
+                db.scalar(select(BackgroundTaskKind.id).where(BackgroundTaskKind.kind == retention))
+                is None
+            )
+    finally:
+        with engine.begin() as conn:
+            conn.execute(delete(BackgroundJob).where(BackgroundJob.id.in_((job, sweep))))
+            conn.execute(delete(BackgroundSchedule).where(BackgroundSchedule.name == retention))
+            conn.execute(delete(BackgroundTaskKind).where(BackgroundTaskKind.kind == retention))
+            conn.execute(delete(Organization).where(Organization.id == org))
+            conn.execute(delete(User).where(User.id == owner))
+        engine.dispose()
+        result = _alembic("upgrade", "head")
+        assert result.returncode == 0, result.stderr

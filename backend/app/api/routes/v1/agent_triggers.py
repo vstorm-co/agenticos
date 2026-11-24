@@ -35,6 +35,8 @@ from app.schemas.agent_trigger import (
     TriggerDispatchRead,
     TriggerFilteredEventRead,
     TriggerList,
+    TriggerPromptPreviewCreate,
+    TriggerPromptPreviewRead,
     TriggerRead,
     TriggerUpdate,
 )
@@ -135,6 +137,18 @@ async def list_org_triggers(
     return TriggerList(items=items, total=total)
 
 
+@router.post(
+    "/{agent_id}/triggers/preview-prompt",
+    response_model=TriggerPromptPreviewRead,
+    dependencies=[PUBLIC],
+)
+async def preview_trigger_prompt(
+    agent_id: UUID, data: TriggerPromptPreviewCreate, ctx: Auth, service: AgentTriggerSvc
+) -> Any:
+    """Preview routine fields against example JSON; this never runs an agent."""
+    return await service.preview_prompt(ctx, agent_id, data)
+
+
 @router.get("/{agent_id}/triggers", response_model=TriggerList, dependencies=[PUBLIC])
 async def list_triggers(agent_id: UUID, ctx: Auth, service: AgentTriggerSvc) -> Any:
     """Every schedule on this agent."""
@@ -172,9 +186,10 @@ async def run_trigger_now(
     """Fire this trigger once, as its creator, without disturbing how it fires.
 
     Works for either kind: a schedule fires one extra time with its cadence
-    untouched, and an event trigger fires as a manual test-fire - the base prompt
-    with no delivery context, so the agent, its prompt and its budget can be
-    confirmed without a signed payload or a real delivery.
+    untouched. An event trigger gets no delivery: a literal prompt runs as
+    written; a template resolves against an empty object. A missing field
+    records a failed attempt before any run. To supply example data without
+    running the agent, use the prompt preview instead.
 
     202, not 200: the fire is dispatched once this request commits rather than run
     inside it, so the trigger comes back as it stands and its `last_run_id` still
@@ -317,8 +332,9 @@ async def trigger_attempts(
 ) -> Any:
     """Blocked or failed activations before an agent run existed, newest first.
 
-    These records carry bounded reason codes, never prompts, provider errors or
-    credentials. Reading delegates to the agent's resource access checks.
+    Every record carries a bounded reason code. A template diagnostic may name a
+    field from the authored prompt, never a value from the event. Reading
+    delegates to the agent's resource access checks.
     """
     return await service.attempts(ctx, agent_id, trigger_id, skip=skip, limit=limit)
 

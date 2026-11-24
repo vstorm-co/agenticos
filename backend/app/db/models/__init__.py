@@ -228,6 +228,11 @@ from app.db.models.virtual_table_trigger import (
 from app.db.models.artifact_share_request import ArtifactShareRequest
 
 __all__ = [
+    "EventDelivery",
+    "EventDispatch",
+    "EventSource",
+    "EventSourceCredential",
+    "EventSubscription",
     "PersonalContextCache",
     "SolutionInstallation",
     "TaskBoard",
@@ -478,4 +483,11 @@ __all__ = [
 
 from app.db.models.telephony import PhoneCall, PhoneContact, PhoneEndpoint
 
+from app.db.models.event_source import (
+    EventDelivery,
+    EventDispatch,
+    EventSource,
+    EventSourceCredential,
+    EventSubscription,
+)
 from app.db.models.chatgpt_registration import ChatGPTRegistration as ChatGPTRegistration

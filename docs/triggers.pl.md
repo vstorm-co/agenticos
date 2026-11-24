@@ -1,5 +1,5 @@
 ---
-source_sha: "6aec4865a6f4"
+source_sha: "fdd41dc218e0"
 ---
 
 # Konfigurowanie triggera zdarzeniowego { #setting-up-an-event-trigger }
@@ -9,8 +9,8 @@ source_sha: "6aec4865a6f4"
 Są dwie drogi, którymi to do nas dociera, a to, której używa dane źródło, jest
 sprawą tego źródła, a nie twoją:
 
-- **Wypychane.** Provider wysyła POST-em podpisany payload: **GitHub**,
-  **HubSpot**, **Zendesk**, **Linear** albo cokolwiek, co potrafi wysłać podpisany JSON
+- **Wypychane.** Provider wysyła POST-em uwierzytelniony payload: **GitHub**,
+  **HubSpot**, **Zendesk**, **Linear** albo cokolwiek, co potrafi wysłać uwierzytelniony JSON
   (źródło **API**).
 - **Odpytywane.** Platforma czyta podłączone konto według harmonogramu: skrzynki
   (**Gmail**, **Outlook**), pliki (**Google Drive**, **OneDrive & SharePoint**) i
@@ -115,9 +115,55 @@ Kafelek dashboardu można dodać z `Customize` i jest na domyślnym układzie po
 kto może widzieć agentów, widzi ich rutyny; wynik i koszt w każdym wierszu
 wymagają `runs:view` i po prostu ich nie ma bez tego uprawnienia.
 
+## Źródła zdarzeń wielokrotnego użytku { #reusable-event-sources }
+
+Dodaj widżet **Źródła zdarzeń** do pulpitu, aby sprawdzić, ile widocznych dla Ciebie źródeł jest aktywnych lub wstrzymanych.
+
+Otwórz **Źródła zdarzeń** albo wybierz **Wybierz istniejące / Utwórz nowe** w edytorze webhooka rutyny lub workflow. Źródło przechowuje swój adres URL, poświadczenia i konfigurację dostawcy. Wiele rutyn i opublikowanych wejść workflow może subskrybować ten sam URL, zachowując własne filtry, tożsamość wykonania, uprawnienia, zgody i budżety.
+
+Domyślna widoczność to **Prywatne**. **Organizacja** udostępnia źródło zgodnie z uprawnieniami organizacji. Prawo wyświetlania pozwala zobaczyć konfigurację. Prawo używania pozwala nasłuchiwać przychodzących danych przed zastosowaniem filtrów subskrybentów, nawet bez rutyny lub workflow. Próbkę może odczytać tylko osoba, która rozpoczęła nasłuchiwanie i nadal ma prawo używać źródła. Podłączenie źródła wymaga również prawa do edycji i uruchamiania celu. Worker ponownie sprawdza uprawnienia przed wykonaniem zadania.
+
+Wybierz GitHub, Linear, HubSpot lub Zendesk do weryfikacji właściwej dla dostawcy albo **Niestandardowy webhook** z jedną z poniższych metod. Rejestracja pozostaje ręczna: skopiuj URL źródła do konfiguracji dostawcy.
+
+| Uwierzytelnianie niestandardowe | Konfiguracja |
+| --- | --- |
+| Niestandardowy HMAC | SHA-256, nazwa nagłówka, opcjonalny prefiks podpisu i kodowanie hex, base64 lub base64url; dostępny jest również wcześniejszy format podpisywania znacznika czasu |
+| Basic Auth | Nazwa użytkownika i hasło |
+| Klucz API | Nazwa nagłówka, tajny klucz i opcjonalny prefiks |
+| Standard Webhooks | Symetryczne podpisy `v1` obejmujące ID, znacznik czasu i body; listy podpisów, pięć minut tolerancji czasu i klucze o długości 24–64 bajtów kodowane w Base64 |
+
+Wyślij POST zawierający obiekt JSON; zachowana jest dotychczasowa adaptacja partii HubSpot. Poświadczenia są tylko do zapisu i trafiają do sejfu organizacji. Zmieniaj je w źródle, nigdy w definicji workflow ani przykładzie. Identyfikatory dostawcy lub skonfigurowany nagłówek ID dostawy rozpoznają ponowienia. Poświadczenia Basic Auth i klucze API nie są identyfikatorami zdarzeń. Bez ID zdarzenia ponowienia mogą uruchomić dodatkowe wykonania.
+
+Uwierzytelniona dostawa i zadania wysyłki zapisują się wspólnie, zanim źródło potwierdzi odbiór. Błędy subskrybentów są niezależne. Worker ponawia próbę dostarczenia, gdy subskrybent tymczasowo osiągnie limit częstotliwości lub liczby równoczesnych wykonań. Zdarzenie w kolejce może użyć tylko zgody na źródło rutyny obowiązującej w chwili odbioru. Zmiana źródła wstrzymuje rutynę. Przed jej wznowieniem właściciel musi zatwierdzić nowe źródło.
+
+Wspólny URL asynchronicznie potwierdza trwały odbiór i nie zwraca własnej odpowiedzi workflow. Workflow ze wspólnym źródłem nie może dotrzeć do **Odpowiedz na webhook**. Dedykowane endpointy workflow zachowują odpowiedzi synchroniczne.
+
+**Wstrzymaj źródło** zatrzymuje uruchamianie subskrybentów dla nowych dostaw. Wstrzymane źródło nadal weryfikuje i zapisuje każdą dostawę, a włączony nasłuch nadal ją przechwytuje. Wstrzymanie rutyny lub workflow dotyczy tylko tego celu. Usunięcie źródła jest zablokowane, dopóki istnieją subskrypcje; lista użycia wskazuje cele do odłączenia. Zakończone dostawy podlegają zasadom retencji zadań w tle.
+
+### Nasłuchiwanie na aktywnym URL { #listen-on-the-live-url }
+
+W źródle lub edytorze webhooka wybierz **Nasłuchuj zdarzenia** i w ciągu dwóch minut wyślij uwierzytelnione zdarzenie na pokazany aktywny URL. Nasłuch zwróci następne zdarzenie bez zatrzymywania dostaw: **aktywni subskrybenci nadal się wykonują**. Przechwycenie nie uruchamia dodatkowego wykonania. Przykład jest przechowywany przez dziesięć minut i ograniczony dotychczasowym limitem przypięcia 64 KB. Błąd, zbyt duży przykład lub wygaśnięcie nie zmieniają obsługi zdarzeń na żywo.
+
+Możesz też wkleić przykładowy JSON. Przykład nie jest wymagany do zapisania rutyny ani opublikowania workflow. Próbka workflow zachowuje `{body, delivery_id}`, przypięcia, powiązania i testy kroków. Gdy workflow ma kilka wyzwalaczy, wybierz właściwe wejście Webhook; nie dodano warstwy przekształcania payloadu. Zobacz [Workflow](workflows.md#reusable-webhook-sources).
+
+### Pola zdarzenia w prompcie rutyny { #routine-prompt-fields }
+
+Włącz tryb szablonu, wyszukaj pole w drzewie przykładu i wstaw je w miejscu kursora albo wpisz odwołanie ręcznie:
+
+```text
+Podsumuj {{issue.title}} i pierwszy element {{items[0].name}}.
+Odczytaj nietypową właściwość {{["request.id"]}}.
+```
+
+Ścieżki zaczynają się w korzeniu body JSON. Obsługiwane są właściwości z kropkami, indeksy tablic i klucze w cudzysłowie w nawiasach; wyrażenia, funkcje, pętle i wartości domyślne nie są obsługiwane. Pojedyncze klamry są tekstem. Zapis `\{{example\}}` wyświetla dosłownie podwójne klamry. Podstawienie odbywa się raz: klamry w odebranej wartości nie tworzą kolejnego odwołania.
+
+**Podgląd rozwiązanego promptu** używa tego samego resolvera backendu co wykonanie i nie wywołuje agenta. Teksty są wstawiane bezpośrednio, pozostałe wartości jako zwarty JSON. `false`, `0` i `null` są obecnymi wartościami. Brakująca ścieżka powoduje widoczny błąd z jej nazwą przed wywołaniem agenta, także w diagnostyce aktywacji i historii rutyny, gdy wykonanie jeszcze nie istnieje.
+
+Zapis sprawdza składnię bez wymagania pól w przykładzie. Rozwiązywanie korzysta ze strukturalnego zdarzenia przed dotychczasowym skracaniem kontekstu. Tryb szablonu wysyła napisany prompt z wybranymi wartościami oznaczonymi jako dane zewnętrzne, bez dołączania całego payloadu. Zbyt duża wiadomość powoduje błąd zamiast skrócenia. Istniejące prompty pozostają dosłowne do jawnej zmiany trybu; dedykowane adresy URL i ustawienia podpisów nadal działają.
+
 ## Mechanizm, raz { #the-mechanism-once }
 
-Trigger zdarzeniowy używa dwóch rzeczy: **URL webhooka** i **sekret
+Dedykowany trigger zdarzeniowy używa dwóch rzeczy: **URL webhooka** i **sekret
 podpisujący**. Provider wysyła POST-em swój payload na ten URL i podpisuje
 żądanie; platforma przelicza podpis i odpala agenta tylko wtedy, gdy oba się
 zgadzają.
@@ -210,7 +256,7 @@ ponowić je po minucie, o ile podpis przejdzie kontrolę świeżości. Liczone j
 zgadza, więc nikt bez sekretu go nie wyczerpie - i to ono powstrzymuje wyciekły
 sekret albo przekaźnik w pętli przed wydaniem budżetu w jedno popołudnie.
 
-**To, co przyszło, to dane, nigdy polecenia.** Wiadomość runa to twój prompt, a
+**To, co przyszło, to dane, nigdy polecenia.** W trybie dosłownym wiadomość runa to twój prompt, a
 potem zdarzenie w bloku `<event_content>`, który mówi modelowi, by czytał je jako
 dane. Issue, mail czy nazwę pliku pisze ten, kto je wysłał, a zdanie w nich, które
 brzmi jak rozkaz, nadal jest częścią zdarzenia.
@@ -682,8 +728,8 @@ czyta adapter, który go czyta - filtry triggera Gmaila albo Outlooka dopasowywa
 są do samej wiadomości, więc nie ma kontraktu, który miałbyś spełnić.
 
 Tym, który należy do ciebie, jest uniwersalne źródło `webhook` - **API** w
-dialogach. **Nie ma filtra**: zweryfikowane dostarczenie odpala, a całe body JSON
-jest doklejane do promptu. Użyj go do wszystkiego, czego nie obejmuje żaden
+dialogach. **Nie ma filtra**: zweryfikowane dostarczenie odpala, a w trybie dosłownym treść zdarzenia
+jest doklejana do promptu. Użyj go do wszystkiego, czego nie obejmuje żaden
 portal - obserwowania kanału, dla którego żaden provider nie wystawia API (strona
 na LinkedInie, ogłoszenie na marketplace) albo dowolnego narzędzia, które potrafi
 wysłać POST - przy czym obserwowanie robi przekaźnik, który napiszesz.
@@ -703,8 +749,7 @@ udokumentowanym przykładem.
 { "from": "billing@acme.com", "subject": "Invoice #4021", "body": "…" }
 ```
 
-Nic już nie filtruje po tych nazwach, więc całe body dociera do promptu i agent je
-czyta. Jeśli chcesz _filtrowania_, podłącz skrzynkę zamiast tego.
+Szablon może wybrać sam temat za pomocą `{{subject}}`. Zmienia to prompt, ale nie filtruje zdarzeń. Jeśli chcesz _filtrowania_, podłącz skrzynkę zamiast tego.
 
 ## Samodzielne podpisanie dostarczenia { #signing-a-delivery-yourself }
 
@@ -812,7 +857,7 @@ przekaźnika - nie widzą twojej maszyny. Dwa sposoby, żeby to obejść:
   budżet zachowują się jak trzeba, bez konfigurowania jakiegokolwiek providera.
   Nieaktywny (wstrzymany) trigger jest respektowany - _Run now_ nic mu nie robi. Jego
   jedyną luką jest to, że nie ćwiczy ścieżki podpisu ani prawdziwego payloadu, więc nie
-  wyłapie złego sekretu ani źle nazwanego pola.
+  wyłapie złego sekretu ani źle nazwanego pola. Jeśli szablon odwołuje się do pól zdarzenia, zamiast uruchomić agenta, zgłosi brak pól. Przetestuj go na przykładzie w podglądzie.
 
 - **Wystaw port tunelem**, kiedy rzeczywiście chcesz przetestować prawdziwą ścieżkę
   webhooka. Skieruj tunel na API, ustaw `PUBLIC_BASE_URL` na publiczny adres tunelu i

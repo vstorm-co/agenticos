@@ -19,6 +19,16 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- Event routines can opt into prompt templates. Select fields from a captured or pasted JSON example and preview the resolved prompt without running the agent. A missing field is reported in routine history before execution. Existing prompts stay literal.
+- Reusable webhook event sources with provider presets, private or organization visibility, vault-backed authentication and independent routine/workflow subscribers. Members who can use a source can inspect its next unfiltered event without a routine or workflow. Attaching it still requires edit and run access to the target. In a workflow editor, pin a captured event or paste example JSON for step tests. New workflow webhook steps default to choosing a reusable source; select a dedicated endpoint for synchronous responses. Existing dedicated endpoints retain their behavior.
+
+### Upgrading
+
+- Apply `0363_reusable_event_sources.py` first. Drain and stop old workers before starting upgraded workers or schedulers, then roll out the API. This keeps old workers from claiming source dispatch and retention jobs they cannot execute. Existing webhook URLs and credentials stay valid. Before downgrading, detach source subscribers and finish pending deliveries and device waits for source events. Let running source jobs finish. For routine jobs that still reference a reusable source, drain or cancel queued work and retry or expire dead jobs before downgrading.
+- Apply `0364_routine_prompt_templates.py` and finish upgrading every worker before enabling template prompts. Older workers cannot render templates, including those resumed from a device wait. Before downgrading, switch template routines to literal, finish or cancel pending device waits with structured input, and drain or cancel their queued jobs. Let running jobs finish and retry or expire dead jobs carrying structured input.
+
 ## [1.92.0] - 2026-11-23
 
 ### Added

@@ -22,7 +22,7 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import NotFoundError
-from app.core.permissions import AuthContext
+from app.core.permissions import AuthContext, Perm
 from app.db.models.agent import Agent
 from app.db.models.artifact import Artifact
 from app.db.models.context import ContextFile
@@ -141,3 +141,12 @@ async def load_mcp_connection(
     if connection is not None and connection.scope != "org":
         raise missing
     return await _visible(db, ctx, connection, MCP_CONNECTION, missing)
+
+
+async def load_event_source(db: AsyncSession, source_id: UUID, ctx: AuthContext) -> OwnedResource:
+    from app.services.event_sources import EventSourceService
+
+    try:
+        return await EventSourceService(db).get(ctx, source_id)
+    except NotFoundError:
+        return await EventSourceService(db).get(ctx, source_id, perm=Perm.EVENT_SOURCES_EDIT)

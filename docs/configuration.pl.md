@@ -1,5 +1,5 @@
 ---
-source_sha: "b67c12b7a802"
+source_sha: "c4b835c4514a"
 ---
 
 # Konfiguracja { #configuration }
@@ -1348,7 +1348,7 @@ API powinno nosić sufit, to osobna decyzja, nie ta.
 | `RATE_LIMIT_HOSTED_PAGE_PER_MINUTE` | `240` | Config hostowanej strony, **na stronę** — oraz jej logo, na osobnym liczniku. [Formularz](workflows.md#from-a-form) workflow jest odczytywany na liczniku tej wielkości, na formularz. Zobacz niżej |
 | `RATE_LIMIT_FORM_SUBMISSIONS_PER_MINUTE` | `20` | Odpowiedzi, które przyjmuje jeden [formularz](workflows.md#from-a-form) workflow, **na formularz**: każda to run, za który płaci jego wydawca, a serwer konsoli przekazuje je wszystkie, więc adres nie liczyłby nikogo |
 | `RATE_LIMIT_WORKFLOW_WEBHOOK_PER_MINUTE` | `60` | Dostarczenia, które przyjmuje jeden [webhook](workflows.md) workflow albo wyzwalacz GitHub, **na webhook**, liczone, gdy podpis się zgadza, a dostarczenie uruchomiłoby run, więc obcy i pominięte dostarczenia nic z niego nie zużywają: każde to run |
-| `RATE_LIMIT_WORKFLOW_WEBHOOK_IP_PER_MINUTE` | `600` | Żądania, które jeden adres może wysłać pod adresy webhooków workflow i wyzwalaczy GitHub w ciągu minuty, niezależnie od treści, liczone zanim cokolwiek zostanie odczytane. Szeroki, bo nadawcy tacy jak GitHub dostarczają dla wielu hooków z kilku adresów |
+| `RATE_LIMIT_WORKFLOW_WEBHOOK_IP_PER_MINUTE` | `600` | Liczba żądań na minutę z jednego adresu IP, liczona łącznie dla webhooków workflow, wyzwalaczy GitHub w workflow i adresów URL źródeł zdarzeń wielokrotnego użytku. Limit obowiązuje przed odczytaniem treści żądania. Wartość domyślna uwzględnia dostawców takich jak GitHub, którzy obsługują wiele webhooków z kilku adresów |
 | `WORKFLOW_EMAIL_MAX_PER_PRINCIPAL_PER_HOUR` | `100` | Unikalni odbiorcy e-maili workflow na użytkownika, łącznie dla kluczy i organizacji; [email.send](reference/workflow-nodes.md#email-send) |
 | `WORKFLOW_EMAIL_MAX_PER_ORG_PER_HOUR` | `500` | Unikalni odbiorcy e-maili workflow na organizację; [email.send](reference/workflow-nodes.md#email-send) |
 | `WORKFLOW_EMAIL_MAX_PER_DEPLOYMENT_PER_HOUR` | `1000` | Unikalni odbiorcy e-maili workflow w całym deploymencie; [email.send](reference/workflow-nodes.md#email-send) |

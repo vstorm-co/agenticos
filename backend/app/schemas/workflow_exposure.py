@@ -47,6 +47,10 @@ class WorkflowExposureRead(BaseSchema, TimestampSchema):
     adapter: ExposureAdapter
     is_active: bool
     execution_principal_user_id: UUID | None
+    source_id: UUID | None = Field(
+        default=None,
+        description="The reusable source; null for a dedicated webhook or another trigger",
+    )
     run_input: dict[str, Any]
     schedule_kind: ExposureScheduleKind | None
     interval_seconds: int | None
@@ -73,6 +77,10 @@ class WorkflowExposureRead(BaseSchema, TimestampSchema):
     @property
     def webhook_url(self) -> str | None:
         """Where a webhook's or a GitHub hook's sender delivers. Null for the others."""
+        if self.source_id is not None:
+            return (
+                f"{settings.PUBLIC_BASE_URL.rstrip('/')}/api/v1/webhooks/sources/{self.source_id}"
+            )
         return delivery_url(self.adapter, self.id)
 
     @computed_field  # type: ignore[prop-decorator]  - pydantic reads the property

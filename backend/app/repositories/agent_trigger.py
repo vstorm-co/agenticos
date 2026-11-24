@@ -61,6 +61,7 @@ async def record_filtered_event(
             AgentTrigger.organization_id == trigger.organization_id,
             AgentTrigger.is_active.is_(True),
             AgentTrigger.event_source == trigger.event_source,
+            AgentTrigger.source_id.is_not_distinct_from(trigger.source_id),
             AgentTrigger.event_config == trigger.event_config,
             AgentTrigger.approved_sources.is_not_distinct_from(trigger.approved_sources),
             or_(received_at.is_(None), received_at < diagnostic.received_at),
@@ -348,6 +349,8 @@ async def create(
     one_shot: bool = False,
     is_active: bool = True,
     project_id: UUID | None = None,
+    source_id: UUID | None = None,
+    prompt_mode: str = "literal",
 ) -> AgentTrigger:
     trigger = AgentTrigger(
         project_id=project_id,
@@ -358,6 +361,8 @@ async def create(
         agent_id=agent_id,
         created_by_user_id=created_by_user_id,
         prompt=prompt,
+        prompt_mode=prompt_mode,
+        source_id=source_id,
         name=name,
         trigger_type=trigger_type,
         schedule_kind=schedule_kind,
@@ -628,6 +633,7 @@ async def record_attempt(
     status: TriggerAttemptStatus,
     stage: TriggerAttemptStage,
     reason: TriggerAttemptReason,
+    error_message: str | None = None,
 ) -> TriggerAttempt:
     """An activation's first refusal wins, including across duplicate job delivery."""
     statement = (
@@ -639,6 +645,7 @@ async def record_attempt(
             status=status,
             stage=stage,
             reason=reason,
+            error_message=error_message,
         )
         .on_conflict_do_nothing(index_elements=["trigger_id", "activation_id"])
     )

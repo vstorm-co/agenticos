@@ -1015,6 +1015,24 @@ they are sent, so nothing is lost and nothing runs twice. The socket re-checks t
 session and the member's access before every frame and every read of the stream.
 The frames are in [The HTTP API](api.md#following-a-run-over-a-websocket).
 
+### Reusable webhook sources { #reusable-webhook-sources }
+
+New **Webhook** steps in the workflow editor start by asking you to choose or create an event source. Drafts can be saved and tested with pasted JSON before a source is selected, but publishing requires a source or an explicit choice of **Dedicated endpoint**. Choose a dedicated endpoint when the sender needs a synchronous response. Existing dedicated steps keep their settings and URLs.
+
+In a **Webhook** trigger, choose an existing **Event source** or create one. Publishing subscribes that specific workflow entry to the source; later publications keep the subscription when the source and entry are unchanged. The source holds the credentials, outside the workflow definition. Its other routines and workflows receive the same authenticated events independently. [Event sources](triggers.md#reusable-event-sources) explains providers, authentication, permissions, pause and retention.
+
+You can replace a source you can no longer use with one you can use; the live subscription changes on publish. Pinning a sample changes the workflow draft and requires edit access.
+
+Anyone who can inspect this workflow’s runs may see delivered payloads in its history, even if the source is private. Sharing the workflow later can expose payloads from earlier runs. It does not grant access to listen to the live source.
+
+Choose **Listen for event** to capture the next authenticated event on the configured live source URL. The window lasts two minutes; temporary samples last ten minutes and respect the 64 KB pin limit. **Active subscribers still execute.** Capture does not add a run or change delivery processing. Pasted example JSON is an alternative, and saving or publishing never requires a sample.
+
+The selected trigger's sample remains `{body, delivery_id}`. Pin it and use the existing field bindings and step tests; downstream nodes can consume the JSON directly. With multiple entries, capture and pin the intended Webhook node explicitly. This adds no payload transformation or routine-style prompt interpolation to workflow bindings.
+
+Testing a Manual branch or using pinned JSON does not need **Use** on the webhook source. Publishing a workflow that subscribes to the source and listening for live events both require **Use**.
+
+A shared source acknowledges durable receipt asynchronously. Publishing refuses a shared-source entry whose reachable branch contains **Respond to webhook**. Choose a dedicated workflow endpoint when the sender needs that node's synchronous status, headers or body. Dedicated endpoint URLs, credentials, duplicate detection and response behavior remain unchanged.
+
 ### A webhook or a schedule { #a-webhook-or-a-schedule }
 
 A **Webhook** trigger gets its address and **signing secret** the first time a

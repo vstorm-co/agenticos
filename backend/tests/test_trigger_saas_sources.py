@@ -206,6 +206,7 @@ class TestTheDoor:
             organization_id=uuid.uuid4(),
             trigger_type="event",
             event_source="hubspot",
+            source_id=None,
             is_active=True,
             approved_sources={
                 "id": str(uuid.uuid4()),

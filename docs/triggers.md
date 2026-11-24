@@ -5,8 +5,8 @@ An **event trigger** fires an agent when something happens somewhere else.
 There are two ways that reaches us, and which one a source uses is the source's own
 business rather than yours:
 
-- **Pushed.** A provider POSTs a signed payload: **GitHub**, **HubSpot**,
-  **Zendesk**, **Linear**, or anything that can send signed JSON (the **API** source).
+- **Pushed.** A provider POSTs an authenticated payload: **GitHub**, **HubSpot**,
+  **Zendesk**, **Linear**, or anything that can send authenticated JSON (the **API** source).
 - **Polled.** The platform reads a connected account on a schedule: the mailboxes
   (**Gmail**, **Outlook**), the files (**Google Drive**, **OneDrive & SharePoint**)
   and the calendars (**Google Calendar**, **Outlook Calendar**). Nothing is posted
@@ -107,9 +107,55 @@ under **Needs attention**. It reads the same org-wide list, so a reader who may
 see the agents sees their routines; the outcome and cost on each row need
 `runs:view` and are simply absent without it.
 
+## Reusable event sources { #reusable-event-sources }
+
+Add the **Event sources** widget to your dashboard to see how many of your visible sources are active or paused.
+
+Open **Event sources** to create a source, or choose **Select existing / Create new** in a routine or workflow's webhook editor. A source owns its live URL, credentials and provider configuration. Several routines and published workflow entries can subscribe to that URL, each retaining its own filters, execution identity, permissions, consent and budgets.
+
+Sources default to **Private**. Choose **Organization** to share a source according to organization permissions. **View** shows its configuration. **Use** lets you listen to incoming payloads before subscriber filters are applied, even without a routine or workflow. Only the member who started a listener can read its sample, and they must still have Use access. Attaching the source also requires edit and run access to the target. Workers recheck access before executing queued work.
+
+Choose GitHub, Linear, HubSpot or Zendesk for provider verification, or **Custom webhook** for one of these methods. Provider registration remains manual: copy the source URL into the provider's configuration.
+
+| Custom authentication | Configuration |
+| --- | --- |
+| Custom HMAC | SHA-256, a header name, an optional signature prefix and hex, base64 or base64url encoding; legacy timestamp signing is also available |
+| Basic Auth | Username and password |
+| API Key | Header name, secret key and optional prefix |
+| Standard Webhooks | Symmetric `v1` signatures over ID, timestamp and body; signature lists, a five-minute timestamp tolerance and 24–64 byte base64-encoded keys |
+
+Send a POST containing a JSON object; HubSpot batches retain their existing adaptation. Credentials are write-only and stored in the organization's vault. Replace them on the source, never in a workflow definition or sample. Provider delivery IDs, or a configured delivery-ID header, identify retries. Basic Auth and API-key credentials are not event IDs. If the sender supplies no event ID, retries may start additional runs.
+
+An authenticated delivery and its dispatch work commit together before the source acknowledges receipt. Subscriber failures are independent. The worker retries temporary subscriber rate or capacity limits. A queued event can use only the routine source approval in effect at receipt. Switching sources pauses the routine. Its owner must review the new source before resuming it.
+
+A shared URL acknowledges durable receipt asynchronously; it cannot return a workflow's custom response. A shared-source workflow must not reach **Respond to webhook**. Dedicated workflow endpoints retain their synchronous response behavior.
+
+**Pause source** stops starting subscribers for new deliveries. A paused source still verifies and stores each delivery, and an open listener still captures it. Pausing one routine or workflow stops that subscriber. Deleting a source is refused while subscriptions remain; its usage list shows the targets to detach first. Terminal delivery payloads follow the background-job retention policy.
+
+### Listen on the live URL { #listen-on-the-live-url }
+
+On the source or in the webhook editor, choose **Listen for event**, then send an authenticated event to the displayed live source URL within two minutes. The listener receives the next event without interrupting dispatch: **active subscribers still execute**. Capture does not start an additional run. A sample is retained for ten minutes and bounded by the existing 64 KB pin limit; capture failure, oversize or expiry does not change live processing.
+
+You can paste example JSON instead. Neither a live nor a pasted sample is required to save a routine or publish a workflow. A workflow sample uses its existing `{body, delivery_id}` output shape, pinning, bindings and step tests. Choose the intended Webhook entry when a workflow has several triggers; no payload transformation is added. See [Workflows](workflows.md#reusable-webhook-sources).
+
+### Insert event fields in a routine prompt { #routine-prompt-fields }
+
+Switch the prompt to template mode, then search the sample field tree and insert a field at the prompt cursor, or type a reference yourself:
+
+```text
+Summarize {{issue.title}} and the first item {{items[0].name}}.
+Read the unusual property {{["request.id"]}}.
+```
+
+Paths start at the JSON body root. Dotted properties, array indices and quoted bracket keys are supported; expressions, functions, loops and defaults are not. Single braces are literal. Escape double braces as `\{{example\}}` when you want to show them as text. Substitution runs once: braces inside a received value never become another reference.
+
+**Preview resolved prompt** uses the same backend resolver as live execution and never invokes an agent. Strings are inserted directly; other JSON values use compact JSON. `false`, `0` and `null` are present values. A missing path fails visibly with its name before an agent call, including in activation diagnostics and routine history when no run exists yet.
+
+Saving validates syntax without requiring fields to appear in a sample. Resolution uses the structured event before any legacy context clipping. Template mode sends the authored prompt with selected values marked as external data; it does not append the entire payload. An oversized resolved message fails instead of being truncated. Existing prompts remain literal until you explicitly select template mode; existing dedicated URLs and signature settings continue to work.
+
 ## The mechanism, once
 
-An event trigger uses a **webhook URL** and a **signing secret**. A
+A dedicated event trigger uses a **webhook URL** and a **signing secret**. A
 provider POSTs its payload to the URL and signs the request; the platform recomputes
 the signature and fires the agent only if the two match.
 
@@ -197,7 +243,7 @@ has passed, subject to its signature freshness check. It is counted only once th
 the secret can use it up, and it is what stops a leaked secret or a relay stuck in
 a loop from spending the budget in an afternoon.
 
-**What arrived is data, never instructions.** The run's message is your prompt,
+**What arrived is data, never instructions.** In literal mode the run's message is your prompt,
 then the event inside an `<event_content>` block that tells the model to read it
 as data. An issue, an email or a file name is written by whoever sent it, and a
 sentence in it that sounds like an order is still part of the event.
@@ -661,7 +707,7 @@ reads it - a Gmail or Outlook trigger's filters are matched against the message
 itself, so there is no contract for you to satisfy.
 
 The one that is yours is the catch-all `webhook` source - **API** in the dialogs.
-It has **no filter**: a verified delivery fires, and the whole JSON body is appended
+It has **no filter**: a verified delivery fires, and in literal mode the rendered body is appended
 to the prompt. Use it for anything no portal covers - watching a feed no provider
 exposes an API for (a LinkedIn page, a marketplace listing), or any tool that can
 POST - with whatever relay you write doing the watching.
@@ -680,8 +726,7 @@ source with a documented example.
 { "from": "billing@acme.com", "subject": "Invoice #4021", "body": "…" }
 ```
 
-Nothing filters on those names any more, so the whole body reaches the prompt and
-the agent reads it. If you want the *filtering*, connect the mailbox instead.
+A template can select just the subject with `{{subject}}`; this changes the prompt, not which deliveries fire. If you want the *filtering*, connect the mailbox instead.
 
 ## Signing a delivery yourself
 
@@ -786,7 +831,7 @@ Two ways through it:
   prompt and its budget behave without any provider set up at all. An inactive (paused)
   trigger is respected - *Run now* does nothing to one. Its one gap is that it does not
   exercise the signature path or a real payload, so it will not catch a wrong secret or a
-  mis-named field.
+  mis-named field. A template that references event fields reports them missing instead of running the agent; use preview with an example to test it.
 
 - **Expose the port with a tunnel** when you do want to test the real webhook path. Point
   a tunnel at the API, set `PUBLIC_BASE_URL` to the tunnel's public address, and **create

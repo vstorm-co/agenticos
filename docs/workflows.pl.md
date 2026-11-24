@@ -1,5 +1,5 @@
 ---
-source_sha: "b8db2c1cf551"
+source_sha: "4de3886f9c87"
 ---
 
 # Workflows { #workflows }
@@ -1047,6 +1047,24 @@ ostatniego zdarzenia, które widział, i podejmuje dokładnie tam, gdzie przerwa
 Zdarzenia są zapisywane, zanim zostaną wysłane, więc nic nie ginie i nic nie
 uruchamia się dwa razy. Gniazdo ponownie sprawdza sesję i dostęp członka przed każdą
 ramką i każdym odczytem strumienia. Ramki opisuje [HTTP API](api.md#following-a-run-over-a-websocket).
+
+### Źródła webhooków wielokrotnego użytku { #reusable-webhook-sources }
+
+Nowe kroki **Webhook** w edytorze workflow zaczynają od wyboru lub utworzenia źródła zdarzeń. Przed wybraniem źródła możesz zapisać wersję roboczą i przetestować ją za pomocą wklejonego JSON-a. Publikacja wymaga wybrania źródła lub jawnego wybrania **dedykowanego endpointu**. Wybierz dedykowany endpoint, gdy nadawca potrzebuje odpowiedzi synchronicznej. Istniejące dedykowane kroki zachowują ustawienia i adresy URL.
+
+W wyzwalaczu **Webhook** wybierz istniejące **Źródło zdarzeń** lub utwórz nowe. Publikacja subskrybuje konkretne wejście workflow; kolejne publikacje zachowują subskrypcję, gdy źródło i wejście się nie zmieniają. Poświadczenia pozostają w źródle, poza definicją workflow. Pozostałe rutyny i workflow otrzymują te same uwierzytelnione zdarzenia niezależnie. [Źródła zdarzeń](triggers.md#reusable-event-sources) opisują dostawców, uwierzytelnianie, uprawnienia, pauzowanie i retencję.
+
+Źródło, do którego nie masz już prawa używania, możesz zastąpić innym, którego wolno Ci używać. Aktywna subskrypcja zmienia się po publikacji. Przypięcie próbki zmienia wersję roboczą workflow i wymaga prawa do edycji.
+
+Każdy, kto ma wgląd w wykonania workflow, może zobaczyć w historii dostarczone dane, nawet jeśli źródło jest prywatne. Późniejsze udostępnienie workflow może ujawnić dane z wcześniejszych wykonań. Nie daje ono prawa do nasłuchiwania źródła na żywo.
+
+**Nasłuchuj zdarzenia** przechwytuje następne uwierzytelnione zdarzenie z aktywnego URL źródła. Okno trwa dwie minuty; tymczasowe przykłady pozostają przez dziesięć minut i podlegają limitowi przypięcia 64 KB. **Aktywni subskrybenci nadal się wykonują.** Przechwycenie nie tworzy dodatkowego wykonania ani nie zmienia dostaw. Można zamiast tego wkleić przykład JSON; zapis i publikacja nie wymagają próbki.
+
+Przykład wybranego wyzwalacza zachowuje `{body, delivery_id}`. Przypnij go i użyj dotychczasowych powiązań pól i testów kroków; kolejne węzły mogą bezpośrednio czytać JSON. Przy wielu wejściach wybierz jawnie właściwy węzeł Webhook do przechwycenia i przypięcia. Nie dodano przekształcania payloadu ani interpolacji promptów rutyn w powiązaniach workflow.
+
+Testowanie gałęzi ręcznej lub korzystanie z przypiętego przykładu JSON nie wymaga uprawnienia do używania źródła webhooka. Uprawnienie to jest potrzebne przy publikowaniu workflow subskrybującego źródło oraz przy nasłuchiwaniu zdarzeń na żywo.
+
+Wspólne źródło asynchronicznie potwierdza trwały odbiór. Publikacja odmawia, jeśli osiągalna gałąź takiego wejścia zawiera **Odpowiedz na webhook**. Użyj dedykowanego endpointu workflow, gdy nadawca potrzebuje synchronicznego statusu, nagłówków lub body tego węzła. URL, poświadczenia, wykrywanie duplikatów i zachowanie odpowiedzi dedykowanych endpointów pozostają bez zmian.
 
 ### Webhook albo harmonogram { #a-webhook-or-a-schedule }
 
