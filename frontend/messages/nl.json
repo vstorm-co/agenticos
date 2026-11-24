@@ -8462,7 +8462,7 @@
         "queued": "In de wachtrij",
         "running": "Bezig",
         "succeeded": "Geslaagd",
-        "dead": "Dood",
+        "dead": "Definitief mislukt",
         "cancelled": "Geannuleerd"
       },
       "pools": {
@@ -8513,18 +8513,18 @@
       },
       "finishedFigure": "Afgerond",
       "finishedCaption": "{window, select, day {in de afgelopen 24 uur} other {in de afgelopen 7 dagen}}",
-      "deadFigure": "Dood",
+      "deadFigure": "Definitief mislukt",
       "deadShare": "{share} van de afgeronde",
       "noneDead": "geen",
       "waitFigure": "Wacht het langst",
-      "waitCaption": "een taak die aan de beurt is, nu",
+      "waitCaption": "een taak die nu aan de beurt is",
       "waitNone": "er wacht niets dat aan de beurt is",
       "slowestFigure": "Traagste oppakken (p95)",
       "byKind": "Per soort",
       "kindsCount": "{count, plural, =0 {geen soorten} =1 {1 soort} other {# soorten}}",
       "columns": {
         "finished": "Afgerond",
-        "dead": "Dood",
+        "dead": "Definitief mislukt",
         "run": "Run p50 / p95",
         "wait": "Wachten p95"
       },
@@ -9982,7 +9982,7 @@
     "backToOptions": "Terug naar de opties",
     "clearSearch": "Zoekopdracht wissen",
     "resourceUnavailable": {
-      "title": "Resource niet beschikbaar",
+      "title": "Niet beschikbaar",
       "description": "Dit zit niet in je organisatie, of je hebt geen toegang.",
       "switchOrganization": "Als je bij een andere organisatie hoort, wissel er dan naartoe in het organisatiemenu.",
       "runsTitle": "Recht nodig",
@@ -11314,11 +11314,11 @@
       "auth_method": {
         "configured": {
           "label": "Programma-instelling",
-          "description": "Gebruik het ingestelde account van het programma, of kies uitdrukkelijk de persoonlijke Google-login van Antigravity. Een ontbrekende methode faalt zonder over te schakelen naar een API-sleutel of een ander account."
+          "description": "Gebruik het ingestelde account van het programma, of kies uitdrukkelijk de persoonlijke Google-login van Antigravity. Ontbreekt de methode, dan mislukt de taak zonder over te schakelen naar een API-sleutel of een ander account."
         },
         "oauth-personal": {
           "label": "Persoonlijke Google-login van Antigravity",
-          "description": "Gebruik het ingestelde account van het programma, of kies uitdrukkelijk de persoonlijke Google-login van Antigravity. Een ontbrekende methode faalt zonder over te schakelen naar een API-sleutel of een ander account."
+          "description": "Gebruik het ingestelde account van het programma, of kies uitdrukkelijk de persoonlijke Google-login van Antigravity. Ontbreekt de methode, dan mislukt de taak zonder over te schakelen naar een API-sleutel of een ander account."
         }
       }
     }
@@ -13329,13 +13329,13 @@
     "emptyWhy": "Maak er een aan om de API aan te roepen vanuit een script, Postman of Claude Code.",
     "personalConsentWhy": "Persoonlijke toestemming is uitgesloten van voorinstellingen. Om deze sleutel of app routines en bewakingen te laten goedkeuren die je persoonlijke koppelingen en gegevens gebruiken, kies je personal:consent onder Aangepast.",
     "search": "API-sleutels zoeken…",
-    "noMatches": "Geen overeenkomende API-sleutels",
+    "noMatches": "Geen API-sleutels gevonden",
     "searchHint": "Probeer de naam van een sleutel, een prefix of het e-mailadres van wie hem uitgaf.",
     "clearSearch": "Zoekopdracht wissen",
     "keyCount": "{count, plural, =1 {1 sleutel} other {# sleutels}}",
     "permissionSearch": "Een recht vinden",
     "permissionPlaceholder": "Rechten zoeken…",
-    "noPermissions": "Geen rechten komen overeen met deze zoekopdracht.",
+    "noPermissions": "Geen rechten gevonden.",
     "permissionDetails": "{count, plural, =1 {1 recht bekijken} other {# rechten bekijken}}",
     "couldNotLoadScopes": "Kon de beschikbare rechten niet laden"
   },
@@ -14636,7 +14636,7 @@
     "cardUrl": "Adres van de agent card",
     "cardUrlHint": "De URL van de card, of het basisadres van de agent, waar /.well-known/agent-card.json wordt gelezen.",
     "handle": "Handle",
-    "handleHint": "Hoe je agents hem noemen. Leeg gelaten wordt hij gemaakt uit de naam van de agent.",
+    "handleHint": "Hoe je agents hem noemen. Als je dit leeg laat, wordt hij afgeleid van de naam van de agent.",
     "key": "Meegestuurde sleutel",
     "keyHint": "Een API-sleutel uit de vault, verstuurd als bearer-token, wanneer de agent erom vraagt.",
     "noKey": "Geen sleutel",
@@ -14646,7 +14646,7 @@
     "registered": "{name} geregistreerd",
     "refreshed": "De card van {name} opnieuw gelezen",
     "refresh": "De card opnieuw lezen",
-    "refreshNamed": "De card van {name} opnieuw gelezen",
+    "refreshNamed": "De card van {name} opnieuw lezen",
     "remove": "Verwijderen",
     "removeNamed": "{name} verwijderen",
     "removeTitle": "{name} verwijderen?",
@@ -15120,7 +15120,7 @@
       "watches": "Een routine instellen"
     },
     "doneEmpty": "Nog niets beantwoord",
-    "waiting": "{count, plural, =0 {Niets wacht} =1 {1 wachtend} other {# wachtend}}",
+    "waiting": "{count, plural, =0 {Er wacht niets} =1 {1 wacht} other {# wachten}}",
     "sourceAt": "{source} · {when}",
     "source": {
       "routine": "Idee voor een routine",
@@ -17824,11 +17824,11 @@
     "empty": "Voeg Markdown-notities toe met wikilinks, Markdown-links of frontmatter-relaties om een grafiek op te bouwen.",
     "open": "Notitie openen",
     "notes": "Notities",
-    "noMatches": "Geen overeenkomende notities",
+    "noMatches": "Geen notities gevonden",
     "outgoing": "Links naar",
     "backlinks": "Inkomende links",
     "none": "Geen",
-    "unresolved": "Onopgeloste links",
+    "unresolved": "Links zonder doel",
     "missing": "{target} — ontbreekt in deze scan",
     "ambiguous": "{target} — meer dan één overeenkomende notitie",
     "zoomIn": "Inzoomen",
@@ -17968,7 +17968,7 @@
     "disconnect": "Ontkoppelen",
     "loadFailed": "Kon je coding-accounts niet laden",
     "retry": "Opnieuw proberen",
-    "localHelp": "Kies in de tool Coding-agent voor Privé-cloudtaak met mijn account om dit profiel te gebruiken. Op deze computer gebruikt in plaats daarvan de lokale CLI-aanmelding en je goedgekeurde map; lokale inloggegevens blijven op je computer.",
+    "localHelp": "Kies in de tool Coding-agent voor Privé-cloudtaak met mijn account om dit profiel te gebruiken. Op deze computer gebruikt in plaats daarvan de lokale CLI-login en je goedgekeurde map; lokale inloggegevens blijven op je computer.",
     "disconnectHelp": "Ontkoppelen verwijdert de kopie van AgenticOS en stopt de taken ervan. Trek een ChatGPT-toekenning in bij OpenAI via de ChatGPT-instellingen. Geplande taken en kanaaltaken gebruiken deze accounts niet.",
     "personalAccount": "Persoonlijk account: {label}",
     "continuedSession": "Sessie: {name} · voortgezet",
@@ -17990,14 +17990,14 @@
     "loadFailed": "Je abonnementsaccounts konden niet worden geladen",
     "retry": "Opnieuw proberen",
     "dialogTitle": "{name} koppelen",
-    "deviceHelp": "Open de aanmeldpagina, voer deze code in en keur goed. Dit venster rondt vanzelf af.",
-    "browserHelp": "1. Open de aanmeldpagina en keur de toegang goed. 2. Als de laatste pagina niet bereikbaar is, kopieer je het volledige adres uit de adresbalk van de browser. 3. Plak het hieronder en rond het koppelen af.",
-    "starting": "De aanmelding starten…",
+    "deviceHelp": "Open de inlogpagina, voer deze code in en keur goed. Dit venster rondt vanzelf af.",
+    "browserHelp": "1. Open de inlogpagina en keur de toegang goed. 2. Als de laatste pagina niet bereikbaar is, kopieer je het volledige adres uit de adresbalk van de browser. 3. Plak het hieronder en rond het koppelen af.",
+    "starting": "Het inloggen starten…",
     "copyCode": "De code kopiëren",
-    "openSignIn": "Aanmelden bij {name} openen",
+    "openSignIn": "Inloggen bij {name} openen",
     "redirectLabel": "Adres waarop je browser eindigde",
     "waiting": "Wachten op bevestiging van de provider…",
-    "refused": "De provider weigerde de aanmelding. Sluit dit venster en probeer het opnieuw.",
+    "refused": "De provider weigerde het inloggen. Sluit dit venster en probeer het opnieuw.",
     "finish": "Afronden",
     "connected": "{name} is gekoppeld",
     "providers": {
@@ -18010,13 +18010,13 @@
       "devin": "Devin",
       "meta": "Meta AI"
     },
-    "localReturnHelp": "Deze aanmelding keert terug naar localhost op je computer, niet naar de website van AgenticOS. Een website kan dat tabblad niet lezen en geen pagina op die lokale poort tonen. De adresbalk bevat nog steeds het resultaat dat nodig is om het koppelen af te ronden.",
+    "localReturnHelp": "Deze login keert terug naar localhost op je computer, niet naar de website van AgenticOS. Een website kan dat tabblad niet lezen en geen pagina op die lokale poort tonen. De adresbalk bevat nog steeds het resultaat dat nodig is om het koppelen af te ronden.",
     "tableProvider": "Provider",
     "tableStatus": "Status",
     "tableActions": "Acties",
     "noAccount": "Nog geen account",
     "search": "Abonnementen zoeken...",
-    "noMatches": "Geen abonnementen komen overeen met je zoekopdracht."
+    "noMatches": "Geen abonnementen gevonden."
   },
   "mirage": {
     "folders": "Mappen",
@@ -18104,7 +18104,7 @@
       "services": "AI-diensten",
       "voice": "Stem",
       "retention": "Gegevensbewaring",
-      "directory": "Adreslijst en aanmelding",
+      "directory": "Adreslijst en inloggen",
       "taskTitle": "De eerste nuttige taak voorbereiden",
       "taskHint": "Je organisatie en mensen komen eerst. Probeer nu een voorbeeld, en koppel een model wanneer je wilt dat een agent je eigen taak beantwoordt. Voorbeelden alleen doen geen modelaanroep.",
       "loadFailed": "Kon je organisaties niet laden",
@@ -21560,9 +21560,9 @@
       "openGitHub": "GitHub-apparaatautorisatie openen",
       "pending": "Nog niet goedgekeurd. Wacht {seconds} seconden voordat je opnieuw controleert.",
       "check": "Autorisatie controleren",
-      "restart": "Een nieuwe aanmelding starten",
+      "restart": "Opnieuw inloggen",
       "reconnect": "Opnieuw koppelen met GitHub",
-      "connect": "Aanmelden met GitHub",
+      "connect": "Inloggen met GitHub",
       "retained": "Je huidige koppeling blijft actief tot de vervanging is geverifieerd."
     }
   },
@@ -21617,14 +21617,14 @@
     "custom": "Geavanceerd / eigen endpoint",
     "gateway": "Abonnementsgateway (eigen endpoint)",
     "subscriptionHint": "Modellen van dit account gebruiken de instructies en tools van AgenticOS in je eigen chats.",
-    "unavailable": "Aanmelden met een abonnement is niet ingeschakeld op deze installatie. Vraag een beheerder het in te schakelen.",
+    "unavailable": "Inloggen met een abonnement is niet ingeschakeld op deze installatie. Vraag een beheerder het in te schakelen.",
     "loading": "Je accounts laden…",
     "connected": "Gekoppeld",
     "reconnect": "Opnieuw koppelen",
     "loadFailed": "Je accounts of modellen konden niet worden geladen",
     "model": "Model",
     "chooseModel": "Een model van dit account kiezen",
-    "noModels": "Dit account heeft nog geen modellen aangeboden. Probeer het opnieuw nadat het aanmelden is afgerond.",
+    "noModels": "Dit account heeft nog geen modellen aangeboden. Probeer het opnieuw nadat het inloggen is afgerond.",
     "account": "Account",
     "accountNumber": "Account {number}",
     "usageAndLimits": "Gebruik en limieten",
