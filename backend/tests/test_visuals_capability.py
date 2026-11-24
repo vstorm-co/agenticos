@@ -837,14 +837,16 @@ class TestWebReach:
         instructions = Visuals().get_instructions()
         assert await instructions(_ctx(_deps(run_id=None))) == maps_line()
 
-    def test_without_map_tiles_the_model_is_told_a_map_is_an_outline(
+    def test_without_map_tiles_the_model_is_told_to_draw_a_geographic_svg_map(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setattr(settings, "VISUAL_MAP_TILES", "")
         line = maps_line()
         assert "no map tiles" in line
-        # Told why and who can change it, in the answer rather than inside the
-        # drawing, where the first version hid it as a grey footnote (#2301).
+        assert "use `AOWorldMap.draw` by default" in line
+        assert "country outlines, pins and routes" in line
+        assert "Do not use Leaflet" in line
+        assert "Only if street detail is requested" in line
         assert "in your answer" in line
         assert "`VISUAL_MAP_TILES`" in line
 
@@ -853,7 +855,9 @@ class TestWebReach:
     ) -> None:
         monkeypatch.setattr(settings, "VISUAL_MAP_TILES", "usgs-topo")
         line = maps_line()
-        assert "USGS The National Map tiles" in line
+        assert "administrator enabled USGS The National Map tiles" in line
+        assert "If tiles fail to load" in line
+        assert "lightweight SVG map" in line
         assert "never present the line between stops as directions" in line
         assert "Admin → System" in line
 
@@ -919,3 +923,38 @@ class TestReports:
         report = await reports.wait("c", 1)
         assert report is not None
         assert len(report.errors[0]) == 500
+
+
+async def test_a_renamed_drawing_can_be_read_and_revised_before_the_run_is_persisted() -> None:
+    from app.core.tool_identity import ToolIdentity
+
+    tools = VisualsToolset()
+    tools.drawn.add("base")
+    messages = [
+        ModelResponse(
+            parts=[
+                ToolCallPart(
+                    "sketch", {"title": "Flow", "kind": "svg", "content": SVG}, tool_call_id="base"
+                )
+            ]
+        )
+    ]
+    deps = _deps(tool_identities={"base": ToolIdentity("draw")})
+    read = await tools.read_visual(_ctx(deps, messages=messages), visual_id="base")
+    assert SVG in read
+    revised = await tools.revise_visual(
+        _ctx(deps, messages=messages, call_id="revision"),
+        visual_id="base",
+        edits=[ArtifactEdit(old="<rect", new="<g")],
+    )
+    assert "Revised" in revised
+
+
+@pytest.mark.security
+def test_an_external_call_in_the_run_cannot_claim_a_visual_by_name() -> None:
+    from app.core.tool_identity import GENERIC_TOOL
+
+    tools = VisualsToolset()
+    messages = [_drawn_in_run(tools, "external", title="Flow", kind="svg", content=SVG)]
+    deps = _deps(tool_identities={"external": GENERIC_TOOL})
+    assert tools._calls_in_run(_ctx(deps, messages=messages)) == {}

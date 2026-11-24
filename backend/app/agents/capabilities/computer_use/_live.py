@@ -28,6 +28,7 @@ from app.agents.capabilities.computer_use._actions import (
     to_native,
 )
 from app.agents.capabilities.computer_use._backends import Computer, ComputerError, NativeAction
+from app.agents.capabilities.computer_use._lease import DesktopLeaseLost
 
 logger = logging.getLogger(__name__)
 
@@ -130,12 +131,16 @@ async def held(
             if action is not None:
                 try:
                     await computer.perform(action)
+                except DesktopLeaseLost:
+                    raise
                 except ComputerError as exc:
                     # The person sees the next picture either way; one refused
                     # click is not a reason to take the desktop from them.
                     logger.warning("computer_use_person_input_failed: %s", exc)
             try:
                 image, screen = await look()
+            except DesktopLeaseLost:
+                raise
             except ComputerError as exc:
                 logger.warning("computer_use_held_frame_failed: %s", exc)
                 continue

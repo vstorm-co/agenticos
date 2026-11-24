@@ -23,6 +23,7 @@ from app.agents.capabilities.browser_use._route import (
     route_for,
     timezone_problem,
 )
+from app.agents.capabilities.skills._log import SKILL_USE_LOG_RESOURCE, SkillUseLog
 from app.core.config import settings
 from app.core.sanitize import UrlRefusedError
 from app.core.secret_kinds import ApiKeySecret, SecretCondition, SecretKind, SecretRequirement
@@ -120,13 +121,11 @@ class WebBrowserConfig(BaseModel):
             "runs, not a process in the API container."
         ),
     )
-    """Defaulted rather than required, and the default is refused at publish.
+    """Built in inherits the deployment endpoint when this value is empty.
 
-    Every capability has to be buildable from an empty config - that is what the
-    registry's drift test does to enumerate the tools each one offers. So the
-    demand for an endpoint is made where it can be made with a sentence a person
-    reads, in `validate_cdp_url`, and an agent that somehow holds a blank one gets
-    a tool that refuses instead of one that fails on its first call.
+    No browser connection is opened while building the agent. An unconfigured or
+    unavailable deployment browser is reported by its tools, leaving the rest
+    of the agent usable. Explicit endpoints still require the operator allowlist.
     """
     allowed_domains: list[str] | None = Field(
         title="Allowed domains",
@@ -135,6 +134,28 @@ class WebBrowserConfig(BaseModel):
             "Allowed browser hosts. No restriction allows any domain; an empty domain list blocks all. "
             "Patterns such as *.example.com are supported. Checked on every step."
         ),
+    )
+    allow_teaching: bool = Field(
+        default=False,
+        title="Allow browser teaching",
+        description="Let a person explicitly record structural actions in this provisioned browser and review a skill draft.",
+        json_schema_extra={"x-visible-when": {"field": "connection", "equals": ["built_in"]}},
+    )
+    learn_site_procedures: bool = Field(
+        default=False,
+        title="Suggest browser procedure refinements",
+        description="Allow review-only suggestions from completed browser work when the acting member also opts in. Never publishes a skill.",
+        json_schema_extra={"x-visible-when": {"field": "connection", "equals": ["built_in"]}},
+    )
+    browser_credential_ids: list[UUID] = Field(
+        default_factory=list,
+        max_length=50,
+        title="Browser credentials",
+        description=(
+            "Saved browser logins or contact profiles this agent may request in your private "
+            "console chat. Each fill requires a live destination confirmation."
+        ),
+        json_schema_extra={"x-visible-when": {"field": "connection", "equals": ["built_in"]}},
     )
     max_steps: int = Field(
         title="Steps per call at most",
@@ -265,6 +286,13 @@ class WebBrowserConfig(BaseModel):
         """An emptied field in the Builder arrives as `""`, which means none."""
         return None if value == "" else value
 
+    @field_validator("browser_credential_ids")
+    @classmethod
+    def _distinct_browser_credentials(cls, value: list[UUID]) -> list[UUID]:
+        if len(set(value)) != len(value):
+            raise ValueError("Select each browser credential only once")
+        return value
+
 
 def connection_problems(config: WebBrowserConfig, *, has_secret: bool) -> list[str]:
     """What is wrong with how this binding says its browses reach the web.
@@ -273,6 +301,17 @@ def connection_problems(config: WebBrowserConfig, *, has_secret: bool) -> list[s
     `_route.check_address` at publish and again as each browse starts.
     """
     problems: list[str] = []
+    if config.allow_teaching or config.learn_site_procedures:
+        if (
+            config.connection != "built_in"
+            or not settings.BROWSER_SIGN_IN_CDP_URL
+            or config.cdp_url.rstrip("/") != settings.BROWSER_SIGN_IN_CDP_URL.rstrip("/")
+        ):
+            problems.append("Browser teaching requires the operator-provisioned built-in browser")
+        if config.learn_site_procedures and not config.allow_teaching:
+            problems.append(
+                "Enable browser teaching before allowing procedure refinement suggestions"
+            )
     if config.connection == "proxy":
         if not config.proxy_url:
             problems.append("Say which proxy the browser goes through")
@@ -295,14 +334,24 @@ def connection_problems(config: WebBrowserConfig, *, has_secret: bool) -> list[s
     return problems
 
 
+def cdp_endpoint(config: WebBrowserConfig) -> str:
+    """Resolve the deployment browser without opening a network connection."""
+    if config.connection == "local":
+        return ""
+    return config.cdp_url or (
+        settings.BROWSER_SIGN_IN_CDP_URL if config.connection == "built_in" else ""
+    )
+
+
 def validate_cdp_url(config: WebBrowserConfig) -> None:
     """Refuse a `cdp_url` this deployment's operator has not vetted.
 
     `cdp_url` lives in an agent spec, which anyone holding `edit` on that agent
     writes, so it is tenant-controlled: the request is made by this deployment, to
     an address somebody else named, so the operator lists the hosts in
-    `BROWSER_CDP_ALLOWED_HOSTS`, and an empty list refuses browser automation
-    outright rather than defaulting to something.
+    `BROWSER_CDP_ALLOWED_HOSTS`. An empty list refuses configured browser
+    endpoints; a missing built-in endpoint leaves the agent usable and is
+    reported only by the tool.
 
     **Not the SSRF guard**, which is what this used to be and which is wrong here
     in both directions. `validate_webhook_url` admits only a *public* address, so
@@ -324,18 +373,22 @@ def validate_cdp_url(config: WebBrowserConfig) -> None:
     allowlist names it: that browser is deployment config, never an author's.
 
     Raises:
-        UrlRefusedError: The URL is missing, malformed, not a CDP scheme, names
-            the page renderer, or names a host this deployment does not allow.
+        UrlRefusedError: A proxy's required CDP endpoint is missing, or the endpoint
+            is malformed, uses another scheme, names the page renderer, or names
+            a host this deployment does not allow.
     """
     if config.connection in ("hosted", "local"):
         # The hosted browser is the endpoint; `connection_problems` checks it.
         return
-    if not config.cdp_url:
+    endpoint = cdp_endpoint(config)
+    if not endpoint and config.connection == "built_in":
+        return
+    if not endpoint:
         raise UrlRefusedError(
             "Browser automation needs a cdp_url: the Chromium DevTools endpoint "
             "of the browser service this agent should drive"
         )
-    parsed = urlsplit(config.cdp_url)
+    parsed = urlsplit(endpoint)
     if parsed.scheme not in _CDP_SCHEMES or not parsed.hostname:
         raise UrlRefusedError("A cdp_url must be an http, https, ws or wss URL with a host")
     try:
@@ -347,7 +400,7 @@ def validate_cdp_url(config: WebBrowserConfig) -> None:
         _ = parsed.port
     except ValueError as exc:
         raise UrlRefusedError(f"The cdp_url has an invalid port: {exc}") from exc
-    if is_renderer(config.cdp_url):
+    if is_renderer(endpoint):
         # Before the allowlist, so listing the renderer there by mistake still
         # refuses it: that browser draws people's records for `preview_artifact`
         # and is the operator's alone. Matched by name, as the allowlist is; an
@@ -423,6 +476,11 @@ def validate_cdp_url(config: WebBrowserConfig) -> None:
             side_effecting=False,
         ),
         CapabilityToolInfo(
+            id="browser_procedures",
+            description="Read approved bound procedures for the live origin, without executing them.",
+            side_effecting=False,
+        ),
+        CapabilityToolInfo(
             id="browser_click",
             description="Click an element of the open page, by its number in the last page read.",
             side_effecting=False,
@@ -430,6 +488,18 @@ def validate_cdp_url(config: WebBrowserConfig) -> None:
         CapabilityToolInfo(
             id="browser_type",
             description="Type into a field of the open page, replacing what it held.",
+            side_effecting=False,
+        ),
+        CapabilityToolInfo(
+            id="browser_credential_options",
+            description="List eligible saved credential references for this private browser page.",
+            side_effecting=False,
+        ),
+        CapabilityToolInfo(
+            id="browser_fill_credential",
+            description="Request and wait for the owner's exact destination confirmation of a saved credential fill.",
+            # The dedicated live plan always asks through ApprovalService at the actual
+            # effect. A generic tool decision cannot authorize or resume a native fill.
             side_effecting=False,
         ),
         CapabilityToolInfo(
@@ -470,6 +540,7 @@ def _build(ctx: CapabilityBuildContext) -> AbstractCapability[object]:
     """
     config = ctx.config if isinstance(ctx.config, WebBrowserConfig) else WebBrowserConfig()
     step_model = ctx.resources.get(BROWSER_STEP_MODEL_RESOURCE)
+    skill_log = ctx.resources.get(SKILL_USE_LOG_RESOURCE)
     credential = (
         ctx.secret.api_key.get_secret_value() if isinstance(ctx.secret, ApiKeySecret) else None
     )
@@ -486,6 +557,13 @@ def _build(ctx: CapabilityBuildContext) -> AbstractCapability[object]:
         if override.name is not None
     }
     return WebBrowser(
+        skill_log=skill_log if isinstance(skill_log, SkillUseLog) else None,
+        allow_teaching=config.allow_teaching
+        if config.connection == "built_in" and not isinstance(local_session, UUID)
+        else False,
+        browser_credential_ids=tuple(config.browser_credential_ids)
+        if config.connection == "built_in" and not isinstance(local_session, UUID)
+        else (),
         report_tool_names=frozenset(aliases.get(tool, tool) for tool in BROWSER_REPORT_TOOLS),
         resume_local=isinstance(local_session, UUID) and native_local,
         page_factory=local_page_factory(local_session, native=native_local)
@@ -501,7 +579,7 @@ def _build(ctx: CapabilityBuildContext) -> AbstractCapability[object]:
             locale=config.locale,
             credential=credential,
         ),
-        cdp_url="" if config.connection == "local" else config.cdp_url,
+        cdp_url=cdp_endpoint(config),
         allowed_domains=config.allowed_domains,
         max_steps=config.max_steps,
         candidate_cap=config.candidate_cap,

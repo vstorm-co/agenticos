@@ -10,9 +10,10 @@ because pydantic-ai enters every toolset when the run starts and a dead
 server would otherwise abort the whole turn. A server that answered a probe in
 the last :data:`ANSWERED_FOR` seconds is not probed again: a conversation's
 every turn used to pay a second connection and a second `tools/list` per server
-for an answer it had a minute ago. Such a server is attached through
-:class:`AnsweredRecently`, which leaves it out of the turn if it has gone down
-since, so skipping the probe never turns an outage back into a failed turn.
+for an answer it had a minute ago. Every attached server, the local platform
+included, uses :class:`ResilientMcpToolset`: initialization retries once, then a
+failed server is left out with an explicit briefing. Discovery and tool transport
+failures stay within the turn; uncertain tool requests are never replayed.
 
 The transport (streamable HTTP or SSE) is inferred from each server's URL, so
 SSE-only servers such as Atlassian/Jira work alongside streamable-HTTP ones.
@@ -25,16 +26,16 @@ import json
 import logging
 import re
 import time
-from collections.abc import AsyncGenerator, Iterable, Sequence
+from collections.abc import AsyncGenerator, Awaitable, Callable, Iterable, Mapping, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field, replace
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Self
 from uuid import UUID
 
 import httpx2
 from pydantic import JsonValue, TypeAdapter
 from pydantic import ValidationError as PydanticValidationError
-from pydantic_ai.exceptions import ToolFailed
+from pydantic_ai.exceptions import ApprovalRequired, CallDeferred, ModelRetry, ToolFailed
 
 # At import, not on the first turn: `pydantic_ai.mcp` brings in fastmcp's client,
 # and lazily that was a few hundred milliseconds - seconds on a host short of CPU -
@@ -52,7 +53,19 @@ from pydantic_ai.tools import RunContext, ToolDefinition
 from pydantic_ai.toolsets import WrapperToolset
 from pydantic_ai.toolsets.abstract import ToolsetTool
 
-from app.agents.spec import McpApproval
+from app.agents.spec import ApprovalMode, McpApproval
+from app.core.platform_tool_policy import (
+    ALWAYS_ASKS as PLATFORM_ALWAYS_ASK_TOOLS,
+)
+from app.core.platform_tool_policy import (
+    CONDITIONAL_EXECUTION as PLATFORM_CONDITIONAL_EXECUTION_TOOLS,
+)
+from app.core.platform_tool_policy import (
+    DEFAULT_APPROVAL_FREE as PLATFORM_DEFAULT_APPROVAL_FREE_TOOLS,
+)
+from app.core.platform_tool_policy import (
+    UNGATED as PLATFORM_UNGATED_TOOLS,
+)
 from app.core.sanitize import NO_PRIVATE_ADDRESSES, mcp_allowlist, validate_webhook_url
 
 if TYPE_CHECKING:
@@ -64,7 +77,18 @@ logger = logging.getLogger(__name__)
 # A constant rather than a setting: the right value is a property of the
 # protocol round-trip, not of a deployment, and no installation ever tuned it.
 CONNECT_TIMEOUT_SECS = 3.0
+PLATFORM_INIT_TIMEOUT_SECS = 15.0
+"""Bound local MCP authentication and cold schema setup independently of network connect.
 
+The platform transport makes no network connection. Its first authenticated
+request can take more than three seconds on a busy worker, so applying the
+remote connect budget aborts healthy channel runs before the model starts.
+"""
+
+#: Tool metadata saying which side of an environment override a tool came from and
+#: whether its connection trusts the server's annotations. Stamped here after the
+#: server answered, so a server cannot claim either.
+MCP_ISOLATION = "agenticos_mcp"
 HANDSHAKE_TIMEOUT_SECS = 10.0
 """How long a probe's whole session may take: `initialize`, `initialized` and `tools/list`.
 
@@ -170,6 +194,8 @@ class McpToolInfo:
     name: str
     description: str
     input_schema: dict[str, Any] | None = None
+    read_only_hint: bool | None = None
+    """The explicit server annotation; None means it made no declaration."""
     read_only: bool = False
     """Whether the server marks the tool `readOnlyHint` - the same signal the
     `writes` approval policy trusts, so the console shows which tools a binding
@@ -177,6 +203,15 @@ class McpToolInfo:
 
 
 MAX_INPUT_SCHEMA_BYTES = 20_000
+
+
+@dataclass(frozen=True)
+class McpSourceIdentity:
+    """A consented endpoint and credential generation, without credential contents."""
+
+    endpoint_hash: str
+    authorization_generation: UUID
+    tool_prefix: str | None = None
 
 
 @dataclass(frozen=True)
@@ -188,7 +223,12 @@ class McpServerSpec:
     headers: dict[str, str] = field(default_factory=dict, repr=False)
     # None = expose every tool the server offers.
     allowed_tools: list[str] | None = None
+    test: bool = False
+    trust_read_only_hints: bool = False
     approval: McpApproval = "none"
+    # The binding's `tool_approval`: tools, by the name the server gives them,
+    # whose own approval wins over `approval`.
+    tool_approval: Mapping[str, ApprovalMode] = field(default_factory=dict)
     # Whether the server's `initialize` instructions join the agent's (the
     # connection's own opt-in; Pydantic AI leaves them out by default).
     include_instructions: bool = False
@@ -196,6 +236,8 @@ class McpServerSpec:
     # a labelled connection, or one of several accounts on one service. Shown
     # beside the call on an approval, so "Send mail" says from which mailbox.
     account: str | None = None
+    # Human-facing name for a runtime-only managed app connection.
+    managed_app_name: str | None = None
     # This deployment's own server (`/mcp`), reached through the application in
     # this process rather than over the network - never probed, never dialled out.
     in_process: bool = False
@@ -205,6 +247,8 @@ class McpServerSpec:
     # Both personal and organization accounts; independent of usage tracking.
     source_connection_id: UUID | None = None
     authorization_generation: UUID | None = None
+    # An environment replacement still owes the production account its ceiling.
+    ceiling_source: tuple[UUID, McpSourceIdentity] | None = None
     # A managed gateway creates a transport URL per run; consent still belongs
     # to the stable connection endpoint, not that temporary session URL.
     source_url: str | None = None
@@ -214,15 +258,13 @@ class McpServerSpec:
     # Tools, by the name the server gives them, that never wait for approval
     # whatever `approval` says. Only this deployment's own server names any.
     ungated: frozenset[str] = frozenset()
-
-
-@dataclass(frozen=True)
-class McpSourceIdentity:
-    """A consented endpoint and credential generation, without credential contents."""
-
-    endpoint_hash: str
-    authorization_generation: UUID
-    tool_prefix: str | None = None
+    # Tools, by the name the server gives them, that wait for a person's answer
+    # to each call, past an "approve all" or a remembered decision. Only this
+    # deployment's own server names any.
+    always_asks: frozenset[str] = frozenset()
+    # Only trusted platform writes may run by default; explicit tool/binding gates still win.
+    default_approval_free: frozenset[str] = frozenset()
+    conditional_execution: Mapping[str, str] = field(default_factory=dict)
 
 
 MCP_ORIGIN = "agenticos_mcp_origin"
@@ -238,6 +280,34 @@ class McpToolOrigin:
 def tool_origin(tool: ToolDefinition) -> McpToolOrigin | None:
     origin = (tool.metadata or {}).get(MCP_ORIGIN)
     return origin if isinstance(origin, McpToolOrigin) else None
+
+
+@dataclass
+class AuthorityChecked(WrapperToolset[Any]):
+    """Recheck delegated authority before connecting, discovery and tool execution."""
+
+    check: Callable[[], Awaitable[None]]
+
+    async def __aenter__(self) -> Self:
+        await self.check()
+        await super().__aenter__()
+        return self
+
+    async def get_tools(self, ctx: RunContext[Any]) -> dict[str, ToolsetTool[Any]]:
+        await self.check()
+        return await super().get_tools(ctx)
+
+    async def get_instructions(
+        self, ctx: RunContext[Any]
+    ) -> str | InstructionPart | Sequence[str | InstructionPart] | None:
+        await self.check()
+        return await super().get_instructions(ctx)
+
+    async def call_tool(
+        self, name: str, tool_args: dict[str, Any], ctx: RunContext[Any], tool: ToolsetTool[Any]
+    ) -> Any:
+        await self.check()
+        return await super().call_tool(name, tool_args, ctx, tool)
 
 
 @dataclass
@@ -354,6 +424,7 @@ async def probe_mcp_server(
                 else None
             ),
             read_only=bool(t.annotations and t.annotations.read_only_hint is True),
+            read_only_hint=t.annotations.read_only_hint if t.annotations else None,
         )
         for t in result.tools
     ]
@@ -487,7 +558,7 @@ def _make_toolset(spec: McpServerSpec) -> Any:
         headers=None if http_client is not None else spec.headers or None,
         http_client=http_client,
         id=f"mcp-{prefix}",
-        init_timeout=CONNECT_TIMEOUT_SECS,
+        init_timeout=PLATFORM_INIT_TIMEOUT_SECS if spec.in_process else CONNECT_TIMEOUT_SECS,
         tool_error_behavior="failed",
         process_tool_call=_platform_domain_result if spec.in_process else None,
         include_instructions=spec.include_instructions,
@@ -502,14 +573,31 @@ def _make_toolset(spec: McpServerSpec) -> Any:
                 tool_prefix=tool_prefix(spec.name),
             ),
         )
+    if spec.in_process:
+        # Deployment authority belongs only to explicitly authorized external OAuth clients.
+        server = server.filtered(lambda _ctx, tool: tool.name != "change_deployment")
     if spec.allowed_tools is not None:
         allowed = set(spec.allowed_tools)
         server = server.filtered(lambda _ctx, tool: tool.name in allowed)
+    origin = {"test": spec.test, "trust_read_only_hints": spec.trust_read_only_hints}
     return ApprovalMarked(
-        FittedNames(server.prefixed(prefix)),
+        FittedNames(server.prefixed(prefix).with_metadata(**{MCP_ISOLATION: origin})),
         policy=spec.approval,
+        # Keyed as the marks are read: by the name the model calls, fitted.
+        tool_approval={
+            fitted_tool_name(f"{prefix}_{name}"): mode for name, mode in spec.tool_approval.items()
+        },
+        in_process=spec.in_process,
         account=spec.account,
         ungated=frozenset(f"{prefix}_{name}" for name in spec.ungated),
+        always_asks=frozenset(fitted_tool_name(f"{prefix}_{name}") for name in spec.always_asks),
+        conditional_execution={
+            fitted_tool_name(f"{prefix}_{name}"): stable
+            for name, stable in spec.conditional_execution.items()
+        },
+        default_approval_free=frozenset(
+            fitted_tool_name(f"{prefix}_{name}") for name in spec.default_approval_free
+        ),
     )
 
 
@@ -573,6 +661,18 @@ Top-level in the metadata for the reason `NEEDS_APPROVAL` is: a server cannot wr
 there, so it cannot claim to be another account.
 """
 
+PLATFORM_TOOL = "agenticos_platform_tool"
+CONDITIONAL_EXECUTION = "agenticos_conditional_execution"
+"""Set only by the in-process transport, never by a server-provided annotation."""
+
+ALWAYS_ASKS = "agenticos_always_asks"
+"""Set by `ApprovalMarked` on a tool only a person's answer to each call may release.
+
+Top-level in the metadata for the reason `NEEDS_APPROVAL` is, and read by
+`ApprovalGate` for a tool no capability owns: such a tool's approval request is
+then `always_asks`, so neither "approve all" nor a remembered decision runs it.
+"""
+
 NEEDS_APPROVAL = "agenticos_needs_approval"
 """The key `ApprovalMarked` sets on a tool's metadata, and `ApprovalGate` reads (#2060).
 
@@ -581,18 +681,50 @@ sends lands under `meta` and `annotations`, so it cannot mark its own tools safe
 """
 
 
-def needs_approval(tool: ToolDefinition, policy: McpApproval) -> bool:
+def needs_approval(
+    tool: ToolDefinition,
+    policy: McpApproval,
+    own: ApprovalMode = "default",
+    *,
+    default_allow: bool = False,
+) -> bool:
     """Whether a call to this MCP tool waits for a person, under `policy`.
 
-    `writes` trusts the server's `readOnlyHint` and nothing else: a tool that
-    does not say it only reads is treated as one that writes.
+    `own` is the tool's approval in the binding's `tool_approval`; see
+    :func:`approval_needed` for how the two decide.
     """
+    annotations = (tool.metadata or {}).get("annotations") or {}
+    return approval_needed(
+        policy,
+        read_only=annotations.get("readOnlyHint") is True,
+        own=own,
+        default_allow=default_allow,
+    )
+
+
+def approval_needed(
+    policy: McpApproval,
+    *,
+    read_only: bool,
+    own: ApprovalMode = "default",
+    default_allow: bool = False,
+) -> bool:
+    """Whether an MCP tool waits for a person: the rule, and the only copy of it.
+
+    The tool's `own` approval wins, as on a capability's tool: `required` asks
+    and `never` does not, whatever `policy` says and whatever the server claims
+    (#2884). `default` leaves it to `policy`, and `writes` trusts the server's
+    `readOnlyHint` and nothing else: a tool that does not say it only reads is
+    treated as one that writes. A trusted platform write may opt into `default_allow`:
+    it runs under `writes`, while an explicit `required` or binding `all` still asks.
+    """
+    if own != "default":
+        return own == "required"
     if policy == "all":
         return True
     if policy == "none":
         return False
-    annotations = (tool.metadata or {}).get("annotations") or {}
-    return annotations.get("readOnlyHint") is not True
+    return not read_only and not default_allow
 
 
 @dataclass
@@ -600,8 +732,15 @@ class ApprovalMarked(WrapperToolset[Any]):
     """An MCP server's tools, each marked with whether it waits for approval."""
 
     policy: McpApproval = "none"
+    # Each tool's own approval, by the name the model calls it.
+    tool_approval: Mapping[str, ApprovalMode] = field(default_factory=dict)
+    in_process: bool = False
     account: str | None = None
     ungated: frozenset[str] = frozenset()
+    always_asks: frozenset[str] = frozenset()
+    # Only trusted platform writes may run by default; explicit tool/binding gates still win.
+    default_approval_free: frozenset[str] = frozenset()
+    conditional_execution: Mapping[str, str] = field(default_factory=dict)
 
     async def get_tools(self, ctx: RunContext[Any]) -> dict[str, ToolsetTool[Any]]:
         tools = await super().get_tools(ctx)
@@ -613,8 +752,22 @@ class ApprovalMarked(WrapperToolset[Any]):
                     tool.tool_def,
                     metadata={
                         **(tool.tool_def.metadata or {}),
-                        NEEDS_APPROVAL: name not in self.ungated
-                        and needs_approval(tool.tool_def, self.policy),
+                        PLATFORM_TOOL: self.in_process,
+                        CONDITIONAL_EXECUTION: self.conditional_execution.get(name)
+                        if self.in_process
+                        else None,
+                        ALWAYS_ASKS: name in self.always_asks,
+                        NEEDS_APPROVAL: name in self.always_asks
+                        or (
+                            name not in self.ungated
+                            and needs_approval(
+                                tool.tool_def,
+                                self.policy,
+                                self.tool_approval.get(name, "default"),
+                                default_allow=self.in_process
+                                and name in self.default_approval_free,
+                            )
+                        ),
                         **named,
                     },
                 ),
@@ -668,51 +821,153 @@ def unreachable_briefing(server: str, *, binding: str | None, held_by: str | Non
 
 
 @dataclass
-class AnsweredRecently(WrapperToolset[Any]):
-    """A server attached on a recent probe's word, left out of the turn if it is down now.
+class ResilientMcpToolset[DepsT](WrapperToolset[DepsT]):
+    """Keep MCP outages inside the turn, with explicit missing-service feedback.
 
-    Entering is where pydantic-ai connects, so a server that stopped answering
-    since its probe fails here; the turn goes on without its tools, as it would
-    have had the probe run, and the memo is dropped so the next turn probes again.
-    The probe's own failure is briefed by the turn that ran it; this one happens
-    after that briefing was written, so the toolset briefs it itself.
+    Reconnect once during initialization, before any tool can run. Discovery or
+    execution failures disable this server for the turn; tool calls are never
+    replayed because a remote write may already have been accepted.
     """
 
     name: str = ""
     key: str = ""
     down: bool = field(default=False, init=False)
+    _entries: list[bool] = field(default_factory=list, init=False)
 
-    async def __aenter__(self) -> AnsweredRecently:
+    def _unavailable(self, error: BaseException) -> None:
+        if carries_base_exception(error):
+            raise error
+        logger.warning(
+            "Skipping MCP server %r for this turn: %s", self.name, probe_error_message(error)
+        )
+        _answered.pop(self.key, None)
+        self.down = True
+
+    async def __aenter__(self) -> ResilientMcpToolset[DepsT]:
         if self.down:
+            self._entries.append(False)
             return self
-        try:
-            await self.wrapped.__aenter__()
-        except (Exception, BaseExceptionGroup) as exc:
-            if carries_base_exception(exc):
-                raise
-            logger.warning(
-                "Skipping MCP server %r for this turn: %s", self.name, probe_error_message(exc)
-            )
-            _answered.pop(self.key, None)
-            self.down = True
+        for attempt in range(2):
+            try:
+                await self.wrapped.__aenter__()
+            except (Exception, BaseExceptionGroup) as error:
+                if carries_base_exception(error):
+                    raise
+                logger.warning(
+                    "MCP server %r initialization attempt %s failed: %s",
+                    self.name,
+                    attempt + 1,
+                    probe_error_message(error),
+                )
+            else:
+                self._entries.append(True)
+                return self
+        _answered.pop(self.key, None)
+        self.down = True
+        self._entries.append(False)
         return self
 
-    async def __aexit__(self, *args: Any) -> bool | None:
-        if self.down:
+    async def __aexit__(self, *args: object) -> bool | None:
+        if not self._entries.pop():
             return None
-        return await self.wrapped.__aexit__(*args)
+        try:
+            return await self.wrapped.__aexit__(*args)
+        except (Exception, BaseExceptionGroup) as error:
+            self._unavailable(error)
+            return None
 
-    async def get_tools(self, ctx: RunContext[Any]) -> dict[str, ToolsetTool[Any]]:
+    async def get_tools(self, ctx: RunContext[DepsT]) -> dict[str, ToolsetTool[DepsT]]:
         if self.down:
             return {}
-        return await super().get_tools(ctx)
+        try:
+            return await super().get_tools(ctx)
+        except (Exception, BaseExceptionGroup) as error:
+            self._unavailable(error)
+            return {}
+
+    async def get_instructions(
+        self, ctx: RunContext[DepsT]
+    ) -> str | InstructionPart | Sequence[InstructionPart | str] | None:
+        if not self.down:
+            try:
+                return await super().get_instructions(ctx)
+            except (Exception, BaseExceptionGroup) as error:
+                self._unavailable(error)
+        return unreachable_briefing(self.name, binding=None)
+
+    async def call_tool(
+        self,
+        name: str,
+        tool_args: dict[str, object],
+        ctx: RunContext[DepsT],
+        tool: ToolsetTool[DepsT],
+    ) -> object:
+        try:
+            return await super().call_tool(name, tool_args, ctx, tool)
+        except ApprovalRequired, CallDeferred, ModelRetry, ToolFailed:
+            raise
+        except (Exception, BaseExceptionGroup) as error:
+            self._unavailable(error)
+            raise ToolFailed(
+                f"The {self.name} MCP request failed. Its outcome is unknown; do not "
+                "claim it succeeded or returned no data. Do not automatically repeat a "
+                "state-changing request: it may already have been accepted."
+            ) from error
+
+
+@dataclass
+class LeftOutOnClash(WrapperToolset[Any]):
+    """An MCP server left out of a step where one of its tools has another tool's name (#2890).
+
+    Two tools of one name make pydantic-ai abort the turn. A connection's prefix
+    keeps its server's tools apart from every other server's, but not from a
+    capability's or the platform's own: a connection `request` whose server
+    offers `capability` presents `request_capability`, which nearly every agent
+    has. Publish refuses that on the tools the connection's last check listed;
+    this is the run's half, for a server that added the tool since, or a
+    connection renamed after publish.
+
+    The whole server sits out rather than the one tool, as it does for a prefix
+    collision (#1442): one tool quietly missing goes unnoticed, and the clash is
+    a misconfiguration somebody should fix. The model is told which server is
+    missing and why. Decided on what the server lists at each step, so a tool it
+    adds mid-run cannot take the turn down either. `taken` maps the names the
+    run's other tools hold to whose each is.
+    """
+
+    server: str = ""
+    binding: str = ""
+    taken: Mapping[str, str] = field(default_factory=dict)
+    clash: tuple[str, str] | None = field(default=None, init=False)
+
+    async def get_tools(self, ctx: RunContext[Any]) -> dict[str, ToolsetTool[Any]]:
+        tools = await super().get_tools(ctx)
+        clash = next(((name, self.taken[name]) for name in tools if name in self.taken), None)
+        if clash is not None and clash != self.clash:
+            logger.warning(
+                "Leaving MCP server %r out of this turn: its tool %r has the name of a tool of %s",
+                self.server,
+                *clash,
+            )
+        self.clash = clash
+        return {} if clash is not None else tools
 
     async def get_instructions(
         self, ctx: RunContext[Any]
     ) -> str | InstructionPart | Sequence[str | InstructionPart] | None:
-        if self.down:
-            return unreachable_briefing(self.name, binding=None)
-        return await super().get_instructions(ctx)
+        # Pydantic AI lists a step's tools before it reads its instructions, so
+        # `clash` is this step's.
+        if self.clash is None:
+            return await super().get_instructions(ctx)
+        tool, holder = self.clash
+        return (
+            f"The {self.server} server ({self.binding}) is not available this turn: its "
+            f"tool `{tool}` has the name of a tool {holder} already gives you. Two tools "
+            "cannot share one name, so none of its tools are attached. If asked for "
+            f"anything in {self.server}, say it is not available because two of this "
+            "agent's tools collide under one name, which the agent's author resolves by "
+            "renaming the connection or narrowing its tools."
+        )
 
 
 PLATFORM_MCP_NAME = "agenticos"
@@ -720,29 +975,41 @@ PLATFORM_MCP_NAME = "agenticos"
 
 PLATFORM_MCP_PREFIX = tool_prefix(PLATFORM_MCP_NAME)
 
-PLATFORM_UNGATED_TOOLS = frozenset({"set_my_language"})
-"""The platform's writes that never wait for approval - `platform_mcp._tools.UNGATED`.
-
-Named again rather than imported: the platform's server imports the application,
-which imports this layer.
-"""
-
 PLATFORM_MCP_URL = "http://agenticos/mcp"
 """Where the in-process client addresses `/mcp`. The host is never resolved."""
 
 
 def platform_spec(
-    credential: str, *, allowed_tools: list[str] | None, approval: McpApproval
+    credential: str,
+    *,
+    allowed_tools: list[str] | None,
+    approval: McpApproval,
+    tool_approval: Mapping[str, ApprovalMode] | None = None,
 ) -> McpServerSpec:
-    """This deployment's own MCP server, as the holder of `credential`."""
+    """This deployment's own MCP server, as the holder of `credential`.
+
+    A `never` on a tool in `PLATFORM_ALWAYS_ASK_TOOLS` is dropped, so the tool
+    falls back to the default, which holds every write: publishing refuses one,
+    and this keeps a spec that reached the store another way from releasing it.
+    """
+    own = {
+        name: mode
+        for name, mode in (tool_approval or {}).items()
+        if not (mode == "never" and name in PLATFORM_ALWAYS_ASK_TOOLS)
+    }
     return McpServerSpec(
         name=PLATFORM_MCP_NAME,
         url=PLATFORM_MCP_URL,
         headers={"Authorization": f"Bearer {credential}"},
         allowed_tools=allowed_tools,
         approval=approval,
+        tool_approval=own,
         in_process=True,
+        trust_read_only_hints=True,
         ungated=PLATFORM_UNGATED_TOOLS,
+        always_asks=PLATFORM_ALWAYS_ASK_TOOLS,
+        default_approval_free=PLATFORM_DEFAULT_APPROVAL_FREE_TOOLS,
+        conditional_execution={name: name for name in PLATFORM_CONDITIONAL_EXECUTION_TOOLS},
     )
 
 
@@ -812,12 +1079,11 @@ async def probe_toolsets(specs: list[McpServerSpec]) -> list[tuple[McpServerSpec
     """
 
     async def _try(spec: McpServerSpec) -> Any | None:
-        if spec.in_process:
-            # This deployment's own server: there is no remote to be down.
-            return _make_toolset(spec)
         key = _answer_key(spec)
+        if spec.in_process:
+            return ResilientMcpToolset(_make_toolset(spec), name=spec.name, key=key)
         if _answered_recently(key):
-            return AnsweredRecently(_make_toolset(spec), name=spec.name, key=key)
+            return ResilientMcpToolset(_make_toolset(spec), name=spec.name, key=key)
         try:
             if spec.credential_origin is None:
                 await probe_mcp_server(spec.url, spec.headers)
@@ -831,7 +1097,7 @@ async def probe_toolsets(specs: list[McpServerSpec]) -> list[tuple[McpServerSpec
             )
             return None
         _note_answer(key)
-        return _make_toolset(spec)
+        return ResilientMcpToolset(_make_toolset(spec), name=spec.name, key=key)
 
     results = await asyncio.gather(*(_try(spec) for spec in specs))
     return list(zip(specs, results, strict=True))

@@ -88,8 +88,26 @@ Two kinds of permission, and they behave differently.
 
 **Global** permissions are binary and org-wide: `members:view`, `members:manage`, `roles:manage`,
 `org:settings`, `org:delete`, `budgets:manage`, `approvals:decide`,
-`connections:view`, `connections:manage`, `channels:manage`,
-`runs:view`, `audit:read`, `ml:invoke`, `api_keys:create`, `api_keys:manage`.
+`promotions:override`, `connections:view`, `connections:manage`, `channels:manage`,
+`runs:view`, `audit:read`, `ml:invoke`, `api_keys:create`, `api_keys:manage`, `personal:consent`, `mcp:personal:use`.
+
+One exception: `approvals:decide` is global but member and builder hold it at
+`OWN`, for a run they started only. The scope is enforced per run in the decide
+path, not by the role - a role cannot see which run an approval belongs to - so
+a member may decide their own run's approval from a signed-in web/chat session
+and nobody else's. Cross-person approvals, workflow approvals, routine standing
+consent and the organization waiver switch stay with owner, admin and operator.
+
+The same person opens their own run, reads its transcript and retries it without `runs:view`, which is how the expiry notice's link works for a member. It reads only their own run, as a signed-in web session with an active membership, and only while they still hold `approvals:decide`. It shows no trace link and no neighbouring runs, and the manifest stays with `runs:view`. API keys, publisher fallback, routines and impersonated sessions get none of it.
+
+The explicit `mcp:personal:use` scope lets external API or OAuth runs use the credential issuer's personal MCP connections. Select it under **Custom** and confirm this delegation; no preset, including **Full access**, includes it, and existing credentials keep organization-only access. It grants no personal memory, conversation search or routine consent. Approval resumes retain the original owner and credential; connected accounts, live key scopes and access to the root and discovered delegates are rechecked before personal tool calls.
+
+Approving personal routines and watches requires the explicit `personal:consent` scope, selected under **Custom** when issuing a key or authorizing an MCP client. It is excluded from every preset, including **Full access**. The confirmation allows the credential to approve persistent routines and watches using your personal connections and data; ordinary `agents:run` and `runs:view` scopes do not. Existing keys and MCP authorizations gain no personal consent automatically.
+
+`promotions:override` promotes a version onto an
+[environment its eval suites guard](environments.md#guarding-a-promotion-with-evals)
+although they have not passed on it, and changes which suites guard one. Owners
+and admins hold it; promoting at all is still `agents:publish` on the agent.
 
 `api_keys:create` lets a member issue [API keys](api.md#organization-api-keys)
 for themselves; `api_keys:manage` lists and revokes everybody's. A key holds a
@@ -126,6 +144,15 @@ subset of the permissions here, never more than its issuer holds now.
     `secrets:view` on that key
     ([Models](models.md#changing-a-profiles-key-or-endpoint)).
 
+    Attaching a secret to a sandbox connection, or probing a service with one,
+    needs `secrets:view` on that secret too: the connection spends the key for
+    the whole organization, so naming somebody else's private key must be
+    refused at attach time. The check is deliberately *not* inside
+    `resolve_for_bindings`: at run time the runner resolves the bindings of a
+    published spec for whoever may run the agent, and the spec's secrets were
+    checked against the publisher at publish. The vault opens for a run; the
+    gate is who may name the secret in a write.
+
     `connections:manage` is also what lists the organization's sync integrations:
     the sources of every base, with their configuration, the vault secret each
     uses and their last error, and the unassigned ones. `/org/integrations`
@@ -138,17 +165,26 @@ subset of the permissions here, never more than its issuer holds now.
 **Resource** permissions carry a `Scope`, because they answer the second question
 a role cannot: not "may this role touch agents?" but *which* agents.
 
-`mcp:manage` is one of them: an organization's MCP server can be narrowed to
-groups or people, like a skill ([Departments](departments.md#a-departments-mcp-servers)).
-A role holding it at `SHARED` sees the organization's servers, its own, and
-those shared with it; `ALL` sees every one.
+`mcp:use` and `mcp:manage` separate selecting a connection from administering it.
+An organization's MCP server can be narrowed to groups or people, like a skill
+([Departments](departments.md#a-departments-mcp-servers)). A `use` grant permits
+binding its tools; an `edit` grant permits administration. Role scopes still
+apply: Owners and Admins retain `ALL`, and Builders retain `SHARED`.
+
+Existing `use` grants are kept, not upgraded to `edit`. A Builder using a private
+server needs an explicit `edit` grant to change, delete, probe or reshare it.
+Existing management-scoped API keys retain connection use, while a use-scoped key
+cannot administer a server. Published-agent delegation and the existing
+workflow/trigger selection paths keep their previous audience. The management
+listing still requires `mcp:manage`; this change adds no discovery endpoint or
+Viewer-role permission.
 
 ### Scope
 
 Ordered `NONE < OWN < SHARED < TEAM < ALL`.
 
 | Scope | Reaches |
-|---|---|
+| --- | --- |
 | `NONE` | nothing |
 | `OWN` | rows this person owns |
 | `SHARED` | their own, plus anything org-visible |
@@ -167,12 +203,12 @@ Ordered `NONE < OWN < SHARED < TEAM < ALL`.
 ### The built-in roles
 
 | Role | Idea | Agents | Secrets | Global |
-|---|---|---|---|---|
-| `owner` | owns the organization | all `ALL` | `ALL` | everything, including `org:delete` |
-| `admin` | runs it day to day | all `ALL` | `ALL` | everything **except** `org:delete` |
-| `builder` | builds, and learns from the whole org | `view`/`run` `ALL`, `edit`/`publish` `SHARED` | `view` `SHARED`, `edit` `OWN` | `mcp:manage` `SHARED`, `connections:view`+`connections:manage`, `runs:view`, `ml:invoke`, `api_keys:create`, `members:view` |
+| --- | --- | --- | --- | --- |
+| `owner` | owns the organization | all `ALL` | `ALL` | everything, including `org:delete`; `mcp:use`/`mcp:manage` `ALL` |
+| `admin` | runs it day to day | all `ALL` | `ALL` | everything **except** `org:delete`; `mcp:use`/`mcp:manage` `ALL` |
+| `builder` | builds, and learns from the whole org | `view`/`run` `ALL`, `edit`/`publish` `SHARED` | `view` `SHARED`, `edit` `OWN` | `approvals:decide` `OWN`, `mcp:use`/`mcp:manage` `SHARED`, `connections:view`+`connections:manage`, `runs:view`, `ml:invoke`, `api_keys:create`, `members:view` |
 | `operator` | keeps the running system healthy | `view`/`run` `ALL`, no edit | `view` `SHARED` | `approvals:decide`, `connections:view`, `runs:view`, `ml:invoke`, `api_keys:create`, `members:view` |
-| `member` | the everyday user | `view`/`run` `SHARED`, `edit` `OWN` | `view` `SHARED`, `edit` `OWN` | `ml:invoke`, `api_keys:create`, `members:view` |
+| `member` | the everyday user | `view`/`run` `SHARED`, `edit` `OWN` | `view` `SHARED`, `edit` `OWN` | `approvals:decide` `OWN`, `ml:invoke`, `api_keys:create`, `members:view` |
 | `viewer` | reads | `view` `SHARED` | none | `members:view` |
 
 The `builder` / `admin` distinction is the interesting one: a builder sees the
@@ -267,7 +303,7 @@ draft cannot run and no exposure reaches it either way, so what this decides is
 who can see it, not what it does.
 
 | Level | Allows |
-|---|---|
+| --- | --- |
 | `read` | see the configuration |
 | `use` | also run or attach it |
 | `edit` | also change it |
@@ -285,6 +321,11 @@ A person holding several grants on one row - their own and their groups' - gets
 the highest of them. The database holds a grant to exactly one subject, a person
 or a group, and a group from another organization reaches nobody here even if a
 row named one.
+
+A share can carry an expiry: past it, the grant gives nothing, without anyone
+deleting the row - the Sharing panel still lists it, so the owner can renew or
+revoke it. Removing a member revokes their direct grants with the membership,
+so inviting them back wakes none of them.
 
 The table is deliberately generic - `resource_type` + `resource_id`, with no
 foreign key to the target - because agents, collections, skills, context files,
@@ -366,10 +407,17 @@ exactly the moment it should be narrowed to nothing.
 rows already loaded, it returns the subset the caller may exercise a permission
 on, applying the same `max(role scope, grant)` rule per row but reading every
 grant in one lookup rather than one per row (and none at all when the role
-reaches everything). It is what fills a listing's per-row capability flags -
-`AgentRead.can_run`, the floor for offering "new trigger" on a card - so a Viewer
-granted run on one agent sees the control there and nowhere else. A context with
-no subject, and an empty input, both resolve to the empty set before any query.
+reaches everything).
+
+`accessible_ids` is what fills a listing's per-row capability flags -
+`AgentRead.can_run`, the floor for offering "new trigger" on a card,
+`AgentRead.can_edit`, which the console reads for the agent page's edit
+controls, testing a draft and stopping an eval run, and `AgentRead.can_publish`,
+for publishing - so a Viewer granted run on one agent sees the control there and
+nowhere else.
+
+A context with no subject, and an empty input, both resolve to the empty set
+before any query.
 
 Context, skill and vault listings carry `can_edit` for each resource. The console
 uses that effective access for editing, deletion and sharing, and for rotating a
@@ -399,7 +447,8 @@ the caller cannot see answers exactly like a run that does not exist.
 cancel it while they may still run the workflow, and anyone who may edit the
 workflow may cancel any of its runs. A Member who can run an organization-visible
 workflow can stop their own runs, not a colleague's; seeing the run without
-either right is refused with `403`.
+either right is refused with `403`. Retrying a cancelled run takes the same right,
+so a run somebody stopped is not started again by a member who could not stop it.
 
 **A run acts as the person who started it, checked again at every node.** A
 node can be dispatched days after the run began, so each dispatch requires the
@@ -494,6 +543,21 @@ refusals.
     subjects expect is only defensible if they can find that out. A narrower answer
     would be a permission of its own, not a quieter route.
 
+### A system agent is an organization setting { #system-agents }
+
+A [system agent](concepts.md#system-agents) - a judge, a case generator, a gap
+drafter or classifier, the authoring assistant - grades, drafts or proposes for
+everyone who uses what it serves. So changing one takes `org:settings` on top of
+`agents:edit` or `agents:publish` on the row: its draft, a YAML import, a
+publish, a restore, archiving or deleting it, its environments. A Builder would
+otherwise reach the seeded ones through their organization-wide visibility.
+Reading, running and creating one keep their usual permissions; a judge a
+Builder makes for a dataset publishes at once, and later changes need an
+administrator.
+
+The check is in `AgentRegistryService.get`, so every write path holds it, and
+`can_edit`/`can_publish` read false for a caller without it.
+
 ## Delegation is not a privilege boundary
 
 An agent can [delegate to another agent](concepts.md#delegate-vs-inline-specialist),
@@ -580,16 +644,71 @@ rewriting what they ran as. See
 What such a run is allowed to do comes from the **exposure** that admitted it,
 created by somebody who did have a role.
 
+## Sidebar visibility
+
+### What a Member sees by default
+
+A Member sees Dashboard, Chat, Inbox, Agent Messages, Apps, Agents, Workflows,
+Routines, Projects, Knowledge Bases, Tables, Skills, Context, Documents, Background
+Work, Connectors, Organizations and Groups. Apps and Projects show only permitted
+resources. Activity and Failure Learning require `runs:view`; the deployment
+Admin area requires `is_app_admin`, which an organization role does not grant.
+
+The Member role reaches its own resources and those visible to the organization
+or explicitly shared with the member or their groups. It permits editing its own
+working resources and running permitted agents and workflows. It does not give
+organization-wide access to private resources, member administration, budgets or
+audit logs. An explicit resource grant can widen access as described above.
+
+### Configure navigation for a role
+
+Open **Organizations → Members → Users & Roles**, then **Sidebar visibility**.
+The six built-in roles and their permission definitions remain fixed. This editor
+configures each role's navigation in the selected organization.
+
+1. Select a role to inspect its current navigation.
+2. Choose which configurable entries appear. Entries unavailable to the role's
+   permissions remain unavailable even when shown.
+3. Review **Sidebar preview** before saving.
+4. Select **Save sidebar** to apply the changes.
+5. To restore the role's navigation, select **Reset to defaults**, then
+   **Save sidebar**. **Discard changes** leaves the saved policy unchanged.
+
+An Owner can edit Admin and the lower roles. An Admin can edit Builder, Operator,
+Member and Viewer, but cannot change its own level or Owner. Other members can
+preview policies without editing them. Changes require `roles:manage` and are
+recorded in the organization's audit trail.
+
+Dashboard and Organizations cannot be hidden, and the deployment Admin entry
+keeps its existing superadmin gate. These recovery paths remain available.
+Owner navigation is unchanged, and platform superadmins are unaffected by the
+visibility policy.
+
+### Visibility and access
+
+The saved choices filter the desktop and mobile sidebar, pinned Apps and
+Projects, and command-palette navigation, including entity shortcuts and the new
+chat action. An active window refreshes permissions every 60 seconds and
+refetches stale permissions when it regains focus.
+
+Hiding an entry does not revoke API permissions, remove resource grants or block
+a direct URL. Showing an entry grants no additional access. Use role assignment
+and resource sharing to control access; use sidebar visibility to simplify the
+navigation. This setting does not create custom roles or edit their permissions.
+
+
 ## What the frontend reads
 
 | Endpoint | Answers |
-|---|---|
-| `GET /me/permissions` | the caller's role, `is_app_admin`, and every permission with its scope |
+| --- | --- |
+| `GET /me/permissions` | the caller's role, `is_app_admin`, every permission with its scope, and `hidden_navigation_items` for that role |
 | `GET /roles/catalog` | the whole catalog and what each role bundles |
+| `GET /roles/navigation` | the organization's `hidden_items` by role, `configurable_items`, and the caller's `editable_roles` |
+| `PATCH /roles/navigation/{role}` | replace one role's `hidden_items`; requires `roles:manage` and authority over that role |
 
-Both are **a convenience for the UI and nothing more**. The server re-checks every
-permission on the endpoint that performs the action, so a client that ignores
-these APIs gains nothing.
+The read responses guide the UI; they do not authorize an action. The server
+re-checks every permission on the endpoint that performs it. Updating navigation
+changes presentation only, so a client that ignores it gains no additional access.
 
 ## Recap
 
@@ -613,3 +732,5 @@ these APIs gains nothing.
 ::: app.core.permissions.Scope
 
 ::: app.core.permissions.AuthContext
+
+Installation administration through MCP requires the live application-admin flag and a separately approved OAuth `deployment:admin` scope. It is not a `Perm`, role permission or preset. Organization administration alone cannot grant it. Only an explicitly authorized external client receives it; internal agents, routines and ordinary API keys never inherit it. Reauthorize existing connections to opt in. See [MCP administration](mcp.md#administration-through-mcp).

@@ -472,8 +472,8 @@ class TestSkillsAreDeferredCapabilities:
         offered = await _tools_offered(spec, resources=self._skill())
 
         assert sorted(tool.name for tool in offered) == [
-            "load_capability",
             "open_playbook_file",
+            "read_skill",
         ]
 
     @pytest.mark.anyio
@@ -514,7 +514,7 @@ class TestSkillsAreDeferredCapabilities:
         for capability in built.capabilities:
             capability.apply(registered.append)
 
-        assert [capability.id for capability in registered] == ["skills", "refunds"]
+        assert [capability.id for capability in registered] == ["skills", "refunds", None]
 
 
 class TestSpecVersion12WithdrewTwoSkillsTools:

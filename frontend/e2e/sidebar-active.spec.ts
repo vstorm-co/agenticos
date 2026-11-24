@@ -85,18 +85,18 @@ test.describe("Sidebar section marking", () => {
   });
 
   test("a page reached through a redirect marks the entry it landed on", async ({ page }) => {
-    // The vault used to live at /settings/providers, which now redirects. The
-    // mark has to follow the destination: a rule that saw the URL that was asked
+    // The vault used to live at /settings/providers, which now redirects under
+    // Connections. The mark has to follow the destination: a rule that saw the URL that was asked
     // for, rather than the one that was served, leaves the sidebar dark here —
     // and /settings is a path no entry claims, so there is nothing to fall back
     // to.
     await page.goto("/settings/providers");
-    await expect(page).toHaveURL(/\/vault$/);
+    await expect(page).toHaveURL(/\/connectors\/vault$/);
 
     // Landed and loaded, not merely redirected: a seeded row is what separates
     // the vault having rendered from the vault having answered 502.
     await expect(page.getByRole("main").getByText(FAKE_KEY_LABEL).first()).toBeVisible();
 
-    await expectMarked(page, "Vault");
+    await expectMarked(page, "Connections");
   });
 });

@@ -71,6 +71,30 @@ describe("the query key factory", () => {
     expect(qk.agents.version("a1", "v1").slice(0, 2)).toEqual(qk.agents.detail("a1"));
   });
 
+  it.each([
+    ["ledger", qk.failureLearning.ledger, qk.failureLearning.ledgerEntry],
+    ["proposals", qk.failureLearning.proposals, qk.failureLearning.proposal],
+  ] as const)(
+    "keeps %s filters and details independent while invalidating the agent together",
+    async (_name, list, detail) => {
+      const client = new QueryClient();
+      const filtered = list("agent-a", "draft");
+      const item = detail("agent-a", "draft");
+      const otherAgent = detail("agent-b", "draft");
+      client.setQueryData(filtered, ["listed"]);
+      client.setQueryData(item, { id: "draft", title: "One item" });
+      client.setQueryData(otherAgent, { id: "draft", title: "Another agent" });
+
+      expect(client.getQueryData(filtered)).toEqual(["listed"]);
+      expect(client.getQueryData(item)).toEqual({ id: "draft", title: "One item" });
+      await client.invalidateQueries({ queryKey: list("agent-a") });
+      expect(client.getQueryState(filtered)?.isInvalidated).toBe(true);
+      expect(client.getQueryState(item)?.isInvalidated).toBe(true);
+      expect(client.getQueryState(otherAgent)?.isInvalidated).toBe(false);
+      client.clear();
+    },
+  );
+
   it("keeps the archived filter in the agents list key", () => {
     // The two lists are different rows; one key would serve whichever arrived
     // first to both pages.

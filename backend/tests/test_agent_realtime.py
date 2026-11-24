@@ -7,6 +7,7 @@ verified live; these tests pin only what is handed to the library.
 import pytest
 from pydantic import SecretStr
 from pydantic_ai.realtime.azure import AzureRealtimeModel
+from pydantic_ai.realtime.elevenlabs import ElevenLabsRealtimeModel
 from pydantic_ai.realtime.google import GoogleRealtimeModel
 from pydantic_ai.realtime.openai import OpenAIRealtimeModel
 from pydantic_ai.realtime.xai import XaiRealtimeModel
@@ -24,6 +25,7 @@ _KEY = ApiKeySecret(api_key=SecretStr("sk-dummy"))
         ("openai", "gpt-realtime", OpenAIRealtimeModel),
         ("google", "gemini-2.5-flash-native-audio-latest", GoogleRealtimeModel),
         ("xai", "grok-voice-latest", XaiRealtimeModel),
+        ("elevenlabs", "eleven_realtime_v1_mini", ElevenLabsRealtimeModel),
     ],
 )
 def test_each_api_key_provider_builds_its_realtime_model(provider, model, cls):
@@ -110,3 +112,44 @@ def test_a_provider_with_no_voice_settings_gets_only_the_shared_ones():
     assert realtime_settings(
         provider="other", voice="x", language=None, thinking="low", supports_thinking=True
     ) == {"thinking": "low"}
+
+
+@pytest.mark.parametrize("language", [None, "pl"])
+def test_elevenlabs_uses_its_own_voice_language_and_semantic_detection(language):
+    settings = realtime_settings(
+        provider="elevenlabs",
+        voice="brian",
+        language=language,
+        thinking=None,
+        supports_thinking=False,
+    )
+    assert settings["elevenlabs_voice"] == "brian"
+    assert settings["openai_turn_detection"]["type"] == "semantic_vad"
+    assert settings["elevenlabs_max_duration_seconds"] == 7200
+    assert settings.get("elevenlabs_language") == language
+    assert "openai_voice" not in settings
+
+
+@pytest.mark.anyio
+async def test_elevenlabs_runtime_settings_serialize_through_the_installed_sdk():
+    settings = realtime_settings(
+        provider="elevenlabs",
+        voice="brian",
+        language="pl",
+        thinking=None,
+        supports_thinking=False,
+    )
+    model = build_realtime_model(
+        provider="elevenlabs",
+        model="eleven_realtime_v1_mini",
+        secret=_KEY,
+        settings=settings,
+    )
+    assert isinstance(model, ElevenLabsRealtimeModel)
+    payload = model._session_config("Speak Polish", None, model_settings=None)
+    assert payload["model"] == "eleven_realtime_v1_mini"
+    assert payload["audio"]["output"]["voice"] == "brian"
+    assert payload["audio"]["input"]["transcription"] == {"language": "pl"}
+    assert payload["audio"]["input"]["turn_detection"]["type"] == "semantic_vad"
+    assert await model._auth_headers() == {"xi-api-key": "sk-dummy"}
+    assert "/v1/convai/realtime" in model._realtime_url()

@@ -1,5 +1,5 @@
 ---
-source_sha: "ae8b5a53d44f"
+source_sha: "8e0da94ccb26"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -7,12 +7,6 @@ source_sha: "ae8b5a53d44f"
 Ten dokument opisuje, jak traktowane są pliki w dwóch kontekstach: uploady
 plików w czacie, które należą do osoby, która je zrobiła, oraz ingestia
 dokumentów RAG, która należy do kolekcji i jest uzależniona od tego,
-Usunięcie bazy odłącza i dezaktywuje źródła synchronizacji, których celem była ta baza.
-Zachowują konfigurację konektora, ale przed kolejną synchronizacją wymagają jawnego
-przypisania; inna baza o tej samej nazwie ich nie przejmuje. Czyszczenie domyślnej bazy
-zachowuje jej źródła, bo wiersz celu pozostaje. Ingest z CLI odrzuca nazwę zarezerwowaną
-przez oczekujące usunięcie, dopóki cleanup jej nie zwolni.
-
 [kto może do niej sięgnąć](#who-may-reach-a-collection).
 
 ## Uploady plików w czacie { #chat-file-uploads }
@@ -135,6 +129,8 @@ plik zamiast tekstu:
 | obraz | `BinaryContent` | `BinaryContent` **oraz** zapis; referencja podaje ścieżkę |
 | tiff | strona(-y) PNG jako `BinaryContent`, z odnotowanym limitem stron | zapisany oryginał `.tiff`; pokazane strony PNG, z odnotowanym limitem stron |
 | archiwum (`.zip`, `.tar.gz`) | odrzucone: model dowiaduje się, że agent nie ma workspace'u, do którego mógłby je rozpakować, i nic z niego nie trafia do promptu | rozpakowane do `uploads/<id>-<nazwa>/`; odwołanie podaje folder i początek drzewa |
+
+Jeśli przy dodawaniu obrazu środowisko robocze jest niedostępne, model nadal dostaje obraz bezpośrednio w ramach limitu bajtów na obraz i turę. Prompt informuje, że środowisko jest niedostępne.
 
 ### Archiwa { #archives }
 
@@ -378,6 +374,13 @@ media/
 domyślnie SSE-S3, a SSE-KMS kluczem, który nazywa wdrożenie. Ustawienia znajdziesz
 w [konfiguracji](configuration.md#uploaded-files-at-rest).
 
+Ingest bazy wiedzy przy lokalnym storage nadal wymaga współdzielenia
+`MEDIA_DIR/_rag_tmp` przez API i worker. Przy S3 każde wykonanie workera pobiera
+własny zapisany obiekt i usuwa kopię tymczasową po zakończeniu, błędzie parsera
+lub anulowaniu. Pody nie współdzielą dysku tymczasowego API; zobacz
+[wdrożenie Kubernetes](kubernetes.md). Zabite dziecko może pozostawić kopię do
+momentu wymiany poda.
+
 !!! info "Który backend uruchomić i czego każdy od Ciebie wymaga"
 
     Lokalny jest uczciwą odpowiedzią dla jednego hosta: zaszyfruj wolumen, a pliki
@@ -470,6 +473,10 @@ flowchart TD
     Wiersz `RAGDocument` zapisywany jest **najpierw**, a cztery środkowe kroki
     wykonują się w zadaniu w tle z własną sesją - dlatego upload odpowiada
     `202 {"status": "processing"}`, zamiast czekać.
+
+Równoległe pierwsze zapisy do tej samej kolekcji czekają na utworzenie jej
+tabeli i indeksów w jednej transakcji. Jeśli tworzenie się nie powiedzie,
+transakcja jest wycofywana, a oczekujący zapis może utworzyć tabelę.
 
 Są dwa adresy, pod które może trafić upload —
 `POST /rag/collections/{name}/ingest` i `POST /kb/{kb_id}/documents` — i oba
@@ -695,15 +702,26 @@ Rozwiązaniem zapasowym jest wyłącznie baza o zasięgu app: baza osobista poza
 jakąkolwiek organizacją też nie ma organizacji, ale należy do jednej osoby
 ([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
 
-Źródło synchronizacji zapisuje organizację i nazwę kolekcji, a nie bazę wiedzy,
-więc jego synchronizacja pisze do bazy, którą wybiera to rozwiązywanie - najstarszej
-bazy organizacji o tej nazwie - i tylko ta baza je wyświetla i uruchamia. Każdy
-route API, który kieruje źródło do kolekcji, sprawdza prawo zapisu do tej bazy, a
-dodanie źródła do innej bazy o tej samej nazwie jest odrzucane z kodem 400.
+Źródło synchronizacji zapisuje bazę wiedzy, do której synchronizuje
+(`knowledge_base_id`), a nie tylko nazwę kolekcji, i tylko ta baza je wyświetla,
+uruchamia i pokazuje jego historię. Źródło dodane z zakładki **Sync** bazy zapisuje
+tę bazę, więc dwie bazy o tej samej nazwie zachowują własne źródła. Route, który
+kieruje źródło do kolekcji po nazwie, zapisuje bazę, do której ta nazwa rozwiązuje
+się dla organizacji wywołującego (rozwiązywanie opisane wyżej), i sprawdza prawo
+zapisu do tej bazy.
 
-Gdy osobista baza członka jest starsza niż baza organizacji o tej samej nazwie,
-synchronizacje organizacji o tej nazwie trafiają więc do bazy osobistej, a baza
-organizacji nie przyjmuje źródła: utwórz ją pod własną nazwą.
+`rag-source-add` zapisuje sprawdzoną bazę organizacji, a
+`--knowledge-base` wskazuje jedną, gdy nazwę ma kilka baz organizacji
+([#2551](https://github.com/vstorm-co/agenticos/issues/2551)).
+
+Źródło bez bazy wiedzy nie synchronizuje. Aktualizacja, która dodała kolumnę, dała
+każdemu istniejącemu źródłu bazę, do której wcześniej pisała jego synchronizacja, a
+źródło, którego kolekcji nie ma żadna baza jego organizacji ani wdrożenia,
+dezaktywowała i zapisała jego id w logu: wskaż mu bazę wiedzy i ustaw z powrotem
+`is_active` na true, aby znowu synchronizowało.
+Zapisała w logu także każde źródło pozostawione w osobistej bazie członka, gdy
+organizacja ma bazę organizacji o tej samej nazwie - tam to źródło synchronizowało
+wcześniej: przenieś je, jeśli należy do bazy organizacji.
 
 !!! warning "Jedna nazwa kolekcji to jedna przestrzeń embeddingów"
 
@@ -956,6 +974,14 @@ do niej nic wciągnąć — usuń ją i utwórz nową pod inną nazwą. Nic się
 traci: ingestia do tamtej kolekcji nigdy się nie powiodła, bo zbudowanie indeksu
 wektorowego na tabeli bez kolumny `embedding` kończy się błędem.
 
+Usunięcie bazy odłącza i dezaktywuje dokładnie te źródła synchronizacji, które ją
+zapisują, niezależnie od tego, kto jeszcze ma tę nazwę. Zachowują konfigurację
+konektora, ale przed kolejną synchronizacją wymagają jawnego przypisania i ponownej
+aktywacji; inna baza o tej samej nazwie ich nie przejmuje. Czyszczenie domyślnej bazy też
+odłącza i dezaktywuje jej źródła: jej wiersz zostaje, ale źródło pozostawione na niej
+zsynchronizowałoby usuniętą treść z powrotem. Ingest z CLI odrzuca nazwę zarezerwowaną
+przez oczekujące usunięcie, dopóki cleanup jej nie zwolni.
+
 ### Kto może sięgnąć po kolekcję { #who-may-reach-a-collection }
 
 Kolekcje nie są globalne i nikt wewnątrz organizacji nie jest w tym sensie
@@ -1091,10 +1117,38 @@ z prośbą o ponowienie, bo każde czekające żądanie zajmuje połączenie z b
 a dość takich żądań odrzuca wszystkie pozostałe. Usunięcie czeka na koniec zapisu.
 
 Baza osobista poza organizacją nie przejmuje żadnego nieprzypisanego chunka, choć
-chunk wskazany przez jej własne wiersze znika razem z nią. Historycznego chunka bez
-bazy, bez organizacji i bez wiersza nie da się odróżnić od chunka operatora: on też
-zachowuje tabelę, zostaje do `rag-drop <name>` i należy do zakresu aplikacji, więc
-czyta go baza app-scoped o tej nazwie.
+chunk wskazany przez jej własne wiersze znika razem z nią. Historyczny fragment bez
+bazy, organizacji i wiersza śledzącego ma nieznane pochodzenie. Zachowuje tabelę,
+ale **baza aplikacyjna nie może go odczytać**, nawet gdy administrator aplikacji
+przejmie nazwę ([#2773](https://github.com/vstorm-co/agenticos/issues/2773)).
+
+Baza aplikacyjna przejmuje globalne nieprzypisane fragmenty i wiersze śledzące tylko
+gdy ich `writer_kind` to `operator`. Nowe zapisy z `rag-ingest` i synchronizacji CLI
+utrwalają to pochodzenie; ingestowanie przez platformę zapisuje `document`, które
+pozostaje po usunięciu użytkownika lub bazy. Migracja
+`0300_unfiled_writer_provenance.py` nie ufa dawnym znacznikom pochodzenia, zachowuje
+pewne przypisania do dokumentów, a niejednoznaczne dane izoluje jako `legacy_unknown`.
+Odczyt nieprzypisanych danych organizacji nadal ogranicza tenant.
+
+**Po aktualizacji:** wykonaj audyt zachowanej kolekcji z powłoki serwera. Komenda
+korzysta wyłącznie z bazy danych i zwraca zagregowane liczby, bez treści dokumentów:
+
+```bash
+uv run agenticos cmd rag-unfiled-provenance <name>
+```
+
+Dopiero po sprawdzeniu źródła i potwierdzeniu, że nieznane globalne nieprzypisane dane
+są importem operatora przeznaczonym dla każdej organizacji, uruchom:
+
+```bash
+uv run agenticos cmd rag-unfiled-provenance <name> --confirm-operator
+```
+
+Wymagane jest interaktywne potwierdzenie (`--yes` zastępuje je w automatyzacji).
+Aktualizacja jest atomowa i powtarzalna; pomija fragmenty i wiersze o znanym
+pochodzeniu dokumentowym. Niepewne dane pozostaw w izolacji; ponownie zaimportuj je
+do uprawnionej bazy albo usuń istniejącą procedurą operatora `rag-drop <name>`.
+Przejęcie nazwy w konsoli nigdy nie potwierdza pochodzenia danych.
 
 W pozostałych przypadkach, a przy `rag-drop` zawsze, zadanie porządkowe usuwa tabelę.
 Nieprzypisane wiersze innego tenanta pod tą nazwą zostają, razem z plikami, bo
@@ -1444,15 +1498,18 @@ zostawiał kolekcję bez żadnego z dwóch dokumentów — na stałe, bo nieudan
 ingestia jest zwracana, a nie rzucana, i nic jej nie ponawia. Oba dokumenty przez
 czas trwania wstawienia to stan, który wyszukiwanie przeżyje; żaden — nie.
 
-Własną historią jednego source'a jest
-`GET /kb/{kb_id}/sync-sources/{source_id}/logs`. Source jest najpierw rozwiązywany
-względem tej bazy wiedzy, więc source należący do innej bazy odpowiada **404**, a
-nie pustą listą — inaczej oba renderują ten sam ekran, a jedno z nich jest
-requestem, który powinien był zawieść. Jego przebiegi czytane są następnie po id
-source'a, co utrzymuje `limit` i `total` w opisie tego samego zbioru wierszy:
-source przecelowany na inną bazę zachowuje swoje wcześniejsze przebiegi pod
-nazwą kolekcji, którą miał wtedy, a te wypadały kiedyś ze strony już po tym, jak
-`limit` ją przyciął.
+Historia źródła jest dostępna pod `GET /kb/{kb_id}/sync-sources/{source_id}/logs`.
+Źródło musi należeć do tej bazy; w przeciwnym razie trasa zwraca **404**.
+Każdy zapisany przebieg zachowuje swoją pierwotną bazę i organizację jako granicę
+dostępu: przepięcie źródła nie udostępnia nowej bazie wcześniejszych prywatnych
+przebiegów. Filtrowanie następuje przed limitem strony. Starsze przebiegi bez
+zapisanej bazy pozostają przypisane przez swoje źródło.
+Usunięcie zapisanej bazy archiwizuje historyczne powiązanie ze źródłem przed wyczyszczeniem identyfikatora bazy, więc historia nie staje się widoczna przez przepięte źródło.
+
+Uzgadnianie dokumentów, przypisywanie niezmienionych dokumentów i śledzenie
+wektorów używają zakresu dokumentów bazy docelowej. Przepięcie źródła czyści jego
+stan pamięci synchronizacji i ostatni status; zakończenie przebiegu przyjętego dla
+starej bazy nie może ich przywrócić.
 
 ### Czego source synchronizacji nie może rozstrzygać { #what-a-sync-source-is-not-allowed-to-decide }
 

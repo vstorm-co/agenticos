@@ -3,6 +3,7 @@
 from uuid import UUID
 
 from sqlalchemy import func, select
+from sqlalchemy import update as sql_update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.agent_embed import AgentEmbed
@@ -69,3 +70,27 @@ async def update(
 async def delete(db: AsyncSession, *, db_embed: AgentEmbed) -> None:
     await db.delete(db_embed)
     await db.flush()
+
+
+async def pause_for_owner(db: AsyncSession, *, organization_id: UUID, user_id: UUID) -> int:
+    """Pause every public surface one member owns in one organization.
+
+    A paused embed refuses admission - the widget, socket and page all check
+    `is_active` before answering - but the row stays, so an administrator can
+    resume it. Called when the member leaves, so a departed publisher's
+    surfaces stop running as them. Only embeds still active are touched, and
+    the count returned is the newly paused ones.
+    """
+    result = await db.execute(
+        sql_update(AgentEmbed)
+        .where(
+            AgentEmbed.organization_id == organization_id,
+            AgentEmbed.owner_user_id == user_id,
+            AgentEmbed.is_active.is_(True),
+        )
+        .values(is_active=False)
+    )
+    await db.flush()
+    # `execute` is typed to return `Result`, which has no `rowcount`; a DML
+    # statement's result carries it at runtime.
+    return int(getattr(result, "rowcount", 0) or 0)

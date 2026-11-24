@@ -2,105 +2,131 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useMotionStore } from "@/stores/motion-store";
+import { DEFAULT_APPEARANCE, type UserAppearance } from "@/lib/user-appearance";
 import { useThemeStore } from "@/stores/theme-store";
-import { useVoiceGlowStore } from "@/stores/voice-glow-store";
-import { useWorkflowNodeStyleStore } from "@/stores/workflow-node-style-store";
-
 import { AppearanceSettings } from "./appearance-settings";
 
-const env = vi.hoisted(() => ({ reduced: false, mounted: true }));
-
-vi.mock("@/hooks/use-reduced-motion", () => ({ useReducedMotion: () => env.reduced }));
-vi.mock("@/hooks/use-mounted", () => ({ useMounted: () => env.mounted }));
+const env = vi.hoisted(() => ({
+  owner: "alice",
+  preferences: undefined as UserAppearance | undefined,
+  error: null as Error | null,
+  pending: false,
+  save: vi.fn(),
+  reset: vi.fn(),
+  refetch: vi.fn(),
+}));
+vi.mock("@/hooks/use-user-appearance", () => ({ useUserAppearance: () => env }));
 
 function group(name: string) {
   return screen.getByRole("radiogroup", { name });
 }
 
 beforeEach(() => {
-  env.reduced = false;
-  env.mounted = true;
+  env.owner = "alice";
+  env.preferences = { ...DEFAULT_APPEARANCE };
+  env.error = null;
+  env.pending = false;
+  env.save.mockReset().mockResolvedValue({});
+  env.reset.mockReset().mockResolvedValue({});
   useThemeStore.setState({ theme: "system", look: "standard" });
-  useVoiceGlowStore.setState({ style: "subtle" });
-  useMotionStore.setState({ motion: "system" });
-  useWorkflowNodeStyleStore.setState({ style: "colour" });
 });
 
 describe("AppearanceSettings", () => {
-  it("anchors its tour stop on the card", () => {
+  it("previews choices without saving or dressing the console until Apply", async () => {
     const { container } = render(<AppearanceSettings />);
-
     expect(container.querySelector('[data-tour="settings-appearance"]')).toHaveTextContent(
       "Appearance",
     );
-  });
-
-  it("switches the theme the account menu also switches", async () => {
-    render(<AppearanceSettings />);
-    expect(within(group("Theme")).getByRole("radio", { name: "System" })).toBeChecked();
-
     await userEvent.click(within(group("Theme")).getByRole("radio", { name: "Dark" }));
-
-    expect(useThemeStore.getState().theme).toBe("dark");
-    expect(within(group("Theme")).getByRole("radio", { name: "Dark" })).toBeChecked();
+    await userEvent.click(within(group("Accent colour")).getByRole("radio", { name: "Blue" }));
+    expect(screen.getByRole("region", { name: "Live preview" })).toBeInTheDocument();
+    expect(useThemeStore.getState().theme).toBe("system");
+    expect(env.save).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: "Apply" }));
+    expect(env.save).toHaveBeenCalledWith({ theme: "dark", accent: "blue" });
   });
 
-  it("keeps the voice glow style the person picks, and says what it is", async () => {
-    render(<AppearanceSettings />);
-    expect(
-      screen.getByText("How the chat box reacts to your voice while dictating"),
-    ).toBeInTheDocument();
-
-    await userEvent.click(within(group("Voice glow")).getByRole("radio", { name: "Vivid" }));
-
-    expect(useVoiceGlowStore.getState().style).toBe("vivid");
-  });
-
-  it("sets the motion preference", async () => {
-    render(<AppearanceSettings />);
-    expect(within(group("Motion")).getByRole("radio", { name: "System" })).toBeChecked();
-
-    await userEvent.click(within(group("Motion")).getByRole("radio", { name: "Reduce" }));
-
-    expect(useMotionStore.getState().motion).toBe("reduce");
-  });
-
-  it("chooses how workflow steps are drawn, and says what each does", async () => {
-    render(<AppearanceSettings />);
-    expect(within(group("Workflow steps")).getByRole("radio", { name: "In colour" })).toBeChecked();
-    expect(screen.getByText(/Simple keeps the tiles neutral/)).toBeInTheDocument();
-
-    await userEvent.click(within(group("Workflow steps")).getByRole("radio", { name: "Simple" }));
-
-    expect(useWorkflowNodeStyleStore.getState().style).toBe("simple");
-    expect(within(group("Workflow steps")).getByRole("radio", { name: "Simple" })).toBeChecked();
-  });
-
-  it("offers no glow under reduced motion, says why, and keeps the stored style", () => {
-    env.reduced = true;
-    useVoiceGlowStore.setState({ style: "vivid" });
-    render(<AppearanceSettings />);
-
-    const glow = group("Voice glow");
-    expect(within(glow).getByRole("radio", { name: "Off" })).toBeChecked();
-    for (const radio of within(glow).getAllByRole("radio")) expect(radio).toBeDisabled();
-    expect(screen.getByText("Off while reduced motion is on")).toBeInTheDocument();
-    expect(useVoiceGlowStore.getState().style).toBe("vivid");
-    // Motion itself stays reachable - it is how reduced motion is turned off.
-    expect(within(group("Motion")).getByRole("radio", { name: "Full" })).toBeEnabled();
-  });
-
-  it("checks nothing before mount, when the stored values are not known yet", () => {
-    env.mounted = false;
-    render(<AppearanceSettings />);
-
-    for (const radio of screen.getAllByRole("radio")) expect(radio).not.toBeChecked();
-  });
-
-  it("picks the console's style, which applies at once", async () => {
+  it("discards a preview without writing account preferences", async () => {
     render(<AppearanceSettings />);
     await userEvent.click(within(group("Style")).getByRole("radio", { name: /Midnight/ }));
-    expect(useThemeStore.getState().look).toBe("midnight");
+    await userEvent.click(screen.getByRole("button", { name: "Discard preview" }));
+    expect(within(group("Style")).getByRole("radio", { name: /Standard/ })).toBeChecked();
+    expect(env.save).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Apply" })).toBeDisabled();
+  });
+
+  it("keeps an unsuccessful save available to retry", async () => {
+    env.save.mockRejectedValue(new Error("offline"));
+    render(<AppearanceSettings />);
+    await userEvent.click(within(group("Text size")).getByRole("radio", { name: "Large" }));
+    await userEvent.click(screen.getByRole("button", { name: "Apply" }));
+    expect(within(group("Text size")).getByRole("radio", { name: "Large" })).toBeChecked();
+    expect(screen.getByRole("button", { name: "Apply" })).toBeEnabled();
+  });
+
+  it("resets the account explicitly and clears a pending preview", async () => {
+    render(<AppearanceSettings />);
+    await userEvent.click(within(group("Theme")).getByRole("radio", { name: "Dark" }));
+    await userEvent.click(screen.getByRole("button", { name: "Reset to defaults" }));
+    expect(env.reset).toHaveBeenCalledOnce();
+    expect(within(group("Theme")).getByRole("radio", { name: "System" })).toBeChecked();
+  });
+
+  it("keeps a preview after a refused reset and lets the person retry", async () => {
+    env.reset.mockRejectedValueOnce(new Error("reset unavailable"));
+    render(<AppearanceSettings />);
+    await userEvent.click(within(group("Theme")).getByRole("radio", { name: "Dark" }));
+    await userEvent.click(screen.getByRole("button", { name: "Reset to defaults" }));
+    expect(within(group("Theme")).getByRole("radio", { name: "Dark" })).toBeChecked();
+    expect(screen.getByRole("button", { name: "Apply" })).toBeEnabled();
+    expect(useThemeStore.getState().theme).toBe("system");
+
+    await userEvent.click(screen.getByRole("button", { name: "Reset to defaults" }));
+    expect(env.reset).toHaveBeenCalledTimes(2);
+    expect(within(group("Theme")).getByRole("radio", { name: "System" })).toBeChecked();
+    expect(screen.getByRole("button", { name: "Apply" })).toBeDisabled();
+  });
+
+  it("keeps corner changes in the preview until they are applied", async () => {
+    render(<AppearanceSettings />);
+    await userEvent.click(within(group("Corners")).getByRole("radio", { name: "Rounded" }));
+    expect(within(group("Corners")).getByRole("radio", { name: "Rounded" })).toBeChecked();
+    expect(env.save).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: "Apply" }));
+    expect(env.save).toHaveBeenCalledWith({ radius: "rounded" });
+  });
+
+  it("does not let one person's unsaved preview follow another account", async () => {
+    const view = render(<AppearanceSettings />);
+    await userEvent.click(within(group("Theme")).getByRole("radio", { name: "Dark" }));
+    env.owner = "bob";
+    env.preferences = { ...DEFAULT_APPEARANCE, look: "paper" };
+    view.rerender(<AppearanceSettings />);
+    expect(within(group("Theme")).getByRole("radio", { name: "System" })).toBeChecked();
+    expect(within(group("Style")).getByRole("radio", { name: /Paper/ })).toBeChecked();
+    expect(env.save).not.toHaveBeenCalled();
+  });
+
+  it("does not expose editable defaults while saved preferences are unavailable", async () => {
+    env.preferences = undefined;
+    env.error = new Error("offline");
+    render(<AppearanceSettings />);
+    expect(screen.getByRole("alert")).toHaveTextContent("could not be loaded");
+    expect(screen.queryByRole("radiogroup")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Try again" }));
+    expect(env.refetch).toHaveBeenCalledOnce();
+  });
+
+  it("saves motion, glow and workflow choices with the same account", async () => {
+    render(<AppearanceSettings />);
+    await userEvent.click(within(group("Motion")).getByRole("radio", { name: "Reduce" }));
+    await userEvent.click(within(group("Voice glow")).getByRole("radio", { name: "Vivid" }));
+    await userEvent.click(within(group("Workflow steps")).getByRole("radio", { name: "Simple" }));
+    await userEvent.click(screen.getByRole("button", { name: "Apply" }));
+    expect(env.save).toHaveBeenCalledWith({
+      motion: "reduce",
+      voice_glow: "vivid",
+      workflow_nodes: "simple",
+    });
   });
 });

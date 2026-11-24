@@ -16,11 +16,12 @@ or edit it (to publish).
 """
 
 import logging
+import re
 from collections.abc import Mapping
 from datetime import datetime
 from pathlib import PurePosixPath
 from typing import TYPE_CHECKING, Literal
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from pydantic import BaseModel, Field, ValidationError
 from pydantic_ai.messages import BinaryContent, ToolReturn
@@ -112,11 +113,11 @@ PAGES_GUIDE = "artifact-pages"
 """The bundled skill that holds the page templates and every kit component.
 
 A skill reaches a run as a deferred capability whose id is the skill's name, so
-this is also the id `load_capability` takes."""
+this is also the id `read_skill` takes."""
 
 _LOAD_THE_GUIDE = (
     f"Before publishing a new page, load the `{PAGES_GUIDE}` guide with "
-    f"`load_capability` (id `{PAGES_GUIDE}`), rebuild the page from its template and "
+    f"`read_skill` (id `{PAGES_GUIDE}`), rebuild the page from its template and "
     "components, then publish again under the same name."
 )
 
@@ -130,10 +131,10 @@ Skeleton, in this order:
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>What and when</title>
-<link rel="stylesheet" href="lib/agenticos-3.css">
+<link rel="stylesheet" href="lib/agenticos-4.css">
 <script src="lib/chart-4.5.1.umd.min.js"></script>  <!-- only with a chart -->
 <script src="lib/lucide-1.46.0.min.js"></script>
-<script src="lib/agenticos-3.js"></script>
+<script src="lib/agenticos-4.js"></script>
 </head>
 <body><main class="ao-page">
 <header class="ao-header"><div>
@@ -146,14 +147,8 @@ Skeleton, in this order:
 </main></body></html>
 
 Rules:
-- Classes: the kit's only, plus inline styles. The common ones - ao-page, ao-page-narrow, ao-header, \
-ao-header-actions, ao-eyebrow, ao-subtitle, ao-meta, ao-section, ao-section-header, \
-ao-section-title, ao-section-desc, ao-grid-2, ao-grid-3, ao-grid-4, ao-card, ao-card-header, \
-ao-card-title, ao-card-flush, ao-stat, ao-stat-label, ao-stat-value, ao-stat-foot, ao-delta, \
-ao-up, ao-down, ao-table-wrap, ao-table, ao-num, ao-strong, ao-badge, ao-badge-success, \
-ao-badge-warning, ao-badge-danger, ao-callout, ao-kv, ao-empty, ao-loading, ao-note, ao-muted, \
-ao-chart, ao-footer. Any other class in the `{PAGES_GUIDE}` guide's class table is fine \
-too; never one outside the kit.
+- Build every layout and look from kit classes, never one outside the kit. Beyond the skeleton and table rules: ao-section-header, ao-section-title, ao-stack, ao-row, ao-grid-2, ao-grid-3, ao-grid-4, ao-card, ao-card-header, ao-card-title, ao-card-flush, ao-stat, ao-stat-tile, ao-stat-label, ao-stat-value, ao-stat-foot, ao-delta, ao-up, ao-down, ao-tabs-line, ao-toolbar, ao-button, ao-chip, ao-badge, ao-callout, ao-progress, ao-empty, ao-loading, ao-note, ao-muted, ao-chart, ao-footer; the `{PAGES_GUIDE}` guide's class table lists the rest. No `<style>` block or class of your own, unless the person supplied a brand or design that needs one.
+- Inline `style` only for a value computed at run time: a bar `width`, a `--value`, a chart or canvas height, a position. Never for color, font, spacing, border, shadow or layout.
 - A table is `table.ao-table` inside `div.ao-table-wrap`, with `<thead>` and `<tbody>`; \
 `ao-num` on the `th` and every `td` of a number column, nowhere else.
 - Icons are `<i data-lucide="name"></i>` with Lucide names, never emoji unless asked for.
@@ -169,7 +164,7 @@ it has the templates and every component.
 
 Static, so it stays in the cached prefix; short, because it is paid on every
 request. The skill holds the rest, and `tests/test_artifacts_capability.py` holds
-every class named here to `agenticos-3.css`."""
+every class named here to `agenticos-4.css`."""
 
 READ_LIMIT = 100_000
 """How much of a page `read_artifact` returns, in characters.
@@ -350,11 +345,11 @@ def build_artifacts_toolset(
         never `innerHTML`. Data you only need once still goes inline. The deployment serves a
         small library set the page may load by a relative address, which costs nothing
         to include:
-        `<link rel="stylesheet" href="lib/agenticos-3.css">` (the product's look, light
+        `<link rel="stylesheet" href="lib/agenticos-4.css">` (the product's look, light
         and dark, with `ao-` components), `lib/chart-4.5.1.umd.min.js` (Chart.js,
         `window.Chart`), `lib/d3-7.9.0.min.js` (d3, `window.d3`),
         `lib/lucide-1.46.0.min.js` (icons: write `<i data-lucide="calendar"></i>`) and,
-        after those, `lib/agenticos-3.js` (`window.AO`: chart defaults in the product's
+        after those, `lib/agenticos-4.js` (`window.AO`: chart defaults in the product's
         style, number formatting, icons, tabs, and `AO.records(target, data.<binding>)`,
         which draws bound records as a finished table); `lib/mermaid-12.1.0.min.js`
         (`window.mermaid`) for diagrams; three.js as ES modules through an import map
@@ -369,13 +364,17 @@ def build_artifacts_toolset(
         `lib/topojson-client-3.1.0.min.js`, `lib/world-atlas-2.0.2-110m.js` and
         `lib/agenticos-worldmap-1.js` after d3 (`AOWorldMap.draw(element, {countries:
         {Poland: 12}, pins, routes})` shades countries by a value; prefer it to the tile
-        map unless street level is needed);
-        `lib/agenticos-2.css`, `lib/agenticos-2.js`, `lib/agenticos-1.css` and `lib/agenticos-map-1.js` stay served for pages published
-        against them; build new pages on version 3. Follow the page
+        map by default, including city-to-city routes and itineraries. Use the tile
+        map only for street detail when `agenticos.map` is configured, and render
+        AOWorldMap as the fallback if tile loading fails);
+        `lib/agenticos-3.css`, `lib/agenticos-3.js`, `lib/agenticos-2.css`, `lib/agenticos-2.js`, `lib/agenticos-1.css` and `lib/agenticos-map-1.js` stay served for pages published
+        against them; build new pages on version 4. Follow the page
         contract in your instructions: doctype and viewport, `main.ao-page`, the header,
-        only the kit's classes, tables with `<thead>`. Keep to the product's look: graphite,
-        no accent colour, green and red only for better and worse, icons rather than
-        emoji unless the person asked for emoji. Before building a page, load the
+        readable semantic sections and tables with `<thead>`. Use the kit for working
+        defaults, then choose a deliberate visual direction for the audience and supplied
+        brand. Custom CSS, palettes, typography and original illustrations are supported;
+        verify contrast, responsive layouts and every control. The console's neutral
+        appearance is not a mandatory theme for generated Apps. Before building a page, load the
         `artifact-pages` skill if it is listed - it has the templates and every
         component. Links to other sites work: the person is asked before one opens.
         For tabular numbers you only want shown in the chat, use `create_chart` instead.
@@ -763,6 +762,93 @@ def build_artifacts_toolset(
             )
         return " ".join(lines)
 
+    async def export_artifact(
+        ctx: RunContext[AgentDeps],
+        name: str,
+        filename: str | None = None,
+        paper: Literal["a4", "slides"] = "a4",
+    ) -> str:
+        """Export a published App or browser presentation to a PDF file in the workspace.
+
+        Use when the person requests a PDF report, handout or slide deck. Export
+        the final published version; HTML print styles must include every slide
+        and keep charts/labels legible. This is a fixed document, not editable
+        PowerPoint. It uses the operator's isolated renderer, no arbitrary network,
+        and the same viewer/audience access as preview_artifact. A room cannot
+        export private bound records. Use a private chat when needed.
+
+        Args:
+            name: The published App name, as returned by list_artifacts.
+            filename: A plain filename ending in .pdf; defaults to name.pdf. A unique suffix is added so existing work is never replaced.
+            paper: a4 for reports, slides for 16:9 presentations. CSS @page can
+                specify a page size. Exports contain 1 to 50 pages and at most 20 MB.
+
+
+        Returns:
+            The actual workspace filename, published version and byte size when
+            written, or a precise refusal/failure. Link the file in your reply.
+            In a channel, use send_channel_file when available and requested;
+            verify delivery instead of claiming an HTML link embeds a presentation.
+        """
+        from app.services import artifact as artifacts
+        from app.services import artifact_render as renderer
+
+        deps = ctx.deps
+        if deps.organization_id is None or deps.agent_id is None:
+            return _NO_AGENT
+        audience = deps.audience or RunAudience()
+        if audience.user_id is None:
+            return _NO_PREVIEWER
+        if not ctx.workspace.attached:
+            return "PDF export needs an attached workspace to save the file. Enable Sandbox for this agent, then retry."
+        target = filename or f"{name}.pdf"
+        if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,119}\.pdf", target, re.IGNORECASE) is None:
+            return "Use a plain filename ending in .pdf, with letters, numbers, hyphens or underscores; no directories."
+        target = f"{target[:-4]}-{uuid4().hex}.pdf"
+        try:
+            preview = await artifacts.preview_source(
+                organization_id=deps.organization_id,
+                agent_id=deps.agent_id,
+                reader_user_id=audience.user_id,
+                run_id=deps.run_id,
+                name=name,
+                room=not audience.private,
+                has_person=deps.run_person is not None,
+            )
+            if preview.binding_names and (
+                preview.bindings is None
+                or set(preview.bindings) != set(preview.binding_names)
+                or any(binding.status != "ok" for binding in preview.bindings.values())
+            ):
+                return "PDF not exported: the page's bound data is unavailable on this surface. Open it in an authorized private chat and retry."
+            drawn = await renderer.render(
+                renderer.RenderRequest(
+                    document=preview.document,
+                    nonce=preview.nonce,
+                    bindings=preview.bindings,
+                    injected_lines=preview.injected_lines,
+                    output="pdf",
+                    paper=paper,
+                )
+            )
+            if drawn.timed_out or drawn.pdf is None:
+                return "PDF not exported: the renderer did not complete. Retry or simplify the document."
+            if drawn.errors or drawn.blocked or drawn.policy:
+                return "PDF not exported: fix the errors or blocked resources shown by preview_artifact, then retry."
+            await ctx.workspace.write_bytes(target, drawn.pdf)
+        except NotFoundError as missing:
+            return missing.message
+        except (ConfigurationError, ExternalServiceError) as failure:
+            return f"PDF not exported: {failure.message}"
+        except PermissionError, WorkspaceError, IsADirectoryError, NotADirectoryError:
+            return "PDF not saved: the workspace refused the file operation. Check the workspace and filename, then retry."
+        note = (
+            " Bound records are truncated; the PDF covers the same bounded data as the App."
+            if any(binding.truncated for binding in (preview.bindings or {}).values())
+            else ""
+        )
+        return f"Exported {preview.title!r}, published version {preview.version_number}, to {target!r} ({len(drawn.pdf):,} bytes, PDF).{note}"
+
     async def preview_artifact(ctx: RunContext[AgentDeps], name: str) -> str | ToolReturn:
         """See a page you published as somebody opening it would: a picture, and what went wrong.
 
@@ -848,6 +934,7 @@ def build_artifacts_toolset(
     toolset.add_function(read_artifact, takes_ctx=True)
     toolset.add_function(list_artifacts, takes_ctx=True)
     toolset.add_function(preview_artifact, takes_ctx=True)
+    toolset.add_function(export_artifact, takes_ctx=True)
     toolset.add_function(share_artifact, takes_ctx=True)
     return toolset
 

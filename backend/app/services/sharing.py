@@ -7,6 +7,7 @@ incident and the last thing anyone remembers.
 """
 
 from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from typing import NamedTuple, Protocol
 from uuid import UUID
 
@@ -18,6 +19,7 @@ from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext
 from app.db.models.group import Group
 from app.db.models.resource_grant import GrantLevel, ResourceGrant, Visibility
+from app.db.table_rls import bind_table_access
 from app.repositories import group_repo, member_repo, resource_grant_repo
 from app.services.access import OwnedResource, ResourceType, resolve_access
 from app.services.notifications import NotificationService
@@ -108,17 +110,27 @@ _CONSOLE_PATHS = {
     "context": "/context",
     "secret": "/vault",
     "artifact": "/apps/{id}",
+    "dataset": "/datasets/{id}",
     "mcp_connection": "/mcp-servers",
+    "network_connection": "/connectors/devices",
     "project": "/projects/{id}",
     "table": "/tables/{id}",
     "workflow": "/workflows/{id}",
 }
+_GROUP_SHARE_LIFETIME = timedelta(days=90)
 """Where the console opens a shared resource of each kind."""
 
 
 def _shown_name(resource: OwnedResource) -> str:
     """What a notification calls a resource: an app by its title, the rest by name."""
     return str(getattr(resource, "title", None) or getattr(resource, "name", None) or resource.id)
+
+
+def _refuse_past_expiry(expires_at: datetime | None) -> None:
+    """A share that is already expired is a share that never works; refuse it
+    on the field rather than store a row the Sharing panel then shows as dead."""
+    if expires_at is not None and expires_at <= datetime.now(UTC):
+        raise refused_field("expires_at", "The expiry has to be in the future")
 
 
 class SharingService:
@@ -133,6 +145,8 @@ class SharingService:
         resource: OwnedResource,
         resource_type: ResourceType,
     ) -> None:
+        if resource_type.key in ("table", "table_record"):
+            await bind_table_access(self.db, ctx)
         allowed = await resolve_access(
             self.db, ctx, resource, resource_type.edit, resource_type=resource_type
         )
@@ -168,6 +182,8 @@ class SharingService:
         resulting state after changing visibility. Name lookups avoid one UI
         request per grant.
         """
+        if resource_type.key in ("table", "table_record"):
+            await bind_table_access(self.db, ctx)
         for perm in dict.fromkeys((resource_type.view, resource_type.edit)):
             if await resolve_access(self.db, ctx, resource, perm, resource_type=resource_type):
                 break
@@ -203,6 +219,7 @@ class SharingService:
         subject_user_id: UUID,
         level: GrantLevel,
         confirmed: str | None = None,
+        expires_at: datetime | None = None,
     ) -> ResourceGrant | Deferred:
         """Grant a member access to one resource.
 
@@ -216,6 +233,7 @@ class SharingService:
         """
         await self._require_edit(ctx, resource, resource_type)
         _require_level_for(resource_type, level)
+        _refuse_past_expiry(expires_at)
 
         membership = await member_repo.get(
             self.db, organization_id=ctx.organization_id, user_id=subject_user_id
@@ -242,7 +260,14 @@ class SharingService:
             resource_id=resource.id,
             level=level,
             created_by_user_id=ctx.user_id,
+            expires_at=expires_at,
         )
+        details = {
+            "subject_user_id": str(subject_user_id),
+            "level": level.value,
+        }
+        if expires_at is not None:
+            details["expires_at"] = expires_at.isoformat()
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,
@@ -250,7 +275,7 @@ class SharingService:
             action="resource.share",
             target_type=resource_type.key,
             target_id=str(resource.id),
-            details={"subject_user_id": str(subject_user_id), "level": level.value},
+            details=details,
         )
         return grant
 
@@ -263,6 +288,7 @@ class SharingService:
         group_id: UUID,
         level: GrantLevel,
         confirmed: str | None = None,
+        expires_at: datetime | None = None,
     ) -> ResourceGrant | Deferred:
         """Grant every member of a group access to one resource.
 
@@ -279,6 +305,9 @@ class SharingService:
         """
         await self._require_edit(ctx, resource, resource_type)
         _require_level_for(resource_type, level)
+        if expires_at is None:
+            expires_at = datetime.now(UTC) + _GROUP_SHARE_LIFETIME
+        _refuse_past_expiry(expires_at)
 
         group = await group_repo.get(
             self.db, organization_id=ctx.organization_id, group_id=group_id
@@ -305,8 +334,14 @@ class SharingService:
             resource_id=resource.id,
             level=level,
             created_by_user_id=ctx.user_id,
+            expires_at=expires_at,
         )
         await self._tell_the_group(ctx, resource, resource_type, group)
+        details = {
+            "subject_group_id": str(group.id),
+            "level": level.value,
+            "expires_at": expires_at.isoformat(),
+        }
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,
@@ -314,7 +349,7 @@ class SharingService:
             action="resource.share",
             target_type=resource_type.key,
             target_id=str(resource.id),
-            details={"subject_group_id": str(group.id), "level": level.value},
+            details=details,
         )
         return grant
 
@@ -349,12 +384,15 @@ class SharingService:
         resource_type: ResourceType,
         group_ids: list[UUID],
         user_ids: list[UUID],
+        level: GrantLevel = GrantLevel.USE,
     ) -> None:
         """Share a resource just created with the groups and people its creator chose.
 
         The other half of `AudienceChoice` (#2072): the resource was created private,
-        and each group and person gets a `use` grant - they find it, run it and
-        attach it. The creator owns it already, so naming themselves adds nothing.
+        and each group and person gets a grant at `level` - `use` by default, so they
+        find it, run it and attach it. A table passes `read`: no table permission asks
+        for `use`, and the share list should name what the grant actually gives.
+        The creator owns it already, so naming themselves adds nothing.
         Called inside the creating request, so a refusal here takes the new row with
         it rather than leaving it visible to nobody but its creator.
 
@@ -380,7 +418,7 @@ class SharingService:
                 raise refused_field("user_ids", "Choose people from this organization.")
         for group_id in groups:
             await self.share_with_group(
-                ctx, resource, resource_type=resource_type, group_id=group_id, level=GrantLevel.USE
+                ctx, resource, resource_type=resource_type, group_id=group_id, level=level
             )
         for user_id in people:
             await self.share(
@@ -388,7 +426,7 @@ class SharingService:
                 resource,
                 resource_type=resource_type,
                 subject_user_id=user_id,
-                level=GrantLevel.USE,
+                level=level,
             )
 
     async def revoke_group(

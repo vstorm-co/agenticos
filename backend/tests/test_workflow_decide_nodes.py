@@ -10,6 +10,7 @@ way they refuse, before or instead of asking.
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from dataclasses import replace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
@@ -49,11 +50,13 @@ class _Jev:
         self.details = {"confidence": {"answer": confidence}, **details}
         self.asked: list[dict[str, Any]] = []
         self.texts: list[str] = []
+        self.settings: list[dict[str, Any] | None] = []
 
     def model(self, name: str, api_key: str) -> FunctionModel:
         self.name, self.key = name, api_key
 
         def respond(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+            self.settings.append(info.model_settings)
             tool = info.output_tools[0]
             self.asked.append(tool.parameters_json_schema)
             self.texts += [
@@ -402,3 +405,105 @@ async def test_cancelling_a_decision_preserves_cancellation_and_marks_unknown_fe
     with context.dispatching_as(_dispatch()) as scope, pytest.raises(asyncio.CancelledError):
         await yes_no(DecisionConfig.model_validate(BASE), TEXT)
     assert scope.cost == 0 and scope.cost_is_partial
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("late", [False, True])
+async def test_a_decision_checks_the_shared_source_before_calling_typesafe(jev, monkeypatch, late):
+    from app.repositories import conversation_repo
+
+    model = jev(True)
+    read = AsyncMock(side_effect=[False, True] if late else [True])
+    monkeypatch.setattr(conversation_repo, "message_refusal", read)
+    current = replace(_dispatch(), chat_source=context.ChatSource(uuid.uuid4(), uuid.uuid4()))
+    with context.dispatching_as(current):
+        result = await yes_no(DecisionConfig.model_validate(BASE), TEXT)
+    assert isinstance(result, Failed)
+    assert result.error.code == "AGENT_GUARDRAIL_BLOCKED"
+    assert result.error.bypassable is False
+    assert model.texts == []
+
+
+async def test_native_profile_preserves_the_selected_model_settings(
+    jev, monkeypatch: pytest.MonkeyPatch
+):
+    from app.agents.model_resolver import ModelRequestSpec, ResolvedCredential
+
+    model = jev(True)
+    profile_id = uuid.uuid4()
+    resolved = ModelRequestSpec(
+        profile_id=profile_id,
+        label="Native classifier",
+        provider="typesafe",
+        model="jev-1.14.0",
+        params={"timeout": 12},
+        credential=ResolvedCredential(
+            provider="typesafe", secret=ApiKeySecret(api_key="test-key"), api="decisions"
+        ),
+        fallbacks=[],
+    )
+    monkeypatch.setattr(
+        ModelRequestSpec, "build", lambda _self: model.model("jev-1.14.0", "test-key")
+    )
+    monkeypatch.setattr(
+        _decide.ModelProfileService,
+        "profile_for_organization",
+        AsyncMock(return_value=MagicMock(provider="typesafe", api="decisions")),
+    )
+    resolve = AsyncMock(return_value=resolved)
+    monkeypatch.setattr(_decide.ModelProfileService, "resolve", resolve)
+    result = await _ask(
+        yes_no, DecisionConfig(question="Is it urgent?", model_profile_id=profile_id)
+    )
+    assert isinstance(result, Completed)
+    assert model.settings == [{"timeout": 12}]
+    assert resolve.call_args.kwargs == {"profile_id": profile_id, "decision": True}
+
+
+async def test_profile_validation_reports_unusable_or_conversational_models(monkeypatch):
+    config = DecisionConfig(question="Urgent?", model_profile_id=uuid.uuid4())
+    problems = AsyncMock(return_value=["Key missing"])
+    monkeypatch.setattr(_decide.AgentRegistryService, "model_profile_problems", problems)
+    assert await check_key(MagicMock(), _dispatch().auth, config) == [
+        ("model_profile_id", "Key missing")
+    ]
+    problems.return_value = []
+    profile = MagicMock(provider="openai", api=None)
+    monkeypatch.setattr(
+        _decide.ModelProfileService, "profile_for_organization", AsyncMock(return_value=profile)
+    )
+    assert await check_key(MagicMock(), _dispatch().auth, config) == [
+        ("model_profile_id", "Select a native decision API profile")
+    ]
+    profile.api = "decisions"
+    assert await check_key(MagicMock(), _dispatch().auth, config) == []
+
+
+async def test_run_refuses_a_profile_changed_from_decision_to_chat(jev, monkeypatch):
+    monkeypatch.setattr(
+        _decide.ModelProfileService,
+        "profile_for_organization",
+        AsyncMock(return_value=MagicMock(provider="openai", api=None)),
+    )
+    result = await _ask(yes_no, DecisionConfig(question="Urgent?", model_profile_id=uuid.uuid4()))
+    assert isinstance(result, Failed)
+    assert result.error.code == "DECISION_MODEL_REQUIRED"
+
+
+@pytest.mark.parametrize("fields", [{}, {"secret_id": KEY, "model_profile_id": uuid.uuid4()}])
+def test_a_decision_chooses_exactly_one_credential_source(fields):
+    with pytest.raises(ValidationError, match="not both"):
+        DecisionConfig(question="Urgent?", **fields)
+
+
+async def test_a_removed_decision_profile_is_a_workflow_refusal(jev, monkeypatch):
+    from app.core.exceptions import NotFoundError
+
+    monkeypatch.setattr(
+        _decide.ModelProfileService,
+        "profile_for_organization",
+        AsyncMock(side_effect=NotFoundError(message="Classifier removed")),
+    )
+    result = await _ask(yes_no, DecisionConfig(question="Urgent?", model_profile_id=uuid.uuid4()))
+    assert isinstance(result, Failed)
+    assert result.error.message == "Classifier removed"

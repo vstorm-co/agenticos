@@ -35,7 +35,6 @@ type CardProps = ComponentProps<typeof WorkflowCard>;
 function card(overrides: Partial<CardProps> = {}) {
   const props: CardProps = {
     workflow: workflow(),
-    startsFrom: "Webhook",
     canCreate: true,
     canEdit: false,
     onDuplicate: vi.fn(),
@@ -49,21 +48,21 @@ function card(overrides: Partial<CardProps> = {}) {
 }
 
 describe("WorkflowCard", () => {
-  it("shows a live workflow, what starts it, its size and who may reach it", () => {
+  it("shows identity, publication and access with a direct route to run history", () => {
     card();
     expect(screen.getByText("Lead follow-up")).toBeTruthy();
-    expect(screen.getByText("Webhook · 3 steps")).toBeTruthy();
+    expect(screen.queryByText("Webhook · 3 steps")).toBeNull();
     expect(screen.getByText("Live")).toBeTruthy();
     expect(screen.getByRole("img", { name: "Organization" })).toBeTruthy();
     expect(screen.getByText("Scores new leads")).toBeTruthy();
-    expect(screen.getByText(/^Not run yet · edited/)).toBeTruthy();
+    expect(screen.queryByText(/^Not run yet · edited/)).toBeNull();
     expect(screen.getByRole("link", { name: "Runs of Lead follow-up" })).toHaveAttribute(
       "href",
       "/workflows/wf/runs",
     );
   });
 
-  it("says how its last run went instead of when it was edited", () => {
+  it("keeps runtime outcomes in run history instead of the gallery", () => {
     card({
       workflow: workflow({
         last_run: {
@@ -74,14 +73,13 @@ describe("WorkflowCard", () => {
         },
       }),
     });
-    expect(screen.getByText("Failed")).toBeTruthy();
-    expect(screen.getByText("just now")).toBeTruthy();
+    expect(screen.queryByText("Failed")).toBeNull();
+    expect(screen.queryByText("just now")).toBeNull();
     expect(screen.queryByText(/edited/)).toBeNull();
   });
 
-  it("counts the steps of a draft whose first step is not yet known", () => {
+  it("shows a draft without technical step counts or queued runtime status", () => {
     card({
-      startsFrom: null,
       workflow: workflow({
         entry_node: null,
         step_count: 0,
@@ -89,17 +87,16 @@ describe("WorkflowCard", () => {
         last_run: { id: "r1", status: "queued", mode: "test", created_at: null },
       }),
     });
-    expect(screen.getByText("No steps yet")).toBeTruthy();
+    expect(screen.queryByText("No steps yet")).toBeNull();
     expect(screen.getByText("Draft")).toBeTruthy();
-    expect(screen.getByText("Queued")).toBeTruthy();
+    expect(screen.queryByText("Queued")).toBeNull();
     expect(document.querySelector("[data-node-family]")).toBeNull();
   });
 
-  it("draws its trigger in the Start family's tile", () => {
+  it("uses a quiet product mark instead of a trigger tile", () => {
     card({ workflow: workflow({ entry_node: "trigger.webhook" }) });
-    expect(document.querySelector("[data-node-family]")?.getAttribute("data-node-family")).toBe(
-      "start",
-    );
+    expect(document.querySelector("[data-node-family]")).toBeNull();
+    expect(document.querySelector("svg.lucide-workflow")).toHaveAttribute("aria-hidden", "true");
   });
 
   it("duplicates on request", async () => {
@@ -124,19 +121,19 @@ describe("WorkflowCard", () => {
     expect(screen.getByText("Archived")).toBeTruthy();
     // No description, and none said to be missing.
     expect(screen.queryByText("No description yet.")).toBeNull();
-    expect(screen.getByText("Not run yet")).toBeTruthy();
+    expect(screen.queryByText("Not run yet")).toBeNull();
     expect(screen.queryByRole("button", { name: /Duplicate/ })).toBeNull();
   });
 
-  it("shows its tags and whether its trigger is on", () => {
+  it("keeps tags and trigger configuration in the editor instead of repeating them", () => {
     card({ workflow: workflow({ tags: ["sales"], trigger_active: true }) });
-    expect(screen.getByText("sales")).toBeTruthy();
-    expect(screen.getByText("Active")).toBeTruthy();
+    expect(screen.queryByText("sales")).toBeNull();
+    expect(screen.queryByText("Active")).toBeNull();
   });
 
-  it("says a paused trigger is paused, and says nothing of one on an archived workflow", () => {
+  it("keeps paused trigger details off the gallery", () => {
     card({ workflow: workflow({ trigger_active: false }) });
-    expect(screen.getByText("Paused")).toBeTruthy();
+    expect(screen.queryByText("Paused")).toBeNull();
   });
 
   it("offers no management menu without the role to edit", () => {

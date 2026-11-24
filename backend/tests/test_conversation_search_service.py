@@ -27,6 +27,8 @@ ORG = uuid4()
 PERSON = uuid4()
 THREAD = uuid4()
 PROJECT = uuid4()
+MESSAGE = uuid4()
+ROOT_MESSAGE = uuid4()
 AT = datetime(2026, 8, 14, 10, 4, tzinfo=UTC)
 
 
@@ -311,13 +313,22 @@ class TestSearching:
                         snippet="the **pricing** floor",
                         speaker_role="assistant",
                         speaker_name=None,
+                        message_id=MESSAGE,
+                        thread_root_message_id=ROOT_MESSAGE,
+                        matched_at=AT,
                     )
                 ]
             ),
         )
 
-        found = await service.search(query="pricing", organization_id=ORG, user_id=PERSON, limit=5)
+        found = await service.search(
+            query="pricing", organization_id=ORG, user_id=PERSON, limit=5, literal=True
+        )
 
         assert [hit.conversation_id for hit in found] == [THREAD]
         assert found[0].hits == 4
         assert found[0].snippet == "the **pricing** floor"
+        assert found[0].message_id == MESSAGE
+        assert found[0].thread_root_message_id == ROOT_MESSAGE
+        assert found[0].matched_at == AT
+        assert search_repo.search.await_args.kwargs["literal"] is True

@@ -8,6 +8,7 @@ import {
   DASHBOARD_GREETING,
   FAKE_KEY_LABEL,
   gotoRoleMatrix,
+  json,
   openAgent,
   pageHeading,
   pageStatus,
@@ -15,6 +16,7 @@ import {
   SEEDED_AGENT_NAME,
   SEEDED_KB_NAME,
   SEEDED_SKILL_NAME,
+  scopeInMatrix,
   skillCard,
 } from "./helpers";
 
@@ -35,7 +37,7 @@ test.use({ storageState: AUTH_STATE });
 const DASHBOARD_PAGES: {
   path: string;
   heading: string | RegExp;
-  proof: (page: Page) => Locator;
+  proof: (page: Page) => Locator | Promise<Locator>;
 }[] = [
   {
     // The seeded agent's name inside the "Your agents" card: the card frame
@@ -79,7 +81,12 @@ const DASHBOARD_PAGES: {
   {
     path: "/orgs",
     heading: "Organizations",
-    proof: (page) => page.getByRole("heading", { level: 2, name: "Personal" }),
+    proof: async (page) => {
+      const organizations = await json<{ items: { name: string }[] }>(page.request, "/api/orgs");
+      const organization = organizations.items[0];
+      expect(organization, "bootstrap created no organization").toBeDefined();
+      return page.getByRole("heading", { level: 2, name: organization!.name, exact: true });
+    },
   },
   {
     path: "/vault",
@@ -103,7 +110,7 @@ test.describe("Dashboard navigation", () => {
       // nothing.
       await expect(page.getByRole("main")).toBeVisible();
 
-      await expect(proof(page), `${path} rendered its shell but not its data`).toBeVisible();
+      await expect(await proof(page), `${path} rendered its shell but not its data`).toBeVisible();
     });
   }
 
@@ -127,9 +134,9 @@ test.describe("Dashboard navigation", () => {
    * someone bookmarked has no way of knowing which rename it predates.
    */
   const MOVED_ROUTES: readonly (readonly [string, string])[] = [
-    ["/settings/providers", "/vault"],
-    ["/providers", "/vault"],
-    ["/settings/mcp-servers", "/mcp-servers"],
+    ["/settings/providers", "/connectors/vault"],
+    ["/providers", "/connectors/vault"],
+    ["/settings/mcp-servers", "/connectors"],
     // Apps were artifacts until #2071.
     ["/artifacts", "/apps"],
   ];
@@ -146,17 +153,21 @@ test.describe("Dashboard navigation", () => {
   test("the role matrix is reachable from an organization", async ({ page }) => {
     await gotoRoleMatrix(page);
 
-    await expect(page.getByText("Permission matrix")).toBeVisible();
+    await expect(
+      page.getByRole("region", { name: "Permission matrix", exact: true }),
+    ).toBeVisible();
     await expect(page.getByRole("columnheader", { name: "Permission" })).toBeVisible();
 
     // The matrix is served by the backend, so a row from the real catalog is
     // what separates "the table rendered" from "the table rendered empty".
-    await expect(page.getByRole("cell", { name: /^agents:edit/ })).toBeVisible();
+    await expect(page.getByRole("rowheader", { name: /^agents:edit/ })).toBeVisible();
     await expect(page.getByRole("columnheader", { name: "owner" })).toBeVisible();
 
     // The scopes are the catalog's, not the component's: `member` may edit what
     // it owns and nothing wider. A table rendered from an empty response has the
     // headers and none of this.
     await expect(page.getByRole("row", { name: /^agents:edit/ })).toContainText("own");
+    expect(await scopeInMatrix(page, "member", "agents:edit")).toBe("own");
+    expect(await scopeInMatrix(page, "viewer", "agents:edit")).toBe("-");
   });
 });

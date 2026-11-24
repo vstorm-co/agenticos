@@ -28,6 +28,7 @@ from app.db.session import get_db_context
 from app.repositories import agent as agent_repo
 from app.repositories import agent_run as run_repo
 from app.repositories import background_job as job_repo
+from app.repositories import conversation as conversation_repo
 from app.repositories import conversation_task as task_repo
 from app.schemas.conversation import ConversationCreate, MessageCreate
 from app.schemas.conversation_task import ConversationTaskRead, StartConversationTask
@@ -269,6 +270,38 @@ class ConversationTaskService:
         await registry.get_runnable_spec(ctx, task.agent_id)
         await registry.get_runnable_spec(ctx, task.source_agent_id)
         return ctx
+
+    async def return_context(self, task: ConversationTask) -> tuple[AuthContext, UUID | None]:
+        """The currently authorized source discussion a finished topic returns to.
+
+        The source run has finished before its result is admitted. Its surviving
+        transcript distinguishes main from a subthread without a second stored
+        copy of the scope. A deleted source never defaults to the main room.
+        """
+        ctx = await self.authority(task)
+        scope = await conversation_repo.message_scope_for_run(
+            self.db,
+            run_id=task.source_run_id,
+            conversation_id=task.source_conversation_id,
+            organization_id=task.organization_id,
+        )
+        if scope is None:
+            raise NotFoundError(message="The task's source discussion is no longer available")
+        if scope.thread_root_message_id is not None:
+            conversation = await self.conversations.find_conversation(task.source_conversation_id)
+            root = await conversation_repo.get_thread_root(
+                self.db,
+                conversation_id=task.source_conversation_id,
+                root_message_id=scope.thread_root_message_id,
+            )
+            if (
+                conversation is None
+                or conversation.project_id is None
+                or conversation.is_archived
+                or root is None
+            ):
+                raise NotFoundError(message="The task's source subthread is no longer writable")
+        return ctx, scope.thread_root_message_id
 
     async def list_for_member(
         self, ctx: AuthContext, *, conversation_id: UUID | None = None

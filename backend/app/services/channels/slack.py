@@ -22,15 +22,21 @@ from urllib.parse import urlparse
 
 import httpx
 from pydantic import JsonValue
+from slack_sdk.errors import SlackApiError
 
 from app.agents.capabilities.channel_tools import (
     ChannelDetails,
+    ChannelDirectoryUnsupported,
     ChannelMember,
     ChannelPost,
     ChannelSummary,
 )
+from app.agents.capabilities.channel_tools._directory import (
+    ChannelListPage,
+    HistoryPage,
+    HistoryQuery,
+)
 from app.core.security import encode_untrusted
-from app.db.session import get_db_context
 from app.services.channels import connection_state
 from app.services.channels.attachments import routed_type
 from app.services.channels.base import (
@@ -51,7 +57,6 @@ from app.services.channels.base import (
 )
 from app.services.channels.exceptions import ChannelNotConfigured
 from app.services.channels.notification_send import NotificationRateLimited, retry_after_seconds
-from app.services.channels.router import ChannelMessageRouter
 from app.services.channels.slack_answer import SlackNativeAnswer, feedback_block
 
 if TYPE_CHECKING:
@@ -238,8 +243,37 @@ class SlackAdapter(ChannelAdapter):
             trigger_id=press.trigger_id, view=feedback_comment_view(run_id)
         )
 
+    async def react_to_message(
+        self,
+        bot_token: str,
+        channel_id: str,
+        message_id: str,
+        emoji: str,
+        *,
+        api_base_url: str | None,
+    ) -> None:
+        # reactions.get verifies that this timestamp belongs to the selected
+        # channel, including replies, without guessing a thread root.
+        client = self._web(bot_token)
+        found = await client.reactions_get(channel=channel_id, timestamp=message_id)
+        message = found.get("message") or {}
+        if found.get("channel") != channel_id or message.get("ts") != message_id:
+            raise ChannelDirectoryUnsupported(
+                "The selected message does not belong to this channel"
+            )
+        try:
+            await client.reactions_add(channel=channel_id, timestamp=message_id, name=emoji)
+        except SlackApiError as error:
+            if error.response.get("error") != "already_reacted":
+                raise
+
     async def acknowledge_message(
-        self, bot_token: str, incoming: IncomingMessage, reaction: str
+        self,
+        bot_token: str,
+        incoming: IncomingMessage,
+        reaction: str,
+        *,
+        api_base_url: str | None = None,
     ) -> None:
         """React to the question with the bot's chosen emoji (#2084)."""
         if not incoming.message_id:
@@ -352,7 +386,7 @@ class SlackAdapter(ChannelAdapter):
                 ) from exc
             raise
 
-    async def send_message(self, bot_token: str, msg: OutgoingMessage) -> None:
+    async def send_message(self, bot_token: str, msg: OutgoingMessage) -> str | None:
         """Send a reply back to Slack via the Web API."""
         client = self._web(bot_token)
 
@@ -372,7 +406,7 @@ class SlackAdapter(ChannelAdapter):
                 initial_comment=msg.text,
                 thread_ts=kwargs.get("thread_ts"),
             )
-            return
+            return None
 
         if msg.attachments:
             # `files_upload_v2` with several files posts them as one message with
@@ -391,9 +425,11 @@ class SlackAdapter(ChannelAdapter):
                     for attachment in msg.attachments
                 ],
             )
-            return
+            return None
 
-        await client.chat_postMessage(**kwargs)
+        response = await client.chat_postMessage(**kwargs)
+        native_id = response.get("ts")
+        return str(native_id) if native_id else None
 
     async def send_prompt(self, bot_token: str, prompt: PromptMessage) -> None:
         """An approval or a question as a Block Kit message with a button per choice."""
@@ -447,6 +483,65 @@ class SlackAdapter(ChannelAdapter):
             return datetime.fromtimestamp(float(ts), UTC)
         except TypeError, ValueError:
             return None
+
+    async def joined_channels(
+        self,
+        bot_token: str,
+        *,
+        api_base_url: str | None,
+        query: str,
+        limit: int,
+        cursor: str | None,
+    ) -> ChannelListPage:
+        response = await self._web(bot_token).users_conversations(
+            types="public_channel,private_channel",
+            exclude_archived=True,
+            limit=limit,
+            cursor=cursor,
+        )
+        needle = query.casefold()
+        channels = tuple(
+            ChannelSummary(
+                channel_id=str(row["id"]),
+                name=str(row.get("name") or row["id"]),
+                purpose=str((row.get("purpose") or {}).get("value") or "") or None,
+                is_private=bool(row.get("is_private")),
+            )
+            for row in response.get("channels") or []
+            if needle in str(row.get("name", "")).casefold()
+            or needle in str((row.get("purpose") or {}).get("value", "")).casefold()
+        )
+        return ChannelListPage(
+            channels, (response.get("response_metadata") or {}).get("next_cursor") or None
+        )
+
+    async def require_joined_channel(
+        self, bot_token: str, channel_id: str, *, api_base_url: str | None
+    ) -> None:
+        response = await self._web(bot_token).conversations_info(channel=channel_id)
+        channel = response.get("channel") or {}
+        if (
+            channel.get("id") != channel_id
+            or not channel.get("is_member")
+            or channel.get("is_archived")
+        ):
+            raise ChannelDirectoryUnsupported(
+                "The bot must be a current member of the selected channel"
+            )
+
+    async def require_channel_thread(
+        self, bot_token: str, channel_id: str, thread_id: str, *, api_base_url: str | None
+    ) -> None:
+        response = await self._web(bot_token).conversations_replies(
+            channel=channel_id, ts=thread_id, limit=1
+        )
+        posts = response.get("messages") or []
+        if (
+            not posts
+            or posts[0].get("ts") != thread_id
+            or posts[0].get("thread_ts", thread_id) != thread_id
+        ):
+            raise ChannelDirectoryUnsupported("Choose a root message in the selected channel")
 
     async def channel_details(
         self, bot_token: str, channel_id: str, *, api_base_url: str | None
@@ -542,6 +637,59 @@ class SlackAdapter(ChannelAdapter):
             if len(found) == limit:
                 break
         return found
+
+    async def channel_history_page(
+        self,
+        bot_token: str,
+        channel_id: str,
+        *,
+        api_base_url: str | None,
+        limit: int,
+        thread_id: str | None,
+        filters: HistoryQuery,
+    ) -> HistoryPage:
+        """Native Slack cursors and timestamp bounds; literal filters are local."""
+        client = self._web(bot_token)
+        if thread_id:
+            response = await client.conversations_replies(
+                channel=channel_id,
+                ts=thread_id,
+                limit=limit,
+                cursor=filters.cursor,
+                oldest=None if filters.after is None else str(filters.after.timestamp()),
+                latest=None if filters.before is None else str(filters.before.timestamp()),
+            )
+        else:
+            response = await client.conversations_history(
+                channel=channel_id,
+                limit=limit,
+                cursor=filters.cursor,
+                oldest=None if filters.after is None else str(filters.after.timestamp()),
+                latest=None if filters.before is None else str(filters.before.timestamp()),
+            )
+        messages = response.get("messages") or []
+        posts = [
+            ChannelPost(
+                author=str(message.get("user") or message.get("bot_id") or "unknown"),
+                author_id=str(message["user"]) if message.get("user") else None,
+                text=str(message.get("text") or ""),
+                posted_at=self._posted_at(message.get("ts")),
+                post_id=str(message["ts"]) if message.get("ts") else None,
+            )
+            for message in messages
+            if message.get("subtype") not in {"channel_join", "channel_leave"}
+        ]
+        cursor = str((response.get("response_metadata") or {}).get("next_cursor") or "") or None
+        return HistoryPage(
+            posts=tuple(
+                sorted(
+                    (post for post in posts if filters.includes(post)),
+                    key=lambda post: post.post_id or "",
+                )
+            ),
+            scanned=len(messages),
+            cursor=cursor,
+        )
 
     async def channel_history(
         self,
@@ -690,7 +838,6 @@ class SlackAdapter(ChannelAdapter):
         )
 
         async def handler(client_: Any, req: SocketModeRequest) -> None:
-            await client_.send_socket_mode_response(SocketModeResponse(envelope_id=req.envelope_id))
             if req.type == "events_api":
                 # The whole payload, not `payload["event"]`. Slack states which
                 # installation an event was delivered for *beside* the event, so
@@ -699,9 +846,17 @@ class SlackAdapter(ChannelAdapter):
                 # platform that does not report mentions, which the router answers.
                 await self._handle_event(req.payload, bot_id)
             elif req.type in ("interactive", "slash_commands"):
-                # Buttons, the message shortcut and `/agent`, over the socket
-                # rather than the request URLs the manifest names (#2067).
+                queued = req.type == "slash_commands" or req.payload.get("type") == "message_action"
+                if not queued:
+                    # Prompt decisions keep their immediate acknowledgement; agent
+                    # requests must first commit the same job as their HTTP twin.
+                    await client_.send_socket_mode_response(
+                        SocketModeResponse(envelope_id=req.envelope_id)
+                    )
                 await self._handle_interaction(req.type, req.payload, bot_id)
+                if not queued:
+                    return
+            await client_.send_socket_mode_response(SocketModeResponse(envelope_id=req.envelope_id))
 
         client.socket_mode_request_listeners.append(handler)  # type: ignore[arg-type]
         try:
@@ -1000,6 +1155,7 @@ class SlackAdapter(ChannelAdapter):
 
     async def _handle_interaction(self, kind: str, payload: dict[str, Any], bot_id: str) -> None:
         """One Socket Mode interaction or slash command, routed like its webhook twin."""
+        from app.services.channels.ingress import admit_message
         from app.services.channels.slack_app import (
             parse_command,
             parse_feedback_comment,
@@ -1007,7 +1163,6 @@ class SlackAdapter(ChannelAdapter):
             parse_shortcut,
         )
         from app.worker.background.channel import (
-            process_channel_event,
             process_channel_press,
             process_feedback_comment,
         )
@@ -1015,7 +1170,7 @@ class SlackAdapter(ChannelAdapter):
         if kind == "slash_commands":
             command = parse_command({key: str(value) for key, value in payload.items()}, bot_id)
             if command is not None:
-                await process_channel_event(command)
+                await admit_message(command)
             return
         comment = parse_feedback_comment(payload, bot_id)
         if comment is not None:
@@ -1027,7 +1182,7 @@ class SlackAdapter(ChannelAdapter):
             return
         shortcut = parse_shortcut(payload, bot_id)
         if shortcut is not None:
-            await process_channel_event(shortcut)
+            await admit_message(shortcut)
 
     async def _handle_event(self, payload: dict[str, Any], bot_id: str) -> None:
         """Route one `events_api` payload, whole.
@@ -1050,7 +1205,6 @@ class SlackAdapter(ChannelAdapter):
         if incoming is None:
             return
 
-        router = ChannelMessageRouter()
+        from app.services.channels.ingress import admit_message
 
-        async with get_db_context() as db:
-            await router.route(incoming, db)
+        await admit_message(incoming)

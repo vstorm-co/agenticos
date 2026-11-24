@@ -30,9 +30,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.permissions import AuthContext
+from app.db.table_rls import bind_table_access
 from app.repositories import virtual_table_repo
 from app.schemas.virtual_table import RecordRead
-from app.services.virtual_tables.exceptions import IdempotencyKeyReuseError
+from app.services.virtual_tables.exceptions import (
+    IdempotencyKeyReuseError,
+    IdempotencyResultPurgedError,
+)
 
 
 class WriteOutcome(BaseModel):
@@ -77,16 +81,30 @@ async def run_once[Outcome: BaseModel](
     payload: dict[str, Any],
     outcome_type: type[Outcome],
     action: Callable[[], Awaitable[Outcome]],
+    table_id: UUID | None = None,
+    legacy_payload: dict[str, Any] | None = None,
 ) -> tuple[Outcome, bool]:
     """Run `action` once per key, and say whether this call replayed a stored outcome.
 
     The action, the receipt and everything the action writes share one savepoint,
     so a failure anywhere leaves no receipt behind even if the caller keeps the
-    session. Without a key the action simply runs.
+    session. Without a key the action simply runs. `table_id` is stored on the
+    receipt for an operation whose outcome does not name its table, so purging
+    the table finds the receipt.
+
+    An erased legacy result keeps its key until expiry so a retry cannot repeat
+    a write whose result is gone.
+
+    A caller may supply an older encoding of this same validated request when a
+    new optional field has an equivalent absent default. New receipts always
+    use `payload`; the older encoding only recognizes an existing receipt.
 
     Raises:
         IdempotencyKeyReuseError: The key was used before with a different request.
+        IdempotencyResultPurgedError: The previous result was erased, so it cannot be replayed.
     """
+    # Bind the outer transaction: a rolled-back receipt must not erase its tenant.
+    await bind_table_access(db, ctx)
     async with db.begin_nested():
         if operation_key is None:
             return await action(), False
@@ -109,6 +127,7 @@ async def run_once[Outcome: BaseModel](
             operation=operation,
             operation_key=operation_key,
             payload_hash=digest,
+            table_id=table_id,
         )
         if claimed is None:
             stored = await virtual_table_repo.read_receipt(
@@ -118,8 +137,13 @@ async def run_once[Outcome: BaseModel](
                 operation=operation,
                 operation_key=operation_key,
             )
-            if not secrets.compare_digest(stored.payload_hash, digest):
+            if not secrets.compare_digest(stored.payload_hash, digest) and (
+                legacy_payload is None
+                or not secrets.compare_digest(stored.payload_hash, payload_hash(legacy_payload))
+            ):
                 raise IdempotencyKeyReuseError(operation=operation)
+            if stored.outcome.get("_purged") is True:
+                raise IdempotencyResultPurgedError(operation=operation)
             return outcome_type.model_validate(stored.outcome), True
         outcome = await action()
         await virtual_table_repo.set_receipt_outcome(

@@ -26,6 +26,14 @@ from app.services.invitation import InvitationService
 MODULE = "app.services.invitation"
 
 
+@pytest.fixture(autouse=True)
+def _audit_trail_is_not_the_test():
+    """The service writes the audit trail; a mocked session cannot take the
+    advisory lock it chains on, so these tests stand it aside."""
+    with patch(f"{MODULE}.record_audit", new=AsyncMock()):
+        yield
+
+
 def _member(role: str = OrgRole.OWNER.value):
     member = MagicMock()
     member.role = role
@@ -190,6 +198,31 @@ class TestAccepting:
         # Marking it accepted would turn a link into a one-shot URL that still
         # looked like a link.
         mark_accepted.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_accepting_a_link_is_audited(self):
+        invite, user = _link(), _user()
+        with ExitStack() as stack:
+
+            def stub(target: str, mock: AsyncMock) -> AsyncMock:
+                return stack.enter_context(patch(f"{MODULE}.{target}", new=mock))
+
+            stub("invitation_repo.get_by_token", AsyncMock(return_value=invite))
+            stub("user_repo.get_by_id", AsyncMock(return_value=user))
+            stub("member_repo.get", AsyncMock(return_value=None))
+            stub("organization_repo.get_by_id", AsyncMock(return_value=None))
+            stub("member_repo.create", AsyncMock())
+            stub("invitation_repo.record_use", AsyncMock())
+            stub("ProactiveService.queue_welcome", AsyncMock())
+            audit = stub("record_audit", AsyncMock())
+
+            await InvitationService(MagicMock()).accept("tok", user.id)
+
+        audit.assert_awaited_once()
+        entry = audit.await_args.kwargs
+        assert entry["action"] == "invitation.accepted"
+        assert entry["actor_user_id"] == user.id
+        assert entry["target_id"] == str(invite.id)
 
     @pytest.mark.anyio
     async def test_an_exhausted_link_admits_nobody(self):

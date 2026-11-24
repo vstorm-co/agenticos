@@ -24,7 +24,7 @@ from app.core.config import settings
 from app.core.security import create_access_token, create_refresh_token
 from app.db.models.audit_log import AppAdminAuditLog
 from app.main import app
-from app.repositories import session_repo, user_repo
+from app.repositories import invitation_repo, organization_repo, session_repo, user_repo
 from app.services.session import SessionService, hash_token
 
 pytestmark = [pytest.mark.anyio, pytest.mark.security]
@@ -415,3 +415,48 @@ class TestTheReuseGraceWindow:
         assert reread is not None
         assert reread.rotated_at is not None
         assert datetime.now(UTC) - reread.rotated_at < timedelta(minutes=1)
+
+
+async def test_mailbox_proof_cannot_be_inherited_by_another_password_session(db, api):
+    owner = await _user(db, "inviting-owner@example.com")
+    person = await _user(db, "recipient@example.com")
+    org = await organization_repo.create(
+        db, name="Private team", slug="private-team", created_by_user_id=owner.id
+    )
+    invite = await invitation_repo.create(
+        db, organization_id=org.id, email=person.email, role="admin", invited_by_user_id=owner.id
+    )
+    password = await session_repo.create(
+        db, user_id=person.id, refresh_token_hash="password", expires_at=_in_a_day()
+    )
+    proved = await session_repo.create(
+        db,
+        user_id=person.id,
+        refresh_token_hash="proved",
+        expires_at=_in_a_day(),
+        proved_email=person.email,
+    )
+
+    def headers(session):
+        return {
+            "Authorization": f"Bearer {create_access_token(str(person.id), sid=str(session.id))}"
+        }
+
+    base = f"{settings.API_V1_STR}/invitations/received"
+    hidden = await api.get(base, headers=headers(password))
+    assert hidden.status_code == 200 and hidden.json() == []
+    refused = await api.post(f"{base}/{invite.id}/accept", headers=headers(password))
+    assert refused.status_code == 404
+    visible = await api.get(base, headers=headers(proved))
+    assert visible.status_code == 200 and visible.json()[0]["id"] == str(invite.id)
+    me = await api.get(f"{settings.API_V1_STR}/auth/me", headers=headers(proved))
+    assert me.status_code == 200 and me.json()["email_verified"] is True
+    # A refresh keeps the proof in this row; a different session still has none.
+    await SessionService(db).rotate_session(proved, "new-refresh")
+    assert await SessionService(db).has_mailbox_proof(person.id, person.email, proved.id)
+    assert not await SessionService(db).has_mailbox_proof(person.id, person.email, password.id)
+    await user_repo.update(db, db_user=person, update_data={"email": "changed@example.com"})
+    changed = await api.get(base, headers=headers(proved))
+    assert changed.status_code == 200 and changed.json() == []
+    refused_after_change = await api.post(f"{base}/{invite.id}/accept", headers=headers(proved))
+    assert refused_after_change.status_code == 404

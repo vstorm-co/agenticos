@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -9,6 +9,13 @@ import { firstName, MeHeader, partOfDay } from "./me-header";
 const useUsageStatsMock = vi.fn();
 vi.mock("@/hooks", () => ({
   useUsageStats: (...args: unknown[]) => useUsageStatsMock(...args),
+}));
+const others = vi.hoisted(() => ({
+  value: { review: 0, suites: 0, suggestions: 0, settled: true },
+}));
+vi.mock("@/hooks/use-waiting-on-me", async (original) => ({
+  ...(await original<typeof import("@/hooks/use-waiting-on-me")>()),
+  useWaitingOnMe: () => others.value,
 }));
 let user: { full_name?: string | null; email: string } | null = null;
 vi.mock("@/stores", () => ({
@@ -28,11 +35,13 @@ function mount(canRun = true) {
 
 beforeEach(() => {
   useUsageStatsMock.mockReset();
+  others.value = { review: 0, suites: 0, suggestions: 0, settled: true };
   user = { full_name: "Kacper Włodarczyk", email: "kacper@example.com" };
 });
 
 describe("partOfDay and firstName", () => {
   it("greets by the hour", () => {
+    expect(partOfDay(0)).toBe("night");
     expect(partOfDay(8)).toBe("morning");
     expect(partOfDay(13)).toBe("afternoon");
     expect(partOfDay(21)).toBe("evening");
@@ -51,10 +60,10 @@ describe("the Me view's header", () => {
     mount();
 
     expect(screen.getByRole("heading")).toHaveTextContent(
-      /Good (morning|afternoon|evening), Kacper/,
+      /(Good (morning|afternoon|evening)|Hello), Kacper/,
     );
     expect(screen.getByText(/73 times/)).toBeVisible();
-    expect(screen.getByText(/One call/)).toBeVisible();
+    expect(screen.getByText("1 call")).toBeVisible();
     expect(useUsageStatsMock).toHaveBeenCalledWith(
       { from: PERIOD.from, to: PERIOD.to },
       { scope: "own", enabled: true },
@@ -66,7 +75,9 @@ describe("the Me view's header", () => {
     useUsageStatsMock.mockReturnValue({ usage: null });
     mount(false);
 
-    expect(screen.getByRole("heading")).toHaveTextContent(/^.*Good (morning|afternoon|evening)$/);
+    expect(screen.getByRole("heading")).toHaveTextContent(
+      /^.*(Good (morning|afternoon|evening)|Hello)$/,
+    );
     expect(screen.getByText(messages.dashboard.views.me.description)).toBeVisible();
     expect(useUsageStatsMock).toHaveBeenCalledWith(expect.anything(), {
       scope: "own",
@@ -74,10 +85,42 @@ describe("the Me view's header", () => {
     });
   });
 
+  it("updates a mounted greeting at midnight", () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date(2026, 10, 19, 23, 59, 59));
+      useUsageStatsMock.mockReturnValue({ usage: null });
+      mount();
+      expect(screen.getByRole("heading")).toHaveTextContent("Good evening, Kacper");
+      act(() => vi.advanceTimersByTime(1_000));
+      expect(screen.getByRole("heading")).toHaveTextContent("Hello, Kacper");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("says nothing waits when nothing does", () => {
     useUsageStatsMock.mockReturnValue({ usage: { total_runs: 0, pending_approvals: null } });
     mount();
 
     expect(screen.getByText(/Nothing is waiting on you/)).toBeVisible();
+  });
+
+  it("claims nothing waits only once every list it reads has answered", () => {
+    useUsageStatsMock.mockReturnValue({ usage: { total_runs: 4, pending_approvals: 0 } });
+    others.value = { review: 0, suites: 0, suggestions: 0, settled: false };
+    mount();
+
+    expect(screen.getByText(/4 times/)).toBeVisible();
+    expect(screen.queryByText(/Nothing is waiting on you/)).toBeNull();
+  });
+
+  it("counts personal Inbox proposals without authoring or evaluation queues", () => {
+    useUsageStatsMock.mockReturnValue({ usage: { total_runs: 16, pending_approvals: 0 } });
+    others.value = { review: 9, suites: 1, suggestions: 1, settled: true };
+    mount();
+
+    expect(screen.queryByText(/Nothing is waiting on you/)).toBeNull();
+    expect(screen.getByText("1 suggestion")).toBeVisible();
   });
 });

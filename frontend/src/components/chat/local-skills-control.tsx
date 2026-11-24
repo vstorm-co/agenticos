@@ -1,5 +1,7 @@
 "use client";
 
+import { NativeDisclosure } from "@/components/ui/native-disclosure";
+
 import { BookOpen, ChevronDown } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
@@ -10,6 +12,7 @@ import { useDeviceLink, useDeviceStatus, useLocalSkills } from "@/hooks/use-desk
 import { SKILL_SOURCES, type LocalSkill, type SkillSource } from "@/lib/desktop/commands";
 import { useConversationStore } from "@/stores";
 import { useWorkOnStore } from "@/stores/work-on-store";
+import { Label } from "@/components/ui/label";
 
 const FOLDERS: Record<SkillSource, string> = {
   agents: "~/.agents/skills",
@@ -51,7 +54,7 @@ export function LocalSkillsControl() {
     }
   }
   return (
-    <details className="group py-3">
+    <NativeDisclosure className="group py-3">
       <summary
         data-tour="chat-local-skills"
         className="flex cursor-pointer list-none items-center gap-2 text-[13px] font-medium [&::-webkit-details-marker]:hidden"
@@ -95,10 +98,10 @@ export function LocalSkillsControl() {
                     )
                   }
                 />
-                <label htmlFor={id} className="flex min-w-0 flex-1 items-baseline justify-between">
+                <Label htmlFor={id} className="flex min-w-0 flex-1 items-baseline justify-between">
                   <span className="font-mono text-xs">{FOLDERS[source]}</span>
                   <span className="text-muted-foreground text-xs">{t("count", { count })}</span>
-                </label>
+                </Label>
               </li>
             );
           })}
@@ -108,6 +111,6 @@ export function LocalSkillsControl() {
         )}
         <p className="text-muted-foreground mt-2 text-xs">{t(chosen.length > 0 ? "on" : "off")}</p>
       </div>
-    </details>
+    </NativeDisclosure>
   );
 }

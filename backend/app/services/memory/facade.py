@@ -1,10 +1,8 @@
-"""Erasing an agent's memory - the only thing a person does to it directly.
+"""Personal memory inspection, corrections and erasure.
 
-Notes are written by the agent and by nothing else, so there is no authoring
-surface here and no listing: an operator browsing what an agent learned about a
-named colleague is a surveillance affordance, not a feature (#1470). What is left
-is deletion, in two shapes, and both are refusals-first the way the rest of this
-platform is.
+A person may correct only their own notes. Agent-write timestamps remain intact;
+corrections have separate audit entries. Organization authority does not grant
+access to a colleague's personal memory.
 
 **Forgetting one person** spans every agent in the organization, because "forget
 everything you know about me" is a fact about a person rather than about one agent
@@ -28,25 +26,41 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import record_audit
-from app.core.exceptions import AuthorizationError, BadRequestError, ConflictError, NotFoundError
+from app.core.exceptions import (
+    AlreadyExistsError,
+    AuthorizationError,
+    BadRequestError,
+    ConflictError,
+    NotFoundError,
+)
 from app.core.memory_keys import INDEX_NAME, person_owner_key
 from app.core.permissions import AuthContext, Perm
 from app.db.locks import LockScope, hold_subject
 from app.db.models.agent import Agent
 from app.db.models.memory import AgentMemoryFile
 from app.db.models.memory_claim import MemoryClaim
-from app.repositories import agent_repo, memory_claim, memory_repo, organization_repo
-from app.schemas.decision_episode import DecisionEpisode, ImproveCaseReview, ImproveDecisionCase
+from app.repositories import (
+    agent_repo,
+    audit_log_repo,
+    memory_claim,
+    memory_repo,
+    organization_repo,
+    personal_data_repo,
+)
+from app.schemas.dataset import DatasetCaseContent, DatasetCaseRead
+from app.schemas.decision_episode import DecisionEpisode, ImproveCaseReview
 from app.schemas.memory import (
     MemoryClaimCorrect,
     MemoryClaimDetail,
     MemoryClaimList,
     MemoryClaimRead,
     MemoryErasureResult,
+    MemoryNoteEdit,
     MemoryNoteList,
     MemoryNoteRead,
 )
 from app.services.access import AGENT, resolve_access
+from app.services.dataset import DatasetService
 from app.services.memory import _claims
 
 logger = logging.getLogger(__name__)
@@ -147,15 +161,27 @@ class MemoryService:
 
     async def improve_case(
         self, ctx: AuthContext, claim_id: UUID, data: ImproveCaseReview
-    ) -> ImproveDecisionCase:
-        """Export only human-reviewed text in #2172's JSONL case contract.
+    ) -> DatasetCaseRead:
+        """Add only human-reviewed text from a decision episode to a dataset.
 
-        Dataset import, evaluation and publishing stay in Improve. This does not
-        grant any dataset access or turn one private episode into a shared rule.
+        The caller needs `datasets:edit` on that dataset; this grants no dataset
+        access and turns no private episode into a shared rule. The case records the
+        caller as who asked it, so erasing them anonymises it like any case taken
+        from their conversations.
         """
         row = await self._own_live_claim(ctx, claim_id)
         if row.kind != "decision" or row.episode is None:
             raise BadRequestError(message="Choose a recorded decision episode")
+        case = await DatasetService(self.db).add_reviewed_case(
+            ctx,
+            data.dataset_id,
+            DatasetCaseContent(
+                input=data.input, reference_answer=data.reference_answer, tags=["decision-episode"]
+            ),
+            asked_by=ctx.subject_id,
+            source_run_id=row.source_run_id,
+            source_conversation_id=row.source_conversation_id,
+        )
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,
@@ -163,14 +189,9 @@ class MemoryService:
             action="memory.episode.exported",
             target_type="memory_claim",
             target_id=str(row.id),
-            details={},
+            details={"dataset_id": str(data.dataset_id), "case_id": str(case.id)},
         )
-        return ImproveDecisionCase(
-            input=data.input,
-            reference_answer=data.reference_answer,
-            tags=["decision-episode"],
-            note=f"Reviewed memory episode {row.id}; source run {row.source_run_id}; source conversation {row.source_conversation_id}",
-        )
+        return case
 
     async def correct_claim(
         self, ctx: AuthContext, claim_id: UUID, data: MemoryClaimCorrect
@@ -293,6 +314,38 @@ class MemoryService:
             details={"notes": notes.total, "reason": reason},
         )
         return notes
+
+    async def edit_note(
+        self, ctx: AuthContext, file_id: UUID, data: MemoryNoteEdit
+    ) -> MemoryNoteRead:
+        """Correct only the subject's own note, refusing a stale editor revision."""
+        row = await memory_repo.get_owned(
+            self.db,
+            organization_id=ctx.organization_id,
+            owner_key=person_owner_key(ctx.subject_id),
+            file_id=file_id,
+            for_update=True,
+        )
+        if row is None:
+            raise NotFoundError(message="Memory note not found", details={"file_id": file_id})
+        if row.updated_at != data.expected_updated_at:
+            raise AlreadyExistsError(
+                message="This note changed. Reopen it before saving your correction."
+            )
+        await memory_repo.update(self.db, file=row, update_data={"content": data.content})
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            action="memory.note.corrected",
+            target_type="memory_file",
+            target_id=str(file_id),
+            details={"agent_id": str(row.agent_id), "fields": ["content"]},
+        )
+        names = await self._agent_names({row.agent_id})
+        return MemoryNoteRead.model_validate(row).model_copy(
+            update={"agent_name": names.get(row.agent_id)}
+        )
 
     async def set_active(self, ctx: AuthContext, file_id: UUID, *, active: bool) -> MemoryNoteRead:
         """Suppress one of the caller's own notes, or restore it.
@@ -447,6 +500,12 @@ class MemoryService:
         claims = await memory_claim.delete_for_scope(
             self.db, organization_id=ctx.organization_id, scope_key=owner_key
         )
+        await personal_data_repo.forget_system_runs_of(
+            self.db, user_id, organization_id=ctx.organization_id
+        )
+        await personal_data_repo.forget_briefings_of(
+            self.db, user_id, organization_id=ctx.organization_id
+        )
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,
@@ -454,7 +513,11 @@ class MemoryService:
             action="memory.person.forgotten",
             target_type="user",
             target_id=str(user_id),
-            details={"notes": notes, "claims": claims},
+            details={
+                "notes": notes,
+                "claims": claims,
+                **await audit_log_repo.erasure_marks(self.db),
+            },
         )
         return MemoryErasureResult(notes_deleted=notes, claims_deleted=claims)
 
@@ -472,6 +535,7 @@ class MemoryService:
             self.db, ctx, agent, Perm.AGENTS_EDIT, resource_type=AGENT
         ):
             raise NotFoundError(message="Agent not found", details={"agent_id": agent_id})
+        await hold_subject(self.db, LockScope.MEMORY_PER_AGENT, agent_id)
         notes = await memory_repo.delete_all_for_agent(
             self.db, organization_id=ctx.organization_id, agent_id=agent_id
         )
@@ -485,6 +549,10 @@ class MemoryService:
             action="memory.agent.cleared",
             target_type="agent",
             target_id=str(agent_id),
-            details={"notes": notes, "claims": claims},
+            details={
+                "notes": notes,
+                "claims": claims,
+                **await audit_log_repo.erasure_marks(self.db),
+            },
         )
         return MemoryErasureResult(notes_deleted=notes, claims_deleted=claims)

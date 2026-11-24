@@ -1,5 +1,5 @@
 ---
-source_sha: "bc3d361ee1d5"
+source_sha: "c5a69d2f6d38"
 title: "Zamień jeden artykuł na posty w głosie marki"
 description: "Załącz krótki syntetyczny artykuł i niech agent napisze po jednym poście na kanał, każdy możliwy do prześledzenia do źródła i w limicie swojego kanału."
 ---
@@ -133,7 +133,7 @@ Policz znaki w poście na X ręcznie albo krótkim skryptem. Nie ufaj temu, co m
 
 !!! example "Zapisano na v0.0.504, 25 września 2026"
 
-    Model: Claude Sonnet 4.6 przez OpenRouter. Agent wywołał `load_capability` dla `brand-voice`, a potem od razu odpowiedział wszystkimi trzema postami. Post na X miał 185 znaków. Post na LinkedIn miał 113 słów, a zajawka do newslettera 50 słów, oba w limitach. W żadnym poście nie pojawiła się zakazana fraza. Każda liczba we wszystkich trzech postach (25%, z 12 s do 9 s, 40 000 pobrań, 4 cm dla czujnika i wdrożenie w IV kwartale w 40 lokalizacjach w czterech partiach) zgadzała się z artykułem. Koszt: 0,016 USD.
+    Model: Claude Sonnet 4.6 przez OpenRouter. Agent wywołał `read_skill` dla `brand-voice`, a potem od razu odpowiedział wszystkimi trzema postami. Post na X miał 185 znaków. Post na LinkedIn miał 113 słów, a zajawka do newslettera 50 słów, oba w limitach. W żadnym poście nie pojawiła się zakazana fraza. Każda liczba we wszystkich trzech postach (25%, z 12 s do 9 s, 40 000 pobrań, 4 cm dla czujnika i wdrożenie w IV kwartale w 40 lokalizacjach w czterech partiach) zgadzała się z artykułem. Koszt: 0,016 USD.
 
     Bez załączonego pliku agent i tak wczytał skill, a potem napisał „I don't see any article attached to your message” i poprosił o artykuł, zamiast pisać posty z niczego.
 

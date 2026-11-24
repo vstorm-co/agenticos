@@ -6,8 +6,10 @@ swaps for the token pair. `google` and a deployment's own `oidc` differ in their
 discovery document and in nothing this module does (#1419).
 """
 
+import json
 import logging
 import secrets
+from datetime import UTC, datetime
 from typing import Any
 from urllib.parse import urlencode
 from uuid import uuid4
@@ -19,8 +21,10 @@ from app.api.deps import (
     DirectorySyncSvc,
     InvitationStagingSvc,
     OAuthExchangeSvc,
+    Redis,
     SessionSvc,
     UserSvc,
+    take_started_oauth_client,
 )
 from app.api.routes.v1._oauth_claims import claims_for
 from app.core.config import settings
@@ -29,10 +33,12 @@ from app.core.oauth import (
     groups_claim,
     identity_key,
     redirect_uri_for,
+    refusal_reason,
     sign_in_client,
+    verification_claim_names,
     verified_identity,
 )
-from app.core.security import create_access_token, create_refresh_token
+from app.core.security import create_access_token, create_mfa_token, create_refresh_token
 from app.schemas.token import OAuthExchangeRequest, Token
 from app.services.oauth_exchange import native_code_challenge
 
@@ -105,12 +111,7 @@ def _return_url(request: Request, code: str) -> str:
     it decides nothing here; it is what lets the shell refuse a deep link it did
     not ask for, since any local process can invoke a custom scheme.
     """
-    pending = dict(request.session.get(_CLIENT_KEY) or {})
-    started = pending.pop(request.query_params.get("state") or "", None)
-    if pending:
-        request.session[_CLIENT_KEY] = pending
-    else:
-        request.session.pop(_CLIENT_KEY, None)
+    started = take_started_oauth_client(request, session_key=_CLIENT_KEY)
     if isinstance(started, dict) and started.get("client") == _DESKTOP:
         params = urlencode({"code": code, "desktop_nonce": started.get("nonce") or ""})
         return f"{settings.DESKTOP_DEEP_LINK_SCHEME}://auth/callback?{params}"
@@ -182,6 +183,7 @@ async def provider_callback(
     exchange_service: OAuthExchangeSvc,
     session_service: SessionSvc,
     directory_sync: DirectorySyncSvc,
+    redis: Redis,
 ):
     """Finish the round trip and hand the frontend a code for its tokens.
 
@@ -200,8 +202,18 @@ async def provider_callback(
             # One sentence for three refusals - no subject, no address, an
             # address the provider has not verified. Which one it was goes to
             # the log: a redirect a stranger can read is not the place to say
-            # that an address exists at this provider but is unconfirmed.
-            logger.warning("oauth_callback_claims_rejected", extra={"provider": provider})
+            # that an address exists at this provider but is unconfirmed. The
+            # claim names, never their values, show an operator which claim
+            # the provider has not been configured to send.
+            logger.warning(
+                "oauth_callback_claims_rejected",
+                extra={
+                    "provider": provider,
+                    "reason": refusal_reason(claims),
+                    "claim_names": sorted(claims or {}),
+                    "verification_claims": list(verification_claim_names()),
+                },
+            )
             params = urlencode({"error": "That account cannot be used to sign in here."})
             return RedirectResponse(url=f"{frontend}/login?{params}")
 
@@ -231,9 +243,31 @@ async def provider_callback(
             logger.warning("oauth_callback_account_disabled", extra={"user_id": str(user.id)})
             params = urlencode({"error": "User account is disabled"})
             return RedirectResponse(url=f"{frontend}/login?{params}")
+        if getattr(user, "totp_enabled", False):
+            # OAuth proves the external identity, but does not complete this
+            # account's enrolled second factor. Stop before directory changes,
+            # session creation, or token exchange. The challenge stays in the
+            # URL fragment, which the browser can read but never sends in an
+            # HTTP request.
+            started = take_started_oauth_client(request, session_key=_CLIENT_KEY)
+            challenge_id = secrets.token_urlsafe(32)
+            mfa_token = create_mfa_token(
+                subject=str(user.id), credential_version=user.credential_version, jti=challenge_id
+            )
+            if groups is not None or (
+                isinstance(started, dict) and started.get("client") == _DESKTOP
+            ):
+                context = {
+                    "groups": sorted(groups) if groups is not None else None,
+                    "provider": provider,
+                    "client": started,
+                }
+                await redis.set(f"auth:mfa:oauth:{challenge_id}", json.dumps(context), ttl=300)
+            return RedirectResponse(
+                url=f"{frontend}/auth/callback#{urlencode({'mfa_token': mfa_token})}"
+            )
         if groups is not None:
             await directory_sync.apply(user.id, groups, provider=provider)
-
         refresh_token = create_refresh_token(subject=str(user.id))
 
         # An OAuth sign-in is an ordinary session, so the access token names its
@@ -242,7 +276,11 @@ async def provider_callback(
         # front so the row can be written *after* the code is issued: a failure
         # handing out the code then leaves no phantom session behind.
         session_id = uuid4()
-        access_token = create_access_token(subject=str(user.id), sid=str(session_id))
+        access_token = create_access_token(
+            subject=str(user.id),
+            sid=str(session_id),
+            auth_time=int(datetime.now(UTC).timestamp()),
+        )
 
         # A single-use code, not the tokens: a token in the redirect URL reaches
         # the address bar, the server access log, and the `Referer` of the next
@@ -261,6 +299,7 @@ async def provider_callback(
             ip_address=request.client.host if request.client else None,
             user_agent=request.headers.get("User-Agent"),
             session_id=session_id,
+            proved_email=email,
         )
         return RedirectResponse(url=_return_url(request, code))
 

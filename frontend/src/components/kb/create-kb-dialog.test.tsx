@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -62,6 +62,23 @@ describe("CreateKBDialog", () => {
     });
     vi.mocked(apiClient.post).mockResolvedValue({ id: "kb-1", name: "Handbook" });
     render(<CreateKBDialog open onOpenChange={vi.fn()} />, { wrapper });
+  });
+
+  it("freezes the draft while creation is pending and restores editing after refusal", async () => {
+    let reject!: (error: Error) => void;
+    const pending = new Promise<never>((_resolve, fail) => {
+      reject = fail;
+    });
+    vi.mocked(apiClient.post).mockReturnValueOnce(pending);
+    const name = screen.getByLabelText("Name");
+    await userEvent.type(name, "Handbook draft");
+    await userEvent.click(create());
+    await waitFor(() => expect(apiClient.post).toHaveBeenCalled());
+    expect(name).toBeDisabled();
+    expect(screen.getByLabelText("Embedding provider")).toBeDisabled();
+    await act(async () => reject(new Error("Refused")));
+    await waitFor(() => expect(name).toBeEnabled());
+    expect(name).toHaveValue("Handbook draft");
   });
 
   it("sends no ingestion configuration for a collection nobody configured", async () => {

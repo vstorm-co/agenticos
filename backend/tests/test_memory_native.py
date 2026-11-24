@@ -138,6 +138,7 @@ class TestWriteFile:
                 "content": "body",
                 "description": "d",
                 "kind": "note",
+                "run_id": None,
                 **overrides,
             }
         )
@@ -219,6 +220,7 @@ class TestEditFile:
                     owner_key=OWNER,
                     name="prefs",
                     content="new",
+                    run_id=None,
                 )
                 is True
             )
@@ -241,11 +243,39 @@ class TestEditFile:
                     owner_key=OWNER,
                     name="prefs",
                     content="new",
+                    run_id=None,
                 )
                 is False
             )
 
         assert not update.await_count
+
+    async def test_it_refuses_to_edit_a_note_about_an_account_that_is_gone(self, monkeypatch):
+        @asynccontextmanager
+        async def _deleted_person():
+            session = MagicMock()
+            session.execute = AsyncMock()
+            session.scalar = AsyncMock(return_value=False)
+            yield session
+
+        monkeypatch.setattr(f"{NATIVE}.get_db_context", _deleted_person)
+        with (
+            patch(f"{REPO}.get_by_name", new=AsyncMock(return_value=_row())),
+            patch(f"{REPO}.update", new=AsyncMock()) as update,
+        ):
+            assert (
+                await _native.edit_file(
+                    organization_id=ORG,
+                    agent_id=AGENT,
+                    owner_key=OWNER,
+                    name="prefs",
+                    content="new",
+                    run_id=None,
+                )
+                is False
+            )
+
+        update.assert_not_awaited()
 
 
 class TestDeleteFile:
@@ -257,12 +287,37 @@ class TestDeleteFile:
         ):
             assert (
                 await _native.delete_file(
-                    organization_id=ORG, agent_id=AGENT, owner_key=OWNER, name="prefs"
+                    organization_id=ORG, agent_id=AGENT, owner_key=OWNER, name="prefs", run_id=None
                 )
                 is True
             )
 
         assert delete.await_args.args[1] is row
+
+    async def test_it_deletes_nothing_about_an_account_that_is_gone(self, monkeypatch):
+        @asynccontextmanager
+        async def _deleted_person():
+            session = MagicMock()
+            session.execute = AsyncMock()
+            session.scalar = AsyncMock(return_value=False)
+            yield session
+
+        monkeypatch.setattr(f"{NATIVE}.get_db_context", _deleted_person)
+        with (
+            patch(f"{REPO}.get_by_name", new=AsyncMock(return_value=_row())) as found,
+            patch(f"{REPO}.delete", new=AsyncMock()) as delete,
+            patch(f"{NATIVE}.refuse_if_erased_during_run", new=AsyncMock()) as refuse,
+        ):
+            assert (
+                await _native.delete_file(
+                    organization_id=ORG, agent_id=AGENT, owner_key=OWNER, name="prefs", run_id=None
+                )
+                is False
+            )
+
+        refuse.assert_not_awaited()
+        found.assert_not_awaited()
+        delete.assert_not_awaited()
 
     async def test_nothing_of_that_name_deletes_nothing(self):
         with (
@@ -271,7 +326,7 @@ class TestDeleteFile:
         ):
             assert (
                 await _native.delete_file(
-                    organization_id=ORG, agent_id=AGENT, owner_key=OWNER, name="prefs"
+                    organization_id=ORG, agent_id=AGENT, owner_key=OWNER, name="prefs", run_id=None
                 )
                 is False
             )

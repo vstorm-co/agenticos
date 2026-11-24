@@ -1,5 +1,5 @@
 ---
-source_sha: "1991069bf88d"
+source_sha: "502f9d415d51"
 ---
 
 # Modelos y providers { #models-and-providers }
@@ -24,6 +24,28 @@ model profile → credential → unsealed secret → provider client → Model
 ```
 
 Nada sobre qué modelo usa un agent vive en `.env`.
+
+## Claves personales de modelos { #personal-model-keys }
+
+En **Model access** del Builder, conserva **Use the organization’s key** (predeterminado) o selecciona **Each user connects their own key**. El formulario de clave privada envía el perfil, provider, endpoint y modelo esperados que vio el usuario. Si el destino cambia antes de guardar, el servidor rechaza la clave con un conflicto; el formulario recarga el destino y borra la clave escrita antes de otro intento.
+
+El modo personal mantiene fijos el modelo y el destino del administrador. Admite proveedores de chat con clave API, sin modelos alternativos ni cambios de modelo por conversación.
+
+Un miembro con sesión iniciada conecta su clave en el formulario privado sobre el campo de mensajes o en los ajustes del chat. Las claves nunca entran en mensajes, prompts ni instrucciones del agente. La conexión se reutiliza entre agentes de esta organización con el mismo proveedor y destino. Sin clave, la ejecución se bloquea antes de solicitar el modelo; los fallos de autenticación nunca cambian a la clave de la organización. Sustituye la clave en los ajustes del chat o elimina la conexión en **Vault → Your model connection**. Guardar la clave no la comprueba con el proveedor.
+
+El modo personal no admite canales privados ni grupales, widgets, páginas públicas, ejecuciones por HTTP API, horarios, triggers, temas en segundo plano, voz, revisores ni modelos separados para capacidades. Pausa o elimina canales, superficies públicas y rutinas activos antes de publicar. Se rechaza crear o reactivar una superficie incompatible; la misma regla se aplica al ejecutar. Las páginas públicas y los JWT de widgets no identifican a un miembro con sesión iniciada en la instancia.
+
+La delegación funciona en el chat web con sesión iniciada. Un subagente personal debe usar el mismo perfil de modelo que el agente principal en modo personal. Un agente principal con claves de organización no puede gastar claves personales mediante delegación; los subagentes personales no pueden elegir otro modelo ni endpoint. Estas reglas se comprueban al publicar, habilitar superficies, promover versiones y ejecutar, incluidas las delegaciones anidadas y las reanudaciones.
+
+Los subagentes de organización conservan sus credenciales. Los especialistas inline heredan el modo del padre; los dinámicos en modo personal mantienen su modelo. Los límites de acceso MCP personal no cambian.
+
+Si falta la conexión de un subagente, el mensaje identifica el agente y la conexión del modelo. Abre la configuración de chat de ese agente para conectar tu clave; pide acceso a su propietario si no aparece. El runner comprueba el árbol de delegación antes de llamar a los modelos y de nuevo al reanudar. Nunca sustituye una conexión ausente por la clave de otro endpoint, otro miembro o la persona que aprueba.
+
+Las claves se cifran para su propietario en el almacén y se eliminan al borrar su membresía o cuenta. Cambiar el destino aprobado requiere una nueva conexión. Rotar la clave de un miembro no cambia las claves de otros ni el perfil de modelo compartido.
+
+Suplantar la identidad de otro miembro no concede acceso a sus conexiones personales de modelos: las solicitudes de lectura, modificación o uso de la clave se rechazan antes de acceder al vault.
+
+El historial privado queda vinculado a los destinos aprobados de los modelos, incluidos los de respaldo; consulte el [historial del chat](console.md#chat) para cambiar conexiones y reanudar ejecuciones en espera.
 
 ## Un perfil de modelo { #a-model-profile }
 
@@ -229,21 +251,40 @@ Un perfil puede listar perfiles de fallback, probados en orden. La caída de un
 provider no debería tumbar los agents de una organización cuando esta tiene una
 segunda clave o un segundo provider configurados.
 
-!!! warning "Un fallback es invisible en el registro del run"
+Un fallback ya no es invisible en el registro del run. Cuando un modelo de
+fallback atiende alguna petición del run, la fila del run registra
+`fallback_used` y el id de modelo que respondió a la última petición correcta
+como `serving_model`, y la vista de detalle del run muestra «Servido por …
+(fallback)» bajo los datos. La fila se sigue escribiendo antes de la primera
+petición, así que nombra el perfil primario hasta que el run termina; un run
+aparcado lleva lo que sus segmentos terminados han registrado hasta ahora.
 
-    La fila del run se escribe antes de la primera petición, y lleva la etiqueta,
-    el provider y el id de secreto del perfil **primario**. Si un fallback
-    atendió el turno, el run sigue nombrando al primario.
+Quedan dos puntos ciegos que conviene conocer antes de fiarte de esos números
+durante una caída:
 
-    Así que «cuánto gastamos en OpenAI» y «qué clave está costando más» responden
-    con el perfil al que se *preguntó* primero, no con el que respondió. Conviene
-    saberlo antes de fiarte de esos números durante una caída.
+- «Cuánto gastamos en OpenAI» y «qué clave está costando más» se siguen
+  respondiendo con el perfil primario al que se *preguntó* primero, no con el
+  que respondió: el coste se atribuye al perfil primario. Las nuevas columnas
+  dicen qué modelo respondió, no qué perfil pagó.
+- Un fallo **después** del primer evento en streaming nunca activa el
+  fallback. Pydantic AI entrega el stream al llamador en el primer evento, así
+  que un fallo a mitad de stream termina el run en lugar de probar el siguiente
+  modelo de la cadena.
 
 ### Ajustes del modelo { #model-settings }
 
 Por perfil, y sobrescribibles por agent a través de `model_settings` del spec:
-`temperature`, `top_p`, `max_tokens`, `parallel_tool_calls`, `timeout`. Ver
+`temperature`, `top_p`, `max_tokens`, `parallel_tool_calls`, `timeout`,
+`request_timeout`, `first_event_timeout`. Ver
 [la referencia del spec](reference/spec.md#model-settings).
+
+Una petición también tiene plazos por defecto: 300 segundos para una petición
+al modelo (`request_timeout`, y `timeout` por intento) y 120 segundos para el
+primer evento en streaming (`first_event_timeout`). Un perfil o el spec de un
+agente pueden subirlos o bajarlos. Cuando vence el plazo, el run termina como
+`timed_out` — con el plazo en su error guardado — en lugar de mostrar
+«Working» para siempre; donde haya una cadena de fallback configurada, se
+prueba primero.
 
 **El caché de prompts está activado por defecto**, mediante el ajuste `cache` de
 Pydantic AI, neutral respecto al proveedor. Cada petición de un run vuelve a enviar
@@ -350,6 +391,7 @@ Los providers estándar usan la inferencia de modelos y providers de Pydantic AI
 | OpenAI | `openai` | clave de API, o ninguna | ✓ |
 | Anthropic | `anthropic` | clave de API | ✓ |
 | Google Gemini | `google` | clave de API | ✓ |
+| TypeSafe (Jev) | `typesafe` | clave de API | ✓ |
 | OpenRouter | `openrouter` | clave de API |  ✓ |
 | Otari | `otari` | clave de API | ✓ |
 | Alibaba Cloud | `alibaba` | clave de API | ✓ |
@@ -359,6 +401,7 @@ Los providers estándar usan la inferencia de modelos y providers de Pydantic AI
 | GitHub Models | `github` | clave de API | |
 | Groq | `groq` | clave de API | |
 | Heroku AI | `heroku` | clave de API | ✓ |
+| LLMTR | `llmtr` | clave de API | |
 | Mistral | `mistral` | clave de API | |
 | Moonshot AI | `moonshotai` | clave de API | |
 | Nebius AI Studio | `nebius` | clave de API | |
@@ -372,10 +415,13 @@ Los providers estándar usan la inferencia de modelos y providers de Pydantic AI
 | Cohere | `cohere` | clave de API | |
 | Hugging Face | `huggingface` | clave de API | ✓ |
 
+LLMTR solo muestra modelos que anuncian `CHAT_COMPLETIONS`. Un modelo sin precio revisado en el snapshot incluido solo puede ejecutarse sin un límite activo en dólares; su coste sigue marcado como incompleto. Con un límite activo también se rechazan nuevas llamadas a LLMTR si el coste del uso anterior es desconocido.
+
 ### Autoalojados { #self-hosted }
 
 | Provider | id | Credencial | Custom URL |
 |---|---|---|---|
+| System One API | `system-one` | clave de API o ninguna | ✓ |
 | Ollama | `ollama` | ninguna | ✓ |
 | LiteLLM proxy | `litellm` | ninguna | ✓ (`api_base`) |
 
@@ -402,6 +448,43 @@ autenticarse.
     `ON DELETE SET NULL`, lo que hace que el segundo caso sea corriente. Un run
     resuelve un perfil sin clave solo cuando este lleva un endpoint; si no, se
     rechaza con el mismo mensaje de «no key configured» que ha tenido siempre.
+
+### Tu propio endpoint { #your-own-endpoint }
+
+| Provider | id | Credencial | Custom URL |
+|---|---|---|---|
+| Custom (OpenAI-compatible) | `openai_compatible` | clave de API | ✓ |
+| Custom (Anthropic-compatible) | `anthropic_compatible` | clave de API | ✓ |
+
+Estos dos son una *forma* de API y no un proveedor. Escribes la dirección de un
+servidor que gestionas tú o de una pasarela en la que confías, y la clave que lo
+autentica. Elige el que corresponda a lo que responde tu endpoint:
+
+| Tu endpoint responde | Elige | La dirección que hay que escribir |
+|---|---|---|
+| `POST /chat/completions` — vLLM, LM Studio, un proxy LiteLLM, casi todas las pasarelas | `openai_compatible` | la raíz `/v1`, por ejemplo `https://llm.example/v1` |
+| `POST /v1/messages` — la forma de API propia de Anthropic | `anthropic_compatible` | la raíz de la API, por ejemplo `https://llm.example` |
+
+Los dos necesitan un endpoint y una clave. No hay ninguna API pública a la que
+recurrir, así que un perfil sin ellos se rechaza en lugar de enviarse a otro
+sitio.
+
+La clave se guarda en la bóveda bajo el nombre del propio provider, lo que allí
+dice que autentica *ese* endpoint y no la API pública de un proveedor. Por eso
+son entradas propias y no un perfil `openai` o `anthropic` con un endpoint: una
+clave archivada bajo el nombre de un proveedor habla de ese proveedor.
+
+!!! info "La dirección de Anthropic no lleva `/v1`"
+
+    El SDK de Anthropic envía a `<endpoint>/v1/messages`, así que el endpoint es
+    la raíz de la API. Una dirección que ya termina en `/v1` se recorta por ti,
+    de modo que ambas formas funcionan, pero la raíz es lo que pide la
+    plataforma.
+
+**Load models** lee la lista del mismo endpoint, con la misma clave, así que el
+desplegable ofrece lo que tu servidor sirve de verdad. El identificador del
+modelo sigue siendo texto libre: un servidor que no publica ninguna lista se
+puede usar escribiendo el identificador a mano.
 
 ### Cuando la credencial no es una clave de API { #when-the-credential-is-not-an-api-key }
 
@@ -615,11 +698,13 @@ como un desplegable al que el provider responde 404. Un modelo que el snapshot
 conoce pero no tarifa simplemente no tiene ventana, que es el nulo descrito más
 abajo.
 
+Al abrir el selector de la suscripción se carga la lista incluida en el despliegue. El selector no consulta un catálogo en directo para cada cuenta. Las entradas de GPT-6.2 se verificaron en el servidor de Codex y dejan el contexto vacío hasta que se incorpore al catálogo de precios.
+
 | Provider | ids curados |
 |---|---|
 | `anthropic` | `claude-opus-5`, `claude-sonnet-5`, `claude-fable-5`, `claude-haiku-4-5` |
 | `openai` | `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna`, `gpt-5.3-codex` |
-| `openai_codex` | los mismos cuatro que `openai` |
+| `openai_codex` | GPT-6.2 Sol y Astra, GPT-6.1 Sol y Terra, GPT-6 Sol, Astra y Luna, y los identificadores anteriores de Codex |
 | `google` | `gemini-3.6-flash`, `gemini-3.5-flash`, `gemini-3.5-flash-lite`, `gemini-3.1-pro-preview` |
 | `deepseek` | `deepseek-v4-pro`, `deepseek-v4-flash` |
 | `xai` | `grok-4.5`, `grok-4.3` |
@@ -658,14 +743,15 @@ correcto cuando un agent se muda a otro modelo.
 !!! danger "Por qué se guarda en vez de resolverse por run"
 
     El camino de la petición no debe llamar a un provider, y lo único que podría
-    consultar si no es el snapshot de precios incluido — que aquí se equivoca en
-    la dirección que rompe un run.
-
-    Ese snapshot registra 1.000.000 para `anthropic:claude-sonnet-4-5` frente a
-    unos 200.000 reales, así que un disparo al 90 % cae por encima del techo real
-    y la compactación nunca se activa antes de que el provider rechace la
-    petición. Un perfil con fallbacks es peor: construye un `FallbackModel` cuyo
-    id compuesto no resuelve a nada en absoluto.
+    consultar si no es el snapshot de precios incluido — un bundle de terceros
+    cuyos números no son autoritativos: un snapshot anterior registraba
+    1.000.000 para `anthropic:claude-sonnet-4-5` frente a unos 200.000 reales,
+    así que un disparo al 90 % caía por encima del techo real y la compactación
+    nunca se activaba antes de que el provider rechazara la petición (#773).
+    El snapshot fijado registra hoy los 200.000 correctos, pero una subida del
+    bundle puede mover un número sin que este repo lo note. Un perfil con
+    fallbacks es peor: construye un `FallbackModel` cuyo id compuesto no
+    resuelve a nada en absoluto.
 
 Nulo significa **no anotado**, no cero: un perfil más antiguo que la columna, un
 provider que no publica longitud, una lista curada, o un listado al que no se
@@ -801,3 +887,19 @@ Un endpoint regional sirve menos modelos de embeddings que el global: `eu.openro
 Actualiza todos los procesos de API y workers antes de configurar endpoints regionales. Las versiones anteriores ignoran el endpoint personalizado de OpenRouter.
 
 Para otro endpoint con el mismo proveedor y modelo, elija **Añadir modelo separado** en el Builder. El nombre automático incluye el endpoint y el perfil existente no cambia. **Actualizar modelo** modifica el perfil compartido. Los catálogos personalizados están limitados a 2 MiB, 2048 modelos y longitudes de campos acotadas, con un máximo de 16 catálogos en caché por proceso. Una respuesta comprimida o demasiado grande permite escribir el ID del modelo sin recurrir a una lista global.
+
+## Modelos de decisión { #decision-models }
+
+Los perfiles de decisión usan la API nativa `decisions` en lugar de generar texto. Elige provider, modelo y la clave del vault en el formulario del modelo. OpenAI, Google y OpenRouter ofrecen APIs de chat y decisiones; TypeSafe y un endpoint propio de System One sirven decisiones. Un perfil de decisión no puede ser el modelo conversacional de un agente ni servir de alternativa a un modelo de chat.
+
+Los adaptadores proceden de Pydantic AI. Las sugerencias actuales incluyen OpenAI `gpt-6-luna`, Google `gemini-decision-1` y TypeSafe `jev-1.14.0` / `jev-latest`. OpenRouter consulta el catálogo de decisiones por separado del catálogo de texto. System One propio requiere URL e identificador de modelo. La disponibilidad depende del proveedor y de la cuenta; una sugerencia no garantiza acceso.
+
+Los pasos **Decision models** de los workflows eligen un perfil nativo. Los identificadores `decide.*` y las configuraciones existentes con clave TypeSafe siguen siendo válidos. Por debajo del umbral de confianza se utiliza el puerto `unsure`. Cada ejecución comprueba de nuevo permisos y claves; el coste cuenta para los presupuestos del workflow y la organización.
+
+La opción de canal **Join conversations automatically** puede usar un perfil nativo de decisiones o un LLM habitual con salida estructurada. La decisión nativa sí/no devuelve la probabilidad de intervenir; un campo numérico acotado conserva ese valor. Un LLM devuelve una valoración de utilidad de 0 a 100, no una probabilidad calibrada. Ambos se comparan con el umbral indicado en **Run the agent from (%)**; la igualdad con el umbral también cuenta. El clasificador no tiene herramientas. La función requiere activación y respeta los intervalos; el agente principal puede usar cuentas MCP de la organización, nunca credenciales privadas de un participante.
+
+Referencias: [Pydantic AI](https://pydantic.dev/docs/ai/models/decision/), [OpenAI](https://developers.openai.com/api/docs/guides/decisions), [Google](https://ai.google.dev/gemini-api/docs/decisions-api), [TypeSafe](https://docs.typesafe.ai/models), [OpenRouter](https://github.com/OpenRouterTeam/skills/tree/main/skills/openrouter-decisions).
+
+ElevenLabs Realtime incorpora `eleven_realtime_v1_mini` y `eleven_realtime_v1_max` mediante el relay PCM de 24 kHz, con la voz predeterminada `brian` y detección semántica de turnos.
+
+El SDK no informa los cargos por tokens. Las llamadas con un presupuesto de gasto se rechazan antes de conectar. Las llamadas sin presupuesto conservan el límite de tiempo y registran el coste de audio como límite inferior, no como factura completa. La tarifa de audio es de 0,08 USD/minuto (0,16 USD con burst); los tokens se cobran aparte. El contexto de 16k es un límite conservador de historial de la plataforma, no una ventana de contexto publicada por el proveedor. La integración se ha probado sin conexión mediante la construcción de modelos SDK y transportes controlados, no con cuentas reales. [SDK](https://pydantic.dev/docs/ai/api/realtime/elevenlabs/), [ElevenLabs API pricing](https://elevenlabs.io/pricing/api).

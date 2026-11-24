@@ -31,6 +31,15 @@ def _page(body: str, *, kit: int = 3, head: str | None = None) -> bytes:
     ).encode()
 
 
+def test_custom_table_style_does_not_require_the_library_class():
+    body = "<style>table { border-collapse: collapse; width: 100% }</style><table><thead><tr><th>Name</th></tr></thead><tbody><tr><td>Value</td></tr></tbody></table>"
+    assert lint_page(_page(body)) == []
+    without_style = body.replace(
+        "table { border-collapse: collapse; width: 100% }", "/* table { } */"
+    )
+    assert any("ao-table" in problem for problem in lint_page(_page(without_style)))
+
+
 GOOD_BODY = """<main class="ao-page">
 <header class="ao-header"><div><h1>Open tickets</h1><p class="ao-subtitle">Seven.</p></div></header>
 <div class="ao-table-wrap"><table class="ao-table">
@@ -165,7 +174,7 @@ def test_a_class_only_a_newer_kit_has_says_to_load_that_kit() -> None:
         _page('<main class="ao-page"><span class="ao-header-icon"></span></main>', kit=2)
     )
     assert problems == [
-        "`lib/agenticos-2.css` has no `ao-header-icon`; `lib/agenticos-3.css` does, so load "
+        "`lib/agenticos-2.css` has no `ao-header-icon`; `lib/agenticos-4.css` does, so load "
         "that instead."
     ]
 
@@ -175,7 +184,7 @@ def test_classes_used_with_no_kit_loaded_say_to_load_it() -> None:
     problems = lint_page(_page('<main class="ao-page"></main>', head=head))
     assert len(problems) == 1
     assert "loads no page kit stylesheet" in problems[0]
-    assert 'href="lib/agenticos-3.css"' in problems[0]
+    assert 'href="lib/agenticos-4.css"' in problems[0]
 
 
 def test_a_class_the_page_styles_itself_is_its_own_business() -> None:
@@ -303,8 +312,8 @@ def test_bytes_that_are_not_utf_8_are_read_rather_than_refused() -> None:
 
 class TestTheVocabulary:
     def test_it_is_read_from_every_served_kit_stylesheet(self) -> None:
-        assert sorted(KIT_CLASSES) == [1, 2, 3]
-        assert LATEST_KIT == 3
+        assert sorted(KIT_CLASSES) == [1, 2, 3, 4]
+        assert LATEST_KIT == 4
         assert {"ao-table", "ao-loading", "ao-header-actions"} <= KIT_CLASSES[3]
         assert "ao-loading" not in KIT_CLASSES[2]
 

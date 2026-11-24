@@ -27,7 +27,7 @@ describe("reading a token out of a path", () => {
 
   it("finds one behind a locale prefix", () => {
     // `localePrefix: "as-needed"`, so both shapes are real.
-    expect(invitationTokenFrom("/pl/invitations/abc123")).toBe("abc123");
+    expect(invitationTokenFrom("/en/invitations/abc123")).toBe("abc123");
   });
 
   it("tolerates a trailing slash", () => {
@@ -49,7 +49,7 @@ describe("reading a token out of a path", () => {
     // `/invitations/pending` matches the shape but names no invitation; reading it as
     // a token would stage the literal `pending` on a signed-out load of the landing.
     expect(invitationTokenFrom("/invitations/pending")).toBeNull();
-    expect(invitationTokenFrom("/pl/invitations/pending")).toBeNull();
+    expect(invitationTokenFrom("/en/invitations/pending")).toBeNull();
   });
 
   it("does not guess at a shape it was not given", () => {
@@ -72,7 +72,7 @@ describe("the flow a staging is bound to", () => {
 
   it("is read back off the landing, behind a locale prefix too", () => {
     expect(invitationFlowFrom(pendingLandingFor(flow))).toBe(flow);
-    expect(invitationFlowFrom(`/pl/invitations/pending?flow=${flow}`)).toBe(flow);
+    expect(invitationFlowFrom(`/en/invitations/pending?flow=${flow}`)).toBe(flow);
     expect(invitationFlowFrom(`/invitations/pending/?flow=${flow}&registered=true`)).toBe(flow);
   });
 

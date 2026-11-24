@@ -24,6 +24,8 @@ export interface MyPermissions {
   role: OrgRole | "";
   is_app_admin: boolean;
   permissions: PermissionEntry[];
+  /** Absent in offline snapshots created before role navigation was introduced. */
+  hidden_navigation_items?: string[];
 }
 
 export interface RoleDefinition {
@@ -53,14 +55,21 @@ export const Perm = {
   skillsEdit: "skills:edit",
   contextView: "context:view",
   contextEdit: "context:edit",
+  datasetsView: "datasets:view",
+  datasetsEdit: "datasets:edit",
+  datasetsRun: "datasets:run",
   artifactsView: "artifacts:view",
   artifactsEdit: "artifacts:edit",
   projectsView: "projects:view",
   projectsUse: "projects:use",
   projectsEdit: "projects:edit",
   approvalsDecide: "approvals:decide",
+  promotionsOverride: "promotions:override",
   connectionsView: "connections:view",
   connectionsManage: "connections:manage",
+  networksView: "networks:view",
+  networksManage: "networks:manage",
+  networksUse: "networks:use",
   secretsView: "secrets:view",
   secretsEdit: "secrets:edit",
   mcpManage: "mcp:manage",
@@ -77,4 +86,6 @@ export const Perm = {
   tablesCreate: "tables:create",
   apiKeysCreate: "api_keys:create",
   apiKeysManage: "api_keys:manage",
+  personalConsent: "personal:consent",
+  mcpPersonalUse: "mcp:personal:use",
 } as const satisfies Record<string, Permission>;

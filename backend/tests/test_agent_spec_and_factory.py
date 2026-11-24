@@ -16,6 +16,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from pydantic import ValidationError
+from pydantic_ai import ToolOutput
 from pydantic_ai._run_context import RunContext
 from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart, ToolCallPart
 from pydantic_ai.models import ModelRequestContext, ModelRequestParameters
@@ -32,11 +33,14 @@ from app.agents.capabilities.approval._capability import ApprovalGate
 from app.agents.capabilities.budget import BudgetScope, SpendLimit
 from app.agents.capabilities.compaction import ReportContextSize
 from app.agents.code_mode import CodeCalls
+from app.agents.computer_on_use import ComputerAccessRequest, RequestComputerOnUse
 from app.agents.connect_on_use import ConnectionRequest, ConnectOnUse, PendingService
 from app.agents.factory import (
     _AUDIENCE_AWARE,
     DEFAULT_MAX_STEPS,
+    DEFAULT_MODEL_TIMEOUTS,
     BuiltAgent,
+    OutputSchemaRetry,
     _fits_schema,
     answer_text,
     build_agent,
@@ -52,6 +56,8 @@ from app.agents.spec import (
     CodeModeSpec,
     LoopGuardSpec,
     NotificationSpec,
+    SkillBindingSpec,
+    SpecialistSpec,
     VoiceSpec,
 )
 from app.agents.tool_repair import CountedRepair
@@ -116,6 +122,71 @@ class TestSpecContract:
         loaded = AgentSpec.from_yaml(spec.to_yaml())
 
         assert loaded == spec
+
+    def test_an_mcp_binding_stored_before_per_tool_approval_dumps_unchanged(self):
+        """A routine's reviewed sources and an eval's baseline are fingerprints of
+        the dumped spec: a `tool_approval: {}` on every stored binding would change
+        both for an agent nobody touched (#2884)."""
+        stored = [
+            {
+                "account": "organization",
+                "connection_id": str(uuid.uuid4()),
+                "allowed_tools": ["search"],
+                "approval": "writes",
+            },
+            {
+                "account": "personal",
+                "catalog_key": "notion",
+                "allowed_tools": None,
+                "approval": "all",
+            },
+        ]
+
+        spec = AgentSpec.model_validate({"name": "x", "mcp_servers": stored})
+
+        assert spec.model_dump(mode="json")["mcp_servers"] == stored
+        assert "tool_approval" not in spec.to_yaml()
+
+    def test_per_tool_mcp_approval_is_stored_sorted_and_only_where_decided(self):
+        """Sorted because JSONB reorders keys and the Builder compares what it saved
+        with what it reads back; `default` is the same as no entry at all."""
+        spec = AgentSpec(
+            name="x",
+            mcp_servers=[
+                {
+                    "account": "personal",
+                    "catalog_key": "notion",
+                    "approval": "writes",
+                    "tool_approval": {"search": "never", "fetch": "default", "delete": "required"},
+                }
+            ],
+        )
+
+        (dumped,) = spec.model_dump(mode="json")["mcp_servers"]
+        assert list(dumped["tool_approval"].items()) == [
+            ("delete", "required"),
+            ("search", "never"),
+        ]
+        assert AgentSpec.from_yaml(spec.to_yaml()) == spec
+
+    @pytest.mark.security
+    def test_the_platform_server_releases_only_the_tools_it_names(self):
+        """Its calls act with the asker's own authority: `none` is held to `writes`
+        when the run attaches it, and a change runs unasked only where the spec
+        names that one tool `never`."""
+        spec = AgentSpec(
+            name="x",
+            mcp_servers=[
+                {
+                    "account": "platform",
+                    "approval": "none",
+                    "tool_approval": {"add_virtual_table_record": "never"},
+                }
+            ],
+        )
+
+        (platform,) = spec.mcp_servers
+        assert platform.tool_approval == {"add_virtual_table_record": "never"}
 
     def test_a_tool_cannot_be_bound_twice(self):
         """A duplicate would silently shadow itself in the toolset."""
@@ -706,6 +777,38 @@ class TestToolSearchDefersMcp:
         approval.assert_not_awaited()
 
     @pytest.mark.anyio
+    async def test_asking_about_everything_does_not_ask_about_the_computer(self):
+        """`request_computer_access` is itself the question, like `connect_account`."""
+        asked: list[str] = []
+
+        async def request_access(request: ComputerAccessRequest) -> bool:
+            asked.append(request.reason)
+            return False
+
+        approval = AsyncMock()
+        built = build_agent(
+            AgentSpec(name="x"),
+            _model_spec(),
+            organization_id=uuid.uuid4(),
+            gate_every_tool=True,
+            request_approval=approval,
+            extra_capabilities=[RequestComputerOnUse(request_access=request_access)],
+        )
+
+        async def respond(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+            if len(messages) == 1:
+                return ModelResponse(
+                    parts=[ToolCallPart("request_computer_access", {"reason": "README"})]
+                )
+            return ModelResponse(parts=[TextPart("done")])
+
+        with built.agent.override(model=FunctionModel(respond)):
+            await built.agent.run("hello", deps=built.deps)
+
+        assert asked == ["README"]
+        approval.assert_not_awaited()
+
+    @pytest.mark.anyio
     async def test_every_mcp_schema_is_visible_when_it_is_not_bound(self):
         """The other direction: with nothing to defer to, every MCP schema is in
         front of the model on the first request and there is no `search_tools`."""
@@ -943,7 +1046,7 @@ class TestRunReviewers:
         (reviewer,) = self._reviewers(spec, {resolved: model})
 
         assert (reviewer.name, reviewer.every, reviewer.model) == ("sources", 4, model.build())
-        assert reviewer.model_settings == {"temperature": 0.0}
+        assert reviewer.model_settings == {**DEFAULT_MODEL_TIMEOUTS, "temperature": 0.0}
         assert reviewer.screen is None
         assert "scope is incomplete or unresolved" in caplog.text
         assert "draft is incomplete or unresolved" in caplog.text
@@ -1203,7 +1306,7 @@ class TestWhoHearsAboutAnAgent:
         """
         fields = set(AlertSpec.model_fields)
 
-        assert fields == {"enabled", "to", "user_ids"}
+        assert fields == {"enabled", "to", "user_ids", "group_ids"}
         assert not any("mail" in name or "address" in name for name in fields)
 
     def test_a_rendered_spec_carries_no_address(self):
@@ -1225,6 +1328,10 @@ _SCORE = {
     "required": ["score"],
     "additionalProperties": False,
 }
+
+
+def _shaped(field: dict[str, object]) -> dict[str, object]:
+    return {"type": "object", "properties": {"field": field}, "additionalProperties": False}
 
 
 class TestAStructuredAnswer:
@@ -1292,6 +1399,142 @@ class TestAStructuredAnswer:
         assert result.usage.requests == 2
         assert any("score" in text for text in seen), seen
 
+    @pytest.mark.anyio
+    async def test_the_answer_tool_is_not_strict_so_a_free_json_value_is_offered(self):
+        """A strict tool's grammar refuses a schema node with no type, and the provider the request."""
+        schema = {
+            "type": "object",
+            "properties": {"path": {"type": "string"}, "value": {}},
+            "required": ["path", "value"],
+        }
+        offered = []
+
+        def respond(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+            offered.extend(info.output_tools)
+            answer = {"path": "capabilities", "value": {"id": "clock", "config": {}}}
+            return ModelResponse(
+                parts=[ToolCallPart(tool_name=info.output_tools[0].name, args=answer)]
+            )
+
+        built = build_agent(
+            AgentSpec(name="Proposer", output_schema=schema),
+            _model_spec(),
+            organization_id=uuid.uuid4(),
+        )
+        with built.agent.override(model=FunctionModel(respond)):
+            result = await built.agent.run("Propose a change", deps=built.deps)
+
+        assert [tool.strict for tool in offered] == [False]
+        assert offered[0].parameters_json_schema["properties"]["value"] == {}
+        assert result.output == {"path": "capabilities", "value": {"id": "clock", "config": {}}}
+
+    @pytest.mark.parametrize(
+        ("schema", "strict"),
+        [
+            (_SCORE, None),
+            (
+                {
+                    "$schema": "http://json-schema.org/draft-07/schema#",
+                    **_shaped(
+                        {
+                            "type": "array",
+                            "items": [{"type": "integer"}, {"type": "string", "maxLength": 2}],
+                        }
+                    ),
+                },
+                False,
+            ),
+            (
+                {
+                    "$schema": "http://json-schema.org/draft-07/schema#",
+                    **_shaped(
+                        {"type": "array", "items": [{"type": "integer"}, {"type": "string"}]}
+                    ),
+                },
+                False,
+            ),
+            (
+                _shaped(
+                    {
+                        "type": "object",
+                        "additionalProperties": False,
+                        "patternProperties": {"^x": {"type": "string", "maxLength": 2}},
+                    }
+                ),
+                False,
+            ),
+            (
+                _shaped(
+                    {
+                        "type": "object",
+                        "additionalProperties": False,
+                        "dependentSchemas": {"x": {"not": {"type": "string"}}},
+                    }
+                ),
+                False,
+            ),
+            (
+                _shaped(
+                    {
+                        "type": "string",
+                        "if": {"const": "x"},
+                        "then": {"maxLength": 1},
+                        "else": {"minLength": 2},
+                    }
+                ),
+                False,
+            ),
+            (_shaped({"type": "string", "not": {"const": "x"}}), False),
+            (
+                _shaped(
+                    {"type": "array", "items": {"type": "string"}, "contains": {"maxLength": 2}}
+                ),
+                False,
+            ),
+            ({"type": "object"}, False),
+            (_shaped({"type": "array"}), False),
+            (_shaped({"type": ["array", "null"]}), False),
+            (_shaped({"type": ["object", "null"]}), False),
+            (_shaped({"type": "object", "additionalProperties": True}), False),
+            (_shaped({"type": "array", "items": True}), False),
+            (_shaped({"type": "object", "additionalProperties": False}), None),
+            (_shaped({"type": "array", "items": {"type": "string"}, "minItems": 1}), None),
+            (_shaped({"type": "array", "minItems": 3}), False),
+            (_shaped({"type": "integer", "maximum": 5}), False),
+            ({"type": "object", "$defs": {"Free": {"description": "anything"}}}, False),
+            (_shaped({"anyOf": [{"type": "string"}, {"additionalProperties": {}}]}), False),
+            (
+                _shaped({"type": "array", "prefixItems": [{"type": "string", "maxLength": 9}]}),
+                False,
+            ),
+        ],
+    )
+    def test_only_a_schema_a_strict_grammar_cannot_express_turns_strict_off(self, schema, strict):
+        """Left alone, a provider validating strict tools - Gemini - checks every call."""
+        built = build_agent(
+            AgentSpec(name="Shaped", output_schema=schema),
+            _model_spec(),
+            organization_id=uuid.uuid4(),
+        )
+        answer = built.agent.output_type[0]
+        assert isinstance(answer, ToolOutput)
+        assert answer.strict is strict
+
+    def test_a_non_strict_draft7_tuple_is_still_validated_locally(self):
+        schema = {
+            "$schema": "http://json-schema.org/draft-07/schema#",
+            **_shaped(
+                {
+                    "type": "array",
+                    "items": [{"type": "integer"}, {"type": "string", "maxLength": 2}],
+                }
+            ),
+        }
+        validate = _fits_schema(schema)
+        assert validate({"field": [1, "ab"]}) == {"field": [1, "ab"]}
+        with pytest.raises(OutputSchemaRetry, match="field/1"):
+            validate({"field": [1, "too long"]})
+
     def test_a_parked_run_passes_the_schema_check_untouched(self):
         """What a parked run ends with is not an answer, and is handed on untouched."""
         parked = DeferredToolRequests()
@@ -1334,8 +1577,82 @@ class TestVoiceSpec:
             VoiceSpec(max_call_seconds=3001)
 
     def test_the_spec_version_did_not_move(self):
-        # 13 is the browser's fold (#2127); an optional section with a default adds none.
-        assert SPEC_VERSION == 14
+        # 15 is the skill binding; an optional section with a default adds none.
+        assert SPEC_VERSION == 15
+
+
+class TestSkillBindings:
+    """Which version of a bound skill an agent reads - main's newest unless it says."""
+
+    SKILL = uuid.UUID("2f1d0c6e-5b4a-4c3d-9e8f-7a6b5c4d3e2f")
+    FORK = uuid.UUID("9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d")
+
+    def test_a_version_14_document_reads_every_skill_from_main(self):
+        """Stored before skills had versions, and loaded exactly as it was written."""
+        spec = AgentSpec.from_yaml(
+            "spec_version: 14\n"
+            "name: Clerk\n"
+            "instructions: Answer briefly.\n"
+            f"skill_ids:\n  - {self.SKILL}\n"
+        )
+
+        assert spec.skill_ids == [self.SKILL]
+        assert spec.skill_bindings == []
+
+    def test_a_pin_and_a_fork_survive_the_round_trip(self):
+        spec = AgentSpec(
+            name="Clerk",
+            skill_ids=[self.SKILL, self.FORK],
+            skill_bindings=[
+                SkillBindingSpec(skill_id=self.SKILL, version=7),
+                SkillBindingSpec(skill_id=self.FORK, fork_id=self.FORK),
+            ],
+        )
+
+        assert AgentSpec.from_yaml(spec.to_yaml()) == spec
+
+    @pytest.mark.parametrize("line", [{}, {"version": 3, "fork_id": FORK}])
+    def test_a_binding_names_a_version_or_a_fork(self, line):
+        with pytest.raises(ValidationError, match="one of the two"):
+            SkillBindingSpec(skill_id=self.SKILL, **line)
+
+    def test_a_skill_bound_to_two_versions_is_refused(self):
+        with pytest.raises(ValidationError, match="more than one version"):
+            AgentSpec(
+                name="Clerk",
+                skill_ids=[self.SKILL],
+                skill_bindings=[
+                    SkillBindingSpec(skill_id=self.SKILL, version=1),
+                    SkillBindingSpec(skill_id=self.SKILL, version=2),
+                ],
+            )
+
+    def test_unbinding_a_skill_drops_its_version_and_reading_it_again_changes_nothing(self):
+        """The Builder saves a draft as it is; an unticked skill's pin goes with it."""
+        spec = AgentSpec(
+            name="Clerk",
+            skill_ids=[self.FORK],
+            skill_bindings=[SkillBindingSpec(skill_id=self.SKILL, version=7)],
+        )
+
+        assert spec.skill_bindings == []
+        assert AgentSpec.model_validate(spec.model_dump(mode="json")) == spec
+
+    def test_a_specialist_binds_its_own_skills_the_same_way(self):
+        specialist = SpecialistSpec(
+            name="returns",
+            description="Handles returns.",
+            instructions="Handle returns.",
+            skill_ids=[self.SKILL],
+            skill_bindings=[
+                SkillBindingSpec(skill_id=self.SKILL, fork_id=self.FORK),
+                SkillBindingSpec(skill_id=self.FORK, version=2),
+            ],
+        )
+
+        assert specialist.skill_bindings == [
+            SkillBindingSpec(skill_id=self.SKILL, fork_id=self.FORK)
+        ]
 
 
 @pytest.mark.parametrize(

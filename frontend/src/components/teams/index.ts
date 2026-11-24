@@ -6,6 +6,7 @@ export { OrgSpendingLimit } from "./org-spending-limit";
 export { OrgProactivity } from "./org-proactivity";
 export { OrgSystemAgents } from "./org-system-agents";
 export { OrgApprovalWaiver } from "./org-approval-waiver";
+export { OrgPublicAttribution } from "./org-public-attribution";
 export { OrgPublicLiveData } from "./org-public-live-data";
 export { OrgVoiceSettings } from "./org-voice-settings";
 export { OrgAssistant } from "./org-assistant";

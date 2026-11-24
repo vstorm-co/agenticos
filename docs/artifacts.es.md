@@ -1,5 +1,5 @@
 ---
-source_sha: "a1c685490bed"
+source_sha: "5e90ed7a08dd"
 ---
 
 # Aplicaciones { #artifacts }
@@ -15,6 +15,10 @@ workspace ya tienen su sitio en el chat y en el [workspace](sandbox.md). Una
 aplicación es lo que se *sirve*: tiene un propietario, una visibilidad y grants
 como un agent o un skill, y se le puede dar un enlace público para alguien sin
 cuenta.
+
+## Identificación de páginas compartidas { #shared-page-attribution }
+
+Los visores públicos de aplicaciones muestran por defecto una insignia flotante con el logotipo de AgenticOS y un enlace a GitHub. Las conversaciones compartidas muestran la misma insignia debajo de la conversación. Un Owner o Admin puede ocultar el pie para toda la organización en **Configuración de la organización → Gobernanza → AgenticOS en páginas compartidas**. La siguiente carga de la página usa la configuración actual. Las aplicaciones protegidas con contraseña muestran el pie solo después de desbloquearlas. El pie pertenece al visor; no se modifican los archivos descargados ni el contenido de la aplicación incrustada.
 
 ## Apariencia de la app { #app-appearance }
 
@@ -811,9 +815,9 @@ contenido a otro origen:
 | `lib/chart-4.5.1.umd.min.js` | Chart.js 4.5.1, como `window.Chart` |
 | `lib/d3-7.9.0.min.js` | d3 7.9.0, como `window.d3` |
 | `lib/lucide-1.46.0.min.js` | Iconos de Lucide 1.46.0, como `window.lucide` - el mismo conjunto que usa la consola |
-| `lib/agenticos-3.css` | El kit de páginas: el aspecto de la consola para páginas, claro y oscuro, y los componentes `ao-` con los que se construye una página |
-| `lib/agenticos-3.js` | `window.AO`: Chart.js con el estilo de la consola, formato de números en el idioma de la página, iconos, pestañas, `AO.onData`, `AO.records`, y `AO.run` y `AO.onRun` para las [acciones](#actions) |
-| `lib/agenticos-2.css`, `lib/agenticos-2.js` | La versión anterior del kit, conservada para las páginas publicadas con ella |
+| `lib/agenticos-4.css` | El kit de páginas: el aspecto de la consola para páginas, claro y oscuro, y los componentes `ao-` con los que se construye una página |
+| `lib/agenticos-4.js` | `window.AO`: Chart.js con el estilo de la consola, formato de números en el idioma de la página, iconos, pestañas, `AO.onData`, `AO.records`, y `AO.run` y `AO.onRun` para las [acciones](#actions) |
+| `lib/agenticos-3.css`, `lib/agenticos-3.js`, `lib/agenticos-2.css`, `lib/agenticos-2.js` | Versiones anteriores del kit, conservada para las páginas publicadas con ella |
 | `lib/agenticos-1.css` | La primera versión del aspecto, conservada para las páginas publicadas con ella |
 | `lib/three-0.186.0/three.module.js` | three.js 0.186.0 como módulo ES, con `addons/controls/OrbitControls.js` al lado - asigne `three` y `three/addons/` con un import map |
 | `lib/mermaid-12.1.0.min.js` | Mermaid 12.1.0, como `window.mermaid` |
@@ -917,7 +921,7 @@ La consola aporta el ID, el título y la versión de la aplicación, además de 
 ruta actual. El iframe no puede sustituir esa identidad ni conceder permisos
 adicionales. La API usa el puente existente de la sandbox; no extrae el DOM ni
 captura automáticamente campos de formulario o parámetros de consulta de la URL.
-El lector controla qué comparte en la
+Quien usa la vista controla lo que comparte en la
 [ventana del asistente](console.md#the-assistant).
 
 ### Ver la página: la vista previa { #seeing-the-page-preview }
@@ -955,7 +959,7 @@ informe, sin la imagen, y dice que el despliegue no tiene renderizador. Desactiv
 puede leer imágenes; el informe sigue llegando. `agenticos cmd doctor` dice si el
 renderizador responde.
 
-Tres skills incluidos más construyen una **presentación** como app: `presentation-decks` (una plantilla lista con marco de diapositiva 16:9, navegación con teclado y táctil, notas del orador con `n` y una diapositiva por página al imprimir a PDF), `deck-storyline` (el público, la decisión y una línea de afirmaciones antes de que exista ninguna diapositiva) y `deck-review` (títulos que se leen como argumento, un mensaje por diapositiva, cada cifra trazada, legible desde lejos). No añaden ninguna biblioteca ni exportación a PowerPoint.
+Tres skills incluidos más construyen una **presentación** como app: `presentation-decks` (la presentación HTML 16:9 de `artifact-pages`, con composiciones variadas, navegación por teclado, vista general, selección de paleta y una diapositiva por página impresa), `deck-storyline` (el público, la decisión y una línea de afirmaciones antes de que exista ninguna diapositiva) y `deck-review` (títulos que se leen como argumento, un mensaje por diapositiva, cada cifra trazada, legible desde lejos). No añaden ninguna biblioteca ni exportación a PowerPoint.
 
 ## Visuals { #visuals }
 
@@ -1013,7 +1017,7 @@ un servidor de mapas conectado y que un administrador activa los mapas reales co
 este ajuste. La imagen de un mapa en una app de chat se
 dibuja terminada, con todas las chinchetas en su sitio.
 
-**Los mapas del mundo no necesitan ninguno.** Para todo lo que trate de países - clientes por país, oficinas, una ruta entre dos ciudades - `AOWorldMap` dibuja un mapa en SVG a partir de contornos de países que el despliegue sirve por sí mismo: sin servidor de teselas, sin red y sin contenedor adicional. El agente lo prefiere; el mapa de teselas queda para el nivel de calle.
+**Los mapas del mundo no necesitan ninguno.** Para todo lo que trate de países - clientes por país, oficinas, una ruta entre dos ciudades - `AOWorldMap` dibuja un mapa en SVG a partir de contornos de países que el despliegue sirve por sí mismo: sin servidor de teselas, sin red y sin contenedor adicional. Es la opción predeterminada para mapas nuevos, incluidos itinerarios entre ciudades. El agente carga los contornos de países incluidos y dibuja puntos y rutas sin configuración adicional. El administrador puede activar el mapa de calles mediante `VISUAL_MAP_TILES`; si las teselas no están disponibles, el agente debe usar este mapa SVG.
 
 **Elegir la forma.** El skill `visual-design` le dice al agent cuándo un dibujo es
 siquiera la respuesta correcta: texto para un dato o un consejo, una tabla Markdown
@@ -1473,3 +1477,15 @@ del despliegue, bajo `artifacts/<organization>/<artifact>/`.
 - Archivar conserva una página y no sirve nada de ella, con el enlace público
   desactivado, hasta que alguien que puede editarla la restaura.
 - Una clase de retención propia, medida desde la última publicación.
+
+## Carga de vistas previas y uso compartido { #preview-loading-and-sharing }
+
+Las vistas previas del chat reservan espacio mientras carga el renderizador visual o la miniatura de Apps. Aparecen gradualmente cuando termina el renderizado o la decodificación; la preferencia de movimiento reducido desactiva la animación. Las listas de Apps usan miniaturas estáticas en caché por versión, en lugar de ejecutar cada aplicación al volver a la lista.
+
+Los fallos temporales del renderizador y los tiempos de espera agotados reciben como máximo dos reintentos automáticos con retrasos crecientes. No se reintenta si falta la configuración del renderizador o se deniega el acceso. Volver a una tarjeta o cambiar su visibilidad no reinicia el límite agotado. Las imágenes correctas permanecen en caché para su versión autorizada.
+
+El skill Apps incluye presentaciones HTML interactivas, estilos de impresión PDF y ejemplos de componentes reutilizables. Exportar PDF requiere configurar el renderizador; validar una vista previa no demuestra que el script se ejecutara correctamente. Comprueba gráficos, tablas y contenido interactivo en la vista renderizada. No se incluye exportación a PowerPoint.
+
+La herramienta MCP de la plataforma `create_app_public_link` requiere acceso de edición y confirmación explícita de publicación. Reutiliza los enlaces existentes y conserva contraseña, caducidad y versión fijada. Los datos en vivo requieren consentimiento separado del propietario. La llamada solo tiene éxito cuando la API confirma la URL pública.
+
+La herramienta MCP de la plataforma `create_app_public_link` requiere acceso de edición y confirmación explícita de que la App puede compartirse públicamente. Reutiliza los enlaces existentes y conserva contraseña, caducidad y versión fijada. Los datos en vivo requieren consentimiento separado del propietario. La llamada solo tiene éxito cuando la API confirma la URL pública.

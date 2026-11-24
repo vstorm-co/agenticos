@@ -1,0 +1,87 @@
+{
+  "base": "http://localhost:3010",
+  "captures": [
+    {
+      "scenario": "mfa-off",
+      "width": 1440,
+      "file": "mfa-off-1440.png",
+      "page_errors": [],
+      "unmatched_api": [
+        "GET /sessions",
+        "GET /catalog/icons",
+        "GET /assistant"
+      ]
+    },
+    {
+      "scenario": "mfa-off",
+      "width": 390,
+      "file": "mfa-off-390.png",
+      "page_errors": [],
+      "unmatched_api": [
+        "GET /sessions",
+        "GET /catalog/icons",
+        "GET /assistant"
+      ]
+    },
+    {
+      "scenario": "mfa-enrol",
+      "width": 1440,
+      "file": "mfa-enrol-1440.png",
+      "page_errors": [],
+      "unmatched_api": [
+        "GET /sessions",
+        "GET /catalog/icons",
+        "GET /assistant",
+        "POST /diagnostics/presence"
+      ]
+    },
+    {
+      "scenario": "mfa-enrol",
+      "width": 390,
+      "file": "mfa-enrol-390.png",
+      "page_errors": [],
+      "unmatched_api": [
+        "GET /sessions",
+        "GET /catalog/icons",
+        "GET /assistant",
+        "POST /diagnostics/presence"
+      ]
+    },
+    {
+      "scenario": "mfa-on",
+      "width": 1440,
+      "file": "mfa-on-1440.png",
+      "page_errors": [],
+      "unmatched_api": [
+        "GET /sessions",
+        "GET /catalog/icons",
+        "GET /assistant"
+      ]
+    },
+    {
+      "scenario": "mfa-on",
+      "width": 390,
+      "file": "mfa-on-390.png",
+      "page_errors": [],
+      "unmatched_api": [
+        "GET /sessions",
+        "GET /catalog/icons",
+        "GET /assistant"
+      ]
+    },
+    {
+      "scenario": "login-mfa",
+      "width": 1440,
+      "file": "login-mfa-1440.png",
+      "page_errors": [],
+      "unmatched_api": []
+    },
+    {
+      "scenario": "login-mfa",
+      "width": 390,
+      "file": "login-mfa-390.png",
+      "page_errors": [],
+      "unmatched_api": []
+    }
+  ]
+}

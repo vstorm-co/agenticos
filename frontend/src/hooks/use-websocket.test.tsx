@@ -543,6 +543,34 @@ describe("sending", () => {
     expect(latest().send).not.toHaveBeenCalled();
   });
 
+  it("reports a socket that closes between the ready check and send", () => {
+    const { result } = renderHook(() => useWebSocket({ url: "wss://api/chat" }));
+    act(() => result.current.connect());
+    act(() => latest().open());
+    latest().send.mockImplementation(() => {
+      throw new DOMException("socket closed", "InvalidStateError");
+    });
+
+    let sent = true;
+    act(() => {
+      sent = result.current.sendMessage("ping");
+    });
+
+    expect(sent).toBe(false);
+  });
+
+  it("rethrows unexpected socket send failures", () => {
+    const { result } = renderHook(() => useWebSocket({ url: "wss://api/chat" }));
+    act(() => result.current.connect());
+    act(() => latest().open());
+    const failure = new Error("send failed unexpectedly");
+    latest().send.mockImplementation(() => {
+      throw failure;
+    });
+
+    expect(() => result.current.sendMessage("ping")).toThrow(failure);
+  });
+
   it("sends nothing before there is a socket at all", () => {
     const { result } = renderHook(() => useWebSocket({ url: "wss://api/chat" }));
 

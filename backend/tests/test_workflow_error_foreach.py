@@ -296,13 +296,13 @@ async def _problems(graph: WorkflowGraph) -> list[str]:
 
 
 class _LoopGraph:
-    """entry -> loop -body-> item -> yield ; loop -done-> out, and extras."""
+    """entry -> loop -done-> out; inside the loop item -> yield, and extras."""
 
     def __init__(self) -> None:
         self.entry = _node("core.input")
         self.loop = _node("control.foreach")
-        self.item = _node("loop.item")
-        self.yield_ = _node("loop.yield")
+        self.item = _node("loop.item", scope_id=self.loop.id)
+        self.yield_ = _node("loop.yield", scope_id=self.loop.id)
         self.out = _node("core.output")
 
     def graph(
@@ -319,7 +319,6 @@ class _LoopGraph:
             if edges is not None
             else (
                 _edge(self.entry, self.loop),
-                _edge(self.loop, self.item, "body"),
                 _edge(self.item, self.yield_),
                 _edge(self.loop, self.out, "done"),
             ),
@@ -368,26 +367,27 @@ async def test_loop_steps_outside_a_loop_are_refused():
 
 async def test_a_loop_body_needs_one_item_step_and_one_result_step():
     shape = _LoopGraph()
-    other = _node("data.map", _MAP)
-    no_item = shape.graph(
-        nodes=(other,),
+    second_item = _node("loop.item", scope_id=shape.loop.id)
+    two_items = shape.graph(
+        nodes=(second_item,),
         edges=(
             _edge(shape.entry, shape.loop),
-            _edge(shape.loop, other, "body"),
-            _edge(other, shape.yield_),
+            _edge(shape.item, shape.yield_),
+            _edge(second_item, shape.yield_),
             _edge(shape.loop, shape.out, "done"),
         ),
     )
-    problems = await _problems(no_item)
+    problems = await _problems(two_items)
     assert any("start at exactly one loop item" in p for p in problems)
 
-    second_yield = _node("loop.yield")
+    second_yield = _node("loop.yield", scope_id=shape.loop.id)
     graph = WorkflowGraph(
         entry_node_id=shape.entry.id,
-        nodes=(shape.entry, shape.loop, shape.item, shape.out, second_yield),
+        nodes=(shape.entry, shape.loop, shape.item, shape.yield_, shape.out, second_yield),
         edges=(
             _edge(shape.entry, shape.loop),
-            _edge(shape.loop, shape.item, "body"),
+            _edge(shape.item, shape.yield_),
+            _edge(shape.item, second_yield),
             _edge(shape.loop, shape.out, "done"),
         ),
         bindings=(_bind(shape.loop, "items", shape.entry, "out", "payload", "xs"),),
@@ -397,12 +397,11 @@ async def test_a_loop_body_needs_one_item_step_and_one_result_step():
 
 async def test_a_loop_cannot_continue_into_its_own_body():
     shape = _LoopGraph()
-    after = _node("data.map", _MAP)
+    after = _node("data.map", _MAP, scope_id=shape.loop.id)
     graph = shape.graph(
         nodes=(after,),
         edges=(
             _edge(shape.entry, shape.loop),
-            _edge(shape.loop, shape.item, "body"),
             _edge(shape.item, after),
             _edge(after, shape.yield_),
             _edge(shape.loop, after, "done"),
@@ -414,18 +413,14 @@ async def test_a_loop_cannot_continue_into_its_own_body():
 async def test_loops_nest_only_as_deep_as_configured(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr("app.core.config.settings.WORKFLOW_FOREACH_MAX_DEPTH", 1)
     shape = _LoopGraph()
-    inner, inner_item, inner_yield = (
-        _node("control.foreach"),
-        _node("loop.item"),
-        _node("loop.yield"),
-    )
+    inner = _node("control.foreach", scope_id=shape.loop.id)
+    inner_item = _node("loop.item", scope_id=inner.id)
+    inner_yield = _node("loop.yield", scope_id=inner.id)
     graph = shape.graph(
         nodes=(inner, inner_item, inner_yield),
         edges=(
             _edge(shape.entry, shape.loop),
-            _edge(shape.loop, shape.item, "body"),
             _edge(shape.item, inner),
-            _edge(inner, inner_item, "body"),
             _edge(inner_item, inner_yield),
             _edge(inner, shape.yield_, "done"),
             _edge(shape.loop, shape.out, "done"),
@@ -519,12 +514,11 @@ async def test_a_step_whose_call_is_not_safe_to_repeat_cannot_retry():
 
 async def test_a_step_that_never_runs_takes_no_policy():
     shape = _LoopGraph()
-    item = _node("loop.item", policy=NodePolicy(timeout_seconds=1))
+    item = _node("loop.item", policy=NodePolicy(timeout_seconds=1), scope_id=shape.loop.id)
     graph = shape.graph(
         nodes=(item,),
         edges=(
             _edge(shape.entry, shape.loop),
-            _edge(shape.loop, item, "body"),
             _edge(item, shape.yield_),
             _edge(shape.loop, shape.out, "done"),
         ),

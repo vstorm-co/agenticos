@@ -106,10 +106,11 @@ class ModelProfile(Base, TimestampMixin):
     region: Mapped[str | None] = mapped_column(String(16), nullable=True)
     # How many tokens this model accepts, as the provider's own listing said when
     # the profile was created. Recorded rather than resolved at run time because
-    # the request path may not call a provider, and the alternative source is
-    # wrong in the direction that breaks a run: `genai-prices` records 1M for
-    # `anthropic:claude-sonnet-4-5` against a real 200K, and a `FallbackModel`'s
-    # composite id resolves to nothing at all (#773).
+    # the request path may not call a provider, and the alternative source is a
+    # third-party bundle whose numbers have been wrong in the direction that
+    # breaks a run: an earlier snapshot recorded 1M for
+    # `anthropic:claude-sonnet-4-5` against a real 200K (#773), and a
+    # `FallbackModel`'s composite id resolves to nothing at all.
     #
     # Null for a profile created before this existed, for a provider that
     # publishes no length, and for one whose listing could not be reached - all
@@ -125,7 +126,7 @@ class ModelProfile(Base, TimestampMixin):
 
     __table_args__ = (
         UniqueConstraint("organization_id", "label", name="uq_model_profile_org_label"),
-        CheckConstraint("api IN ('chat', 'responses')", name="ck_model_profile_api"),
+        CheckConstraint("api IN ('chat', 'responses', 'decisions')", name="ck_model_profile_api"),
         CheckConstraint("region IN ('eu', 'eea', 'global')", name="ck_model_profile_region"),
     )
 

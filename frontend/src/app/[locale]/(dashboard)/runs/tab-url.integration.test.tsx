@@ -34,6 +34,9 @@ vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 let params = new URLSearchParams();
 vi.mock("next/navigation", () => ({
+  // The browser continuation panel reaches next-intl's navigation, which reads these.
+  redirect: vi.fn(),
+  permanentRedirect: vi.fn(),
   // The empty Activity window offers to ask an agent (#2075).
   useRouter: () => ({ push: vi.fn() }),
   useSearchParams: () => params,
@@ -82,6 +85,7 @@ const RUN = {
   started_at: "2026-08-14T09:00:00Z",
   ended_at: "2026-08-14T09:00:04Z",
   parent_run_id: null,
+  retry_of_run_id: null,
   subagent_task_id: null,
 };
 

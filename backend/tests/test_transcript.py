@@ -724,6 +724,25 @@ class TestWritingTheTranscript:
         }
         assert statuses == {"c1": "running", "c2": "awaiting_approval"}
 
+    async def test_a_renamed_question_is_recorded_waiting_for_an_answer(self, conversations):
+        await TranscriptService(_session()).record(
+            _run(),
+            prompt="choose a region",
+            answer="",
+            tool_calls=[
+                RecordedToolCall(tool_call_id="ask-1", tool_name="clarify", args={}),
+                RecordedToolCall(tool_call_id="send-1", tool_name="send_email", args={}),
+            ],
+            parked={"send-1"},
+            question_tool_call_ids={"ask-1"},
+        )
+
+        statuses = {
+            call.kwargs["tool_call_id"]: call.kwargs["status"]
+            for call in conversations.create_tool_call.await_args_list
+        }
+        assert statuses == {"ask-1": "awaiting_answer", "send-1": "awaiting_approval"}
+
     async def test_a_call_that_merely_never_returned_is_not_marked_as_waiting(self, conversations):
         """A run that broke or was stopped mid-call also leaves a call with no
         result, and nobody can approve it into finishing - `awaiting_approval` is

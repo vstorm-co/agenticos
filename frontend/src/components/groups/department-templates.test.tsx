@@ -1,11 +1,16 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { DepartmentTemplates } from "./department-templates";
 
-const { mutateAsync } = vi.hoisted(() => ({ mutateAsync: vi.fn() }));
-vi.mock("@/hooks", () => ({ useAddDepartments: () => ({ mutateAsync, isPending: false }) }));
+const { mutateAsync, state } = vi.hoisted(() => ({
+  mutateAsync: vi.fn(),
+  state: { pending: false },
+}));
+vi.mock("@/hooks", () => ({
+  useAddDepartments: () => ({ mutateAsync, isPending: state.pending }),
+}));
 
 const group = (name: string) => ({
   id: name,
@@ -16,6 +21,11 @@ const group = (name: string) => ({
   monthly_budget_usd: null,
   member_count: 0,
   created_at: "2026-10-10T00:00:00Z",
+});
+
+beforeEach(() => {
+  state.pending = false;
+  vi.clearAllMocks();
 });
 
 describe("DepartmentTemplates", () => {
@@ -65,4 +75,14 @@ describe("DepartmentTemplates", () => {
 
     expect(onClose).not.toHaveBeenCalled();
   });
+});
+
+it("keeps a batch creation visible and prevents selection changes while saving", async () => {
+  state.pending = true;
+  const onClose = vi.fn();
+  render(<DepartmentTemplates orgId="o1" existing={[]} onClose={onClose} />);
+  expect(screen.getByRole("button", { name: "Cancel" })).toBeDisabled();
+  for (const checkbox of screen.getAllByRole("checkbox")) expect(checkbox).toBeDisabled();
+  await userEvent.keyboard("{Escape}");
+  expect(onClose).not.toHaveBeenCalled();
 });

@@ -20,8 +20,10 @@ shown twice.
 
 Redis rather than the process the turn runs in, because the person's new socket
 lands on whichever API instance the load balancer picks. Frames that ask the
-person for something - a question, a connection - are not kept: the session they
-belong to is the one waiting, and an answer from another socket cannot reach it.
+person for something are not kept: live delegate questions and connection
+requests wait on their original socket, and parked main-agent questions are
+private to the person who started the run. The latter are recovered from the
+saved transcript and answered through the run's API.
 A turn's trace expires shortly after it ends, and an hour after its last frame
 whatever happened; the transcript is the record, this is a view.
 
@@ -59,7 +61,10 @@ HISTORY_LIMIT = 20_000
 NOT_KEPT = frozenset(
     {
         "ask_user",
+        "user_question_required",
+        "run_answer_result",
         "connect_account",
+        "computer_access",
         "user_prompt",
         "conversation_created",
         "steer_unapplied",
@@ -68,8 +73,9 @@ NOT_KEPT = frozenset(
 )
 """Frames meant for the socket that sent the message, not for someone watching.
 
-A question or a connection request waits on the session that asked it, which an
-answer from another socket cannot reach; the prompt is already in the transcript;
+A live question, a connection request or a request for the computer waits on
+its original session. A parked question belongs to the person who started the
+run and is recovered from its saved transcript; the prompt is already there;
 `conversation_created` names a chat the follower already has open."""
 
 LIVE_ONLY = frozenset({"browser_frame", "browser_pointer"})
@@ -316,15 +322,27 @@ async def follow(conversation_id: str, token: str) -> AsyncGenerator[dict[str, A
             if frame["type"] == END:
                 await _forget(turn)
                 return
-        if not await _alive(turn):
-            return
-        while True:
+        alive = await _alive(turn)
+        while alive:
             message = await pubsub.get_message(timeout=QUIET_SECONDS)
             if message is None:
-                if not await _alive(turn):
-                    return
+                alive = await _alive(turn)
                 continue
             frame = _frame(str(message["data"]))
+            if frame is None or frame["seq"] <= last:
+                continue
+            last = frame["seq"]
+            yield frame
+            if frame["type"] == END:
+                await _forget(turn)
+                return
+        # The writer can finish while the snapshot is replayed or the channel is
+        # quiet. Its final frames were recorded before its alive key was removed;
+        # recover that suffix before closing, without replaying earlier frames.
+        async with asyncio.timeout(redis_view.TIMEOUT_SECONDS):
+            trace = await _redis.list_range(turn.key("trace"))
+        for raw in trace:
+            frame = _frame(raw)
             if frame is None or frame["seq"] <= last:
                 continue
             last = frame["seq"]

@@ -3,6 +3,11 @@ interface SpeechRecognitionEvent extends Event {
   readonly results: SpeechRecognitionResultList;
 }
 
+interface SpeechRecognitionErrorEvent extends Event {
+  /** The Web Speech API's code: `not-allowed`, `audio-capture`, `no-speech`, `network`, … */
+  readonly error: string;
+}
+
 interface SpeechRecognitionResultList {
   readonly length: number;
   [index: number]: SpeechRecognitionResult;
@@ -25,7 +30,7 @@ interface SpeechRecognition extends EventTarget {
   lang: string;
   onresult: ((event: SpeechRecognitionEvent) => void) | null;
   onend: (() => void) | null;
-  onerror: ((event: Event) => void) | null;
+  onerror: ((event: SpeechRecognitionErrorEvent) => void) | null;
   start(): void;
   stop(): void;
   abort(): void;

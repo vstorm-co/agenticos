@@ -4,6 +4,7 @@ import type { Page } from "@playwright/test";
 import {
   AUTH_STATE,
   DRAFT_AGENT_NAME,
+  FAKE_KEY_LABEL,
   SEEDED_MODEL_ID,
   SEEDED_MODEL_LABEL,
   expectNoRenderedSecret,
@@ -47,11 +48,40 @@ async function expectRunsOn(
   page: Page,
   { provider, model }: { provider: string; model: string },
 ): Promise<void> {
-  await expect(page.locator("#add-model-provider")).toContainText(provider);
-  await expect(page.locator("#add-model-id")).toContainText(model);
+  await expect(page.locator('[id$="-add-model-provider"]:visible')).toContainText(provider);
+  await expect(page.locator('[id$="-add-model-id"]:visible')).toContainText(model);
 }
 
 test.describe("Models", () => {
+  test("model fields keep their geometry when pressed and opened", async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    await openAgent(page, DRAFT_AGENT_NAME);
+    await selectSavedModel(page, SEEDED_MODEL_LABEL);
+
+    for (const suffix of ["-add-model-provider", "-add-model-id"]) {
+      const field = page.locator(`[id$="${suffix}"]:visible`);
+      const before = await field.boundingBox();
+      expect(before).not.toBeNull();
+      await field.hover();
+      await page.mouse.down();
+      try {
+        await expect(field).toHaveCSS("scale", "none");
+        const pressed = await field.boundingBox();
+        expect(pressed?.width).toBeCloseTo(before?.width ?? 0, 1);
+        expect(pressed?.x).toBeCloseTo(before?.x ?? 0, 1);
+      } finally {
+        await page.mouse.up();
+      }
+      await expect(field).toHaveAttribute("aria-expanded", "true");
+      await page.keyboard.press("Escape");
+      await expect(field).toHaveAttribute("aria-expanded", "false");
+      await field.focus();
+      await page.keyboard.press("Enter");
+      await expect(field).toHaveAttribute("aria-expanded", "true");
+      await page.keyboard.press("Escape");
+    }
+  });
+
   test("names the provider and the model id of what the agent runs on", async ({ page }) => {
     // A label is worth nothing on its own: `openai · gpt-4.1` is the pair that
     // decides which API is called and what the run costs, and it is the pair
@@ -84,6 +114,27 @@ test.describe("Models", () => {
     // agent is on, and which provider that is depends on what ran before.
     await pickProvider(page, "Anthropic");
     await pickProvider(page, "OpenAI");
+    // The model id is the missing requirement in this test. Supply the seeded
+    // provider key first: with multiple keys, the form correctly asks which one
+    // pays for the model instead of silently choosing an account.
+    // The control id is scoped to this form's generated field id; address it
+    // by its label so this contract survives harmless field-id changes.
+    const key = page.getByRole("combobox", { name: "Key", exact: true });
+    const automaticKey = page.getByText(FAKE_KEY_LABEL, { exact: true });
+    // The key lives under the collapsed "Connection settings" disclosure.
+    const access = page.getByRole("button", { name: /^Connection settings/ });
+    if (!(await key.isVisible()) && (await access.count()) > 0) await access.first().click();
+    await expect(key.or(automaticKey).first()).toBeVisible();
+    if (await key.isVisible()) {
+      await key.click();
+      await page.getByRole("option", { name: new RegExp(FAKE_KEY_LABEL) }).click();
+      // The chosen key reads back from the control itself, whatever its name becomes
+      // once it holds a value.
+      await expect(page.locator('[id$="-add-model-key"]:visible')).toContainText(FAKE_KEY_LABEL);
+    } else {
+      // A sole matching key is selected automatically and named in the form.
+      await expect(automaticKey).toBeVisible();
+    }
     // Refused. A profile with a provider and no model id is one that fails at the
     // moment a run needs it rather than here.
     const submit = page.getByRole("button", { name: "Add model" });
@@ -111,7 +162,7 @@ test.describe("Models", () => {
     await expect(submit).toBeDisabled();
 
     await nameIt(page, label);
-    await page.locator("#add-model-endpoint").fill("https://example.com/v1");
+    await page.locator('[id$="-add-model-endpoint"]:visible').fill("https://example.com/v1");
     await expect(submit).toBeEnabled();
     await submit.click();
 
@@ -174,7 +225,7 @@ test.describe("Models", () => {
     await pickModel(page, "llama3.2");
     await nameIt(page, `e2e-refused-${Date.now().toString(36)}`);
 
-    const endpoint = page.locator("#add-model-endpoint");
+    const endpoint = page.locator('[id$="-add-model-endpoint"]:visible');
     await endpoint.fill("file:///etc/passwd");
     await page.getByRole("button", { name: "Add model" }).click();
 
@@ -187,7 +238,7 @@ test.describe("Models", () => {
 
 /** Choose a provider, which is what decides every field below it. */
 async function pickProvider(page: Page, label: string): Promise<void> {
-  await page.locator("#add-model-provider").click();
+  await page.locator('[id$="-add-model-provider"]:visible').click();
   await page.getByRole("option", { name: label, exact: true }).click();
 }
 
@@ -200,10 +251,10 @@ async function pickProvider(page: Page, label: string): Promise<void> {
  * here is refreshed.
  */
 async function pickModel(page: Page, model: string): Promise<void> {
-  await page.locator("#add-model-id").click();
+  await page.locator('[id$="-add-model-id"]:visible').click();
   await page.getByPlaceholder("Search models…").fill(model);
   await page.getByRole("option", { name: new RegExp(`^(Use )?${model}\\b`) }).click();
-  await expect(page.locator("#add-model-id")).toContainText(model);
+  await expect(page.locator('[id$="-add-model-id"]:visible')).toContainText(model);
 }
 
 /**
@@ -215,5 +266,5 @@ async function pickModel(page: Page, model: string): Promise<void> {
  */
 async function nameIt(page: Page, label: string): Promise<void> {
   await page.getByRole("button", { name: "Name it something else" }).click();
-  await page.locator("#add-model-label").fill(label);
+  await page.locator('[id$="-add-model-label"]:visible').fill(label);
 }

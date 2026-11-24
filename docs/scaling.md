@@ -10,17 +10,20 @@ carries a team of a few dozen, and most slowness on a small host is CPU steal or
 an undersized pool rather than a missing replica. The
 [load suite](load-testing.md) runs the same workload against any deployment.
 
+The [Kubernetes Helm chart](kubernetes.md) applies this external-service model
+to API, worker and console pods. OpenShift remains unvalidated.
+
 ## What holds state, and what does not { #what-holds-state-and-what-does-not }
 
-| Part | What it keeps | How it grows |
-|---|---|---|
-| API (`app`) | Nothing of its own. Sessions, presence, running chat turns and the live-update feed are in Postgres and Redis | More uvicorn workers, then more hosts behind a load balancer |
-| Worker | Nothing. Jobs, leases and schedules are rows in Postgres | More processes, on any host, with the pools split between them |
-| Console (`frontend`) | The branding it caches for five minutes | More instances |
-| Postgres | Everything durable: organizations, agents, conversations, vectors, the job queue | A bigger instance, or a managed one |
-| Redis (Valkey) | A cache and its pub/sub channels, rebuilt after a restart | One instance that every host shares |
-| Uploaded files | A volume on the host, or a bucket | A bucket once more than one host reads or writes them |
-| Sandbox service | The sandboxes agents run commands in | Its own host, see [Agent workspaces](configuration.md#running-the-service-on-another-host) |
+| Part                 | What it keeps                                                                                                 | How it grows                                                                               |
+| -------------------- | ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| API (`app`)          | Nothing of its own. Sessions, presence, running chat turns and the live-update feed are in Postgres and Redis | More uvicorn workers, then more hosts behind a load balancer                               |
+| Worker               | Nothing. Jobs, leases and schedules are rows in Postgres                                                      | More processes, on any host, with the pools split between them                             |
+| Console (`frontend`) | The branding it caches for five minutes                                                                       | More instances                                                                             |
+| Postgres             | Everything durable: organizations, agents, conversations, vectors, the job queue                              | A bigger instance, or a managed one                                                        |
+| Redis (Valkey)       | A cache and its pub/sub channels, rebuilt after a restart                                                     | One instance that every host shares                                                        |
+| Uploaded files       | A volume on the host, or a bucket                                                                             | A bucket once more than one host reads or writes them                                      |
+| Sandbox service      | The sandboxes agents run commands in                                                                          | Its own host, see [Agent workspaces](configuration.md#running-the-service-on-another-host) |
 
 ## One database per deployment { #one-database-per-deployment }
 
@@ -42,6 +45,11 @@ numbers, so that rate-limit buckets and cached answers stay apart. A bucket is
 one per deployment as well. An agent moves between them as its spec: export it
 as YAML on one (`GET /agents/{id}/spec.yaml`), and import it into an agent on
 the other.
+
+Two deployments on one host name, on different ports, also share the console's
+cookies, because a browser keys cookies by host and not by port: signing in to
+one signs you out of the other. Give each its own host name, or set
+[`SESSION_COOKIE_NAMESPACE`](configuration.md#docker-production) on each console.
 
 ## An external Postgres { #an-external-postgres }
 
@@ -133,7 +141,7 @@ schedule. A worker that dies gives its jobs back within `WORKER_LEASE_SECONDS`.
 Why the queue is rows in Postgres, measured against nine other engines, is on
 [the background-job benchmark](task-queue-benchmark.md).
 
-Split the pools when parsing competes with agent runs. `WORKER_POOLS=agent,system,workflow`
+Split the pools when parsing competes with agent runs. `WORKER_POOLS=agent,eval,system,workflow`
 on one set of processes and `WORKER_POOLS=ingest` on hosts with memory to spare
 keep a large upload from delaying a routine. The health probe and
 `agenticos cmd doctor` report a pool that no live worker serves. The
@@ -163,6 +171,3 @@ by frame.
 - Read replicas, or a vector database of its own.
 - Sharding organizations across databases within one deployment.
 - PgBouncer in transaction mode, or Redis Cluster.
-- Kubernetes manifests. The images are the same ones the compose files run, and
-  each service carries its own health check, so a cluster runs them with the
-  environment this page describes.

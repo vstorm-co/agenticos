@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import { ProblemBadge } from "./problem-badge";
+import { ProblemBadge, WarningBadge } from "./problem-badge";
 
 const FIVE = ["Model: Required.", "Prompt: Required.", "Not connected yet", "Fourth", "Fifth"];
 
@@ -30,6 +30,22 @@ describe("ProblemBadge", () => {
     const badge = screen.getByRole("button", { name: "Finish setup · 1" });
     await userEvent.hover(badge);
     expect((await screen.findAllByText("Click to open the step.")).length).toBeGreaterThan(0);
+
+    await userEvent.click(badge);
+    expect(onOpen).toHaveBeenCalledOnce();
+  });
+});
+
+describe("WarningBadge", () => {
+  it("says what is worth a look on hover and opens the step on a click", async () => {
+    const onOpen = vi.fn();
+    render(<WarningBadge warnings={["The Rejected outcome leads nowhere."]} onOpen={onOpen} />);
+    const badge = screen.getByRole("button", { name: "1 thing worth a look" });
+    expect(badge).toHaveClass("text-warning");
+    await userEvent.hover(badge);
+    expect(
+      (await screen.findAllByText("The Rejected outcome leads nowhere.")).length,
+    ).toBeGreaterThan(0);
 
     await userEvent.click(badge);
     expect(onOpen).toHaveBeenCalledOnce();

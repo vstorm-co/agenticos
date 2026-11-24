@@ -13,7 +13,7 @@ import type { AgentUsage } from "./agents";
 import type { SecretKind, SecretUsageScope } from "./secrets";
 
 /** Which of OpenAI's two APIs a profile's requests go to. */
-export type ModelApi = "chat" | "responses";
+export type ModelApi = "chat" | "responses" | "decisions";
 
 /** Where a profile's requests may run, for a provider that takes a region (Stav). */
 export type ModelRegion = "eu" | "eea" | "global";
@@ -89,6 +89,7 @@ export interface ModelProfile {
   base_url?: string | null;
   /** Which API the requests go to. Null on every provider that serves one. */
   api?: ModelApi | null;
+  decision_capable?: boolean;
   /** Where the requests may run. Null on every provider that takes no region. */
   region?: ModelRegion | null;
   params: Record<string, unknown>;
@@ -145,6 +146,15 @@ export interface Skill {
   /** A grouping label for people ("marketing", "devops"); null is uncategorized. */
   category: string | null;
   version: number;
+  /**
+   * Main's newest version, which an edit on main is written over; `version` is its
+   * number. Null only for a skill with no version saved yet.
+   */
+  latest_version_id: string | null;
+  /** How many forks the skill has that are not archived. */
+  forks?: number;
+  /** Whether the caller may edit the skill, restore its versions and fork it. */
+  can_edit?: boolean;
   visibility: string;
   owner_user_id: string | null;
   /**
@@ -168,6 +178,8 @@ export interface SkillSummary {
   file_count: number;
   /** Whether this skill shipped with the deployment, matched by library name. */
   built_in: boolean;
+  /** Whether the AI Architect's template binds it: installed for the Architect, which reads it. */
+  architect?: boolean;
   /** The body's first lines, front matter dropped - what the card's page shows. */
   excerpt: string;
   /**
@@ -175,6 +187,8 @@ export interface SkillSummary {
    * Optional because only the listings carry it.
    */
   used_by?: AgentUsage[];
+  /** Agents whose draft binds it and no served version does yet: added, not published. */
+  drafted_by?: AgentUsage[];
   /** The groups it is shared with, by name (#2072). Only the listings carry it. */
   shared_groups?: string[];
 }
@@ -246,6 +260,18 @@ export interface GallerySkill {
   category: string | null;
   /** Whether this organization already has a skill by this name. */
   installed: boolean;
+  /** That skill, to open in place of installing it again. */
+  installed_id?: string | null;
+}
+
+/** A gallery skill as it would arrive: its body and the names of its files. */
+export interface GallerySkillPreview {
+  key: string;
+  name: string;
+  description: string;
+  category: string | null;
+  content: string;
+  files: string[];
 }
 
 /** One industry shelf and what is on it. */
@@ -269,6 +295,8 @@ export interface GalleryInstallResult {
 export interface AgentTemplate {
   key: string;
   name: string;
+  slug?: string;
+  avatar_url?: string | null;
   description: string;
   capabilities: string[];
   skills: string[];

@@ -1,5 +1,6 @@
 "use client";
 
+import { Input } from "@/components/ui/input";
 import { useState } from "react";
 import { ArrowLeft, ArrowRight, CornerDownLeft, RotateCw } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -79,7 +80,7 @@ export function BrowserNavigation({
           <Icon className="size-4" aria-hidden />
         </button>
       ))}
-      <input
+      <Input
         aria-label={t("browserAddress")}
         aria-invalid={invalid}
         title={invalid ? t("browserInvalidAddress") : undefined}
@@ -88,7 +89,7 @@ export function BrowserNavigation({
         autoComplete="off"
         spellCheck={false}
         readOnly={!holding}
-        className="bg-muted/70 focus-visible:ring-ring/30 focus-visible:border-border h-8 min-w-0 flex-1 rounded-lg border border-transparent px-2.5 text-base outline-none focus-visible:ring-2 @min-[480px]/browser-window:text-sm"
+        className="h-8 flex-1 px-2.5 @min-[480px]/browser-window:text-sm"
         value={
           holding
             ? (draft ?? url ?? "")

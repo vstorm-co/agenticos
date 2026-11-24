@@ -64,3 +64,21 @@ or native grant in the agent spec. Each desktop conversation supplies its own
 approved target; a missing selection is refused before any cloud sandbox opens.
 The Builder clears container connection/runtime fields for this backend. Local
 access is personal to a conversation; it cannot publish as an agent-shared workspace.
+
+## Selecting a project during a run
+
+`select_project_workspace` changes the file and shell tools' workspace for the
+current run only; `null` restores the original. The runner injects a selector
+port and owns the routing workspace. Tools never query the database themselves.
+The original workspace still holds private attachments, skill staging and output
+spills; selecting a project copies none of them into shared storage. Apps that
+read the run workspace use the selected files.
+
+The service checks live organization membership, project use access and workspace
+transfer state for every operation, and attaches and flushes project storage in that
+operation's transaction. Persistence errors are visible failures. A file-only
+project refuses commands. Existing Sandbox write and shell approval settings stay
+in force. Publisher fallbacks and anonymous callers cannot select projects.
+Routines cannot widen their reviewed project source, and isolated evals receive
+no selector port. The selected id is saved in paused run state, never inferred
+from chat text or a tool result supplied by the model. A new turn starts fresh.

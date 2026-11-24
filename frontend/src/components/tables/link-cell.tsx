@@ -17,7 +17,13 @@ import {
 import { useTable } from "@/hooks";
 import { qk } from "@/lib/query-keys";
 import { queryRecords } from "@/lib/tables-api";
-import type { ColumnDef, ColumnTypeName, LinkedRecord, RecordRead } from "@/types/tables";
+import type {
+  ColumnDef,
+  ColumnTypeName,
+  LinkedRecord,
+  RecordLinkChange,
+  RecordRead,
+} from "@/types/tables";
 
 /** Records found per search: enough to choose from, few enough to read. */
 const FOUND = 20;
@@ -56,7 +62,7 @@ export function LinkCell({
   value: string[];
   /** The linked records' names, as the record was read. */
   links: LinkedRecord[];
-  onChange: (value: string[]) => void;
+  onChange: (value: string[], linkChange: RecordLinkChange) => void;
   disabled?: boolean;
 }) {
   const t = useTranslations("tables.cells");
@@ -79,11 +85,15 @@ export function LinkCell({
 
   const toggle = (record: RecordRead) => {
     if (value.includes(record.id)) {
-      onChange(value.filter((linked) => linked !== record.id));
+      onChange(
+        value.filter((linked) => linked !== record.id),
+        { add: [], remove: [record.id] },
+      );
       return;
     }
+    if (value.length >= (column.link_limit ?? 100)) return;
     setPicked({ ...picked, [record.id]: recordName(record, table?.columns ?? []) });
-    onChange([...value, record.id]);
+    onChange([...value, record.id], { add: [record.id], remove: [] });
   };
 
   return (
@@ -126,7 +136,10 @@ export function LinkCell({
                   id={`${id}-${record.id}`}
                   checked={value.includes(record.id)}
                   onCheckedChange={() => toggle(record)}
-                  disabled={disabled}
+                  disabled={
+                    disabled ||
+                    (!value.includes(record.id) && value.length >= (column.link_limit ?? 100))
+                  }
                 />
                 <Label htmlFor={`${id}-${record.id}`} className="truncate font-normal">
                   {recordName(record, table?.columns ?? [])}

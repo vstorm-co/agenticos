@@ -23,12 +23,14 @@ from app.db.models.workflow_approval import WorkflowApprovalStatus
 from app.repositories import mcp_connection_repo
 from app.services.workflow_execution import context
 from app.workflows.contracts.results import Completed, Failed, Uncertain, Waiting
+from app.workflows.nodes import _approvals as approvals
 from app.workflows.nodes.mcp_call import _handler as node
 
 pytestmark = pytest.mark.anyio
 
 CONNECTION = uuid.uuid4()
 APPROVER = uuid.uuid4()
+DECIDER = uuid.uuid4()
 
 
 def _dispatch(idempotency_key: str = "op-key-1") -> context.DispatchContext:
@@ -94,6 +96,7 @@ class _Server:
     asked: list[dict[str, Any]] = field(default_factory=list)
     notified: list[dict[str, Any]] = field(default_factory=list)
     opened_with: list[tuple[str, dict[str, str] | None]] = field(default_factory=list)
+    timeouts: list[float] = field(default_factory=list)
 
 
 @pytest.fixture
@@ -118,8 +121,9 @@ def server(monkeypatch: pytest.MonkeyPatch) -> _Server:
             return state.result
 
     @asynccontextmanager
-    async def mcp_session(url: str, headers: dict[str, str] | None):
+    async def mcp_session(url: str, headers: dict[str, str] | None, *, timeout: float):
         state.opened_with.append((url, headers))
+        state.timeouts.append(timeout)
         if state.connect_failure is not None:
             raise state.connect_failure
         yield _Session()
@@ -146,7 +150,12 @@ def server(monkeypatch: pytest.MonkeyPatch) -> _Server:
         AsyncMock(side_effect=lambda _db, _id: state.approval),
     )
     monkeypatch.setattr(node.approval_repo, "create", create)
-    monkeypatch.setattr(node, "NotificationCenterService", lambda _db: SimpleNamespace(write=write))
+    monkeypatch.setattr(
+        approvals, "NotificationCenterService", lambda _db: SimpleNamespace(write=write)
+    )
+    monkeypatch.setattr(
+        approvals.member_repo, "list_member_ids_by_role", AsyncMock(return_value=[DECIDER])
+    )
     monkeypatch.setattr(
         node.member_repo, "get_active", AsyncMock(return_value=SimpleNamespace(role="owner"))
     )
@@ -207,7 +216,10 @@ async def test_asking_for_every_call_asks_before_even_a_read(server):
 
     assert isinstance(result, Waiting)
     assert server.calls == [] and server.opened_with == []
-    assert server.notified == []
+    # Naming no approver leaves the call to anyone with `approvals:decide`, so
+    # they are the ones told.
+    assert server.notified[0]["recipients"] == [DECIDER]
+    assert server.notified[0]["context_url"].startswith("/runs?tab=approvals&org=")
 
 
 async def test_never_asking_calls_a_write_straight_away(server):
@@ -395,7 +407,9 @@ async def test_a_timeout_after_the_call_is_classified_like_a_break(server):
     read = _config().model_copy(update={"timeout_seconds": 0.01})
 
     assert isinstance(await _run(unkeyed), Uncertain)
-    assert _failure(await _run(read)).error.retryable is True
+    failed = _failure(await _run(read))
+    assert failed.error.retryable is True
+    assert failed.error.message == "The server timed out after 0.01s"
 
 
 async def test_cancellation_inside_the_call_is_not_swallowed(server):
@@ -823,3 +837,9 @@ class TestPublishingAKeyArgument:
             _config("drop_tables", idempotency_key_argument="request_id")
         )
         assert [field for field, _ in problems] == ["tool"]
+
+
+async def test_the_configured_tool_deadline_reaches_the_transport_session(server):
+    result = await _run(_config(timeout_seconds=90))
+    assert isinstance(result, Completed)
+    assert server.timeouts == [90]

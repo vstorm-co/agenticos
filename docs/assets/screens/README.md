@@ -49,6 +49,13 @@ setup before execution; importing the drafts does not configure those services.
 Historical recording references below are retained as provenance only. The public
 screens gallery and product tour no longer embed those recordings.
 
+The evals and Improve captures (`datasets`, `dataset-*`, `eval-run`,
+`agent-evals`, `improve-*`, `knowledge-gaps`, `ai-assistance`) come from a
+second organization, **Demo**, captured on 28 October 2026 with
+`ORG="Demo" AGENT="Refund desk" GAPS_AGENT="Refund desk (audit)"`. Its Refund
+desk agent answers made-up refund and delivery questions for an Acme store; its
+answers, grades, eval runs and Improve sessions are real runs on GPT-4.1 mini.
+
 The README shows the light captures in both GitHub themes; the docs site
 switches between `light/` and `dark/` with the reader's theme.
 
@@ -151,15 +158,19 @@ cart consistency, dialog keyboard behavior and mobile layouts. It calls no model
 
 ### Seed an isolated local demo
 
-Use a backend environment pointed at a **demonstration database**, the Northwind
-Labs seed organization and its actual owner. The selected organization must
-already contain Visuals Lab, Finance Analyst, Architect, Support Desk, Chief of
-Staff, Onboarding Buddy, Sales Researcher and Tech Lead. The model-profile UUID
-must refer to an existing configured profile in that organization.
+Use a backend environment pointed at a **demonstration database**. Bootstrap
+creates the Northwind Labs organization, its owner, a model profile and the
+Architect; the seeds create the other agents they name (Visuals Lab, Finance
+Analyst, Support Desk, Chief of Staff, Onboarding Buddy, Sales Researcher and
+Tech Lead) when the organization has none by that name, published on the given
+model profile, and reuse any that exist. The model-profile UUID must refer to a
+configured profile in that organization; bootstrap's is one.
 
 With the backend environment loaded, from the repository root:
 
 ```bash
+(cd backend && uv run agenticos cmd bootstrap --email owner@example.com \
+  --password '<a password>' --org "Northwind Labs" --provider anthropic --api-key sk-ant-...)
 PYTHONPATH=backend backend/.venv/bin/python docs/assets/screens/demos/trail-supply-store/seed.py \
   --org ORG_UUID --user OWNER_UUID --model-profile MODEL_PROFILE_UUID \
   --store-origin http://127.0.0.1:3110 --output /tmp/trail-supply-demo.json --confirm-demo
@@ -235,7 +246,9 @@ PYTHONPATH=backend backend/.venv/bin/python docs/assets/screens/demos/industrial
 ```
 
 Run the seed only with an isolated demo database and its actual Northwind Labs
-owner. It publishes three private Apps and a prepared Revenue Pulse conversation.
+owner, after the bootstrap above; it refuses any other organization and creates
+Visuals Lab, as a draft, if it is missing. It publishes three private Apps and a
+prepared Revenue Pulse conversation.
 No model, provider configuration, machine command, ERP or CRM is involved. The
 conversation is a fixture, while rendering and Visuals publishing use the actual
 application services. Existing named fixture rows are reused.

@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useEffectEvent, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { AlertTriangle, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -18,14 +18,18 @@ import { useDeferredDelete } from "@/hooks/use-deferred-delete";
 import { isRecordGone, isRevisionConflict, useRecordMutation } from "@/hooks/use-record-mutation";
 import { getErrorMessage } from "@/lib/api-error";
 import { useTableViewStore } from "@/stores";
+import { combineLinkChanges, type RecordConflict } from "@/stores/table-view-store";
 import { RecordCellEditor } from "./record-cell-editor";
-import type { CellValue, ColumnDef, RecordRead } from "@/types/tables";
+import { RecordConflictNow } from "./record-conflict-now";
+import type { CellValue, ColumnDef, RecordLinkChange, RecordRead } from "@/types/tables";
 import { recordCellText } from "@/lib/format-cell-value";
 import { WorkspaceFullscreenButton } from "@/components/ui/workspace-fullscreen-button";
 import { cn } from "@/lib/utils";
 import { DocumentProperties } from "./document-properties";
 
 import { ColumnTypeIcon } from "./column-type-icon";
+import { canDeleteRecord, canWriteCell } from "@/lib/table-record-access";
+import { RecordAccessDialog } from "./record-access-dialog";
 
 /**
  * The one editing surface every view type shares: a full-row form, one
@@ -61,9 +65,10 @@ export function RecordDetailSheet({
   const t = useTranslations("tables.sheet");
   const tCells = useTranslations("tables.cells");
   const tErrors = useTranslations("errors");
+  const tAccess = useTranslations("tables.access");
   const locale = useLocale();
   const boolLabel = (value: boolean) => (value ? tCells("true") : tCells("false"));
-  const { commit, fetchRecord } = useRecordMutation(tableId);
+  const { commit, fetchRecord, readForComparison } = useRecordMutation(tableId);
   const deleteLater = useDeferredDelete(tableId);
   const [expanded, setExpanded] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
@@ -89,10 +94,32 @@ export function RecordDetailSheet({
     onOpenChange(false);
   }, [onOpenChange]);
 
-  function commitField(targetRecord: RecordRead, columnId: string, value: CellValue) {
-    commit(targetRecord, { [columnId]: value }).then(
+  function commitField(
+    targetRecord: RecordRead,
+    columnId: string,
+    value: CellValue,
+    linkChange?: RecordLinkChange,
+  ) {
+    if (!canWriteCell(targetRecord, columnId, canEdit)) return;
+    const previous =
+      useTableViewStore.getState().conflicts[targetRecord.id]?.[columnId]?.pendingLinkChanges?.[
+        columnId
+      ];
+    const combinedLinkChange = linkChange ? combineLinkChanges(previous, linkChange) : undefined;
+    const pendingLinkChanges = combinedLinkChange ? { [columnId]: combinedLinkChange } : undefined;
+    const written = pendingLinkChanges
+      ? commit(targetRecord, {}, pendingLinkChanges)
+      : commit(targetRecord, { [columnId]: value });
+    written.then(
       (updated) => {
-        clearConflict(targetRecord.id, columnId);
+        if (combinedLinkChange) {
+          clearConflict(targetRecord.id, columnId, {
+            change: combinedLinkChange,
+            value: updated.values[columnId] ?? null,
+          });
+        } else {
+          clearConflict(targetRecord.id, columnId);
+        }
         onRecordUpdated(updated);
       },
       (error: unknown) => {
@@ -102,6 +129,7 @@ export function RecordDetailSheet({
             recordId: targetRecord.id,
             pendingValues: { [columnId]: value },
             fieldId: columnId,
+            ...(pendingLinkChanges ? { pendingLinkChanges } : {}),
           });
           // A field committed by closing the sheet has no banner left to show
           // this; the edit waits in the store for the record to be reopened.
@@ -131,6 +159,42 @@ export function RecordDetailSheet({
     }
   }
 
+  const recordId = record?.id;
+  const recordConflicts = recordId ? conflicts[recordId] : undefined;
+  const [known, setKnown] = useState<{
+    conflicts: Record<string, RecordConflict>;
+    record: RecordRead;
+  } | null>(null);
+  // Reading comparison values must not advance the editors' revision or replace
+  // another field's unsubmitted buffer. Only an explicit reload updates the caller.
+  const readAgain = useEffectEvent(
+    (id: string, pending: Record<string, RecordConflict>, active: () => boolean) => {
+      void readForComparison(id).then(
+        (fresh) => {
+          if (active()) setKnown({ conflicts: pending, record: fresh });
+        },
+        (error: unknown) => {
+          if (!active()) return;
+          toast.error(getErrorMessage(error, tErrors));
+          if (isRecordGone(error)) {
+            for (const fieldId of Object.keys(pending)) clearConflict(id, fieldId);
+            onOpenChange(false);
+          }
+        },
+      );
+    },
+  );
+  useEffect(() => {
+    if (!open || !recordId || !recordConflicts || !Object.keys(recordConflicts).some(Boolean))
+      return;
+    let active = true;
+    void readAgain(recordId, recordConflicts, () => active);
+    return () => {
+      active = false;
+    };
+  }, [open, recordId, recordConflicts]);
+  const comparison = known?.conflicts === recordConflicts ? known?.record : undefined;
+
   /**
    * "Reload and reapply": fetch the record's current state and retry the same
    * edit against its fresh revision. The conflict is cleared only once the
@@ -138,9 +202,14 @@ export function RecordDetailSheet({
    * the banner if the retry hits another conflict. A failed refetch leaves the
    * banner (and the typed value) where it was, so the retry is still there.
    */
-  async function reloadAndReapply(targetRecord: RecordRead, columnId: string, pending: CellValue) {
+  async function reloadAndReapply(
+    targetRecord: RecordRead,
+    columnId: string,
+    pending: CellValue,
+    linkChange?: RecordLinkChange,
+  ) {
     const fresh = await refetch(targetRecord, columnId);
-    if (fresh) commitField(fresh, columnId, pending);
+    if (fresh) commitField(fresh, columnId, pending, linkChange);
   }
 
   /**
@@ -158,6 +227,7 @@ export function RecordDetailSheet({
    * revision on screen, so a record someone changed meanwhile is kept.
    */
   function deleteRecord(targetRecord: RecordRead) {
+    if (!canDeleteRecord(targetRecord, canEdit)) return;
     setConfirmingDelete(false);
     deleteLater([targetRecord]);
     onOpenChange(false);
@@ -165,7 +235,9 @@ export function RecordDetailSheet({
 
   // Named by what its first column holds - "Northwind" - the way a row is read.
   const first = columns.find((column) => !column.archived);
-  const heading = record && first ? recordCellText(first, record, boolLabel, locale) : "";
+  const headingRecord = comparison ?? record;
+  const heading =
+    headingRecord && first ? recordCellText(first, headingRecord, boolLabel, locale) : "";
   const detailColumns = columns
     .filter((column) => !column.archived)
     .toSorted((a, b) => Number(a.type === "rich_text") - Number(b.type === "rich_text"));
@@ -188,6 +260,16 @@ export function RecordDetailSheet({
             />
           </div>
         </SheetHeader>
+        {record && (
+          <div className="flex items-center gap-3 border-b px-5 py-3">
+            {record.access && (
+              <span className="text-muted-foreground text-xs">{tAccess(record.access)}</span>
+            )}
+            {record.can_manage_access && (
+              <RecordAccessDialog tableId={tableId} recordId={record.id} />
+            )}
+          </div>
+        )}
         {record && (
           <div
             className={cn(
@@ -228,8 +310,10 @@ export function RecordDetailSheet({
                       fillEditor={expanded && column.type === "rich_text"}
                       value={value}
                       links={record.links?.[column.id]}
-                      disabled={!canEdit}
-                      onChange={(next) => commitField(record, column.id, next)}
+                      disabled={!canWriteCell(record, column.id, canEdit)}
+                      onChange={(next, linkChange) =>
+                        commitField(record, column.id, next, linkChange)
+                      }
                     />
                     {isConflicted && (
                       <div className="bg-destructive/10 text-destructive space-y-1.5 rounded-md p-2 text-xs">
@@ -237,15 +321,24 @@ export function RecordDetailSheet({
                           <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
                           <span>{t("conflict")}</span>
                         </div>
+                        {comparison !== undefined && (
+                          <RecordConflictNow column={column} record={comparison} />
+                        )}
                         <div className="flex gap-2">
                           <Button
                             type="button"
                             variant="link"
                             size="sm"
                             className="h-auto p-0 text-xs"
+                            disabled={!canWriteCell(record, column.id, canEdit)}
                             onClick={() => {
                               const pending = conflict.pendingValues[column.id] as CellValue;
-                              void reloadAndReapply(record, column.id, pending);
+                              void reloadAndReapply(
+                                record,
+                                column.id,
+                                pending,
+                                conflict.pendingLinkChanges?.[column.id],
+                              );
                             }}
                           >
                             {t("reloadAndReapply")}
@@ -269,7 +362,7 @@ export function RecordDetailSheet({
             {documentIndex < 0 && <DocumentProperties metadata={record} />}
           </div>
         )}
-        {record && canEdit && (
+        {record && canDeleteRecord(record, canEdit) && (
           <div className="border-border mt-auto border-t px-4 py-3">
             <Button
               variant="ghost"

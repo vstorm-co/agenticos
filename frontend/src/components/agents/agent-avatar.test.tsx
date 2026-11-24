@@ -1,7 +1,5 @@
 import { render, waitFor } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
-
-import { useArchitectMarkStore } from "@/stores/architect-mark-store";
+import { describe, expect, it } from "vitest";
 
 import { AgentAvatar } from "./agent-avatar";
 
@@ -15,8 +13,6 @@ import { AgentAvatar } from "./agent-avatar";
  * test.
  */
 describe("AgentAvatar", () => {
-  afterEach(() => useArchitectMarkStore.setState({ agentId: null }));
-
   const face = (container: HTMLElement) => container.querySelector("g.mo-root");
   /** The figure itself, for comparing one agent's face against another's. */
   const drawing = (container: HTMLElement) => face(container)!.innerHTML;
@@ -78,31 +74,10 @@ describe("AgentAvatar", () => {
     await waitFor(() => expect(face(container)).not.toBeNull());
   });
 
-  it("draws the Architect's blueprint mark while it wears it", () => {
-    // Its stored picture is one fixed image - dark on a dark page - so the mark is
-    // drawn instead, for that agent only.
-    useArchitectMarkStore.setState({ agentId: "architect-1" });
-
-    const { container: architect } = render(
-      <AgentAvatar agentId="architect-1" slug="architect" hasAvatar />,
-    );
-    const { container: other } = render(<AgentAvatar agentId="a1" slug="support" />);
-
-    expect(architect.querySelector('svg rect[fill="#2557d6"]')).not.toBeNull();
-    expect(architect.querySelector("span")).toHaveClass("rounded-[30%]");
-    expect(face(other)).not.toBeNull();
-  });
-
-  it("returns to the generated face when the Architect's stored avatar is cleared", () => {
-    useArchitectMarkStore.setState({ agentId: "architect-1" });
-    const { container, rerender } = render(
-      <AgentAvatar agentId="architect-1" slug="architect" hasAvatar />,
-    );
-
-    rerender(<AgentAvatar agentId="architect-1" slug="architect" hasAvatar={false} />);
-
-    expect(face(container)).not.toBeNull();
-    expect(container.querySelector('svg rect[fill="#2557d6"]')).toBeNull();
+  it("uses the same generated face for the Architect as any other agent handle", () => {
+    const { container: architect } = render(<AgentAvatar agentId="architect-1" slug="architect" />);
+    const { container: ordinary } = render(<AgentAvatar agentId="ordinary-1" slug="architect" />);
+    expect(drawing(architect)).toBe(drawing(ordinary));
   });
 
   it("draws the face mid-thought while the agent is answering", () => {

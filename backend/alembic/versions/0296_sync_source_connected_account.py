@@ -27,7 +27,5 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     op.drop_index("ix_sync_sources_connected_account_id", table_name="sync_sources")
-    op.drop_constraint(
-        "sync_sources_connected_account_id_fkey", "sync_sources", type_="foreignkey"
-    )
+    op.drop_constraint("sync_sources_connected_account_id_fkey", "sync_sources", type_="foreignkey")
     op.drop_column("sync_sources", "connected_account_id")

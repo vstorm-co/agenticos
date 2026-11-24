@@ -15,7 +15,6 @@ from typing import TYPE_CHECKING
 from uuid import UUID
 
 from pydantic_ai import Agent as PydanticAgent
-from pydantic_ai.messages import ModelMessage
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities.budget import (
@@ -26,7 +25,13 @@ from app.agents.capabilities.budget import (
 )
 from app.agents.observability import inherited_instrumentation
 from app.repositories import conversation_repo
-from app.services.message_history import REFUSED_TURN, HistoryMessage, build_message_history
+from app.services.conversation import check_history_snapshot
+from app.services.message_history import (
+    REFUSED_TURN,
+    HistoryMessage,
+    ModelHistory,
+    build_message_history,
+)
 
 if TYPE_CHECKING:
     from app.services.agent_runner import PreparedRun
@@ -46,12 +51,14 @@ _SUMMARY_PROMPT = (
 
 async def seed_history(
     db: AsyncSession, *, conversation_id: UUID, context_window: int, summarise: Summarise
-) -> list[ModelMessage]:
+) -> ModelHistory:
     """The conversation's typed and spoken turns as history for a new session.
 
     Verbatim while they fit half the model's context window; past that, a
     summary of the older turns followed by the recent ones.
     """
+    revision = await conversation_repo.get_guardrail_revision(db, conversation_id)
+    snapshot = ModelHistory([], revision=revision)
     rows = await conversation_repo.get_recent_messages(db, conversation_id, limit=HISTORY_LIMIT)
     # A prompt a guardrail refused is not seeded, as a typed turn's history does
     # not replay it (#2578): the input edge screens only what is said next.
@@ -67,19 +74,23 @@ async def seed_history(
     ]
     budget = int(context_window * SEED_FRACTION) * CHARS_PER_TOKEN
     if sum(len(turn["content"]) for turn in history) <= budget:
-        return build_message_history(history)
+        snapshot.extend(build_message_history(history))
+        return snapshot
     recent = history[-RECENT_TURNS_KEPT:]
     while recent and sum(len(turn["content"]) for turn in recent) > budget // 2:
         recent = recent[1:]
     older = history[: len(history) - len(recent)]
     transcript = "\n".join(f"{turn['role']}: {turn['content']}" for turn in older)
+    await check_history_snapshot(db, conversation_id, snapshot)
+    await db.commit()
     summary = await summarise(transcript[-budget:])
     seeded: list[HistoryMessage] = (
         [{"role": "user", "content": f"(Summary of the conversation so far) {summary}"}]
         if summary
         else []
     )
-    return build_message_history(seeded + recent)
+    snapshot.extend(build_message_history(seeded + recent))
+    return snapshot
 
 
 def summariser(prepared: PreparedRun) -> Summarise:

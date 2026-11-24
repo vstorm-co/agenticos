@@ -24,7 +24,7 @@ import { useLocalAccessStore, type LocalAccessAgent } from "@/stores/local-acces
 /**
  * Where an agent that works on this computer may work, asked once for that agent.
  *
- * Opened by the send gate instead of letting the first message fail. The whole
+ * Opened when the running agent asks for the computer. The whole
  * computer is the agent's native consent in the app; a folder is a folder grant.
  * Either answer is remembered for the agent; Work on changes or revokes it later.
  */
@@ -84,8 +84,9 @@ function LocalAccessChoice({
     <DialogContent className={DIALOG_CONFIRM}>
       <DialogHeader>
         <DialogTitle>{t("title", { agent: agent.name })}</DialogTitle>
-        <DialogDescription>{t("description")}</DialogDescription>
+        <DialogDescription>{t("description", { agent: agent.name })}</DialogDescription>
       </DialogHeader>
+      {agent.reason && <p className="text-sm whitespace-pre-wrap">{agent.reason}</p>}
       <div className="grid gap-2">
         <Button
           type="button"

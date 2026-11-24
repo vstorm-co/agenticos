@@ -1,5 +1,7 @@
 "use client";
 
+import { NativeDisclosure } from "@/components/ui/native-disclosure";
+
 import { useState } from "react";
 import Link from "next/link";
 import { AlertTriangle } from "lucide-react";
@@ -201,7 +203,7 @@ export function DataChangeReview({
         </Button>
       </div>
       {review.isLoading ? (
-        <LoadingState variant="skeleton-panel" rows={3} />
+        <LoadingState variant="pending" />
       ) : shown === undefined ? (
         <ErrorState title={t("failed")} />
       ) : (
@@ -255,12 +257,12 @@ export function DataChangeReview({
             </ul>
           )}
           {shown.unchanged.length > 0 && (
-            <details>
+            <NativeDisclosure>
               <summary className="text-muted-foreground cursor-pointer">
                 {t("unchanged", { count: shown.unchanged.length })}
               </summary>
               <p className="pt-1">{shown.unchanged.join(", ")}</p>
-            </details>
+            </NativeDisclosure>
           )}
         </>
       )}

@@ -49,9 +49,11 @@ import {
   resourcePin,
 } from "@/components/workflows/canvas/node-resource";
 import { usePanelStore } from "@/components/workflows/property-panel/store-bridge";
-import { validateGraph } from "@/components/workflows/validation";
+import { validateGraph, withTableDrift } from "@/components/workflows/validation";
+import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 import { DIALOG_COLUMN, DIALOG_FORM, DIALOG_WINDOW } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
+import { canSwitchOff } from "@/lib/workflows/switch-off";
 import { isTrigger } from "@/lib/workflows/triggers";
 import type { NodeCatalog, NodeDefinition } from "@/lib/workflows/types";
 import { MODEL_STEPS, StepEvals } from "./step-evals";
@@ -90,6 +92,7 @@ export function NodeEditorDialog({
 }: NodeEditorDialogProps) {
   const t = useTranslations("workflows");
   const store = usePanelStore();
+  const tableDrift = useWorkflowEditorStore((state) => state.tableDrift);
   const graph = store.graph;
   const node = graph?.nodes.find((candidate) => candidate.id === store.editingNodeId) ?? null;
   const catalogIndex: NodeCatalog = useMemo(
@@ -97,8 +100,9 @@ export function NodeEditorDialog({
     [catalog],
   );
   const problems = useMemo(
-    () => (graph === null ? [] : validateGraph(graph, catalogIndex, t)),
-    [graph, catalogIndex, t],
+    () =>
+      graph === null ? [] : withTableDrift(validateGraph(graph, catalogIndex, t), tableDrift, t),
+    [graph, catalogIndex, t, tableDrift],
   );
 
   const [tab, setTab] = useState("parameters");
@@ -203,8 +207,7 @@ export function NodeEditorDialog({
   );
   // How the step runs rather than what it does - n8n's Settings tab: whether it
   // runs at all, what happens when it is slow or fails, and a note.
-  const switchable =
-    definition !== null && node.id !== graph.entry_node_id && definition.kind !== "control";
+  const switchable = definition !== null && canSwitchOff(graph, node, definition);
   const withPolicy =
     definition !== null && node.definition_id !== "loop.item" && !isTrigger(definition);
   const customised = node.disabled === true || node.policy != null || Boolean(node.notes);
@@ -230,6 +233,7 @@ export function NodeEditorDialog({
   return (
     <Dialog open onOpenChange={(open) => !open && close()}>
       <DialogContent
+        data-workflow-fields
         onEscapeKeyDown={(event) => {
           // Radix dismisses in capture, before the inline field can cancel its rename.
           if (event.target instanceof HTMLElement && event.target.closest("[data-step-name]")) {
@@ -429,7 +433,8 @@ export function NodeEditorDialog({
           )}
         </div>
         <footer className="border-border flex items-center justify-between gap-2 border-t px-3 py-3 sm:px-6 sm:py-4">
-          {readOnly ? (
+          {/* A loop's Loop item and Loop result go only with their loop. */}
+          {readOnly || definition?.loop_body_only === true ? (
             <span />
           ) : (
             <Button

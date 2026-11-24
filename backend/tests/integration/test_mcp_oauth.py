@@ -835,3 +835,121 @@ async def test_a_client_nobody_signed_in_with_is_swept_on_the_next_registration(
     remaining = set((await db.execute(select(OAuthClient.client_id))).scalars())
     assert "stale-client" not in remaining
     assert kept_id in remaining
+
+
+@pytest.mark.security
+async def test_global_administration_requires_explicit_oauth_consent_and_a_live_app_flag(
+    db: AsyncSession, served: None
+) -> None:
+    from dataclasses import replace
+
+    from app.core.permissions import DEPLOYMENT_ADMIN_SCOPE
+    from app.schemas.api_key import ApiKeyCreate
+    from app.services.api_key import ApiKeyService
+
+    ctx = await _owner(db)
+    owner = await db.get(User, ctx.subject_id)
+    assert owner is not None
+    owner.is_app_admin = True
+    await db.commit()
+    admin = replace(ctx, is_app_admin=True)
+    service = OAuthServerService(db)
+    verifier, challenge = _pkce()
+    async with _http() as http:
+        client = await _register(http)
+        request_id = await _authorize(http, client["client_id"], challenge)
+        assert (await service.describe(admin, request_id)).deployment_admin_available
+        assert not (await service.describe(ctx, request_id)).deployment_admin_available
+        with pytest.raises(AuthorizationError, match="application administrator"):
+            await service.approve(ctx, request_id, [], deployment_admin=True)
+        with pytest.raises(BadRequestError, match="Choose at least one"):
+            await service.approve(admin, request_id, [])
+        # Refusing the privilege did not consume the pending request.
+        answer = await service.approve(admin, request_id, [], deployment_admin=True)
+        await db.commit()
+        code = parse_qs(urlparse(answer.redirect_to).query)["code"][0]
+        response = await _exchange(http, client["client_id"], code, verifier)
+        assert response.status_code == 200, response.text
+        tokens = response.json()
+        assert tokens["scope"] == DEPLOYMENT_ADMIN_SCOPE
+        bearer = {"Authorization": f"Bearer {tokens['access_token']}"}
+        saved = await http.patch(
+            "/api/v1/admin/settings", headers=bearer, json={"app_name": "Scoped deployment"}
+        )
+        assert saved.status_code == 200, saved.text
+        assert saved.json()["app_name"] == "Scoped deployment"
+        await db.commit()
+        context = await http.get("/api/v1/me/platform-context", headers=bearer)
+        assert context.json()["granted_scopes"] == [DEPLOYMENT_ADMIN_SCOPE]
+        assert context.json()["deployment_admin"] is True
+        assert (await http.get("/api/v1/agents", headers=bearer)).status_code == 403
+        assert (await _whoami(tokens["access_token"])).status_code == 200
+        # A built-in agent never receives the global OAuth authority.
+        internal = await ApiKeyService(db).issue_for_run(admin)
+        ordinary = await ApiKeyService(db).create(
+            admin, ApiKeyCreate(name="Org settings", scopes=[Perm.ORG_SETTINGS])
+        )
+        await db.commit()
+        assert internal is not None
+        for token in (internal, ordinary.key):
+            refused = await http.patch(
+                "/api/v1/admin/settings",
+                headers={"Authorization": f"Bearer {token}"},
+                json={"app_name": "Forbidden"},
+            )
+            assert refused.status_code == 403
+        # Refresh retains the approved scope; it does not regain a revoked role.
+        refreshed = await _refresh(http, client["client_id"], tokens["refresh_token"])
+        assert refreshed.status_code == 200
+        assert refreshed.json()["scope"] == DEPLOYMENT_ADMIN_SCOPE
+        owner.is_app_admin = False
+        await db.commit()
+        refused = await http.patch(
+            "/api/v1/admin/settings",
+            headers={"Authorization": f"Bearer {refreshed.json()['access_token']}"},
+            json={"app_name": "Forbidden after demotion"},
+        )
+        assert refused.status_code == 403
+        assert "App admin" in refused.text
+        context = await http.get(
+            "/api/v1/me/platform-context",
+            headers={"Authorization": f"Bearer {refreshed.json()['access_token']}"},
+        )
+        assert context.json()["granted_scopes"] == [DEPLOYMENT_ADMIN_SCOPE]
+        assert context.json()["deployment_admin"] is False
+
+
+@pytest.mark.security
+async def test_an_app_admins_org_permission_grant_does_not_implicitly_gain_global_authority(
+    db: AsyncSession, served: None
+) -> None:
+    from dataclasses import replace
+
+    ctx = await _owner(db)
+    owner = await db.get(User, ctx.subject_id)
+    assert owner is not None
+    owner.is_app_admin = True
+    await db.commit()
+    admin = replace(ctx, is_app_admin=True)
+    verifier, challenge = _pkce()
+    async with _http() as http:
+        client = await _register(http)
+        request_id = await _authorize(http, client["client_id"], challenge)
+        code = await _consent(db, admin, request_id, Perm.ORG_SETTINGS)
+        response = await _exchange(http, client["client_id"], code, verifier)
+        assert response.status_code == 200
+        tokens = response.json()
+        assert tokens["scope"] == "org:settings"
+        headers = {"Authorization": f"Bearer {tokens['access_token']}"}
+        changed = await http.patch(
+            f"/api/v1/orgs/{ctx.organization_id}",
+            headers=headers,
+            json={"name": "Own organization"},
+        )
+        assert changed.status_code == 200, changed.text
+        await db.commit()
+        assert (
+            await http.patch(
+                "/api/v1/admin/settings", headers=headers, json={"app_name": "Must refuse"}
+            )
+        ).status_code == 403

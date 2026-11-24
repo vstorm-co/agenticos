@@ -6,7 +6,9 @@ security fixes and improvements remain practical to adopt.
 
 This directory contains extension guidance, the selected
 [upstream baseline](upstream.json), deployment instructions for the native
-[Composio app connection journey](composio/README.md), and the
+[Composio app connection journey](composio/README.md), the
+[per-deployment OAuth runbook](oauth-per-deployment.md) for the native
+Google/Microsoft tools arriving with the upstream sync, and the
 [Docker image retention operator helper](docker-image-retention/README.md).
 The helper is separate from application integrations; no adapter implementation
 or runtime compatibility result is claimed.

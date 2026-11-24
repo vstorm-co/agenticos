@@ -27,6 +27,8 @@ mod diagnostics;
 mod docker_install;
 mod docker_runtime;
 mod dropped;
+#[cfg(all(test, target_os = "linux"))]
+mod glib_soundness;
 mod local_agents;
 mod local_backup;
 mod local_browser;
@@ -39,6 +41,8 @@ mod local_stack;
 mod local_work;
 mod managed;
 mod native_browser;
+#[cfg(all(target_os = "linux", feature = "arch-package"))]
+mod native_browser_smoke;
 mod notify;
 mod onboarding_permissions;
 mod pinned;
@@ -64,7 +68,7 @@ use std::sync::{mpsc, Mutex};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use agenticos_shell_core::{
-    external_sign_in_url, is_oauth_start, mint_nonce, parse_server_url, PendingSignIn, SignInProof,
+    browser_consent_url, external_sign_in_url, is_oauth_start, mint_nonce, parse_server_url, PendingSignIn, SignInProof,
 };
 use base64::Engine;
 
@@ -459,19 +463,106 @@ fn oauth_verifier(app: AppHandle, code: String) -> Result<String, String> {
     app.state::<SignInProof>().take(&code)
 }
 
+fn connection_setup_path(language: Option<&str>) -> String {
+    language
+        .filter(|language| ["en", "pl", "de", "tr"].contains(language))
+        .map(|language| format!("{language}/{CONNECTION_SETUP}"))
+        .unwrap_or_else(|| CONNECTION_SETUP.to_string())
+}
+
+/// An explicitly pasted invitation may continue on its own server, never another origin.
+/// The token stays in the destination URL only, not in settings or error messages.
+fn connection_target(typed: &str) -> Result<(Url, Option<String>), String> {
+    let mut server =
+        parse_server_url(typed).map_err(|_| "Enter an HTTPS server address or a valid invitation link.".to_owned())?;
+    if !server.username().is_empty() || server.password().is_some() {
+        return Err("A server address cannot contain credentials.".into());
+    }
+    let segments: Vec<_> = server.path().trim_matches('/').split('/').collect();
+    let invitation = match segments.as_slice() {
+        ["invitations", token] => Some(*token),
+        [locale, "invitations", token] if ["en", "pl", "de", "tr"].contains(locale) => Some(*token),
+        _ => None,
+    };
+    if let Some(token) = invitation {
+        if token == "pending"
+            || token.is_empty()
+            || token.len() > 512
+            || !token
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
+            || server.query().is_some()
+            || server.fragment().is_some()
+        {
+            return Err("Paste the original invitation link from your teammate.".into());
+        }
+        let destination = server.path().trim_start_matches('/').to_owned();
+        server.set_path("/");
+        return Ok((server, Some(destination)));
+    }
+    if segments.contains(&"invitations") {
+        return Err("Paste the original invitation link from your teammate.".into());
+    }
+    Ok((server, None))
+}
+
+#[cfg(test)]
+mod onboarding_language_tests {
+    use super::{connection_setup_path, connection_target, CONNECTION_SETUP};
+
+    #[test]
+    fn pasted_invitation_preserves_only_a_same_server_destination() {
+        let (server, destination) = connection_target("https://team.example/pl/invitations/abc_DEF-123").unwrap();
+        assert_eq!(server.as_str(), "https://team.example/");
+        assert_eq!(destination.as_deref(), Some("pl/invitations/abc_DEF-123"));
+        assert_eq!(connection_target("team.example").unwrap().1, None);
+        assert!(connection_target("https://team.example/invitations/pending?flow=secret").is_err());
+        assert!(connection_target("https://team.example/invitations/%2F%2Fevil.example").is_err());
+        assert!(connection_target("https://user:secret@team.example/invitations/token").is_err());
+        assert!(connection_target("http://team.example/invitations/token").is_err());
+        assert!(connection_target("https://team.example/invitations/token?next=https://evil.example").is_err());
+        assert!(!connection_target("http://team.example/invitations/secret")
+            .unwrap_err()
+            .contains("secret"));
+    }
+
+    #[test]
+    fn supported_language_follows_the_connection_without_changing_its_origin() {
+        assert_eq!(connection_setup_path(Some("pl")), format!("pl/{CONNECTION_SETUP}"));
+        assert_eq!(connection_setup_path(None), CONNECTION_SETUP);
+        assert_eq!(connection_setup_path(Some("https://example.com")), CONNECTION_SETUP);
+        assert_eq!(connection_setup_path(Some("../other")), CONNECTION_SETUP);
+    }
+}
+
+#[tauri::command]
+fn set_onboarding_language(app: AppHandle, language: String) -> Result<(), String> {
+    if !["en", "pl", "de", "tr"].contains(&language.as_str()) {
+        return Err("Unsupported language".into());
+    }
+    settings::update(&app, |settings| settings.onboarding_language = Some(language))?;
+    Ok(())
+}
+
 #[tauri::command]
 async fn connect(app: AppHandle, window: WebviewWindow, url: String) -> Result<(), String> {
-    let server = parse_server_url(&url)?;
+    let (server, continuation) = connection_target(&url)?;
     let probed = server.clone();
     tauri::async_runtime::spawn_blocking(move || reachable(&probed))
         .await
         .map_err(|e| e.to_string())??;
-    arrive(&app, &window, server, Deployment::Server).await
+    arrive(&app, &window, server, Deployment::Server, continuation).await
 }
 
 /// Point the shell at a console that answers, remember where it lives, and
 /// review this connection, including for an existing account.
-async fn arrive(app: &AppHandle, window: &WebviewWindow, server: Url, deployment: Deployment) -> Result<(), String> {
+async fn arrive(
+    app: &AppHandle,
+    window: &WebviewWindow,
+    server: Url,
+    deployment: Deployment,
+    continuation: Option<String>,
+) -> Result<(), String> {
     if deployment == Deployment::Server {
         let pending = runtime_installer::pending_path(app)?;
         match std::fs::remove_file(pending) {
@@ -492,12 +583,13 @@ async fn arrive(app: &AppHandle, window: &WebviewWindow, server: Url, deployment
     })?;
     // Granted before the page loads: the welcome asks the shell for its state as it mounts.
     console::grant(app, &server)?;
-    let landing = server.join(CONNECTION_SETUP).map_err(|e| e.to_string())?;
+    let path = continuation.unwrap_or_else(|| connection_setup_path(settings.onboarding_language.as_deref()));
+    let landing = server.join(&path).map_err(|e| e.to_string())?;
     window.navigate(landing).map_err(|e| e.to_string())?;
     retarget_companions(app, &server)?;
     start_companions(app, &server, &settings);
     app.state::<ShellMenu>()
-        .reflect_local_instance(local_instances::selected(app)?.is_some())
+        .reflect_local_instance(app, local_instances::selected(app)?.is_some())
         .map_err(|e| e.to_string())
 }
 
@@ -507,6 +599,7 @@ struct OnboardingState {
     server_url: Option<Url>,
     deployment: Option<Deployment>,
     platform: &'static str,
+    desktop_version: String,
     local_setup_pending: bool,
 }
 
@@ -517,6 +610,7 @@ fn onboarding_state(app: AppHandle) -> OnboardingState {
         server_url: settings.server_url,
         deployment: settings.deployment,
         platform: appearance::platform(),
+        desktop_version: app.package_info().version.to_string(),
         local_setup_pending: runtime_installer::pending_path(&app).is_ok_and(|path| path.is_file()),
     }
 }
@@ -539,24 +633,91 @@ struct LocalInstanceView {
     url: String,
     installed: bool,
     running: bool,
+    version: Option<String>,
+    version_error: Option<String>,
+    target_version: &'static str,
+    can_update: bool,
 }
 #[tauri::command]
 async fn local_instances(app: AppHandle) -> Result<Vec<LocalInstanceView>, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        local_instances::load(&app).map(|rows| {
+        local_instances::load(&app).and_then(|rows| {
             rows.into_iter()
-                .map(|row| LocalInstanceView {
-                    running: reachable(&row.url()).is_ok(),
-                    url: row.url().to_string(),
-                    id: row.id,
-                    name: row.name,
-                    installed: row.installed,
+                .map(|row| {
+                    let status = if row.installed {
+                        local_backup::version_status(&row.dir(&app)?)
+                    } else {
+                        local_backup::VersionStatus {
+                            version: None,
+                            error: None,
+                        }
+                    };
+                    let version = status.version;
+                    let target_version = env!("AGENTICOS_PLATFORM_VERSION");
+                    let can_update = row.installed
+                        && status.error.is_none()
+                        && version
+                            .as_deref()
+                            .is_none_or(|current| local_backup::prevent_downgrade(current, target_version).is_ok());
+                    Ok(LocalInstanceView {
+                        running: reachable(&row.url()).is_ok(),
+                        url: row.url().to_string(),
+                        id: row.id,
+                        name: row.name,
+                        installed: row.installed,
+                        version,
+                        version_error: status.error,
+                        target_version,
+                        can_update,
+                    })
                 })
-                .collect()
+                .collect::<Result<Vec<_>, String>>()
         })
     })
     .await
     .map_err(|e| e.to_string())?
+}
+
+/// Only the bundled instance picker may request an update, after native consent.
+#[tauri::command]
+async fn update_local(app: AppHandle, instance_id: String) -> Result<bool, String> {
+    use tauri_plugin_dialog::{DialogExt, MessageDialogButtons};
+    let instance = local_instances::find(&app, &instance_id)?;
+    if !instance.installed {
+        return Err("Finish setting up this instance first.".into());
+    }
+    managed::check(&app, &instance.url())?;
+    let (send, receive) = tokio::sync::oneshot::channel();
+    app.dialog()
+        .message(format!(
+            "Update {} to workspace version {}? A backup of the database, files and keys is saved before applying the update. The workspace restarts and is briefly unavailable. Finish any running work first. This does not update the desktop app.",
+            instance.name, env!("AGENTICOS_PLATFORM_VERSION")
+        ))
+        .title("Update local workspace?")
+        .buttons(MessageDialogButtons::OkCancelCustom("Back up and update".into(), "Cancel".into()))
+        .show(move |allowed| { let _ = send.send(allowed); });
+    if !receive.await.map_err(|e| e.to_string())? {
+        return Ok(false);
+    }
+    tauri::async_runtime::spawn_blocking(move || {
+        managed::check(&app, &instance.url())?;
+        local_stack::control_instance(&app, &instance, local_stack::Control::Update)
+    })
+    .await
+    .map_err(|e| e.to_string())??;
+    Ok(true)
+}
+
+/// Open the bundled picker so updates remain available even with an older console.
+fn show_local_updates(app: &AppHandle) -> Result<(), String> {
+    let mut page = connect_page();
+    page.set_query(Some("local=update"));
+    bring_console(app)?;
+    let window = app
+        .get_webview_window(WINDOW)
+        .ok_or("The main window is unavailable.")?;
+    window.navigate(page).map_err(|e| e.to_string())?;
+    raise(&window)
 }
 
 /// Set AgenticOS up on this computer and sign the console in to it.
@@ -568,7 +729,7 @@ async fn set_up_local(app: AppHandle, window: WebviewWindow, owner: local_stack:
     let console = tauri::async_runtime::spawn_blocking(move || local_stack::set_up(&handle, &owner))
         .await
         .map_err(|e| e.to_string())??;
-    arrive(&app, &window, console, Deployment::Local).await
+    arrive(&app, &window, console, Deployment::Local, None).await
 }
 
 /// Resume only the saved managed instance, preserving its connection and session.
@@ -638,13 +799,22 @@ async fn use_local(app: AppHandle, window: WebviewWindow, instance_id: Option<St
     tauri::async_runtime::spawn_blocking(move || reachable(&probed))
         .await
         .map_err(|e| e.to_string())??;
-    arrive(&app, &window, console, Deployment::Local).await
+    arrive(&app, &window, console, Deployment::Local, None).await
 }
 
 #[tauri::command]
 fn open_docker_download(app: AppHandle) -> Result<(), String> {
     app.opener()
         .open_url(local_stack::docker_download(), None::<&str>)
+        .map_err(|e| e.to_string())
+}
+
+/// An MCP provider's consent, in the person's own browser rather than this window.
+#[tauri::command]
+fn open_consent(app: AppHandle, url: String) -> Result<(), String> {
+    let url = browser_consent_url(&url)?;
+    app.opener()
+        .open_url(url.as_str(), None::<&str>)
         .map_err(|e| e.to_string())
 }
 
@@ -1031,6 +1201,7 @@ pub struct ShellMenu {
 impl ShellMenu {
     fn build(app: &AppHandle, settings: &Settings) -> tauri::Result<Self> {
         let local = local_instances::selected(app).is_ok_and(|instance| instance.is_some());
+        let saved = local_instances::load(app).is_ok_and(|rows| rows.iter().any(|row| row.installed));
         Ok(Self {
             blobby: blobby::BlobbyMenu::build(app, &settings.blobby)?,
             open_console: MenuItem::with_id(app, OPEN_CONSOLE, "Open AgenticOS", true, None::<&str>)?,
@@ -1049,7 +1220,7 @@ impl ShellMenu {
             local: [
                 MenuItem::with_id(app, LOCAL_START, "Start", local, None::<&str>)?,
                 MenuItem::with_id(app, LOCAL_STOP, "Stop", local, None::<&str>)?,
-                MenuItem::with_id(app, LOCAL_UPDATE, "Update", local, None::<&str>)?,
+                MenuItem::with_id(app, LOCAL_UPDATE, "Update local workspace…", saved, None::<&str>)?,
             ],
         })
     }
@@ -1069,12 +1240,12 @@ impl ShellMenu {
         Ok(())
     }
 
-    /// The local stack's controls are live only while the app runs one.
-    fn reflect_local_instance(&self, available: bool) -> tauri::Result<()> {
-        for item in &self.local {
+    /// Start and Stop address the selected instance; Update opens the saved-instance picker.
+    fn reflect_local_instance(&self, app: &AppHandle, available: bool) -> tauri::Result<()> {
+        for item in &self.local[..2] {
             item.set_enabled(available)?;
         }
-        Ok(())
+        self.local[2].set_enabled(local_instances::load(app).is_ok_and(|rows| rows.iter().any(|row| row.installed)))
     }
 
     /// The tray's menu, which is also blobby's: everything the shell does, with no window open.
@@ -1132,6 +1303,7 @@ impl ShellMenu {
                 &separator()?,
                 &self.settings,
                 &MenuItem::with_id(app, "check-updates", "Check for Updates…", true, None::<&str>)?,
+                &self.local[2],
                 &self.change_server,
                 &separator()?,
                 &PredefinedMenuItem::services(app, None)?,
@@ -1350,11 +1522,11 @@ fn install_menu(app: &AppHandle, settings: &Settings) -> tauri::Result<TrayIcon>
                 .open_url(DOCUMENTATION_URL, None::<&str>)
                 .map_err(|e| e.to_string()),
             blobby::SHOW_MENU_ID => update_blobby(app, |blobby| blobby.enabled = !blobby.enabled),
-            LOCAL_START | LOCAL_STOP | LOCAL_UPDATE => {
+            LOCAL_UPDATE => show_local_updates(app),
+            LOCAL_START | LOCAL_STOP => {
                 let control = match id {
                     LOCAL_START => local_stack::Control::Start,
-                    LOCAL_STOP => local_stack::Control::Stop,
-                    _ => local_stack::Control::Update,
+                    _ => local_stack::Control::Stop,
                 };
                 control_local(app, control);
                 Ok(())
@@ -1401,6 +1573,12 @@ fn install_menu(app: &AppHandle, settings: &Settings) -> tauri::Result<TrayIcon>
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    #[cfg(all(target_os = "linux", feature = "arch-package"))]
+    if std::env::args().any(|arg| arg == "--installation-smoke") {
+        tls::initialize();
+        native_browser_smoke::run();
+        return;
+    }
     tls::initialize();
     tauri::Builder::default()
         // First, and it has to be: on Windows and Linux opening a registered
@@ -1473,14 +1651,17 @@ pub fn run() {
             console::pin_agent,
             console::unpin_agent,
             onboarding_state,
+            set_onboarding_language,
             onboarding_permissions::onboarding_permissions,
             onboarding_permissions::request_onboarding_permission,
             local_status,
             local_instances,
+            update_local,
             set_up_local,
             use_local,
             resume_local,
             open_docker_download,
+            open_consent,
             docker_install::download_docker,
             docker_install::open_docker,
             finish_onboarding,

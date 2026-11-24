@@ -10,7 +10,7 @@ organization-wide page read into a group chat - by `list_artifacts` or
 import uuid
 from collections.abc import AsyncIterator, Iterator
 from contextlib import asynccontextmanager
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from unittest.mock import patch
 
@@ -24,6 +24,7 @@ from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_environment import AgentEnvironment
 from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
 from app.db.models.artifact import ArtifactMediaType
+from app.db.models.artifact_favourite import ArtifactFavourite
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.resource_grant import GrantLevel, ResourceGrant, Visibility
 from app.db.models.user import User
@@ -235,6 +236,72 @@ class TestWhatAReaderSees:
         listing = await _listed(db, world, world.bo)
         assert _names(listing) == {"bo-private", "ada-org", "ada-shared"}
         assert listing.total == 3
+
+    async def test_favourite_listing_is_personal_visible_and_preserves_star_order(
+        self, db: AsyncSession
+    ) -> None:
+        world = await _world(db)
+        own = await _page(db, world.agent, world.ada, "ada-first")
+        newest = await _page(db, world.agent, world.ada, "ada-newest")
+        await artifact_repo.set_favourite(db, user_id=world.ada.id, artifact_id=own, favourite=True)
+        await artifact_repo.set_favourite(
+            db, user_id=world.ada.id, artifact_id=newest, favourite=True
+        )
+        await artifact_repo.set_favourite(
+            db, user_id=world.bo.id, artifact_id=world.shared, favourite=True
+        )
+        now = datetime.now(UTC)
+        await db.execute(
+            update(ArtifactFavourite)
+            .where(
+                ArtifactFavourite.user_id == world.ada.id,
+                ArtifactFavourite.artifact_id == own,
+            )
+            .values(created_at=now - timedelta(days=1))
+        )
+        ada_items, ada_total = await artifact_repo.list_visible(
+            db,
+            organization_id=world.organization.id,
+            user_id=world.ada.id,
+            see_all=False,
+            shared_ids=[],
+            favourites_for=world.ada.id,
+        )
+        bo_items, bo_total = await artifact_repo.list_visible(
+            db,
+            organization_id=world.organization.id,
+            user_id=world.bo.id,
+            see_all=False,
+            shared_ids=[world.shared],
+            favourites_for=world.bo.id,
+        )
+
+        assert [row.id for row in ada_items] == [own, newest]
+        assert ada_total == 2
+        assert [row.id for row in bo_items] == [world.shared]
+        assert bo_total == 1
+        assert await artifact_repo.is_favourite(db, user_id=world.ada.id, artifact_id=own)
+        assert not await artifact_repo.is_favourite(db, user_id=world.bo.id, artifact_id=own)
+        await artifact_repo.set_favourite(
+            db, user_id=world.ada.id, artifact_id=own, favourite=False
+        )
+        assert not await artifact_repo.is_favourite(db, user_id=world.ada.id, artifact_id=own)
+
+    async def test_deleting_an_app_cascades_its_favourites(self, db: AsyncSession) -> None:
+        world = await _world(db)
+        artifact_id = await _page(db, world.agent, world.ada, "to-delete")
+        await artifact_repo.set_favourite(
+            db, user_id=world.ada.id, artifact_id=artifact_id, favourite=True
+        )
+        artifact = await artifact_repo.get(db, artifact_id, organization_id=world.organization.id)
+        assert artifact is not None
+
+        await db.delete(artifact)
+        await db.flush()
+
+        assert not await artifact_repo.is_favourite(
+            db, user_id=world.ada.id, artifact_id=artifact_id
+        )
 
     async def test_a_role_that_reaches_every_page_sees_every_page_of_this_agent_here(
         self, db: AsyncSession

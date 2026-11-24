@@ -1,8 +1,9 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { makeDefinition, port } from "@/components/workflows/validation/fixtures";
+import { ApiError } from "@/lib/api-error";
 import type { NodeInstance } from "@/lib/workflows/types";
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 
@@ -11,7 +12,7 @@ import { RunButton } from "./run-button";
 const router = vi.hoisted(() => ({ push: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => router }));
 const mutate = vi.fn();
-const start = { mutate, isPending: false };
+const start = { mutate, isPending: false, error: null as unknown, reset: vi.fn() };
 vi.mock("@/hooks", () => ({ useWorkflowRuns: () => ({ start }) }));
 
 const store = useWorkflowEditorStore;
@@ -37,6 +38,8 @@ function seed(config: Record<string, unknown> = {}, definitionId = "trigger.manu
 
 beforeEach(() => {
   mutate.mockReset();
+  start.error = null;
+  start.reset.mockReset();
   mutate.mockImplementation((_body, options) => options?.onSuccess?.({ id: "run-1" }));
 });
 afterEach(() => store.getState().teardown());
@@ -98,6 +101,65 @@ describe("RunButton", () => {
     expect(mutate).toHaveBeenCalledTimes(2);
   });
 
+  it("says which steps hand on pinned test data instead of running", async () => {
+    seed();
+    const graph = store.getState().graph!;
+    const pinned = { ...graph.nodes[0]!, label: "Fetch lead", pinned_output: { id: 1 } };
+    store.getState().seedGraph({ ...graph, nodes: [pinned] });
+    render(<RunButton workflowId="wf" catalog={CATALOG} onStarted={vi.fn()} />);
+
+    const indicator = screen.getByRole("button", { name: "1 step pinned" });
+    expect(indicator).toHaveTextContent("1");
+    expect(indicator).not.toHaveTextContent("step pinned");
+    await userEvent.click(indicator);
+    expect(
+      (await screen.findAllByText(/hand on their pinned test data instead\. Fetch lead/))[0],
+    ).toBeInTheDocument();
+  });
+
+  it("does not count or name pins on switched-off steps", async () => {
+    seed();
+    const graph = store.getState().graph!;
+    const active = { ...graph.nodes[0]!, label: "Fetch lead", pinned_output: { id: 1 } };
+    const disabled = { ...active, id: "off", label: "Disabled pin", disabled: true };
+    store.getState().seedGraph({ ...graph, nodes: [active, disabled] });
+    const { rerender } = render(
+      <RunButton workflowId="wf" catalog={CATALOG} onStarted={vi.fn()} />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "1 step pinned" }));
+    expect(screen.queryByText(/Disabled pin/)).toBeNull();
+    act(() => store.getState().seedGraph({ ...graph, nodes: [disabled] }));
+    rerender(<RunButton workflowId="wf" catalog={CATALOG} onStarted={vi.fn()} />);
+    expect(screen.queryByRole("button", { name: /step pinned/ })).toBeNull();
+  });
+
+  it("opens pinned test data from the keyboard even when testing is blocked", async () => {
+    seed();
+    const graph = store.getState().graph!;
+    store.getState().seedGraph({
+      ...graph,
+      nodes: [{ ...graph.nodes[0]!, label: "Fetch lead", pinned_output: { id: 1 } }],
+    });
+    store.setState({ isDirty: true });
+    render(<RunButton workflowId="wf" catalog={CATALOG} onStarted={vi.fn()} />);
+    expect(screen.getByRole("button", { name: "Test draft" })).toBeDisabled();
+    const indicator = screen.getByRole("button", { name: "1 step pinned" });
+    indicator.focus();
+    await userEvent.keyboard("{Enter}");
+    expect(
+      await screen.findByText(/hand on their pinned test data instead\. Fetch lead/),
+    ).toBeVisible();
+    await userEvent.keyboard("{Escape}");
+    expect(screen.queryByText(/hand on their pinned test data instead\. Fetch lead/)).toBeNull();
+    expect(indicator).toHaveFocus();
+  });
+
+  it("shows no pinned-data badge when nothing is pinned", () => {
+    seed();
+    render(<RunButton workflowId="wf" catalog={CATALOG} onStarted={vi.fn()} />);
+    expect(screen.queryByText(/pinned/)).toBeNull();
+  });
+
   it("asks for the declared fields first", async () => {
     seed({ fields: [{ name: "email", type: "text" }] });
     render(<RunButton workflowId="wf" catalog={CATALOG} onStarted={vi.fn()} />);
@@ -110,6 +172,49 @@ describe("RunButton", () => {
       { workflow_id: "wf", mode: "test", input: { email: "ada@example.com" } },
       expect.anything(),
     );
+  });
+
+  it("asks for a JSON object before starting a schema-constrained draft", async () => {
+    seed({
+      input_schema: {
+        type: "object",
+        required: ["contacts"],
+        properties: { contacts: { type: "array" } },
+      },
+    });
+    render(<RunButton workflowId="wf" catalog={CATALOG} onStarted={vi.fn()} />);
+    await userEvent.click(screen.getByRole("button", { name: "Test draft" }));
+    expect(mutate).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Expected input schema" })).toBeVisible();
+    fireEvent.change(screen.getByLabelText("Input (JSON)"), {
+      target: { value: '{"contacts":[{"email":"ada@example.com"}]}' },
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Start a run" }));
+    expect(mutate).toHaveBeenCalledWith(
+      { workflow_id: "wf", mode: "test", input: { contacts: [{ email: "ada@example.com" }] } },
+      expect.anything(),
+    );
+  });
+
+  it("keeps a refused draft run open with its input field paths", async () => {
+    seed({ input_schema: { type: "object" } });
+    mutate.mockImplementation(() => undefined);
+    const view = render(<RunButton workflowId="wf" catalog={CATALOG} onStarted={vi.fn()} />);
+    await userEvent.click(screen.getByRole("button", { name: "Test draft" }));
+    await userEvent.click(screen.getByRole("button", { name: "Start a run" }));
+    start.error = new ApiError(422, "Input rejected", {
+      error: {
+        code: "WORKFLOW_RUN_INPUT_INVALID",
+        message: "Input rejected",
+        details: {
+          fields: [{ field: "input.items.0.sku", message: "Field required" }],
+        },
+      },
+    });
+    view.rerender(<RunButton workflowId="wf" catalog={CATALOG} onStarted={vi.fn()} />);
+    expect(screen.getByRole("alert")).toHaveTextContent("input.items.0.sku: Field required");
+    fireEvent.change(screen.getByLabelText("Input (JSON)"), { target: { value: '{"items":[]}' } });
+    expect(start.reset).toHaveBeenCalledOnce();
   });
 
   it("says why it cannot run: no steps, problems, or an edit still saving", () => {

@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { getErrorMessage } from "@/lib/api-error";
 import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
-import type { GalleryInstallResult, SkillGallery } from "@/types/providers";
+import type { GalleryInstallResult, GallerySkillPreview, SkillGallery } from "@/types/providers";
 
 /**
  * The opt-in skill gallery, and installing from it.
@@ -54,4 +54,16 @@ export function useSkillGallery(enabled: boolean) {
     isInstalling: install.isPending,
     installingKeys: install.variables ?? [],
   };
+}
+
+/** One gallery skill's body and files, read when a person opens its preview. */
+export function useGallerySkillPreview(key: string) {
+  const { data, error } = useQuery({
+    queryKey: qk.skills.galleryPreview(key),
+    queryFn: () =>
+      apiClient.get<GallerySkillPreview>(`/skills/gallery/preview?${new URLSearchParams({ key })}`),
+    // What the gallery ships changes only with a release.
+    staleTime: Infinity,
+  });
+  return { preview: data, error };
 }

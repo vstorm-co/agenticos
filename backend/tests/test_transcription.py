@@ -570,3 +570,29 @@ class TestWhatARecordingIsCalled:
         """An alias to a type the table has no extension for would rename
         nothing, and the provider would be sent the platform's name again."""
         assert set(RECORDING_TYPE_ALIASES.values()) <= set(RECORDING_EXTENSIONS)
+
+
+@pytest.mark.parametrize("language", [None, "pl"])
+async def test_elevenlabs_scribe_uses_its_header_endpoint_and_multipart_fields(language):
+    client = _responds({"text": "Cześć", "words": [{"end": 2.3}]})
+    with patch("app.services.transcription.httpx.AsyncClient", return_value=client):
+        found = await TranscriptionService(MagicMock()).transcribe(
+            _recording(),
+            organization_id=ORG,
+            secret_id=KEY,
+            shared_key=True,
+            provider="elevenlabs",
+            model="scribe_v3",
+            language=language,
+        )
+    args = client.post.call_args
+    assert args.args == ("https://api.elevenlabs.io/v1/speech-to-text",)
+    assert args.kwargs["headers"] == {"xi-api-key": "sk-test-key"}
+    expected = {"model_id": "scribe_v3"}
+    if language is not None:
+        expected["language_code"] = language
+    assert args.kwargs["data"] == expected
+    assert args.kwargs["files"]["file"] == ("voice.ogg", b"ogg-bytes", "audio/ogg")
+    assert found.text == "Cześć"
+    # A final word timestamp excludes trailing silence and is not recording duration.
+    assert found.audio_seconds is None

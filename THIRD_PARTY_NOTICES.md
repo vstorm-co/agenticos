@@ -23,8 +23,8 @@ names no author is in the evidence column below.
 
 | Licence | Backend | Frontend |
 |---|---:|---:|
-| MIT | 99 | 253 |
-| Apache-2.0 | 70 | 24 |
+| MIT | 101 | 253 |
+| Apache-2.0 | 71 | 24 |
 | BSD-3-Clause | 22 | 4 |
 | ISC | 3 | 21 |
 | BSD-2-Clause | 7 | 0 |
@@ -50,7 +50,7 @@ names no author is in the evidence column below.
 
 ## Backend image (Python)
 
-223 distributions.
+226 distributions.
 
 | Component | Version | Licence | Source | Evidence |
 |---|---|---|---|---|
@@ -66,17 +66,17 @@ names no author is in the evidence column below.
 | annotated-doc | 0.0.5 | MIT | https://github.com/fastapi/annotated-doc | License-Expression |
 | annotated-types | 0.8.0 | MIT | https://github.com/annotated-types/annotated-types | License-Expression |
 | anthropic | 2.3.0 | Apache-2.0 | https://github.com/anthropics/anthropic-sdk-python | License field |
-| anyio | 4.15.1 | MIT | https://github.com/agronholm/anyio | License-Expression |
+| anyio | 4.16.0 | MIT | https://github.com/agronholm/anyio | License-Expression |
 | asgiref | 3.13.0 | BSD-3-Clause | https://asgi.readthedocs.io/ | License field |
 | asyncpg | 0.32.0 | Apache-2.0 | https://github.com/MagicStack/asyncpg | License-Expression |
 | attrs | 26.1.0 | MIT | https://github.com/python-attrs/attrs | License-Expression |
-| authlib | 1.9.1 | BSD-3-Clause | https://github.com/authlib/authlib | License field |
+| authlib | 1.9.5 | BSD-3-Clause | https://github.com/authlib/authlib | License field |
 | bcrypt | 5.0.0 | Apache-2.0 | https://github.com/pyca/bcrypt/ | License field |
 | beartype | 0.23.1 | MIT | https://github.com/beartype/beartype | License-Expression |
 | beautifulsoup4 | 4.15.0 | MIT | https://www.crummy.com/software/BeautifulSoup/bs4/ | License field |
 | bidict | 0.24.1 | MPL-2.0 | https://github.com/jab/bidict | License-Expression; review accepted |
-| boto3 | 1.43.119 | Apache-2.0 | https://github.com/boto/boto3 | License field |
-| botocore | 1.43.119 | Apache-2.0 | https://github.com/boto/botocore | License field |
+| boto3 | 1.44.2 | Apache-2.0 | https://github.com/boto/boto3 | License field |
+| botocore | 1.44.3 | Apache-2.0 | https://github.com/boto/botocore | License field |
 | bracex | 3.2 | MIT | https://github.com/facelessuser/bracex | License-Expression |
 | cachetools | 7.2.6 | MIT | https://github.com/tkem/cachetools/ | License-Expression |
 | caio | 0.12.10 | Apache-2.0 | https://github.com/mosquito/caio/ | License-Expression |
@@ -84,7 +84,7 @@ names no author is in the evidence column below.
 | cffi | 2.1.1 | MIT-0 | https://github.com/python-cffi/cffi | License-Expression |
 | chardet | 7.7.0 | 0BSD | https://github.com/chardet/chardet | License-Expression |
 | charset-normalizer | 3.5.2 | MIT | https://charset-normalizer.readthedocs.io/ | License field |
-| click | 8.5.0 | BSD-3-Clause | https://github.com/pallets/click/ | License-Expression |
+| click | 8.5.1 | BSD-3-Clause | https://github.com/pallets/click/ | License-Expression |
 | cohere | 7.3.0 | MIT | https://github.com/cohere-ai/cohere-python | License field |
 | connectrpc | 0.12.1 | Apache-2.0 | https://github.com/connectrpc/connect-py | License-Expression |
 | croniter | 6.2.4 | MIT | https://github.com/pallets-eco/croniter | License-Expression |
@@ -101,7 +101,7 @@ names no author is in the evidence column below.
 | defusedxml | 0.7.1 | PSF-2.0 | https://github.com/tiran/defusedxml | classifier |
 | deprecated | 1.3.1 | MIT | https://github.com/laurent-laporte-pro/deprecated | License field |
 | distro | 1.9.0 | Apache-2.0 | https://github.com/python-distro/distro | License field |
-| dnspython | 2.9.0 | ISC | https://github.com/rthalley/dnspython.git | License-Expression; no licence file, attributed to Bob Halley |
+| dnspython | 2.9.2 | ISC | https://github.com/rthalley/dnspython.git | License-Expression |
 | docstring-parser | 0.18.0 | MIT | https://github.com/rr-/docstring_parser | License field |
 | e2b | 2.59.0 | MIT | https://github.com/e2b-dev/e2b/tree/main/packages/python-sdk | License-Expression; no licence file, attributed to e2b |
 | e2b-dockerfile-utils | 0.1.1 | Apache-2.0 | https://github.com/e2b-dev/e2b/tree/main/packages/dockerfile-utils-python | License-Expression |
@@ -110,16 +110,16 @@ names no author is in the evidence column below.
 | eval-type-backport | 0.4.0 | MIT | https://github.com/alexmojaki/eval_type_backport | License field |
 | exceptiongroup | 1.3.1 | MIT | https://github.com/agronholm/exceptiongroup | classifier |
 | executing | 2.3.0 | MIT | https://github.com/alexmojaki/executing | License field |
-| fastapi | 0.162.0 | MIT | https://github.com/fastapi/fastapi | License-Expression |
+| fastapi | 0.162.5 | MIT | https://github.com/fastapi/fastapi | License-Expression |
 | fastavro | 1.13.1 | MIT | https://github.com/fastavro/fastavro | License field |
-| fastmcp | 4.1.4 | Apache-2.0 | https://github.com/PrefectHQ/fastmcp | License-Expression |
-| fastmcp-slim | 4.1.4 | Apache-2.0 | https://github.com/PrefectHQ/fastmcp | License-Expression; no licence file, attributed to Jeremiah Lowin, Nate Nowack |
+| fastmcp | 4.1.8 | Apache-2.0 | https://github.com/PrefectHQ/fastmcp | License-Expression |
+| fastmcp-slim | 4.1.8 | Apache-2.0 | https://github.com/PrefectHQ/fastmcp | License-Expression; no licence file, attributed to Jeremiah Lowin, Nate Nowack |
 | filelock | 4.2.4 | MIT | https://github.com/tox-dev/py-filelock | License-Expression |
 | frozenlist | 1.8.0 | Apache-2.0 | https://github.com/aio-libs/frozenlist | License field |
 | fsspec | 2026.9.0 | BSD-3-Clause | https://github.com/fsspec/filesystem_spec | License-Expression |
-| genai-prices | 0.1.13 | MIT | https://github.com/pydantic/genai-prices | License-Expression |
-| google-auth | 2.62.0 | Apache-2.0 | https://github.com/googleapis/google-cloud-python/tree/main/packages/google-auth | License field |
-| google-genai | 2.33.0 | Apache-2.0 | https://github.com/googleapis/python-genai | License-Expression |
+| genai-prices | 0.2.3 | MIT | https://github.com/pydantic/genai-prices | License-Expression |
+| google-auth | 2.62.2 | Apache-2.0 | https://github.com/googleapis/google-cloud-python/tree/main/packages/google-auth | License field |
+| google-genai | 2.34.0 | Apache-2.0 | https://github.com/googleapis/python-genai | License-Expression |
 | googleapis-common-protos | 1.76.0 | Apache-2.0 | https://github.com/googleapis/google-cloud-python/tree/main/packages/googleapis-common-protos | License-Expression |
 | greenlet | 3.5.6 | MIT AND PSF-2.0 | https://github.com/python-greenlet/greenlet | License-Expression |
 | griffelib | 2.4.1 | ISC | https://github.com/mkdocstrings/griffe | License-Expression |
@@ -134,6 +134,7 @@ names no author is in the evidence column below.
 | httpcore2 | 2.16.0 | BSD-3-Clause | https://github.com/pydantic/httpx2/blob/main/src/httpcore2 | License-Expression |
 | httptools | 0.9.0 | MIT | https://github.com/MagicStack/httptools | License-Expression |
 | httpx | 0.28.1 | BSD-3-Clause | https://github.com/encode/httpx | License field |
+| httpx-sse | 0.4.3 | MIT | https://github.com/florimondmanca/httpx-sse | License field |
 | httpx-ws | 0.9.0 | MIT | https://github.com/frankie567/httpx-ws | classifier |
 | httpx2 | 2.16.0 | BSD-3-Clause | https://github.com/pydantic/httpx2 | License-Expression |
 | huggingface-hub | 1.18.0 | Apache-2.0 | https://github.com/huggingface/huggingface_hub | License field |
@@ -150,15 +151,15 @@ names no author is in the evidence column below.
 | jsonschema-path | 0.5.0 | Apache-2.0 | https://github.com/p1c2u/jsonschema-path | License field |
 | jsonschema-specifications | 2025.9.1 | MIT | https://github.com/python-jsonschema/jsonschema-specifications | License-Expression |
 | ldap3 | 2.9.1 | LGPL-3.0-only | https://github.com/cannatag/ldap3 | classifier; review accepted |
-| liteparse | 2.17.0 | Apache-2.0 | https://github.com/run-llama/liteparse | License-Expression; no licence file, attributed to Logan Markewich |
+| liteparse | 2.19.0 | Apache-2.0 | https://github.com/run-llama/liteparse | License-Expression; no licence file, attributed to Logan Markewich |
 | llama-cloud | 2.19.0 | MIT | https://github.com/run-llama/llama-parse-py | License field |
-| logfire | 5.4.0 | MIT | https://github.com/pydantic/logfire | License-Expression |
+| logfire | 5.6.0 | MIT | https://github.com/pydantic/logfire | License-Expression |
 | logfire-api | 5.4.0 | MIT | https://pypi.org/project/logfire-api/5.4.0/ | License-Expression; no licence file, attributed to Pydantic Team, Samuel Colvin, Hasan Ramezani, Adrian Garcia Badaracco, David Montague, Marcelo Trylesinski, David Hewitt, Alex Hall |
-| logfire-sdk | 5.4.0 | MIT | https://github.com/pydantic/logfire | License-Expression |
+| logfire-sdk | 5.6.0 | MIT | https://github.com/pydantic/logfire | License-Expression |
 | lxml | 6.1.3 | BSD-3-Clause | https://github.com/lxml/lxml | License field |
 | magic-filter | 1.0.12 | MIT | https://github.com/aiogram/magic-filter | License-Expression |
 | mako | 1.4.3 | MIT | https://www.makotemplates.org/ | License-Expression |
-| markdown-it-py | 4.2.0 | MIT | https://github.com/executablebooks/markdown-it-py | classifier |
+| markdown-it-py | 4.3.0 | MIT | https://github.com/executablebooks/markdown-it-py | classifier |
 | markdownify | 1.2.3 | MIT | http://github.com/matthewwithanm/python-markdownify | classifier |
 | markupsafe | 3.0.4 | BSD-3-Clause | https://github.com/pallets/markupsafe/ | License-Expression |
 | mcp | 2.3.0 | MIT | https://github.com/modelcontextprotocol/python-sdk | License field |
@@ -173,25 +174,26 @@ names no author is in the evidence column below.
 | openai | 3.39.0 | Apache-2.0 | https://github.com/openai/openai-python | License-Expression |
 | openapi-pydantic | 0.6.0 | MIT | https://github.com/mike-oakley/openapi-pydantic | License field |
 | openpyxl | 3.1.5 | MIT | https://foss.heptapod.net/openpyxl/openpyxl | License field |
-| opentelemetry-api | 1.45.1 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-python | License-Expression |
-| opentelemetry-exporter-http-transport | 0.66b1 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-python | License-Expression |
-| opentelemetry-exporter-otlp-common | 0.66b1 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-python | License-Expression |
-| opentelemetry-exporter-otlp-proto-common | 1.45.1 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-python | License-Expression |
-| opentelemetry-exporter-otlp-proto-http | 1.45.1 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-python | License-Expression |
-| opentelemetry-instrumentation | 0.66b1 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-python-contrib | License-Expression |
-| opentelemetry-instrumentation-aiohttp-client | 0.66b1 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-python-contrib | License-Expression |
-| opentelemetry-instrumentation-asgi | 0.66b1 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-python-contrib | License-Expression |
-| opentelemetry-instrumentation-asyncpg | 0.66b1 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-python-contrib | License-Expression |
-| opentelemetry-instrumentation-fastapi | 0.66b1 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-python-contrib | License-Expression |
-| opentelemetry-instrumentation-httpx | 0.66b1 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-python-contrib | License-Expression |
-| opentelemetry-instrumentation-redis | 0.66b1 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-python-contrib | License-Expression |
-| opentelemetry-proto | 1.45.1 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-python | License-Expression |
-| opentelemetry-sdk | 1.45.1 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-python | License-Expression |
-| opentelemetry-semantic-conventions | 0.66b1 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-python | License-Expression |
-| opentelemetry-util-http | 0.66b1 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-python-contrib | License-Expression; no licence file, attributed to OpenTelemetry Authors |
+| opensandbox | 1.2.1 | Apache-2.0 | https://github.com/opensandbox-group/OpenSandbox | classifier |
+| opentelemetry-api | 1.45.2 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-python | License-Expression |
+| opentelemetry-exporter-http-transport | 0.66b2 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-python | License-Expression |
+| opentelemetry-exporter-otlp-common | 0.66b2 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-python | License-Expression |
+| opentelemetry-exporter-otlp-proto-common | 1.45.2 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-python | License-Expression |
+| opentelemetry-exporter-otlp-proto-http | 1.45.2 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-python | License-Expression |
+| opentelemetry-instrumentation | 0.66b2 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-python-contrib | License-Expression |
+| opentelemetry-instrumentation-aiohttp-client | 0.66b2 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-python-contrib | License-Expression |
+| opentelemetry-instrumentation-asgi | 0.66b2 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-python-contrib | License-Expression |
+| opentelemetry-instrumentation-asyncpg | 0.66b2 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-python-contrib | License-Expression |
+| opentelemetry-instrumentation-fastapi | 0.66b2 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-python-contrib | License-Expression |
+| opentelemetry-instrumentation-httpx | 0.66b2 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-python-contrib | License-Expression |
+| opentelemetry-instrumentation-redis | 0.66b2 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-python-contrib | License-Expression |
+| opentelemetry-proto | 1.45.2 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-python | License-Expression |
+| opentelemetry-sdk | 1.45.2 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-python | License-Expression |
+| opentelemetry-semantic-conventions | 0.66b2 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-python | License-Expression |
+| opentelemetry-util-http | 0.66b2 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-python-contrib | License-Expression; no licence file, attributed to OpenTelemetry Authors |
 | packaging | 26.3 | Apache-2.0 OR BSD-2-Clause | https://github.com/pypa/packaging | License-Expression |
 | pathable | 0.6.0 | Apache-2.0 | https://github.com/p1c2u/pathable | License field |
-| phonenumberslite | 9.0.41 | Apache-2.0 | https://github.com/daviddrysdale/python-phonenumbers | License-Expression |
+| phonenumberslite | 9.0.43 | Apache-2.0 | https://github.com/daviddrysdale/python-phonenumbers | License-Expression |
 | pillow | 13.0.0 | MIT-CMU | https://github.com/python-pillow/Pillow | License-Expression |
 | platformdirs | 4.13.5 | MIT | https://github.com/tox-dev/platformdirs | License-Expression |
 | primp | 2.0.1 | MIT | https://github.com/deedy5/primp | License field; no licence file, attributed to deedy5 |
@@ -206,18 +208,18 @@ names no author is in the evidence column below.
 | pyasn1 | 0.6.5 | BSD-2-Clause | https://github.com/pyasn1/pyasn1 | License field |
 | pyasn1-modules | 0.4.2 | BSD-2-Clause | https://github.com/pyasn1/pyasn1-modules | licence file text |
 | pycparser | 3.12 | BSD-3-Clause | https://github.com/eliben/pycparser | License-Expression |
-| pydantic | 2.14.1 | MIT | https://github.com/pydantic/pydantic | License-Expression |
+| pydantic | 2.14.3 | MIT | https://github.com/pydantic/pydantic | License-Expression |
 | pydantic-ai-backend | 0.2.39 | MIT | https://github.com/vstorm-co/pydantic-ai-backend | License-Expression |
-| pydantic-ai-harness | 0.64.0 | MIT | https://github.com/pydantic/pydantic-ai | License-Expression |
+| pydantic-ai-harness | 0.68.0 | MIT | https://github.com/pydantic/pydantic-ai | License-Expression |
 | pydantic-ai-otari | 0.1.0 | Apache-2.0 | https://github.com/mozilla-ai/otari | License-Expression |
-| pydantic-ai-skills | 2.1.0 | MIT | https://github.com/dougtrajano/pydantic-ai-skills | License-Expression |
-| pydantic-ai-slim | 2.64.0 | MIT | https://github.com/pydantic/pydantic-ai/tree/main/pydantic_ai_slim | License-Expression |
-| pydantic-core | 2.50.1 | MIT | https://github.com/pydantic/pydantic/tree/main/pydantic-core | License-Expression |
-| pydantic-graph | 2.64.0 | MIT | https://github.com/pydantic/pydantic-ai | License-Expression |
-| pydantic-monty | 1.4.0 | MIT | https://github.com/pydantic/monty | License-Expression; no licence file, attributed to Pydantic Services Inc. |
-| pydantic-monty-client | 1.4.0 | MIT | https://github.com/pydantic/monty | License field; no licence file, attributed to Pydantic Services Inc. |
-| pydantic-monty-runtime | 1.4.0 | MIT | https://github.com/pydantic/monty | License field; no licence file, attributed to Pydantic Services Inc. |
-| pydantic-settings | 2.16.1 | MIT | https://github.com/pydantic/pydantic-settings | License-Expression |
+| pydantic-ai-skills | 2.1.2 | MIT | https://github.com/dougtrajano/pydantic-ai-skills | License-Expression |
+| pydantic-ai-slim | 2.68.0 | MIT | https://github.com/pydantic/pydantic-ai/tree/main/pydantic_ai_slim | License-Expression |
+| pydantic-core | 2.50.4 | MIT | https://github.com/pydantic/pydantic/tree/main/pydantic-core | License-Expression |
+| pydantic-graph | 2.68.0 | MIT | https://github.com/pydantic/pydantic-ai | License-Expression |
+| pydantic-monty | 1.6.0 | MIT | https://github.com/pydantic/monty | License-Expression; no licence file, attributed to Pydantic Services Inc. |
+| pydantic-monty-client | 1.6.0 | MIT | https://github.com/pydantic/monty | License field; no licence file, attributed to Pydantic Services Inc. |
+| pydantic-monty-runtime | 1.6.0 | MIT | https://github.com/pydantic/monty | License field; no licence file, attributed to Pydantic Services Inc. |
+| pydantic-settings | 2.16.3 | MIT | https://github.com/pydantic/pydantic-settings | License-Expression |
 | pygments | 2.21.0 | BSD-2-Clause | https://github.com/pygments/pygments | License-Expression |
 | pyjwt | 2.15.1 | MIT | https://github.com/jpadilla/pyjwt | License-Expression |
 | pymupdf | 1.28.2 | AGPL-3.0-only | https://github.com/pymupdf/pymupdf | licence file text; review accepted |
@@ -227,7 +229,7 @@ names no author is in the evidence column below.
 | python-docx | 1.2.0 | MIT | https://github.com/python-openxml/python-docx | License field |
 | python-dotenv | 1.2.4 | BSD-3-Clause | https://github.com/theskumar/python-dotenv | License field |
 | python-engineio | 4.14.0 | MIT | https://code.miguelgrinberg.com/miguelgrinberg/python-engineio | License field |
-| python-multipart | 0.0.32 | Apache-2.0 | https://github.com/Kludex/python-multipart | License-Expression |
+| python-multipart | 0.0.33 | Apache-2.0 | https://github.com/Kludex/python-multipart | License-Expression |
 | python-pptx | 1.0.2 | MIT | https://github.com/scanny/python-pptx | License field |
 | python-socketio | 5.17.0 | MIT | https://code.miguelgrinberg.com/miguelgrinberg/python-socketio | License field |
 | pywebpush | 2.5.0 | MPL-2.0 | https://github.com/web-push-libs/pywebpush | License-Expression; review accepted |
@@ -235,7 +237,7 @@ names no author is in the evidence column below.
 | rank-bm25 | 0.2.2 | Apache-2.0 | https://github.com/dorianbrown/rank_bm25 | License field |
 | redis | 8.1.0 | MIT | https://github.com/redis/redis-py | License-Expression |
 | referencing | 0.37.0 | MIT | https://github.com/python-jsonschema/referencing | License-Expression |
-| regex | 2026.9.29 | Apache-2.0 AND CNRI-Python | https://github.com/mrabarnett/mrab-regex | License-Expression |
+| regex | 2026.11.9 | Apache-2.0 AND CNRI-Python | https://github.com/mrabarnett/mrab-regex | License-Expression |
 | requests | 2.34.2 | Apache-2.0 | https://github.com/psf/requests | License field |
 | rich | 15.0.0 | MIT | https://github.com/Textualize/rich | License field |
 | rich-rst | 2.2.0 | MIT | https://github.com/wasi-master/rich-rst | License-Expression |
@@ -244,10 +246,10 @@ names no author is in the evidence column below.
 | shellingham | 1.5.4 | ISC | https://github.com/sarugaku/shellingham | License field |
 | simple-websocket | 1.1.0 | MIT | https://github.com/miguelgrinberg/simple-websocket | classifier |
 | six | 1.17.0 | MIT | https://github.com/benjaminp/six | License field |
-| slack-sdk | 3.45.0 | MIT | https://github.com/slackapi/python-slack-sdk | License field |
+| slack-sdk | 3.47.0 | MIT | https://github.com/slackapi/python-slack-sdk | License field |
 | sniffio | 1.3.1 | Apache-2.0 | https://github.com/python-trio/sniffio | licence file text |
-| soupsieve | 3.0.4 | MIT | https://github.com/facelessuser/soupsieve | License-Expression |
-| sqlalchemy | 2.1.6 | MIT | https://github.com/sqlalchemy/sqlalchemy | License-Expression |
+| soupsieve | 4.1 | MIT | https://github.com/facelessuser/soupsieve | License-Expression |
+| sqlalchemy | 2.1.8 | MIT | https://github.com/sqlalchemy/sqlalchemy | License-Expression |
 | sse-starlette | 3.6.0 | BSD-3-Clause | https://github.com/sysid/sse-starlette | License-Expression |
 | starlette | 1.10.0 | BSD-3-Clause | https://github.com/Kludex/starlette | License-Expression |
 | subagents-pydantic-ai | 0.2.25 | MIT | https://github.com/vstorm-co/subagents-pydantic-ai | License field |
@@ -261,6 +263,7 @@ names no author is in the evidence column below.
 | truststore | 0.10.5 | MIT | https://github.com/sethmlarson/truststore | License-Expression |
 | typer | 0.25.1 | MIT | https://github.com/fastapi/typer | License-Expression |
 | types-requests | 2.33.0.20261006 | Apache-2.0 | https://github.com/python/typeshed | License-Expression |
+| typesafe-sdk | 0.7.5 | MIT | https://github.com/typesafe-ai/typesafe-sdk-python | License-Expression |
 | typing-extensions | 4.16.0 | PSF-2.0 | https://github.com/python/typing_extensions | License-Expression |
 | typing-inspection | 0.4.4 | MIT | https://github.com/pydantic/typing-inspection | License-Expression |
 | uncalled-for | 0.4.1 | MIT | https://github.com/chrisguidry/uncalled-for | License-Expression |
@@ -270,7 +273,7 @@ names no author is in the evidence column below.
 | watchfiles | 1.3.0 | MIT | https://github.com/samuelcolvin/watchfiles | License field |
 | wcmatch | 11.2 | MIT | https://github.com/facelessuser/wcmatch | License-Expression |
 | websocket-client | 1.9.2 | Apache-2.0 | https://github.com/websocket-client/websocket-client/ | License field |
-| websockets | 17.3 | BSD-3-Clause | https://github.com/python-websockets/websockets | License-Expression |
+| websockets | 17.4 | BSD-3-Clause | https://github.com/python-websockets/websockets | License-Expression |
 | wrapt | 2.5.1 | BSD-2-Clause | https://github.com/GrahamDumpleton/wrapt | License-Expression |
 | wsproto | 1.3.2 | MIT | https://github.com/python-hyper/wsproto/ | License-Expression |
 | xai-sdk | 1.21.0 | Apache-2.0 | https://github.com/xai-org/xai-sdk-python | License-Expression |
@@ -298,12 +301,12 @@ names no author is in the evidence column below.
 | @formatjs/intl-localematcher | 0.8.13 | MIT | https://github.com/formatjs/formatjs | package.json license |
 | @img/colour | 1.1.0 | MIT | https://github.com/lovell/colour | package.json license |
 | @img/sharp-libvips-linux-arm64 | 1.3.4 | LGPL-3.0-or-later | https://github.com/lovell/sharp-libvips | package.json license; review accepted |
-| @img/sharp-libvips-linux-x64 | 1.3.4 | LGPL-3.0-or-later | https://github.com/lovell/sharp-libvips | package.json license; review accepted |
+| @img/sharp-libvips-linux-x64 | 1.3.4 | LGPL-3.0-or-later | https://github.com/lovell/sharp-libvips | package.json license; review accepted; no licence file, attributed to Lovell Fuller <npm@lovell.info> |
 | @img/sharp-linux-arm64 | 0.35.5 | Apache-2.0 | https://github.com/lovell/sharp | package.json license |
 | @img/sharp-linux-x64 | 0.35.5 | Apache-2.0 | https://github.com/lovell/sharp | package.json license |
-| @next/env | 16.4.2 | MIT | https://github.com/vercel/next.js | package.json license; no licence file, attributed to Next.js Team <support@vercel.com> |
-| @next/swc-linux-arm64-gnu | 16.4.2 | MIT | https://github.com/vercel/next.js | package.json license |
-| @next/swc-linux-x64-gnu | 16.4.2 | MIT | https://github.com/vercel/next.js | package.json license |
+| @next/env | 16.4.6 | MIT | https://github.com/vercel/next.js | package.json license; no licence file, attributed to Next.js Team <support@vercel.com> |
+| @next/swc-linux-arm64-gnu | 16.4.6 | MIT | https://github.com/vercel/next.js | package.json license |
+| @next/swc-linux-x64-gnu | 16.4.6 | MIT | https://github.com/vercel/next.js | package.json license; no licence file, attributed to Vercel, Inc. |
 | @opentelemetry/api | 1.9.1 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-js | package.json license |
 | @opentelemetry/api-logs | 0.221.0 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-js | package.json license |
 | @opentelemetry/core | 2.10.0 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-js | package.json license |
@@ -526,7 +529,7 @@ names no author is in the evidence column below.
 | ms | 2.1.3 | MIT | https://github.com/vercel/ms | package.json license |
 | nanoid | 3.3.19 | MIT | https://github.com/ai/nanoid | package.json license |
 | negotiator | 1.0.0 | MIT | https://github.com/jshttp/negotiator | package.json license |
-| next | 16.4.2 | MIT | https://github.com/vercel/next.js | package.json license |
+| next | 16.4.6 | MIT | https://github.com/vercel/next.js | package.json license |
 | next-intl | 4.14.5 | MIT | https://github.com/amannn/next-intl | package.json license |
 | next-intl-swc-plugin-extractor | 4.14.5 | MIT | https://github.com/amannn/next-intl | package.json license |
 | node-addon-api | 7.1.1 | MIT | https://github.com/nodejs/node-addon-api | package.json license |
@@ -590,7 +593,7 @@ names no author is in the evidence column below.
 | victory-vendor | 37.3.6 | MIT AND ISC | https://github.com/FormidableLabs/victory | package.json license; no licence file, attributed to Formidable |
 | voice-glow | 0.2.0 | MIT | https://github.com/Jakubantalik/Libraries.dev | package.json license |
 | yaml | 2.9.1 | ISC | github:eemeli/yaml | package.json license |
-| zod | 4.6.7 | MIT | https://github.com/colinhacks/zod | package.json license |
+| zod | 4.6.6 | MIT | https://github.com/colinhacks/zod | package.json license |
 | zustand | 4.5.7 | MIT | https://github.com/pmndrs/zustand | package.json license |
 | zustand | 5.0.15 | MIT | https://github.com/pmndrs/zustand | package.json license |
 | zwitch | 2.0.4 | MIT | https://github.com/wooorm/zwitch | package.json license |
@@ -608,13 +611,18 @@ and data files.
 | tesseract-ocr, tesseract-ocr-eng, tesseract-ocr-pol (Debian packages) | as pinned by the base image's Debian release | system package, backend image | Apache-2.0 (engine and language data) | https://github.com/tesseract-ocr/tesseract | accepted | Attribution and the licence text. | Debian's /usr/share/doc/tesseract-ocr*/copyright is in the image; named here. |
 | oven/bun (Docker image) | 1 (Debian) | runtime image, frontend | Bun: MIT (with bundled components under their own licences, listed in Bun's LICENSE.md). Debian base: as for the python image. | https://hub.docker.com/r/oven/bun | accepted | Ship licence texts; for GPL and LGPL packages in the base, make their corresponding source available to recipients of the image. | As for the python image: /usr/share/doc/*/copyright in the image, Debian's source packages, the per-release SBOM (#1415). |
 | ghcr.io/astral-sh/uv (build stage only) | latest | build tool, not in the published image | Apache-2.0 OR MIT | https://github.com/astral-sh/uv | accepted | None for the published image: the binary is copied into the builder stage and installs the wheels; it is not in the final layer. | Not distributed. |
+| golang (Docker Official Image, broker build stage only) | 1.27.4-bookworm | build tool and base image, not in the published image | Go: BSD-3-Clause with its additional patent grant and bundled third-party notices. Debian base: each package under its own licence. | https://hub.docker.com/_/golang | accepted | The compiler and Debian build-stage packages are not copied into the final image. The linked Go runtime and standard library require their licence and applicable notices with the broker binary. | The build stage is not distributed. The separately recorded Tailscale broker runtime bundle includes the Go LICENSE, PATENTS and applicable vendored notices under /app/licenses/tailscale-broker/. |
 | debian (Docker Official Image) | bookworm-slim | runtime image, browser | Each package under its own licence (GPL-2.0, GPL-3.0, LGPL-2.1, MIT, BSD and others). | https://hub.docker.com/_/debian | accepted | Ship licence texts and, for GPL and LGPL packages, make their corresponding source available to recipients of the image. | Debian keeps every package's licence under /usr/share/doc/<package>/copyright in the image and publishes the matching source packages (apt-get source; https://snapshot.debian.org). Distributed unmodified apart from the packages listed below; the per-release SBOM records the exact package set. |
 | chromium (Debian package) | as pinned by Debian bookworm | system package, browser image | BSD-3-Clause (Chromium), with bundled components under their own licences (LGPL-2.1, MPL-2.0, Apache-2.0, MIT and others), listed in chrome://credits | https://www.chromium.org/ | accepted | Licence texts and attribution; for LGPL components, their source available to recipients. | Debian's /usr/share/doc/chromium/copyright is in the image and chrome://credits lists every bundled component; source through Debian's source package; used unmodified. |
 | xvfb, socat, dumb-init, tzdata (Debian packages) | as pinned by Debian bookworm | system package, browser image | Xvfb: MIT/X11. socat: GPL-2.0. dumb-init: MIT. tzdata: public domain. | https://packages.debian.org/bookworm/ | accepted | Licence texts; socat (GPL-2.0) is run unmodified as a separate process, so its corresponding source available to recipients. | Debian's /usr/share/doc/<package>/copyright for each is in the image; source through Debian's source packages; none modified. |
 | fonts-liberation, fonts-noto, fonts-noto-cjk, fonts-noto-color-emoji (Debian packages) | as pinned by Debian bookworm | system package, browser image | Liberation: OFL-1.1. Noto: OFL-1.1 (Noto Color Emoji: OFL-1.1, its images Apache-2.0). | https://fonts.google.com/noto | accepted | OFL-1.1: the licence text travels with the fonts; the fonts are not sold on their own. | Debian's /usr/share/doc/fonts-*/copyright is in the image; installed as system fonts the browser renders pages with, never sold or redistributed apart from the image. |
+| Tailscale lifecycle broker and linked Go dependencies | tailscale.com v1.104.7; Go 1.27.4; transitive versions pinned in integrations/tailscale-broker/go.mod and go.sum | statically linked executable, backend image, opt-in network connections | Mixed: Tailscale and Go use BSD-3-Clause with applicable patent notices; linked modules include Apache-2.0, MIT and BSD/ISC-family terms. Each component's own text is preserved in the target-specific bundle. | https://github.com/tailscale/tailscale/tree/v1.104.7; integrations/tailscale-broker/licenses/THIRD_PARTY_NOTICES.md | accepted | Ship the applicable copyright, licence and notice texts with the binary, including Apache-2.0 and patent notices. Preserve upstream notices verbatim. | The Go build stage generates an inventory and verbatim dependency/Go notices for the same GOOS, GOARCH and ts_omit_webclient build tag as the executable, then copies them into /app/licenses/tailscale-broker/. The repository carries the reviewed Linux/amd64 inventory with SHA-256 hashes, including recognized nested Tailscale notices. The unused Tailscale web UI is excluded from this build. This file inventory is not a complete legal audit; release review still checks the final image and its target-specific bundle. |
 | Inter, Bricolage Grotesque, Geist Mono (web fonts) | Google Fonts v20, v9, v6 (frontend/src/app/fonts/README.md) | font, frontend image | OFL-1.1 | https://fonts.google.com | accepted | Distribute with the licence text and each family's copyright notice; do not sell the fonts on their own; do not use the reserved font names for a modified version. | frontend/src/app/fonts/OFL.txt carries the licence and all three copyright notices; frontend/scripts/collect-licenses.ts copies it into the frontend image at /app/licenses/OFL.txt; the fonts are served unmodified under their own names. |
 | Brand marks in frontend/src/lib/brand-glyphs.generated.ts | as generated by frontend/scripts/gen-brand-icons.ts | icons, frontend image | Simple Icons: CC0-1.0. @lobehub/icons: MIT. SVG Logos (Gil Barbara): CC0-1.0. theSVG: MIT. The marks themselves are their owners' trademarks. | https://simpleicons.org, https://icons.lobehub.com, https://github.com/gilbarbara/logos, https://github.com/glincker/thesvg | accepted | MIT notices for @lobehub/icons and theSVG; trademark use limited to identifying the product each mark stands for. | NOTICE at the repository root and frontend/NOTICE name the four sources, their licences and the trademark position; the frontend one is copied into the image at /app/licenses/NOTICE. The console draws a mark only next to the product it identifies. |
 | Rare UI components vendored into frontend/src/components/ui/ | swamimalode07/rare-ui as of 2026-09-22 (animated-counter, notification-bell, task-list) | source, frontend image | MIT | https://github.com/swamimalode07/rare-ui | accepted | Keep the copyright notice and the permission notice with the copies or substantial portions of the software. | NOTICE at the repository root and frontend/NOTICE name the project, its copyright holder and the MIT text; frontend/scripts/collect-licenses.ts copies the latter into the frontend image at /app/licenses/NOTICE. Each file that came from it says so in its own header, with what was changed and why. The distribution method is why this is here rather than in the npm inventory: the project's own instructions are `shadcn add`, which copies a file into the tree rather than adding a dependency a lockfile would record. |
+| Anthropic financial-services agent templates and supporting skills | 60565064557ca77b12f62aa7877f365d111c129d | adapted content, backend image, opt-in finance catalog | Apache-2.0 | https://github.com/anthropics/financial-services | accepted | Keep the license and applicable notices, retain attribution, and identify modified files. | The finance/anthropic-* agent templates and finance/anthropic-fs-* gallery skills carry LICENSE or LICENSE.txt and SOURCE.md with pinned upstream paths and a description of the t3OS adaptations. NOTICE identifies the source. integrations/accounting-firm/ records the source inventory and runtime requirements. Only the first-party agent plugins are included. |
+| Anthropic knowledge-work finance and small-business accounting skills | e605d8ddbfb688da57dfaaceebd93f12a64ef1d3 | adapted content, backend image, opt-in finance catalog | Apache-2.0 | https://github.com/anthropics/knowledge-work-plugins | accepted | Keep the license and applicable notices, retain attribution, and identify modified files. | The finance/anthropic-finance-* and finance/anthropic-smb-* gallery skills carry LICENSE or LICENSE.txt, SOURCE.md, and their required text resources. The source notices record pinned upstream paths and changes to invocation, connector assumptions, and accounting scope. NOTICE identifies the source, and integrations/accounting-firm/ records the inventory. |
+| Agency Agents accounting and financial-advisory templates | 8ae6164602c95ca78828b148b9052460ee426885 | adapted content, backend image, opt-in finance catalog | MIT | https://github.com/msitarzewski/agency-agents | accepted | Keep the copyright notice and permission notice with copies or substantial portions. | The finance/agency-* templates carry the complete upstream MIT license and SOURCE.md identifying the pinned source and changes. NOTICE names Agency Agents and Copyright (c) 2025 AgentLand Contributors. integrations/accounting-firm/ distinguishes these community templates from Anthropic's releases. |
 | backend/app/core/catalog/mcp_registry.json | a snapshot refreshed by `agenticos cmd mcp-registry-sync` | data, backend image | Server names, descriptions and URLs published to the Official MCP Registry by their publishers; the registry software is MIT. | https://registry.modelcontextprotocol.io | accepted | Attribution to the registry; the snapshot is redistributed as catalogue metadata and each entry links to its publisher. | app/services/mcp_registry.py names the source; the console shows each server's publisher description verbatim with its URL. |
 | Chart.js, vendored into backend/app/core/catalog/artifact_lib/ | 4.5.1 (dist/chart.umd.min.js from the npm tarball) | source, backend image, served to published artifacts | MIT | https://github.com/chartjs/Chart.js | accepted | Keep the copyright notice and the permission notice with the copies or substantial portions of the software. | The file is copied byte for byte and keeps its own header naming Chart.js and the MIT licence; backend/app/core/catalog/artifact_lib/README.md carries the full MIT text with the copyright line, and NOTICE names it. Copied rather than installed because a published page has no network: the deployment serves the file to its pages itself (#1971). |
 | d3, vendored into backend/app/core/catalog/artifact_lib/ | 7.9.0 (dist/d3.min.js from the npm tarball) | source, backend image, served to published artifacts | ISC | https://github.com/d3/d3 | accepted | Keep the copyright notice and the permission notice with the copies. | The file is copied byte for byte and keeps its own header naming d3 and its copyright; backend/app/core/catalog/artifact_lib/README.md carries the full ISC text, and NOTICE names it. Copied for the same reason as Chart.js (#1971). |

@@ -93,6 +93,7 @@ describe("pointer dragging", () => {
     const onDrop = vi.fn();
     const { result } = renderHook(() => useKanbanDrag<{ id: string }>(onDrop));
     const card = document.createElement("div");
+    card.getBoundingClientRect = () => new DOMRect(5, 8, 296, 160);
     const lane = document.createElement("div");
     lane.dataset.kanbanLane = "done";
     lane.dataset.kanbanAccepts = "true";
@@ -114,10 +115,12 @@ describe("pointer dragging", () => {
     expect(result.current.draggingItem).toBeNull();
     act(() => result.current.cardProps(item).onPointerMove(event(25)));
     expect(result.current.position).toEqual({ x: 25, y: 20 });
+    expect(result.current.preview).toEqual({ width: 296, height: 160, offsetX: 5, offsetY: 12 });
     expect(result.current.laneProps("done", true)["data-drag-over"]).toBe(true);
     act(() => result.current.cardProps(item).onPointerUp(event(25)));
     expect(onDrop).toHaveBeenCalledExactlyOnceWith(item, "done");
     expect(result.current.draggingItem).toBeNull();
+    expect(result.current.preview).toBeNull();
     const click = { preventDefault: vi.fn(), stopPropagation: vi.fn() };
     result.current.cardProps(item).onClickCapture(click as unknown as React.MouseEvent);
     expect(click.stopPropagation).toHaveBeenCalledOnce();
@@ -151,6 +154,7 @@ describe("useKanbanDrag with a pointer", () => {
       clientX,
       clientY,
       target: document.body,
+      currentTarget: document.createElement("div"),
     } as unknown as React.PointerEvent<HTMLDivElement>;
   }
 

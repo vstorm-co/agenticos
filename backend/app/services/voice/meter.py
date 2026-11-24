@@ -122,7 +122,7 @@ class UsageMeter:
                 input_tokens=0,
                 output_tokens=0,
                 cost_usd=cost,
-                priced=True,
+                priced=not self._entry.unreported_token_usage,
             )
         )
         return cost

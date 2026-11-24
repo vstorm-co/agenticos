@@ -57,7 +57,13 @@ export default defineConfig({
         "src/stores/**",
         "src/hooks/**",
         "src/components/agents/**/*.{ts,tsx}",
+        "src/components/authoring/**/*.tsx",
+        "src/components/improvement/**/*.tsx",
+        "src/components/settings/service-card.tsx",
+        "src/components/ui/disclosure-content.tsx",
+        "src/components/skill-improvement/**/*.tsx",
         "src/components/triggers/source-consents-panel.tsx",
+        "src/components/triggers/action-selection.tsx",
         "src/components/triggers/routine-options.tsx",
         "src/components/chat/tool-results/memory.tsx",
         "src/components/projects/project-tracking-control.tsx",
@@ -83,7 +89,7 @@ export default defineConfig({
         // The agent messages card.
         "src/components/dashboard/widgets/agent-messages.tsx",
         // What the nightly look proposed (#2301).
-        "src/components/dashboard/widgets/suggestions.tsx",
+        "src/components/dashboard/widgets/authoring-suggestions.tsx",
         "src/components/dashboard/widgets/recent-visuals.tsx",
         "src/components/dashboard/widgets/recent-failures.tsx",
         // The notifications card (#1598).
@@ -101,6 +107,17 @@ export default defineConfig({
         "src/components/dashboard/agent-face.tsx",
         "src/components/dashboard/me-header.tsx",
         "src/components/dashboard/widgets/artifacts.tsx",
+        "src/components/dashboard/widgets/datasets.tsx",
+        "src/components/dashboard/widgets/review-queue.tsx",
+        "src/components/dashboard/widgets/eval-runs.tsx",
+        "src/components/dashboard/widgets/eval-suites.tsx",
+        "src/components/dashboard/widgets/suggestions.tsx",
+        "src/components/evals/**/*.{ts,tsx}",
+        "src/components/datasets/**/*.{ts,tsx}",
+        "src/components/dashboard/widgets/knowledge-gaps.tsx",
+        "src/components/dashboard/widgets/needs-attention.tsx",
+        "src/components/dashboard/widgets/improvements-waiting.tsx",
+        "src/components/knowledge-gaps/**/*.tsx",
         "src/components/dashboard/widgets/voice-minutes.tsx",
         "src/components/dashboard/widgets/projects.tsx",
         // Department budgets (#2072): the dashboard card and the group page's.
@@ -146,11 +163,41 @@ export default defineConfig({
         "src/components/projects/**/*.tsx",
         "src/components/layout/project-rows.tsx",
         "src/components/layout/navigation-progress.tsx",
+        // Asks before leaving drops a change somebody has not saved.
+        "src/components/layout/unsaved-changes-guard.tsx",
         // The offline strip in the apps (#2097).
         "src/components/layout/offline-banner.tsx",
+        "src/components/layout/app-update-banner.tsx",
         "src/components/layout/notification-glyph.tsx",
+        // Dates in the reader's own zone rather than the server's.
+        "src/components/layout/browser-time-zone.tsx",
         "src/components/chat/project-chip.tsx",
+        "src/components/chat/chat-model-header.tsx",
+        "src/components/chat/chat-model-menu.tsx",
+        "src/components/chat/chat-model-options.tsx",
+        "src/components/chat/chat-model-selector.tsx",
         "src/components/chat/chat-room-bar.tsx",
+        // Mixed room roster, directory, mention and reaction controls.
+        "src/components/chat/team-room-composer.tsx",
+        "src/components/chat/room-mention-palette.tsx",
+        "src/components/chat/room-participants-button.tsx",
+        "src/components/chat/room-participants-dialog.tsx",
+        "src/components/chat/room-participants-dialog-body.tsx",
+        "src/components/chat/room-participant-add-section.tsx",
+        "src/components/chat/room-participant-list.tsx",
+        "src/components/chat/room-participant-row.tsx",
+        "src/components/chat/room-participant-confirmation.tsx",
+        "src/components/chat/room-participant-picker.tsx",
+        "src/components/chat/room-directory-dialog.tsx",
+        "src/components/chat/room-directory-list.tsx",
+        "src/components/chat/room-create-form.tsx",
+        "src/components/chat/room-message-reactions.tsx",
+        "src/components/chat/room-thread-button.tsx",
+        "src/components/chat/room-thread-panel.tsx",
+        // New room lead review controls start inside the existing coverage gate.
+        "src/components/chat/room-lead-policy-dialog.tsx",
+        "src/components/chat/room-routing-cards.tsx",
+        "src/components/chat/room-routing-panel.tsx",
         "src/components/chat/typing-indicator.tsx",
         "src/components/chat/reply-quote.tsx",
         // A thread's picture from the copy on the device, offline (#2097).
@@ -173,6 +220,8 @@ export default defineConfig({
         "src/components/ui/voice-glow.tsx",
         "src/components/layout/account-preferences.tsx",
         "src/components/layout/account-locale.tsx",
+        "src/components/layout/account-appearance.tsx",
+        "src/components/layout/account-notices.tsx",
         "src/components/layout/account-time-zone.tsx",
         "src/components/settings/appearance-settings.tsx",
         // The desktop app's pages and the console's half of it (#2305): blobby,
@@ -190,8 +239,10 @@ export default defineConfig({
         "src/components/teams/org-proactivity.tsx",
         "src/components/inbox/inbox-page.tsx",
         "src/components/inbox/suggestion-rows.tsx",
+        "src/components/inbox/approvals-waiting.tsx",
         "src/components/chat/turn-extras.tsx",
         "src/components/chat/turn-files.tsx",
+        "src/components/chat/turn-file-links.tsx",
         "src/components/chat/turn-shortcuts.tsx",
         "src/components/chat/setup-proposals.tsx",
         "src/components/chat/skill-shortcut.tsx",
@@ -214,6 +265,8 @@ export default defineConfig({
         "src/components/chat/browser-comment.tsx",
         "src/components/chat/browser-panel.tsx",
         "src/components/chat/browser-panel-frame.tsx",
+        "src/components/chat/chat-side-panel.tsx",
+        "src/components/chat/turn-produced-outputs.tsx",
         "src/components/chat/browser-view.tsx",
         "src/components/chat/browser-window.tsx",
         "src/components/chat/browser-navigation.tsx",
@@ -222,6 +275,7 @@ export default defineConfig({
         "src/components/chat/tool-results/**/*.tsx",
         "src/components/chat/chart-message.tsx",
         "src/components/chat/chat-controls.tsx",
+        "src/components/chat/chat-send-mode-control.tsx",
         // A phone's `+` sheet for attaching and dictating (#2066).
         "src/components/chat/composer-sheet.tsx",
         // `@`-mentions in the composer and the transcript (#2189).
@@ -254,6 +308,7 @@ export default defineConfig({
         "src/components/chat/message-cost.tsx",
         "src/components/chat/turn-action.ts",
         "src/components/chat/turn-parts.tsx",
+        "src/components/chat/turn-trace.tsx",
         "src/components/chat/shared-visuals.tsx",
         "src/components/chat/visual-actions.ts",
         "src/components/chat/visual-frame.tsx",
@@ -264,6 +319,12 @@ export default defineConfig({
         "src/components/chat/you-face.tsx",
         "src/components/chat/message-item.tsx",
         "src/components/chat/message-list.tsx",
+        "src/components/chat/message-jump-notice.tsx",
+        "src/components/chat/conversation-search-dialog.tsx",
+        "src/components/chat/conversation-side-threads.tsx",
+        "src/components/chat/personal-side-thread-panel.tsx",
+        "src/components/chat/pinned-messages.tsx",
+        "src/components/chat/chat-compaction-control.tsx",
         "src/components/chat/pending-messages.tsx",
         "src/components/chat/plan-checklist.tsx",
         "src/components/chat/plan-strip.tsx",
@@ -283,6 +344,10 @@ export default defineConfig({
         "src/components/chat/tool-approval-dialog.tsx",
         "src/components/chat/agent-draft-proposal.tsx",
         "src/components/chat/workspace-files.tsx",
+        "src/components/chat/workspace-panels.tsx",
+        "src/components/chat/workspace-tasks-panel.tsx",
+        "src/components/chat/workspace-rail.tsx",
+        "src/components/chat/workspace-empty.tsx",
         // `.ts` too: the grant-subject helpers the panel's rows share live beside it.
         "src/components/sharing/**/*.{ts,tsx}",
         // The directory (LDAP) sign-in form (#1773). The rest of `auth/` predates
@@ -332,17 +397,22 @@ export default defineConfig({
         // The organization's Voice card (#1797). The rest of `teams/` predates
         // the gate; this file is new, so it starts inside.
         "src/components/teams/org-voice-settings.tsx",
+        "src/components/teams/org-text-to-speech-settings.tsx",
         // Its voice-call section (#54), new and so inside the gate too.
         "src/components/teams/org-voice-conversations.tsx",
+        // The link that lands on the AI assistance switch, new and so inside the gate.
+        "src/components/teams/enable-ai-assistance-link.tsx",
         // The deployment's switch for compressed dictation audio (#1797), new and
         // so inside the gate, like the Voice card above.
         "src/components/admin/dictation-audio-card.tsx",
         // The one key field every speech-to-text level names its key with
         // (#1797), new and so inside the gate.
         "src/components/vault/speech-key-field.tsx",
-        // The connected accounts a virtual terminal reads as (#2191), new and so
-        // inside the gate.
-        "src/components/vault/connected-accounts-card.tsx",
+        // Keys and connected accounts share the vault inventory and its coverage gate.
+        "src/components/vault/vault-table.tsx",
+        "src/components/vault/browser-secret-fields.tsx",
+        "src/components/vault/browser-credential-metadata.tsx",
+        "src/components/vault/browser-credential-policy.tsx",
       ],
       exclude: [
         "node_modules",

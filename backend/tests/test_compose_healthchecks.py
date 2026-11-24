@@ -359,3 +359,30 @@ class TestTheRetiredServicesAreRemovedBeforeTheWorkerStarts:
     def test_they_are_removed_before_the_api_and_worker_start(self) -> None:
         script = DEPLOY_SCRIPT.read_text()
         assert script.index("\nretire_services\n") < script.index('compose_up "${BACKEND[@]}"')
+
+
+@pytest.mark.parametrize("worker_healthy", [True, False])
+def test_release_pins_advance_only_after_the_worker_is_healthy(worker_healthy: bool) -> None:
+    source = DEPLOY_SCRIPT.read_text()
+    start = source.index('say "Waiting for health"')
+    end = source.index("df -h / | tail -1", start)
+    harness = """
+set -euo pipefail
+say() { :; }
+BACKEND=(-f docker-compose-prod.yml)
+FRONTEND=(-f docker-compose-prod.frontend.yml)
+PROFILES=()
+VISUAL_RENDERER=false
+INTERACTIVE_BROWSER=false
+AGENTICOS_VERSION=sha-target
+PREVIOUS_RELEASE_IMAGES=previous
+APP_DIR=/stack
+IMAGES=(agenticos-backend agenticos-frontend)
+record_release_images() { echo release-recorded; }
+"""
+    verdict = "return 0" if worker_healthy else 'test "$1" != worker'
+    harness += 'wait_healthy() { echo "probe:$1"; ' + verdict + "; }\n"
+    result = _run(harness + source[start:end])
+    assert "probe:worker" in result.stdout
+    assert ("release-recorded" in result.stdout) is worker_healthy
+    assert result.returncode == (0 if worker_healthy else 1)

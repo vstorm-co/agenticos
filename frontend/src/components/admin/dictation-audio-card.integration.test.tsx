@@ -16,7 +16,10 @@ vi.mock("@/lib/api-client", async () => {
 });
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 // The page refreshes the server-rendered branding after a save.
-vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(window.location.search),
+}));
 
 /** `GET /admin/settings` for a deployment that has never accepted compressed audio. */
 const SETTINGS = {
@@ -51,7 +54,7 @@ function wrapper({ children }: { children: ReactNode }) {
 async function page(overrides: Partial<typeof SETTINGS> = {}) {
   vi.mocked(apiClient.get).mockResolvedValue({ ...SETTINGS, ...overrides });
   render(<DeploymentSettingsPage />, { wrapper });
-  await userEvent.click(await screen.findByRole("button", { name: "Voice & mobile" }));
+  await userEvent.click(await screen.findByRole("tab", { name: "Voice & mobile" }));
   return screen.findByRole("switch", { name: "Accept compressed recordings (WebM, Ogg, MP4)" });
 }
 

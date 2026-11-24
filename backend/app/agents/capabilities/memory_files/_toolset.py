@@ -3,11 +3,8 @@
 The methods below are the tools, and their docstrings are the whole of what the
 model reads before calling them.
 
-`MEMORY.md` is not special here. It is created, read, edited and deleted with the
-same five tools as any other note; what makes it the index is that the capability
-splices it into the instructions (see `_capability`). Keeping it ordinary is the
-point - one concept, one set of tools, and an index the agent maintains as a
-normal write rather than a second mechanism to keep honest.
+Notes keep longer material. Short facts, preferences and decisions use the
+claims ledger. Existing MEMORY.md notes remain editable as ordinary notes.
 
 No tool takes a store. A run touches exactly one - the conversation's own, decided
 server-side from who is listening (`app.agents.memory_scope`) - so there is no
@@ -45,10 +42,25 @@ _NO_STORE = (
     "chat, so a note would have to land somewhere other people read. Answer from what "
     "you have rather than saving."
 )
+_SHARED = (
+    "Nothing personal is kept or recalled here: other people read this conversation - "
+    "it belongs to a project or is shared for editing - so what you know about the "
+    "person stays out of it. Answer from the conversation and shared knowledge."
+)
 _READ_ONLY = (
     "Your notes here can be read but not changed: this run was started by an event, "
     "and what it carries came from outside, so nothing from it is saved as a note. "
     "Mention in your answer anything worth remembering instead."
+)
+_ERASED_DELETE = (
+    "Nothing was removed: this conversation no longer has a current memory snapshot. "
+    "Its memory may have been erased or the database restarted. Start a new conversation "
+    "before changing memory."
+)
+_ERASED = (
+    "Nothing was saved: this conversation no longer has a current memory snapshot. "
+    "Its memory may have been erased or the database restarted. Start a new conversation "
+    "before saving memory; do not retry from this conversation."
 )
 
 # The `agent_memory_files` metadata column widths: a write past them is an asyncpg
@@ -95,7 +107,7 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
         audience = deps.audience or RunAudience()
         owner_key = memory_owner_key(audience, allow_personal=self._allow_personal)
         if deps.organization_id is None or deps.agent_id is None or owner_key is None:
-            return _NO_STORE
+            return _SHARED if audience.shared_transcript else _NO_STORE
         if writing and not audience.writes_memory:
             return _READ_ONLY
         return deps.organization_id, deps.agent_id, owner_key
@@ -103,9 +115,8 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
     async def list_memory(self, ctx: RunContext[AgentDeps]) -> str:
         """List your notes for this conversation, by name and description.
 
-        Your `MEMORY.md` is already in front of you, so reach for this when you
-        suspect it is out of date - a note you saved and forgot to list. Bodies are
-        not returned here; `read_memory` opens one.
+        The automatic overview shows a limited list in private conversations.
+        Use this for the longer list. Bodies are read separately with `read_memory`.
 
         Returns:
             One line per note, `- name [kind]: description`, most recently changed
@@ -170,11 +181,9 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
     ) -> str:
         """Save a new note under a name, so a later conversation can find it.
 
-        Add a line for it to `MEMORY.md` afterwards (with `edit_memory`, or
-        `write_memory` if you have no index yet) - the index is what you are shown
-        at the start of a conversation, and a note missing from it is a note you
-        will not know to look for. To change something you already saved, use
-        `edit_memory`.
+        Save substantial material, such as a briefing about a person or a checklist.
+        A one-line fact, preference or decision belongs in `remember`. Notes appear
+        in the overview automatically. Use `edit_memory` to update an existing note.
 
         Args:
             name: A short handle to find it by, unique among your notes here.
@@ -199,15 +208,19 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
                 f"That description is too long ({len(description)} chars); "
                 f"keep it under {_MAX_DESCRIPTION}."
             )
-        created = await memory_store.write_file(
-            organization_id=organization_id,
-            agent_id=agent_id,
-            owner_key=owner_key,
-            name=name,
-            content=content,
-            description=description,
-            kind=kind,
-        )
+        try:
+            created = await memory_store.write_file(
+                organization_id=organization_id,
+                agent_id=agent_id,
+                owner_key=owner_key,
+                name=name,
+                content=content,
+                description=description,
+                kind=kind,
+                run_id=ctx.deps.run_id,
+            )
+        except memory_store.ErasedDuringRun:
+            return _ERASED
         if not created:
             return (
                 f"A note named {name!r} already exists. Use `edit_memory` to change it, "
@@ -218,9 +231,8 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
     async def edit_memory(self, ctx: RunContext[AgentDeps], name: str, content: str) -> str:
         """Replace the body of a note you already saved.
 
-        This is also how you keep `MEMORY.md` current: read it, add or amend a
-        line, write the whole thing back. To save something new use `write_memory`;
-        to remove one entirely use `delete_memory`.
+        Read the note first so you preserve existing useful details. To create or
+        remove a note use `write_memory` or `delete_memory`.
 
         Args:
             name: The name of an existing note.
@@ -234,13 +246,17 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
         if isinstance(scope, str):
             return scope
         organization_id, agent_id, owner_key = scope
-        edited = await memory_store.edit_file(
-            organization_id=organization_id,
-            agent_id=agent_id,
-            owner_key=owner_key,
-            name=name,
-            content=content,
-        )
+        try:
+            edited = await memory_store.edit_file(
+                organization_id=organization_id,
+                agent_id=agent_id,
+                owner_key=owner_key,
+                name=name,
+                content=content,
+                run_id=ctx.deps.run_id,
+            )
+        except memory_store.ErasedDuringRun:
+            return _ERASED
         if not edited:
             return f"No note named {name!r} to edit. Use `write_memory` to save a new one."
         return f"Updated note {name!r}."
@@ -262,9 +278,16 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
         if isinstance(scope, str):
             return scope
         organization_id, agent_id, owner_key = scope
-        removed = await memory_store.delete_file(
-            organization_id=organization_id, agent_id=agent_id, owner_key=owner_key, name=name
-        )
+        try:
+            removed = await memory_store.delete_file(
+                organization_id=organization_id,
+                agent_id=agent_id,
+                owner_key=owner_key,
+                name=name,
+                run_id=ctx.deps.run_id,
+            )
+        except memory_store.ErasedDuringRun:
+            return _ERASED_DELETE
         if not removed:
             return f"No note named {name!r} to forget."
         return f"Forgot note {name!r}."
@@ -336,25 +359,28 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
             shared_with_agents=profile,
         )
         if target is None:
-            return _NO_STORE
+            return _SHARED if audience.shared_transcript else _NO_STORE
         if not statement.strip():
             return "Give the claim as one sentence."
         start = _parse_date(effective_from)
         if effective_from and start is None:
             return "effective_from must be an ISO date such as 2026-11-03."
         author = UUID(str(audience.user_id)) if audience.user_id else None
-        saved = await memory_store.runtime.remember(
-            organization_id=deps.organization_id,
-            scope=target,
-            statement=statement,
-            subject=subject,
-            kind=kind,
-            author_user_id=author,
-            conversation_id=deps.conversation_id,
-            run_id=deps.run_id,
-            effective_from=start,
-            **({"episode": episode} if episode is not None else {}),
-        )
+        try:
+            saved = await memory_store.runtime.remember(
+                organization_id=deps.organization_id,
+                scope=target,
+                statement=statement,
+                subject=subject,
+                kind=kind,
+                author_user_id=author,
+                conversation_id=deps.conversation_id,
+                run_id=deps.run_id,
+                effective_from=start,
+                **({"episode": episode} if episode is not None else {}),
+            )
+        except memory_store.ErasedDuringRun:
+            return _ERASED
         if saved is None:
             return "Nothing was saved: the person this would be about no longer has an account."
         claim, created, disputed = saved
@@ -438,9 +464,14 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
                 statement=statement,
                 author_user_id=UUID(str(audience.user_id)),
                 effective_from=start,
+                run_id=deps.run_id,
+                conversation_id=deps.conversation_id,
+                agent_id=deps.agent_id,
             )
         except ShareRefused as refused:
             return f"Not corrected: {refused}"
+        except memory_store.ErasedDuringRun:
+            return _ERASED
         if fixed is None:
             return "No such claim here to correct."
         return f"Corrected (claim {fixed.id}); the earlier version is kept in its history."

@@ -1,3 +1,4 @@
+import { toolLookupName } from "@/lib/tool-identity";
 /**
  * The agent's own checklist, read back out of the calls it made to keep it.
  *
@@ -164,7 +165,7 @@ function fold(steps: readonly PlanStep[], call: ToolCall): readonly PlanStep[] {
   // a turn later. Only in flight: a write the turn ended without answering, or
   // one that failed, never reached the store, and its arguments are a plan that
   // does not exist (#2149).
-  if (text === "" && call.name === "write_plan") {
+  if (text === "" && toolLookupName(call) === "write_plan") {
     const inFlight = call.status === "running" || call.status === "pending";
     return inFlight ? (stepsFromArgs(call.args) ?? steps) : steps;
   }
@@ -200,7 +201,7 @@ function planningCalls(messages: readonly ChatMessage[]): ToolCall[] {
     // A replayed turn carries its calls in `parts`; a live one is assembled into
     // both, so reading each is one call twice. Parts win where a turn has them.
     for (const call of fromParts.length > 0 ? fromParts : (message.toolCalls ?? [])) {
-      if (PLANNING_TOOLS.has(call.name)) calls.push(call);
+      if (PLANNING_TOOLS.has(toolLookupName(call))) calls.push(call);
     }
   }
   return calls;

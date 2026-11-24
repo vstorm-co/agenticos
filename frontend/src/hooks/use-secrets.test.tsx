@@ -1,11 +1,14 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { kindInfo, useSecretPurposes, useSecrets } from "./use-secrets";
 import { apiClient } from "@/lib/api-client";
 import type { SecretKindInfo } from "@/types/secrets";
+import { useAuthStore } from "@/stores/auth-store";
+import { useOrgStore } from "@/stores/org-store";
+import { BROWSER_IDS as ids } from "@/test-utils/browser-credential-fixtures";
 
 vi.mock("@/lib/api-client", () => ({
   apiClient: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() },
@@ -133,6 +136,109 @@ describe("useSecrets", () => {
     expect(apiClient.delete).toHaveBeenCalledWith("/secrets/s1");
     expect(toastSuccess.mock.calls.at(-1)?.[0]).toMatch(/fails at its next run/i);
   });
+});
+
+describe("browser credential write privacy", () => {
+  const owner = { id: ids.owner } as NonNullable<ReturnType<typeof useAuthStore.getState>["user"]>;
+  const saved = {
+    id: ids.secret,
+    name: "Private login",
+    kind: "browser_login",
+    hint: "NEVER-ECHO",
+  };
+  const payload = {
+    kind: "browser_login" as const,
+    allowed_origins: ["https://accounts.example"],
+    username: "demo",
+    password: "p",
+  };
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useAuthStore.setState({ user: owner });
+    useOrgStore.setState({ activeOrgId: ids.org });
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
+    vi.mocked(apiClient.post).mockResolvedValue(saved);
+    vi.mocked(apiClient.patch).mockResolvedValue(saved);
+  });
+  afterEach(() => {
+    useAuthStore.setState({ user: null });
+    useOrgStore.setState({ activeOrgId: null });
+  });
+
+  it.each(["create", "rotate"] as const)(
+    "does not expose a browser hint in %s feedback and clears the unobserved write",
+    async (operation) => {
+      const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      const scoped = ({ children }: { children: ReactNode }) => (
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      );
+      const { result, unmount } = renderHook(() => useSecrets(), { wrapper: scoped });
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
+      await act(async () => {
+        if (operation === "create")
+          await result.current.create.mutateAsync({
+            name: saved.name,
+            value: payload,
+            visibility: "private",
+            usage_scope: "personal",
+          });
+        else await result.current.rotate.mutateAsync({ id: ids.secret, value: payload });
+      });
+      expect(toastSuccess).toHaveBeenCalledOnce();
+      expect(toastSuccess.mock.calls[0]![0]).not.toContain("NEVER-ECHO");
+      const method = operation === "create" ? apiClient.post : apiClient.patch;
+      expect(method).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.any(Object),
+        expect.objectContaining({ retryAfterRefresh: false, cache: "no-store" }),
+      );
+      unmount();
+      await waitFor(() => expect(client.getMutationCache().getAll()).toHaveLength(0));
+    },
+  );
+
+  it.each(["create", "rotate"] as const)(
+    "suppresses %s feedback if the audience changes during invalidation",
+    async (operation) => {
+      const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      vi.spyOn(client, "invalidateQueries").mockImplementation(async () => {
+        useOrgStore.setState({ activeOrgId: "different-org" });
+      });
+      const scoped = ({ children }: { children: ReactNode }) => (
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      );
+      const { result } = renderHook(() => useSecrets(), { wrapper: scoped });
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
+      await act(async () => {
+        if (operation === "create")
+          await result.current.create.mutateAsync({ name: saved.name, value: payload });
+        else await result.current.rotate.mutateAsync({ id: ids.secret, value: payload });
+      });
+      expect(toastSuccess).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(["create", "rotate"] as const)(
+    "does not announce an old %s result after its request resolves into an account switch",
+    async (operation) => {
+      const method = operation === "create" ? apiClient.post : apiClient.patch;
+      vi.mocked(method).mockImplementation(() => {
+        const response = Promise.resolve(saved);
+        void response.then(() =>
+          queueMicrotask(() => useAuthStore.setState({ user: { ...owner, id: "new-owner" } })),
+        );
+        return response;
+      });
+      const { result } = renderHook(() => useSecrets(), { wrapper });
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
+      await act(async () => {
+        if (operation === "create")
+          await result.current.create.mutateAsync({ name: saved.name, value: payload });
+        else await result.current.rotate.mutateAsync({ id: ids.secret, value: payload });
+      });
+      expect(toastSuccess).not.toHaveBeenCalled();
+    },
+  );
 });
 
 describe("kindInfo", () => {

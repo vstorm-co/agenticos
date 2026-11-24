@@ -6,9 +6,55 @@ there, from the handle the subagents library settles. It lives here so both
 layers write the same sentence for the same failure (#699).
 """
 
-from pydantic_ai.exceptions import ModelHTTPError, UsageLimitExceeded
+from pydantic_ai.exceptions import (
+    ContentFilterError,
+    ModelHTTPError,
+    ModelRequestTimeout,
+    UsageLimitExceeded,
+)
 
 from app.core.exceptions import AppException
+
+#: The turn that ended with the model producing nothing at all - no text, no
+#: thinking, no tool call - raised by `RunFrames.drive` when a stream closes
+#: with zero model events. Kept as a module constant so the guard and this
+#: sentence cannot drift apart by one word.
+NO_OUTPUT_MESSAGE = "The model run ended without producing any output"
+
+
+def first_leaf(exc: BaseException) -> BaseException:
+    """The first leaf of an exception group, or the exception itself.
+
+    MCP toolsets and delegated runs sit on anyio task groups, so their
+    failures arrive as an `ExceptionGroup` whose own name diagnoses nothing
+    at all. A timeout that exhausted the fallback chain arrives the same
+    way, as a `FallbackExceptionGroup` - unwrapping it is what lets a caller
+    tell a timed-out run from a failed one.
+    """
+    cause: BaseException = exc
+    while isinstance(cause, BaseExceptionGroup):
+        cause = cause.exceptions[0]
+    return cause
+
+
+CONTENT_FILTER_SUMMARY = (
+    "The model provider blocked this response with its content filter. "
+    "The run stopped without a final answer."
+)
+
+
+def stored_failure_summary(error: str | None) -> str | None:
+    """Recognize controlled provider refusals without publishing arbitrary historical errors.
+
+    Older runs stored this provider refusal under its exception class. Other
+    stored messages may predate redaction; shared transcripts get a generic
+    failure state rather than copying an unknown error into another audience.
+    """
+    if error == CONTENT_FILTER_SUMMARY or (
+        error is not None and error.startswith("The run did not finish (ContentFilterError) -")
+    ):
+        return CONTENT_FILTER_SUMMARY
+    return None
 
 
 def run_failure_summary(exc: BaseException) -> str:
@@ -48,11 +94,40 @@ def run_failure_summary(exc: BaseException) -> str:
     `ExceptionGroup` whose own name diagnoses nothing at all - which would spend
     the status code above on the failures most likely to carry one.
     """
-    cause: BaseException = exc
-    while isinstance(cause, BaseExceptionGroup):
-        cause = cause.exceptions[0]
+    cause = first_leaf(exc)
     if isinstance(cause, AppException):
         return str(cause)
+    if isinstance(cause, ModelRequestTimeout):
+        # A deadline, not a refusal: the model never answered, or never
+        # started answering, within the time the run allowed it. The
+        # sentence names which deadline and how long it was, because that
+        # is what somebody has to change - and it is a distinct outcome
+        # from a failed run, recorded as `timed_out` by the runner.
+        if cause.setting == "first_event_timeout":
+            return (
+                f"The model did not answer within {cause.timeout:g} seconds "
+                "without producing any output (ModelRequestTimeout, "
+                "first_event_timeout). Try again; if it keeps happening, "
+                "raise the first-event timeout in the agent's model settings "
+                "or model profile."
+            )
+        return (
+            f"The model did not finish within {cause.timeout:g} seconds "
+            "(ModelRequestTimeout, request_timeout). Try again; if it keeps "
+            "happening, raise the request timeout in the agent's model "
+            "settings or model profile."
+        )
+    if isinstance(cause, RuntimeError) and str(cause) == NO_OUTPUT_MESSAGE:
+        # The stream closed with zero model events: no text, no thinking,
+        # no tool call. Nothing was refused and nothing was answered, so
+        # neither the generic failure sentence nor a timeout sentence fits.
+        return (
+            "The model run ended without producing any output - no text, no "
+            "thinking, no tool call. Try again; if it keeps happening, "
+            "check the agent's model profile."
+        )
+    if isinstance(cause, ContentFilterError):
+        return CONTENT_FILTER_SUMMARY
     diagnosis = type(cause).__name__
     if isinstance(cause, UsageLimitExceeded):
         # Not a fault to retry: the same task stops at the same limit again.

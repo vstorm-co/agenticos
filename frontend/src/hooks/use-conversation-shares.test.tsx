@@ -7,7 +7,7 @@ import { useConversationShares } from "./use-conversation-shares";
 import { apiClient } from "@/lib/api-client";
 
 vi.mock("@/lib/api-client", () => ({
-  apiClient: { get: vi.fn(), post: vi.fn(), delete: vi.fn() },
+  apiClient: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() },
 }));
 
 function wrapper({ children }: { children: ReactNode }) {
@@ -160,6 +160,27 @@ describe("the shares of one conversation", () => {
     await waitFor(() => expect(result.current.shares.map((row) => row.id)).toEqual(["s-1"]));
   });
 
+  it("shows a changed level at once", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [share("s-1")], total: 1 });
+    const { result } = renderHook(() => useConversationShares(), { wrapper });
+    await act(async () => {
+      await result.current.fetchShares("c-1");
+    });
+    await waitFor(() => expect(result.current.shares).toHaveLength(1));
+    vi.mocked(apiClient.patch).mockResolvedValue({ ...share("s-1"), permission: "edit" });
+    // No refetch answers, so the list on screen is the write itself.
+    vi.mocked(apiClient.get).mockReturnValue(new Promise(() => {}));
+
+    await act(async () => {
+      await result.current.changePermission("c-1", "s-1", "edit");
+    });
+
+    expect(apiClient.patch).toHaveBeenCalledWith("/conversations/c-1/shares/s-1", {
+      permission: "edit",
+    });
+    await waitFor(() => expect(result.current.shares[0]?.permission).toBe("edit"));
+  });
+
   it("says what the server refused on a revoke, and raises it too", async () => {
     vi.mocked(apiClient.delete).mockRejectedValue(new Error("Not yours to revoke"));
     const { result } = renderHook(() => useConversationShares(), { wrapper });
@@ -228,4 +249,74 @@ describe("the conversations shared with me", () => {
     expect(result.current.sharedWithMe).toEqual([]);
     expect(result.current.sharedWithMeTotal).toBe(0);
   });
+});
+
+it("does not retain another organization's shared page", async () => {
+  const { useOrgStore } = await import("@/stores/org-store");
+  useOrgStore.setState({ activeOrgId: "org-first" });
+  vi.mocked(apiClient.get).mockResolvedValue({ items: [{ id: "first" }], total: 1 });
+  const { result } = renderHook(() => useConversationShares(), { wrapper });
+  await act(async () => {
+    await result.current.fetchSharedWithMe();
+  });
+  await waitFor(() => expect(result.current.sharedWithMe[0]?.id).toBe("first"));
+  vi.mocked(apiClient.get).mockReturnValue(new Promise(() => {}));
+  act(() => useOrgStore.setState({ activeOrgId: "org-second" }));
+  expect(result.current.sharedWithMe).toEqual([]);
+  useOrgStore.setState({ activeOrgId: null });
+});
+
+it("refreshes shared conversations and effective access while the page stays open", async () => {
+  const { useSharedConversations, useConversationAccess } =
+    await import("./use-conversation-shares");
+  vi.useFakeTimers();
+  let writable = true;
+  vi.mocked(apiClient.get).mockImplementation(async (path: string) =>
+    path.endsWith("/metadata")
+      ? { id: "c-1", share_permission: writable ? "edit" : "view" }
+      : { items: writable ? [] : [{ id: "new-share" }], total: writable ? 0 : 1 },
+  );
+  const { result, unmount } = renderHook(
+    () => ({ shared: useSharedConversations(true), access: useConversationAccess("c-1", true) }),
+    { wrapper },
+  );
+  try {
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(50);
+    });
+    expect(result.current.access.known).toBe(true);
+    expect(result.current.access.viewOnly).toBe(false);
+    writable = false;
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(15_050);
+    });
+    expect(result.current.access.viewOnly).toBe(true);
+    expect(result.current.shared.items[0]?.id).toBe("new-share");
+  } finally {
+    unmount();
+    vi.useRealTimers();
+  }
+});
+
+it("observes a shared row without starting another request or polling loop", async () => {
+  const { useSharedConversation } = await import("./use-conversation-shares");
+  const { result } = renderHook(() => useSharedConversation("c-1"), { wrapper });
+  expect(result.current).toBeUndefined();
+  expect(apiClient.get).not.toHaveBeenCalled();
+});
+
+it("clears a previous share-write error when changing an existing grant", async () => {
+  vi.mocked(apiClient.post).mockRejectedValueOnce(new Error("Share quota reached"));
+  vi.mocked(apiClient.patch).mockResolvedValueOnce({ id: "s-1", permission: "edit" });
+  const { result } = renderHook(() => useConversationShares(), { wrapper });
+  await act(async () => {
+    await expect(result.current.shareConversation("c-1", { shared_with: "u-1" })).rejects.toThrow(
+      "Share quota reached",
+    );
+  });
+  expect(result.current.error).toBe("Share quota reached");
+  await act(async () => {
+    await result.current.changePermission("c-1", "s-1", "edit");
+  });
+  expect(result.current.error).toBeNull();
 });

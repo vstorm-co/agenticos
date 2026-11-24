@@ -1,5 +1,5 @@
 ---
-source_sha: "76c60cd662bd"
+source_sha: "b4b7a56be679"
 ---
 
 # Pruebas { #testing }
@@ -653,9 +653,19 @@ importó y comprueba el payload, como hace la fixture `queued_fires` en
 
 ## Distribución de CI { #ci-distribution }
 
-La suite del backend mide todo el código de la aplicación una sola vez. El informe
-de la plataforma sigue exigiendo un 100% de cobertura; `make coverage-all REUSE_COVERAGE=1`
-informa sobre el código heredado con los mismos datos, sin repetir los tests.
+La suite del backend se ejecuta en cuatro jobs aislados, cada uno con PostgreSQL,
+Redis y almacén de objetos propios. Cada archivo de tests se asigna exactamente
+una vez; el reparto inicial equilibra el tamaño del código fuente. Cada shard usa
+hasta cuatro workers de pytest y recoge cobertura sin aplicar un umbral parcial.
+El check obligatorio `test` rechaza shards fallidos y datos ausentes, adicionales,
+vacíos o corruptos; combina los cuatro informes y aplica el mismo **umbral del
+100% de cobertura de plataforma**. Las rutas relativas permiten combinar datos
+de distintos checkouts.
+
+Se conservan los informes JUnit y las 30 fases de tests más lentas de cada shard.
+El tamaño del archivo es una estimación inicial; la aceleración real debe medirse
+en CI. `make test` conserva la suite local completa y su umbral;
+`make coverage-all REUSE_COVERAGE=1` usa los datos combinados sin repetir los tests.
 
 El lint del frontend, el build de producción y cuatro shards de tests se ejecutan
 independientemente. Los shards mantienen el aislamiento entre archivos; un informe

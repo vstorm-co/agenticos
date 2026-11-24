@@ -7,6 +7,7 @@ import {
   useApprovals,
   useDelegatedRuns,
   usePrefetchRuns,
+  useRetryRun,
   useRunManifest,
   useResumeRun,
   useRun,
@@ -99,6 +100,7 @@ describe("useRuns", () => {
           orderBy: "cost",
           statuses: ["failed", "budget_exceeded"],
           surface: "slack",
+          source: "conversation",
           modelLabel: "gpt-4o-mini",
         }),
       { wrapper },
@@ -109,6 +111,7 @@ describe("useRuns", () => {
         order_by: "cost",
         status: "failed,budget_exceeded",
         surface: "slack",
+        source: "conversation",
         model_label: "gpt-4o-mini",
       },
     });
@@ -415,10 +418,7 @@ describe("useApprovals", () => {
     await waitFor(() => expect(apiClient.post).toHaveBeenCalledWith("/runs/run-9/resume"));
   });
 
-  it("does not resume while another call on the same run is still parked", async () => {
-    // Resuming with a decision outstanding is a refusal the backend would make;
-    // more importantly the run is not ready - the second call still needs its
-    // answer, and the queue is where it gets one.
+  it("checks the server even when the cached queue still includes a pending row", async () => {
     vi.mocked(apiClient.get).mockResolvedValue({
       items: [{ id: "ap2", run_id: "run-9", status: "pending" }],
       total: 1,
@@ -426,11 +426,8 @@ describe("useApprovals", () => {
     vi.mocked(apiClient.post).mockResolvedValue({ status: "approved", run_id: "run-9" });
     const { result } = renderHook(() => useApprovals(), { wrapper });
     await waitFor(() => expect(result.current.isLoading).toBe(false));
-
     await result.current.decide.mutateAsync({ id: "ap1", approved: true });
-
-    expect(apiClient.post).toHaveBeenCalledTimes(1);
-    expect(apiClient.post).not.toHaveBeenCalledWith("/runs/run-9/resume");
+    await waitFor(() => expect(apiClient.post).toHaveBeenCalledWith("/runs/run-9/resume"));
   });
 
   it("swallows only the still-parked refusal when the cached page misled it", async () => {
@@ -652,6 +649,40 @@ describe("useResumeRun", () => {
     expect(toast.success).toHaveBeenCalledWith(
       "Run resumed. Its answer is also sent to the chat it was asked in.",
     );
+  });
+});
+
+describe("useRetryRun", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("retries the run, says so, and steps to the new run", async () => {
+    const { toast } = await import("sonner");
+    vi.mocked(apiClient.post).mockResolvedValue({
+      run_id: "run-10",
+      conversation_id: "conv-1",
+      output: "Here is the answer.",
+      status: "completed",
+    });
+    const onRetried = vi.fn();
+    const { result } = renderHook(() => useRetryRun({ onRetried }), { wrapper });
+
+    await result.current.mutateAsync("run-9");
+
+    expect(apiClient.post).toHaveBeenCalledWith("/runs/run-9/retry");
+    expect(toast.success).toHaveBeenCalledWith(
+      "Run retried - the agent is answering the same question again.",
+    );
+    expect(onRetried).toHaveBeenCalledWith("run-10");
+  });
+
+  it("says a retry was refused rather than leaving the run looking retried", async () => {
+    const { toast } = await import("sonner");
+    vi.mocked(apiClient.post).mockRejectedValue(new Error("This run has not finished"));
+    const { result } = renderHook(() => useRetryRun(), { wrapper });
+
+    await expect(result.current.mutateAsync("run-9")).rejects.toThrow("This run has not finished");
+
+    expect(toast.error).toHaveBeenCalledWith("This run has not finished");
   });
 });
 

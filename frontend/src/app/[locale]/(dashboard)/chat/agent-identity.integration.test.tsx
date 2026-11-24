@@ -22,6 +22,11 @@ vi.mock("@/lib/api-client", () => ({
   ApiError: class extends Error {},
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+vi.mock("@/lib/locale-navigation", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/locale-navigation")>()),
+  usePathname: () => "/chat",
+  useRouter: () => ({ push: vi.fn() }),
+}));
 
 const { socket } = vi.hoisted(() => ({
   socket: { onMessage: null as ((event: MessageEvent) => void) | null },

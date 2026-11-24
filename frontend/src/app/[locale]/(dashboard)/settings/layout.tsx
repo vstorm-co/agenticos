@@ -18,19 +18,24 @@ export default function SettingsLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const isMemory = pathname.endsWith("/settings/memory");
   const start = useRef<HTMLDivElement>(null);
+  const previousPath = useRef(pathname);
   useEffect(() => {
+    if (previousPath.current === pathname) return;
+    previousPath.current = pathname;
     if (start.current) scrollWithin(start.current, "start", glideOrJump());
   }, [pathname]);
   return (
-    <div ref={start} className="flex flex-1 scroll-mt-16 flex-col space-y-4 lg:scroll-mt-6">
+    <div ref={start} className="flex min-h-0 flex-1 scroll-mt-16 flex-col space-y-4 lg:scroll-mt-6">
       <PageHeader
         title={isMemory ? memory("title") : t("settings")}
         description={isMemory ? memory("description") : t("manageYourAccountIntegrations")}
       />
-      <div data-tour="settings-tabs">
-        <PageTabs tabs={SETTINGS_TABS} overflow="scroll" />
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-5">
+        <div data-tour="settings-tabs">
+          <PageTabs tabs={SETTINGS_TABS} overflow="scroll" />
+        </div>
+        <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col">{children}</div>
       </div>
-      <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col pb-6">{children}</div>
     </div>
   );
 }

@@ -180,6 +180,7 @@ def _stubs(
             "artifact_repo.update": update,
             "artifact_repo.environment_names": AsyncMock(return_value={}),
             "artifact_repo.is_following": AsyncMock(return_value=False),
+            "artifact_repo.is_favourite": AsyncMock(return_value=False),
             "member_repo.get_active": AsyncMock(
                 return_value=MagicMock(id=membership) if membership else None
             ),

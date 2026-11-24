@@ -126,6 +126,7 @@ def _run_row(**overrides: object) -> MagicMock:
     run.root_run_id = run.id
     run.causation_run_id = None
     run.retry_of_run_id = None
+    run.tested_step_node_id = None
     run.depth = 0
     run.started_at = datetime.now(UTC)
     run.ended_at = None
@@ -417,6 +418,7 @@ class TestStart:
 
     @pytest.mark.security
     @pytest.mark.parametrize("trigger_id", ["core.input", "trigger.manual"], ids=["api", "manual"])
+    @pytest.mark.parametrize("schema_contract", [False, True], ids=["fields", "schema"])
     @pytest.mark.parametrize(
         ("field_type", "value", "problem_path"),
         [
@@ -426,13 +428,31 @@ class TestStart:
         ],
     )
     async def test_an_input_that_does_not_fit_the_declared_fields_is_refused_unwritten(
-        self, trigger_id: str, field_type: str, value: object, problem_path: str
+        self,
+        trigger_id: str,
+        field_type: str,
+        value: object,
+        problem_path: str,
+        schema_contract: bool,
     ) -> None:
+        contract = {"fields": [{"name": "seats", "type": field_type}]}
+        if schema_contract:
+            contract = {
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "seats": {"type": "integer"}
+                        if field_type == "integer"
+                        else {"type": "array", "items": {"type": "string"}}
+                    },
+                    "required": ["seats"],
+                }
+            }
         entry = NodeInstance(
             id=uuid.uuid4(),
             definition_id=trigger_id,
             definition_version=1,
-            config={"fields": [{"name": "seats", "type": field_type}]},
+            config=contract,
             layout=NodePosition(x=0, y=0),
         )
         graph = WorkflowGraph(entry_node_id=entry.id, nodes=(entry,))
@@ -662,10 +682,13 @@ class TestCancel:
             ) as update_run,
             patch(f"{FACADE_PATH}.events.append", new=AsyncMock()),
             patch(f"{FACADE_PATH}.delivery.deliver_result", new=AsyncMock()) as delivered,
+            patch(f"{FACADE_PATH}.cleanup.stop_called_runs", new=AsyncMock()) as called_stopped,
         ):
             result = await service.cancel(_ctx(), run.id)
 
         assert result.status == WorkflowRunStatus.CANCELLED.value
+        # What it called is cancelled once the run itself has ended.
+        assert called_stopped.await_args.kwargs["run"] is cancelled
         # Every live step, request, queued job and parked agent run is closed first.
         stopped.assert_awaited_once()
         assert stopped.await_args.kwargs["run"] is run
@@ -1384,3 +1407,109 @@ def test_input_accepts_literal_escape_text_and_multilingual_strings():
 
     payload = {"value": "literal \\u0000 and 日本語", "tuple": (True, 42)}
     assert _checked_input(payload) == payload
+
+
+@pytest.mark.parametrize(
+    ("path", "kind", "expected"),
+    [
+        ("items.0.name", "minLength", "items.0.name"),
+        ("", "type", ""),
+        ("input", "required", "input"),
+        ("$", "type", "$"),
+        ("input", "json_invalid", ""),
+    ],
+)
+@pytest.mark.parametrize("root", ["input", "values"])
+def test_input_errors_expose_shared_field_paths_and_preserve_legacy_problems(
+    path: str, kind: str, expected: str, root: str
+) -> None:
+    problems = [{"field": path, "message": "Use the declared type", "type": kind}]
+    refusal = WorkflowRunInputInvalidError(problems=problems, root=root)
+    assert refusal.details == {
+        "fields": [
+            {"field": ".".join(filter(None, (root, expected))), "message": "Use the declared type"}
+        ],
+        "problems": problems,
+    }
+
+
+async def test_a_child_workflow_rejects_nested_input_before_admitting_a_run() -> None:
+    entry = NodeInstance(
+        id=uuid.uuid4(),
+        definition_id="trigger.workflow_call",
+        definition_version=1,
+        config={
+            "input_schema": {
+                "properties": {
+                    "items": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {"name": {"type": "string", "minLength": 2}},
+                            "required": ["name"],
+                        },
+                    }
+                },
+                "required": ["items"],
+            }
+        },
+        layout=NodePosition(x=0, y=0),
+    )
+    graph = WorkflowGraph(entry_node_id=entry.id, nodes=(entry,))
+    workflow = _workflow(live_trigger="trigger.workflow_call")
+    version = _version(graph=graph.model_dump(mode="json"))
+    causation = Causation(
+        root_run_id=uuid.uuid4(), causation_run_id=uuid.uuid4(), visited_trigger_ids=[], depth=1
+    )
+    with (
+        patch(f"{FACADE_PATH}.workflow_run_repo.create_run", new=AsyncMock()) as create_run,
+        pytest.raises(WorkflowRunInputInvalidError) as refused,
+    ):
+        await WorkflowExecutionService(MagicMock()).admit_call(
+            _ctx(),
+            workflow,
+            version,
+            run_input={"items": [{"name": "X"}]},
+            causation=causation,
+            parent_node_run_id=uuid.uuid4(),
+        )
+    assert refused.value.details["problems"] == [
+        {
+            "field": "items.0.name",
+            "message": "Must contain at least 2 characters",
+            "type": "minLength",
+        },
+    ]
+    create_run.assert_not_awaited()
+
+
+@pytest.mark.parametrize("disabled", [False, True])
+async def test_resource_records_exclude_switched_off_binding_targets(disabled: bool) -> None:
+    from app.db.models.workflow_run import WorkflowRun
+
+    entry = NodeInstance(
+        id=uuid.uuid4(),
+        definition_id="core.input",
+        definition_version=1,
+        layout=NodePosition(x=0, y=0),
+    )
+    target = entry.model_copy(
+        update={"id": uuid.uuid4(), "definition_id": "debug.echo", "disabled": disabled}
+    )
+    file_ref = FileRef(file_id=uuid.uuid4(), content_type="text/plain", byte_size=1)
+    table_ref = TableIORef(table_id=uuid.uuid4(), schema_version=1)
+    graph = WorkflowGraph(
+        entry_node_id=entry.id,
+        nodes=(entry, target),
+        bindings=(
+            Binding(target_node_id=target.id, target_field="file", source=file_ref),
+            Binding(target_node_id=target.id, target_field="table", source=table_ref),
+        ),
+    )
+    run = WorkflowRun(id=uuid.uuid4(), organization_id=uuid.uuid4())
+    service = WorkflowExecutionService(AsyncMock())
+    with patch(f"{FACADE_PATH}.workflow_run_repo.create_resource_ref", new=AsyncMock()) as record:
+        await service._record_resource_refs(run, graph)
+    assert record.await_count == (0 if disabled else 2)
+    if not disabled:
+        assert {call.kwargs["kind"] for call in record.await_args_list} == {"file", "table"}

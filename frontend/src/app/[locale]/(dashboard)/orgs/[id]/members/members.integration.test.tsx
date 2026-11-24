@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import MembersPage from "./page";
 import { ActiveOrgGuard } from "@/components/layout/active-org-guard";
+import { DEFAULT_CHAT_HOME, type ConsoleExperience } from "@/lib/console-experience-api";
 import { apiClient } from "@/lib/api-client";
 import { useAuthStore, useOrgStore } from "@/stores";
 import { permissionsOf, ROLE_CATALOG } from "@/test-utils/role-catalog";
@@ -50,6 +51,19 @@ vi.mock("next/navigation", () => ({
   redirect: vi.fn(),
   permanentRedirect: vi.fn(),
 }));
+
+const CONSOLE_EXPERIENCE: ConsoleExperience = {
+  availability: DEFAULT_CHAT_HOME,
+  organization_defaults: {},
+  preferences: {},
+  effective: DEFAULT_CHAT_HOME,
+  reminders: {
+    availability: true,
+    organization_defaults: {},
+    preferences: {},
+    effective: { enabled: true, snooze_days: 1 },
+  },
+};
 
 const ME = "user-me";
 
@@ -100,6 +114,7 @@ function serve(
   configuration: Partial<Organization> = {},
 ) {
   vi.mocked(apiClient.get).mockImplementation((url: string) => {
+    if (url === "/users/me/console-experience") return Promise.resolve(CONSOLE_EXPERIENCE);
     if (url === "/roles/catalog") return Promise.resolve(ROLE_CATALOG);
     if (url.startsWith("/me/permissions"))
       return Promise.resolve({
@@ -241,6 +256,7 @@ describe("the members table's role control", () => {
     path.mockReturnValue(`/orgs/${URL_ORG}/members`);
     useOrgStore.setState({ activeOrgId: "org-1", refusedOrgIds: [] });
     vi.mocked(apiClient.get).mockImplementation((url: string) => {
+      if (url === "/users/me/console-experience") return Promise.resolve(CONSOLE_EXPERIENCE);
       if (url === "/roles/catalog") return Promise.resolve(ROLE_CATALOG);
       if (url.startsWith("/me/permissions")) {
         const asked = useOrgStore.getState().activeOrgId;
@@ -303,6 +319,7 @@ describe("the members table's role control", () => {
     // Offering nothing and being unable to answer are the same pixels and a
     // different fact.
     vi.mocked(apiClient.get).mockImplementation((url: string) => {
+      if (url === "/users/me/console-experience") return Promise.resolve(CONSOLE_EXPERIENCE);
       if (url === "/roles/catalog") return Promise.reject(new Error("nope"));
       if (url.startsWith("/me/permissions")) return Promise.resolve(permissionsOf("admin"));
       if (url === "/system-agents")
@@ -390,99 +407,193 @@ describe("the members table's role control", () => {
 });
 
 describe("organization settings tabs", () => {
-  it("shows members by default and preserves a profile draft while switching tabs", async () => {
+  it("keeps setup controls outside the tablist", async () => {
+    serve("owner", [{ permission: Perm.orgSettings, scope: "all" }]);
+    await mount();
+    await screen.findByRole("tab", { name: "AI & services" });
+    expect(within(screen.getByRole("tablist")).queryByRole("button")).not.toBeInTheDocument();
+  });
+
+  it("opens the workspace in a modal and guards closing an edited name", async () => {
     serve("owner");
     await mount();
-    expect(await screen.findByRole("tab", { name: "Members" })).toHaveAttribute(
-      "aria-selected",
-      "true",
-    );
-    expect(screen.getAllByRole("tabpanel")).toHaveLength(1);
-    window.history.replaceState({}, "", "?tab=voice#org-voice");
-    await userEvent.click(screen.getByRole("tab", { name: "Workspace" }));
-    expect(window.location.hash).toBe("");
-    expect(screen.getByTitle("Change organization avatar")).toHaveClass("rounded-full");
-    const name = screen.getByDisplayValue("Acme");
+    await userEvent.click(await screen.findByRole("button", { name: "Edit workspace" }));
+    const dialog = screen.getByRole("dialog", { name: "Edit workspace" });
+    expect(within(dialog).queryByRole("heading", { name: "Voice" })).not.toBeInTheDocument();
+    const name = within(dialog).getByDisplayValue("Acme");
     await userEvent.clear(name);
     await userEvent.type(name, "New workspace");
-    expect(new URL(window.location.href).searchParams.get("tab")).toBe("profile");
-    await userEvent.click(screen.getByRole("tab", { name: "Members" }));
-    expect(name).not.toBeVisible();
-    expect(new URL(window.location.href).searchParams.has("tab")).toBe(false);
-    await userEvent.click(screen.getByRole("tab", { name: "Workspace" }));
-    expect(screen.getByDisplayValue("New workspace")).toBeVisible();
+    await userEvent.click(within(dialog).getByRole("button", { name: "Close" }));
+    expect(dialog).toBeVisible();
+    const store = (await import("@/stores/unsaved-changes-store")).useUnsavedChangesStore;
+    expect(store.getState().prompt?.ids).toEqual(["org-profile:org-1"]);
+    await act(async () => {
+      await store.getState().answer("discard");
+    });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Edit workspace" }));
+    expect(screen.getByDisplayValue("Acme")).toBeVisible();
   });
 
-  it("keeps public page data controls reachable with only the organization settings grant", async () => {
+  it("keeps public data controls reachable with only the settings grant", async () => {
     serve("viewer", [{ permission: Perm.orgSettings, scope: "all" }]);
     await mount();
-    const governance = await screen.findByRole("tab", { name: "Budget and approvals" });
-    expect(screen.queryByRole("switch", { name: "Public pages with live data" })).toBeNull();
-    await userEvent.click(governance);
+    await userEvent.click(await screen.findByRole("tab", { name: "Budget and approvals" }));
     expect(screen.getByRole("switch", { name: "Public pages with live data" })).toBeVisible();
-    expect(screen.getByRole("tabpanel")).toHaveAttribute("data-tour", "org-governance");
   });
 
-  it("opens a settings tab directly from its URL", async () => {
+  it("opens Voice in services from its legacy URL", async () => {
     query.mockImplementation(() => new URLSearchParams("tab=voice"));
     serve("owner", [{ permission: Perm.orgSettings, scope: "all" }]);
     await mount();
     await waitFor(() =>
-      expect(screen.getByRole("tab", { name: "Workspace" })).toHaveAttribute(
+      expect(screen.getByRole("tab", { name: "AI & services" })).toHaveAttribute(
         "aria-selected",
         "true",
       ),
     );
-    expect(screen.getAllByRole("tabpanel")).toHaveLength(1);
-    expect(screen.getByRole("tabpanel")).toHaveAttribute("data-state", "active");
-    expect(screen.getByDisplayValue("Acme")).toBeVisible();
     expect(document.querySelector('[data-tour="org-voice"]')).toBeVisible();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getAllByRole("tabpanel")).toHaveLength(1);
   });
 
-  it("follows a query change without remounting the page", async () => {
+  it("follows a profile deep link without remounting", async () => {
     serve("viewer");
     const rerender = await mount();
     await screen.findByText("peer@acme.test");
     query.mockImplementation(() => new URLSearchParams("tab=profile"));
-    rerender();
-    expect(screen.getByRole("tab", { name: "Workspace" })).toHaveAttribute("aria-selected", "true");
+    await act(async () => {
+      rerender();
+    });
+    expect(await screen.findByRole("dialog", { name: "Edit workspace" })).toBeVisible();
     expect(screen.getByDisplayValue("Acme")).toBeVisible();
   });
 
-  it("shows the settings sections only with their matching grants", async () => {
-    serve("owner", [
-      { permission: Perm.orgSettings, scope: "all" },
-      { permission: Perm.budgetsManage, scope: "all" },
-      { permission: Perm.approvalsDecide, scope: "all" },
-    ]);
-    await mount();
-    await waitFor(() =>
-      expect(screen.getAllByRole("tab").map((item) => item.textContent)).toEqual([
-        "Members",
-        "Workspace",
-        "Budget and approvals",
-        "Proactivity",
-        "AI & services",
-      ]),
+  it("combines service settings while preserving drafts across tabs and disclosure changes", async () => {
+    serve(
+      "owner",
+      [
+        { permission: Perm.orgSettings, scope: "all" },
+        { permission: Perm.budgetsManage, scope: "all" },
+      ],
+      { proactive_model_profile_id: "profile-1" },
     );
-    await userEvent.click(screen.getByRole("tab", { name: "Proactivity" }));
-    expect(screen.getAllByRole("tabpanel")).toHaveLength(1);
-    expect(screen.getByRole("tabpanel")).toHaveTextContent("Assistant suggestions and monitoring");
-    expect(screen.queryByRole("heading", { name: "Background services" })).not.toBeInTheDocument();
+    await mount();
+    await screen.findByRole("tab", { name: "AI & services" });
+    expect(screen.getAllByRole("tab").map((item) => item.textContent)).toEqual([
+      "Members",
+      "Budget and approvals",
+      "AI & services",
+    ]);
+    await userEvent.click(screen.getByRole("tab", { name: "AI & services" }));
+    const expand = screen.getByRole("button", {
+      name: "Daily briefing & suggestions",
+    });
+    await userEvent.click(expand);
+    const nightly = screen.getByRole("switch", { name: "Daily briefing & suggestions" });
+    await userEvent.click(nightly);
+    expect(nightly).toBeChecked();
+    const limit = screen.getByLabelText("Limit per person (USD a month)");
+    await userEvent.clear(limit);
+    await userEvent.type(limit, "5");
+    await userEvent.click(expand);
+    expect(nightly).toBeVisible();
+    expect(limit).not.toBeVisible();
+    await userEvent.click(screen.getByRole("tab", { name: "Members" }));
+    await userEvent.click(screen.getByRole("tab", { name: "AI & services" }));
+    await userEvent.click(expand);
+    expect(nightly).toBeChecked();
+    expect(nightly).toBeVisible();
+    expect(limit).toHaveValue(5);
+    expect(limit).toBeVisible();
   });
 
-  it("groups system services with AI and keeps them reachable for a budget manager", async () => {
+  it("uses one service-card header for all seven functions, with independent keyboard disclosures", async () => {
+    serve(
+      "owner",
+      [
+        { permission: Perm.orgSettings, scope: "all" },
+        { permission: Perm.budgetsManage, scope: "all" },
+      ],
+      { welcome_dm_enabled: true },
+    );
+    const original = vi.mocked(apiClient.get).getMockImplementation()!;
+    vi.mocked(apiClient.get).mockImplementation((url: string) => {
+      if (url === "/users/me/console-experience") return Promise.resolve(CONSOLE_EXPERIENCE);
+      if (url === "/assistant")
+        return Promise.resolve({
+          status: "ready",
+          agent_id: "architect",
+          slug: "ai-architect",
+          name: "Architect",
+          named_by_default: true,
+          greeting: null,
+          avatar_url: null,
+          avatar_color: null,
+          wears_mark: true,
+          can_use: true,
+          can_configure: true,
+        });
+      return original(url);
+    });
+    await mount();
+    await userEvent.click(await screen.findByRole("tab", { name: "AI & services" }));
+    const titles = [
+      "Memory maintenance",
+      "AI Architect",
+      "Daily briefing & suggestions",
+      "Allow read-only monitoring routines",
+      "Welcome message in chat apps",
+      "Speech to text",
+      "Text to speech",
+    ];
+    const headers: HTMLElement[] = [];
+    for (const title of titles) {
+      const card = await screen.findByRole("region", { name: title });
+      expect(card).toHaveAttribute("data-slot", "service-card");
+      const header = card.querySelector("header");
+      expect(header).not.toBeNull();
+      headers.push(header!);
+      expect(header!.querySelector('[data-slot="service-icon"] > svg')).not.toBeNull();
+      if (title === "AI Architect") {
+        expect(within(header!).getByRole("link", { name: "Open in Agent Builder" })).toBeVisible();
+        expect(within(header!).queryByRole("button", { name: title })).toBeNull();
+        expect(within(header!).getByRole("switch")).toBeVisible();
+        continue;
+      }
+      const trigger = within(header!).getByRole("button", { name: title });
+      const toggle = within(header!).getByRole("switch");
+      expect(trigger).not.toContainElement(toggle);
+      expect(trigger).toHaveAttribute("aria-expanded", "false");
+      trigger.focus();
+      await userEvent.keyboard("{Enter}");
+      expect(trigger).toHaveAttribute("aria-expanded", "true");
+      await userEvent.keyboard(" ");
+      expect(trigger).toHaveAttribute("aria-expanded", "false");
+      expect(toggle).toBeVisible();
+    }
+    expect(new Set(headers.map((header) => header.className)).size).toBe(1);
+    expect(document.querySelectorAll('[data-slot="service-card"]')).toHaveLength(7);
+  });
+
+  it("groups background services without adding a second interactive disclosure", async () => {
     serve("viewer", [{ permission: Perm.budgetsManage, scope: "all" }]);
     await mount();
     await userEvent.click(await screen.findByRole("tab", { name: "AI & services" }));
+    expect(screen.getByRole("heading", { name: "Background services", level: 2 })).toBeVisible();
+    expect(
+      screen.getByRole("heading", { name: "Assistant and conversations", level: 2 }),
+    ).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Background services" })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: /Memory maintenance/ }));
     expect(await screen.findByRole("region", { name: "Memory maintenance" })).toBeVisible();
+    expect(screen.queryByRole("heading", { name: "Voice" })).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "AI Architect" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("tab", { name: "Voice" })).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole("tab", { name: "Proactivity" }));
-    expect(screen.queryByRole("region", { name: "Memory maintenance" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Speech to text" })).not.toBeInTheDocument();
+    expect(document.querySelectorAll('[data-slot="service-card"]')).toHaveLength(3);
   });
 
-  it("describes unfinished setup on the matching tabs and cards", async () => {
+  it("shows actionable Voice setup without warning about disabled services", async () => {
     serve(
       "owner",
       [
@@ -497,47 +608,29 @@ describe("organization settings tabs", () => {
       },
     );
     await mount();
-    const workspace = await screen.findByRole("tab", { name: "Workspace" });
+    const services = await screen.findByRole("tab", { name: "AI & services" });
     await waitFor(() =>
-      expect(workspace).toHaveAccessibleDescription(/Voice has no default provider or model/),
+      expect(services).toHaveAccessibleDescription(/Voice has no default provider/),
     );
-    expect(screen.getByRole("tab", { name: "Proactivity" })).toHaveAccessibleDescription(
-      /Nightly suggestions are off/,
-    );
-    await waitFor(() =>
-      expect(screen.getByRole("tab", { name: "AI & services" })).toHaveAccessibleDescription(
-        /Memory maintenance has no model/,
-      ),
-    );
-    await userEvent.click(workspace);
-    expect(
-      within(screen.getByRole("tabpanel")).getByRole("button", {
-        name: /Voice has no default provider/,
-      }),
-    ).toBeVisible();
-    await userEvent.click(screen.getByRole("tab", { name: "Proactivity" }));
-    expect(
-      within(screen.getByRole("tabpanel")).getByRole("button", {
-        name: /Nightly suggestions are off/,
-      }),
-    ).toBeVisible();
+    expect(services).not.toHaveAccessibleDescription(/Nightly suggestions|Memory maintenance/);
+    expect(screen.queryByRole("tab", { name: "Workspace" })).not.toBeInTheDocument();
   });
 
-  it("does not advertise setup controls a viewer cannot use", async () => {
-    serve("viewer", [], {
-      speech_to_text_provider: null,
-      speech_to_text_model: null,
-      speech_to_text_secret_id: null,
-      proactive_enabled: false,
-    });
+  it("filters members by name or email and role, with a recoverable empty result", async () => {
+    serve("owner");
     await mount();
-    const tabs = await screen.findByRole("tablist");
-    expect(
-      within(tabs).queryByRole("button", {
-        name: /Voice has|Nightly suggestions|Memory maintenance/,
-      }),
-    ).not.toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "Workspace" })).not.toHaveAttribute("aria-describedby");
+    await screen.findByText("peer@acme.test");
+    const search = screen.getByPlaceholderText("Search members…");
+    await userEvent.type(search, "PEER@");
+    expect(screen.getByText("peer@acme.test")).toBeVisible();
+    expect(screen.queryByText("builder@acme.test")).not.toBeInTheDocument();
+    await userEvent.clear(search);
+    await userEvent.click(screen.getByRole("combobox", { name: "Filter by role" }));
+    await userEvent.click(screen.getByRole("option", { name: "builder" }));
+    expect(screen.getByText("builder@acme.test")).toBeVisible();
+    expect(screen.queryByText("peer@acme.test")).not.toBeInTheDocument();
+    await userEvent.type(search, "missing");
+    expect(screen.getByText("No members match your search.")).toBeVisible();
   });
 
   it.each(["voice", "governance", "proactivity", "assistant", "unknown"])(
@@ -546,17 +639,9 @@ describe("organization settings tabs", () => {
       query.mockImplementation(() => new URLSearchParams({ tab }));
       serve("viewer");
       await mount();
-      await waitFor(() =>
-        expect(screen.getByRole("tab", { name: "Members" })).toHaveAttribute(
-          "aria-selected",
-          "true",
-        ),
-      );
-      expect(screen.getAllByRole("tab").map((item) => item.textContent)).toEqual([
-        "Members",
-        "Workspace",
-      ]);
-      expect(await screen.findByText("peer@acme.test")).toBeVisible();
+      await screen.findByText("peer@acme.test");
+      expect(screen.getByRole("tab", { name: "Members" })).toHaveAttribute("aria-selected", "true");
+      expect(screen.getAllByRole("tab").map((item) => item.textContent)).toEqual(["Members"]);
     },
   );
 });

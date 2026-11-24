@@ -1,18 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { toast } from "sonner";
 import { Check, Copy } from "lucide-react";
 import { useTranslations } from "next-intl";
+
+import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";
 
 /** A block of code with a button that copies it - a curl call, a base URL. */
 export function CopyCode({ code }: { code: string }) {
   const t = useTranslations("common");
-  const [copied, setCopied] = useState(false);
+  const { copy: write, copied } = useCopyToClipboard(1500);
 
   async function copy() {
-    await navigator.clipboard.writeText(code);
-    setCopied(true);
-    window.setTimeout(() => setCopied(false), 1500);
+    if (!(await write(code))) toast.error(t("copyFailed"));
   }
 
   return (

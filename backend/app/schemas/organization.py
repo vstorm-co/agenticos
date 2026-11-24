@@ -12,6 +12,7 @@ from app.core.permissions import OrgRoleName
 from app.db.models.organization import MembershipSourceLiteral, ProactiveTiming
 from app.db.models.watch import MIN_WATCH_MINUTES
 from app.schemas.base import BaseSchema, TimestampSchema
+from app.schemas.console_experience import ChatHomeOverrides, OnboardingReminderOverrides
 from app.schemas.user import UserRead
 
 _ID = UUID
@@ -21,6 +22,16 @@ _ID = UUID
 # how the cap is *removed*, and a `gt=0` applied to the whole field would
 # reject the one request that lifts the limit.
 MonthlyBudgetUsd = Annotated[Decimal, Field(gt=0, max_digits=12, decimal_places=6)]
+
+
+class OrganizationTextToSpeech(BaseSchema):
+    """The organization-wide voice and key inherited only by agents opting in."""
+
+    enabled: bool = True
+    provider: str = Field(min_length=1, max_length=32)
+    model: str = Field(min_length=1, max_length=255)
+    voice: str | None = Field(default=None, max_length=255)
+    secret_id: UUID
 
 
 class OrganizationCreate(BaseSchema):
@@ -49,6 +60,8 @@ class OrganizationUpdate(BaseSchema):
     service keys on whether the client named the field rather than on its value.
     """
 
+    chat_home_defaults: ChatHomeOverrides | None = None
+    onboarding_reminders: OnboardingReminderOverrides | None = None
     name: str | None = Field(default=None, min_length=2, max_length=128)
     avatar_url: str | None = Field(default=None, max_length=500)
     avatar_color: int | None = Field(
@@ -159,6 +172,10 @@ class OrganizationUpdate(BaseSchema):
             "name."
         ),
     )
+    public_agenticos_attribution: bool | None = Field(
+        default=None,
+        description="Show the AgenticOS GitHub footer on public pages and shared chats. Needs org:settings.",
+    )
     public_live_data: bool | None = Field(
         default=None,
         description=(
@@ -167,6 +184,7 @@ class OrganizationUpdate(BaseSchema):
             "Needs 'org:settings' (Owner or Admin), signed in as themselves."
         ),
     )
+    text_to_speech: OrganizationTextToSpeech | None = None
     speech_to_text_provider: str | None = Field(
         default=None,
         max_length=32,
@@ -195,6 +213,8 @@ class OrganizationUpdate(BaseSchema):
 
 
 class OrganizationRead(BaseSchema, TimestampSchema):
+    chat_home_defaults: ChatHomeOverrides | None = None
+    onboarding_reminders: OnboardingReminderOverrides | None = None
     id: _ID
     name: str
     slug: str
@@ -232,6 +252,10 @@ class OrganizationRead(BaseSchema, TimestampSchema):
             "all; who may then use it is `approvals:decide`."
         ),
     )
+    public_agenticos_attribution: bool = Field(
+        default=True,
+        description="Show the AgenticOS GitHub footer on public pages and shared chats",
+    )
     public_live_data: bool = Field(
         default=False,
         description=(
@@ -239,6 +263,7 @@ class OrganizationRead(BaseSchema, TimestampSchema):
             "embeds, where the page's owner has confirmed it"
         ),
     )
+    text_to_speech: OrganizationTextToSpeech | None = None
     speech_to_text_provider: str | None = None
     speech_to_text_model: str | None = None
     speech_to_text_secret_id: UUID | None = Field(
@@ -258,6 +283,8 @@ class OrganizationList(BaseSchema):
 
 
 class OrganizationMemberRead(BaseSchema):
+    last_action_at: datetime | None = None
+    """Latest non-impersonated audited action in this organization; not a visit timestamp."""
     id: _ID
     organization_id: _ID
     user_id: _ID
@@ -428,3 +455,15 @@ class InvitationStaged(BaseSchema):
 
 class TransferOwnershipRequest(BaseSchema):
     new_owner_user_id: _ID
+
+
+class ReceivedInvitation(BaseSchema):
+    """A signed-in recipient's invitation, without its bearer token."""
+
+    id: UUID
+    organization_id: UUID
+    organization_name: str
+    organization_has_avatar: bool = False
+    organization_avatar_color: int | None = None
+    role: str
+    expires_at: datetime

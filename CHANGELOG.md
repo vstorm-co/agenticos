@@ -8,7 +8,7 @@ in a MINOR release. Read a minor release's notes before upgrading.
 
 Two things are versioned separately from this file and worth knowing about:
 
-- **`SPEC_VERSION`** — the agent spec format, currently **14**. A published agent
+- **`SPEC_VERSION`** — the agent spec format, currently **15**. A published agent
   and a client's exported YAML both carry it, so it only ever moves forward with a
   migration that keeps old documents loading. See
   [the spec reference](docs/reference/spec.md).
@@ -19,8 +19,113 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Upgrading
+
+- Upstream v1.90.1 sync chains upstream `0349_personal_work_context` after T3 `0354_drop_user_theme_look` (its `down_revision` changes; T3's `0349_room_participants` and every other released revision keep their ids), leaving one head. It replaces `ck_suggestion_kind` (`ACCESS EXCLUSIVE` on `suggestions` while the constraint is revalidated) and creates `personal_context_cache` (its foreign key takes `SHARE ROW EXCLUSIVE` on `organization_members`); locks are accepted as upstream wrote them, and there are no model calls. Downgrade deletes all `personal` suggestions, including decided ones; export them first. Deploy API and workers together.
+- Upstream v1.89.1 sync chains upstream revisions `0343_solution_installations` through `0348_architect_generated_avatar` after T3 `0352_room_thread_state` (only `0343`'s `down_revision` changes; no T3 revision is renumbered), then adds `0354_drop_user_theme_look`, which removes upstream's `users.theme` and `users.look` columns in favor of the T3 `users.appearance` contract. Deployed T3 databases at `0352_room_thread_state` apply the upstream revisions in order; no released revision is rewritten.
+- Tailscale enrollment adds migration `0347_network_connections` after `0346_merge_t3_v1850`, a connection vault table and the `network` background-worker pool. The feature remains disabled unless `TAILSCALE_ENABLED=true`; custom worker pool lists must include `network` and retain a `system` worker for cleanup. Downgrade refuses retained network connections or jobs. See the [deployment and cleanup contract](docs/design/tailscale-enrollment-implementation.md).
+- Sync upstream to v1.85.0 while preserving the T3 overlay. Merge revision `0346_merge_t3_v1850` joins `0342_criterion_verdicts` and `0345_credential_continuations` without schema changes; `alembic upgrade head` applies whichever side a deployment lacks.
+- Shared human/agent chat continues the migration chain after `0348_approval_expired_notice` through `0349_room_participants`, `0350_room_mention_requests`, `0351_room_message_reactions` and `0352_room_thread_state`. Existing personal chats keep their audience until explicitly converted; existing project chats keep project access. Downgrade refuses to discard used room, mention, reaction or thread state. These schema changes require the matching API and worker release; no production migration or deployment is included in the feature PR.
+- The remaining OpenBot features use one forward migration chain after `0340_browser_teaching_review`: `0341_room_task_handoffs`, `0342_browser_credential_plans`, `0343_workflow_media_operations`, `0344_browser_procedure_teaching`, and `0345_credential_continuations`. The existing capture/review migrations remain unchanged. These revisions supersede the undeployed branch checkpoints from the reverted feature bundle; an installation that applied those old checkpoints needs a reviewed compatibility plan before upgrading.
+- Browser procedure teaching stores advanced authoring sessions in `browser_procedure_teaching_sessions`, with bounded captures, generation claims, organization policy and member opt-ins, and nullable reviewed provenance on skill proposals/versions. Existing quick capture continues to use `browser_teaching_sessions`. Concurrent parent-key indexes use exact-object retry guards; unexpected or active builds refuse. Downgrade refuses retained teaching evidence. Feature admission and deployed synthetic acceptance remain required before enablement.
+- Workflow media journals build four tenant lineage keys concurrently before adding the empty operation table; rehearse the brief constraint-attachment locks. Durable rows keep submission/collector fences, original pricing, closed receipts, output identity and separate reserved/incurred/booked amounts. Downgrade refuses retained operation evidence. Asset, image and video execution remain separately disabled by default; combined release and deployment acceptance are required before enabling them.
+- Browser credential plans build tenant parent-key indexes concurrently before attaching constraints and adding policy/grant/plan tables. Rehearse the short DDL lock windows; unexpected objects and active builds refuse safely. Downgrade refuses feature evidence. Filling remains disabled by default and requires organization admission, the reviewed optional browser transport and deployment acceptance. See the [browser credential runtime contract](docs/design/browser-credential-vault.md).
+- Browser continuation stores durable continuation requests and receipts, and marks credential-derived saved sessions with protected provenance while preserving existing manual sessions. Downgrade refuses retained continuation or protected-session evidence. Feature admission and deployed synthetic acceptance remain required before enablement.
+- Migration `0337_conversation_message_pins`, after `0336_merge_core_v1761`, adds reader-private message bookmarks with message and user foreign keys. Existing transcripts are unchanged.
+- Migration `0338_message_reply_excerpt`, after `0337_conversation_message_pins`, adds an optional bounded excerpt to quoted replies. Existing replies continue to use their source message.
+- Browser teaching capture (#113, slice 1) adds migration `0339_browser_teaching_capture.py` after `0338_message_reply_excerpt.py`. It creates the empty `browser_teaching_sessions` table. The feature stays off until `BROWSER_TEACHING_ENABLED` is true and the organization is listed in `BROWSER_TEACHING_ORGANIZATION_IDS`. The `sweep-browser-teachings` job runs every minute while the feature is off, to expire and erase sessions after 24 hours.
+- Browser teaching review (#113, slice 2) adds migration `0340_browser_teaching_review.py` after `0339_browser_teaching_capture.py`. It adds review columns and the `proposing` and `proposed` states to `browser_teaching_sessions`, and a unique `skill_proposals.browser_teaching_id`. A reviewed session can queue one `build-teaching-proposal` job, which creates one pending skill proposal from the reviewed steps, parameter names and allowed origins only. The job makes no model call.
+- Tables tenant isolation adds migration `0328_tables_tenant_rls`, after `0327_virtual_table_relations`. It installs policies with enforcement disabled and adds a membership foreign key for user-specific Tables grants. Existing grants without membership, and cross-organization trigger or admission parents, must be reviewed before the migration can proceed; it refuses those rows without repairing data. Enabling enforcement is a separate operator cutover with distinct migration, runtime and maintenance credentials and drained API/worker services. Follow the [Tables cutover procedure](https://github.com/t3grp/agenticos/blob/t3/docs/plans/table-tenant-cutover.md) before activation.
+- The Tables cutover preflight also refuses runtime and maintenance credentials that can assume a REPLICATION role, belong to `pg_database_owner`, can create objects in schema `public`, or hold TRIGGER or REFERENCES on a protected table. Each refusal names its cause. A session that binds a different organization now drops the objects it loaded for the previous one.
+- Thread storage uses published migration `0333_room_threads.py` after `0332_merge_t3_pools_v1761.py`. It builds the composite unique index and the thread lookup index concurrently, then attaches the unique index as a constraint. These builds allow ordinary reads and writes. Adding the nullable root column and attaching the unique constraint need brief `ACCESS EXCLUSIVE` locks, which can wait behind long transactions. The foreign-key and check constraints are added `NOT VALID` and validated without blocking ordinary writes. Rehearse on a production-sized copy and review any lock waits during upgrade; prebuilding the composite index is unnecessary.
+- If an index build fails, the revision stays pending and the nullable root column may remain. Retry the upgrade after any active build has finished. The migration reuses exact valid indexes and drops an exact invalid index with `DROP INDEX CONCURRENTLY` before rebuilding it. It stops and leaves a conflicting object untouched. Inspect any unexpected object before resolving it. Once thread replies exist, retain a thread-aware application version or restore the matching pre-upgrade backup: an older reader or dropping the root column would mix those replies into the main transcript. Downgrading refuses while replies exist; an empty downgrade returns to `0332_merge_t3_pools_v1761`.
+- The HTTP messages endpoint, `GET /api/v1/conversations/{conversation_id}/messages`, now defaults to `top_level_only=true`. Clients that need a combined timeline of main-room messages and thread replies must explicitly pass `top_level_only=false`.
+- Migration `0348_approval_expired_notice`, after `0347_network_connections`, admits the `approval_expired` notification event type in both notification CHECK constraints. Downgrade deletes `approval_expired` notification rows and preferences.
+- Relationship storage uses migration `0327_virtual_table_relations` after `0333_room_threads` and requires a complete Tables read/write outage: the record uniqueness constraint holds `ACCESS EXCLUSIVE` through the transactional backfill. Stop and drain Tables traffic, migrate, then start only versions maintaining normalized links. Invalid definitions abort; malformed links remain as repair evidence with original JSON, revisions and history retained. Rehearse on a restored copy and check per-organization quota headroom plus physical database/index growth. Quotas are not raised and retained data is not discarded. Downgrade also requires drained traffic and a deliberate application rollback.
+
+- Migration `0330_role_navigation.py` adds nullable organization sidebar preferences after `0329_user_appearance`; existing organizations retain their current navigation. Final release-train ordering is coordinated in #111.
+
+### Changed
+
+- Workflow image generation excludes GPT Image 2 until its provider documents a hard output-cost bound. Existing agent bindings remain available. The admitted Image 1.5 and 1 Mini output ceilings are checked against their documented token counts; unresolved native-tool input remains a separate hold rather than an invented charge.
+- Sync upstream to v1.73.0 while preserving the T3 overlay; migration histories join at `0324_merge_t3_upstream_v173` and `0325_merge_t3_rooms_v173`.
+
+### Security
+
+- Separate MCP connection use from administration on existing paths. Use grants continue to authorize agent/workflow binding, while editing, deleting, probing, reading call logs and changing sharing require management authority or an edit grant within the existing route gates. Existing role scopes and published-agent delegation remain in place; no grants are promoted and no new discovery endpoint is added.
+
 ### Added
 
+- A member or builder may now decide an approval on a run they started, from a signed-in web or chat session. `approvals:decide` is held at `OWN` for those roles; cross-person approvals, workflow approvals, routine standing consent and the organization waiver switch stay with owner, admin and operator. The approvals queue, its export and the pending-approval count show a member only their own runs' rows. When an approval expires unanswered, the run's owner is told through the notification centre, with the reason and a link to the run where Retry is one click; a run that parked in a chat already heard the expiry there, so it gets no second notice. Migration `0348_approval_expired_notice` admits the new `approval_expired` event type.
+- Devices & networks supports explicitly enrolling a personal or organization Tailscale connection, viewing its last known peer metadata, refreshing status, pausing and revoking. Each connection has its own encrypted node state and bounded broker process; sign-in links stay bound to the initiating member and session. This enrollment foundation does not expose remote browser, terminal, file-transfer or arbitrary network access. The runtime is disabled by default and needs deployment acceptance before enablement.
+- Shared chat supports explicit human and agent participants, private and organization-public rooms, public-room joining, and in-place conversion of an existing conversation with its history. Select people or agents with `@`; human mentions notify and each mentioned agent gets one ordered, retry-safe request. Agents are mention-only by default, with optional bounded automatic replies. Rooms also support uploads, emoji reactions, thread following and unread state, and open/closed/archived threads. See the [Agentes comparison and implementation boundaries](https://github.com/t3grp/agenticos/blob/t3/docs/design/agentes-chat-parity.md).
+- Hosted browser teaching has an opt-in capture and review flow: exact live-takeover capture stores structural actions and parameter placeholders, explicit review creates an ordinary pending skill proposal, and later browsing discovers only approved versions bound to the current agent and origin. Optional member-approved task learning waits for actual final run completion and still requires review/apply. Authentication and protected credential delivery stop capture; typed values and raw page output never enter the recording. The default reviewed draft uses no model, optional assistant drafting requires an explicit budget, and unknown attempts never retry automatically. Hosted controls, owner capture discovery, review, parameter selection, a draft-only Skills handoff and organization/member controls are implemented. Synthetic Chromium and native PostgreSQL acceptance cover the backend; combined rendered and deployed acceptance remain required. See the [runtime and UI contract](docs/design/browser-teaching-site-memory.md).
+- Browser credentials have an opt-in reviewed fill flow: durable IDs-only plans, exact-origin and field confirmation, one owning native writer, and a separate explicit submission action. Shared credentials require immutable-owner policy naming both agents and members. The server may decrypt for metadata checks; decrypted values never enter model, API or event output. Output protection starts before the DOM write, clears cached frames and stays active across redirects and uncertain outcomes. Review, Fill and Submit controls are implemented with synthetic Chromium and native PostgreSQL proof; combined rendered and deployed acceptance remain required. The writer never submits during fill, while an approved website can react to values it receives.
+- Browser credential continuation requires a separate confirmation before copying bounded origin-scoped cookies into a fresh context that remains permanently protected. Keep signed in is off by default, and an explicitly saved credential-derived session expires within seven days and rechecks every contributing credential generation before restore. Original and continued views remain protected; uncertain outcomes recover through reads and never replay an effect. Unrestricted ordinary browser output after sign-in remains unfulfilled.
+- Browser login and profile credentials have typed personal vault storage, exact HTTPS origin restrictions, optional TOTP settings and metadata that contains only available field names. Envelopes bind both the organization and owner; active membership is checked for access and replacement. Generic agent secret injection, transport readers and ownership adoption refuse these records. Key rotation preserves the same owner binding, and saved cookie sessions remain separate. This storage checkpoint does not enable browser filling.
+- Default-disabled workflow image/video nodes use a durable operation journal, exact dispatch-token fencing, conservative cost/byte reservations, and atomic publication of an inspected run file. Known receipts collect the same job; retained output recovers the same file; unknown submission cannot automatically resubmit. Held, incurred and booked amounts remain distinct, fees are booked once through the canonical workflow ledger, and unresolved commitments survive lease expiry and retention. The server estimate and authorized node-run summary expose safe facts for the editor and run UI. See [media configuration and recovery](docs/workflows.md#media-inputs-and-generation).
+- Workflow media catalogs expose verified request options, explicit defaults and dated reservation bounds to both editors. Generation config refuses unsupported reference images and unpriced options before spending; the credential reader locks and rechecks the run principal's original provider key. Ordinary agent budget checks also account for unresolved media commitments without changing booked-spend reports.
+- Shared media execution supports strict single-request image calls and closed video job/file receipts for workflow integration. Protected video collection pins download destinations, and receipt recovery never submits another generation. Existing agent metering and storage remain owned by the agent tools. Combined release and live acceptance remain separate gates.
+- A default-disabled workflow Asset node verifies authorized stored image, audio and video files before exposing media metadata. Image decoding and local FFprobe inspection enforce byte, pixel, duration, process and output limits; the node never fetches a URL or calls a provider. Its permanent definition remains readable while unavailable for new steps.
+- Manual context compaction for an idle owned personal conversation using the published agent's supported summarizing strategy. It preserves the transcript and draft, reports progress and results, supports cancellation, and uses the existing run ledger, usage budgets and guarded history snapshot.
+
+- Reply to selected message text in personal chats and writable room discussions. Bounded excerpts survive reload and model-history reconstruction, retain the original saved segment in combined assistant turns, and are checked against their authorized source.
+
+- Personal message pins in chat: bookmark saved messages, browse a paged private list, and reopen an exact message or room reply. Read-only recipients can keep their own pins without changing the shared transcript.
+
+- Chat side threads open a separate saved conversation from a completed answer beside its parent. Existing branches can be reopened, archived children remain read-only, and Back to parent returns to the source message without replacing the parent's draft or queue.
+
+- Chat message search across accessible conversations, with readable excerpts, a title-search mode, and exact links that load older messages or room-thread replies without losing the reader's place.
+
+- Chat activity search and filters: find text in a turn's reasoning, messages, tool arguments and results; show tools, reasoning, errors or messages while steps awaiting your input remain visible.
+- Chat offers Queue or Steer while an agent is working, with a preference scoped to the member, organization and agent. Plain-text guidance can reach the current turn; rich messages keep their context in the existing queue and refused steering retains the draft. The model picker marks choices for after the turn and links editors to the agent draft's Thinking settings.
+
+- Chat has a Tasks panel on its right rail. Browse background work from this chat or across your agents, search task titles, and open work grouped by Needs you, Working, Waiting and Finished. The panel reuses the current member and organization access checks; read-only chats hide Stop.
+- Message-level side threads in Team rooms: open a saved message's thread, follow its reply count, share its direct link, and post human messages or explicitly ask an agent inside it. Threads inherit the room's project audience and share its durable request queue. Replies, resumed answers, drafts and uncertain retries retain their thread; ordinary quoted replies remain separate. Agent history prioritizes the root and thread replies, with earlier main-room context filling the remaining history budget.
+- A thread run keeps its own paused state and does not inherit or replace the main room's plan, reminder or compaction state. Removing a chat from its project keeps existing threads readable under that chat's remaining access, with further thread replies disabled. Saving an answer as a dataset example keeps its question, answer and history in the same discussion, so interleaved messages from other threads do not contaminate the example.
+- Record updates accept atomic `link_changes` keyed by immutable link column IDs. Explicit additions and removals require current target read access, preserve unnamed hidden links, and share scalar edits' revision, history, transaction and idempotency behavior. The grid and record panel send link deltas and retain those choices through conflicts, so reapplying an edit preserves unrelated links added by another writer.
+- An Agent settings pane beside chat, with explicit draft saving for name, description, instructions, default model and configured capability switches. Editing and publishing use per-agent access hints, including resource grants. Publishing validates the draft and uses the existing version/environment confirmation. Edits survive switching workspace panes; remote changes pause saving. Chat model overrides and running turns keep their existing scope.
+- The agent chat header has a compact model selector with provider icons, saved-model search, explicit account filtering and a return to the agent's model. It preserves chat preferences, permission gates and the advanced connection setup in Controls; disconnected or non-chat models stay unavailable.
+- Browser, Computer and Files controls beside full desktop chats, with separate panels that open before tool activity. The rail is hidden on phones and in compact chats. Hosted-tool start actions use the selected agent's published configuration and run permissions. Opening an empty panel starts no run; completed browser and desktop images are clearly marked as the last view, and closing a panel keeps it closed as new results arrive.
+- Organization-specific sidebar visibility for the six built-in roles, configured in Users & Roles with a grouped preview, save, discard and reset controls. Owners can configure Admin and lower roles; Admins can configure lower roles. Desktop, mobile, pinned Apps/Projects and command search use the same policy. Dashboard, Organizations, Owner and platform-admin recovery remain available. These preferences do not change API permissions, direct-link access or resource grants. Writes are tenant-scoped and audited.
+- Account appearance saves theme, style, accent colour, corners, text size, motion, voice glow and workflow steps across devices. Profile settings provide a live preview, Apply, Discard and Reset; the account menu and workflow toolbar save directly. Approved platform tools can read, change or reset only the requesting person's appearance from their own session or unshared private chat. Shared, unattended and impersonated contexts are refused. Existing browser preferences are not attributed to an account automatically; choose and apply them once. Migration `0329_user_appearance` adds the nullable account preference column.
+
+- Tables can enforce an additional PostgreSQL tenant boundary across their complete data family. Request and background transactions bind one trusted organization; active enforcement refuses missing context, privileged runtime roles, partial activation and policy drift. Operator preflight checks ownership, privileges, database identity and legacy parent integrity before an explicit atomic cutover. Authorized global account export/deletion uses a separately verified maintenance connection, with audit and cleanup in the same transaction.
+
+- Linked table records use ordered, same-organization relationships with database-enforced endpoints and per-field limits. Current reads, filters, project access and edits use these connections; backlinks require access to both endpoints. Invalid legacy links remain as repair evidence, and edits retain hidden valid destinations. Relationship definitions, connections and evidence count toward storage quotas, with atomic refusal of table creation, schema changes and batch writes.
+- Record updates accept atomic `link_changes` keyed by immutable link column IDs. Explicit additions and removals require current target read access, preserve unnamed hidden links, and share scalar edits' revision, history, transaction and idempotency behavior. The grid and record panel send link deltas and retain those choices through conflicts, so reapplying an edit preserves unrelated links added by another writer.
+- Explicit Read and Write access on table rows for members and groups, with expiry, revocation and row-sharing controls. Write includes Read and ordinary cell edits; deletion, access changes and schema administration retain separate checks. Row policies can require explicit grants or use Read/Write people fields. Effective row permissions drive grid, detail and kanban controls, catalog counts follow row visibility, and idempotent write replays recheck current authority, including cached batch errors. External-ID refusals do not reveal hidden record IDs or revisions. Authorized receipts remain readable after archiving without enabling new writes. Existing task boards retain their access model.
+- Message-level side threads in Team rooms: open a saved message's thread, follow its reply count, share its direct link, and post human messages or explicitly ask an agent inside it. Threads inherit the room's project audience and share its durable request queue. Replies, resumed answers, drafts and uncertain retries retain their thread; ordinary quoted replies remain separate. Agent history prioritizes the root and thread replies, with earlier main-room context filling the remaining history budget.
+- A thread run keeps its own paused state and does not inherit or replace the main room's plan, reminder or compaction state. Removing a chat from its project keeps existing threads readable under that chat's remaining access, with further thread replies disabled. Saving an answer as a dataset example keeps its question, answer and history in the same discussion, so interleaved messages from other threads do not contaminate the example.
+- Owner-requested coding-account usage refreshes run a bounded Codex 0.160.0 metadata probe before any coding task, with no model turn. Quota windows and explicit readiness are cached per owner/account generation; provider-advertised model ids require a fresh remote native catalog. The API preserves unknown or unsupported states, refuses account-identity mismatches and rechecks consent before publishing observations. Profile controls provide an explicit refresh, read-only progress polling and source, validity and reset times; expired observations are not shown as current quota. Real-provider acceptance remains outstanding.
+- Project-room messaging APIs accept human posts without a model call and explicit requests for published cloud agents. A PostgreSQL submission ledger deduplicates retries, queues agent requests per conversation and retains their original requester; permissions are checked when accepted and when work starts or resumes. A waiting approval or answer keeps the room queue blocked. Queued follow-ups read earlier messages and the completed answers to preceding requests, while excluding later prompts. Migration `0311_room_submissions.py` follows `0303_virtual_table_row_policy.py`, which follows `0310_secret_requests.py`; the separate Team rooms interface uses these endpoints.
+- Open console tabs detect a newly deployed frontend and show a persistent top-center update notice with a Reload button, matching ServerOS. Checks run every minute while visible and when the tab returns; the app reloads only when the person chooses it. Build identities detect updates even when the release number is unchanged.
+- Row-level access for tables, by assignee: a table may carry a row policy naming the user or multi-user column that gates viewing and the one that gates editing, plus an optional project half (a link column, a projects table and its members column) that widens viewing to project members. A row with an empty assignee is visible to nobody except the deployment owner, the table owner and Owner/Admin roles; Builders and Operators get the predicate applied like everyone else. Creating a row its creator cannot see is refused, as are updates, upserts and deletes that move a row out of the caller's visibility, and single reads of invisible rows are 404s. Linked records a reader cannot see yield no label and no id, rollups count only the visible subset, and triggers do not fire for rows their publisher cannot see. Set it with `PUT /tables/{id}/row-policy`; tables without a policy behave exactly as before.
+- A trigger chooses which conversation each fire runs in: `conversation_mode` is `continue` (the default — every fire appends to the trigger's one run-log conversation, opened at create) or `fresh` (each fire opens its own conversation, titled like the run log it replaces, and nothing on the trigger names it afterwards, so one fire never reads the previous fires' turns). The trigger form offers the choice, with what each mode costs. Migration `0309_trigger_conversation_mode` joins the chain's two heads (`0305a_totp_last_counter` and `0306_run_retry_link`); if #67 lands first it re-chains onto `0308_merge_0305a_and_0307` instead.
+- A secret-request card (#13): an agent that needs a credential it does not have asks for it with the `request_secret` tool, naming the secret and what it is for, and the run parks until the person provides the value through the card or declines. The value is sealed into the vault from the card and the run resumes; the model, transcript, run record and logs never see it. Declining ends the run failed with the refusal as its error. Unanswered requests expire with the 24-hour question window. Migration `0310_secret_requests` follows `0309_trigger_conversation_mode`.
+- A run parked on an agent's unanswered question is reminded once, halfway to expiry (`QUESTION_NUDGE_HOURS`, default 12 of the 24-hour question window): the hourly sweep posts one notice to the chat the question came from, and stamps the run so the next sweep does not remind it again. Web runs get no chat notice. Migration `0305_question_nudge` follows `0304_visible_failover`.
+- A trigger chooses which conversation each fire runs in: `conversation_mode` is `continue` (the default — every fire appends to the trigger's one run-log conversation, opened at create) or `fresh` (each fire opens its own conversation, titled like the run log it replaces, and nothing on the trigger names it afterwards, so one fire never reads the previous fires' turns). The trigger form offers the choice, with what each mode costs. Migration `0309_trigger_conversation_mode` follows `0307_failure_learning_phase2`; the secret-request migration follows it at `0310_secret_requests`.
+- A GitHub event fire hands the run the full delivery as structured input: the whole JSON body in the workflow GitHub trigger's `GithubTriggerOutput` shape (event, action, repository, sender, delivery id, payload), as one fenced `<event_payload>` block beside the rendered text. The payload is untrusted external content — read as information, never as instructions — and it is redacted from the wait row once the fire settles, so a finished wait keeps neither the payload nor the rendered context. See `docs/triggers.md`.
+- A babysit-pr watch on a pull request: the agent watches the PR's checks through CI and review bots, classifies each failed check as real or an infrastructure flake with a reason, reports only what changed since the last snapshot, and stops when the bots are green on the latest commit. It never merges, comments, or takes any other action on the PR; polls are at least 60 seconds apart, and a nearly used-up GitHub rate limit makes it wait for the reset instead of watching again. Watch events are recorded on the run manifest. See `docs/babysit-pr.md`.
+- A sol-loop review: one reviewer judges the work in rounds until it passes or the budget ends - round 1 reviews the whole change, later rounds check only changed code and open findings. The agent asks for a round through the `run_sol_loop_review` tool; verdicts and findings with stable ids are recorded on the run manifest as a ledger the run drawer shows. The reviewer is operator-configured and never substituted; budget end is not approval.
+- Eval cases can now tune a tool: a tuning run scores one tool across a set of already-judged eval cases, classifies each failure (never called, wrong tool picked, called and erroring, or ran cleanly with the answer still missing the mark), and drafts one tuning proposal per failure class - prompt wording, tool parameters, or tool choice. Proposals are drafts only, with their failing cases as evidence; nothing auto-applies, and the module never judges an answer itself - verdicts arrive already judged by the failure-learning loop's `judge()` (#32, not yet merged). Tuning runs are recorded on the run manifest (capped at 10, no migration).
+- Burst mode: split one task into independent subtasks, run them in parallel, and merge the results into one outcome. The agent splits the task first and shows the split to the person, then asks for a burst through the `run_burst` tool; the call fans the parts out to workers in parallel on the run's own model and returns the merged outcome. A part that fails is reported as failed with its reason and named under a `FAILED` heading in the merge, never dropped and never presented as finished. The subtask cap mirrors the subagents `max_fanout` ceiling (default 3, hard max 10) rather than raising it, and bursts are recorded on the run manifest as a ledger the run drawer shows. This is OpenMausBot v0.1.153 Burst mode as a capability, not a copy of its code.
+- Automatic skill learning: an approved skill-target proposal from the failure-learning loop can now be materialised in the skill catalog via `POST /v1/agents/{agent_id}/learned-skills`. A proposal that names an existing skill updates it through the one skill writer (or reports it already learned). Learning a proposal without a skill target, or one that is not applied or was reverted, now returns 404. The request fields `name` and `description` and the response field `created` are deprecated: `name` and `description` are still accepted and ignored, and `created` is always `false`. Learning the same proposal twice writes nothing the second time, a skill rewritten since the proposal was written is refused rather than overwritten, and every write is audited as `skill.learned` with the proposal, ledger entry and pattern key as provenance. No migration: learned skills are ordinary `skills` rows. Built on #32's human-approved proposals: the stored proposal supplies the target, text and provenance; the request still sends `content`, which must match the proposal's text.
+
+- Team rooms in the main project-chat console: create an empty room, see its project audience and presence, post human messages with Team only selected, or explicitly choose a published cloud agent. The server queue shows request status and lets requesters cancel queued work. Exact retries retain their message identity after an uncertain response. The first room composer supports text and quoted replies; personal chats and the floating assistant keep their existing controls. Requires the companion room-messaging backend and migration.
+- A run now records whether a fallback model served it. The run row carries `fallback_used` and `serving_model` (the bare model id that answered last), derived from the per-request models in the run manifest, and the run detail view shows them. Until now a fallback was invisible in the run record: the row named the primary profile however the turn was answered.
+- Proof scenarios record observed evidence for a change: an agent records a reproduction before the fix and after it, and the coverage verdict reports which changed files have proof and which do not. A scenario is proven only when the same reproduction failed before the fix and passed after it, both times with observed evidence; a green unit test is recorded but never counts as proof. The merge gate's proof half adds the required checks and open review findings, as a report only - it never merges or approves anything. Scenarios live on the run manifest and the run drawer shows them.
+- Model requests now have deadlines by default: 300 seconds for one request (`request_timeout`, and `timeout` per attempt) and 120 seconds for the first streamed event (`first_event_timeout`). A model profile or an agent spec can raise or lower them; `request_timeout` and `first_event_timeout` are new optional `model_settings`. When a deadline passes, the run ends as `timed_out` — with the deadline in its stored error — rather than showing "Working" for ever, and the fallback chain is tried first where one is configured. A run whose process has gone quiet shows as stalled in chat once its heartbeat is 90 seconds old; a turn whose model stream closes without producing anything fails loudly instead of completing as an empty answer.
+- A council review: three delegate reviewers, one strong model from each of three different providers at high reasoning effort, run in parallel and scored out of 10 per round, looping until all delegates are satisfied. The agent asks for a round through the `run_council_review` tool; scores are recorded on the run manifest and rendered as a table for the PR description.
+- A run parked on an unanswered question or an undecided approval is visible as waiting on the conversation list, from any tab or device: the listing carries when it parked, what it is waiting on, and its first unanswered question. The run read carries the full unanswered questions and when they expire. A parked run is not at work, so it never counted as running; now it no longer looks finished either.
+
+- A coding task that could not run - no sandbox, no API key, a credential that does not fit, a sign-in the runner may not see, a sandbox that would not run it, a harness that is not installed - now fails as a report (`outcome: "failed"`) instead of a bare sentence. The words are the same; the transcript marks the failure with the red badge rather than letting the model answer from the sentence as if it were a result. Prompts the model can act on (an empty task, a bad session name, a folder to choose) still steer it to try again.
+- Apps can be favourited per person; the app list can return only apps the caller has favourited, newest star first.
+- Chats can be assigned to a project or removed from one after creation. The association changes without moving chat files or project workspace contents.
+- The failure-learning loop (Phase 3): console pages for the loop — an org-wide patterns page under Monitoring and a Failure learning tab on the agent page with its patterns, ledger, eval cases and proposals. Cases list their latest try verdict, are created pre-filled from a source run, and run in tries over checked cases with a draft proposal's text or a typed override, never both; proposal review shows the old/new diff with per-case gate verdicts, and apply requires a passing eval try for instructions or the exact skill proposal content. Skill applies snapshot the previous content for one-shot rollback. The tab counts live rules as three separate figures — applied proposals, open entries (draft or open), resolved entries — never added. A daily `failure-ledger-digest` schedule snapshots new patterns into DRAFT ledger entries and mails one digest per organization with anything new; when its recipient setting is empty it logs a no-op. Tries are synchronous and capped at ten agent runs per request. See [the failure-learning guide](docs/failure-learning.md).
+- The failure-learning loop (Phase 2): instruction proposals that hold one rule-text change with its eval evidence, and an audited apply. Applying an instruction proposal re-checks the linked try's gate at apply time, then guards against a republished agent (409) and unpublished draft edits (409) before saving the draft and publishing it; the linked ledger entry resolves and the applied version is recorded as the rollback handle. Skill proposals record their base and tested content hashes, apply only after the linked try passes, and retain a prior-content snapshot for one-shot rollback. Tries may name a draft proposal and run its exact new instructions or skill content. Tries are capped at ten agent runs per request. New migrations `0306_failure_learning_phase1` and `0307_failure_learning_phase2`. See [the failure-learning guide](docs/failure-learning.md).
+- The failure-learning loop (Phase 1): live mining of repeating failures from `agent_runs` and `message_ratings` (failed runs by error class, model-wide failures, stalled runs, down-rated answers), a per-agent and per-model ledger with one open entry per pattern, eval cases (max 50 per agent), and eval tries that run the old published spec against new instructions and judge the gate when read. Tries run synchronously and are rate-limited on the `agent_eval_run` surface; proposals and applying a fix arrive in Phase 2. See [the failure-learning guide](docs/failure-learning.md).
+- An opt-in finance and accounting pack with 15 agent templates and 43 skills, including all ten Anthropic financial-services agents and five community Agency Agents roles. Templates install as editable organization-owned drafts. The included installer supports read-only planning, organization checks and idempotent re-runs, and refuses conflicts with edited copies. Bundled references retain pinned sources and licences. Configure the model, client knowledge, connectors and artifact runtime, then review before publishing. See the [pack guide](https://github.com/t3grp/agenticos/blob/t3/integrations/accounting-firm/README.md).
 - A usable `/onboarding` page, linked from the account menu, with optional
   Composio app connections and a direct path into the workspace. App consent
   opens separately so setup can be skipped or resumed without blocking access.
@@ -58,9 +163,1785 @@ Two things are versioned separately from this file and worth knowing about:
 - Added opt-in systemd units for daily removal of Docker build cache unused for
   24 hours, independent of disk usage. This separate cache-only job leaves images,
   containers, volumes and networks intact.
+- A harness capability backs an agent with a Claude Code or Codex session in its sandbox, kept open across turns: `harness_start` opens a named session with a first prompt, `harness_prompt` sends it the next one, `harness_stop` closes it and `harness_sessions` lists the open ones. The session is the CLI's own, resumed by an id kept beside the work, and a prompt runs through the same detached execution, live narration, budget ledger and approval as a coding agent's task. A ChatGPT sign-in for Codex is not accepted yet; Codex runs on an OpenAI API key.
+- The harness capability also drives OpenCode, Gemini CLI and Pi sessions, on the same pattern: the same session lifecycle and `read_only` / `edit` access semantics where the CLI supports them, with the CLI's own session id resumed across turns. The credential follows the model for OpenCode and Pi, and is always a Gemini API key for Gemini CLI. The adapters are written from the CLIs' public docs and are untested against the real CLIs; a harness that is not installed reports as failed rather than claiming otherwise.
+- `agenticos cmd seed-demo` seeds a curated demo workspace — a "Demo — first-run example" project with a fictional Northwind meeting-notes conversation — for the guided first run. The stored answer carries `model_name="demo"` and no run id, so it can never count as a real completed run. It takes an organization id or exact name, is idempotent, and `--clear` removes every seeded project and demo chat (even a renamed one) through the normal project delete, so grants, tasks, triggers and the audit entry go too. An unknown or ambiguous organization exits non-zero, so `quickstart.sh --demo` fails instead of reporting success. `scripts/quickstart.sh --demo` runs it after bootstrap.
+
+### Fixed
+
+- Manual chat compaction resolves the published model's defaults, agent settings and Thinking capability before requesting a summary. It uses the already prepared model and refuses incomplete model preparation.
+- The first-run start offer can now appear: it no longer requires zero agents, which bootstrap made impossible by always publishing the Architect and AgenticOS starter agents. It is offered until the user has any activity or a real completed run, completes onboarding, or dismisses it — so the dashboard checklist and the chat start offer reach the guided start on a fresh install.
+- `docs/first-agent.md` no longer claims a walkthrough opens on first sign-in: nothing opens on its own, and the walkthrough is offered from the dashboard's first-run checklist and the guided start, or replayed with the header **?**. The German, Spanish and Polish translations carry the same correction.
+- Atomic table link changes refuse hidden and unknown targets identically even when the stored link cell is full, so cardinality errors cannot reveal an existing hidden connection.
+- Table link replacements validate every explicitly submitted destination before accepting an unchanged write. Hidden and missing destination IDs receive the same refusal; omitted hidden links remain preserved for older clients.
+- Table upserts return the same refusal for a hidden external ID and an unavailable creation, including absent or stale revisions, so row-grant readers cannot use error messages to discover hidden records.
+- Relationship backfill refuses invalid stored link limits, including zero, false and blank values. Only omitted or null limits use the legacy default; a refusal rolls back the new relationship tables without rewriting source data.
+- Deleting an app waits for workflow worker mutations before changing its rows, preventing a deadlock while a worker finishes a run started by that app.
+- Completed room answers containing only text can recover a missed save acknowledgement from history, restoring reply, fork and rating actions. Local tool results, thinking, errors, and pending approvals or questions retain their existing state.
+- Table links expose only readable destination IDs and labels, including exports and projected reads. Link filters and counts use the same visible destinations, and legacy array replacements retain hidden existing links. Invalid stored row policies block record access with a repairable `ROW_POLICY_INVALID` error instead of disabling restrictions.
+- Chat followers recover saved-answer acknowledgements and final outcomes when a turn finishes during replay or a quiet interval. Sequence checks keep recovered frames in order without duplicating earlier output.
+- Room workers carry the persisted assistant message ID through their completion callback so connected participants receive a save acknowledgement before the turn ends. The acknowledgement still requires a separately committed message from the same run.
+
+## [1.90.1] - 2026-11-22
+
+### Fixed
+
+- Preserve authenticated value-only question-answer citations when restoring labelled answer context, so a confirmed multi-question automation request is not dropped before proposal generation.
+
+- Initialize channel adapters before personal Inbox workers verify current channel membership, so authorized Slack and Mattermost conversations are not omitted when the API lifespan has not run. Unavailable or revoked membership still refuses access.
+
+## [1.90.0] - 2026-11-22
+
+### Upgrading
+
+- Migration `0349_personal_work_context.py` adds a rebuildable, membership-private work index. Existing authorized history is indexed lazily within the configured proactivity budget; the migration makes no model calls. Deploy API and workers together. The migration also adds the `personal` proposal kind; downgrading removes these rebuildable proposals. Export them first if their decisions must be retained.
+
+### Added
+
+- Build personal Inbox proposals from source-linked conversation history, memory, profile, projects, private tasks, current routines and prior decisions. Reuse unchanged source checkpoints, continue large histories across bounded jobs, and independently verify proposed actions before delivery. Keep paid execution, scheduling and publication behind their established approvals.
+
+### Fixed
+
+- Memory maintenance preserves human statements before long assistant answers and reads authenticated native question answers without treating remote tool text as human evidence.
+
+## [1.89.1] - 2026-11-22
+
+### Fixed
+
+- Recognize the official November 12 and 14 AgenticOS starter templates when upgrading older organizations. Refresh untouched shipped defaults while preserving custom prompts, tools, model choices, budgets and unpublished edits.
+
+## [1.89.0] - 2026-11-21
+
+### Upgrading
+
+- Deploy the API and workers together. New and re-reviewed routines store their source mode, which older workers cannot read. Existing stored routines without a mode retain their restricted policy.
+
+### Added
+
+- Let new routines use their agent's available configuration and approval rules without an initial setup review. Retain the creator-approved access and behavior ceiling: later source/tool expansions or behavior changes require owner review, while model-only updates and safe removals remain allowed. Missing optional MCP accounts do not block unrelated work; required source identity and mandatory approvals remain enforced.
+
+- Let operators queue a bounded refresh of open generated Inbox proposals in one organization. Keep decisions, findings and linked cases, and retain the old proposals when generation fails or a person decides during the refresh.
 
 ### Changed
 
+- Prepare actionable Inbox chat drafts from generated proposal text and source evidence, including local weekdays and time zones. Keep drafts editable and show only two starter prompts on phones.
+
+### Fixed
+
+- Claim a generated Inbox proposal before accepting or dismissing it, so refresh waits for an in-progress decision instead of deleting the card during profile updates or role-pack setup.
+
+- Open links to verified tool-produced files in the scoped workspace viewer instead of navigating to nonexistent console pages, and do not present failed writes as produced files.
+
+- Distinguish chat workspaces that have not been created or retained from sandbox connection failures. Keep file attachments available and preserve explicit errors for lost recorded sessions and failed connections.
+
+- Keep routine titles readable in narrow chat cards, with wrapping status and action controls based on the card's available width.
+
+- Preserve the reader's position when a live question appears and keep selected answers visible across submission, server acknowledgements and transcript reloads.
+
+## [1.88.0] - 2026-11-21
+
+### Added
+
+- Find unanswered web-chat questions in Inbox and return to their original question cards, including older conversations.
+
+- Configure custom OpenAI-compatible and Anthropic-compatible model endpoints, with explicit authenticated model discovery.
+
+- Mark agent Evals and Knowledge gaps tabs with accessible attention reasons and open attention cards on Evals.
+
+- Discard unpublished agent draft changes back to the latest published version, with revision checks and confirmation.
+
+- Change an existing workflow's audience under **More → Settings → Access**, including organization visibility and grants for individual people or groups.
+
+- Resume unfinished setup from the sidebar or personal settings, with a clear setup link, progress artwork and organization-scoped return to the last step. Configure reminder availability in deployment settings, defaults in the organization and personal 1/3/7-day snoozes; the default is one day.
+
+- Configure the new-chat Inbox, starter messages, greeting and feature hints independently. Deployment availability constrains organization defaults and each member's personal choices.
+
+- Give announcements an optional expiry time and maintenance notices an informational planned end. Maintenance remains active until an administrator turns it off.
+
+- Let deployment administrators send account recovery emails or copy a one-hour, single-use password reset link from the user inspector. Show users' last activity and active session counts.
+
+- Open an Inbox item in a new private chat with an editable question. The assistant can read the signed-in person's findings and suggestions and link back to them.
+
+- Show the same approval cards in Inbox and Activity, with details and inline approval and rejection.
+
+- Let agent authors hide suggested first messages. Keep the new-chat Inbox preview bounded to two rows, with urgent items first.
+
+- Search readable chat message text as well as conversation titles, with highlighted excerpts, matching-message counts and keyboard navigation. Reuse the existing full-text index and transcript access checks.
+
+- Use a compact main-chat composer with files beside the agent, direct model and permission controls, icon-only context usage and matching dictation/call panels. Preview Inbox topics in new chats with their MCP source marks.
+
+- Show model-maker icons in the model field and searchable catalog, independently of the routing provider. Use a neutral mark for unknown makers.
+
+- Show the accessible published-agent toggle beside Delegates and enable it in AgenticOS. Keep delegation to explicit user requests in its default instructions, and disable dynamic specialist creation. Existing permissions and unattended-routine restrictions still apply.
+
+- Default AgenticOS to Built in browsing with 100 steps per call and Docker / Sandbox Computer use. Include workbench coding and document tools in the desktop runtime. Missing browser configuration or an unavailable browser container does not block the rest of an agent.
+
+- Keep named private cloud coding sessions with native CLI history and separate files. Queue tasks using the same personal account, allow Claude Code and Codex through different accounts concurrently, and show whether a session is new or continued. Clean up retained containers when account consent or ownership ends.
+- Let private cloud coding tasks choose Claude Code or Codex per task through one agent, using the initiating person’s own enabled account and an isolated container. Show both account connections in chat while preserving per-account exclusivity, read-only policy and organization-sandbox credentials.
+
+### Changed
+
+- Align agent-card separators across short descriptions and attention states. Keep catalog search usable during loading, simplify chat renaming, and leave an empty Inbox preview blank without moving the composer.
+
+- Keep mobile chat actions within one context panel, with inline renaming, sharing with Back and independently scrolling search results. Refine shared field contrast, touch heights and overlay shadows; show Voice calls and Dictation in one Builder list.
+
+- Let authorized ordinary task and table-record edits, resource creation and draft authoring run without an extra MCP approval by default. Explicit author requirements can tighten these defaults. Execution, schema changes, automation, publication, deletion and administration still require a fresh per-call answer; task writes that can schedule agent work do too.
+
+- Guide AgenticOS to check the person's task board at an initial private greeting, offer structured tables for collected work and suggest routines for recurring questions. Keep creation and activation tied to an explicit request or accepted proposal.
+
+- Use generated Architect avatars consistently, preserving custom uploads. Move administration into the profile menu and use shared tabs for deployment settings. Keep both personal memory tabs and Kanban columns at the available page height, with a full-card drag preview.
+
+- Align urgency labels across Inbox, chat and the dashboard. Refine Agent Builder instruction controls, model-access disclosure and optional-section spacing, and keep all guided setup steps in the same layout.
+
+- Align primary tables with the available page height and keep pagination visible, including one-page lists. Preserve server pagination and embedded table layouts.
+
+- Simplify workflow templates and run feedback, resource cards and Dataset settings. Keep Agent Builder model configuration visible and optional settings in compact sections.
+
+- Standardize chat Files and Sources panels, compact permission/context/project controls, and keep tool diagnostics raw while showing produced outputs once. Group conversations by project in the default Workspace layout. Compare alternatives with `sidebar=compact` or `sidebar=comfortable`; `sidebar=workspace` explicitly selects the default.
+
+- Use neutral light surfaces and progressive disclosure in Agent Builder, onboarding and settings. Edit welcome content directly in its onboarding preview; retain clear loading, empty, permission and retry states throughout resource catalogs.
+
+- Keep chat work collapsed by default during execution and replay. Show questions inline with acknowledged answer receipts, preserve the reader’s viewport, and keep repeated tool frames from duplicating or reopening completed calls.
+
+- Simplify console typography and dark surfaces; use blue focus and links, green enabled switches, and concise authentication screens. Show current configuration in Agent Builder section summaries.
+
+- Keep the empty chat's `/` and `@` hint visible on focus. Hide starter prompts while typing without moving the composer; shorten the Inbox preview and keep a link to the full Inbox.
+
+- Preview agent avatars in the template catalog, including the artwork installed with bundled agents.
+
+- Lighten file editors and file selection in the light theme. Show Model by default in Activity, put background job lists behind paginated disclosures, and align Sandboxes and Channels with the Vault tables.
+
+- Render conversations shared by link as read-only chat transcripts with formatted answers, readable message widths, and inline visuals.
+
+- Move credential selection to a Key tab in the chat model picker and use single-line model labels across shared selectors.
+
+- Simplify Agent Builder section headers and fold Variables, Voice, and First messages behind current-configuration summaries. Move name, description, categories, and tags to the Details dialog in the agent actions menu. Use the standard card surface for MCP servers in both the catalog and Builder.
+
+- Keep Back and the primary action in a shared onboarding footer as users move through organization and member setup.
+
+- Default personal Codex connections to the shared ChatGPT sign-in form and name coding accounts automatically.
+
+- Align question cards with the chat composer, use catalog model names, and rename conversations in a dialog with explicit save. Share links use the same copy field as Apps and settings open at the top.
+
+- Give short personal memories and longer notes separate tabs. With Memory enabled, private conversations get a bounded overview automatically, with a separate switch in the Builder.
+
+- Show the agent's avatar beside its name in personal memory lists and details.
+
+- Review changes to customized AgenticOS and Architect defaults before applying them. Bundled Context updates use the existing Context proposal review.
+
+- Give AgenticOS a shorter default prompt with better guidance for full source reading, personal memory, Skills, Context and routines. Delegate only on request or when the user accepts a specific offer.
+
+- Open suggested Inbox topics as editable chat drafts and put secondary Inbox actions in a menu. Highlight links to console resources and inline code in chat, and show compact approval cards aligned with the composer, including after reload.
+
+- Ground automatic memory updates in the user's words and give the daily briefing current memory and previous decisions. Check evidence for recurring suggestions and suppress repeats across suggestion types.
+
+- Guide the shipped AgenticOS assistant to check live task and Inbox evidence for planning questions and to use the installed platform's tools and official references when helping build agents and workflows.
+
+- Tighten the chat greeting, MCP cards and model library. Keep history groups visible as the chat list grows, give nested fields a complete focus outline and let chat choose among a provider's available key profiles.
+
+- Show the active agent’s opening prompts above the new-chat composer and add the selected prompt to the draft. Show Daily briefing above the composer with priority items, a pending approval count and a link to Inbox. Keep the animated welcome avatar responsive to reduced motion.
+
+- Share larger resource gallery cards across agents, tables, workflows, knowledge bases, projects, datasets, MCP, skills, context, Apps and groups. Use matching cards for the agent Builder settings, with Thinking and Answer format inside Model settings, visible default first messages, and Voice deep links.
+
+- Keep disclosure headers and capability artwork still while pressed, improve variable contrast in light mode, simplify conversation filters and open the Architect from the new-agent dialog footer without submitting a prompt.
+
+- Group consecutive tool calls and reasoning under a work summary while keeping all prose visible in order. Place dictation controls inside the composer and animate one primary action between dictation and sending in chat and Architect. Default Activity to include Asked by and open the MCP tab in API & MCP.
+- Use a provider library in main chat, with connected providers first, separate saved models, direct model selection and Vault credential forms available inside the picker.
+- Keep chat attachment previews inside the composer, contain background-topic retry errors, and glide shared tab and segmented selection markers between options.
+
+- Unify fields, menus, model and resource pickers, tabs, settings and native disclosures across the console using the accepted compact chat presentation. Preserve native keyboard behavior, reduced motion, touch targets, form drafts and hidden-field validation.
+
+- Keep the greeting, date, summary space and primary action consistent across personal, organization, group and deployment dashboards. Keep scope navigation aligned with its filters, retain navigation on empty layouts and animate scope changes.
+
+- Ease tab content into place across shared console tabs, draft versions, authoring comparisons, delegate details, browser previews and desktop Quick Ask. Respect reduced motion and keep the tab strip stationary.
+
+- Align the shipped AgenticOS toolbox with the selected toolbox, including container Computer use, add Context and default personal cloud coding without a shared account. Include code-review and context-design skills; preserve customized agent specs during normal default refreshes. Cloud coding stays disabled on deployments that cannot provide a container.
+
+- Refine the default AgenticOS assistant’s guidance for economical specialist delegation, safe tool-error recovery, editable drafts and artifact verification. Keep media generation tied to available configured tools and preserve personal model, budget and prompt choices during normal default refreshes.
+
+### Fixed
+
+- Honor the configured MCP workflow timeout for transport reads while retaining a separate three-second connection limit (#3214). Ambiguous writes are not replayed.
+
+- Retry an OpenRouter reasoning-refusal response once without altering recorded reasoning or retrying an already-started stream.
+
+- Preserve MCP account policies, pinned tools and agent configuration when reverting Builder edits.
+
+- Preserve URL chips when copying or cutting composer text. Keep question reveal buttons stable on phones, and give the model control a full row beside Send. Inbox preview rows now prepare an editable message without sending it.
+
+- Start navigation progress for button-driven routes, animate shared tab indicators, keep static settings still, and calculate Apps help steps before opening the tour.
+
+- Show retryable sharing and search failures explicitly and hide cached resource names after access is refused. Pause public chat following while reading older messages.
+
+- Keep Sources compact and restore the conversation list after closing them. Preserve question navigation when a chat mounts late, and keep dashboard sparkline tooltips inside their own column.
+
+- Use consistent Inbox rows, quieter agent and workflow statuses, and single-surface category and tag inputs. Support multiline messages in hosted chats and embedded widgets.
+
+- Align the queued-message panel with the chat composer. Link disabled approval modes to the active organization’s settings when the member may open them, and identify question steps by their subject.
+
+- Preserve IME text confirmation without sending a message, and associate invalid sign-in email feedback with its field.
+
+- Compress proxied API responses once so browsers can read populated organization, agent and conversation lists.
+
+- Update Next.js to 16.4.6 to address cache isolation, image validation and response-header security advisories.
+
+- Keep dictation available from Add to message while the main composer action sends an existing draft. Preserve insertion at the caret without sending the transcript.
+
+- Keep dashboard help open when the saved personal layout finishes loading.
+
+- Wait for a successful credential read before applying a model in chat settings, and let users retry a failed read.
+
+### Upgrading
+
+- Apply `0347_console_experience.py` and `0348_architect_generated_avatar.py` after the existing merge revisions. Nullable console overrides preserve existing presentation defaults. The avatar backfill clears only the recorded shipped Architect picture, retains uploaded replacements and does not delete picture files.
+
+- Review platform MCP approval defaults before upgrading. To retain confirmation for ordinary writes, set the affected tools to `required` or their platform binding to `all`. Always-confirmed operations cannot use Approve all or standing routine consent to skip their per-call decision.
+
+- Run `alembic upgrade head` to apply `0342_personal_coding_sessions.py`, `0343_bundled_context.py` and the merge revisions through `0346_merge_console_matrix.py`. Update API/workers together before using retained personal coding sessions. Existing workspace rows are unchanged. Sessions remain subject to provider idle expiry; failed tasks without confirmed safe retention are discarded.
+
+- Password reset links issued before this upgrade are invalidated. Request a new recovery email or have a deployment administrator issue a new link; new links are single-use and also expire after a password change.
+
+## [1.87.1] - 2026-11-21
+
+### Changed
+
+- Defer heavy CI on draft PRs until Ready for review, distribute backend tests
+  across four isolated jobs with the unchanged merged 100% coverage gate, and
+  adopt separate PRs with one manual daily release train and urgent hotfixes.
+
+## [1.87.0] - 2026-11-20
+
+### Added
+
+- Answer on **Matrix**: register a bot account on your own homeserver with its access token and the homeserver's URL, and invite it to a room or a direct chat. Answers stream into a thread on the question as edits, approvals and questions are numbered replies, and files, the thread's earlier messages and the room's members reach the agent. Limited sync batches recover in bounded pages from the durable cursor, including after a restart. Unencrypted rooms only for now; end-to-end encryption follows (#2081).
+
+### Upgrading
+
+- Stop old API and worker processes before applying the Matrix migration, then start the new API and workers together. Account uniqueness now includes the homeserver URL; older binaries cannot create new identities against this schema. Rolling back to older binaries also requires a schema downgrade, which refuses while homeserver-bound accounts or identifiers exceeding the legacy limits remain.
+
+- Apply `0345_matrix_channel.py`, which enables Matrix exposures and widens channel identifiers to fit native Matrix IDs. Matrix account links are bound to the configured homeserver URL; each other server needs a separate `/link`. Unscoped preview links must be linked again. Downgrade refuses homeserver-bound accounts and identifiers exceeding the legacy limits instead of truncating conversation history. Give a Matrix bot account a rate-limit exemption on its homeserver so streamed answers are not throttled; [Channels → Matrix](docs/channels.md#matrix) has the Synapse call.
+
+## [1.86.2] - 2026-11-20
+
+### Added
+
+- **LLMTR as a model provider.** `llmtr` takes an API key and runs on Chat Completions at `https://llmtr.com/v1`. The model picker reads only Chat Completions entries from LLMTR's live list, where `llmtr/...` ids are models hosted in Turkey and the others are routed to their vendors. Models without a known price cannot run under an active dollar ceiling; uncapped runs keep explicitly partial costs.
+
+### Fixed
+
+- Keep the model library and its anchor stable while a new chat loads. Teach the shipped AgenticOS to reuse existing automations, choose the right monitoring mode and ask about responsibilities when they affect priorities.
+
+- Keep prompt variable text readable when the console theme differs from the operating system theme. Apply editor token colors from the selected console theme and preserve a high-contrast fallback.
+
+- Exclude internal workflow transcripts from personal conversation search, even when their parent project is readable.
+
+- Fill unused chat-sidebar height by opening older date groups automatically; preserve manual date and project folds, including across active-conversation changes.
+
+- Keep model selectors and popup anchors stationary when pressed; reserve scale feedback for action buttons so opening a list does not shrink its field or move its anchor.
+
+- Send Mattermost acknowledgement reactions from durable workers using the bot’s current server URL and token instead of relying on a stream process’s in-memory cache.
+- Keep streamed chat steps and expanded work details mounted after their first visit, so folding earlier activity no longer discards in-progress input. Animate disclosures with an intrinsic-size transition and a CSS-grid fallback, while preserving keyboard focus and hiding collapsed content from assistive technology.
+- Show the requested action, a readable subject and the requesting agent in Inbox approvals instead of serialized MCP requests or opaque record IDs. Preserve redacted approval boundaries.
+- Give chat drafts a dedicated action row, readable field spacing and stable version selection when streamed revisions change.
+- Apply consistent press feedback, restrained overlay entrances, grouped tooltip delays and direction-aware wizard transitions across the console. Suppress component transitions during theme changes and honor live reduced-motion preferences in dashboard tips and mobile gestures.
+- Move browser cursors and progress fills with transforms, and return interrupted mobile swipes and pull-to-refresh indicators with velocity-aware springs. Preserve native horizontal scrolling and its platform inertia.
+- Associate rejected sign-in credentials with the password field and provide repeatable motion feedback without clearing input. Server failures do not mark credentials invalid, and reduced motion keeps the inline error without shaking.
+
+- Mount a writable `/app/.next/server/route-cache` in the Helm chart's frontend
+  (chart 0.1.2). Next.js copies each prerendered page there on its first request,
+  which failed on a read-only root filesystem such as OpenShift's `restricted-v2`.
+- Log why an OIDC sign-in was refused: the failed condition and the names of the
+  claims received, never their values. Document the Entra ID optional claims
+  (`email`, `xms_edov` on the ID token) that its UserInfo endpoint does not return.
+
+## [1.86.1] - 2026-11-20
+
+### Fixed
+
+- Require a fresh decision for every platform MCP call marked as always asking,
+  including organization administration. Session-wide and remembered approvals
+  cannot release these calls. Routine source reviews reveal resource names only
+  when the reviewer has view access, including explicit resource grants.
+
+## [1.86.0] - 2026-11-20
+
+### Added
+
+- MCP administration with searchable actions and on-demand schemas for organization settings, AI Architect, system agents, retention, members and groups, plus installation settings and updates. Global access requires explicit external OAuth `deployment:admin` consent and live application-admin authority; internal agents and routines never inherit it. Configuration reads do not install resources; secret entry and binary branding use secure console handoffs.
+
+- Ship the AgenticOS Claude plugin with deployment, fork, organization-operation, release and custom-solution skills; a checked tool map and MCP contract discovery; secure dependency setup, datasets, evals and environment promotion tools; atomic draft-only solution bundles with retry receipts; three example solutions and a disposable published-image smoke check. Compose, image publishing and deployment support a fork's own application image prefix.
+
+- MCP contract 2: bounded metadata discovery, paged detail readers, on-demand
+  authoring schemas and credential-bound continuations for large reads. Prepared
+  solution reviews avoid resending large manifests during installation. Large run
+  receipts preserve pending approvals or provide a bounded console review handoff.
+- Self-only MCP console preferences: light/dark/system theme, all existing
+  console styles and supported application languages, synchronized with Settings.
+
+- Group the AgenticOS server's tools in the agent Builder by what they work on - tables, tasks, workflows, agents, knowledge bases, skills, projects, automations, apps, runs, connections and the account - with an icon on each tool that changes something. Each group and each tool runs freely or asks first, as on other MCP servers; the spec keeps a tool's own setting in the platform binding's new `tool_approval`, and publishing refuses a name the platform does not offer. The binding's default stays at `writes`, or becomes `all` once every read asks, so a read added later asks too. `invite_member` and `update_proactivity_settings` always ask: they run with the authority of whoever the agent runs for, so publishing refuses `never` on them and a run ignores one already stored.
+- Choose in an MCP server's settings in the Builder whether the agent takes tools the server gains later. **Add tools the server gains later** stores `allowed_tools: null`; switched off, the binding lists today's tools. Ticking every tool back after narrowing now keeps today's list instead of returning to null.
+- Let a routine's creator consent in **Action consent** to AgenticOS's own tools, grouped as the Builder groups them. Only changes the agent already runs without asking appear. Before this, every platform change a routine made asked each time, even when the agent let it run freely. Tool search no longer asks in a routine either.
+- Read a routine's **Action consent** in sections - capabilities, AgenticOS and each MCP account - with only the actions that can be consented to, and **Use the agent's settings** to select exactly what the agent runs without asking. **Reviewed sources** now names each skill, knowledge base, table and account, grouped by kind, instead of listing their ids.
+
+### Upgrading
+
+- Apply `0344_user_appearance.py` for account appearance choices. Nullable fields
+  preserve existing device defaults. MCP clients must follow page continuations
+  and read detail tools instead of assuming list entries contain complete bodies.
+
+- Apply `0343_solution_installations.py` for atomic solution-installation receipts. Existing organization API keys retain their public API boundary; new assistant-only lifecycle tools require an OAuth connection with the corresponding scopes.
+
+## [1.85.1] - 2026-11-20
+
+### Fixed
+
+- The Nginx deployment template now forwards WebSocket upgrades on every API
+  path and accepts uploads up to the default 50 MiB file limit on both hosts.
+  Console authentication and ordinary JSON keep the 1 MiB limit. The deployment
+  guide states the Nginx 1.25.1 minimum and how to adapt 1.24.
+- The bundled Traefik now reads all static settings from Compose command arguments,
+  so the configured ACME email is used. A custom `TRAEFIK_NETWORK` also applies
+  to the proxy itself. Docker smoke tests cover both proxies and Compose variants.
+- Scripted deployments wait for the background worker to be healthy before
+  recording the release as healthy or advancing its rollback image pins.
+- Frontend image builds exclude every `.env.*` file except `.env.example`,
+  including `.env.production`, `.env.development` and `.env.test`.
+
+## [1.85.0] - 2026-11-19
+
+### Added
+
+- Judge an Improve attempt criterion by criterion when no whole question flips. A question passes only when every criterion passes, so an attempt that fixed one criterion while others still failed was reported as no change. It is now **Better on criteria** and is offered for accepting like a better attempt: the result names each criterion with its passes before and after on the held-out questions, then the criteria still failing, with the skill the helper attributed each one to. A criterion that got worse with no question broken is **Worse on criteria**. `better` and `regression` keep their whole-question meaning. A criterion counts only when asking again confirmed it, so an eval run now also re-asks a case where only a criterion flipped. The attempt row, the Accept step, notifications, the Architect's Improve tools and a skill check's agents show the same criteria. Eval comparisons expose `criteria`, at most 200 with the ones that moved first, and `skill_check_agents` gains a `criteria` column.
+
+- **Pinned test data beside Test draft.** A compact pin and count next to **Test draft** opens the names of steps that will hand on pinned test data instead of running, including when testing is blocked.
+- **Connected to this agent filter.** The agent builder's MCP server picker filters by **Organization connections** (formerly **Connected only**) and, separately, by servers **Connected to this agent**.
+- **Why standing consent is unavailable.** A routine's action consent dialog says whether the caller lacks `approvals:decide` or the organization turned standing consent off, and links an approver to the setting. `GET …/action-consents` returns this as `waive_blocked_reason`.
+
+### Changed
+
+- **Workflow tables follow their schema.** When a table's schema changes, the workflow editor moves each step bound to it onto the new schema by itself as long as every column the step reads still exists with the same type. When one was removed or retyped, the step shows a problem and **Update to the current schema** - on the step and in the toolbar's problem list - fixes every such step at once, keeping the chosen columns that still exist. Test runs and publishing no longer fail on a schema change the step never read. A run or publish refused over a table, or coming back to the editor's tab, makes the editor read its tables again at once, with no reload. A step adding or updating a record also drops values bound to a column archived since, which its form no longer shows and every run refused with `UNKNOWN_COLUMN`.
+- **Plainer workflow conflict banner.** A draft edited in two places offers **Keep my changes** and **Load their version** instead of **Overwrite** and **Reload**.
+- **Wide tables scroll sideways from anywhere.** A table that grows with the page keeps its horizontal scrollbar pinned to the bottom of the screen, so you no longer scroll to its last row to move sideways.
+- **Recognizable MCP steps.** Workflow steps use the MCP logo instead of a generic plug, and keep known service logos while their catalog metadata loads.
+
+### Fixed
+
+- Send the desktop stop signal when a run is cancelled during command dispatch, and bound cancellation-safe Redis channel cleanup.
+
+- Validate Draft-07 tuple-form output schemas locally instead of retaining an incompatible strict provider grammar.
+
+- Keep an Improve attempt with a confirmed whole-question change and a falling pass rate from being offered as **Better on criteria**. Criterion-only verdicts require no confirmed whole-question movement.
+
+- Preserve original skill IDs in stored Improve criterion evidence and reject name-only attributions when checking access. Resolve label-keyed record bindings to the same stable column before automatically rebinding a workflow to a newer table schema.
+
+- Keep persisted criterion notifications bound to original skill IDs across renames, deletion and name reuse. Workflow column labels now use the server’s exact Unicode case folding.
+
+- Recheck dataset and skill access for stored criterion-bearing notifications in the inbox and before delayed delivery, including after permissions are revoked.
+
+- Preserve record-writer bindings keyed by live labels, including escaped keys, and retain a result headline when criterion evidence is hidden.
+
+- Skip paid confirmation reruns when scoring settings or judge pins make the baseline incomparable.
+
+- Admit eval-backed verdict writes through the shared comparison budget before changing scores or cached results.
+
+- Skip criterion aggregation for invalid comparisons and retain scorer labels when notification details are shortened.
+
+- Keep criterion text, grades and skill attributions private when the reader cannot open their source datasets or named skills, including Improve read/list responses, skill checks and result notifications.
+
+- Distinguish equal criterion names by scorer in result tables and sentences. Select criterion-only improvements by their normalized confirmed movement over all graded pairs, before response and evidence detail limits.
+
+- Authorize comparison readers before shared metering and renew active comparison claims. Keep workflow schema warnings until dependent filters, sort columns and value bindings are edited. Preserve scorer identity in MCP criterion exports and name the selected attempt correctly in notifications.
+
+- Keep busy comparison refusals outside the per-minute read quotas. Price replacement answers from each model's frozen estimate, including grading, instead of averaging cheap and expensive models; older checks without those prices retain incomplete answers.
+
+- Bound interactive comparison reads with shared caller and organization rate budgets and one in-flight comparison per organization. Preserve confirmed regressions in truncated evidence, apply net pass counts consistently when naming gains, keep scorer identity in retry prompts, and accumulate tokens and latency across replacement answers.
+
+- Stream paired criterion grades in bounded batches before aggregation, including worker rerun detection, and keep scratch I/O off the API event loop.
+- Include filter, sort and record-write columns when checking safe workflow table rebinding.
+- Handle boolean free-value output schemas in strict-tool fallback, report criterion gains consistently through MCP, and exclude unconfirmed criterion noise from retry prompts.
+
+- Bound criterion aggregation in temporary scratch storage before selecting results, preserve current-agent training answers, cap earlier-attempt prompt excerpts, include criterion-only gains in fork defaults, and keep skill attribution within the judge namespace. Workflow rebinding requests only the schema versions it needs, and saved MCP connections resolve catalog keys to their compiled service logos.
+
+- Preserve every criterion when a literal name already uses a duplicate's numbered suffix, so its confirmed improvement or regression is still counted.
+
+- **Improve proposals on Anthropic models through OpenRouter.** The Improve helper's **Changes** step failed with HTTP 400, because the answer tool was sent strict and a proposal's free JSON value has no type in its schema. An answer schema a strict tool cannot express (a free JSON value, numeric or length bounds, `minItems` above one) now goes through a non-strict tool, still checked against the schema and sent back when it breaks it; any other schema keeps the provider's default, so Gemini still validates every call (#3146).
+
+- **Improve's Try again after a rejected attempt.** The next attempt read the rejected attempt's answers as if they were the agent's, so a fix that attempt had made looked done although the draft never got it, and it was not told what the earlier attempt changed. It now learns from the draft's own answers and reads each earlier attempt's change, verdict, the criteria that moved on its learning questions, and how many held-out questions it fixed and broke.
+
+- **Adding a capability in an Improve proposal.** A helper that named an addition `capabilities/<id>`, the way the prompt lists a bound capability, had it refused as not a target; it is now read as adding that capability.
+
+- **An Improve check that lost a few answers to timeouts.** An answer the model provider timed out on or failed left its question incomplete, so the comparison came out invalid and the session ran the whole check again at its full price. The check now asks just those answers once more before confirming the flips, when the session's budget still covers them; an answer that fails again leaves the check inconclusive as before.
+
+### Upgrading
+
+- Comparison clients must honor HTTP 429 and `Retry-After`: the console and API share 30 reads per person and 60 per organization per minute, with one comparison executing per organization. Manual verdict updates for eval-backed scores use the same shared allowance.
+
+- Migration `backend/alembic/versions/0342_criterion_verdicts.py` widens the improvement verdict, stop reason and skill-check agent state constraints and adds `skill_check_agents.criteria`. Its downgrade reads the new verdicts and states as `no_change`.
+
+## [1.84.0] - 2026-11-18
+
+### Added
+
+- Choose who can see a new table in the **New table** dialog itself - only you, everyone, or chosen groups and people - as an agent's create dialog does. `POST /tables` accepts `group_ids` and `user_ids`, and shares the new table with each at `read`.
+
+### Fixed
+
+- Recover App thumbnails after temporary renderer failures or timeouts with two bounded retries. Keep missing configuration and refused access terminal, preserve versioned image caching, and report transient failures in server logs.
+
+## [1.83.0] - 2026-11-18
+
+### Added
+
+- Let external agent runs use the API key or OAuth token issuer's personal MCP connections with the explicit `mcp:personal:use` scope. Existing credentials and presets retain organization-only access; resumed runs and subagents retain the original caller, with live credential and connected-account checks before tool calls (#3154).
+- Delegate to subagents using each signed-in web chat caller's personal LLM keys for the exact model profile selected on a personal-mode root. Organization-mode parents cannot spend personal delegate keys; inline specialists inherit their parent's mode. Missing connections stop the run without borrowing an organization key, and approval resumes recheck the original caller's connections (#3155).
+
+### Fixed
+
+- Refuse coding-task undo when either snapshot leaves out oversized, unreadable or unsupported files. Keep the captured diff available without offering an incomplete restore (#3138).
+
+- Preserve original delegated MCP authority on approval resumes without requiring the approver’s key to delegate its own accounts; leave explicitly disabled environment bindings off even when their production account is unavailable.
+
+- Enforce personal-model consent across delegation trees and recheck both test and production MCP account authority on delegated tool calls. Recover organization MCP queries on later page visits without interrupting personal account editing.
+- Exclude repeated agent instructions and SDK instruction baselines and deltas from conversation checkpoints, preserving more conversation and tool evidence within the existing storage limit. Clean legacy checkpoints before applying restored-history limits too. Later turns continue with the agent's current instructions (#3141).
+- Serialize routine edits with agent publication in the same lock order, preventing deadlocks while retaining model checks and creator-consent withdrawal (#3139).
+- Replay earlier assistant answers once when stored content and streamed parts differ only in edge whitespace, include several final text parts, or contain blank fragments. Preserve human reply ordering and the token anchor used for history compaction, including in existing conversations (#3156).
+- Forward agent avatar uploads through the authenticated console proxy, preserving multipart file bytes, the active organization and backend validation errors (#3153).
+- Let members manage their personal MCP connections without organization permissions. Only request organization connections with `mcp:manage`, use that permission for organization controls, and hide cached organization accounts when the query is disabled (#3152).
+- Build Linux desktop installers when manually dispatching App release for older tags without the build wrapper. These builds warn that pre-upload AppImage validation is unavailable; releases containing the wrapper retain that validation (#3140).
+- Make local workspace updates accessible from the desktop app menu and instance picker, show workspace and target versions separately from the desktop version, and report backup and restart progress with retryable errors (#3157).
+
+## [1.82.2] - 2026-11-18
+
+### Added
+
+- Publish native Arch Linux x86_64 desktop packages using system WebKitGTK, with pacman-managed updates and CI checks for installation, package revision upgrades, removal and X11/Wayland rendering (#3104).
+
+### Fixed
+
+- Use the same icon, heading, description, spacing and disclosure controls for all organization AI & services cards. AI Architect, speech-to-text and text-to-speech now match the background-service cards; switches remain separate from expansion and retain their save behavior.
+
+- Count Improve’s source cards from the selected evidence sample, including positive feedback and reviewed test answers, and keep empty-state messages hidden while the preview refreshes or its test set is still loading (#2555).
+
+- Lock and reauthorize a conversation before queuing sandbox cleanup and deleting its workspace references. Preserve post-commit remote destruction and the durable retry queue, including rollback on a final authorization refusal.
+
+- Let Helm deployments configure the console's SSO button through `frontend.extraEnv`, separately from backend OIDC credentials. Preserve installed image tags and digests during local OIDC setup, report resolved images in installation notes, and document OpenShift, Argo CD and sandbox validation limits (discussion #2853).
+
+## [1.82.1] - 2026-11-17
+
+### Fixed
+
+- Repair the developer-section links in all four READMEs and name the existing `app` service in the data-protection Compose checks.
+
+- Check browser health through its resolved IP address so Chromium accepts Compose service hosts in `agenticos cmd doctor`; bound DNS resolution and the HTTP probe together.
+
+## [1.82.0] - 2026-11-17
+
+### Added
+
+- Distinguish workflow **Test step** runs from whole-draft tests. Run history shows the tested step's name and offers a **Step test** filter. Run responses expose `tested_step`; `GET /workflow-runs` accepts `step_test`.
+
+### Changed
+
+- Localize platform notification wording in the bell, dashboard and desktop. Existing notifications and text written by people or agents retain their original wording. New notifications expose separate `wording_params`, preserving the English summary for older consoles.
+
+- Use shared figure cards, delta chips, panels and JSON editors in Evals and Improve. Sparse pass-rate trends show the available runs and keep series names instead of drawing a misleading line.
+
+### Fixed
+
+- Request structured outputs from eval judges, Improve helpers, case generators and knowledge-gap drafting/classification agents, with at most two schema-correction retries. Require one grade per criterion and preserve supported legacy classifier values, partial generated cases and normalized judge inputs. Record a safe validation diagnosis in Activity when retries are exhausted; tool and protocol failures retain their distinct errors (#3086).
+
+- Purge batch-write receipts with their table, including failure details that can contain personal data. Preserve unresolvable legacy operation keys as tombstones until expiry so a retry cannot duplicate a write (#3000).
+
+- Measure workflow retry backoff, interrupted-attempt retries and budget waits against the current database clock, including long transactions. Application-host clock skew no longer delays or prematurely admits retries. Absolute Wait times remain unchanged.
+
+- Preserve dataset grading and case edits when another tab changes the same data. Remote adoption updates the baseline and read view; historical snapshots retain their selected version. If a case disappears or a refetch fails, show an error and Retry, preserve local edits and prevent saving until the remote state is reconciled.
+
+- Redirect authenticated visitors from sign-in to their validated local destination, including when another tab signs in. Requested fragment redirects replace the browser-history entry.
+
+### Upgrading
+
+- Apply `0340_record_batch_receipt_table.py` after `0339_organization_text_to_speech.py`, followed by `0341_workflow_run_tested_step.py`. The latter adds a nullable tested-step reference without rewriting existing runs; older runs retain their draft-test classification.
+
+- The receipt migration erases older batch results whose table cannot be recovered, retaining their operation keys and original expiry. A retry returns `IDEMPOTENCY_RESULT_PURGED` (409); inspect the table before submitting a fresh operation.
+
+## [1.81.0] - 2026-11-17
+
+### Added
+
+- Configure organization text-to-speech defaults as a provider, model, voice and shared vault key. Agents explicitly opt in or retain their own override; waiting runs keep their chosen destination while key revocation and disabling the service still apply.
+
+- Offer current recorded-audio transcription models and Eleven v4, Eleven v3 and Flash v2 speech generation. Eleven v4 uses its dialogue endpoint with bounded text chunks; existing model selections are preserved.
+
+- **Table calls read in the table's own names.** When an agent queries, reads,
+  adds, updates, upserts or deletes Virtual Table records through the platform
+  tools, the chat step shows the table, the record it targets, its conditions,
+  sort order, page size and written cells by column and option label, and the
+  records it found as a short table. Approval cards for table writes, in chat and under Runs, and each table
+  step of a run's timeline show the same summary above the raw arguments, and a
+  pending table write no longer leads with its table's id. When the reader cannot
+  open the table, and on hosted pages, the call is shown as sent.
+
+- Hold an object, a list or a single value in a workflow with the new **Data**
+  step (`data.value`): type it in as JSON or bind it from an earlier output, and
+  read it or a path into it from later steps. The value is set once per run and
+  is never overwritten, and the step's panel says so.
+
+- Expose GitHub routine author filters, including a members-and-contributors option, while preserving existing defaults. Routine owners can inspect the latest retained sample of verified filter rejections without storing webhook content or creating a run. Diagnostic writes are limited to once per minute per routine using the database clock and do not spend run-admission quota (#3072).
+
+- Let shared agents require each signed-in web-chat user's own API key while keeping the model and endpoint fixed. Store keys privately in the vault, reuse them for the same provider and endpoint, and manage them without organization connection permissions. Refuse unsupported public surfaces, channels, automated runs and model overrides at configuration and run time; never fall back to an organization key. Refuse private-key saves when the model destination changed after the form opened (#2921).
+
+### Changed
+
+- Flatten organization AI settings into individual function cards. Daily briefing and suggestions share one model, budget and schedule card; memory maintenance and monitoring retain their own switches. Keep the AI Architect switch and Builder link visible without a greeting editor.
+
+- Workflow record filters choose their column by name from the step's table instead of asking for a column id, and a single or multi select column's value from its options, so Record exists? no longer refuses an option typed by its label. The Record exists? and List records steps no longer offer a column list they never read; a stored narrowing stays visible so it can be cleared.
+
+### Fixed
+
+- Bind private model-history checkpoints to their agent and resolved model destinations, including fallback connections, and to the live MCP account, endpoint and authorization generation. Changing a recipient rebuilds visible transcript history instead of sending earlier hidden tool results to another endpoint.
+
+- Preserve concurrent aside and main-turn exchanges when updating private model history; an older snapshot cannot advance past a conversation turn it never saw.
+
+- Refuse personal model-key access while impersonating another member, before reading or changing credentials. Shared rooms, projects and edit-shared chats replay visible transcript turns instead of another author’s hidden tool results; private web and direct-message histories remain structured.
+
+- Keep large offloaded media in conversation history by bounding compact references before restoring their content, and offloading completed-turn media before applying checkpoint size limits.
+
+- Validate whole Data values at dispatch against their consumer and settle non-object paths as missing values. Resolve saved select option labels in Record exists as List records does. Invalid rating values in pending table writes retain a raw preview without breaking the approvals queue.
+
+- Build Linux AppImages with the updated Tauri bundler to avoid bundled Wayland libraries crashing WebKitGTK on newer Mesa. Verify extracted AppImages in installer CI and before release uploads, rejecting the bundled Wayland client library that conflicts with host Mesa (#3041).
+
+- Capitalize role names in the organization member filter, matching the membership role controls.
+
+- Refuse stale Builder draft saves, including changes made through another tab, MCP or a server-side action. Preserve local edits, pause autosave on conflict and offer an explicit reload. Add-to-agent and platform MCP edits use the same revision check (#2618).
+
+### Upgrading
+
+- The frontend audit temporarily excepts unpatched picomatch advisory GHSA-fc5q-39xc-vjpf after reviewing the production trace and fixed image patterns. Track #3102 for upstream remediation and removal of the named exception. No audit severity threshold is lowered.
+
+- Older private checkpoints without recipient provenance fall back to visible chat history. Restart waiting runs created before provenance was recorded; newer waiting runs require their original model destinations before resuming. No stored conversation messages are deleted.
+
+- Apply `0339_organization_text_to_speech.py` after `0338_personal_model_keys.py`. Existing agents retain their own TTS settings; inheritance is opt-in and requires an organization-visible provider key.
+
+- Apply `0338_personal_model_keys.py` after `0337_github_filter_diagnostic.py`; both changes now form one migration chain. Existing agents continue using organization model keys unless explicitly changed.
+
+- Apply migration `0337_github_filter_diagnostic.py` for the routine's bounded filter diagnostic. Existing author policies are unchanged; old configurations without `authors` remain member-only.
+
+- Draft API clients must read `draft_revision` from `GET /agents/{id}` or the edit-authorized `GET /agents/{id}/draft-revision` and send it as `expected_revision` with `PUT /agents/{id}/draft` and YAML replacements at `POST /agents/{id}/spec.yaml`. Missing tokens return 422; stale tokens return 409 without changes. Reload older Builder tabs after upgrading. No database migration or spec-version change is required (#2618).
+
+## [1.80.0] - 2026-11-16
+
+### Fixed
+
+- Preserve tool results and local or native tool-search discovery between completed
+  chat turns, with bounded model-history checkpoints and persistent compaction.
+  Current tool configuration, availability, permissions and approvals still apply
+  (#2927).
+
+- Keep a run alive when an MCP server fails during initialization, discovery or a tool request. Retry initialization once, report unavailable services and uncertain tool outcomes explicitly, and never replay tool writes. Give the built-in platform MCP its own bounded initialization deadline so cold worker startup does not abort Mattermost turns before the model runs (#3077).
+
+- Pin each sync source to its knowledge base instead of resolving its collection name again. Sources, logs and ingested documents stay with the selected base, including same-named personal, organization and deployment bases. Deleting or clearing a base detaches and deactivates exactly its sources; another base does not inherit them. Deleting a base archives its historical source links so its logs cannot fall back to a reassigned source (#2551).
+
+- **Deleting an account.** Deleting a person whose runs belong to their own conversations no longer fails on `agent_runs_conversation_id_fkey`, whichever order the database runs the delete cascades in.
+- **Memory writes after "forget me".** A run that began before a person's memory or an agent's memory was erased, one waiting for an approval included, saves nothing more to that memory and tells the model why. Memory extraction holds off clearing an agent's memory while it writes.
+- **Memory-maintenance and daily-briefing manifests.** Erasing a person's memory, or deleting their account, trims the conversation text, facts, notes and requests these runs kept to what the spec decided, including a run that finishes after the erasure.
+- **Task board receipts.** Removing a group, a project or an account purges its task board's table together with every idempotency receipt that holds its records, expired receipts included.
+- **Decision episodes sent to Improve.** **Add as an Improve case** adds the reviewed episode to a dataset you choose, as a case that records who asked it and links its run and conversation, so erasing that person anonymises it like any other case.
+
+- **Workflow approvals reach the people who decide them.** A workflow step asking for approval now notifies its named approvers and the members of its approver groups who hold `approvals:decide`, or, when it names neither, every member of the run's organization holding `approvals:decide`. The notification opens the approvals queue. Pending workflow steps and tool calls the reader may decide lead the Inbox among urgent items, counted with the rest. Approval previews show the action context and requester in compact rows, and a populated Inbox fits its contents instead of stretching an empty panel across the page.
+- **Onboarding offers an owner a model to connect.** An owner who may prepare an agent sees **Connect a model** on the first-task step instead of being told an administrator must finish setting up AI. Onboarding calls the tenant an organization throughout, and a step asked as questions shows one Back, also while it loads or when it fails to.
+- **Dates in the reader's time zone.** Apps, their public pages and every other date the console formats through next-intl follow the browser's time zone, as Chat and Tables do, instead of the server's UTC.
+- **Public link settings appear with the link.** An app's Share dialog shows the link's expiry, version, embedding and password settings only once the link exists, and its address sits in a labelled read-only field.
+- **Forks and the conversation menu.** A forked conversation carries a mark naming its source in the chat list, and the conversation actions are a menu with roles, arrow keys and Escape; Rename keeps the focus in the title field.
+- **Dictation says why it failed.** With the browser's own speech recognition, a blocked microphone, a page that may not ask for one, a missing microphone, a refusing or unreachable speech service and silence each get the step that fixes them, in the console and on hosted chat pages.
+- **One Polish name per concept, and actions in empty lists.** Polish calls a run a run throughout, the skills gallery and the Apps capability read as the product names them, and the Apps filter says apps in every locale. Empty Workflows and Routines lists offer their create action, and a table made from a workflow template takes the workflow's name, with a number when the name is taken, instead of an id suffix.
+
+- Let the "+" on a workflow output that already leads to a step insert the new step before it or add a parallel branch, keeping the connection when the step cannot carry it on, and mark an approval outcome or a deciding step that leads nowhere with a non-blocking warning.
+- Explain a decimal comma in a Virtual Table formula with a translated error that shows the dot, translate every formula refusal by a stable `details.formula.reason`, and show numbers in tables with the reader's decimal separator. A function given the wrong number of values is refused when its formula is saved; one saved before keeps working until it is edited.
+- Translate workflow step settings - labels, help text and placeholders, including fields inside lists - into the console's language, checked against the registry by a guard.
+
+- Workflow **knowledge.search** citations omit page numbers for formats without
+  pages, including Markdown, text, HTML and `.docx`. PDF pages and presentation
+  slides keep their locations (#2482).
+
+### Added
+
+- Select an organization knowledge base explicitly with `rag-source-add --knowledge-base <id>` when several bases share a collection name. Sync source responses include `knowledge_base_id`.
+
+- A retrieval benchmark over 34 documentation questions, including negative and
+  cross-language answers. `make eval-retrieval` compares retrieval depth, query
+  expansion and chunk settings, with per-question results and reproducible run
+  metadata. [Retrieval evaluation](docs/retrieval-eval.md) records the measured
+  comparison and the decision on knowledge-agent defaults (#2482).
+
+### Upgrading
+
+- After a PostgreSQL restart or restore, start a new run before writing memory. Memory erasure fences use transaction visibility on unprivileged database accounts too; runs without a recorded snapshot cannot write after a relevant erasure.
+
+- **Breaking:** Apply `0334_sync_source_knowledge_base.py` before starting the API and worker. The migration preserves the current resolver's target, including its ID tie-break for equal creation times. Sources with no eligible base are deactivated and listed in migration logs; configuration is retained, and no separate console notification is created. Reassign these sources to a knowledge base and reactivate them before syncing again.
+- Review migration log entries for sources kept on a member's personal base beside an organization base of the same name. They keep their previous target; move them explicitly if they belong to the organization base.
+- Add `--knowledge-base <id>` to `rag-source-add` scripts when the organization has several bases with that collection name. A source with no assigned base cannot sync.
+- Downgrade deactivates and logs sources whose pinned target would change under the older name resolver. It retains existing pauses; reassign and reactivate affected sources before syncing again.
+
+`POST /api/v1/memory/claims/mine/{claim_id}/improve-case` now adds the reviewed decision episode to a dataset instead of returning a JSONL record to download. Send the target `dataset_id` with `confirmed`, `input` and `reference_answer`; the caller needs `datasets:edit` on that dataset, and the response is `201` with the created dataset case. A script that saved the old response to a file and imported it should call the endpoint with the dataset instead. The migrations make one foreign key on `agent_runs` deferrable and add a nullable `agent_runs.memory_snapshot` column without rewriting the table; every row is kept.
+
+## [1.79.0] - 2026-11-16
+
+### Upgrading
+
+- Apply `0333_channel_thread_context.py` before starting the new API and workers. Ordinary Slack, Mattermost, Telegram, Teams and Discord messages require the background worker. Legacy thread cursors are preserved so compacted conversations are not imported again. Queued runs are attempted once; after a lost worker or an unconfirmed reply, inspect existing actions before asking again.
+
+- Unlinked channel senders no longer trigger an automatic approval for every MCP or Mirage call. Review agents exposed to unlinked participants: select Ask first for tools needing confirmation, or require linked accounts in the bot's access policy. Existing pending approvals still need a decision or a stopped run; this change does not approve them automatically.
+
+### Added
+
+- Channel thread refresh shares web-chat history and compaction, with native-post deduplication, bounded imports and explicit missing-context notices. Durable message admission, same-sender queued additions, own-run status/stop commands and final-response receipts work across workers. Personal-service feedback names missing requirements; channel readiness and dashboard connection states distinguish configuration from confirmed access.
+
+### Changed
+
+- Channel runs now respect the agent's MCP and Mirage approval settings for unlinked senders too, including delegates and resumed calls. Personal MCP accounts still require the sender's linked identity and authorized connection; bot access controls and platform MCP write approvals remain enforced.
+
+### Fixed
+
+- Resolve Telegram addressing before same-sender steering, keep slashless help as a command, preserve admitted Mattermost edits across queue delays, and target recovered replies at their original message. Readiness blocks disabled assistants and Telegram webhooks missing their required secret. Compact terminal reply snapshots across success, failure, cancellation and lost-worker recovery; pending replies share retained message quotas.
+
+- Bound retained channel job counts and payload bytes, including terminal jobs, independently of active queue capacity. Completed work cannot reset its storage quota before cleanup.
+
+- Bound channel admission before enqueueing, encrypt attachment handles through the vault, keep `/btw` tool-free across workers, and preserve rendered answers and native delivery receipts. Stale workers cannot persist terminal replies; delayed turns do not import future thread messages. Publication diagnostics no longer require the channel manager to run the agent.
+
+- Admit Slack Socket Mode commands and message shortcuts durably before acknowledgement, preserve Telegram updates when job admission fails, and keep Discord metadata lookups off its Gateway receive loop.
+
+- Standardize fields, native and custom selects, buttons and switches across the console and authentication screens. Respect the chosen look at sign-in, stack connected accounts before appearance, restore fallback avatar colours and make working-day selection clear.
+
+
+## [1.78.1] - 2026-11-16
+
+### Added
+
+- Configure API webhook signature formats and headers in the routine editor, and find Linear webhooks from the event picker.
+
+### Changed
+
+- Update compatible backend runtime, sandbox, parsing, documentation and test dependencies from #3058, and refresh their third-party notices.
+- Update FastAPI, Logfire and Pydantic AI Skills, with refreshed third-party notices (#3043).
+
+### Fixed
+
+- Routine access reviews refresh their sources and action inventories after a personal or organization MCP connection is changed, checked or connected through OAuth, including live updates, without reloading the console (#3061).
+- Routine history clears the starting placeholder when the requested run appears, including runs already waiting for approval or finished before the first refresh. Older runs do not hide a new dispatch, and the exact queued activation keeps polling independent of concurrent fires, paginated history and browser/server clock differences (#3063). Waiting-for-answer runs have a translated status in every console language (#3064).
+- Run now returns an explicit conflict when no job or durable refusal can be recorded, instead of acknowledging work that will never run (#3069).
+- Preserve the cadence and run estimates of stored cron schedules by keeping croniter below 7 until its changed expression semantics can be migrated (#3067).
+- Choosing an improvement helper requires view access as well as run access. Missing or inaccessible helpers return 404 before their settings are read (#2685).
+
+### Upgrading
+
+- `0332_routine_activation_lookup.py` builds a partial index for exact routine-fire polling. Existing runs are preserved; writes to `agent_runs` wait briefly while the transactional index builds.
+
+## [1.78.0] - 2026-11-16
+
+### Added
+
+- Add ElevenLabs Scribe v3/v2 transcription and Eleven Realtime Mini/Max voice conversations with explicit vault keys. Realtime audio costs remain a floor because token charges are unreported; calls with spending budgets are refused before connecting.
+
+- Select an accessible project's workspace for the current agent run from chat or channels, without moving conversation history. Access is rechecked for each operation; approval continuations retain the selection and routines keep their reviewed source ceiling.
+
+### Changed
+
+- Add varied editorial slide compositions, an evidence-led report with reconciled filtering, and a detailed procedural product studio to the bundled Apps and Visuals skills.
+- Simplify the default Me dashboard, align Briefing rows, place Discover directly below Briefing and center visual previews. Settle answered questions when the server starts their continuation, and dismiss clicked toasts with a shorter exit.
+
+- Search organization memberships by name or slug alongside the matching count. Restore table card boundaries, fit sandbox host labels and compact dashboard project links.
+
+- Focus the Me dashboard on personal conversations, projects, agents and work; leave evaluation and authoring queues in the organization catalog. Count personal Inbox proposals and tool approvals as waiting.
+
+- Restore horizontal settings tabs and start the personal dashboard with its period summary, followed by a compact Briefing.
+
+- Move optional field guidance into contextual help, simplify notification and account panels, and use consistent navigation icons. Prioritize conversation titles and keep compact chat filters within phone viewports.
+
+- Add rotating chat illustrations with reduced-motion support, refine Chat controls and composer menus, and align workflow canvas controls with the console theme. Simplify remaining content and organization galleries, notification/search/account panels and modal surfaces.
+
+- Lighten the sidebar in both themes and refine navigation disclosures, focus transitions and menu timings. Hidden navigation stays inert, and collapsing brings the active destination into view.
+
+- Simplify console surfaces, galleries, sidebar search, dashboard rows, agent actions and settings navigation. Add optional Activity detail columns, integrate project context above the chat composer and move usage into Chat controls. Preserve page contents during navigation without a fade.
+
+- Make evaluation optional when reviewing skill proposals: apply a reviewed update directly, or run a check before deciding. Edit permissions and proposal/version conflict checks still apply.
+
+### Fixed
+
+- Prevent App deletion from deadlocking with workflow event writes. Release partial source locks before bounded retries, return a retryable 409 when busy, and preserve run history and commit-only file cleanup (#3021).
+
+- Remove the duplicate MCP setup frame and consolidate personal Assistant settings into Account tips and Inbox preferences. Organization service configuration stays in AI & services.
+- Standardize form label, help, input and select geometry across the console, including touch targets; label the remaining unlabeled selectors and cover adjacent field alignment on desktop and touch screens.
+
+- Configure Daily briefing directly in Background services. Memory maintenance starts disabled; legacy service profiles without a model read as off, and model-less services cannot be switched on in the console. Expand compact service rows for configuration and history; Voice provider labels keep credential status in its dedicated controls.
+- Align the sandbox connection Name and Kind controls, soften personal profile fields, and keep workspace expansion controls off desktop settings tables. Model forms use unique field identifiers when several are mounted together.
+
+- Reduce sidebar duplication, group personal API/MCP access and move mobile setup under Account. Refine profile cards and stretch settings list containers to the available height.
+- Share illustrated empty states across pages, lists and tables; keep Directory in its loading state until permissions and mappings resolve, without a premature Add mapping action.
+
+- Consolidate organization settings into three tabs with expandable AI services, a guarded workspace appearance dialog and aligned provider/model fields. Search members by name or email, filter roles and show workspace-scoped audited activity without treating it as a visit.
+
+- Show explicit loading, retry and empty-search states in the MCP catalog. Keep management table names and sandbox addresses readable, restore a generated profile portrait when an uploaded image cannot load, and let long service diagnostics expand on demand.
+
+- Render recent dashboard visuals in an isolated client preview when no server thumbnail is available, and place period controls beside the dashboard view tabs.
+
+- Keep pending skill updates fresh after decisions in other sessions, recover from stale proposals, and present compact update rows with readable instruction comparisons and reference-file previews.
+
+## [1.77.0] - 2026-11-16
+
+### Fixed
+
+- Routine consent applies to sandbox tools, including renamed tools. Approval continuations preserve the original creator-authority mode instead of refusing non-personal schedules (#3045).
+- Skipped overlapping schedules record their reason in routine history. Authorized users can stop a waiting run there without executing its pending tools or losing recorded spend (#3045).
+
+### Changed
+
+- New schedules and API triggers stay paused while one review saves their sources and selected action consents before activation. The existing form opens this review directly after creation; finish later keeps the routine paused.
+
+### Upgrading
+
+- Migration `0331_routine_overlap_attempt` allows overlap history entries. Existing agent specs and routine consents remain valid; approved runs can be resumed after upgrading. Runs with withdrawn or changed access still require a new reviewed execution.
+
+## [1.76.2] - 2026-11-16
+
+### Fixed
+
+- Restore dependency freshness checks with ty 0.0.104 by updating renamed diagnostic rules and the minimum checker version, and allow the full backend CI runtime for the upgrade canary.
+
+## [1.76.1] - 2026-11-15
+
+### Documentation
+
+- README links to RepoCloud and Railway hosting templates in all four languages, with provider configuration and version limitations.
+
+## [1.76.0] - 2026-11-15
+
+### Added
+
+- Native Linear webhook triggers verify signed deliveries and start agent routines directly.
+
+## [1.75.0] - 2026-11-15
+
+### Added
+
+- Generic API webhook triggers can verify raw-body HMAC-SHA256 signatures in a configured header, with hex or base64 encoding.
+
+## [1.74.0] - 2026-11-14
+
+### Added
+
+- Opt-in automatic channel participation with a separate decision model, focus instructions, bounded message windows and configurable pre-/post-mention intervals. Automatic replies can use bound organization MCP accounts; private accounts and calls needing human approval require a direct mention.
+
+- Organization groups in workflow human/MCP approvals and agent notification audiences. Decisions use current eligible membership; empty or deleted configured groups never become unrestricted approval.
+
+
+- New chat bindings enable all supported tools by default, including agent-chosen emoji reactions on Mattermost, Slack, Discord, Telegram and iMessage, with explicit platform limits and text replies alongside reactions.
+
+- Apps exports published reports and browser presentations as real PDF files through the isolated renderer, with audience checks and explicit size/page limits.
+- Apps and Visuals include design playbooks, themed browser presentations, a native UI component studio and richer map/3D examples for school, play and work (#2989).
+- Platform MCP can create or reuse an App's public link after an explicit request, under the normal write approval and edit-access checks; live public-data consent remains separate.
+
+- Per-bot opt-in tools to find joined channels, search message history and send requested reports from web chat, linked channel conversations or routines.
+- Routines with unavailable sources are saved paused with setup guidance instead of discarding the requested schedule.
+
+- Channel history supports bounded text, author and time filters with destination-bound continuation cursors for Mattermost and Slack. Other platforms report unsupported paging explicitly.
+
+- Activity separates the runtime tool catalog from provider-resolved visibility, records Tool Search policy and per-request tool counts, and puts model settings and cache usage beside readable prompt/source views. Run history fills the available viewport even when it contains few records.
+
+### Fixed
+
+- Keep sandbox connection details and session controls readable on narrow screens, search sessions by agent name, and confirm channel-bot removal before disconnecting bound agents.
+
+- Align organization role, directory and retention views with shared list layouts: searchable permission matrices with sticky labels, responsive retention fields and matching loading states, disabled unchanged saves, and retryable directory deletion refusals.
+
+- Share pagination controls and loading/boundary states across catalogs, record tables and memory. Disable unchanged participation settings, organize background-service cards, and retain the full file-reader footprint while previews load.
+- Keep switches visible when wrapped in action tooltips; tooltip state no longer overrides checked-state styling.
+- Forward image-proxy requests from their URL and headers without rewrapping the runtime's Request object.
+
+- Match loading placeholders to the actual agent/group cards, stacked channel and sandbox tables, workflow canvas, workspace documents and record lists. Preserve page frames and toolbars while data loads, and keep placeholders visible on narrow screens in both themes.
+
+- Upgrade the OpenTelemetry API/SDK instrumentation family to 1.45.2/0.66b2 to fix trace-context parsing denial of service (CVE-2026-126360).
+
+- Preserve input redactions in a separate model-replay copy, including attachment briefings and forked conversations; keep the original human audit transcript.
+- Apply knowledge-base teardown ownership rules to account and organization purges, and track CLI connector ingestion against concurrent teardown.
+- Enforce base access on integration mutations and cloning, reserve unassigned RAG templates for connection managers, and retain sync-log tenant/target ownership after source deletion. Validate source edits before mutation locks and reject stale validated writes.
+- Native routine skill loading no longer inherits an unrelated write-approval requirement; explicit agent approval policy still applies. Approval decisions no longer leave continuation blocked by a stale cached queue.
+- Preserve bot text replies after emoji reactions, including approval continuations. Unlinked senders can request bot reactions on the admitted message or earlier messages actually read from that bound channel, without borrowing publisher account authority. Show editable deployment defaults directly in the channel instruction input; preserve legacy custom additions and restore live defaults when cleared. Smooth chat App/Visual previews with reserved skeletons, decode/render readiness and reduced-motion support.
+
+
+- Protect bundled platform and Architect skills from edits, resource/version/fork changes and deletion by callers without organization-wide agent edit authority, including explicit skill grants; reserve their names against unprivileged creation (#2882).
+
+- Routine skill loading no longer falls through to the unknown external-action approval rule; explicit agent approval gates remain enforced (#3019). Approval decisions check the server for remaining requests rather than trusting a stale queue page.
+- Email delivers generated chart images as attachments instead of dropping image-only answers. Email, iMessage and Twilio MMS offer explicit current-conversation file delivery.
+- Session-check errors offer a sign-in action that preserves the return destination alongside retrying the saved session.
+
+- Preserve expanded chat activity through tool approval and resumption, use neutral approval status styling, and remove acknowledged approval notices without a stale flash.
+- Keep real tool progress visible in messaging channels after interim text, with bounded elapsed-time and completed-step updates for long work.
+
+- Browser and computer previews reach channel progress through runtime events, and available authenticated links remain in final and resumed answers.
+- The shipped AgenticOS instructions open relevant sources proactively, discover MCP fetch operations and link to the correct tool/account setup when something is missing.
+- Mobile composer placeholders and text align with attachment and send actions.
+
+- Chat prompts only for genuinely pending approvals; standing and remembered consent keep their approved audit entries without showing an actionable approval card after the tool completes (#2994).
+
+
+- Read Mattermost thread history in creation-time order and honor result limits even when the platform returns an unordered or oversized thread. Use the thread endpoint's native paging parameters for both text and attachment backfill.
+- Discover both search and fetch tools from multi-query local tool search, including MCP tools with long descriptions.
+- Keep channel author metadata separate from user messages, without inserting an empty message marker. Ignore Mattermost system housekeeping posts before they can start paid agent runs.
+
+### Changed
+
+- The active chat permission mode stays visible beside the composer, with a direct selector that respects the organization waiver policy and the caller’s permissions (#2995).
+
+
+## [1.73.0] - 2026-11-13
+
+### Added
+
+- **Revert a coding task.** The task panel can restore a complete task's files in its original conversation workspace, with edit access and an audit entry. A durable job reserves the workspace and reconciles uncertain results without applying undo twice. Later changes to any affected file refuse the whole revert. Shared, older, truncated, redacted or linked-file snapshots cannot be reverted.
+
+### Fixed
+
+- **DNS parser security update (CVE-2026-128089).** Upgrade dnspython to 2.9.2
+  to reject out-of-range WKS service numbers before allocating their bitmaps.
+- Match workflow editor loading to its full-height workspace and remove the
+  redundant count strip and nested padding from the Versions sidebar.
+- Bound coding-task revert verification to 2 MiB per file and 16 MiB overall,
+  check snapshot eligibility before offering undo, meter requests per person
+  and organization, and serialize revert jobs within each organization.
+- **Trace context parser security update (CVE-2026-126360).** Upgrade the OpenTelemetry stack to 1.45.2/0.66b2 to bound malformed `traceparent` parsing from untrusted carriers, including JSON metadata.
+- Localize notification summaries and built-in workflow step names, including logs and standard error ports, while preserving custom names and precise budget amounts.
+- Keep concurrent table-edit conflicts tied to the latest conflict without overwriting other drafts or accepting stale comparisons.
+- Show approval decisions and their author when permitted, preserve them after later execution failures, and fit long workflows on phones with a separate minimap preference.
+- Hide operator-only upgrade instructions from the member-facing What's new panel.
+- Report why the sandbox host could not start a workflow script's sandbox, as `SANDBOX_START_FAILED` with a bounded, safe diagnosis that does not expose host paths or build output, instead of saying the host could not be reached. `make dev` now creates the sandbox workspace directory before Docker can create it as root, which on Linux and under Docker Desktop's WSL integration left every sandbox unable to start; an existing directory the service cannot write is reported with the command that fixes it.
+- **Coding task file counts.** The message footer and task panel use the stored change set, including shell edits. New reports normalize harness-only fallback paths relative to the workspace.
+- **Workflow step claims follow the database clock.** A worker's claim on a workflow step now measures its lease from the database's time, the clock every expiry check reads. Before, a worker host whose clock ran behind the database could take a claim that had already expired, so a second worker could run the same step; one whose clock ran ahead held a dead worker's step longer than `WORKFLOW_DISPATCH_LEASE_SECONDS`. The recovery sweeps read the database's time too.
+
+
+## [1.72.0] - 2026-11-13
+
+### Added
+
+- Choose and reset persistent table and workflow icons from their detail headers,
+  with matching neutral marks in catalogs and Dashboard table rows.
+
+### Fixed
+
+- **HTML selector security update (CVE-2026-126190).** Upgrade Soup Sieve to 4.1 while retaining process, time and memory limits. **Upgrade action:** `html.parse` document selectors and links exclude inert `<template>` contents and follow browser-aligned form selector rules. Review workflows relying on the old matching behavior. Selecting the `<template>` element itself still returns its HTML and text.
+- **Failed chat turns remain visibly failed.** A safe failure notice stays outside folded work and survives transcript reloads; partial answers remain separate from platform errors. Provider content-filter refusals get an explicit explanation without exposing raw provider payloads or unknown historical errors.
+- **Favicons for ordinary web links.** Unknown HTTP(S) sites use a hostname-only, credential-free icon proxy even without an MCP connection, with a globe if unavailable. Model-supplied links never make the reader’s browser contact the target site to load an icon. Inert transcript views make no remote icon requests, and a missing icon on one site does not suppress another site's icon.
+- Unify Vault keys and personal/organization connected accounts in one table,
+  preserving per-entry authority and removing separate empty cards/count strips.
+- Restore wheel scrolling in resource-sharing member/group pickers inside modals,
+  bound the list to the available viewport and correct project access descriptions.
+- Keep the Skill editor frame mounted across skeleton, metadata and module loading
+  to avoid a second opening animation; place full view beside Share in its footer.
+
+
+- Match skill/context editor loading to the real dialog and pane geometry on
+  desktop and phones. Keep dataset detail chrome and load Cases through its real
+  table columns; align catalog placeholders and remove invented panel/form grids.
+- Simplify the event-trigger service picker into compact branded disclosures,
+  with presets and connection requirements available after expansion.
+
+- Keep Briefing loading stable while onboarding and suggestion reads settle,
+  without blocking other Dashboard widgets or repeatedly retrying failed reads.
+- Align Datasets and skill/context improvement screens with the console's neutral
+  styling. Open skills in their instructions/files modal first, with an explicit
+  full Content view action; remove the Version tree while retaining History diffs.
+- Show the Agents status filter directly and reserve workspace fullscreen controls
+  for phones, restoring navigation and page scrolling on desktop resize.
+
+
+- The first chat message keeps its composer mounted when the server names the
+  new conversation, instead of briefly replacing it with an access-check notice.
+  Dashboard table rows now carry the table mark used by the catalog.
+
+- Profile identity and context forms keep their drafts after refused writes,
+  block overlapping changes and support keyboard submission. Portrait controls,
+  native colour choices and working hours fit phones. Notification events are
+  searchable and paginated with clear channel controls; unconnected platforms
+  stay folded. Failed preferences, destinations and chat-account reads offer
+  retry without inventing enabled switches or an empty account list.
+
+- API key settings put active credentials first and retain names, expiry and
+  usage details on phones. Keys and custom permissions are searchable. Creation supports keyboard submission,
+  locks fields and dismissal during writes, preserves refused drafts and clears
+  one-time state on close. Permission-catalog and revocation failures offer
+  retry. Clipboard refusals are reported without losing the copyable value;
+  MCP consent also freezes organization and scope choices during an answer.
+
+- Department cards keep descriptions and member counts visible on phones. Shared
+  resources lead the detail page; compact setup, membership and sharing forms
+  keep actions reachable, block conflicting writes and retain refused drafts.
+  Failed group reads and deletions offer retry without losing the current view.
+
+- Routine names wrap on phones, unmatched searches offer a reset action and
+  list failures can retry both data sources. Schedule and event editing keep
+  action footers visible in short windows. Routine and watch forms freeze
+  fields and dismissal during writes and preserve refused drafts. Wizard
+  navigation uses touch-sized controls and supports non-cancellable writes.
+
+- Context settings use compact file rows and a neutral injected-context note;
+  Availability identifies bot bindings with platform logos. App sharing puts
+  people and links first, with optional link settings collapsed, active
+  restrictions summarized and edits preserved when the options are closed.
+
+- Channel registration uses a compact platform selector on phones. Cancelling
+  channel and vault creation or key rotation clears entered credentials. These
+  forms freeze fields and dismissal while saving and preserve refused writes
+  for retry; channel editing and rotation keep their action footer reachable.
+
+- Project, context-file and dataset creation protect drafts before closing and
+  lock their fields while saving. Multi-file context imports keep their queue;
+  dataset details and cases retain refused writes and reachable save actions.
+  Phone context creation puts the editor before expandable description/access
+  details, with the effective audience kept visible.
+
+- Custom command controls fit touch phones, retain edited drafts on close and
+  failed saves, block conflicting writes and confirm removal in the console.
+  Command and MCP connection fields and dismissal stay locked during a save.
+  A refused MCP OAuth start keeps the connection draft available for retry.
+
+- Console skill names, environment names, MCP prefixes and custom slash commands
+  format human-entered titles automatically instead of rejecting capitals and
+  spaces. Typing stays intact until blur or submission; identifier fields turn
+  off mobile text correction, and name conflicts preserve the draft.
+
+- Keep document and member actions visible on phones, prevent organization
+  profile controls from overflowing, and align spending-limit saves. Retention
+  edits now guard navigation, validate periods and retain refused drafts.
+  Knowledge-base dialogs cannot disappear during writes, failed downloads show
+  an error, and member removal requires confirmation.
+
+- Align mobile table view controls, keep format and saved-view names readable,
+  and move the default-view action into View settings. Compact catalog filter
+  buttons leave more room for search without shrinking touch targets.
+
+- Center the public chat send control with its input on desktop and touch
+  screens, and keep populated table filters readable on narrow phones with
+  full-width fields and a reachable footer.
+
+- **Reliable CSV import, knowledge search and organization edits.** CSV imports
+  reject duplicate target columns instead of overwriting the first value.
+  Changing a knowledge-search question or scope cancels stale requests and
+  clears previous results. Leaving edited organization identity, spending
+  caps or voice defaults now asks before discarding the draft. Hosted chat
+  waits for its current WebSocket before enabling Send, so the first
+  question is not silently dropped during connection setup.
+- **Keep console edits when leaving or saving fails.** Project settings,
+  Skills and Context ask before discarding unsaved edits. Skill resources
+  retain a refused save and typing added while a save is in flight. Workflow
+  run status bars wrap on narrow screens so their actions remain reachable.
+- **Console navigation and accessibility.** Browser tabs identify the current
+  page and section, including after navigation, loading and a rename. Empty
+  catalog toolbars no longer leave invisible controls in the keyboard order.
+  Horizontal tab strips indicate content on either side and keep the selected
+  label outside the fade. Keyboard focus remains visible in Windows High
+  Contrast; organization tabs no longer expose extra hint buttons inside the
+  tablist, and the wide permission matrix can be scrolled with a keyboard.
+  The sidebar search shortcut also has sufficient contrast on its tinted badge.
+- **Small-screen and empty-state layout.** The agent Builder's loading state
+  fits a phone without horizontal page overflow. A standalone Briefing no
+  longer reserves space for a dismissed setup card, and an empty dataset
+  catalog omits its redundant count.
+- **Connected accounts in the Vault.** Listing and disconnecting personal and
+  organization accounts now reach the existing backend through the shared,
+  authenticated console proxy instead of returning a frontend 404.
+
+
+## [1.71.2] - 2026-11-12
+
+### Changed
+
+- **Economical default assistants.** Newly installed AgenticOS and Architect assistants defer capability schemas as well as MCP tools, keeping questions and workspace tools immediately available. Their local BM25 search favors exact tool identities, and instructions direct named-agent lookups to the agent list rather than unrelated run logs. Existing customized agents keep their configuration.
+- **Browser actions follow tab state.** Browser opening and session restoration stay discoverable from the start; switching and closing appear when tabs exist, and page actions appear with an active tab. Tool renames and approval metadata are preserved.
+
+## [1.71.1] - 2026-11-12
+
+
+### Fixed
+
+- **First messages to channel assistants.** Commit the admitted channel conversation before creating its platform MCP credential. A newly opened thread could otherwise fail before the model call with a conversation foreign-key violation, while its next message succeeded. Admission commit failures stop preparation.
+
+## [1.71.0] - 2026-11-12
+
+### Changed
+
+- **Workflow step search is grouped.** Searching the step picker lists matching categories first, then built-in steps, then actions from connected apps, each under its own heading. A matching category opens like it does when browsing.
+
+### Fixed
+
+- **Replacing a workflow's trigger.** Deleting the starting trigger now makes another trigger on the canvas the start, rather than the first step. Connecting a top-level trigger into the current start makes that trigger the start, repairing drafts that previously failed with "The starting step cannot be the target of a connection".
+
+## [1.70.0] - 2026-11-12
+
+### Upgrading
+
+Platform MCP clients must follow page and text-window continuations instead of expecting all cached schemas or recorded tool results inline. Use `get_mcp_connection_tool` and `get_capability` for selected full contracts, and the run or conversation tool-call readers for recorded payloads. New channel bots acknowledge incoming questions and leave answer ratings disabled; existing bots keep their saved settings.
+
+### Added
+
+- Focused platform MCP discovery for connection tools and capabilities, with search, pagination and explicit response budgets. Run inspection reads bounded message and tool-payload windows under existing run permissions; run history accepts diagnostic filters.
+
+### Changed
+
+- New channel bots acknowledge questions with 👀 on Slack, Telegram and Mattermost (the native emphasize tapback on iMessage), and answer ratings start disabled. Both settings remain configurable; existing bots keep their saved choices.
+
+- Platform MCP conversation reads return bounded text and tool-metadata windows. Use the selected tool-payload reader for recorded arguments and results.
+- Platform MCP connection and capability listings return summaries. Clients must follow `next_skip` and use the detail tools for configuration schemas. Skill discovery omits body excerpts and defaults to 20 items. Console REST responses are unchanged.
+
+### Fixed
+
+- Keep the caret aligned with highlighted text in scrolling Markdown editors by giving both layers the same scrollbar gutter and text rendering.
+
+- Open catalog skills in a modal again with an explicit full-view link. Size the version tree to its contents and give version previews usable space on desktop and phones.
+
+- Accept a Mattermost mention added by editing a recently observed, ignored post, while shared receipts prevent edits from replaying a previously handled request.
+
+- Present Mattermost questions and approvals as native cards with a settled status, and silently acknowledge repeated clicks on requests already answered instead of posting public duplicates.
+
+- Show the actual unverified channel sender instead of attributing an external request to the bot publisher in run history, including phone views.
+- Keep chat reports delivered before a question visible after the run resumes instead of folding them into tool history.
+- Find named agents beyond the first catalog page and reject cross-page ambiguities when reading Improve sessions.
+
+## [1.69.0] - 2026-11-12
+
+### Added
+
+- **OpenSandbox connections.** Connect an organization’s vault API key, server URL and image to the existing workspace file and shell tools. Docker and Kubernetes servers are supported; optional Secure Access requires the Kubernetes gateway and applies to new workspaces. Explicit tests create and remove a disposable sandbox. Missing workspaces are refused without silently replacing their files; cleanup uses the durable queue. Docker lifecycle and persistence are verified; live Kubernetes remains unverified.
+- **Routine attempt history.** Blocked and failed activations remain visible with safely redacted reasons even when no agent run could be created, including when a notification cannot be delivered.
+
+### Fixed
+
+- Routines with the built-in platform MCP server, including published delegates, require an explicit creator identity. Source review explains incompatible configuration before a run is admitted.
+- Corrections of organization and project memory always wait for a person, including under remembered approvals or Approve everything. Approval cards show the before and after; agent corrections retain provenance and a statement-free audit event.
+- Cancelling a workflow or stopping it at its budget limit withdraws questions and approvals in called runs, including live descendants behind a terminal intermediate run.
+- Signed webhook copies with different delivery IDs return the original run within 24 hours. Earlier delivery rows lack signed digests, so their original-ID protection remains but a new-ID copy cannot match them until a delivery is recorded by this version.
+- CSV batch imports preserve later edits, reject repeated external IDs and replay keyed batches without duplicate writes. Column type conversions record changed cells and provenance, preserve unchanged revisions and enforce storage quotas atomically.
+- Numbered SMS, email and iMessage confirmations expire per request and avoid reusing recently issued numbers, including in busy conversations.
+- Started work survives API-key expiry while honoring revocation, membership and scope limits; cleanup retains credentials needed by unfinished runs and background jobs. Expired keys still cannot start new requests.
+- Settling tasks leaves archived boards unchanged; restoring a board catches up settled tasks. Task writes use consistent board-before-record locking.
+- Bootstrap preserves personal landing organizations, refuses unsafe organization reuse and validates names before changes. Long organization slugs leave room for uniqueness suffixes.
+- Desktop readiness waits for a linked computer to reconnect instead of offering to replace its session. Quick Ask explains how to retry refused computer access.
+- Table write hints no longer recommend computed columns that cannot be written.
+
+### Upgrading
+
+- Migrations `0316_trigger_attempts.py`, `0317_opensandbox_connections.py`, `0318_wide_memory_approvals.py`, `0319_webhook_signed_digest.py` and `0320_record_batch_receipts.py` form one chain after the deployed skill/approval merge. They add attempt history, OpenSandbox settings, pending shared-correction protection, webhook digests and batch receipt support. Downgrading removes the new attempt history and batch receipts; remove OpenSandbox connections and long image names before downgrading its settings.
+
+
+## [1.68.0] - 2026-11-12
+
+### Upgrading
+
+- **Linked channel senders now honor existing Run freely settings.** If a deployment relied on the channel’s additional confirmation for writes or unannotated MCP tools, set those bindings or tools to Ask first before upgrading. Sender identity, access checks and the platform MCP minimum policy remain enforced.
+
+### Fixed
+
+- Linked channel senders now keep the agent’s MCP approval policy, including per-tool Run freely, just as in web chat. Unlinked senders still need approval. The tool picker distinguishes explicit read-only and possible-write declarations from missing annotations.
+- Channel metadata follows tool results in provider requests, so repeated approval resumptions and parallel tool results no longer violate Anthropic’s tool-result ordering.
+
+## [1.67.0] - 2026-11-12
+
+### Upgrading
+
+- The skill-usage backfill scans existing tool-call history while holding the agent-runs schema lock. Plan an upgrade window for a large deployment. `0315_merge_skills_and_approval_visibility.py` joins skill versioning with `0314_tool_approval_always_asks.py`; both changes are applied.
+- **Skills are versioned, and an agent's spec says which version it uses.**
+  Agent specs move to version 15: each bound skill names the line it follows
+  (main, a version pinned on main, or a fork). An existing agent is upgraded to
+  follow main's newest version, so it reads exactly what it read before.
+  Republish nothing; a YAML export carries the new field.
+- **Migrations `0305_run_skill_uses.py` to `0312_skill_check_reasons.py`** record
+  which skills a run loaded, turn every skill's current text into its first
+  version, and add skill forks, checks, merges and improvement sessions. A
+  downgrade drops versions, forks, checks and pending fork changes; each skill
+  keeps main's newest text, and every agent reads that again.
+
+### Added
+
+- **Skill versions and forks.** Every saved change to a skill is a new version,
+  and **Restore** brings an earlier one back. An agent follows main's newest
+  version, stays pinned on an older one, or uses a fork with its own changes;
+  **Change version** on the skill page moves it, after checking the version on
+  that agent. The skill page lists its agents, its content, its history and a
+  version tree.
+- **Skill checks.** A change to a skill is checked on every agent that uses the
+  line it changes, on the skill's own test questions and each agent's. It
+  passes when no agent is worse and at least one is better; an agent that could
+  not be checked shows why, and a person acknowledges it. A confirmed regression
+  goes to the review queue.
+- **Improve a skill.** The Improve wizard learns from answers where agents
+  loaded the skill and proposes a change, checks it, and offers to apply it, to
+  apply it with the agents it hurt pinned, to make a fork for the agents it
+  helped, or to discard it.
+- **Catch up and move to main.** A pinned agent or a fork behind main is
+  offered an update, checked first; a fork is merged with main's changes, with
+  the model proposing text where both sides changed the same part, and a fork
+  can move its changes to main through the full check.
+- **Skill test questions**, a dataset every agent using the skill is checked
+  on, written from the answers where agents loaded it.
+- The Architect reads skill versions, checks and sessions, and makes changes
+  only when the person asks, through approval cards. The dashboard shows
+  checks and proposed skill changes waiting on the reader.
+
+### Changed
+
+- Routine action consent supports grouped bulk selection, search, explicit reuse of prior choices and up to 1,000 actions, with explanations when a new review is required.
+
+- The Builder offers two capability approval choices and starts newly added capabilities with Always ask. Existing specs retain their policies, and individual tools can still inherit or override them.
+
+### Fixed
+
+- Desktop pages show one clear browser fallback, unlinking a computer requires confirmation, and setup text matches the operating system and notification privacy settings. Quick Ask explains refused computer access and clears that notice for a new conversation.
+
+- Bootstrap honors the requested organization and validates its name before converting a new owner’s personal organization. Setup diagnostics explain vault fallback and publish refusals; demo seeds create their missing agents.
+- Docker console deployments accept a session cookie namespace, and table record validation explains that values are keyed by column IDs.
+
+- Browser Back closes an optimistic URL overlay even when the router has not yet rendered its open state, fixing the intermittent mobile Improve dialog failure.
+
+- Tools that require a decision for every call cannot use standing consent. Private memory approval content is withheld from unauthorized readers, and sharing is decided only where its full approval card can be read.
+
+- Project chats and conversations shared for editing no longer inject, recall, write or extract personal memory. Queued extraction rechecks current sharing before writing.
+
+- Knowledge base details now report the same document counts, indexing progress, agent usage and shared groups as the listing, while preserving effective write access.
+
+## [1.66.0] - 2026-11-11
+
+### Added
+
+- **Code-mode scripts can wait for tool approval.** A gated call parks the
+  interpreter and resumes on any worker after the decision, without another
+  model turn or replaying completed operations. Started parallel calls drain
+  before the checkpoint is saved. Rejections become catchable script errors;
+  quotas, guardrails, permissions and approved arguments still apply per call.
+  The manifest keeps one script with its approval/execution status. Damaged,
+  incompatible or changed-tool checkpoints fail before a pending handler runs.
+  Questions, delegations, visible UI tools and existing session/routine policies
+  keep their native-tool behaviour (#2876).
+
+### Fixed
+
+- **Monthly budgets stay consistent across resumes and background work.** A
+  run and every continuation use the calendar month it started in. Parked
+  routine fires refuse exhausted routine budgets, while budget stops do not
+  count as routine failures. Background model requests enforce their limits,
+  pinned agent versions use the current published cap, and failed workflow AI
+  steps retain their spend (#2916, #2920, #2918, #2914, #2915, #2917, #2919).
+- **Shared task boards and delegated automation keep their authority checks.**
+  Board management and default views require the scope's leader or an
+  administrator, while task editing stays available to the audience. Private
+  views, cancelled workflow retries, trigger publication and routines acting as
+  their creator keep their corresponding ownership and permission checks
+  (#2910, #2908, #2909, #2911, #2912, #2913).
+
+- **Saved forms become clean when the server reorders JSON or fills defaults.**
+  The agent Builder, remote edit notices and dataset grading compare JSON content
+  independently of object key order. Successful saves adopt the server's
+  normalized copy while preserving edits made in flight. Unchanged routine
+  folder permissions no longer ask for approval again. Structured workflow
+  expectations and paused terminal identities use canonical JSON too (#2892).
+
+- Routine and monitor action icons now show localized labels on hover or focus,
+  including the current pause/resume action and disabled Run now (#2924).
+
+- Context cards in the same row now have equal heights and aligned footers,
+  including cards with longer descriptions or agent usage indicators.
+
+## [1.65.1] - 2026-11-11
+
+### Fixed
+
+- **The Called by a workflow trigger shows a workflow, not a telephone.** Its
+  incoming-call icon suggested the workflow starts on a phone call. It now uses
+  the workflow icon, the same as the Run a workflow step that calls it (#2886).
+
+## [1.65.0] - 2026-11-11
+
+### Added
+
+- **Approval per MCP tool.** In a server's settings in the Builder, each tool
+  can run freely or ask first on its own, whatever its group and the server's
+  `readOnlyHint` say. A server that marks no tool read-only can let its reads
+  run while its writes ask, and one write can run unasked without `none`
+  releasing every other one. The spec keeps these in a new `tool_approval` on
+  organization and personal MCP bindings, keyed by the tool's name on the
+  server; a group whose tools differ reads **Per tool**. In a chat app a tool
+  without a read-only hint still asks, a watch leaves out a read its binding
+  asks before, and a routine's standing consent can cover a tool set to run
+  freely. Stored agents dump unchanged, so reviewed routine sources and eval
+  baselines stay valid (#2884).
+
+### Fixed
+
+- **A further account on an MCP server takes the server's settings.**
+  **Add another account** bound the new account with every tool and no
+  approval, while the settings showed, and applied to every account, the first
+  account's tools and approval. Under **Changes things: Ask first**, the second
+  account's writes ran unasked (#2884).
+
+## [1.64.2] - 2026-11-11
+
+### Fixed
+
+- **Two of an agent's tools can no longer share a name.** Pydantic AI aborts a
+  turn on a duplicate tool name, and two cases got through publish: an MCP tool
+  whose prefixed name is a capability's or the platform's own (a connection
+  `request` whose server offers `capability` presents `request_capability`,
+  which nearly every agent has), and a capability tool renamed onto another
+  capability's tool or one of the platform's. Publish now refuses both, the MCP
+  case on the tools the connection's last check listed, and checks renames in
+  the agent's specialists and in what it shares with its delegates. A clash
+  that still reaches a run leaves that whole server out of the turn and tells
+  the model why, instead of aborting it (#2891).
+
+## [1.64.1] - 2026-11-11
+
+### Fixed
+
+- **A switched-off workflow step with no connections no longer blocks publishing.**
+  Publishing refused it as not reachable from the trigger and, for a step with
+  required inputs, as unbound, so a step could only be put aside by deleting it.
+  A step that is off with no connection at all is now set aside: the editor and
+  the server no longer ask it to be reachable, at the top level and inside a
+  loop, and a run finishes without it and does not count it towards its step
+  limit. Any step can be set aside, including one that decides the way, such as
+  If, which the editor now lets you switch off while it has no connection; only
+  the trigger and a loop's Loop item and Loop result always stay on. A step that
+  is off, connected or not, is no longer checked for its inputs, its settings,
+  what its settings name or its retry policy, since it reads and calls none of
+  them; switching it back on is a change to publish, checked then. Nothing may
+  read a step set aside, and a set-aside step no longer counts towards the
+  organization's queued-step admission quota.
+- **A switched-off workflow step reads as switched off.** The editor no longer
+  offers it as an input to later steps - in the binding picker, the Input pane
+  or when a step is inserted - and a run's canvas and step list show it as
+  Switched off from the start, rather than as pending until the engine passes
+  it. The wire into one down a branch the run did not take still fades.
+
+## [1.64.0] - 2026-11-11
+
+### Added
+
+- Public app and shared conversation viewers show the AgenticOS logo and a GitHub link, with a responsive floating badge and an organization setting to hide it. Enabled by default; password-protected apps show it after unlocking.
+
+## [1.63.0] - 2026-11-10
+
+### Added
+
+- Maintain a Helm chart for the API, worker and console with external pgvector
+  PostgreSQL, Redis/Valkey and S3, blocking migration hooks, restricted container
+  settings, health probes and a reproducible Kubernetes smoke test. Include an
+  OpenShift configuration candidate without claiming cluster validation (#2872).
+
+### Fixed
+
+- Download S3-backed ingestion sources in the worker instead of requiring the
+  API's local scratch directory to be shared across pods (#2872). **Existing S3
+  deployments must drain ingestion and replace workers before upgrading the API,
+  or use a maintenance window:** new API processes no longer write the shared
+  scratch files old workers expect. Local file storage keeps its shared path.
+
+## [1.62.8] - 2026-11-10
+
+### Fixed
+
+- **A workflow run's steps are listed in the order they started.** The run
+  view listed steps in the order they were recorded, so a loop's item step
+  came after the steps it started. The list now holds only the steps that
+  started, sorted by start; a step still waiting or skipped shows on the
+  canvas only. Clicking a loop step's iteration now shows that iteration's
+  input and output, not the last iteration's; an iteration with no result yet
+  shows none. A step test still pins the last iteration's data. A long step
+  list now scrolls inside its panel instead of making the canvas taller. Start
+  order preserves sub-millisecond timestamp precision (#2866).
+
+## [1.62.7] - 2026-11-10
+
+### Fixed
+
+- **Keep the Architect's bundled guide links usable.** Resolve links to included
+  pages within the skill and send other documentation links to the published
+  site. Generate the same output from an empty directory and preserve external
+  links and Markdown code examples (#2862).
+
+## [1.62.6] - 2026-11-10
+
+### Changed
+
+- Remove an unused serialized channel access-policy default and its outdated
+  SQLite comment. Active channel-bot defaults and policies are unchanged (#2869).
+
+## [1.62.5] - 2026-11-10
+
+### Fixed
+
+- **Reclaim old release images before deployment pulls fill the host.** Retain
+  current and rollback images with local pins based on healthy containers, plus
+  two additional unused image IDs per release repository. Protect every running
+  or stopped container, other image aliases and repositories, sandbox runtimes
+  and volumes. Check for 5 GiB of storage headroom before pulling, and download
+  backend and frontend images before restarting either service (#2849).
+
+## [1.62.4] - 2026-11-10
+
+### Fixed
+
+- **Parent deletion no longer depends on foreign-key trigger order.** Deleting
+  a routine's creator clears its delivery chat, and deleting an agent preserves
+  its pages with their publisher and environment cleared. Defer the two
+  cross-link checks until transaction end so cascading deletes can finish first;
+  invalid references are still rejected. Existing deployments receive the same
+  fix through a data-preserving migration (#2841).
+- **Keep the CI checks independent of runner timing.** Successful artifact-read
+  tests use a controlled deadline clock, while the real timeout tests retain
+  their own clocks and PostgreSQL limits. Improve notification tests check every
+  event and duplicate without assuming an order for identical transaction
+  timestamps (#2868).
+
+## [1.62.3] - 2026-11-10
+
+### Fixed
+
+- **Refresh the AWS SDK and CLI dependencies.** Update boto3 to 1.43.126 and
+  Click to 8.5.1, with the third-party notices regenerated. Soup Sieve stays on
+  3.0.4 within the existing `<4` constraint: its 4.x template-selector change
+  breaks the established `html.parse` links and matches contract (#2857).
+
+## [1.62.2] - 2026-11-10
+
+### Fixed
+
+- **Password sign-ins no longer prompt everyone to check invitations.** The
+  generic mailbox-verification notice is removed, so deployments without email
+  delivery and accounts without a working mailbox are not repeatedly offered an
+  unusable sign-in link. Verified sessions still see actual addressed invitations;
+  original invitation links remain usable without an email provider (#2858).
+
+## [1.62.1] - 2026-11-10
+
+### Fixed
+
+- **Existing notifications survive the evaluation upgrade.** The early evaluation
+  migrations retain `capability_requested`, `suggestion` and `finding` while
+  rebuilding the notification and preference checks. Previously, upgrading a
+  populated 1.61 deployment could fail before the final merge revision restored
+  those values. No notification is deleted or rewritten. Deployments whose
+  1.62.0 upgrade rolled back can upgrade directly to this patch; deployments
+  already at the merged head need no additional migration.
+
+## [1.62.0] - 2026-11-10
+
+Agents can now be measured and improved from evidence: datasets of test
+questions, eval runs and suites, guarded promotions, knowledge gaps and the
+Improve wizard. Nothing in it changes an agent, a knowledge base or an
+environment without a person's decision.
+
+### Upgrading
+
+- **Serve the `eval` worker pool.** `WORKER_POOLS` now defaults to
+  `agent,eval,ingest,system,workflow`. A deployment that sets it explicitly must add
+  `eval` to one worker, or eval runs stay queued until they fail a day later.
+  `WORKER_EVAL_CONCURRENCY` (default `4`) sizes that pool, and
+  `agenticos cmd doctor` names a pool no live worker serves.
+- **Evaluation settings belong to datasets.** Choose the grading model and
+  instructions in **Settings**, alongside generation/improvement models and
+  instructions, using the Agent Builder's model picker and Markdown editor.
+  Code-defined helpers keep internal run identities, budgets and historical pins
+  without appearing in the agent catalog or consuming the user-agent allowance.
+  There is no organization-wide AI-assistance switch or grading-model override.
+  Queued tasks keep their admitted model and instructions.
+- **`GET /runs` lists every run.** Activity and the runs API now include eval
+  runs and the platform's own agents at work beside conversations. A client
+  that wants people's runs only passes `source=conversation`; the export takes
+  the same filter.
+- **Knowledge searches made during runs are recorded.** Each search an agent
+  makes in a run that answers a person is kept (the first 1,000 characters of
+  the query, what came back and how close it was) to find knowledge gaps. It is
+  deleted with its run and when the person is erased; data exports and erasure
+  also cover dataset cases, eval results and drafts taken from a person's
+  conversations. See [Data protection](docs/data-protection.md).
+- **New permissions.** `datasets:view`, `datasets:edit`, `datasets:run` and
+  `promotions:override` join the catalog with defaults for every built-in role.
+  Starting or estimating an eval also needs `runs:view`.
+- **Migrations `0160_datasets.py` to `0253_freeze_dataset_helper_settings.py`** add
+  the dataset, eval, suite, knowledge gap and improvement tables and new
+  columns on agents, agent runs, MCP connections, knowledge-base documents, API
+  keys and background jobs, and extend the agent kind and notification event
+  checks. Existing grader and queued-task settings are preserved; a downgrade drops these tables with
+  everything in them.
+- **`0304_merge_evals_platform.py`** joins evaluation previews with the released
+  platform history. Upgrade either branch normally; existing revisions keep
+  their identities and apply only once.
+- **New settings**, all optional: the `EVAL_*` settings in
+  [Eval runs](docs/evals.md#settings), `KNOWLEDGE_GAP_MIN_SIMILARITY`,
+  `KNOWLEDGE_GAP_TOPIC_SIMILARITY` and `DATASET_MAX_VERSION_ROWS_PER_ORG`.
+
+### Added
+
+- **Datasets.** Versioned test questions with expected tool calls, checks, a
+  reference answer and tags. Cases are written in the console, imported from
+  CSV or JSONL, added from a rated chat answer with **Add to dataset**, or
+  drafted by the case generator from the agent, its knowledge, real chats and
+  red teaming and accepted under **Generated**. Each agent can build its own
+  test set from its rated answers. Every edit makes a new version, and a
+  warning appears before a second case asks the same question. Leaving a
+  dataset with an unsaved case, grading or details edit asks to save, discard
+  or stay, and an unsaved case or grading edit is kept in the browser and
+  offered back on return. The dataset list counts each dataset at one version,
+  so its figures stay consistent while cases are being added.
+- **Grading.** A dataset is graded by checks, expected tool calls and a judge
+  with criteria, a scale and a pass mark. A dataset can have a judge of its
+  own; criteria can be scoped to case tags. The judge quotes the answer for
+  every grade, and unverified quotes are kept apart. **Review** lets a person
+  confirm or overrule a score, with notes that can become judge criteria, and
+  shows how often people agree with each judge.
+- **Eval runs.** An agent's published version or draft answers every case of a
+  dataset version, optionally on several models and beside a baseline version
+  in the same run. The estimate comes first and the run starts on a second
+  click. Flipped cases are re-asked before a regression counts, and results
+  are compared on quality first, then cost, tokens and latency. Each answer,
+  criterion and flip reads as one pass, fail or undecided badge, and a check
+  reads as a rule. **Evals** lists every run in the organization.
+- **Isolated runs and test connections.** An eval runs the agent without
+  touching the outside world: tools that write are held and answered from
+  recorded calls, and capabilities declare which tools only read. A named
+  environment can swap an organization MCP server or a capability's vault key
+  for a test one, or switch a binding off, for every run in it.
+- **Eval suites.** A dataset an agent is held to, run on a schedule, on
+  publish, on promotion, when a skill, context file or knowledge base it uses
+  changes, or by hand, with a threshold each result must meet. The owner is
+  notified when a result fails, is inconclusive or does not run.
+- **Guarded promotions.** An environment can name suites that must pass on a
+  version before it takes it; a promotion that has not passed is refused and
+  names each guard. A guard is pinned to its dataset version, grading and judge
+  publication until **Move the pin**. **Override**, with
+  `promotions:override` and a reason, promotes past the guards and is audited.
+- **Knowledge gaps.** Questions a knowledge base could not answer, grouped into
+  topics on the knowledge base's and the agent's **Knowledge gaps** tab. The
+  classifier sorts rated-down answers by cause; the drafter writes the missing
+  passage with its sources and `{{what to fill in}}` placeholders. A person
+  reviews and adds every document, and can turn a topic into dataset cases.
+- **Authoring assistant.** **Improve** suggests changes to an agent's
+  instructions, tool descriptions, configuration, skills and context files from
+  rated-down and failed runs; **Verify** reviews your own draft. Each
+  suggestion is accepted, edited or dismissed on its own and lands in the draft.
+  A suggestion that widens access is marked **Adds access** and keeps writing
+  tools behind approval, and a model change is accepted only after a check with
+  evals. The assistant can also propose a new skill from repeated answers.
+- **Text changes read as a diff.** A changed text (instructions, a tool
+  description, a field or a context file) shows removed and added lines with the
+  changed words marked, unchanged lines folded, unified or side by side.
+  **Edit** on an instructions suggestion opens the whole instructions, current
+  beside proposed, with the diff redrawn as you type. The assistant's reasons
+  cite numbered conversations rather than run ids.
+- **Create skill** from a skill idea the assistant did not add because fewer
+  than three answers back it. Whoever holds `skills:edit` and may edit the
+  agent previews and edits it, and creating it adds the skill to the library
+  and binds it to the agent's draft only. No model is called. Anyone who may
+  edit the agent can dismiss the idea instead, and undo that.
+- **To review and Decided.** The assistant's card on the Build tab splits
+  suggestions into what still needs a decision, shown whole, and what was
+  accepted, edited or dismissed, each folded to its kind, decision and a
+  one-line summary. Both tabs group changes by kind. Publishing the agent ends
+  the cycle: the card stops showing suggestions and findings from before the
+  publication, which stay stored with their decisions.
+- **The Improve wizard.** A resumable session at `/agents/<agent>/improve/<session>`
+  that analyses evidence, proposes changes, tests them on held-out questions,
+  and stops at a result for a person to accept and publish. It shows the
+  estimate and expected time before anything is spent, separates problems with
+  the agent from missing knowledge (a person can leave an example out with
+  **Ignore this**), makes up to three rounds within a spending
+  limit, can test a knowledge draft in context or through search, and offers
+  more test questions when too few remain. Each step opens on figures and
+  charts, with full answers, quotes and reasons folded into cards. **Improve**,
+  an outline button with a trending-up icon in the agent header, on the Build
+  tab's assistant strip, the **Needs attention** badge, the dashboard and the
+  **Knowledge gaps** tab, opens the agent's session still in progress or
+  waiting for a decision, stopped and failed ones included, and a new one once
+  that session is kept as a draft, published, discarded, cancelled or outdated;
+  a dot on it says when the agent
+  needs attention. The agent's **History** tab lists every session as an
+  **Improvement history**; a finished one opens read-only, its last step saying
+  what was decided, by whom, with which changes and knowledge documents. A
+  first improvement has a guided tour. Background sessions and a one-off Improve request are
+  also available through the API.
+- **Evaluation workspace.** All dataset tabs share full-screen controls and
+  console tables. Case and review details open in side panels; case forms put
+  input and answers first and optional checks behind expandable sections.
+  Import explains CSV and JSONL and downloads ready-to-use examples. Creation,
+  import, generation and Activity actions sit beside the cases table.
+- **Verify my edits** saves the draft and opens the standard eval comparison
+  against the published version, with an estimate before starting.
+
+- **Activity shows whose work a run was.** A **Source** filter narrows to
+  conversations, Improve and evals, or system agents, and each platform run
+  names its agent and links the eval run, Improve session, gap topic or
+  dataset it worked on.
+- **Notifications** for a failed or re-evaluated suite, an override, an applied
+  shared change, a finished improvement session, eval run and case generation,
+  each with a preference under **Settings → Notifications**.
+- **Dashboard.** Widgets for datasets, eval runs, eval suites, the review
+  queue, knowledge gaps, suggestions waiting by agent, skill and file, and the
+  agents that need attention, with **Improve**. An agent needs attention for
+  answers rated down and failed runs on the version it serves now, so
+  publishing a fix clears its badge until the new version earns its own. The
+  greeting counts everything waiting on the reader, and spend on improvements
+  is shown apart from evals.
+
+### Changed
+
+- The agent page's tabs are reordered, with an **Evals** tab that shows results
+  first.
+- A publish refusal offers the one-click fixes it names beside it.
+- Open eval, dataset, suite and improvement pages refresh from live change
+  events instead of polling.
+
+### Fixed
+
+- Preserve trusted MCP account identity alongside evaluation isolation metadata.
+- Hide private datasets from unauthorized sharing-route callers, matching other resources.
+- Keep initial background schedule times distinct when short intervals cap their startup delay.
+
+- Give isolated evaluation attempts disposable run-scoped workspaces, so agents
+  configured with conversation workspaces can run without a chat and never reuse
+  persistent files. Clarify setup failures and refresh the evaluation results UI.
+- Avoid a duplicate sandbox binding when recognizing a legacy Architect agent,
+  which could prevent the console's assistant from loading.
+
+- Simplify dataset navigation to Cases, Results and Settings, keep grading cards
+  equally tall, and choose saved pipeline models through a searchable selector.
+  Show all scored answers together in a table, without review-state segments, a review-policy
+  card or the dataset journey banner.
+
+- Guide dataset setup from cases through grading, evals and review, with direct
+  writing/import/generation actions, contextual next steps, coloured option
+  chips and a cases table matching Virtual Tables.
+
+- Make evaluation workspaces easier to use: split case editing into conversation
+  and expectations, keep save actions visible, choose saved pipeline models first,
+  fold default instructions, and lay out grading, helper settings and knowledge
+  gaps side by side on wide screens. Evaluation targets support keyboard arrows.
+
+- Align datasets, evals and Improve with the current console cards, dialogs,
+  status text and chart tooltips. Preserve routine approval policies and join
+  both published migration histories when upgrading from the preview or main.
+
+- Match eval trends to dashboard charts with the shared accent, gradient and axis typography, and distinguish runs within a past day by their start times.
+
+- Present dataset cases with the chat message layout, labelled Markdown reference answers, expandable context and tool arguments, and editing in the fixed panel header.
+
+- Simplify Agent Builder by keeping Improve and suggestions in Evals, and make dataset cases and eval histories easier to scan with grouped creation actions, separate model and result columns, case counts and a compact trend above the run history. Keep creation buttons visible but disabled on historical dataset versions so switching snapshots preserves the toolbar layout.
+
+- Join the eval-helper and RAG-index migration histories so installations on
+  either branch upgrade to one head without rewriting applied revisions.
+
+- Keep incomparable eval runs and improvement rounds from presenting score
+  differences as confirmed regressions or fixes, including knowledge checks and
+  acceptance summaries. Exclude invalid comparisons from measurement noise;
+  retain their individual answers and grading results.
+- Preserve assistant replies with file origins in chat history by serializing
+  their UUID references before writing JSONB.
+- Show an exceeded eval budget explicitly instead of describing a negative
+  amount as money left after the run.
+
+- Clearing the Architect's uploaded avatar restores its generated face, just as
+  it does for other agents. The special mark no longer overrides an empty avatar.
+
+- Recognize OpenRouter's dated Mistral embedding identifier when pricing RAG
+  searches and improvement sessions, using the existing upstream price snapshot.
+- Serialize grading edits, source erasure and promotion guard changes, and refuse
+  queue-level retries of an eval that has already ended.
+
+- Match the new dataset, evaluation, authoring and Improve views to the console:
+  use the available page width, keep editor actions reachable, stack comparison
+  metrics and case fields on phones, and offer the shared full-window editor
+  for proposed instructions. All dataset tabs and knowledge gaps expand in
+  place, and opening an agent from its card keeps the normal builder entry.
+  A walkthrough still selects a tab after its
+  spotlight adds disclosure attributes.
+- Price embedding models OpenRouter serves by their bare OpenAI names, so
+  knowledge searches through OpenRouter are no longer booked at $0.
+- Recommend a workspace the organization can publish when creating an agent,
+  and ask again when sandbox connections change.
+- Keep a tour's Back and Next live while a tab or popover opens, skip optional
+  stops missing from the page at once, and offer the page's help on the Improve
+  wizard and an eval run.
+- Show an agent page's controls from the reader's access to that agent,
+  including edit grants, and stop an agent page of another organization from
+  loading forever.
+
+### Security
+
+- Reading or deciding assistant-generated proposals requires `runs:view` as well
+  as target access. Summaries and proposed text can contain conversation content
+  even when explicit evidence quotes are hidden.
+- Recognised secrets are redacted from dataset cases, eval answers, tool-call
+  evidence and errors before they are stored.
+- A dataset case copied from a conversation shows its text only to readers who
+  may read runs or that conversation; review answers and evidence need
+  `runs:view` and access to the agent.
+- Queued case generation and improvement work runs with the original API key
+  and rechecks its current scopes and membership before each paid step.
+- A system agent never reads anyone's memory, even from a version published
+  with memory before that was refused, and reads only the context files and
+  skills shared with the whole organization. Case generation removes the
+  personal data the detectors find from people's questions and comments before
+  the generator reads them.
+- A suite and a promotion override can be set up only by a person signed in as
+  themselves, not through an API key or impersonation.
+
+
+## [1.61.5] - 2026-11-09
+
+### Changed
+
+- Update the backend runtime, development and documentation dependencies from
+  #2836. Keep Soup Sieve below 4 to preserve HTML parsing inside templates, and
+  refresh the distributed third-party notices.
+
+## [1.61.4] - 2026-11-09
+
+### Fixed
+
+- Refuse paused sync sources at the shared service boundary, disable their console
+  sync button, and reject ambiguous collection-name assignments. Resolve tied
+  knowledge bases consistently regardless of candidate order (#2744).
+
+## [1.61.3] - 2026-11-09
+
+### Fixed
+
+- Float invitation and onboarding notices in one overlay without reserving a blank
+  strip or shortening the application. Keep mobile navigation reachable and stack
+  simultaneous notices.
+
+## [1.61.2] - 2026-11-09
+
+### Fixed
+
+- Tool failures now keep actionable structured details through model continuation,
+  approval resume and saved transcripts: named missing fields, allowed values,
+  numeric and collection bounds, safe compiler diagnostics, correction examples,
+  execution disposition, recovery guidance and an error ID that identifies the
+  detailed server log. Unknown tool names report
+  unavailable registration rather than missing permission, and agents check uncertain
+  execution outcomes before retrying. Budgets, guardrails, loop stops and usage limits
+  retain their terminal behavior through code mode. Only calls that pass complete
+  validation count as successful argument repairs.
+- MCP schema checks run in isolated processes with bounded concurrency and a deadline,
+  so server-controlled regular expressions cannot block the application's event loop.
+
+## [1.61.1] - 2026-11-09
+
+### Fixed
+
+- **A step stays in the loop it belongs to (#2770).** A For each body was
+  whatever the loop's **Each item** port's wires reached, so deleting a wire
+  inside a body moved the steps after it out of the loop, and a second wire from
+  that port, which no view drew, made publishing fail with "A loop's body must
+  start at exactly one loop item step". Each step now names its loop
+  (`scope_id`), the loop has no **Each item** port, and a body starts at its
+  **Loop item**. A new loop comes with its **Loop item** and **Loop result**,
+  which go only with the loop; a step added or pasted in a body stays there; and
+  deleting a loop deletes its body. Publishing refuses a body step **Loop item**
+  never reaches. Migration `0301_workflow_loop_scope` rewrites stored drafts,
+  versions and test-run snapshots, moving an extra wire from the old port onto
+  the body's **Loop item**; a graph sent or imported in the old shape is read the
+  same way. See [Workflows](docs/workflows.md#connections-and-foreach-scope).
+
+## [1.61.0] - 2026-11-09
+
+### Added
+
+- A shared first-task hub for web, invitations and desktop, with editable fictional
+  examples, clearly labelled demonstrations without a model, membership-scoped
+  goals and real completed-chat progress. Authorized builders can explicitly
+  prepare a text-only starter without a sandbox.
+
+### Changed
+
+- Require session-bound mailbox proof for received invitations and their logos, paginate older offers, preserve onboarding position across language changes, and use the server clock for snooze expiry. Reject a zero monthly budget before submission.
+
+- Let members enter the trusted AgenticOS setup chat from onboarding without requiring model-management permissions or treating a draft as a runnable agent.
+- Default new maps to bundled SVG country outlines and routes without tile-server setup; keep optional street-map configuration and hide its unconfigured dashboard check.
+- Preserve focus outlines in onboarding profile cards and spacing below form labels.
+- Show organization logos and fallback colors in received invitations before joining.
+- Align chat activity rails and keep them outside expanded tool details.
+- Reveal new AgenticOS and Architect setup replies progressively before showing the model setup card.
+- Select and display onboarding monthly budgets in whole dollars.
+- Show optional deployment settings as cards with immediately visible links.
+- Prefill the onboarding welcome announcement with an editable message and live preview.
+- Place optional onboarding skip actions beside Save and continue in profile cards.
+
+- Match onboarding loading states to workspace cards, profile forms, guided settings, budgets and the first-task canvas.
+
+- Simplify the onboarding budget step to presets and a slider, without a separate numeric input.
+
+- Show pending email invitations after sign-in, with explicit acceptance and organization welcome without needing the emailed link.
+
+- Give Architect the shared model-setup card and a normal chat before model setup, including persisted setup replies in its widget and full chat.
+
+- Guide setup through one decision at a time with a scripted AgenticOS companion,
+  a monthly-budget slider and announcement previews. Separate administrator, new
+  member and returning-member journeys; keep operational credentials optional.
+  Respect legacy completion for existing memberships without hiding a later join.
+
+- Select the shipped AgenticOS before publication and answer first-use chat messages
+  with a persistent model-setup card. Guide builders to configuration and members
+  to their administrator without executing a draft or charging a model call.
+
+- Snooze dismissed start offers for 24 hours. Record walkthrough completion
+  separately after the final step, without requiring optional settings or an AI run.
+
+- Make product tours opt-in, continue accepted invitations into the joined
+  workspace's start, and sign in new password accounts without repeating the login
+  form when possible. Keep the invitation destination if sign-in needs a retry.
+- Localize native desktop setup in English, Polish, German and Turkish, reduce
+  required workspace fields, and keep system permissions optional. Explain local
+  data versus remote AI processing and warn about loopback invitation links.
+- Start administrator onboarding with company workspace creation and immediate
+  team invitations, followed by the existing deployment and organization settings
+  forms. A sequential wizard replaces the settings sidebar, with separate company
+  logo, user identity and agent-context questions, Back and save-and-continue actions.
+  Use actual workspace avatars, equal-height adjacent cards, directional transitions
+  and transient field highlights that respect Motion preferences. Give the chat
+  start notice role-aware guidance, blobby, a clear primary action and a dismiss
+  control that fits desktop and phone layouts. Float it over the desktop console
+  with a translucent surface, preserving both sidebars at full viewport height. Keep personal workspaces optional and enforce
+  effective permissions.
+- Give onboarding the console's controls, animated blobby and violet workspace
+  preview that follows the entered name. Present member examples in a split view
+  with source and result tabs; motion respects reduced-motion preferences.
+
+### Fixed
+
+- Recognize existing agents and personal chat activity, including legacy and
+  failed chats, so automatic welcome links and start offers do not repeat setup.
+  Keep manually opened setup available without resetting existing data.
+- Keep example navigation on the start page and AI setup in a dismissible dialog
+  with Escape support and focus restoration. Separate demonstration material
+  from its recorded result.
+- Keep recorded examples available while a preference save is pending or fails,
+  restore keyboard focus on return, and avoid late chat navigation after leaving
+  the start. Scope pending start operations to their initiating membership.
+- Reserve the dashboard start panel during loading and offer an explicit retry
+  after failed checks, without shifting the adjacent briefing on successful load.
+
+## [1.60.3] - 2026-11-09
+
+### Fixed
+
+- Include shared resource visibility helpers in the platform coverage and type-checking gates, and guard against their accidental removal (#2143).
+
+## [1.60.2] - 2026-11-09
+
+### Changed
+
+- Update Pydantic AI, its harness and skills integration, pricing data and
+  Logfire to the versions locked by the agent-framework dependency update.
+  Normalize wrapped question answers before saving a parked run so the
+  durable answer remains JSON data.
 - Redesigned all 22 email templates with Geist typography, t3UI colors and
   clearer account, invitation, agent activity and billing layouts. HTML and
   plain-text versions share their copy, action links include a copyable fallback,
@@ -69,6 +1950,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Keep parked secret requests in their original conversation, account and organization.
+  Leaving that context clears the card and ignores delayed reads or decisions;
+  an ordinary access-token refresh preserves the current request.
+- Starting a team room waits for the signed-in account and explicit organization selection, so initial organization loading cannot discard a successfully created room before it opens. Responses from an account or organization the person has left remain ignored.
+- Return HTTP 403 when a room member tries to answer a question addressed to someone else, preserving the original requester check during conversation admission.
+- Forward avatar requests using a fresh URL-backed request instead of cloning Next.js's proxied request object, which could throw while reading its private state in production.
 - Preserve existing personal API and Claude subscription connections when
   deploying Composio onboarding. Migration `0299_merge_personal_composio` joins
   the personal-model, Google Drive OAuth, and Composio migration branches without
@@ -77,6 +1964,200 @@ Two things are versioned separately from this file and worth knowing about:
   exported traces, alongside the existing OAuth callback credentials.
 - Match agent-message timestamp types and message/Drive index metadata to their
   applied migrations so model writes and schema verification use the same types.
+
+## [1.60.0] - 2026-11-09
+
+### Added
+
+- **Fork a conversation at an answer (#2762).** **Fork into a new conversation**
+  under an agent's answer opens a new conversation of your own, in the same
+  project, holding the history up to and including that answer, so you can try
+  another approach or take a side question elsewhere without changing the
+  original. Only the owner can fork, up to ten a minute, within 2,000 messages,
+  10,000 tool calls and 20 MiB; concurrent transcript updates are fenced before
+  copying. Retained copies have a 100 MiB member and 1 GiB organization
+  allowance, including fixed row reservations, freed when a fork is deleted.
+  Drawings with stored image files are refused before copying. The fork copies
+  messages, tool calls and a long conversation's summary, including its
+  externalized text and media within the copy limits, not attachment or
+  workspace files, generated images, cost or runs. Conversations with a saved
+  checklist fork only at the latest answer and retain its tasks and dependencies.
+  Its **Forked from** line
+  is shown only to you. `POST /conversations/{id}/fork` does the same over the
+  API. See [the console guide](docs/console.md#forking).
+- **Conversations shared with you, in the chat sidebar.** They sit under
+  **Shared with you**, below your favourites, for the organization you are in,
+  with their agents, unread dots and running state; until now a conversation shared
+  with you could only be opened by its link. Renaming, sharing, archiving and
+  deleting stay the owner's; their menu holds **Remove from my chats**, which
+  ends your own access (`DELETE /conversations/{id}/shared-with-me`).
+- **A conversation shared with you to read has no message box.** It used to
+  offer one, and the message failed with "Conversation not found".
+  `GET /conversations/shared-with-me` now says each share's `share_permission`.
+- **Change a person's access to a conversation in place.** Each person in the
+  Share dialog has a View/Edit picker, so turning a reader into an editor no
+  longer means revoking and sharing again. The owner only; a share link stays
+  view-only (`PATCH /conversations/{id}/shares/{share_id}`).
+- **A notification when a conversation is shared with you.** It opens the
+  conversation, and follows your preference for "Shared with you or your
+  group" (in the inbox, by email or by push), which the "Shared with your
+  group" preference is now called.
+
+### Fixed
+
+- Shared conversation favourites and read receipts update immediately, including
+  new answers arriving in an open shared thread. Channel participants' direct
+  share permissions are checked even when their thread is already listed.
+- Shared sidebar refreshes read only listing columns. Direct-share notification
+  fanout is rate-limited across conversations by organization, sender, recipient
+  and pair, retaining a local floor when Redis is unavailable.
+
+## [1.59.1] - 2026-11-09
+
+### Fixed
+
+- Knowledge sync failures now show their error on the dashboard. Knowledge-base
+  write controls follow effective access to that base, including edit grants,
+  instead of the member's organization-wide permission (#2772).
+
+## [1.59.0] - 2026-11-09
+
+### Changed
+
+- **Breaking: global unfiled knowledge needs operator provenance.** App-scoped
+  bases no longer publish or clear ambiguous legacy chunks merely by claiming a
+  retained collection name. New CLI imports record operator origin; tracked
+  ingestions retain document origin after their owner or base is deleted.
+  Migration `0300_unfiled_writer_provenance.py` preserves certain document
+  ownership and quarantines unknown data. Operators must audit retained imports
+  with `agenticos cmd rag-unfiled-provenance <name>` and, only after inspecting
+  their source, explicitly use `--confirm-operator` to share unknown operator
+  imports with every organization. Known document data is never promoted by
+  that command. Re-ingest private data into its authorized base instead (#2773).
+
+## [1.58.3] - 2026-11-08
+
+### Fixed
+
+- Desktop and mobile native dependencies use an immutable GTK-compatible backport of the GLib string iterator soundness fix (RUSTSEC-2024-0429). The mobile build no longer enables the legacy HTML path that pulled vulnerable `rand` 0.7.3 (RUSTSEC-2026-0097).
+
+## [1.58.2] - 2026-11-08
+
+### Fixed
+
+- Concurrent first ingests into the same new collection no longer fail on PostgreSQL catalog uniqueness. Table and index creation is serialized per collection, and a rolled-back creator releases waiting writes (#2774).
+
+## [1.58.1] - 2026-11-08
+
+### Fixed
+
+- Nightly proactivity uses its own look attempts rather than watches to decide when someone is due. Successful looks remember which prompts they read, so deferred prompts survive intervening watches and a settled approval or question wait does not cause an extra model call. Watches still count toward personal spending limits. Existing recent messages may receive one catch-up look after upgrading (#2777).
+
+## [1.58.0] - 2026-11-08
+
+### Added
+
+- Workflow agent steps can use the existing Ask Question tool to wait for a user and resume the same conversation. Questions remain available in the originating chat and workflow run view after reload; answers are saved before the workflow worker continues under its current budget. Question cards honor current workflow grants and retain newer questions when polling overlaps a delayed answer response. Completed answers remain in agent context after chat compaction, and question waits do not stall shared mailbox polling.
+
+## [1.57.0] - 2026-11-08
+
+### Added
+
+- Workflow Manual, API and Called by a workflow triggers can declare an optional
+  JSON Schema Draft 2020-12 input contract, including nested objects, arrays,
+  enums, required fields, length limits, additional-property restrictions and
+  local `$defs`/`$ref` references. Published versions freeze the contract; invalid
+  input is rejected before a run starts with field paths. API and MCP discovery
+  expose the effective schema, preserving existing simple-field and untyped inputs.
+  Raw-schema validation runs in an isolated process with bounded resources and
+  diagnostics, with Linux address-space limits and native macOS support. Step tests use the contract of the entry that reaches the tested step.
+  Publication rejects negations that exclude every object; discovered legacy
+  date fields retain calendar validation without requiring format assertions.
+  Discovery marks the additional integer-token requirement of legacy simple fields.
+  Validator memory exhaustion returns a controlled input refusal rather than
+  a retryable server failure.
+
+### Changed
+
+- **Breaking:** agent `list_workflows` discovery refuses encoded responses above
+  32 KiB. Narrow the agent's workflow binding or input contracts, or inspect
+  contracts through the HTTP input-schema endpoint outside the agent context.
+
+## [1.56.4] - 2026-11-08
+
+### Changed
+
+- Add optional CodeRabbit review preferences and document installation and review triggers; the GitHub App must be installed separately (#2812).
+
+## [1.56.3] - 2026-11-08
+
+### Fixed
+
+- Keep guardrail-refused prompts out of later models through queued workflow branches, retries and calls, routine retention, conversation search, platform MCP readers, cached summaries, parked continuations, voice reconnects and transcript titles (#2767). Existing cached summaries are rebuilt once after upgrading.
+
+## [1.56.2] - 2026-11-07
+
+### Fixed
+
+- Keep renamed tools’ chat views, drawings, drafts and run steps through streaming, reloads and shared links; prevent external tools from claiming built-in renderers by name (#2740).
+- Cancel clipboard feedback timers when a copied card closes, including copies that finish after the card unmounts.
+
+## [1.56.1] - 2026-11-07
+
+### Fixed
+
+- **Skills use skill-specific names.** Models open a skill with `read_skill`
+  from an “available skills” catalog; `read_skill_resource` still reads its
+  supporting files. Native deferred loading, approval policies and saved
+  conversation histories remain compatible, including existing `load_capability`
+  approval keys and histories.
+
+## [1.56.0] - 2026-11-07
+
+### Added
+
+- Local routines ask once: the desktop app lets all your routines in an organization work in a folder (or your home folder, for the whole computer), and every later routine there is saved without another dialog. The permission survives app updates and signing in again; a routine follows your current desktop session. Approving another folder or stronger operations keeps earlier grants. On Windows, routine folders must use local drives rather than UNC or device paths.
+- The public API lists, opens and renames your conversations (`GET`/`POST /api/v1/conversations`, `PATCH /api/v1/conversations/{id}`), checks one of your own MCP connections (`POST /api/v1/me/mcp-connections/{id}/test`), and the platform MCP server gains `list_conversations`, `create_conversation`, `test_my_connection` and `update_proactivity_settings`, so a routine's topic chat and the organization's watch cadence and briefing can be set up without the console.
+
+### Fixed
+
+- A replacement desktop that does not hold a routine’s grant leaves its incoming events waiting for the approved computer and warns the owner; it does not disable the routine or discard those events. Delegates retain a shared local-workspace requirement before computer access has been granted, so they can ask for access too.
+- Routine permissions are verified against the current store fingerprint in the OS keychain, so editing the JSON or replaying a revoked store cannot extend consent. **Upgrade:** explicitly unlink and relink the computer, then approve existing local routines again; older grants have no trusted fingerprint. A missing keychain or interrupted permission write fails closed and requires the same reset.
+- Routine folder admission refuses symbolic links in the root path, including a replaced grant root, instead of resolving them before checking access. Local folder commands retain the approved directory through Linux sandbox startup, preventing a concurrent folder rename or symlink replacement from changing what is mounted. Linux needs bubblewrap with `--bind-fd` support. On Linux, task environment variables are applied inside the sandbox and passed privately through a descriptor.
+- An agent whose workspace is your computer no longer refuses a message, or asks where it may work before you send one, when no folder is chosen. It answers what needs no files and asks for your computer only when a request needs your files; the chat continues with them once you choose.
+- An API key you issued, or an MCP client you authorized, with the explicitly selected `personal:consent` scope can now create and change your own routines that act as you and your watches, review a routine's sources, and publish an agent without withdrawing your routines' consent. This scope is excluded from all presets, including Full access, and existing credentials gain no consent automatically. It used to be refused as if it were somebody else; an agent's run credential outside your private chat and an administrator impersonating you are still refused.
+- A routine its agent cannot run - for example one whose agent works on your computer and that names no folder - no longer leaves a run that the stale-run sweep later reports as a crash; it stops with a notification that says why.
+- A watch check is bounded: at most 30 model requests, with long tool results trimmed and an overgrown history summarized. A first check of a whole Notion workspace had made about 40 requests and cost $2.
+- Connecting an MCP server in the desktop app opens the provider's sign-in in your own browser instead of inside the app window, so saved passwords, passkeys and existing sign-ins work there. Finish signing in and return to the app; the server appears once it is authorised.
+
+## [1.55.0] - 2026-11-07
+
+### Changed
+
+- The organization switcher now sits at the top of the sidebar, showing the active organization's name and avatar without opening the account menu. It remains available in the collapsed sidebar and phone menu, with organization management and creation in the same dropdown.
+
+## [1.54.1] - 2026-11-07
+
+### Fixed
+
+- Chat questions are saved before their answer card appears. Switching chats or reopening the conversation restores the unanswered card and answering continues the same run, instead of leaving the agent waiting on a connection with no visible form. Chat answers retain the live question channel so delegates can ask follow-up questions during the continuation.
+
+## [1.54.0] - 2026-11-07
+
+### Added
+
+- Tool search can defer eligible tools from enabled capabilities as well as bound
+  MCP servers. Choose either group or both, and keep whole capabilities, MCP
+  server namespaces or individual exposed tools visible from the first request.
+  Existing configurations keep their MCP-only deferral behavior.
+
+## [1.53.0] - 2026-11-07
+
+### Fixed
+
+- Public embed messages now spend a per-connection allowance before attachment parsing, reject lists above three file IDs before inspecting them, and aggregate invalid IDs into one bounded log entry without their values. Malformed frames cannot spend the allowance shared with other anonymous visitors. This prevents malformed frames from amplifying the newly enabled application logs.
+
+- API, worker, ingestion children and CLI now emit timestamped, redacted application logs to stderr, with `LOG_LEVEL=INFO` by default. SQL queries and HTTP transport chatter stay quiet; Logfire console spans are opt-in with `LOGFIRE_CONSOLE=true` in every environment. (#2771)
 
 ## [1.52.0] - 2026-11-06
 
@@ -20581,7 +22662,86 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.52.0...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.90.1...HEAD
+[1.90.1]: https://github.com/vstorm-co/agenticos/compare/v1.90.0...v1.90.1
+[1.90.0]: https://github.com/vstorm-co/agenticos/compare/v1.89.1...v1.90.0
+[1.89.1]: https://github.com/vstorm-co/agenticos/compare/v1.89.0...v1.89.1
+[1.89.0]: https://github.com/vstorm-co/agenticos/compare/v1.88.0...v1.89.0
+[1.88.0]: https://github.com/vstorm-co/agenticos/compare/v1.87.1...v1.88.0
+[1.87.1]: https://github.com/vstorm-co/agenticos/compare/v1.87.0...v1.87.1
+[1.87.0]: https://github.com/vstorm-co/agenticos/compare/v1.86.2...v1.87.0
+[1.86.2]: https://github.com/vstorm-co/agenticos/compare/v1.86.1...v1.86.2
+[1.86.1]: https://github.com/vstorm-co/agenticos/compare/v1.86.0...v1.86.1
+[1.86.0]: https://github.com/vstorm-co/agenticos/compare/v1.85.1...v1.86.0
+[1.85.1]: https://github.com/vstorm-co/agenticos/compare/v1.85.0...v1.85.1
+[1.85.0]: https://github.com/vstorm-co/agenticos/compare/v1.84.0...v1.85.0
+[1.84.0]: https://github.com/vstorm-co/agenticos/compare/v1.83.0...v1.84.0
+[1.83.0]: https://github.com/vstorm-co/agenticos/compare/v1.82.2...v1.83.0
+[1.82.2]: https://github.com/vstorm-co/agenticos/compare/v1.82.1...v1.82.2
+[1.82.1]: https://github.com/vstorm-co/agenticos/compare/v1.82.0...v1.82.1
+[1.82.0]: https://github.com/vstorm-co/agenticos/compare/v1.81.0...v1.82.0
+[1.81.0]: https://github.com/vstorm-co/agenticos/compare/v1.80.0...v1.81.0
+[1.80.0]: https://github.com/vstorm-co/agenticos/compare/v1.79.0...v1.80.0
+[1.79.0]: https://github.com/vstorm-co/agenticos/compare/v1.78.1...v1.79.0
+[1.78.1]: https://github.com/vstorm-co/agenticos/compare/v1.78.0...v1.78.1
+[1.78.0]: https://github.com/vstorm-co/agenticos/compare/v1.77.0...v1.78.0
+[1.77.0]: https://github.com/vstorm-co/agenticos/compare/v1.76.2...v1.77.0
+[1.76.2]: https://github.com/vstorm-co/agenticos/compare/v1.76.1...v1.76.2
+[1.76.1]: https://github.com/vstorm-co/agenticos/compare/v1.76.0...v1.76.1
+[1.76.0]: https://github.com/vstorm-co/agenticos/compare/v1.75.0...v1.76.0
+[1.75.0]: https://github.com/vstorm-co/agenticos/compare/v1.74.0...v1.75.0
+[1.74.0]: https://github.com/vstorm-co/agenticos/compare/v1.73.0...v1.74.0
+[1.73.0]: https://github.com/vstorm-co/agenticos/compare/v1.72.0...v1.73.0
+[1.72.0]: https://github.com/vstorm-co/agenticos/compare/v1.71.2...v1.72.0
+[1.71.2]: https://github.com/vstorm-co/agenticos/compare/v1.71.1...v1.71.2
+[1.71.1]: https://github.com/vstorm-co/agenticos/compare/v1.71.0...v1.71.1
+[1.71.0]: https://github.com/vstorm-co/agenticos/compare/v1.70.0...v1.71.0
+[1.70.0]: https://github.com/vstorm-co/agenticos/compare/v1.69.0...v1.70.0
+[1.69.0]: https://github.com/vstorm-co/agenticos/compare/v1.68.0...v1.69.0
+[1.68.0]: https://github.com/vstorm-co/agenticos/compare/v1.67.0...v1.68.0
+[1.67.0]: https://github.com/vstorm-co/agenticos/compare/v1.66.0...v1.67.0
+[1.66.0]: https://github.com/vstorm-co/agenticos/compare/v1.65.1...v1.66.0
+[1.65.1]: https://github.com/vstorm-co/agenticos/compare/v1.65.0...v1.65.1
+[1.65.0]: https://github.com/vstorm-co/agenticos/compare/v1.64.2...v1.65.0
+[1.64.2]: https://github.com/vstorm-co/agenticos/compare/v1.64.1...v1.64.2
+[1.64.1]: https://github.com/vstorm-co/agenticos/compare/v1.64.0...v1.64.1
+[1.64.0]: https://github.com/vstorm-co/agenticos/compare/v1.63.0...v1.64.0
+[1.63.0]: https://github.com/vstorm-co/agenticos/compare/v1.62.8...v1.63.0
+[1.62.8]: https://github.com/vstorm-co/agenticos/compare/v1.62.7...v1.62.8
+[1.62.7]: https://github.com/vstorm-co/agenticos/compare/v1.62.6...v1.62.7
+[1.62.6]: https://github.com/vstorm-co/agenticos/compare/v1.62.5...v1.62.6
+[1.62.5]: https://github.com/vstorm-co/agenticos/compare/v1.62.4...v1.62.5
+[1.62.4]: https://github.com/vstorm-co/agenticos/compare/v1.62.3...v1.62.4
+[1.62.3]: https://github.com/vstorm-co/agenticos/compare/v1.62.2...v1.62.3
+[1.62.2]: https://github.com/vstorm-co/agenticos/compare/v1.62.1...v1.62.2
+[1.62.1]: https://github.com/vstorm-co/agenticos/compare/v1.62.0...v1.62.1
+[1.62.0]: https://github.com/vstorm-co/agenticos/compare/v1.61.5...v1.62.0
+[1.61.5]: https://github.com/vstorm-co/agenticos/compare/v1.61.4...v1.61.5
+[1.61.4]: https://github.com/vstorm-co/agenticos/compare/v1.61.3...v1.61.4
+[1.61.3]: https://github.com/vstorm-co/agenticos/compare/v1.61.2...v1.61.3
+[1.61.2]: https://github.com/vstorm-co/agenticos/compare/v1.61.1...v1.61.2
+[1.61.1]: https://github.com/vstorm-co/agenticos/compare/v1.61.0...v1.61.1
+[1.61.0]: https://github.com/vstorm-co/agenticos/compare/v1.60.3...v1.61.0
+[1.60.3]: https://github.com/vstorm-co/agenticos/compare/v1.60.2...v1.60.3
+[1.60.2]: https://github.com/vstorm-co/agenticos/compare/v1.60.1...v1.60.2
+[1.60.1]: https://github.com/vstorm-co/agenticos/compare/v1.60.0...v1.60.1
+[1.60.0]: https://github.com/vstorm-co/agenticos/compare/v1.59.1...v1.60.0
+[1.59.1]: https://github.com/vstorm-co/agenticos/compare/v1.59.0...v1.59.1
+[1.59.0]: https://github.com/vstorm-co/agenticos/compare/v1.58.3...v1.59.0
+[1.58.3]: https://github.com/vstorm-co/agenticos/compare/v1.58.2...v1.58.3
+[1.58.2]: https://github.com/vstorm-co/agenticos/compare/v1.58.1...v1.58.2
+[1.58.1]: https://github.com/vstorm-co/agenticos/compare/v1.58.0...v1.58.1
+[1.58.0]: https://github.com/vstorm-co/agenticos/compare/v1.57.0...v1.58.0
+[1.57.0]: https://github.com/vstorm-co/agenticos/compare/v1.56.4...v1.57.0
+[1.56.4]: https://github.com/vstorm-co/agenticos/compare/v1.56.3...v1.56.4
+[1.56.3]: https://github.com/vstorm-co/agenticos/compare/v1.56.2...v1.56.3
+[1.56.2]: https://github.com/vstorm-co/agenticos/compare/v1.56.1...v1.56.2
+[1.56.1]: https://github.com/vstorm-co/agenticos/compare/v1.56.0...v1.56.1
+[1.56.0]: https://github.com/vstorm-co/agenticos/compare/v1.55.0...v1.56.0
+[1.55.0]: https://github.com/vstorm-co/agenticos/compare/v1.54.1...v1.55.0
+[1.54.1]: https://github.com/vstorm-co/agenticos/compare/v1.54.0...v1.54.1
+[1.54.0]: https://github.com/vstorm-co/agenticos/compare/v1.53.0...v1.54.0
+[1.53.0]: https://github.com/vstorm-co/agenticos/compare/v1.52.0...v1.53.0
 [1.52.0]: https://github.com/vstorm-co/agenticos/compare/v1.51.0...v1.52.0
 [1.51.0]: https://github.com/vstorm-co/agenticos/compare/v1.50.2...v1.51.0
 [1.50.2]: https://github.com/vstorm-co/agenticos/compare/v1.50.1...v1.50.2

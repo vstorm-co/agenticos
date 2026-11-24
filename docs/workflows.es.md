@@ -1,8 +1,10 @@
 ---
-source_sha: "1e44896d7e1d"
+source_sha: "29083d2aceb5"
 ---
 
 # Workflows { #workflows }
+
+Elige el icono del workflow junto a su nombre en el editor. El catálogo muestra la misma ficha neutra. La selección se conserva al recargar; **Usar icono predeterminado** la restablece. Solo cambia metadatos de presentación, no la revisión del borrador ni el grafo publicado.
 
 Un **workflow** encadena pasos en una automatización que llevan a cabo tus agents:
 leer una [tabla](virtual-tables.md), llamar a un agent, ramificar según el
@@ -19,6 +21,8 @@ sí no tiene recorrido.
 ## Crear y duplicar un workflow { #creating-and-duplicating-a-workflow }
 
 **New workflow** solicita un nombre y quién puede usarlo, con el mismo selector que al crear un agente: todos, solo tú o personas y departamentos elegidos. Elige el disparador, añade opcionalmente descripción y etiquetas y pulsa **Create**. Elegir un disparador no crea el flujo. **Workflow templates** abre una galería de categorías separada; elegir una plantilla abre el formulario con su nombre y descripción completos.
+
+Para cambiar el acceso a un workflow existente, ábrelo y elige **More → Settings → Access**. En **General access**, selecciona **Only people with access** o **Everyone in the organization**. Si puedes editar el workflow, también puedes conceder o revocar el acceso a personas y grupos desde aquí. Al cambiarlo a privado, se mantienen los permisos explícitos. Los roles limitados a workflows compartidos pueden perder el acceso; los que abarcan todos los workflows lo conservan. El acceso también se aplica a los runs anteriores; no pausa las programaciones ni desactiva los webhooks.
 
 El catálogo reúne las tarjetas y la búsqueda en un panel. **Filters** muestra estado, etiquetas y orden, junto al número de filtros activos. Un fallo de carga ofrece **Retry** en lugar de un catálogo vacío. La importación empieza eligiendo un archivo; **Or paste the file's JSON here** abre un campo de texto con etiqueta.
 
@@ -86,7 +90,11 @@ un enlace compartido muestran la misma lista.
 
 **More → Settings** contiene el nombre, la descripción, las etiquetas y los ajustes de ejecución; los cambios se guardan automáticamente. El editor ocupa la ventana disponible: Input a la izquierda, Parameters y Settings en el centro y Output a la derecha. Los disparadores usan dos paneles porque no reciben datos anteriores. En pantallas grandes cada panel se desplaza por separado; en móviles hay una columna. Las ejecuciones guardadas muestran sus parámetros de solo lectura junto a sus datos. Los valores del registro usan los nombres de las columnas. Las notas ofrecen Open note, tamaños y controles para redimensionar.
 
-El selector muestra servidores del catálogo MCP antes de conectarlos; la entrada genérica Call an MCP tool está oculta. Conecta un servicio y elige una de sus herramientas descubiertas. Se mantiene la lista de herramientas permitidas. Los pasos de colores y el minimapa están activos por defecto. Los pasos de modelos muestran instrucciones, temperatura y esfuerzo; los ajustes vacíos conservan los valores del proveedor. Jev muestra modelo, pregunta y umbral de confianza. Send an email usa el remitente de la plataforma o conecta Gmail u Outlook y, tras confirmar, cambia a la herramienta MCP real del buzón. El cambio elimina asignaciones incompatibles y se puede deshacer.
+El selector muestra servidores del catálogo MCP antes de conectarlos; la entrada genérica Call an MCP tool está oculta, y los que nadie ha conectado esperan bajo **apps para conectar** al final de su sección. Conecta un servicio y elige una de sus herramientas descubiertas. Se mantiene la lista de herramientas permitidas.
+
+Los pasos de colores y el minimapa están activos por defecto. En el teléfono, el lienzo se abre con todo el flujo a la vista y el minimapa oculto; **Canvas options** lo vuelve a mostrar.
+
+Los pasos de modelos muestran instrucciones, temperatura y esfuerzo; los ajustes vacíos conservan los valores del proveedor. Los pasos de **Decisions**, que responde el modelo de decisión Jev, muestran modelo, pregunta y umbral de confianza. Send an email usa el remitente de la plataforma o conecta Gmail u Outlook y, tras confirmar, cambia a la herramienta MCP real del buzón. El cambio elimina asignaciones incompatibles y se puede deshacer.
 
 El paso **Send an email** también ofrece **SMTP account → New SMTP account**. Guarda servidor, puerto, usuario, contraseña y remitente en el diálogo del vault. STARTTLS suele usar 587 y TLS implícito 465; ambos verifican certificados. El workflow solo guarda `smtp_secret_id`. **Platform sender** elimina la selección. La publicación y cada ejecución comprueban el acceso al secreto; una cuenta no disponible detiene el paso en lugar de cambiar de remitente.
 
@@ -110,11 +118,15 @@ disparador. Uno archivado se puede restaurar, todavía en pausa, o eliminar con 
 versiones, ejecuciones y permisos compartidos; uno cuyas ejecuciones no han terminado se
 rechaza con `WORKFLOW_IN_USE`.
 
-Los pasos de agentes conservan conversaciones privadas para el historial del modelo y los espacios de trabajo vinculados a la conversación. Los turnos del chat reutilizan el contexto del paso; el chat visible recibe solo el resultado del flujo. Los chats de prueba tienen sesiones aisladas y un nuevo chat de prueba reinicia el contexto. Las conversaciones internas no aparecen en la lista de chats y se eliminan junto con su flujo o chat de origen.
+Los pasos de agentes conservan conversaciones privadas para el historial del modelo y los espacios de trabajo vinculados a la conversación. Los turnos del chat reutilizan el contexto del paso; el chat visible recibe el resultado del flujo y las preguntas del agent. Los chats de prueba tienen sesiones aisladas y un nuevo chat de prueba reinicia el contexto. Las conversaciones internas no aparecen en la lista de chats y se eliminan junto con su flujo o chat de origen.
+
+Un paso de agent puede llamar a `ask_user_question` para pausarse con **Esperando al usuario**. Responde en la tarjeta de la pregunta del chat de origen o en la página del run. Tu respuesta completa la llamada pendiente a la herramienta y el worker del workflow reanuda la misma conversación del agent. El agent puede volver a preguntar antes de devolver el resultado final. Otras ramas independientes pueden continuar mientras este paso espera.
 
 Los agentes llamados desde flujos pueden usar sus herramientas de AgenticOS MCP tanto en el worker en segundo plano como en el chat web.
 
 ## El lienzo y cómo añadir pasos { #the-canvas-and-the-palette }
+
+Tras **Test draft**, el lienzo muestra el estado del run y el número de pasos completados. **Open run** abre sus detalles. En pantallas estrechas, la barra de estado se distribuye en varias líneas dentro del lienzo para mantener accesibles el enlace y el botón de cierre.
 
 El editor mantiene visibles **Runs**, **Test draft** y **Publish**. **More** contiene **Versions** y el cambio entre edición y lectura. **Canvas options** reúne minimapa, estilo de conexión y atajos. Un paso sin conexión entrante omite el panel Input vacío y deja más espacio a los parámetros; **Expected output fields** despliega el esquema de salida. **Review setup before testing** muestra la configuración pendiente.
 
@@ -126,7 +138,7 @@ que sale.
 Cada nodo es una tarjeta con el icono del paso, su nombre y una línea debajo: lo que
 está configurado para hacer - una condición, una URL, el número de campos mapeados -
 y, antes, el agente, el modelo o la tabla con los que trabaja. Un paso con más de una
-salida nombra sus puertos: **true** y **false**, **Each item** y **Done**, y un
+salida nombra sus puertos: **true** y **false**, el **Done** de un bucle, y un
 puerto **Error** rojo en un paso que gestiona sus errores. Un paso que bloquea la
 publicación lleva una marca de configuración (roja tras intentar probar o publicar): al pasar el ratón por encima lista los primeros
 problemas, y un clic abre el paso.
@@ -136,7 +148,7 @@ un pellizco - o Ctrl o Cmd con la rueda - lo amplía; sus controles están en la
 
 Los pasos se eligen en el **selector de pasos**. Muestra secciones - **Start**, **AI**,
 **Flow**, **Data**, **Apps and the web** - con sus grupos debajo. Un grupo como
-**Slack**, **Tables** o **Jev decisions** se abre a sus pasos, y un grupo de un solo
+**Slack**, **Tables** o **Decisions** se abre a sus pasos, y un grupo de un solo
 paso es ese paso. **Search steps** encuentra cualquier paso por su nombre, por lo que
 hace o por su grupo. Añades un paso de cuatro maneras:
 
@@ -145,7 +157,10 @@ hace o por su grupo. Añades un paso de cuatro maneras:
   a la vista, conectado a él cuando sus puertos encajan. Un paso de inicio va en
   cambio antes del inicio actual y pasa a serlo.
 - **+** junto a la salida de un paso abre el selector para el paso que va tras esa
-  salida.
+  salida. Si la salida ya lleva a un paso, el selector pregunta dónde va el nuevo:
+  **Insert before** lo coloca en esa conexión y **Add a parallel branch** conserva la
+  conexión y ejecuta el nuevo paso a su lado. Una salida que ya lleva a varios pasos solo
+  admite otra rama.
 - **Clic derecho** en el lienzo: el mismo selector se abre donde hiciste clic, y el
   paso aparece allí. Debajo, **Add a note** y, cuando hay algo copiado, **Paste**.
 - **Arrastra** un paso desde el selector para dejarlo donde lo sueltes, sin conectar.
@@ -184,11 +199,12 @@ el workflow ve solo los triggers. Quien lo edita pero no gestiona servidores MCP
 solo las filas propias de un paso se pueden arrastrar al lienzo.
 
 Un paso nuevo nunca cae encima de otro, queda seleccionado, abre sus ajustes cuando
-tiene alguno, y el lienzo se desplaza hasta él cuando queda fuera de la vista. Dentro
-del cuerpo de un bucle cada paso nuevo se conecta al cuerpo, así que se queda ahí. El
-selector muestra lo que es válido donde estás: **Loop item** y **Loop result** solo
-dentro del cuerpo de un bucle, y un bucle mientras los bucles no estén anidados tan
-hondo como permite la publicación.
+tiene alguno, y el lienzo se desplaza hasta él cuando queda fuera de la vista. Un
+paso añadido o pegado dentro del cuerpo de un bucle pertenece a ese cuerpo: se
+conecta tras el último paso con una salida libre o, si ninguno la tiene, queda
+pendiente de conectar. Un bucle nuevo ya trae su **Loop item** y su **Loop result**,
+así que el selector nunca los ofrece; ofrece un bucle mientras los bucles no estén
+anidados tan hondo como permite la publicación.
 
 Un clic derecho en un paso ofrece **Open settings**, **Duplicate**, **Switch off** y
 **Delete step**. Con varios pasos seleccionados, una barra abajo los borra juntos.
@@ -284,7 +300,9 @@ comparación muestran el tamaño guardado sin controles.
 ## Configurar un nodo { #configuring-a-node }
 
 Qué hace cada nodo, con qué se configura y qué significan sus fallos está en la
-[referencia de nodos](reference/workflow-nodes.md).
+[referencia de nodos](reference/workflow-nodes.md). La consola nombra cada paso, sus puertos y
+sus ajustes en el idioma de quien lee; la referencia, la API y un workflow exportado conservan
+los nombres en inglés.
 
 Un clic selecciona un paso y un doble clic lo abre sobre el lienzo. En una versión publicada o **View only** basta un clic. La cabecera muestra el nombre y un resumen desplegable de la configuración pendiente. Ábrelo para ver qué falta; elegir un campo lleva a su entrada. Después de intentar probar o publicar, los detalles de validación se abren automáticamente.
 
@@ -355,10 +373,25 @@ en la tarjeta, y la pestaña lleva un punto en cuanto algo allí cambia.
 
 Apagar allí **Run this step**, o **Switch off** en su menú contextual, deja el paso en el
 lienzo, atenuado, y lo salta cuando una ejecución llega a él: no hace nada y entrega lo
-que le llegó. Publicar rechaza un trigger o un paso que decide el camino apagados, y un
+que le llegó. Publicar rechaza un trigger o un paso conectado que decide el camino apagados, y un
 paso que lee uno apagado, salvo que lo que le llega - por su única conexión de entrada,
 desde un paso encendido - tenga el campo leído, que entonces entrega. Los tres se guardan
 en el grafo, así que las versiones los conservan.
+
+En un paso apagado, conectado o no, no se comprueban ni las entradas ni los ajustes:
+no lee ni unas ni otros. Volver a encenderlo es un cambio que hay que publicar, y la
+publicación los comprueba entonces.
+
+Un paso apagado sin ninguna conexión queda apartado: puede estar junto al workflow o
+dentro de un bucle - un **Combine lists** con datos de prueba, por ejemplo - sin ser
+alcanzable. Un run lo ignora y no cuenta para el límite de pasos del run. Si lo
+conectas a algo, vuelve a tener que ser alcanzable. Cualquier
+paso puede quedar apartado, incluso uno que decide el camino, como **If**: sin
+conexiones no tiene entre qué elegir. Solo el trigger y el **Loop item** y el
+**Loop result** de un bucle siguen siempre encendidos.
+
+
+Un paso apagado puede conservar su política de errores y sus enlaces a archivos o tablas, aunque el recurso ya no sea accesible. No los lee; al volver a encenderlo se comprueban de nuevo. Un paso apartado aparece como **Apagado** en la pestaña de pasos del run, sin un registro de ejecución. Conéctalo a un trigger antes de usar **Test step**.
 
 ### Los datos de un paso, datos de prueba y probar un paso { #a-steps-data-pinning-and-testing-one-step }
 
@@ -421,9 +454,17 @@ que un paso nombre algo real que tu organización tiene:
 Cada selector desambigua filas con el mismo nombre mediante contexto y marca una
 referencia cuyo destino ha desaparecido. Los selectores **Agent** y **Secret**
 ofrecen además un enlace para crear uno nuevo — siempre, no solo cuando la lista
-está vacía — mientras que el selector **Table** no tiene ninguno. Una tabla cuyo esquema cambió desde que se vinculó lo dice y
-ofrece **Rebind to the current schema**, para que un conjunto de columnas obsoleto sea
-un aviso visible y no una ruptura silenciosa.
+está vacía — mientras que el selector **Table** no tiene ninguno.
+
+Cuando el esquema de una tabla cambia después de vincular un paso a ella, el editor
+mueve el paso al nuevo esquema por sí solo siempre que cada columna que el paso lee
+siga existiendo con el mismo tipo - una columna añadida, o un cambio en una que el
+paso no lee, no te pide nada. Cuando una columna que lee se eliminó o cambió de
+tipo, el paso muestra un problema, y tanto el campo **Table** del paso como la lista
+de problemas de la barra de herramientas ofrecen **Update to the current schema**,
+que conserva cada columna elegida que aún existe. Después, revisa lo que lee el paso.
+
+También se comprueban los filtros, las columnas de ordenación y los enlaces de valores. Elimina o sustituye los ajustes dependientes que usan columnas cambiadas antes de actualizar el esquema; la actualización conjunta deja esos pasos intactos. Un enlace de valores del registro completo también requiere esta revisión manual.
 
 ### Evals de un paso con modelo { #evals-for-a-model-step }
 
@@ -507,6 +548,98 @@ Las líneas se conservan con su ejecución y se eliminan con ella cuando la rete
 historial elimina la ejecución (consulta [Ajustes del workflow](#workflow-settings)). Las
 lees en la [página Logs](#the-logs-page) o, por paso, en la vista de la ejecución.
 
+## Entradas multimedia y generación { #media-inputs-and-generation }
+
+Use **Asset** para inspeccionar una imagen, grabación de audio o vídeo existente,
+**Generate image** para crear una imagen y **Generate video** para crear un clip.
+Cada paso entrega una referencia de archivo tipada al siguiente. Asset lee
+archivos autorizados sin consultar ningún modelo. La generación llama al
+proveedor seleccionado y puede generar un cargo, incluso en un run de prueba.
+
+Los tres pasos están desactivados por defecto y el administrador de la
+instalación los activa por separado. Un paso desactivado no aparece en la
+paleta; un grafo guardado conserva su definición, pero no puede ejecutarlo. La
+[referencia de nodos](reference/workflow-nodes.md#asset-input) indica los ajustes
+de despliegue y las entradas y salidas tipadas.
+
+### Elegir archivo, modelo y clave del proveedor { #media-configuration }
+
+Vincule `file` de Asset con una entrada admitida del run o con un archivo
+producido por un paso anterior. Asset comprueba los bytes, tipo, dimensiones y
+duración reales dentro de sus límites. Un nombre de archivo o una URL no
+concede acceso. Vincule su salida `file` con la entrada opcional
+`reference_image` de un paso de generación solo si el modelo admite imágenes
+de entrada. Los archivos de audio y vídeo no pueden ocupar esa entrada.
+
+Elija proveedor y modelo en el catálogo de workflows y después una **clave API**
+de ámbito organizacional en el selector del Vault. Su propósito debe coincidir
+exactamente con el proveedor. No sirven una conexión personal, unas
+credenciales de navegador ni una clave con propósito `custom`. La creación
+desde el selector aplica los mismos requisitos. El run usa sus propios
+permisos y vuelve a comprobar la generación de autorización de la clave antes
+del envío y de publicar la salida.
+
+El modelo determina las opciones de tamaño, calidad, relación de aspecto,
+resolución, duración y sonido. Los valores predeterminados proceden del catálogo
+del servidor. El sonido opcional de vídeo está desactivado por defecto; el
+sonido o duración fijos se muestran como tales. La generación de imágenes
+OpenAI en workflows acepta inicialmente solo texto. GPT Image 2 no aparece
+hasta que exista un límite superior justificable de su coste de salida. Su
+configuración existente para agentes es independiente.
+
+### Revisar la reserva antes de ejecutar { #media-reservations }
+
+El editor pide al servidor una estimación de la configuración actual sin
+descifrar la clave ni contactar con el proveedor. Muestra la fecha de los
+precios, la reserva en USD y bytes de salida, y las suposiciones sobre límites
+de entrada y salida, el límite del prompt de la herramienta de imagen o la
+duración y tarifa del vídeo. Si el modelo elige su duración, se reserva su
+máximo. El límite de precio del sonido opcional cubre las solicitudes
+compatibles con sonido activado.
+
+Esta reserva conservadora aparta capacidad; no predice la factura. Puede
+superar ampliamente el coste de una solicitud corta habitual. Si
+`max_cost_usd` del paso es insuficiente, la estimación muestra el déficit.
+Reduzca la solicitud o revise el límite antes de ejecutar. El envío también
+comprueba los presupuestos restantes del workflow y la organización y las
+cuotas de archivos. Obtener una estimación válida no reserva capacidad ni
+omite esas comprobaciones posteriores.
+
+El registro del run separa los importes **reservados**, **incurridos** y
+**contabilizados**, e indica si el coste fue informado o estimado con el
+catálogo. Un máximo sin usar nunca se contabiliza como cargo. El trabajo de
+resultado desconocido conserva su reserva tras un timeout, vencimiento del
+lease, eliminación de la clave o un run posterior. Una imagen OpenAI puede
+estar guardada mientras sigue reservada la entrada no verificada de su
+herramienta nativa. Un prompt revisado devuelto no demuestra toda la entrada
+facturada. Las comprobaciones presupuestarias de los agentes también incluyen
+compromisos multimedia pendientes; los informes muestran cargos contabilizados.
+
+### Inspeccionar salidas y recuperar trabajo interrumpido { #media-recovery }
+
+Abra Files o la salida del paso para previsualizar o descargar un resultado
+guardado con los permisos habituales de archivos del run. El servidor verifica
+los bytes generados antes de publicar el archivo. El registro muestra la fase
+y si existe un comprobante del proveedor, sin revelar credenciales, respuestas
+del proveedor ni URL privadas de descarga. El total pendiente incluye
+operaciones anteriores de ese paso.
+
+La recuperación depende de las pruebas conservadas. **Collect existing**
+consulta el mismo trabajo del proveedor; **Recover output** devuelve el mismo
+archivo guardado. Ninguna inicia una generación nueva. Ambas siguen exigiendo
+permisos vigentes y la generación original de la clave. Un envío desconocido
+sin comprobante útil ni salida conservada necesita conciliación y no puede
+reenviarse dentro del mismo run. Cancelar localmente no garantiza cancelación
+ni reembolso por parte del proveedor.
+
+Un nuevo envío ofrecido explícitamente exige confirmar el posible cargo.
+**Retry from failed step** crea otro run: los pasos completados pueden
+reutilizar sus salidas, pero un paso de generación que se ejecute de nuevo
+puede generar otro cargo. Las reservas pendientes anteriores permanecen.
+Revise el registro antes de iniciar trabajo de reemplazo. Actualizar una
+vista previa o recoger un trabajo existente no requiere otro envío. Los runs
+con costes o bytes pendientes de reserva se conservan hasta su conciliación.
+
 ## Conexiones y scope de foreach { #connections-and-foreach-scope }
 
 Dibujas una arista conectando el puerto de salida de un nodo con el puerto de entrada
@@ -540,9 +673,15 @@ entra en esa vista, y las migas **Workflow scope** en la esquina del lienzo mues
 dónde estás, desde **Workflow** hasta el bucle que abriste. Cada miga vuelve hacia
 fuera.
 
-Un cuerpo empieza en **Loop item**, al que se conecta el puerto **Each item**
-del bucle, y termina en **Loop result**; nada en él vuelve al bucle, que continúa por
-**Done** cuando cada elemento ha pasado por el cuerpo. El selector de pasos y las fuentes de binding siguen el scope en el que estás, y un paso del cuerpo puede leer cualquier
+Un cuerpo empieza en **Loop item** y termina en **Loop result**. Cada paso recuerda
+el bucle al que pertenece, así que quitar una conexión nunca saca un paso de un
+cuerpo; un paso al que **Loop item** no lleva se señala hasta que lo conectes.
+Ninguna conexión va del bucle a su cuerpo ni del cuerpo de vuelta al bucle, que
+continúa por **Done** cuando cada elemento ha pasado por el cuerpo. **Loop item** y
+**Loop result** solo desaparecen con su bucle: borrar el bucle borra todo su cuerpo,
+y copiarlo copia el cuerpo.
+
+El selector de pasos y las fuentes de binding siguen el scope en el que estás, y un paso del cuerpo puede leer cualquier
 cosa que se ejecutara antes del bucle. Qué hace el bucle está en la
 [referencia de nodos](reference/workflow-nodes.md#loops).
 
@@ -644,12 +783,11 @@ vez que aterriza, y **Save failed — will retry** si no lo hizo.
 
 Cada guardado se escribe contra la revisión que abriste, así que un draft editado en
 dos sitios a la vez no puede sobrescribir en silencio. Cuando eso ocurre, el editor
-levanta un banner titulado **This draft changed elsewhere**: *Someone edited this
-workflow since you opened it. Overwrite keeps your changes; reload replaces them with
-the latest saved draft.* Eliges:
+levanta un banner titulado **Someone else also edited this workflow**: *They saved changes while you were editing. Keep your changes, or load
+their version and lose your unsaved edits.* Eliges:
 
-- **Overwrite** — conserva tu versión y escríbela sobre la guardada en otro sitio.
-- **Reload** — descarta tus ediciones sin guardar y toma el último draft guardado.
+- **Keep my changes** — conserva tu versión y escríbela sobre la guardada en otro sitio.
+- **Load their version** — descarta tus ediciones sin guardar y toma el último draft guardado.
 
 ## Publicar una versión y el historial de versiones { #publishing-a-version-and-version-history }
 
@@ -671,6 +809,12 @@ versión nunca se cambia después de crearse. El diálogo de publicación nombra
 versión en vivo, lo dice primero. Si el grafo aún tiene problemas, la
 publicación se bloquea con **Fix the problems below before publishing**, así que una
 versión que no validaría nunca se crea.
+
+Algunas cosas merecen un vistazo sin ser errores, y un signo ámbar en el paso las marca:
+un resultado de **Ask for approval** que no lleva a ninguna parte, o un paso que decide
+entre salidas cuando ninguna lleva a ninguna parte. El run simplemente termina ahí. El
+diálogo de publicación también las enumera, pero nunca bloquean una prueba ni una
+publicación.
 
 Publicar no termina tu edición. El draft sigue existiendo con independencia de
 cualquier versión publicada, así que lo sigues editando enseguida. **Versions** en la
@@ -844,7 +988,13 @@ la misma manera.
 
 La respuesta del run - su texto, su resultado estructurado, los pasajes en que se
 apoyó y cuántos archivos creó, con el JSON en sí bajo **Raw output** - y cada paso
-que dio, iteración a iteración, están al lado. Un run en curso se actualiza cada par de segundos, y **Cancel run** lo
+que dio, iteración a iteración, están al lado.
+
+La lista recoge los pasos que empezaron, en el orden en que empezaron. Los fallos
+siguen visibles aunque un paso fallara antes de empezar. Los demás pasos que no
+empezaron solo se ven en el lienzo; los omitidos aparecen atenuados. Al hacer clic
+en la fila de un paso de un bucle se ven su entrada y su salida en esa iteración.
+Un run en curso se actualiza cada par de segundos, y **Cancel run** lo
 detiene y retira los temporizadores que sus pasos en espera habían puesto en cola. Sus **Files** listan lo que guardaron sus pasos - una descarga, una página
 renderizada, la salida de un script -, cada uno descargable.
 
@@ -857,14 +1007,23 @@ lo que la persona aprobó. Quien puede decidir pero no está nombrado en el paso
 lectura, y una solicitud decidida con una versión cambiada lleva la insignia
 **Edited** en **Decided**.
 
+En el propio run, un paso de aprobación terminado empieza por quién lo decidió y cuándo -
+**Approved by** o **Rejected by** la persona y la hora - solo la decisión y la hora cuando
+la cuenta ya no existe o quien lee no puede ver los miembros - encima de la salida del paso. Si quien aprobó cambió la propuesta,
+**Show changes** compara las dos versiones. Una solicitud que caducó o se canceló con su
+run lo dice en su lugar.
+
 Cuando el paso enumera **Ways to approve**, la cola muestra un botón por cada una, con la
 etiqueta que escribió su autor, en lugar de **Approve**; **Reject** se queda. Cada forma
 es un puerto de salida del paso, así que el workflow sigue por la que pulsó quien
 aprueba, y la fila decidida la nombra. Una edición va con el botón que se pulse.
 
 
-En la lista, la versión de un run de prueba dice **Draft (test)** y la de uno real
-**Published**, y un run iniciado desde la consola o la API HTTP dice **Console or
+En la lista, una prueba de todo el borrador dice **Draft (test)**, una [prueba de un
+paso](#a-steps-data-pinning-and-testing-one-step) **Step test** seguido del nombre del paso, y un run real **Published**.
+**Version** puede mostrar solo las pruebas de paso u omitirlas.
+
+Un run iniciado desde la consola o la API HTTP dice **Console or
 API**. **Status**, **Version**, **Started by** y **Started** (la última hora, día, semana o 30
 días) acotan las ejecuciones, y la lista responde
 una página cada vez; cada filtro queda en la dirección, así que una lista filtrada
@@ -878,7 +1037,7 @@ paso aparecen debajo del paso.
 **Retry from failed step** inicia una ejecución nueva
 de la misma versión con la misma entrada, en la que cada paso que tuvo éxito
 entrega lo que entregó antes, así que solo se ejecutan el paso fallido y lo que no
-alcanzó, y una escritura nunca se hace dos veces. Un bucle vuelve a ejecutarse y
+alcanzó; los pasos completados reutilizan sus salidas confirmadas. Un bucle vuelve a ejecutarse y
 reutiliza los pasos de cada elemento que tuvieron éxito. **Debug in editor** fija
 en los pasos del borrador lo que cada paso fuera de un bucle entregó en esa
 ejecución, así que una ejecución de prueba empieza donde estaba aquella. Por la API,
@@ -897,7 +1056,9 @@ Nada más del run se toca, así que los pasos vecinos, las aprobaciones y los
 temporizadores siguen.
 
 Solo puede resolver un paso quien inició el run o un editor del workflow, y en un run
-de prueba solo un editor puede resolver un paso o reintentar el run. Por la API se
+de prueba solo un editor puede resolver un paso o reintentar el run. Un run cancelado
+solo lo reintenta quien lo inició o un editor, quienes podrían haberlo cancelado.
+Por la API se
 hace con `POST /api/v1/workflow-runs/{id}/steps/{node_run_id}/rerun` y un `choice`,
 y la decisión queda auditada. Un run cancelado o fallido no tiene paso que resolver:
 **Retry from failed step** inicia un run nuevo. Un paso que terminó después de que su
@@ -918,6 +1079,8 @@ la escribió. En la vista de la ejecución, las líneas de cada paso están deba
 el orden en que se escribieron. Una clave de API de la organización con `workflows:view`
 también las lee, para las ejecuciones de origen público: consulta [Leer el log de un
 workflow](api.md#reading-a-workflows-log).
+
+Las nuevas líneas de Quick Log muestran los nombres predeterminados de los pasos en el idioma del lector, también en el dashboard. El grafo guardado del run identifica los nombres predeterminados, también en las líneas antiguas. Las etiquetas propias y las líneas cuyo grafo guardado ya no identifica el paso conservan su texto guardado.
 
 ### Alertas { #log-alerts }
 
@@ -968,6 +1131,16 @@ del JSON, con el tipo del campo, y una llamada a la API cuya entrada no encaja s
 rechaza con los campos que están mal. Consulta
 [core.input](reference/workflow-nodes.md#core-input).
 
+Para objetos y arrays anidados, configura el `input_schema` opcional de
+JSON Schema Draft 2020-12 en **Manual**, **API request** o **Called by a workflow**
+en lugar de campos simples. El esquema se guarda con la versión publicada y cada
+run debe cumplir el contrato de esa versión antes de empezar. Quien llama por API
+o MCP puede inspeccionar ese mismo contrato antes de enviar la entrada. Consulta
+[Contratos de entrada con JSON Schema](reference/workflow-nodes.md#json-schema-input-contracts)
+para conocer la configuración, las referencias y los errores de validación. Las
+entradas existentes de campos simples y los workflows sin contrato conservan su
+comportamiento.
+
 ### Desde el chat { #from-the-chat }
 
 El selector del chat de quién responde enumera, debajo de los agentes, los workflows
@@ -1011,6 +1184,16 @@ en `X-Delivery-Id`; las cabeceras propias de GitHub también funcionan. El trigg
 el JSON de la entrega como `body`, con su `delivery_id`. Un reintento que repite un id
 recibe como respuesta el primer run y no inicia nada, porque el id se guarda junto con
 el run que admitió, en una sola transacción.
+
+El id no forma parte de lo que firma el remitente, así que la misma solicitud firmada con
+otro id en 24 horas también es una copia: recibe como respuesta el primer run y no inicia
+nada, la lleve cualquiera de las dos cabeceras de firma. El mismo contenido enviado de
+nuevo pasadas 24 horas inicia un run. Un remitente que envía el mismo cuerpo más a menudo a
+propósito hace que cada uno sea distinto, con su propio id u hora en el cuerpo, o firma la
+hora: con `X-Signature-Timestamp` (segundos Unix) la firma cubre `{timestamp}.{body}` y se
+rechaza a más de cinco minutos del reloj del servidor.
+
+Las entregas admitidas antes de guardar resúmenes de firmas conservan la deduplicación por ID de entrega. Esas filas antiguas no permiten reconocer copias firmadas con otro ID; la detección por firma empieza con las entregas guardadas por la nueva versión.
 
 Un trigger **Schedule** se ejecuta cada cierto tiempo, a diario a una hora fija o
 según una expresión cron, en la zona horaria del workflow (UTC salvo que sus **Settings** indiquen otra)
@@ -1138,11 +1321,42 @@ contains**, **Has attachments**, **Importance** y **Category**.
 
 La primera lectura de
 una carpeta empieza en el momento en que se publicó o se encendió por última vez el workflow, así que el
-correo que ya está allí no inicia nada. Nombrar un buzón compartido que el grant de Microsoft de la organización pueda abrir
+correo que ya está allí no inicia nada.
+
+Nombrar un buzón compartido que el grant de Microsoft de la organización pueda abrir
 exige el permiso para gestionar conexiones, como en los triggers de agente de Outlook;
-un workflow que ya escucha uno lo conserva en publicaciones posteriores, y cambiarlo
-exige el permiso otra vez. Si Outlook dice que la carpeta ya no se puede leer, el
+toda publicación que lo nombre lo exige, porque quien publica pasa a ser el miembro
+como el que se lee el buzón, y un mensaje que llega a un workflow cuyo publicador
+ya no lo tiene no inicia ningún run. Si Outlook dice que la carpeta ya no se puede leer, el
 workflow se apaga y el registro de auditoría dice por qué.
+
+Un administrador puede encontrar de antemano los triggers de Outlook que esto
+detiene: los que leen un buzón compartido para un publicador que no es owner, admin
+ni builder y por tanto no tiene `mcp:manage`. Cada uno necesita que lo vuelva a
+publicar alguien que lo tenga, o subir el rol de su publicador. Ejecútalo contra la
+base de datos del despliegue:
+
+```sql
+SELECT o.name AS organization,
+       w.name AS workflow,
+       u.email AS publisher,
+       m.role AS publisher_role,
+       node -> 'config' ->> 'mailbox' AS shared_mailbox
+FROM workflow_exposures AS e
+JOIN workflow_versions AS v ON v.id = e.workflow_version_id
+JOIN workflows AS w ON w.id = e.workflow_id
+JOIN organizations AS o ON o.id = e.organization_id
+JOIN users AS u ON u.id = e.execution_principal_user_id
+LEFT JOIN organization_members AS m
+  ON m.organization_id = e.organization_id AND m.user_id = e.execution_principal_user_id
+CROSS JOIN LATERAL jsonb_array_elements(v.graph -> 'nodes') AS node
+WHERE e.adapter = 'outlook'
+  AND e.is_active
+  AND (node ->> 'id')::uuid = e.node_instance_id
+  AND coalesce(node -> 'config' ->> 'mailbox', '') <> ''
+  AND NOT u.is_app_admin
+  AND coalesce(m.role, '') NOT IN ('owner', 'admin', 'builder');
+```
 
 La ejecución recibe los
 mismos campos que una de Gmail, con `labels` con las categorías del mensaje y
@@ -1190,7 +1404,8 @@ entrega un tema solo dentro de un tema de foro.
 Un paso **Send a message** añadido después de un trigger **Channel message** empieza
 como el bot del trigger, con `channel_id` y `thread_id` enlazados, cuando las
 plataformas coinciden. Los mensajes de un bot inician como mucho un workflow, y escuchar a un bot requiere
-`channels:manage`. Una nota de voz llega como su transcripción; los demás adjuntos
+`channels:manage`, comprobado de nuevo en cada mensaje: si quien lo publicó lo
+pierde, responde el propio agente del bot. Una nota de voz llega como su transcripción; los demás adjuntos
 no se entregan. Ver
 [trigger.channel_message](reference/workflow-nodes.md#trigger-channel-message).
 
@@ -1214,8 +1429,14 @@ niveles, se rechaza.
 Los workflows llamados heredan el presupuesto restante del llamador y el plazo más
 cercano. Su gasto cuenta en el total del llamador; `own_cost` muestra solo los cargos
 directos para evitar duplicarlos al sumar registros. Con un presupuesto limitado debe
-mantenerse la espera hasta finalizar. Cancelar el llamador o revocar su acceso detiene
-al hijo antes del siguiente paso; una solicitud externa en curso puede terminar.
+mantenerse la espera hasta finalizar.
+
+Cancelar el llamador, o que agote su presupuesto, cancela cada hijo sin terminar que
+llamó y cada uno que estos llamaron, con sus solicitudes de aprobación y preguntas. Un
+hijo cuyo paso se está ejecutando en ese momento se detiene antes del siguiente paso,
+igual que uno cuyo llamador perdió el acceso; una solicitud externa en curso puede
+terminar.
+
 Reintentar una llamada reutiliza los pasos exitosos del hijo original con su versión
 fijada. Si ese hijo sigue activo, debe terminar o detenerse primero. Los archivos de
 salida se importan explícitamente al llamador y el acceso se comprueba al reanudar.
@@ -1279,7 +1500,7 @@ reintento de cada paso está en la [referencia de nodos](reference/workflow-node
 | Lo que ves | Por qué | Qué hacer |
 |---|---|---|
 | **Needs attention** | Se interrumpió un paso que pudo haber actuado, o dejó de esperar y nada lo despierta | Comprueba si su efecto ocurrió y resuelve el paso en el run con **Resolve**: ejecutarlo de nuevo, usar un resultado informado tarde, tomar su camino de error o hacer fallar el run. Cancelar el run y luego **Retry from failed step** empieza de cero |
-| `PRINCIPAL_REVOKED` | El miembro con el que actúa el run perdió el acceso o su cuenta se desactivó | Que un miembro que pueda ejecutar el workflow lo vuelva a publicar, para que su trigger se ejecute como él |
+| `PRINCIPAL_REVOKED` | El miembro con el que actúa el run perdió el acceso o su cuenta se desactivó, o se revocó la clave API que inició el run | Que un miembro que pueda ejecutar el workflow lo vuelva a publicar, para que su trigger se ejecute como él |
 | `WORKFLOW_TRIGGER_MISMATCH` | El run se pidió por una vía que no es su trigger en vivo: a mano o por la API para un workflow que empieza por un webhook, o en el chat para uno que no empieza por un mensaje del chat | Inícialo como dice su trigger, o prueba el draft, que acepta cualquier trigger |
 | `INVALID_BINDING` | Un valor no encajaba en el campo al que estaba enlazado | El error del paso nombra el campo; corrige el enlace o el valor anterior |
 | `REVISION_CONFLICT` | Alguien cambió un registro después de que el paso lo leyera | Encamina el error del paso con `error.handle` hacia una lectura nueva |
@@ -1318,7 +1539,7 @@ los pasos pegados leen unos de otros y no de los originales. Cada atajo de edici
 inerte mientras el editor es de solo lectura - una versión publicada, o **View only** -;
 `Escape` sigue cancelando una conexión perdida, y `?` sigue mostrando los atajos.
 
-Copiar y pegar tienen tres límites:
+Copiar y pegar tienen cuatro límites:
 
 - **Un paso con bindings lee de donde leía.** Un paso copiado conserva sus bindings.
   Uno que lee de un paso que no copiaste sigue leyendo del original, pero nada conecta
@@ -1330,6 +1551,10 @@ Copiar y pegar tienen tres límites:
   hacer clic en cualquier parte de él — un paso, el lienzo vacío, una conexión — lo
   mantiene ahí. Con el foco en los ajustes de un paso o en el selector de pasos, las teclas son de
   esos campos, así que haz clic en el lienzo antes de pulsarlas.
+- **Un pegado solo cae donde la paleta lo pondría.** Dentro de un bucle se rechaza
+  pegar un trigger, y también un bucle que, con los bucles que lleva dentro, quedaría
+  anidado a más de tres niveles. Se rechaza todo el pegado y el portapapeles lo
+  conserva, así que abre el nivel superior, o un bucle menos profundo, y pega ahí.
 
 Los adjuntos de imagen de un agente comparten un límite de 20 MB, comprobado
 antes de cargar cada archivo, incluidas referencias repetidas. Los resultados MCP
@@ -1369,7 +1594,7 @@ Las galerías de skills y contexto del agente integrado cargan todas las página
 - Un parámetro es **un valor o datos de un paso** — **Data** los lee de una salida previa
   alcanzable y de tipo compatible, o los mete en un texto.
 - El draft **se guarda solo**, y una edición desde dos sitios levanta un banner con
-  **Overwrite** o **Reload**.
+  **Keep my changes** o **Load their version**.
 - **Publish** se bloquea mientras un problema persiste y vuelve a validar en el
   servidor; las versiones anteriores quedan visibles en solo lectura, y **Restore to
   draft** vuelve a convertir una de ellas en el draft.

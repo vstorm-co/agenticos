@@ -1,7 +1,9 @@
 "use client";
 
+import { useId } from "react";
+import { ChoiceGroup } from "@/components/ui/choice-group";
 import { useTranslations } from "next-intl";
-import { ListFilter, ChevronDown } from "lucide-react";
+import { ListFilter, ChevronDown, ArrowDownWideNarrow, Bot } from "lucide-react";
 
 import {
   Button,
@@ -59,6 +61,8 @@ interface ConversationFiltersProps {
   onViewChange: (view: "active" | "archived") => void;
   /** Open beside the button rather than under it - from the collapsed rail. */
   beside?: boolean;
+  /** Icon trigger in a toolbar, independently of where its panel opens. */
+  compact?: boolean;
 }
 
 /**
@@ -90,7 +94,10 @@ export function ConversationFilters({
   view,
   onViewChange,
   beside = false,
+  compact = false,
 }: ConversationFiltersProps) {
+  const viewLabelId = useId();
+  const iconOnly = compact || beside;
   const t = useTranslations("chat.sidebar");
   const { agents } = useAgents({ includeArchived: true });
   const narrowed = agentId !== null || !hideApi || sort !== DEFAULT_SORT || view === "archived";
@@ -105,56 +112,58 @@ export function ConversationFilters({
           aria-label={t("filters")}
           title={t("filters")}
           className={
-            beside
+            iconOnly
               ? "size-8 p-0"
               : "text-muted-foreground hover:text-foreground h-8 w-full justify-start gap-2 rounded-lg text-xs"
           }
         >
           <ListFilter className="size-3.5" aria-hidden />
-          {!beside && <span className="min-w-0 flex-1 truncate text-left">{t("filters")}</span>}
+          {!iconOnly && <span className="min-w-0 flex-1 truncate text-left">{t("filters")}</span>}
           {narrowed && (
             <span aria-hidden className="bg-foreground size-1.5 shrink-0 rounded-full" />
           )}
-          {!beside && <ChevronDown className="text-muted-foreground size-3.5" aria-hidden />}
+          {!iconOnly && <ChevronDown className="text-muted-foreground size-3.5" aria-hidden />}
         </Button>
       </PopoverTrigger>
       <PopoverContent
         side={beside ? "right" : "bottom"}
         align="start"
         sideOffset={8}
+        collisionPadding={12}
         aria-label={t("filters")}
-        className="w-80 space-y-5 p-4"
+        className="w-80 max-w-[calc(100vw-1.5rem)] space-y-4 p-4"
       >
-        <div className="flex gap-5 border-b" role="group" aria-label={t("show")}>
-          {(["active", "archived"] as const).map((option) => (
-            <button
-              key={option}
-              type="button"
-              aria-pressed={view === option}
-              onClick={() => onViewChange(option)}
-              className={
-                view === option
-                  ? "border-foreground border-b-2 pb-2.5 text-sm font-medium"
-                  : "text-muted-foreground hover:text-foreground border-b-2 border-transparent pb-2.5 text-sm"
-              }
-            >
-              {t(option)}
-            </button>
-          ))}
-        </div>
+        <span id={viewLabelId} className="sr-only">
+          {t("show")}
+        </span>
+        <ChoiceGroup
+          compact
+          labelledBy={viewLabelId}
+          value={view}
+          options={(["active", "archived"] as const).map((value) => ({ value, label: t(value) }))}
+          onChange={onViewChange}
+        />
         <div className="space-y-1.5">
           {/* "Answered in", not "belongs to". The picker can be changed
                 mid-thread, so a thread can match two agents - which is why the
                 hint says what the filter means rather than leaving a reader to
                 infer ownership from a name. */}
-          <Label htmlFor="conversation-agent" className="text-muted-foreground text-xs">
+          <Label
+            htmlFor="conversation-agent"
+            className="text-muted-foreground flex items-center gap-2 text-xs"
+          >
+            <Bot className="size-3.5" aria-hidden />
             {t("agentFilterLabel")}
           </Label>
           <Select
             value={agentId ?? "all"}
             onValueChange={(value) => onAgentChange(value === "all" ? null : value)}
           >
-            <SelectTrigger id="conversation-agent" aria-label={t("agentFilterLabel")}>
+            <SelectTrigger
+              className="w-full"
+              id="conversation-agent"
+              aria-label={t("agentFilterLabel")}
+            >
               <SelectValue placeholder={t("allAgents")} />
             </SelectTrigger>
             <SelectContent>
@@ -180,11 +189,15 @@ export function ConversationFilters({
           )}
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="conversation-sort" className="text-muted-foreground text-xs">
+          <Label
+            htmlFor="conversation-sort"
+            className="text-muted-foreground flex items-center gap-2 text-xs"
+          >
+            <ArrowDownWideNarrow className="size-3.5" aria-hidden />
             {t("sortLabel")}
           </Label>
           <Select value={sort} onValueChange={(value) => onSortChange(value as ConversationSort)}>
-            <SelectTrigger id="conversation-sort" aria-label={t("sortLabel")}>
+            <SelectTrigger className="w-full" id="conversation-sort" aria-label={t("sortLabel")}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -198,7 +211,7 @@ export function ConversationFilters({
         </div>
         {/* A script's threads beside a person's: shown, labelled, and one
               switch from out of the way (#2122). */}
-        <label className="flex items-center justify-between gap-4 border-t pt-4 text-[13px]">
+        <label className="flex items-center justify-between gap-4 border-t pt-3 text-[13px]">
           {t("apiFilterLabel")}
           <Switch checked={hideApi} onCheckedChange={onHideApiChange} aria-label={t("hideApi")} />
         </label>

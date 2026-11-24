@@ -1,5 +1,5 @@
 ---
-source_sha: "9fe09e5e598b"
+source_sha: "2738919b34a2"
 ---
 
 # Ramas y qué las protege { #branches-and-what-protects-them }
@@ -200,7 +200,8 @@ un job cuando lo hace está más abajo.
 | `Security Scan` | 10 | 14s |
 | `docs` | 15 | 4m34s |
 | `test-frontend` | 45 | 20m07s |
-| `test` | 90 | 22m25s |
+| `test-shard` | 45 | — |
+| `test` | 15 | — |
 | `e2e` | 25 | 8m01s |
 
 La mayoría de los tiempos vienen de la ejecución 31116003994, una matriz completa
@@ -369,6 +370,22 @@ clic en vez de un ensayo.
   ejecución de `main` cancela otra.
 
 ## Cortes y versiones con varios cambios { #release-cuts-and-release-trains }
+
+Mantén PR separados y prepara **una publicación manual al día** cuando haya
+cambios en Unreleased. No hay un cut programado ni publicación automática.
+El proceso del equipo:
+
+1. Durante el desarrollo, usa borradores, tests locales del área modificada y controles ligeros de CI.
+2. Marca el PR como Ready for review para iniciar todo el CI correspondiente y CodeQL.
+3. Fusiona cada PR revisado con checks verdes por separado. No esperes a que se publique el PR anterior.
+4. Una vez al día, prepara un cut con todos los cambios fusionados en Unreleased. Las funciones y cambios incompatibles requieren minor; solo correcciones requieren patch.
+5. Antes de publicar, exige CI y CodeQL correctos para el SHA de fusión del cut, incluida la reutilización permitida de resultados verificados. Publica la release y el tag juntos. El despliegue de producción conserva su aprobación independiente.
+6. Publica hotfixes urgentes inmediatamente, fuera del ritmo diario, con la misma revisión, controles, cut y aprobación.
+
+Los PR apilados se fusionan en orden de dependencia y pueden compartir una release.
+No hace falta unir cambios independientes en un PR grande. Cada PR listo y cada
+fusión de código siguen ejecutando el CI correspondiente: agrupar releases reduce
+el trabajo de publicación, no la validación que exige cada cambio.
 
 Primero fusiona los PR funcionales y después prepara un único corte para el grupo.
 Elige el mayor incremento incluido: `make release-cut BUMP=patch` o `BUMP=minor`

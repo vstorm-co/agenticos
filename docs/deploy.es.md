@@ -1,20 +1,14 @@
 ---
-source_sha: "a41c7a2c6e87"
+source_sha: "e885d6a41f7e"
 ---
 
 # Despliega en un servidor { #deploy-to-a-server }
 
-Un host, Docker Compose, un proxy inverso delante. Ese es todo el camino que se
-publica, y es el que hace funcionar los despliegues en los que se usa este
-proyecto.
-
-No hay manifiestos de Kubernetes, ni quickstarts de un clic para los proveedores
-de plataforma como servicio. No es modestia sobre la escala. El stack son seis
-contenedores, dos de los cuales guardan estado, uno de los cuales puede arrancar
-contenedores propios, y uno de los cuales es un Postgres que debe ser pgvector -
-que ya es más de lo que modela un destino de despliegue a base de `git push`, y
-una guía que fingiera lo contrario estaría describiendo un despliegue que nadie
-ha ejecutado.
+Un host, Docker Compose y un proxy inverso siguen siendo la vía publicada para
+un solo servidor. Para clústeres, usa el [chart Helm de Kubernetes](kubernetes.md)
+mantenido, con servicios de datos externos y un Job de migración bloqueante.
+La configuración de OpenShift es una propuesta todavía sin validar. No hay
+quickstarts de un clic para proveedores PaaS.
 
 Más allá de un host - un Postgres gestionado, varios hosts de API, varios
 despliegues - está [Escalar más allá de un host](scaling.md).
@@ -322,8 +316,7 @@ contenedores llevan etiquetas, Traefik los descubre, pide el certificado y lo
 renueva. Nada que recargar y ningún segundo archivo de configuración que mantener
 sincronizado.
 
-Si Traefik aún no está, el repositorio trae uno: `traefik/traefik.yml` y
-`docker-compose-traefik.yml`, que es un entrypoint en el 443 con un resolver de
+Si Traefik aún no está, el repositorio trae uno: `docker-compose-traefik.yml`, que es un entrypoint en el 443 con un resolver de
 Let's Encrypt y el 80 redirigiendo hacia él.
 
 ```bash
@@ -347,9 +340,16 @@ make prod-frontend PROXY=traefik
 lo lee `scripts/deploy.sh` — así que los despliegues posteriores conservan el
 proxy con el que se configuró este host y no el que asumiera un script.
 
+El proxy incluido lee todos los ajustes estáticos de los argumentos de Compose,
+incluidos `ACME_EMAIL` y `TRAEFIK_NETWORK`. No montes además un archivo estático
+`traefik.yml`: Traefik elige una fuente estática e ignora esos argumentos
+si ese archivo existe. `traefik/dynamic.yml` sigue siendo la configuración de
+rutas del proveedor de archivos, incluido HSTS. Las conexiones WebSocket no
+necesitan middleware adicional; las cargas se transmiten sin límite en el proxy.
+
 !!! info "`exposedByDefault: false` está haciendo trabajo de verdad"
 
-    Es el único ajuste de `traefik/traefik.yml` que merece la pena leer antes de
+    Es el único ajuste de `docker-compose-traefik.yml` que merece la pena leer antes de
     ejecutarlo. Solo `app` y `frontend` llevan `traefik.enable=true`, así que
     Postgres, Redis, el worker y el demonio de la sandbox no son
     alcanzables desde nada fuera del host — y eso es una propiedad de *no estar
@@ -400,7 +400,7 @@ proxy con el que se configuró este host y no el que asumiera un script.
     parámetros de consulta, como `q`, `skip`, `limit` y los ids, se conservan.
 
     Traefik puede conservar, eliminar o redactar un campo entero, pero no
-    reescribir una parte de él, así que `traefik/traefik.yml` elimina
+    reescribir una parte de él, así que `docker-compose-traefik.yml` elimina
     `RequestPath`, que incluye la query string, del log de acceso de
     Traefik. Nginx sí puede reescribir parte de un valor, pero
     `nginx/nginx.conf` elimina la ruta, la query string y el `Referer` de
@@ -432,6 +432,27 @@ deja deliberadamente a lo que termine el TLS. El log de acceso de la plantilla d
 fuera la ruta de la petición, la query string y el `Referer`; *Algunas
 rutas y query strings de petición son credenciales*, más arriba, explica
 por qué y qué sigue escribiendo el log de errores.
+
+La plantilla requiere **Nginx 1.25.1 o posterior**, porque usa `http2 on`.
+Nginx 1.24 en Ubuntu 24.04 necesita un paquete más reciente o sustituir las
+directivas separadas `http2 on;` por `listen 443 ssl http2;` y su equivalente
+IPv6. Instala la plantilla dentro del contexto `http`, por ejemplo como
+`/etc/nginx/conf.d/agenticos.conf`, y ejecuta `nginx -t` antes de recargar.
+
+El host de la API y las rutas multipart enumeradas de la consola fijan
+`client_max_body_size 55m;`: el mayor de
+`MAX_UPLOAD_SIZE_MB`, `CHAT_MAX_UPLOAD_SIZE_MB`, `EMBED_MAX_UPLOAD_SIZE_MB` y
+`ML_MAX_UPLOAD_SIZE_MB`, más 5 MiB para el formato multipart. Aumenta los límites
+del proxy en **ambos** hosts cuando subas el mayor ajuste. Nginx permite solo
+1 MiB por defecto, incluido el formato, y rechaza las cargas antes de la aplicación.
+La consola reenvía archivos desde su propio host; las páginas alojadas usan el
+host de la API.
+
+Las páginas de la consola, la autenticación y el JSON ordinario
+conservan el límite de 1 MiB. Añade nuevas rutas de carga de la consola a la
+lista de ubicaciones de la plantilla. El proxy de la API reenvía las conexiones WebSocket en cualquier
+ruta, incluidas `/api/v1/ws/`, el chat y la voz integrados y los medios telefónicos.
+El HTTP normal conserva `Connection: close`.
 
 !!! warning "`BIND_HOST` es un ajuste de seguridad, no una comodidad"
 
@@ -634,8 +655,8 @@ ssh you@your-host "trap 'rm -f $remote' EXIT; bash $remote <commit-sha>"
 ```
 
 `scripts/deploy.sh` trae ese commit, espera a las imágenes que CI publicó para él
-(`sha-<short>`, normalmente ya están), las descarga, reinicia y espera a que los
-dos contenedores se declaren sanos antes de devolver distinto de cero o no. Toma
+(`sha-<short>`, normalmente ya están), las descarga, reinicia y espera a que la API,
+el worker en segundo plano y el frontend se declaren sanos antes de devolver distinto de cero o no. Toma
 un **commit** y no una rama, así que lo que se despliega es lo que se revisó y no
 aquello a lo que `main` se haya movido desde entonces - y lo que se ejecuta es
 byte a byte lo que construyó CI, en un host que nunca necesita la cadena de
@@ -657,6 +678,55 @@ herramientas.
 No es un despliegue sin interrupción. Compose recrea los contenedores cuya imagen
 ha cambiado, así que el sitio no está disponible durante los pocos segundos que
 eso lleva.
+
+### Retención de imágenes de versiones { #release-image-retention }
+
+Antes de descargar, el script elimina imágenes antiguas y sin uso únicamente de
+`ghcr.io/vstorm-co/agenticos-backend`, `agenticos-frontend` y `agenticos-browser`.
+Conserva dos identificadores adicionales de imágenes sin uso por repositorio,
+empezando por los más recientes. Varias etiquetas SHA o de versión del mismo ID
+cuentan como una imagen. Solo son elegibles las etiquetas `sha-<hex>` y las
+versiones numéricas. Todos los alias de un ID eliminable se retiran juntos,
+sin `--force`. `--no-prune` también impide eliminar implícitamente las imágenes
+padre sin etiqueta.
+
+Cada contenedor del host, en ejecución o detenido, protege su imagen, incluidos
+otros proyectos Compose. La imagen de destino, cualquier etiqueta mutable o
+manual y las etiquetas o digests de otro repositorio también protegen todo el
+ID. Las imágenes de sandbox y entornos de ejecución, las imágenes sin etiqueta
+y los volúmenes de la aplicación quedan fuera de esta limpieza. Estas
+protecciones pueden conservar más imágenes que el cupo de imágenes sin uso.
+
+El hash del directorio de despliegue separa los marcadores de varios despliegues
+en el mismo host. Las etiquetas locales `deploy-<stack-hash>-current` y `deploy-<stack-hash>-rollback` conservan la última
+imagen sana de cada componente y su predecesora tras reemplazar los contenedores.
+En el primer uso, `deploy-<stack-hash>-current` se obtiene de los contenedores sanos de este
+despliegue, no del checkout; varios ID sanos para un mismo componente rechazan
+el despliegue. Las referencias avanzan solo después de superar las comprobaciones
+de salud de los nuevos servicios. Los despliegues fallidos conservan las
+referencias y repetir la misma imagen no sustituye su rollback. Las reversiones
+siguen usando un SHA de commit aprobado; estas etiquetas locales son marcadores
+de retención, no versiones del registro.
+
+El script exige al menos **5 GiB libres** en el sistema de archivos del almacén
+Docker antes de cada descarga y después de preparar los entornos opcionales.
+Comprueba `DockerRootDir` y el almacén predeterminado `/var/lib/containerd` cuando
+existe. Es un umbral mínimo, no una reserva ni una estimación del tamaño de las
+imágenes; los almacenes containerd personalizados requieren supervisión aparte.
+Las imágenes del backend y frontend se descargan antes de reiniciar cualquiera
+de los servicios. Si falta espacio, el rechazo indica el sistema de archivos y
+la capacidad disponible: libera espacio fuera de las protecciones o amplía el
+almacenamiento y repite el despliegue aprobado. No implementes esta política
+mediante un `docker image prune -a` global.
+
+En Docker Desktop, el directorio de almacenamiento está dentro de la VM Linux.
+El script mide su espacio libre mediante un contenedor temporal, de solo lectura
+y sin red, usando una imagen del backend ya disponible localmente, preferentemente
+la última sana. La prueba no puede descargar imágenes y el contenedor se elimina
+automáticamente. También comprueba el sistema de archivos del host que contiene
+el directorio de despliegue; supervisa por separado el de un disco VM
+personalizado. Este procedimiento de actualización requiere una imagen local
+del backend; completa primero la instalación inicial normal.
 
 ### Desde GitHub, con una aprobación { #from-github-with-an-approval }
 
@@ -786,3 +856,18 @@ eso funciona depende de la migración. Léela antes de dar nada por supuesto.
   required reviewers en el entorno `production`, cada merge se despliega solo.
 - **Copia `postgres_data` y `backend/.env` juntos.** Cualquiera de los dos sin el
   otro no es una restauración.
+
+## Imágenes del fork y verificación local { #fork-images-and-local-verification }
+
+Compose y `scripts/deploy.sh` aceptan `AGENTICOS_IMAGE_PREFIX`, cuyo valor por
+defecto es `ghcr.io/vstorm-co/agenticos`. Configure el prefijo de imágenes del fork
+y su GitHub `owner/repository` en `AGENTICOS_SOURCE_REPOSITORY`. Backend, frontend
+y navegador usan ese prefijo; el daemon del sandbox, con versión independiente,
+sigue siendo una dependencia upstream. Images usa por defecto el prefijo GHCR
+de su propio repositorio en minúsculas. Una variable de repositorio GitHub con
+ese nombre puede sustituirlo; los permisos deben incluir el destino.
+
+Crear un fork no configura secretos SSH, revisores de entornos ni protecciones.
+Compruébelos antes de activar despliegues iniciados por publicaciones. El plugin
+y la prueba local aislada de imágenes publicadas se explican en
+[Gestionar AgenticOS con un cliente de IA](howto/operate-with-ai.md).

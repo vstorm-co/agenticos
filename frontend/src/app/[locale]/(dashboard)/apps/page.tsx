@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useConsoleRouter as useRouter } from "@/hooks/use-console-router";
 import { Lock, Plus } from "lucide-react";
 import { AppIcon as PanelsTopLeft } from "@/components/icons/product-icons";
 import { useTranslations } from "next-intl";
@@ -13,7 +13,8 @@ import {
 } from "@/components/artifacts/artifact-archive";
 import { ArtifactCard } from "@/components/artifacts/artifact-card";
 import { PageHeader } from "@/components/dashboard/page-header";
-import { EmptyState, ErrorState, LoadingState } from "@/components/states";
+import { CatalogLoading } from "@/components/states/catalog-loading";
+import { EmptyState, ErrorState } from "@/components/states";
 import { Button } from "@/components/ui/button";
 import {
   ListCard,
@@ -30,7 +31,12 @@ import {
 } from "@/components/ui";
 import { GroupFilter, NothingSharedWithGroup } from "@/components/groups/group-filter";
 import { usePermissions, useUrlState } from "@/hooks";
-import { useArtifactAgents, useArtifactListActions, useArtifacts } from "@/hooks/use-artifacts";
+import {
+  useArtifactAgents,
+  useArtifactListActions,
+  useArtifacts,
+  useToggleArtifactFavourite,
+} from "@/hooks/use-artifacts";
 import { getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
 import type { Artifact } from "@/types/artifact";
@@ -43,7 +49,7 @@ const SHOWN: readonly Shown[] = ["live", "all"];
  * The pages agents published that the caller may open.
  *
  * No create control of its own: an artifact is written by an agent's run,
- * through the Artifacts capability. "Make an app" hands that off to chat
+ * through the Artifacts capability. "Make a page" hands that off to chat
  * instead - a fresh conversation with the ask already started, so the reader
  * finishes the sentence and an agent publishes the page here.
  */
@@ -77,6 +83,7 @@ export default function ArtifactsPage() {
   // the server still decides each page, and refuses one the caller may not change.
   const canEdit = can(Perm.artifactsEdit);
   const { archive, unarchive, remove } = useArtifactListActions();
+  const favourites = useToggleArtifactFavourite();
   const [pendingArchive, setPendingArchive] = useState<Artifact | null>(null);
   const [pendingDelete, setPendingDelete] = useState<Artifact | null>(null);
   const busyId = archive.isPending
@@ -90,7 +97,7 @@ export default function ArtifactsPage() {
     search.trim() !== "" || agentId !== null || groupId !== null || shown === "all";
   // A fresh chat with the ask already started, so an agent's run can publish
   // the page here. `new` starts the conversation; `prompt` is written into
-  // the composer by useChatWith, not sent - the reader finishes it.
+  // the composer by the shared useChatPrompt handler, not sent - the reader finishes it.
   const makeApp = () =>
     router.push(`${ROUTES.CHAT}?new=1&prompt=${encodeURIComponent(t("makeAppPrompt"))}`);
   const header = <PageHeader title={t("title")} description={t("description")} />;
@@ -184,7 +191,7 @@ export default function ArtifactsPage() {
         }
       >
         {isLoading || isLoadingPermissions ? (
-          <LoadingState variant="skeleton-cards" rows={3} />
+          <CatalogLoading kind="document" />
         ) : error ? (
           <ErrorState
             description={getErrorMessage(error, tErrors)}
@@ -197,6 +204,17 @@ export default function ArtifactsPage() {
           <NothingSharedWithGroup groupId={groupId} />
         ) : artifacts.length === 0 ? (
           <ListCardEmpty
+            onClearFilters={
+              isFiltering
+                ? () => {
+                    setQuery("");
+                    setAgentId(null);
+                    setGroupId(null);
+                    setShownParam(null);
+                    setPage(0);
+                  }
+                : undefined
+            }
             icon={PanelsTopLeft}
             title={isFiltering ? t("noMatches") : t("noneYet")}
             description={isFiltering ? t("noMatchesWhy") : t("noneYetWhy")}
@@ -212,6 +230,15 @@ export default function ArtifactsPage() {
                   key={artifact.id}
                   artifact={artifact}
                   busy={busyId === artifact.id}
+                  favourite={{
+                    on: artifact.is_favourite === true,
+                    busy: favourites.isPending && favourites.variables?.id === artifact.id,
+                    onToggle: () =>
+                      favourites.mutate({
+                        id: artifact.id,
+                        favourite: artifact.is_favourite !== true,
+                      }),
+                  }}
                   actions={
                     canEdit
                       ? {

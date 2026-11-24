@@ -147,10 +147,12 @@ async def test_updating_answers_with_what_the_service_returned():
 
 async def test_running_now_answers_with_what_the_service_returned():
     fired = _read()
-    service = MagicMock(run_now=AsyncMock(return_value=fired))
+    accepted = MagicMock(trigger=fired, activation_id=uuid.uuid4(), job_id=None)
+    service = MagicMock(run_now=AsyncMock(return_value=accepted))
     agent_id, trigger_id = uuid.uuid4(), uuid.uuid4()
     result = await run_trigger_now(agent_id, trigger_id, _CTX, service)
-    assert result is fired
+    assert result.id == fired.id
+    assert result.activation_id == accepted.activation_id
     service.run_now.assert_awaited_once_with(_CTX, agent_id, trigger_id)
 
 
@@ -199,3 +201,9 @@ async def test_portal_targets_maps_the_adapters_answer():
     result = await list_portal_targets("github", _CTX, service, connection_id=uuid.uuid4())
     assert result.total == 1
     assert result.items[0].id == "acme/api"
+
+
+async def test_linear_webhook_acknowledges_with_200():
+    service = MagicMock(queue_event_fire=AsyncMock(return_value=True))
+    response = await ingest_trigger_event("linear", uuid.uuid4(), _request(b"{}", {}), service)
+    assert response.status_code == 200

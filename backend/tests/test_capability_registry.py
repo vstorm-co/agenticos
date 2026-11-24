@@ -9,13 +9,14 @@ import json
 import re
 import subprocess
 import sys
+from collections.abc import Iterable
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 from uuid import UUID, uuid4
 
 import pytest
-from pydantic import SecretStr, ValidationError
+from pydantic import SecretStr, ValidationError, create_model
 from pydantic_ai import Agent as PydanticAgent
 from pydantic_ai.models.test import TestModel
 
@@ -23,6 +24,7 @@ from app.agents.capabilities import (
     REGISTRY,
     CapabilityBinding,
     CapabilityBuildContext,
+    CapabilityDef,
     CapabilityToolInfo,
     ProviderExecuted,
     ToolOverride,
@@ -166,6 +168,7 @@ class TestToolDeclarations:
         # and contributes nothing when it is not, and this test is about the
         # names it offers rather than what a platform answers.
         CHANNEL_DIRECTORY_RESOURCE: SimpleNamespace(),
+        "channel_actions": SimpleNamespace(),
         # The folders the runner resolved; one scratch folder needs no credential.
         MIRAGE_MOUNTS_RESOURCE: ResolvedTerminal(
             mounts=(ResolvedMount("/scratch/", "ram", "write", False, {}, "scratch"),)
@@ -281,6 +284,7 @@ class TestToolDeclarations:
         # subagents resource above is at its widest - an undeclared tool can only
         # appear where the most tools do.
         "channel_tools": {"tools": sorted(get("channel_tools").tool_ids)},
+        "channel_actions": {"tools": sorted(get("channel_actions").tool_ids)},
         # Builds `None` from an empty blob on purpose - enabling the capability
         # without turning on an edge attaches no guardrail. One edge on is what
         # makes it build here; it offers no tools either way.
@@ -299,6 +303,39 @@ class TestToolDeclarations:
         "system_reminders": {"goal_reanchor": {}},
         # Builds `None` naming no workflow: one named is what makes it offer its tools.
         "workflows": {"workflow_ids": ["00000000-0000-0000-0000-000000000002"]},
+        # Members are required, with no default: one member is what makes the
+        # config valid, and the widest shape - three - is what the builder must
+        # still resolve without a model for any of them.
+        "council": {
+            "members": [
+                {
+                    "name": "Claude Opus",
+                    "provider": "anthropic",
+                    "model_profile_id": "00000000-0000-0000-0000-000000000003",
+                },
+                {
+                    "name": "GPT Sol",
+                    "provider": "openai",
+                    "model_profile_id": "00000000-0000-0000-0000-000000000004",
+                },
+                {
+                    "name": "Gemini Pro",
+                    "provider": "google",
+                    "model_profile_id": "00000000-0000-0000-0000-000000000005",
+                },
+            ]
+        },
+        # A reviewer is required, with no default: one reviewer is what makes
+        # the config valid, and the widest shape - five rounds - is what the
+        # builder must still resolve without a model for it.
+        "sol_loop": {
+            "reviewer": {
+                "name": "GPT Sol",
+                "provider": "openai",
+                "model_profile_id": "00000000-0000-0000-0000-000000000003",
+            },
+            "max_rounds": 5,
+        },
     }
     """Configurations a capability needs before it offers anything.
 
@@ -555,6 +592,215 @@ class TestEffectiveTools:
             get("knowledge").effective_tools({"search_docuemnts": ToolOverride(name="typo")})
             == get("knowledge").tools
         )
+
+
+class TestReadOnlyDeclarations:
+    """Which tools an eval may run against the normal connections.
+
+    Pinned as a table, so a new tool - or a capability nobody classified - fails
+    here and somebody decides, rather than an eval blocking it or running it by
+    accident.
+    """
+
+    WRITES = frozenset(
+        {
+            ("babysit_pr", "babysit_pr_stop"),
+            ("background_tasks", "list_background_tasks"),
+            ("background_tasks", "start_background_task"),
+            ("background_tasks", "stop_background_task"),
+            ("drafts", "write_draft"),
+            ("proof_scenario", "proof_scenario_record"),
+            ("agent_messages", "agent_send_message"),
+            ("agent_messages", "agent_react"),
+            ("eval_tool_tuning", "record_eval_tool_tuning"),
+            ("harness", "harness_start"),
+            ("harness", "harness_prompt"),
+            ("harness", "harness_stop"),
+            ("council", "run_council_review"),
+            ("sol_loop", "run_sol_loop_review"),
+            ("burst", "run_burst"),
+            ("secret_request", "request_secret"),
+            ("memory_files", "correct_memory"),
+            ("memory_files", "remember"),
+            ("memory_files", "share_memory"),
+            ("mirage", "mirage_edit_file"),
+            ("mirage", "mirage_execute"),
+            ("mirage", "mirage_glob"),
+            ("mirage", "mirage_grep"),
+            ("mirage", "mirage_ls"),
+            ("mirage", "mirage_read_file"),
+            ("mirage", "mirage_write_file"),
+            ("phone_calls", "call_me"),
+            ("phone_calls", "end_phone_call"),
+            ("phone_calls", "get_phone_contact_policy"),
+            ("phone_calls", "list_phone_transfer_contacts"),
+            ("phone_calls", "transfer_phone_call"),
+            ("artifacts", "publish_artifact"),
+            ("artifacts", "export_artifact"),
+            ("channel_actions", "send_chat_message"),
+            ("channel_actions", "react_to_chat_message"),
+            ("artifacts", "share_artifact"),
+            ("computer_use", "computer_screenshot"),
+            ("computer_use", "computer_act"),
+            ("computer_use", "computer_apps"),
+            ("computer_use", "computer_save_screenshot"),
+            ("workflows", "run_workflow"),
+            ("ask_user", "ask_user_question"),
+            ("browser_use", "browse_web"),
+            ("browser_use", "browser_open"),
+            ("browser_use", "browser_read"),
+            ("browser_use", "browser_click"),
+            ("browser_use", "browser_type"),
+            ("browser_use", "browser_select"),
+            ("browser_use", "browser_scroll"),
+            ("browser_use", "browser_back"),
+            ("browser_use", "browser_new_tab"),
+            ("browser_use", "browser_tabs"),
+            ("browser_use", "browser_switch_tab"),
+            ("browser_use", "browser_close_tab"),
+            # Read the live origin of this run's browser session, like `browser_read`.
+            ("browser_use", "browser_procedures"),
+            ("browser_use", "browser_credential_options"),
+            # Types a vaulted sign-in into the open page.
+            ("browser_use", "browser_fill_credential"),
+            ("coding_agent", "run_coding_agent"),
+            ("monitor", "start_monitor"),
+            ("monitor", "list_monitors"),
+            ("monitor", "stop_monitor"),
+            ("image_generation", "generate_image"),
+            ("text_to_speech", "generate_speech"),
+            ("follow_ups", "suggest_next_steps"),
+            ("follow_ups", "propose_setup"),
+            ("video_generation", "generate_video"),
+            ("memory_files", "write_memory"),
+            ("memory_files", "edit_memory"),
+            ("memory_files", "delete_memory"),
+            ("sandbox", "write_file"),
+            ("sandbox", "edit_file"),
+            ("sandbox", "execute"),
+            ("visuals", "draw"),
+            ("visuals", "revise_visual"),
+            ("visuals", "read_visual"),
+        }
+    )
+
+    def test_every_declared_tool_is_classified_as_the_table_says(self):
+        writes = {
+            (definition.id, tool.id)
+            for definition in all_capabilities()
+            for tool in definition.tools
+            if not definition.tool_is_read_only(tool)
+        }
+
+        assert writes == self.WRITES
+
+    def test_a_capability_that_declares_nothing_writes(self):
+        tool = CapabilityToolInfo(id="send_email", description="Send it.")
+        definition = CapabilityDef(
+            id="mailer",
+            name="Mailer",
+            category="test",
+            description="Sends mail.",
+            builder=lambda _ctx: None,
+            tools=(tool,),
+        )
+
+        assert definition.tool_is_read_only(tool) is False
+
+    def test_a_tool_declaration_beats_its_capabilitys(self):
+        (read_artifact,) = (t for t in get("artifacts").tools if t.id == "read_artifact")
+
+        assert get("artifacts").read_only is False
+        assert get("artifacts").tool_is_read_only(read_artifact) is True
+
+    def test_a_rename_keeps_the_declaration(self):
+        """The eval guard reads effective tools; a rename must not make a read write."""
+        (tool,) = (
+            t
+            for t in get("memory_files").effective_tools(
+                {"read_memory": ToolOverride(name="look_up_note")}
+            )
+            if t.id == "read_memory"
+        )
+
+        assert (tool.name, tool.read_only) == ("look_up_note", True)
+
+
+class TestTestKeyIsolation:
+    """Which capabilities let a swapped vault key carry their writes into an eval.
+
+    The declaration is what lets a write execute in an isolated run, so it is
+    pinned: a capability gaining it fails here until somebody decides.
+    """
+
+    DECLARED: frozenset[str] = frozenset()
+
+    #: Config fields that name where a capability's calls go. A capability with
+    #: one can be pointed at production whatever key it holds.
+    _TARGET = re.compile(
+        r"url|uri|host|endpoint|base|server|dsn|address|domain|port", re.IGNORECASE
+    )
+
+    @classmethod
+    def _offending(cls, definitions: Iterable[CapabilityDef]) -> set[str]:
+        return {
+            definition.id
+            for definition in definitions
+            if definition.test_key_isolates
+            and definition.config_schema is not None
+            and any(cls._TARGET.search(name) for name in definition.config_schema.model_fields)
+        }
+
+    def test_the_declarations_are_the_ones_decided(self):
+        declared = {d.id for d in all_capabilities() if d.test_key_isolates}
+
+        assert declared == self.DECLARED
+
+    def test_a_capability_whose_config_names_a_target_never_declares_it(self):
+        """A test key next to a production URL still writes to production."""
+        assert self._offending(all_capabilities()) == set()
+
+    @pytest.mark.parametrize(
+        "field",
+        [
+            "cdp_url",
+            "api_base",
+            "base_url",
+            "server_uri",
+            "Hostname",
+            "smtp_server",
+            "dsn",
+            "ip_address",
+            "domain",
+            "port",
+            "endpoint",
+        ],
+    )
+    def test_a_declaration_beside_any_field_naming_a_target_is_refused(self, field):
+        config = create_model("Config", **{field: (str, "x")})
+        definition = CapabilityDef(
+            id="mailer",
+            name="Mailer",
+            category="test",
+            description="Sends mail.",
+            builder=lambda _ctx: None,
+            tools=(),
+            config_schema=config,
+            test_key_isolates=True,
+        )
+
+        assert self._offending([definition]) == {"mailer"}
+
+    def test_the_config_check_sees_the_capabilities_it_exists_for(self):
+        """Without this the check above could pass by matching nothing."""
+        named = {
+            definition.id
+            for definition in all_capabilities()
+            if definition.config_schema is not None
+            and any(self._TARGET.search(name) for name in definition.config_schema.model_fields)
+        }
+
+        assert {"browser_use", "web_fetch"} <= named
 
 
 class TestProviderExecutedDeclarations:
@@ -1058,10 +1304,16 @@ def test_exactly_the_capabilities_a_call_cannot_run_live_say_so():
             "background_tools",
             "background_tasks",
             "coding_agent",
+            "harness",
             "video_generation",
             "monitor",
+            "council",
+            "babysit_pr",
+            "sol_loop",
+            "burst",
+            "proof_scenario",
         },
-        "never": {"channel_tools", "follow_ups", "drafts"},
+        "never": {"channel_tools", "channel_actions", "follow_ups", "drafts"},
     }
 
 
@@ -1111,28 +1363,15 @@ class TestCapabilitySettingsCopy:
     def test_the_english_catalog_says_what_the_schema_says(self):
         assert self._catalog("en") == self._schema_copy()
 
-    def test_every_language_covers_every_setting_and_nothing_else(self):
-        expected = {
-            cap_id: {field: {"title", "description"} for field in fields}
-            for cap_id, fields in self._schema_copy().items()
-        }
-        for locale in ("pl", "de"):
-            catalog = self._catalog(locale)
-            covered = {
-                cap_id: {field: set(entry) for field, entry in fields.items()}
-                for cap_id, fields in catalog.items()
-            }
-            assert covered == expected, locale
-
 
 class TestConsoleCapabilityGuide:
     """The console explains every capability, under the registry's own name (#2070).
 
     The console reads a capability's name and its plain-language guide from its
-    message catalogs, so a person reads it in their language. That copy is a second
-    place a capability is named: a capability added here with no entry there is shown
-    to a Polish reader in English with no examples, and one renamed here keeps its old
-    name in the Builder while the API, the AI Architect and the docs use the new one.
+    English message catalog (the T3 fork ships English only, #161). That copy is a
+    second place a capability is named: a capability added here with no entry there
+    has no guide, and one renamed here keeps its old name in the Builder while the
+    API, the AI Architect and the docs use the new one.
     """
 
     @staticmethod
@@ -1143,8 +1382,7 @@ class TestConsoleCapabilityGuide:
     def test_every_capability_has_an_entry_and_no_entry_is_orphaned(self):
         registered = sorted(definition.id for definition in all_capabilities())
 
-        for locale in ("en", "pl", "de"):
-            assert sorted(self._guide(locale)) == registered, locale
+        assert sorted(self._guide("en")) == registered
 
     def test_the_english_name_is_the_registry_name(self):
         guide = self._guide("en")
@@ -1157,25 +1395,17 @@ class TestConsoleCapabilityGuide:
         """`docs/reference/glossary*.md` is the one list of names (#2075); a
         capability renamed or added in the console and not there is a glossary
         that has started to disagree with the screen it explains."""
-        docs = MESSAGES_PATH.parents[1] / "docs" / "reference"
-        for locale, page in (
-            ("en", "glossary.md"),
-            ("pl", "glossary.pl.md"),
-            ("de", "glossary.de.md"),
-        ):
-            text = (docs / page).read_text(encoding="utf-8")
-            rows = {
-                cap_id: name.strip()
-                for name, cap_id in re.findall(r"^\| ([^|`]+) \| `([a-z_0-9]+)` \|$", text, re.M)
-            }
-            assert rows == {
-                cap_id: entry["name"] for cap_id, entry in self._guide(locale).items()
-            }, locale
+        text = (MESSAGES_PATH.parents[1] / "docs" / "reference" / "glossary.md").read_text(
+            encoding="utf-8"
+        )
+        rows = {
+            cap_id: name.strip()
+            for name, cap_id in re.findall(
+                r"^\|\s*([^|`]+?)\s*\|\s*`([a-z_0-9]+)`\s*\|$", text, re.M
+            )
+        }
+        assert rows == {cap_id: entry["name"] for cap_id, entry in self._guide("en").items()}
 
     def test_each_entry_says_what_it_does_needs_and_never_does_with_examples(self):
-        for locale in ("en", "pl", "de"):
-            for cap_id, entry in self._guide(locale).items():
-                assert {"name", "does", "needs", "never", "example1"} <= entry.keys(), (
-                    locale,
-                    cap_id,
-                )
+        for cap_id, entry in self._guide("en").items():
+            assert {"name", "does", "needs", "never", "example1"} <= entry.keys(), cap_id

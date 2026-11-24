@@ -12,6 +12,7 @@ interface DirectoryMappingListProps {
   mappings: DirectoryMapping[];
   isLoading: boolean;
   error: Error | null;
+  onRetry: () => void;
   /** `members:manage` and `roles:manage` both - what adding or deleting one takes. */
   canEdit: boolean;
   onAdd: () => void;
@@ -23,6 +24,7 @@ export function DirectoryMappingList({
   mappings,
   isLoading,
   error,
+  onRetry,
   canEdit,
   onAdd,
   onDelete,
@@ -63,7 +65,7 @@ export function DirectoryMappingList({
         ),
     },
   ];
-  if (canEdit) {
+  if (canEdit || isLoading) {
     columns.push({
       key: "actions",
       header: "",
@@ -77,7 +79,7 @@ export function DirectoryMappingList({
           onClick={() => onDelete(mapping)}
           aria-label={tc("removeNamed", { name: mapping.external_group })}
         >
-          <Trash2 className="h-4 w-4" />
+          <Trash2 className="h-4 w-4" aria-hidden />
         </Button>
       ),
     });
@@ -86,32 +88,54 @@ export function DirectoryMappingList({
   return (
     <ListCard
       title={t("listTitle")}
+      namedByPage
+      fill
+      empty={!isLoading && !error && mappings.length === 0}
       counted={isLoading || error ? null : t("mappingCount", { count: mappings.length })}
       contentClassName="p-0"
       controls={
-        canEdit ? (
-          <Button size="sm" onClick={onAdd} data-tour="org-directory-new">
-            <Plus className="h-4 w-4" />
+        canEdit && !isLoading && mappings.length > 0 ? (
+          <Button
+            size="sm"
+            onClick={onAdd}
+            data-tour={mappings.length > 0 || isLoading || error ? "org-directory-new" : undefined}
+          >
+            <Plus className="h-4 w-4" aria-hidden />
             {t("addMapping")}
           </Button>
         ) : null
       }
     >
       {error ? (
-        <ErrorState description={getErrorMessage(error, tErrors)} className="m-5" />
-      ) : !isLoading && mappings.length === 0 ? (
-        <ListCardEmpty
-          icon={Network}
-          title={t("emptyTitle")}
-          description={t("emptyBody")}
-          cta={canEdit ? { label: t("addMapping"), onClick: onAdd } : undefined}
+        <ErrorState
+          description={getErrorMessage(error, tErrors)}
+          cta={{ label: tc("retry"), onClick: onRetry }}
+          className="m-5"
         />
       ) : (
         <DataTable<DirectoryMapping>
+          clientPagination
+          empty={
+            <ListCardEmpty
+              icon={Network}
+              title={t("emptyTitle")}
+              description={t("emptyBody")}
+              cta={
+                canEdit
+                  ? {
+                      label: <span data-tour="org-directory-new">{t("addMapping")}</span>,
+                      onClick: onAdd,
+                    }
+                  : undefined
+              }
+            />
+          }
           columns={columns}
           rows={mappings}
           loading={isLoading}
           skeletonRows={3}
+          fillHeight
+          stackOnNarrow
           getRowKey={(mapping) => mapping.id}
           className="rounded-none border-0 bg-transparent"
         />

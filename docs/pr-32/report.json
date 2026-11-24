@@ -1,0 +1,16 @@
+{
+  "base": "http://localhost:3012",
+  "captures": [
+    {
+      "scenario": "fl-clip",
+      "width": 1440,
+      "file": "fl-clip-1440.png",
+      "page_errors": [],
+      "unmatched_api": [
+        "GET /catalog/icons",
+        "GET /assistant",
+        "POST /diagnostics/presence"
+      ]
+    }
+  ]
+}

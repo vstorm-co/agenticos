@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
+import { toast } from "sonner";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AppearanceMenu, LanguageMenu } from "./account-preferences";
@@ -11,9 +12,16 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useThemeStore } from "@/stores/theme-store";
 
-const env = vi.hoisted(() => ({ mounted: true, push: vi.fn() }));
+const env = vi.hoisted(() => ({ mounted: true, push: vi.fn(), save: vi.fn(), choose: vi.fn() }));
+
+vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
+
+vi.mock("@/hooks/use-user-appearance", () => ({
+  useUserAppearance: () => ({ preferences: {}, pending: false, save: env.save }),
+}));
 
 vi.mock("@/hooks/use-mounted", () => ({ useMounted: () => env.mounted }));
+vi.mock("@/hooks/use-choose-locale", () => ({ useChooseLocale: () => env.choose }));
 vi.mock("@/lib/locale-navigation", () => ({
   usePathname: () => "/agents",
   useRouter: () => ({ push: env.push }),
@@ -36,6 +44,9 @@ async function openSubmenu(name: RegExp) {
 beforeEach(() => {
   env.mounted = true;
   env.push.mockClear();
+  env.save.mockReset().mockResolvedValue({});
+  env.choose.mockClear();
+  vi.mocked(toast.error).mockClear();
   useThemeStore.setState({ theme: "system", look: "standard" });
 });
 
@@ -47,7 +58,19 @@ describe("AppearanceMenu", () => {
 
     await userEvent.click(await screen.findByRole("menuitemradio", { name: "Dark" }));
 
-    expect(useThemeStore.getState().theme).toBe("dark");
+    expect(env.save).toHaveBeenCalledWith({ theme: "dark" });
+  });
+
+  it("reports a refused save and retains the acknowledged appearance", async () => {
+    env.save.mockRejectedValueOnce(new Error("appearance unavailable"));
+    useThemeStore.setState({ theme: "dark", look: "paper" });
+    inMenu(<AppearanceMenu />);
+    await openSubmenu(/Appearance/);
+    await userEvent.click(screen.getByRole("menuitemradio", { name: "Glass" }));
+
+    expect(env.save).toHaveBeenCalledWith({ look: "glass" });
+    expect(toast.error).toHaveBeenCalledOnce();
+    expect(useThemeStore.getState()).toMatchObject({ theme: "dark", look: "paper" });
   });
 
   it("names no theme before mount", () => {
@@ -69,7 +92,7 @@ describe("AppearanceMenu", () => {
 
       await userEvent.click(screen.getByRole("menuitemradio", { name }));
 
-      expect(useThemeStore.getState().look).toBe(name.toLowerCase());
+      expect(env.save).toHaveBeenCalledWith({ look: name.toLowerCase() });
       expect(useThemeStore.getState().theme).toBe("dark");
     },
   );
@@ -79,7 +102,7 @@ describe("AppearanceMenu", () => {
     await openSubmenu(/Appearance/);
     screen.getByRole("menuitemradio", { name: "Standard" }).focus();
     await userEvent.keyboard("{ArrowDown}{Enter}");
-    expect(useThemeStore.getState().look).toBe("glass");
+    expect(env.save).toHaveBeenCalledWith({ look: "glass" });
   });
 
   it("checks no style before mount", async () => {
@@ -92,13 +115,22 @@ describe("AppearanceMenu", () => {
 });
 
 describe("LanguageMenu", () => {
-  it("switches the language through the locale-aware router", async () => {
+  it("lists only the locales the deployment serves", async () => {
     inMenu(<LanguageMenu />);
     expect(screen.getByRole("menuitem", { name: /Language/ })).toHaveTextContent("English");
     await openSubmenu(/Language/);
 
-    await userEvent.click(await screen.findByRole("menuitemradio", { name: /Polski/ }));
+    const options = await screen.findAllByRole("menuitemradio");
+    expect(options.map((option) => option.textContent)).toEqual(["🇬🇧English"]);
+    expect(options[0]).toHaveAttribute("aria-checked", "true");
+  });
 
-    expect(env.push).toHaveBeenCalledWith("/agents", { locale: "pl" });
+  it("routes the selected locale through the account preference callback", async () => {
+    inMenu(<LanguageMenu />);
+    await openSubmenu(/Language/);
+
+    await userEvent.click(await screen.findByRole("menuitemradio", { name: /English/ }));
+
+    expect(env.choose).toHaveBeenCalledExactlyOnceWith("en");
   });
 });

@@ -1,0 +1,62 @@
+substitutions:
+  _SOURCE_SHA: ''
+  _NOTIFICATION_TOPIC: cloud-builds
+steps:
+  - id: checked-source
+    name: gcr.io/cloud-builders/git
+    entrypoint: sh
+    env: ['EXPECTED_SOURCE_SHA=${_SOURCE_SHA}']
+    args:
+      - -ceu
+      - |
+        case "$$EXPECTED_SOURCE_SHA" in *[!0-9a-f]*|'') exit 1;; esac
+        test "$${#EXPECTED_SOURCE_SHA}" -eq 40
+        test "$$(git rev-parse HEAD)" = "$$EXPECTED_SOURCE_SHA"
+  - id: build-tools
+    name: gcr.io/cloud-builders/docker
+    args: ['build', '-t', 't3os-platform-tools:$BUILD_ID', '-f', 'ci/Dockerfile.platform-tools', '.']
+  - id: sync-tests
+    name: gcr.io/cloud-builders/docker
+    args:
+      - run
+      - --rm
+      - -v
+      - /workspace:/workspace
+      - -w
+      - /workspace
+      - 't3os-platform-tools:$BUILD_ID'
+      - python3
+      - -c
+      - |
+        import unittest
+        suite = unittest.defaultTestLoader.discover('ci/tests', pattern='test_downstream_sync*.py')
+        if not suite.countTestCases():
+            raise SystemExit('Required sync tests were not discovered')
+        result = unittest.TextTestRunner(verbosity=2).run(suite)
+        raise SystemExit(not result.wasSuccessful())
+  - id: platform-checks
+    name: gcr.io/cloud-builders/docker
+    args:
+      - run
+      - --rm
+      - --network=cloudbuild
+      - -v
+      - /workspace:/workspace
+      - -v
+      - /var/run/docker.sock:/var/run/docker.sock
+      - -w
+      - /workspace
+      - -e
+      - 'CI_PIPELINE_ID=$BUILD_ID'
+      - -e
+      - CI_DOCKER_NETWORK=cloudbuild
+      - 't3os-platform-tools:$BUILD_ID'
+      - bash
+      - ci/platform-checks.sh
+    timeout: 9000s
+options:
+  machineType: E2_HIGHCPU_8
+  diskSizeGb: 100
+  logging: CLOUD_LOGGING_ONLY
+  pubsubTopic: projects/${PROJECT_ID}/topics/${_NOTIFICATION_TOPIC}
+timeout: 10800s

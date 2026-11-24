@@ -173,3 +173,18 @@ describe("the durable record of what agents did", () => {
     expect(apiClient.get).toHaveBeenCalledWith("/sandbox-connections/operations?skip=0&limit=50");
   });
 });
+
+it("checks an OpenSandbox image through the backend without browser credentials", async () => {
+  await api.probeSandboxService("https://sandbox.example", "vault-id", {
+    kind: "opensandbox",
+    image: "python:3.12-slim",
+    secureAccess: true,
+  });
+  expect(apiClient.post).toHaveBeenCalledWith("/sandbox-connections/probe", {
+    base_url: "https://sandbox.example",
+    secret_id: "vault-id",
+    kind: "opensandbox",
+    default_runtime: "python:3.12-slim",
+    secure_access: true,
+  });
+});

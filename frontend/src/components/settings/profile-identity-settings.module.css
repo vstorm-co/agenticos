@@ -1,0 +1,45 @@
+.guided > section:first-child > header {
+  display: none;
+}
+.avatarEditor {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  text-align: center;
+}
+.portraitControls {
+  flex-direction: column;
+  gap: 16px;
+}
+.portraitControls .portrait {
+  width: 104px;
+  height: 104px;
+}
+.avatarEditor > div:last-child {
+  width: 100%;
+  max-width: 440px;
+}
+
+.overview {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 28px;
+}
+.overview > section {
+  border-bottom: 0;
+}
+@media (width < 64rem) {
+  .overview {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+  }
+}
+
+.overview > section {
+  padding: 0 4px;
+}
+.overview > section > header h2 {
+  font-size: 16px;
+  font-weight: 500;
+}

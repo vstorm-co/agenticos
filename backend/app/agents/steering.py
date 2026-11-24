@@ -15,7 +15,7 @@ is over rather than losing it.
 from collections.abc import Awaitable, Callable, Generator
 from contextlib import contextmanager
 from dataclasses import dataclass, field, replace
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from pydantic_ai.capabilities import AbstractCapability
 from pydantic_ai.messages import ModelRequest, UserPromptPart
@@ -30,6 +30,18 @@ if TYPE_CHECKING:
 __all__ = ["STEER_PREFIX", "Steer", "Steering", "SteeringInbox", "screen_steer"]
 
 STEER_PREFIX = "[Added by the person while you were working - take it into account from here]"
+
+
+class ChannelTurnStopped(Exception):
+    """End a queued turn without another paid model request."""
+
+    def __init__(self, reason: Literal["sender", "lease_lost"] = "sender") -> None:
+        self.reason = reason
+        super().__init__(
+            "Stopped by the sender in the channel."
+            if reason == "sender"
+            else "The channel worker lost its execution lease; inspect existing actions before asking again."
+        )
 
 
 @dataclass
@@ -49,6 +61,7 @@ class SteeringInbox:
     """
 
     on_applied: Callable[[str], Awaitable[None]] | None = None
+    poll: Callable[[AgentDeps], Awaitable[list[str]]] | None = None
     screen: Callable[[str], GuardrailResult] | None = None
     """The agent's input guardrail, set by the runner: a steer reaches the model
     from the second request on, past where the harness's input edge looks, so it
@@ -130,6 +143,9 @@ class Steering(AbstractCapability["AgentDeps"]):
         # response echoed back verbatim, and nothing may be added to it.
         if not messages or not isinstance(last := messages[-1], ModelRequest):
             return request_context
+        if inbox.poll is not None:
+            for text in await inbox.poll(ctx.deps):
+                inbox.add(text)
         steers = inbox.take()
         if not steers:
             return request_context

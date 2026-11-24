@@ -21,15 +21,15 @@ vi.mock("@/lib/api-client", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api-client")>("@/lib/api-client");
   return { ...actual, apiClient: { get: vi.fn(), post: vi.fn(), delete: vi.fn() } };
 });
-vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: pushMock }),
-  usePathname: () => "/apps",
-  useSearchParams: () => params,
-  // next-intl's navigation reads these at module scope through
-  // locale-navigation, which the artifact frame pulls in (#8).
-  redirect: vi.fn(),
-  permanentRedirect: vi.fn(),
-}));
+vi.mock("next/navigation", async () => {
+  const actual = await vi.importActual<typeof import("next/navigation")>("next/navigation");
+  return {
+    ...actual,
+    useRouter: () => ({ push: pushMock }),
+    usePathname: () => "/apps",
+    useSearchParams: () => params,
+  };
+});
 let canEdit = true;
 let canView = true;
 vi.mock("@/hooks", async () => {
@@ -100,10 +100,32 @@ beforeEach(() => {
   vi.mocked(apiClient.delete).mockReset();
 });
 
-/** Where "Make an app" lands: a fresh chat with the ask already started. */
+/** Where "Make a page" lands: a fresh chat with the ask already started. */
 const MAKE_APP_URL = "/chat?new=1&prompt=Build%20me%20a%20page%20that%E2%80%A6";
 
 describe("the artifacts list", () => {
+  it("stars an app from its card and updates the control optimistically", async () => {
+    const app = page({ is_favourite: false });
+    serve([app], [app]);
+    let finishRequest!: () => void;
+    vi.mocked(apiClient.post).mockImplementation(
+      () => new Promise<void>((resolve) => (finishRequest = resolve)),
+    );
+    const user = userEvent.setup();
+    render(<ArtifactsPage />, { wrapper });
+
+    await user.click(
+      await screen.findByRole("button", { name: "Add Weekly report to favourites" }),
+    );
+    await waitFor(() => expect(apiClient.post).toHaveBeenCalledWith("/apps/a1/favourite"));
+    expect(
+      screen.getByRole("button", { name: "Remove Weekly report from favourites" }),
+    ).toHaveAttribute("aria-pressed", "true");
+
+    app.is_favourite = true;
+    finishRequest();
+  });
+
   it("lists archived pages only once asked, marks them, and keeps the choice in the URL", async () => {
     const archived = page({ id: "a2", title: "Old report", archived_at: "2026-10-01T00:00:00Z" });
     serve([page()], [page(), archived]);
@@ -114,7 +136,7 @@ describe("the artifacts list", () => {
     expect(screen.queryByText("Old report")).toBeNull();
     expect(listRequests().every((path) => !path.includes("include_archived"))).toBe(true);
 
-    await user.click(screen.getByRole("combobox", { name: "Which artifacts" }));
+    await user.click(screen.getByRole("combobox", { name: "Which apps" }));
     await user.click(screen.getByRole("option", { name: "Archived included" }));
 
     expect(await screen.findByText("Old report")).toBeInTheDocument();
@@ -122,18 +144,18 @@ describe("the artifacts list", () => {
     expect(listRequests().at(-1)).toContain("include_archived=true");
     expect(window.location.search).toBe("?show=all");
 
-    await user.click(screen.getByRole("combobox", { name: "Which artifacts" }));
-    await user.click(screen.getByRole("option", { name: "Active artifacts" }));
+    await user.click(screen.getByRole("combobox", { name: "Which apps" }));
+    await user.click(screen.getByRole("option", { name: "Active apps" }));
     expect(window.location.search).toBe("");
   });
 
-  it("offers Make an app in the header, opening a fresh chat with the ask started", async () => {
+  it("offers Make a page in the header, opening a fresh chat with the ask started", async () => {
     serve([page()], [page()]);
     const user = userEvent.setup();
     render(<ArtifactsPage />, { wrapper });
 
     await screen.findByText("Weekly report");
-    await user.click(screen.getByRole("button", { name: "Make an app" }));
+    await user.click(screen.getByRole("button", { name: "Make a page" }));
 
     expect(pushMock).toHaveBeenCalledWith(MAKE_APP_URL);
   });
@@ -143,11 +165,11 @@ describe("the artifacts list", () => {
     render(<ArtifactsPage />, { wrapper });
 
     expect(await screen.findByText("Nothing published yet")).toBeInTheDocument();
-    expect(screen.getByRole("combobox", { name: "Which artifacts" })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Which apps" })).toBeInTheDocument();
     expect(screen.queryByPlaceholderText("Search apps…")).toBeNull();
   });
 
-  it("offers Make an app in the empty state instead of the agents list", async () => {
+  it("offers Make a page in the empty state instead of the agents list", async () => {
     serve([], []);
     const user = userEvent.setup();
     render(<ArtifactsPage />, { wrapper });
@@ -156,19 +178,19 @@ describe("the artifacts list", () => {
     expect(screen.queryByRole("button", { name: "Open your agents" })).toBeNull();
     // The header carries one and the empty state the other; the empty state's
     // is the second in the document.
-    const buttons = screen.getAllByRole("button", { name: "Make an app" });
+    const buttons = screen.getAllByRole("button", { name: "Make a page" });
     expect(buttons).toHaveLength(2);
     await user.click(buttons[1]!);
 
     expect(pushMock).toHaveBeenCalledWith(MAKE_APP_URL);
   });
 
-  it("offers no Make an app to a member who cannot see apps", async () => {
+  it("offers no Make a page to a member who cannot see apps", async () => {
     canView = false;
     render(<ArtifactsPage />, { wrapper });
 
     expect(await screen.findByText("You cannot see this organization's apps")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Make an app" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Make a page" })).toBeNull();
   });
 
   it("opens on the archive when a link asks for it", async () => {

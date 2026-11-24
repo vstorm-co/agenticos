@@ -9,6 +9,8 @@ import { NotificationsWidget } from "./notifications";
 import type { Notification } from "@/lib/notifications-api";
 import type { Period } from "@/lib/dashboard/period";
 
+vi.unmock("next-intl");
+
 const useNotificationInboxMock = vi.fn();
 
 vi.mock("@/hooks", () => ({
@@ -181,4 +183,14 @@ describe("the notifications widget", () => {
     await userEvent.click(row);
     expect(markRead).not.toHaveBeenCalled();
   });
+});
+
+it("uses the notification formatter for versioned wording on dashboard cards", () => {
+  renderWidget({
+    notifications: [
+      notification({ wording_params: { wording: "run_completed", agent_name: "Clerk" } }),
+    ],
+  });
+  expect(screen.getByText("Clerk finished a run.")).toBeInTheDocument();
+  expect(screen.queryByText("jarvis's run finished.")).toBeNull();
 });

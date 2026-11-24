@@ -1,10 +1,37 @@
 ---
-source_sha: "8e9c61803442"
+source_sha: "7bc9680c19e3"
 ---
 
 # Automatyczny przegląd pull requestów { #automated-pull-request-review }
 
-!!! warning "Recenzent jest wyłączony na pull requestach — [#311](https://github.com/vstorm-co/agenticos/issues/311)"
+## CodeRabbit (wymaga instalacji) { #coderabbit-requires-installation }
+
+Plik `.coderabbit.yaml` proponuje ustawienia przeglądu; jego zmerge'owanie nie
+instaluje ani nie autoryzuje CodeRabbit. Opiekun z wymaganymi uprawnieniami
+organizacji musi zainstalować lub zatwierdzić aplikację GitHub dla tego
+repozytorium. Zobacz [instrukcję konfiguracji GitHub](https://docs.coderabbit.ai/platforms/github-com).
+
+Po zainstalowaniu i włączeniu aplikacji kwalifikujące się pull requesty kierowane
+do domyślnej gałęzi, które nie są draftami, otrzymują automatyczny przegląd.
+Drafty są pomijane. Konfiguracja wybiera wyważone uwagi (`chill`) i wyłącza
+automatyczne zatwierdzanie, żądanie zmian oraz wierszyki.
+
+Automatyczne przeglądy przyrostowe po kolejnych pushach są wyłączone. Po wysłaniu
+poprawek napisz `@coderabbitai review`, aby poprosić o przegląd przyrostowy, lub
+`@coderabbitai full review`, aby ponownie przejrzeć cały pull request. Zobacz
+[sterowanie automatycznym przeglądem](https://docs.coderabbit.ai/configuration/auto-review).
+
+Uwagi inline tworzą wątki przeglądu. Obecny ruleset gałęzi `main` wymaga ich
+rozwiązania przed merge'em; sama odpowiedź nie rozwiązuje wątku. Ta konfiguracja
+nie dodaje wymaganego status checka ani nie zmienia ochrony gałęzi.
+
+CodeRabbit i integracja Codex z GitHub są niezależne od opisanego poniżej
+niestandardowego workflow GitHub Actions. Ta konfiguracja nie włącza ani nie
+wyłącza żadnego z istniejących recenzentów.
+
+## Niestandardowy workflow przeglądu { #custom-review-workflow }
+
+!!! warning "Niestandardowy workflow jest wyłączony na pull requestach — [#311](https://github.com/vstorm-co/agenticos/issues/311)"
 
     Od wieczora 2026-08-05 każdy run umierał jakieś dwanaście sekund po wejściu
     w `Review the diff` (`codex exited with code 1`), kończył się statusem
@@ -24,9 +51,10 @@ source_sha: "8e9c61803442"
     configured enforced spend limit`, a to ustawienie projektu w OpenAI, nie
     w tym repozytorium.
 
-    Dopóki trigger nie wróci, jedynym przeglądem przed merge'em jest przegląd
-    zrobiony przez człowieka, plus lokalna komenda `/review`
-    w `.claude/commands/review.md`.
+    Ten niestandardowy workflow nie recenzuje automatycznie pull requestów,
+    dopóki jego trigger nie zostanie przywrócony. Nadal dostępne są przegląd
+    człowieka i lokalna komenda `/review` w `.claude/commands/review.md`;
+    oddzielnie zainstalowane integracje GitHub działają niezależnie.
 
 GitHub Action recenzuje pull requesty według **standardu tego repozytorium**.
 To nie jest linter z podpiętym modelem językowym: prompt w
@@ -64,7 +92,7 @@ to druga połowa tej strony.
 
 | Trigger | Kto | Uwaga |
 |---|---|---|
-| `workflow_dispatch` z numerem pull requesta | dostęp write | Ręcznie, do testów. **Jedyny trigger działający dzisiaj** |
+| `workflow_dispatch` z numerem pull requesta | dostęp write | Ręcznie, do testów. **Jedyny trigger tego workflow działający dzisiaj** |
 | Pull request zostaje otwarty, otwarty ponownie albo oznaczony jako gotowy | automatycznie | Drafty są pomijane. Usunięte przez [#311](https://github.com/vstorm-co/agenticos/issues/311) |
 | Zostaje dodana etykieta `ai-review` | każdy z dostępem write | Na żądanie. Usunięte przez [#311](https://github.com/vstorm-co/agenticos/issues/311) |
 

@@ -18,6 +18,7 @@ from app.services.memory import _claims as claims
 from app.services.memory import _runtime as runtime
 from app.services.memory import extraction
 from app.services.memory._native import (
+    ErasedDuringRun,
     MemoryFileIndexEntry,
     delete_file,
     edit_file,
@@ -28,6 +29,7 @@ from app.services.memory._native import (
 from app.services.memory.facade import MemoryService
 
 __all__ = [
+    "ErasedDuringRun",
     "MemoryFileIndexEntry",
     "MemoryService",
     "claims",

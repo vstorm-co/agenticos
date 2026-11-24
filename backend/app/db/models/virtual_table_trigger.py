@@ -59,6 +59,8 @@ class AdmissionReason(enum.StrEnum):
     BUDGET = "budget"
     PERMISSION_DENIED = "permission_denied"
     UNAVAILABLE = "unavailable"
+    ROW_POLICY = "row_policy"
+    """The record is outside the trigger publisher's row-level visibility."""
 
 
 class VirtualTableTrigger(Base, TimestampMixin):

@@ -227,3 +227,19 @@ describe("sourceDocuments", () => {
     expect(docs[0]?.key).toBe("web:A");
   });
 });
+
+it.each([
+  ["search_documents", RAG_RESULT],
+  ["web_search", WEB_RESULT],
+])("keeps sources from renamed %s and ignores external name collisions", (id, result) => {
+  const renamed = message({ toolCalls: [toolCall({ name: "lookup", tool_id: id, result })] });
+  const original = message({ toolCalls: [toolCall({ name: id, result })] });
+  expect(extractSources(renamed, t)).toEqual(extractSources(original, t));
+  expect(extractSources(renamed, t)).not.toEqual([]);
+  expect(
+    extractSources(
+      message({ toolCalls: [toolCall({ name: id, presentation_kind: "generic", result })] }),
+      t,
+    ),
+  ).toEqual([]);
+});

@@ -11,7 +11,7 @@ from app.core.background import spawn
 from app.services.channel_bot import unseal_webhook_secret
 from app.services.channels import get_adapter
 from app.services.channels.telegram_press import parse_press
-from app.worker.background.channel import process_channel_event, process_channel_press
+from app.worker.background.channel import process_channel_press
 
 logger = logging.getLogger(__name__)
 
@@ -59,5 +59,5 @@ async def telegram_webhook(
     if incoming is None:
         return Response(status_code=200)
 
-    spawn(process_channel_event(incoming), name=f"telegram_event:{bot_id}")
+    await bot_service.queue_message(bot, incoming)
     return Response(status_code=200)

@@ -7,8 +7,9 @@ import { useSyncExternalStore, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import DashboardPage from "./page";
-import { apiClient } from "@/lib/api-client";
+import { ApiError, apiClient } from "@/lib/api-client";
 import { useAuthStore, useOrgStore } from "@/stores";
+import { useOnboardingStore } from "@/stores/onboarding-store";
 import type { Permission } from "@/types/permissions";
 
 /**
@@ -50,6 +51,9 @@ vi.mock("@/hooks/use-permissions", () => ({
 
 const params = new URLSearchParams();
 vi.mock("next/navigation", () => ({
+  redirect: vi.fn(),
+  permanentRedirect: vi.fn(),
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), prefetch: vi.fn() }),
   useSearchParams: () => {
     const query = useSyncExternalStore(
       (listener) => {
@@ -345,6 +349,13 @@ function respond(path: string, options?: { params?: Record<string, string> }): u
       };
     case "/admin/ratings/summary":
       return RATINGS;
+    case "/authoring/waiting":
+      return { agents: [], skills: 0, contexts: 0 };
+    case "/improvements":
+      return [];
+    case "/skill-improvements/awaiting":
+    case "/skill-checks/awaiting":
+      return [];
     case "/workflows/summary":
       return { runs: 0, succeeded: 0, failed: 0, cost_usd: 0, needs_you: 0, workflows: [] };
     default:
@@ -382,6 +393,7 @@ beforeEach(() => {
   auth.role = "owner";
   auth.isAppAdmin = false;
   auth.isLoading = false;
+  useOnboardingStore.setState({ isOpen: false, mode: "tour", index: 0 });
 });
 
 describe("the steward's dashboard", () => {
@@ -469,9 +481,7 @@ describe("the steward's dashboard", () => {
 
     // One button names the window; the presets open from it.
     await userEvent.click(screen.getByRole("button", { name: "dashboard.period.label" }));
-    await userEvent.click(
-      await screen.findByRole("menuitemradio", { name: "dashboard.period.7d" }),
-    );
+    await userEvent.click(await screen.findByRole("button", { name: "dashboard.period.7d" }));
 
     await waitFor(() => expect(callsTo("/stats/usage").length).toBeGreaterThan(before));
     const lastUrl = String(replaceState.mock.calls.at(-1)?.[2] ?? "");
@@ -538,6 +548,25 @@ describe("the app admin's dashboard", () => {
 });
 
 describe("the view switcher", () => {
+  it.each(["me", "org", "group", "deployment"])(
+    "keeps the greeting and scope controls in the %s view",
+    async (view) => {
+      auth.isAppAdmin = true;
+      groupList = { items: [{ id: "g1", name: "Finance", icon: null, member_count: 3 }], total: 1 };
+      params.set("view", view);
+      render(<DashboardPage />, { wrapper });
+      await waitFor(() =>
+        expect(document.querySelector('[role="status"][aria-busy="true"]')).toBeNull(),
+      );
+      expect(screen.getByRole("heading", { name: /dashboard\.greeting/ })).toBeInTheDocument();
+      expect(screen.getByRole("group", { name: "dashboard.views.label" })).toBeInTheDocument();
+      expect(document.querySelector(`[data-dashboard-view="${view}"]`)).not.toBeNull();
+      expect(callsTo("/me/dashboard-layout/presets")).toHaveLength(view === "org" ? 1 : 0);
+      if (view !== "me")
+        expect(screen.getByText(`dashboard.views.${view}.description`)).toBeInTheDocument();
+    },
+  );
+
   it("opens a steward on their own view, not the organization's", async () => {
     render(<DashboardPage />, { wrapper });
     await waitFor(() =>
@@ -634,7 +663,7 @@ describe("the viewer's dashboard", () => {
 });
 
 describe("the member's dashboard", () => {
-  it("asks for usage and quality only at own scope", async () => {
+  it("asks only for personal usage and skips quality-management metrics", async () => {
     auth.role = "member";
     auth.can = holds("agents:view", "agents:edit", "agents:run", "collections:view");
 
@@ -647,10 +676,7 @@ describe("the member's dashboard", () => {
     for (const [, options] of callsTo("/stats/usage")) {
       expect((options as { params: Record<string, string> }).params.scope).toBe("own");
     }
-    await waitFor(() => expect(callsTo("/ratings/summary").length).toBeGreaterThan(0));
-    for (const [, options] of callsTo("/ratings/summary")) {
-      expect((options as { params: Record<string, string> }).params.scope).toBe("own");
-    }
+    expect(callsTo("/ratings/summary")).toHaveLength(0);
     expect(callsTo("/approvals")).toHaveLength(0);
     expect(callsTo("/orgs/org1/members")).toHaveLength(0);
   });
@@ -758,6 +784,53 @@ describe("the arrangeable dashboard", () => {
 
     expect(await screen.findByText("dashboard.edit.emptyTitle")).toBeInTheDocument();
     expect(screen.getByText("dashboard.edit.reset")).toBeInTheDocument();
+  });
+
+  it("withholds the default and every write while the saved layout cannot be read, then shows it after a retry", async () => {
+    // A failed read is not "no saved layout": the default would render, and its
+    // first save would replace the arrangement this person already has.
+    savedLayout = {
+      entries: [
+        { widget: "my-agents", span: "s6" },
+        { widget: "runs", span: "s8" },
+      ],
+    };
+    const previous = vi.mocked(apiClient.get).getMockImplementation()!;
+    let layoutReads = 0;
+    vi.mocked(apiClient.get).mockImplementation((path, options) => {
+      if (path !== "/me/dashboard-layout") return previous(path, options);
+      layoutReads += 1;
+      return layoutReads === 1
+        ? Promise.reject(new ApiError(503, "Service unavailable"))
+        : Promise.resolve(savedLayout);
+    });
+
+    render(<DashboardPage />, { wrapper });
+
+    // The failure is said, with a retry. The default's cards never mount, so the
+    // default's requests never go out, and neither the customize control nor the
+    // preset menu is offered.
+    expect(await screen.findByText("dashboard.layoutError.title")).toBeInTheDocument();
+    expect(screen.queryByText("dashboard.edit.customize")).not.toBeInTheDocument();
+    expect(screen.queryByText("dashboard.presets.menu")).not.toBeInTheDocument();
+    expect(callsTo("/stats/usage")).toHaveLength(0);
+    expect(callsTo("/me/dashboard-layout")).toHaveLength(1);
+
+    await userEvent.click(screen.getByRole("button", { name: "dashboard.layoutError.retry" }));
+
+    // The saved arrangement shows after the retry, and nothing was written at any point.
+    expect(await screen.findByText("dashboard.widgets.my-agents.title")).toBeInTheDocument();
+    expect(screen.getByText("dashboard.widgets.runs.title")).toBeInTheDocument();
+    expect(screen.queryByText("dashboard.layoutError.title")).not.toBeInTheDocument();
+    expect(screen.getByText("dashboard.edit.customize")).toBeInTheDocument();
+    expect(screen.getByText("dashboard.presets.menu")).toBeInTheDocument();
+    expect(callsTo("/me/dashboard-layout")).toHaveLength(2);
+    expect(
+      vi.mocked(apiClient.put).mock.calls.some(([path]) => path === "/me/dashboard-layout"),
+    ).toBe(false);
+    expect(
+      vi.mocked(apiClient.delete).mock.calls.some(([path]) => path === "/me/dashboard-layout"),
+    ).toBe(false);
   });
 
   it("does not offer a widget the caller cannot see in the add catalog", async () => {
@@ -983,9 +1056,10 @@ describe("dashboard links while the page stays mounted", () => {
     params.delete("period");
     page.rerender(<DashboardPage />);
     await userEvent.click(screen.getByRole("button", { name: "dashboard.period.label" }));
-    expect(
-      await screen.findByRole("menuitemradio", { name: "dashboard.period.30d" }),
-    ).toHaveAttribute("aria-checked", "true");
+    expect(await screen.findByRole("button", { name: "dashboard.period.30d" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
   });
 
   it("updates group and section filters, then resets to defaults when the URL removes them", async () => {
@@ -1031,8 +1105,31 @@ describe("dashboard links while the page stays mounted", () => {
     params.delete("sections");
     params.delete("group");
     page.rerender(<DashboardPage />);
-    expect(screen.getByRole("heading", { name: /dashboard\.greeting/ })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: /dashboard\.greeting/ })).toBeInTheDocument();
   });
+});
+
+it("keeps opened page help usable when the personal dashboard finishes loading", async () => {
+  const pending = Promise.withResolvers<null>();
+  const previous = vi.mocked(apiClient.get).getMockImplementation()!;
+  vi.mocked(apiClient.get).mockImplementation((path, options) =>
+    path === "/me/dashboard-layout" ? pending.promise : previous(path, options),
+  );
+  render(<DashboardPage />, { wrapper });
+  await waitFor(() => expect(callsTo("/me/dashboard-layout")).toHaveLength(1));
+  await userEvent.click(screen.getByRole("button", { name: "common.moreInformation" }));
+  const tips = screen.getByRole("button", { name: "onboarding.pageHelp" });
+  expect(tips).toBeVisible();
+
+  pending.resolve(null);
+  await waitFor(() =>
+    expect(document.querySelector('[data-tour="dashboard-filters"]')).not.toBeNull(),
+  );
+  expect(screen.getByRole("button", { name: "onboarding.pageHelp" })).toBe(tips);
+  expect(tips).toBeVisible();
+  await userEvent.click(tips);
+  expect(useOnboardingStore.getState()).toMatchObject({ isOpen: true, mode: "page" });
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 });
 
 it("waits for a saved arrangement before mounting and fetching default widgets", async () => {
@@ -1052,4 +1149,91 @@ it("waits for a saved arrangement before mounting and fetching default widgets",
   await waitFor(() => expect(callsTo("/agents").length).toBeGreaterThan(0));
   expect(callsTo("/approvals")).toHaveLength(0);
   view.unmount();
+});
+
+it("keeps one loading state until onboarding and briefing can mount in their final shape", async () => {
+  const pending = Promise.withResolvers<unknown>();
+  const org = "00000000-0000-4000-8000-000000000001";
+  useOrgStore.setState({ activeOrgId: org });
+  const previous = vi.mocked(apiClient.get).getMockImplementation()!;
+  vi.mocked(apiClient.get).mockImplementation((path, options) =>
+    path === "/me/onboarding" ? pending.promise : previous(path, options),
+  );
+  render(<DashboardPage />, { wrapper });
+  await waitFor(() => expect(apiClient.get).toHaveBeenCalledWith("/me/onboarding"));
+  expect(document.querySelectorAll('[role="status"][aria-busy="true"]')).toHaveLength(1);
+  expect(screen.queryByRole("heading", { name: "dashboard.widgets.suggestions.title" })).toBeNull();
+  pending.resolve({
+    organization_id: org,
+    organization_name: "Demo",
+    goal: null,
+    dismissed: true,
+    completed: true,
+    can_prepare: true,
+    can_configure_model: true,
+    support_email: null,
+    agents: [],
+    latest_conversation_id: null,
+    latest_completed_at: null,
+    has_result: true,
+    has_activity: true,
+  });
+  expect(
+    await screen.findByRole("heading", { name: "dashboard.widgets.suggestions.title" }),
+  ).toBeInTheDocument();
+  expect(document.querySelector('[role="status"][aria-busy="true"]')).toBeNull();
+});
+
+it("shows personal metrics once, before the briefing", async () => {
+  render(<DashboardPage />, { wrapper });
+  const briefing = await screen.findByRole("heading", {
+    name: "dashboard.widgets.suggestions.title",
+  });
+  const summary = screen.getByRole("heading", { name: "dashboard.widgets.my-summary.title" });
+  expect(
+    screen.getAllByRole("heading", { name: "dashboard.widgets.my-summary.title" }),
+  ).toHaveLength(1);
+  expect(summary.compareDocumentPosition(briefing) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+});
+
+it("keeps Me free of quality-management cards and their requests", async () => {
+  render(<DashboardPage />, { wrapper });
+  await screen.findByRole("heading", { name: "dashboard.widgets.suggestions.title" });
+  for (const widget of [
+    "eval-runs",
+    "eval-suites",
+    "datasets",
+    "review-queue",
+    "knowledge-gaps",
+    "authoring-suggestions",
+    "needs-attention",
+    "improvements-waiting",
+    "my-quality",
+    "tables",
+    "workflows",
+  ]) {
+    expect(screen.queryByRole("heading", { name: `dashboard.widgets.${widget}.title` })).toBeNull();
+  }
+  const qualityRequests = vi
+    .mocked(apiClient.get)
+    .mock.calls.filter(([path]) =>
+      /^\/(?:datasets|eval-runs|eval-suites|authoring|ratings)(?:[/?]|$)/.test(path),
+    );
+  expect(qualityRequests).toEqual([]);
+  expect(callsTo("/knowledge-gaps")).toHaveLength(0);
+  expect(callsTo("/workflows/summary")).toHaveLength(0);
+});
+
+it("keeps requested help open when the personal dashboard layout finishes loading", async () => {
+  const pending = Promise.withResolvers<unknown>();
+  vi.mocked(apiClient.get).mockImplementation((path: string) =>
+    path === "/me/dashboard-layout" ? pending.promise : Promise.resolve(respond(path)),
+  );
+  render(<DashboardPage />, { wrapper });
+  await waitFor(() => expect(callsTo("/me/dashboard-layout")).toHaveLength(1));
+  await userEvent.click(screen.getByRole("button", { name: "common.moreInformation" }));
+  expect(screen.getByRole("button", { name: "onboarding.pageHelp" })).toBeVisible();
+  pending.resolve(null);
+  await screen.findByRole("group", { name: "dashboard.views.label" });
+  expect(screen.getByRole("button", { name: "onboarding.pageHelp" })).toBeVisible();
 });
