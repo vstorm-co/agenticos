@@ -166,7 +166,7 @@ describe("rendering an answer", () => {
     const href = `${window.location.origin}/apps/866b63c3-92b5-4ac7-82b9-8e97b6f09b9f?org=o`;
     markdown(`Link: [${href}](${href})`);
 
-    const link = screen.getByRole("link", { name: "Open the app" });
+    const link = screen.getByRole("link", { name: "Open the page" });
     expect(link).not.toHaveAttribute("target");
     expect(link.querySelector(".lucide-app")).not.toBeNull();
   });

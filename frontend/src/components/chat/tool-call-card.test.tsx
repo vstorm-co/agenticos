@@ -519,7 +519,7 @@ describe("a tool call in the transcript", () => {
     expect(screen.queryByRole("link", { name: /Weekly report/ })).toBeNull();
 
     // Opened by hand, it still links the version this run wrote.
-    await userEvent.click(screen.getByRole("button", { name: /Published app/ }));
+    await userEvent.click(screen.getByRole("button", { name: /Published page/ }));
     expect(screen.getByRole("link", { name: /Weekly report/ })).toHaveAttribute(
       "href",
       "/apps/a1?version=v3",

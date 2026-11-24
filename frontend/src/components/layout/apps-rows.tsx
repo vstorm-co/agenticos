@@ -12,19 +12,19 @@ import { ROUTES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { Perm } from "@/types/permissions";
 
-/** How many apps the column lists before "All apps" takes over. */
+/** How many pages the column lists before "All pages" takes over. */
 const SHOWN = 8;
 
 /**
- * The section of apps an agent published that the caller may open: the most
- * recently published few, then "All apps".
+ * The section of pages an agent published that the caller may open: the most
+ * recently published few, then "All pages".
  *
- * The list comes from the same endpoint the Apps page reads, with
- * `mine_or_shared`, so the server decides which apps appear: the caller's own,
+ * The list comes from the same endpoint the Pages page reads, with
+ * `mine_or_shared`, so the server decides which pages appear: the caller's own,
  * organization-wide ones, and those shared with them. An admin sees other
- * members' private apps only on the "All apps" page, never here. The section is absent - heading and link included - when the caller
+ * members' private pages only on the "All pages" page, never here. The section is absent - heading and link included - when the caller
  * lacks `artifacts:view`, and while the list is loading or empty, so a person
- * with no apps never sees an empty "Apps" heading.
+ * with no pages never sees an empty "Pages" heading.
  */
 export function AppsRows({
   onNavigate,

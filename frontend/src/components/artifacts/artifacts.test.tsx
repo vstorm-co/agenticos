@@ -1120,7 +1120,7 @@ describe("the public link card", () => {
       />,
     );
     expect(
-      screen.getByText("Only people this app is shared with can open it."),
+      screen.getByText("Only people this page is shared with can open it."),
     ).toBeInTheDocument();
     expect(screen.queryByText(/Opened|Not opened/)).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: "Create a public link" }));
@@ -1530,10 +1530,10 @@ describe("the public page", () => {
     render(<PublicArtifact artifact={opened} publicKey="k" />);
     const frame = screen.getByTitle("Weekly report");
     expect(frame).toHaveStyle({ colorScheme: "light" });
-    await userEvent.click(screen.getByRole("button", { name: "Use dark app theme" }));
+    await userEvent.click(screen.getByRole("button", { name: "Use dark page theme" }));
     expect(screen.getByTitle("Weekly report")).toBe(frame);
     expect(frame).toHaveStyle({ colorScheme: "dark" });
-    await userEvent.click(screen.getByRole("button", { name: "Use light app theme" }));
+    await userEvent.click(screen.getByRole("button", { name: "Use light page theme" }));
     expect(frame).toHaveStyle({ colorScheme: "light" });
   });
 
@@ -1542,9 +1542,9 @@ describe("the public page", () => {
     unlockMock.mockReturnValue({ mutate, data: undefined, error: null, isPending: false });
     render(<PublicArtifact artifact={locked} publicKey="k" />);
 
-    expect(screen.getByRole("heading", { name: "This app is protected" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "This page is protected" })).toBeInTheDocument();
     expect(screen.queryByText("Weekly report")).toBeNull();
-    expect(screen.getByRole("button", { name: "Open the app" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Open the page" })).toBeDisabled();
     await userEvent.type(screen.getByLabelText("Password"), "hunter22{enter}");
     expect(mutate).toHaveBeenCalledWith("hunter22");
   });

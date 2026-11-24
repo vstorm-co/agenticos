@@ -433,7 +433,7 @@ describe("daily-work navigation", () => {
   });
 });
 
-describe("the Apps section", () => {
+describe("the Pages section", () => {
   const app = (n: number) => ({ id: `app-${n}`, title: `App ${n}`, name: `app-${n}` });
 
   beforeEach(() => {

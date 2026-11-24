@@ -49,7 +49,7 @@ describe("SharedVisuals", () => {
     expect(document.querySelector("iframe")).toBeNull();
     act(() => reveal());
     expect(document.querySelector("iframe")).not.toBeNull();
-    expect(screen.queryByRole("button", { name: "Save to Apps" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Save to Pages" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Ask about this" })).toBeNull();
   });
 });
