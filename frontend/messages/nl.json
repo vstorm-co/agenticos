@@ -10379,7 +10379,7 @@
     "copy": "Kopiëren",
     "copied": "Gekopieerd",
     "createdTitle": "Nog één stap",
-    "createdDescription": "Voeg deze webhook-URL toe aan je provider, ondertekend met het geheim dat je instelde. De routine start pas wanneer de provider een gebeurtenis via de webhook doorstuurt.",
+    "createdDescription": "Voeg deze webhook-URL toe bij je provider. Laat de provider elk webhookverzoek ondertekenen met het ingestelde geheim. De routine start pas zodra de provider een gebeurtenis via de webhook verstuurt.",
     "createdDescriptionLinear": "Gebruik deze URL en hetzelfde ondertekeningsgeheim om een webhook aan te maken in Linear. De Linear-API accepteert beide bij het aanmaken van een webhook.",
     "createdSecretNote": "Kopieer het nu - het wordt hierna niet meer getoond. De provider ondertekent er elke levering mee.",
     "done": "Klaar",
