@@ -124,6 +124,7 @@ def _service(agent: MagicMock | None = None) -> AgentTriggerService:
     service._polled_source_current = AsyncMock(return_value=True)
     service.sources = MagicMock()
     service.sources.initial = AsyncMock(return_value=_source_policy())
+    service.sources.current = AsyncMock(return_value=(_source_policy(), False))
     service.sources.require_current = AsyncMock(return_value=_source_policy())
     return service
 
@@ -5757,6 +5758,8 @@ class TestReusableSourceRoutine:
         assert result is None
         assert queued_fires == []
         assert repo.record_filtered_event.await_count == (changed == "filter")
+        assert service.sources.current.await_count == (changed == "filter")
+        service.sources.require_current.assert_not_awaited()
 
 
 async def test_pausing_source_after_routine_queue_stops_event_before_agent_call():
