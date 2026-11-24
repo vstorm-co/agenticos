@@ -258,7 +258,7 @@ for (const platform of ["ios", "android"] as const) {
         await page.setViewportSize({ width, height: 844 });
         await page.goto(href);
         const add = page.getByRole("button", { name: "Upload files", exact: true });
-        const more = page.getByRole("button", { name: /^More\b/ });
+        const more = page.getByRole("button", { name: "More", exact: true });
         await expectTouchTarget(add);
         await expectTouchTarget(more);
         expect((await add.boundingBox())?.y).toBe((await more.boundingBox())?.y);
