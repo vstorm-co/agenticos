@@ -4,7 +4,7 @@ import hmac
 import json
 from datetime import datetime
 from unittest.mock import AsyncMock
-from uuid import uuid5
+from uuid import UUID, uuid5
 
 import pytest
 from pydantic import SecretStr
@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.core.exceptions import ConflictError
 from app.db.models.agent_run import AgentRun
-from app.db.models.agent_trigger import TriggerAttempt
+from app.db.models.agent_trigger import AgentTrigger, TriggerAttempt
 from app.db.models.background_job import BackgroundJob
 from app.db.models.event_source import EventDelivery, EventDispatch, EventSubscription
 from app.db.models.organization import Organization
@@ -21,11 +21,16 @@ from app.db.models.resource_grant import ResourceGrant
 from app.repositories import event_source as source_repo
 from app.schemas.agent_trigger import TriggerCreate, TriggerUpdate
 from app.schemas.event_source import EventSourceCreate, SourceAuth, SourceCredentials
-from app.schemas.routine_sources import RoutineSourceConsent, RoutineSourceItem
+from app.schemas.routine_sources import RoutineSourceConsent, RoutineSourceItem, RoutineSourceMode
 from app.services import rate_limit
 from app.services.agent_trigger import AgentTriggerService
 from app.services.event_sources import EventSourceService
-from app.services.routine_sources import RoutineSourceService, RoutineSourcesRequired, read_policy
+from app.services.routine_sources import (
+    RoutineSourceService,
+    RoutineSourcesRequired,
+    compatible_spec_fingerprints,
+    read_policy,
+)
 from app.worker.jobs import FireTrigger
 from tests.integration.test_routine_sources import world
 from tests.integration.test_workflow_exposures import _ctx, _member, _user
@@ -323,6 +328,75 @@ async def test_creator_must_be_able_to_use_the_replacement_source_to_review_and_
             await routines.update(creator, seed.agent_id, routine.id, TriggerUpdate(is_active=True))
     await db.refresh(routine)
     assert not routine.is_active
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("mode", ["follow_agent", "restricted"])
+async def test_receipt_cannot_write_a_superseded_review_back_during_validation(
+    db: AsyncSession, engine: AsyncEngine, monkeypatch: pytest.MonkeyPatch, mode: RoutineSourceMode
+) -> None:
+    ctx, seed, spec, _ = await world(db)
+    sources = EventSourceService(db)
+    source = await sources.create(
+        ctx,
+        EventSourceCreate(
+            name="Events",
+            auth=SourceAuth(method="api_key", header_name="x-key", signature_prefix=""),
+            credentials=SourceCredentials(secret=SecretStr("test-key")),
+        ),
+    )
+    routine = await AgentTriggerService(db).create(
+        ctx,
+        seed.agent_id,
+        TriggerCreate(trigger_type="event", source_id=source.id, prompt="Check", source_mode=mode),
+    )
+    before = read_policy(routine.approved_sources)
+    # A valid historical hash permits a refresh in either mode at execution.
+    historical = next(
+        value for value in compatible_spec_fingerprints(spec) if value != before.spec_hash
+    )
+    routine.approved_sources = before.model_copy(update={"spec_hash": historical}).model_dump(
+        mode="json"
+    )
+    await db.commit()
+
+    snapshot = AgentTriggerService.source_admission_policy
+    session = async_sessionmaker(engine, expire_on_commit=False)
+
+    async def replace_after_receipt_loaded_routine(
+        service: AgentTriggerService, trigger: AgentTrigger
+    ) -> UUID | None:
+        async with session.begin() as editor:
+            current = await editor.get(AgentTrigger, routine.id)
+            assert current is not None
+            reviews = RoutineSourceService(editor)
+            review = await reviews.options(ctx, current)
+            await reviews.replace(
+                ctx, current, RoutineSourceConsent(review_token=review.review_token, mode=mode)
+            )
+        return await snapshot(service, trigger)
+
+    with monkeypatch.context() as race:
+        race.setattr(
+            AgentTriggerService, "source_admission_policy", replace_after_receipt_loaded_routine
+        )
+        await sources.receive(source.id, body=b"{}", headers={"x-key": "test-key"})
+    await db.commit()
+
+    await db.refresh(routine)
+    assert read_policy(routine.approved_sources).id != before.id
+    dispatch = await db.scalar(select(EventDispatch))
+    assert dispatch is not None and dispatch.routine_source_policy_id == before.id
+    monkeypatch.setattr(
+        rate_limit,
+        "trigger_delivery_allowed",
+        AsyncMock(return_value=rate_limit.Decision(allowed=True, retry_after_seconds=0)),
+    )
+    await sources.dispatch(ctx.organization_id, dispatch.id)
+    assert dispatch.status == "skipped"
+    assert (
+        await db.scalar(select(BackgroundJob).where(BackgroundJob.kind == "fire-trigger")) is None
+    )
 
 
 @pytest.mark.security

@@ -2315,10 +2315,17 @@ class AgentTriggerService:
     async def _polled_source_current(
         self, trigger: AgentTrigger, connection: McpConnection | None = None
     ) -> bool:
-        return await self.source_admission_policy(trigger, connection) is not None
+        return (
+            await self.source_admission_policy(trigger, connection, persist_refresh=True)
+            is not None
+        )
 
     async def source_admission_policy(
-        self, trigger: AgentTrigger, connection: McpConnection | None = None
+        self,
+        trigger: AgentTrigger,
+        connection: McpConnection | None = None,
+        *,
+        persist_refresh: bool = False,
     ) -> UUID | None:
         """Snapshot the review usable by the current creator for this event origin."""
         ctx = await self._creator_context(trigger)
@@ -2328,7 +2335,9 @@ class AgentTriggerService:
             policy = read_policy(trigger.approved_sources)
             if connection is not None and policy.input_connection_id != connection.id:
                 return None
-            await self.sources.require_current(ctx, trigger, expected_id=policy.id)
+            await self.sources.require_current(
+                ctx, trigger, expected_id=policy.id, persist_refresh=persist_refresh
+            )
         except AuthorizationError, NotFoundError, BadRequestError:
             return None
         return policy.id

@@ -1132,9 +1132,18 @@ class RoutineSourceService:
         return await self.options(ctx, current)
 
     async def require_current(
-        self, ctx: AuthContext, trigger: AgentTrigger, *, expected_id: UUID | None
+        self,
+        ctx: AuthContext,
+        trigger: AgentTrigger,
+        *,
+        expected_id: UUID | None,
+        persist_refresh: bool = True,
     ) -> RoutineSourcePolicy:
-        """Check metadata before opening a provider, preserving the admitted review."""
+        """Validate the review, optionally persisting compatible changes at admission.
+
+        A receipt holds the source lock, not the routine lock. It needs the
+        review ID only and must not overwrite a concurrent change to consent.
+        """
         policy = read_policy(trigger.approved_sources)
         if (
             policy.id != expected_id
@@ -1162,13 +1171,13 @@ class RoutineSourceService:
             current = review.policy.model_copy(
                 update={"id": policy.id, "approved_ceiling": policy.approved_ceiling}
             )
+        else:
+            if not review.matches_restricted(policy):
+                raise RoutineSourcesRequired()
+            if policy.spec_hash == review.policy.spec_hash:
+                return policy
+            current = policy.model_copy(update={"spec_hash": review.policy.spec_hash})
+        if persist_refresh:
             trigger.approved_sources = current.model_dump(mode="json")
             await self.db.flush()
-            return current
-        if not review.matches_restricted(policy):
-            raise RoutineSourcesRequired()
-        if policy.spec_hash != review.policy.spec_hash:
-            policy = policy.model_copy(update={"spec_hash": review.policy.spec_hash})
-            trigger.approved_sources = policy.model_dump(mode="json")
-            await self.db.flush()
-        return policy
+        return current
