@@ -418,6 +418,8 @@
     "organizationHasWrittenNo": "Diese Organisation hat noch keine Skills geschrieben.",
     "originsSocketHint": "Ein Browser sendet Origin für Sie; ein eigener Client sendet nichts, wenn Sie es nicht setzen, und ein nicht gesetzter wird mit Close-Code 4003 abgewiesen.",
     "orphanedCollections": "Dieser Agent verweist außerdem auf {count, plural, =1 {1 Collection} other {# Collections}}, die diese Organisation nicht mehr hat. Das Veröffentlichen wird abgelehnt, bis sie entfernt sind:",
+    "appWide": "App-weit",
+    "appWideNotForAgents": "App-weite Collections können Agents nicht nutzen. Wählen Sie sie ab, um sie zu entfernen.",
     "orphanedContext": "Dieser Agent verweist außerdem auf {count, plural, =1 {1 Kontextdatei} other {# Kontextdateien}}, die diese Organisation nicht mehr hat. Das Veröffentlichen wird abgelehnt, bis sie entfernt sind:",
     "orphanedServers": "Dieser Agent verweist außerdem auf {count, plural, =1 {1 Server} other {# Server}}, die diese Organisation nicht anbietet – seither entfernt oder aus einem importierten Spec übernommen. Das Veröffentlichen wird abgelehnt, bis sie entfernt sind:",
     "orphanedSkills": "Dieser Agent verweist außerdem auf {count, plural, =1 {1 Skill} other {# Skills}}, die diese Organisation nicht mehr hat. Das Veröffentlichen wird abgelehnt, bis sie entfernt sind:",

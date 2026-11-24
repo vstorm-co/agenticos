@@ -23,6 +23,12 @@ interface CollectionPickerProps {
   selectedIds: string[];
   onToggle: (collectionId: string) => void;
   disabled?: boolean;
+  /**
+   * Leave app-scoped collections out of the offer: an agent cannot bind one, so
+   * publish refuses it. One already in `selectedIds` stays listed, marked, so it
+   * can be removed. A workflow step reads them and leaves this off.
+   */
+  excludeAppScoped?: boolean;
 }
 
 /**
@@ -51,16 +57,21 @@ export function CollectionPicker({
   selectedIds,
   onToggle,
   disabled,
+  excludeAppScoped = false,
 }: CollectionPickerProps) {
   const t = useTranslations("agents");
   const chosen = new Set(selectedIds);
   const known = new Set(collections.map((collection) => collection.id));
+  const unbindable = (collection: KnowledgeBase) => excludeAppScoped && collection.scope === "app";
+  const offered = collections.filter(
+    (collection) => !unbindable(collection) || chosen.has(collection.id),
+  );
   // Named rather than dropped, for the same reason the skill gallery names them:
   // an id that quietly disappears from the form is still in the spec, and
   // publish is where it surfaces.
   const orphaned = selectedIds.filter((id) => !known.has(id));
 
-  const ordered = useChosenFirst(collections, selectedIds);
+  const ordered = useChosenFirst(offered, selectedIds);
   const list = useListControls({
     items: ordered,
     pageSize: PICKER_PAGE_SIZE,
@@ -69,7 +80,7 @@ export function CollectionPicker({
       (collection.description ?? "").toLowerCase().includes(query),
   });
 
-  if (collections.length === 0) {
+  if (offered.length === 0) {
     return (
       <div className="border-border rounded-lg border border-dashed p-6 text-center">
         <Database className="text-muted-foreground mx-auto h-6 w-6" />
@@ -87,7 +98,7 @@ export function CollectionPicker({
 
   return (
     <div className="space-y-3">
-      {collections.length > 8 && (
+      {offered.length > 8 && (
         <SearchInput
           value={list.query}
           onChange={list.setQuery}
@@ -126,8 +137,15 @@ export function CollectionPicker({
                   <span className="flex flex-wrap items-center gap-2">
                     <span className="truncate text-sm font-medium">{collection.name}</span>
                     {collection.is_default && <Badge variant="outline">{t("default")}</Badge>}
+                    {unbindable(collection) && <Badge variant="outline">{t("appWide")}</Badge>}
                     <GroupsChip groups={collection.shared_groups} />
                   </span>
+
+                  {unbindable(collection) && (
+                    <span className="text-warning-ink mt-1 block text-sm">
+                      {t("appWideNotForAgents")}
+                    </span>
+                  )}
 
                   {collection.description && (
                     <span className="text-muted-foreground mt-1 block text-sm">

@@ -386,6 +386,28 @@ describe("what a specialist can do", () => {
 
     expect(onChange).toHaveBeenCalledWith([expect.objectContaining({ collection_ids: ["kb1"] })]);
   });
+
+  it("offers a specialist no app-scoped collection, which it could not bind", () => {
+    const base = {
+      description: null,
+      embedding_model: "text-embedding-3-small",
+      embedding_provider: "openrouter",
+      embedding_secret_id: null,
+      embedding_endpoint_id: null,
+      document_count: 2,
+      indexed_count: 2,
+      chunk_count: 10,
+      is_default: false,
+    };
+    state.collections = [
+      { ...base, id: "kb1", name: "Policies", scope: "org" } as KnowledgeBase,
+      { ...base, id: "kb-app", name: "Product manual", scope: "app" } as KnowledgeBase,
+    ];
+    mount({ specialists: [specialist()] });
+
+    expect(screen.getByRole("checkbox", { name: "Policies" })).toBeInTheDocument();
+    expect(screen.queryByRole("checkbox", { name: "Product manual" })).toBeNull();
+  });
 });
 
 describe("the rest of a specialist's own settings", () => {

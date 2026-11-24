@@ -202,4 +202,72 @@ describe("the collection picker", () => {
     expect(container.querySelector(".animate-spin, .lucide-loader-circle")).not.toBeNull();
     expect(screen.getByText("3 not indexed")).toBeInTheDocument();
   });
+
+  describe("for an agent, which cannot bind an app-scoped collection", () => {
+    const appWide = collection({
+      id: "kb-app",
+      name: "Product manual",
+      scope: "app",
+      organization_id: null,
+    });
+    const mountFor = (selectedIds: string[], excludeAppScoped = true) => {
+      const onToggle = vi.fn();
+      render(
+        <CollectionPicker
+          collections={[collection(), appWide]}
+          selectedIds={selectedIds}
+          onToggle={onToggle}
+          excludeAppScoped={excludeAppScoped}
+        />,
+      );
+      return { onToggle };
+    };
+
+    it("leaves the app-scoped collection out of the offer", () => {
+      mountFor([]);
+
+      expect(screen.getByRole("checkbox", { name: "Handbook" })).toBeInTheDocument();
+      expect(screen.queryByRole("checkbox", { name: "Product manual" })).toBeNull();
+    });
+
+    it("keeps one the spec already holds, says agents cannot use it, and lets it be removed", async () => {
+      const { onToggle } = mountFor(["kb-app"]);
+
+      const row = screen.getByRole("checkbox", { name: "Product manual" });
+      expect(row).toHaveAttribute("aria-checked", "true");
+      expect(screen.getByText("App-wide")).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          "App-wide knowledge bases can't be used by agents. Untick it to remove it.",
+        ),
+      ).toBeInTheDocument();
+      expect(screen.queryByText(/no longer has/)).toBeNull();
+      await userEvent.click(row);
+      expect(onToggle).toHaveBeenCalledWith("kb-app");
+    });
+
+    it("says there is nothing to attach when only app-scoped collections exist", () => {
+      render(
+        <CollectionPicker
+          collections={[appWide]}
+          selectedIds={[]}
+          onToggle={vi.fn()}
+          excludeAppScoped
+        />,
+      );
+
+      expect(
+        screen.getByText(
+          "This organization has no collections yet. An agent with none searches nothing.",
+        ),
+      ).toBeInTheDocument();
+    });
+
+    it("still offers it to a workflow step, which reads it", () => {
+      mountFor([], false);
+
+      expect(screen.getByRole("checkbox", { name: "Product manual" })).toBeInTheDocument();
+      expect(screen.queryByText("App-wide")).toBeNull();
+    });
+  });
 });

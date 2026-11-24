@@ -382,6 +382,7 @@ function SpecialistResources({
           selectedIds={specialist.collection_ids}
           disabled={disabled}
           onToggle={(id) => onChange({ collection_ids: toggleId(specialist.collection_ids, id) })}
+          excludeAppScoped
         />
       </div>
 
