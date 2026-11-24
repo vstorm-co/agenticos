@@ -661,7 +661,7 @@ class TestALongAnswerArrivesInPieces:
 class TestPromptsAndCaptionsAreFormatted:
     """Approvals, questions and captions carry Markdown too; Telegram shows it raw as plain text."""
 
-    async def test_an_approval_prompt_is_sent_as_html_with_its_buttons(self, monkeypatch):
+    async def test_a_prompt_is_sent_as_html_with_its_buttons(self, monkeypatch):
         from app.services.channels.base import ChannelChoice, PromptMessage
 
         bot = _telegram(monkeypatch)
