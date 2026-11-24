@@ -218,7 +218,7 @@ WS_INTERNAL_ERROR = 1011
 _CONTINUITY_KEY = re.compile(r"^[0-9a-f]{32,64}$")
 
 
-def _attached_ids(value: Any) -> list[UUID]:
+def _attached_ids(value: object) -> list[UUID]:
     """The file ids a frame names, dropping anything that is not one.
 
     Dropped rather than refused, for the reason a malformed continuity key is:
@@ -226,14 +226,20 @@ def _attached_ids(value: Any) -> list[UUID]:
     losing the question that came with it. A value that is not a list at all is no
     attachments, which is what every client that sends nothing produces.
     """
-    if not isinstance(value, list):
+    if not isinstance(value, list) or len(value) > MAX_FILES_PER_TURN:
         return []
     ids: list[UUID] = []
+    rejected = 0
     for entry in value:
+        if not isinstance(entry, str) or len(entry) > 36:
+            rejected += 1
+            continue
         try:
-            ids.append(UUID(str(entry)))
+            ids.append(UUID(entry))
         except ValueError:
-            logger.info("embed_file_id_rejected")
+            rejected += 1
+    if rejected:
+        logger.info("embed_file_ids_rejected", extra={"rejected_count": rejected})
     return ids
 
 
@@ -376,18 +382,26 @@ def _no_answer(run: AgentRun) -> str:
         return "This assistant has reached its usage limit."
     if run.status == RunStatus.LOOP_STOPPED.value:
         return "I kept repeating the same steps without getting anywhere, so I stopped. Try asking in a different way."
+    if run.status == RunStatus.TIMED_OUT.value:
+        return "The model took too long to answer, so I stopped waiting. Please try again."
     return "Sorry, I could not produce an answer to that. Please try again."
 
 
-def _allowed(key: tuple[str, str], limit: int) -> bool:
-    count, started = _buckets.get(key, (0, 0.0))
+def _allowed(
+    key: tuple[str, str],
+    limit: int,
+    *,
+    buckets: dict[tuple[str, str], tuple[int, float]] | None = None,
+) -> bool:
+    store = _buckets if buckets is None else buckets
+    count, started = store.get(key, (0, 0.0))
     now = time.monotonic()
     if now - started > _WINDOW_SECONDS:
-        _buckets[key] = (1, now)
+        store[key] = (1, now)
         return True
     if count >= limit:
         return False
-    _buckets[key] = (count + 1, started)
+    store[key] = (count + 1, started)
     return True
 
 
@@ -410,6 +424,7 @@ class EmbedSession:
         # and pretending otherwise (per socket) would make the limit free to
         # bypass by reconnecting.
         self.visitor = visitor or "anonymous"
+        self._frame_buckets: dict[tuple[str, str], tuple[int, float]] = {}
         self.websocket = websocket
         self.visitor_key = visitor_key
         # Resolved once at admission rather than per frame: it is read off the row
@@ -491,6 +506,13 @@ class EmbedSession:
         if frame.get("type") != "message":
             return
 
+        # Bound malformed input on this connection before parsing. It must not
+        # spend the visitor bucket anonymous sessions share with other visitors.
+        key = (str(self.embed.id), self.visitor)
+        if not _allowed(key, self.embed.rate_limit_per_minute, buckets=self._frame_buckets):
+            await self._emit("error", {"message": "You are sending messages too quickly."})
+            return
+
         # Whatever the page said about this visitor, kept for the block below.
         # Every frame carries it rather than a handshake doing so once: a
         # single-page application changes what it knows about somebody without
@@ -500,13 +522,14 @@ class EmbedSession:
         if isinstance(supplied, dict):
             self._supplied = supplied
 
-        attached = _attached_ids(frame.get("file_ids"))
-        if len(attached) > MAX_FILES_PER_TURN:
+        file_ids = frame.get("file_ids")
+        if isinstance(file_ids, list) and len(file_ids) > MAX_FILES_PER_TURN:
             await self._emit(
                 "error",
                 {"message": f"You can attach up to {MAX_FILES_PER_TURN} files to one message."},
             )
             return
+        attached = _attached_ids(file_ids)
 
         text = str(frame.get("text") or "").strip()
         if not text and not attached:
@@ -515,7 +538,7 @@ class EmbedSession:
             await self._emit("error", {"message": "That message is too long. Try a shorter one."})
             return
 
-        if not _allowed((str(self.embed.id), self.visitor), self.embed.rate_limit_per_minute):
+        if not _allowed(key, self.embed.rate_limit_per_minute):
             await self._emit("error", {"message": "You are sending messages too quickly."})
             return
 
@@ -883,9 +906,9 @@ WIDGET_JS = r"""(function () {
     ".aos-chip{border:1px solid var(--aos-line);background:var(--aos-bg);color:var(--aos-text);border-radius:999px;" +
       "padding:6px 12px;font:inherit;font-size:13px;cursor:pointer}",
     ".aos-chip:hover{border-color:var(--aos-accent);color:var(--aos-accent)}",
-    ".aos-form{display:flex;gap:8px;align-items:center;padding:12px;border-top:1px solid var(--aos-line);background:var(--aos-bg)}",
+    ".aos-form{display:flex;gap:8px;align-items:flex-end;padding:12px;border-top:1px solid var(--aos-line);background:var(--aos-bg)}",
     ".aos-input{flex:1;min-width:0;border:1px solid var(--aos-line);background:var(--aos-soft);color:var(--aos-text);" +
-      "border-radius:12px;padding:11px 13px;font:inherit;outline:none}",
+      "border-radius:12px;padding:11px 13px;font:inherit;outline:none;resize:none;min-height:66px;max-height:160px;overflow-y:auto}",
     ".aos-input:focus{border-color:var(--aos-accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--aos-accent) 18%,transparent)}",
     ".aos-send{border:0;border-radius:12px;width:42px;height:42px;flex:none;cursor:pointer;color:#fff;" +
       "background:var(--aos-accent);display:flex;align-items:center;justify-content:center}",
@@ -1566,7 +1589,8 @@ WIDGET_JS = r"""(function () {
     panel.appendChild(log);
 
     var form = el("form", "aos-form");
-    var input = el("input", "aos-input");
+    var input = el("textarea", "aos-input");
+    input.rows = 2;
     input.setAttribute("placeholder", config.placeholder);
     input.setAttribute("aria-label", config.placeholder);
     var send = el("button", "aos-send");
@@ -1595,7 +1619,11 @@ WIDGET_JS = r"""(function () {
     var quick = null;
     var turn = null;
 
-    function pin() { log.scrollTop = log.scrollHeight; }
+    var following = true;
+    log.onscroll = function () {
+      following = log.scrollHeight - log.clientHeight - log.scrollTop <= 48;
+    };
+    function pin() { if (following) log.scrollTop = log.scrollHeight; }
 
     function setWorking(value) {
       working = value;
@@ -1781,6 +1809,7 @@ WIDGET_JS = r"""(function () {
     function ask(text) {
       if (!text || working || !socket || socket.readyState !== 1) return false;
       if (quick) { quick.remove(); quick = null; }
+      following = true;
       userBubble(text);
       setWorking(true);
       // Read per message, not once at connect: a single-page app can learn who
@@ -1831,9 +1860,21 @@ WIDGET_JS = r"""(function () {
       if (event.key === "Escape" && open) setOpen(false);
     });
 
+    input.oninput = function () {
+      input.style.height = "auto";
+      input.style.height = Math.min(input.scrollHeight, 160) + "px";
+    };
+    input.onkeydown = function (event) {
+      if (event.key !== "Enter" || event.shiftKey || event.isComposing || event.keyCode === 229) return;
+      event.preventDefault();
+      form.requestSubmit();
+    };
     form.onsubmit = function (event) {
       event.preventDefault();
-      if (ask(input.value.trim())) input.value = "";
+      if (ask(input.value.trim())) {
+        input.value = "";
+        input.style.height = "auto";
+      }
     };
   }
 

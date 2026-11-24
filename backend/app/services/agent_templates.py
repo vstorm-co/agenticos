@@ -120,6 +120,10 @@ def catalog() -> tuple[TemplateIndustry, ...]:
     return tuple(industries)
 
 
+ARCHITECT_KEY = "general/platform-assistant"
+"""The template the organization's AI Architect is installed from."""
+
+
 def get(key: str) -> AgentTemplate | None:
     """One template by its `<industry>/<folder>` key."""
     return next(
@@ -128,56 +132,86 @@ def get(key: str) -> AgentTemplate | None:
     )
 
 
-def starter_capabilities() -> dict[str, dict[str, Any]]:
-    """Common new-agent bindings, excluding AgenticOS-only interactive tools.
+def starter_capabilities(*, container_workspace: bool | None = None) -> dict[str, dict[str, Any]]:
+    """The starter template's capability bindings, keyed by capability id.
 
     Empty where the template is missing from this image, which recommends
-    nothing rather than failing the catalog that asks.
+    nothing rather than failing the catalog that asks. `container_workspace` is
+    whether the organization asking can run one; omitted, use the deployment
+    default - see `for_this_deployment`.
     """
     starter = get(STARTER_TEMPLATE)
     if starter is None:
         return {}
-    return {
+    bindings = {
         binding["id"]: binding
-        for binding in for_this_deployment(starter.capabilities)
+        for binding in for_this_deployment(
+            starter.capabilities, container_workspace=container_workspace
+        )
         if binding["id"] not in AGENTICOS_ONLY
     }
+    # Ordinary new agents do not inherit Computer use, so keep their lighter
+    # default workspace instead of provisioning a desktop they cannot drive.
+    sandbox = bindings.get("sandbox")
+    if sandbox is not None and sandbox.get("config", {}).get("runtime") == "desktop":
+        sandbox["config"] = {
+            key: value for key, value in sandbox["config"].items() if key != "runtime"
+        }
+    return bindings
 
 
 BROWSER = "browser_use"
 SANDBOX = "sandbox"
 
 
-def for_this_deployment(bindings: tuple[dict[str, Any], ...]) -> list[dict[str, Any]]:
-    """A template's bindings as this deployment can publish them.
+def for_this_deployment(
+    bindings: tuple[dict[str, Any], ...], *, container_workspace: bool | None = None
+) -> list[dict[str, Any]]:
+    """A template's bindings as this deployment and organization can publish them.
 
-    A container workspace needs the sandbox service a deployment runs beside the
-    API (`SANDBOXD_TOKEN` says it does); without one, the binding falls back to the
-    files-only workspace rather than refusing every new agent at publish.
+    A container workspace needs a sandbox connection - the organization's default,
+    or the one the first publish sets up on the service this deployment runs
+    (`SandboxConnectionService.can_provide` says which). Without one,
+    `container_workspace` is false and the binding falls back to the files-only
+    workspace rather than refusing every new agent at publish; anything that
+    delegates the workspace keeps it, since it is still bound.
 
     The web browser is the one a template cannot finish: its `cdp_url` names the
     browser service this deployment runs, which a folder in the image cannot know
-    and publish refuses without. The deployment's own browser - the one people
+    at runtime. The deployment's own browser - the one people
     sign in to sites with, `BROWSER_SIGN_IN_CDP_URL` - fills a binding that names
-    none. A deployment running no browser leaves the capability out rather than
-    handing every new agent a switch that refuses at publish.
+    none. Without that endpoint the capability stays available; its tools report
+    the missing browser instead of preventing the agent from running.
     """
+    if container_workspace is None:
+        container_workspace = bool(settings.SANDBOXD_TOKEN)
     resolved = []
-    for binding in bindings:
-        if binding["id"] == SANDBOX and not settings.SANDBOXD_TOKEN:
-            # A container workspace runs on the sandbox service this deployment
-            # starts beside the API; without one, the files-only workspace that
-            # needs nothing, so a new agent still publishes.
+    for original in bindings:
+        binding = dict(original)
+        if (
+            binding["id"] == "coding_agent"
+            and (binding.get("config") or {}).get("runs_on") == "personal_sandbox"
+            and not container_workspace
+        ):
+            # Keep the chosen execution policy visible without offering an unusable
+            # cloud task or falling back to somebody else's credential.
+            binding["enabled"] = False
+        if (
+            binding["id"] == "computer_use"
+            and (binding.get("config") or {}).get("desktop") == "sandbox"
+            and not container_workspace
+        ):
+            binding["enabled"] = False
+        if binding["id"] == SANDBOX and not container_workspace:
             config = {**(binding.get("config") or {}), "backend": "state"}
             config.pop("include_execute", None)
+            config.pop("runtime", None)
             binding = {**binding, "config": config}
         if (
             binding["id"] == BROWSER
             and (binding.get("config") or {}).get("connection") != "local"
             and not (binding.get("config") or {}).get("cdp_url")
         ):
-            if not settings.BROWSER_SIGN_IN_CDP_URL:
-                continue
             binding = {
                 **binding,
                 "config": {

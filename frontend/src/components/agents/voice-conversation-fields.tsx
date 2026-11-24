@@ -5,7 +5,8 @@ import { useTranslations } from "next-intl";
 import { useId, useState } from "react";
 
 import { VoicePreviewButton } from "@/components/agents/voice-preview-button";
-import { ProviderIcon } from "@/components/vault/provider-icon";
+import { ProviderRow } from "@/components/vault/provider-row";
+import { ModelLabel } from "@/components/icons/model-icon";
 import { SpeechKeyField } from "@/components/vault/speech-key-field";
 import {
   FormField,
@@ -166,10 +167,7 @@ function BlockFields({
                   value={candidate.provider}
                   textValue={candidate.name}
                 >
-                  <span className="flex items-center gap-2">
-                    <ProviderIcon provider={candidate.provider} className="h-3.5 w-3.5" />
-                    {candidate.name}
-                  </span>
+                  <ProviderRow provider={candidate.provider} name={candidate.name} />
                 </SelectItem>
               ))}
             </SelectContent>
@@ -211,8 +209,18 @@ function BlockFields({
             agentId={agentId}
           />
         )}
-        <LanguageField block={block} disabled={disabled} write={write} />
+        <LanguageField
+          block={block}
+          disabled={disabled}
+          write={write}
+          defaultLanguage={model?.default_language ?? null}
+        />
       </div>
+      {model?.unreported_token_usage && (
+        <p role="note" className="text-muted-foreground text-sm leading-relaxed">
+          {t("voiceUnreportedTokenUsage")}
+        </p>
+      )}
       <LongestCall block={block} disabled={disabled} write={write} />
       {/* The same editor as the agent's instructions, which this adds to: Markdown,
           with a preview, rather than a bare box under a name nobody could read.
@@ -275,8 +283,8 @@ function ModelField({ entry, block, disabled, write }: PartProps & { entry: Real
         </SelectTrigger>
         <SelectContent>
           {entry.models.map((candidate) => (
-            <SelectItem key={candidate.id} value={candidate.id}>
-              {candidate.name}
+            <SelectItem key={candidate.id} value={candidate.id} textValue={candidate.name}>
+              <ModelLabel model={candidate.id} provider={entry.provider} label={candidate.name} />
             </SelectItem>
           ))}
         </SelectContent>
@@ -327,7 +335,12 @@ function VoiceField({
   );
 }
 
-function LanguageField({ block, disabled, write }: PartProps) {
+function LanguageField({
+  block,
+  disabled,
+  write,
+  defaultLanguage,
+}: PartProps & { defaultLanguage: string | null }) {
   const t = useTranslations("agents");
   const { languages } = useSpeechToTextProviders();
   const languageName = useLanguageName();
@@ -335,10 +348,10 @@ function LanguageField({ block, disabled, write }: PartProps) {
     <FormField
       label={t("voiceConversationLanguage")}
       htmlFor="agent-voice-call-language"
-      description={t("voiceConversationLanguageHint")}
+      help={defaultLanguage === null ? t("voiceConversationLanguageHint") : undefined}
     >
       <Select
-        value={block.language ?? FOLLOW_CALLER}
+        value={block.language ?? defaultLanguage ?? FOLLOW_CALLER}
         disabled={disabled}
         onValueChange={(next) => write({ language: next === FOLLOW_CALLER ? null : next })}
       >
@@ -346,7 +359,9 @@ function LanguageField({ block, disabled, write }: PartProps) {
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value={FOLLOW_CALLER}>{t("voiceConversationFollowCaller")}</SelectItem>
+          {defaultLanguage === null && (
+            <SelectItem value={FOLLOW_CALLER}>{t("voiceConversationFollowCaller")}</SelectItem>
+          )}
           {languages
             .map((code) => ({ code, name: languageName(code) }))
             .sort((a, b) => a.name.localeCompare(b.name))

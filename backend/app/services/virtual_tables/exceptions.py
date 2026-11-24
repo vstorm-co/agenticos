@@ -11,7 +11,7 @@ from typing import Any, Literal
 from uuid import UUID
 
 from app.core.exceptions import AppException, ValidationError
-from app.core.field_errors import field_details
+from app.core.field_errors import field_details, named_field_problems
 
 
 class InvalidRecordError(ValidationError):
@@ -21,10 +21,9 @@ class InvalidRecordError(ValidationError):
     code = "INVALID_RECORD"
 
     def __init__(self, problems: list[tuple[str, str]]) -> None:
-        fields = [{"field": field, "message": message} for field, message in problems]
         super().__init__(
             message="; ".join(f"{field}: {message}" for field, message in problems),
-            details={"fields": fields},
+            details={"fields": named_field_problems(problems, root="")},
         )
 
 
@@ -57,8 +56,19 @@ class InvalidSchemaError(ValidationError):
     message = "The schema change is not valid"
     code = "INVALID_SCHEMA"
 
-    def __init__(self, field: str, message: str) -> None:
-        super().__init__(message=message, details=field_details(field, message))
+    def __init__(self, field: str, message: str, **context: object) -> None:
+        super().__init__(message=message, details=field_details(field, message, **context))
+
+
+class InvalidRowPolicyError(AppException):
+    """A stored row policy cannot be enforced; records remain unavailable until repair (409)."""
+
+    message = "The table's row access policy must be repaired before records can be accessed"
+    code = "ROW_POLICY_INVALID"
+    status_code = 409
+
+    def __init__(self) -> None:
+        super().__init__(message=self.message, details={})
 
 
 class RevisionConflictError(AppException):
@@ -136,6 +146,19 @@ class IdempotencyKeyReuseError(ValidationError):
 
     def __init__(self, *, operation: str) -> None:
         super().__init__(details={"operation": operation})
+
+
+class IdempotencyResultPurgedError(AppException):
+    """A legacy receipt's result was erased; its key still prevents a repeated write (409)."""
+
+    code = "IDEMPOTENCY_RESULT_PURGED"
+    status_code = 409
+
+    def __init__(self, *, operation: str) -> None:
+        super().__init__(
+            message="The previous result was erased during an upgrade. Check the table before starting a new write.",
+            details={"operation": operation},
+        )
 
 
 Quota = Literal["tables", "records", "record_bytes", "storage_bytes"]

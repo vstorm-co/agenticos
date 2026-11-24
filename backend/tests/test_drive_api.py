@@ -3,11 +3,11 @@
 from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
-from pydantic import SecretStr
 from unittest.mock import patch
 
 import httpx
 import pytest
+from pydantic import SecretStr
 
 from app.services.rag.drive_api import DRIVE_API, SCOPES, DriveClient
 
@@ -253,9 +253,7 @@ class TestTheToken:
                 client_secret=SecretStr("secret"),
                 refresh_token=SecretStr("refresh"),
             )
-            client._http = httpx.Client(
-                base_url=DRIVE_API, transport=httpx.MockTransport(handler)
-            )
+            client._http = httpx.Client(base_url=DRIVE_API, transport=httpx.MockTransport(handler))
             with client:
                 assert client.metadata("f1", fields="id").id == "f1"
 

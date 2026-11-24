@@ -35,7 +35,9 @@ const SHARING_ROOT = {
   context: "/context",
   secret: "/secrets",
   table: "/tables",
+  workflow: "/workflows",
   artifact: "/apps",
+  dataset: "/datasets",
   // An organization's MCP server, narrowed to the groups that use it (#2072).
   mcp_connection: "/mcp-connections",
   project: "/projects",
@@ -56,7 +58,9 @@ const RESOURCE_KEYS = {
   context: qk.context.all,
   secret: qk.secrets.all,
   table: qk.tables.all,
+  workflow: qk.workflows.all,
   artifact: qk.artifacts.all,
+  dataset: qk.datasets.all,
   mcp_connection: qk.mcpConnections.org,
   project: qk.projects.all,
 } as const satisfies Record<SharingResourceType, () => readonly string[]>;
@@ -92,7 +96,7 @@ export function useSharing(
   const queryClient = useQueryClient();
   const base = `${SHARING_ROOT[resourceType]}/${resourceId}/sharing`;
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: qk.sharing.detail(resourceType, resourceId ?? ""),
     queryFn: () => apiClient.get<ResourceSharing>(base),
     enabled: !!resourceId,
@@ -108,6 +112,21 @@ export function useSharing(
     await queryClient.cancelQueries({ queryKey });
     await queryClient.invalidateQueries({ queryKey });
   }, [queryClient, resourceType, resourceId]);
+
+  const invalidateResource = async (keepOpenPage = false) => {
+    if (resourceType === "workflow") {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: qk.workflows.detail(resourceId ?? "") }),
+        queryClient.invalidateQueries({ queryKey: qk.workflows.list() }),
+      ]);
+      return;
+    }
+    await queryClient.invalidateQueries({
+      queryKey: RESOURCE_KEYS[resourceType](),
+      predicate:
+        keepOpenPage && resourceType === "artifact" ? exceptOpenPage(resourceId) : undefined,
+    });
+  };
 
   // A refusal for want of consent is the dialog's to offer a way out of; the rest toast.
   const refused = (error: unknown) => {
@@ -132,7 +151,7 @@ export function useSharing(
       await invalidate();
       // The resource's own rows show who it reaches - an audience chip - so they
       // are read again too, as a visibility change already has them read.
-      await queryClient.invalidateQueries({ queryKey: RESOURCE_KEYS[resourceType]() });
+      await invalidateResource();
       toast.success(t("sharingUpdated"));
     },
     onError: refused,
@@ -148,7 +167,7 @@ export function useSharing(
         : apiClient.delete<void>(`${base}/grants/${subject.id}`),
     onSuccess: async () => {
       await invalidate();
-      await queryClient.invalidateQueries({ queryKey: RESOURCE_KEYS[resourceType]() });
+      await invalidateResource();
       toast.success(t("accessRemoved"));
     },
     onError: (error) => toast.error(getErrorMessage(error, tErrors)),
@@ -162,14 +181,11 @@ export function useSharing(
       await invalidate();
       // An artifact open beside the panel keeps its page: who else may open it
       // changes nothing the viewer is reading.
-      await queryClient.invalidateQueries({
-        queryKey: RESOURCE_KEYS[resourceType](),
-        predicate: resourceType === "artifact" ? exceptOpenPage(resourceId) : undefined,
-      });
+      await invalidateResource(true);
       toast.success(t("visibilityUpdated"));
     },
     onError: refused,
   });
 
-  return { sharing: data, isLoading, share, revoke, setVisibility };
+  return { sharing: data, isLoading, error, refetch, share, revoke, setVisibility };
 }

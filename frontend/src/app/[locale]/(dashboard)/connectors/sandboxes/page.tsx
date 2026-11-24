@@ -1,26 +1,25 @@
 "use client";
 
 import { useState } from "react";
-import { Boxes, Plus, Plug, Activity } from "lucide-react";
+import { Boxes, Plus, Plug, Activity, Lock } from "lucide-react";
 import { toast } from "sonner";
 
 import { PageHeader } from "@/components/dashboard/page-header";
 import { ConnectionDialog } from "@/components/sandboxes/connection-dialog";
 import { ConnectionsTable } from "@/components/sandboxes/connections-table";
 import { PolicyPanel } from "@/components/sandboxes/policy-panel";
-import { SessionsPanel } from "@/components/sandboxes/sessions-panel";
+import { SessionsPanel, SessionsPanelLoading } from "@/components/sandboxes/sessions-panel";
 import {
   Button,
   ConfirmDialog,
   ListCard,
   ListCardEmpty,
-  Skeleton,
   Tabs,
   TabsContent,
   TabsList,
   TabsTrigger,
 } from "@/components/ui";
-import { ErrorState } from "@/components/states";
+import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { usePermissions, useSandboxConnections, useUrlState } from "@/hooks";
 import { Perm } from "@/types/permissions";
 import { ApiError, getErrorMessage } from "@/lib/api-error";
@@ -41,8 +40,16 @@ import { useTranslations } from "next-intl";
  */
 export default function SandboxesPage() {
   const t = useTranslations("pages.sandboxes");
-  const { connections, isLoading, error, create, update, remove } = useSandboxConnections();
-  const { can } = usePermissions();
+  const common = useTranslations("common");
+  const {
+    can,
+    isLoading: permissionsLoading,
+    error: permissionsError,
+    refetch: retryPermissions,
+  } = usePermissions();
+  const canRead = can(Perm.connectionsView);
+  const { connections, isLoading, error, refresh, create, update, remove } =
+    useSandboxConnections(canRead);
   const canManage = can(Perm.connectionsManage);
 
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -74,7 +81,7 @@ export default function SandboxesPage() {
   };
 
   return (
-    <div className="flex flex-1 flex-col space-y-4">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4">
       <PageHeader
         title={t("sandboxes2")}
         description={t("pageDescription")}
@@ -93,83 +100,90 @@ export default function SandboxesPage() {
         }
       />
 
-      <Tabs
-        className="flex flex-1 flex-col"
-        value={tab}
-        onValueChange={(value) => setTabParam(value === "connections" ? null : value)}
-      >
-        <TabsList>
-          <TabsTrigger value="connections">
-            <Plug className="size-4 shrink-0" aria-hidden />
-            {t("tabConnections")}
-          </TabsTrigger>
-          <TabsTrigger value="running">
-            <Activity className="size-4 shrink-0" aria-hidden />
-            {t("tabRunning")}
-          </TabsTrigger>
-        </TabsList>
+      {permissionsLoading ? (
+        <LoadingState variant="pending" />
+      ) : permissionsError ? (
+        <ErrorState
+          description={getErrorMessage(permissionsError, tErrors)}
+          cta={{ label: common("retry"), onClick: () => void retryPermissions() }}
+        />
+      ) : !canRead ? (
+        <EmptyState icon={Lock} title={t("noAccess")} description={t("noAccessBody")} />
+      ) : (
+        <Tabs
+          className="flex min-h-0 min-w-0 flex-1 flex-col gap-2"
+          value={tab}
+          onValueChange={(value) => setTabParam(value === "connections" ? null : value)}
+        >
+          <TabsList>
+            <TabsTrigger value="connections">
+              <Plug className="size-4 shrink-0" aria-hidden />
+              {t("tabConnections")}
+            </TabsTrigger>
+            <TabsTrigger value="running">
+              <Activity className="size-4 shrink-0" aria-hidden />
+              {t("tabRunning")}
+            </TabsTrigger>
+          </TabsList>
 
-        <TabsContent value="connections" className="flex-1 flex-col data-[state=active]:flex">
-          <ListCard
-            fill
-            data-tour="sandboxes-connections"
-            title={t("sandboxConnections")}
-            // With the list refused or still loading, "0 connections" would
-            // state as fact something no answer has said - the skeleton stays.
-            counted={
-              isLoading || error !== null
-                ? null
-                : t("registeredCount", { count: connections.length })
-            }
-            contentClassName="p-0"
-          >
+          <TabsContent value="connections" className="flex min-h-0 min-w-0 flex-1 flex-col">
+            <ListCard
+              fill
+              className="overflow-hidden"
+              data-tour="sandboxes-connections"
+              title={t("sandboxConnections")}
+              namedByPage
+              contentClassName="p-0"
+            >
+              {error !== null ? (
+                // An empty table and a failed request are the same pixels, so the
+                // refusal is shown where the rows would be rather than dressed as
+                // "none registered".
+                <ErrorState
+                  description={error}
+                  cta={{ label: common("retry"), onClick: () => void refresh() }}
+                  className="m-5"
+                />
+              ) : (
+                <ConnectionsTable
+                  empty={
+                    <ListCardEmpty
+                      icon={Boxes}
+                      title={t("noSandboxConnectionsYet")}
+                      description={t("agentsCanStillKeep")}
+                    />
+                  }
+                  connections={connections}
+                  loading={isLoading}
+                  canManage={canManage}
+                  onEdit={(connection) => {
+                    setEditing(connection);
+                    setDialogOpen(true);
+                  }}
+                  onInspect={setInspecting}
+                  onDelete={(connection) => void deleteConnection(connection)}
+                />
+              )}
+            </ListCard>
+          </TabsContent>
+
+          <TabsContent value="running" className="flex min-h-0 min-w-0 flex-1 flex-col">
             {isLoading ? (
-              <div className="space-y-3 p-5">
-                {[0, 1].map((row) => (
-                  <Skeleton key={row} className="h-10 w-full" />
-                ))}
-              </div>
+              <SessionsPanelLoading />
             ) : error !== null ? (
-              // An empty table and a failed request are the same pixels, so the
-              // refusal is shown where the rows would be rather than dressed as
-              // "none registered".
-              <ErrorState description={error} className="m-5" />
-            ) : connections.length === 0 ? (
-              <ListCardEmpty
-                icon={Boxes}
-                title={t("noSandboxConnectionsYet")}
-                description={t("agentsCanStillKeep")}
+              // With the list refused, "no container connection registered" would
+              // state as fact something the request never answered.
+              <ErrorState
+                description={error}
+                cta={{ label: common("retry"), onClick: () => void refresh() }}
+                className="m-5"
               />
             ) : (
-              <ConnectionsTable
-                connections={connections}
-                onEdit={(connection) => {
-                  setEditing(connection);
-                  setDialogOpen(true);
-                }}
-                onInspect={setInspecting}
-                onDelete={(connection) => void deleteConnection(connection)}
-              />
+              <SessionsPanel connections={watchable} />
             )}
-          </ListCard>
-        </TabsContent>
-
-        <TabsContent value="running" className="flex flex-1 flex-col">
-          {isLoading ? (
-            <div className="space-y-3 p-5">
-              {[0, 1].map((row) => (
-                <Skeleton key={row} className="h-10 w-full" />
-              ))}
-            </div>
-          ) : error !== null ? (
-            // With the list refused, "no container connection registered" would
-            // state as fact something the request never answered.
-            <ErrorState description={error} className="m-5" />
-          ) : (
-            <SessionsPanel connections={watchable} />
-          )}
-        </TabsContent>
-      </Tabs>
+          </TabsContent>
+        </Tabs>
+      )}
 
       {/* Mounted only while it is open, and keyed on the row it is editing. The
           form reads its initial values once; without this, clicking Edit on a

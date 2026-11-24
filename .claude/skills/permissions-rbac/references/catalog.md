@@ -25,7 +25,11 @@ secrets:view  secrets:edit
 ```
 
 `RESOURCE_PERMS` is the set that distinguishes them. A global permission is
-`Scope.ALL` for any role that has it at all (`_ALL_GLOBAL`).
+`Scope.ALL` for any role that has it at all (`_ALL_GLOBAL`) - with one
+exception: `approvals:decide` is global but member and builder hold it at
+`OWN`, for a run they started only. The scope is enforced per run in the
+decide path (`app/services/approvals.py:may_decide_approval`), not by the
+role, because a role cannot see which run an approval belongs to.
 
 ## Scopes
 
@@ -50,7 +54,7 @@ secrets:view  secrets:edit
 | `skills:edit` | all | all | shared | — | own | — |
 | `secrets:view` | all | all | shared | shared | shared | — |
 | `secrets:edit` | all | all | own | — | own | — |
-| `approvals:decide` | ✓ | ✓ | — | ✓ | — | — |
+| `approvals:decide` | ✓ | ✓ | own | ✓ | own | — |
 | `runs:view` | ✓ | ✓ | ✓ | ✓ | — | — |
 | `mcp:manage` | ✓ | ✓ | ✓ | — | — | — |
 | `connections:manage` | ✓ | ✓ | ✓ | — | — | — |
@@ -62,6 +66,10 @@ The reasoning behind each row is in the matrix's own comments. Two worth knowing
   was shared, so one builder cannot rewrite another's agent.
 - **Operator** keeps the running system healthy — approves, watches, reruns — but
   does not build.
+- **Member and Builder** may decide an approval on a run they started, from a
+  signed-in web/chat session — `own`, not `all`. Cross-person approvals stay
+  with owner, admin and operator, and so do workflow approvals, routine
+  standing consent and the organization waiver switch.
 
 ## `resolve_access`
 

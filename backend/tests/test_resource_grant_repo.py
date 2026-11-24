@@ -12,6 +12,7 @@ only the three defined levels - is asserted against a real database in
 """
 
 import uuid
+from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock
 
 import pytest
@@ -108,12 +109,14 @@ class TestGetLevel:
             resource_id=resource_id,
         )
 
-        assert set(_filters(session).values()) == {
+        assert {
             organization_id,
             subject_user_id,
             "collection",
             resource_id,
-        }
+        } < set(_filters(session).values())
+        # The fifth value is the expiry comparison, against now rather than a
+        # stored date: `expires_at IS NULL OR expires_at > <now>`.
 
     async def test_the_best_of_a_persons_own_and_their_groups_grants_wins(self):
         """Shared with them to read and with their group to edit is edit, not read."""
@@ -389,3 +392,148 @@ class TestDeleteForResource:
         )
 
         assert removed == 0
+
+
+class TestExpiry:
+    """An expired grant gives nothing, without anyone deleting the row."""
+
+    @staticmethod
+    def _expiry_clause(session: _RecordingSession) -> str:
+        return _sql(session)
+
+    async def test_get_level_reads_only_unexpired_grants(self):
+        session = _RecordingSession(_rows([]))
+
+        await resource_grant_repo.get_level(
+            session,
+            organization_id=uuid.uuid4(),
+            subject_user_id=uuid.uuid4(),
+            resource_type="agent",
+            resource_id=uuid.uuid4(),
+        )
+
+        sql = self._expiry_clause(session)
+        assert "resource_grants.expires_at IS NULL OR resource_grants.expires_at >" in sql
+        # The comparison is against now, not a stored date.
+        whens = [value for value in _filters(session).values() if isinstance(value, datetime)]
+        assert len(whens) == 1
+        assert abs((datetime.now(UTC) - whens[0]).total_seconds()) < 60
+
+    async def test_list_shared_ids_reads_only_unexpired_grants(self):
+        session = _RecordingSession(_rows([]))
+
+        await resource_grant_repo.list_shared_ids(
+            session,
+            organization_id=uuid.uuid4(),
+            subject_user_id=uuid.uuid4(),
+            resource_type="agent",
+        )
+
+        assert "resource_grants.expires_at IS NULL OR resource_grants.expires_at >" in _sql(session)
+
+    async def test_the_sharing_panel_still_lists_expired_grants(self):
+        """The panel is how an owner renews or revokes one; hiding it there
+        would make an expired share unfindable rather than ended."""
+        session = _RecordingSession(_rows([]))
+
+        await resource_grant_repo.list_for_resource(
+            session,
+            organization_id=uuid.uuid4(),
+            resource_type="agent",
+            resource_id=uuid.uuid4(),
+        )
+
+        sql = _sql(session)
+        # The row is selected whole, expiry column included - what must be
+        # absent is the filter that would hide an expired share from the panel.
+        assert "expires_at IS NULL" not in sql
+        assert "expires_at >" not in sql
+
+    async def test_a_new_share_stores_the_expiry_it_was_given(self):
+        session = _RecordingSession(_scalar(None))
+        expires_at = datetime.now(UTC) + timedelta(days=30)
+
+        grant = await resource_grant_repo.upsert(
+            session,
+            organization_id=uuid.uuid4(),
+            subject_user_id=uuid.uuid4(),
+            resource_type="agent",
+            resource_id=uuid.uuid4(),
+            level=GrantLevel.READ,
+            expires_at=expires_at,
+        )
+
+        assert grant.expires_at == expires_at
+
+    async def test_a_new_share_without_an_expiry_is_permanent(self):
+        session = _RecordingSession(_scalar(None))
+
+        grant = await resource_grant_repo.upsert(
+            session,
+            organization_id=uuid.uuid4(),
+            subject_user_id=uuid.uuid4(),
+            resource_type="agent",
+            resource_id=uuid.uuid4(),
+            level=GrantLevel.READ,
+        )
+
+        assert grant.expires_at is None
+
+    async def test_re_sharing_with_an_expiry_replaces_the_stored_one(self):
+        existing = ResourceGrant(
+            level=GrantLevel.READ.value, expires_at=datetime.now(UTC) + timedelta(days=30)
+        )
+        session = _RecordingSession(_scalar(existing))
+        replacement = datetime.now(UTC) + timedelta(days=7)
+
+        grant = await resource_grant_repo.upsert(
+            session,
+            organization_id=uuid.uuid4(),
+            subject_user_id=uuid.uuid4(),
+            resource_type="agent",
+            resource_id=uuid.uuid4(),
+            level=GrantLevel.EDIT,
+            expires_at=replacement,
+        )
+
+        assert grant is existing
+        assert existing.expires_at == replacement
+
+    async def test_re_sharing_without_an_expiry_keeps_the_stored_one(self):
+        """A re-share that only changes the level must not silently make a
+        time-bound share permanent."""
+        stored = datetime.now(UTC) + timedelta(days=30)
+        existing = ResourceGrant(level=GrantLevel.READ.value, expires_at=stored)
+        session = _RecordingSession(_scalar(existing))
+
+        grant = await resource_grant_repo.upsert(
+            session,
+            organization_id=uuid.uuid4(),
+            subject_user_id=uuid.uuid4(),
+            resource_type="agent",
+            resource_id=uuid.uuid4(),
+            level=GrantLevel.EDIT,
+        )
+
+        assert grant is existing
+        assert existing.expires_at == stored
+
+
+class TestRevokeForMember:
+    async def test_removing_a_member_drops_their_direct_grants(self):
+        session = _RecordingSession(_affected(3))
+        organization_id, user_id = uuid.uuid4(), uuid.uuid4()
+
+        removed = await resource_grant_repo.revoke_for_member(
+            session, organization_id=organization_id, user_id=user_id
+        )
+
+        assert removed == 3
+        sql = _sql(session)
+        assert sql.startswith("DELETE FROM resource_grants")
+        filters = _filters(session)
+        assert filters["organization_id_1"] == organization_id
+        assert filters["subject_user_id_1"] == user_id
+        # Every direct grant in the organization, on every resource - not one row.
+        assert "resource_type" not in sql
+        assert "resource_id" not in sql

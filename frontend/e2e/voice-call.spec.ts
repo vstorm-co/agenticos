@@ -99,6 +99,7 @@ async function chatWithSeededAgent(page: Page): Promise<void> {
   // outside it.
   await expect(agent).toBeHidden();
   await expect(page.getByRole("button", { name: /^Agent:/ })).toBeFocused();
+  await page.getByRole("button", { name: "Add to message", exact: true }).click();
 }
 
 test("a call shows captions, an approval with the exact arguments, a warning and its end", async ({
@@ -108,6 +109,18 @@ test("a call shows captions, an approval with the exact arguments, a warning and
   await readiness(page, READINESS);
   // The conversation the stubbed call names, read again as turns are saved: empty,
   // because nothing reached a real server.
+  // READY names a stubbed conversation, so its access read must exist too.
+  await page.route(`**/api/conversations/${READY.conversation_id}/metadata`, (route: Route) =>
+    route.fulfill({
+      json: {
+        id: READY.conversation_id,
+        title: "Voice test",
+        is_archived: false,
+        share_permission: null,
+        agents: [],
+      },
+    }),
+  );
   await page.route(`**/api/conversations/${READY.conversation_id}/messages*`, (route: Route) =>
     route.fulfill({
       status: 200,
@@ -224,6 +237,18 @@ test("a call shows captions, an approval with the exact arguments, a warning and
 test("the end of a call stays above the composer that comes back", async ({ page }) => {
   await stubPeerConnection(page);
   await readiness(page, READINESS);
+  // READY names a stubbed conversation, so its access read must exist too.
+  await page.route(`**/api/conversations/${READY.conversation_id}/metadata`, (route: Route) =>
+    route.fulfill({
+      json: {
+        id: READY.conversation_id,
+        title: "Voice test",
+        is_archived: false,
+        share_permission: null,
+        agents: [],
+      },
+    }),
+  );
   await page.route(`**/api/conversations/${READY.conversation_id}/messages*`, (route: Route) =>
     route.fulfill({
       status: 200,

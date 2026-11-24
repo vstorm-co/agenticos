@@ -7,6 +7,7 @@ selects the provider's most recent account or opens the unrestricted tool router
 import logging
 import re
 from collections.abc import Sequence
+from uuid import UUID
 
 from app.agents.mcp import McpServerSpec
 from app.agents.spec import AgentSpec, McpApproval, PersonalMcpServerRef
@@ -20,6 +21,7 @@ from app.services.app_connections import (
     composio_user_id,
     get_app_by_catalog_key,
     is_configured,
+    resolve_action,
     toolkit_from_catalog_key,
 )
 
@@ -42,43 +44,53 @@ _GUIDANCE = (
 
 
 def with_app_connection_bindings(
-    spec: AgentSpec, *, dynamic_catalog_keys: Sequence[str] = ()
+    spec: AgentSpec,
+    *,
+    dynamic_catalog_keys: Sequence[str] = (),
+    connected_catalog_keys: Sequence[str] = (),
+    include_configured_apps: bool = True,
+    allow_personal_apps: bool = True,
 ) -> AgentSpec:
-    """Add configured personal apps to a registered assistant's runtime copy.
+    """Add personal apps to a runtime copy without changing stored bindings.
 
-    The caller verifies that this is the organization's registered assistant.
-    Stored agent versions and explicitly configured personal bindings keep their
-    existing ceilings. Dynamic catalog keys come only from this sender's managed
-    app rows; account ownership is resolved again for every message.
+    `connected_catalog_keys` come from the sender's verified active rows.
+    `include_configured_apps` retains the registered assistant's historical
+    configured-app placeholders. An agent's explicit binding always keeps its
+    own approval and tool ceilings.
     """
-    configured = [app for app in APPS if is_configured(app.toolkit)]
+    if not allow_personal_apps:
+        servers = [ref for ref in spec.mcp_servers if not isinstance(ref, PersonalMcpServerRef)]
+        return (
+            spec
+            if len(servers) == len(spec.mcp_servers)
+            else spec.model_copy(update={"mcp_servers": servers})
+        )
+
+    connected_keys = set(connected_catalog_keys)
+    configured = [
+        app
+        for app in APPS
+        if is_configured(app.toolkit)
+        and (include_configured_apps or app.catalog_key in connected_keys)
+    ]
     dynamic_keys = sorted(
         {
             key
-            for key in dynamic_catalog_keys
+            for key in (*dynamic_catalog_keys, *connected_catalog_keys)
             if get_app_by_catalog_key(key) is None and toolkit_from_catalog_key(key) is not None
         }
     )
     if not configured and not dynamic_keys:
         return spec
-    dynamic_key_set = set(dynamic_keys)
-    runtime_servers = [
-        ref.model_copy(update={"approval": "all"})
-        if (
-            isinstance(ref, PersonalMcpServerRef)
-            and ref.catalog_key in dynamic_key_set
-            and ref.approval != "all"
-        )
-        else ref
-        for ref in spec.mcp_servers
-    ]
-    bindings_changed = runtime_servers != spec.mcp_servers
+    runtime_servers = list(spec.mcp_servers)
     existing = {ref.catalog_key for ref in runtime_servers if isinstance(ref, PersonalMcpServerRef)}
     additions = [
         PersonalMcpServerRef(
             account="personal",
             catalog_key=app.catalog_key,
-            allowed_tools=[action.name for action in app.actions if action.read_only],
+            allowed_tools=[
+                resolve_action(action).tool_name for action in app.actions if action.read_only
+            ],
             approval="writes",
         )
         for app in configured
@@ -95,13 +107,41 @@ def with_app_connection_bindings(
         if key not in existing
     )
     instructions = spec.instructions
-    if _GUIDANCE not in instructions:
-        instructions = f"{instructions}\n\n{_GUIDANCE}".strip()
-    if not additions and instructions == spec.instructions and not bindings_changed:
+    guidance = (
+        _GUIDANCE
+        if include_configured_apps
+        else _GUIDANCE.replace("available on this assistant", "available to you")
+    )
+    if guidance not in instructions:
+        instructions = f"{instructions}\n\n{guidance}".strip()
+    if not additions and instructions == spec.instructions:
         return spec
     return spec.model_copy(
         update={"mcp_servers": [*runtime_servers, *additions], "instructions": instructions}
     )
+
+
+def managed_composio_catalog_keys(
+    connections: Sequence[McpConnection], *, user_id: UUID
+) -> set[str]:
+    """Return only this user's usable ACTIVE managed Composio app keys."""
+    return {
+        key
+        for connection in connections
+        if (key := connection.catalog_key) is not None
+        and (get_app_by_catalog_key(key) is not None or toolkit_from_catalog_key(key) is not None)
+        and connection.user_id == user_id
+        and connection.organization_id is None
+        and connection.scope == "user"
+        and connection.purpose == "mcp"
+        and connection.auth_type == "composio"
+        and connection.is_enabled
+        and connection.composio_status == "ACTIVE"
+        and bool(connection.composio_account_id)
+        and bool(connection.composio_auth_config_id)
+        and bool(connection.allowed_tools)
+        and len(connection.allowed_tools) <= 1000
+    }
 
 
 async def managed_connection_spec(
@@ -166,7 +206,7 @@ async def managed_connection_spec(
         ):
             return None
     else:
-        tools = [action.name for action in app.actions if action.read_only]
+        tools = [resolve_action(action).tool_name for action in app.actions if action.read_only]
     for ceiling in (connection.allowed_tools, allowed_tools):
         if ceiling is not None:
             within = set(ceiling)
@@ -214,6 +254,7 @@ async def managed_connection_spec(
         approval="all" if dynamic or approval == "all" else "writes",
         include_instructions=False,
         account=account_name,
+        managed_app_name=app.name,
         source_connection_id=connection.id,
         authorization_generation=connection.authorization_generation,
         source_url=connection.url,

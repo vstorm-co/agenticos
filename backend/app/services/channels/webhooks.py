@@ -37,11 +37,12 @@ INBOUND_PATHS: dict[str, str] = {
 }
 
 
-STREAM_ONLY: frozenset[str] = frozenset({"discord"})
+STREAM_ONLY: frozenset[str] = frozenset({"discord", "matrix"})
 """Platforms reached only over a connection the deployment holds, never a webhook.
 
 Discord delivers messages, commands and button presses over the bot's Gateway
-connection, so a Discord bot has no inbound address and no webhook mode.
+connection, so a Discord bot has no inbound address and no webhook mode. A
+Matrix homeserver has no outgoing webhook either; the bot reads its `/sync`.
 """
 
 

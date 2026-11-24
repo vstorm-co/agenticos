@@ -26,6 +26,16 @@ vi.mock("@/hooks/use-mcp-connections", () => ({
   useMcpConnections: () => ({ create: createOwn, connections: held.own }),
 }));
 vi.mock("@/lib/mcp-connections-api", () => ({ startMcpOAuth: vi.fn() }));
+const managedConnect = vi.fn();
+vi.mock("@/hooks/use-managed-app-connect", async (original) => ({
+  ...(await original<typeof import("@/hooks/use-managed-app-connect")>()),
+  useManagedAppConnect: () => managedConnect,
+}));
+const shell = vi.hoisted(() => ({ desktop: false, openConsent: vi.fn() }));
+vi.mock("@/hooks/use-shell", () => ({
+  useShell: () => (shell.desktop ? { platform: "macos", window: "main" } : null),
+}));
+vi.mock("@/lib/desktop/commands", () => ({ openConsent: shell.openConsent }));
 vi.mock("@/lib/api-client", () => ({ apiClient: { get: vi.fn() } }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() } }));
 
@@ -58,6 +68,116 @@ const OAUTH_ENTRY: McpCatalogEntry = {
   auth: "oauth",
   url: "https://mcp.notion.com/mcp",
 };
+
+const MANAGED_ENTRY: McpCatalogEntry = {
+  ...OAUTH_ENTRY,
+  key: "composio-gmail",
+  name: "Gmail",
+  url: null,
+};
+
+describe("managed app connection routing", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    shell.desktop = false;
+  });
+
+  it.each(["organization", "personal"] as const)(
+    "hands a managed entry to the app journey from the %s scope without a legacy MCP form",
+    async (scope) => {
+      const openForm = vi.fn();
+      function ManagedEntry() {
+        const connect = useConnectEntry(scope, {
+          openForm,
+          keepThisTab: true,
+          returnTo: "/chat",
+        });
+        return (
+          <button type="button" onClick={() => connect(MANAGED_ENTRY)}>
+            Connect managed entry
+          </button>
+        );
+      }
+      render(<ManagedEntry />, { wrapper });
+      await userEvent.click(screen.getByRole("button", { name: "Connect managed entry" }));
+      expect(managedConnect).toHaveBeenCalledWith("composio-gmail", {
+        keepThisTab: true,
+        sameTab: true,
+      });
+      expect(managedConnect).toHaveBeenCalledTimes(1);
+      expect(openForm).not.toHaveBeenCalled();
+      expect(startMcpOAuth).not.toHaveBeenCalled();
+      expect(create).not.toHaveBeenCalled();
+      expect(createOwn).not.toHaveBeenCalled();
+    },
+  );
+
+  it("keeps the managed own-account control disabled when requested and routes an enabled click safely", async () => {
+    const view = render(
+      <ConnectOwnButton entry={MANAGED_ENTRY} label="Connect Gmail" keepThisTab disabled />,
+      { wrapper },
+    );
+    const button = screen.getByRole("button", { name: "Connect Gmail" });
+    expect(button).toBeDisabled();
+    await userEvent.click(button);
+    expect(managedConnect).not.toHaveBeenCalled();
+
+    view.rerender(<ConnectOwnButton entry={MANAGED_ENTRY} label="Connect Gmail" keepThisTab />);
+    await userEvent.click(screen.getByRole("button", { name: "Connect Gmail" }));
+    expect(managedConnect).toHaveBeenCalledWith("composio-gmail", { keepThisTab: true });
+    expect(managedConnect).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Configure/ })).not.toBeInTheDocument();
+    expect(startMcpOAuth).not.toHaveBeenCalled();
+  });
+
+  it.each([undefined, "/chat"])(
+    "reconnects a managed account through the app journey with return target %s",
+    async (returnTo) => {
+      const connection: McpConnectionRecord = {
+        id: "managed-account",
+        name: "gmail-personal",
+        url: "https://managed.example/mcp",
+        has_auth_token: false,
+        allowed_tools: null,
+        is_enabled: true,
+        include_instructions: false,
+        auth_type: "composio",
+        oauth_authorized: false,
+        authorized: false,
+        last_status: "error",
+        last_error: "Authorization expired",
+        last_checked_at: null,
+        visibility: "private",
+        catalog_key: MANAGED_ENTRY.key,
+        label: null,
+        is_default: false,
+        last_tools: null,
+        trust_read_only_hints: false,
+        created_at: "2026-11-14T08:00:00Z",
+        updated_at: null,
+      };
+      function ReconnectManaged() {
+        const reconnect = useSignInOwn({ returnTo, keepThisTab: true });
+        return (
+          <button type="button" onClick={() => reconnect(connection)}>
+            Reconnect Gmail
+          </button>
+        );
+      }
+      render(<ReconnectManaged />, { wrapper });
+      await userEvent.click(screen.getByRole("button", { name: "Reconnect Gmail" }));
+      expect(managedConnect).toHaveBeenCalledWith("composio-gmail", {
+        keepThisTab: true,
+        sameTab: returnTo !== undefined,
+      });
+      expect(managedConnect).toHaveBeenCalledTimes(1);
+      expect(startMcpOAuth).not.toHaveBeenCalled();
+      expect(createOwn).not.toHaveBeenCalled();
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    },
+  );
+});
 
 function open(entry: McpCatalogEntry, onConnected = vi.fn(), onClose = vi.fn()) {
   render(<ConnectServerDialog entry={entry} onClose={onClose} onConnected={onConnected} />, {
@@ -123,12 +243,24 @@ describe("ConnectServerDialog", () => {
     );
   });
 
+  it("formats an edited tool prefix instead of refusing a human title", async () => {
+    open(TOKEN_ENTRY);
+    await userEvent.click(await screen.findByRole("button", { name: "More options" }));
+    const name = screen.getByLabelText("Tool prefix");
+    await userEvent.clear(name);
+    await userEvent.type(name, "Support CRM");
+    await submit();
+    await waitFor(() =>
+      expect(create).toHaveBeenCalledWith(expect.objectContaining({ name: "support-crm" })),
+    );
+  });
+
   it("refuses a name the server would not accept, without calling the API", async () => {
     open(TOKEN_ENTRY);
     await userEvent.click(await screen.findByRole("button", { name: "More options" }));
     const name = screen.getByLabelText("Tool prefix");
     await userEvent.clear(name);
-    await userEvent.type(name, "Not A Name");
+    await userEvent.type(name, "---");
 
     await submit();
 
@@ -150,6 +282,82 @@ describe("ConnectServerDialog", () => {
   });
 
   describe("OAuth", () => {
+    it("runs the consent in the window when the app cannot hand it to the browser", async () => {
+      // An app older than the console has no open_consent, and the shell refuses
+      // an allowlisted plain-HTTP provider: neither may block the connection.
+      shell.desktop = true;
+      shell.openConsent.mockRejectedValue(new Error("unavailable: open_consent"));
+      const assign = vi.fn();
+      Object.defineProperty(window, "location", { configurable: true, value: { assign } });
+      vi.mocked(startMcpOAuth).mockResolvedValue({ authorization_url: "http://mcp.internal/a" });
+      try {
+        open(OAUTH_ENTRY);
+        await submit();
+        await waitFor(() => expect(assign).toHaveBeenCalledWith("http://mcp.internal/a"));
+        expect(toast.error).not.toHaveBeenCalled();
+      } finally {
+        shell.desktop = false;
+      }
+    });
+
+    it("says so when the consent cannot start in the desktop app", async () => {
+      shell.desktop = true;
+      vi.mocked(startMcpOAuth).mockRejectedValue(new Error("down"));
+      try {
+        open(OAUTH_ENTRY);
+        await submit();
+        await waitFor(() => expect(toast.error).toHaveBeenCalled());
+        expect(shell.openConsent).not.toHaveBeenCalled();
+      } finally {
+        shell.desktop = false;
+      }
+    });
+
+    it("refetches the connections on every return while the consent may still finish", async () => {
+      shell.desktop = true;
+      shell.openConsent.mockResolvedValue(undefined);
+      vi.mocked(startMcpOAuth).mockResolvedValue({ authorization_url: "https://consent" });
+      const spy = vi.spyOn(QueryClient.prototype, "invalidateQueries");
+      const timer = vi.spyOn(window, "setTimeout");
+      try {
+        open(OAUTH_ENTRY);
+        await submit();
+        await waitFor(() => expect(shell.openConsent).toHaveBeenCalled());
+        spy.mockClear();
+        window.dispatchEvent(new Event("focus"));
+        window.dispatchEvent(new Event("focus"));
+        expect(spy).toHaveBeenCalledTimes(8);
+        // Fifteen minutes on, a return refetches nothing any more.
+        const expire = timer.mock.calls.find(([, ms]) => ms === 15 * 60 * 1000)?.[0];
+        (expire as () => void)();
+        window.dispatchEvent(new Event("focus"));
+        expect(spy).toHaveBeenCalledTimes(8);
+      } finally {
+        shell.desktop = false;
+        spy.mockRestore();
+        timer.mockRestore();
+      }
+    });
+
+    it("signs in through the person's browser in the desktop app, leaving the console", async () => {
+      shell.desktop = true;
+      shell.openConsent.mockResolvedValue(undefined);
+      const opened = vi.spyOn(window, "open");
+      const assign = vi.fn();
+      Object.defineProperty(window, "location", { configurable: true, value: { assign } });
+      vi.mocked(startMcpOAuth).mockResolvedValue({ authorization_url: "https://consent" });
+      try {
+        open(OAUTH_ENTRY);
+        await submit();
+        await waitFor(() => expect(shell.openConsent).toHaveBeenCalledWith("https://consent"));
+        expect(opened).not.toHaveBeenCalled();
+        expect(assign).not.toHaveBeenCalled();
+        expect(toast.info).toHaveBeenCalled();
+      } finally {
+        shell.desktop = false;
+      }
+    });
+
     it("sends a client registered by hand, for a server that registers none itself", async () => {
       // HubSpot publishes no registration endpoint: without these two fields
       // the flow ended at "This server rejected the client registration
@@ -271,9 +479,6 @@ describe("ConnectServerDialog", () => {
       const openSpy = vi.spyOn(window, "open").mockReturnValue(tab as unknown as Window);
       const invalidate = vi.spyOn(QueryClient.prototype, "invalidateQueries");
       vi.mocked(startMcpOAuth).mockResolvedValue({ authorization_url: "https://consent" });
-      // An earlier test's consent left its own one-shot listener waiting.
-      window.dispatchEvent(new Event("focus"));
-      invalidate.mockClear();
 
       open(OAUTH_ENTRY);
       await submit();
@@ -284,9 +489,12 @@ describe("ConnectServerDialog", () => {
       );
       expect(invalidate).not.toHaveBeenCalled();
       window.dispatchEvent(new Event("focus"));
+      // On every return while the consent may still finish; an earlier
+      // consent's listener was replaced by this one.
+      expect(invalidate).toHaveBeenCalledTimes(4);
       window.dispatchEvent(new Event("focus"));
-      // Once, on the first return: the listener goes with it.
-      expect(invalidate).toHaveBeenCalledTimes(3);
+      expect(invalidate).toHaveBeenCalledTimes(8);
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: ["triggers"] });
       expect(invalidate).toHaveBeenCalledWith({ queryKey: ["mcp-connections"] });
       expect(invalidate).toHaveBeenCalledWith({ queryKey: ["mcp-servers", "list"] });
       expect(invalidate).toHaveBeenCalledWith({ queryKey: ["mcp-servers", "entry"] });

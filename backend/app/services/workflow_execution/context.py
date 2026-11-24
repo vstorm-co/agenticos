@@ -49,6 +49,14 @@ class ClaimState:
 
 
 @dataclass(frozen=True, slots=True)
+class ChatSource:
+    """The admitted chat turn; missing IDs mean its source was deleted."""
+
+    conversation_id: UUID | None
+    message_id: UUID | None
+
+
+@dataclass(frozen=True, slots=True)
 class DispatchContext:
     """Everything a node handler may need to know about where it is running."""
 
@@ -66,6 +74,9 @@ class DispatchContext:
     `run` again on a wake would silently drop an approved call by re-sending
     the original prompt to a fresh agent."""
     claim: ClaimState = field(default_factory=ClaimState)
+    claim_token: UUID | None = None
+    """The exact outbox fencing token. Media effects refuse a missing token; the
+    default preserves contexts used by existing, nonmedia handlers."""
     workflow_id: UUID | None = None
     """The workflow this run executes - what a node checks a recipient's reach against."""
     run_input: dict[str, Any] = field(default_factory=dict)
@@ -100,6 +111,8 @@ class DispatchContext:
     agent step under it runs with no person behind it."""
     source_conversation_id: UUID | None = None
     """The chat destination authorized at admission; never a payload-supplied id."""
+    chat_source: ChatSource | None = None
+    """Server-written provenance, preserved across retries and called workflows."""
     test_chat_key: UUID | None = None
     """An opaque test-session token, namespaced by the workflow and principal."""
     nested: bool = False

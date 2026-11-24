@@ -14,6 +14,7 @@ import { Perm } from "@/types/permissions";
  */
 
 const state = vi.hoisted(() => ({
+  networksAvailable: null as boolean | null,
   granted: new Set<string>(),
   search: "",
   tab: undefined as string | null | undefined,
@@ -47,14 +48,33 @@ vi.mock("@/hooks", async (importOriginal) => ({
   useConnectionHealth: () => state.health,
 }));
 
+vi.mock("@/hooks/use-network-connections", () => ({
+  useNetworkConnections: () => ({ available: state.networksAvailable }),
+}));
+
 describe("ConnectorsPage", () => {
   beforeEach(() => {
     state.granted = new Set([Perm.agentsView, Perm.secretsView, Perm.connectionsView]);
     state.search = "";
     state.tab = undefined;
     state.health = { apps: 0, mcp: 0, total: 0 };
+    state.networksAvailable = null;
     state.setTab.mockReset();
   });
+
+  it.each([null, false, true])(
+    "shows Devices & networks only when the deployment offers it (available=%s)",
+    (available) => {
+      state.granted.add(Perm.networksView);
+      state.networksAvailable = available;
+      state.search = "?tab=more";
+      render(<ConnectorsPage />);
+
+      const link = screen.queryByRole("link", { name: /Devices & networks/ });
+      if (available === true) expect(link).toBeInTheDocument();
+      else expect(link).not.toBeInTheDocument();
+    },
+  );
 
   it("opens on Apps by default", () => {
     render(<ConnectorsPage />);

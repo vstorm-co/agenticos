@@ -2,9 +2,11 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import TablesPage from "./page";
+import { useAuthStore } from "@/stores/auth-store";
+import { useOrgStore } from "@/stores";
 import { apiClient } from "@/lib/api-client";
 import type { TableListItem } from "@/types/tables";
 
@@ -71,6 +73,11 @@ beforeEach(() => {
   push.mockReset();
   vi.mocked(apiClient.get).mockReset();
   vi.mocked(apiClient.post).mockReset();
+});
+
+afterEach(() => {
+  useAuthStore.setState({ user: null });
+  useOrgStore.setState({ activeOrgId: null });
 });
 
 describe("the tables catalog page", () => {
@@ -272,3 +279,66 @@ it("keeps catalog expansion off the large-screen toolbar", async () => {
     "lg:hidden",
   );
 });
+
+it("creates only a missing personal task table on the first authorized visit", async () => {
+  useAuthStore.setState({
+    user: { id: "person", email: "person@example.com", is_active: true, created_at: "2026-11-01" },
+  });
+  useOrgStore.setState({ activeOrgId: "org" });
+  vi.mocked(apiClient.get).mockImplementation(async (path) =>
+    path === "/tasks/boards" ? [] : { items: [table()], total: 1 },
+  );
+  vi.mocked(apiClient.post).mockResolvedValue({
+    id: "board",
+    scope_kind: "private",
+    scope_id: "person",
+    table_id: "task-table",
+    scope_name: null,
+    can_edit: true,
+  });
+  const view = render(<TablesPage />, { wrapper });
+  await waitFor(() => expect(apiClient.post).toHaveBeenCalledTimes(1));
+  expect(apiClient.post).toHaveBeenCalledWith("/tasks/boards", {
+    scope: "private",
+    scope_id: undefined,
+  });
+  view.rerender(<TablesPage />);
+  await screen.findByText("Orders");
+  expect(apiClient.post).toHaveBeenCalledTimes(1);
+  view.unmount();
+  useAuthStore.setState({ user: null });
+  useOrgStore.setState({ activeOrgId: null });
+});
+
+it.each(["existing", "forbidden"] as const)(
+  "does not create a personal task table when %s",
+  async (reason) => {
+    useAuthStore.setState({
+      user: {
+        id: "person",
+        email: "person@example.com",
+        is_active: true,
+        created_at: "2026-11-01",
+      },
+    });
+    useOrgStore.setState({ activeOrgId: "org" });
+    canCreate = reason !== "forbidden";
+    vi.mocked(apiClient.get).mockImplementation(async (path) =>
+      path === "/tasks/boards"
+        ? [
+            {
+              id: "board",
+              scope_kind: "private",
+              scope_id: "person",
+              table_id: "tasks",
+              scope_name: null,
+              can_edit: true,
+            },
+          ]
+        : { items: [table()], total: 1 },
+    );
+    render(<TablesPage />, { wrapper });
+    await screen.findByText("Orders");
+    expect(apiClient.post).not.toHaveBeenCalled();
+  },
+);

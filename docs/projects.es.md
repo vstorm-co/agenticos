@@ -2,7 +2,7 @@
 title: Proyectos
 seo_title: Proyectos - archivos e instrucciones compartidos
 description: Un proyecto da al trabajo en curso un contenedor de archivos y unas instrucciones que comparte cada chat iniciado en él, responda el agent que responda.
-source_sha: "e9573cb4bf21"
+source_sha: "f150b8228dc8"
 ---
 
 # Proyectos { #projects }
@@ -71,6 +71,17 @@ Dos formas de entrar:
 
 Un chat se queda en el proyecto en el que empezó. La etiqueta de un chat existente
 lleva de vuelta al proyecto.
+
+Un agente con Sandbox puede llamar a `select_project_workspace` con el ID de un
+proyecto accesible para usar sus archivos y consola durante la ejecución actual,
+también desde un canal conectado. La respuesta muestra los proyectos elegidos.
+Sin ID se restaura el workspace original. Las continuaciones tras una aprobación
+conservan la selección; el siguiente mensaje empieza en el workspace original.
+La selección no mueve el historial, copia archivos privados ni cambia las
+instrucciones. Cada operación comprueba de nuevo el acceso. Las rutinas siguen
+limitadas a las fuentes revisadas; las evaluaciones aisladas no pueden seleccionar
+proyectos activos. Los archivos quedan en el proyecto; para entregarlos, publica
+una App o envía explícitamente el archivo.
 
 ## Lo que recibe un agent en un proyecto { #what-an-agent-gets-in-a-project }
 
@@ -260,21 +271,114 @@ quien lo empezó. En la pestaña **Chats** cada fila dice de quién es el chat, 
 agents responden en él, cuándo se movió por última vez o quién está trabajando en
 él ahora, y quién lo ha abierto - las últimas caras, con todos
 los nombres al pasar el ratón; quien lo tiene abierto ahora mismo va primero, con
-un punto verde. Un chat fuera de un proyecto sigue siendo de su
-autor, como en el resto de la consola.
+un punto verde. Un chat fuera de un proyecto empieza como privado. Su propietario
+puede añadir expresamente personas o agents y convertir la conversación existente
+en una sala compartida sin perder su historial.
 
 Un chat de un proyecto no se comparte por separado, ni por enlace ni con una
 persona: se lee a través del proyecto, así que comparte el proyecto.
 
-**Trabajar juntos en un chat.** Varias personas pueden estar a la vez en un chat
-de un proyecto. Una barra sobre la transcripción muestra quién más lo tiene
-abierto, y su propietario puede invitar a alguien desde ahí. Mientras alguien
-escribe, los demás ven su cara y «Anna está escribiendo» sobre el campo de
-escritura. La pregunta que hace una de ellas, y la respuesta del agent, aparecen para todos en el chat mientras se
-escriben. **Responder** en cualquier mensaje lo cita sobre el campo de escritura, y
-la respuesta lleva la cita - en pantalla y al agent, que lee el mensaje de cada
-persona bajo su nombre y sabe que en el chat puede haber varias personas, así sabe
-quién preguntó qué y a qué se refiere «sí, hazlo».
+## Salas de equipo { #team-rooms }
+
+En la pestaña **Chats** de un proyecto, elige **New team room** para crear una
+conversación compartida vacía. En la consola principal, los chats del proyecto
+muestran una cabecera con la audiencia del proyecto y los participantes presentes,
+aunque estés solo. **Share** gestiona el acceso al proyecto; un participante con
+permiso de lectura puede seguir la transcripción, pero no publicar mensajes.
+
+Escribe `@` y selecciona a una persona o un agent para mencionarlo. Las personas
+reciben una notificación; cada agent seleccionado recibe su propia respuesta en
+cola al mismo mensaje escrito por una persona. Los nombres visibles similares
+siguen siendo opciones distintas. Escribir un nombre sin elegir una sugerencia no
+selecciona quién responderá. Los mensajes y las respuestas identifican al
+remitente; **Reply** incluye una cita en el mensaje y en el contexto del agent.
+
+Abre la lista de participantes para añadir un agent autorizado antes de
+mencionarlo. El uso compartido del proyecto sigue determinando qué personas pueden
+leer o escribir; la lista de participantes de la sala no puede conceder acceso al
+proyecto. De forma predeterminada, los agents solo responden a menciones. Un
+responsable de la sala puede activar las respuestas automáticas de agents
+seleccionados; entonces, un mensaje sin menciones puede llegar hasta a cuatro de
+ellos. Las menciones solo a personas no los convocan.
+
+La barra lateral del chat también ofrece salas fuera de un proyecto. Crea una sala
+privada o visible para la organización, o únete a una sala pública antes de
+escribir. Añadir a un compañero a un chat existente con un agent lo convierte en
+sala en el mismo lugar. La confirmación explica que el nuevo participante puede
+leer el historial guardado. El trabajo privado que ya esté en curso debe terminar
+o cancelarse antes de esa conversión.
+
+Las solicitudes a agents entran en una cola persistente por sala. Un run que
+espera una aprobación o respuesta mantiene su lugar hasta resolverse. Puedes
+cancelar tu propia solicitud mientras esté en cola. Los permisos actuales del
+solicitante sobre el proyecto y el agent se vuelven a comprobar al iniciar o
+reanudar el trabajo. Una pregunta de seguimiento ve mensajes anteriores y las
+respuestas terminadas a solicitudes previas, sin leer preguntas posteriores.
+
+La cola muestra el estado guardado y se actualiza tras reconectar. Si el resultado
+de una publicación es incierto, reintenta el mensaje pendiente para reutilizar su
+identidad. Una solicitud interrumpida no se reinicia automáticamente; revisa el
+run guardado antes de crear otra solicitud.
+
+Adjunta directamente hasta diez archivos a un mensaje de la sala, con o sin pie.
+Se aplican los límites actuales de tipo y tamaño de subida. Los mismos archivos
+adjuntos llegan a cada agent seleccionado para responder; al reintentar un envío,
+no se vuelven a adjuntar. La pestaña **Files** del proyecto sigue siendo el
+workspace compartido para el material de referencia a largo plazo. Responden
+agents publicados compatibles con la nube; los agents de escritorio y los que usan
+un sandbox personal siguen necesitando el flujo de chat específico de su dispositivo.
+
+Usa el control de reacciones en un mensaje guardado de una persona o un agent para
+añadir o quitar tu emoji. Los recuentos reúnen las reacciones de todos, y tus
+selecciones siguen marcadas. Cada mensaje admite hasta veinte emoji distintos.
+
+### Hilos laterales { #side-threads }
+
+Elige **Reply in thread** en un mensaje guardado de la sala para abrir su hilo.
+El panel mantiene el mensaje original encima de las respuestas; el número de
+respuestas en la sala permite volver a la discusión. La dirección incluye la sala
+y el hilo, por lo que un enlace o una recarga abre la misma discusión. En pantallas
+estrechas, el hilo ocupa el ancho disponible. **Reply** sigue añadiendo una cita
+dentro de la discusión actual.
+
+Un hilo tiene la misma audiencia y los mismos permisos de publicación que su sala.
+Abrirlo no solicita una respuesta a un agent. Selecciona un agent con `@` para
+pedirle una respuesta, o menciona solo a personas para hablar con ellas. La
+respuesta pertenece a ese hilo, incluso si el run se reanuda después de una
+pregunta o aprobación. La sala principal y sus hilos comparten una cola de
+solicitudes a agents; un run en espera mantiene las solicitudes posteriores en cola.
+
+El contexto de conversación del agent prioriza el mensaje original y las
+respuestas del hilo. El espacio restante del historial puede incluir mensajes de
+la sala principal anteriores al mensaje original. Se excluyen las respuestas de
+otros hilos y los mensajes posteriores de la sala principal. Siguen aplicándose
+las instrucciones, los archivos compartidos y el conocimiento del proyecto.
+Las citas dentro de un hilo se refieren a su mensaje original o a una de sus respuestas.
+
+Los planes y pasos pendientes pertenecen a cada run. Se conservan al reanudarlo;
+una solicitud distinta al agent dentro del hilo inicia un plan nuevo.
+
+Quien inicia el hilo y las personas que responden lo siguen de forma
+predeterminada. Síguelo o deja de seguirlo explícitamente para controlar las
+notificaciones de respuestas; una mención directa con `@` aún te notifica. Leer la
+sala principal no marca como leídas las respuestas sin leer del hilo. La sala
+muestra el número de respuestas sin leer junto al resumen del hilo; al abrirlo,
+solo se marcan como leídas las respuestas que hayas visto.
+
+Quien inicia el hilo o un responsable de la sala puede cerrarlo o archivarlo. Una
+respuesta vuelve a abrir un hilo cerrado. Un hilo archivado es de solo lectura;
+al desarchivarlo se restaura su estado anterior, abierto o cerrado. Estas acciones
+conservan los mensajes originales y las respuestas.
+
+Cada discusión conserva su borrador y su reintento pendiente al cambiar entre
+hilos durante la sesión actual. Vuelve a la discusión original para reintentar una
+publicación incierta con la misma identidad; seleccionar otro hilo no redirige
+esa publicación pendiente. Cambiar de cuenta u organización borra estos borradores.
+
+Si el chat se separa del proyecto, sus hilos existentes siguen siendo legibles
+para quienes conservan acceso al chat. Las respuestas de los hilos pasan a ser de
+solo lectura, salvo que el propietario convierta explícitamente el chat en una
+sala independiente. Haber sido miembro del proyecto ya no concede acceso por sí solo.
 
 ## Borrar un proyecto { #deleting-a-project }
 

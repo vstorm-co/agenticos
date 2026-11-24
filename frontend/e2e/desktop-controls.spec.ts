@@ -34,6 +34,7 @@ async function settleEntrances(page: Page) {
 /** Click where a person clicks, without Playwright scrolling around an overlay. */
 async function clickCenter(page: Page, control: Locator) {
   await expect(control).toBeVisible();
+  await expect(control).toBeEnabled();
   await settleEntrances(page);
   const box = await control.boundingBox();
   if (!box) throw new Error("The control has no visible bounds");
@@ -105,6 +106,8 @@ test.describe("desktop pointer controls", () => {
     const listing = page.waitForResponse(
       (response) =>
         new URL(response.url()).pathname === "/api/agents" &&
+        // The page also lists each kind of system agent, in a folded section.
+        !new URL(response.url()).searchParams.has("kind") &&
         response.request().method() === "GET" &&
         // Dashboard's agent query may still be in flight after sign-in. Its
         // response body belongs to the document that goto is about to discard.
@@ -236,14 +239,25 @@ test.describe("desktop pointer controls", () => {
     page,
   }, testInfo) => {
     test.setTimeout(60_000);
+    expect((await page.request.delete("/api/users/me/appearance")).ok()).toBe(true);
     await page.goto("/settings/profile");
     const appearance = page.locator('[data-tour="settings-appearance"]');
     await expect(appearance).toBeVisible();
+    const styles = appearance.getByRole("radiogroup", { name: "Style", exact: true });
     for (const theme of ["Light", "Dark"]) {
       await page.setViewportSize(
         theme === "Light" ? { width: 1440, height: 1000 } : { width: 900, height: 640 },
       );
       await appearance.getByRole("radio", { name: theme, exact: true }).click();
+      // Settings previews locally until Apply; the account menu saves immediately.
+      const themeSaved = page.waitForResponse(
+        (response) =>
+          response.url().endsWith("/api/users/me/appearance") &&
+          response.request().method() === "PATCH",
+      );
+      await appearance.getByRole("button", { name: "Apply", exact: true }).click();
+      expect((await themeSaved).ok()).toBe(true);
+      await expect(appearance.getByRole("button", { name: "Apply", exact: true })).toBeDisabled();
       for (const name of ["Standard", "Glass", "Graphite", "Midnight", "Paper"]) {
         await page
           .locator("aside")
@@ -256,11 +270,11 @@ test.describe("desktop pointer controls", () => {
         if (name === "Standard")
           await expect(page.locator("html")).not.toHaveAttribute("data-look");
         else await expect(page.locator("html")).toHaveAttribute("data-look", name.toLowerCase());
-        await expect(appearance.getByRole("radio", { name: new RegExp(`^${name}`) })).toBeChecked();
+        await expect(styles.getByRole("radio", { name: new RegExp(`^${name}`) })).toBeChecked();
         await expect(appearance.getByRole("radio", { name: theme, exact: true })).toBeChecked();
       }
       await page.reload();
-      await expect(appearance.getByRole("radio", { name: /^Paper/ })).toBeChecked();
+      await expect(styles.getByRole("radio", { name: /^Paper/ })).toBeChecked();
       await expect(appearance.getByRole("radio", { name: theme, exact: true })).toBeChecked();
       await appearance.scrollIntoViewIfNeeded();
       await page
@@ -279,63 +293,75 @@ test.describe("desktop pointer controls", () => {
   test("scrolls a large file listing without moving the chat or its close control", async ({
     page,
   }) => {
-    // Fetch the seed explicitly: a background sidebar refresh may abort its
-    // response when navigation hands ownership to the new page.
-    const response = await page.request.get("/api/conversations");
-    expect(response.ok()).toBe(true);
-    const conversations = listingItems(await response.json());
-    expect(conversations.length).toBeGreaterThan(0);
-    const id = listingText(conversations[0]?.id);
-    // Use an existing authorized chat, with a deterministic large workspace.
-    // No local documents or model call is needed for this layout regression.
-    await page.route(`**/api/conversations/${id}/workspace`, (route) =>
-      route.fulfill({
-        json: {
-          scope: "conversation",
-          backend: "state",
-          owner_label: "This conversation",
-          total: 120,
-          bytes_total: 12000,
-          bytes_limit: null,
-          unreadable_reason: null,
-          items: Array.from({ length: 120 }, (_, index) => ({
-            path: `/report-${String(index).padStart(3, "0")}-${"long-name-".repeat(12)}.md`,
-            size: 100,
-            is_dir: false,
-            modified_at: null,
-            preview: null,
-            thumbnail: null,
-          })),
-        },
-      }),
-    );
-    await page.goto(`/chat?id=${encodeURIComponent(id)}`);
-    const composer = page.getByRole("textbox", { name: "Type a message...", exact: true });
-    await expect(composer).toBeVisible();
-    const before = await composer.boundingBox();
-    await page.getByRole("button", { name: /^Show the files/ }).click();
-    const panel = page
-      .getByRole("complementary")
-      .filter({ has: page.getByRole("button", { name: "Close the file panel" }) });
-    const close = panel.getByRole("button", { name: "Close the file panel" });
-    await expect(panel.getByRole("treeitem")).toHaveCount(120);
-    await settleEntrances(page);
-    const initialClose = await close.boundingBox();
-    const scrollport = panel.locator(".overflow-y-auto");
-    const geometry = await panel.evaluate((element) => ({
-      bottom: element.getBoundingClientRect().bottom,
-      viewport: innerHeight,
-      overflow: element.scrollWidth > element.clientWidth,
-    }));
-    expect(geometry.bottom).toBeLessThanOrEqual(geometry.viewport);
-    expect(geometry.overflow).toBe(false);
-    await scrollport.evaluate((element) => {
-      element.scrollTop = element.scrollHeight;
+    // Own the fixture: a fresh personal workspace need not contain any chats.
+    const response = await page.request.post("/api/conversations", {
+      data: { title: "Workspace scroll regression" },
     });
-    await expect(panel.getByRole("treeitem").last()).toBeInViewport();
-    expect(await close.boundingBox()).toEqual(initialClose);
-    expect((await composer.boundingBox())?.y).toBe(before?.y);
-    await clickCenter(page, close);
-    await expect(panel).toBeHidden();
+    expect(response.ok()).toBe(true);
+    const conversation: unknown = await response.json();
+    if (!conversation || typeof conversation !== "object" || !("id" in conversation)) {
+      throw new Error("Expected a created conversation");
+    }
+    const id = listingText(conversation.id);
+    try {
+      // Files are intentionally disabled until a conversation has its first turn.
+      const message = await page.request.post(`/api/conversations/${id}/messages`, {
+        data: { role: "user", content: "Workspace scroll fixture" },
+      });
+      expect(message.ok()).toBe(true);
+      await page.route(`**/api/conversations/${id}/workspace`, (route) =>
+        route.fulfill({
+          json: {
+            scope: "conversation",
+            backend: "state",
+            owner_label: "This conversation",
+            total: 120,
+            bytes_total: 12000,
+            bytes_limit: null,
+            unreadable_reason: null,
+            items: Array.from({ length: 120 }, (_, index) => ({
+              path: `/report-${String(index).padStart(3, "0")}-${"long-name-".repeat(12)}.md`,
+              size: 100,
+              is_dir: false,
+              modified_at: null,
+              preview: null,
+              thumbnail: null,
+            })),
+          },
+        }),
+      );
+      await page.goto(`/chat?id=${encodeURIComponent(id)}`);
+      const composer = page.getByRole("textbox", { name: "Type a message...", exact: true });
+      await expect(composer).toBeVisible();
+      await settleEntrances(page);
+      await page.getByRole("button", { name: /^Show the files/ }).click();
+      const panel = page
+        .getByRole("complementary")
+        .filter({ has: page.getByRole("button", { name: "Close the file panel" }) });
+      const close = panel.getByRole("button", { name: "Close the file panel" });
+      await expect(panel.getByRole("treeitem")).toHaveCount(120);
+      await settleEntrances(page);
+      const initialClose = await close.boundingBox();
+      const before = await composer.boundingBox();
+      const scrollport = panel.locator(".overflow-y-auto");
+      const geometry = await panel.evaluate((element) => ({
+        bottom: element.getBoundingClientRect().bottom,
+        viewport: innerHeight,
+        overflow: element.scrollWidth > element.clientWidth,
+      }));
+      expect(geometry.bottom).toBeLessThanOrEqual(geometry.viewport);
+      expect(geometry.overflow).toBe(false);
+      await scrollport.evaluate((element) => {
+        element.scrollTop = element.scrollHeight;
+      });
+      await expect(panel.getByRole("treeitem").last()).toBeInViewport();
+      expect(await close.boundingBox()).toEqual(initialClose);
+      expect((await composer.boundingBox())?.y).toBe(before?.y);
+      await clickCenter(page, close);
+      await expect(panel).toBeHidden();
+    } finally {
+      const removed = await page.request.delete(`/api/conversations/${id}`);
+      expect(removed.ok()).toBe(true);
+    }
   });
 });

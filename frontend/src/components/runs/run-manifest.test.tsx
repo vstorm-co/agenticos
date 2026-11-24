@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -87,6 +87,12 @@ describe("what the model was told", () => {
             calls: [
               { tool: "update_record", args: '{"n": 1}', status: "returned" },
               { tool: "update_record", args: '{"n": 2}', status: "failed" },
+              {
+                tool_call_id: "c1__3",
+                tool: "update_record",
+                args: '{"n": 3}',
+                status: "awaiting_approval",
+              },
             ],
           },
         ],
@@ -96,7 +102,8 @@ describe("what the model was told", () => {
 
     expect(screen.getByText("1 script")).toBeInTheDocument();
     expect(screen.getByText("await update_record(n=1)")).toBeInTheDocument();
-    expect(screen.getByText("It made 2 tool calls")).toBeInTheDocument();
+    expect(screen.getByText("It made 3 tool calls")).toBeInTheDocument();
+    expect(screen.getByText("Waiting for approval")).toBeInTheDocument();
     expect(screen.getByText('{"n": 2}')).toBeInTheDocument();
   });
 
@@ -117,6 +124,294 @@ describe("what the model was told", () => {
 
     expect(screen.getByText("It made 251 tool calls")).toBeInTheDocument();
     expect(screen.getByText("and 250 more calls, not listed")).toBeInTheDocument();
+  });
+
+  it("shows each sol-loop round, its verdict and findings, and what happened to them (#6)", () => {
+    serve({
+      manifest: record({
+        sol_loop_rounds: [
+          {
+            round: 1,
+            scope: "full",
+            verdict: "CHANGES",
+            model: "GPT Sol",
+            findings: [
+              {
+                id: "S1",
+                severity: "blocker",
+                claim: "The check is wrong.",
+                file: "app/x.py",
+                line: 12,
+                fix: "Guard it.",
+                outcome: null,
+              },
+            ],
+            dispositions: {},
+            stop_reason: null,
+            reason: null,
+            satisfied: false,
+          },
+          {
+            round: 2,
+            scope: "changed-only",
+            verdict: "APPROVE",
+            model: "GPT Sol",
+            findings: [],
+            dispositions: { S1: "agree-fixed" },
+            stop_reason: "approved",
+            reason: null,
+            satisfied: true,
+          },
+        ],
+      }),
+    });
+    renderManifest();
+
+    expect(screen.getByText("2 sol-loop rounds")).toBeInTheDocument();
+    expect(screen.getByText("Round 1 · full · CHANGES")).toBeInTheDocument();
+    expect(screen.getByText("S1 — blocker: app/x.py:12 — The check is wrong.")).toBeInTheDocument();
+    expect(screen.getByText("Fix: Guard it.")).toBeInTheDocument();
+    expect(screen.getByText("Round 2 · changed-only · APPROVE")).toBeInTheDocument();
+    expect(screen.getByText("Stopped: approved")).toBeInTheDocument();
+    expect(screen.getByText("Outcome: agree-fixed")).toBeInTheDocument();
+  });
+
+  it("shows no sol-loop section for a run nobody reviewed", () => {
+    serve({ manifest: record() });
+    renderManifest();
+    expect(screen.queryByText(/sol-loop round/)).toBeNull();
+  });
+
+  it("shows each eval tool-tuning run, its cases, and its draft proposals (#11)", () => {
+    serve({
+      manifest: record({
+        eval_tool_tuning_runs: [
+          {
+            tool: "search",
+            total: 2,
+            passed: 1,
+            pass_rate: 0.5,
+            dominant_failure: "not_called",
+            cases: [
+              {
+                name: "total",
+                classification: "passed",
+                passed: true,
+                shown: "The total is 42.",
+                detail: "The answer met the expectation.",
+              },
+              {
+                name: "missing",
+                classification: "not_called",
+                passed: false,
+                shown: "No answer given.",
+                detail: "No tool was called, so search never ran.",
+              },
+            ],
+            proposals: [
+              {
+                kind: "tool_choice",
+                tool: "search",
+                title: "Route these requests to search",
+                current: "No routing rule names search for these requests.",
+                proposed:
+                  "Name search in the agent's instructions as the tool for requests like missing.",
+                rationale: "The tool was never called on these cases (1/2 cases passed).",
+                evidence: ["missing"],
+                status: "draft",
+              },
+            ],
+          },
+        ],
+      }),
+    });
+    renderManifest();
+
+    expect(screen.getByText("1 eval tool-tuning run")).toBeInTheDocument();
+    expect(screen.getByText("search · 1/2 passed")).toBeInTheDocument();
+    expect(screen.getByText("Most common failure: not_called")).toBeInTheDocument();
+    expect(screen.getByText("total · passed")).toBeInTheDocument();
+    expect(screen.getByText("missing · not_called")).toBeInTheDocument();
+    expect(screen.getByText("No tool was called, so search never ran.")).toBeInTheDocument();
+    expect(screen.getByText("tool_choice: Route these requests to search")).toBeInTheDocument();
+    expect(screen.getByText("Evidence: missing · draft")).toBeInTheDocument();
+  });
+
+  it("shows no eval tool-tuning section for a run that scored no tool", () => {
+    serve({ manifest: record() });
+    renderManifest();
+    expect(screen.queryByText(/eval tool-tuning run/)).toBeNull();
+  });
+
+  it("reads a round the reviewer never answered as unavailable, never as approval", () => {
+    serve({
+      manifest: record({
+        sol_loop_rounds: [
+          {
+            round: 1,
+            scope: "full",
+            verdict: "unavailable",
+            model: "GPT Sol",
+            findings: [],
+            dispositions: {},
+            stop_reason: "reviewer_unavailable",
+            reason: "No model resolved for this reviewer's model profile",
+            satisfied: false,
+          },
+        ],
+      }),
+    });
+    renderManifest();
+
+    expect(screen.getByText("Round 1 · full · unavailable")).toBeInTheDocument();
+    expect(screen.getByText("Stopped: reviewer_unavailable")).toBeInTheDocument();
+    expect(
+      screen.getByText("No model resolved for this reviewer's model profile"),
+    ).toBeInTheDocument();
+  });
+
+  it("shows each burst's merged outcome, and a failed part as failed (#10)", () => {
+    serve({
+      manifest: record({
+        burst_runs: [
+          {
+            burst: 1,
+            task: "Write the guide",
+            merged: "# Burst: Write the guide\n\n## B1 — Part 1\n\nIntro done.",
+            results: [
+              {
+                id: "B1",
+                title: "Part 1",
+                status: "completed",
+                result: "Intro done.",
+                reason: null,
+              },
+              { id: "B2", title: "Part 2", status: "failed", result: "", reason: "TimeoutError" },
+            ],
+          },
+        ],
+      }),
+    });
+    const { container } = renderManifest();
+
+    expect(screen.getByText("1 burst")).toBeInTheDocument();
+    expect(screen.getByText("Burst 1 · Write the guide")).toBeInTheDocument();
+    expect(screen.getByText("B1 · Part 1 — completed")).toBeInTheDocument();
+    expect(screen.getByText("B2 · Part 2 — failed (TimeoutError)")).toBeInTheDocument();
+    expect(container.textContent).toContain("# Burst: Write the guide");
+    expect(container.textContent).toContain("## B1 — Part 1");
+    expect(container.textContent).toContain("Intro done.");
+  });
+
+  it("shows no burst section for a run that never burst", () => {
+    serve({ manifest: record() });
+    renderManifest();
+    expect(screen.queryByText(/burst/)).toBeNull();
+  });
+
+  it("shows each proof scenario, its attempts, and whether it is proven (#8)", () => {
+    serve({
+      manifest: record({
+        proof_scenarios: [
+          {
+            id: "P1",
+            name: "reproduce the failure",
+            kind: "reproduction",
+            command: "pytest tests/test_widget.py -q",
+            covers: ["backend/app/widget.py"],
+            attempts: [
+              {
+                scenario_id: "P1",
+                phase: "before_fix",
+                status: "failed",
+                evidence_kind: "reproduction",
+                command: "  pytest  tests/test_widget.py -q ",
+                observed: "AssertionError: widget did not render",
+                duration_ms: 120,
+                observed_at: "2026-11-12T06:00:00Z",
+              },
+              {
+                scenario_id: "P1",
+                phase: "after_fix",
+                status: "passed",
+                evidence_kind: "reproduction",
+                command: "pytest tests/test_widget.py -q",
+                observed: "1 passed",
+                duration_ms: 110,
+                observed_at: "2026-11-12T06:05:00Z",
+              },
+            ],
+          },
+          {
+            id: "P2",
+            name: "unit tests only",
+            kind: "command",
+            command: "pytest -q",
+            covers: ["frontend/src/widget.tsx"],
+            attempts: [
+              {
+                scenario_id: "P2",
+                phase: "after_fix",
+                status: "passed",
+                evidence_kind: "unit_test",
+                command: "pytest -q",
+                observed: "42 passed",
+                duration_ms: 900,
+                observed_at: "2026-11-12T06:06:00Z",
+              },
+            ],
+          },
+          {
+            id: "P3",
+            name: "different reproductions",
+            kind: "reproduction",
+            command: "pytest tests/test_widget.py -q",
+            covers: ["backend/app/other.py"],
+            attempts: [
+              {
+                scenario_id: "P3",
+                phase: "before_fix",
+                status: "failed",
+                evidence_kind: "ui_observation",
+                command: "pytest tests/test_widget.py -q",
+                observed: "AssertionError",
+                duration_ms: 120,
+                observed_at: "2026-11-12T06:00:00Z",
+              },
+              {
+                scenario_id: "P3",
+                phase: "after_fix",
+                status: "passed",
+                evidence_kind: "ui_observation",
+                command: "pytest tests/test_other.py -q",
+                observed: "other reproduction passed",
+                duration_ms: 110,
+                observed_at: "2026-11-12T06:05:00Z",
+              },
+            ],
+          },
+        ],
+      }),
+    });
+    renderManifest();
+
+    expect(screen.getByText("3 proof scenarios")).toBeInTheDocument();
+    expect(screen.getByText("P1 reproduce the failure — proven")).toBeInTheDocument();
+    expect(screen.getByText("Covers: backend/app/widget.py")).toBeInTheDocument();
+    expect(screen.getByText("Covers: frontend/src/widget.tsx")).toBeInTheDocument();
+    expect(screen.getByText("before_fix · failed · reproduction")).toBeInTheDocument();
+    expect(screen.getByText("AssertionError: widget did not render")).toBeInTheDocument();
+    expect(screen.getByText("after_fix · passed · reproduction")).toBeInTheDocument();
+    expect(screen.getByText("1 passed")).toBeInTheDocument();
+    // A unit-test attempt never counts as proof, so it reads as unproven.
+    expect(screen.getByText("P2 unit tests only — unproven")).toBeInTheDocument();
+    expect(screen.getByText("P3 different reproductions — unproven")).toBeInTheDocument();
+  });
+
+  it("shows no proof section for a run that recorded no scenarios", () => {
+    serve({ manifest: record() });
+    renderManifest();
+    expect(screen.queryByText(/proof scenario/)).toBeNull();
   });
 
   it("shows the prompt as it was sent, and the system parts beside it", () => {
@@ -151,8 +446,10 @@ describe("what the model was told", () => {
 
     renderManifest();
 
-    expect(screen.getByText("1 tool")).toBeVisible();
+    fireEvent.mouseDown(screen.getByRole("tab", { name: /^Tools/ }), { button: 0, ctrlKey: false });
+    expect(screen.getByText("1 of 1 tools")).toBeVisible();
     expect(screen.getByText("Look up how many of one item are in the warehouse.")).toBeVisible();
+    fireEvent.click(screen.getByText("check_stock"));
     expect(screen.getByText(/"sku"/)).toBeInTheDocument();
   });
 
@@ -161,6 +458,7 @@ describe("what the model was told", () => {
 
     renderManifest();
 
+    fireEvent.mouseDown(screen.getByRole("tab", { name: /^Tools/ }), { button: 0, ctrlKey: false });
     expect(screen.getByText("The model was given no tools.")).toBeVisible();
   });
 
@@ -181,11 +479,20 @@ describe("what the model was told", () => {
   });
 
   it("says a run sent no instructions rather than leaving the panel blank", () => {
-    serve({ manifest: record({ instructions: null }) });
+    serve({ manifest: record({ instructions: null, system_prompts: [] }) });
 
     renderManifest();
 
     expect(screen.getByText("No instructions were sent with this run.")).toBeVisible();
+  });
+
+  it("does not claim no instructions for a run that sent them as system parts", () => {
+    serve({ manifest: record({ instructions: null, system_prompts: ["Grade the answer."] }) });
+
+    renderManifest();
+
+    expect(screen.queryByText("No instructions were sent with this run.")).toBeNull();
+    expect(screen.getByText("Grade the answer.")).toBeVisible();
   });
 });
 

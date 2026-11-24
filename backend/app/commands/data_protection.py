@@ -111,6 +111,7 @@ UNREFERENCED_BY_DESIGN = (SCRATCH_DIRECTORY,)
 # either named here or in `CAPABILITIES_STAYING_INSIDE`, so a new one fails a
 # test rather than quietly leaving the inventory short.
 OUTBOUND_CAPABILITIES: dict[str, str] = {
+    "channel_actions": "the chat platforms of explicitly enabled bot bindings and their authorized channels",
     "phone_calls": "the configured telephony provider and explicitly consented recipients",
     # The pages it opens are the destination a reviewer has to know about. What
     # each step sends the model - the page's address, element labels and an
@@ -122,6 +123,10 @@ OUTBOUND_CAPABILITIES: dict[str, str] = {
     "coding_agent": (
         "Anthropic, OpenAI or the gateway the binding names, from the agent's sandbox, "
         "with the code the coding agent reads"
+    ),
+    "harness": (
+        "the model provider or gateway selected by the coding harness, from the "
+        "agent's sandbox, with the prompts and workspace files the harness reads"
     ),
     # Screenshots of the desktop go to the agent's own model; the actions, and the
     # text the model types, go to the desktop.
@@ -167,6 +172,20 @@ CAPABILITIES_STAYING_INSIDE = frozenset(
         # Delegation stays in this deployment; outbound destinations belong to
         # the child model and tools, which this inventory already lists.
         "background_tasks",
+        # Review and parallel-work calls use the configured model profiles;
+        # their destinations are already named in the model inventory.
+        "council",
+        "sol_loop",
+        "burst",
+        # These classify supplied evidence and record it on the run manifest;
+        # they neither fetch pull requests nor execute proofs or eval cases.
+        "babysit_pr",
+        "proof_scenario",
+        "eval_tool_tuning",
+        # Messages stay in this deployment's conversation store. Secret requests
+        # go to the requester; fulfilled credentials stay in the scoped vault.
+        "agent_messages",
+        "secret_request",
         "channel_tools",
         "charts",
         "clock",

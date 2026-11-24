@@ -50,6 +50,7 @@ async def test_the_heartbeat_claims_on_one_session_at_the_ticks_own_time() -> No
 
 
 async def test_fire_job_forwards_the_stable_device_activation() -> None:
+    from app.schemas.agent_trigger import TriggerFireResult
     from app.worker.jobs import FireTrigger
 
     @contextlib.asynccontextmanager
@@ -61,6 +62,7 @@ async def test_fire_job_forwards_the_stable_device_activation() -> None:
         patch.object(trigger_tasks, "get_worker_db_context", context),
         patch("app.services.agent_trigger.AgentTriggerService") as service,
     ):
-        service.return_value.fire_job = AsyncMock()
-        await trigger_tasks.fire_trigger(payload)
+        outcome = TriggerFireResult(outcome="blocked", attempt_id=uuid.uuid4())
+        service.return_value.fire_job = AsyncMock(return_value=outcome)
+        assert await trigger_tasks.fire_trigger(payload) == outcome
         service.return_value.fire_job.assert_awaited_once_with(payload)

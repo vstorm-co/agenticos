@@ -9,7 +9,7 @@ So the model is constructed **per run** from the vault:
     profile -> credential -> unsealed secret -> provider client -> Model
 
 There used to be one hand-written builder per provider, and four providers. That
-does not scale to the thirty-one Pydantic AI ships, and it does not need to:
+does not scale to the provider set Pydantic AI ships, and it does not need to:
 :func:`pydantic_ai.providers.infer_provider_class` finds the class and
 :func:`pydantic_ai.models.infer_model` picks the right model wrapper for it. What
 this module still owns is the part inference cannot know - **which credential
@@ -29,10 +29,17 @@ Four provider names Pydantic AI knows are deliberately absent. `bedrock-mantle`,
 point at - the last two are embedding models - and `gateway` does not resolve
 to a provider class at all: it is a routing prefix over the others.
 
-Everything else Pydantic AI ships is here. Three of them (`xai`, `cohere`,
-`huggingface`) need an SDK of their own, so they are in this repository's
+The catalog is the subset with credential contracts implemented here. Exposing
+another SDK provider also needs those contracts and construction tests. Three
+entries (`xai`, `cohere`, `huggingface`) need an SDK of their own, so they are in this repository's
 `pydantic-ai-slim` extras: a provider selectable in the Builder that raises
 `ImportError` when a run reaches it would be worse than one nobody can pick.
+
+Two entries are not a vendor at all but an API *shape*: `openai_compatible`
+and `anthropic_compatible` are the organization's own endpoint, reached at an
+address somebody types and a key somebody stores. They are separate entries
+because the key is what says where it goes - a key filed under a vendor names
+that vendor's public API, which the organization never talks to.
 
 `openai_codex` is the one whose credential changes while it is used. It runs on
 a ChatGPT subscription rather than an API key, and its refresh token is spent by
@@ -43,7 +50,7 @@ second run.
 """
 
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal
 from uuid import UUID
 
@@ -76,7 +83,7 @@ from app.core.secret_kinds import (
 if TYPE_CHECKING:
     from pydantic_ai.providers.openai_codex import OpenAICodexCredentialSource
 
-ModelApi = Literal["chat", "responses"]
+ModelApi = Literal["chat", "responses", "decisions"]
 """Which of OpenAI's two APIs a profile's requests go to: Chat Completions or Responses."""
 
 
@@ -109,6 +116,15 @@ STAV_BASE_URL = "https://api.stav.ai/v1"
 STAV_REGION_HEADER = "X-Stav-Runs-In"
 STAV_DEFAULT_REGION: ModelRegion = "eu"
 
+LLMTR_BASE_URL = "https://llmtr.com/v1"
+
+CHAT_ONLY_PROVIDERS = frozenset({"google", "openrouter", "openai_compatible"})
+"""The providers whose generation API is Chat Completions and nothing else.
+
+A provider that speaks one of OpenAI's two APIs has no choice to offer, so the
+form draws no API field for it and a profile stores the one it always uses.
+"""
+
 
 @dataclass(frozen=True)
 class ProviderSpec:
@@ -126,6 +142,12 @@ class ProviderSpec:
     right everywhere: OpenAI's newest models answer Chat Completions with a 400,
     while most OpenAI-compatible servers behind a `base_url` implement only Chat
     Completions. So a profile on such a provider stores which one it uses.
+
+    `api_prefix` is the path the provider's SDK puts *below* the endpoint, which
+    the endpoint therefore must not carry. Anthropic's SDK posts to
+    `<endpoint>/v1/messages`, so an endpoint that already ends in `/v1` would
+    ask for `/v1/v1/messages`; OpenAI's takes the `/v1` root as the endpoint
+    and adds nothing below it. :meth:`endpoint` is where that is applied.
     """
 
     id: str
@@ -140,6 +162,8 @@ class ProviderSpec:
     regions: tuple[ModelRegion, ...] = ()
     # Resolve the API from advertised model surfaces rather than a form selection.
     api_from_model: bool = False
+    # The path the SDK adds below the endpoint, which the endpoint must not carry.
+    api_prefix: str = ""
 
     @property
     def prefix(self) -> str:
@@ -149,10 +173,37 @@ class ProviderSpec:
     def supports_base_url(self) -> bool:
         return self.base_url_param is not None
 
+    def endpoint(self, base_url: str) -> str:
+        """The endpoint as this provider's SDK will use it.
+
+        The SDK adds `api_prefix` itself, so an endpoint that already ends in it
+        is trimmed: a base of `https://api.example.com/v1` on an
+        Anthropic-compatible server would otherwise ask for `/v1/v1/messages`,
+        and the 404 names the path rather than the cause.
+        """
+        prefix = self.api_prefix
+        if not prefix:
+            return base_url
+        trimmed = base_url.rstrip("/")
+        if not trimmed.endswith(prefix):
+            return base_url
+        return trimmed[: -len(prefix)] or base_url
+
     @property
     def apis(self) -> tuple[ModelApi, ...]:
         """The APIs a profile may choose between; empty where there is no choice."""
-        return ("responses", "chat") if self.native_api is not None else ()
+        ordinary: tuple[ModelApi, ...] = (
+            ("chat",)
+            if self.id in CHAT_ONLY_PROVIDERS
+            else ("responses", "chat")
+            if self.native_api is not None
+            else ()
+        )
+        return (
+            (*ordinary, "decisions")
+            if self.id in {"openai", "google", "openrouter", "typesafe", "system-one"}
+            else ordinary
+        )
 
     def default_api(self, base_url: str | None) -> ModelApi | None:
         """The API a profile gets when it names none.
@@ -162,6 +213,10 @@ class ProviderSpec:
         a gateway or a regional OpenAI endpoint that serves Responses is a choice
         the profile makes explicitly.
         """
+        if self.id in {"typesafe", "system-one"}:
+            return "decisions"
+        if self.id in CHAT_ONLY_PROVIDERS:
+            return "chat"
         if self.native_api is None:
             return None
         return self.native_api if base_url is None else "chat"
@@ -232,6 +287,7 @@ def _api_key(
     requires_base_url: bool = False,
     model_prefix: str = "",
     native_api: ModelApi | None = None,
+    api_prefix: str = "",
 ) -> ProviderSpec:
     """A provider whose whole credential is one token."""
     return ProviderSpec(
@@ -243,6 +299,7 @@ def _api_key(
         requires_base_url=requires_base_url,
         model_prefix=model_prefix,
         native_api=native_api,
+        api_prefix=api_prefix,
     )
 
 
@@ -266,6 +323,14 @@ PROVIDERS: dict[str, ProviderSpec] = {
             secret_kind=SecretKind.NONE,
         ),
         _api_key("google", "Google Gemini", base_url_param="base_url"),
+        _api_key("typesafe", "TypeSafe (Jev)", base_url_param="base_url"),
+        _api_key(
+            "system-one",
+            "System One API",
+            base_url_param="base_url",
+            keyless=True,
+            requires_base_url=True,
+        ),
         _api_key("openrouter", "OpenRouter", base_url_param="base_url"),
         _api_key(
             "otari",
@@ -281,6 +346,10 @@ PROVIDERS: dict[str, ProviderSpec] = {
         _api_key("github", "GitHub Models"),
         _api_key("groq", "Groq"),
         _api_key("heroku", "Heroku AI", base_url_param="base_url"),
+        # An OpenAI-compatible gateway that Pydantic AI has no provider for, so it
+        # runs on the Chat Completions model at LLMTR's endpoint. `llmtr/...` ids
+        # are models hosted in Turkey; the others are routed to their vendors.
+        _api_key("llmtr", "LLMTR", model_prefix="openai-chat"),
         _api_key("mistral", "Mistral"),
         _api_key("moonshotai", "Moonshot AI"),
         _api_key("nebius", "Nebius AI Studio"),
@@ -313,6 +382,40 @@ PROVIDERS: dict[str, ProviderSpec] = {
         # deployment's own network usually has nothing to authenticate against.
         _api_key("ollama", "Ollama", base_url_param="base_url", keyless=True),
         _api_key("litellm", "LiteLLM proxy", base_url_param="api_base", keyless=True),
+        # The organization's own endpoint, spoken to in one of the two API shapes
+        # in the wild: OpenAI's Chat Completions and Anthropic's Messages. A
+        # server somebody runs, reached at an address they type and a key they
+        # store - a gateway, a proxy, a model server on their own network.
+        #
+        # Their own entries rather than an `openai` or an `anthropic` profile with
+        # an endpoint, because the key is the point: a key stored for a custom
+        # endpoint says in the vault that it authenticates that endpoint, and
+        # not OpenAI's or Anthropic's public API. `openai` with an endpoint
+        # already works, but the vault then holds a key named after a vendor
+        # the organization never talks to.
+        #
+        # The Chat Completions one serves that API and nothing else, which is
+        # what "OpenAI-compatible" means: vLLM, LM Studio, a LiteLLM proxy and
+        # every other server that answers `/chat/completions` and nothing more.
+        _api_key(
+            "openai_compatible",
+            "Custom (OpenAI-compatible)",
+            base_url_param="base_url",
+            requires_base_url=True,
+            model_prefix="openai-chat",
+        ),
+        # The Anthropic one speaks the Messages API, whose SDK posts to
+        # `<endpoint>/v1/messages` - so the endpoint carries no `/v1` of its own.
+        # The prefix is `anthropic` because that is the provider class and the
+        # model wrapper; the id is the platform's own name for the shape.
+        _api_key(
+            "anthropic_compatible",
+            "Custom (Anthropic-compatible)",
+            base_url_param="base_url",
+            requires_base_url=True,
+            model_prefix="anthropic",
+            api_prefix="/v1",
+        ),
         # A ChatGPT subscription rather than an API account. Its own entry
         # because the credential is a sign-in that rotates, and because it is
         # billed to one person's subscription rather than to an API key.
@@ -422,6 +525,11 @@ class ResolvedCredential:
     # The profile's, like `api`: where the requests may run, for a provider that
     # takes a region. `None` for every provider that does not.
     region: ModelRegion | None = None
+    # Identity and non-secret routing bind replay to the actual vault destination,
+    # including providers whose endpoint lives in a structured credential.
+    credential_id: UUID | None = None
+    authorization_generation: UUID | None = None
+    routing: Mapping[str, str | None] = field(default_factory=dict)
 
 
 def _build_provider(spec: ProviderSpec, credential: ResolvedCredential) -> Provider[Any]:
@@ -498,6 +606,8 @@ def _build_provider(spec: ProviderSpec, credential: ResolvedCredential) -> Provi
             base_url=credential.base_url or STAV_BASE_URL,
             region=credential.region or STAV_DEFAULT_REGION,
         )
+    if spec.id == "llmtr":
+        return OpenAIProvider(api_key=secret.api_key.get_secret_value(), base_url=LLMTR_BASE_URL)
     if spec.id == "openrouter" and credential.base_url is not None:
         return _EndpointOpenRouterProvider(
             api_key=secret.api_key.get_secret_value(), base_url=credential.base_url
@@ -576,6 +686,10 @@ def build_model(credential: ResolvedCredential, model: str) -> Model:
         BadRequestError: If the provider has no catalog entry.
     """
     model_client = _build_model(credential, model)
+    if credential.provider == "llmtr":
+        from app.agents.llmtr import LlmtrModel
+
+        return LlmtrModel(model_client)
     if credential.provider == "stav":
         from app.agents.stav_cost import StavCostModel
 
@@ -600,6 +714,8 @@ def _build_model(credential: ResolvedCredential, model: str) -> Model:
             raise BadRequestError(message="Choose a supported Claude subscription model")
         return ClaudeSubscriptionModelClient(model, owner=owner)
     spec = get_provider(credential.provider)
+    if is_decision_api(credential.provider, credential.api):
+        return _build_decision_model(credential, model)
     if credential.api == "responses":
         # Local for the reason `_build_provider`'s are: a deployment that never
         # configures OpenAI should not import its SDK at startup.
@@ -626,6 +742,47 @@ def _build_model(credential: ResolvedCredential, model: str) -> Model:
     )
 
 
+def is_decision_api(provider: str, api: ModelApi | str | None) -> bool:
+    """Decision-only endpoints must not be mistaken for conversational models."""
+    return api == "decisions" or provider in {"typesafe", "system-one"}
+
+
+def _build_decision_model(credential: ResolvedCredential, model: str) -> Model:
+    """Use Pydantic AI's native decision transports, preserving the chosen account."""
+    from pydantic_ai.models.google_decisions import GoogleDecisionsModel
+    from pydantic_ai.models.openai_decisions import OpenAIDecisionsModel
+    from pydantic_ai.models.system_one import SystemOneModel
+    from pydantic_ai.models.typesafe import TypeSafeModel
+    from pydantic_ai.providers.google import GoogleProvider
+    from pydantic_ai.providers.system_one import SystemOneProvider
+    from pydantic_ai.providers.typesafe import TypeSafeProvider
+
+    if credential.provider in {"openrouter", "system-one"}:
+        secret = credential.secret
+        if not isinstance(secret, (ApiKeySecret, NoSecret)):
+            raise BadRequestError(
+                message="A decision endpoint requires an API key or keyless connection"
+            )
+        endpoint = credential.base_url or "https://openrouter.ai/api/v1"
+        return SystemOneModel(
+            model,
+            provider=SystemOneProvider(
+                base_url=endpoint,
+                api_key=secret.api_key.get_secret_value()
+                if isinstance(secret, ApiKeySecret)
+                else "",
+            ),
+        )
+    provider = _build_provider(get_provider(credential.provider), credential)
+    if credential.provider == "openai" and isinstance(provider, OpenAIProvider):
+        return OpenAIDecisionsModel(model, provider=provider)
+    if credential.provider == "google" and isinstance(provider, GoogleProvider):
+        return GoogleDecisionsModel(model, provider=provider)
+    if credential.provider == "typesafe" and isinstance(provider, TypeSafeProvider):
+        return TypeSafeModel(model, provider=provider)
+    raise BadRequestError(message="This provider does not serve a supported decision API")
+
+
 def _openrouter_model(spec: ProviderSpec, credential: ResolvedCredential, model: str) -> Model:
     """An OpenRouter model whose cache breakpoints name no time to live.
 
@@ -636,12 +793,16 @@ def _openrouter_model(spec: ProviderSpec, credential: ResolvedCredential, model:
     not permitted"), so the same agent failed or answered depending on where
     OpenRouter routed the request. `PROMPT_CACHE` asks for the provider's default
     retention, five minutes on every host, so leaving `ttl` out changes nothing but that.
+
+    A request the provider refuses over the reasoning sent back to it is sent once
+    more without it - see `app.agents.openrouter_model`.
     """
-    from pydantic_ai.models.openrouter import OpenRouterModel
     from pydantic_ai.providers.openrouter import OpenRouterModelProfile
 
+    from app.agents.openrouter_model import ReasoningResendOpenRouterModel
+
     # A partial profile, merged over the one OpenRouter resolves for the model.
-    return OpenRouterModel(
+    return ReasoningResendOpenRouterModel(
         model,
         provider=_build_provider(spec, credential),
         profile=OpenRouterModelProfile(openrouter_supports_cache_ttl=False),

@@ -23,6 +23,9 @@ vi.mock("@/hooks/use-routine-sources", () => ({
   }),
 }));
 const trigger = { id: "routine", agent_id: "agent" } as Trigger;
+vi.mock("@/components/branding/branding-provider", () => ({
+  useBranding: () => ({ appName: "AgenticOS", logoUrl: null }),
+}));
 beforeEach(() => {
   state.data = {
     current: false,
@@ -31,6 +34,7 @@ beforeEach(() => {
     resources: ["Knowledge · id"],
     accounts: ["Work mailbox · id"],
     unavailable_sources: [],
+    required_unavailable_sources: [],
   };
   state.error = null;
   state.loading = false;
@@ -43,7 +47,26 @@ it("shows physical accounts and resources and submits only the displayed review"
   expect(screen.getByText("Work mailbox · id")).toBeVisible();
   expect(screen.getByText("Knowledge · id")).toBeVisible();
   await userEvent.click(screen.getByRole("button", { name: "Approve these sources" }));
-  expect(state.save).toHaveBeenCalledWith("exact-review");
+  expect(state.save).toHaveBeenCalledWith({ review_token: "exact-review", mode: "restricted" });
+});
+it("groups named sources by kind, folded to counts, and says when one is gone", async () => {
+  if (state.data) {
+    state.data.items = [
+      { kind: "platform" },
+      { kind: "skill", id: "s1", name: "deck-review" },
+      { kind: "skill", id: "s2", name: null },
+      { kind: "table", id: "t1", name: "Leads", detail: "read/create" },
+    ];
+  }
+  render(<SourceConsentsPanel trigger={trigger} />);
+  expect(screen.queryByText("Knowledge · id")).not.toBeInTheDocument();
+  await userEvent.click(screen.getByText("Skills (2)"));
+  expect(screen.getByText("deck-review")).toBeVisible();
+  expect(screen.getByText("No longer available")).toHaveAttribute("title", "s2");
+  await userEvent.click(screen.getByText("Tables (1)"));
+  expect(screen.getByText("Leads")).toHaveTextContent("Leads · read/create");
+  await userEvent.click(screen.getByText("Platform (1)"));
+  expect(screen.getByText("AgenticOS")).toBeVisible();
 });
 it.each(["current", "pending", "unavailable"])("cannot approve while %s", (reason) => {
   if (reason === "pending") state.pending = true;
@@ -71,3 +94,77 @@ it("does not offer consent when there is no review data", () => {
   render(<SourceConsentsPanel trigger={trigger} />);
   expect(screen.queryByRole("button", { name: "Approve these sources" })).not.toBeInTheDocument();
 });
+
+it("lets a paused legacy snapshot follow the agent despite an unavailable optional connection", async () => {
+  if (state.data) state.data.unavailable_sources = ["Optional mailbox"];
+  render(<SourceConsentsPanel trigger={trigger} />);
+  expect(screen.getByRole("radio", { name: "Reviewed snapshot" })).toHaveAttribute(
+    "aria-checked",
+    "true",
+  );
+  await userEvent.click(screen.getByRole("radio", { name: "Follow agent" }));
+  expect(screen.getByText("Save to apply this access mode.")).toBeVisible();
+  const save = screen.getByRole("button", { name: "Save access mode" });
+  expect(save).toBeEnabled();
+  await userEvent.click(save);
+  expect(state.save).toHaveBeenCalledWith({ review_token: "exact-review", mode: "follow_agent" });
+});
+
+it("requires a review before changing a following routine to a restricted snapshot", async () => {
+  if (state.data) {
+    state.data.mode = "follow_agent";
+    state.data.current = true;
+  }
+  render(<SourceConsentsPanel trigger={trigger} />);
+  expect(screen.getByRole("button", { name: "Save access mode" })).toBeDisabled();
+  await userEvent.click(screen.getByRole("radio", { name: "Reviewed snapshot" }));
+  await userEvent.click(screen.getByRole("button", { name: "Approve these sources" }));
+  expect(state.save).toHaveBeenCalledWith({ review_token: "exact-review", mode: "restricted" });
+});
+
+it.each(["required", "legacy-unclassified"])(
+  "blocks a follow-mode save for %s unavailable sources and explains what to restore",
+  async (classification) => {
+    if (state.data) {
+      state.data.unavailable_sources = ["Creator identity", "Optional mailbox"];
+      state.data.required_unavailable_sources =
+        classification === "required" ? ["Creator identity"] : undefined;
+    }
+    render(<SourceConsentsPanel trigger={trigger} />);
+    await userEvent.click(screen.getByRole("radio", { name: "Follow agent" }));
+    expect(screen.getByRole("alert")).toHaveTextContent("Creator identity");
+    expect(screen.getByRole("alert")).toHaveTextContent("Restore access before saving or enabling");
+    if (classification === "required") {
+      expect(screen.getByRole("alert")).not.toHaveTextContent("Optional mailbox");
+      expect(screen.getByRole("status")).toHaveTextContent("Optional mailbox");
+    } else expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    const save = screen.getByRole("button", { name: "Save access mode" });
+    expect(save).toBeDisabled();
+    await userEvent.click(save);
+    expect(state.save).not.toHaveBeenCalled();
+  },
+);
+
+it.each([false, true])(
+  "describes follow approval status from the authoritative current=%s review",
+  (current) => {
+    if (state.data) {
+      state.data.mode = "follow_agent";
+      state.data.current = current;
+    }
+    render(<SourceConsentsPanel trigger={trigger} />);
+    expect(
+      screen.getByText(
+        /Later access expansions or behavior changes need the routine creator’s review/,
+      ),
+    ).toBeVisible();
+    const approved = "This routine follows the agent within its approved access and behavior.";
+    const changed =
+      "The routine creator must review changed access or behavior before the next run.";
+    expect(screen.getByText(current ? approved : changed)).toBeVisible();
+    expect(screen.queryByText(current ? changed : approved)).not.toBeInTheDocument();
+    const save = screen.getByRole("button", { name: "Save access mode" });
+    if (current) expect(save).toBeDisabled();
+    else expect(save).toBeEnabled();
+  },
+);

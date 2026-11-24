@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { announceChange, onRemoteChange, staleQueries } from "./live-updates";
+import { announceChange, onRemoteChange, staleQueries as allStaleQueries } from "./live-updates";
 import { qk } from "@/lib/query-keys";
 import type { ChangeEvent, ChangeResource } from "@/types/change-events";
 
@@ -39,13 +39,36 @@ describe("staleQueries", () => {
       qk.conversations.list(),
       qk.outcomes.all(),
       qk.projects.all(),
+      qk.stats.attentionAll(),
+    ]);
+    expect(staleQueries(change("eval_suite"))).toEqual([
+      qk.evalSuites.all(),
+      qk.evalRuns.all(),
+      qk.stats.attentionAll(),
+    ]);
+    expect(staleQueries(change("eval_run"))).toEqual([
+      qk.evalRuns.all(),
+      qk.datasets.all(),
+      qk.improvements.all(),
+    ]);
+    expect(staleQueries(change("knowledge_gap"))).toEqual([
+      qk.knowledgeGaps.all(),
+      qk.improvements.all(),
+    ]);
+    expect(staleQueries(change("improvement"))).toEqual([
+      qk.improvements.all(),
+      qk.authoring.all(),
+      qk.evalRuns.all(),
     ]);
   });
 
   it("refreshes the sharing panels with every row somebody can share", () => {
     expect(staleQueries(change("agent"))).toEqual([
       qk.agents.all(),
+      qk.improvements.all(),
+      qk.authoring.all(),
       qk.sharing.all(),
+      qk.environments.all(),
       qk.runs.assistantSignals(ORG),
     ]);
     expect(staleQueries(change("skill"))).toEqual([qk.skills.all(), qk.sharing.all()]);
@@ -56,9 +79,18 @@ describe("staleQueries", () => {
     expect(staleQueries(change("workflow"))).toEqual([qk.workflows.all(), qk.sharing.all()]);
     expect(staleQueries(change("secret"))).toEqual([qk.secrets.all(), qk.sharing.all()]);
     expect(staleQueries(change("mcp_connection"))).toEqual([
+      qk.triggers.all(),
       qk.mcpConnections.all(),
       qk.mcpServers.lists(),
       qk.mcpServers.entries(),
+      qk.sharing.all(),
+    ]);
+    expect(staleQueries(change("dataset"))).toEqual([
+      qk.datasets.all(),
+      qk.evalRuns.all(),
+      qk.evalSuites.all(),
+      qk.improvements.all(),
+      qk.environments.all(),
       qk.sharing.all(),
     ]);
   });
@@ -99,4 +131,23 @@ describe("onRemoteChange", () => {
     expect(first).toHaveBeenCalledTimes(1);
     expect(second).toHaveBeenCalledTimes(2);
   });
+});
+
+// Existing cache families retain their contracts; start readiness adds one family.
+function staleQueries(event: ChangeEvent) {
+  return allStaleQueries(event).filter((key) => key[0] !== "onboarding");
+}
+it("refreshes start readiness after real runs, access changes and deleted conversations", () => {
+  for (const resource of [
+    "run",
+    "agent",
+    "member",
+    "group",
+    "organization",
+    "conversation",
+    "secret",
+  ] as const) {
+    expect(allStaleQueries(change(resource))).toContainEqual(qk.onboarding.all());
+  }
+  expect(allStaleQueries(change("table"))).not.toContainEqual(qk.onboarding.all());
 });

@@ -6,7 +6,9 @@ import { Check, ChevronDown, ChevronRight, LoaderCircle, X, type LucideIcon } fr
 
 import { logoDataUri } from "@/lib/mcp-catalog";
 import { cn } from "@/lib/utils";
+import styles from "./agent-step.module.css";
 import { STEP_ICONS } from "@/lib/step-icons";
+import { DisclosureContent } from "@/components/ui/disclosure-content";
 import type { StepKind } from "@/lib/tool-catalog";
 
 interface AgentStepsProps {
@@ -26,9 +28,8 @@ interface AgentStepsProps {
 /**
  * The rail a run of steps hangs from, showing the one that matters.
  *
- * One element around the run rather than a border on each row, because the line has to
- * be *continuous*: gaps between individually bordered rows read as a dashed line, which
- * says something this does not mean.
+ * Connect icon centres through the gutter, ending at the final step's icon.
+ * Expanded details stay to the right of that gutter so the rail never crosses content.
  *
  * **Only the last step stays open.** A turn that reads three files, greps twice and
  * writes one pushes the answer off the screen with work nobody asked to watch - and the
@@ -42,29 +43,40 @@ interface AgentStepsProps {
 export function AgentSteps({ children, showAll = false, done = false }: AgentStepsProps) {
   const t = useTranslations("chat.steps");
   const [opened, setOpened] = useState(false);
+  const toggleId = useId();
   const steps = Children.toArray(children);
   const earlier = steps.slice(0, -1);
-  const current = steps.at(-1);
   const folded = !showAll && !opened && earlier.length >= 2;
 
   return (
-    <div className="before:bg-border/70 relative space-y-0.5 before:absolute before:inset-y-4 before:left-4 before:w-px before:content-['']">
-      {folded ? (
+    <div className={`${styles.steps} relative`}>
+      {!showAll && earlier.length >= 2 && (
         <button
           type="button"
-          onClick={() => setOpened(true)}
-          aria-expanded={false}
+          id={toggleId}
+          onClick={() => setOpened(!opened)}
+          aria-expanded={opened}
           className="text-muted-foreground hover:text-foreground relative flex min-h-8 items-center gap-2 rounded-md px-1.5 py-1 text-[13px]"
         >
           <span className="bg-background relative flex size-5 shrink-0 items-center justify-center">
-            <ChevronRight className="size-3.5" aria-hidden />
+            <ChevronRight
+              className={cn("size-3.5 transition-transform", opened && "rotate-90")}
+              aria-hidden
+            />
           </span>
           {t("earlierSteps", { count: earlier.length })}
         </button>
-      ) : (
-        earlier
       )}
-      {current}
+      {steps.map((child, index) => (
+        <DisclosureContent
+          key={typeof child === "object" && "key" in child ? child.key : index}
+          open={!folded || index === steps.length - 1}
+          triggerId={toggleId}
+          className="relative"
+        >
+          {child}
+        </DisclosureContent>
+      ))}
       {done && <StepsDone />}
     </div>
   );
@@ -86,7 +98,7 @@ interface AgentStepProps {
   state: "running" | "done" | "error" | "parked";
   /**
    * What a parked step waits for. A question's own label already says it waits
-   * for an answer, so only an approval carries the amber note.
+   * for an answer, so only an approval carries the explicit status note.
    */
   parkedOn?: "approval" | "answer";
   expanded: boolean;
@@ -154,7 +166,7 @@ export function AgentStep({
               state === "error"
                 ? "text-destructive"
                 : state === "parked"
-                  ? "text-amber-700 dark:text-amber-400"
+                  ? "text-foreground/75"
                   : "text-muted-foreground",
             )}
           />
@@ -169,14 +181,14 @@ export function AgentStep({
       >
         {label}
       </span>
+      {state === "parked" && parkedOn === "approval" && (
+        <span className="border-border bg-muted text-foreground/80 shrink-0 rounded-md border px-1.5 py-0.5 text-[11px] leading-4">
+          {t("awaitingApproval")}
+        </span>
+      )}
       {detail !== null && detail !== undefined && (
         <span className="text-muted-foreground min-w-0 flex-1 truncate font-mono text-xs">
           {detail}
-        </span>
-      )}
-      {state === "parked" && parkedOn === "approval" && (
-        <span className="ml-auto shrink-0 rounded-md border border-amber-500/20 bg-amber-500/5 px-1.5 py-0.5 text-[11px] leading-4 text-amber-700 dark:text-amber-400">
-          {t("awaitingApproval")}
         </span>
       )}
       {state === "error" && (
@@ -195,6 +207,7 @@ export function AgentStep({
         {openable ? (
           <button
             type="button"
+            id={`${detailsId}-toggle`}
             onClick={onToggle}
             aria-expanded={expanded}
             aria-controls={expanded ? detailsId : undefined}
@@ -216,13 +229,12 @@ export function AgentStep({
         {expanded && actions}
       </div>
 
-      {expanded && children !== undefined && (
-        <div
-          id={detailsId}
-          className="border-border/60 bg-muted/15 mt-1 mb-2 min-w-0 overflow-hidden rounded-lg border p-3"
-        >
-          {children}
-        </div>
+      {children !== undefined && (
+        <DisclosureContent open={expanded} id={detailsId} triggerId={`${detailsId}-toggle`}>
+          <div className="border-border/60 bg-muted/15 mt-1 mb-2 ml-9 min-w-0 overflow-hidden rounded-lg border p-3">
+            {children}
+          </div>
+        </DisclosureContent>
       )}
     </div>
   );

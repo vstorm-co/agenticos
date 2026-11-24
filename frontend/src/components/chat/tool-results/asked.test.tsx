@@ -75,4 +75,18 @@ describe("what an ask_user_question step shows", () => {
     expect(parseAsked(call("not json"))?.every((item) => item.answer === null)).toBe(true);
     expect(parseAsked(call({ "Chart style": "" }))?.[0]?.answer).toBeNull();
   });
+  it("shows declined questions as skipped rather than waiting or a raw sentinel", () => {
+    expect(parseAsked(call({ cancelled: true }))?.every((item) => item.answer?.length === 0)).toBe(
+      true,
+    );
+    const asked = parseAsked(call({ "Chart style": "(skipped)", "Plans to include": [] }))!;
+    expect(asked[0]?.answer).toEqual([]);
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <AskedResult asked={asked} />
+      </NextIntlClientProvider>,
+    );
+    expect(screen.getAllByText("Skipped")).toHaveLength(2);
+    expect(screen.queryByText("(skipped)")).not.toBeInTheDocument();
+  });
 });

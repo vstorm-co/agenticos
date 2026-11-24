@@ -3,6 +3,13 @@
 Status: **proposal only, 2026-11-04**. This change does not create a task
 capability, a default TODO table or an automatically maintained team backlog.
 
+**Current-state note, 2026-11-14:** the proposal below is retained as historical
+research. At `080c12941ed06cce2e92b6b03910e94ace36469e`, `TaskService`,
+`TaskLifecycle` and `TaskExecution` already implement canonical task boards,
+human/agent assignment and reviewed completion. The remaining room-level lead
+routing and handoff proposal is [Room lead routing and task handoffs](room-lead-task-handoffs.md).
+That new document is also a proposal and adds no runtime feature.
+
 ## What the references actually provide
 
 OpenBot by nightly-labs separates a chat's execution checklist from ongoing

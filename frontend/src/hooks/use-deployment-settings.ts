@@ -1,5 +1,6 @@
 "use client";
 
+import type { ChatHomeOverrides } from "@/lib/console-experience-api";
 import { useCallback } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
@@ -26,6 +27,10 @@ import { qk } from "@/lib/query-keys";
  */
 
 export interface DeploymentSettings extends BrandingResponse {
+  chat_home_available?: ChatHomeOverrides | null;
+  onboarding_reminders_available?: boolean | null;
+  announcement_expires_at?: string | null;
+  maintenance_planned_end_at?: string | null;
   announcement: string | null;
   announcement_level: NoticeLevel;
   /**
@@ -68,6 +73,10 @@ export const DEFAULT_ORGANIZATION_ROLES = [
 export type DefaultOrganizationRole = (typeof DEFAULT_ORGANIZATION_ROLES)[number];
 
 export interface DeploymentSettingsPatch {
+  chat_home_available?: ChatHomeOverrides | null;
+  onboarding_reminders_available?: boolean | null;
+  announcement_expires_at?: string | null;
+  maintenance_planned_end_at?: string | null;
   app_name?: string | null;
   tagline?: string | null;
   description?: string | null;
@@ -114,6 +123,7 @@ export function useDeploymentSettings() {
     mutationFn: (patch: DeploymentSettingsPatch) =>
       apiClient.patch<DeploymentSettings>("/admin/settings", patch),
     onSuccess: async () => {
+      void queryClient.invalidateQueries({ queryKey: qk.consoleExperience.all() });
       // The agent limit is one of these settings, and the Agents page reads it
       // through its own query: without this it would offer New agent past a limit
       // just lowered, or withhold it under one just raised, until that went stale.

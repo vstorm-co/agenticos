@@ -138,6 +138,16 @@
     "subject": "Agent usage for [[org_name]]"
   },
   {
+    "id": "failure_learning_digest",
+    "family": "Agent activity",
+    "headline": "New failure patterns in [[org_name]]",
+    "intro": "The last 7 days left new recurring failures in [[org_name]]. Each one below is now a draft ledger entry, waiting for a curator to accept it or dismiss it - nothing changes in an agent until a proposal from one is applied.",
+    "panel": "failure_learning",
+    "note": "Draft entries are not rules yet. Open the failure-learning page in [[app_name]] to curate them.",
+    "preview": "New failure patterns in [[org_name]]",
+    "subject": "New failure patterns in [[org_name]]"
+  },
+  {
     "id": "notification",
     "family": "Agent activity",
     "headline": "Workspace update",

@@ -43,6 +43,7 @@ def _run(modality: str) -> AgentRun:
         output_tokens=0,
         cost_usd=Decimal("0.30"),
         cost_is_partial=False,
+        fallback_used=False,
         is_test=False,
         tool_args_repaired=0,
         cache_read_tokens=0,
@@ -56,6 +57,9 @@ def _run(modality: str) -> AgentRun:
 def no_ratings(monkeypatch):
     monkeypatch.setattr(
         "app.services.agent_runner.agent_run_repo.down_rated_run_ids", AsyncMock(return_value=set())
+    )
+    monkeypatch.setattr(
+        "app.services.agent_runner.conversation_repo.first_user_turns", AsyncMock(return_value={})
     )
 
 

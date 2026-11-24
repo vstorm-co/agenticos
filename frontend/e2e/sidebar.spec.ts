@@ -2,7 +2,7 @@ import type { Page } from "@playwright/test";
 
 import { expect, test } from "./fixtures";
 
-import { AUTH_STATE, OWNER_EMAIL } from "./helpers";
+import { AUTH_STATE, OWNER_EMAIL, readAppearanceAs, submitDialog } from "./helpers";
 
 /**
  * The column is the whole chrome now.
@@ -23,14 +23,8 @@ test.use({ storageState: AUTH_STATE });
 /** A second organization, so "switch" has somewhere to switch to. */
 const SECOND_ORG = "E2E Second Org";
 
-/**
- * The account button, which is also the way into the organization.
- *
- * There is no organization control of its own any more: it moved into this
- * menu, where "who am I and where am I" is one question instead of two buttons
- * at opposite ends of the column.
- */
 const ACCOUNT = new RegExp(OWNER_EMAIL);
+const ORGANIZATION = /^Switch organization, current:/;
 
 /** The persistent column. `<aside>` is the only complementary landmark here. */
 function column(page: Page) {
@@ -49,13 +43,19 @@ test.describe("Sidebar", () => {
     await expect(sidebar.getByRole("button", { name: "Search" })).toBeVisible();
     await expect(sidebar.getByRole("button", { name: /notifications/i })).toBeVisible();
     await expect(sidebar.getByRole("button", { name: ACCOUNT })).toBeVisible();
+    await expect(sidebar.getByRole("button", { name: ORGANIZATION })).toBeVisible();
     await expect(sidebar.getByRole("button", { name: "Language" })).toHaveCount(0);
 
-    // The organization, the language and the theme are all one level in.
-    await sidebar.getByRole("button", { name: ACCOUNT }).click();
+    // Organization context stays visible at the top, with account preferences below.
+    await sidebar.getByRole("button", { name: ORGANIZATION }).click();
     await expect(page.getByRole("menuitem", { name: "Manage organizations" })).toBeVisible();
+    await page.keyboard.press("Escape");
+
+    await sidebar.getByRole("button", { name: ACCOUNT }).click();
+    await expect(page.getByRole("menuitem", { name: "Manage organizations" })).toHaveCount(0);
     await expect(page.getByRole("menuitem", { name: /Appearance/ })).toBeVisible();
-    await expect(page.getByRole("menuitem", { name: /Language/ })).toBeVisible();
+    // This CI deployment serves English only, so there is no language choice.
+    await expect(page.getByRole("menuitem", { name: /Language/ })).toHaveCount(0);
     await page.keyboard.press("Escape");
 
     // The point of the move: a 56px strip carrying one logo, on every page, is
@@ -71,14 +71,14 @@ test.describe("Sidebar", () => {
     await expect(page.getByRole("dialog", { name: "Command palette" })).toBeVisible();
   });
 
-  test("switching organization from the account menu is a real selection", async ({ page }) => {
+  test("switching organization from the sidebar persists after reload", async ({ page }) => {
     // Established on entry rather than cleaned up afterwards: a run that fails
     // half way leaves the next one a working starting point, and bootstrap only
     // ever creates the owner's personal organization.
     await ensureSecondOrganization(page);
 
     await page.goto("/dashboard");
-    await column(page).getByRole("button", { name: ACCOUNT }).click();
+    await column(page).getByRole("button", { name: ORGANIZATION }).click();
     await page.getByRole("menuitem", { name: SECOND_ORG }).click();
 
     // Everything org-scoped reads the selection back on the next page load, so
@@ -86,7 +86,11 @@ test.describe("Sidebar", () => {
     // reload is what tells them apart, and `aria-current` is where the menu says
     // which one it is on.
     await page.reload();
-    await column(page).getByRole("button", { name: ACCOUNT }).click();
+    const switcher = column(page).getByRole("button", {
+      name: `Switch organization, current: ${SECOND_ORG}`,
+    });
+    await expect(switcher).toBeVisible();
+    await switcher.click();
     await expect(page.getByRole("menuitem", { name: SECOND_ORG })).toHaveAttribute(
       "aria-current",
       "true",
@@ -108,13 +112,17 @@ test.describe("Sidebar", () => {
 
       await header.getByRole("button", { name: "Toggle menu" }).click();
 
-      // The account, which is the only way to the organization and to signing
-      // out on a phone. Search is deliberately not asserted here: the bottom tab
+      // Organization selection and account preferences are both available in the
+      // drawer. Search is deliberately not asserted here: the bottom tab
       // bar has always carried its own entrance to the same palette, so counting
       // them proves nothing about the drawer.
       await expect(visible(page, ACCOUNT)).toHaveCount(1);
-      await visible(page, ACCOUNT).click();
+      await expect(visible(page, ORGANIZATION)).toHaveCount(1);
+      await visible(page, ORGANIZATION).click();
       await expect(page.getByRole("menuitem", { name: "Manage organizations" })).toBeVisible();
+      await page.getByRole("menuitem", { name: "Manage organizations" }).click();
+      await expect(page).toHaveURL(/\/orgs$/);
+      await expect(visible(page, ORGANIZATION)).toHaveCount(0);
     });
   });
 });
@@ -140,6 +148,66 @@ async function ensureSecondOrganization(page: Page): Promise<void> {
   await page.goto("/orgs?create=1");
   const dialog = page.getByRole("dialog");
   await dialog.getByLabel("Organization name").fill(SECOND_ORG);
-  await dialog.getByRole("button", { name: "Create", exact: true }).click();
-  await expect(dialog).toBeHidden();
+  await submitDialog(page, {
+    dialog,
+    submit: dialog.getByRole("button", { name: "Create", exact: true }),
+    path: "/api/orgs",
+  });
+}
+
+// A short visible viewport exercises the shared keyboard-height budget. This is
+// a layout regression, not certification of a real device's virtual keyboard.
+for (const theme of ["light", "dark"] as const) {
+  test(`command palette keeps search and dismiss reachable in a short phone viewport in ${theme}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 420 });
+    await readAppearanceAs(page, theme);
+    await page.goto("/chat");
+    await expect(page.getByRole("textbox", { name: "Type a message..." })).toBeEnabled();
+    const beforeUrl = page.url();
+    await page.keyboard.press("Control+k");
+    const dialog = page.getByRole("dialog", { name: "Command palette" });
+    await expect(dialog).toBeVisible();
+    const input = dialog.getByRole("combobox");
+    const close = dialog.getByRole("button", { name: "Close", exact: true });
+    await expect(input).toBeFocused();
+    await expect(close).toBeVisible();
+    expect(
+      await input.evaluate((element) => parseFloat(getComputedStyle(element).fontSize)),
+    ).toBeGreaterThanOrEqual(16);
+    const bounds = await dialog.boundingBox();
+    const closeBounds = await close.boundingBox();
+    const inputBounds = await input.boundingBox();
+    if (!bounds || !closeBounds || !inputBounds)
+      throw new Error("Expected reachable palette controls");
+    expect(bounds.y).toBeGreaterThanOrEqual(0);
+    expect(bounds.y + bounds.height).toBeLessThanOrEqual(420);
+    expect(bounds.width).toBeLessThanOrEqual(390 - 16);
+    expect(closeBounds.width).toBeGreaterThanOrEqual(43.5);
+    expect(closeBounds.height).toBeGreaterThanOrEqual(43.5);
+    expect(inputBounds.height).toBeGreaterThanOrEqual(43.5);
+    expect(await dialog.evaluate((element) => getComputedStyle(element).boxShadow)).not.toBe(
+      "none",
+    );
+    const footer = dialog.locator("[cmdk-root] > div").last();
+    const footerBounds = await footer.boundingBox();
+    if (!footerBounds) throw new Error("Expected a reachable palette footer");
+    expect(footerBounds.y + footerBounds.height).toBeLessThanOrEqual(bounds.y + bounds.height);
+    const results = dialog.getByRole("listbox");
+    await expect
+      .poll(() => results.evaluate((element) => element.scrollHeight > element.clientHeight))
+      .toBe(true);
+    await results.evaluate((element) => {
+      element.scrollTop = element.scrollHeight;
+    });
+    expect((await input.boundingBox())?.y).toBeCloseTo(inputBounds.y, 0);
+    expect((await footer.boundingBox())?.y).toBeCloseTo(footerBounds.y, 0);
+    expect(await results.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+    await expect(close).toBeVisible();
+    expect(page.url()).toBe(beforeUrl);
+    await close.click();
+    await expect(dialog).toBeHidden();
+    expect(page.url()).toBe(beforeUrl);
+  });
 }

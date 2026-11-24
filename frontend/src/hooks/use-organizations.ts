@@ -9,12 +9,14 @@ import { invalidateSpeechSettings } from "@/lib/dictation-api";
 import { readThrough } from "@/lib/offline/device-cache";
 import { qk } from "@/lib/query-keys";
 import { useOrgStore } from "@/stores";
+import { useUnsavedChangesStore } from "@/stores/unsaved-changes-store";
 import type {
   Organization,
   OrganizationList,
   CreateOrganizationInput,
   ProactivityChanges,
   VoiceSettingsUpdate,
+  TextToSpeechSettingsUpdate,
   WelcomeDmChanges,
 } from "@/types";
 
@@ -119,7 +121,7 @@ export function useOrganizations() {
   const setActiveOrgId = useOrgStore((s) => s.setActiveOrgId);
   const refusedOrgIds = useOrgStore((s) => s.refusedOrgIds);
 
-  const { data: orgs = [] } = useOrganizationList();
+  const { data: orgs = [], isError: listFailed } = useOrganizationList();
 
   // Default the active org once the list loads and nothing is selected yet -
   // preserves the behavior that used to live inside fetchOrgs, and is also what
@@ -161,10 +163,12 @@ export function useOrganizations() {
     async (input: CreateOrganizationInput): Promise<Organization> => {
       const org = await apiClient.post<Organization>("/orgs", input);
       writeCache((prev) => [...prev, org]);
+      // The deployment default-workspace picker may already be open in onboarding.
+      void queryClient.invalidateQueries({ queryKey: qk.admin.organizations({}) });
       toast.success(t("created"));
       return org;
     },
-    [writeCache, t],
+    [writeCache, t, queryClient],
   );
 
   const patchOrg = useCallback(
@@ -239,6 +243,17 @@ export function useOrganizations() {
     [writeCache],
   );
 
+  const setPublicAttribution = useCallback(
+    async (id: string, enabled: boolean): Promise<Organization> => {
+      const updated = await apiClient.patch<Organization>(`/orgs/${id}`, {
+        public_agenticos_attribution: enabled,
+      });
+      writeCache((prev) => prev.map((o) => (o.id === id ? updated : o)));
+      return updated;
+    },
+    [writeCache],
+  );
+
   const setPublicLiveData = useCallback(
     async (id: string, allowed: boolean): Promise<Organization> => {
       const updated = await apiClient.patch<Organization>(`/orgs/${id}`, {
@@ -253,7 +268,10 @@ export function useOrganizations() {
   // Five fields in one request, because the server validates them together: a
   // provider without its model, or `server` without either, is refused whole.
   const setVoiceSettings = useCallback(
-    async (id: string, settings: VoiceSettingsUpdate): Promise<Organization> => {
+    async (
+      id: string,
+      settings: VoiceSettingsUpdate | TextToSpeechSettingsUpdate,
+    ): Promise<Organization> => {
       const updated = await apiClient.patch<Organization>(`/orgs/${id}`, settings);
       writeCache((prev) => prev.map((o) => (o.id === id ? updated : o)));
       // Every agent's dictation readiness inherits from these settings.
@@ -261,6 +279,14 @@ export function useOrganizations() {
       return updated;
     },
     [writeCache, queryClient],
+  );
+
+  const uploadAvatar = useCallback(
+    async (id: string, file: File): Promise<void> => {
+      await apiClient.upload<unknown>(`/orgs/${id}/avatar`, file);
+      await fetchOrgs(true);
+    },
+    [fetchOrgs],
   );
 
   const deleteOrg = useCallback(
@@ -281,24 +307,29 @@ export function useOrganizations() {
     [writeCache, setActiveOrgId, t],
   );
 
+  // A change not yet saved belongs to the organization being left, so it is asked about first.
   const switchOrg = useCallback(
     (id: string) => {
-      setActiveOrgId(id);
+      useUnsavedChangesStore.getState().leave(() => setActiveOrgId(id));
     },
     [setActiveOrgId],
   );
 
   return {
     orgs,
+    /** The `/orgs` request failed and nothing is cached: `orgs` is empty, not the caller's real list. */
+    listFailed: listFailed && orgs.length === 0,
     activeOrgId,
     activeOrg,
     fetchOrgs,
     createOrg,
+    uploadAvatar,
     patchOrg,
     setMonthlyBudget,
     setProactivity,
     setWelcomeDm,
     setChatApprovalWaiver,
+    setPublicAttribution,
     setPublicLiveData,
     setVoiceSettings,
     deleteOrg,

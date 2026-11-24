@@ -36,6 +36,9 @@ class NotificationEventType(enum.StrEnum):
 
     BUDGET_EXCEEDED = "budget_exceeded"
     APPROVAL_REQUESTED = "approval_requested"
+    # A run ended because nobody decided its approval in time, told to the
+    # person who started it with the reason and the run to retry it from.
+    APPROVAL_EXPIRED = "approval_expired"
     RUN_COMPLETED = "run_completed"
     RUN_FAILED = "run_failed"
     INGESTION_COMPLETED = "ingestion_completed"
@@ -47,10 +50,15 @@ class NotificationEventType(enum.StrEnum):
     ANNOUNCEMENT = "announcement"
     ARTIFACT_VERSION_PUBLISHED = "artifact_version_published"
     RESOURCE_SHARED = "resource_shared"
+    ROOM_MENTION = "room_mention"
+    ROOM_THREAD_REPLY = "room_thread_reply"
     BUDGET_WARNING = "budget_warning"
     MCP_SERVER_DOWN = "mcp_server_down"
     MCP_SERVER_RECOVERED = "mcp_server_recovered"
     BACKGROUND_TASK_PAUSED = "background_task_paused"
+    EVAL_SUITE_FAILED = "eval_suite_failed"
+    PROMOTION_OVERRIDDEN = "promotion_overridden"
+    SHARED_CHANGE_APPLIED = "shared_change_applied"
     # Written by a workflow's `notification.send` step. Its audience is the step's
     # own recipient list, already checked against the workflow's reach, rather
     # than a setting on an agent (#1789).
@@ -62,6 +70,10 @@ class NotificationEventType(enum.StrEnum):
     CAPABILITY_REQUESTED = "capability_requested"
     SUGGESTION = "suggestion"
     FINDING = "finding"
+    IMPROVEMENT_FINISHED = "improvement_finished"
+    EVAL_SUITE_REEVALUATED = "eval_suite_reevaluated"
+    EVAL_RUN_FINISHED = "eval_run_finished"
+    CASE_GENERATION_FINISHED = "case_generation_finished"
     # A workflow's log crossed an alert rule's threshold in its window.
     WORKFLOW_LOG_ALERT = "workflow_log_alert"
 
@@ -182,14 +194,17 @@ class Notification(Base, TimestampMixin):
     __table_args__ = (
         CheckConstraint(
             "event_type IN ("
-            "'budget_exceeded', 'approval_requested', 'run_completed', 'run_failed', "
+            "'budget_exceeded', 'approval_requested', 'approval_expired', 'run_completed', 'run_failed', "
             "'ingestion_completed', 'ingestion_failed', 'usage_report', "
             "'agent_usage_report', 'security_event', 'configuration_changed', "
             "'announcement', 'artifact_version_published', 'resource_shared', "
             "'budget_warning', 'mcp_server_down', 'mcp_server_recovered', "
-            "'background_task_paused', 'workflow_notification', "
+            "'background_task_paused', 'eval_suite_failed', 'promotion_overridden', "
+            "'shared_change_applied', 'workflow_notification', "
             "'artifact_owner_changed', 'artifact_share_requested', "
-            "'capability_requested', 'suggestion', 'finding', 'workflow_log_alert')",
+            "'capability_requested', 'suggestion', 'finding', 'improvement_finished', "
+            "'eval_suite_reevaluated', 'eval_run_finished', 'case_generation_finished', "
+            "'workflow_log_alert', 'room_mention', 'room_thread_reply')",
             name="ck_notifications_event_type",
         ),
         # The dedup guarantee (Decision 2): a retried trigger for the same fact,

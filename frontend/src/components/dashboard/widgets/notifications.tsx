@@ -5,6 +5,7 @@ import { useLocale, useTranslations } from "next-intl";
 
 import { NotificationGlyph, NotificationMeta } from "@/components/layout/notification-glyph";
 import { useNotificationInbox } from "@/hooks";
+import { notificationSummary } from "@/lib/notification-summary";
 import { isInAppPath } from "@/lib/notification-link";
 import { cn, timeAgo } from "@/lib/utils";
 import { WidgetFrame } from "../widget-frame";
@@ -25,6 +26,7 @@ const SHOWN = 5;
 export function NotificationsWidget({ title, hint, seeAll, options }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.notifications");
   const tNotifications = useTranslations("notifications");
+  const tStop = useTranslations("improvement.stop");
   const tTime = useTranslations("time");
   const locale = useLocale();
   const { notifications, isLoading, error, refetch, markRead } = useNotificationInbox(true);
@@ -60,7 +62,7 @@ export function NotificationsWidget({ title, hint, seeAll, options }: DashboardW
                       unread ? "text-foreground font-medium" : "text-muted-foreground",
                     )}
                   >
-                    {item.summary}
+                    {notificationSummary(item, tNotifications, tStop)}
                   </span>
                   <NotificationMeta item={item}>
                     {timeAgo(item.created_at, tTime, locale)}

@@ -21,13 +21,14 @@ gets what a run gets where it matters:
 
 import asyncio
 import logging
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from datetime import UTC, datetime
+from decimal import Decimal
 from typing import Literal
 from uuid import UUID
 
 import httpx
-from pydantic_ai import Agent
+from pydantic_ai import Agent, RunContext
 from pydantic_ai.exceptions import AgentRunError
 from pydantic_ai.messages import ModelMessage, ModelMessagesTypeAdapter
 from pydantic_ai.toolsets import AbstractToolset
@@ -35,25 +36,41 @@ from pydantic_ai.usage import RunUsage, UsageLimits
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities._metered import MeteredModel
-from app.agents.capabilities.budget import SpendLedger, metered_by
+from app.agents.capabilities.budget import (
+    BudgetExceeded,
+    BudgetGuard,
+    BudgetScope,
+    SpendLedger,
+    SpendLimit,
+    guarded_by,
+    metered_by,
+)
 from app.agents.failures import run_failure_summary
 from app.agents.manifest import RecordingModel, RunRecorder, as_payload, fit
 from app.core.exceptions import AppException
 from app.core.permissions import AuthContext
+from app.db.locks import LockScope, hold_subject, hold_subject_shared
 from app.db.models.agent import Agent as AgentRow
 from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
 from app.db.models.organization import Organization
 from app.db.models.system_agent_profile import DAILY_BRIEFING, MEMORY_MAINTENANCE
+from app.db.session import get_worker_db_context
 from app.repositories import (
     agent_repo,
     agent_run_repo,
+    audit_log_repo,
     organization_repo,
+    personal_data_repo,
     run_manifest_repo,
     system_agent_repo,
+    user_repo,
 )
 from app.services.model_profile import ModelProfileService
 from app.services.run_heartbeat import run_heartbeat
-from app.services.spend import month_start, organization_monthly_spend
+from app.services.spend import (
+    budget_window,
+    organization_spend_since,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -87,15 +104,18 @@ class ProactiveThinker:
         agent = await agent_repo.get_by_slug(self.db, STARTER_SLUG, organization_id=organization_id)
         return agent if agent is not None and agent.current_version_id is not None else None
 
-    async def allowance(self, ctx: AuthContext, feature: ProactiveFeature) -> UUID | None:
+    async def allowance(
+        self, ctx: AuthContext, feature: ProactiveFeature, *, started_at: datetime | None = None
+    ) -> UUID | None:
         """The model this person's background work may run on now, or `None` when it may not.
 
         `None` where the organization has `feature` off or no model for it,
-        and where this month's spending is at either limit.
+        and where the starting month's spending is at either limit.
         """
+        since, until = budget_window(started_at)
         organization = await organization_repo.get_by_id(self.db, ctx.organization_id)
         if feature == "maintenance":
-            return await self._maintenance_allowance(organization, ctx)
+            return await self._maintenance_allowance(organization, ctx, started_at=started_at)
         if (
             organization is None
             or not (
@@ -109,21 +129,24 @@ class ProactiveThinker:
         ):
             return None
         if organization.monthly_budget_usd is not None:
-            spent = await organization_monthly_spend(self.db, ctx.organization_id)
+            spent = await organization_spend_since(
+                self.db, ctx.organization_id, since=since, until=until
+            )
             if spent >= organization.monthly_budget_usd:
                 return None
         mine = await agent_run_repo.proactive_spend_since(
             self.db,
             organization_id=ctx.organization_id,
             user_id=ctx.user_id,
-            since=month_start(),
+            since=since,
+            until=until,
         )
         if mine >= organization.proactive_limit_usd:
             return None
         return organization.proactive_model_profile_id
 
     async def _maintenance_allowance(
-        self, organization: Organization | None, ctx: AuthContext
+        self, organization: Organization | None, ctx: AuthContext, *, started_at: datetime | None
     ) -> UUID | None:
         """The model memory maintenance may run on now, or `None` when it may not.
 
@@ -131,6 +154,7 @@ class ProactiveThinker:
         organization's monthly cap still applies. Nothing is called past either
         limit, and nothing is called without a model somebody chose.
         """
+        since, until = budget_window(started_at)
         if organization is None:
             return None
         profile = await system_agent_repo.get(
@@ -139,7 +163,9 @@ class ProactiveThinker:
         if profile is None or not profile.enabled or profile.model_profile_id is None:
             return None
         if organization.monthly_budget_usd is not None:
-            spent = await organization_monthly_spend(self.db, ctx.organization_id)
+            spent = await organization_spend_since(
+                self.db, ctx.organization_id, since=since, until=until
+            )
             if spent >= organization.monthly_budget_usd:
                 return None
         if profile.monthly_budget_usd is not None:
@@ -147,7 +173,8 @@ class ProactiveThinker:
                 self.db,
                 organization_id=ctx.organization_id,
                 role=MEMORY_MAINTENANCE,
-                since=month_start(),
+                since=since,
+                until=until,
             )
             if used >= profile.monthly_budget_usd:
                 return None
@@ -164,12 +191,20 @@ class ProactiveThinker:
         toolsets: Sequence[AbstractToolset[object]] = (),
         source_agent_id: UUID | None = None,
         started_at: datetime | None = None,
+        erased_since: datetime | None = None,
+        erased_snapshot: str | None = None,
+        validate_output: Callable[[RunContext[object], OutputT], OutputT] | None = None,
     ) -> OutputT | None:
         """Ask the configured model using platform instructions and role attribution.
 
         `toolsets` are what it may read before answering - a watch's connection,
         narrowed to the tools that only read. `started_at` dates the run from
         earlier than this call, for work that read its material first.
+        `erased_since` is when that material was written, for the check that keeps
+        an erased person's words out of the manifest: an erasure committed after it
+        trims the manifest even when it was recorded before `started_at`.
+        `erased_snapshot` is the transactions committed when that material was read,
+        so an erasure still committing then trims it too.
 
         Maintenance records its originating agent and needs no starter agent.
         Returns `None` - having spent nothing - without its attribution agent or past a
@@ -187,7 +222,8 @@ class ProactiveThinker:
             agent = await self.starter_agent(ctx.organization_id)
         if agent is None or agent.current_version_id is None:
             return None
-        profile_id = await self.allowance(ctx, feature)
+        started = started_at or datetime.now(UTC)
+        profile_id = await self.allowance(ctx, feature, started_at=started)
         if profile_id is None:
             return None
         version = await agent_repo.get_version(
@@ -216,12 +252,16 @@ class ProactiveThinker:
             model_label=request.label,
             provider=request.provider,
             secret_id=request.secret_id,
-            started_at=started_at or datetime.now(UTC),
+            started_at=started,
             system_role=_ROLE_OF.get(feature),
+            # A proactive run is served no skills, and never reaches the runner's
+            # terminal write that records them.
+            skill_uses_recorded=True,
         )
+        limits = await self._limits(ctx, feature, agent, run_id=run.id, started_at=started)
         # Committed before the provider is called, as the other run paths do: a
         # worker killed mid-call must leave a run behind, or the spend check and
-        # `last_proactive_run_at` never learn the call was made.
+        # `last_nightly_run_at` never learn the call was made.
         await self.db.commit()
         usage = RunUsage()
         ledger = SpendLedger(run_id=run.id, agent_id=agent.id, organization_id=ctx.organization_id)
@@ -231,18 +271,27 @@ class ProactiveThinker:
         propagating = False
         transcript: list[ModelMessage] | None = None
         try:
-            with metered_by(ledger):
+            with metered_by(ledger), guarded_by(BudgetGuard(ledger=ledger, limits=limits)):
                 async with run_heartbeat(run.id):
-                    result = await Agent(
+                    agent_runner: Agent[object, OutputT] = Agent(
                         RecordingModel(MeteredModel(request.build()), recorder),
                         output_type=output_type,
                         instructions=instructions,
                         toolsets=toolsets,
-                    ).run(prompt, usage=usage, usage_limits=_WITH_TOOLS if toolsets else _LIMITS)
+                    )
+                    if validate_output is not None:
+                        agent_runner.output_validator(validate_output)
+                    result = await agent_runner.run(
+                        prompt, usage=usage, usage_limits=_WITH_TOOLS if toolsets else _LIMITS
+                    )
         except asyncio.CancelledError:
             status = RunStatus.CANCELLED
             propagating = True
             raise
+        except BudgetExceeded as exc:
+            status = RunStatus.BUDGET_EXCEEDED
+            error = str(exc)
+            return None
         except (AgentRunError, httpx.HTTPError) as exc:
             logger.exception("proactive_run_failed", extra={"run_id": str(run.id)})
             error = run_failure_summary(exc)
@@ -259,7 +308,16 @@ class ProactiveThinker:
             # The outer job rolls back on cancellation. Own and commit the
             # terminal write here, and drain it even if shutdown cancels again.
             settlement = asyncio.create_task(
-                self._finish(run, ledger, status, error, recorder, transcript)
+                self._finish(
+                    run,
+                    ledger,
+                    status,
+                    error,
+                    recorder,
+                    transcript,
+                    erased_since=erased_since,
+                    erased_snapshot=erased_snapshot,
+                )
             )
             cancelled = False
             try:
@@ -276,6 +334,112 @@ class ProactiveThinker:
             if cancelled:
                 raise asyncio.CancelledError
 
+    async def _limits(
+        self,
+        ctx: AuthContext,
+        feature: ProactiveFeature,
+        agent: AgentRow,
+        *,
+        run_id: UUID,
+        started_at: datetime,
+    ) -> list[SpendLimit]:
+        """Every limit each of the run's model requests is checked against, narrowest first.
+
+        Read in the transaction that opens the run, so a failure here leaves no
+        run behind; the spend each limit meters is read later, on a short session
+        of its own, so no connection is held across the model calls.
+        `allowance` decides whether the run may start; these stop it once it
+        reaches a limit midway. The feature's own monthly limit is what is left
+        in the month it started, the agent's is its current published version's - the run
+        counts towards that agent's month - and the organization's applies to
+        all of it. A department's does not: these runs count towards none.
+        """
+        organization = await organization_repo.get_by_id(self.db, ctx.organization_id)
+        if organization is None:
+            return []
+        limits: list[SpendLimit] = []
+        since, until = budget_window(started_at)
+        left = await self._feature_left(ctx, feature, organization, since=since, until=until)
+        if left is not None:
+            limits.append(SpendLimit(scope=BudgetScope.RUN, limit_usd=left))
+        if agent.current_version_id is not None:
+            caps = await agent_repo.published_budget_caps(
+                self.db, version_ids=[agent.current_version_id]
+            )
+            cap = caps.get(agent.current_version_id)
+            if cap is not None:
+
+                async def agent_spend() -> Decimal:
+                    async with get_worker_db_context() as db:
+                        return await agent_run_repo.sum_cost_since(
+                            db,
+                            organization_id=ctx.organization_id,
+                            since=since,
+                            until=until,
+                            agent_id=agent.id,
+                            include_delegations=True,
+                            exclude_run_id=run_id,
+                        )
+
+                limits.append(
+                    SpendLimit(
+                        scope=BudgetScope.AGENT,
+                        limit_usd=Decimal(str(cap)),
+                        period_spend=agent_spend,
+                    )
+                )
+        if organization.monthly_budget_usd is not None:
+
+            async def organization_spend() -> Decimal:
+                async with get_worker_db_context() as db:
+                    return await organization_spend_since(
+                        db, ctx.organization_id, since=since, until=until, exclude_run_id=run_id
+                    )
+
+            limits.append(
+                SpendLimit(
+                    scope=BudgetScope.ORGANIZATION,
+                    limit_usd=organization.monthly_budget_usd,
+                    period_spend=organization_spend,
+                )
+            )
+        return limits
+
+    async def _feature_left(
+        self,
+        ctx: AuthContext,
+        feature: ProactiveFeature,
+        organization: Organization,
+        *,
+        since: datetime,
+        until: datetime,
+    ) -> Decimal | None:
+        """What the starting month's limit for `feature` has left, or `None` when it has none."""
+        if feature == "maintenance":
+            profile = await system_agent_repo.get(
+                self.db, organization_id=ctx.organization_id, role=MEMORY_MAINTENANCE
+            )
+            if profile is None or profile.monthly_budget_usd is None:
+                return None
+            used = await agent_run_repo.role_spend_since(
+                self.db,
+                organization_id=ctx.organization_id,
+                role=MEMORY_MAINTENANCE,
+                since=since,
+                until=until,
+            )
+            return profile.monthly_budget_usd - used
+        if ctx.user_id is None:
+            return None
+        mine = await agent_run_repo.proactive_spend_since(
+            self.db,
+            organization_id=ctx.organization_id,
+            user_id=ctx.user_id,
+            since=since,
+            until=until,
+        )
+        return organization.proactive_limit_usd - mine
+
     async def _finish(
         self,
         run: AgentRun,
@@ -284,7 +448,17 @@ class ProactiveThinker:
         error: str | None,
         recorder: RunRecorder,
         transcript: list[ModelMessage] | None,
+        *,
+        erased_since: datetime | None = None,
+        erased_snapshot: str | None = None,
     ) -> None:
+        # Before the run row is locked: account deletion holds the erasure lock while
+        # its SET NULL waits for that row, so the other order deadlocks.
+        erased = await self._erased_during(
+            run,
+            since=erased_since or run.started_at,
+            snapshot=erased_snapshot or run.memory_snapshot,
+        )
         await agent_run_repo.finish_run(
             self.db,
             run=run,
@@ -296,11 +470,41 @@ class ProactiveThinker:
             ended_at=datetime.now(UTC),
             error=error,
         )
-        await self._record(run, recorder, transcript)
+        await self._record(run, recorder, transcript, erased=erased)
         await self.db.commit()
 
+    async def _erased_during(
+        self, run: AgentRun, *, since: datetime | None, snapshot: str | None
+    ) -> bool:
+        """Whether the person this run read about was erased after `since`.
+
+        The run is committed before the provider call, so an erasure can finish in
+        between and find no manifest to trim. Asked under the erasure's own lock,
+        which it holds until it commits, so the answer cannot change before this
+        transaction writes the manifest.
+        """
+        if run.user_id is None:
+            return False
+        await hold_subject(self.db, LockScope.PERSONAL_DATA_PER_USER, run.user_id)
+        if not await user_repo.existing_ids(self.db, [run.user_id]):
+            return True
+        await hold_subject_shared(self.db, LockScope.MEMORY_PER_AGENT, run.agent_id)
+        return since is not None and await audit_log_repo.memory_erased_since(
+            self.db,
+            organization_id=run.organization_id,
+            user_id=run.user_id,
+            agent_id=run.agent_id,
+            since=since,
+            snapshot=snapshot,
+        )
+
     async def _record(
-        self, run: AgentRun, recorder: RunRecorder, transcript: list[ModelMessage] | None
+        self,
+        run: AgentRun,
+        recorder: RunRecorder,
+        transcript: list[ModelMessage] | None,
+        *,
+        erased: bool,
     ) -> None:
         if not recorder.requests and recorder.instructions is None:
             return
@@ -318,6 +522,8 @@ class ProactiveThinker:
                     else ModelMessagesTypeAdapter.dump_python([recorder.last_response], mode="json")
                 )
             payload, truncated = fit(payload)
+            if erased:
+                payload, truncated = personal_data_repo.forgotten_payload(payload), True
             async with self.db.begin_nested():
                 await run_manifest_repo.record(
                     self.db,

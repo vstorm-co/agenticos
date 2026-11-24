@@ -14,9 +14,11 @@ import type {
   AgentRunList,
   ApprovalList,
   CostSummary,
-  RunStatus,
+  RetriedRun,
   ResumedRun,
   RunManifest,
+  RunSource,
+  RunStatus,
   RunTranscript,
   ToolApproval,
 } from "@/types/runs";
@@ -64,6 +66,8 @@ export function useRuns(
     /** Narrows to these statuses - `failed,budget_exceeded` is "the problems". */
     statuses?: RunStatus[];
     surface?: string;
+    /** Conversations, an agent answering evals, or a platform agent's own work. */
+    source?: RunSource;
     /** Voice calls or text runs (#54); a call is one row, however often it reconnected. */
     modality?: "text" | "voice";
     /** The model as the run recorded it - the dashboard's bars count these. */
@@ -95,6 +99,7 @@ export function useRuns(
     rated,
     statuses,
     surface,
+    source,
     modality,
     modelLabel,
     userId,
@@ -113,6 +118,7 @@ export function useRuns(
       rated,
       statuses,
       surface,
+      source,
       modality,
       modelLabel,
       userId,
@@ -137,6 +143,7 @@ export function useRuns(
       if (isTest !== undefined) params.test = String(isTest);
       if (statuses && statuses.length > 0) params.status = statuses.join(",");
       if (surface) params.surface = surface;
+      if (source) params.source = source;
       if (modality) params.modality = modality;
       if (modelLabel) params.model_label = modelLabel;
       if (userId) params.user_id = userId;
@@ -169,7 +176,7 @@ export function useRuns(
  * not read are the same absence, and only one of them is the reader's problem.
  */
 export function useRun(runId: string) {
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: qk.runs.detail(runId),
     queryFn: () => apiClient.get<AgentRun>(`/runs/${runId}`),
     // Hold the run being read while the next one is in flight. Stepping through
@@ -180,7 +187,7 @@ export function useRun(runId: string) {
     // `data.id` is the run this answer is about, not the one asked for.
     placeholderData: keepPreviousData,
   });
-  return { run: data, isLoading, error };
+  return { run: data, isLoading, error, refetch };
 }
 
 /**
@@ -358,11 +365,6 @@ export function useDelegatedRuns(parentRunId: string) {
  * as "nothing waiting".
  */
 export function useApprovals(options?: { enabled?: boolean; skip?: number }) {
-  const t = useTranslations("pages.runs");
-  const tErrors = useTranslations("errors");
-
-  const queryClient = useQueryClient();
-
   // The queue is server-paged. It used to ask for no page at all and take the
   // route's default fifty, so with fifty or more waiting, the request an alert
   // was about was the one row its reader could not reach - the alert addresses
@@ -387,9 +389,23 @@ export function useApprovals(options?: { enabled?: boolean; skip?: number }) {
     placeholderData: keepPreviousData,
   });
 
-  const resume = useResumeRun({ ignoreStillParked: true });
+  const decide = useDecideApproval();
+  return {
+    approvals: data?.items ?? [],
+    total: data?.total ?? 0,
+    isLoading,
+    error,
+    decide,
+    refetch,
+  };
+}
 
-  const decide = useMutation({
+export function useDecideApproval() {
+  const t = useTranslations("pages.runs");
+  const tErrors = useTranslations("errors");
+  const queryClient = useQueryClient();
+  const resume = useResumeRun({ ignoreStillParked: true });
+  return useMutation({
     mutationFn: ({ id, approved, note }: { id: string; approved: boolean; note?: string }) =>
       apiClient.post<ToolApproval>(`/approvals/${id}`, { approved, note }),
     onSuccess: async (approval) => {
@@ -403,30 +419,13 @@ export function useApprovals(options?: { enabled?: boolean; skip?: number }) {
         return;
       }
       toast.success(approved ? t("decisionApproved") : t("decisionRejected"));
-      // Deciding the last outstanding call makes the resume possible; nothing
-      // performs it (the backend keeps the click and the execution apart). The
-      // chat's dialog has always followed its decision with the resume - the
-      // queue not doing the same left a run approved and parked forever.
-      // This read is one cached page of fifty, so a run whose other parked call
-      // sits past those fifty reads as clear; `/approvals` cannot narrow by run,
-      // so the backend's refusal is the real check and the auto path swallows
-      // exactly that refusal (see `useResumeRun`).
-      const stillParked = queryClient
-        .getQueryData<ApprovalList>(qk.runs.approvals(skip))
-        ?.items.some((item) => item.run_id === approval.run_id && item.status === "pending");
-      if (!stillParked) resume.mutate(approval.run_id);
+      // A cached page can still include a just-decided row, or omit a pending
+      // row on another page. Let the server check the full run after every
+      // decision; its still-pending refusal is expected and does not run a model.
+      resume.mutate(approval.run_id);
     },
     onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
-
-  return {
-    approvals: data?.items ?? [],
-    total: data?.total ?? 0,
-    isLoading,
-    error,
-    decide,
-    refetch,
-  };
 }
 
 /**
@@ -521,6 +520,33 @@ export function useResumeRun(options?: { ignoreStillParked?: boolean; continuesI
       }
       if (options?.ignoreStillParked && stillAwaitingDecision(error)) return;
       toast.error(getErrorMessage(error, tErrors, t("resumeFailed")));
+    },
+  });
+}
+
+/**
+ * Run a finished run's request again, as a new run linked to it.
+ *
+ * A retry executes the agent, so it is a mutation that takes the length of
+ * a run - the button stays disabled while it is pending, and a second tap
+ * while the first is still going would start a second new run rather than
+ * find the first. `onRetried` steps the detail view to the new run: the
+ * answer arrives in the response, but the run is where it is read, with
+ * its own error if this attempt fails too.
+ */
+export function useRetryRun(options?: { onRetried?: (runId: string) => void }) {
+  const tErrors = useTranslations("errors");
+  const t = useTranslations("pages.runs");
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (runId: string) => apiClient.post<RetriedRun>(`/runs/${runId}/retry`),
+    onSuccess: async (result) => {
+      await queryClient.invalidateQueries({ queryKey: qk.runs.all() });
+      toast.success(t("runRetried"));
+      options?.onRetried?.(result.run_id);
+    },
+    onError: (error) => {
+      toast.error(getErrorMessage(error, tErrors, t("retryFailed")));
     },
   });
 }

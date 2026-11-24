@@ -3,13 +3,14 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { edge, makeDefinition, node, port } from "@/components/workflows/validation/fixtures";
+import { ApiError } from "@/lib/api-error";
 import type { NodeDefinition, NodeInstance, WorkflowGraph } from "@/lib/workflows/types";
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 
 import { InputPane, OutputPane } from "./step-panes";
 
 const mutate = vi.fn();
-const start = { mutate, isPending: false };
+const start = { mutate, isPending: false, error: null as unknown, reset: vi.fn() };
 const useWorkflowTable = vi.fn((_id: string | null) => ({ table: null as unknown }));
 // The step test's own run, as Stop and the did-not-run warning read it.
 const testRun = vi.hoisted(() => ({
@@ -65,7 +66,7 @@ function seed(graph: WorkflowGraph) {
   store.getState().seedGraph(graph);
 }
 
-function renderOutput(definition: NodeDefinition = STEP, catalog = [STEP]) {
+function renderOutput(definition: NodeDefinition = STEP, catalog = [STEP], readOnly = false) {
   const graph = store.getState().graph as WorkflowGraph;
   const shown = graph.nodes.find((candidate) => candidate.id === "b") as NodeInstance;
   return render(
@@ -75,6 +76,7 @@ function renderOutput(definition: NodeDefinition = STEP, catalog = [STEP]) {
       graph={graph}
       node={shown}
       definition={definition}
+      readOnly={readOnly}
     />,
   );
 }
@@ -83,11 +85,25 @@ const KNOWN = { output: { echoed: "hi" }, error: null, runId: "r" };
 
 beforeEach(() => {
   mutate.mockReset();
+  start.error = null;
+  start.reset.mockReset();
   mutate.mockImplementation((_body, options) => options?.onSuccess?.({ id: "run-2" }));
 });
 afterEach(() => store.getState().teardown());
 
 describe("InputPane", () => {
+  it("reads its source from the selected run iteration", () => {
+    const selected = node("b", "test.step");
+    const graph = line(selected);
+    seed(graph);
+    store.getState().mergeStepData({ a: { ...KNOWN, output: { echoed: "second" } } });
+    store.getState().setIterationData({ "a/0": { ...KNOWN, output: { echoed: "first" } } });
+    store.getState().editNode("b", [0]);
+    render(<InputPane graph={graph} catalog={[STEP]} node={selected} names={new Map()} readOnly />);
+    expect(screen.getByRole("cell", { name: "first" })).toBeTruthy();
+    expect(screen.queryByRole("cell", { name: "second" })).toBeNull();
+  });
+
   it("says a step with nothing before it reads nothing", () => {
     const graph = line();
     render(
@@ -261,6 +277,47 @@ describe("the fields a step declares, before any run", () => {
 });
 
 describe("OutputPane", () => {
+  it("shows a run's step as it was in the iteration it was opened at", () => {
+    seed(line());
+    store.getState().mergeStepData({ b: { ...KNOWN, output: { echoed: "second" } } });
+    store.getState().setIterationData({ "b/0": { ...KNOWN, output: { echoed: "first" } } });
+    store.getState().editNode("b", [0]);
+    renderOutput();
+
+    expect(screen.getByRole("cell", { name: "first" })).toBeTruthy();
+    expect(screen.queryByRole("cell", { name: "second" })).toBeNull();
+  });
+
+  it("says who decided an approval step above its output, on a run's view only", () => {
+    seed(line());
+    const approval = {
+      status: "approved" as const,
+      decided_at: "2026-11-13T10:28:00Z",
+      decided_by_name: "Ola Nowak",
+    };
+    store.getState().mergeStepData({ b: { ...KNOWN, approval } });
+    const run = renderOutput(STEP, [STEP], true);
+    expect(screen.getByTestId("approval-verdict")).toHaveTextContent(/^Approved by Ola Nowak · /);
+    run.unmount();
+
+    renderOutput();
+    expect(screen.queryByTestId("approval-verdict")).toBeNull();
+  });
+
+  it("says a request was cancelled with its run, though the step handed nothing on", () => {
+    seed(line());
+    store.getState().mergeStepData({
+      b: {
+        output: null,
+        error: null,
+        runId: "r",
+        approval: { status: "cancelled", decided_at: null, decided_by_name: null },
+      },
+    });
+    renderOutput(STEP, [STEP], true);
+    expect(screen.getByTestId("approval-verdict")).toHaveTextContent("Cancelled with its run");
+  });
+
   it("shows a table step's records in its table's column order", () => {
     useWorkflowTable.mockReturnValueOnce({
       table: {
@@ -396,6 +453,7 @@ describe("OutputPane", () => {
     expect(mutate).toHaveBeenCalledWith(
       {
         workflow_id: "wf",
+        entry_node_id: "a",
         mode: "test",
         input: { name: "Ada" },
         step: { node_id: "b", outputs: { a: { echoed: "hi", payload: { name: "Ada" } } } },
@@ -444,6 +502,45 @@ describe("OutputPane", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
+  it("asks for schema-constrained input before testing a step without earlier data", async () => {
+    seed(
+      line({}, { ...node("t", "trigger.manual"), config: { input_schema: { type: "object" } } }),
+    );
+    renderOutput(STEP, [MANUAL, STEP]);
+    await userEvent.click(screen.getByRole("button", { name: "Test step" }));
+    expect(mutate).not.toHaveBeenCalled();
+    const dialog = within(screen.getByRole("dialog"));
+    expect(dialog.getByRole("button", { name: "Expected input schema" })).toBeVisible();
+    fireEvent.change(dialog.getByRole("textbox", { name: "Input (JSON)" }), {
+      target: { value: '{"contacts":[{"email":"ada@example.com"}]}' },
+    });
+    await userEvent.click(dialog.getByRole("button", { name: "Start a run" }));
+    expect(mutate).toHaveBeenCalledWith(
+      expect.objectContaining({ input: { contacts: [{ email: "ada@example.com" }] } }),
+      expect.anything(),
+    );
+  });
+
+  it("shows a step test's admission error in its open input dialog", async () => {
+    seed(
+      line({}, { ...node("t", "trigger.manual"), config: { input_schema: { type: "object" } } }),
+    );
+    start.error = new ApiError(422, "Input rejected", {
+      error: {
+        code: "WORKFLOW_RUN_INPUT_INVALID",
+        message: "Input rejected",
+        details: {
+          fields: [{ field: "input.items.0.sku", message: "Field required" }],
+        },
+      },
+    });
+    renderOutput(STEP, [MANUAL, STEP]);
+    await userEvent.click(screen.getByRole("button", { name: "Test step" }));
+    expect(screen.getByRole("alert")).toHaveTextContent("input.items.0.sku: Field required");
+    fireEvent.change(screen.getByLabelText("Input (JSON)"), { target: { value: '{"items":[]}' } });
+    expect(start.reset).toHaveBeenCalledOnce();
+  });
+
   it("opens setup problems from a disabled step test without starting a run", async () => {
     seed(line({ definition_id: "gone.step" }));
     renderOutput();
@@ -472,7 +569,6 @@ describe("OutputPane", () => {
         {
           scope_node_id: "a",
           body_node_ids: ["b"],
-          entry_port: "body",
           exit_node_id: "a",
           exit_port: "done",
         },
@@ -515,4 +611,218 @@ describe("OutputPane", () => {
     renderOutput();
     expect(screen.queryByRole("button", { name: "Stop" })).toBeNull();
   });
+});
+
+describe("OutputPane admits a test from the entry that reaches the step", () => {
+  const REQUIRES_NAME = {
+    type: "object",
+    properties: { name: { type: "string" } },
+    required: ["name"],
+  };
+
+  /** A default Manual root, a secondary Manual root, and an action only the
+   * secondary reaches - the default's branch holds nothing after its trigger. */
+  function branched(secondaryConfig: Record<string, unknown>): WorkflowGraph {
+    const primary = node("default", "trigger.manual");
+    const secondary = node("second", "trigger.manual", secondaryConfig);
+    const action = node("act", "test.step");
+    return {
+      entry_node_id: primary.id,
+      nodes: [primary, secondary, action],
+      edges: [edge("e", secondary.id, "out", action.id, "in")],
+      bindings: [],
+      scopes: [],
+    };
+  }
+
+  function renderAction(definition: NodeDefinition = STEP, catalog = [STEP, MANUAL]) {
+    const graph = store.getState().graph as WorkflowGraph;
+    const action = graph.nodes.find((candidate) => candidate.id === "act") as NodeInstance;
+    return render(
+      <OutputPane
+        workflowId="wf"
+        catalog={catalog}
+        graph={graph}
+        node={action}
+        definition={definition}
+      />,
+    );
+  }
+
+  it("asks for the secondary trigger's required input when the default declares none", async () => {
+    seed(branched({ input_schema: REQUIRES_NAME }));
+    renderAction();
+
+    await userEvent.click(screen.getByRole("button", { name: "Test step" }));
+
+    // The default Manual declares no contract, so a test that read it would start
+    // at once with `{}`; the secondary's schema must open a dialog instead.
+    expect(mutate).not.toHaveBeenCalled();
+    const dialog = within(screen.getByRole("dialog"));
+    expect(dialog.getByRole("button", { name: "Expected input schema" })).toBeVisible();
+
+    fireEvent.change(dialog.getByRole("textbox", { name: "Input (JSON)" }), {
+      target: { value: '{"name":"Ada"}' },
+    });
+    await userEvent.click(dialog.getByRole("button", { name: "Start a run" }));
+
+    expect(mutate).toHaveBeenCalledWith(
+      expect.objectContaining({ entry_node_id: "second", input: { name: "Ada" } }),
+      expect.anything(),
+    );
+  });
+
+  it("shows the schema of the entry that reaches the step, not the default's", async () => {
+    const requiresEmail = {
+      type: "object",
+      properties: { email: { type: "string" } },
+      required: ["email"],
+    };
+    seed({
+      entry_node_id: "default",
+      nodes: [
+        node("default", "trigger.manual", { input_schema: requiresEmail }),
+        node("second", "trigger.manual", { input_schema: REQUIRES_NAME }),
+        node("act", "test.step"),
+      ],
+      edges: [edge("e", "second", "out", "act", "in")],
+      bindings: [],
+      scopes: [],
+    });
+    renderAction();
+
+    await userEvent.click(screen.getByRole("button", { name: "Test step" }));
+    const dialog = within(screen.getByRole("dialog"));
+    await userEvent.click(dialog.getByRole("button", { name: "Expected input schema" }));
+
+    // The secondary asks for `name`; the default's `email` contract must not show.
+    expect(dialog.getByText("name:")).toBeTruthy();
+    expect(dialog.queryByText("email:")).toBeNull();
+  });
+
+  it("does not reuse the default entry's cached input for a step under another entry", async () => {
+    seed(branched({ input_schema: REQUIRES_NAME }));
+    store.getState().mergeStepData({
+      default: { output: { payload: { name: "from-default" } }, error: null, runId: "r" },
+    });
+    renderAction();
+
+    await userEvent.click(screen.getByRole("button", { name: "Test step" }));
+
+    // The cached input belongs to the default root, which never reaches this step;
+    // the secondary's schema is asked for instead of sending that input along.
+    expect(mutate).not.toHaveBeenCalled();
+    expect(
+      within(screen.getByRole("dialog")).getByRole("button", { name: "Expected input schema" }),
+    ).toBeVisible();
+  });
+
+  it("reuses the selected entry's cached input and sends its id", async () => {
+    seed(branched({}));
+    store.getState().mergeStepData({
+      second: { output: { payload: { name: "Ada" } }, error: null, runId: "r" },
+    });
+    renderAction();
+
+    await userEvent.click(screen.getByRole("button", { name: "Test step" }));
+
+    // The cached input is on the entry that reaches this step, so it is sent as-is
+    // with that entry named - no dialog, no default root's empty sample.
+    expect(mutate).toHaveBeenCalledWith(
+      expect.objectContaining({ entry_node_id: "second", input: { name: "Ada" } }),
+      expect.anything(),
+    );
+  });
+});
+
+describe("OutputPane refuses a test once its entry no longer reaches the step", () => {
+  it("refuses a write step confirmed after its entry was disconnected", async () => {
+    const graph = line();
+    seed(graph);
+    const target = graph.nodes[1] as NodeInstance;
+    const { rerender } = render(
+      <OutputPane
+        workflowId="wf"
+        catalog={[WRITER]}
+        graph={graph}
+        node={target}
+        definition={WRITER}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Test step" }));
+    expect(mutate).not.toHaveBeenCalled();
+
+    // The step is disconnected from its entry while the confirmation is open.
+    rerender(
+      <OutputPane
+        workflowId="wf"
+        catalog={[WRITER]}
+        graph={{ ...graph, edges: [] }}
+        node={target}
+        definition={WRITER}
+      />,
+    );
+    await userEvent.click(
+      screen.getAllByRole("button", { name: "Test step" }).at(-1) as HTMLElement,
+    );
+
+    expect(mutate).not.toHaveBeenCalled();
+  });
+
+  it("refuses an input submitted after its entry was disconnected", async () => {
+    const trigger = {
+      ...node("t", "trigger.manual"),
+      config: { input_schema: { type: "object" } },
+    };
+    const graph: WorkflowGraph = {
+      entry_node_id: "t",
+      nodes: [trigger, node("b", "test.step")],
+      edges: [edge("e", "t", "out", "b", "in")],
+      bindings: [],
+      scopes: [],
+    };
+    seed(graph);
+    const target = graph.nodes[1] as NodeInstance;
+    const { rerender } = render(
+      <OutputPane
+        workflowId="wf"
+        catalog={[MANUAL, STEP]}
+        graph={graph}
+        node={target}
+        definition={STEP}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Test step" }));
+    expect(mutate).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog")).toBeTruthy();
+
+    // The step is disconnected from its entry while the dialog is open.
+    rerender(
+      <OutputPane
+        workflowId="wf"
+        catalog={[MANUAL, STEP]}
+        graph={{ ...graph, edges: [] }}
+        node={target}
+        definition={STEP}
+      />,
+    );
+    await userEvent.click(
+      within(screen.getByRole("dialog")).getByRole("button", { name: "Start a run" }),
+    );
+
+    expect(mutate).not.toHaveBeenCalled();
+  });
+});
+
+it("blocks testing an isolated switched-off step with an actionable reason", () => {
+  const graph = { ...line({ disabled: true }), edges: [] };
+  seed(graph);
+  renderOutput();
+  expect(screen.getByRole("button", { name: "Test step" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Test step" })).toHaveAttribute(
+    "title",
+    "Connect this step to a trigger before testing it.",
+  );
 });

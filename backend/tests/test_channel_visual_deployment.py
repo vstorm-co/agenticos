@@ -55,7 +55,7 @@ def test_deploy_preserves_the_renderer_profile_without_losing_the_sandbox(
 
 
 def test_published_backend_images_include_the_visual_rendering_client() -> None:
-    workflow = yaml.safe_load((ROOT / ".github/workflows/images.yml").read_text())
+    workflow = yaml.safe_load((ROOT / ".github/workflows-disabled/images.yml").read_text())
     builds = [
         step["with"]
         for job in workflow["jobs"].values()

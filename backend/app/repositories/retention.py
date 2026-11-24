@@ -28,6 +28,7 @@ from sqlalchemy import (
     or_,
     select,
     type_coerce,
+    update,
 )
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -38,6 +39,7 @@ from app.db.models.artifact import Artifact, ArtifactVersion
 from app.db.models.chat_file import ChatFile
 from app.db.models.conversation import Conversation, Message
 from app.db.models.generated_media import GeneratedMedia
+from app.db.models.improvement import ImprovementRun
 from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.memory import AgentMemoryFile
 from app.db.models.organization import Organization
@@ -65,6 +67,7 @@ _RETIRABLE = (
     RunStatus.BUDGET_EXCEEDED,
     RunStatus.GUARDRAIL_BLOCKED,
     RunStatus.LOOP_STOPPED,
+    RunStatus.TIMED_OUT,
 )
 
 
@@ -198,17 +201,34 @@ async def delete_runs_keeping_their_spend(
             type_coerce(AgentRun.started_at, DateTime(timezone=True)),
             AgentRun.cost_usd,
             AgentRun.parent_run_id,
+            AgentRun.improvement_run_id,
         )
     )
     rows = removed.all()
 
     by_month: dict[datetime, tuple[Decimal, int]] = {}
-    for started_at, cost, parent_run_id in rows:
+    by_improvement: dict[UUID, Decimal] = {}
+    for started_at, cost, parent_run_id, improvement_id in rows:
         if parent_run_id is not None:
             continue
         period = started_at.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
         total, count = by_month.get(period, (Decimal(0), 0))
         by_month[period] = (total + Decimal(cost or 0), count + 1)
+        if improvement_id is not None:
+            by_improvement[improvement_id] = by_improvement.get(
+                improvement_id, Decimal(0)
+            ) + Decimal(cost or 0)
+    # The DELETE's own returned costs are archived in the same transaction.
+    # A second sweep cannot add a cost for a row it did not remove.
+    for improvement_id, amount in sorted(by_improvement.items()):
+        await db.execute(
+            update(ImprovementRun)
+            .where(
+                ImprovementRun.id == improvement_id,
+                ImprovementRun.organization_id == organization_id,
+            )
+            .values(archived_cost_usd=ImprovementRun.archived_cost_usd + amount)
+        )
     return len(rows), [(period, total, count) for period, (total, count) in by_month.items()]
 
 
@@ -274,6 +294,33 @@ async def sum_purged_cost_since(
     return Decimal(total or 0)
 
 
+async def lock_expiring_coding_workspaces(
+    db: AsyncSession, *, organization_id: UUID, cutoff: datetime, limit: int
+) -> list[AgentWorkspace]:
+    active_run = (
+        select(AgentRun.id)
+        .where(
+            AgentRun.conversation_id == AgentWorkspace.conversation_id,
+            AgentRun.organization_id == organization_id,
+            AgentRun.status.not_in(_RETIRABLE),
+        )
+        .exists()
+    )
+    rows = await db.scalars(
+        select(AgentWorkspace)
+        .where(
+            AgentWorkspace.organization_id == organization_id,
+            AgentWorkspace.coding_account_id.is_not(None),
+            AgentWorkspace.last_used_at < cutoff,
+            ~active_run,
+        )
+        .order_by(AgentWorkspace.last_used_at, AgentWorkspace.id)
+        .limit(limit)
+        .with_for_update(skip_locked=True)
+    )
+    return list(rows.all())
+
+
 async def delete_workspaces(
     db: AsyncSession, *, organization_id: UUID, cutoff: datetime, limit: int
 ) -> int:
@@ -283,8 +330,8 @@ async def delete_workspaces(
     A workspace on a sandbox backend keeps its files in the sandbox, whose own
     TTL reaps them; what leaves here is the platform's record of it.
 
-    Never a project's: its files are the project's, kept as long as the project
-    is, however long nobody has run an agent in them - and deleted with it.
+    Projects are deleted with their owner. Retained coding workspaces are swept
+    separately so their remote cleanup is recorded before the rows are lost.
     """
     expiring = (
         select(AgentWorkspace.id)
@@ -292,6 +339,7 @@ async def delete_workspaces(
             AgentWorkspace.organization_id == organization_id,
             AgentWorkspace.last_used_at < cutoff,
             AgentWorkspace.project_id.is_(None),
+            AgentWorkspace.coding_account_id.is_(None),
         )
         .order_by(AgentWorkspace.last_used_at)
         .limit(limit)

@@ -93,3 +93,14 @@ export async function getVisualImage(
     reader.readAsDataURL(blob);
   });
 }
+
+export interface VisualPreview {
+  kind: VisualListItem["kind"];
+  title: string;
+  content: string;
+}
+
+/** Rebuilt drawing bytes, only for its owner and only rendered in the visual sandbox. */
+export function getVisualPreview(visualId: string): Promise<VisualPreview> {
+  return apiClient.get<VisualPreview>(`/visuals/${encodeURIComponent(visualId)}/preview`);
+}

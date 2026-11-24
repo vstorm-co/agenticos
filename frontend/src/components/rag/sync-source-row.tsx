@@ -71,7 +71,8 @@ export function SyncSourceRow({
             size="sm"
             className="text-muted-foreground hover:text-foreground h-8 w-8 p-0"
             onClick={onTrigger}
-            title={t("triggerSyncNow")}
+            disabled={!source.is_active}
+            title={source.is_active ? t("triggerSyncNow") : t("sourcePaused")}
             aria-label={t("triggerSyncNow2")}
           >
             <RotateCw className="h-3.5 w-3.5" />

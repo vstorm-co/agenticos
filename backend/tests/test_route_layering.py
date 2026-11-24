@@ -63,7 +63,7 @@ def _repository_imports(path: Path) -> list[str]:
 
 def _found() -> set[tuple[str, str]]:
     return {
-        (str(path.relative_to(BACKEND_ROOT)), name)
+        (path.relative_to(BACKEND_ROOT).as_posix(), name)
         for path in sorted(ROUTES.rglob("*.py"))
         for name in _repository_imports(path)
     }

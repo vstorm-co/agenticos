@@ -17,12 +17,13 @@ always has; the run is stamped `surface=workflow` and acts as the workflow
 run's principal. `max_cost_usd` is a ceiling on one execution of the step,
 checked before every model request beside the agent's and the organization's.
 
-**An approval parks the node, and the wake resumes the same agent run.** When
-the agent stops on an approval-gated tool, the handler reports the agent run it
-is waiting on and returns `Waiting(reason="approval")`; once somebody decides,
-the dispatcher calls it again with `resumed_agent_run_id`, and the handler
-continues *that* run. Starting a new one would re-send the prompt and drop the
-decision.
+**An approval or question parks the node and preserves the same agent run.**
+The handler reports the child run and returns `Waiting(reason="approval")` or
+`Waiting(reason="question")`. A decision or accepted answer queues the step,
+and dispatch calls it again with `resumed_agent_run_id`. The pending tool
+receives its result in the saved conversation. Earlier actions are not replayed.
+The child link is committed before the first model call, so a crash after it
+parks can recover its wait even if the handler never settled.
 
 **A structured answer is asked for, not parsed out of prose.** With
 `structured_output_schema` set, the agent is run with that schema in place of
@@ -47,8 +48,9 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from pydantic_ai.messages import BinaryContent
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.capabilities.guardrails import GuardrailBlocked
 from app.agents.spec import AgentSpec, checked_output_schema
-from app.core.exceptions import AppException
+from app.core.exceptions import AppException, BadRequestError
 from app.core.permissions import AuthContext
 from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
 from app.db.session import get_worker_db_context
@@ -56,8 +58,8 @@ from app.repositories import agent_run as agent_run_repo
 from app.services.agent_registry import AgentRegistryService
 from app.services.agent_runner import AgentRunnerService
 from app.services.workflow_agents import WorkflowAgentService
-from app.services.workflow_execution import budget, context
-from app.services.workflow_execution.agent_conversations import for_agent_step
+from app.services.workflow_execution import budget, context, questions
+from app.services.workflow_execution.agent_conversations import ChatSourceGuard, for_agent_step
 from app.services.workflow_execution.errors import workflow_error
 from app.workflows import files
 from app.workflows.contracts.io import FileRef, SourceRef
@@ -65,6 +67,7 @@ from app.workflows.contracts.results import (
     Completed,
     Failed,
     NodeResult,
+    Uncertain,
     Waiting,
     WorkflowError,
 )
@@ -242,6 +245,9 @@ def _settled(
     if RunStatus(run.status) is RunStatus.AWAITING_APPROVAL:
         context.report_waiting_agent_run(run.id)
         return Waiting(reason="approval", resume_token=str(context.current().node_run_id))
+    if RunStatus(run.status) is RunStatus.AWAITING_ANSWER:
+        context.report_waiting_agent_run(run.id)
+        return Waiting(reason="question", resume_token=str(context.current().node_run_id))
     failed = outcome(run)
     if failed is not None:
         return failed
@@ -316,18 +322,52 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
     current = context.current()
     try:
         async with get_worker_db_context() as db:
+            source_guard = ChatSourceGuard(db, current.chat_source)
+            if current.resumed_agent_run_id is None:
+                await source_guard.check()
+
             runner = AgentRunnerService(db)
             if current.resumed_agent_run_id is not None:
                 before = await _cost_so_far(
                     db, current.resumed_agent_run_id, current.organization_id
                 )
-                if current.budget_remaining is None:
-                    segment = await runner.resume(current.auth, current.resumed_agent_run_id)
-                else:
-                    segment = await runner.resume(
-                        current.auth,
-                        current.resumed_agent_run_id,
-                        run_limit_usd=before + current.budget_remaining,
+                try:
+                    if current.budget_remaining is None:
+                        segment = await runner.resume(
+                            current.auth,
+                            current.resumed_agent_run_id,
+                            on_segment=source_guard.keep_refusal,
+                            on_run_open=source_guard.check,
+                            check_model_request=source_guard.check_request,
+                        )
+                    else:
+                        segment = await runner.resume(
+                            current.auth,
+                            current.resumed_agent_run_id,
+                            run_limit_usd=before + current.budget_remaining,
+                            on_segment=source_guard.keep_refusal,
+                            on_run_open=source_guard.check,
+                            check_model_request=source_guard.check_request,
+                        )
+                except BadRequestError:
+                    ended = await agent_run_repo.get_run(
+                        db, current.resumed_agent_run_id, organization_id=current.organization_id
+                    )
+                    if ended is None or ended.status in (
+                        RunStatus.AWAITING_APPROVAL.value,
+                        RunStatus.AWAITING_ANSWER.value,
+                        RunStatus.RUNNING.value,
+                    ):
+                        raise
+                    failed = outcome(ended)
+                    if failed is not None:
+                        return Failed(
+                            error=failed.error.model_copy(
+                                update={"message": ended.error or failed.error.message}
+                            )
+                        )
+                    return Uncertain(
+                        detail="The agent completed outside this step; its result needs review"
                     )
                 text, run, answer = segment.output, segment.run, segment.structured
             else:
@@ -343,6 +383,11 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
                     db, current, agent_id=agent_id, version_id=version_id
                 )
                 answers: list[dict[str, Any]] = []
+
+                async def opened(child: AgentRun) -> None:
+                    await source_guard.check(child)
+                    await questions.link_agent_run(db, current, child)
+
                 text, run = await runner.execute(
                     current.auth,
                     agent_id,
@@ -357,8 +402,16 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
                     structured=answers,
                     run_limit_usd=budget.node_limit(current.budget_remaining, config.max_cost_usd),
                     public_origin=current.public_origin,
+                    parks_questions=not current.public_origin and current.auth.user_id is not None,
+                    on_run_open=opened,
+                    on_segment=source_guard.keep_refusal,
+                    check_model_request=source_guard.check_request,
                 )
                 answer = answers[0] if answers else None
+    except GuardrailBlocked as exc:
+        return Failed(
+            error=WorkflowError(code="AGENT_GUARDRAIL_BLOCKED", message=str(exc), bypassable=False)
+        )
     except AppException as exc:
         return Failed(error=workflow_error(exc))
     except Exception:

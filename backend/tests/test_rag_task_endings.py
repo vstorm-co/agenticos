@@ -53,7 +53,7 @@ async def test_a_lost_ingestion_fails_its_document_with_why() -> None:
 
     fail.assert_awaited_once_with(
         str(job.rag_document_id),
-        error_message="Stopped before it finished: stopped by the memory watchdog",
+        error_message="The sync stopped before completion. Review the worker log and source configuration before retrying.",
         attempt=2,
         settling=True,
     )
@@ -83,7 +83,9 @@ async def test_a_lost_collection_sync_closes_its_log_only_while_it_runs(
 
     assert close.await_count == int(closed)
     if closed:
-        assert close.await_args.kwargs == {"error_message": "Stopped before it finished: killed"}
+        assert close.await_args.kwargs == {
+            "error_message": "The sync stopped before completion. Review the worker log and source configuration before retrying."
+        }
 
 
 async def test_a_lost_collection_sync_whose_log_is_gone_closes_nothing() -> None:
@@ -109,32 +111,62 @@ async def test_a_lost_source_sync_marks_the_source_and_closes_the_log_it_was_que
     """Its own log, by id - never the source's newest running one, which can be a
     manual sync queued behind it (Codex, #2248)."""
     log_id = uuid.uuid4()
+    target_id = uuid.uuid4()
     job = SyncConnectorSource(source_id=uuid.uuid4(), sync_log_id=log_id)
+    sources = MagicMock(update_after_sync=AsyncMock())
+    with (
+        patch(f"{MODULE}.get_worker_db_context", _db),
+        patch(f"{MODULE}.SyncSourceService", return_value=sources),
+        patch(
+            f"{MODULE}.sync_log_repo.get_by_id",
+            new=AsyncMock(return_value=MagicMock(knowledge_base_id=target_id)),
+        ),
+        patch(f"{MODULE}._close_running_log", new=AsyncMock()) as close,
+    ):
+        await handlers.settle_ended(SYNC_SOURCE.kind, SYNC_SOURCE.dump(job), "killed")
+
+    sources.update_after_sync.assert_awaited_once_with(
+        str(job.source_id),
+        "error",
+        "The sync stopped before completion. Review the worker log and source configuration before retrying.",
+        expected_knowledge_base_id=target_id,
+    )
+    close.assert_awaited_once_with(str(log_id), "killed")
+
+
+@pytest.mark.parametrize("log_exists", [False, True])
+async def test_a_lost_source_sync_without_a_recorded_target_cannot_settle_source_status(
+    log_exists: bool,
+) -> None:
+    job = SyncConnectorSource(source_id=uuid.uuid4(), sync_log_id=uuid.uuid4())
+    sources = MagicMock(update_after_sync=AsyncMock())
+    with (
+        patch(f"{MODULE}.get_worker_db_context", _db),
+        patch(
+            f"{MODULE}.sync_log_repo.get_by_id",
+            new=AsyncMock(return_value=MagicMock(knowledge_base_id=None) if log_exists else None),
+        ),
+        patch(f"{MODULE}.SyncSourceService", return_value=sources),
+        patch(f"{MODULE}._close_running_log", new=AsyncMock()) as close,
+    ):
+        await rag_tasks.settle_lost_source_sync(job, "killed")
+    sources.update_after_sync.assert_not_awaited()
+    close.assert_awaited_once_with(str(job.sync_log_id), "killed")
+
+
+async def test_a_sync_queued_without_a_log_cannot_infer_the_sources_current_target() -> None:
+    """Without a recorded target, old work must not overwrite a newly assigned base."""
+    job = SyncConnectorSource(source_id=uuid.uuid4(), sync_log_id=None)
     sources = MagicMock(update_after_sync=AsyncMock())
     with (
         patch(f"{MODULE}.get_worker_db_context", _db),
         patch(f"{MODULE}.SyncSourceService", return_value=sources),
         patch(f"{MODULE}._close_running_log", new=AsyncMock()) as close,
     ):
-        await handlers.settle_ended(SYNC_SOURCE.kind, SYNC_SOURCE.dump(job), "killed")
-
-    sources.update_after_sync.assert_awaited_once_with(
-        str(job.source_id), "error", "Stopped before it finished: killed"
-    )
-    close.assert_awaited_once_with(str(log_id), "killed")
-
-
-async def test_a_sync_queued_without_a_log_marks_the_source_and_closes_none() -> None:
-    """A source with no collection when it came due is queued without a log."""
-    job = SyncConnectorSource(source_id=uuid.uuid4(), sync_log_id=None)
-    with (
-        patch(f"{MODULE}.get_worker_db_context", _db),
-        patch(f"{MODULE}.SyncSourceService", return_value=MagicMock(update_after_sync=AsyncMock())),
-        patch(f"{MODULE}._close_running_log", new=AsyncMock()) as close,
-    ):
         await rag_tasks.settle_lost_source_sync(job, "killed")
 
     close.assert_not_awaited()
+    sources.update_after_sync.assert_not_awaited()
 
 
 async def test_a_kind_that_leaves_nothing_behind_settles_nothing() -> None:

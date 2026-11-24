@@ -18,7 +18,7 @@ export const DEFAULT_ANSWER_STYLE: AnswerStyle = {
   ack_reaction: null,
   stream_answers: true,
   step_display: "timeline",
-  rate_answers: true,
+  rate_answers: false,
 };
 
 /** An emoji's name as the platforms spell it, without colons - what the server accepts. */
@@ -26,8 +26,8 @@ export const REACTION_PATTERN = /^[a-z0-9_+-]{1,64}$/;
 
 /**
  * The reactions offered, by the name the platforms take and the emoji it
- * draws. The set Telegram allows a bot, which Slack and Mattermost both know
- * too - so one list is right on every platform, and nobody has to remember
+ * draws. The set Telegram allows a bot, which Slack, Mattermost and Matrix all
+ * know too - so one list is right on every platform, and nobody has to remember
  * that it is `eyes` and not `:eyes:`.
  */
 export const REACTIONS: readonly (readonly [name: string, emoji: string])[] = [
@@ -45,11 +45,25 @@ export const REACTIONS: readonly (readonly [name: string, emoji: string])[] = [
  * Where the bot can react to a question. Teams and Discord answer without one,
  * so a reaction chosen there would be saved and never drawn.
  */
-const REACTS: readonly ChannelPlatform[] = ["slack", "telegram", "mattermost", "imessage"];
+const REACTS: readonly ChannelPlatform[] = [
+  "slack",
+  "telegram",
+  "mattermost",
+  "matrix",
+  "imessage",
+];
 
 /** Whether the bot can react to a question on `platform`. */
 export function reactsOn(platform: ChannelPlatform): boolean {
   return REACTS.includes(platform);
+}
+
+/** New bots acknowledge messages with a reaction native to their platform. */
+export function defaultAnswerStyle(platform: ChannelPlatform): AnswerStyle {
+  return {
+    ...DEFAULT_ANSWER_STYLE,
+    ack_reaction: platform === "imessage" ? "emphasize" : reactsOn(platform) ? "eyes" : null,
+  };
 }
 
 /** The select's value for "no reaction" - a name no platform spells. */

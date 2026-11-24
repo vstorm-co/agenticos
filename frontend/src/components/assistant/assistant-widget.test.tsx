@@ -9,7 +9,6 @@ import type { IncomingFiles } from "@/components/chat/chat-input";
 import type { AssistantPageContext } from "@/lib/assistant-page-context";
 import { useAuthStore, useOrgStore } from "@/stores";
 import { useArchitectAskStore } from "@/stores/architect-ask-store";
-import { useArchitectMarkStore } from "@/stores/architect-mark-store";
 import type { AssistantState } from "@/types/assistant";
 
 import { BUBBLE_VISIBLE_MS } from "./assistant-bubble";
@@ -35,6 +34,13 @@ const state = vi.hoisted(() => ({
   phone: false,
 }));
 
+vi.mock("@/hooks/use-permissions", () => ({
+  usePermissions: () => ({ isLoaded: true, can: () => true }),
+}));
+vi.mock("@/hooks/use-start", () => ({
+  useStart: () => ({ data: { support_email: "owner@example.com" } }),
+}));
+
 const CONSOLE_LINK = "/agents?highlight=agents-new";
 
 // The chat itself is the console's own and tested where it lives; here it is
@@ -57,6 +63,7 @@ vi.mock("@/components/chat/chat-container", () => ({
       data-prompt={prompt?.text ?? ""}
       data-files={incomingFiles?.files.length ?? 0}
       data-page-context={JSON.stringify(pageContext?.() ?? null)}
+      data-draft={incomingFiles?.text ?? ""}
     >
       {emptyState?.(() => undefined)}
       <a href={CONSOLE_LINK}>console link</a>
@@ -80,21 +87,29 @@ vi.mock("@/hooks/use-assistant", () => ({
 vi.mock("@/hooks/use-assistant-signals", () => ({ useAssistantSignals: () => state.signals }));
 vi.mock("@/hooks/use-assistant-page-context", () => ({
   useAssistantPageContext: (path: string) => {
-    const page = { path, title: path, captured_at: "2026-01-01T00:00:00.000Z" };
+    const page = {
+      path,
+      title: path === "/apps/app-1" ? "Quarterly report" : path,
+      captured_at: "2026-01-01T00:00:00.000Z",
+    };
     return { page, getSnapshot: () => structuredClone(page) };
   },
 }));
 vi.mock("@/hooks/use-agents", () => ({
   useAgents: () => ({
-    agents: state.assistant ? [{
-      id: state.assistant.agent_id,
-      name: state.assistant.name,
-      slug: state.assistant.slug,
-      status: "published",
-      can_run: true,
-      has_avatar: false,
-      avatar_color: null,
-    }] : [],
+    agents: state.assistant
+      ? [
+          {
+            id: state.assistant.agent_id,
+            name: state.assistant.name,
+            slug: state.assistant.slug,
+            status: "published",
+            can_run: true,
+            has_avatar: false,
+            avatar_color: null,
+          },
+        ]
+      : [],
     isLoading: false,
     isFetching: false,
     error: null,
@@ -169,7 +184,6 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  act(() => useArchitectMarkStore.setState({ agentId: null }));
   delete window.__AGENTICOS_SHELL__;
   vi.useRealTimers();
   vi.restoreAllMocks();
@@ -179,7 +193,6 @@ afterEach(() => {
 
 describe("the Architect widget", () => {
   it.each([null, 4])("matches the agent avatar after clearing its picture (colour %s)", (color) => {
-    act(() => useArchitectMarkStore.setState({ agentId: "a1" }));
     const cleared = assistant({ avatar_color: color });
     const { container } = render(
       <>
@@ -206,6 +219,16 @@ describe("the Architect widget", () => {
     expect(screen.getByRole("button", { name: "Open Architect" })).toHaveAttribute(
       "data-docked",
       "true",
+    );
+  });
+
+  it("places the viewer launcher below the mobile toolbar", () => {
+    state.assistant = assistant();
+    render(<AssistantWidget viewer />);
+    expect(screen.getByRole("button", { name: "Open Architect" })).toHaveClass(
+      "top-auto",
+      "right-4",
+      "bottom-4",
     );
   });
 
@@ -247,6 +270,7 @@ describe("the Architect widget", () => {
     state.assistant = assistant({ status: "needs_model" });
     render(<AssistantWidget />);
 
+    lookAtThePage();
     expect(screen.getByText(/I'm not connected to a model yet/)).toBeInTheDocument();
   });
 
@@ -330,6 +354,29 @@ describe("the Architect widget", () => {
     },
   );
 
+  it("opens from agent creation without sending or replacing an existing draft", () => {
+    useArchitectAskStore.setState({ request: null });
+    render(<AssistantWidget />);
+    act(() => useArchitectAskStore.getState().ask("Keep this draft", { draft: true }));
+    fireEvent.click(screen.getByRole("button", { name: "Close", expanded: true }));
+    act(() => useArchitectAskStore.getState().open());
+    expect(screen.getByRole("dialog", { name: "Architect" })).not.toHaveClass("hidden");
+    expect(chat()).toHaveAttribute("data-draft", "Keep this draft");
+    expect(chat()).toHaveAttribute("data-prompt", "");
+  });
+
+  it("writes a draft ask into the message box for the reader to send, sending nothing", () => {
+    useArchitectAskStore.setState({ request: null });
+    render(<AssistantWidget />);
+
+    act(() => useArchitectAskStore.getState().ask("Make a skill of this", { draft: true }));
+
+    expect(screen.getByRole("dialog", { name: "Architect" })).not.toHaveClass("hidden");
+    expect(chat()).toHaveAttribute("data-draft", "Make a skill of this");
+    expect(chat()).toHaveAttribute("data-prompt", "");
+    expect(useArchitectAskStore.getState().request).toBeNull();
+  });
+
   it("lets a bubble fade when nobody answers it, and holds it while the pointer rests on it", () => {
     render(<AssistantWidget />);
     lookAtThePage();
@@ -404,6 +451,25 @@ describe("the Architect widget", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "New conversation" }));
     expect(state.startNewChat).toHaveBeenCalledTimes(2);
+  });
+
+  it("goes back to the conversation last open after a page load, until a new one is started", () => {
+    const user = useAuthStore.getState().user;
+    const organization = useOrgStore.getState().activeOrgId;
+    useAuthStore.setState({ user: { ...user!, id: "u1" } });
+    useOrgStore.setState({ activeOrgId: "o1" });
+    localStorage.setItem("architect-conversation:u1:o1", "c9");
+    const view = render(<AssistantWidget />);
+    fireEvent.click(screen.getByRole("button", { name: "Open Architect" }));
+    expect(state.selectConversation).toHaveBeenCalledWith("c9");
+    state.currentConversationId = "c1";
+    view.rerender(<AssistantWidget />);
+    expect(localStorage.getItem("architect-conversation:u1:o1")).toBe("c1");
+    fireEvent.click(screen.getByRole("button", { name: "New conversation" }));
+    expect(state.startNewChat).toHaveBeenCalledOnce();
+    expect(localStorage.getItem("architect-conversation:u1:o1")).toBeNull();
+    useAuthStore.setState({ user });
+    useOrgStore.setState({ activeOrgId: organization });
   });
 
   it("opens an earlier conversation from the list, and closes the list", () => {
@@ -752,7 +818,7 @@ describe("the Architect widget", () => {
 
   it("steps out of the chat's composer on any screen, and stays on every other page", () => {
     // The corner it sits in is the composer's send controls there (#2075).
-    state.pathname = "/pl/chat";
+    state.pathname = "/en/chat";
     const { unmount } = render(<AssistantWidget />);
     expect(screen.getByRole("button", { name: "Open Architect" })).toHaveClass("hidden");
     unmount();
@@ -773,12 +839,28 @@ describe("the Architect widget", () => {
   });
 });
 
-
 describe("page context in the floating window", () => {
+  it("shows the viewer app title and includes it by default", () => {
+    state.pathname = "/apps/app-1";
+    render(<AssistantWidget />);
+    fireEvent.click(screen.getByRole("button", { name: "Open Architect" }));
+
+    expect(JSON.parse(chat().getAttribute("data-page-context")!)).toMatchObject({
+      path: "/apps/app-1",
+      title: "Quarterly report",
+    });
+    expect(screen.getByRole("switch", { name: "Use the current page" })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+  });
+
   it("follows navigation while the conversation remains open and supports opting out", () => {
     const { rerender } = render(<AssistantWidget />);
     fireEvent.click(screen.getByRole("button", { name: "Open Architect" }));
-    expect(JSON.parse(chat().getAttribute("data-page-context")!)).toMatchObject({ path: "/agents" });
+    expect(JSON.parse(chat().getAttribute("data-page-context")!)).toMatchObject({
+      path: "/agents",
+    });
 
     state.pathname = "/runs";
     rerender(<AssistantWidget />);
@@ -792,7 +874,9 @@ describe("page context in the floating window", () => {
     fireEvent.click(screen.getByRole("button", { name: "Open Architect" }));
     expect(chat()).toHaveAttribute("data-page-context", "null");
     fireEvent.click(screen.getByRole("switch", { name: "Use the current page" }));
-    expect(JSON.parse(chat().getAttribute("data-page-context")!)).toMatchObject({ path: "/skills" });
+    expect(JSON.parse(chat().getAttribute("data-page-context")!)).toMatchObject({
+      path: "/skills",
+    });
   });
 
   it("clears the open floating session when the organization changes", () => {
@@ -806,14 +890,49 @@ describe("page context in the floating window", () => {
   it("clears the open floating session when the signed-in account changes", () => {
     render(<AssistantWidget />);
     fireEvent.click(screen.getByRole("button", { name: "Open Architect" }));
-    act(() => useAuthStore.setState({
-      user: {
-        id: "another-person",
-        email: "another@example.test",
-        is_active: true,
-        created_at: "2026-01-01T00:00:00Z",
-      },
-    }));
+    act(() =>
+      useAuthStore.setState({
+        user: {
+          id: "another-person",
+          email: "another@example.test",
+          is_active: true,
+          created_at: "2026-01-01T00:00:00Z",
+        },
+      }),
+    );
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
+});
+
+it("opens the real chat and shared model card before Architect has a model", () => {
+  state.assistant = assistant({ status: "needs_model", can_configure: true });
+  render(<AssistantWidget />);
+  fireEvent.click(screen.getByRole("button", { name: "Open Architect" }));
+  expect(chat()).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Connect my AI model" })).toHaveAttribute(
+    "href",
+    "/agents/a1?highlight=agent-model-picker",
+  );
+  expect(screen.queryByText("Architect is typing…")).not.toBeInTheDocument();
+});
+
+it("keeps the setup chat open when Architect becomes ready", () => {
+  state.assistant = assistant({ status: "needs_model", can_configure: true });
+  const view = render(<AssistantWidget />);
+  fireEvent.click(screen.getByRole("button", { name: "Open Architect" }));
+  state.assistant = assistant();
+  view.rerender(<AssistantWidget />);
+  expect(screen.getByRole("dialog", { name: "Architect" })).not.toHaveClass("hidden");
+  expect(screen.queryByRole("link", { name: "Connect my AI model" })).not.toBeInTheDocument();
+});
+
+it("offers members administrator guidance in the unconfigured Architect chat", () => {
+  state.assistant = assistant({ status: "needs_model", can_configure: false });
+  render(<AssistantWidget />);
+  fireEvent.click(screen.getByRole("button", { name: "Open Architect" }));
+  expect(screen.queryByRole("link", { name: "Connect my AI model" })).not.toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Contact your administrator" })).toHaveAttribute(
+    "href",
+    "mailto:owner@example.com",
+  );
 });

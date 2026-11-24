@@ -105,13 +105,25 @@ async def test_latest_messages_carry_the_cursor_and_the_same_reader_scope(
     assert arguments["latest"] is True
     assert arguments["before"] == before
     assert arguments["limit"] == 101
+    assert arguments["top_level_only"] is True
     assert arguments["organization_id"] is not None
     assert arguments["user_id"] is not None
 
 
+async def test_message_reads_can_include_thread_replies(service: AsyncMock) -> None:
+    service.transcript = AsyncMock(return_value=([], 0, None))
+    async with _client() as client:
+        response = await client.get(
+            f"{settings.API_V1_STR}/conversations/{CONVERSATION_ID}/messages",
+            params={"top_level_only": "false"},
+        )
+    assert response.status_code == 200
+    assert service.transcript.await_args.kwargs["top_level_only"] is False
+
+
 async def test_metadata_excludes_history_and_carries_the_reader_scope(service: AsyncMock) -> None:
     project_id = uuid4()
-    service.get_conversation.return_value = {
+    service.get_metadata.return_value = {
         "id": CONVERSATION_ID,
         "title": "Long conversation",
         "project_id": project_id,
@@ -126,15 +138,14 @@ async def test_metadata_excludes_history_and_carries_the_reader_scope(service: A
     assert response.json()["project_id"] == str(project_id)
     assert "messages" not in response.json()
     assert "summary_messages" not in response.json()
-    arguments = service.get_conversation.await_args.kwargs
-    assert arguments["include_messages"] is False
+    arguments = service.get_metadata.await_args.kwargs
     assert arguments["user_id"] is not None
     assert arguments["organization_id"] is not None
     assert arguments["ctx"] is not None
 
 
 async def test_metadata_is_missing_when_the_reader_cannot_access_it(service: AsyncMock) -> None:
-    service.get_conversation.side_effect = NotFoundError(message="Conversation not found")
+    service.get_metadata.side_effect = NotFoundError(message="Conversation not found")
     async with _client() as client:
         response = await client.get(
             f"{settings.API_V1_STR}/conversations/{CONVERSATION_ID}/metadata"

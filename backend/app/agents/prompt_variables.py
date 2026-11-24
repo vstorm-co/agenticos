@@ -72,6 +72,7 @@ _CHANNELS = {
     "sms": "SMS",
     "email": "e-mail",
     "discord": "Discord",
+    "matrix": "Matrix",
     "schedule": "a scheduled run",
 }
 

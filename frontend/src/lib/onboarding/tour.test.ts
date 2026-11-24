@@ -1,7 +1,15 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  BROWSER_TEACHING_DETAIL,
+  SKILL_DETAIL,
+  SKILL_IMPROVEMENT,
+  SKILL_IMPROVEMENT_START,
+  IMPROVEMENT,
+  IMPROVEMENT_START,
   AGENT_BUILDER,
+  DATASET_DETAIL,
+  EVAL_RUN,
   ARTIFACT_DETAIL,
   KB_DETAIL,
   GROUP_DETAIL,
@@ -18,6 +26,7 @@ import {
   visibleTourSteps,
   WORKFLOW_LOGS_DETAIL,
   WORKFLOW_RUNS_DETAIL,
+  WORKFLOW_RUN_DETAIL,
   WORKSPACE_DETAIL,
   PROJECT_DETAIL,
 } from "./tour";
@@ -38,12 +47,42 @@ const UNGATED_LAUNCH = [
   "finish",
 ];
 
+describe("browser teaching route help", () => {
+  it("keeps owner capture help distinct from a skill and explains each available review phase", () => {
+    expect(pageKey(ROUTES.SKILLS_TEACHING)).toBe(ROUTES.SKILLS_TEACHING);
+    expect(pageKey(ROUTES.SKILL_TEACHING("capture-1"))).toBe(BROWSER_TEACHING_DETAIL);
+    expect(
+      stepsForPage(ROUTES.SKILL_TEACHING("capture-1"), () => false).map((step) => step.id),
+    ).toEqual(["teaching-summary", "teaching-review", "teaching-draft", "teaching-proposal"]);
+    expect(stepsForPage(ROUTES.SKILLS_TEACHING, () => false).map((step) => step.id)).toEqual([
+      "teaching-list",
+    ]);
+  });
+
+  it("opens governance for the teaching policy only when the viewer may change organization settings", () => {
+    const teaching = stepsForPage("/orgs/org-1/members", () => true).find(
+      (step) => step.id === "org-browser-teaching",
+    );
+    expect(teaching).toMatchObject({
+      activate: "org-tab-governance",
+      permission: Perm.orgSettings,
+    });
+    expect(
+      stepsForPage("/orgs/org-1/members", (permission) => permission !== Perm.orgSettings).some(
+        (step) => step.id === "org-browser-teaching",
+      ),
+    ).toBe(false);
+  });
+});
+
 // Every builder stop, in the order the "?" walks them. The launch pass takes a
 // subset of these (instructions, tools, publish).
 const BUILDER_STEPS = [
+  "agent-assistant-strip",
   "agent-instructions",
   "agent-starters",
   "agent-model",
+  "agent-model-credentials",
   "agent-voice",
   "agent-identity",
   "agent-toolbox",
@@ -52,7 +91,15 @@ const BUILDER_STEPS = [
   "agent-skills",
   "agent-limits",
   "agent-availability",
+  "agent-evals",
+  "agent-eval-suites",
+  "agent-gaps",
   "agent-history",
+  "agent-failure-learning",
+  "agent-improvement-history",
+  "agent-test-connections",
+  "agent-environment-guards",
+  "agent-test-draft",
   "agent-test",
   "agent-share",
   "agent-publish",
@@ -61,7 +108,14 @@ const BUILDER_STEPS = [
 
 // Every collection-detail stop, in the order the "?" walks them. The launch
 // pass takes one of these (kb-documents).
-const KB_STEPS = ["kb-header", "kb-documents", "kb-ingestion", "kb-sync"];
+const KB_STEPS = [
+  "kb-header",
+  "kb-documents",
+  "kb-ingestion",
+  "kb-sync",
+  "kb-gaps",
+  "kb-gaps-check",
+];
 
 // The organization detail walk: the members page (profile, the Voice card, the
 // AI Architect's card, then the list), then across into the roles matrix. None
@@ -69,23 +123,33 @@ const KB_STEPS = ["kb-header", "kb-documents", "kb-ingestion", "kb-sync"];
 const ORG_STEPS = [
   "org-profile",
   "org-governance",
+  "org-browser-teaching",
   "org-proactivity",
   "org-proactivity-model",
+  "org-public-attribution",
   "org-public-live-data",
   "org-voice",
   "org-assistant",
   "org-system-agents",
   "org-members",
+  "org-role-navigation",
   "org-roles",
 ];
 
 describe("pageKey", () => {
+  it("offers an optional question stop on a workflow's single run", () => {
+    expect(pageKey("/workflows/wf/runs/run")).toBe(WORKFLOW_RUN_DETAIL);
+    expect(stepsForPage("/workflows/wf/runs/run", () => true)).toEqual([
+      expect.objectContaining({ id: "workflow-run-questions", optional: true }),
+    ]);
+  });
   it("identifies the canvas without treating the all-runs list as a canvas", () => {
     expect(pageKey("/workflows/wf-1")).toBe("workflow-detail");
     expect(pageKey("/workflows/runs")).toBe("/workflows/runs");
     expect(stepsForPage("/workflows/wf-1", () => true).map((step) => step.id)).toEqual([
       "workflow-canvas-fullscreen",
       "workflow-step-view",
+      "workflow-input-contract",
     ]);
   });
   it("collapses every concrete builder route onto the one builder identity", () => {
@@ -94,9 +158,18 @@ describe("pageKey", () => {
   });
 
   it("collapses every concrete collection route onto the one KB identity", () => {
+    expect(pageKey("/skills/abc-123")).toBe(SKILL_DETAIL);
+    expect(pageKey("/skills/abc-123/improve/new")).toBe(SKILL_IMPROVEMENT_START);
+    expect(pageKey("/skills/abc-123/improve/s-1")).toBe(SKILL_IMPROVEMENT);
     expect(pageKey("/rag/abc-123")).toBe(KB_DETAIL);
     expect(pageKey("/rag/abc-123/anything")).toBe(KB_DETAIL);
     expect(pageKey("/groups/abc-123")).toBe(GROUP_DETAIL);
+  });
+
+  it("collapses every concrete dataset route onto the one dataset identity", () => {
+    expect(pageKey("/datasets/abc-123")).toBe(DATASET_DETAIL);
+    expect(pageKey("/datasets")).toBe("/datasets");
+    expect(pageHasSteps("/datasets/abc-123")).toBe(true);
   });
 
   it("splits the three organization detail routes onto their own identities", () => {
@@ -121,12 +194,26 @@ describe("pageKey", () => {
     expect(pageKey("/projects/abc-123")).toBe(PROJECT_DETAIL);
   });
 
+  it("offers a table's own help stops without adding them to the catalog walkthrough", () => {
+    expect(
+      stepsForPage(ROUTES.TABLE_DETAIL("table-123"), () => true).map((step) => step.id),
+    ).toEqual([
+      "table-columns",
+      "table-triggers",
+      "table-view-tabs",
+      "table-row-access",
+      "record-access",
+    ]);
+    expect(stepsForPage(ROUTES.TABLES, () => true).map((step) => step.id)).toEqual([
+      "tables-catalog",
+      "tables-new",
+    ]);
+  });
+
   it("collapses one workflow's runs, but not every workflow's runs, onto its identity", () => {
     expect(pageKey(ROUTES.WORKFLOW_RUNS("wf-1"))).toBe(WORKFLOW_RUNS_DETAIL);
     expect(pageKey(ROUTES.WORKFLOW_ALL_RUNS)).toBe(ROUTES.WORKFLOW_ALL_RUNS);
-    expect(pageKey(ROUTES.WORKFLOW_RUN_DETAIL("wf-1", "run-1"))).toBe(
-      ROUTES.WORKFLOW_RUN_DETAIL("wf-1", "run-1"),
-    );
+    expect(pageKey(ROUTES.WORKFLOW_RUN_DETAIL("wf-1", "run-1"))).toBe(WORKFLOW_RUN_DETAIL);
     expect(stepsForPage(ROUTES.WORKFLOW_RUNS("wf-1"), () => true).map((s) => s.id)).toEqual([
       "workflow-stats",
       "workflow-run-history",
@@ -194,6 +281,7 @@ describe("visibleTourSteps", () => {
       "agent-limits",
       "agent-availability",
       "agent-history",
+      "agent-failure-learning",
       "agent-publish",
     ]) {
       expect(launch).toContain(id);
@@ -221,6 +309,7 @@ describe("visibleTourSteps", () => {
       "agent-limits",
       "agent-availability",
       "agent-history",
+      "agent-failure-learning",
       "kb-documents",
       "app-connections",
       "finish",
@@ -243,15 +332,32 @@ describe("stepsForPage", () => {
   it("returns every highlight on a standalone page — launch and '?'-only — never an interstitial", () => {
     expect(stepsForPage(ROUTES.CHAT, () => true).map((step) => step.id)).toEqual([
       "chat-start",
+      "chat-message-search",
+      "chat-side-threads",
+      "chat-message-pins",
+      "chat-selected-quote",
+      "chat-compact-now",
       "chat-agent-picker",
       "chat-composer",
+      "chat-send-mode",
+      "chat-workspace",
+      "browser-protected-continuation",
+      "chat-workspace-tasks",
+      "chat-agent-settings",
+      "chat-agent-reasoning",
+      "chat-team-room",
+      "chat-team-composer",
+      "chat-room-thread",
+      "chat-room-thread-panel",
       "chat-local-skills",
       "chat-coding-accounts",
       "chat-local-coding",
       "chat-coding-settings",
-      "chat-background-tasks",
+      "chat-coding-revert",
       "chat-plan",
       "chat-visual",
+      "chat-trace-filter",
+      "chat-model-selector",
       "chat-model-picker",
       "chat-voice-call",
       "chat-approval-mode",
@@ -260,11 +366,23 @@ describe("stepsForPage", () => {
     ]);
   });
 
+  it("only offers the model selector stop to someone who can choose a model", () => {
+    expect(stepsForPage(ROUTES.CHAT, () => false).map((step) => step.id)).not.toContain(
+      "chat-model-selector",
+    );
+    expect(
+      stepsForPage(ROUTES.CHAT, (permission) => permission === Perm.connectionsManage).find(
+        (step) => step.id === "chat-model-selector",
+      ),
+    ).toMatchObject({ optional: true });
+  });
+
   it("walks the list and then the whole builder when asked from the Agents list", () => {
     expect(stepsForPage(ROUTES.AGENTS, () => true).map((step) => step.id)).toEqual([
       "agents-templates",
       "agents-new",
       "agents-filters",
+      "agents-system",
       ...BUILDER_STEPS,
     ]);
   });
@@ -274,6 +392,48 @@ describe("stepsForPage", () => {
       BUILDER_STEPS,
     );
   });
+
+  it("walks a system agent's builder without the stops its page never renders", () => {
+    // Each left out would wait for a target that never mounts on a system agent's
+    // page. Its Toolbox is walked by its own words: it offers no tools, and its
+    // search picks no collection.
+    expect(stepsForPage("/agents/some-id", () => true, true).map((step) => step.id)).toEqual([
+      "agent-instructions",
+      "agent-model",
+      "agent-identity",
+      "agent-system-toolbox",
+      "agent-system-knowledge",
+      "agent-skills",
+      "agent-limits",
+      "agent-history",
+      "agent-share",
+      "agent-publish",
+      "agent-editor-fullscreen",
+    ]);
+  });
+
+  it("walks a system agent's Toolbox on the anchors an ordinary agent's walk uses", () => {
+    const anchors = (id: string) => {
+      const step = TOUR_STEPS.find((entry) => entry.id === id);
+      return [step?.target, step?.activate];
+    };
+
+    expect(anchors("agent-system-toolbox")).toEqual(anchors("agent-toolbox"));
+    expect(anchors("agent-system-knowledge")).toEqual(anchors("agent-knowledge"));
+  });
+
+  it("passes over the skills stop where a Toolbox offers none, as a classifier's does", () => {
+    expect(TOUR_STEPS.find((step) => step.id === "agent-skills")?.optional).toBe(true);
+  });
+
+  it.each(["agent-system-toolbox", "agent-system-knowledge"])(
+    "never stops at the system agent's %s on an ordinary agent's walk",
+    (id) => {
+      expect(TOUR_STEPS.some((step) => step.id === id)).toBe(true);
+      expect(stepsForPage("/agents/some-id", () => true).map((step) => step.id)).not.toContain(id);
+      expect(visibleTourSteps(() => true).map((step) => step.id)).not.toContain(id);
+    },
+  );
 
   it("gives Settings and a workspace their own '?' stop, from any of their routes", () => {
     // Settings collapses its eight tabs onto one identity, so help opened on any of
@@ -313,16 +473,25 @@ describe("stepsForPage", () => {
   });
 
   it("is permission-filtered the same way the tour is", () => {
-    // agents-new is edit-gated, agents-filters is not, and the builder walk is
-    // agents:view — a caller who can do nothing still gets the one ungated stop.
+    // agents-new is edit-gated, agents-filters and agents-system are not, and the
+    // builder walk is agents:view — a caller who can do nothing still gets the
+    // ungated stops.
     expect(stepsForPage(ROUTES.AGENTS, () => false).map((step) => step.id)).toEqual([
       "agents-filters",
+      "agents-system",
     ]);
     expect(
       stepsForPage(ROUTES.AGENTS, (permission) => permission === Perm.agentsEdit).map(
         (step) => step.id,
       ),
-    ).toEqual(["agents-templates", "agents-new", "agents-filters", "agent-test"]);
+    ).toEqual([
+      "agents-templates",
+      "agents-new",
+      "agents-filters",
+      "agents-system",
+      "agent-assistant-strip",
+      "agent-test",
+    ]);
   });
 
   it("hands the builder walk to anyone who may view an agent", () => {
@@ -330,7 +499,33 @@ describe("stepsForPage", () => {
       stepsForPage("/agents/some-id", (permission) => permission === Perm.agentsView).map(
         (step) => step.id,
       ),
-    ).toEqual(BUILDER_STEPS.filter((id) => id !== "agent-publish" && id !== "agent-test"));
+    ).toEqual(
+      // agents:publish publishes and manages an environment's test connections and
+      // guards; trying the agent beside the Builder and asking the assistant take
+      // agents:edit; the Evals tab, testing the draft, the knowledge gaps and
+      // the improvement history are runs:view.
+      BUILDER_STEPS.filter(
+        (id) =>
+          id !== "agent-assistant-strip" &&
+          id !== "agent-publish" &&
+          id !== "agent-test-connections" &&
+          id !== "agent-environment-guards" &&
+          id !== "agent-test" &&
+          id !== "agent-evals" &&
+          id !== "agent-eval-suites" &&
+          id !== "agent-test-draft" &&
+          id !== "agent-gaps" &&
+          id !== "agent-improvement-history",
+      ),
+    );
+  });
+
+  it("walks an eval run's own page rather than the builder's", () => {
+    expect(pageKey("/agents/a-1/evals/run-1")).toBe(EVAL_RUN);
+    expect(pageKey("/agents/a-1")).toBe(AGENT_BUILDER);
+    expect(stepsForPage("/agents/a-1/evals/run-1", () => true).map((step) => step.id)).toEqual([
+      "eval-verdict",
+    ]);
   });
 
   it("walks the list and then the whole collection when asked from the Knowledge list", () => {
@@ -355,6 +550,7 @@ describe("stepsForPage", () => {
       "activity-runs",
       "activity-spend",
       "run-detail-input",
+      "runs-score-against-case",
     ]);
   });
 
@@ -393,7 +589,9 @@ describe("stepsForPage", () => {
       "members",
     ]) {
       expect(steps.find((step) => step.id === `org-${section}`)?.activate).toBe(
-        `org-tab-${section === "voice" ? "profile" : section}`,
+        section === "profile"
+          ? undefined
+          : `org-tab-${section === "voice" || section === "proactivity" ? "assistant" : section}`,
       );
     }
   });
@@ -411,6 +609,7 @@ describe("stepsForPage", () => {
       "org-proactivity-model",
       "org-system-agents",
       "org-members",
+      "org-role-navigation",
       "org-roles",
     ]);
   });
@@ -421,7 +620,8 @@ describe("stepsForPage", () => {
       const ids = stepsForPage("/orgs/id/members", (permission) => permission === grant).map(
         (step) => step.id,
       );
-      expect(ids.includes("org-governance")).toBe(grant !== Perm.orgSettings);
+      // Every one of the three opens Budget and approvals: AI assistance sits there too.
+      expect(ids.includes("org-governance")).toBe(true);
       expect(ids.includes("org-proactivity")).toBe(grant !== Perm.approvalsDecide);
     },
   );
@@ -441,14 +641,19 @@ describe("stepsForPage", () => {
     expect(step?.target).toBe("org-proactivity-model");
   });
 
-  it("walks only the roles matrix from a roles route — the last page of the flow", () => {
+  it("walks sidebar visibility and the permission matrix from a roles route", () => {
     expect(stepsForPage("/orgs/some-id/roles", () => true).map((step) => step.id)).toEqual([
+      "org-role-navigation",
       "org-roles",
     ]);
   });
 
   it("deepens the MCP page component by component", () => {
-    expect(stepsForPage(ROUTES.MCP_SERVERS, () => true).map((step) => step.id)).toEqual([
+    expect(
+      stepsForPage(ROUTES.MCP_SERVERS, () => true, false, { networks: false }).map(
+        (step) => step.id,
+      ),
+    ).toEqual([
       "app-connections",
       "mcp-catalog",
       "mcp-filter",
@@ -456,6 +661,21 @@ describe("stepsForPage", () => {
       "mcp-connect",
       "connections-more",
     ]);
+  });
+
+  it("shows the networks stops only while the deployment offers them", () => {
+    const networkIds = (networks: boolean) =>
+      [
+        ...visibleTourSteps(() => true, { networks }),
+        ...stepsForPage(ROUTES.MCP_SERVERS, () => true, false, { networks }),
+        ...stepsForPage(ROUTES.CONNECTOR_DEVICES, () => true, false, { networks }),
+      ]
+        .map((step) => step.id)
+        .filter((id) => id.startsWith("network-") || id === "connectors-devices");
+    expect(networkIds(false)).toEqual([]);
+    expect(networkIds(true)).toEqual(
+      expect.arrayContaining(["network-connections", "connectors-devices", "network-add"]),
+    );
   });
 
   it("is empty for a page the tour does not cover", () => {
@@ -625,4 +845,44 @@ describe("voice call stops (#54)", () => {
       expect(step?.activate).toBe(activate);
     },
   );
+});
+
+it("tells the Improve start page from a session's own page", () => {
+  expect(pageKey("/agents/a1/improve/s1")).toBe(IMPROVEMENT);
+  expect(pageKey("/agents/a1/improve/new")).toBe(IMPROVEMENT_START);
+});
+
+it("describes the start of an improvement on the page that starts one", () => {
+  expect(
+    TOUR_STEPS.filter((step) => step.page === IMPROVEMENT_START).map((step) => step.target),
+  ).toEqual([
+    "improvement-start",
+    "improvement-quote",
+    "improvement-question-set",
+    "improvement-details",
+  ]);
+});
+
+it("describes every stage of an improvement on its own page", () => {
+  expect(TOUR_STEPS.filter((step) => step.page === IMPROVEMENT).map((step) => step.target)).toEqual(
+    [
+      "improvement-steps",
+      "improvement-evidence",
+      "improvement-test-questions",
+      "improvement-changes",
+      "improvement-skill-handoffs",
+      "improvement-next-step",
+      "improvement-check",
+      "improvement-open-check",
+      "improvement-results",
+      "improvement-automatic-check",
+      "improvement-guard",
+      "improvement-accept",
+    ],
+  );
+});
+
+it("uses the improvement walkthrough while the start modal is open over an agent", () => {
+  expect(pageKey("/agents/a1?improve=new")).toBe(IMPROVEMENT_START);
+  expect(pageKey("/agents/a1?tab=evals&improve=baseline")).toBe(IMPROVEMENT_START);
 });

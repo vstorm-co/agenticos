@@ -1,9 +1,9 @@
 "use client";
 
-import { TasksPanel } from "@/components/tasks/tasks-panel";
 import { BackgroundIcon } from "@/components/icons/product-icons";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { useTabIndicator } from "@/components/ui/use-tab-indicator";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import { ArrowUpRight, Check, Circle, Loader2, Square } from "lucide-react";
@@ -22,6 +22,8 @@ export default function WorkPage() {
   const locale = useLocale();
   const tasks = useConversationTasks(null);
   const { can } = usePermissions();
+  const strip = useRef<HTMLDivElement>(null);
+  useTabIndicator(strip);
   const [view, setView] = useState<"active" | "history">("active");
   const active = tasks.data?.filter(taskIsActive) ?? [];
   const history = tasks.data?.filter((task) => !taskIsActive(task)) ?? [];
@@ -31,7 +33,6 @@ export default function WorkPage() {
       <PageHeader
         title={t("background")}
         description={t("backgroundDescription")}
-        descriptionMode="summary"
         actions={
           can(Perm.agentsView) ? (
             <Button variant="outline" asChild>
@@ -43,12 +44,13 @@ export default function WorkPage() {
           ) : undefined
         }
       />
-      {can(Perm.tablesView) && <TasksPanel />}
       <section
         data-tour="workspace-background"
         className="bg-card flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border"
       >
         <div
+          ref={strip}
+          data-tab-indicator="line"
           role="group"
           aria-label={t("background")}
           className="flex shrink-0 gap-6 border-b px-5 pt-4"

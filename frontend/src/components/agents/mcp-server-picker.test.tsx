@@ -1,8 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 
-import { bindingKey, McpServerPicker } from "./mcp-server-picker";
+import { bindingKey } from "@/lib/mcp-servers";
+import { McpServerPicker } from "./mcp-server-picker";
 import { NEW_PLATFORM_BINDING } from "./platform-server-card";
 import type { McpConnectionRecord } from "@/lib/mcp-connections-api";
 import type { OrgMcpConnectionRecord } from "@/lib/org-mcp-connections-api";
@@ -50,6 +52,7 @@ function connection(overrides: Partial<OrgMcpConnectionRecord> = {}): OrgMcpConn
     visibility: "org",
     catalog_key: null,
     is_default: false,
+    trust_read_only_hints: false,
     label: null,
     last_tools: null,
     granted_scopes: null,
@@ -109,6 +112,132 @@ async function settings(description = GITHUB.description) {
 }
 
 describe("McpServerPicker", () => {
+  it("restores the original spec order when an MCP approval change is reverted", async () => {
+    const initial = [bound("c1"), NEW_PLATFORM_BINDING, bound("c2")];
+    const connections = [
+      connection({
+        last_tools: [{ name: "github-create-issue", description: "Create an issue" }],
+      }),
+      connection({ id: "c2", name: "laptop", url: "https://laptop.example/mcp" }),
+    ];
+    const onChange = vi.fn();
+    function Editor() {
+      const [value, setValue] = useState<McpServerRef[]>(initial);
+      return picker({
+        connections,
+        value,
+        onChange: (next) => {
+          onChange(next);
+          setValue(next);
+        },
+      });
+    }
+    const user = userEvent.setup();
+    render(<Editor />);
+    await settings();
+
+    await user.click(screen.getByRole("button", { name: "Ask first before github-create-issue" }));
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.arrayContaining([
+        { ...initial[0], tool_approval: { "github-create-issue": "required" } },
+      ]),
+    );
+    await user.click(screen.getByRole("button", { name: "Ask first before github-create-issue" }));
+    expect(onChange).toHaveBeenLastCalledWith(initial);
+  });
+
+  it.each([false, true])(
+    "restores multiple rows in their original order (reverse: %s)",
+    async (reverse) => {
+      const initial = [bound("c1"), bound("c2"), NEW_PLATFORM_BINDING];
+      const onChange = vi.fn();
+      function Editor() {
+        const [value, setValue] = useState<McpServerRef[]>(initial);
+        return picker({
+          connections: [
+            connection(),
+            connection({ id: "c2", name: "laptop", url: "https://laptop.example/mcp" }),
+          ],
+          value,
+          onChange: (next) => {
+            onChange(next);
+            setValue(next);
+          },
+        });
+      }
+      render(<Editor />);
+      const user = userEvent.setup();
+      await user.click(screen.getByRole("switch", { name: "Use GitHub in this agent" }));
+      await user.click(screen.getByRole("switch", { name: "Use laptop in this agent" }));
+      expect(onChange).toHaveBeenLastCalledWith([NEW_PLATFORM_BINDING]);
+      const names = ["GitHub", "laptop"];
+      if (reverse) names.reverse();
+      for (const name of names) {
+        await user.click(screen.getByRole("switch", { name: `Use ${name} in this agent` }));
+        await user.keyboard("{Escape}");
+      }
+      expect(onChange).toHaveBeenLastCalledWith(initial);
+    },
+  );
+
+  it("keeps a newly enabled row when another server's off/on batch is still open", async () => {
+    const github = { ...bound("c1"), allowed_tools: ["github-search"] };
+    const laptop = bound("c2");
+    const initial = [github, NEW_PLATFORM_BINDING];
+    const onChange = vi.fn();
+    function Editor() {
+      const [value, setValue] = useState<McpServerRef[]>(initial);
+      return picker({
+        connections: [
+          connection(),
+          connection({ id: "c2", name: "laptop", url: "https://laptop.example/mcp" }),
+        ],
+        value,
+        onChange: (next) => {
+          onChange(next);
+          setValue(next);
+        },
+      });
+    }
+    render(<Editor />);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("switch", { name: "Use GitHub in this agent" }));
+    expect(onChange).toHaveBeenLastCalledWith([NEW_PLATFORM_BINDING]);
+    await user.click(screen.getByRole("switch", { name: "Use laptop in this agent" }));
+    await user.keyboard("{Escape}");
+    expect(onChange).toHaveBeenLastCalledWith([NEW_PLATFORM_BINDING, laptop]);
+    await user.click(screen.getByRole("switch", { name: "Use laptop in this agent" }));
+    expect(onChange).toHaveBeenLastCalledWith([NEW_PLATFORM_BINDING]);
+    for (const name of ["laptop", "GitHub"]) {
+      await user.click(screen.getByRole("switch", { name: `Use ${name} in this agent` }));
+      await user.keyboard("{Escape}");
+    }
+    expect(onChange).toHaveBeenLastCalledWith([...initial, laptop]);
+  });
+
+  it("honors an explicit account change while the server is switched off", async () => {
+    const onChange = vi.fn();
+    function Editor() {
+      const [value, setValue] = useState<McpServerRef[]>([bound("c1")]);
+      return picker({
+        connections: [connection()],
+        value,
+        onChange: (next) => {
+          onChange(next);
+          setValue(next);
+        },
+      });
+    }
+    render(<Editor />);
+    const user = userEvent.setup();
+    const dialog = await settings();
+    await user.click(within(dialog).getByRole("switch", { name: "Use GitHub in this agent" }));
+    await user.click(kind("personal"));
+    await user.click(within(dialog).getByRole("switch", { name: "Use GitHub in this agent" }));
+    expect(onChange).toHaveBeenLastCalledWith([personal("github")]);
+    expect(kind("personal")).toHaveAttribute("aria-checked", "true");
+  });
+
   it("names a connection after the catalog server it points at", () => {
     // The connection is called "gh" because the name is a tool prefix. Nobody
     // building an agent is looking for "gh".
@@ -199,6 +328,35 @@ describe("McpServerPicker", () => {
       within(screen.getAllByRole("group")[0] as HTMLElement).getByRole("switch"),
     );
     expect(onChange).toHaveBeenLastCalledWith([bound("c1")]);
+  });
+
+  it("restores a switched-off platform binding from its dialog and removes it explicitly", async () => {
+    const platform = { ...NEW_PLATFORM_BINDING, allowed_tools: ["list_agents"] };
+    const account = bound("c1");
+    const initial = [platform, account];
+    const onChange = vi.fn();
+    function Editor() {
+      const [value, setValue] = useState<McpServerRef[]>(initial);
+      return picker({
+        connections: [connection()],
+        value,
+        onChange: (next) => {
+          onChange(next);
+          setValue(next);
+        },
+      });
+    }
+    render(<Editor />);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("switch", { name: /use agenticos in this agent/i }));
+    expect(onChange).toHaveBeenLastCalledWith([account]);
+
+    await user.click(screen.getByText(/This platform's own tools:/));
+    await user.click(screen.getByRole("button", { name: "Use it in this agent" }));
+    expect(onChange).toHaveBeenLastCalledWith(initial);
+
+    await user.click(screen.getByRole("button", { name: "Remove from this agent" }));
+    expect(onChange).toHaveBeenLastCalledWith([account]);
   });
 
   it("lets a search rule out the built-in server as it rules out the others", async () => {
@@ -329,7 +487,25 @@ describe("McpServerPicker", () => {
       }),
     );
 
-    await userEvent.click(screen.getByRole("checkbox", { name: "Connected only" }));
+    await userEvent.click(screen.getByRole("checkbox", { name: "Organization connections" }));
+
+    expect(screen.getByText("GitHub")).toBeInTheDocument();
+    expect(screen.queryByText("Linear")).toBeNull();
+  });
+
+  it("narrows to the servers this agent is bound to when asked", async () => {
+    // The organization may hold many connections; the agent uses a few of them.
+    const linear = entry({ key: "linear", name: "Linear" });
+    const github = connection({ catalog_key: "github" });
+    render(
+      picker({
+        connections: [github, connection({ id: "c-linear", catalog_key: "linear" })],
+        catalog: [...CATALOG, linear],
+        value: [bound(github.id)],
+      }),
+    );
+
+    await userEvent.click(screen.getByRole("checkbox", { name: "Connected to this agent" }));
 
     expect(screen.getByText("GitHub")).toBeInTheDocument();
     expect(screen.queryByText("Linear")).toBeNull();
@@ -434,6 +610,23 @@ describe("several connections behind one catalog entry", () => {
     expect(onChange).toHaveBeenCalledWith([bound("c1"), bound("c2")]);
   });
 
+  it("gives a further account the tools and approvals the settings show", async () => {
+    // One list and one approval choose for every account, so an account added
+    // without them would answer unasked where the settings say "Ask first".
+    const onChange = vi.fn();
+    const first: OrgMcpServerRef = {
+      ...bound("c1", ["search"]),
+      approval: "writes",
+      tool_approval: { search: "never" },
+    };
+    render(picker({ connections: THREE, value: [first], onChange }));
+
+    await settings();
+    await userEvent.click(screen.getByRole("button", { name: "Add another account" }));
+
+    expect(onChange).toHaveBeenCalledWith([first, { ...first, connection_id: "c2" }]);
+  });
+
   it("lists every bound account and offers each only the accounts still free", async () => {
     render(picker({ connections: THREE, value: [bound("c1"), bound("c3")] }));
 
@@ -472,9 +665,14 @@ describe("several connections behind one catalog entry", () => {
 
     const dialog = await settings();
 
-    expect(within(dialog).getByText("Company")).toBeVisible();
-    expect(within(dialog).getAllByText("github-oss")[0]).toBeVisible();
+    const toolsAccount = within(dialog).getByRole("combobox", {
+      name: "Account for tool settings",
+    });
+    expect(toolsAccount).toHaveTextContent("Company");
     expect(within(dialog).queryByRole("combobox", { name: /which github account/i })).toBeNull();
+    await userEvent.click(toolsAccount);
+    await userEvent.click(await screen.findByRole("option", { name: "github-oss" }));
+    expect(toolsAccount).toHaveTextContent("github-oss");
   });
 
   it("drops one account and keeps the others", async () => {
@@ -515,6 +713,18 @@ describe("several connections behind one catalog entry", () => {
     await userEvent.click(kind("organization"));
 
     expect(onChange).toHaveBeenCalledWith([bound("c1", ["read"])]);
+  });
+
+  it("keeps each tool's own approval when the binding moves to each person's own", async () => {
+    const onChange = vi.fn();
+    const one = [connection({ id: "c1", name: "gh", catalog_key: "github" })];
+    const own = { tool_approval: { read: "never" as const } };
+    render(picker({ connections: one, value: [{ ...bound("c1"), ...own }], onChange }));
+
+    await settings();
+    await userEvent.click(kind("personal"));
+
+    expect(onChange).toHaveBeenCalledWith([{ ...personal("github"), ...own }]);
   });
 
   it("offers no choice where there is none to make", () => {
@@ -870,7 +1080,7 @@ describe("which of a server's tools this agent may call", () => {
     expect(onChange).toHaveBeenLastCalledWith([bound("c1", ["search", "create_issue"])]);
   });
 
-  it("selects every tool again, which means every tool rather than a list", async () => {
+  it("selects every tool again as today's tools, leaving later ones to the switch", async () => {
     const onChange = vi.fn();
     render(
       picker({
@@ -883,7 +1093,8 @@ describe("which of a server's tools this agent may call", () => {
 
     expect(screen.getByText("1 of 3")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("checkbox", { name: "Every tool in Tools" }));
-    expect(onChange).toHaveBeenLastCalledWith([bound("c1")]);
+    const today = TOOLS.map((tool) => tool.name);
+    expect(onChange).toHaveBeenLastCalledWith([bound("c1", today)]);
   });
 
   it("asks the caller to load the tools of an account never checked", async () => {
@@ -1021,6 +1232,45 @@ describe("a server's settings", () => {
     expect(onChange).toHaveBeenCalledWith([{ ...personal("notion"), approval: "writes" }]);
   });
 
+  it.each([
+    ["notion-search", "notion-create-pages"],
+    ["notion-create-pages", "notion-search"],
+  ])("writes the tools' own approvals in name order, %s set first", async (first, second) => {
+    const onChange = vi.fn();
+    mount({ value: [{ ...personal("notion"), tool_approval: { [first]: "required" } }], onChange });
+
+    await settings("Pages.");
+    await userEvent.click(screen.getByRole("button", { name: `Ask first before ${second}` }));
+
+    const [[written]] = onChange.mock.lastCall as [PersonalMcpServerRef[]];
+    expect(Object.keys(written!.tool_approval!)).toEqual(["notion-create-pages", "notion-search"]);
+  });
+
+  it("writes a tool's own approval as the API answers it: sorted, and absent once none is left", async () => {
+    // The Builder compares the draft it holds with the stored one key by key, so
+    // a map in another order, or an empty one the API leaves out, never settles.
+    const onChange = vi.fn();
+    const asked: PersonalMcpServerRef = {
+      ...personal("notion"),
+      tool_approval: { "notion-search": "required" },
+    };
+    mount({ value: [asked], onChange });
+
+    await settings("Pages.");
+    await userEvent.click(
+      screen.getByRole("button", { name: "Ask first before notion-create-pages" }),
+    );
+    const [[written]] = onChange.mock.lastCall as [PersonalMcpServerRef[]];
+    expect(JSON.stringify(written!.tool_approval)).toBe(
+      JSON.stringify({ "notion-create-pages": "required", "notion-search": "required" }),
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Ask first before notion-search" }));
+    const [[cleared]] = onChange.mock.lastCall as [PersonalMcpServerRef[]];
+    expect(cleared).toEqual(personal("notion"));
+    expect("tool_approval" in cleared!).toBe(false);
+  });
+
   it("keeps the approval when the binding moves to another kind of account", async () => {
     const onChange = vi.fn();
     const gh = connection({ id: "c1", name: "notion-org", catalog_key: "notion" });
@@ -1028,7 +1278,7 @@ describe("a server's settings", () => {
       <McpServerPicker
         connections={[gh]}
         catalog={[NOTION]}
-        value={[{ ...personal("notion"), approval: "all" }]}
+        value={[{ ...personal("notion"), approval: "all", tool_approval: { fetch: "never" } }]}
         onChange={onChange}
         onTools={vi.fn()}
         onConnect={vi.fn()}
@@ -1038,7 +1288,9 @@ describe("a server's settings", () => {
     await settings("Pages.");
     await userEvent.click(kind("organization"));
 
-    expect(onChange).toHaveBeenCalledWith([{ ...bound("c1"), approval: "all" }]);
+    expect(onChange).toHaveBeenCalledWith([
+      { ...bound("c1"), approval: "all", tool_approval: { fetch: "never" } },
+    ]);
   });
 
   it("connects another of the reader's own accounts, and counts the ones it reaches", async () => {

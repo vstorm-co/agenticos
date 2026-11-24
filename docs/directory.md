@@ -33,6 +33,9 @@ A group grant reaches whoever is in the group **when access is checked**. Somebo
 who joins the group next month reaches the resource; somebody who leaves stops
 reaching it. There is nothing to revoke per person.
 
+Group shares expire after 90 days by default. Existing group shares receive a
+90-day grace period when this version is installed; share them again to renew.
+
 A group carries no role. What a member may do in the organization is still their
 membership's role, and a group only adds the grants made to it. Effective access
 stays the rule described in [Permissions](permissions.md#how-the-layers-combine):
@@ -279,6 +282,13 @@ OIDC_ISSUER=https://id.corp.example.com/realms/staff
 OIDC_GROUPS_CLAIM=groups
 ```
 
+Enforce multi-factor authentication in the identity provider. AgenticOS accepts
+an OIDC sign-in after checking identity and email verification, but does not
+inspect `amr`, `acr` or another claim to verify MFA. It cannot refuse a sign-in
+because the provider omitted an MFA assertion. Kerberos sign-in has the same
+limit: enforce MFA in the identity provider's Kerberos policy. LDAP password
+sign-in can use the account's AgenticOS authenticator setting.
+
 The mapping's directory group is then what Keycloak puts in the claim: the group
 path, such as `/Finance`, or the bare name if **Full group path** is off.
 
@@ -320,9 +330,12 @@ made, so the process refuses to start with both.
 - **Nothing re-checks the directory between sign-ins.** Disabling an account in
   the directory stops its next sign-in, and the next sign-in is when mappings are
   re-read. A session already open lasts until its refresh token expires, which is
-  `REFRESH_TOKEN_EXPIRE_MINUTES` and seven days by default. To end one sooner,
-  deactivate the account under **Admin → Users**, which refuses it everywhere at
-  once. There is no SCIM and no scheduled directory sync.
+  `REFRESH_TOKEN_EXPIRE_MINUTES` and seven days by default - unless the sync
+  removes the person's membership, which closes their sessions and pauses the
+  exposures and embeds they published, in the same step. To end a session
+  sooner without removing the membership, deactivate the account under
+  **Admin → Users**, which refuses it everywhere at once. There is no SCIM and
+  no scheduled directory sync.
 - **A directory account can still use the password reset and magic link.** They
   go to the account's address, like every other account's. If the directory is
   meant to be the only way in, keep those addresses under the company's own

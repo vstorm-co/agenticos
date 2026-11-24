@@ -432,6 +432,19 @@ async def test_a_matchs_markup_is_closed_where_its_node_budget_ends(
     assert match.text == "x x"
 
 
+async def test_document_selectors_and_links_exclude_inert_template_contents() -> None:
+    html = (
+        '<body><template><a href="/draft" class="item">Draft</a></template>'
+        '<a href="/published" class="item">Published</a></body>'
+    )
+
+    output = await _output(html, selector="body .item", base_url=BASE)
+
+    assert [link.href for link in output.links] == ["https://shop.example.com/published"]
+    assert len(output.matches) == 1
+    assert output.matches[0].attributes == {"href": "/published", "class": "item"}
+
+
 async def test_a_script_elements_own_text_is_its_script():
     html = (
         '<script type="application/ld+json">{"@type": "Product"}</script>'
@@ -526,17 +539,32 @@ async def test_the_step_parses_in_a_child_process(monkeypatch: pytest.MonkeyPatc
     spawns.assert_gone()
 
 
-async def test_a_selector_that_never_finishes_fails_as_too_complex(
+@pytest.mark.security
+async def test_deep_descendant_selectors_complete_without_backtracking() -> None:
+    result = await handle(
+        HtmlParseConfig(selector="section div div"),
+        HtmlParseInput(html="<div>" * 2000),
+    )
+
+    assert isinstance(result, Completed)
+    assert result.output.matches == []
+    assert result.output.match_count == 0
+
+
+async def test_a_child_that_never_finishes_fails_as_too_complex(
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ):
-    # soupsieve backtracks without memoising: `p div` over 20,000 nested divs takes
-    # minutes. The deadline is shortened so the test does not wait for it.
+    # Exercise the process budget independently of a selector implementation.
     monkeypatch.setattr(html_parse, "PARSE_DEADLINE_SECONDS", 1)
+    monkeypatch.setattr(
+        html_parse, "_CHILD_SCRIPT", _child_script(tmp_path, "import time\ntime.sleep(60)\n")
+    )
     spawns = _Spawns(monkeypatch)
     started = time.monotonic()
 
     result = await handle(
-        HtmlParseConfig(selector="p div"), HtmlParseInput(html="<p>" + "<div>" * 20_000)
+        HtmlParseConfig(selector="p div"), HtmlParseInput(html="<p>safe input</p>")
     )
 
     assert time.monotonic() - started < 15
@@ -547,6 +575,7 @@ async def test_a_selector_that_never_finishes_fails_as_too_complex(
         "This HTML took too long to read - try a simpler selector or a smaller page"
     )
     assert result.error.details == {"deadline_seconds": 1}
+    assert len(spawns.procs) == 1
     spawns.assert_gone()
 
 

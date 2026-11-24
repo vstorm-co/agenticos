@@ -335,9 +335,22 @@ async def test_the_worker_runs_as_the_asker_is_now_and_answers_the_synchronous_r
     db: AsyncSession, stubbed
 ) -> None:
     ctx = await _person(db, role="admin")
+    db.add(
+        Conversation(
+            id=CONVERSATION,
+            user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            title="API run",
+            origin="api",
+        )
+    )
+    await db.flush()
     queued = await ApiRunService(db).queue(ctx, uuid.uuid4(), _ask(), idempotency_key=None)
     job = await job_repo.get(db, queued.id)
     assert job is not None
+    # The worker's conversation claim uses an independent connection, so the
+    # queued conversation must be committed before the worker starts.
+    await db.commit()
     run = SimpleNamespace(
         id=uuid.uuid4(),
         status="completed",

@@ -57,13 +57,14 @@ from pydantic_core import PydanticCustomError
 from app.core.exceptions import BadRequestError
 from app.core.pinned_http import PinnedAsyncClient
 from app.core.sanitize import PrivateAllowlist, UrlRefusedError, allowlist_for, resolve_pinned_url
-from app.core.secret_kinds import SecretKind, StorableSecret
+from app.core.secret_kinds import SecretKind
 from app.services.rag.connectors import (
     BaseSyncConnector,
     ConfigRefusal,
     ConnectorConfig,
     RemoteFile,
     RemoteListing,
+    SyncCredential,
     WithdrawnFile,
 )
 from app.services.rag.connectors.web_page import ParsedPage, parse_page
@@ -445,7 +446,7 @@ class WebConnector(BaseSyncConnector):
         return None
 
     async def list_files(
-        self, config: ConnectorConfig, credential: StorableSecret | None
+        self, config: ConnectorConfig, credential: SyncCredential | None
     ) -> RemoteListing:
         """The site's pages: followed from the start URL, or listed by its sitemap."""
         settings = WebConfig.model_validate(config)
@@ -461,7 +462,7 @@ class WebConnector(BaseSyncConnector):
         file: RemoteFile,
         dest_path: Path,
         config: ConnectorConfig,
-        credential: StorableSecret | None,
+        credential: SyncCredential | None,
     ) -> None:
         """Write the page's Markdown, from what the crawl kept or by reading it now.
 

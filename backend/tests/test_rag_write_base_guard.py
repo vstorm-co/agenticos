@@ -17,7 +17,7 @@ from sqlalchemy.dialects import postgresql
 
 from app.core.exceptions import NotFoundError
 from app.db.models.rag_document import DocumentStatus
-from app.db.vector_tables import VectorScope
+from app.db.vector_tables import VectorScope, VectorWriterKind
 from app.repositories import collection_teardown_repo, knowledge_base_repo, rag_document_repo
 from app.services.rag.ingestion import IngestionService
 from app.services.rag.models import (
@@ -120,7 +120,7 @@ class TestTheWriteHoldsItsBase:
         document = _document()
         row_id = uuid4()
         document.metadata.rag_document_id = row_id
-        hold = AsyncMock(return_value=present)
+        hold = AsyncMock(return_value=VectorWriterKind.DOCUMENT if present else None)
         monkeypatch.setattr(rag_document_repo, "hold_for_vector_write", hold)
         if present:
             await _store(session).insert_document(
@@ -433,14 +433,11 @@ class TestTheWorkerEndsARefusal:
 async def test_the_tracking_row_hold_is_scoped_and_uses_key_share(found: bool) -> None:
     row_id = uuid4()
     result = MagicMock()
-    result.first.return_value = (row_id,) if found else None
+    result.scalar_one_or_none.return_value = VectorWriterKind.DOCUMENT if found else None
     db = MagicMock(execute=AsyncMock(return_value=result))
-    assert (
-        await rag_document_repo.hold_for_vector_write(
-            db, row_id, collection="docs", knowledge_base_id=BASE
-        )
-        is found
-    )
+    assert await rag_document_repo.hold_for_vector_write(
+        db, row_id, collection="docs", knowledge_base_id=BASE
+    ) == (VectorWriterKind.DOCUMENT if found else None)
     statement = db.execute.await_args.args[0].compile(dialect=postgresql.dialect())
     assert str(statement).endswith("FOR KEY SHARE")
     # Only a row still being ingested takes chunks: a last holder's teardown fails

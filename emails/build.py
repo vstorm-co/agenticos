@@ -166,6 +166,15 @@ def panel(design: Design) -> Section:
                 'word-wrap:break-word;overflow-wrap:anywhere">[[summary]]</div>',
                 "[[summary]]",
             )
+        case "failure_learning":
+            # The digest body is composed by the task: one line per new
+            # pattern, already ordered. The panel only presents it.
+            return Section(
+                '<div style="background:#f7f7f7;border-radius:4px;padding:24px;'
+                f"font:400 15px/24px {SANS};color:{INK};white-space:pre-wrap;"
+                'word-wrap:break-word;overflow-wrap:anywhere">[[summary]]</div>',
+                "[[summary]]",
+            )
         case "workflow":
             return Section(
                 f'<div style="border-top:1px solid {LINE};padding-top:24px;'

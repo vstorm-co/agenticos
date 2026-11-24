@@ -126,6 +126,8 @@ pub enum Step {
     Download,
     Start,
     Owner,
+    Backup,
+    Restart,
     Done,
 }
 
@@ -549,6 +551,11 @@ pub fn control_instance(app: &AppHandle, instance: &Instance, control: Control) 
                 Duration::from_secs(1800),
             ))?;
             crate::local_preflight::engine(&docker, &dir)?;
+            report(
+                app,
+                Step::Backup,
+                Some("Backing up the database, files and keys before applying the update.".into()),
+            );
             let mut database = compose(&docker, &dir, instance)?;
             database.args(["up", "--detach", "--wait", "db"]);
             run(database, "start the database for its backup")?;
@@ -570,6 +577,11 @@ pub fn control_instance(app: &AppHandle, instance: &Instance, control: Control) 
                     };
                 }
             };
+            report(
+                app,
+                Step::Restart,
+                Some("Restarting the updated workspace and checking its health.".into()),
+            );
             let mut up = compose(&docker, &dir, instance)?;
             up.args(["up", "--detach"]);
             run(up, "start the updated AgenticOS")

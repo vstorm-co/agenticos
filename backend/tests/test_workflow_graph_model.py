@@ -37,7 +37,6 @@ def test_a_workflow_graph_with_a_scope_boundary_round_trips_body_node_ids():
             ScopeBoundary(
                 scope_node_id=scope_owner,
                 body_node_ids=frozenset({body_a, body_b}),
-                entry_port="body",
                 exit_node_id=scope_owner,
                 exit_port="done",
             ),
@@ -58,7 +57,6 @@ def test_a_scope_boundary_may_designate_a_body_interior_node_as_its_exit():
     boundary = ScopeBoundary(
         scope_node_id=scope_owner,
         body_node_ids=frozenset({body_a, loop_yield}),
-        entry_port="body",
         exit_node_id=loop_yield,
         exit_port="out",
     )
@@ -74,7 +72,6 @@ def test_a_scope_boundary_rejects_an_exit_node_outside_the_scope():
         ScopeBoundary(
             scope_node_id=scope_owner,
             body_node_ids=frozenset({body_a}),
-            entry_port="body",
             exit_node_id=outsider,
             exit_port="out",
         )

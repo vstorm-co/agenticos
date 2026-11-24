@@ -1,5 +1,5 @@
 ---
-source_sha: "083ce38797dc"
+source_sha: "85e967e18444"
 ---
 
 # Przetłumacz stronę { #translate-a-page }
@@ -155,8 +155,8 @@ repozytorium, i na każdej angielskiej stronie tego serwisu. Tłumaczenie ich tu
 i nigdzie indziej daje jednemu produktowi dwa słowniki, a polski czytelnik, który
 wyszuka przetłumaczone słowo, nie znajdzie nic.
 
-**agent · spec · capability · skill · embed · budget · run · prompt · provider ·
-token · vault · workspace · sandbox · MCP**
+**agent · spec · capability · skill · dataset · embed · budget · run · prompt ·
+provider · token · vault · workspace · sandbox · MCP**
 
 Odmieniaj je, zamiast je zastępować, i tłumacz wszystko dookoła nich.
 
@@ -186,6 +186,7 @@ Dlatego wybór jest podejmowany raz, tutaj:
 | spec | der Spec | ten spec, speca | el spec |
 | capability | die Capability | ta capability (nieodmienne) | la capability |
 | skill | der Skill | ten skill, skilla | el skill |
+| dataset | das Dataset | ten dataset, datasetu | el dataset |
 | embed | das Embed | ten embed, embeda | el embed |
 | budget | das Budget | ten budżet | el budget |
 | run | der Run | ten run, runa | el run |
@@ -235,6 +236,37 @@ Kiedy zdanie mówi, co platforma odrzuca, tłumacz tę odmowę dosłownie. Nie
 zmiękczaj „zostaje odrzucone" do „może nie zadziałać" i nie zamieniaj
 stwierdzenia o tym, co nie może się zdarzyć, w poradę o tym, czego nie powinieneś
 robić.
+
+## Słowa, których używają ekrany ewaluacji { #the-words-the-eval-screens-use }
+
+Zakładka Ewaluacje agenta, dataset i werdykt runu ewaluacji nazywają każde z
+tych pojęć w jeden sposób, a zdanie, które wymienia zakładkę, nazywa ją tak jak
+ona sama. Trzymają je katalogi konsoli, a `frontend/messages/eval-terms.test.ts`
+odrzuca w przestrzeniach ewaluacji mieszane formy, które zastąpiły. Strona, która
+cytuje jeden z tych ekranów, używa tego samego słowa, a
+`scripts/check_docs_glossary.py` pilnuje tego na polskich i niemieckich stronach
+o nich w `make lint`, z tych samych wzorców w `frontend/messages/eval-terms.json`.
+
+| English | Polish | German | Spanish |
+|---|---|---|---|
+| case | przypadek, przypadki, przypadków | der Fall, die Fälle | el caso |
+| eval, the Evals tab | ewaluacja, zakładka Ewaluacje | das Eval, der Tab Evals | el eval, la pestaña Evals |
+| judge | sędzia | der Bewerter | el juez |
+| review | przegląd | die Prüfung | la revisión |
+| environment | środowisko | die Umgebung | el entorno |
+| draft: an agent's unpublished spec | wersja robocza | der Entwurf | el borrador |
+| draft: a text waiting to be accepted - a gap's content, a generated case | szkic | der Entwurf | el borrador |
+| the Build tab | zakładka Budowa | der Tab Bauen | la pestaña Build |
+| breaks / fixes a case | psuje / naprawia przypadek | verschlechtert / behebt einen Fall | rompe / arregla un caso |
+| AI assistance | wsparcie AI | die KI-Unterstützung | la asistencia de IA |
+| the Activity page | Aktywność | die Aktivität | Activity |
+| the Publish button | Opublikuj | Veröffentlichen | Publicar |
+
+Wersja robocza nadal nigdy nie jest wersją opublikowaną: para published / draft z
+sekcji [Terminologia, która musi być dokładna](#terminology-that-has-to-be-exact)
+zachowuje swoje rozróżnienie, jakiegokolwiek słowa użyje się dla wersji roboczej.
+Konsola nie ma katalogu hiszpańskiego, więc kolumna hiszpańska to słownictwo
+hiszpańskich stron.
 
 ## Cztery pliki, które renderuje GitHub, a nie ten serwis { #the-four-files-github-renders-not-this-site }
 

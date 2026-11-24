@@ -43,6 +43,7 @@ from sqlalchemy import (
     or_,
     select,
     text,
+    true,
     tuple_,
     union_all,
     update,
@@ -53,7 +54,10 @@ from sqlalchemy.dialects.postgresql import ARRAY, JSONB, array
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql.util import ClauseAdapter
 
+from app.core.resource_icons import ResourceIconName
+from app.db.base import Base
 from app.db.models.resource_grant import Visibility
 from app.db.models.virtual_table import (
     VirtualTable,
@@ -64,7 +68,14 @@ from app.db.models.virtual_table import (
     VirtualTableRecordHistory,
     VirtualTableSchemaVersion,
 )
+from app.db.models.virtual_table_relation import (
+    VirtualTableLinkEvidence,
+    VirtualTableRecordLink,
+    VirtualTableRelation,
+)
+from app.repositories import virtual_table_relation as relation_repo
 from app.repositories._search import contains_ci
+from app.repositories.resource_grant import readable_record_ids
 from app.schemas.virtual_table import CellValue, FilterOp, FilterValue, SortDirection
 
 
@@ -102,6 +113,36 @@ async def storage_bytes(db: AsyncSession, *, organization_id: UUID) -> int:
                 "bytes"
             )
         ).where(VirtualTableOutbox.organization_id == organization_id),
+        select(
+            func.coalesce(
+                func.sum(
+                    func.pg_column_size(
+                        Base.metadata.tables[VirtualTableRelation.__tablename__].table_valued()
+                    )
+                ),
+                0,
+            ).label("bytes")
+        ).where(VirtualTableRelation.organization_id == organization_id),
+        select(
+            func.coalesce(
+                func.sum(
+                    func.pg_column_size(
+                        Base.metadata.tables[VirtualTableRecordLink.__tablename__].table_valued()
+                    )
+                ),
+                0,
+            ).label("bytes")
+        ).where(VirtualTableRecordLink.organization_id == organization_id),
+        select(
+            func.coalesce(
+                func.sum(
+                    func.pg_column_size(
+                        Base.metadata.tables[VirtualTableLinkEvidence.__tablename__].table_valued()
+                    )
+                ),
+                0,
+            ).label("bytes")
+        ).where(VirtualTableLinkEvidence.organization_id == organization_id),
     ).subquery()
     held = await db.scalar(select(func.sum(totals.c.bytes)))
     return int(held or 0)
@@ -127,6 +168,8 @@ class FilterClause:
     kind: SqlKind
     op: FilterOp
     value: FilterValue
+    expression: ColumnElement[bool] | None = None
+    """A service-authorized link predicate; never accepted from the public query document."""
 
 
 @dataclass(frozen=True)
@@ -268,12 +311,14 @@ async def create_table(
     name: str,
     description: str | None,
     visibility: str,
+    icon: ResourceIconName | None = None,
 ) -> VirtualTable:
     table = VirtualTable(
         organization_id=organization_id,
         owner_user_id=owner_user_id,
         name=name,
         description=description,
+        icon=icon,
         visibility=visibility,
         schema_version=1,
     )
@@ -307,6 +352,7 @@ async def add_schema_version(
     db.add(row)
     await db.flush()
     await db.refresh(row)
+    await relation_repo.sync_schema(db, table_id=table_id, columns=columns)
     return row
 
 
@@ -328,11 +374,14 @@ async def get_schema_version(
 
 
 async def list_schema_versions(
-    db: AsyncSession, *, table_id: UUID
+    db: AsyncSession, *, table_id: UUID, version: int | None = None
 ) -> list[VirtualTableSchemaVersion]:
     result = await db.execute(
         select(VirtualTableSchemaVersion)
-        .where(VirtualTableSchemaVersion.table_id == table_id)
+        .where(
+            VirtualTableSchemaVersion.table_id == table_id,
+            VirtualTableSchemaVersion.version == version if version is not None else true(),
+        )
         .order_by(VirtualTableSchemaVersion.version.asc())
     )
     return list(result.scalars().all())
@@ -372,7 +421,11 @@ async def count_records_up_to(
 
 
 async def record_counts(
-    db: AsyncSession, *, organization_id: UUID, table_ids: Sequence[UUID]
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    table_ids: Sequence[UUID],
+    extra_by_table: dict[UUID, ColumnElement[bool] | bool] | None = None,
 ) -> dict[UUID, int]:
     """How many records each table holds, for a page of tables in one grouped query.
 
@@ -380,11 +433,29 @@ async def record_counts(
     """
     if not table_ids:
         return {}
+    visibility = extra_by_table or {}
+    restrictions = (
+        [
+            or_(
+                VirtualTableRecord.table_id.not_in(list(visibility)),
+                *(
+                    and_(
+                        VirtualTableRecord.table_id == table_id,
+                        literal(extra) if isinstance(extra, bool) else extra,
+                    )
+                    for table_id, extra in visibility.items()
+                ),
+            )
+        ]
+        if visibility
+        else []
+    )
     rows = await db.execute(
         select(VirtualTableRecord.table_id, func.count(VirtualTableRecord.id))
         .where(
             VirtualTableRecord.organization_id == organization_id,
             VirtualTableRecord.table_id.in_(table_ids),
+            *restrictions,
         )
         .group_by(VirtualTableRecord.table_id)
     )
@@ -424,48 +495,60 @@ _REWRITE_BATCH = 1_000
 """Records rewritten per statement: one round trip each, not one per record."""
 
 
+async def database_time(db: AsyncSession) -> datetime:
+    """The database's clock now - the one a record's `created_at` and `updated_at` read."""
+    return (await db.execute(select(func.clock_timestamp()))).scalar_one()
+
+
 async def rewrite_column(
     db: AsyncSession,
     *,
     table_id: UUID,
     column_id: UUID,
     values: Sequence[tuple[UUID, Any]],
-) -> None:
+    updated_by: UUID | None,
+    source: dict[str, str | int | bool | None],
+) -> dict[UUID, int]:
     """Set one column's value on each record named, bumping its revision.
 
     A value of None takes the key out, as an empty cell is stored. The bumped
     revision makes an edit made against the old value a conflict, not a write of a
-    value its column no longer accepts.
+    value its column no longer accepts. Returns each rewritten record's new revision.
     """
     key = str(column_id)
     kept = [(record_id, value) for record_id, value in values if value is not None]
     cleared = [record_id for record_id, value in values if value is None]
+    stamp = {
+        "revision": VirtualTableRecord.revision + 1,
+        "updated_by": updated_by,
+        "updated_source": source,
+    }
+    revisions: dict[UUID, int] = {}
     for start in range(0, len(kept), _REWRITE_BATCH):
         cells = sa_values(
             sa_column("rid", PG_UUID(as_uuid=True)), sa_column("cell", JSONB), name="cells"
         ).data(kept[start : start + _REWRITE_BATCH])
-        await db.execute(
+        rows = await db.execute(
             update(VirtualTableRecord)
             .where(VirtualTableRecord.table_id == table_id, VirtualTableRecord.id == cells.c.rid)
-            .values(
-                values=func.jsonb_set(VirtualTableRecord.values, [key], cells.c.cell),
-                revision=VirtualTableRecord.revision + 1,
-            )
+            .values(values=func.jsonb_set(VirtualTableRecord.values, [key], cells.c.cell), **stamp)
+            .returning(VirtualTableRecord.id, VirtualTableRecord.revision)
             .execution_options(synchronize_session=False)
         )
+        revisions.update(rows.tuples().all())
     for start in range(0, len(cleared), _REWRITE_BATCH):
-        await db.execute(
+        rows = await db.execute(
             update(VirtualTableRecord)
             .where(
                 VirtualTableRecord.table_id == table_id,
                 VirtualTableRecord.id.in_(cleared[start : start + _REWRITE_BATCH]),
             )
-            .values(
-                values=VirtualTableRecord.values.op("-")(key),
-                revision=VirtualTableRecord.revision + 1,
-            )
+            .values(values=VirtualTableRecord.values.op("-")(key), **stamp)
+            .returning(VirtualTableRecord.id, VirtualTableRecord.revision)
             .execution_options(synchronize_session=False)
         )
+        revisions.update(rows.tuples().all())
+    return revisions
 
 
 async def count_records_without_value(db: AsyncSession, *, table_id: UUID, column_id: UUID) -> int:
@@ -539,13 +622,22 @@ async def get_record_by_external_id(
 
 
 async def record_exists(
-    db: AsyncSession, external_id: str, *, table_id: UUID, organization_id: UUID
+    db: AsyncSession,
+    external_id: str,
+    *,
+    table_id: UUID,
+    organization_id: UUID,
+    extra: ColumnElement[bool] | None = None,
 ) -> bool:
+    """Whether a record with this external id exists - and, with `extra`, whether
+    the caller may see it. Without the predicate the answer would leak the
+    existence of rows outside the caller's visibility."""
     found = await db.scalar(
         select(VirtualTableRecord.id).where(
             VirtualTableRecord.external_id == external_id,
             VirtualTableRecord.table_id == table_id,
             VirtualTableRecord.organization_id == organization_id,
+            *([] if extra is None else [extra]),
         )
     )
     return found is not None
@@ -602,7 +694,10 @@ async def insert_record(
         .execution_options(populate_existing=True)
     )
     result = await db.execute(statement)
-    return result.scalar_one_or_none()
+    record = result.scalar_one_or_none()
+    if record is not None:
+        await relation_repo.sync_record(db, record=record)
+    return record
 
 
 async def update_record(
@@ -621,6 +716,7 @@ async def update_record(
     record.updated_by = updated_by
     record.updated_source = source
     await db.flush()
+    await relation_repo.sync_record(db, record=record)
     await db.refresh(record)
     return record
 
@@ -665,7 +761,58 @@ def _operand(kind: SqlKind, value: object) -> object:
             return value
 
 
+def linked_filter_expression(
+    clause: FilterClause,
+    *,
+    organization_id: UUID,
+    target_table_id: UUID,
+    readable: bool,
+    target_policy: ColumnElement[bool] | None = None,
+) -> ColumnElement[bool]:
+    """Match only destinations the caller can read, including for emptiness checks.
+
+    The target alias also supports a link back to the source table. Adapt the
+    target's row policy rather than applying it to the outer source record.
+    """
+    if not readable:
+        visible = false()
+    else:
+        target = VirtualTableRecord.__table__.alias()
+        edge = VirtualTableRecordLink.__table__.alias()
+        conditions = [
+            target.c.organization_id == organization_id,
+            target.c.table_id == target_table_id,
+            edge.c.organization_id == VirtualTableRecord.organization_id,
+            edge.c.source_table_id == VirtualTableRecord.table_id,
+            edge.c.source_record_id == VirtualTableRecord.id,
+            edge.c.column_id == clause.column_id,
+        ]
+        if clause.op == "contains":
+            conditions.append(target.c.id == UUID(str(clause.value)))
+        if target_policy is not None:
+            conditions.append(ClauseAdapter(target).traverse(target_policy))
+        visible = (
+            select(1)
+            .select_from(
+                target.join(
+                    edge,
+                    and_(
+                        edge.c.organization_id == target.c.organization_id,
+                        edge.c.target_table_id == target.c.table_id,
+                        edge.c.target_record_id == target.c.id,
+                    ),
+                )
+            )
+            .where(*conditions)
+            .correlate(VirtualTableRecord.__table__)
+            .exists()
+        )
+    return ~visible if clause.op == "is_null" and clause.value else visible
+
+
 def _predicate(clause: FilterClause) -> ColumnElement[bool]:
+    if clause.expression is not None:
+        return clause.expression
     column_id = clause.column_id
     if clause.op == "is_null":
         present = VirtualTableRecord.values.has_key(str(column_id))
@@ -714,14 +861,90 @@ def _matching(
     organization_id: UUID,
     filters: list[FilterClause],
     search: SearchClause | None,
+    extra: ColumnElement[bool] | None = None,
 ) -> ColumnElement[bool]:
-    """The records of one table a listing or a count reads: its tenant's, meeting every clause."""
+    """The records of one table a listing or a count reads: its tenant's, meeting every clause.
+
+    `extra` is one more condition AND-ed with the rest - the table's row-level
+    access policy for the caller, when one applies. It is part of the query
+    rather than a filter applied afterwards, so paging and counts stay
+    consistent under it.
+    """
     return and_(
         VirtualTableRecord.table_id == table_id,
         VirtualTableRecord.organization_id == organization_id,
         *[_predicate(clause) for clause in filters],
         *([] if search is None else [_search_predicate(search)]),
+        *([] if extra is None else [extra]),
     )
+
+
+def policy_expression(
+    assignee: FilterClause | None,
+    *,
+    writer: FilterClause | None = None,
+    link_column_id: UUID | None = None,
+    project_ids: Collection[UUID] = (),
+) -> ColumnElement[bool] | None:
+    """A row policy's view predicate as SQL: the assignee clause, or the row's
+    project link naming one of `project_ids`, or both.
+
+    `None` when neither half can be built - the caller then applies no
+    predicate of its own, which is why the service only calls this when a
+    policy is in force and its assignee clause resolved. A project half over
+    no projects contributes nothing: viewing is assignee-only then.
+    """
+    parts: list[ColumnElement[bool]] = []
+    if assignee is not None:
+        parts.append(_predicate(assignee))
+    if writer is not None:
+        parts.append(_predicate(writer))
+    if link_column_id is not None and project_ids:
+        parts.append(relation_repo.contains_targets(link_column_id, project_ids))
+    if not parts:
+        return None
+    return parts[0] if len(parts) == 1 else or_(*parts)
+
+
+def record_grant_expression(*, organization_id: UUID, subject_user_id: UUID) -> ColumnElement[bool]:
+    """The same live row grants used by single reads, without loading an ID list."""
+    return VirtualTableRecord.id.in_(
+        readable_record_ids(organization_id=organization_id, subject_user_id=subject_user_id)
+    )
+
+
+async def referenced_access_columns(
+    db: AsyncSession, *, organization_id: UUID, table_id: UUID
+) -> set[str]:
+    """Membership fields of this table that another table uses to grant access."""
+    result = await db.execute(
+        select(VirtualTable.row_policy["view_project_members_column_id"].as_string())
+        .where(
+            VirtualTable.organization_id == organization_id,
+            VirtualTable.row_policy["view_projects_table_id"].as_string() == str(table_id),
+            VirtualTable.row_policy["rule"].as_string() == "assignee",
+        )
+        .distinct()
+    )
+    return {column_id for column_id in result.scalars() if column_id is not None}
+
+
+async def list_record_ids(
+    db: AsyncSession,
+    *,
+    table_id: UUID,
+    organization_id: UUID,
+    filters: list[FilterClause],
+    extra: ColumnElement[bool] | None = None,
+) -> list[UUID]:
+    """The ids of the records matching, in no set order - what a cross-table
+    predicate resolves first, before naming them in another table's query."""
+    result = await db.execute(
+        select(VirtualTableRecord.id).where(
+            _matching(table_id, organization_id, filters, None, extra)
+        )
+    )
+    return [row[0] for row in result.all()]
 
 
 async def count_records(
@@ -732,6 +955,7 @@ async def count_records(
     filters: list[FilterClause],
     search: SearchClause | None,
     cap: int,
+    extra: ColumnElement[bool] | None = None,
 ) -> int:
     """How many records match, counting no further than `cap + 1`.
 
@@ -740,7 +964,7 @@ async def count_records(
     """
     matching = (
         select(VirtualTableRecord.id)
-        .where(_matching(table_id, organization_id, filters, search))
+        .where(_matching(table_id, organization_id, filters, search, extra))
         .limit(cap + 1)
         .subquery()
     )
@@ -784,11 +1008,12 @@ async def list_records(
     skip: int,
     limit: int,
     search: SearchClause | None = None,
+    extra: ColumnElement[bool] | None = None,
 ) -> list[VirtualTableRecord]:
     """A page of records, in the total order of :func:`_order`."""
     query = (
         select(VirtualTableRecord)
-        .where(_matching(table_id, organization_id, filters, search))
+        .where(_matching(table_id, organization_id, filters, search, extra))
         .order_by(*_order(sort))
         .offset(skip)
         .limit(limit)
@@ -808,6 +1033,7 @@ async def stream_export_records(
     max_records: int,
     batch_records: int,
     batch_bytes: int,
+    extra: ColumnElement[bool] | None = None,
 ) -> AsyncGenerator[list[VirtualTableRecord]]:
     """Read one ordered snapshot, with bounded driver prefetch and output batches.
 
@@ -820,7 +1046,7 @@ async def stream_export_records(
             VirtualTableRecord,
             (func.octet_length(cast(VirtualTableRecord.values, Text)) + 256).label("bytes"),
         )
-        .where(_matching(table_id, organization_id, filters, search))
+        .where(_matching(table_id, organization_id, filters, search, extra))
         .order_by(*_order(sort))
         .limit(max_records)
         .execution_options(yield_per=4)
@@ -909,12 +1135,13 @@ async def list_record_sizes(
     sort: SortClause,
     limit: int,
     keys: Sequence[str],
+    extra: ColumnElement[bool] | None = None,
 ) -> list[tuple[UUID, int]]:
     """The first `limit` matching records' ids, in :func:`list_records`' order, each with
     the size of its cells under `keys`. No cell crosses the wire, only its size."""
     result = await db.execute(
         select(VirtualTableRecord.id, _size(keys))
-        .where(_matching(table_id, organization_id, filters, search))
+        .where(_matching(table_id, organization_id, filters, search, extra))
         .order_by(*_order(sort))
         .limit(limit)
     )
@@ -928,11 +1155,13 @@ async def get_record_sizes_by_ids(
     table_id: UUID,
     organization_id: UUID,
     keys: Sequence[str],
+    extra: ColumnElement[bool] | None = None,
 ) -> dict[UUID, int]:
     """The size of each record's cells under `keys`; an id the table does not hold is left out."""
     result = await db.execute(
         select(VirtualTableRecord.id, _size(keys)).where(
-            _among(record_ids, table_id, organization_id)
+            _among(record_ids, table_id, organization_id),
+            *([] if extra is None else [extra]),
         )
     )
     return {row[0]: row[1] for row in result.all()}
@@ -1019,6 +1248,35 @@ async def add_history(
     return row
 
 
+async def add_history_rows(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    table_id: UUID,
+    operation: str,
+    actor_user_id: UUID | None,
+    rows: Sequence[tuple[UUID, int, dict[str, Any] | None, dict[str, Any] | None]],
+) -> None:
+    """One history row per `(record_id, revision, before, after)`, a batch per statement."""
+    for start in range(0, len(rows), _REWRITE_BATCH):
+        await db.execute(
+            pg_insert(VirtualTableRecordHistory),
+            [
+                {
+                    "organization_id": organization_id,
+                    "table_id": table_id,
+                    "record_id": record_id,
+                    "revision": revision,
+                    "operation": operation,
+                    "actor_user_id": actor_user_id,
+                    "before": before,
+                    "after": after,
+                }
+                for record_id, revision, before, after in rows[start : start + _REWRITE_BATCH]
+            ],
+        )
+
+
 async def add_outbox(
     db: AsyncSession,
     *,
@@ -1041,6 +1299,35 @@ async def add_outbox(
     db.add(row)
     await db.flush()
     return row
+
+
+async def delete_receipts_for_table(
+    db: AsyncSession, *, organization_id: UUID, table_id: UUID
+) -> None:
+    """Remove every receipt that names this table, before the table itself goes.
+
+    A receipt holds the whole record a keyed write returned, and has no foreign key
+    to the table. A record write names it inside `outcome` at `record.table_id`, a
+    table creation at `id`, and a batch - whose outcome holds the refused rows'
+    details - in the `table_id` column. A record deletion's receipt holds only the
+    record id, so it carries no values and cannot be matched. An expired receipt
+    still holds its values until the retention sweep reaches it, so age is no
+    reason to keep one.
+    """
+    table = str(table_id)
+    await db.execute(
+        delete(VirtualTableReceipt).where(
+            VirtualTableReceipt.organization_id == organization_id,
+            or_(
+                VirtualTableReceipt.table_id == table_id,
+                VirtualTableReceipt.outcome["record"]["table_id"].astext == table,
+                and_(
+                    VirtualTableReceipt.operation == "table.create",
+                    VirtualTableReceipt.outcome["id"].astext == table,
+                ),
+            ),
+        )
+    )
 
 
 async def delete_expired_receipt(
@@ -1078,6 +1365,7 @@ async def claim_receipt(
     operation: str,
     operation_key: str,
     payload_hash: str,
+    table_id: UUID | None = None,
 ) -> VirtualTableReceipt | None:
     """Claim an operation key, or `None` if this principal already used it for this operation.
 
@@ -1095,6 +1383,7 @@ async def claim_receipt(
             operation_key=operation_key,
             payload_hash=payload_hash,
             outcome={},
+            table_id=table_id,
         )
         .on_conflict_do_nothing(constraint="uq_virtual_table_receipt_key")
         .returning(VirtualTableReceipt)

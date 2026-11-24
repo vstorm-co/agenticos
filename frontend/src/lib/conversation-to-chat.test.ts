@@ -66,6 +66,26 @@ describe("buildAssistantParts", () => {
 });
 
 describe("conversationMessageToChatMessage", () => {
+  it("keeps root summaries separate from a reply's explicit thread identity", () => {
+    expect(
+      conversationMessageToChatMessage(
+        raw({ thread_root_message_id: "root", thread_reply_count: 0 }),
+      ),
+    ).toMatchObject({ threadRootMessageId: "root", threadReplyCount: 0 });
+    expect(
+      conversationMessageToChatMessage(
+        raw({
+          thread_root_message_id: null,
+          thread_reply_count: 3,
+          thread_last_activity_at: "2026-11-14T12:00:00Z",
+        }),
+      ),
+    ).toMatchObject({
+      threadRootMessageId: undefined,
+      threadReplyCount: 3,
+      threadLastActivityAt: "2026-11-14T12:00:00Z",
+    });
+  });
   it("carries the fields the chat renders a turn from", () => {
     const message = conversationMessageToChatMessage(
       raw({ agent_id: "a-1", agent_version: 3, thinking: "Checking." }),
@@ -81,6 +101,13 @@ describe("conversationMessageToChatMessage", () => {
       thinking: "Checking.",
     });
     expect(message.timestamp).toEqual(new Date("2026-07-31T12:00:00Z"));
+  });
+
+  it("preserves authenticated pin status but leaves unpersonalized status absent", () => {
+    expect(conversationMessageToChatMessage(raw({ is_pinned: true })).isPinned).toBe(true);
+    expect(conversationMessageToChatMessage(raw({ is_pinned: false })).isPinned).toBe(false);
+    expect(conversationMessageToChatMessage(raw({ is_pinned: null })).isPinned).toBeUndefined();
+    expect(conversationMessageToChatMessage(raw()).isPinned).toBeUndefined();
   });
 
   it("carries who typed a user turn, and nothing where nobody is named", () => {
@@ -357,7 +384,7 @@ describe("a replayed turn whose run was stopped", () => {
 
   it("marks only a cancelled run", () => {
     // A completed run needs no marker; a run still going has no answer on screen
-    // to mark; a failed one already says so through the error frame.
+    // to mark; a failed one has its own persisted failure marker.
     for (const status of ["completed", "running", "failed", "budget_exceeded", null]) {
       expect(conversationMessageToChatMessage(raw({ run_status: status })).wasStopped).toBe(false);
     }
@@ -496,4 +523,85 @@ it("preserves the parent run start instead of using the segment save time", () =
     run_started_at: "2026-11-05T18:11:13Z",
   });
   expect(converted.runStartedAt?.toISOString()).toBe("2026-11-05T18:11:13.000Z");
+});
+
+it("replays a persisted setup reply with its original agent and configuration card", () => {
+  const message = conversationMessageToChatMessage(
+    raw({
+      agent_id: "starter",
+      content: "Connect a model.",
+      parts: [
+        { type: "text", text: "Connect a model." },
+        { type: "model_setup", setup_agent_id: "starter" },
+      ],
+    }),
+  );
+  expect(message.agentId).toBe("starter");
+  expect(message.runId).toBeUndefined();
+  expect(message.parts?.map((part) => part.type)).toEqual(["text", "model_setup"]);
+  expect(message.parts?.[1]?.setupAgentId).toBe("starter");
+});
+
+it("keeps renderer identity when rebuilding a saved or run-timeline turn", () => {
+  const message = conversationMessageToChatMessage(
+    raw({
+      tool_calls: [
+        {
+          tool_call_id: "call",
+          tool_name: "compose",
+          tool_id: "write_draft",
+          presentation_kind: "draft",
+          args: {},
+          result: "Drafted Reply.",
+          status: "completed",
+        },
+      ],
+    }),
+  );
+  expect(message.toolCalls?.[0]).toMatchObject({
+    name: "compose",
+    tool_id: "write_draft",
+    presentation_kind: "draft",
+  });
+});
+
+it("restores a failed turn's state and safe cause after reloading", () => {
+  const message = conversationMessageToChatMessage(
+    raw({
+      run_status: "failed",
+      run_error: "The model provider blocked this response with its content filter.",
+    }),
+  );
+  expect(message.runFailed).toBe(true);
+  expect(message.runError).toContain("content filter");
+});
+
+it("marks a failed turn even when no detailed cause is available", () => {
+  const message = conversationMessageToChatMessage(raw({ run_status: "failed", run_error: null }));
+  expect(message.runFailed).toBe(true);
+  expect(message.runError).toBeUndefined();
+});
+
+it("does not show a stale failure on a completed turn", () => {
+  const message = conversationMessageToChatMessage(
+    raw({ run_status: "completed", run_error: "old failure" }),
+  );
+  expect(message.runFailed).toBe(false);
+  expect(message.runError).toBeUndefined();
+});
+
+for (const status of ["budget_exceeded", "guardrail_blocked", "loop_stopped"]) {
+  it(`keeps the failure notice after reloading a ${status} turn`, () => {
+    const message = conversationMessageToChatMessage(raw({ run_status: status }));
+    expect(message.runFailed).toBe(true);
+    expect(message.wasStopped).toBe(false);
+  });
+}
+
+it("marks a wire-loaded guardrail refusal so its text cannot become a selected quote", () => {
+  const refused = conversationMessageToChatMessage(raw({ run_status: "guardrail_blocked" }));
+  const completed = conversationMessageToChatMessage(raw({ run_status: "completed" }));
+
+  expect(refused.guardrailRefused).toBe(true);
+  expect(completed.guardrailRefused).toBeUndefined();
 });

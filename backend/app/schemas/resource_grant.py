@@ -1,10 +1,11 @@
 """Schemas for per-resource sharing."""
 
 from collections.abc import Mapping, Sequence
+from datetime import datetime
 from typing import Any, Literal, Self
 from uuid import UUID
 
-from pydantic import Field, model_validator
+from pydantic import AwareDatetime, Field, model_validator
 
 from app.db.models.resource_grant import GrantLevelLiteral, Visibility
 from app.schemas.base import BaseSchema
@@ -44,6 +45,10 @@ class ResourceGrantRead(BaseSchema):
     resource_type: str
     resource_id: UUID
     level: GrantLevelLiteral
+    expires_at: datetime | None = Field(
+        default=None,
+        description="When the share stops working; null is a share with no expiry",
+    )
 
     @classmethod
     def of(
@@ -65,6 +70,7 @@ class ResourceGrantRead(BaseSchema):
             resource_type=grant.resource_type,
             resource_id=grant.resource_id,
             level=grant.level,
+            expires_at=grant.expires_at,
         )
 
 
@@ -87,6 +93,13 @@ class ResourceGrantUpsert(BaseSchema):
         description=(
             "Granting or raising to edit_data: the id of the text the person confirmed, "
             "as the console names it. Recorded in the audit entry"
+        ),
+    )
+    expires_at: AwareDatetime | None = Field(
+        default=None,
+        description=(
+            "When the share stops working. Member shares may be permanent; group shares "
+            "default to 90 days when omitted."
         ),
     )
 

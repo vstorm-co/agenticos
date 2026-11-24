@@ -8,6 +8,7 @@ memberships it owns and nothing an administrator made.
 """
 
 import uuid
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from sqlalchemy import select
@@ -208,6 +209,7 @@ class TestGroupGrantsReachMembers:
             resource_type=SKILL.key,
             resource_id=skill.id,
             level=GrantLevel.EDIT,
+            expires_at=datetime.now(UTC) + timedelta(days=30),
         )
         ctx = AuthContext(user_id=member.id, organization_id=org.id, role="member")
 
@@ -271,6 +273,7 @@ class TestGroupGrantsReachMembers:
             resource_type=SKILL.key,
             resource_id=skill.id,
             level=GrantLevel.USE,
+            expires_at=datetime.now(UTC) + timedelta(days=30),
         )
 
         level = await resource_grant_repo.get_level(
@@ -298,6 +301,7 @@ class TestGroupGrantsReachMembers:
             resource_type=SKILL.key,
             resource_id=skill.id,
             level=GrantLevel.READ,
+            expires_at=datetime.now(UTC) + timedelta(days=30),
         )
         upgraded = await resource_grant_repo.upsert_for_group(
             db,
@@ -306,9 +310,12 @@ class TestGroupGrantsReachMembers:
             resource_type=SKILL.key,
             resource_id=skill.id,
             level=GrantLevel.EDIT,
+            expires_at=(replacement := datetime.now(UTC) + timedelta(days=7)),
         )
 
+        await db.refresh(upgraded)
         assert upgraded.level == "edit"
+        assert upgraded.expires_at == replacement
         assert await resource_grant_repo.revoke_for_group(
             db,
             organization_id=org.id,

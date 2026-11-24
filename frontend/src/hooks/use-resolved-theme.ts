@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-import { useThemeStore } from "@/stores/theme-store";
+import { useThemeStore, type Theme } from "@/stores/theme-store";
 
 /**
  * Dark or light, as the page is actually painted right now.
@@ -18,8 +18,9 @@ import { useThemeStore } from "@/stores/theme-store";
  * changes under `system` - which is exactly the case the class alone handles
  * and a prop does not.
  */
-export function useResolvedTheme(): "light" | "dark" {
-  const theme = useThemeStore((state) => state.theme);
+export function useResolvedTheme(preview?: Theme): "light" | "dark" {
+  const saved = useThemeStore((state) => state.theme);
+  const theme = preview ?? saved;
   // Light until the client says otherwise: `useEffect` does not run on the
   // server, and guessing dark there would flash the wrong one.
   const [system, setSystem] = useState<"light" | "dark">("light");

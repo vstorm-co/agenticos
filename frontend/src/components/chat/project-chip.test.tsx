@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { toast } from "sonner";
 
 import { apiClient } from "@/lib/api-client";
 import { getProject } from "@/lib/projects-api";
@@ -27,7 +28,8 @@ vi.mock("next/navigation", () => ({
   redirect: vi.fn(),
   permanentRedirect: vi.fn(),
 }));
-vi.mock("@/lib/api-client", () => ({ apiClient: { get: vi.fn() } }));
+vi.mock("@/lib/api-client", () => ({ apiClient: { get: vi.fn(), patch: vi.fn() } }));
+vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("@/lib/projects-api", async (original) => ({
   ...(await original<typeof import("@/lib/projects-api")>()),
   getProject: vi.fn(),
@@ -54,7 +56,7 @@ vi.mock("@/components/projects/project-picker-dialog", () => ({
     ) : null,
 }));
 
-function chip(conversationId: string | null, pickerOpen = false) {
+function chip(conversationId: string | null, pickerOpen = false, readOnly = false) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
@@ -62,6 +64,7 @@ function chip(conversationId: string | null, pickerOpen = false) {
         conversationId={conversationId}
         pickerOpen={pickerOpen}
         onPickerOpenChange={vi.fn()}
+        readOnly={readOnly}
       />
     </QueryClientProvider>,
   );
@@ -133,10 +136,22 @@ describe("ProjectChip", () => {
     expect(useConversationStore.getState().pendingProjectId).toBeNull();
   });
 
-  it("shows the project an existing chat is in, without a way out", async () => {
+  it("opens the picker for an existing chat's project", async () => {
     vi.mocked(apiClient.get).mockResolvedValue({ id: "c-1", project_id: "p-2" });
-    chip("c-1");
-    expect(await screen.findByRole("link", { name: "Treasury" })).toBeInTheDocument();
+    const onPickerOpenChange = vi.fn();
+    render(
+      <QueryClientProvider
+        client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
+      >
+        <ProjectChip
+          conversationId="c-1"
+          pickerOpen={false}
+          onPickerOpenChange={onPickerOpenChange}
+        />
+      </QueryClientProvider>,
+    );
+    await userEvent.click(await screen.findByRole("button", { name: "Change project" }));
+    expect(onPickerOpenChange).toHaveBeenCalledWith(true);
     expect(screen.queryByRole("button", { name: /Start outside/ })).not.toBeInTheDocument();
     expect(apiClient.get).toHaveBeenCalledWith("/conversations/c-1/metadata");
     expect(apiClient.get).not.toHaveBeenCalledWith("/conversations/c-1");
@@ -159,6 +174,54 @@ describe("ProjectChip", () => {
     expect(useAgentSelectionStore.getState().selectedAgentId).toBe("a-9");
     await userEvent.click(screen.getByRole("button", { name: "none" }));
     expect(useConversationStore.getState().pendingProjectId).toBeNull();
+  });
+
+  it("moves an existing chat and can remove it from the project", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ id: "c-1", project_id: "p-1" });
+    vi.mocked(apiClient.patch).mockResolvedValue({ id: "c-1", project_id: "p-2" });
+    chip("c-1", true);
+
+    await userEvent.click(screen.getByRole("button", { name: "pick" }));
+    await waitFor(() =>
+      expect(apiClient.patch).toHaveBeenCalledWith("/conversations/c-1", { project_id: "p-2" }),
+    );
+    await userEvent.click(screen.getByRole("button", { name: "none" }));
+    await waitFor(() =>
+      expect(apiClient.patch).toHaveBeenCalledWith("/conversations/c-1", { project_id: null }),
+    );
+  });
+
+  it("shows a shared thread's project read-only when its access says so, with no move action", async () => {
+    // The access result marks this thread as somebody else's; the sidebar's
+    // first-50 shares list does not hold it, so only the access result can say so.
+    vi.mocked(apiClient.get).mockResolvedValue({ id: "c-deep", project_id: "p-1" });
+    chip("c-deep", false, true);
+
+    expect(await screen.findByText("Launch")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Change project" })).toBeNull();
+    expect(apiClient.patch).not.toHaveBeenCalled();
+  });
+
+  it("keeps the current project and picker open when moving the chat is refused", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ id: "c-1", project_id: "p-1" });
+    vi.mocked(apiClient.patch).mockRejectedValueOnce(new Error("Project access was removed"));
+    const onPickerOpenChange = vi.fn();
+    render(
+      <QueryClientProvider
+        client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
+      >
+        <ProjectChip conversationId="c-1" pickerOpen onPickerOpenChange={onPickerOpenChange} />
+      </QueryClientProvider>,
+    );
+    await screen.findByText("Launch");
+    await userEvent.click(screen.getByRole("button", { name: "pick" }));
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Could not move conversation"));
+    expect(apiClient.patch).toHaveBeenCalledWith("/conversations/c-1", { project_id: "p-2" });
+    expect(screen.getByText("Launch")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "pick" })).toBeInTheDocument();
+    expect(onPickerOpenChange).not.toHaveBeenCalled();
+    expect(toast.success).not.toHaveBeenCalled();
   });
 });
 
@@ -191,7 +254,7 @@ it("does not apply a computer's project folder in a browser or to an existing co
   desktop.enabled = true;
   vi.mocked(apiClient.get).mockResolvedValue({ id: "c-existing", project_id: "p-1" });
   chip("c-existing");
-  await screen.findByRole("link");
+  await screen.findByRole("button", { name: "Change project" });
   expect(useWorkOnStore.getState().targetFor("c-existing")).toBeNull();
 });
 

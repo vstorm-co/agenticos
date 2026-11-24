@@ -13,6 +13,7 @@ nothing, and a reconnecting chat reads the message rather than asking again.
 """
 
 import logging
+from uuid import UUID
 
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -22,9 +23,35 @@ from app.repositories import conversation as conversation_repo
 from app.repositories import workflow as workflow_repo
 from app.repositories import workflow_run as workflow_run_repo
 from app.schemas.conversation import MessagePart
+from app.schemas.workflow_run import WorkflowRunRead
 from app.services.workflow_execution import dispatch_queue
 
 logger = logging.getLogger(__name__)
+
+
+async def deliver_started(
+    db: AsyncSession,
+    *,
+    run: WorkflowRunRead,
+    conversation_id: UUID,
+    organization_id: UUID,
+) -> None:
+    """Save a live chat card before the admitting transaction commits."""
+    workflow = await workflow_repo.get(db, run.workflow_id, organization_id=organization_id)
+    card = MessagePart(
+        type="workflow_run",
+        run_id=str(run.id),
+        workflow_id=str(run.workflow_id),
+        workflow_name=workflow.name if workflow is not None else None,
+        status=run.status.value,
+    )
+    await conversation_repo.save_workflow_message(
+        db,
+        conversation_id=conversation_id,
+        workflow_run_id=run.id,
+        content="",
+        parts=[card.model_dump(exclude_none=True)],
+    )
 
 
 async def deliver_result(db: AsyncSession, *, run: WorkflowRun) -> None:
@@ -52,10 +79,10 @@ async def deliver_result(db: AsyncSession, *, run: WorkflowRun) -> None:
         error=(run.error or {}).get("message"),
     )
     parts = [card] + ([MessagePart(type="text", text=text)] if text else [])
-    await conversation_repo.create_message(
+    await conversation_repo.save_workflow_message(
         db,
         conversation_id=run.reply_conversation_id,
-        role="assistant",
+        workflow_run_id=run.id,
         content=text,
         parts=[part.model_dump(exclude_none=True) for part in parts],
     )

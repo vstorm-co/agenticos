@@ -14,6 +14,7 @@ import {
   exportRecords,
   getRecord,
   getTable,
+  listSchemaVersions,
   listTables,
   listAllTables,
   queryRecords,
@@ -76,6 +77,12 @@ it("getTable reads one table", async () => {
   vi.mocked(apiClient.get).mockResolvedValue({ id: "t1" });
   await getTable("t1");
   expect(apiClient.get).toHaveBeenCalledWith("/tables/t1");
+});
+
+it("listSchemaVersions reads a table's schema history", async () => {
+  vi.mocked(apiClient.get).mockResolvedValue({ items: [] });
+  await listSchemaVersions("t1");
+  expect(apiClient.get).toHaveBeenCalledWith("/tables/t1/schema-versions");
 });
 
 it("updateTable patches one table", async () => {
@@ -148,6 +155,7 @@ describe("bulk records", () => {
 
     await createRecords("t1", [{ values: {} }]);
     await createRecords("t1", [{ values: {} }], true);
+    await createRecords("t1", [{ values: {} }], true, "2026-11-12T09:00:00Z");
 
     expect(apiClient.post).toHaveBeenNthCalledWith(1, "/tables/t1/records/batch", {
       records: [{ values: {} }],
@@ -156,6 +164,11 @@ describe("bulk records", () => {
     expect(apiClient.post).toHaveBeenNthCalledWith(2, "/tables/t1/records/batch", {
       records: [{ values: {} }],
       update_existing: true,
+    });
+    expect(apiClient.post).toHaveBeenNthCalledWith(3, "/tables/t1/records/batch", {
+      records: [{ values: {} }],
+      update_existing: true,
+      as_of: "2026-11-12T09:00:00Z",
     });
   });
 
@@ -249,4 +262,12 @@ it("loads table-specific authorized assignees", async () => {
   vi.mocked(apiClient.get).mockResolvedValue([]);
   expect(await getTableAssignees("t1")).toEqual([]);
   expect(apiClient.get).toHaveBeenCalledWith("/tables/t1/assignee-options");
+});
+
+it("listSchemaVersions requests only the needed version", async () => {
+  vi.mocked(apiClient.get).mockResolvedValue({ items: [] });
+  await listSchemaVersions("t1", 7);
+  expect(apiClient.get).toHaveBeenCalledWith("/tables/t1/schema-versions", {
+    params: { version: "7" },
+  });
 });

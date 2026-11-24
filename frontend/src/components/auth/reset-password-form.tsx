@@ -2,12 +2,13 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useConsoleRouter as useRouter } from "@/hooks/use-console-router";
 import { useTranslations } from "next-intl";
 import { ArrowLeft, ArrowRight, Check, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { getErrorMessage } from "@/lib/api-error";
+import { AuthHeading } from "@/components/auth/auth-heading";
 import { Button, Input, Label } from "@/components/ui";
 import { apiClient, ApiError } from "@/lib/api-client";
 import { ROUTES } from "@/lib/constants";
@@ -67,9 +68,7 @@ export function ResetPasswordForm({ token }: Props) {
     <div className="space-y-8">
       <div className="space-y-2">
         <span className="text-muted-foreground text-sm font-medium">{t("eyebrow")}</span>
-        <h1 className="text-foreground text-[2rem] leading-tight font-semibold tracking-tight text-balance [&_em]:not-italic">
-          {t("heading")}
-        </h1>
+        <AuthHeading>{t("heading")}</AuthHeading>
         <p className="text-foreground/65 text-sm">{t("intro")}</p>
       </div>
 
@@ -86,7 +85,6 @@ export function ResetPasswordForm({ token }: Props) {
             required
             autoComplete="new-password"
             disabled={submitting}
-            className="h-11 rounded-lg text-base md:text-[15px]"
           />
           {password && (
             <div className="space-y-1.5 pt-1">
@@ -126,7 +124,7 @@ export function ResetPasswordForm({ token }: Props) {
             required
             autoComplete="new-password"
             disabled={submitting}
-            className={`h-11 rounded-lg text-base md:text-[15px] ${confirm && !matches ? "border-destructive" : ""}`}
+            aria-invalid={Boolean(confirm && !matches)}
           />
           {confirm && !matches && (
             <p className="text-destructive inline-flex items-center gap-1 text-xs">
@@ -148,7 +146,7 @@ export function ResetPasswordForm({ token }: Props) {
           </p>
         )}
 
-        <Button type="submit" disabled={submitting} className="h-11 w-full text-[15px]">
+        <Button type="submit" disabled={submitting} size="lg" className="w-full">
           {submitting ? (
             t("submitting")
           ) : (

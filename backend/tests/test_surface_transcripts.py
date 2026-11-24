@@ -37,12 +37,20 @@ import uuid
 from collections.abc import AsyncIterator, Iterator
 from contextlib import asynccontextmanager, contextmanager
 from decimal import Decimal
-from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from pydantic_ai.messages import ModelRequest, ModelResponse, ToolCallPart, ToolReturnPart
+from pydantic_ai import Agent
+from pydantic_ai.messages import (
+    ModelMessage,
+    ModelRequest,
+    ModelResponse,
+    ToolCallPart,
+    ToolReturnPart,
+)
+from pydantic_ai.models.function import AgentInfo, DeltaToolCall, DeltaToolCalls, FunctionModel
+from pydantic_ai.run import AgentRun as AgentIteration
 from pydantic_ai.usage import RequestUsage
 
 from app.agents.capabilities.budget import SpendLedger, record_ambient_usage
@@ -54,7 +62,9 @@ from app.db.models.agent_run import RunStatus, RunSurface
 from app.repositories.conversation import Attributed
 from app.services.agent_runner import AgentRunnerService, PreparedRun
 from app.services.channels.mentions import ChannelAgentRouter
+from app.services.conversation import ConversationService
 from app.services.embed_session import EmbedSession
+from app.services.message_history import ModelHistory
 
 pytestmark = pytest.mark.anyio
 
@@ -99,37 +109,37 @@ def _searched_then_answered(output: str) -> MagicMock:
     return MagicMock(output=output, new_messages=MagicMock(return_value=messages))
 
 
-class _Iteration:
-    """A run to iterate, standing in for the library's own.
-
-    It yields no nodes. Which frames a surface sends is pinned in
-    `tests/test_agent_session.py` and `tests/test_embed_frames.py`; what these
-    tests are about is the rows a turn leaves behind. The outcome is awaited on
-    the first step so that a model which raises does so where the real one would -
-    inside the loop, with the settle path around it.
-    """
-
-    def __init__(self, outcome: AsyncMock) -> None:
-        self._outcome = outcome
-        self._started = False
-        self.result: Any = None
-        # The run's own deps, which a hosted page reads its stored files from.
-        self.ctx = SimpleNamespace(deps=SimpleNamespace(user_deps=AgentDeps()))
-
-    def __aiter__(self) -> _Iteration:
-        return self
-
-    async def __anext__(self) -> Any:
-        if self._started:
-            raise StopAsyncIteration
-        self._started = True
-        self.result = await self._outcome()
-        raise StopAsyncIteration
-
-
 @asynccontextmanager
-async def _iterating(outcome: AsyncMock) -> AsyncIterator[_Iteration]:
-    yield _Iteration(outcome)
+async def _iterating(
+    outcome: AsyncMock, prompt: str
+) -> AsyncIterator[AgentIteration[AgentDeps, str]]:
+    """A real SDK graph whose local model searches and then streams its answer.
+
+    The surface drives genuine model events, including the no-output guard. The
+    outcome is awaited inside the first model request so failures and ambient
+    spend still happen inside the runner's settle path.
+    """
+    answer: str | None = None
+
+    async def stream(
+        _messages: list[ModelMessage], _info: AgentInfo
+    ) -> AsyncIterator[str | DeltaToolCalls]:
+        nonlocal answer
+        if answer is None:
+            answer = (await outcome()).output
+            yield {
+                0: DeltaToolCall(name="search_kb", json_args='{"q":"refund"}', tool_call_id="c1")
+            }
+        else:
+            yield answer
+
+    def search_kb(q: str) -> str:
+        assert q == "refund"
+        return "30 days"
+
+    agent = Agent(FunctionModel(stream_function=stream), deps_type=AgentDeps, tools=[search_kb])
+    async with agent.iter(prompt, deps=AgentDeps()) as iteration:
+        yield iteration
 
 
 @contextmanager
@@ -158,7 +168,7 @@ def _run_yielding(agent_run: AsyncMock) -> Iterator[tuple[dict[str, PreparedRun]
         built.agent.run = agent_run
         # The streaming half, for a surface that shows an answer arriving. The
         # widget is one since #634, so its turns reach `iterate` rather than `run`.
-        built.agent.iter = MagicMock(side_effect=lambda *_a, **_k: _iterating(agent_run))
+        built.agent.iter = MagicMock(side_effect=lambda prompt, **_k: _iterating(agent_run, prompt))
         prepared = PreparedRun(
             run=MagicMock(
                 id=uuid.uuid4(),
@@ -233,7 +243,7 @@ def _widget_session(db: MagicMock, *, embed: MagicMock | None = None) -> EmbedSe
 
 
 @contextmanager
-def _the_widgets_rows() -> Iterator[None]:
+def _the_widgets_rows() -> Iterator[MagicMock]:
     """The conversation the turn opens, its history, and the owner's membership."""
     with (
         patch(
@@ -257,7 +267,7 @@ def _the_widgets_rows() -> Iterator[None]:
         ),
     ):
         reader.return_value.model_history = AsyncMock(return_value=[])
-        yield
+        yield reader
 
 
 def _embed(*, context: str | None = None) -> MagicMock:
@@ -613,14 +623,19 @@ class TestKeepingASummaryOnASurfaceThatIsNotTheChat:
     one, over a history one turn longer each time (#49)."""
 
     async def test_a_summary_is_written_to_the_conversation_it_summarised(self) -> None:
-        session = _widget_session(_db())
+        db = _db()
+        db.scalar = AsyncMock(return_value=7)
+        session = _widget_session(db)
         run = AsyncMock(return_value=_searched_then_answered("The refund window is 30 days."))
 
         with (
             _run_yielding(run) as (captured, _conversations),
-            _the_widgets_rows(),
+            _the_widgets_rows() as reader,
             patch("app.services.agent_runner.ConversationService") as service,
         ):
+            service.return_value.history_for_provenance = (
+                ConversationService.history_for_provenance.__get__(service.return_value)
+            )
             service.return_value.keep_summary = AsyncMock()
             service.return_value.keep_overhead = AsyncMock()
             service.return_value.keep_plan = AsyncMock()
@@ -629,13 +644,16 @@ class TestKeepingASummaryOnASurfaceThatIsNotTheChat:
                 captured["prepared"].built.context.summarized = True
                 return _searched_then_answered("The refund window is 30 days.")
 
+            reader.return_value.model_history.return_value = ModelHistory([], revision=7)
             run.side_effect = summarise
             await session._answer("What's your refund window?")
 
         kept = service.return_value.keep_summary
         assert kept.await_args.args[0] == captured["prepared"].run.conversation_id
 
-    async def test_a_turn_that_summarised_nothing_writes_nothing(self) -> None:
+        assert kept.await_args.kwargs["expected_revision"] == 7
+
+    async def test_an_ordinary_turn_also_checkpoints_its_model_history(self) -> None:
         session = _widget_session(_db())
         run = AsyncMock(return_value=_searched_then_answered("The refund window is 30 days."))
 
@@ -644,12 +662,15 @@ class TestKeepingASummaryOnASurfaceThatIsNotTheChat:
             _the_widgets_rows(),
             patch("app.services.agent_runner.ConversationService") as service,
         ):
+            service.return_value.history_for_provenance = (
+                ConversationService.history_for_provenance.__get__(service.return_value)
+            )
             service.return_value.keep_summary = AsyncMock()
             service.return_value.keep_overhead = AsyncMock()
             service.return_value.keep_plan = AsyncMock()
             await session._answer("What's your refund window?")
 
-        service.return_value.keep_summary.assert_not_awaited()
+        service.return_value.keep_summary.assert_awaited_once()
 
     async def test_what_a_request_carries_is_recorded_on_every_turn(self) -> None:
         """Not only a summarising one: it is what the next turn needs before it
@@ -662,6 +683,9 @@ class TestKeepingASummaryOnASurfaceThatIsNotTheChat:
             _the_widgets_rows(),
             patch("app.services.agent_runner.ConversationService") as service,
         ):
+            service.return_value.history_for_provenance = (
+                ConversationService.history_for_provenance.__get__(service.return_value)
+            )
             service.return_value.keep_summary = AsyncMock()
             service.return_value.keep_overhead = AsyncMock()
             service.return_value.keep_plan = AsyncMock()
@@ -685,6 +709,9 @@ class TestKeepingASummaryOnASurfaceThatIsNotTheChat:
             _the_widgets_rows(),
             patch("app.services.agent_runner.ConversationService") as service,
         ):
+            service.return_value.history_for_provenance = (
+                ConversationService.history_for_provenance.__get__(service.return_value)
+            )
             service.return_value.keep_summary = AsyncMock()
             service.return_value.keep_overhead = AsyncMock()
             service.return_value.keep_plan = AsyncMock()
@@ -711,6 +738,9 @@ class TestKeepingASummaryOnASurfaceThatIsNotTheChat:
             _the_widgets_rows(),
             patch("app.services.agent_runner.ConversationService") as service,
         ):
+            service.return_value.history_for_provenance = (
+                ConversationService.history_for_provenance.__get__(service.return_value)
+            )
             service.return_value.keep_summary = AsyncMock()
             service.return_value.keep_overhead = AsyncMock()
             service.return_value.keep_plan = AsyncMock()

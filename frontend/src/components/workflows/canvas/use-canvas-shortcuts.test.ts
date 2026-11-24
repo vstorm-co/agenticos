@@ -1,7 +1,9 @@
 import { renderHook } from "@testing-library/react";
 import type { KeyboardEvent } from "react";
+import { toast } from "sonner";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { makeDefinition } from "@/components/workflows/validation/fixtures";
 import type { NodeInstance, WorkflowGraph } from "@/lib/workflows/types";
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 
@@ -21,6 +23,11 @@ function insertAt(x: number, y: number): string {
 }
 
 const store = useWorkflowEditorStore;
+
+const CATALOG = [
+  makeDefinition({ id: "act" }),
+  makeDefinition({ id: "trigger.webhook", category: "triggers" }),
+];
 
 function nodeAt(id: string): NodeInstance {
   return { id, definition_id: "act", definition_version: 1, config: {}, layout: { x: 0, y: 0 } };
@@ -43,7 +50,7 @@ function keyEvent(overrides: Partial<KeyboardEvent> = {}): KeyboardEvent {
 }
 
 function handlerFor(readOnly: boolean, cancel = vi.fn()) {
-  const { result } = renderHook(() => useCanvasShortcuts(readOnly, cancel));
+  const { result } = renderHook(() => useCanvasShortcuts(readOnly, cancel, CATALOG));
   return { handle: result.current, cancel };
 }
 
@@ -136,6 +143,32 @@ describe("useCanvasShortcuts", () => {
     handle(keyEvent({ key: "x", metaKey: true, currentTarget: region } as Partial<KeyboardEvent>));
     expect(document.activeElement).toBe(region);
     region.remove();
+  });
+
+  it("refuses a paste the loop being viewed could not take, keeping the clip", () => {
+    const error = vi.spyOn(toast, "error");
+    store.getState().seedGraph({
+      entry_node_id: "hook",
+      nodes: [
+        { ...nodeAt("hook"), definition_id: "trigger.webhook" },
+        { ...nodeAt("loop"), definition_id: "control.foreach" },
+      ],
+      edges: [],
+      bindings: [],
+      scopes: [],
+    });
+    store.getState().setSelection({ nodeIds: ["hook"], edgeIds: [] });
+    const { handle } = handlerFor(false);
+    handle(keyEvent({ key: "c", ctrlKey: true }));
+
+    store.getState().enterScope("loop");
+    handle(keyEvent({ key: "v", ctrlKey: true }));
+
+    expect(store.getState().graph?.nodes).toHaveLength(2);
+    expect(store.getState().clipboard?.nodes).toHaveLength(1);
+    expect(error).toHaveBeenCalledWith(
+      "A trigger starts a run, so it can only be pasted at the top level.",
+    );
   });
 
   it("copies nothing when the selection is empty", () => {

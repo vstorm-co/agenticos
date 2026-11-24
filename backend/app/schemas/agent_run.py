@@ -5,10 +5,27 @@ from decimal import Decimal
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import Field, model_validator
+from pydantic import AliasPath, Field, model_validator
 
 from app.schemas.base import BaseSchema
 from app.schemas.conversation import MessageRead
+from app.schemas.eval_run import EvalCaseLinkRead
+
+
+class ChatAskerRead(BaseSchema):
+    """The chat account that asked, for a run that ran as the binding's publisher.
+
+    Unverified: the name is what the account's owner typed on the platform.
+    """
+
+    platform: str
+    name: str = Field(
+        description="The display name, else the handle with an `@`, else the platform's user id"
+    )
+    bot_name: str | None = Field(
+        default=None,
+        description="The bot the chat reached the agent through; null once its binding is gone",
+    )
 
 
 class VoiceChainRead(BaseSchema):
@@ -21,13 +38,59 @@ class VoiceChainRead(BaseSchema):
     cost_usd: Decimal
 
 
+class RunOriginRead(BaseSchema):
+    """Which platform agent a run was, and where its work is read."""
+
+    kind: Literal["grader", "improve", "knowledge_gaps", "test_questions"] = Field(
+        description=(
+            "The judge grading eval cases, the assistant proposing changes, the "
+            "knowledge-gap classifier or drafter, or the case generator"
+        )
+    )
+    agent_name: str = Field(description="The platform agent's own name")
+    agent_id: UUID | None = Field(
+        default=None, description="The agent an assistant request was about"
+    )
+    improvement_id: UUID | None = Field(default=None, description="The Improve session it was in")
+    topic_id: UUID | None = Field(default=None, description="The knowledge-gap topic it drafted")
+    knowledge_base_id: UUID | None = Field(
+        default=None, description="The knowledge base whose gaps it read or drafted"
+    )
+    dataset_id: UUID | None = Field(default=None, description="The dataset it wrote cases for")
+
+
+class RunSkillUseRead(BaseSchema):
+    """A skill a run opened or read, at the version it was served."""
+
+    skill_id: UUID
+    name: str
+    version: int | None = Field(
+        default=None, description="The version's number on its line; null where none is known"
+    )
+    fork: str | None = Field(default=None, description="The fork that version is on; null on main")
+    loaded: bool = Field(description="The run opened it, rather than only reading one of its files")
+
+
 class AgentRunRead(BaseSchema):
     """One execution, as run history lists it."""
 
     id: UUID
+    routine_activation_id: UUID | None = Field(
+        default=None,
+        validation_alias=AliasPath("routine_policy", "activation_id"),
+        description="Specific trigger fire that created this run; null for legacy and non-trigger runs.",
+    )
     agent_id: UUID
     agent_version_id: UUID | None = None
     user_id: UUID | None = None
+    initiated_by_publisher_fallback: bool | None = Field(
+        default=None,
+        description="True when user_id is the publisher's authority, not the person who asked; null if unavailable",
+    )
+    asked_in_chat: ChatAskerRead | None = Field(
+        default=None,
+        description="The unverified channel account that asked when the run used publisher authority",
+    )
     surface: str
     system_role: str | None = Field(
         default=None,
@@ -42,6 +105,25 @@ class AgentRunRead(BaseSchema):
     )
     status: str
     model_label: str | None = None
+    fallback_used: bool = Field(
+        default=False,
+        description=(
+            "True when a fallback model served any request of this run. False "
+            "on runs recorded before this was tracked, as well as on runs the "
+            "primary answered throughout - the console renders the fallback "
+            "line only when this is true"
+        ),
+    )
+    serving_model: str | None = Field(
+        default=None,
+        description=(
+            "The bare model id the provider reported for the last successful "
+            "request of this run - the model that actually answered, which is "
+            "a fallback's id when `fallback_used` is true. Null when no "
+            "request succeeded. A model id, not a display label: compare it "
+            "against the profile's model, never against `model_label`"
+        ),
+    )
     provider: str | None = Field(
         default=None,
         description=(
@@ -120,12 +202,68 @@ class AgentRunRead(BaseSchema):
         default=None,
         description="The run after this one in its own conversation. See `prev_run_id`",
     )
+    preview: str | None = Field(
+        default=None,
+        description=(
+            "What the run was asked, as one line: its first user turn, or the eval "
+            "case's question for a run that answered or graded one. Sent on the "
+            "listing; null for a run that kept no conversation"
+        ),
+    )
+    eval_case: EvalCaseLinkRead | None = Field(
+        default=None,
+        description=(
+            "The eval run and case this run answered - or graded, on the judge's "
+            "single-run read - when the caller may see the dataset; such a run keeps "
+            "no conversation, and its answer and grade are read on the eval run"
+        ),
+    )
+    skills_used: list[RunSkillUseRead] = Field(
+        default_factory=list,
+        description=(
+            "The skills the run opened or read, among those the caller may see. Sent on "
+            "the single-run read only"
+        ),
+    )
+    origin: RunOriginRead | None = Field(
+        default=None,
+        description=(
+            "For a platform agent's run - the judge, the assistant, the knowledge-gap "
+            "and case helpers - which one and what it worked on. Null for the "
+            "organization's own agents"
+        ),
+    )
     continues_in_chat: bool = Field(
         default=False,
         description=(
             "Whether the run is parked on a chat platform with its chat recorded and "
             "the caller is a person, so that its continuation is posted to that chat "
             "and a client should not resume it itself. Never true for an API key"
+        ),
+    )
+    waiting_questions: list[str] = Field(
+        default_factory=list,
+        description=(
+            "The run's unanswered `ask_user` questions, in the order they were asked. "
+            "Empty unless the run is parked on an answer: a finished thread has "
+            "nothing to answer, and a run parked on an approval alone asked nothing. "
+            "What the Runs view shows instead of a bare 'waiting' badge."
+        ),
+    )
+    waiting_secret_requests: list[str] = Field(
+        default_factory=list,
+        description=(
+            "The names of the secrets the run's `request_secret` calls are waiting "
+            "on, in the order they were asked (#13). Empty unless the run is parked "
+            "on an answer. The values are never carried here, only the names."
+        ),
+    )
+    waiting_expires_at: datetime | None = Field(
+        default=None,
+        description=(
+            "When the parked question expires unanswered and the run ends cancelled, "
+            "the park time plus `QUESTION_EXPIRY_HOURS`. Null unless the run is "
+            "parked on an answer."
         ),
     )
     error: str | None = None
@@ -161,6 +299,15 @@ class AgentRunRead(BaseSchema):
     )
     started_at: datetime | None = None
     ended_at: datetime | None = None
+    heartbeat_at: datetime | None = Field(
+        default=None,
+        description=(
+            "When the process executing this run last stamped it alive - "
+            "every 15 seconds while it runs. A `running` run whose beat is "
+            "minutes old has a dead process behind it; the stale-run sweep "
+            "ends such a run, and the chat shows it as stalled meanwhile."
+        ),
+    )
     parent_run_id: UUID | None = Field(
         default=None,
         description=(
@@ -170,6 +317,10 @@ class AgentRunRead(BaseSchema):
             "read the same way: a parent's cost already contains its children's, "
             "so a surface that sums a page of rows double-counts every delegation."
         ),
+    )
+    retry_of_run_id: UUID | None = Field(
+        default=None,
+        description="The earlier run this top-level run retries, or null when it is not a retry.",
     )
     subagent_task_id: str | None = Field(
         default=None,
@@ -277,22 +428,6 @@ class RunTranscript(BaseSchema):
     )
     items: list[RunTranscriptMessage]
     total: int
-
-
-class ChatAskerRead(BaseSchema):
-    """The chat account that asked, for a run that ran as the binding's publisher.
-
-    Unverified: the name is what the account's owner typed on the platform.
-    """
-
-    platform: str
-    name: str = Field(
-        description="The display name, else the handle with an `@`, else the platform's user id"
-    )
-    bot_name: str | None = Field(
-        default=None,
-        description="The bot the chat reached the agent through; null once its binding is gone",
-    )
 
 
 class ApprovalRead(BaseSchema):
@@ -403,6 +538,22 @@ class ApprovalRead(BaseSchema):
             "Whether the run is parked on a chat platform with its chat recorded and "
             "the caller is a person, so that its continuation is posted to that chat "
             "and a client should not resume it itself. Never true for an API key"
+        ),
+    )
+    content_hidden: bool = Field(
+        default=False,
+        description=(
+            "Whether what the call quotes from its run - the fact `share_memory` would "
+            "share, say - was left out of `tool_args` and `context`, because the caller "
+            "may not see that run. The audience and the tool still show"
+        ),
+    )
+    always_asks: bool = Field(
+        default=False,
+        description=(
+            "Whether only a person's answer to this call could let it run - `share_memory`, "
+            "or a correction of a shared fact. With `content_hidden`, the caller may "
+            "reject the call but not approve it"
         ),
     )
 

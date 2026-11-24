@@ -2,7 +2,7 @@
 
 import asyncio
 import threading
-from contextlib import AbstractContextManager
+from contextlib import AbstractContextManager, ExitStack
 from typing import cast
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import UUID, uuid4
@@ -27,7 +27,15 @@ def _lock_phase(
     """`_lock_account` patched to hold `user`: what it locks is tested on its own
     in `tests/test_account_delete_lock_order.py`."""
     locked = _LockedAccount(user=cast(User, user), heirs=frozenset(), app_admins=app_admins)
-    return patch.object(service, "_lock_account", new=AsyncMock(return_value=locked))
+    stack = ExitStack()
+    stack.enter_context(patch.object(service, "_lock_account", new=AsyncMock(return_value=locked)))
+    stack.enter_context(
+        patch(
+            "app.services.user.NetworkConnectionService.prepare_user_deletion",
+            new=AsyncMock(),
+        )
+    )
+    return stack
 
 
 class MockUser:
@@ -180,7 +188,7 @@ class TestUserServicePostgresql:
     @pytest.mark.anyio
     async def test_authenticate_invalid_password(
         self, user_service: UserService, mock_user: MockUser
-    ):
+    ) -> None:
         """Test authentication with wrong password."""
         with (
             patch("app.services.user.user_repo") as mock_repo,
@@ -188,20 +196,23 @@ class TestUserServicePostgresql:
         ):
             mock_repo.get_by_email = AsyncMock(return_value=mock_user)
 
-            with pytest.raises(AuthenticationError):
+            with pytest.raises(AuthenticationError) as refusal:
                 await user_service.authenticate("test@example.com", "wrongpassword")
+            assert refusal.value.code == "AUTHENTICATION_ERROR"
+            assert refusal.value.details == {"reason": "invalid_credentials"}
 
     @pytest.mark.anyio
-    async def test_authenticate_user_not_found(self, user_service: UserService):
+    async def test_authenticate_user_not_found(self, user_service: UserService) -> None:
         """Test authentication with non-existent user."""
         with patch("app.services.user.user_repo") as mock_repo:
             mock_repo.get_by_email = AsyncMock(return_value=None)
 
-            with pytest.raises(AuthenticationError):
+            with pytest.raises(AuthenticationError) as refusal:
                 await user_service.authenticate("unknown@example.com", "password")
+            assert refusal.value.details == {"reason": "invalid_credentials"}
 
     @pytest.mark.anyio
-    async def test_authenticate_inactive_user(self, user_service: UserService):
+    async def test_authenticate_inactive_user(self, user_service: UserService) -> None:
         """Test authentication with inactive user."""
         inactive_user = MockUser(is_active=False)
         with (
@@ -210,8 +221,9 @@ class TestUserServicePostgresql:
         ):
             mock_repo.get_by_email = AsyncMock(return_value=inactive_user)
 
-            with pytest.raises(AuthenticationError):
+            with pytest.raises(AuthenticationError) as refusal:
                 await user_service.authenticate("test@example.com", "password")
+            assert refusal.value.details is None
 
     @pytest.mark.anyio
     async def test_authenticate_runs_bcrypt_off_the_event_loop(

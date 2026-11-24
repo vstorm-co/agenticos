@@ -24,6 +24,8 @@ text may go, rather than what it is allowed to contain.
 
 from enum import Enum
 
+from sqlalchemy.exc import IntegrityError
+
 from app.agents.capabilities.budget import BudgetExceeded
 from app.core.exceptions import AppException
 
@@ -88,6 +90,8 @@ def failure_summary(exc: BaseException, *, stage: IngestionStage) -> str:
     `probe_error_message` does in `app/agents/mcp.py`.
     """
     cause = _root_cause(exc)
+    if stage is IngestionStage.SYNC and isinstance(cause, IntegrityError):
+        return "The sync source or its target changed before its results could be saved. Review the source and run it again."
     if isinstance(cause, AppException | BudgetExceeded):
         return str(cause)
     return (

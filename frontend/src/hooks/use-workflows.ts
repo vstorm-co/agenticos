@@ -1,12 +1,14 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
+import { nodeCopyKey } from "@/lib/workflows/node-copy";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 import { getErrorMessage } from "@/lib/api-error";
 import { qk } from "@/lib/query-keys";
+import { localizeSchema, type FieldCopy } from "@/lib/workflows/localize-schema";
 import type {
   WorkflowCreate,
   WorkflowDraftUpdate,
@@ -174,7 +176,7 @@ export function useWorkflow(workflowId: string | null) {
   const tErrors = useTranslations("errors");
   const queryClient = useQueryClient();
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: qk.workflows.detail(workflowId ?? ""),
     queryFn: () => getWorkflow(workflowId as string),
     enabled: !!workflowId,
@@ -223,7 +225,7 @@ export function useWorkflow(workflowId: string | null) {
     },
   });
 
-  return { workflow: data, isLoading, error, saveDraft, publish, restore };
+  return { workflow: data, isLoading, error, refetch, saveDraft, publish, restore };
 }
 
 /** Every published version of a workflow, newest first. Lean — no graphs. */
@@ -255,28 +257,84 @@ export function useWorkflowVersions(workflowId: string | null) {
  * its own query, cached per version id (a frozen version never changes).
  */
 export function useWorkflowVersion(workflowId: string, versionId: string | null) {
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: qk.workflows.version(workflowId, versionId ?? ""),
     queryFn: () => getWorkflowVersion(workflowId, versionId as string),
     enabled: !!versionId,
     staleTime: Infinity,
   });
-  return { version: data, isLoading, error };
+  return { version: data, isLoading, error, refetch };
 }
 
 /**
- * Every registered node type, for the editor's palette.
+ * Every registered node type, for the editor's palette - named, described and its
+ * ports labelled in the reader's language.
+ *
+ * The registry writes them in English; `workflowNodes` holds each node's copy by its
+ * id and each port's by its English label, and anything it does not hold - a node
+ * added since, a port an author named - keeps the server's words. Every screen that
+ * names a step reads it from here, so the palette, the card, the step dialog, a run
+ * and the logs all say the same thing.
  *
  * Cached indefinitely: the catalog changes when the backend is redeployed, not
  * while someone builds a workflow.
  */
 export function useNodeCatalog() {
-  const { data, isLoading } = useQuery({
+  const t = useTranslations("workflowNodes");
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: qk.workflows.nodeCatalog(),
     queryFn: () => getNodeCatalog(),
     staleTime: Infinity,
   });
-  return { nodes: data?.items ?? [], isLoading };
+  const nodes = useMemo(
+    () =>
+      (data?.items ?? []).map((node) => {
+        const id = nodeCopyKey(node.id);
+        const copyOf =
+          (kind: "config" | "input") =>
+          (path: string): FieldCopy => {
+            const at = `field.${id}.${kind}.${path}`;
+            return {
+              ...(t.has(`${at}.title`) ? { title: t(`field.${id}.${kind}.${path}.title`) } : {}),
+              ...(t.has(`${at}.description`)
+                ? { description: t(`field.${id}.${kind}.${path}.description`) }
+                : {}),
+              ...(t.has(`${at}.placeholder`)
+                ? { placeholder: t(`field.${id}.${kind}.${path}.placeholder`) }
+                : {}),
+              ...(t.has(`${at}.hint`) ? { hint: t(`field.${id}.${kind}.${path}.hint`) } : {}),
+              option: (value: string) => {
+                const choice = nodeCopyKey(value);
+                return t.has(`${at}.options.${choice}`)
+                  ? t(`field.${id}.${kind}.${path}.options.${choice}`)
+                  : undefined;
+              },
+            };
+          };
+        return {
+          ...node,
+          standardPortLabels: { error: t("port.error"), unsure: t("port.unsure") },
+          config_schema:
+            node.config_schema == null
+              ? node.config_schema
+              : localizeSchema(node.config_schema, copyOf("config")),
+          input_schema:
+            node.input_schema == null
+              ? node.input_schema
+              : localizeSchema(node.input_schema, copyOf("input")),
+          name: t.has(`node.${id}.name`) ? t(`node.${id}.name`) : node.name,
+          description: t.has(`node.${id}.description`)
+            ? t(`node.${id}.description`)
+            : node.description,
+          ports: node.ports.map((port) => {
+            const label = nodeCopyKey(port.label);
+            return { ...port, label: t.has(`port.${label}`) ? t(`port.${label}`) : port.label };
+          }),
+        };
+      }),
+    [data, t],
+  );
+  return { nodes, isLoading, error, refetch };
 }
 
 /**

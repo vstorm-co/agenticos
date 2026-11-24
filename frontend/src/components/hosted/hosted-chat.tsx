@@ -1,17 +1,34 @@
 "use client";
 
 import type { CSSProperties } from "react";
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import { MessageSquarePlus, Mic, MicOff, Paperclip, Send, User, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { DictationBar } from "@/components/chat/dictation-bar";
-import { dictationHint, DictationStrip, movesOn } from "@/components/chat/dictation-strip";
+import {
+  browserSpeechFailure,
+  type BrowserSpeechFailure,
+} from "@/components/chat/browser-speech-failure";
+import {
+  browserFailureHint,
+  dictationHint,
+  DictationStrip,
+  movesOn,
+} from "@/components/chat/dictation-strip";
 import { MarkdownContent } from "@/components/chat/markdown-content";
 import { useFollowContent } from "@/hooks/use-follow-content";
 import { TurnParts } from "@/components/chat/turn-parts";
 import { usePublicConfig } from "@/components/public-config/public-config-provider";
-import { Button, Input } from "@/components/ui";
+import { Button, Textarea } from "@/components/ui";
 import { useMicrophone, VoiceGlow } from "@/components/ui/voice-glow";
 import { VoiceCallButton } from "@/components/voice/voice-call-button";
 import { voiceFailureHint } from "@/components/voice/voice-call-strip";
@@ -105,7 +122,13 @@ export function fold(said: readonly Turn[], type: string, data: Record<string, n
           toolCall: {
             id: String(payload.tool_call_id),
             name: String(payload.tool_name),
-            presentation_kind: payload.presentation_kind === "draft" ? "draft" : null,
+            tool_id: typeof payload.tool_id === "string" ? payload.tool_id : null,
+            presentation_kind:
+              payload.presentation_kind === "draft" ||
+              payload.presentation_kind === "generic" ||
+              payload.presentation_kind === "platform"
+                ? payload.presentation_kind
+                : null,
             // Absent where the operator does not show what a step returned, and an
             // empty object is the honest stand-in: `toolStep` reads the arguments to
             // name a step by its subject, and finds none rather than being handed a
@@ -381,7 +404,10 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
   // Bumped to reconnect on a fresh key. The socket carries the key in its URL,
   // so a new thread is a new connection rather than a frame.
   const [session, setSession] = useState(0);
+  const [readySession, setReadySession] = useState<{ key: string; session: number } | null>(null);
+  const connected = readySession?.key === config.public_key && readySession.session === session;
   const [listening, setListening] = useState(false);
+  const [browserFailure, setBrowserFailure] = useState<BrowserSpeechFailure | null>(null);
   // Files already stored, waiting on the message that will name them. Held here
   // rather than sent as they arrive: the id is what the turn carries, and a file
   // attached and then thought better of should not become a turn of its own.
@@ -401,10 +427,12 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
   );
   const socketRef = useRef<WebSocket | null>(null);
   const threadRef = useRef<HTMLDivElement | null>(null);
+  const following = useRef(true);
+  const readingHistory = useCallback(() => !following.current, []);
   const threadContentRef = useRef<HTMLDivElement | null>(null);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const filePicker = useRef<HTMLInputElement | null>(null);
-  const draftRef = useRef<HTMLInputElement | null>(null);
+  const draftRef = useRef<HTMLTextAreaElement | null>(null);
   // Whether the server's side of the page's socket is in the visitor's thread:
   // it replayed one, or the visitor wrote in it. Until then a call that creates
   // the thread has the socket reopened, so the next typed turn lands there too.
@@ -495,6 +523,9 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
     // reconnect, "start a new chat" bumping `session` - does not read as the
     // server having dropped us and flash "connection lost" on the way out.
     let intentional = false;
+    socket.onopen = () => {
+      if (!intentional) setReadySession({ key: config.public_key, session });
+    };
 
     socket.onmessage = (event) => {
       const frame = JSON.parse(event.data as string);
@@ -505,6 +536,7 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
     };
     socket.onclose = (event) => {
       if (intentional) return;
+      setReadySession(null);
       setThinking(false);
       if (event.code === 4029) setClosed("too-many");
       else if (event.code === 4003) setClosed("refused");
@@ -533,11 +565,11 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
 
   useEffect(() => {
     const thread = threadRef.current;
-    if (thread !== null) thread.scrollTop = thread.scrollHeight;
+    if (thread !== null && following.current) thread.scrollTop = thread.scrollHeight;
   }, [turns, thinking]);
   // And on growth the turns do not announce: an answer's last words are revealed
   // over frames after its turn has stopped changing.
-  useFollowContent(threadRef, threadContentRef);
+  useFollowContent(threadRef, threadContentRef, readingHistory);
 
   // Reopen the socket on the *same* visitor key, so a dropped connection is
   // resumed rather than replaced: bumping `session` re-runs the effect and
@@ -608,7 +640,11 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
           { call: voice.call, onRetry: () => startCall(callTransport), onDismiss: dismissCall },
           tVoice,
         );
-  const composerStrip = voiceHint ?? dictationStrip;
+  const browserStrip =
+    browserFailure === null
+      ? null
+      : browserFailureHint(browserFailure, () => setBrowserFailure(null), tDictation);
+  const composerStrip = voiceHint ?? dictationStrip ?? browserStrip;
   // Nor the browser's recogniser, which the call button sits beside. And the
   // call belongs to the thread it started in, whatever the page opens next.
   useEffect(() => {
@@ -629,6 +665,7 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
     pageThreadRef.current += 1;
     threadKnownRef.current = false;
     mintVisitorKey(config.public_key);
+    following.current = true;
     setTurns([]);
     setThinking(false);
     setClosed(null);
@@ -663,9 +700,13 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
       if (heard) setDraft((current) => (current ? `${current} ${heard.trim()}` : heard.trim()));
     };
     recognition.onend = () => setListening(false);
-    recognition.onerror = () => setListening(false);
+    recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
+      setListening(false);
+      setBrowserFailure(browserSpeechFailure(event.error, window.isSecureContext));
+    };
     recognitionRef.current = recognition;
     recognition.start();
+    setBrowserFailure(null);
     setListening(true);
   }, [listening]);
 
@@ -704,11 +745,19 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
     [apiUrl, config.public_key, t],
   );
 
+  useLayoutEffect(() => {
+    const field = draftRef.current;
+    if (!field) return;
+    field.style.height = "auto";
+    field.style.height = `${Math.min(field.scrollHeight, 192)}px`;
+  }, [draft, dictating]);
+
   const send = useCallback(() => {
     const text = draft.trim();
     const socket = socketRef.current;
     if ((!text && attached.length === 0) || socket === null || socket.readyState !== WebSocket.OPEN)
       return;
+    following.current = true;
     setTurns((said) => [
       ...said,
       {
@@ -749,7 +798,7 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
           // eslint-disable-next-line @next/next/no-img-element
           <img src={logoSrc} alt="" className="h-8 w-8 rounded-md object-cover" />
         )}
-        <h1 className="flex-1 text-lg font-semibold">{config.title}</h1>
+        <h1 className="min-w-0 flex-1 text-lg font-medium wrap-anywhere">{config.title}</h1>
         {config.allow_new_conversation && (
           <Button variant="ghost" size="sm" onClick={startFresh}>
             <MessageSquarePlus className="h-4 w-4" />
@@ -758,7 +807,14 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
         )}
       </header>
 
-      <div ref={threadRef} className="flex-1 scrollbar-thin overflow-y-auto py-4">
+      <div
+        ref={threadRef}
+        onScroll={(event) => {
+          const thread = event.currentTarget;
+          following.current = thread.scrollHeight - thread.clientHeight - thread.scrollTop <= 48;
+        }}
+        className="flex-1 scrollbar-thin overflow-y-auto py-4"
+      >
         <div ref={threadContentRef} className="space-y-3">
           {/* Markdown, like the answer and for the same reason: the operator writes it
               in a Markdown editor, so printing the asterisks would be the one place on
@@ -827,9 +883,11 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
           {attached.map((file) => (
             <span
               key={file.id}
-              className="border-border flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs"
+              className="border-border flex max-w-full min-w-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs"
             >
-              {file.filename}
+              <span className="min-w-0 truncate" title={file.filename}>
+                {file.filename}
+              </span>
               <button
                 type="button"
                 onClick={() => setAttached((held) => held.filter((one) => one.id !== file.id))}
@@ -885,21 +943,34 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
                 <DictationBar state={dictation} actions={dictationActions} />
               </div>
             ) : (
-              <div className="flex items-end gap-2 px-3 py-2 sm:px-4">
-                <Input
+              <div className="flex flex-col gap-1 px-3 py-2 sm:px-4">
+                <Textarea
                   ref={draftRef}
                   value={draft}
                   onChange={(event) => setDraft(event.target.value)}
                   onKeyDown={(event) => {
                     if (dictation.inserted && movesOn(event.key))
                       dictationActions.dismissInserted();
+                    if (
+                      event.key === "Enter" &&
+                      !event.shiftKey &&
+                      !event.nativeEvent.isComposing &&
+                      event.keyCode !== 229
+                    ) {
+                      event.preventDefault();
+                      send();
+                    }
                   }}
                   placeholder={t("placeholder")}
                   aria-label={t("placeholder")}
                   disabled={closed !== null}
-                  className="min-h-[40px] flex-1 border-0 bg-transparent shadow-none focus-visible:ring-0"
+                  rows={2}
+                  className="max-h-48 min-h-16 resize-none border-0 bg-transparent px-1 py-2 shadow-none focus-visible:ring-0"
                 />
-                <div className="flex shrink-0 items-center gap-0.5 pb-1">
+                <div
+                  data-hosted-composer-controls
+                  className="flex shrink-0 items-center justify-end gap-0.5"
+                >
                   {config.allow_files && (
                     <>
                       <input
@@ -918,7 +989,7 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
                         type="button"
                         variant="ghost"
                         size="icon"
-                        className="h-9 w-9"
+                        className="size-11"
                         disabled={closed !== null || uploading}
                         onClick={() => filePicker.current?.click()}
                         aria-label={t("attach")}
@@ -941,7 +1012,7 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
                       type="button"
                       variant="ghost"
                       size="icon"
-                      className="h-9 w-9"
+                      className="size-11"
                       onClick={() => void dictationActions.start()}
                       disabled={closed !== null}
                       aria-label={t("startDictation")}
@@ -954,7 +1025,7 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
                       type="button"
                       variant="ghost"
                       size="icon"
-                      className="h-9 w-9"
+                      className="size-11"
                       onClick={toggleDictation}
                       disabled={closed !== null}
                       aria-label={listening ? t("stopDictation") : t("startDictation")}
@@ -969,9 +1040,13 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
                   <Button
                     type="submit"
                     size="icon"
-                    className="h-9 w-9 rounded-full text-white hover:opacity-90"
+                    className="size-11 shrink-0 rounded-full p-0 text-white hover:opacity-90"
                     style={{ backgroundColor: "var(--hosted-accent)" }}
-                    disabled={closed !== null || (draft.trim() === "" && attached.length === 0)}
+                    disabled={
+                      !connected ||
+                      closed !== null ||
+                      (draft.trim() === "" && attached.length === 0)
+                    }
                   >
                     <Send className="h-4 w-4" />
                     <span className="sr-only">{t("send")}</span>

@@ -43,10 +43,9 @@ test.use({ storageState: AUTH_STATE });
  * colleague declines once (and nothing starts) and confirms once (and the page
  * gets the workflow's answer, a run recorded as started by an app).
  *
- * The run's end needs the workflow worker (`make dev` starts it; CI's e2e job has
- * none, so it sets no `E2E_WORKER=1`). Without it the journey still proves the run
- * was admitted - the page's progress shows it queued or running and an app run
- * exists - and the answer is asserted only with the worker.
+ * The run's end needs the workflow worker (`make dev` and CI start it). CI sets
+ * `E2E_WORKER=1` so the answer and terminal state are required. A local API-only
+ * stack can still exercise admission without that flag.
  */
 
 /** Long enough for the runs and the polls behind them, on a dev server that compiles. */
@@ -64,7 +63,7 @@ const CANNOT_ACT = /^rejected:unavailable$/;
 /** Statuses of a run that has not ended; the rest are terminal. */
 const LIVE = ["queued", "running", "waiting_approval", "waiting_retry", "needs_attention"];
 
-/** The workflow worker is running (`make dev` starts one; CI's e2e job has none). */
+/** Enable the completion assertions when a workflow worker is running, including CI. */
 const WORKER = process.env.E2E_WORKER === "1";
 
 /** The page. It runs `agenticos.run` only on a click, never on load. */
@@ -168,6 +167,7 @@ interface Fixture {
   agentId: string;
   profileId: string;
   colleagueId: string;
+  orgId: string;
 }
 
 let fixture: Fixture;
@@ -182,7 +182,7 @@ async function ownerRequest(
 }
 
 async function asColleague(browser: import("@playwright/test").Browser): Promise<BrowserContext> {
-  colleagueContext ??= await signInAs(browser, COLLEAGUE_EMAIL, COLLEAGUE_PASSWORD);
+  colleagueContext ??= await signInAs(browser, COLLEAGUE_EMAIL, COLLEAGUE_PASSWORD, fixture.orgId);
   return colleagueContext;
 }
 
@@ -209,6 +209,7 @@ test.describe("artifact actions", () => {
       agentId: "",
       profileId: "",
       colleagueId: "",
+      orgId: "",
     };
 
     const orgs = await json<{ items: { id: string }[] }>(request, "/api/orgs");
@@ -217,6 +218,7 @@ test.describe("artifact actions", () => {
     );
     expect(colleague, "the colleague is not a member; did the seed run?").toBeDefined();
     fixture.colleagueId = String(colleague!.user_id);
+    fixture.orgId = orgs.items[0]!.id;
 
     // The workflow: private, so a Member holds no right to run it until it is shared.
     const created = await request.post("/api/workflows", {
@@ -265,7 +267,14 @@ test.describe("artifact actions", () => {
     await ok(agent, "creating the agent");
     fixture.agentId = ((await agent.json()) as { id: string }).id;
     await ok(
-      await request.put(`/api/agents/${fixture.agentId}/draft`, { data: { spec } }),
+      await request.put(`/api/agents/${fixture.agentId}/draft`, {
+        data: {
+          spec,
+          expected_revision: (
+            await json<{ draft_revision: string }>(request, `/api/agents/${fixture.agentId}`)
+          ).draft_revision,
+        },
+      }),
       "the agent's draft",
     );
     await ok(

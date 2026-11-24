@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ApiError } from "@/lib/api-error";
 import { ConsentScreen } from "./consent-screen";
 import type { OAuthConsentRequest } from "@/types/mcp-oauth";
 
@@ -39,6 +40,7 @@ function state(overrides: Record<string, unknown> = {}) {
     request: REQUEST,
     isLoading: false,
     error: null,
+    refetch: vi.fn(),
     approve: {
       mutateAsync: vi.fn().mockResolvedValue({ redirect_to: "http://cb?code=x" }),
       isPending: false,
@@ -70,7 +72,7 @@ describe("ConsentScreen", () => {
     expect(screen.getByText(/127\.0\.0\.1:33418/)).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Allow" }));
 
-    expect(current.approve.mutateAsync).toHaveBeenCalledWith(["agents:view"]);
+    expect(current.approve.mutateAsync).toHaveBeenCalledWith({ scopes: ["agents:view"] });
     expect(assign).toHaveBeenCalledWith("http://cb?code=x");
   });
 
@@ -102,7 +104,9 @@ describe("ConsentScreen", () => {
   });
 
   it("says an expired request has expired, and waits while loading", () => {
-    useConsentRequestMock.mockReturnValue(state({ request: null, error: new Error("404") }));
+    useConsentRequestMock.mockReturnValue(
+      state({ request: null, error: new ApiError(404, "Expired") }),
+    );
     const { rerender } = render(<ConsentScreen requestId="r1" />);
     expect(screen.getByText("This request has expired")).toBeInTheDocument();
 
@@ -110,4 +114,94 @@ describe("ConsentScreen", () => {
     rerender(<ConsentScreen requestId="r1" />);
     expect(screen.queryByText("This request has expired")).not.toBeInTheDocument();
   });
+});
+
+it("freezes organization and chosen permissions during an answer and retains them on refusal", async () => {
+  const current = state();
+  useConsentRequestMock.mockReturnValue(current);
+  const { rerender } = render(<ConsentScreen requestId="r1" />);
+  await userEvent.click(screen.getByLabelText("Access"));
+  await userEvent.click(screen.getByRole("option", { name: "Custom" }));
+  await userEvent.click(screen.getByRole("checkbox", { name: "agents:view" }));
+  useConsentRequestMock.mockReturnValue({
+    ...current,
+    approve: { ...current.approve, isPending: true },
+  });
+  rerender(<ConsentScreen requestId="r1" />);
+  expect(screen.getByLabelText("Organization")).toBeDisabled();
+  expect(screen.getByLabelText("Access", { selector: "button" })).toBeDisabled();
+  expect(screen.getByLabelText("Find a permission")).toBeDisabled();
+  expect(screen.getByRole("checkbox", { name: "agents:view" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Allow" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Deny" })).toBeDisabled();
+  useConsentRequestMock.mockReturnValue(current);
+  rerender(<ConsentScreen requestId="r1" />);
+  expect(screen.getByLabelText("Organization")).toBeEnabled();
+  expect(screen.getByRole("checkbox", { name: "agents:view" })).toBeChecked();
+});
+
+it("keeps deployment authority separate and unselected until an app admin explicitly grants it", async () => {
+  const current = state({ request: { ...REQUEST, deployment_admin_available: true } });
+  useConsentRequestMock.mockReturnValue(current);
+  render(<ConsentScreen requestId="r1" />);
+  const global = screen.getByRole("checkbox", { name: "Administer the entire installation" });
+  expect(global).not.toBeChecked();
+  await userEvent.click(global);
+  await userEvent.click(screen.getByRole("button", { name: "Allow" }));
+  expect(current.approve.mutateAsync).toHaveBeenCalledWith({
+    scopes: ["agents:view"],
+    deployment_admin: true,
+  });
+});
+
+it("never offers deployment authority to an organization administrator without the app flag", () => {
+  useConsentRequestMock.mockReturnValue(state());
+  render(<ConsentScreen requestId="r1" />);
+  expect(
+    screen.queryByRole("checkbox", { name: "Administer the entire installation" }),
+  ).not.toBeInTheDocument();
+});
+
+it("permits a global-only grant and drops an old global selection when availability is withdrawn", async () => {
+  const current = state({
+    request: { ...REQUEST, deployment_admin_available: true, catalog: { scopes: [], presets: [] } },
+  });
+  useConsentRequestMock.mockReturnValue(current);
+  const { rerender } = render(<ConsentScreen requestId="r1" />);
+  expect(screen.getByRole("button", { name: "Allow" })).toBeDisabled();
+  await userEvent.click(
+    screen.getByRole("checkbox", { name: "Administer the entire installation" }),
+  );
+  expect(screen.getByRole("button", { name: "Allow" })).not.toBeDisabled();
+  await userEvent.click(screen.getByRole("button", { name: "Allow" }));
+  expect(current.approve.mutateAsync).toHaveBeenCalledWith({ scopes: [], deployment_admin: true });
+  useConsentRequestMock.mockReturnValue({
+    ...current,
+    request: { ...current.request, deployment_admin_available: false },
+  });
+  rerender(<ConsentScreen requestId="r1" />);
+  expect(screen.getByRole("button", { name: "Allow" })).toBeDisabled();
+});
+
+it.each([429, 502, 403])(
+  "reports a %s read failure without falsely expiring the consent request",
+  async (status) => {
+    const current = state({ request: null, error: new ApiError(status, "Request unavailable") });
+    useConsentRequestMock.mockReturnValue(current);
+    render(<ConsentScreen requestId="r1" />);
+    expect(screen.queryByText("This request has expired")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Allow" })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(current.refetch).toHaveBeenCalledOnce();
+    expect(current.approve.mutateAsync).not.toHaveBeenCalled();
+  },
+);
+
+it("keeps a network outage recoverable instead of claiming that the request expired", async () => {
+  const current = state({ request: null, error: new Error("Network unavailable") });
+  useConsentRequestMock.mockReturnValue(current);
+  render(<ConsentScreen requestId="r1" />);
+  expect(screen.queryByText("This request has expired")).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+  expect(current.refetch).toHaveBeenCalledOnce();
 });

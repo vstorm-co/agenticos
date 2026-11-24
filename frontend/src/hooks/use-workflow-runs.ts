@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
-import { ApiError, getErrorMessage } from "@/lib/api-error";
+import { ApiError, fieldProblems, getErrorMessage } from "@/lib/api-error";
 import { qk } from "@/lib/query-keys";
 import { listRunLogs } from "@/lib/workflows/logs-api";
 import {
@@ -29,12 +29,18 @@ import {
   type WorkflowRunRead,
 } from "@/lib/workflows/types";
 import { toastDone } from "@/lib/toast";
+import { isTableRefusalField } from "@/lib/workflows/table-drift";
+import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 
 /** How often a live run is read again - its steps move on their own. */
 const LIVE_POLL_MS = 2000;
 
-/** A workflow's runs, and starting a new one. */
-export function useWorkflowRuns(workflowId: string) {
+/** A workflow's runs and admission; a visible input form owns field refusals. */
+export function useWorkflowRuns(
+  workflowId: string,
+  inputErrorsInForm = false,
+  options: { startFeedback?: "toast" | "inline" } = {},
+) {
   const t = useTranslations("pages.workflows");
   const tErrors = useTranslations("errors");
   const queryClient = useQueryClient();
@@ -49,9 +55,27 @@ export function useWorkflowRuns(workflowId: string) {
     mutationFn: startWorkflowRun,
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: qk.workflows.runs(workflowId) });
-      toastDone(t("runStarted"));
+      if (options.startFeedback !== "inline") toastDone(t("runStarted"));
     },
-    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
+    onError: (error) => {
+      const all = fieldProblems(error);
+      // Refresh stale references, while retaining refusals a refresh cannot settle:
+      // a missing table, lost access or an invalid column needs the author's edit.
+      const graph = useWorkflowEditorStore.getState().graph;
+      const isTable = (field: string) => isTableRefusalField(field, graph);
+      const tables = all.some(({ field }) => isTable(field));
+      if (tables) {
+        useWorkflowEditorStore.getState().refreshTables();
+      }
+      const toastFields = inputErrorsInForm
+        ? all.filter(({ field }) => field !== "input" && !field.startsWith("input."))
+        : all;
+      if (toastFields.length > 0)
+        toast.error(
+          toastFields.map((problem) => `${problem.field}: ${problem.message}`).join("\n"),
+        );
+      else if (all.length === 0) toast.error(getErrorMessage(error, tErrors));
+    },
   });
   return { runs: data?.items ?? [], total: data?.total ?? 0, isLoading, start };
 }
@@ -177,6 +201,8 @@ export function useWorkflowRun(runId: string) {
   return {
     run: run.data ?? null,
     isLoading: run.isLoading,
+    error: run.error ?? nodes.error ?? files.error ?? graph.error,
+    refetch: () => Promise.all([run.refetch(), nodes.refetch(), files.refetch(), graph.refetch()]),
     nodes: nodes.data?.items ?? [],
     files: files.data?.items ?? [],
     logs: logs.data?.items ?? [],

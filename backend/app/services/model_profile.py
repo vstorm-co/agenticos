@@ -5,6 +5,7 @@ profile ids; everything below deals in ciphertext.
 """
 
 import logging
+import os
 from collections.abc import Mapping
 from dataclasses import replace
 from urllib.parse import urlparse
@@ -22,6 +23,7 @@ from app.agents.model_resolver import (
     ResolvedCredential,
     api_for_model,
     get_provider,
+    is_decision_api,
     lacks_key,
 )
 from app.core.audit import record_audit
@@ -33,6 +35,7 @@ from app.core.exceptions import (
     AlreadyExistsError,
     AuthorizationError,
     BadRequestError,
+    ConcurrentChangeError,
     ConfigurationError,
     ExternalServiceError,
     InUseError,
@@ -41,9 +44,13 @@ from app.core.exceptions import (
 from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext, Perm
 from app.core.secret_kinds import (
+    AwsCredentialsSecret,
+    AzureOpenAISecret,
+    GcpServiceAccountSecret,
     NoSecret,
     OpenAICodexSecret,
     SecretKind,
+    SecretValue,
     unseal_secret,
 )
 from app.core.vault import VaultScope
@@ -54,6 +61,7 @@ from app.db.models.organization_secret import OrganizationSecret
 from app.repositories import (
     agent_repo,
     credential_repo,
+    eval_run_repo,
     organization_repo,
     organization_secret_repo,
     system_agent_repo,
@@ -78,6 +86,20 @@ _ALLOWED_ENDPOINT_SCHEMES = frozenset({"http", "https"})
 # `create_profile` validated, and fails loudly on a value it never wrote.
 _stored_api = TypeAdapter[ModelApi | None](ModelApi | None).validate_python
 _stored_region = TypeAdapter[ModelRegion | None](ModelRegion | None).validate_python
+
+
+def _credential_routing(secret: SecretValue) -> Mapping[str, str | None]:
+    """The provider's routing fields, excluding tokens and authentication material."""
+    if isinstance(secret, AzureOpenAISecret):
+        return {"azure_endpoint": secret.azure_endpoint, "api_version": secret.api_version}
+    if isinstance(secret, AwsCredentialsSecret):
+        return {"region_name": secret.region_name}
+    if isinstance(secret, GcpServiceAccountSecret):
+        return {
+            "project": secret.project,
+            "location": secret.location or os.getenv("GOOGLE_CLOUD_LOCATION") or "us-central1",
+        }
+    return {}
 
 
 def _validate_model_id(provider: str, model: str) -> None:
@@ -149,7 +171,10 @@ def usable_for_agents(profile: ModelProfile) -> bool:
     only those `choosable_for_others` also accepts. It cannot see a fallback
     chain, which publish checks.
     """
-    if not model_outputs(profile.provider, profile.model, base_url=profile.base_url).chat:
+    if (
+        is_decision_api(profile.provider, profile.api)
+        or not model_outputs(profile.provider, profile.model, base_url=profile.base_url).chat
+    ):
         return False
     return not lacks_key(
         profile.provider,
@@ -226,7 +251,7 @@ async def _checked_endpoint(spec: ProviderSpec, base_url: str) -> str:
             "provider's own API, so a custom URL here would be ignored",
             provider=spec.id,
         )
-    return await validate_endpoint_url(base_url)
+    return spec.endpoint(await validate_endpoint_url(base_url))
 
 
 def _check_shape(
@@ -402,6 +427,11 @@ class ModelProfileService:
         if region is None:
             region = spec.default_region()
         _check_shape(spec, secret_id=secret_id, base_url=base_url, api=api, region=region)
+        if is_decision_api(provider, api) and fallback_profile_ids:
+            raise refused_field(
+                "fallback_profile_ids",
+                "Decision model probabilities require an explicit model; automatic fallbacks are not supported",
+            )
         personal_owner_user_id = None
         if provider == CLAUDE_SUBSCRIPTION_PROVIDER:
             owner = await ClaudeSubscriptionService().require_connected(ctx)
@@ -412,7 +442,13 @@ class ModelProfileService:
             if secret.usage_scope == "personal":
                 personal_owner_user_id = ctx.personal_user_id
         listed = await self._listed_model(
-            ctx, provider, model, base_url, secret_id, personal=personal_owner_user_id is not None
+            ctx,
+            provider,
+            model,
+            base_url,
+            secret_id,
+            personal=personal_owner_user_id is not None,
+            api=api,
         )
         if not api_given and spec.api_from_model and listed is not None:
             # The model's own listing says which API it is served on (Stav.ai):
@@ -444,6 +480,11 @@ class ModelProfileService:
             target_id=str(profile.id),
             details={"label": label, "provider": provider, "model": model},
         )
+        # The agent registry reads this module's fallback depth, and system
+        # agents are built on the registry: imported here, not at the top.
+        from app.services.system_agents import SystemAgentService
+
+        await SystemAgentService(self.db).adopt_model(organization_id=ctx.organization_id)
         return profile
 
     async def _listed_model(
@@ -455,6 +496,7 @@ class ModelProfileService:
         secret_id: UUID | None,
         *,
         personal: bool = False,
+        api: ModelApi | None = None,
     ) -> CatalogModel | None:
         """Read creation-time metadata using the selected authenticated gateway credential."""
         if provider == CLAUDE_SUBSCRIPTION_PROVIDER:
@@ -472,7 +514,7 @@ class ModelProfileService:
             if personal or CUSTOM_LISTINGS.get(provider)
             else await secrets.listing_key(ctx, provider)
         )
-        models, _ = await models_for(provider, api_key=api_key, base_url=endpoint)
+        models, _ = await models_for(provider, api_key=api_key, base_url=endpoint, api=api)
         return next((entry for entry in models if entry.id == model), None)
 
     async def _check_label_free(self, ctx: AuthContext, label: str) -> None:
@@ -597,6 +639,11 @@ class ModelProfileService:
             and profile.provider != CLAUDE_SUBSCRIPTION_PROVIDER
         ):
             raise refused_field("secret_id", "Choose one of your personal API-key connections")
+        if is_decision_api(profile.provider, api) and profile.fallback_profile_ids:
+            raise refused_field(
+                "api",
+                "This profile has fallbacks. Create a separate decision model profile without fallbacks",
+            )
 
         wanted: dict[str, object] = {
             "secret_id": secret_id,
@@ -665,6 +712,9 @@ class ModelProfileService:
         Raises:
             NotFoundError: If the profile is not this organization's.
             InUseError: If an agent still names it.
+            ConcurrentChangeError: A queued or running eval run has a side on it.
+                Removing it would null that side's model, and its remaining cases
+                would answer on another model than the ones before them.
         """
         # Exclusive against every write that can name a profile - a draft save,
         # a publish, a promotion - which take it shared: the check below and the
@@ -711,6 +761,17 @@ class ModelProfileService:
                     ],
                     "hidden_agents": hidden,
                 },
+            )
+        live = await eval_run_repo.count_live_with_model(
+            self.db, model_profile_id=profile_id, organization_id=ctx.organization_id
+        )
+        if live:
+            raise ConcurrentChangeError(
+                message=(
+                    f"{live} eval run(s) on this model are still queued or running. "
+                    "Remove it once they finish, or cancel them first."
+                ),
+                details={"profile_id": str(profile_id), "eval_runs": live},
             )
         # The organization's proactive work may run on this model. Its column
         # clears itself on delete, and on without a model is off in practice - so
@@ -858,6 +919,9 @@ class ModelProfileService:
         return ResolvedCredential(
             provider=profile.provider,
             secret=value,
+            credential_id=secret.id,
+            authorization_generation=secret.authorization_generation,
+            routing=_credential_routing(value),
             personal_owner_user_id=personal_owner,
             # A ChatGPT sign-in rotates as it is used, so the provider is handed
             # the secret's place in the vault rather than only what it holds now.
@@ -881,6 +945,7 @@ class ModelProfileService:
         ctx: AuthContext,
         *,
         profile_id: UUID | None = None,
+        decision: bool = False,
     ) -> ModelRequestSpec:
         """Resolve the model a run should use, credentials included.
 
@@ -893,7 +958,9 @@ class ModelProfileService:
             AuthorizationError: If the model itself runs on a sign-in the
                 caller may not use.
         """
-        spec = await self._resolve_in(ctx.organization_id, profile_id=profile_id, ctx=ctx)
+        spec = await self._resolve_in(
+            ctx.organization_id, profile_id=profile_id, decision=decision, ctx=ctx
+        )
         if not await _may_spend(spec.credential, ctx):
             raise AuthorizationError(
                 message=(
@@ -974,6 +1041,7 @@ class ModelProfileService:
         *,
         profile_id: UUID | None = None,
         ctx: AuthContext | None = None,
+        decision: bool = False,
     ) -> ModelRequestSpec:
         """The profile and its fallbacks with their credentials, whoever is asking.
 
@@ -995,6 +1063,11 @@ class ModelProfileService:
         """
         profile = await self.profile_for_organization(organization_id, profile_id=profile_id)
 
+        native_decision = is_decision_api(profile.provider, profile.api)
+        if native_decision and not decision:
+            raise BadRequestError(
+                message="This profile serves decisions, not conversation. Select a chat model."
+            )
         outputs = model_outputs(profile.provider, profile.model, base_url=profile.base_url)
         if not outputs.chat:
             raise BadRequestError(
@@ -1005,6 +1078,10 @@ class ModelProfileService:
 
         fallbacks: list[tuple[ResolvedCredential, str]] = []
         fallback_ids = [UUID(pid) for pid in profile.fallback_profile_ids[:MAX_FALLBACK_DEPTH]]
+        if native_decision and fallback_ids:
+            raise BadRequestError(
+                message="A decision model cannot switch models automatically. Remove its fallbacks or create a separate profile."
+            )
         if fallback_ids:
             by_id = await credential_repo.get_profiles_by_ids(
                 self.db, fallback_ids, organization_id=organization_id
@@ -1017,9 +1094,12 @@ class ModelProfileService:
                         "Model profile %s lists missing fallback %s", profile.id, fallback_id
                     )
                     continue
-                if not model_outputs(
-                    fallback.provider, fallback.model, base_url=fallback.base_url
-                ).chat:
+                if (
+                    is_decision_api(fallback.provider, fallback.api)
+                    or not model_outputs(
+                        fallback.provider, fallback.model, base_url=fallback.base_url
+                    ).chat
+                ):
                     # A speech or embedding model cannot take over a conversation
                     # (#2487): publish refuses one, and a fallback added to the
                     # profile afterwards degrades the chain the same way.

@@ -3,7 +3,7 @@
 import { ProjectAvatar } from "@/components/projects/project-avatar";
 
 import { useState } from "react";
-import { Check, Plus } from "lucide-react";
+import { Check, Plus, ArrowUpRight } from "lucide-react";
 import { ProjectIcon as FolderKanban } from "@/components/icons/product-icons";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
@@ -23,6 +23,8 @@ import { ROUTES } from "@/lib/constants";
 import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_CONFIRM } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
 import type { Project } from "@/types/projects";
+import { ErrorState } from "@/components/states/error-state";
+import { getErrorMessage } from "@/lib/api-error";
 
 /**
  * Which project a new chat starts in, from the composer's `+`.
@@ -42,10 +44,12 @@ export function ProjectPickerDialog({
   onPick: (project: Project | null) => void;
 }) {
   const t = useTranslations("projects");
+  const common = useTranslations("common");
+  const errors = useTranslations("errors");
   const [query, setQuery] = useState("");
   const search = useDebounced(query);
   // Asked when the dialog opens, not whenever a chat composer with a `+` renders.
-  const { projects, isLoading } = useProjects({ search, limit: 50, enabled: open });
+  const { projects, isLoading, error, refetch } = useProjects({ search, limit: 50, enabled: open });
   const usable = projects.filter((project) => project.can_use);
 
   const choose = (project: Project | null) => {
@@ -56,8 +60,8 @@ export function ProjectPickerDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className={cn(DIALOG_BODY, DIALOG_COLUMN, DIALOG_CONFIRM)}>
-        <DialogHeader className="min-w-0 shrink-0">
-          <DialogTitle className="break-words">{t("pickTitle")}</DialogTitle>
+        <DialogHeader className="min-w-0 shrink-0 pr-6">
+          <DialogTitle className="text-base font-medium break-words">{t("pickTitle")}</DialogTitle>
           <DialogDescription>{t("pickHint")}</DialogDescription>
         </DialogHeader>
         <SearchInput
@@ -66,7 +70,7 @@ export function ProjectPickerDialog({
           placeholder={t("search")}
           className="min-w-0 shrink-0 sm:w-full"
         />
-        <ul className={cn(DIALOG_BODY, "min-w-0 space-y-0.5 overscroll-contain")}>
+        <ul className={cn(DIALOG_BODY, "min-h-48 min-w-0 space-y-1 overscroll-contain")}>
           <li>
             <PickRow
               label={t("noProject")}
@@ -78,6 +82,18 @@ export function ProjectPickerDialog({
           {isLoading ? (
             <li>
               <Skeleton className="h-12 w-full" />
+            </li>
+          ) : error ? (
+            <li>
+              <ErrorState
+                description={getErrorMessage(error, errors)}
+                cta={{ label: common("retry"), onClick: () => void refetch() }}
+                className="border-0 px-3 py-4"
+              />
+            </li>
+          ) : usable.length === 0 ? (
+            <li className="text-muted-foreground flex min-h-28 items-center justify-center px-5 py-6 text-center text-sm leading-6">
+              {t(search.trim() ? "pickNoMatches" : "pickEmpty")}
             </li>
           ) : (
             usable.map((project) => (
@@ -95,10 +111,12 @@ export function ProjectPickerDialog({
         </ul>
         <Link
           href={ROUTES.PROJECTS}
-          className="text-muted-foreground hover:text-foreground flex min-w-0 shrink-0 items-center gap-1.5 text-xs"
+          onClick={() => onOpenChange(false)}
+          className="text-brand border-border flex min-h-9 min-w-0 shrink-0 items-center gap-2 border-t pt-3 text-xs underline-offset-4 hover:underline"
         >
           <Plus className="h-3.5 w-3.5" aria-hidden />
           {t("manageProjects")}
+          <ArrowUpRight className="ml-auto size-3.5" aria-hidden />
         </Link>
       </DialogContent>
     </Dialog>
@@ -124,8 +142,8 @@ function PickRow({
       onClick={onClick}
       aria-pressed={selected}
       className={cn(
-        "flex w-full min-w-0 items-start gap-3 rounded-lg px-2.5 py-2 text-left",
-        selected ? "bg-accent" : "hover:bg-accent/60",
+        "focus-visible:ring-ring flex w-full min-w-0 items-center gap-3 rounded-xl px-3 py-3 text-left transition-colors outline-none focus-visible:ring-2 focus-visible:ring-inset",
+        selected ? "bg-control" : "hover:bg-muted",
       )}
     >
       {projectName !== undefined ? (

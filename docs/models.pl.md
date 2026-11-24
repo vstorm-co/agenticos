@@ -1,5 +1,5 @@
 ---
-source_sha: "1991069bf88d"
+source_sha: "502f9d415d51"
 ---
 
 # Modele i providery { #models-and-providers }
@@ -24,6 +24,28 @@ model profile → credential → unsealed secret → provider client → Model
 ```
 
 Nic z tego, którego modelu używa agent, nie mieszka w `.env`.
+
+## Osobiste klucze do modeli { #personal-model-keys }
+
+W Builderze, w sekcji **Dostęp do modelu**, pozostaw domyślne **Użyj klucza organizacji** lub wybierz **Każdy użytkownik podłącza własny klucz**. Tryb osobisty zachowuje model i endpoint administratora. Obsługuje modele czatu z kluczem API, bez modeli zapasowych i zmiany modelu dla pojedynczej rozmowy.
+
+Zalogowany członek otwiera agenta w czacie i podłącza klucz przez prywatny formularz nad polem wiadomości lub w ustawieniach czatu. Klucz nigdy nie trafia do wiadomości, promptów ani instrukcji agenta. Połączenie jest wspólne dla agentów tej organizacji korzystających z tego samego dostawcy i endpointu. Brak klucza blokuje run przed zapytaniem do modelu; błąd uwierzytelnienia nigdy nie przełącza na klucz organizacji. Wymień klucz w ustawieniach czatu lub usuń połączenie w **Vault → Twoje połączenie z modelem**. Zapis klucza nie sprawdza go u dostawcy.
+
+Formularz prywatnego klucza przesyła oczekiwany profil, dostawcę, endpoint i model pokazane użytkownikowi. Jeśli cel zmieni się przed zapisem, serwer odrzuca klucz jako konflikt; formularz odświeża cel i usuwa wpisany klucz przed kolejną próbą.
+
+Tryb osobisty nie obsługuje obecnie kanałów prywatnych ani grupowych, widgetów, stron publicznych, uruchomień przez HTTP API, harmonogramów, triggerów, tematów w tle, głosu, recenzentów ani osobnych modeli funkcji. Przed publikacją wstrzymaj lub usuń aktywne kanały, publiczne udostępnienia i rutyny. Utworzenie lub ponowne włączenie niezgodnego udostępnienia zostaje odrzucone; run sprawdza tę samą zasadę. Strony publiczne i tokeny JWT widgetów nie identyfikują zalogowanego członka instancji.
+
+Delegowanie działa w czacie zalogowanego użytkownika. Subagent w trybie osobistym musi używać dokładnie tego profilu modelu, który wybrano w głównym agencie działającym w trybie osobistym. Agent organizacyjny nie może korzystać z osobistych kluczy przez delegację, a osobisty subagent nie może wybrać innego modelu ani endpointu. Zasady obowiązują przy publikacji, udostępnianiu, promocji wersji i wykonaniu, także w zagnieżdżonych delegacjach i po wznowieniu.
+
+Subagenci organizacyjni zachowują własne klucze. Specjaliści inline dziedziczą tryb rodzica, a dynamiczni w trybie osobistym pozostają przy jego modelu. Zasady osobistego dostępu MCP pozostają bez zmian.
+
+Komunikat o brakującym połączeniu subagenta podaje nazwę agenta i połączenia z modelem. Otwórz ustawienia czatu tego agenta i podłącz klucz; jeśli agent nie jest widoczny, poproś właściciela o dostęp. Runner sprawdza drzewo delegacji przed zapytaniami do modeli i ponownie przy wznowieniu. Klucz innego endpointu, innej osoby ani osoby zatwierdzającej nie zastępuje brakującego połączenia użytkownika.
+
+Klucze są szyfrowane w vaulcie dla właściciela i usuwane wraz z jego członkostwem lub kontem. Zmiana zatwierdzonego endpointu wymaga nowego połączenia. Rotacja klucza jednej osoby nie zmienia kluczy innych ani wspólnego profilu modelu.
+
+Impersonacja innego członka nie daje dostępu do jego osobistych połączeń z modelami: próby odczytu, zmiany lub użycia klucza są odrzucane przed dostępem do vault.
+
+Prywatna historia rozmowy jest przypisana do zatwierdzonych celów modeli, także fallbacków; [historia czatu](console.md#chat) opisuje zmianę połączenia i wznawianie oczekujących runów.
 
 ## Profil modelu { #a-model-profile }
 
@@ -221,21 +243,38 @@ Profil może wymienić profile zapasowe, wypróbowywane po kolei. Awaria jednego
 providera nie powinna kłaść agentów organizacji, gdy ma ona drugi klucz albo
 skonfigurowanego drugiego providera.
 
-!!! warning "Fallback jest niewidoczny w zapisie runa"
+Fallback nie jest już niewidoczny w zapisie runa. Gdy model zapasowy obsłuży
+któreś żądanie runa, wiersz runa zapisuje `fallback_used` oraz czyste id modelu,
+który odpowiedział na ostatnie udane żądanie, jako `serving_model`, a widok
+szczegółów runa pokazuje pod faktami „Odpowiedział … (model zapasowy)". Wiersz
+jest nadal zapisywany przed pierwszym żądaniem, więc do zakończenia runa nazywa
+profil podstawowy; zaparkowany run niesie to, co dotychczas zapisały jego
+ukończone segmenty.
 
-    Wiersz runa zapisywany jest przed pierwszym żądaniem i niesie etykietę,
-    providera oraz id sekretu profilu **podstawowego**. Jeśli turę obsłużył
-    fallback, run i tak nazywa podstawowy.
+Zanim oprzesz się na tych liczbach w czasie awarii, warto znać dwa martwe pola:
 
-    Więc „ile wydaliśmy w OpenAI” i „który klucz kosztuje najwięcej” odpowiadają
-    profilem, którego *zapytano* jako pierwszego, a nie tym, który odpowiedział.
-    Warto to wiedzieć, zanim oprzesz się na tych liczbach w czasie awarii.
+- „Ile wydaliśmy w OpenAI” i „który klucz kosztuje najwięcej” nadal odpowiadają
+  profilem podstawowym, którego *zapytano* jako pierwszego, a nie tym, który
+  odpowiedział — koszt przypisywany jest profilowi podstawowemu. Nowe kolumny
+  mówią, który model odpowiedział, a nie który profil zapłacił.
+- Błąd **po** pierwszym zdarzeniu strumieniowym nigdy nie uruchamia fallbacku.
+  Pydantic AI przekazuje strumień wywołującemu przy pierwszym zdarzeniu, więc
+  błąd w środku strumienia kończy runa zamiast próbować kolejnego modelu
+  z łańcucha.
 
 ### Ustawienia modelu { #model-settings }
 
 Per profil, nadpisywalne per agent przez `model_settings` w specu:
-`temperature`, `top_p`, `max_tokens`, `parallel_tool_calls`, `timeout`. Zobacz
+`temperature`, `top_p`, `max_tokens`, `parallel_tool_calls`, `timeout`,
+`request_timeout`, `first_event_timeout`. Zobacz
 [referencję speca](reference/spec.md#model-settings).
+
+Żądanie ma też domyślne terminy: 300 sekund na jedno żądanie do modelu
+(`request_timeout` oraz `timeout` na próbę) i 120 sekund na pierwsze
+zdarzenie w streamie (`first_event_timeout`). Profil lub spec agenta mogą je
+podnieść lub obniżyć. Po upływie terminu run kończy się jako `timed_out` — z
+terminem w zapisanym błędzie — zamiast wyświetlać „Working" bez końca; tam,
+gdzie skonfigurowano łańcuch fallback, jest on najpierw próbowany.
 
 **Cache'owanie promptu jest domyślnie włączone**, przez neutralne wobec dostawcy
 ustawienie `cache` z Pydantic AI. Każde żądanie runu wysyła ponownie instrukcje,
@@ -341,6 +380,7 @@ Standardowe providery korzystają z wnioskowania modeli i providerów w Pydantic
 | OpenAI | `openai` | klucz API albo brak | ✓ |
 | Anthropic | `anthropic` | klucz API | ✓ |
 | Google Gemini | `google` | klucz API | ✓ |
+| TypeSafe (Jev) | `typesafe` | klucz API | ✓ |
 | OpenRouter | `openrouter` | klucz API |  ✓ |
 | Otari | `otari` | klucz API | ✓ |
 | Alibaba Cloud | `alibaba` | klucz API | ✓ |
@@ -350,6 +390,7 @@ Standardowe providery korzystają z wnioskowania modeli i providerów w Pydantic
 | GitHub Models | `github` | klucz API | |
 | Groq | `groq` | klucz API | |
 | Heroku AI | `heroku` | klucz API | ✓ |
+| LLMTR | `llmtr` | klucz API | |
 | Mistral | `mistral` | klucz API | |
 | Moonshot AI | `moonshotai` | klucz API | |
 | Nebius AI Studio | `nebius` | klucz API | |
@@ -363,10 +404,13 @@ Standardowe providery korzystają z wnioskowania modeli i providerów w Pydantic
 | Cohere | `cohere` | klucz API | |
 | Hugging Face | `huggingface` | klucz API | ✓ |
 
+LLMTR pokazuje tylko modele deklarujące `CHAT_COMPLETIONS`. Model bez zweryfikowanej ceny we wbudowanym zestawie może działać tylko bez aktywnego limitu wydatków w dolarach; zapisany koszt pozostaje niepełny. Przy aktywnym limicie kolejne wywołanie LLMTR jest też odrzucane, jeśli koszt wcześniejszego użycia jest nieznany.
+
 ### Samodzielnie hostowane { #self-hosted }
 
 | Provider | id | Poświadczenie | Custom URL |
 |---|---|---|---|
+| System One API | `system-one` | klucz API albo brak | ✓ |
 | Ollama | `ollama` | brak | ✓ |
 | proxy LiteLLM | `litellm` | brak | ✓ (`api_base`) |
 
@@ -393,6 +437,43 @@ ani nic, czym się uwierzytelnić.
     czyni ten drugi przypadek czymś zwyczajnym. Run rozwiązuje profil bez klucza
     tylko wtedy, gdy niesie on endpoint; w przeciwnym razie jest odrzucany z tym
     samym komunikatem „no key configured”, który miał zawsze.
+
+### Własny endpoint { #your-own-endpoint }
+
+| Provider | id | Poświadczenie | Custom URL |
+|---|---|---|---|
+| Custom (OpenAI-compatible) | `openai_compatible` | klucz API | ✓ |
+| Custom (Anthropic-compatible) | `anthropic_compatible` | klucz API | ✓ |
+
+Te dwa to *kształt* API, a nie dostawca. Wpisujesz adres serwera, który
+prowadzisz, albo bramki, której ufasz, oraz klucz, który ją uwierzytelnia.
+Wybierz ten, który pasuje do tego, co odpowiada Twój endpoint:
+
+| Twój endpoint odpowiada | Wybierz | Adres do wpisania |
+|---|---|---|
+| `POST /chat/completions` — vLLM, LM Studio, proxy LiteLLM, większość bramek | `openai_compatible` | katalog `/v1`, na przykład `https://llm.example/v1` |
+| `POST /v1/messages` — własny kształt API Anthropic | `anthropic_compatible` | katalog API, na przykład `https://llm.example` |
+
+Oba potrzebują endpointu i klucza. Nie ma żadnego publicznego API, do którego
+można by się wycofać, więc profil bez nich jest odrzucany, a nie kierowany
+gdzieś indziej.
+
+Klucz jest przechowywany w sejfie pod nazwą samego providera, więc w sejfie
+widać, że uwierzytelnia *ten* endpoint, a nie publiczne API dostawcy. Dlatego
+to osobne pozycje, a nie profil `openai` albo `anthropic` z adresem: klucz
+zapisany pod nazwą dostawcy mówi o tym dostawcy.
+
+!!! info "Adres Anthropic nie zawiera `/v1`"
+
+    SDK Anthropic wysyła żądanie na `<endpoint>/v1/messages`, więc endpointem
+    jest katalog API. Adres, który już kończy się na `/v1`, jest przycięty,
+    więc oba zapisy działają — ale to katalog API jest tym, o co pyta
+    platforma.
+
+**Load models** czyta listę z tego samego endpointu, tym samym kluczem, więc
+lista w polu oferuje to, co Twój serwer faktycznie udostępnia. Identyfikator
+modelu pozostaje wolnym tekstem: serwer, który nie publikuje listy, nadal da
+się użyć, wpisując identyfikator ręcznie.
 
 ### Kiedy poświadczeniem nie jest klucz API { #when-the-credential-is-not-an-api-key }
 
@@ -599,11 +680,13 @@ tak właśnie literówka albo wycofany model jest łapany zamiast wysyłany jako
 rozwijana, na którą provider odpowiada 404. Model, który migawka zna, ale którego
 nie wycenia, po prostu nie ma okna, co jest nullem opisanym poniżej.
 
+Selektor subskrypcji pobiera po otwarciu listę dostarczaną z wdrożeniem. Nie pobiera katalogu dla danego konta na żywo. Wpisy GPT-6.2 sprawdzono w Codex app server. Rozmiar kontekstu pozostaje pusty do czasu uzupełnienia katalogu cen.
+
 | Provider | Kuratorowane id |
 |---|---|
 | `anthropic` | `claude-opus-5`, `claude-sonnet-5`, `claude-fable-5`, `claude-haiku-4-5` |
 | `openai` | `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna`, `gpt-5.3-codex` |
-| `openai_codex` | te same cztery co `openai` |
+| `openai_codex` | GPT-6.2 Sol i Astra, GPT-6.1 Sol i Terra, GPT-6 Sol, Astra i Luna oraz wcześniejsze identyfikatory Codex |
 | `google` | `gemini-3.6-flash`, `gemini-3.5-flash`, `gemini-3.5-flash-lite`, `gemini-3.1-pro-preview` |
 | `deepseek` | `deepseek-v4-pro`, `deepseek-v4-flash` |
 | `xai` | `grok-4.5`, `grok-4.3` |
@@ -640,14 +723,14 @@ przenosi się na inny model.
 !!! danger "Dlaczego jest zapisywana, a nie rozwiązywana per run"
 
     Ścieżka żądania nie może wołać providera, a jedyne, co mogłaby poza tym
-    sprawdzić, to dołączona migawka cen — która jest tu błędna w kierunku
-    psującym run.
-
-    Ta migawka zapisuje 1 000 000 dla `anthropic:claude-sonnet-4-5` wobec
-    rzeczywistych 200 000, więc wyzwalacz przy 90% ląduje powyżej prawdziwego
-    sufitu i kompaktowanie nigdy nie odpala, zanim provider odrzuci żądanie.
-    Profil z fallbackami jest gorszy: buduje `FallbackModel`, którego złożone id
-    nie rozwiązuje się do niczego w ogóle.
+    sprawdzić, to dołączona migawka cen — bundle zewnętrzny, którego liczby nie
+    są autorytatywne: wcześniejsza migawka zapisywała 1 000 000 dla
+    `anthropic:claude-sonnet-4-5` wobec rzeczywistych 200 000, więc wyzwalacz
+    przy 90% lądował powyżej prawdziwego sufitu i kompaktowanie nigdy nie
+    odpalało, zanim provider odrzucił żądanie (#773). Przypięta migawka zapisuje
+    dziś poprawne 200 000, lecz aktualizacja bundla może przesunąć liczbę, a to
+    repo tego nie zauważy. Profil z fallbackami jest gorszy: buduje
+    `FallbackModel`, którego złożone id nie rozwiązuje się do niczego w ogóle.
 
 Null znaczy **niezapisane**, a nie zero: profil starszy niż ta kolumna, provider,
 który nie publikuje długości, lista kuratorowana albo listing, którego nie dało się
@@ -780,3 +863,19 @@ Endpoint regionalny obsługuje mniej modeli embeddingów niż globalny: `eu.open
 Przed ustawieniem regionalnych endpointów zaktualizuj wszystkie procesy API i workerów. Starsze wersje ignorują nadpisanie endpointu OpenRouter.
 
 Aby użyć innego endpointu z tym samym dostawcą i modelem, wybierz w Builderze **Dodaj osobny model**. Automatyczna nazwa zawiera endpoint, a istniejący profil pozostaje bez zmian. **Aktualizuj model** edytuje wspólny profil. Pobieranie niestandardowego katalogu ma limit 2 MiB, 2048 modeli i długości pól; proces przechowuje maksymalnie 16 katalogów. Skompresowana lub zbyt duża odpowiedź pozostawia możliwość wpisania identyfikatora modelu bez przechodzenia na globalną listę.
+
+## Modele decyzyjne { #decision-models }
+
+Profile decyzyjne używają natywnego API `decisions` zamiast generowania tekstu. Wybierz providera, model i klucz z vault w formularzu modelu. OpenAI, Google i OpenRouter oferują API czatu i decyzji; TypeSafe i własny endpoint System One obsługują decyzje. Profil decyzyjny nie może być modelem rozmowy agenta ani modelem zapasowym dla modelu czatowego.
+
+Adaptery pochodzą z Pydantic AI. Obecne sugestie obejmują OpenAI `gpt-6-luna`, Google `gemini-decision-1` oraz TypeSafe `jev-1.14.0` / `jev-latest`. OpenRouter pobiera katalog modeli decyzyjnych osobno od tekstowych. Własny System One wymaga adresu i identyfikatora modelu. Dostępność zależy od dostawcy i konta; sugestia nie gwarantuje dostępu.
+
+Kroki workflow **Modele decyzyjne** (Decision models) wybierają natywny profil. Istniejące identyfikatory `decide.*` i konfiguracje z kluczem TypeSafe nadal działają. Odpowiedź poniżej progu pewności kieruje do portu `unsure`. Każde wykonanie ponownie sprawdza uprawnienia i klucz; koszt wchodzi do budżetu workflow i organizacji.
+
+Opcja kanałowa **Dołączaj automatycznie do rozmów** (Join conversations automatically) może korzystać z natywnego profilu decyzyjnego albo zwykłego LLM z ustrukturyzowanym wyjściem. Natywna decyzja tak/nie zwraca prawdopodobieństwo dołączenia; ograniczone pole liczbowe zachowuje tę wartość. LLM zwraca ocenę przydatności od 0 do 100, a nie skalibrowane prawdopodobieństwo. Obie wartości porównuje się z progiem ustawionym w **Uruchom agenta od (%)** (Run the agent from (%)); równość z progiem też się liczy. Klasyfikator nie ma narzędzi. Funkcja wymaga włączenia i respektuje ustawione interwały; główny agent może używać organizacyjnych kont MCP, nigdy prywatnych danych uczestnika.
+
+Źródła dostawców: [Pydantic AI](https://pydantic.dev/docs/ai/models/decision/), [OpenAI](https://developers.openai.com/api/docs/guides/decisions), [Google](https://ai.google.dev/gemini-api/docs/decisions-api), [TypeSafe](https://docs.typesafe.ai/models), [OpenRouter](https://github.com/OpenRouterTeam/skills/tree/main/skills/openrouter-decisions).
+
+ElevenLabs Realtime udostępnia `eleven_realtime_v1_mini` oraz `eleven_realtime_v1_max` przez relay PCM 24 kHz, z domyślnym głosem `brian` i semantycznym wykrywaniem tur.
+
+SDK nie raportuje opłat za tokeny. Połączenia z ustawionym budżetem wydatków są odrzucane przed nawiązaniem; połączenia bez takiego budżetu zachowują limit czasu i zapisują koszt audio jako dolną granicę, a nie pełny rachunek. Stawka katalogowa audio wynosi 0,08 USD/minutę (0,16 USD w trybie burst); tokeny kosztują dodatkowo. Wartość kontekstu 16k jest ostrożnym limitem historii przyjętym przez platformę, a nie oknem kontekstu ogłoszonym przez dostawcę. Integrację sprawdzono offline na konstrukcji modeli SDK i kontrolowanych transportach, bez testów na rzeczywistym koncie. [SDK](https://pydantic.dev/docs/ai/api/realtime/elevenlabs/), [ElevenLabs API pricing](https://elevenlabs.io/pricing/api).

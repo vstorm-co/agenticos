@@ -8,14 +8,14 @@ import pytest
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import BadRequestError, NotFoundError
+from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.group import Group, GroupMember
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.task_board import TaskBoard, TaskLink
 from app.db.models.user import User
 from app.schemas.task import BoardEnsure, TaskCreate, TaskUpdate
-from app.schemas.virtual_table import ColumnInput, RecordUpdate, SchemaUpdate
+from app.schemas.virtual_table import ColumnInput, RecordUpdate, SchemaUpdate, TableUpdate
 from app.services.task_execution import TaskExecution
 from app.services.tasks import TaskLifecycle, TaskService
 from app.services.virtual_tables import VirtualTableService
@@ -71,7 +71,28 @@ async def test_private_board_is_reused_and_hidden_even_from_another_org_owner(
     assert (await tables.list_tables(data.contexts[1])).items == []
     with pytest.raises(NotFoundError):
         await tables.describe_table(data.contexts[1], first.table_id)
-    assert len((await tables.list_tables(data.contexts[0])).items) == 1
+    assert [item.name for item in (await tables.list_tables(data.contexts[0])).items] == [
+        "Owner Tasks"
+    ]
+
+
+async def test_private_boards_with_the_same_owner_name_get_distinct_titles(
+    db: AsyncSession,
+) -> None:
+    data = await world(db)
+    for user in data.users:
+        user.full_name = "A" * 120
+    await db.flush()
+    service = TaskService(db)
+    await service.ensure_board(data.contexts[0], BoardEnsure())
+    second = await service.ensure_board(data.contexts[1], BoardEnsure())
+    assert (await service.ensure_board(data.contexts[1], BoardEnsure())).id == second.id
+    assert [
+        item.name for item in (await VirtualTableService(db).list_tables(data.contexts[0])).items
+    ] == ["A" * 58 + " Tasks"]
+    assert [
+        item.name for item in (await VirtualTableService(db).list_tables(data.contexts[1])).items
+    ] == ["A" * 54 + " Tasks (2)"]
 
 
 async def test_group_membership_controls_table_and_task_access_live(db: AsyncSession) -> None:
@@ -236,6 +257,7 @@ async def test_agent_task_is_pinned_and_ends_in_review_or_blocked_state(
     agent = Agent(
         organization_id=data.org.id,
         name="Researcher",
+        draft_spec={"name": "Researcher"},
         slug=f"research-{uuid4().hex}",
         owner_user_id=data.users[0].id,
     )
@@ -764,7 +786,8 @@ async def test_removing_scope_purges_managed_table_and_cancels_its_wakeups(
 ) -> None:
     from app.db.models.background_job import BackgroundJob
     from app.db.models.project import Project
-    from app.db.models.virtual_table import VirtualTable, VirtualTableRecord
+    from app.db.models.virtual_table import VirtualTable, VirtualTableReceipt, VirtualTableRecord
+    from app.schemas.virtual_table import RecordBatchCreate, RecordCreate
     from app.services.group import GroupService
     from app.services.personal_data import PersonalDataService
     from app.services.project import ProjectService
@@ -796,6 +819,7 @@ async def test_removing_scope_purges_managed_table_and_cancels_its_wakeups(
             scope=kind,
             scope_id=scope_id,
             title="Reminder",
+            external_id="private@example.com",
             start_at=datetime.now(UTC) + timedelta(days=1),
         ),
     )
@@ -808,6 +832,65 @@ async def test_removing_scope_purges_managed_table_and_cancels_its_wakeups(
     review_link = await db.get(TaskLink, review.id)
     case_id = review_link.outcome_id
     board_id, table_id = task.board_id, task.table_id
+    board = await service.ensure_board(data.contexts[0], BoardEnsure(scope=kind, scope_id=scope_id))
+    batch, _ = await VirtualTableService(db).write_batch(
+        data.contexts[0],
+        table_id,
+        RecordBatchCreate(
+            records=[
+                RecordCreate(
+                    external_id="private@example.com",
+                    values={board.column_ids["title"]: "Duplicate"},
+                )
+            ]
+        ),
+        operation_key="private-batch",
+    )
+    assert batch.failed[0].details == {"external_id": "private@example.com"}
+    receipts = [
+        VirtualTableReceipt(
+            organization_id=data.org.id,
+            principal_id=data.users[1].id,
+            operation=operation,
+            operation_key=f"key-{index}",
+            payload_hash="0" * 64,
+            outcome=outcome,
+        )
+        for index, (operation, outcome) in enumerate(
+            [
+                (
+                    "record.create",
+                    {"record": {"table_id": str(table_id), "values": {"title": "Reminder"}}},
+                ),
+                ("table.create", {"id": str(table_id), "name": "Tasks"}),
+                (
+                    "record.create",
+                    {"record": {"table_id": str(other.table_id), "values": {"title": "Kept"}}},
+                ),
+            ]
+        )
+    ]
+    batch = VirtualTableReceipt(
+        organization_id=data.org.id,
+        principal_id=data.users[1].id,
+        operation="record.batch",
+        operation_key="batch",
+        payload_hash="0" * 64,
+        outcome={"failed": [{"details": {"external_id": "ada@example.com"}}]},
+        table_id=table_id,
+    )
+    expired = VirtualTableReceipt(
+        organization_id=data.org.id,
+        principal_id=data.users[1].id,
+        operation="record.update",
+        operation_key="expired",
+        payload_hash="0" * 64,
+        outcome={"record": {"table_id": str(table_id), "values": {"title": "Old"}}},
+        created_at=datetime.now(UTC) - timedelta(days=2),
+    )
+    db.add_all([*receipts, expired, batch])
+    await db.flush()
+    kept_receipt = receipts[2].id
     if kind == "project":
         await ProjectService(db).delete(data.contexts[0], scope_id)
     elif kind == "group":
@@ -835,6 +918,8 @@ async def test_removing_scope_purges_managed_table_and_cancels_its_wakeups(
     assert (
         await db.scalar(select(VirtualTable).where(VirtualTable.id == other.table_id)) is not None
     )
+    # Expired or not, a receipt holds the record's values until it is deleted.
+    assert list(await db.scalars(select(VirtualTableReceipt.id))) == [kept_receipt]
 
 
 async def test_scope_teardown_disables_its_agent_and_cancels_queued_fire(db: AsyncSession) -> None:
@@ -849,6 +934,7 @@ async def test_scope_teardown_disables_its_agent_and_cancels_queued_fire(db: Asy
         organization_id=data.org.id,
         owner_user_id=data.users[0].id,
         name="Worker",
+        draft_spec={"name": "Worker"},
         slug=f"worker-{uuid4().hex}",
     )
     project = Project(organization_id=data.org.id, owner_user_id=data.users[0].id, name="Tasks")
@@ -945,6 +1031,7 @@ async def test_cancelling_a_task_expires_its_parked_approval(db: AsyncSession) -
         organization_id=data.org.id,
         owner_user_id=data.users[0].id,
         name="Worker",
+        draft_spec={"name": "Worker"},
         slug=f"worker-{uuid4().hex}",
     )
     db.add(agent)
@@ -1446,3 +1533,473 @@ async def test_concurrently_removed_board_cannot_update_or_purge_an_unrelated_ta
     monkeypatch.setattr(tasks.task_repo, "purge_table", purge)
     await service.purge_scope("private", data.users[0].id, organization_id=data.org.id)
     purge.assert_not_awaited()
+
+
+async def _as_member(db: AsyncSession, data: World) -> AuthContext:
+    member = await db.scalar(
+        select(OrganizationMember).where(OrganizationMember.user_id == data.users[1].id)
+    )
+    assert member is not None
+    member.role = "member"
+    await db.flush()
+    return AuthContext(user_id=data.users[1].id, organization_id=data.org.id, role="member")
+
+
+async def test_a_member_works_on_the_organizations_board_but_cannot_change_it(
+    db: AsyncSession,
+) -> None:
+    data = await world(db)
+    member = await _as_member(db, data)
+    service = TaskService(db)
+    tables = VirtualTableService(db)
+    opened = await service.open_board(member, BoardEnsure(scope="organization"))
+    assert opened.can_edit is True
+
+    seen = await tables.describe_table(member, opened.table_id)
+    assert (seen.can_edit, seen.can_manage) == (True, False)
+    with pytest.raises(AuthorizationError):
+        await tables.archive_table(member, opened.table_id)
+    with pytest.raises(AuthorizationError):
+        await tables.update_table(member, opened.table_id, TableUpdate(name="Mine now"))
+    with pytest.raises(AuthorizationError):
+        await tables.update_schema(
+            member,
+            opened.table_id,
+            SchemaUpdate(
+                expected_version=seen.schema_version,
+                columns=[
+                    *[ColumnInput.model_validate(column.model_dump()) for column in seen.columns],
+                    ColumnInput(label="Extra", type="text"),
+                ],
+            ),
+        )
+    task = await service.create(member, TaskCreate(title="Still mine to add", scope="organization"))
+    assert task.table_id == opened.table_id
+    assert (await tables.describe_table(member, opened.table_id)).archived_at is None
+
+
+async def test_an_owner_archives_and_restores_the_organizations_board(db: AsyncSession) -> None:
+    data = await world(db)
+    owner = data.contexts[0]
+    member = await _as_member(db, data)
+    service = TaskService(db)
+    tables = VirtualTableService(db)
+    opened = await service.open_board(owner, BoardEnsure(scope="organization"))
+    assert opened.can_edit is True
+    assert (await tables.describe_table(owner, opened.table_id)).can_manage is True
+
+    await tables.archive_table(owner, opened.table_id)
+    assert (await tables.describe_table(member, opened.table_id)).can_restore is False
+    with pytest.raises(AuthorizationError):
+        await tables.unarchive_table(member, opened.table_id)
+    restored = await tables.unarchive_table(owner, opened.table_id)
+    assert restored.archived_at is None
+
+
+async def test_a_group_lead_changes_the_groups_board(db: AsyncSession) -> None:
+    data = await world(db)
+    member = await _as_member(db, data)
+    group = Group(organization_id=data.org.id, name="Ops")
+    db.add(group)
+    await db.flush()
+    db.add(GroupMember(group_id=group.id, user_id=data.users[1].id, is_lead=True))
+    await db.flush()
+    tables = VirtualTableService(db)
+    board = await TaskService(db).open_board(member, BoardEnsure(scope="group", scope_id=group.id))
+
+    renamed = await tables.update_table(member, board.table_id, TableUpdate(name="Ops tasks"))
+
+    assert renamed.name == "Ops tasks"
+
+
+async def test_a_board_default_view_is_the_boards_to_change_whoever_saved_it(
+    db: AsyncSession,
+) -> None:
+    from app.schemas.table_view import TableViewUpdate
+    from app.services.virtual_tables import TableViewService
+
+    data = await world(db)
+    member = await _as_member(db, data)
+    opened = await TaskService(db).open_board(member, BoardEnsure(scope="organization"))
+    table = await VirtualTableService(db).describe_table(member, opened.table_id)
+    assert table.default_view_id is not None
+    views = TableViewService(db)
+
+    seen = await views.get_view(member, opened.table_id, table.default_view_id)
+    assert (seen.owner_user_id, seen.can_manage, seen.can_delete) == (
+        data.users[1].id,
+        False,
+        False,
+    )
+    listed = await views.list_views(member, opened.table_id)
+    assert not any(view.can_manage for view in listed.items if view.id == table.default_view_id)
+    with pytest.raises(AuthorizationError):
+        await views.update_view(
+            member, opened.table_id, table.default_view_id, TableViewUpdate(name="Mine")
+        )
+    with pytest.raises(AuthorizationError):
+        await views.delete_view(member, opened.table_id, table.default_view_id)
+
+    renamed = await views.update_view(
+        data.contexts[0], opened.table_id, table.default_view_id, TableViewUpdate(name="Ours")
+    )
+    assert renamed.name == "Ours"
+
+
+async def test_a_group_lead_changes_the_board_default_view_someone_else_saved(
+    db: AsyncSession,
+) -> None:
+    from app.schemas.table_view import TableViewUpdate
+    from app.services.virtual_tables import TableViewService
+
+    data = await world(db)
+    lead = await _as_member(db, data)
+    saver = User(email=f"{uuid4()}@example.com", hashed_password="x", full_name="Saver")
+    db.add(saver)
+    await db.flush()
+    db.add(OrganizationMember(organization_id=data.org.id, user_id=saver.id, role="member"))
+    group = Group(organization_id=data.org.id, name="Ops")
+    db.add(group)
+    await db.flush()
+    db.add_all(
+        [
+            GroupMember(group_id=group.id, user_id=data.users[1].id, is_lead=True),
+            GroupMember(group_id=group.id, user_id=saver.id, is_lead=False),
+        ]
+    )
+    await db.flush()
+    saver_ctx = AuthContext(user_id=saver.id, organization_id=data.org.id, role="member")
+    board = await TaskService(db).open_board(
+        saver_ctx, BoardEnsure(scope="group", scope_id=group.id)
+    )
+    table = await VirtualTableService(db).describe_table(lead, board.table_id)
+    assert table.default_view_id is not None
+    views = TableViewService(db)
+
+    seen = await views.get_view(lead, board.table_id, table.default_view_id)
+    assert (seen.owner_user_id, seen.can_manage, seen.can_delete) == (saver.id, True, True)
+    renamed = await views.update_view(
+        lead, board.table_id, table.default_view_id, TableViewUpdate(name="Ops board")
+    )
+    assert (renamed.name, renamed.can_manage) == ("Ops board", True)
+    with pytest.raises(AuthorizationError):
+        await views.update_view(
+            saver_ctx, board.table_id, table.default_view_id, TableViewUpdate(name="Mine")
+        )
+    await views.delete_view(lead, board.table_id, table.default_view_id)
+
+
+async def test_a_group_lead_is_told_the_board_default_view_uses_a_column_they_archive(
+    db: AsyncSession,
+) -> None:
+    from app.schemas.table_view import TableViewConfig, TableViewUpdate
+    from app.schemas.virtual_table import RecordSort
+    from app.services.virtual_tables import TableViewService
+    from app.services.virtual_tables.exceptions import SchemaDependencyError
+
+    data = await world(db)
+    lead = await _as_member(db, data)
+    saver = User(email=f"{uuid4()}@example.com", hashed_password="x", full_name="Saver")
+    db.add(saver)
+    await db.flush()
+    db.add(OrganizationMember(organization_id=data.org.id, user_id=saver.id, role="member"))
+    group = Group(organization_id=data.org.id, name="Ops")
+    db.add(group)
+    await db.flush()
+    db.add_all(
+        [
+            GroupMember(group_id=group.id, user_id=data.users[1].id, is_lead=True),
+            GroupMember(group_id=group.id, user_id=saver.id, is_lead=False),
+        ]
+    )
+    await db.flush()
+    saver_ctx = AuthContext(user_id=saver.id, organization_id=data.org.id, role="member")
+    board = await TaskService(db).open_board(
+        saver_ctx, BoardEnsure(scope="group", scope_id=group.id)
+    )
+    tables = VirtualTableService(db)
+    table = await tables.describe_table(lead, board.table_id)
+    current = [ColumnInput.model_validate(column.model_dump()) for column in table.columns]
+    table = await tables.update_schema(
+        lead,
+        board.table_id,
+        SchemaUpdate(
+            expected_version=table.schema_version,
+            columns=[*current, ColumnInput(label="Priority", type="text")],
+        ),
+    )
+    priority = next(column for column in table.columns if column.label == "Priority")
+    assert table.default_view_id is not None
+    await TableViewService(db).update_view(
+        lead,
+        board.table_id,
+        table.default_view_id,
+        TableViewUpdate(
+            config=TableViewConfig(
+                group_by=table.columns[1].id, sort=RecordSort(by=str(priority.id))
+            )
+        ),
+    )
+
+    with pytest.raises(SchemaDependencyError):
+        await tables.update_schema(
+            lead,
+            board.table_id,
+            SchemaUpdate(
+                expected_version=table.schema_version,
+                columns=[
+                    ColumnInput.model_validate(
+                        {**column.model_dump(), "archived": column.id == priority.id}
+                    )
+                    for column in table.columns
+                ],
+            ),
+        )
+
+
+async def test_a_member_who_sees_a_board_default_view_is_refused_it_not_told_it_is_missing(
+    db: AsyncSession,
+) -> None:
+    from app.schemas.table_view import TableViewUpdate
+    from app.services.virtual_tables import TableViewService
+
+    data = await world(db)
+    saver = await _as_member(db, data)
+    other = User(email=f"{uuid4()}@example.com", hashed_password="x", full_name="Other")
+    db.add(other)
+    await db.flush()
+    db.add(OrganizationMember(organization_id=data.org.id, user_id=other.id, role="member"))
+    await db.flush()
+    other_ctx = AuthContext(user_id=other.id, organization_id=data.org.id, role="member")
+    board = await TaskService(db).open_board(saver, BoardEnsure(scope="organization"))
+    table = await VirtualTableService(db).describe_table(other_ctx, board.table_id)
+    assert table.default_view_id is not None
+    views = TableViewService(db)
+
+    with pytest.raises(AuthorizationError):
+        await views.update_view(
+            other_ctx, board.table_id, table.default_view_id, TableViewUpdate(name="Mine")
+        )
+    with pytest.raises(AuthorizationError):
+        await views.delete_view(other_ctx, board.table_id, table.default_view_id)
+
+
+@pytest.mark.parametrize("settled_before_archive", [False, True])
+async def test_a_case_settled_while_its_board_is_archived_moves_the_task_once_it_returns(
+    db: AsyncSession,
+    settled_before_archive: bool,
+) -> None:
+    from app.db.models.virtual_table import VirtualTableRecord
+    from app.services.outcome import OutcomeService
+
+    data = await world(db)
+    service = TaskService(db)
+    owner = data.contexts[0]
+    settled, still_open = [
+        await service.create(
+            owner, TaskCreate(title=title, start_at=datetime.now(UTC) - timedelta(minutes=1))
+        )
+        for title in ("Send the approved draft", "Call the supplier")
+    ]
+    for task in (settled, still_open):
+        await TaskExecution(db).wake(
+            WakeTask(organization_id=data.org.id, task_id=task.id, revision=task.revision)
+        )
+    case = (await service.get(owner, settled.id)).outcome_id
+    tables = VirtualTableService(db)
+    await tables.archive_table(owner, settled.table_id)
+    record = await db.get(VirtualTableRecord, settled.id)
+    assert record is not None
+    revision = record.revision
+
+    await OutcomeService(db).settle(owner, case, "resolve", via="inbox")
+    if settled_before_archive:
+        # Settlement is stamped before taking the board lock; archive can win that lock.
+        from app.db.models.outcome import Outcome
+        from app.db.models.virtual_table import VirtualTable
+
+        board_row = await db.get(VirtualTable, settled.table_id)
+        case_row = await db.get(Outcome, case)
+        assert board_row is not None and board_row.archived_at is not None
+        assert case_row is not None
+        case_row.settled_at = board_row.archived_at - timedelta(microseconds=1)
+        await db.flush()
+
+    await db.refresh(record)
+    assert record.revision == revision
+
+    await tables.unarchive_table(owner, settled.table_id)
+
+    assert (await service.get(owner, settled.id)).status == "done"
+    assert (await service.get(owner, still_open.id)).status == "waiting_for_user"
+
+
+async def test_reopening_a_case_whose_task_board_is_archived_is_refused(db: AsyncSession) -> None:
+    from app.db.models.suggestion import Suggestion
+    from app.services.outcome import OutcomeService
+    from app.services.suggestions import SuggestionService
+    from app.services.virtual_tables.exceptions import TableArchivedError
+
+    data = await world(db)
+    service = TaskService(db)
+    owner = data.contexts[0]
+    task = await service.create(
+        owner,
+        TaskCreate(title="Check the draft", start_at=datetime.now(UTC) - timedelta(minutes=1)),
+    )
+    await TaskExecution(db).wake(
+        WakeTask(organization_id=data.org.id, task_id=task.id, revision=task.revision)
+    )
+    task = await service.get(owner, task.id)
+    await OutcomeService(db).settle(owner, task.outcome_id, "mute", via="inbox")
+    finding = await db.scalar(select(Suggestion).where(Suggestion.outcome_id == task.outcome_id))
+    assert finding is not None
+    await VirtualTableService(db).archive_table(owner, task.table_id)
+
+    with pytest.raises(TableArchivedError):
+        await SuggestionService(db).restore(owner, finding.id)
+
+
+async def test_waking_a_task_waits_for_its_board_before_it_holds_the_task(engine) -> None:
+    """Restoring a board holds its table, then locks each task: a wake that held its task
+    first and then waited on the table would deadlock with it."""
+    import asyncio
+
+    from sqlalchemy.exc import DBAPIError
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+
+    from app.db.models.virtual_table import VirtualTable, VirtualTableRecord
+
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    async with factory() as db:
+        data = await world(db)
+        task = await TaskService(db).create(
+            data.contexts[0],
+            TaskCreate(title="Send the draft", start_at=datetime.now(UTC) - timedelta(minutes=1)),
+        )
+        await db.commit()
+
+    async def wake() -> None:
+        async with factory() as db:
+            await TaskExecution(db).wake(
+                WakeTask(organization_id=data.org.id, task_id=task.id, revision=task.revision)
+            )
+            await db.commit()
+
+    async with factory() as restoring:
+        await restoring.execute(
+            select(VirtualTable.id).where(VirtualTable.id == task.table_id).with_for_update()
+        )
+        waking = asyncio.create_task(wake())
+        await asyncio.sleep(0.5)
+        try:
+            held = await restoring.scalar(
+                select(VirtualTableRecord.id)
+                .where(VirtualTableRecord.id == task.id)
+                .with_for_update(nowait=True)
+            )
+        except DBAPIError:
+            held = None
+        await restoring.rollback()
+    await waking
+
+    assert held == task.id
+    async with factory() as db:
+        assert (await TaskService(db).get(data.contexts[0], task.id)).status == "waiting_for_user"
+
+
+async def test_agent_board_reuses_its_table_and_tracks_live_agent_access(db: AsyncSession) -> None:
+    from dataclasses import replace
+
+    from app.db.models.agent import Agent
+    from app.services.task_access import board_manages
+
+    data = await world(db)
+    agent = Agent(
+        organization_id=data.org.id,
+        name="Research backlog",
+        slug=f"backlog-{uuid4().hex}",
+        owner_user_id=data.users[0].id,
+        visibility="private",
+    )
+    db.add(agent)
+    await db.flush()
+    service = TaskService(db)
+    scope = BoardEnsure(scope="agent", scope_id=agent.id)
+    board = await service.ensure_board(data.contexts[0], scope)
+    assert (await service.ensure_board(data.contexts[0], scope)).id == board.id
+    assert (await service.boards(data.contexts[0]))[0].scope_name == agent.name
+    assert await board_manages(db, data.contexts[0], board)
+    tables = VirtualTableService(db)
+    viewer = replace(data.contexts[1], role=OrgRoleName.MEMBER)
+    assert (await tables.list_tables(viewer)).items == []
+    with pytest.raises(NotFoundError):
+        await tables.describe_table(viewer, board.table_id)
+    with pytest.raises(NotFoundError):
+        await service.ensure_board(viewer, scope)
+    foreign = replace(data.contexts[0], organization_id=uuid4())
+    with pytest.raises(NotFoundError):
+        await service.ensure_board(foreign, scope)
+    agent.visibility = "org"
+    await db.flush()
+    assert any(table.id == board.table_id for table in (await tables.list_tables(viewer)).items)
+    agent.visibility = "private"
+    await db.flush()
+    assert (await tables.list_tables(viewer)).items == []
+    await service.purge_scope("agent", agent.id, organization_id=data.org.id)
+    assert await service.boards(data.contexts[0]) == []
+    assert (await tables.list_tables(data.contexts[0])).items == []
+
+
+async def test_approval_preflight_cannot_release_a_write_after_the_record_changes(
+    db: AsyncSession,
+) -> None:
+    from app.services.virtual_tables.exceptions import RevisionConflictError
+
+    data = await world(db)
+    service = TaskService(db)
+    task = await service.create(data.contexts[0], TaskCreate(title="Human review"))
+    board = await service.ensure_board(data.contexts[0], BoardEnsure())
+    values = {board.column_ids["description"]: "Edited notes"}
+    assert not await service.record_may_schedule_agent_work(
+        data.contexts[0],
+        board.table_id,
+        values,
+        operation="update",
+        record_id=task.id,
+        expected_revision=task.revision,
+    )
+    with pytest.raises(NotFoundError):
+        await service.record_may_schedule_agent_work(
+            data.contexts[1],
+            board.table_id,
+            values,
+            operation="update",
+            record_id=task.id,
+            expected_revision=task.revision,
+        )
+    tables = VirtualTableService(db)
+    await tables.update_record(
+        data.contexts[0],
+        board.table_id,
+        task.id,
+        RecordUpdate(
+            expected_revision=task.revision, values={board.column_ids["title"]: "Changed elsewhere"}
+        ),
+    )
+    assert await service.record_may_schedule_agent_work(
+        data.contexts[0],
+        board.table_id,
+        values,
+        operation="update",
+        record_id=task.id,
+        expected_revision=task.revision,
+    )
+    with pytest.raises(RevisionConflictError):
+        await tables.update_record(
+            data.contexts[0],
+            board.table_id,
+            task.id,
+            RecordUpdate(expected_revision=task.revision, values=values),
+        )
+    assert (await service.get(data.contexts[0], task.id)).description != "Edited notes"

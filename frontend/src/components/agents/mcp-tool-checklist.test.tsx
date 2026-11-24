@@ -3,8 +3,8 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import type { McpToolInfo } from "@/lib/mcp-connections-api";
-import type { McpApproval } from "@/types/agents";
-import { McpToolChecklist, readableToolName } from "./mcp-tool-checklist";
+import type { McpApproval, McpToolApproval } from "@/types/agents";
+import { asksFirst, McpToolChecklist, readableToolName } from "./mcp-tool-checklist";
 
 const MANY: McpToolInfo[] = Array.from({ length: 10 }, (_, i) => ({
   name: `tool_${i}`,
@@ -17,13 +17,17 @@ const NOTION: McpToolInfo[] = [
   { name: "notion-create-pages", description: "Create pages" },
 ];
 
+/** Every tool the server offers today, as a list: no tool it adds later. */
+const EVERY_TOOL = NOTION.map((tool) => tool.name);
+
 function checklist(
   props: Partial<{
     tools: McpToolInfo[];
     allowed: string[] | null;
     onChange: (next: string[] | null) => void;
     approval: McpApproval;
-    onApproval: (next: McpApproval) => void;
+    toolApproval: McpToolApproval;
+    onApproval: (next: McpApproval, toolApproval: McpToolApproval) => void;
   }> = {},
 ) {
   return (
@@ -32,11 +36,15 @@ function checklist(
       allowed={props.allowed ?? null}
       onChange={props.onChange ?? vi.fn()}
       approval={props.approval ?? "writes"}
+      toolApproval={props.toolApproval ?? {}}
       onApproval={props.onApproval ?? vi.fn()}
       prefix="notion"
     />
   );
 }
+
+/** A tool's own approval control, pressed while it asks first. */
+const own = (name: string) => screen.getByRole("button", { name: `Ask first before ${name}` });
 
 const group = (name: string) => screen.getByRole("heading", { name }).closest("section")!;
 
@@ -95,7 +103,7 @@ describe("McpToolChecklist", () => {
     expect(screen.queryByRole("textbox")).toBeNull();
   });
 
-  it("narrows one tool, a whole group, and back to every tool", async () => {
+  it("narrows one tool, a whole group, and back to today's tools only", async () => {
     const onChange = vi.fn();
     const { rerender } = render(checklist({ onChange }));
 
@@ -105,9 +113,41 @@ describe("McpToolChecklist", () => {
     await userEvent.click(screen.getByRole("checkbox", { name: "Every tool in Reads" }));
     expect(onChange).toHaveBeenLastCalledWith(["notion-create-pages"]);
 
+    // Every tool ticked again is not "and whatever comes": that is the switch's.
     rerender(checklist({ onChange, allowed: ["notion-create-pages"] }));
     await userEvent.click(screen.getByRole("checkbox", { name: "Every tool in Reads" }));
+    expect(onChange).toHaveBeenLastCalledWith([
+      "notion-create-pages",
+      "notion-search",
+      "notion-fetch",
+    ]);
+  });
+
+  it("takes tools the server adds later only while the switch says so", async () => {
+    const onChange = vi.fn();
+    const { rerender } = render(checklist({ onChange }));
+    const takesNew = () => screen.getByRole("switch", { name: "Add tools the server gains later" });
+    expect(takesNew()).toBeChecked();
+
+    await userEvent.click(takesNew());
+    expect(onChange).toHaveBeenLastCalledWith(EVERY_TOOL);
+
+    rerender(checklist({ onChange, allowed: EVERY_TOOL }));
+    expect(takesNew()).not.toBeChecked();
+    expect(screen.getByText(/a tool the server adds later is left out/)).toBeInTheDocument();
+    await userEvent.click(takesNew());
     expect(onChange).toHaveBeenLastCalledWith(null);
+
+    // Turned on with a tool unticked, it would quietly give that tool back.
+    rerender(checklist({ onChange, allowed: ["notion-search"] }));
+    expect(takesNew()).toBeDisabled();
+    expect(screen.getByText(/Choose every tool to turn this on/)).toBeInTheDocument();
+  });
+
+  it("offers no switch before the server's tools are read", () => {
+    render(checklist({ tools: [] }));
+
+    expect(screen.queryByRole("switch")).toBeNull();
   });
 
   it("says the approval per group, as the binding's one setting", async () => {
@@ -124,22 +164,149 @@ describe("McpToolChecklist", () => {
     // Asking before a read is asking before everything.
     await userEvent.click(screen.getByRole("combobox", { name: "Approval for Reads" }));
     await userEvent.click(await screen.findByRole("option", { name: "Ask first" }));
-    expect(onApproval).toHaveBeenLastCalledWith("all");
+    expect(onApproval).toHaveBeenLastCalledWith("all", {});
 
     // Letting changes run lets everything run.
     rerender(checklist({ onApproval, approval: "all" }));
     await userEvent.click(screen.getByRole("combobox", { name: "Approval for Changes things" }));
     await userEvent.click(await screen.findByRole("option", { name: "Run freely" }));
-    expect(onApproval).toHaveBeenLastCalledWith("none");
+    expect(onApproval).toHaveBeenLastCalledWith("none", {});
 
     rerender(checklist({ onApproval, approval: "none" }));
     await userEvent.click(screen.getByRole("combobox", { name: "Approval for Changes things" }));
     await userEvent.click(await screen.findByRole("option", { name: "Ask first" }));
-    expect(onApproval).toHaveBeenLastCalledWith("writes");
+    expect(onApproval).toHaveBeenLastCalledWith("writes", {});
 
     rerender(checklist({ onApproval, approval: "all" }));
     await userEvent.click(screen.getByRole("combobox", { name: "Approval for Reads" }));
     await userEvent.click(await screen.findByRole("option", { name: "Run freely" }));
-    expect(onApproval).toHaveBeenLastCalledWith("writes");
+    expect(onApproval).toHaveBeenLastCalledWith("writes", {});
+  });
+
+  it("lets a server's reads run while its writes ask, where it marks nothing read-only", async () => {
+    // The case per-tool approval exists for (#2884): one group, every tool in it a
+    // write as far as the server says, and `writes` asking before all of them.
+    const onApproval = vi.fn();
+    const unmarked = MANY.slice(0, 3);
+    const { rerender } = render(checklist({ tools: unmarked, onApproval }));
+
+    expect(own("tool_0")).toHaveAttribute("aria-pressed", "true");
+    await userEvent.click(own("tool_0"));
+    expect(onApproval).toHaveBeenLastCalledWith("writes", { tool_0: "never" });
+
+    rerender(checklist({ tools: unmarked, onApproval, toolApproval: { tool_0: "never" } }));
+    expect(own("tool_0")).toHaveAttribute("aria-pressed", "false");
+    expect(own("tool_1")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("combobox", { name: "Approval for Tools" })).toHaveTextContent(
+      "Per tool",
+    );
+  });
+
+  it("asks before one tool whatever its group does, and follows the group once set back", async () => {
+    const onApproval = vi.fn();
+    const { rerender } = render(checklist({ approval: "none", onApproval }));
+
+    await userEvent.click(own("notion-fetch"));
+    expect(onApproval).toHaveBeenLastCalledWith("none", { "notion-fetch": "required" });
+
+    rerender(
+      checklist({ approval: "none", onApproval, toolApproval: { "notion-fetch": "required" } }),
+    );
+    await userEvent.click(own("notion-fetch"));
+    expect(onApproval).toHaveBeenLastCalledWith("none", {});
+  });
+
+  it("sets every tool of a group that differs, and leaves the other group's own", async () => {
+    const onApproval = vi.fn();
+    render(
+      checklist({
+        onApproval,
+        toolApproval: { "notion-search": "required", "notion-create-pages": "never" },
+      }),
+    );
+
+    expect(screen.getByRole("combobox", { name: "Approval for Reads" })).toHaveTextContent(
+      "Per tool",
+    );
+    // Every tool in Changes things runs freely, so that group still has one answer.
+    expect(screen.getByRole("combobox", { name: "Approval for Changes things" })).toHaveTextContent(
+      "Run freely",
+    );
+    await userEvent.click(screen.getByRole("combobox", { name: "Approval for Reads" }));
+    await userEvent.click(await screen.findByRole("option", { name: "Run freely" }));
+
+    expect(onApproval).toHaveBeenLastCalledWith("writes", { "notion-create-pages": "never" });
+  });
+
+  it("sets a group whose tools differ to one answer, whatever the policy", async () => {
+    // Only a group that reads "Per tool" can be set to what its policy already
+    // says, and the choice then clears the group's tools of their own.
+    const onApproval = vi.fn();
+    const { rerender } = render(
+      checklist({ approval: "none", toolApproval: { "notion-search": "required" }, onApproval }),
+    );
+    await userEvent.click(screen.getByRole("combobox", { name: "Approval for Reads" }));
+    await userEvent.click(await screen.findByRole("option", { name: "Run freely" }));
+    expect(onApproval).toHaveBeenLastCalledWith("none", {});
+
+    const writes = [...NOTION, { name: "notion-delete-page", description: "Delete" }];
+    rerender(
+      checklist({
+        tools: writes,
+        approval: "all",
+        toolApproval: { "notion-delete-page": "never" },
+        onApproval,
+      }),
+    );
+    await userEvent.click(screen.getByRole("combobox", { name: "Approval for Changes things" }));
+    await userEvent.click(await screen.findByRole("option", { name: "Ask first" }));
+    expect(onApproval).toHaveBeenLastCalledWith("all", {});
+  });
+
+  it("asks nothing of a viewer who cannot edit", () => {
+    render(
+      <McpToolChecklist
+        tools={NOTION}
+        allowed={null}
+        onChange={vi.fn()}
+        approval="writes"
+        toolApproval={{}}
+        onApproval={vi.fn()}
+        prefix="notion"
+        disabled
+      />,
+    );
+
+    expect(own("notion-search")).toBeDisabled();
+  });
+});
+
+describe("asksFirst", () => {
+  const write = { name: "delete", description: "" };
+  const read = { name: "search", description: "", read_only: true };
+
+  it.each(["constructor", "toString", "__proto__"])(
+    "ignores inherited properties when the tool is named %s",
+    (name) => {
+      const tool = { name, description: "" };
+      expect(asksFirst(tool, "writes", {})).toBe(true);
+      expect(asksFirst(tool, "all", {})).toBe(true);
+      expect(asksFirst(tool, "none", {})).toBe(false);
+      expect(asksFirst(tool, "writes", { [name]: "never" })).toBe(false);
+      expect(asksFirst(tool, "none", { [name]: "required" })).toBe(true);
+    },
+  );
+
+  it("lets a tool's own approval win over the policy and the server's hint", () => {
+    expect(asksFirst(write, "writes", { delete: "never" })).toBe(false);
+    expect(asksFirst(read, "none", { search: "required" })).toBe(true);
+    expect(asksFirst(read, "all", { search: "never" })).toBe(false);
+  });
+
+  it("otherwise asks as the policy says, trusting only the read-only hint", () => {
+    expect(asksFirst(write, "writes", {})).toBe(true);
+    expect(asksFirst(read, "writes", {})).toBe(false);
+    expect(asksFirst(read, "all", {})).toBe(true);
+    expect(asksFirst(write, "none", {})).toBe(false);
   });
 });

@@ -1,11 +1,15 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { scrollWithin } from "@/lib/scroll-within";
 import { NAV_GROUPS, SidebarNav, isActive } from "./app-sidebar";
+
+vi.mock("@/lib/scroll-within", () => ({ scrollWithin: vi.fn() }));
 
 const can = vi.fn<(permission: string) => boolean>();
 const currentPath = vi.fn<() => string>(() => "/dashboard");
 const currentUser = vi.fn<() => { is_app_admin?: boolean } | null>(() => ({}));
+const navigation = { hiddenItems: [] as string[], isLoaded: true };
 
 vi.mock("next/navigation", () => ({
   usePathname: () => currentPath(),
@@ -16,7 +20,13 @@ vi.mock("next/navigation", () => ({
 vi.mock("next-intl", async () => ({
   useTranslations: (await import("@/test-utils/intl")).keyTranslations(),
 }));
-vi.mock("@/hooks/use-permissions", () => ({ usePermissions: () => ({ can }) }));
+vi.mock("@/hooks/use-permissions", () => ({
+  usePermissions: () => ({
+    can,
+    hiddenNavigationItems: navigation.hiddenItems,
+    isLoaded: navigation.isLoaded,
+  }),
+}));
 const recentProjects = vi.fn<() => { id: string; name: string; has_unread_chats?: boolean }[]>(
   () => [],
 );
@@ -31,12 +41,21 @@ vi.mock("@/hooks/use-artifacts", () => ({
     appsQuery(query);
     return { artifacts: apps(), isLoading: false };
   },
+  useToggleArtifactFavourite: () => ({ isPending: false, mutate: vi.fn() }),
 }));
 const waiting = vi.fn<() => { id: string }[]>(() => []);
 vi.mock("@/hooks/use-suggestions", () => ({ useSuggestions: () => ({ suggestions: waiting() }) }));
 const connectionHealth = vi.fn<() => { total: number }>(() => ({ total: 0 }));
 vi.mock("@/hooks/use-connection-health", () => ({
   useConnectionHealth: () => connectionHealth(),
+}));
+const approvals = vi.fn<() => number>(() => 0);
+vi.mock("@/hooks/use-pending-approvals", () => ({
+  usePendingApprovals: () => ({ count: approvals() }),
+}));
+const questions = vi.fn<() => number>(() => 0);
+vi.mock("@/hooks/use-waiting-chat-questions", () => ({
+  useWaitingChatQuestions: () => ({ count: questions() }),
 }));
 const sidebar = {
   openGroups: [] as string[],
@@ -50,6 +69,10 @@ vi.mock("@/stores", () => ({
 
 beforeEach(() => {
   sidebar.closedGroups = [];
+  approvals.mockReturnValue(0);
+  navigation.hiddenItems = [];
+  navigation.isLoaded = true;
+  questions.mockReturnValue(0);
 });
 
 function renderNav() {
@@ -77,10 +100,10 @@ describe("isActive", () => {
 
   it("ignores the locale prefix", () => {
     // `/en/agents` and `/agents` are the same page; without this every entry
-    // goes dark for anyone not on the default locale.
+    // goes dark for anyone whose URL carries the prefix.
     expect(isActive("/en/agents", "/agents")).toBe(true);
-    expect(isActive("/pl/agents/abc", "/agents")).toBe(true);
-    expect(isActive("/pl/kb/abc", "/kb")).toBe(true);
+    expect(isActive("/en/agents/abc", "/agents")).toBe(true);
+    expect(isActive("/en/kb/abc", "/kb")).toBe(true);
   });
 
   it("does not light a section on a route that merely starts the same way", () => {
@@ -107,6 +130,52 @@ describe("isActive", () => {
 });
 
 describe("SidebarNav", () => {
+  it.each([false, true])(
+    "hides configured entries and their pinned rows (collapsed: %s)",
+    (collapsed) => {
+      can.mockReturnValue(true);
+      currentUser.mockReturnValue({ is_app_admin: false });
+      navigation.hiddenItems = ["chat", "agents", "allApps", "allProjects", "documents"];
+      apps.mockReturnValue([{ id: "app-hidden", title: "Hidden app", name: "hidden-app" }]);
+      recentProjects.mockReturnValue([{ id: "project-hidden", name: "Hidden project" }]);
+      appsQuery.mockClear();
+      sidebar.openGroups = ["knowledge", "organization"];
+
+      render(<SidebarNav collapsed={collapsed} onNavigate={vi.fn()} />);
+
+      for (const name of [
+        "chat",
+        "agents",
+        "allApps",
+        "allProjects",
+        "documents",
+        "Hidden app",
+        "Hidden project",
+      ]) {
+        expect(screen.queryByRole("link", { name })).not.toBeInTheDocument();
+      }
+      expect(screen.getByRole("link", { name: "dashboard" })).toBeInTheDocument();
+      // Organizations live in the organization switcher, not the sidebar.
+      expect(screen.queryByRole("link", { name: "organizations" })).not.toBeInTheDocument();
+      expect(appsQuery).not.toHaveBeenCalled();
+      apps.mockReturnValue([]);
+      recentProjects.mockReturnValue([]);
+    },
+  );
+
+  it("keeps only recovery navigation until the role policy is known", () => {
+    can.mockReturnValue(true);
+    currentUser.mockReturnValue({ is_app_admin: false });
+    navigation.isLoaded = false;
+    sidebar.openGroups = ["organization"];
+
+    renderNav();
+
+    expect(screen.getAllByRole("link").map((link) => link.getAttribute("href"))).toEqual([
+      "/dashboard",
+    ]);
+  });
+
   it("shows every destination the caller is entitled to", () => {
     can.mockReturnValue(true);
     sidebar.openGroups = ["knowledge", "monitoring"];
@@ -170,10 +239,7 @@ describe("SidebarNav", () => {
     expect(screen.getByRole("link", { name: "dashboard" })).toBeInTheDocument();
   });
 
-  it("keeps the admin group for platform admins only", () => {
-    // The flag, and only the flag. There used to be a `role === "admin"`
-    // fallback in `isAppAdmin`; while it existed this group appeared for
-    // accounts whose every request behind it was refused.
+  it("leaves deployment administration in the account menu for every account", () => {
     can.mockReturnValue(true);
     currentUser.mockReturnValue({ is_app_admin: false });
 
@@ -183,7 +249,7 @@ describe("SidebarNav", () => {
 
     currentUser.mockReturnValue({ is_app_admin: true });
     renderNav();
-    expect(screen.getByRole("link", { name: "adminOverview" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "adminOverview" })).not.toBeInTheDocument();
   });
 
   it("marks the current page for assistive technology", () => {
@@ -222,18 +288,14 @@ describe("SidebarNav", () => {
     expect(screen.getByRole("button", { name: "connections" })).toBeDisabled();
   });
 
-  it("opens a group somebody opened before", () => {
+  it("leaves organizations and groups to the organization switcher even after an old rail preference", () => {
     can.mockReturnValue(true);
-    currentPath.mockReturnValue("/dashboard");
+    currentPath.mockReturnValue("/orgs/example/members");
     sidebar.openGroups = ["organization"];
-
     renderNav();
-
-    expect(screen.getByRole("link", { name: "groups" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "organization" })).toHaveAttribute(
-      "aria-expanded",
-      "true",
-    );
+    expect(screen.queryByRole("link", { name: "groups" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "organizations" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "organization" })).not.toBeInTheDocument();
   });
 
   it("lists the reader's recent projects above all of them, lighting the one open", () => {
@@ -386,6 +448,20 @@ describe("the inbox count (#2301)", () => {
     expect(screen.getByLabelText("inboxCount")).toBeEmptyDOMElement();
   });
 
+  it("counts questions and approvals waiting on the reader with everything else", () => {
+    can.mockReturnValue(true);
+    waiting.mockReturnValue([{ id: "s1" }]);
+    approvals.mockReturnValue(2);
+    questions.mockReturnValue(1);
+    const { unmount } = render(<SidebarNav />);
+    expect(screen.getByLabelText("inboxCount")).toHaveTextContent("4");
+    unmount();
+
+    waiting.mockReturnValue([]);
+    render(<SidebarNav collapsed />);
+    expect(screen.getByLabelText("inboxCount")).toBeInTheDocument();
+  });
+
   it("shows nothing when nothing waits", () => {
     can.mockReturnValue(true);
     waiting.mockReturnValue([]);
@@ -423,7 +499,9 @@ describe("the connection-health badge", () => {
     sidebar.openGroups = [];
     connectionHealth.mockReturnValue({ total: 1 });
     render(<SidebarNav />);
-    expect(screen.getByLabelText("connectionHealthCount")).toHaveTextContent("1");
+    // The folded group's entry stays in the tree, inert, so look at the heading.
+    const heading = screen.getByRole("button", { name: /^connections/ });
+    expect(within(heading).getByLabelText("connectionHealthCount")).toHaveTextContent("1");
   });
 
   it("does not repeat the count on the heading once the group is open", () => {
@@ -442,10 +520,12 @@ describe("daily-work navigation", () => {
     sidebar.openGroups = [];
     renderNav();
     const hrefs = screen.getAllByRole("link").map((link) => link.getAttribute("href"));
-    expect(hrefs.slice(0, 6)).toEqual([
+    expect(hrefs.slice(0, 8)).toEqual([
       "/dashboard",
       "/chat",
       "/inbox",
+      "/agent-messages",
+      "/apps",
       "/agents",
       "/workflows",
       "/routines",
@@ -476,7 +556,28 @@ describe("daily-work navigation", () => {
       "false",
     );
     expect(screen.queryByRole("link", { name: "skills" })).not.toBeInTheDocument();
+    const hiddenLink = screen.getByRole("link", { name: "skills", hidden: true });
+    expect(hiddenLink.closest("[inert]")).toHaveAttribute("aria-hidden", "true");
+    sidebar.openGroups = ["knowledge"];
+    sidebar.closedGroups = [];
+    rerender(<SidebarNav />);
+    expect(screen.getByRole("link", { name: "skills" })).toBe(hiddenLink);
+    expect(hiddenLink.closest("[inert]")).toBeNull();
   });
+});
+
+it("keeps the active destination in view when collapsing the navigation", () => {
+  can.mockReturnValue(true);
+  currentPath.mockReturnValue("/agents");
+  const view = render(<SidebarNav />);
+  vi.mocked(scrollWithin).mockClear();
+  view.rerender(<SidebarNav collapsed />);
+  expect(scrollWithin).toHaveBeenCalledWith(
+    screen.getByRole("link", { name: "agents" }),
+    "nearest",
+    "instant",
+  );
+  currentPath.mockReturnValue("/dashboard");
 });
 
 describe("the Apps section", () => {
@@ -499,14 +600,24 @@ describe("the Apps section", () => {
     expect(appsQuery).not.toHaveBeenCalled();
   });
 
-  it("is hidden when the caller can open no apps", () => {
-    can.mockReturnValue(true);
+  it("is hidden without artifacts:view", () => {
+    can.mockReturnValue(false);
     apps.mockReturnValue([]);
 
     renderNav();
 
     expect(screen.queryByText("apps")).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "allApps" })).not.toBeInTheDocument();
+  });
+
+  it("keeps All apps, with the pin hint, when nothing is starred", () => {
+    can.mockReturnValue(true);
+    apps.mockReturnValue([]);
+
+    renderNav();
+
+    expect(screen.getByText("apps")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "allApps" })).toHaveAttribute("href", "/apps");
   });
 
   it("lists at most eight apps, then links to all of them", () => {

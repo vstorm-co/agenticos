@@ -182,3 +182,27 @@ it("never offers to enable the withdrawn Tables capability from a historical cha
   expect(enable).not.toHaveBeenCalled();
   expect(askOwner).not.toHaveBeenCalled();
 });
+
+it("shows successful project selections once beside the answer, not refusals or resets", () => {
+  const id = "4429acd6-7e1b-4215-b30e-fa830dc9d811";
+  const selection = call("select_project_workspace", {
+    result: JSON.stringify({
+      kind: "project_workspace_selection",
+      project_id: id,
+      name: "HN Wiki",
+    }),
+  });
+  render(
+    <TurnExtras
+      message={answer([
+        selection,
+        { ...selection, id: "second" },
+        call("select_project_workspace", { id: "denied", result: "Project not found" }),
+        call("select_project_workspace", { id: "pending", status: "running" }),
+      ])}
+    />,
+  );
+  expect(screen.getByText("Projects used")).toBeVisible();
+  expect(screen.getAllByRole("link", { name: "HN Wiki" })).toHaveLength(1);
+  expect(screen.getByRole("link", { name: "HN Wiki" })).toHaveAttribute("href", `/projects/${id}`);
+});

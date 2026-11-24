@@ -1,9 +1,9 @@
 """Sharing endpoints for every shareable resource.
 
-Agents, collections, skills, context files, tables, workflows, vault secrets, apps, MCP servers
-and projects each get the same routes,
-generated from one definition in `_sharing_routes.build_sharing_router`, wired to
-the per-resource loader from `_sharing_loaders`.
+Agents, collections, skills, context files, tables, workflows, datasets, vault
+secrets, apps, MCP servers and projects each get the same routes, generated from
+one definition in `_sharing_routes.build_sharing_router`, wired to the
+per-resource loader from `_sharing_loaders`.
 """
 
 from app.api.routes.v1._sharing_loaders import (
@@ -11,6 +11,7 @@ from app.api.routes.v1._sharing_loaders import (
     load_artifact,
     load_collection,
     load_context,
+    load_dataset,
     load_mcp_connection,
     load_project,
     load_secret,
@@ -24,6 +25,7 @@ from app.services.access import (
     ARTIFACT,
     COLLECTION,
     CONTEXT,
+    DATASET,
     MCP_CONNECTION,
     PROJECT,
     SECRET,
@@ -40,6 +42,7 @@ secret_sharing_router = build_sharing_router(resource_type=SECRET, load=load_sec
 table_sharing_router = build_sharing_router(resource_type=TABLE, load=load_table)
 workflow_sharing_router = build_sharing_router(resource_type=WORKFLOW, load=load_workflow)
 artifact_sharing_router = build_sharing_router(resource_type=ARTIFACT, load=load_artifact)
+dataset_sharing_router = build_sharing_router(resource_type=DATASET, load=load_dataset)
 mcp_connection_sharing_router = build_sharing_router(
     resource_type=MCP_CONNECTION, load=load_mcp_connection
 )

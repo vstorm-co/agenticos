@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -68,6 +68,8 @@ function environment(overrides: Partial<AgentEnvironment> = {}): AgentEnvironmen
     behind_by: 0,
     logfire_token_secret_id: null,
     service_name: null,
+    connections: [],
+    guard_suite_ids: [],
     created_at: "2026-07-01T00:00:00Z",
     ...overrides,
   };
@@ -109,7 +111,7 @@ describe("ExposuresPanel", () => {
     serve([exposure()], []);
     await mount();
 
-    expect(await screen.findByText("Slack - Acme Support")).toBeInTheDocument();
+    expect(await screen.findByText("Acme Support")).toBeInTheDocument();
   });
 
   it("says out loud that a paused binding answers nothing", async () => {
@@ -170,7 +172,7 @@ describe("ExposuresPanel", () => {
 
     expect(await screen.findByRole("button", { name: "Connect a Slack bot" })).toBeDisabled();
     // One per supported platform without a bot.
-    expect(screen.getAllByText("No bot yet - an admin adds one")).toHaveLength(8);
+    expect(screen.getAllByText("No bot yet - an admin adds one")).toHaveLength(9);
   });
 
   it("does not offer a bot the agent already answers on", async () => {
@@ -222,7 +224,7 @@ describe("ExposuresPanel", () => {
     serve([exposure()], [target({ id: "b2" })]);
     await mount({ canManage: false });
 
-    await screen.findByText("Slack - Acme Support");
+    await screen.findByText("Acme Support");
     expect(screen.queryByRole("group", { name: "Add to a chat app" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Pause on Acme Support" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Remove from Acme Support" })).toBeDisabled();
@@ -268,7 +270,7 @@ describe("ExposuresPanel", () => {
     serve([exposure()], [], [environment()]);
     await mount();
 
-    await screen.findByText("Slack - Acme Support");
+    await screen.findByText("Acme Support");
     expect(screen.queryByRole("combobox", { name: /Environment on/ })).not.toBeInTheDocument();
   });
 
@@ -351,13 +353,14 @@ describe("ExposuresPanel", () => {
     await mount();
 
     await userEvent.type(
-      await screen.findByLabelText("Extra instructions on Acme Support"),
+      await screen.findByLabelText("Channel instructions on Acme Support"),
       "Be terse.",
     );
     await userEvent.click(screen.getByRole("button", { name: "Save" }));
 
     expect(apiClient.patch).toHaveBeenCalledWith(`/agents/${AGENT_ID}/exposures/e1`, {
       prompt: "Be terse.",
+      prompt_replaces_defaults: true,
     });
   });
 
@@ -392,8 +395,8 @@ describe("ExposuresPanel", () => {
     await mount();
 
     expect(await screen.findByText("What this agent may do on Slack")).toBeInTheDocument();
-    expect(screen.getByLabelText("Describe it.")).toBeChecked();
-    expect(screen.getByLabelText("Read it.")).not.toBeChecked();
+    expect(screen.getByLabelText("Describe this channel")).toBeChecked();
+    expect(screen.getByLabelText("Read this conversation")).not.toBeChecked();
   });
 
   it("sends the whole grant, not the box that moved", async () => {
@@ -413,7 +416,7 @@ describe("ExposuresPanel", () => {
     );
     await mount();
 
-    await userEvent.click(await screen.findByLabelText("Read it."));
+    await userEvent.click(await screen.findByLabelText("Read this conversation"));
 
     expect(apiClient.patch).toHaveBeenCalledWith(`/agents/${AGENT_ID}/exposures/e1`, {
       tools: ["get_channel_info", "read_channel_history"],
@@ -435,7 +438,7 @@ describe("ExposuresPanel", () => {
     );
     await mount();
 
-    await userEvent.click(await screen.findByLabelText("Read it."));
+    await userEvent.click(await screen.findByLabelText("Read this conversation"));
 
     expect(apiClient.patch).toHaveBeenCalledWith(`/agents/${AGENT_ID}/exposures/e1`, {
       tools: ["get_channel_info"],
@@ -475,4 +478,27 @@ describe("ExposuresPanel", () => {
 
     expect(screen.getByRole("status")).toBeInTheDocument();
   });
+});
+
+it("persists participation changes for the selected bot only", async () => {
+  serve([exposure()], []);
+  vi.mocked(apiClient.patch).mockResolvedValue(exposure());
+  await mount();
+  await userEvent.click(await screen.findByRole("button", { name: "Configure" }));
+  fireEvent.change(screen.getByRole("slider"), { target: { value: "65" } });
+  await userEvent.click(screen.getByRole("button", { name: "Save participation settings" }));
+  await waitFor(() =>
+    expect(apiClient.patch).toHaveBeenCalledWith(`/agents/${AGENT_ID}/exposures/e1`, {
+      observation: expect.objectContaining({ threshold_percent: 65, enabled: false }),
+    }),
+  );
+});
+
+it("does not offer channel connections for an agent requiring personal model keys", async () => {
+  serve([], []);
+  render(<ExposuresPanel agentId={AGENT_ID} canManage hasWorkspace={false} personalModel />, {
+    wrapper,
+  });
+  expect(await screen.findByText("Chat apps")).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: /Connect a .* bot/ })).not.toBeInTheDocument();
 });

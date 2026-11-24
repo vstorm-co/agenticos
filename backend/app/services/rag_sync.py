@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import BadRequestError, NotFoundError
 from app.db.models.sync_log import SyncLog
+from app.repositories import knowledge_base as knowledge_base_repo
 from app.repositories import sync_log_repo
 from app.repositories.sync_log import SyncLogScope
 from app.schemas.rag import RAGSyncLogItem, RAGSyncLogList
@@ -83,10 +84,21 @@ class RAGSyncService:
         source: str,
         collection_name: str,
         mode: str,
+        knowledge_base_id: UUID | None = None,
+        organization_id: UUID | None = None,
     ) -> SyncLog:
-        """Create a new sync log entry."""
+        """Create a new sync log entry with a proven target, when known."""
+        target = (
+            None
+            if knowledge_base_id is None
+            else await knowledge_base_repo.get_by_id(self.db, knowledge_base_id)
+        )
         return await sync_log_repo.create(
             self.db,
+            organization_id=organization_id
+            if organization_id is not None
+            else (None if target is None else target.organization_id),
+            knowledge_base_id=knowledge_base_id,
             source=source,
             collection_name=collection_name,
             mode=mode,
@@ -99,6 +111,7 @@ class RAGSyncService:
         mode: str,
         path: str,
         knowledge_base_id: UUID | None = None,
+        organization_id: UUID | None = None,
     ) -> SyncLog:
         """Persist a sync log and dispatch the local-sync task on the configured backend.
 
@@ -110,6 +123,8 @@ class RAGSyncService:
             source="local",
             collection_name=collection_name,
             mode=mode,
+            knowledge_base_id=knowledge_base_id,
+            organization_id=organization_id,
         )
         # The job reads this sync log by id on its own session, and commits with it
         # (#417).

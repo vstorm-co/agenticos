@@ -8,9 +8,12 @@ from contextlib import AsyncExitStack
 from typing import Any, NamedTuple
 from uuid import UUID, uuid4
 
+import anyio
 from fastapi import WebSocket, WebSocketDisconnect
-from pydantic_ai.exceptions import CallDeferred, ModelHTTPError, UsageLimitExceeded
-from pydantic_ai.messages import ModelMessage
+from fastapi.encoders import jsonable_encoder
+from pydantic import BaseModel, Field, ValidationError
+from pydantic_ai.exceptions import ContentFilterError, ModelHTTPError, UsageLimitExceeded
+from pydantic_ai.messages import ModelMessage, ToolCallPart
 from pydantic_ai_harness.ask_user import AskUserRequest, AskUserResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -19,6 +22,8 @@ from app.agents.ask_user import (
     QuestionItem,
     answers_to_response,
     asking_delegate,
+    park_the_question,
+    question_request,
     render_answer,
     wire_questions,
 )
@@ -26,6 +31,7 @@ from app.agents.browser_events import BrowserEvent
 from app.agents.capabilities.budget import BudgetExceeded
 from app.agents.capabilities.guardrails import GuardrailBlocked
 from app.agents.compaction_events import CompactionEvent
+from app.agents.computer_on_use import ComputerAccessRequest
 from app.agents.connect_on_use import ConnectionRequest
 from app.agents.failures import run_failure_summary
 from app.agents.loop_guard import ToolLoopStopped
@@ -33,12 +39,23 @@ from app.agents.steering import SteeringInbox
 from app.agents.subagent_events import SubagentEvent
 from app.agents.visual_reports import VisualReports
 from app.core.config import settings
-from app.core.exceptions import AppException, AuthenticationError, NotFoundError
+from app.core.exceptions import (
+    AlreadyExistsError,
+    AppException,
+    AuthenticationError,
+    AuthorizationError,
+    BadRequestError,
+    NotFoundError,
+    RunExecutionError,
+)
+from app.core.permissions import AuthContext
+from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
 from app.db.models.chat_file import ChatFile
 from app.db.models.organization import Organization
 from app.db.models.user import User
 from app.db.session import get_db_context
 from app.repositories import agent_repo, agent_run_repo, conversation_repo, member_repo
+from app.schemas.agent import QuestionAnswers
 from app.schemas.conversation import (
     ChatPerson,
     ConversationMessageFileSource,
@@ -66,12 +83,14 @@ from app.services.agent_chat import (
     requested_testing,
     requested_time_zone,
 )
-from app.services.agent_runner import PersonalServiceGap
+from app.services.agent_runner import AgentRunnerService, LiveRunSurface, PersonalServiceGap
 from app.services.attachments import load_turn_attachments
 from app.services.chat_timeline import TurnTimeline
 from app.services.conversation import ConversationService
 from app.services.notifications import NotificationService
+from app.services.parked_runs import run_result
 from app.services.run_stream import RunFrames
+from app.services.shipped_agents import ShippedAgentService
 from app.services.usage_report import usage_frame
 from app.services.ws_auth import authenticate_socket_token
 
@@ -94,9 +113,8 @@ ROOM_RETRY_SECONDS = 5.0
 TYPING_EVERY_SECONDS = 2.0
 """The least time between two "typing" announcements from one socket; the console sends one every three."""
 
-# Said to a frame that names no agent. There is nothing else a frame could run:
-# the general assistant the template shipped is gone, and guessing an agent on
-# the user's behalf would mean something they never picked answering them.
+# Frames without an agent or an eligible, explicitly requested setup path
+# cannot execute a turn. Ordinary drafts never become an execution fallback.
 _PICK_AN_AGENT = "Pick an agent to chat with. If none is listed, publish one in the Builder first."
 
 # Closed with the same 4001 the handshake uses for a bad credential: the client
@@ -167,7 +185,7 @@ def _turn_failed(exc: Exception) -> str:
     cause: BaseException = exc
     while isinstance(cause, BaseExceptionGroup):
         cause = cause.exceptions[0]
-    if isinstance(cause, ModelHTTPError | UsageLimitExceeded):
+    if isinstance(cause, ContentFilterError | ModelHTTPError | UsageLimitExceeded):
         return run_failure_summary(cause)
     return (
         f"The agent could not finish this turn ({type(exc).__name__}). "
@@ -182,6 +200,7 @@ _UNSAVED_REPLY_NOTICE = (
     "The assistant's reply could not be saved. "
     "Copy any text you need before leaving this conversation."
 )
+_ROOM_COMPOSER_REQUIRED = "Use the room composer and @mentions to message in a shared room."
 
 
 class _Outcome(NamedTuple):
@@ -192,8 +211,20 @@ class _Outcome(NamedTuple):
     error: str | None
 
 
-class _LeftUnanswered(Exception):
-    """The socket went away while the run's own question card was open."""
+class _RunAnswerRequest(QuestionAnswers):
+    """A socket answer correlated with the card that sent it."""
+
+    request_id: str = Field(min_length=1, max_length=128)
+    run_id: UUID
+
+
+class _CompactNowRequest(BaseModel):
+    """A paid summary request for the personal conversation currently open."""
+
+    request_id: str = Field(min_length=1, max_length=128)
+    conversation_id: UUID
+    agent_id: UUID
+    model_profile_id: UUID | None = None
 
 
 class AgentSession:
@@ -217,10 +248,14 @@ class AgentSession:
         self._auth_token = auth_token
         self.current_conversation_id: str | None = None
         self._turn_task: asyncio.Task[None] | None = None
+        self._compaction_task: asyncio.Task[None] | None = None
         self._ask_user_future: asyncio.Future[list[dict[str, Any]]] | None = None
         # A run waiting for the person to connect one of their own services;
         # completed by `connect_account_response`, one at a time under `_ask_lock`.
         self._connect_future: asyncio.Future[bool] | None = None
+        # A run paused until the person grants their computer, completed by
+        # `computer_access_response`, one at a time under `_ask_lock` too.
+        self._computer_future: asyncio.Future[bool] | None = None
         # The running turn's timeline, so `_ask_one` can record a mid-turn
         # question and its answer as a part of the turn it happened in (#502).
         # None between turns; set and cleared by `process_message`.
@@ -228,17 +263,13 @@ class AgentSession:
         # The questions awaiting answers, so the frame handler can record each
         # answered pair the moment they arrive - before a `stop` frame behind them
         # can cancel the turn and lose them (#502). One round at a time, under
-        # `_ask_lock`: a delegate's single question, or an `ask_user` card.
+        # `_ask_lock`: a delegate's single question or multiple-choice card.
         self._pending_questions: list[str] | None = None
         # Which delegate that question came from, read where the question is put
         # rather than where its answer lands: the delegation's state is bound for
         # the duration of the delegation, so it is bound inside `_ask_one` and
         # gone by the time the answer arrives on the receive loop (#1042).
         self._pending_asked_by: str | None = None
-        # Whether the open round is the run's own `ask_user` card, which outlives
-        # the socket: left unanswered, it parks the run rather than being read as
-        # declined (#2064). A delegate's question has no such afterlife.
-        self._round_parks = False
         self._question_detached = False
         # One question round on the wire at a time. The client renders a single
         # `ask_user` form and its `ask_user_response` carries no correlation, and
@@ -284,8 +315,9 @@ class AgentSession:
     async def handle_frame(self, data: dict[str, Any]) -> None:
         """Dispatch one incoming WebSocket frame.
 
-        A `stop` cancels the running turn; an `ask_user_response` or a
-        `connect_account_response` unblocks a paused run; any other control frame is ignored; a bare message starts a
+        A `stop` cancels the running turn; an `ask_user_response`, a
+        `connect_account_response` or a `computer_access_response` unblocks a
+        paused run; any other control frame is ignored; a bare message starts a
         new turn as a cancellable background task.
 
         A frame that will *act* on the session is refused first if that session
@@ -299,8 +331,81 @@ class AgentSession:
         """
         msg_type = data.get("type")
 
+        if msg_type == "answer_run":
+            request_id = data.get("request_id")
+            if not isinstance(request_id, str) or not request_id or len(request_id) > 128:
+                return
+            if not await self._reauthorize():
+                return
+            if (self._turn_task is not None and not self._turn_task.done()) or (
+                self._compaction_task is not None and not self._compaction_task.done()
+            ):
+                await self._answer_failed(
+                    request_id,
+                    AlreadyExistsError(message="This chat session is already running a turn"),
+                )
+                return
+            try:
+                request = _RunAnswerRequest.model_validate(data)
+            except ValidationError:
+                await self._answer_failed(
+                    request_id, BadRequestError(message="Invalid run answer request")
+                )
+                await self._emit("session_ready", {"conversation_id": self.current_conversation_id})
+                return
+            task = asyncio.create_task(self._run_answer(request))
+            self._turn_task = task
+            task.add_done_callback(self._on_turn_done)
+            return
+
+        if msg_type == "compact_now":
+            raw_request_id = data.get("request_id")
+            if (
+                not isinstance(raw_request_id, str)
+                or not raw_request_id
+                or len(raw_request_id) > 128
+            ):
+                return
+            if not await self._reauthorize():
+                return
+            try:
+                request = _CompactNowRequest.model_validate(data)
+            except ValidationError:
+                await self._compaction_result(raw_request_id, None, "unavailable")
+                if (self._turn_task is None or self._turn_task.done()) and (
+                    self._compaction_task is None or self._compaction_task.done()
+                ):
+                    await self._emit(
+                        "session_ready", {"conversation_id": self.current_conversation_id}
+                    )
+                return
+            if self._room != str(request.conversation_id):
+                await self._compaction_result(
+                    request.request_id, str(request.conversation_id), "unavailable"
+                )
+                if (self._turn_task is None or self._turn_task.done()) and (
+                    self._compaction_task is None or self._compaction_task.done()
+                ):
+                    await self._emit(
+                        "session_ready", {"conversation_id": self.current_conversation_id}
+                    )
+                return
+            if (self._turn_task is not None and not self._turn_task.done()) or (
+                self._compaction_task is not None and not self._compaction_task.done()
+            ):
+                await self._compaction_result(
+                    request.request_id, str(request.conversation_id), "busy"
+                )
+                return
+            task = asyncio.create_task(self._run_compaction(request))
+            self._compaction_task = task
+            task.add_done_callback(self._on_turn_done)
+            return
+
         if msg_type == "stop":
-            if self._turn_task is None or self._turn_task.done():
+            if (self._turn_task is None or self._turn_task.done()) and (
+                self._compaction_task is None or self._compaction_task.done()
+            ):
                 return
             if not await self._reauthorize():
                 return
@@ -311,7 +416,7 @@ class AgentSession:
             fut = self._ask_user_future
             if fut is None or fut.done():
                 return
-            if not await self._reauthorize():
+            if not await self._reauthorize_write():
                 return
             raw = data.get("answers")
             answers = raw if isinstance(raw, list) else []
@@ -328,6 +433,12 @@ class AgentSession:
                         render_answer(answers[index] if index < len(answers) else None),
                         asked_by=self._pending_asked_by,
                     )
+            request_id = data.get("request_id")
+            if isinstance(request_id, str):
+                await self._emit(
+                    "ask_user_answered",
+                    {"request_id": request_id, "asked_by": self._pending_asked_by},
+                )
             return
 
         if msg_type == "steer":
@@ -340,7 +451,7 @@ class AgentSession:
                 # steer, so the client sends it as an ordinary message instead.
                 await self._emit("steer_unapplied", {"texts": [text]})
                 return
-            if not await self._reauthorize():
+            if not await self._reauthorize_write():
                 return
             inbox.add(text)
             return
@@ -362,9 +473,18 @@ class AgentSession:
             waiting = self._connect_future
             if waiting is None or waiting.done():
                 return
-            if not await self._reauthorize():
+            if not await self._reauthorize_write():
                 return
             waiting.set_result(data.get("connected") is True)
+            return
+
+        if msg_type == "computer_access_response":
+            waiting = self._computer_future
+            if waiting is None or waiting.done():
+                return
+            if not await self._reauthorize_write():
+                return
+            waiting.set_result(data.get("granted") is True)
             return
 
         if msg_type == "attach":
@@ -394,8 +514,10 @@ class AgentSession:
         if msg_type is not None:
             return
 
-        if self._turn_task is not None and not self._turn_task.done():
-            logger.warning("Ignoring message received while a turn is already in progress")
+        if (self._turn_task is not None and not self._turn_task.done()) or (
+            self._compaction_task is not None and not self._compaction_task.done()
+        ):
+            logger.warning("Ignoring message received while chat maintenance is in progress")
             return
 
         if not await self._reauthorize():
@@ -448,10 +570,39 @@ class AgentSession:
                 return False
         return True
 
+    async def _reauthorize_write(self) -> bool:
+        """Do not resume a live prompt under a revoked conversation grant."""
+        if not await self._reauthorize():
+            return False
+        if self.current_conversation_id is None:
+            return True
+        async with get_db_context() as db:
+            try:
+                ctx = await self._chat_context(db)
+                await ConversationService(db).get_conversation(
+                    UUID(self.current_conversation_id),
+                    organization_id=self.organization_id,
+                    user_id=self.user.id,
+                    for_write=True,
+                    turn=True,
+                    include_favourite=False,
+                    ctx=ctx,
+                )
+            except NotFoundError, AuthorizationError:
+                await self._cancel_turn()
+                with contextlib.suppress(RuntimeError):
+                    await self.websocket.close(
+                        code=4003, reason="Conversation write access revoked"
+                    )
+                return False
+        return True
+
     def _on_turn_done(self, task: asyncio.Task[None]) -> None:
         """Clear the turn slot and surface unexpected crashes."""
         if self._turn_task is task:
             self._turn_task = None
+        if self._compaction_task is task:
+            self._compaction_task = None
         if not task.cancelled():
             exc = task.exception()
             if isinstance(exc, WebSocketDisconnect):
@@ -505,8 +656,307 @@ class AgentSession:
             await self._emit("session_ready", {"conversation_id": self.current_conversation_id})
 
     async def _cancel_turn(self) -> None:
-        """Cancel the in-flight turn task and wait for it to unwind."""
-        await _cancelled(self._turn_task)
+        """Cancel the in-flight turn or maintenance task and wait for cleanup."""
+        turn, self._turn_task = self._turn_task, None
+        compaction, self._compaction_task = self._compaction_task, None
+        await _cancelled(turn)
+        await _cancelled(compaction)
+
+    async def _compaction_result(
+        self, request_id: str, conversation_id: object, status: str
+    ) -> None:
+        """Finish one correlated maintenance command without a transcript turn."""
+        await self._emit(
+            "compact_now_result",
+            {
+                "request_id": request_id,
+                "conversation_id": conversation_id,
+                "status": status,
+            },
+        )
+
+    async def _run_compaction(self, request: _CompactNowRequest) -> None:
+        """Run an owner-only, metered summary under the conversation admission lease."""
+        from app.services.conversation_turns import claim
+
+        conversation_id = request.conversation_id
+        status = "failed"
+        admission = AsyncExitStack()
+        try:
+            await admission.__aenter__()
+            self._admission_stack = admission
+            async with get_db_context() as db:
+                ctx = await self._chat_context(db)
+                conversation = await ConversationService(db).get_conversation(
+                    conversation_id,
+                    organization_id=self.organization_id,
+                    user_id=self.user.id,
+                    for_write=True,
+                    turn=True,
+                    include_favourite=False,
+                    ctx=ctx,
+                )
+                if (
+                    conversation.user_id != self.user.id
+                    or conversation.project_id is not None
+                    or conversation.workflow_id is not None
+                    or conversation.origin is not None
+                    or conversation.is_archived
+                ):
+                    status = "unavailable"
+                    return
+                if await conversation_repo.has_unfinished_runs(
+                    db, conversation_id
+                ) or await conversation_repo.has_room_submissions(db, conversation_id):
+                    status = "busy"
+                    return
+
+            acquired = await admission.enter_async_context(claim(conversation_id, background=True))
+            if not acquired:
+                status = "busy"
+                return
+
+            # The claim serializes turns that use this admission path. Check parked
+            # runs and the room queue again while it is held; they do not necessarily
+            # own a live lease of their own.
+            async with get_db_context() as db:
+                ctx = await self._chat_context(db)
+                conversation = await ConversationService(db).get_conversation(
+                    conversation_id,
+                    organization_id=self.organization_id,
+                    user_id=self.user.id,
+                    for_write=True,
+                    turn=True,
+                    include_favourite=False,
+                    ctx=ctx,
+                )
+                if (
+                    conversation.user_id != self.user.id
+                    or conversation.project_id is not None
+                    or conversation.workflow_id is not None
+                    or conversation.origin is not None
+                    or conversation.is_archived
+                ):
+                    status = "unavailable"
+                    return
+                if await conversation_repo.has_unfinished_runs(
+                    db, conversation_id
+                ) or await conversation_repo.has_room_submissions(db, conversation_id):
+                    status = "busy"
+                    return
+
+                async def on_compaction(event: CompactionEvent) -> None:
+                    await self._emit(
+                        event.kind,
+                        {
+                            **event.model_dump(mode="json"),
+                            "request_id": request.request_id,
+                        },
+                    )
+
+                persisted = await AgentRunnerService(db).compact_conversation(
+                    ctx,
+                    conversation_id,
+                    request.agent_id,
+                    model_profile_id=request.model_profile_id,
+                    on_compaction=on_compaction,
+                )
+                status = "compacted" if persisted else "unchanged"
+        except asyncio.CancelledError:
+            status = "failed"
+            raise
+        except AuthorizationError, NotFoundError:
+            status = "unavailable"
+        except AlreadyExistsError:
+            status = "busy"
+        except BadRequestError:
+            # The published run policy is not available for this maintenance
+            # operation (for example, an unsupported compaction strategy).
+            status = "unavailable"
+        except AppException:
+            logger.info("Manual conversation compaction was refused", exc_info=True)
+            status = "failed"
+        except Exception:
+            logger.exception("Manual conversation compaction failed")
+            status = "failed"
+        finally:
+            self._admission_stack = None
+            with contextlib.suppress(Exception):
+                await admission.aclose()
+            if self._compaction_task is asyncio.current_task():
+                self._compaction_task = None
+            await self._compaction_result(request.request_id, str(conversation_id), status)
+            await self._emit("session_ready", {"conversation_id": str(conversation_id)})
+
+    async def _answer_failed(self, request_id: str, error: AppException) -> None:
+        """A safe, correlated refusal; a terminal run status stays in its details."""
+        await self._emit(
+            "run_answer_result",
+            jsonable_encoder(
+                {
+                    "request_id": request_id,
+                    "error": {
+                        "status": error.status_code,
+                        "message": error.message,
+                        "code": error.code,
+                        "details": error.details,
+                    },
+                }
+            ),
+        )
+
+    async def _resume_frame(self, kind: str, payload: dict[str, Any]) -> None:
+        """Send the owner its continuation; the runner publishes the shared trace."""
+        await send_event(self.websocket, kind, payload)
+
+    async def _chat_context(self, db: AsyncSession) -> AuthContext:
+        """The socket's current membership, refreshed before paid work starts."""
+        membership = await member_repo.get(
+            db, organization_id=self.organization_id, user_id=self.user.id
+        )
+        if membership is None:
+            raise AuthorizationError(message="You are no longer a member of this organization")
+        return AuthContext(
+            user_id=self.user.id,
+            organization_id=self.organization_id,
+            role=membership.role,
+        )
+
+    async def _answer_context(
+        self, db: AsyncSession, run_id: UUID
+    ) -> tuple[AuthContext, AgentRun, UUID]:
+        """Authorize an owned waiting web run in the socket's current room."""
+        ctx = await self._chat_context(db)
+        runner = AgentRunnerService(db)
+        run = await runner.get_run(ctx, run_id)
+        if run.surface != RunSurface.WEB.value or run.user_id != self.user.id:
+            raise AuthorizationError(message="Only the person this web run asked may answer it")
+        if run.status != RunStatus.AWAITING_ANSWER.value:
+            raise BadRequestError(
+                message="This run is not waiting for an answer",
+                details={"run_id": str(run.id), "status": run.status},
+            )
+        if run.conversation_id is None or str(run.conversation_id) != self._room:
+            raise BadRequestError(message="Open this run's conversation before answering")
+        await ConversationService(db).get_conversation(
+            run.conversation_id,
+            organization_id=self.organization_id,
+            user_id=self.user.id,
+            for_write=True,
+            turn=True,
+            include_favourite=False,
+            ctx=ctx,
+        )
+        return ctx, run, run.conversation_id
+
+    async def _run_answer(self, request: _RunAnswerRequest) -> None:
+        """Continue an owned web run with this session's live delegate channels.
+
+        The persisted question is answered through the same runner as HTTP.
+        The socket owns the cancellable turn and keeps delegate questions live;
+        main questions still park and return in the correlated result.
+        """
+        self._outcome = None
+        self._turn_runs = []
+        self._turn_agent_id = None
+        authorized: AuthContext | None = None
+        try:
+            async with AsyncExitStack() as admission:
+                self._admission_stack = admission
+                async with get_db_context() as db:
+                    ctx, run, conversation_id = await self._answer_context(db, request.run_id)
+                authorized = ctx
+                from app.services.conversation_turns import claim
+
+                await self._stop_following()
+                self.current_conversation_id = str(conversation_id)
+                self._live = self.current_conversation_id
+                self._question_detached = False
+                self._current_timeline = TurnTimeline()
+                self._turn_agent_id = run.agent_id
+                self._turn_runs = (
+                    [OpenedRun(run.id, run.model_label, run.agent_version_id)]
+                    if run.model_label is not None
+                    else []
+                )
+                await admission.enter_async_context(
+                    claim(conversation_id, background=False, resume_run_id=request.run_id)
+                )
+                async with get_db_context() as db:
+                    ctx = await self._chat_context(db)
+                    runner = AgentRunnerService(db)
+                    segment = await runner.answer(
+                        ctx,
+                        request.run_id,
+                        request.responses,
+                        live_surface=LiveRunSurface(
+                            ask_user=self._ask_one,
+                            ask_questions=self._ask_questions,
+                            emit=self._resume_frame,
+                        ),
+                    )
+                    result = await run_result(runner, ctx, segment)
+                    if segment.run.status not in (
+                        RunStatus.AWAITING_ANSWER.value,
+                        RunStatus.AWAITING_APPROVAL.value,
+                    ):
+                        self._outcome = _Outcome(segment.run.id, segment.run.agent_id, None)
+                await self._emit(
+                    "run_answer_result",
+                    {"request_id": request.request_id, "result": result.model_dump(mode="json")},
+                )
+        except asyncio.CancelledError:
+            status = await self._stop_answered_run(authorized, request.run_id)
+            await self._answer_failed(
+                request.request_id,
+                RunExecutionError(
+                    message="The continuation was interrupted; check its saved status",
+                    details={
+                        "run_id": str(request.run_id),
+                        **({"status": status} if status is not None else {}),
+                    },
+                ),
+            )
+            raise
+        except AppException as error:
+            await self._answer_failed(request.request_id, error)
+        except Exception:
+            logger.exception("Could not answer a run from its chat session")
+            await self._answer_failed(
+                request.request_id, AppException(message="The run could not be continued")
+            )
+        finally:
+            self._admission_stack = None
+            finished, self._live = self._live, None
+            self._current_timeline = None
+            self._turn_task = None
+            if finished is not None and finished == self._room:
+                await self._follow_if_running(finished)
+            await self._emit("session_ready", {"conversation_id": self.current_conversation_id})
+
+    async def _stop_answered_run(self, ctx: AuthContext | None, run_id: UUID) -> str | None:
+        """Stop an authorized run still parked when cancellation reached it.
+
+        A cancellation before the runner starts must close the saved question;
+        a cancellation after its terminal commit must report that actual state.
+        No run is touched until ownership and conversation access were checked.
+        """
+        if ctx is None:
+            return None
+        try:
+            with anyio.CancelScope(shield=True):
+                async with get_db_context() as db:
+                    runner = AgentRunnerService(db)
+                    run = await runner.get_run(ctx, run_id)
+                    if run.status in (
+                        RunStatus.AWAITING_ANSWER.value,
+                        RunStatus.AWAITING_APPROVAL.value,
+                    ):
+                        await runner.cancel_parked(ctx, run_id)
+                    return run.status
+        except Exception:
+            logger.exception("Could not read the interrupted continuation's saved state")
+            return None
 
     async def shutdown(self) -> None:
         """Let the in-flight turn finish without its socket, then stop it.
@@ -527,26 +977,31 @@ class AgentSession:
         task = self._turn_task
         if task is not None and task.done():
             task = None
+        compaction = self._compaction_task
+        if compaction is not None and compaction.done():
+            compaction = None
         await self._stop_following()
         await self._leave_room()
+        if task is None and compaction is None:
+            return
+        if compaction is not None:
+            await _cancelled(compaction)
         if task is None:
             return
-        # Released before the wait. A run paused on `ask_user` is waiting for an
-        # answer from somebody who is no longer there and cannot reach its own
-        # end while it waits, so the grace would be spent doing nothing and the
-        # turn cancelled anyway. Answered as nothing, which `_ask_one` already
-        # renders and which its docstring already names as one of the ways the
-        # wait ends.
+        # Released before the wait: a delegate's live question cannot be
+        # answered after its socket closes. Returning no answer lets the
+        # delegate continue rather than spend the whole grace waiting.
         fut = self._ask_user_future
         if fut is not None and not fut.done():
-            if self._round_parks:
-                fut.set_exception(_LeftUnanswered())
-            else:
-                fut.set_result([])
+            fut.set_result([])
         # The same for a run waiting on a connection: nobody is there to make it.
         waiting = self._connect_future
         if waiting is not None and not waiting.done():
             waiting.set_result(False)
+        # And for one waiting on the computer: nobody is there to choose a folder.
+        computer = self._computer_future
+        if computer is not None and not computer.done():
+            computer.set_result(False)
         # `shield` is what makes the two endings distinguishable: without it
         # `wait_for`'s timeout cancels the turn *through* the wait, and the
         # explicit cancellation below - the path every existing test covers, and
@@ -578,6 +1033,41 @@ class AgentSession:
         # already told them through `approval_requested` or the question's park.
         await self._tell_the_absent(self._outcome)
 
+    async def _reply_with_model_setup(self, agent_id: UUID, name: str) -> None:
+        """Persist an honest setup response without opening or charging an AI run."""
+        replies = {
+            "en": "Hi, I'm {name}. I'm ready to help you plan, work with documents and get things done. Before I can answer your request, finish connecting my AI model and publish me. Add a provider key if your chosen model needs one. Let's get that ready together.",
+            "pl": "Cześć, jestem {name}. Pomogę Ci planować, pracować z dokumentami i realizować zadania. Zanim odpowiem na Twoją wiadomość, dokończ konfigurację mojego modelu AI i opublikuj agenta. Dodaj klucz dostawcy, jeśli wybrany model go wymaga. Zróbmy ten pierwszy krok razem.",
+            "de": "Hallo, ich bin {name}. Ich helfe beim Planen, bei Dokumenten und Aufgaben. Bevor ich antworten kann, richte meinen KI-Zugang ein und veröffentliche mich. Füge bei Bedarf einen Anbieterschlüssel hinzu. Gehen wir diesen ersten Schritt gemeinsam.",
+            "tr": "Merhaba, ben {name}. Planlama, belgeler ve görevlerde yardımcı olurum. Yanıt verebilmem için AI modelimi yapılandır ve beni yayımla. Model gerektiriyorsa sağlayıcı anahtarı ekle. İlk adımı birlikte atalım.",
+        }
+        text = replies.get(self.user.locale or "en", replies["en"]).format(name=name)
+        await self._emit("model_setup_required", {"agent_id": str(agent_id), "text": text})
+        if self.current_conversation_id is None:
+            raise RuntimeError("A setup response requires a persisted conversation")
+        saved = await persist_assistant_turn(
+            self.current_conversation_id,
+            text,
+            None,
+            [],
+            organization_id=self.organization_id,
+            agent_id=agent_id,
+            parts=[
+                MessagePart(type="text", text=text),
+                MessagePart(type="model_setup", setup_agent_id=agent_id),
+            ],
+        )
+        if saved is None:
+            await self._emit(
+                "error", {"message": _UNSAVED_REPLY_NOTICE, "code": "message_save_failed"}
+            )
+        else:
+            await self._emit(
+                "message_saved",
+                {"message_id": saved, "conversation_id": self.current_conversation_id},
+            )
+        await self._emit("complete", {"conversation_id": self.current_conversation_id})
+
     async def process_message(self, data: dict[str, Any]) -> None:
         """Process one user turn: persist input, run the agent, stream events, persist output."""
         self._outcome = None
@@ -594,6 +1084,17 @@ class AgentSession:
         except AppException as exc:
             await self._emit("error", {"message": exc.message})
             return
+        setup_agent = None
+        if data.get("allow_setup_reply") is True and not requested_testing(data).test:
+            try:
+                async with get_db_context() as db:
+                    ctx = await self._chat_context(db)
+                    setup_agent = await ShippedAgentService(db).setup_candidate(ctx, agent_id)
+            except AppException as exc:
+                await self._emit("error", {"message": exc.message})
+                return
+        if setup_agent is not None:
+            agent_id = setup_agent.id
         if agent_id is None:
             await self._emit("error", {"message": _PICK_AN_AGENT})
             return
@@ -602,7 +1103,7 @@ class AgentSession:
         try:
             page_context = requested_page_context(data)
             mention_refs = requested_mentions(data)
-            if mention_refs:
+            if mention_refs and setup_agent is None:
                 async with get_db_context() as db:
                     resolved = await ChatAgentRunner(db).mentions(
                         user=self.user,
@@ -627,6 +1128,37 @@ class AgentSession:
         # still continues the session's conversation.
         if "conversation_id" in data and data["conversation_id"] is None:
             self.current_conversation_id = None
+        conversation_ref = data.get("conversation_id", self.current_conversation_id)
+        if conversation_ref is not None:
+            try:
+                requested_conversation_id = UUID(str(conversation_ref))
+            except ValueError:
+                requested_conversation_id = None
+            if requested_conversation_id is not None:
+                try:
+                    async with get_db_context() as db:
+                        ctx = await self._chat_context(db)
+                        conversation = await ConversationService(db).get_conversation(
+                            requested_conversation_id,
+                            organization_id=self.organization_id,
+                            user_id=self.user.id,
+                            include_favourite=False,
+                            ctx=ctx,
+                        )
+                except AppException as exc:
+                    await self._emit("error", {"message": exc.message})
+                    return
+                if conversation.room_visibility is not None:
+                    await self._emit("error", {"message": _ROOM_COMPOSER_REQUIRED})
+                    return
+        try:
+            async with get_db_context() as db:
+                await ChatAgentRunner(db).refuse_system_agent(
+                    user=self.user, organization_id=self.organization_id, agent_id=agent_id
+                )
+        except AppException as exc:
+            await send_event(self.websocket, "error", {"message": exc.message})
+            return
         try:
             prompt = await persist_user_turn(
                 self.user,
@@ -641,6 +1173,7 @@ class AgentSession:
                 project_id=_wire_text(data.get("project_id")),
                 # The message this turn answers, where the person replied to one.
                 reply_to=_wire_text(data.get("reply_to")),
+                reply_to_excerpt=_wire_text(data.get("reply_to_excerpt")),
                 mentions=mentioned,
             )
         except AppException as e:
@@ -667,6 +1200,16 @@ class AgentSession:
             await self._admission_stack.enter_async_context(
                 claim(UUID(self.current_conversation_id), background=False)
             )
+        if setup_agent is not None:
+            await self._emit(
+                "user_prompt",
+                {
+                    "content": user_message,
+                    "message_id": None if prompt.message_id is None else str(prompt.message_id),
+                },
+            )
+            await self._reply_with_model_setup(agent_id, setup_agent.name)
+            return
         collected_tool_calls: list[dict[str, Any]] = []
         # Everything the model produces, in the order it produces it - the text,
         # the reasoning and where the tool calls sat between them. It is what gets
@@ -745,6 +1288,7 @@ class AgentSession:
                             # on the answer from the first word rather than at the end.
                             "agent_id": str(agent_id),
                             "file_source": source_wire,
+                            "thread_root_message_id": None,
                         },
                     )
                 await chat_room.turn_begun(self._live, self.user.id)
@@ -754,6 +1298,7 @@ class AgentSession:
                     "content": user_message,
                     "file_source": source_wire,
                     "message_id": None if prompt.message_id is None else str(prompt.message_id),
+                    "thread_root_message_id": None,
                 },
             )
 
@@ -812,6 +1357,7 @@ class AgentSession:
                     on_sandbox_wait=self._sandbox_wait_event,
                     on_personal_gaps=self._personal_gaps_event,
                     request_connection=self._request_connection,
+                    request_computer_access=self._request_computer_access,
                     # The chat may run a published agent on another of the
                     # organization's models. Only the model changes; the run
                     # records which one, and the budget is the agent's.
@@ -855,6 +1401,7 @@ class AgentSession:
                     # below carries the same calls to whoever is watching live.
                     parked_tool_call_ids={parked.tool_call_id for parked in turn.parked}
                     | set(turn.questions),
+                    question_tool_call_ids=turn.questions,
                     mcp_origins=turn.mcp_origins,
                     draft_tools=turn.draft_tools,
                 )
@@ -862,7 +1409,7 @@ class AgentSession:
                 # write. A failure is reported below, before the turn completes.
                 answered = True
                 if assistant_msg_id is not None:
-                    await self._remember_context(turn)
+                    await self._remember_context(turn, through_message_id=assistant_msg_id)
                 if turn.run_id is not None and not turn.parked and not turn.questions:
                     # Only an answer that is there to come back to. A write that
                     # failed returns no id, and "answered while you were away"
@@ -895,7 +1442,8 @@ class AgentSession:
                                 "tool_name": parked.tool_name,
                                 "subagent_name": parked.subagent,
                                 "can_remember": turn.agent_version_id is not None
-                                and parked.subagent is None,
+                                and parked.subagent is None
+                                and not parked.always_asks,
                                 "args": parked.tool_args,
                                 "capability_tool_id": parked.capability_tool_id,
                                 "context": parked.context,
@@ -910,6 +1458,33 @@ class AgentSession:
                         "review_configs": [
                             {"tool_name": parked.tool_name, "allow_edit": False}
                             for parked in turn.parked
+                        ],
+                    },
+                )
+
+            if turn.questions and not turn.parked and turn.run_id is not None:
+                # The run and its waiting steps are committed before this card
+                # is offered. Answering through the run's API then works after
+                # a reload or from another tab, independently of this socket.
+                calls = {call["tool_call_id"]: call for call in collected_tool_calls}
+                await self._emit(
+                    "user_question_required",
+                    {
+                        "run_id": str(turn.run_id),
+                        "questions": [
+                            {
+                                "tool_call_id": call_id,
+                                "questions": wire_questions(
+                                    question_request(
+                                        ToolCallPart(
+                                            calls[call_id]["tool_name"],
+                                            calls[call_id]["args"],
+                                            tool_call_id=call_id,
+                                        )
+                                    )
+                                ),
+                            }
+                            for call_id in turn.questions
                         ],
                     },
                 )
@@ -1106,27 +1681,23 @@ class AgentSession:
         return render_answer(answers[0] if answers else None)
 
     async def _ask_questions(self, request: AskUserRequest) -> AskUserResponse:
-        """Put an `ask_user` card to the client and return the picks (#2064).
+        """Park the run's own questions; answer a delegate's card live.
 
-        The same frame and the same lock as a delegate's question, so a card and a
-        delegate asking at once queue rather than draw over each other, and the
-        answered pairs land on the turn's timeline the moment they arrive.
+        A main-agent question belongs to the persisted run, so losing this
+        socket cannot strand it. A delegate cannot park on its own question and
+        continues to use the live channel shared with `ask_parent`.
         """
+        asked_by = asking_delegate()
+        if asked_by is None:
+            return await park_the_question(request)
         async with self._ask_lock:
             self._pending_questions = [question.question for question in request.questions]
-            self._pending_asked_by = asking_delegate()
-            self._round_parks = self._pending_asked_by is None
+            self._pending_asked_by = asked_by
             try:
                 answers = await self._send_and_wait(wire_questions(request))
-            except _LeftUnanswered:
-                # The person went away with the card open: the run parks on the
-                # call, and answering it later - here or on another device -
-                # continues it.
-                raise CallDeferred from None
             finally:
                 self._pending_questions = None
                 self._pending_asked_by = None
-                self._round_parks = False
         return answers_to_response(request, answers)
 
     async def _ask_user(self, questions: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -1150,14 +1721,13 @@ class AgentSession:
         serialized with the round it names, and a nested acquire would deadlock.
         """
         if self._closed or self._question_detached:
-            if self._round_parks:
-                raise _LeftUnanswered
             return []
         loop = asyncio.get_running_loop()
         fut: asyncio.Future[list[dict[str, Any]]] = loop.create_future()
         self._ask_user_future = fut
         try:
-            await self._emit("ask_user", {"questions": questions})
+            if not await self._emit("ask_user", {"questions": questions}):
+                return []
             return await fut
         finally:
             self._ask_user_future = None
@@ -1182,6 +1752,31 @@ class AgentSession:
                 return await waiting
             finally:
                 self._connect_future = None
+
+    async def _request_computer_access(self, request: ComputerAccessRequest) -> bool:
+        """Pause the run: ask the client where the agent may work, and wait.
+
+        Emits `computer_access`, then awaits `computer_access_response` - `granted`
+        true once the person chose a folder or the whole computer in the desktop
+        app, false when they declined or the client cannot offer one. A socket
+        that goes away answers false.
+        """
+        async with self._ask_lock:
+            if self._closed or self._question_detached:
+                return False
+            waiting: asyncio.Future[bool] = asyncio.get_running_loop().create_future()
+            self._computer_future = waiting
+            try:
+                payload: dict[str, str | bool] = {"reason": request.reason}
+                if request.coding:
+                    payload["coding"] = True
+                if self._turn_agent_id is not None:
+                    payload["agent_id"] = str(self._turn_agent_id)
+                if not await self._emit("computer_access", payload):
+                    return False
+                return await waiting
+            finally:
+                self._computer_future = None
 
     async def _subagent_event(self, event: SubagentEvent) -> None:
         """Forward one frame from inside a delegation, under the frame's own name.
@@ -1271,11 +1866,11 @@ class AgentSession:
         frame = {"services": [gap.model_dump(mode="json") for gap in gaps]}
         await self._emit("personal_services_unavailable", frame)
 
-    async def _remember_context(self, turn: ChatTurn) -> None:
+    async def _remember_context(self, turn: ChatTurn, *, through_message_id: str) -> None:
         """Record what this turn learned about the thread's own context.
 
-        The summary it produced, so the next turn starts from it rather than
-        buying another; and what a request here carries before a single message,
+        Its model-history checkpoint, so the next turn retains tool evidence
+        and discovery; and what a request here carries before a single message,
         so the next turn can tell a window with no room for a summary from one
         that works before it has a response of its own to measure.
 
@@ -1287,15 +1882,22 @@ class AgentSession:
         time this runs, and its own for a second reason - a failure to record
         either must cost the record, not the answer somebody is reading.
         """
-        if turn.summarized_history is None and turn.overhead_tokens is None:
+        if turn.history_snapshot is None and turn.overhead_tokens is None:
             return
         # Called from inside the branch that has one, which is also the branch
         # that has just written the rows this is measured against.
         conversation_id = UUID(str(self.current_conversation_id))
         async with get_db_context() as db:
             conversations = ConversationService(db)
-            if turn.summarized_history is not None:
-                await conversations.keep_summary(conversation_id, turn.summarized_history)
+            if turn.history_snapshot is not None:
+                await conversations.keep_summary(
+                    conversation_id,
+                    turn.history_snapshot,
+                    expected_revision=turn.history_revision,
+                    expected_frontier=turn.history_frontier,
+                    through_message_id=through_message_id,
+                    provenance=turn.history_provenance,
+                )
             if turn.overhead_tokens is not None:
                 await conversations.keep_overhead(conversation_id, turn.overhead_tokens)
 
@@ -1365,6 +1967,15 @@ class AgentSession:
         and came back follows the rest of the turn from another socket. Answers
         whether this socket took it, as `send_event` does.
         """
+        # Foreground socket turns are main-room turns. Resumed room runs already
+        # carry their trusted scope, and must retain it through this surface.
+        if isinstance(payload, dict) and kind in {
+            "model_request_start",
+            "message_saved",
+            "background_task_turn",
+            "user_prompt",
+        }:
+            payload = {"thread_root_message_id": None, **payload}
         sent = await send_event(self.websocket, kind, payload)
         if self._live_turn is not None:
             await live_turn.publish(self._live_turn, kind, payload)
@@ -1384,7 +1995,7 @@ class AgentSession:
         await self._stop_following()
         conversation_id = _conversation_id(raw)
         if conversation_id is None:
-            self._park_question_when_leaving(conversation_id)
+            self._detach_questions_when_leaving(conversation_id)
             await self._leave_room()
             return
         async with get_db_context() as db:
@@ -1398,21 +2009,16 @@ class AgentSession:
             except NotFoundError:
                 await self._leave_room()
                 return
-        self._park_question_when_leaving(conversation_id)
+        self._detach_questions_when_leaving(conversation_id)
         await self._enter_room(conversation_id)
         await self._follow_if_running(conversation_id)
 
-    def _park_question_when_leaving(self, conversation_id: str | None) -> None:
-        """A chat switch leaves the socket open; its own unanswered call must still park."""
+    def _detach_questions_when_leaving(self, conversation_id: str | None) -> None:
+        """A chat switch leaves the socket open, but its delegate's card is no longer shown."""
         self._question_detached = conversation_id != self._live
         pending = self._ask_user_future
-        if (
-            self._question_detached
-            and self._round_parks
-            and pending is not None
-            and not pending.done()
-        ):
-            pending.set_exception(_LeftUnanswered())
+        if self._question_detached and pending is not None and not pending.done():
+            pending.set_result([])
 
     async def _follow_if_running(self, conversation_id: str) -> None:
         """Follow the turn being written in the conversation, unless this socket writes it.
@@ -1507,6 +2113,10 @@ class AgentSession:
         """Pass on the room's news until it ends or this person may no longer read it."""
         await self._send_presence(conversation_id)
         async for event in chat_room.events(conversation_id):
+            if event["type"] == chat_room.ROOM_PARTICIPANTS:
+                # A removal must invalidate a recent successful access check,
+                # including the live follower sharing this session's cache.
+                self._reads_until = float("-inf")
             if not await self._reads_lately(conversation_id):
                 await self._stop_following()
                 self._room = self._room_task = None
@@ -1526,6 +2136,29 @@ class AgentSession:
                 )
             elif event["type"] == chat_room.TYPING:
                 await self._send_typing(conversation_id, event.get("by"))
+            elif event["type"] == chat_room.ROOM_PARTICIPANTS:
+                await send_event(
+                    self.websocket,
+                    chat_room.ROOM_PARTICIPANTS,
+                    {"conversation_id": conversation_id},
+                )
+            elif event["type"] in (
+                chat_room.ROOM_MESSAGE,
+                chat_room.ROOM_REQUEST,
+                chat_room.ROOM_REACTION,
+                chat_room.ROOM_THREAD,
+            ):
+                field = {
+                    chat_room.ROOM_MESSAGE: "message_id",
+                    chat_room.ROOM_REQUEST: "request_id",
+                    chat_room.ROOM_REACTION: "message_id",
+                    chat_room.ROOM_THREAD: "thread_root_message_id",
+                }[event["type"]]
+                await send_event(
+                    self.websocket,
+                    event["type"],
+                    {"conversation_id": conversation_id, field: event[field]},
+                )
             else:
                 await self._follow_if_running(conversation_id)
 
@@ -1644,13 +2277,13 @@ class AgentSession:
         Whether to go on following the conversation: not when the socket closed
         or the person may no longer read it.
         """
-        await send_event(self.websocket, "turn_attached", {"conversation_id": conversation_id})
+        attached = False
         ended = False
         recheck = time.monotonic() + RECHECK_SECONDS
         async for frame in live_turn.follow(conversation_id, token):
             ended = frame["type"] == live_turn.END
-            # A long turn is asked about again as it goes: somebody removed from
-            # the project mid-answer must not read the rest of it.
+            # Revalidate before forwarding when the periodic access check is due,
+            # including a first frame delayed beyond the recheck interval.
             if time.monotonic() >= recheck and not ended:
                 if not await self._still_reads(conversation_id):
                     await send_event(
@@ -1658,11 +2291,30 @@ class AgentSession:
                     )
                     return False
                 recheck = time.monotonic() + RECHECK_SECONDS
+            if not attached:
+                data = frame["data"]
+                await send_event(
+                    self.websocket,
+                    "turn_attached",
+                    {
+                        "conversation_id": conversation_id,
+                        "thread_root_message_id": (
+                            data.get("thread_root_message_id") if isinstance(data, dict) else None
+                        ),
+                    },
+                )
+                attached = True
             if not await send_event(self.websocket, frame["type"], frame["data"]):
                 return False
         if not ended:
             # The turn ended between the check and the subscription: the
             # follower still needs to hear it is over.
+            if not attached:
+                await send_event(
+                    self.websocket,
+                    "turn_attached",
+                    {"conversation_id": conversation_id, "thread_root_message_id": None},
+                )
             return await send_event(
                 self.websocket, live_turn.END, {"conversation_id": conversation_id}
             )

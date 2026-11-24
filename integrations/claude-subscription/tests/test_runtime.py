@@ -1,6 +1,7 @@
 import asyncio
 import json
 import os
+from base64 import b64decode, b64encode
 from pathlib import Path
 from unittest.mock import AsyncMock
 from uuid import UUID, uuid4
@@ -18,7 +19,7 @@ from isolation import (
 )
 from pydantic import ValidationError
 from runtime import ClaudeRuntime, authorization_url
-from schemas import CodeRequest, ConnectionStatus, InferRequest
+from schemas import CodeRequest, ConnectionStatus, ImageInput, InferRequest
 
 pytestmark = pytest.mark.anyio
 
@@ -82,7 +83,8 @@ async def test_real_pipes_login_code_status_and_disconnect(
     assert started.login_id
     waiting = await wait_for_state(native_runtime, owner, "awaiting_code")
     assert (
-        waiting.authorization_url and "claude.com/cai/oauth/authorize" in waiting.authorization_url
+        waiting.authorization_url
+        and "claude.com/cai/oauth/authorize" in waiting.authorization_url
     )
     assert "fake-challenge" not in repr(waiting)
     verifying = await native_runtime.submit_code(owner, started.login_id, "test-code")
@@ -171,7 +173,8 @@ async def test_native_inference_returns_structured_output_and_actual_usage(
     assert result.structured_output == {"text": "Answer", "tool_calls": []}
     assert result.usage.input_tokens == 12 and result.usage.output_tokens == 8
     assert (
-        result.usage.cache_read_input_tokens == 3 and result.usage.cache_creation_input_tokens == 4
+        result.usage.cache_read_input_tokens == 3
+        and result.usage.cache_creation_input_tokens == 4
     )
     assert result.model == "claude-sonnet-test"
     assert not native_runtime.processes and not native_runtime.active
@@ -189,7 +192,12 @@ async def test_api_key_authentication_is_not_a_subscription(
 
 @pytest.mark.parametrize(
     "prompt,code",
-    [("invalid", "CLAUDE_OUTPUT_INVALID"), ("error", "CLAUDE_REQUEST_FAILED")],
+    [
+        ("invalid", "CLAUDE_OUTPUT_INVALID"),
+        ("error", "CLAUDE_REQUEST_FAILED"),
+        ("json-array", "CLAUDE_OUTPUT_INVALID"),
+        ("json-scalar", "CLAUDE_OUTPUT_INVALID"),
+    ],
 )
 async def test_invalid_native_results_fail_without_raw_output(
     native_runtime: ClaudeRuntime, owner: Owner, prompt: str, code: str
@@ -220,7 +228,9 @@ async def test_stopping_model_request_reaps_its_process(
     assert not native_runtime.active and not native_runtime.processes
 
 
-async def test_output_limit_stops_process(native_runtime: ClaudeRuntime, owner: Owner) -> None:
+async def test_output_limit_stops_process(
+    native_runtime: ClaudeRuntime, owner: Owner
+) -> None:
     home = connected(native_runtime, owner)
     with pytest.raises(RuntimeFailure, match="CLAUDE_OUTPUT_INVALID"):
         await native_runtime.command(
@@ -276,7 +286,9 @@ def test_homes_require_container_supervisor(
         Homes(tmp_path)
 
 
-@pytest.mark.parametrize("code", ["", "a\nb", "a\rb", "a\x1bb", "a\x7fb", "a b", "x" * 2049])
+@pytest.mark.parametrize(
+    "code", ["", "a\nb", "a\rb", "a\x1bb", "a\x7fb", "a b", "x" * 2049]
+)
 def test_code_rejects_terminal_input_and_keeps_repr_private(code: str) -> None:
     with pytest.raises(ValidationError):
         CodeRequest(
@@ -359,3 +371,160 @@ async def test_login_expiry_cleans_up_and_allows_retry(
     assert not native_runtime.active and not native_runtime.processes
     retry = await native_runtime.start_login(owner)
     assert retry.login_id is not None and retry.login_id != first.login_id
+
+
+@pytest.mark.parametrize(
+    "thinking,effort,enabled,budget",
+    [
+        (None, None, None, None),
+        (True, None, True, None),
+        (False, "low", False, "0"),
+        ("minimal", "low", True, None),
+        ("low", "low", True, None),
+        ("medium", "medium", True, None),
+        ("high", "high", True, None),
+        ("xhigh", "xhigh", True, None),
+        ("max", "max", True, None),
+    ],
+)
+async def test_reasoning_reaches_native_argv_and_private_process_environment(
+    native_runtime, owner, thinking, effort, enabled, budget
+):
+    home = connected(native_runtime, owner)
+    request = request_for(owner).model_copy(update={"thinking": thinking})
+    await native_runtime.infer(owner, request)
+    sent = json.loads((home.path / ".inference.json").read_text())
+    args = sent["arguments"]
+    if enabled is None:
+        assert "--settings" not in args
+    else:
+        assert json.loads(args[args.index("--settings") + 1]) == {
+            "alwaysThinkingEnabled": enabled
+        }
+    if effort is None:
+        assert "--effort" not in args
+    else:
+        assert args[args.index("--effort") + 1] == effort
+    assert sent["thinking_budget"] == budget
+    assert sent["max_output_tokens"] == "8192"
+    assert sent["payload"] == request.prompt
+    assert args[args.index("--output-format") + 1] == "json"
+
+
+async def test_images_use_one_native_user_event_and_keep_security_flags(
+    native_runtime, owner
+):
+    home = connected(native_runtime, owner)
+    raw_images = [b"\x89PNG\r\n\x1a\nleft-image", b"\x89PNG\r\n\x1a\nright-image"]
+    images = [
+        ImageInput(media_type="image/png", data=b64encode(raw).decode())
+        for raw in raw_images
+    ]
+    request = request_for(owner, "Compare [image:1] and [image:2]").model_copy(
+        update={"images": images}
+    )
+    result = await native_runtime.infer(owner, request)
+    assert result.structured_output["text"] == "Answer"
+    sent = json.loads((home.path / ".inference.json").read_text())
+    args = sent["arguments"]
+    for flag, value in [
+        ("--tools", ""),
+        ("--mcp-config", '{"mcpServers":{}}'),
+        ("--permission-mode", "dontAsk"),
+        ("--setting-sources", ""),
+        ("--max-turns", "3"),
+        ("--input-format", "stream-json"),
+        ("--output-format", "stream-json"),
+    ]:
+        assert args[args.index(flag) + 1] == value
+    assert {
+        "--safe-mode",
+        "--strict-mcp-config",
+        "--no-session-persistence",
+        "--no-chrome",
+        "--verbose",
+    } <= set(args)
+    assert "--replay-user-messages" not in args
+    [line] = sent["payload"].splitlines()
+    event = json.loads(line)
+    assert event["type"] == "user" and event["parent_tool_use_id"] is None
+    content = event["message"]["content"]
+    assert content[0] == {"type": "text", "text": request.prompt}
+    for number, offset in [(1, 1), (2, 3)]:
+        assert content[offset] == {"type": "text", "text": f"[image:{number}]"}
+        source = content[offset + 1]["source"]
+        assert source["type"] == "base64" and source["media_type"] == "image/png"
+        assert b64decode(source["data"], validate=True) == raw_images[number - 1]
+    assert not native_runtime.active and not native_runtime.processes
+
+
+@pytest.mark.parametrize(
+    "output",
+    [
+        b"",
+        b"[]\n",
+        b"private-invalid-output\n",
+        b'{"type":"assistant"}\n',
+        b'{"type":"result"}\n{"type":"result"}\n',
+        b'{"type":"result"}\n{"type":"assistant"}\n',
+    ],
+)
+async def test_stream_result_must_be_valid_unique_and_terminal(
+    native_runtime, owner, monkeypatch, output
+):
+    connected(native_runtime, owner)
+    account = native_runtime.account(owner)
+    account.checked = True
+    account.status = ConnectionStatus(connected=True, state="connected")
+    monkeypatch.setattr(native_runtime, "command", AsyncMock(return_value=(output, 0)))
+    request = request_for(owner).model_copy(
+        update={"images": [ImageInput(media_type="image/png", data="eA==")]}
+    )
+    with pytest.raises(RuntimeFailure, match="CLAUDE_OUTPUT_INVALID") as caught:
+        await native_runtime.infer(owner, request)
+    assert "private-invalid-output" not in str(caught.value)
+    assert not native_runtime.active
+
+
+def test_stream_result_allows_nonresult_events_and_blank_lines_before_terminal_result():
+    output = b'\n{"type":"assistant"}\n \n{"type":"result"}\n\n'
+    assert native._inference_result(output, streamed=True) == {"type": "result"}
+
+
+@pytest.mark.parametrize(
+    "thinking", [0, 1, 4096, "true", "ultracode", {"budget_tokens": 4096}]
+)
+def test_native_thinking_contract_refuses_budgets_and_unrecognized_controls(
+    owner, thinking
+):
+    with pytest.raises(ValidationError):
+        InferRequest.model_validate(
+            {**request_for(owner).model_dump(), "thinking": thinking}
+        )
+
+
+@pytest.mark.parametrize(
+    "image",
+    [
+        {"media_type": "image/png", "data": ""},
+        {"media_type": "image/png", "data": "private-not-base64"},
+        {"media_type": "image/png", "data": "é"},
+        {"media_type": "image/png", "data": "eA==\n"},
+        {
+            "media_type": "image/png",
+            "data": "eA==",
+            "url": "https://example.com/private",
+        },
+        {"media_type": "application/pdf", "data": "eA=="},
+    ],
+)
+def test_native_image_contract_refuses_remote_and_malformed_input(image):
+    with pytest.raises(ValidationError):
+        ImageInput.model_validate(image)
+
+
+def test_native_image_payload_is_omitted_from_repr(owner):
+    image = ImageInput(media_type="image/jpeg", data="cHJpdmF0ZS1pbWFnZQ==")
+    request = request_for(owner).model_copy(update={"images": [image]})
+    assert "cHJpdmF0ZS1pbWFnZQ==" not in repr(image)
+    assert "cHJpdmF0ZS1pbWFnZQ==" not in repr(request)

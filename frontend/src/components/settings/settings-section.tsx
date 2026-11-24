@@ -1,3 +1,10 @@
+"use client";
+
+import { useId, useState } from "react";
+import { ChevronDown } from "lucide-react";
+import { useChanged } from "@/hooks/use-changed";
+import { DisclosureContent } from "@/components/ui/disclosure-content";
+import { DISCLOSURE_TRIGGER } from "@/components/ui/control-styles";
 import { ContextHelp } from "@/components/ui/context-help";
 import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
@@ -6,12 +13,14 @@ import { cn } from "@/lib/utils";
 
 interface SectionCardProps {
   title: string;
-  description?: string;
+  description?: ReactNode;
   action?: ReactNode;
   children?: ReactNode;
   icon?: LucideIcon;
   danger?: boolean;
   tour?: string;
+  className?: string;
+  contentClassName?: string;
 }
 
 export function SectionCard({
@@ -22,17 +31,25 @@ export function SectionCard({
   icon: Icon,
   danger = false,
   tour,
+  className,
+  contentClassName,
 }: SectionCardProps) {
   return (
     <section
       className={cn(
-        "bg-card shadow-card overflow-hidden rounded-2xl border",
-        danger ? "border-destructive/20" : "border-foreground/[0.07]",
+        "min-w-0",
+        danger
+          ? "bg-card border-destructive/20 overflow-hidden rounded-xl border"
+          : "border-border border-b",
+        className,
       )}
     >
       <header
         data-tour={tour}
-        className="border-foreground/[0.06] flex flex-wrap items-center justify-between gap-3 border-b px-5 py-4 sm:px-6"
+        className={cn(
+          "flex flex-wrap items-center justify-between gap-3 py-4",
+          danger && "border-border border-b px-5 sm:px-6",
+        )}
       >
         <div className="flex min-w-0 flex-1 items-start gap-3">
           {Icon && (
@@ -47,21 +64,32 @@ export function SectionCard({
               <Icon className="size-[18px]" strokeWidth={1.75} aria-hidden />
             </span>
           )}
-          <div className="min-w-0 space-y-1">
-            <h2 className="text-foreground text-sm font-semibold">{title}</h2>
-            {description && (
+          <div className="min-w-0">
+            <div className="flex items-center gap-1">
+              <h2 className="text-foreground text-sm font-semibold">{title}</h2>
+              {description && !danger && <ContextHelp>{description}</ContextHelp>}
+            </div>
+            {description && danger && (
               <p className="text-muted-foreground max-w-2xl text-xs leading-5">{description}</p>
             )}
           </div>
         </div>
         {action && <div className="shrink-0">{action}</div>}
       </header>
-      {children && <div className="p-5 sm:p-6">{children}</div>}
+      {children && (
+        <div className={cn("py-5", danger && "px-5 sm:px-6", contentClassName)}>{children}</div>
+      )}
     </section>
   );
 }
 
 interface SettingsSectionProps {
+  tour?: string;
+  toggleTour?: string;
+  collapsible?: boolean;
+  defaultOpen?: boolean;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
   title: string;
   status?: ReactNode;
   description?: string;
@@ -74,6 +102,12 @@ interface SettingsSectionProps {
 }
 
 export function SettingsSection({
+  tour,
+  toggleTour,
+  collapsible = false,
+  defaultOpen = false,
+  open: controlledOpen,
+  onOpenChange,
   title,
   status,
   description,
@@ -82,37 +116,87 @@ export function SettingsSection({
   children,
   className,
 }: SettingsSectionProps) {
+  const panelId = useId();
+  const [internalOpen, setInternalOpen] = useState(defaultOpen);
+  if (useChanged(defaultOpen) && defaultOpen) setInternalOpen(true);
+  const open = controlledOpen ?? internalOpen;
+  const setOpen = (next: boolean) => {
+    setInternalOpen(next);
+    onOpenChange?.(next);
+  };
   return (
     <section
+      data-tour={tour}
       className={cn(
-        "bg-card rounded-2xl border p-4 sm:p-5",
-        danger ? "border-destructive/30 bg-destructive/[0.03]" : "border-foreground/10",
+        "min-w-0",
+        danger
+          ? "border-destructive/30 bg-destructive/[0.03] rounded-xl border p-4 sm:p-5"
+          : "border-border border-b py-5",
         className,
       )}
     >
       <header
-        className={cn("flex flex-wrap items-start justify-between gap-3", children ? "mb-4" : "")}
+        className={cn(
+          "flex flex-wrap items-center justify-between gap-3",
+          children && (!collapsible || open) ? "mb-4" : "",
+        )}
       >
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1">
             <h2
               className={cn(
-                "text-base font-semibold tracking-tight",
+                "text-sm font-semibold",
                 danger ? "text-destructive" : "text-foreground",
               )}
             >
-              {title}
+              {collapsible ? (
+                <button
+                  id={`${panelId}-toggle`}
+                  type="button"
+                  data-tour={toggleTour}
+                  aria-expanded={open}
+                  aria-controls={panelId}
+                  onClick={() => setOpen(!open)}
+                  data-press-feedback="quiet"
+                  className={DISCLOSURE_TRIGGER}
+                >
+                  <ChevronDown
+                    aria-hidden
+                    className={cn(
+                      "size-4 shrink-0 transition-transform motion-reduce:transition-none",
+                      !open && "-rotate-90",
+                    )}
+                  />
+                  {title}
+                </button>
+              ) : (
+                title
+              )}
             </h2>
-            {description && !danger && <ContextHelp>{description}</ContextHelp>}
+            {description && !danger && !collapsible && <ContextHelp>{description}</ContextHelp>}
             {status}
           </div>
-          {description && danger && (
-            <p className="text-muted-foreground mt-1 text-sm leading-relaxed">{description}</p>
+          {description && (danger || collapsible) && (
+            <p className="text-muted-foreground mt-1 max-w-3xl text-sm leading-relaxed">
+              {description}
+            </p>
           )}
         </div>
         {action && <div className="shrink-0">{action}</div>}
       </header>
-      {children}
+      {collapsible ? (
+        <DisclosureContent
+          id={panelId}
+          open={open}
+          triggerId={`${panelId}-toggle`}
+          mountOnOpen={false}
+          onReveal={() => setOpen(true)}
+        >
+          {children}
+        </DisclosureContent>
+      ) : (
+        <div>{children}</div>
+      )}
     </section>
   );
 }

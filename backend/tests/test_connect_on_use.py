@@ -247,3 +247,43 @@ async def test_the_model_is_told_to_connect_when_needed_not_up_front():
     assert "Do not raise it up front" in instructions
     assert 'call `connect_account` with service="notion"' in instructions
     assert "they have not connected it" in instructions
+
+
+@pytest.mark.parametrize("gap", ["nobody_to_speak_as", "not_connected", "unauthorized"])
+def test_channel_service_diagnostics_explain_each_requirement_without_connecting(gap: str) -> None:
+    from app.agents.connect_on_use import UnavailableServices
+    from app.db.models.agent_run import RunSurface
+    from app.services.agent_runner import PersonalServiceGap, _service_access_status
+
+    status = _service_access_status(
+        PersonalServiceGap(catalog_key="notion", name="Notion", gap=gap), RunSurface.MATTERMOST
+    )
+    diagnostic = UnavailableServices([status])
+    assert diagnostic.check_service_access("notion") == status
+    assert not status.tools_available and status.execution == "not_started"
+    assert status.required_steps
+    if gap == "nobody_to_speak_as":
+        assert status.reason == "identity_not_linked"
+        assert "plain `link`" in status.required_steps[0]
+        assert "Notion" in status.required_steps[2]
+        assert status.settings_url is None
+    elif gap == "unauthorized":
+        assert "existing" in status.required_steps[0]
+        assert status.settings_url and "connect=" not in status.settings_url
+    else:
+        assert status.settings_url and "connect=notion" in status.settings_url
+    assert diagnostic.check_service_access("other").reason == "not_listed"
+    assert "substitute" in diagnostic.get_instructions()
+    assert diagnostic.get_toolset() is not None
+
+
+def test_anonymous_nonchannel_service_gap_requires_a_personal_surface():
+    from app.db.models.agent_run import RunSurface
+    from app.services.agent_runner import PersonalServiceGap, _service_access_status
+
+    status = _service_access_status(
+        PersonalServiceGap(catalog_key="notion", name="Notion", gap="nobody_to_speak_as"),
+        RunSurface.API,
+    )
+    assert status.reason == "identity_not_linked"
+    assert "signed-in personal conversation" in status.required_steps[0]

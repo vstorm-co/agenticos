@@ -18,6 +18,7 @@ function personal(overrides: Partial<McpConnectionRecord> = {}): McpConnectionRe
     allowed_tools: null,
     is_enabled: true,
     include_instructions: false,
+    trust_read_only_hints: false,
     auth_type: "bearer",
     oauth_authorized: false,
     authorized: true,
