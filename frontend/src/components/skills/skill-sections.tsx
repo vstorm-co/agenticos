@@ -60,7 +60,13 @@ function SectionBlock({
       </summary>
       <div className="space-y-3 pt-2 pb-2">
         {all ? (
-          <SkillSectionPages sectionKey={section.key} filters={filters} onOpen={onOpen} />
+          <SkillSectionPages
+            // A narrower search can leave fewer pages than the one being read.
+            key={JSON.stringify(filters)}
+            sectionKey={section.key}
+            filters={filters}
+            onOpen={onOpen}
+          />
         ) : (
           <SkillGrid skills={section.items} onOpen={onOpen} />
         )}

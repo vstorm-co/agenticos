@@ -137,6 +137,36 @@ describe("SkillSections", () => {
     expect(screen.queryByText("tone")).not.toBeInTheDocument();
   });
 
+  it("starts a section's pages over when the filters change", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [skill("tone")], total: 120 });
+    const unused = section({ key: "unused", kind: "unused", count: 120 });
+    const { rerender } = render(
+      <SkillSections sections={[unused]} filters={FILTERS} onOpen={vi.fn()} />,
+      { wrapper },
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Show all 120" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Next page" }));
+    await waitFor(() =>
+      expect(apiClient.get).toHaveBeenLastCalledWith(
+        "/skills?sort=name&skip=50&limit=50&section=unused",
+      ),
+    );
+
+    rerender(
+      <SkillSections
+        sections={[unused]}
+        filters={{ ...FILTERS, search: "refund" }}
+        onOpen={vi.fn()}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(apiClient.get).toHaveBeenLastCalledWith(
+        "/skills?q=refund&sort=name&skip=0&limit=50&section=unused",
+      ),
+    );
+  });
+
   it("says when a section's pages could not be read, and tries again", async () => {
     vi.mocked(apiClient.get)
       .mockRejectedValueOnce(new Error("boom"))
