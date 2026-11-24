@@ -89,26 +89,6 @@ function mount(props: Partial<Parameters<typeof ModelProfilePicker>[0]> = {}) {
 }
 
 describe("ModelProfilePicker", () => {
-  it("sends a disconnected native subscription back to sign-in instead of asking for an API key", () => {
-    mount({
-      value: "p1",
-      profiles: [
-        profile({
-          provider: "claude-subscription",
-          usage_scope: "personal",
-          secret_id: null,
-          missing_key: true,
-        }),
-      ],
-    });
-    const current = screen.getByRole("group", { name: "Current model" });
-    expect(within(current).getByText("Disconnected")).toBeVisible();
-    expect(within(current).getByText(/Reconnect Claude to use/)).toBeVisible();
-    expect(
-      within(current).getByRole("link", { name: "Manage Claude subscription" }),
-    ).toHaveAttribute("href", "/settings/ai-connections");
-    expect(within(screen.getByRole("radio")).getByText("Disconnected")).toBeVisible();
-  });
   it("identifies a personal model and explains who may run it", () => {
     mount({ value: "p1", profiles: [profile({ usage_scope: "personal" })] });
     const current = screen.getByRole("group", { name: "Current model" });

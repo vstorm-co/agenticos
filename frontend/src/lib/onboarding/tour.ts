@@ -1841,19 +1841,6 @@ export const TOUR_STEPS: readonly TourStep[] = [
     target: "personal-model-connections",
   },
   {
-    id: "claude-subscription-connect",
-    page: ROUTES.SETTINGS_AI_CONNECTIONS,
-    target: "claude-subscription-connect",
-    permission: Perm.connectionsManage,
-  },
-  {
-    id: "chat-subscription-model",
-    page: ROUTES.CHAT,
-    target: "chat-subscription-model",
-    permission: Perm.connectionsManage,
-    optional: true,
-  },
-  {
     id: "personal-coding-accounts",
     page: SETTINGS_DETAIL,
     target: "personal-coding-accounts",

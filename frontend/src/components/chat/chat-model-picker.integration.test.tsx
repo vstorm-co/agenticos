@@ -40,17 +40,6 @@ const PROFILE = {
   fallback_profile_ids: [],
 };
 
-const SUBSCRIPTION: ModelProfile = {
-  ...PROFILE,
-  id: "p-subscription",
-  label: "My Claude subscription · Sonnet",
-  provider: "claude-subscription",
-  model: "sonnet",
-  secret_id: null,
-  usage_scope: "personal",
-  missing_key: false,
-};
-
 const PURPOSES = {
   items: [
     {
@@ -150,60 +139,6 @@ beforeEach(() => {
 });
 
 describe("who may move this conversation onto another model", () => {
-  it("selects an existing personal subscription by profile ID without requiring a vault key or creating another model", async () => {
-    const onChange = await mount([Perm.agentsView, Perm.connectionsManage], vi.fn(), [
-      PROFILE,
-      SUBSCRIPTION,
-    ]);
-    await userEvent.click(screen.getByRole("button", { name: "Change model" }));
-    await userEvent.click(
-      screen.getByRole("combobox", { name: "Your Claude subscription models" }),
-    );
-    await userEvent.click(screen.getByRole("option", { name: SUBSCRIPTION.label }));
-    expect(onChange).toHaveBeenCalledWith(SUBSCRIPTION.id);
-    expect(apiClient.post).not.toHaveBeenCalled();
-    expect(screen.getByRole("link", { name: "Manage Claude subscription" })).toHaveAttribute(
-      "href",
-      "/settings/ai-connections",
-    );
-  });
-
-  it("keeps a disconnected subscription unavailable and gives it a reconnect path", async () => {
-    const onChange = await mount(
-      [Perm.agentsView, Perm.connectionsManage],
-      vi.fn(),
-      [{ ...SUBSCRIPTION, missing_key: true }],
-      SUBSCRIPTION.id,
-    );
-    await userEvent.click(screen.getByRole("button", { name: "Change model" }));
-    expect(screen.getByText("Reconnect Claude to use these saved models.")).toBeVisible();
-    expect(screen.queryByRole("combobox", { name: "Provider" })).toBeNull();
-    await userEvent.click(
-      screen.getByRole("combobox", { name: "Your Claude subscription models" }),
-    );
-    expect(screen.getByRole("option", { name: SUBSCRIPTION.label })).toHaveAttribute(
-      "aria-disabled",
-      "true",
-    );
-    expect(onChange).not.toHaveBeenCalled();
-  });
-
-  it("lets a subscription user deliberately open the API-model form", async () => {
-    await mount(
-      [Perm.agentsView, Perm.connectionsManage],
-      vi.fn(),
-      [SUBSCRIPTION],
-      SUBSCRIPTION.id,
-    );
-    await userEvent.click(screen.getByRole("button", { name: "Change model" }));
-    expect(screen.queryByRole("combobox", { name: "Provider" })).toBeNull();
-    await userEvent.click(screen.getByRole("button", { name: "Choose an API model" }));
-    expect(screen.getByRole("combobox", { name: "Provider" })).toBeVisible();
-    expect(screen.getByRole("button", { name: "Run on this model" })).toBeDisabled();
-    expect(apiClient.get).not.toHaveBeenCalledWith("/providers/claude-subscription/models");
-    expect(apiClient.post).not.toHaveBeenCalled();
-  });
-
   it("refreshes the legacy form catalog using the selected provider and Vault key", async () => {
     await mount([Perm.agentsView, Perm.connectionsManage, Perm.secretsView]);
     await userEvent.click(screen.getByRole("button", { name: "Change model" }));

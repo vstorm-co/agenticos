@@ -6846,14 +6846,6 @@
         "body": "Open the model pill to search saved models, switch providers or accounts, and return to the agent's model. Your selection applies to the next message and is remembered as your chat preference. Controls beside the message box has the full connection setup.",
         "title": "Choose a model from the header"
       },
-      "chat-subscription-model": {
-        "body": "Choose one of your saved Claude subscription models to power this chat. The connection stays personal; manage it in Settings → AI connections.",
-        "title": "Use your Claude subscription"
-      },
-      "claude-subscription-connect": {
-        "body": "Open Claude sign-in, complete it with your own account, and paste the returned code. Once connected, add a subscription model and choose it in an agent or chat.",
-        "title": "Connect your Claude subscription"
-      },
       "connections-more": {
         "body": "The More tab holds channels, remote agents, vault and sandbox settings available to your role.",
         "title": "More connections"
@@ -23886,52 +23878,6 @@
     "description": "Reload to get the newest version.",
     "reload": "Reload",
     "title": "{appName} has been updated"
-  },
-  "claudeSubscription": {
-    "addModel": "Add subscription model",
-    "cancel": "Cancel sign-in",
-    "checking": "Checking Claude connection…",
-    "chooseApiModel": "Choose an API model",
-    "chooseSaved": "Choose a saved subscription model",
-    "chooseSavedModel": "Choose a saved model in an agent or chat to use your Claude subscription.",
-    "code": "Claude sign-in code",
-    "codeHint": "Paste the code from the Claude page. It is cleared as soon as you submit it.",
-    "complete": "Complete sign-in",
-    "connect": "Connect Claude subscription",
-    "connected": "Connected · personal",
-    "connectionLabel": "Claude subscription · {person}",
-    "description": "Sign in with your Claude account to power your personal agent runs.",
-    "disconnect": "Disconnect Claude",
-    "disconnected": "Disconnected",
-    "expired": "This sign-in has expired. Start again to get a new link.",
-    "expiresIn": "Expires in {minutes, plural, =1 {1 minute} other {# minutes}}.",
-    "invalidLink": "The Claude sign-in link could not be verified. Cancel and start again.",
-    "manageConnection": "Manage Claude subscription",
-    "model": "Subscription model",
-    "modelAlreadySaved": "Model already saved",
-    "modelHint": "Choose a Claude model. Your subscription determines model access and usage limits.",
-    "models": {
-      "haiku": "Claude Haiku",
-      "opus": "Claude Opus",
-      "sonnet": "Claude Sonnet"
-    },
-    "modelsUnavailable": "Your saved subscription models could not be read.",
-    "notConfigured": "Claude subscription sign-in is not configured on this deployment.",
-    "openClaude": "Open Claude sign-in",
-    "openInstructions": "Open Claude, sign in to your account, then paste the code shown on its confirmation page.",
-    "ownSessionOnly": "Sign in as yourself to connect or use a personal subscription.",
-    "permission": "Connecting a Claude subscription needs connections:manage in this organisation.",
-    "reconnectModels": "Reconnect Claude to use these saved models.",
-    "requestFailed": "The sign-in request could not be completed. Retry to check the connection.",
-    "retry": "Retry",
-    "savedModels": "Your Claude subscription models",
-    "signInFailed": "Claude sign-in did not complete. Start again and use the code from the new sign-in page.",
-    "startAgain": "Start again",
-    "starting": "Preparing Claude sign-in…",
-    "statusFailed": "Your Claude connection could not be checked. Retry to read its status.",
-    "supportedInputs": "This connection supports text and agent tools. Images and files are not supported yet.",
-    "title": "Claude subscription",
-    "verifying": "Completing Claude sign-in…"
   },
   "failureLearning": {
     "accept": "Accept",

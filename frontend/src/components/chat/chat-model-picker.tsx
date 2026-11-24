@@ -24,7 +24,6 @@ import { useSubscriptionAccounts } from "@/hooks/use-subscription-accounts";
 import { SubscriptionModelForm } from "@/components/agents/subscription-model-form";
 import { ChatModelPane, ChatModelLibrary, type ChatModelLibraryProps } from "./chat-model-library";
 import { ModelCombobox } from "@/components/agents/model-combobox";
-import { ClaudeSubscriptionModelSelect } from "@/components/chat/claude-subscription-model-select";
 import { getErrorMessage } from "@/lib/api-error";
 import { ModelIcon } from "@/components/icons/model-icon";
 import { ProviderRow } from "@/components/vault/provider-row";
@@ -235,9 +234,7 @@ export function ChatModelPicker({
     error: catalogError,
     canRefresh,
   } = useProviderModels(
-    providerId === "claude-subscription" || subscription || (personal && endpoint)
-      ? ""
-      : providerId,
+    subscription || (personal && endpoint) ? "" : providerId,
     providerId === "openrouter" ? (endpoint ?? undefined) : undefined,
     effectiveKey?.id,
   );
@@ -590,15 +587,6 @@ export function ChatModelPicker({
   if (presentation === "library" && can(Perm.connectionsManage))
     return (
       <div className="space-y-4">
-        <ClaudeSubscriptionModelSelect
-          profiles={profiles}
-          value={currentProfile?.id ?? null}
-          disabled={loadingProfiles || profilesStatus === "failed"}
-          onChange={(profileId) => {
-            setFailure(null);
-            onChange(profileId);
-          }}
-        />
         <Library
           pane={
             subscription ? (
@@ -774,21 +762,7 @@ export function ChatModelPicker({
                   </Button>
                 </p>
               )}
-              <ClaudeSubscriptionModelSelect
-                profiles={profiles}
-                value={currentProfile?.id ?? null}
-                disabled={loadingProfiles || profilesStatus === "failed"}
-                onChange={(profileId) => {
-                  setFailure(null);
-                  onChange(profileId);
-                }}
-              />
-              {providerId === "claude-subscription" && (
-                <Button type="button" variant="outline" size="sm" onClick={() => setProviderId("")}>
-                  {tRoot("claudeSubscription.chooseApiModel")}
-                </Button>
-              )}
-              <div className="space-y-1.5" hidden={providerId === "claude-subscription"}>
+              <div className="space-y-1.5">
                 <Label htmlFor="chat-model-provider">{t("provider")}</Label>
                 <ModelSourceSelect
                   id="chat-model-provider"
@@ -802,7 +776,7 @@ export function ChatModelPicker({
                 />
               </div>
 
-              {providerId === "claude-subscription" ? null : requiresEndpoint ||
+              {requiresEndpoint ||
               subscription !== undefined ||
               providerId === "subscription_accounts" ? (
                 endpointForm

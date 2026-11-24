@@ -86,7 +86,6 @@ import * as orgGroupSpendCsv from "./orgs/[id]/groups/[groupId]/spend.csv/route"
 import * as orgDirectoryMappings from "./orgs/[id]/directory-mappings/route";
 import * as orgDirectoryMapping from "./orgs/[id]/directory-mappings/[mappingId]/route";
 import * as providers from "./providers/[[...path]]/route";
-import * as personalSubscriptions from "./personal-subscriptions/[[...path]]/route";
 import * as rag from "./rag/[[...path]]/route";
 import * as ratings from "./ratings/[[...path]]/route";
 import * as roles from "./roles/[[...path]]/route";
@@ -201,7 +200,6 @@ const MOUNTED: [string, Record<string, unknown>][] = [
   ["orgs/[id]/directory-mappings", orgDirectoryMappings],
   ["orgs/[id]/directory-mappings/[mappingId]", orgDirectoryMapping],
   ["providers", providers],
-  ["personal-subscriptions", personalSubscriptions],
   ["rag", rag],
   ["ratings", ratings],
   ["roles", roles],

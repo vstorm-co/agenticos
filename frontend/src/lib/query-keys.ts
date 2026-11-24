@@ -85,9 +85,6 @@ export const qk = {
     list: (account: string | undefined, tenant: string | null, skip = 0, limit = 50) =>
       ["room-directory", account, tenant, skip, limit] as const,
   },
-  personalSubscriptions: {
-    claude: (scope: string) => ["personal-subscriptions", "claude", scope] as const,
-  },
   improvements: {
     all: () => ["improvements"] as const,
     awaiting: () => ["improvements", "awaiting"] as const,

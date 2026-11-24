@@ -4,7 +4,6 @@ import { NativeDisclosure } from "@/components/ui/native-disclosure";
 
 import { useId, useLayoutEffect, useRef, useState } from "react";
 import { Check, ChevronRight, KeyRound, RefreshCw, Trash2 } from "lucide-react";
-import Link from "next/link";
 
 import { AddModel } from "@/components/agents/add-model";
 import { CONTROL_FOCUS, MENU_ROW } from "@/components/ui/control-styles";
@@ -23,7 +22,6 @@ import { useChanged } from "@/hooks/use-changed";
 import type { ProfilesStatus } from "@/hooks/use-model-providers";
 import { hasKey, runsAgents } from "@/lib/model-profiles";
 import { cn } from "@/lib/utils";
-import { ROUTES } from "@/lib/constants";
 import type { ModelProfile } from "@/types/providers";
 import { useTranslations } from "next-intl";
 
@@ -137,7 +135,6 @@ export function ModelProfilePicker({
   const t = useTranslations("agents");
   const tc = useTranslations("common");
   const tPersonal = useTranslations("personalModels");
-  const tSubscription = useTranslations("claudeSubscription");
   const picker = useTranslations("chat.modelPicker");
   const { deleteProfile, refetchProfiles, isFetching } = useModelProviders();
   const refresh = (
@@ -240,9 +237,7 @@ export function ModelProfilePicker({
       {/* The badge that decides whether the agent can run at all. In a list of a
           dozen saved models the chosen one's badge is a badge among twelve. */}
       {requireOrganizationKey && !hasKey(selected) && (
-        <Badge variant="destructive">
-          {selected.provider === "claude-subscription" ? tSubscription("disconnected") : t("noKey")}
-        </Badge>
+        <Badge variant="destructive">{t("noKey")}</Badge>
       )}
       {purpose === "chat" && !runsAgents(selected) && (
         <Badge variant="destructive">{t("notAChatModel")}</Badge>
@@ -260,16 +255,7 @@ export function ModelProfilePicker({
       )}
       {requireOrganizationKey && runsAgents(selected) && !hasKey(selected) && (
         <p role="alert" className="text-destructive basis-full text-xs">
-          {selected.provider === "claude-subscription" ? (
-            <>
-              {tSubscription("reconnectModels")}{" "}
-              <Link href={ROUTES.SETTINGS_AI_CONNECTIONS} className="underline underline-offset-4">
-                {tSubscription("manageConnection")}
-              </Link>
-            </>
-          ) : (
-            t("modelHasNoKeyHint")
-          )}
+          {t("modelHasNoKeyHint")}
         </p>
       )}
     </div>
@@ -460,7 +446,6 @@ function ProfileRow({
   const t = useTranslations("agents");
   const tc = useTranslations("common");
   const tPersonal = useTranslations("personalModels");
-  const tSubscription = useTranslations("claudeSubscription");
   return (
     // The radio and the delete are siblings, not nested: a button inside a
     // button is invalid, and the browser resolves it by dropping one of them.
@@ -486,11 +471,7 @@ function ProfileRow({
         <span className="min-w-0 flex-1">
           <span className="flex flex-wrap items-center gap-1.5">
             <span className="truncate text-sm font-medium">{title}</span>
-            {noKey && (
-              <Badge variant="destructive">
-                {provider === "claude-subscription" ? tSubscription("disconnected") : t("noKey2")}
-              </Badge>
-            )}
+            {noKey && <Badge variant="destructive">{t("noKey2")}</Badge>}
             {notChat && <Badge variant="destructive">{t("notAChatModel")}</Badge>}
             {personal && <Badge variant="secondary">{tPersonal("personal")}</Badge>}
           </span>
