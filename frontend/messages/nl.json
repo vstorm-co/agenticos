@@ -20181,7 +20181,7 @@
           },
           "proposal_label": {
             "title": "Label van het voorstel",
-            "description": "Hoe het voorstel heet, zoals Antwoord. Als dit leeg is: Voorstel."
+            "description": "Hoe het voorstel heet, zoals Antwoord. Laat leeg voor Voorstel."
           },
           "proposal_format": {
             "title": "Formaat van het voorstel",
