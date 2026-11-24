@@ -73,7 +73,7 @@ export function useSkills({
   const { data, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: qk.skills.list({
       search,
-      category: (categories ?? []).join(","),
+      categories: categories ?? [],
       sort,
       skip,
       limit,

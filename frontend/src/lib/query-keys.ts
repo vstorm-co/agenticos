@@ -501,7 +501,7 @@ export const qk = {
     all: () => ["skills"] as const,
     list: (query: {
       search: string;
-      category: string;
+      categories: string[];
       sort: string;
       skip: number;
       limit: number;

@@ -73,6 +73,22 @@ describe("useSkills", () => {
     );
   });
 
+  it("keeps a shelf with a comma apart from two shelves", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const shared = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+    const one = renderHook(() => useSkills({ categories: ["sales,ops"] }), { wrapper: shared });
+    await waitFor(() => expect(one.result.current.isLoading).toBe(false));
+    const two = renderHook(() => useSkills({ categories: ["sales", "ops"] }), { wrapper: shared });
+    await waitFor(() => expect(two.result.current.isLoading).toBe(false));
+
+    expect(apiClient.get).toHaveBeenCalledTimes(2);
+    expect(apiClient.get).toHaveBeenLastCalledWith(
+      "/skills?category=sales&category=ops&sort=name&skip=0&limit=50",
+    );
+  });
+
   it("asks for nothing while switched off", () => {
     const { result } = renderHook(() => useSkills({ enabled: false }), { wrapper });
 
