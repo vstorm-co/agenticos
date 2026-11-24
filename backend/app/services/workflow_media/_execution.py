@@ -4,6 +4,7 @@ import asyncio
 import hashlib
 import logging
 
+from pydantic_ai.exceptions import ModelHTTPError
 from pydantic_ai.messages import BinaryContent
 from pydantic_ai.native_tools import ImageGenerationTool
 from pydantic_ai.settings import ModelSettings
@@ -38,6 +39,14 @@ from app.workflows.nodes._media_config import (
 
 logger = logging.getLogger(__name__)
 MAX_REFERENCE_BYTES = 20_000_000
+# The provider answered before generating anything, so no fee exists. A timeout, 5xx
+# or lost connection says nothing about the effect and is deliberately not here.
+DEFINITE_REFUSALS = {
+    400: "rejected the request",
+    401: "refused the API key",
+    403: "refused this key's permission",
+    429: "refused for quota, billing or rate limit",
+}
 
 
 async def _reference(config: MediaConfig, supplied: MediaGenerateInput) -> files.StoredFile | None:
@@ -217,6 +226,23 @@ async def _interrupted(journal: MediaJournal | None, code: str, message: str) ->
     )
 
 
+async def _provider_refused(journal: MediaJournal | None, error: ModelHTTPError) -> NodeResult:
+    code = "MEDIA_PROVIDER_REFUSED"
+    message = (
+        f"The media provider {DEFINITE_REFUSALS[error.status_code]} (HTTP {error.status_code}); "
+        "nothing was generated or billed"
+    )
+    if journal is None:
+        return _refused(code, message)
+    try:
+        released = await journal.refuse(reason=code)
+    except Exception:
+        released = False
+    if not released:
+        return await _interrupted(journal, code, message)
+    return _refused(code, message)
+
+
 async def _recover(operation: WorkflowMediaOperation, config: MediaConfig) -> bytes | None:
     if operation.output_sha256 is None:
         return None
@@ -268,6 +294,14 @@ async def generate(config: MediaConfig, supplied: MediaGenerateInput) -> NodeRes
         raise
     except (AppException, MediaInspectionError) as exc:
         return await _interrupted(journal, exc.code, str(exc))
+    except ModelHTTPError as exc:
+        if exc.status_code in DEFINITE_REFUSALS:
+            return await _provider_refused(journal, exc)
+        return await _interrupted(
+            journal,
+            "MEDIA_PROVIDER_INTERRUPTED",
+            "The media provider did not return a usable result",
+        )
     except Exception:
         # Raw provider exceptions may contain URLs, prompts and credentials.
         return await _interrupted(
