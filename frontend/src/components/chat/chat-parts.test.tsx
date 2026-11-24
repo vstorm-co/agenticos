@@ -33,6 +33,17 @@ const auth = vi.hoisted(() => ({
 vi.mock("@/hooks", () => ({
   useAuth: () => ({ user: auth.user }),
   useAgents: () => ({ agents: auth.agents }),
+  useCapabilityCatalog: () => ({ capabilities: [], isLoading: false }),
+  useAgentVersion: () => ({
+    version: { spec: { mcp_servers: [] } },
+    isLoading: false,
+    error: null,
+  }),
+  useMcpConnections: () => ({ connections: [], isLoading: false }),
+  useMcpCatalog: () => ({ servers: [], isLoading: false }),
+}));
+vi.mock("@/hooks/use-capability-guide", () => ({
+  useCapabilityGuide: () => () => undefined,
 }));
 // What the agent may be pointed at - here, nothing that draws, so the general
 // starters show; `chat-empty-state.test.tsx` covers an agent with Visuals.
