@@ -1,5 +1,5 @@
 ---
-source_sha: "4c4d606984ca"
+source_sha: "4f31002c86ea"
 ---
 
 # Governance { #governance }
@@ -81,6 +81,8 @@ Define `ends_at` con un desplazamiento UTC para el trabajo con duración limitad
 `monthly_budget_usd` para un límite mensual más estricto. La herramienta MCP de
 actualización permite quitar ambos ajustes. Una clave API ordinaria no puede
 autorizar a una rutina a usar las cuentas personales de quien la emitió. Tampoco conceden esa autoridad los runs en segundo plano, las suplantaciones ni los turnos grupales o públicos reanudados.
+
+Cuando otra persona publica, revierte o promueve una versión, **Act as creator** se desactiva en las rutinas a las que llega esa versión: las de un entorno al que pasa, incluido uno protegido que pasa cuando sus comprobaciones se superan, y las que no indican entorno cuando mueve el predeterminado. Esa rutina espera la revisión de su propietario. Una rutina fijada a una versión, o en un entorno al que la versión no llega, sigue ejecutando lo que su creador aprobó.
 
 Los barridos de cada minuto procesan los vencimientos independientemente de la siguiente activación, incluso para rutinas y seguimientos pausados. Desactivan el trabajo activo, resuelven sus bloqueos pendientes y cancelan las notificaciones aún no enviadas sin llamar a un modelo. Tras reiniciarse, el worker recupera los vencimientos; la limpieza puede esperar a un worker o a otro lote, mientras las comprobaciones previas a herramientas y entregas rechazan de inmediato el trabajo vencido.
 

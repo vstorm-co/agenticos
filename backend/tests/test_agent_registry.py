@@ -5006,7 +5006,9 @@ class TestASharedWorkspaceIsAnswerableAfterwards:
         with (
             patch.object(service, "get", new=AsyncMock(return_value=agent)),
             patch.object(service, "validate_spec", new=AsyncMock()),
-            patch.object(service, "_move_environments_that_follow", new=AsyncMock()),
+            patch.object(
+                service, "_move_environments_that_follow", new=AsyncMock(return_value=set())
+            ),
             patch(f"{REGISTRY_PATH}.agent_repo.next_version_number", new=AsyncMock(return_value=3)),
             patch(
                 f"{REGISTRY_PATH}.agent_repo.create_version",

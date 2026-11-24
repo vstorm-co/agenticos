@@ -1,5 +1,5 @@
 ---
-source_sha: "4c4d606984ca"
+source_sha: "4f31002c86ea"
 ---
 
 # Governance { #governance }
@@ -78,6 +78,8 @@ Ustaw `ends_at` z przesunięciem UTC dla pracy ograniczonej w czasie oraz
 MCP pozwala usunąć oba ustawienia. Zwykły klucz API nie może upoważnić rutyny
 do korzystania z osobistych kont jego wystawcy. Takiej zgody nie nadają też uruchomienia
 w tle, podszywanie się ani wznowione tury grupowe lub publiczne.
+
+Gdy inna osoba publikuje, cofa lub promuje wersję, **Act as creator** zostaje wyłączone w rutynach, do których ta wersja trafia: na środowisku, na które się przesuwa, także chronionym przez strażników, które przesunie się po ich przejściu, oraz w rutynach bez środowiska, gdy przesuwa domyślne. Taka rutyna czeka na przegląd właściciela. Rutyna przypięta do wersji albo działająca na środowisku, do którego wersja nie trafia, dalej uruchamia to, na co zgodził się jej twórca.
 
 Przebiegi wykonywane co minutę rozliczają minione terminy niezależnie od kolejnej aktywacji, także dla wstrzymanych rutyn i obserwacji. Wyłączają aktywną pracę, zamykają jej nieaktualne blokery i anulują oczekujące powiadomienia bez wywołania modelu. Worker nadrabia zaległości po restarcie; sprzątanie może poczekać na workera lub kolejną partię, a kontrole terminu przed narzędziami i dostarczeniem odpowiedzi od razu odmawiają pracy po terminie.
 

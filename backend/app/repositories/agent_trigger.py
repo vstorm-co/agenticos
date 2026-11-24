@@ -565,12 +565,22 @@ async def claim_due(
 
 
 async def withdraw_creator_consent(
-    db: AsyncSession, *, agent_id: UUID, kept_for: UUID | None
+    db: AsyncSession,
+    *,
+    agent_id: UUID,
+    kept_for: UUID | None,
+    environment_ids: Sequence[UUID],
+    include_unscoped: bool,
 ) -> int:
-    """Switch "run as me" off on an agent's triggers, except those `kept_for` made.
+    """Switch "run as me" off on an agent's triggers that run in `environment_ids`,
+    except those `kept_for` made.
 
-    Returns how many triggers lost it.
+    A trigger naming no environment runs the default one, so `include_unscoped`
+    says whether the default is among them. Returns how many triggers lost it.
     """
+    reached = [AgentTrigger.environment_id.in_(environment_ids)]
+    if include_unscoped:
+        reached.append(AgentTrigger.environment_id.is_(None))
     result = await db.execute(
         sql_update(AgentTrigger)
         .where(
@@ -578,6 +588,7 @@ async def withdraw_creator_consent(
             AgentTrigger.runs_as_creator.is_(True),
             AgentTrigger.pinned_version_id.is_(None),
             AgentTrigger.created_by_user_id.is_distinct_from(kept_for),
+            or_(*reached),
         )
         .values(runs_as_creator=False)
     )

@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- **A publish no longer stops routines it does not reach.** Publishing, rolling back or promoting an agent switched **Act as creator** off on every unpinned routine another person had made on it, which made each of them wait for its owner's review, even when the routine's environment stayed on the version its creator agreed to. Only the routines the new version reaches lose it now: those on an environment it moves to, including a guarded one that moves once its guards pass, and those naming no environment when it moves the default. Promoting an environment to the version it already serves withdraws nothing (#3290).
+
 ## [1.92.0] - 2026-11-23
 
 ### Added
