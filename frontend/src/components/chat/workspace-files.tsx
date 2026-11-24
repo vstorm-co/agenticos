@@ -163,8 +163,10 @@ export function WorkspaceFiles({
     return ![...stored].some((name) => name.startsWith(`${prefix}-`));
   });
   const count = files.length + unstored.length;
-  // Folders count here, where they do not in `count`: the tree draws an empty folder too.
-  const empty = (workspace?.items.length ?? 0) === 0 && unstored.length === 0;
+  // What the tree will draw: folders count here, where they do not in `count`, and a
+  // listing's own root (`/`, `.`) does not, since the tree has no row for it.
+  const drawn = treeOf(workspace?.items ?? []).length > 0;
+  const empty = !drawn && unstored.length === 0;
   const readIssue = error ?? workspace?.unreadable_reason ?? null;
 
   // Only for the server's workspace: the archive route is the conversation's, and a
@@ -290,7 +292,7 @@ export function WorkspaceFiles({
                 )}
 
                 {/* Full-width chips leave room for names in this narrow panel. */}
-                {(workspace?.items.length ?? 0) > 0 && (
+                {drawn && (
                   <WorkspaceTree
                     files={workspace?.items ?? []}
                     selectedPath={reading?.path ?? null}

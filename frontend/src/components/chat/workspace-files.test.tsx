@@ -380,6 +380,32 @@ describe("the workspace panel", () => {
     expect(screen.queryByText(/Nothing yet/)).toBeNull();
   });
 
+  it.each(["/", "."])(
+    "calls a listing of only its own root %s empty, since the tree draws nothing for it",
+    async (root) => {
+      vi.mocked(apiClient.get).mockResolvedValue(
+        workspace({
+          items: [{ path: root, size: null, is_dir: true, modified_at: null }],
+          total: 1,
+          bytes_total: 0,
+        }),
+      );
+
+      draw(
+        <WorkspaceFiles
+          buttonSlot={document.body}
+          conversationId="c1"
+          attachments={[]}
+          revision={0}
+        />,
+      );
+      await openPanel();
+
+      await waitFor(() => expect(screen.getByText(/Nothing yet/)).toBeVisible());
+      expect(screen.queryByRole("tree")).toBeNull();
+    },
+  );
+
   it("names a folder in full on hover when the narrow panel cuts it", async () => {
     const long = "/workspace-of-the-quarterly-revenue-reconciliation";
     vi.mocked(apiClient.get).mockResolvedValue(
