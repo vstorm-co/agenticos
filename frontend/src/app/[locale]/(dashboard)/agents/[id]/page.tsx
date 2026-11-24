@@ -523,6 +523,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
     ...(!isSystem ? ["evals"] : []),
     ...(canViewRuns && !isSystem ? ["gaps"] : []),
     "history",
+    "failure-learning",
   ];
   const tab = tabParam !== null && tabs.includes(tabParam) ? tabParam : "build";
   // An eval needs a dataset with a case this caller may run - a grant on one is
