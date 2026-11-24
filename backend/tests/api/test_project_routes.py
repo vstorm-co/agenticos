@@ -360,3 +360,20 @@ async def test_project_resource_routes_preserve_typed_refs_and_delegate_authoriz
     assert service.remove.await_args.args[2].kind.value == "agent"
     assert service.set_entrypoint.await_args.args[2] is None
     assert isinstance(deps.get_project_resource_service(MagicMock()), ProjectResourceService)
+
+
+async def test_registry_http_filters_forward_the_selected_project(client: OpenClient):
+    agents = MagicMock(
+        list_agents=AsyncMock(return_value=([], 0)), list_labels=AsyncMock(return_value=([], []))
+    )
+    workflows = MagicMock(list=AsyncMock(return_value={"items": [], "total": 0}))
+    async with client() as http:
+        app.dependency_overrides[deps.get_agent_registry_service] = lambda: agents
+        app.dependency_overrides[deps.get_workflow_registry_service] = lambda: workflows
+        agent_response = await http.get("/api/v1/agents", params={"project_id": str(PROJECT_ID)})
+        workflow_response = await http.get(
+            "/api/v1/workflows", params={"project_id": str(PROJECT_ID)}
+        )
+    assert agent_response.status_code == workflow_response.status_code == 200
+    assert agents.list_agents.await_args.kwargs["project_id"] == PROJECT_ID
+    assert workflows.list.await_args.kwargs["project_id"] == PROJECT_ID

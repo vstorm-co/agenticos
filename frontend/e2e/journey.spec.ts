@@ -485,7 +485,7 @@ test("an agent goes from a stored key to a run with a cost", async ({ page, brow
   await expect(page).toHaveURL(/\/projects\/[^/?]+$/);
   const projectId = new URL(page.url()).pathname.split("/").pop();
   if (!projectId) throw new Error("Created project has no identity");
-  await page.getByRole("main").getByRole("link", { name: "New chat", exact: true }).click();
+  await page.getByRole("main").getByRole("link", { name: "New chat", exact: true }).first().click();
   await expect(page.getByRole("button", { name: /^Agent:/ })).toContainText(agentName);
   await expect(page.getByText("Live", { exact: true })).toBeVisible();
   const projectQuestion = `Project question ${stamp}`;

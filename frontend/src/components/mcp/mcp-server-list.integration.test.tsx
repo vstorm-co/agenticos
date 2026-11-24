@@ -684,9 +684,15 @@ describe("McpServerList", () => {
       "href",
       catalogEntries[2]!.docs_url,
     );
-    expect(apiClient.post).not.toHaveBeenCalled();
+    expect(apiClient.post).not.toHaveBeenCalledWith(
+      expect.stringContaining("/oauth/start"),
+      expect.anything(),
+    );
     await userEvent.click(screen.getByRole("button", { name: "Connect & check" }));
-    expect(apiClient.post).not.toHaveBeenCalled();
+    expect(apiClient.post).not.toHaveBeenCalledWith(
+      expect.stringContaining("/oauth/start"),
+      expect.anything(),
+    );
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     await userEvent.type(screen.getByLabelText("Client ID"), "google-app");
     await userEvent.type(screen.getByLabelText("Client secret"), "test-secret");
@@ -716,7 +722,10 @@ describe("McpServerList", () => {
     await mount();
     expect(await screen.findByLabelText("Client ID")).toBeVisible();
     expect(screen.queryByText(/Leave it empty for a public client/)).toBeNull();
-    expect(apiClient.post).not.toHaveBeenCalled();
+    expect(apiClient.post).not.toHaveBeenCalledWith(
+      expect.stringContaining("/oauth/start"),
+      expect.anything(),
+    );
     expect(window.location.search).toBe("");
   });
 

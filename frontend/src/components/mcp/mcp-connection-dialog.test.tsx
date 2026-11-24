@@ -276,3 +276,12 @@ it("lets a member sign in using the organization app without entering its secret
   await userEvent.click(screen.getByRole("button", { name: /Connect/ }));
   expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ auth: "oauth", clientId: "" }));
 });
+
+it("keeps catalog consent available if the optional organization-client probe fails", async () => {
+  vi.mocked(probeMcpSignIn).mockRejectedValue(new Error("metadata unavailable"));
+  const row = rowForEntry(NOTION as unknown as McpCatalogEntry);
+  open({ scope: "personal", row, existing: null });
+  await waitFor(() => expect(probeMcpSignIn).toHaveBeenCalledWith(NOTION.url));
+  expect(screen.getByRole("button", { name: /Connect/ })).toBeEnabled();
+  expect(screen.queryByText("metadata unavailable")).not.toBeInTheDocument();
+});

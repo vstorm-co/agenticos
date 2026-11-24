@@ -39,6 +39,8 @@ Two things are versioned separately from this file and worth knowing about:
 - Resize the iOS webview for the software keyboard instead of combining native
   page panning with the console's viewport adjustment.
 - Refresh the backend dependency lock and verify compatibility with current SDKs.
+  Keep Daytona on its supported 0.x API until the workspace adapter supports the
+  SDK 2.x namespace migration.
 
 ### Upgrading
 

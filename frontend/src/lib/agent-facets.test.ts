@@ -34,6 +34,15 @@ describe("facetParams", () => {
 });
 
 describe("agentListParams", () => {
+  it("keeps project scope beside repeated facets and archive selection", () => {
+    expect(agentListParams(true, ["sales"], ["urgent"], "project-1")).toEqual([
+      ["include_archived", "true"],
+      ["category", "sales"],
+      ["tag", "urgent"],
+      ["project_id", "project-1"],
+    ]);
+  });
+
   it("is undefined for the plain listing, so it shares one cache entry", () => {
     expect(agentListParams(false, [], [])).toBeUndefined();
   });

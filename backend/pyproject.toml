@@ -151,6 +151,9 @@ dependencies = [
     # sandboxes, which a workspace keyed on its scope opens or attaches by name
     # (#2003).
     "pydantic-ai-backend[console,remote,workspaces,daytona]>=0.2.39",
+    # DaytonaWorkspace uses the 0.x root client. SDK 2.x moves these methods
+    # into v0/v2 namespaces, which the workspace adapter does not yet support.
+    "daytona>=0.226.1,<2",
     # Delegation. Floors at 0.2.16 for three fixes this integration depends on:
     # a suspended child no longer reported to the parent as completed (#64),
     # `event_stream_handler_factory` on the toolset so a fan-out's events can be

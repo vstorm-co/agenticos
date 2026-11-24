@@ -25,7 +25,10 @@ const createOwn = vi.fn();
 vi.mock("@/hooks/use-mcp-connections", () => ({
   useMcpConnections: () => ({ create: createOwn, connections: held.own }),
 }));
-vi.mock("@/lib/mcp-connections-api", () => ({ startMcpOAuth: vi.fn() }));
+vi.mock("@/lib/mcp-connections-api", () => ({
+  startMcpOAuth: vi.fn(),
+  probeMcpSignIn: vi.fn().mockResolvedValue({ sign_in: true, registers_clients: true }),
+}));
 const shell = vi.hoisted(() => ({ desktop: false, openConsent: vi.fn() }));
 vi.mock("@/hooks/use-shell", () => ({
   useShell: () => (shell.desktop ? { platform: "macos", window: "main" } : null),

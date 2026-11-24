@@ -23,7 +23,7 @@ export function ProjectFilter({
   const [open, setOpen] = useState(false);
   if (!can(Perm.projectsView)) return null;
   return (
-    <div className="flex gap-1">
+    <div className="flex gap-1 max-sm:order-last max-sm:w-full">
       <Button variant={value ? "secondary" : "outline"} onClick={() => setOpen(true)}>
         <FolderKanban aria-hidden className="size-4" />
         {value ? <SelectedProject id={value} /> : t("title")}

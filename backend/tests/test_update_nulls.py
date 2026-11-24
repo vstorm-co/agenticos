@@ -112,6 +112,7 @@ from app.schemas.notification_route import NotificationRouteUpdate
 from app.schemas.onboarding import OnboardingUpdate
 from app.schemas.organization import OrganizationMemberUpdate, OrganizationUpdate
 from app.schemas.project import ProjectUpdate
+from app.schemas.project_resource import ProjectEntrypointUpdate
 from app.schemas.push import ApnsKeyUpdate, PushFocusUpdate, PushPreferencesUpdate
 from app.schemas.resource_grant import VisibilityUpdate
 from app.schemas.retention import RetentionUpdate
@@ -199,6 +200,8 @@ UPDATE_TARGETS: dict[type[BaseModel], type[DeclarativeBase] | None] = {
     OrganizationUpdate: Organization,
     PortalPollIntervalUpdate: McpConnection,
     ProjectUpdate: Project,
+    # Selects or clears a flag across the project's workflow membership rows.
+    ProjectEntrypointUpdate: None,
     RecordUpdate: None,
     # Both patch keys within Session.push_preferences JSONB, not columns by name.
     PushFocusUpdate: None,
@@ -335,6 +338,7 @@ class TestEveryUpdateSchemaIsAccountedFor:
             "VisibilityUpdate",
             "WorkflowDraftUpdate",
             "WorkflowActiveUpdate",
+            "ProjectEntrypointUpdate",
         }
 
 
