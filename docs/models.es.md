@@ -1,5 +1,5 @@
 ---
-source_sha: "634fd6ea0297"
+source_sha: "9314a411801c"
 ---
 
 # Modelos y providers { #models-and-providers }
@@ -595,7 +595,6 @@ puede usar escribiendo el identificador a mano.
 | AWS Bedrock | `bedrock` | id de clave de acceso, clave secreta, región, token de sesión opcional |
 | Google Vertex AI | `google_cloud` | JSON de la cuenta de servicio |
 | ChatGPT (suscripción de Codex) | `openai_codex` | un inicio de sesión de ChatGPT, guardado iniciando sesión en vez de tecleado |
-| [Suscripción de Claude](https://github.com/t3grp/agenticos/blob/t3/integrations/claude-subscription/README.md) | `claude-subscription` | cuenta personal de Claude conectada mediante el cliente oficial; alias `sonnet`, `opus`, `haiku` |
 | ChatGPT (uso oficial del plan) | `openai_chatgpt` | una autorización de aplicación con consentimiento separado del plan, creada al iniciar sesión |
 | Cuentas de suscripción | `subscription_accounts` | los inicios de sesión de suscripción de cada persona, a través de la pasarela incluida; sin clave |
 

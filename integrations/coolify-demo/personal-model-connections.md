@@ -1,39 +1,9 @@
 # Personal model connections
 
 Personal connections let a signed-in person power an existing AgenticOS agent
-with their own Claude subscription, Anthropic API key or OpenAI API key. The
+with their own Anthropic API key or OpenAI API key. The
 agent keeps its instructions, tools, approvals and budget controls. Select a
 saved personal model from the chat model picker or the agent's model settings.
-
-## Connect a Claude subscription
-
-The deployment must enable the [private Claude runtime](../claude-subscription/README.md).
-The connection controls require `connections:manage` and the owner's direct
-authenticated session in the selected organization.
-
-1. Open **Settings → AI connections → Claude subscription**.
-2. Choose **Connect Claude** and open the Anthropic sign-in link.
-3. Complete sign-in on Anthropic's page and paste its returned code into T3OS.
-4. When the connection is ready, choose Sonnet, Opus or Haiku and save the model.
-5. Select that personal model for an existing agent or chat.
-
-The official Claude client handles the browser authorization and keeps its
-credentials in the owner's isolated native account directory. T3OS does not
-extract an OAuth token or send it to the ordinary Anthropic API client. This is
-a link-and-paste flow. The code is discarded after submission. Cancel stops that
-pending login; disconnect signs the native account out on this server.
-
-These models support text and existing T3OS function tools, including their
-ordinary validation and approval gates. Each model step returns a buffered
-response. Images, audio, documents and provider-native tools are refused before
-inference. The aliases resolve through the native client, and actual
-availability and limits depend on the account. Saving or listing a model does
-not make a paid inference request.
-
-The model's personal ownership remains after disconnect. Reconnecting the same
-person's account restores its use; another member cannot borrow it. A native
-request does not inherit an organization API key or silently change connection
-type. An explicit agent fallback remains an explicit model configuration.
 
 ## Connect an account's API key
 

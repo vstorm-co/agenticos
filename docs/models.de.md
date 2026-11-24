@@ -1,5 +1,5 @@
 ---
-source_sha: "634fd6ea0297"
+source_sha: "9314a411801c"
 ---
 
 # Modelle und Provider { #models-and-providers }
@@ -617,7 +617,6 @@ wenn Sie die ID eintippen.
 | AWS Bedrock | `bedrock` | Access Key Id, Secret Key, Region, optionales Session-Token |
 | Google Vertex AI | `google_cloud` | Service-Account-JSON |
 | ChatGPT (Codex-Abonnement) | `openai_codex` | eine ChatGPT-Anmeldung, gespeichert durch Anmelden statt durch Eintippen |
-| [Claude-Abonnement](https://github.com/t3grp/agenticos/blob/t3/integrations/claude-subscription/README.md) | `claude-subscription` | persönliches Claude-Konto, angemeldet über den offiziellen Client; Aliase `sonnet`, `opus`, `haiku` |
 | ChatGPT (offizielle Plannutzung) | `openai_chatgpt` | eine durch Anmeldung erstellte Anwendungsfreigabe mit gesonderter Planzustimmung |
 | Abonnement-Konten | `subscription_accounts` | die eigenen Abonnement-Anmeldungen jeder Person, über das mitgelieferte Gateway; kein Schlüssel |
 

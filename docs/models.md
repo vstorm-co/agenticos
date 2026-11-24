@@ -567,7 +567,6 @@ text: a server that publishes no list can still be used by typing the id.
 | AWS Bedrock | `bedrock` | access key id, secret key, region, optional session token |
 | Google Vertex AI | `google_cloud` | service account JSON |
 | ChatGPT (Codex subscription) | `openai_codex` | a ChatGPT sign-in, stored by signing in rather than typed |
-| [Claude subscription](https://github.com/t3grp/agenticos/blob/t3/integrations/claude-subscription/README.md) | `claude-subscription` | personal Claude account connected through the official client; aliases `sonnet`, `opus`, `haiku` |
 | ChatGPT (official plan usage) | `openai_chatgpt` | an application grant with separate plan consent, created by signing in |
 | Subscription accounts | `subscription_accounts` | each person's own subscription sign-ins, through the bundled gateway; no key |
 
