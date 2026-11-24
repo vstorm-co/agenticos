@@ -1,5 +1,5 @@
 ---
-source_sha: "8e0da94ccb26"
+source_sha: "1221b2df4e43"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -1027,6 +1027,12 @@ Tres ámbitos en la fila, y no hay un cuarto:
 | `personal` | su propietario | su propietario |
 | `org` | `collections:view` que alcance la fila | `collections:edit` que alcance la fila |
 | `app` | cualquiera en el deployment | el superadmin del deployment (`is_app_admin`) |
+
+Una base con ámbito `app` no pertenece a ninguna organización, y el esquema lo
+garantiza: su `organization_id` siempre está vacío. Por eso un agent no puede
+vincularla - la publicación la rechaza igual que cualquier colección ajena a la
+organización de quien publica -, mientras que el nodo Knowledge search de un
+workflow, que solo pregunta quién puede leerla, sí puede buscar en ella.
 
 "Alcanzar la fila" es `resolve_access`, la misma decisión que toma cada recurso
 compartible: el ámbito del llamante para ese permiso, ampliado por cualquier grant

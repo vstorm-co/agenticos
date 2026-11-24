@@ -1,5 +1,5 @@
 ---
-source_sha: "8e0da94ccb26"
+source_sha: "1221b2df4e43"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -1005,6 +1005,12 @@ Trzy zasięgi na wierszu i żadnego czwartego:
 | `personal` | jego właściciel | jego właściciel |
 | `org` | `collections:view` sięgające po ten wiersz | `collections:edit` sięgające po ten wiersz |
 | `app` | ktokolwiek we wdrożeniu | superadmin wdrożenia (`is_app_admin`) |
+
+Baza o zasięgu `app` nie należy do żadnej organizacji i schemat tego pilnuje: jej
+`organization_id` jest zawsze puste. Dlatego agent nie może jej podpiąć - publikacja
+odrzuca ją tak samo jak każdą kolekcję spoza organizacji publikującego - natomiast
+węzeł Knowledge search w workflow, który sprawdza tylko, kto może ją czytać, może ją
+przeszukiwać.
 
 „Sięgnięcie po wiersz” to `resolve_access`, ta sama decyzja, którą podejmuje każdy
 udostępnialny zasób: zasięg wywołującego dla tego uprawnienia, poszerzony o

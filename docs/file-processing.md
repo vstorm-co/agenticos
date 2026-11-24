@@ -947,6 +947,11 @@ Three scopes on the row, and no fourth:
 | `org` | `collections:view` reaching the row | `collections:edit` reaching the row |
 | `app` | anybody in the deployment | the deployment superadmin (`is_app_admin`) |
 
+An app-scoped base belongs to no organization, and the schema keeps it that way: its
+`organization_id` is always empty. So an agent cannot bind one - publish refuses it
+as it refuses any collection outside the publisher's organization - while a
+workflow's Knowledge search node, which asks only who may read it, can search it.
+
 "Reaching the row" is `resolve_access`, the same decision every shareable resource
 takes: the caller's scope for that permission, widened by any explicit grant on that
 one collection. A grant widens what a role allows and never narrows it, so **a Viewer

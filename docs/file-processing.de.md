@@ -1,5 +1,5 @@
 ---
-source_sha: "8e0da94ccb26"
+source_sha: "1221b2df4e43"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -1076,6 +1076,12 @@ Drei Geltungsbereiche auf der Zeile, und keinen vierten:
 | `personal` | ihr Eigentümer | ihr Eigentümer |
 | `org` | `collections:view`, das die Zeile erreicht | `collections:edit`, das die Zeile erreicht |
 | `app` | jeder im Deployment | der Deployment-Superadmin (`is_app_admin`) |
+
+Eine Basis mit Scope `app` gehört keiner Organisation, und das Schema sorgt dafür:
+ihre `organization_id` ist immer leer. Deshalb kann ein Agent sie nicht binden - das
+Veröffentlichen lehnt sie ab wie jede Collection außerhalb der Organisation des
+Veröffentlichenden -, während der Knowledge-search-Knoten eines Workflows, der nur
+fragt, wer sie lesen darf, sie durchsuchen kann.
 
 "Die Zeile erreichen" ist `resolve_access`, dieselbe Entscheidung, die jede
 teilbare Ressource trifft: der Geltungsbereich des Aufrufers für diese
