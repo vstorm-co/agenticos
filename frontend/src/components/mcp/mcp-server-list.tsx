@@ -18,6 +18,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  Switch,
 } from "@/components/ui";
 import { LoadingState, ErrorState } from "@/components/states";
 import { ListFilters } from "@/components/ui/list-filters";
@@ -210,6 +211,11 @@ export function McpServerList({
   // What a server asks for, asked of the server like the category: the mirror's
   // rows say it only where the catalog check found it out (#2103).
   const [auth, setAuth] = useState<McpAuthKind | "all">("all");
+  // Off by default: the list shows what somebody here reviewed, and the
+  // mirrored registry - 4,700 servers nobody checked - is reached only behind
+  // this toggle. Local state, not a preference: it is a deliberate act per
+  // visit, not something to remember across them.
+  const [showUnreviewed, setShowUnreviewed] = useState(false);
   // The query, the category and the page all go to the server, because the list
   // is a request now rather than a filter over what the client holds. It held
   // the curated hundred and filtered them locally, which was right until 5,703
@@ -224,6 +230,7 @@ export function McpServerList({
     page,
     true,
     state,
+    !showUnreviewed,
   );
 
   // The API groups accessible accounts and applies every filter before paging,
@@ -842,11 +849,33 @@ export function McpServerList({
                   {t("addCustomServer")}
                 </Button>
               )}
+              {/*
+               * The registry behind an explicit switch, not a filter: a filter
+               * narrows what is already shown, and this decides whether
+               * unreviewed servers are shown at all.
+               */}
+              <div className="flex items-center gap-2">
+                <Switch
+                  id="mcp-show-unreviewed"
+                  checked={showUnreviewed}
+                  onCheckedChange={(checked) => {
+                    setShowUnreviewed(checked);
+                    setPage(0);
+                  }}
+                  aria-label={t("showUnreviewed")}
+                />
+                <label htmlFor="mcp-show-unreviewed" className="text-sm">
+                  {t("showUnreviewed")}
+                </label>
+              </div>
             </div>
           </>
         }
         contentClassName="space-y-4 p-0 pt-2"
       >
+        {showUnreviewed && (
+          <p className="text-muted-foreground w-full text-xs">{t("unreviewedWarning")}</p>
+        )}
         {listing.error ? (
           <ErrorState
             title={t("catalogLoadFailed")}

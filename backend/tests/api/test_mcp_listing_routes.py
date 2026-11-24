@@ -80,6 +80,7 @@ async def test_listing_passes_connection_state_and_filters_and_serializes_groupe
         "state": "connected",
         "skip": 50,
         "limit": 1,
+        "reviewed_only": False,
     }
 
 
@@ -95,6 +96,19 @@ async def test_listing_defaults_to_all_servers(
     assert listing.await_args.kwargs["state"] == "all"
     assert listing.await_args.kwargs["skip"] == 0
     assert listing.await_args.kwargs["limit"] == 50
+    assert listing.await_args.kwargs["reviewed_only"] is False
+
+
+async def test_listing_passes_reviewed_only_through(
+    client: AsyncClient, caller: AuthContext, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    listing = AsyncMock(return_value=mcp_listing.ServerPage(items=(), total=0, registry_total=0))
+    monkeypatch.setattr(mcp_listing, "page", listing)
+
+    response = await client.get(URL, params={"reviewed_only": "true"})
+
+    assert response.status_code == 200
+    assert listing.await_args.kwargs["reviewed_only"] is True
 
 
 async def test_an_unknown_connection_state_is_rejected(

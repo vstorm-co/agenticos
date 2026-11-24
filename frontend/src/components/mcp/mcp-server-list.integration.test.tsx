@@ -152,6 +152,7 @@ function serve(org: OrgMcpConnectionRecord[], own: McpConnectionRecord[]) {
       const auth = params.get("auth") ?? "";
       const category = params.get("category") ?? "";
       const state = params.get("state") ?? "all";
+      const reviewedOnly = params.get("reviewed_only") === "true";
       const skip = Number(params.get("skip") ?? 0);
       const limit = Number(params.get("limit") ?? 50);
       const normalize = (url: string) => {
@@ -205,6 +206,11 @@ function serve(org: OrgMcpConnectionRecord[], own: McpConnectionRecord[]) {
           ["unreachable", "broken", "refused", "duplicate"].includes(entry.check.outcome);
         return (
           (state === "connected" || !hidden) &&
+          // The mirror stays out of browsing unless the toggle asked for it.
+          // A connected account is still manageable under Connected, as on
+          // the server: hiding it would strand a credential no screen can
+          // revoke.
+          (state === "connected" || !reviewedOnly || entry.reviewed !== false) &&
           (!needle ||
             [entry.key, entry.name, entry.description, entry.url ?? ""].some((value) =>
               value.toLowerCase().includes(needle),
@@ -250,6 +256,11 @@ async function mount({
   serve(org, own);
   render(<McpServerList canManageOrganization={canManageOrganization} />, { wrapper });
   await screen.findByText("GitHub");
+}
+
+/** Turn on the unreviewed-registry switch, so a registry row is in the grid. */
+async function showUnreviewed() {
+  await userEvent.click(screen.getByRole("switch", { name: "Show unreviewed servers" }));
 }
 
 // Opening a server writes `?server=` into jsdom's one URL, which every test
@@ -1163,6 +1174,39 @@ describe("McpServerList", () => {
     expect(screen.queryByRole("group", { name: "Linear" })).toBeNull();
   });
 
+  it("hides the mirrored registry by default, behind a switch", async () => {
+    // The haystack is the default no more: a registry server nobody here
+    // reviewed is not in the grid until somebody asks for it, and the request
+    // says so - the count and the page are the server's, not a filter over
+    // whatever page happened to arrive.
+    registryResults = [registryEntry()];
+    await mount();
+
+    expect(screen.queryByRole("group", { name: "Some Thing" })).toBeNull();
+    expect(screen.queryByText(/nobody here reviewed them/)).toBeNull();
+    await waitFor(() =>
+      expect(listCalls().some((path) => path.includes("reviewed_only=true"))).toBe(true),
+    );
+  });
+
+  it("shows unreviewed servers and their warning once the switch is on", async () => {
+    registryResults = [registryEntry()];
+    await mount();
+
+    await showUnreviewed();
+
+    expect(await screen.findByText("Some Thing")).toBeVisible();
+    expect(screen.getByText(/nobody here reviewed them/)).toBeVisible();
+    await waitFor(() =>
+      expect(listCalls().some((path) => path.includes("reviewed_only=false"))).toBe(true),
+    );
+
+    await showUnreviewed();
+
+    await waitFor(() => expect(screen.queryByRole("group", { name: "Some Thing" })).toBeNull());
+    expect(screen.queryByText(/nobody here reviewed them/)).toBeNull();
+  });
+
   it("disconnects through a dialog, and a second confirm during the DELETE is a no-op", async () => {
     // The lone holdout on window.confirm carried the three regressions the other
     // destructive controls were migrated off it to fix: an untranslatable native
@@ -1261,6 +1305,7 @@ describe("several accounts on one server", () => {
     // made a submit that could never pass while `hubspot` happened to work (#1628).
     registryResults = [registryEntry()];
     await mount();
+    await showUnreviewed();
 
     const row = within(screen.getByRole("group", { name: "Some Thing" }));
     await userEvent.click(row.getByRole("button", { name: "Connect" }));
@@ -1497,6 +1542,7 @@ describe("naming a connection something a person can read", () => {
     // found by typing its name, in the same grid, not on a second screen.
     registryResults = [registryEntry({ name: "Weibo Reader" })];
     await mount();
+    await showUnreviewed();
 
     await userEvent.type(screen.getByPlaceholderText(/Search/i), "weibo");
 
@@ -1509,6 +1555,7 @@ describe("naming a connection something a person can read", () => {
     // pastes a credential into it.
     registryResults = [registryEntry()];
     await mount();
+    await showUnreviewed();
 
     await userEvent.type(screen.getByPlaceholderText(/Search/i), "thing");
 
@@ -1552,9 +1599,10 @@ describe("naming a connection something a person can read", () => {
 
   it("finds a registry server in the same list as the catalog", async () => {
     // One list: a server the curated hundred has never heard of appears in the
-    // same grid, not on a second screen.
+    // same grid, not on a second screen - once the switch asks for it.
     registryResults = [registryEntry({ name: "Weibo Reader" })];
     await mount();
+    await showUnreviewed();
 
     expect(await screen.findByText("Weibo Reader")).toBeVisible();
   });
@@ -1562,6 +1610,7 @@ describe("naming a connection something a person can read", () => {
   it("says on the row that nobody here reviewed it", async () => {
     registryResults = [registryEntry()];
     await mount();
+    await showUnreviewed();
 
     expect(await screen.findByText("Registry")).toBeVisible();
   });

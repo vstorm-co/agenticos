@@ -5091,6 +5091,8 @@
     "serverDisconnected": "{name} disconnected.",
     "serverUpdated": "{name} updated.",
     "serverUrl": "Server URL",
+    "showUnreviewed": "Show unreviewed servers",
+    "unreviewedWarning": "These come from the public registry and nobody here reviewed them - check the server yourself before connecting it or pasting in a credential.",
     "client": "MCP client",
     "servers": "Servers",
     "catalogLoadFailed": "Could not load servers",

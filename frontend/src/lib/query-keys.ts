@@ -1131,9 +1131,17 @@ export const qk = {
     platformTools: () => ["mcp-servers", "platform-tools"] as const,
     // Keyed on the query and the page: the list is a request now, so each page
     // of each query is its own resource rather than a filter over one blob.
+    // `reviewedOnly` is part of the request too: the curated default and the
+    // unreviewed toggle are different answers, not different views of one.
     lists: () => ["mcp-servers", "list"] as const,
-    listPage: (query: string, category: string, auth: string, page: number, state = "all") =>
-      ["mcp-servers", "list", query, category, auth, page, state] as const,
+    listPage: (
+      query: string,
+      category: string,
+      auth: string,
+      page: number,
+      state = "all",
+      reviewedOnly = false,
+    ) => ["mcp-servers", "list", query, category, auth, page, state, reviewedOnly] as const,
     // One server by its key, curated or mirrored - what a chat's connection card shows.
     entries: () => ["mcp-servers", "entry"] as const,
     entry: (key: string) => ["mcp-servers", "entry", key] as const,
