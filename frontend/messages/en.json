@@ -4713,6 +4713,10 @@
         "title": "Build a workflow",
         "body": "A workflow chains steps into an automation your agents run. Start one here — from a blank canvas or a template."
       },
+      "workflows-describe": {
+        "title": "Describe a workflow",
+        "body": "Tell the chat what the workflow should do, in your own words. The agent drafts it and saves it here as a private draft, ready to review in the editor."
+      },
       "workflows-list": {
         "title": "Draft, published, archived",
         "body": "Every workflow you can see, grouped by status. Filter to drafts you're still building, the published versions that run, or the archived ones. Open one to edit it, or duplicate it into a fresh copy."
@@ -5523,6 +5527,8 @@
       "title": "Workflows",
       "description": "Automate multi-step work your agents carry out.",
       "newWorkflow": "New workflow",
+      "describeWorkflow": "Describe a workflow",
+      "describePrompt": "Draft a workflow for me. Save it as a private draft so I can review it in the workflow editor, and send me a link to it when it is ready.\n\nIt should do this:\n",
       "catalog": "Workflows",
       "shownCount": "{count, plural, =1 {1 workflow} other {# workflows}}",
       "shownOfTotal": "{visible} of {total} shown",

@@ -6,7 +6,7 @@ import { useMemo, useState } from "react";
 import { ListFilters } from "@/components/ui/list-filters";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowDownWideNarrow, Activity, Library, Plus, Upload } from "lucide-react";
+import { ArrowDownWideNarrow, Activity, Library, Plus, Sparkles, Upload } from "lucide-react";
 import { WorkflowIcon as Workflow } from "@/components/icons/product-icons";
 import { useTranslations } from "next-intl";
 
@@ -153,6 +153,13 @@ export default function WorkflowsPage() {
       { onSuccess: (created) => router.push(ROUTES.WORKFLOW_DETAIL(created.id)) },
     );
 
+  // Describe it in chat instead of building it by hand: a fresh thread with
+  // the request already in the composer, for the reader to finish and send.
+  // The agent drafts it with its workflow tools and saves it as a private
+  // draft, so it lands back here for review in the editor — there is no
+  // agent-to-editor hand-off beyond that draft, and this does not claim one.
+  const describeHref = `${ROUTES.CHAT}?new=1&prompt=${encodeURIComponent(t("describePrompt"))}`;
+
   const statusControls = (
     <div data-tour="workflows-list" className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
       <SearchInput
@@ -239,6 +246,14 @@ export default function WorkflowsPage() {
               </Link>
             </Button>
             {canCreate && (
+              <Button variant="outline" asChild data-tour="workflows-describe">
+                <Link href={describeHref}>
+                  <Sparkles className="h-4 w-4" />
+                  {t("describeWorkflow")}
+                </Link>
+              </Button>
+            )}
+            {canCreate && (
               <Button variant="outline" onClick={() => setImportOpen(true)}>
                 <Upload className="h-4 w-4" />
                 {t("importWorkflow")}
@@ -323,7 +338,16 @@ export default function WorkflowsPage() {
                   ? t("createFirst")
                   : t("nobodyHasShared")
             }
-            cta={filtersActive ? { label: t("clearFilter"), onClick: clearFilters } : undefined}
+            cta={
+              filtersActive
+                ? { label: t("clearFilter"), onClick: clearFilters }
+                : canCreate
+                  ? {
+                      label: t("describeWorkflow"),
+                      onClick: () => router.push(describeHref),
+                    }
+                  : undefined
+            }
           />
         ) : (
           <div className="space-y-4">

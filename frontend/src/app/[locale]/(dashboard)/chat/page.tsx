@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { ChatContainer, ConversationSidebar } from "@/components/chat";
 import { PhoneChatBar } from "@/components/chat/phone-chat-bar";
 import { useMcpOAuthOutcome } from "@/hooks";
+import { useChatPrompt } from "@/hooks/use-chat-prompt";
 import { useChatWith } from "@/hooks/use-chat-with";
 import { SAFE_AREA_CLEARANCE } from "@/lib/page-clearance";
 import { cn } from "@/lib/utils";
@@ -16,6 +17,10 @@ export default function ChatPage() {
   useMcpOAuthOutcome();
   // Desktop New Chat and pinned-agent links explicitly start a fresh conversation.
   useChatWith();
+  // A `?prompt=` address — the workflows list's "Describe a workflow" — seeds
+  // the composer through the same hand-off as shared content, never sent
+  // on the reader's behalf.
+  const promptFiles = useChatPrompt();
   // The ?id= query param is read by useConversations.fetchConversations on mount;
   // it sets currentConversationId AND loads messages atomically. Pre-setting the
   // id here would short-circuit that loader and leave the chat empty on refresh.
@@ -26,7 +31,10 @@ export default function ChatPage() {
           the buttons floating over it on a phone. */}
       <div className="relative min-h-0 min-w-0 flex-1 max-lg:[&_[data-chat-scroller]]:scroll-pt-20 max-lg:[&_[data-transcript]]:pt-20">
         <PhoneChatBar />
-        <ChatContainer requestedConversationId={requestedConversationId} />
+        <ChatContainer
+          requestedConversationId={requestedConversationId}
+          incomingFiles={promptFiles}
+        />
       </div>
     </div>
   );
