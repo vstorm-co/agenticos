@@ -7,11 +7,14 @@ test.use({ storageState: AUTH_STATE });
 
 const CONVERSATIONS = "/api/conversations?limit=30&sort_by=updated_at&sort_dir=desc&hide_api=true";
 
-/** Every text frame the page sends over its sockets: a sent chat turn is one. */
+/** Every socket frame and non-GET request body the page sends: a sent chat turn is one. */
 function watchSentFrames(page: Page): string[] {
   const sent: string[] = [];
   page.on("websocket", (socket) => {
     socket.on("framesent", ({ payload }) => sent.push(String(payload)));
+  });
+  page.on("request", (request) => {
+    if (request.method() !== "GET") sent.push(request.postData() ?? "");
   });
   return sent;
 }
@@ -25,9 +28,9 @@ async function expectDrafted(page: Page, prompt: string, sent: string[]) {
   await expect(composer).toBeEnabled();
   await expect(composer).toHaveText(prompt);
   await expect(page).not.toHaveURL(/[?&]prompt=/);
-  await expect(page.getByRole("main").getByText(prompt)).toHaveCount(0);
+  await expect(page.locator("[data-transcript]").getByText(prompt)).toHaveCount(0);
   // Written text is the composer's only copy; a second, delayed write would
-  // double it, and a send would put it in a frame.
+  // double it, and a send would put it in a frame and the transcript.
   await expect(composer).toHaveText(prompt);
   expect(sent.filter((frame) => frame.includes(prompt))).toEqual([]);
 }
