@@ -216,7 +216,7 @@ async def skill_bindings(
 ) -> SkillBindings:
     """Across a whole library: which agents serve each skill, and whose draft binds it.
 
-    What `agents_serving_skills` and `agents_using` answer for a page, read for any
+    What `agents_serving_skills` and `agents_drafting_skills` answer for a page, read for any
     number of skills at once: every served version and every live draft of the
     organization is parsed once, instead of being matched once per skill. A skill
     an inline specialist binds counts, in a draft as in a served version, and only
@@ -266,6 +266,29 @@ def _bound_skills(spec: dict[str, Any]) -> set[UUID]:
         return bound_ids(AgentSpec.model_validate(spec), "skill")
     except ValidationError:
         return set()
+
+
+async def agents_drafting_skills(
+    db: AsyncSession, ctx: AuthContext, *, skill_ids: Collection[UUID]
+) -> dict[UUID, list[AgentUsage]]:
+    """For each skill, the live agents whose draft binds it, that the caller may see.
+
+    A draft binds a skill itself or through an inline specialist it defines, as
+    `skill_bindings` counts it for an arranged listing, so a card says the same
+    whatever the arrangement. Only drafts naming one of these ids are parsed, which
+    keeps a page's cost to its own cards. A draft that does not parse binds nothing.
+    """
+    wanted = frozenset(skill_ids)
+    drafting: dict[UUID, list[Agent]] = {skill_id: [] for skill_id in wanted}
+    for agent in sorted(
+        await agent_repo.drafts_mentioning(
+            db, [str(skill_id) for skill_id in wanted], organization_id=ctx.organization_id
+        ),
+        key=lambda agent: agent.name,
+    ):
+        for skill_id in _bound_skills(agent.draft_spec) & wanted:
+            drafting[skill_id].append(agent)
+    return await _visible_usage(db, ctx, drafting)
 
 
 async def agents_serving_skills(

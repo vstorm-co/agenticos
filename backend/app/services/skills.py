@@ -81,8 +81,8 @@ from app.services.access import (
 )
 from app.services.resource_usage import (
     SkillBindings,
+    agents_drafting_skills,
     agents_serving_skills,
-    agents_using,
     agents_using_skill,
     groups_sharing,
     in_use_by,
@@ -657,14 +657,14 @@ class SkillService:
     ) -> list[SkillSummary]:
         """Skills as cards: their agents, departments, forks and whether the caller may edit.
 
-        The arranged listing hands over `bindings`, whose agents count a draft's
-        inline specialists, and names agents only for the cards it shows; the
-        plain listing reads its page's agents here, in one batch.
+        The arranged listing hands over `bindings` and names agents only for the
+        cards it shows; the plain listing reads its page's agents here, in one
+        batch. Both count what a draft's or a version's inline specialists bind.
         """
         ids = [skill.id for skill in skills]
         if bindings is None:
             used = await agents_serving_skills(self.db, ctx, skill_ids=ids)
-            drafted = await agents_using(self.db, ctx, field="skill_ids", resource_ids=ids)
+            drafted = await agents_drafting_skills(self.db, ctx, skill_ids=ids)
         else:
             used = {skill_id: bindings.used_by(skill_id) for skill_id in ids}
             drafted = {skill_id: bindings.drafted_by(skill_id) for skill_id in ids}
