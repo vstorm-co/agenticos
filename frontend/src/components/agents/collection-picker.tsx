@@ -12,8 +12,11 @@ import {
   useListControls,
 } from "@/components/ui";
 import { GroupsChip } from "@/components/sharing/audience-chip";
+import { LoadingState } from "@/components/states";
+import { agentBinding } from "@/lib/agent-collections";
 import { ROUTES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
+import { useOrgStore } from "@/stores/org-store";
 import type { KnowledgeBase } from "@/types/knowledge-base";
 import { useTranslations } from "next-intl";
 
@@ -24,11 +27,12 @@ interface CollectionPickerProps {
   onToggle: (collectionId: string) => void;
   disabled?: boolean;
   /**
-   * Leave app-scoped collections out of the offer: an agent cannot bind one, so
-   * publish refuses it. One already in `selectedIds` stays listed, marked, so it
-   * can be removed. A workflow step reads them and leaves this off.
+   * Offer only what an agent in the current organization can bind
+   * (`agentBinding`); publish refuses anything else. One already in
+   * `selectedIds` stays listed, marked, so it can be removed. A workflow step
+   * reads every collection the caller may read and leaves this off.
    */
-  excludeAppScoped?: boolean;
+  agentBindableOnly?: boolean;
 }
 
 /**
@@ -57,12 +61,20 @@ export function CollectionPicker({
   selectedIds,
   onToggle,
   disabled,
-  excludeAppScoped = false,
+  agentBindableOnly = false,
 }: CollectionPickerProps) {
   const t = useTranslations("agents");
+  // The organization every request is made as (`X-Organization-Id`), which
+  // `ActiveOrgGuard` settles on every dashboard page.
+  const organizationId = useOrgStore((state) => state.activeOrgId);
   const chosen = new Set(selectedIds);
   const known = new Set(collections.map((collection) => collection.id));
-  const unbindable = (collection: KnowledgeBase) => excludeAppScoped && collection.scope === "app";
+  const refusal = (collection: KnowledgeBase) => {
+    if (!agentBindableOnly || organizationId === null) return null;
+    const binding = agentBinding(collection, organizationId);
+    return binding === "bindable" ? null : binding;
+  };
+  const unbindable = (collection: KnowledgeBase) => refusal(collection) !== null;
   const offered = collections.filter(
     (collection) => !unbindable(collection) || chosen.has(collection.id),
   );
@@ -79,6 +91,12 @@ export function CollectionPicker({
       collection.name.toLowerCase().includes(query) ||
       (collection.description ?? "").toLowerCase().includes(query),
   });
+
+  // Until the organization is known nothing can be told apart, and a list that
+  // drops rows a moment later invites a click on one publish would refuse.
+  if (agentBindableOnly && organizationId === null) {
+    return <LoadingState variant="skeleton-list" rows={3} />;
+  }
 
   if (offered.length === 0) {
     return (
@@ -109,6 +127,7 @@ export function CollectionPicker({
       <ul className="divide-border divide-y">
         {list.visible.map((collection) => {
           const isOn = chosen.has(collection.id);
+          const refused = refusal(collection);
           const pending = collection.document_count - collection.indexed_count;
           return (
             <li key={collection.id}>
@@ -137,13 +156,19 @@ export function CollectionPicker({
                   <span className="flex flex-wrap items-center gap-2">
                     <span className="truncate text-sm font-medium">{collection.name}</span>
                     {collection.is_default && <Badge variant="outline">{t("default")}</Badge>}
-                    {unbindable(collection) && <Badge variant="outline">{t("appWide")}</Badge>}
+                    {refused && (
+                      <Badge variant="outline">
+                        {refused === "app" ? t("appWide") : t("otherOrganization")}
+                      </Badge>
+                    )}
                     <GroupsChip groups={collection.shared_groups} />
                   </span>
 
-                  {unbindable(collection) && (
+                  {refused && (
                     <span className="text-warning-ink mt-1 block text-sm">
-                      {t("appWideNotForAgents")}
+                      {refused === "app"
+                        ? t("appWideNotForAgents")
+                        : t("otherOrganizationNotForAgents")}
                     </span>
                   )}
 

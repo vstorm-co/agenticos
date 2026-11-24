@@ -132,6 +132,8 @@
     "anyoneThoseSites": "Jeder auf diesen Sites",
     "appWide": "App-weit",
     "appWideNotForAgents": "App-weite Collections können Agents nicht nutzen. Wählen Sie sie ab, um sie zu entfernen.",
+    "otherOrganization": "Andere Organisation",
+    "otherOrganizationNotForAgents": "Diese Collection gehört zu einer anderen Organisation, daher können Agents hier sie nicht nutzen. Wählen Sie sie ab, um sie zu entfernen.",
     "approval": "Freigabe",
     "approvalAlways": "Immer fragen",
     "approvalHintDefaultReadOnly": "Läuft ohne Freigabe, weil diese Capability nur liest.",

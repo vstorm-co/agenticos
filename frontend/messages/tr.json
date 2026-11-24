@@ -6243,6 +6243,8 @@
     "anyoneThoseSites": "Bu sitelerdeki herkes",
     "appWide": "Uygulama geneli",
     "appWideNotForAgents": "Agent'lar uygulama genelindeki koleksiyonları kullanamaz. Kaldırmak için işaretini kaldırın.",
+    "otherOrganization": "Başka bir organizasyon",
+    "otherOrganizationNotForAgents": "Bu koleksiyon başka bir organizasyona ait, bu yüzden buradaki agent'lar onu kullanamaz. Kaldırmak için işaretini kaldırın.",
     "approval": "Onay",
     "approvalAlways": "Her zaman sor",
     "approvalHintDefaultReadOnly": "Bu capability yalnızca okuma yaptığı için onaysız çalışır.",

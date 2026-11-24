@@ -146,7 +146,7 @@ export function CapabilityResources({
           selectedIds={resources.collectionIds}
           onToggle={resources.onCollectionToggle}
           disabled={disabled}
-          excludeAppScoped
+          agentBindableOnly
         />
       </ResourceGroup>
     );

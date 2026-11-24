@@ -132,6 +132,8 @@
     "anyoneThoseSites": "Anyone on those sites",
     "appWide": "App-wide",
     "appWideNotForAgents": "App-wide knowledge bases can't be used by agents. Untick it to remove it.",
+    "otherOrganization": "Another organization",
+    "otherOrganizationNotForAgents": "This knowledge base belongs to another organization, so agents here can't use it. Untick it to remove it.",
     "approval": "Approval",
     "approvalAlways": "Always ask",
     "approvalHintDefaultReadOnly": "Runs without approval, because this capability only reads.",
