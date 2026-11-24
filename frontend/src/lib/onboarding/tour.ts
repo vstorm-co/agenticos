@@ -1123,11 +1123,18 @@ export const TOUR_STEPS: readonly TourStep[] = [
   },
 
   // Published artifacts - pages agents wrote. Nothing to create here (a run
-  // publishes one), so a single describing stop on the list, view-gated.
+  // publishes one), so a single describing stop on the list, view-gated, and
+  // one on the hand-off that asks an agent to publish one, in the header.
   {
     id: "artifacts-list",
     page: ROUTES.ARTIFACTS,
     target: "artifacts-list",
+    permission: Perm.artifactsView,
+  },
+  {
+    id: "apps-make",
+    page: ROUTES.ARTIFACTS,
+    target: "apps-make",
     permission: Perm.artifactsView,
   },
   // The reader's starred apps in the sidebar, present once at least one app is
