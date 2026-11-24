@@ -11,6 +11,7 @@ import { useConsoleRouter as useRouter } from "@/hooks/use-console-router";
 import { Bot, Library, Plus } from "lucide-react";
 
 import { AgentCard } from "@/components/agents/agent-card";
+import { ImportAgentDialog } from "@/components/agents/import-dialog";
 import {
   AGENT_LIMIT_NOTICE_ID,
   AgentLimitNotice,
@@ -102,6 +103,8 @@ export default function AgentsPage() {
   const [categories, setCategories] = useState<string[]>([]);
   const [tags, setTags] = useState<string[]>([]);
   const [createOpen, setCreateOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const tPortability = useTranslations("portability");
   const [templatesOpen, setTemplatesOpen] = useState(false);
   const tTemplates = useTranslations("agentTemplates");
   const [pendingDelete, setPendingDelete] = useState<Agent | null>(null);
@@ -240,15 +243,24 @@ export default function AgentsPage() {
         description={t("agentConfigurationNotCode")}
         secondaryActions={
           canEdit ? (
-            <Button
-              variant="outline"
-              data-tour="agents-templates"
-              disabled={!ceilingKnown}
-              onClick={() => setTemplatesOpen(true)}
-            >
-              <Library className="h-4 w-4" />
-              {tTemplates("browse")}
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                disabled={!ceilingKnown || atLimit}
+                onClick={() => setImportOpen(true)}
+              >
+                {tPortability("importTitle")}
+              </Button>
+              <Button
+                variant="outline"
+                data-tour="agents-templates"
+                disabled={!ceilingKnown}
+                onClick={() => setTemplatesOpen(true)}
+              >
+                <Library className="h-4 w-4" />
+                {tTemplates("browse")}
+              </Button>
+            </div>
           ) : undefined
         }
         actions={
@@ -364,6 +376,7 @@ export default function AgentsPage() {
         onOpenChange={setCreateOpen}
         onCreated={(agent) => router.push(ROUTES.AGENT_DETAIL(agent.id))}
       />
+      {importOpen && <ImportAgentDialog open onOpenChange={setImportOpen} />}
 
       {pendingArchive && (
         <ConfirmDialog

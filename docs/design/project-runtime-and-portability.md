@@ -29,8 +29,18 @@ The versioned manifest, bounded archive reader, exact reference mapper and
 schema-owned agent reference inventory are implemented as internal contracts.
 They have focused regression coverage. Storage now supports seekable streamed
 uploads on local files and S3, including a real MinIO multipart round trip.
-The complete selection/import UI, resource adapters, durable transfer operations
-and runtime separation below are still implementation work, not shipped behavior.
+Agent YAML/JSON export now has a selectable dependency dialog and a reviewed
+create/reuse/skip import. Context files, exact Skill main versions/forks and their
+text files, model profiles and disabled private MCP configurations can be copied.
+Reference-only dependencies are re-authorized in the destination. Imports are
+transactional and replay an operation receipt after a retry; they never publish,
+run or index anything. A local cross-organization import/export round trip has
+been exercised through the real UI and database.
+
+This is not yet the complete portability implementation. Binary/large bundles,
+full knowledge-base content, advanced workflow bundles, destination resource
+pickers, durable transfer operations and the runtime separation below are still
+implementation work. The PR remains a draft until that scope is complete.
 
 ## Invariants
 

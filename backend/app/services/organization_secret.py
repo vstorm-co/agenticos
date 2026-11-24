@@ -754,6 +754,14 @@ class OrganizationSecretService:
             raise NotFoundError(message="Secret not found", details={"secret_id": str(secret_id)})
         return secret
 
+    async def get_metadata(self, ctx: AuthContext, secret_id: UUID) -> OrganizationSecret:
+        """Read an authorized secret reference without opening its Vault value.
+
+        Consumers must project public metadata explicitly; the returned row also
+        carries the envelope used by this service's internal credential paths.
+        """
+        return await self._get(ctx, secret_id)
+
     async def _get(
         self, ctx: AuthContext, secret_id: UUID, *, perm: Perm = Perm.SECRETS_VIEW
     ) -> OrganizationSecret:

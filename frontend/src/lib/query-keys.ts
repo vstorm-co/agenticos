@@ -132,6 +132,7 @@ export const qk = {
     directoryMappings: (orgId: string) => ["organizations", orgId, "directory-mappings"] as const,
   },
   agents: {
+    exportPreview: (agentId: string) => ["agents", agentId, "export-preview"] as const,
     all: () => ["agents"] as const,
     /** Every agent the caller sees, all pages read - the eval start dialog's picker. */
     every: () => ["agents", "every"] as const,

@@ -39,6 +39,7 @@ from app.api.deps import (
     KnowledgeReachSvc,
     MentionSvc,
     MLSvc,
+    PortabilitySvc,
     PrefersAsync,
     SandboxConnectionSvc,
     limit_agent_run,
@@ -99,6 +100,13 @@ from app.schemas.agent import (
 from app.schemas.mention import MentionableList
 from app.schemas.mirage import MirageBackendList, MirageBackendRead
 from app.schemas.ml import DictationRead, DictationStatusRead
+from app.schemas.resource_bundle import (
+    BundleDocumentCreate,
+    BundleDownloadCreate,
+    BundleImportCreate,
+    BundleImportRead,
+    BundlePreview,
+)
 from app.services import agent_templates, mcp_listing, transcription
 from app.services.attachments import load_attached_files
 from app.services.capability_contracts import tool_contracts
@@ -106,6 +114,50 @@ from app.services.platform_mcp import platform_tool_catalog
 from app.services.shipped_agents import ShippedAgentService
 
 router = APIRouter(dependencies=[PUBLIC])
+
+
+@router.post(
+    "/import-preview",
+    response_model=BundlePreview,
+    dependencies=[Depends(require(Perm.AGENTS_EDIT))],
+)
+async def preview_agent_import(
+    data: BundleDocumentCreate, service: PortabilitySvc, ctx: Auth
+) -> Any:
+    """Review a YAML/JSON configuration and resolve accessible destination candidates."""
+    return await service.preview_document(ctx, data.text)
+
+
+@router.post(
+    "/import",
+    response_model=BundleImportRead,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require(Perm.AGENTS_EDIT))],
+)
+async def import_agent_bundle(data: BundleImportCreate, service: PortabilitySvc, ctx: Auth) -> Any:
+    """Create the reviewed private drafts; repeat the same operation ID to replay its receipt."""
+    return await service.import_bundle(ctx, data)
+
+
+@router.get("/{agent_id}/export-preview", response_model=BundlePreview)
+async def preview_agent_export(agent_id: UUID, service: PortabilitySvc, ctx: Auth) -> Any:
+    """List the draft's accessible dependencies before choosing what to download."""
+    return await service.export_agent(ctx, agent_id)
+
+
+@router.post("/{agent_id}/export", response_class=Response)
+async def download_agent_bundle(
+    agent_id: UUID, data: BundleDownloadCreate, service: PortabilitySvc, ctx: Auth
+) -> Any:
+    """Download selected definitions, excluding keys, OAuth grants and activation."""
+    content = await service.download_agent(ctx, agent_id, data)
+    return Response(
+        content=content,
+        media_type="application/json" if data.file_format == "json" else "application/yaml",
+        headers={
+            "Content-Disposition": f'attachment; filename="agent-{agent_id}.{data.file_format}"'
+        },
+    )
 
 
 @router.get(

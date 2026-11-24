@@ -11,7 +11,7 @@ from uuid import UUID
 
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import raiseload, selectinload
 
 from app.db.models.resource_grant import Visibility
 from app.db.models.skill import Skill, SkillResource
@@ -24,6 +24,16 @@ SkillSort = Literal["name", "updated"]
 async def get(db: AsyncSession, skill_id: UUID, *, organization_id: UUID) -> Skill | None:
     result = await db.execute(
         select(Skill).where(Skill.id == skill_id, Skill.organization_id == organization_id)
+    )
+    return result.scalar_one_or_none()
+
+
+async def get_metadata(db: AsyncSession, skill_id: UUID, *, organization_id: UUID) -> Skill | None:
+    """Resolve identity, ownership and the main body without loading every file."""
+    result = await db.execute(
+        select(Skill)
+        .where(Skill.id == skill_id, Skill.organization_id == organization_id)
+        .options(raiseload(Skill.resources))
     )
     return result.scalar_one_or_none()
 

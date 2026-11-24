@@ -22,6 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.audit import record_audit
 from app.core.exceptions import (
     AlreadyExistsError,
+    BadRequestError,
     ConcurrentChangeError,
     ConflictError,
     InUseError,
@@ -226,9 +227,12 @@ class SkillVersionService:
             return skill.latest_version_id
         return fork.latest_version_id or fork.base_version_id
 
-    async def skill_for(self, ctx: AuthContext, skill_id: UUID, perm: Perm) -> Skill:
+    async def skill_for(
+        self, ctx: AuthContext, skill_id: UUID, perm: Perm, *, include_resources: bool = True
+    ) -> Skill:
         """The skill, or 404 - for a missing one and one the caller may not `perm` alike."""
-        skill = await skill_repo.get(self.db, skill_id, organization_id=ctx.organization_id)
+        read = skill_repo.get if include_resources else skill_repo.get_metadata
+        skill = await read(self.db, skill_id, organization_id=ctx.organization_id)
         if skill is None or not await resolve_access(
             self.db, ctx, skill, perm, resource_type=SKILL
         ):
@@ -355,6 +359,53 @@ class SkillVersionService:
         skill = await self.skill_for(ctx, skill_id, Perm.SKILLS_VIEW)
         version = await self._version(ctx, skill, version_id)
         return await self._read(ctx, skill, version)
+
+    async def export_snapshot(
+        self,
+        ctx: AuthContext,
+        skill_id: UUID,
+        *,
+        number: int | None = None,
+        fork_id: UUID | None = None,
+    ) -> SkillVersion:
+        """Resolve an exact main pin or the effective fork without changing it.
+
+        Exporters use the immutable row and `files_of`, rather than the skill's
+        current main text. A fork with no own edits serves its recorded base.
+        """
+        skill = await self.skill_for(ctx, skill_id, Perm.SKILLS_VIEW, include_resources=False)
+        if number is not None and fork_id is not None:
+            raise BadRequestError(message="Choose a main version or a fork, not both")
+        if fork_id is not None:
+            fork = await self._fork(ctx, skill, fork_id)
+            return await self._version(ctx, skill, fork.latest_version_id or fork.base_version_id)
+        if number is None:
+            if skill.latest_version_id is None:
+                raise NotFoundError(message="Skill version not found")
+            return await self._version(ctx, skill, skill.latest_version_id)
+        versions = await skill_version_repo.get_by_numbers(
+            self.db,
+            organization_id=ctx.organization_id,
+            skill_id=skill.id,
+            fork_id=None,
+            numbers=[number],
+        )
+        version = versions.get(number)
+        if version is None:
+            raise NotFoundError(message="Skill version not found")
+        return version
+
+    async def get_fork(self, ctx: AuthContext, skill_id: UUID, fork_id: UUID) -> SkillFork:
+        """Read an authorized fork identity without loading or changing another line."""
+        skill = await self.skill_for(ctx, skill_id, Perm.SKILLS_VIEW, include_resources=False)
+        return await self._fork(ctx, skill, fork_id)
+
+    async def export_version_by_id(
+        self, ctx: AuthContext, skill_id: UUID, version_id: UUID
+    ) -> SkillVersion:
+        """Resolve an immutable version without loading the current main files."""
+        skill = await self.skill_for(ctx, skill_id, Perm.SKILLS_VIEW, include_resources=False)
+        return await self._version(ctx, skill, version_id)
 
     async def _read(
         self, ctx: AuthContext, skill: Skill, version: SkillVersion

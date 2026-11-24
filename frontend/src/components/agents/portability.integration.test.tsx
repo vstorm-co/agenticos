@@ -1,0 +1,297 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import type { ReactNode } from "react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { BundlePreview } from "@/lib/portability-api";
+import {
+  downloadAgentExport,
+  importAgentBundle,
+  previewAgentExport,
+  previewAgentImport,
+} from "@/lib/portability-api";
+import { ExportAgentDialog } from "./export-dialog";
+import { ImportAgentDialog } from "./import-dialog";
+
+vi.mock("@/lib/portability-api", () => ({
+  downloadAgentExport: vi.fn(),
+  importAgentBundle: vi.fn(),
+  previewAgentExport: vi.fn(),
+  previewAgentImport: vi.fn(),
+}));
+const push = vi.fn();
+vi.mock("@/hooks/use-console-router", () => ({ useConsoleRouter: () => ({ push }) }));
+
+const preview: BundlePreview = {
+  bundle: {
+    format: "agenticos.bundle",
+    format_version: 1,
+    roots: ["agent/root"],
+    assets: [],
+    resources: [
+      {
+        key: "agent/root",
+        kind: "agent",
+        name: "Researcher",
+        source_id: null,
+        source_parent_id: null,
+        source_version: null,
+        definition: { name: "Researcher" },
+        references: [],
+        included: ["definition"],
+      },
+      {
+        key: "context/policy",
+        kind: "context",
+        name: "Policy",
+        source_id: "policy",
+        source_parent_id: null,
+        source_version: null,
+        definition: { content: "Private policy" },
+        references: [],
+        included: ["definition"],
+      },
+      {
+        key: "secret/key",
+        kind: "secret",
+        name: "Provider key",
+        source_id: "key",
+        source_parent_id: null,
+        source_version: null,
+        definition: null,
+        references: [],
+        included: [],
+      },
+    ],
+  },
+  options: [
+    { key: "agent/root", available: true, can_create: true, reusable_id: null },
+    { key: "context/policy", available: true, can_create: true, reusable_id: "destination-policy" },
+    { key: "secret/key", available: false, can_create: false, reusable_id: null },
+  ],
+};
+
+function Wrapper({ children }: { children: ReactNode }) {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+}
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  vi.mocked(previewAgentExport).mockResolvedValue(preview);
+  vi.mocked(previewAgentImport).mockResolvedValue(preview);
+  vi.mocked(downloadAgentExport).mockResolvedValue();
+});
+
+describe("agent portability", () => {
+  it("downloads only the explicitly selected content and keeps keys as references", async () => {
+    render(<ExportAgentDialog agentId="source" open onOpenChange={vi.fn()} />, {
+      wrapper: Wrapper,
+    });
+    const policy = await screen.findByRole("checkbox", { name: /Policy/ });
+    expect(screen.getByRole("checkbox", { name: /Researcher/ })).toBeDisabled();
+    expect(screen.getByText("Provider key")).toBeVisible();
+    expect(screen.getAllByRole("checkbox")).toHaveLength(2);
+    await userEvent.click(policy);
+    expect(policy).not.toBeChecked();
+    await userEvent.click(policy);
+    expect(policy).toBeChecked();
+    await userEvent.click(policy);
+    await userEvent.click(screen.getByRole("combobox"));
+    await userEvent.click(screen.getByRole("option", { name: "JSON" }));
+    await userEvent.click(screen.getByRole("button", { name: "Download" }));
+    await waitFor(() =>
+      expect(downloadAgentExport).toHaveBeenCalledWith("source", "json", {
+        "agent/root": ["definition"],
+        "context/policy": [],
+        "secret/key": [],
+      }),
+    );
+  });
+
+  it("keeps a failed export visible and allows retrying", async () => {
+    vi.mocked(downloadAgentExport).mockRejectedValueOnce(new Error("Download failed"));
+    const close = vi.fn();
+    render(<ExportAgentDialog agentId="source" open onOpenChange={close} />, { wrapper: Wrapper });
+    await screen.findByText("Policy");
+    await userEvent.click(screen.getByRole("button", { name: "Download" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Download failed");
+    await userEvent.click(screen.getByRole("button", { name: "Download" }));
+    await waitFor(() => expect(downloadAgentExport).toHaveBeenCalledTimes(2));
+    await userEvent.click(screen.getByText("Close", { selector: "button" }));
+  });
+
+  it("reviews mappings, renames only the new root, and retries with the same operation identity", async () => {
+    vi.mocked(importAgentBundle).mockRejectedValueOnce(new Error("Connection lost"));
+    vi.mocked(importAgentBundle).mockResolvedValueOnce({
+      roots: { "agent/root": "new-agent" },
+      created: { "agent/root": "new-agent" },
+      reused: { "context/policy": "destination-policy" },
+      skipped: ["secret/key"],
+    });
+    const close = vi.fn();
+    render(<ImportAgentDialog open onOpenChange={close} />, { wrapper: Wrapper });
+    fireEvent.change(screen.getByRole("textbox", { name: "Or paste the configuration" }), {
+      target: { value: "name: Researcher" },
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Review dependencies" }));
+    await screen.findByRole("group", { name: "Researcher" });
+    expect(screen.getByRole("combobox", { name: "Action for Researcher" })).toBeDisabled();
+    const name = screen.getByRole("textbox", { name: "Name of the new copy" });
+    fireEvent.change(name, { target: { value: "Researcher copy" } });
+    expect(screen.getByRole("textbox", { name: "Destination resource ID" })).toHaveValue(
+      "destination-policy",
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Import private drafts" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Connection lost");
+    await userEvent.click(screen.getByRole("button", { name: "Import private drafts" }));
+    await screen.findByText("Import complete");
+    const first = vi.mocked(importAgentBundle).mock.calls[0]?.[0];
+    const second = vi.mocked(importAgentBundle).mock.calls[1]?.[0];
+    expect(first?.operation_id).toBe(second?.operation_id);
+    expect(first?.choices).toEqual({
+      "agent/root": { action: "create", name: "Researcher copy" },
+      "context/policy": { action: "reuse", destination_id: "destination-policy" },
+      "secret/key": { action: "skip" },
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Open draft" }));
+    expect(push).toHaveBeenCalledWith("/agents/new-agent");
+    expect(close).toHaveBeenCalledWith(false);
+  });
+
+  it("reads a file and keeps it editable when the preview is refused", async () => {
+    vi.mocked(previewAgentImport).mockRejectedValueOnce(new Error("Invalid configuration"));
+    render(<ImportAgentDialog open onOpenChange={vi.fn()} />, { wrapper: Wrapper });
+    const file = new File(["name: From file"], "agent.yaml", { type: "application/yaml" });
+    await userEvent.upload(
+      screen.getByLabelText("Choose a YAML or JSON file", { selector: "input" }),
+      file,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Review dependencies" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Invalid configuration");
+    expect(screen.getByRole("textbox", { name: "Or paste the configuration" })).toHaveValue(
+      "name: From file",
+    );
+    expect(vi.mocked(previewAgentImport).mock.calls[0]?.[0]).toBe("name: From file");
+  });
+
+  it("refuses an oversized or unreadable file before requesting a preview", async () => {
+    render(<ImportAgentDialog open onOpenChange={vi.fn()} />, { wrapper: Wrapper });
+    const input = screen.getByLabelText("Choose a YAML or JSON file", { selector: "input" });
+    const oversized = new File(["content"], "huge.json", { type: "application/json" });
+    Object.defineProperty(oversized, "size", { value: 5 * 1024 * 1024 });
+    await userEvent.upload(input, oversized);
+    expect(await screen.findByRole("alert")).toHaveTextContent("4 MiB");
+    const unreadable = new File(["{}"], "broken.json", { type: "application/json" });
+    vi.spyOn(unreadable, "text").mockRejectedValueOnce(new Error("Read error"));
+    await userEvent.upload(input, unreadable);
+    expect(await screen.findByRole("alert")).toHaveTextContent("could not be read");
+    expect(previewAgentImport).not.toHaveBeenCalled();
+  });
+
+  it("keeps loading and failed export states explicit instead of offering an empty file", async () => {
+    const request = Promise.withResolvers<BundlePreview>();
+    vi.mocked(previewAgentExport).mockReturnValue(request.promise);
+    const close = vi.fn();
+    render(<ExportAgentDialog agentId="source" open onOpenChange={close} />, { wrapper: Wrapper });
+    expect(screen.getByRole("status")).toHaveTextContent("Loading dependencies");
+    expect(screen.getByRole("button", { name: "Download" })).toBeDisabled();
+    request.reject(new Error("Dependencies unavailable"));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Dependencies unavailable");
+    await userEvent.click(screen.getByText("Close", { selector: "button" }));
+    expect(close).toHaveBeenCalledWith(false);
+    expect(downloadAgentExport).not.toHaveBeenCalled();
+  });
+
+  it("allows changing a mapping without modifying the uploaded definition", async () => {
+    vi.mocked(importAgentBundle).mockResolvedValue({
+      roots: { "agent/root": "copy" },
+      created: {},
+      reused: {},
+      skipped: [],
+    });
+    render(<ImportAgentDialog open onOpenChange={vi.fn()} />, { wrapper: Wrapper });
+    fireEvent.change(screen.getByRole("textbox", { name: "Or paste the configuration" }), {
+      target: { value: "name: Researcher" },
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Review dependencies" }));
+    await screen.findByRole("group", { name: "Policy" });
+    await userEvent.click(screen.getByRole("combobox", { name: "Action for Policy" }));
+    await userEvent.click(screen.getByRole("option", { name: "Create a copy" }));
+    expect(screen.getAllByRole("textbox", { name: "Name of the new copy" })).toHaveLength(2);
+    await userEvent.click(screen.getByRole("combobox", { name: "Action for Policy" }));
+    await userEvent.click(screen.getByRole("option", { name: "Skip this resource" }));
+    expect(
+      screen.queryByRole("textbox", { name: "Destination resource ID" }),
+    ).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("combobox", { name: "Action for Policy" }));
+    await userEvent.click(screen.getByRole("option", { name: "Use an existing resource" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Destination resource ID" }), {
+      target: { value: "chosen-policy" },
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Import private drafts" }));
+    await screen.findByText("Import complete");
+    expect(vi.mocked(importAgentBundle).mock.calls[0]?.[0].choices["context/policy"]).toEqual({
+      action: "reuse",
+      destination_id: "chosen-policy",
+    });
+    expect(preview.bundle.resources[1]?.definition).toEqual({ content: "Private policy" });
+  });
+
+  it("returns to the editable file and handles file-picker cancellation", async () => {
+    const close = vi.fn();
+    render(<ImportAgentDialog open onOpenChange={close} />, { wrapper: Wrapper });
+    const input = screen.getByLabelText("Choose a YAML or JSON file", { selector: "input" });
+    const pick = vi.spyOn(input, "click");
+    await userEvent.click(screen.getByRole("button", { name: "Choose a YAML or JSON file" }));
+    expect(pick).toHaveBeenCalledOnce();
+    fireEvent.change(input, { target: { files: [] } });
+    fireEvent.change(screen.getByRole("textbox", { name: "Or paste the configuration" }), {
+      target: { value: "name: Researcher" },
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Review dependencies" }));
+    await screen.findByRole("group", { name: "Researcher" });
+    await userEvent.click(screen.getByRole("button", { name: "Back" }));
+    expect(screen.getByRole("textbox", { name: "Or paste the configuration" })).toHaveValue(
+      "name: Researcher",
+    );
+    await userEvent.click(screen.getByText("Close", { selector: "button" }));
+    expect(close).toHaveBeenCalledWith(false);
+  });
+
+  it("does not discard a pending review when Escape is pressed", async () => {
+    const request = Promise.withResolvers<BundlePreview>();
+    vi.mocked(previewAgentImport).mockReturnValue(request.promise);
+    const close = vi.fn();
+    render(<ImportAgentDialog open onOpenChange={close} />, { wrapper: Wrapper });
+    fireEvent.change(screen.getByRole("textbox", { name: "Or paste the configuration" }), {
+      target: { value: "name: Researcher" },
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Review dependencies" }));
+    await userEvent.keyboard("{Escape}");
+    expect(close).not.toHaveBeenCalled();
+    request.resolve(preview);
+    await screen.findByRole("group", { name: "Researcher" });
+  });
+  it("keeps an incomplete receipt visible instead of navigating to an invented draft", async () => {
+    vi.mocked(importAgentBundle).mockResolvedValue({
+      roots: {},
+      created: {},
+      reused: {},
+      skipped: [],
+    });
+    render(<ImportAgentDialog open onOpenChange={vi.fn()} />, { wrapper: Wrapper });
+    fireEvent.change(screen.getByRole("textbox", { name: "Or paste the configuration" }), {
+      target: { value: "name: Researcher" },
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Review dependencies" }));
+    await screen.findByRole("group", { name: "Researcher" });
+    await userEvent.click(screen.getByRole("button", { name: "Import private drafts" }));
+    await screen.findByText("Import complete");
+    await userEvent.click(screen.getByRole("button", { name: "Open draft" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("did not identify the new draft");
+    expect(push).not.toHaveBeenCalled();
+  });
+});

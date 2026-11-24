@@ -194,3 +194,68 @@ class ResourceBundle(BaseSchema):
             if sizes.setdefault(asset.sha256, asset.size_bytes) != asset.size_bytes:
                 raise ValueError("Identical content digests must declare identical sizes")
         return self
+
+
+class BundleSelection(BaseSchema):
+    """An explicit set of resources and content layers to include in a download."""
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=False)
+
+    resources: dict[BundleKey, frozenset[BundleContentLayer]] = Field(max_length=10_000)
+
+
+class BundleImportChoice(BaseSchema):
+    """A destination decision, never a claim that a source ID grants access."""
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=False)
+
+    action: Literal["reuse", "create", "skip"]
+    destination_id: UUID | None = None
+    name: str | None = Field(default=None, min_length=1, max_length=128)
+
+    @model_validator(mode="after")
+    def destination_for_reuse(self) -> Self:
+        if (self.action == "reuse") != (self.destination_id is not None):
+            raise ValueError("Only reuse must identify a destination resource")
+        if self.name is not None and self.action != "create":
+            raise ValueError("Only newly created resources may be renamed")
+        return self
+
+
+class BundleImportCreate(BaseSchema):
+    """A reviewed data-only import; no publication, execution or paid ingestion."""
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=False)
+
+    operation_id: UUID
+    bundle: ResourceBundle
+    choices: dict[BundleKey, BundleImportChoice] = Field(max_length=10_000)
+
+
+class BundleResourceOption(BaseSchema):
+    key: BundleKey
+    available: bool
+    can_create: bool = False
+    reusable_id: UUID | None = None
+
+
+class BundlePreview(BaseSchema):
+    bundle: ResourceBundle
+    options: tuple[BundleResourceOption, ...]
+
+
+class BundleImportRead(BaseSchema):
+    roots: dict[BundleKey, UUID]
+    created: dict[BundleKey, UUID]
+    reused: dict[BundleKey, UUID]
+    skipped: tuple[BundleKey, ...]
+
+
+class BundleDocumentCreate(BaseSchema):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=False)
+
+    text: str = Field(min_length=1, max_length=4 * 1024 * 1024)
+
+
+class BundleDownloadCreate(BundleSelection):
+    file_format: Literal["yaml", "json"] = "yaml"
