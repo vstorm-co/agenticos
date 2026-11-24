@@ -212,8 +212,8 @@ def _visible_where(
     a person remembers about a skill - the body is what the *model* reads, and
     matching on it would return rows whose visible text explains nothing about
     why they matched. A category, by contrast, is a shelf: it matches whole or
-    not at all, though in any letter case, since `Security` and `security` are
-    one shelf typed twice.
+    not at all, though in any letter case and around any stray spaces, since
+    `Security` and `security ` are one shelf typed twice.
     """
     where: list[ColumnElement[bool]] = [Skill.organization_id == organization_id]
     if shared_with_me:
@@ -245,7 +245,9 @@ def _visible_where(
         )
     if categories:
         where.append(
-            func.lower(Skill.category).in_(sorted({category.lower() for category in categories}))
+            func.lower(func.trim(Skill.category)).in_(
+                sorted({category.strip().lower() for category in categories})
+            )
         )
     if only_ids is not None:
         where.append(Skill.id.in_(only_ids))

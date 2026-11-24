@@ -511,7 +511,7 @@ export const qk = {
     sections: (query: {
       arrange: string;
       search: string;
-      category: string;
+      categories: string[];
       sort: string;
       groupId: string;
     }) => ["skills", "sections", query] as const,
