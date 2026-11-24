@@ -19,6 +19,27 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- An app-scoped knowledge base can no longer carry an organization id. Such a row, left over from older data, was bound by that organization's agents although it holds no organization's chunks, and beside an organization base of the same collection name it narrowed what the agent searched. Migration `backend/alembic/versions/0363_app_bases_have_no_org.py` clears the id and adds `CHECK (scope <> 'app' OR organization_id IS NULL)`. An agent binds personal and organization bases only, as publish already required for every app-scoped base created since; a workflow's Knowledge search node still reads app-scoped ones (#3262).
+
+### Upgrading
+
+- Migration `0363_app_bases_have_no_org` sets `organization_id` to `NULL` on every app-scoped knowledge base. An agent bound to one through that id stops searching it: a published version's run goes on without it and logs `Agent references collection <id> which is gone from org <id>`, and a new version that still lists it is refused at publish with `Collection not found`. To see whether this concerns you, list those bases and the agents whose published version names one before upgrading:
+
+  ```sql
+  SELECT kb.id, kb.name, kb.organization_id,
+         (SELECT string_agg(a.name, ', ')
+          FROM agents a
+          JOIN agent_versions v ON v.id = a.current_version_id
+          WHERE a.organization_id = kb.organization_id
+            AND v.spec::text LIKE '%' || kb.id::text || '%') AS bound_by_agents
+  FROM knowledge_bases kb
+  WHERE kb.scope = 'app' AND kb.organization_id IS NOT NULL;
+  ```
+
+  To keep such an agent searching those documents, move them into an organization base and bind that. The downgrade drops the check only; it does not restore the cleared organization ids.
+
 ## [1.92.0] - 2026-11-23
 
 ### Added
