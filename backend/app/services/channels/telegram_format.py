@@ -85,6 +85,15 @@ def _units(text: str) -> int:
     return len(text.encode("utf-16-le")) // 2
 
 
+TELEGRAM_CAPTION_LIMIT = 1024
+"""The most a photo's or a file's caption takes, counted the same way."""
+
+
+def fits(markdown: str, limit: int = TELEGRAM_TEXT_LIMIT) -> bool:
+    """Whether the Markdown fits in one Telegram text of `limit`, as HTML and as plain text."""
+    return _fits(markdown, limit)
+
+
 def _fits(markdown: str, limit: int) -> bool:
     # The Markdown is checked too: it is what is sent when Telegram refuses the HTML.
     if _units(markdown) > limit:

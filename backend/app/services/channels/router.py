@@ -56,6 +56,7 @@ from app.services.channels.base import (
     channel_key,
     is_run_control,
     memory_room_key,
+    platform_name,
     split_thread,
 )
 from app.services.channels.dedupe import claim_delivery, release_delivery, remember_unaddressed
@@ -1914,7 +1915,7 @@ class ChannelMessageRouter:
                 # them a room that participant management can then never reach.
                 new_conv = await conversation_repo.create_conversation(
                     db,
-                    title=f"{incoming.platform.capitalize()} Chat",
+                    title=f"{platform_name(incoming.platform)} Chat",
                     user_id=issuer,
                     organization_id=bot.organization_id,
                 )
@@ -2127,7 +2128,7 @@ class ChannelMessageRouter:
         Linking a platform identity authenticates the sender; it does not authorize
         a bot or bridge to receive the person's pre-existing console history.
         """
-        title = f"{incoming.platform.capitalize()} Chat"
+        title = f"{platform_name(incoming.platform)} Chat"
         conv = await conversation_repo.create_conversation(
             db, title=title, user_id=identity.user_id, organization_id=bot.organization_id
         )

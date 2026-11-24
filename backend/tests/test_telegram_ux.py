@@ -658,6 +658,121 @@ class TestALongAnswerArrivesInPieces:
         )
 
 
+class TestPromptsAndCaptionsAreFormatted:
+    """Approvals, questions and captions carry Markdown too; Telegram shows it raw as plain text."""
+
+    async def test_an_approval_prompt_is_sent_as_html_with_its_buttons(self, monkeypatch):
+        from app.services.channels.base import ChannelChoice, PromptMessage
+
+        bot = _telegram(monkeypatch)
+        prompt = PromptMessage(
+            platform_chat_id="42",
+            text="I need your approval to *create routine in Agenticos*: “Joke”",
+            choices=[ChannelChoice(label="Approve", value="a:1")],
+        )
+
+        await TelegramAdapter().send_prompt("t", prompt)
+
+        sent = bot.send_message.await_args.kwargs
+        assert sent["text"] == "I need your approval to <i>create routine in Agenticos</i>: “Joke”"
+        assert sent["parse_mode"] == "HTML"
+        assert sent["reply_markup"].inline_keyboard[0][0].callback_data == "a:1"
+
+    async def test_a_prompt_telegram_refuses_as_html_is_sent_plain(self, monkeypatch):
+        from app.services.channels.base import ChannelChoice, PromptMessage
+
+        bot = _telegram(monkeypatch)
+        bot.send_message.side_effect = [
+            TelegramBadRequest(MagicMock(), "Bad Request: can't parse entities"),
+            MagicMock(message_id=5),
+        ]
+        prompt = PromptMessage(
+            platform_chat_id="42",
+            text="Approve *this*?",
+            choices=[ChannelChoice(label="Approve", value="a:1")],
+        )
+
+        await TelegramAdapter().send_prompt("t", prompt)
+
+        plain = bot.send_message.await_args.kwargs
+        assert plain["text"] == "Approve *this*?"
+        assert plain["parse_mode"] is None
+        assert plain["reply_markup"].inline_keyboard[0][0].callback_data == "a:1"
+
+    async def test_a_charts_caption_is_sent_as_html(self, monkeypatch):
+        bot = _telegram(monkeypatch)
+
+        await TelegramAdapter().send_message(
+            "t", OutgoingMessage(platform_chat_id="42", text="**Sales** up", image_png=b"png")
+        )
+
+        sent = bot.send_photo.await_args.kwargs
+        assert sent["caption"] == "<b>Sales</b> up"
+        assert sent["parse_mode"] == "HTML"
+
+    async def test_a_caption_telegram_refuses_as_html_is_sent_plain(self, monkeypatch):
+        bot = _telegram(monkeypatch)
+        bot.send_photo.side_effect = [
+            TelegramBadRequest(MagicMock(), "Bad Request: can't parse entities"),
+            MagicMock(message_id=5),
+        ]
+
+        await TelegramAdapter().send_message(
+            "t", OutgoingMessage(platform_chat_id="42", text="**Sales** up", image_png=b"png")
+        )
+
+        plain = bot.send_photo.await_args.kwargs
+        assert plain["caption"] == "**Sales** up"
+        assert plain["parse_mode"] is None
+
+    async def test_a_files_caption_is_sent_as_html(self, monkeypatch):
+        bot = _telegram(monkeypatch)
+
+        await TelegramAdapter().send_message(
+            "t",
+            OutgoingMessage(
+                platform_chat_id="42",
+                text="**Report** attached",
+                attachments=[OutgoingAttachment(filename="r.pdf", content=b"%PDF")],
+            ),
+        )
+
+        sent = bot.send_document.await_args.kwargs
+        assert sent["caption"] == "<b>Report</b> attached"
+        assert sent["parse_mode"] == "HTML"
+        bot.send_message.assert_not_awaited()
+
+    async def test_a_chart_with_an_answer_too_long_for_a_caption_sends_the_text_first(
+        self, monkeypatch
+    ):
+        bot = _telegram(monkeypatch)
+        order: list[str] = []
+        bot.send_message.side_effect = lambda **_: order.append("text") or MagicMock(message_id=5)
+        bot.send_photo.side_effect = lambda **_: order.append("chart") or MagicMock(message_id=6)
+
+        await TelegramAdapter().send_message(
+            "t",
+            OutgoingMessage(
+                platform_chat_id="42", text="word " * 400, image_png=b"png", reply_to_message_id="9"
+            ),
+        )
+
+        assert order == ["text", "chart"]
+        assert bot.send_photo.await_args.kwargs["caption"] is None
+        assert bot.send_message.await_args.kwargs["reply_to_message_id"] == 9
+
+    async def test_markup_does_not_count_against_a_caption(self, monkeypatch):
+        """Telegram counts a caption after parsing: 1000 `&` fit, though their HTML does not."""
+        bot = _telegram(monkeypatch)
+
+        await TelegramAdapter().send_message(
+            "t", OutgoingMessage(platform_chat_id="42", text="&" * 1000, image_png=b"png")
+        )
+
+        assert bot.send_photo.await_args.kwargs["caption"] == "&amp;" * 1000
+        bot.send_message.assert_not_awaited()
+
+
 class TestMembersOfAPrivateChat:
     """A private chat is this person and the bot: there is no list to ask Telegram for."""
 

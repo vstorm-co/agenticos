@@ -214,6 +214,26 @@ def thread_key(channel_id: str, *, thread_id: str, message_id: str | None) -> st
     return f"{channel_id}:{message_id}"
 
 
+PLATFORM_NAMES: dict[str, str] = {
+    "slack": "Slack",
+    "telegram": "Telegram",
+    "mattermost": "Mattermost",
+    "teams": "Microsoft Teams",
+    "discord": "Discord",
+    "matrix": "Matrix",
+    "whatsapp": "WhatsApp",
+    "sms": "SMS",
+    "imessage": "iMessage",
+    "email": "Email",
+}
+"""A chat platform's name as the product writes it; its key capitalised says "Sms"."""
+
+
+def platform_name(platform: str) -> str:
+    """The platform's own name, or its key capitalised for one this table does not know."""
+    return PLATFORM_NAMES.get(platform, platform.capitalize())
+
+
 @dataclass(frozen=True)
 class IncomingAttachment:
     """A file somebody sent a bot, before it has been fetched.
