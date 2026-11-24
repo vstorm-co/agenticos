@@ -1,5 +1,5 @@
 ---
-source_sha: "d30c628ff803"
+source_sha: "9a37905fc1e3"
 ---
 
 # Tu primer agent { #your-first-agent }
@@ -13,9 +13,13 @@ Antes necesitas un stack en marcha — consulta [Instalación](install.md).
 
 !!! tip "El producto también te guía por esto"
 
-    La primera vez que alguien inicia sesión se abre un recorrido guiado en el
-    dashboard, y al terminarlo se ofrece a construir el primer agent *contigo*,
-    manejando los diálogos reales.
+    La primera vez que inicies sesión no se abre nada por sí solo. Hasta que
+    completes una primera ejecución, el dashboard muestra una lista de
+    primeros pasos y el chat una oferta de inicio, y ambas abren el inicio
+    guiado: elige un objetivo, ejecuta una tarea con un agent y mira el
+    resultado. El recorrido en sí solo se abre cuando lo pides — desde el
+    inicio guiado, o con el **?** de la cabecera de cualquier página del
+    recorrido.
 
     El camino manual merece una lectura de todas formas, y eso es esta página.
     El guiado se describe [al final](#the-guided-walkthrough).
@@ -222,10 +226,11 @@ El producto se enseña a sí mismo, y merece la pena saber cómo — porque el
 recorrido es también la forma en la que lo aprenderá cualquiera a quien le pases
 esto.
 
-**Se muestra una vez, y el ? lo reproduce.** Que se termine, se salte o se cierre
-queda recordado en la cuenta y no en el navegador, así que no vuelve en el
-siguiente dispositivo. El **?** de la cabecera de cualquier página recorrida
-reproduce los avisos de esa página siempre que se quieran.
+El recorrido nunca se abre por sí solo. Se ofrece desde la lista de primeros
+pasos del dashboard y desde el inicio guiado, y el **?** de la cabecera de
+cualquier página recorrida reproduce los avisos de esa página siempre que se
+quieran. Que se termine, se salte o se cierre queda recordado en la cuenta y
+no en el navegador, así que no vuelve en el siguiente dispositivo.
 
 Solo se ofrece donde hay algo que reproducir. Una sección sin paradas — las
 páginas de administración del despliegue — **no tiene ?** en absoluto, en lugar
