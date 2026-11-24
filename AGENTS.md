@@ -257,6 +257,7 @@ retranslated is how a stale translation stops being visible.
 | Agent and team tasks: research and proposal only | `docs/design/agent-tasks.md` (repo only) |
 | Workflows — the visual editor: canvas, palette, bindings, autosave, publish, versions | `docs/workflows.md` |
 | Projects: shared files, instructions and chats | `docs/projects.md` |
+| Planned project file/execution separation and selectable dependency bundles | `docs/design/project-runtime-and-portability.md` (repo only; implementation status recorded there) |
 | Knowledge gaps — questions the knowledge base could not answer, grouped into topics | `docs/knowledge-gaps.md` |
 | Named environments, promotion, per-environment tracing, test connections, isolated (eval) runs | `docs/environments.md` |
 | Surfaces: widget, WebSocket, Slack, Telegram | `docs/channels.md` |
