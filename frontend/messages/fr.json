@@ -130,6 +130,8 @@
     "allowedSites": "Sites autorisés",
     "answersCustomerQuestionsFrom": "Répond aux questions des clients à partir du wiki produit.",
     "anyoneThoseSites": "Toute personne sur ces sites",
+    "appWide": "Toute l’application",
+    "appWideNotForAgents": "Les agents ne peuvent pas utiliser une collection à l’échelle de l’application. Décochez-la pour la retirer.",
     "approval": "Approbation",
     "approvalAlways": "Toujours demander",
     "approvalHintDefaultReadOnly": "S’exécute sans approbation, car cette capability ne fait que lire.",

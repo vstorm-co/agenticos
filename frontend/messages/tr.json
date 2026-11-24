@@ -6241,6 +6241,8 @@
     "allowedSites": "İzin verilen siteler",
     "answersCustomerQuestionsFrom": "Ürün wiki'sinden gelen müşteri sorularını yanıtlar.",
     "anyoneThoseSites": "Bu sitelerdeki herkes",
+    "appWide": "Uygulama geneli",
+    "appWideNotForAgents": "Agent'lar uygulama genelindeki koleksiyonları kullanamaz. Kaldırmak için işaretini kaldırın.",
     "approval": "Onay",
     "approvalAlways": "Her zaman sor",
     "approvalHintDefaultReadOnly": "Bu capability yalnızca okuma yaptığı için onaysız çalışır.",
