@@ -1,5 +1,5 @@
 ---
-source_sha: "95cf2c67136d"
+source_sha: "f261008877d4"
 ---
 
 # Die Konsole { #the-console }
@@ -990,7 +990,7 @@ dem ein echtes Problem als ein stilles gelesen wird.
 - Eine Seite, die "noch nichts da" zeigt, kann **eine fehlgeschlagene Anfrage**
   sein und keine leere Ressource.
 
-Die Seitenleistenfußzeile zeigt die Build-Version der Konsole neben Suche und Benachrichtigungen, auch in der eingeklappten Leiste und im mobilen Menü. Sie stammt aus der im Build eingebetteten Frontend-Paketversion und benötigt keine Netzwerkanfrage. Der Tooltip kennzeichnet sie als Konsolenversion; ein separat aktualisierter API-Prozess kann eine andere Version ausführen.
+Die Seitenleistenfußzeile zeigt die Build-Version der Konsole neben Suche und Benachrichtigungen sowie einen Hilfe-Eintrag mit der Dokumentation, dem Lernpfad und einer Fehlermeldung mit vorausgefüllter Version, auch in der eingeklappten Leiste und im mobilen Menü. Sie stammt aus der im Build eingebetteten Frontend-Paketversion und benötigt keine Netzwerkanfrage. Der Tooltip kennzeichnet sie als Konsolenversion; ein separat aktualisierter API-Prozess kann eine andere Version ausführen.
 
 
 Eine neuere stabile AgenticOS-Version hebt die Versionsnummer mit einem grünen Punkt hervor. Ein Klick zeigt die laufende und verfügbare Version sowie einen Link zum offiziellen Release. Die Hintergrundprüfung läuft beim Öffnen der Konsole, während der Nutzung alle 30 Minuten und bei veralteten Daten nach erneutem Fokus oder Wiederherstellung der Verbindung. Der Server teilt öffentliche Prüfergebnisse fünf Minuten lang und sendet keine Konto-, Organisations- oder Bereitstellungsdaten an GitHub. Bei Netzwerkfehlern bleibt die laufende Version sichtbar, ohne als aktuell bezeichnet zu werden. Der Hinweis lädt die Seite nicht neu und installiert kein Update automatisch.

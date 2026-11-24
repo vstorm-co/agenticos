@@ -10,6 +10,7 @@ import type { ReactNode } from "react";
 
 import { DesktopInstallPrompt } from "@/components/layout/desktop-install-prompt";
 import { ConsoleVersion } from "@/components/layout/console-version";
+import { SidebarHelp } from "@/components/layout/sidebar-help";
 
 import { NotificationBell } from "@/components/layout/notification-bell";
 import { SidebarSearch } from "@/components/layout/sidebar-search";
@@ -49,6 +50,9 @@ export function SidebarShell({
 
       {!collapsed && <DesktopInstallPrompt />}
       <div className={cn("flex flex-col gap-1 py-2", collapsed ? "items-center px-1" : "px-3")}>
+        {/* Help sits above the account menu that holds Settings, at the foot
+            of the column - not among the destinations, which it is not. */}
+        <SidebarHelp collapsed={collapsed} />
         {/* The language and the theme used to be
             here too, which filed "set this once" beside "find something" under
             four unlabelled glyphs; they are named rows in the account menu
