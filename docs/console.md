@@ -1093,16 +1093,23 @@ or a session to its run lands on a row the list shows.
 
 ## What each area is for
 
-**Overview** (Dashboard), **Chat** and **Inbox** lead the sidebar. **Build & manage**
-keeps Agents, Workflows, Routines and Apps visible; Projects follow.
+**Home**, **Chat**, **Inbox** and **Agent messages** are fixed at the top of the
+sidebar. Below them are the items you pinned, in the order you pinned them; every
+account starts with none. **More** opens everything you may see, grouped as Pages,
+Build, Projects, Knowledge, Connections and Organization, with Admin last for
+platform admins.
 
-**Knowledge** opens by default and holds Knowledge bases, Tables, Skills, Context
-and Documents. Its manually chosen open or closed state is remembered.
-**Monitoring** groups Activity and Background work and starts collapsed.
+Choose the pin beside an item in More to add or remove it. Choosing the item opens
+it and closes the panel; pinning does neither. Esc closes the panel and the arrow
+keys move between items. On the collapsed sidebar More is an icon with a tooltip.
+Pins are saved on the server for each organization and never grant access: an item
+you may not see, or that your role hides, stays hidden. While you are on a page that
+is neither fixed nor pinned, it appears below your pins with a pin button until you
+leave it.
 
-**Connections** (MCP servers, Channels, Remote agents, Vault, Sandboxes) and
-**Organization** (Organizations, Groups) remain collapsible and remember your
-choice. A group containing the current page always opens to keep that page visible.
+Pin buttons stay disabled until your saved pins have loaded. When a connection needs
+attention and Connections is not in the column, its count shows on **More** and beside
+Connections in the panel.
 
 | Area              | It holds                                                                            | Read                                                                         |
 | ----------------- | ----------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |

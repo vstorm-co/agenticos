@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Ellipsis, Pin, PinOff } from "lucide-react";
 
+import { ConnectionHealthCount } from "@/components/layout/connection-health-count";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { stripLocale } from "@/lib/active-route";
 import { navItemId, type MoreSection } from "@/lib/nav-pins";
@@ -37,11 +38,13 @@ function moveFocus(event: KeyboardEvent<HTMLElement>) {
 function MoreRow({
   item,
   pinned,
+  pinsReady,
   onToggle,
   onNavigate,
 }: {
   item: NavItem;
   pinned: boolean;
+  pinsReady: boolean;
   onToggle: (id: string) => void;
   onNavigate: () => void;
 }) {
@@ -66,10 +69,12 @@ function MoreRow({
       >
         <item.icon className="h-[18px] w-[18px] shrink-0" strokeWidth={1.75} aria-hidden />
         <span className="truncate">{label}</span>
+        {item.count === "connectionHealth" && <ConnectionHealthCount collapsed={false} />}
       </Link>
       <button
         type="button"
         aria-pressed={pinned}
+        disabled={!pinsReady}
         aria-label={t(pinned ? "unpinItem" : "pinItem", { item: label })}
         title={t(pinned ? "unpinItem" : "pinItem", { item: label })}
         onClick={() => onToggle(navItemId(item))}
@@ -90,12 +95,18 @@ function MoreRow({
 export function NavMore({
   sections,
   pinnedIds,
+  currentId,
+  pinsReady,
   onToggle,
   onNavigate,
   collapsed,
 }: {
   sections: MoreSection[];
   pinnedIds: readonly string[];
+  /** The page on screen when it is not fixed or pinned; it already shows its own badge. */
+  currentId: string | null;
+  /** False until the saved pins have loaded: the pin buttons stay disabled. */
+  pinsReady: boolean;
   onToggle: (id: string) => void;
   onNavigate?: () => void;
   collapsed: boolean;
@@ -103,6 +114,16 @@ export function NavMore({
   const t = useTranslations("nav");
   const [open, setOpen] = useState(false);
   const label = t("more");
+  // A broken connection must stay visible when its row is not in the column:
+  // neither pinned nor the page on screen, the More trigger carries the badge.
+  const holdsHiddenHealth = sections.some((section) =>
+    section.items.some(
+      (item) =>
+        item.count === "connectionHealth" &&
+        !pinnedIds.includes(navItemId(item)) &&
+        currentId !== navItemId(item),
+    ),
+  );
 
   return (
     <Popover open={open} onOpenChange={setOpen} modal>
@@ -114,12 +135,13 @@ export function NavMore({
           title={collapsed ? label : undefined}
           aria-label={collapsed ? label : undefined}
           className={cn(
-            "sidebar-nav-link touch:min-h-11 focus-visible:ring-ring text-foreground/80 hover:bg-foreground/5 hover:text-foreground flex shrink-0 items-center rounded-lg text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-inset",
+            "sidebar-nav-link touch:min-h-11 focus-visible:ring-ring text-foreground/80 hover:bg-foreground/5 hover:text-foreground relative flex shrink-0 items-center rounded-lg text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-inset",
             collapsed ? "touch:min-w-11 h-9 w-9 justify-center" : "h-9 gap-2.5 px-2.5",
           )}
         >
           <Ellipsis className="h-[18px] w-[18px] shrink-0" strokeWidth={1.75} aria-hidden />
           {collapsed ? null : <span className="truncate">{label}</span>}
+          {holdsHiddenHealth && <ConnectionHealthCount collapsed={collapsed} />}
         </button>
       </PopoverTrigger>
       <PopoverContent
@@ -148,6 +170,7 @@ export function NavMore({
                 key={item.href}
                 item={item}
                 pinned={pinnedIds.includes(navItemId(item))}
+                pinsReady={pinsReady}
                 onToggle={onToggle}
                 onNavigate={() => {
                   setOpen(false);

@@ -202,8 +202,8 @@ export const NAV_GROUPS: NavGroup[] = [
   },
   // What the organization is connected to, in one place: the apps agents use,
   // with the lower-level channels, remote agents, vault and sandboxes behind an
-  // Advanced tab (#connectors). Set up once, revisited rarely, so folded until
-  // opened.
+  // Advanced tab (#connectors). Set up once, revisited rarely, so it lives in More
+  // until pinned.
   {
     labelKey: "connections",
     domain: "workspace",

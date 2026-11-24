@@ -1,5 +1,5 @@
 ---
-source_sha: "8252d40ce4c3"
+source_sha: "b1e4a651184a"
 ---
 
 # Die Konsole { #the-console }
@@ -1202,18 +1202,24 @@ die die Liste zeigt.
 
 ## Wofür jeder Bereich da ist { #what-each-area-is-for }
 
-**Overview** (Dashboard), **Chat** und **Inbox** stehen oben in der Seitenleiste.
-**Build & manage** zeigt Agents, Workflows, Routines und Apps ohne Aufklappen;
-danach folgen Projects.
+**Home**, **Chat**, **Inbox** und **Agent messages** stehen fest oben in der
+Seitenleiste. Darunter folgen die angehefteten Einträge in der Reihenfolge des
+Anheftens; jedes Konto beginnt ohne. **More** öffnet alles, was Sie sehen dürfen,
+gruppiert als Pages, Build, Projects, Knowledge, Connections und Organization, zuletzt
+Admin für Plattform-Admins.
 
-**Knowledge** ist standardmäßig geöffnet und enthält Knowledge bases, Tables,
-Skills, Context und Documents. Die manuelle Wahl zwischen geöffnet und geschlossen
-wird gespeichert. **Monitoring** enthält Activity und Background work und ist
-standardmäßig eingeklappt.
+Das Pin neben einem Eintrag in More heftet ihn an oder löst ihn. Der Eintrag selbst
+öffnet die Seite und schließt das Panel; das Anheften tut beides nicht. Esc schließt
+das Panel, die Pfeiltasten wechseln zwischen Einträgen. In der eingeklappten
+Seitenleiste ist More ein Symbol mit Tooltip. Pins werden pro Organisation auf dem
+Server gespeichert und geben nie Zugriff: Ein Eintrag, den Sie nicht sehen dürfen
+oder den Ihre Rolle ausblendet, bleibt verborgen. Auf einer Seite, die weder fest
+noch angeheftet ist, erscheint sie mit Pin-Schaltfläche unter Ihren Pins, bis Sie
+sie verlassen.
 
-**Connections** (MCP servers, Channels, Remote agents, Vault, Sandboxes) und
-**Organization** (Organizations, Groups) bleiben einklappbar und speichern Ihre
-Wahl. Eine Gruppe mit der aktuellen Seite öffnet sich immer, damit diese sichtbar bleibt.
+Die Pin-Schaltflächen bleiben deaktiviert, bis Ihre gespeicherten Pins geladen sind.
+Braucht eine Verbindung Aufmerksamkeit und steht Connections nicht in der Spalte,
+erscheint die Zahl bei **More** und neben Connections im Panel.
 
 | Bereich           | Er hält                                                                                     | Lesen Sie                                                                    |
 | ----------------- | ------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |

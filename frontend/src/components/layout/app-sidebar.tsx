@@ -28,6 +28,7 @@ import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Loader2, PanelLeftClose, PanelLeftOpen, Pin } from "lucide-react";
 
+import { ConnectionHealthCount } from "@/components/layout/connection-health-count";
 import { NavMore } from "@/components/layout/nav-more";
 
 import { BrandLink } from "@/components/layout/brand-link";
@@ -35,7 +36,6 @@ import { stripLocale } from "@/lib/active-route";
 import { SidebarSearch } from "@/components/layout/sidebar-search";
 import { SidebarShell } from "@/components/layout/sidebar-shell";
 import { useMounted } from "@/hooks/use-mounted";
-import { useConnectionHealth } from "@/hooks/use-connection-health";
 import { useSuggestions } from "@/hooks/use-suggestions";
 import { usePendingApprovals } from "@/hooks/use-pending-approvals";
 import { useWaitingChatQuestions } from "@/hooks/use-waiting-chat-questions";
@@ -118,29 +118,6 @@ function InboxCount({ collapsed }: { collapsed: boolean }) {
   );
 }
 
-/** How many connections need attention: a number in the column, a dot on the rail. */
-function ConnectionHealthCount({ collapsed }: { collapsed: boolean }) {
-  const t = useTranslations("nav");
-  const { total } = useConnectionHealth();
-  if (total === 0) return null;
-  // Destructive, not muted like the inbox count: this is not something
-  // waiting, it is something broken, and the column should say so at a glance.
-  const label = t("connectionHealthCount", { count: total });
-  return collapsed ? (
-    <span
-      className="bg-destructive absolute top-1 right-1 h-1.5 w-1.5 rounded-full"
-      aria-label={label}
-    />
-  ) : (
-    <span
-      className="text-destructive ml-auto px-1 text-xs font-medium tabular-nums"
-      aria-label={label}
-    >
-      {total}
-    </span>
-  );
-}
-
 /**
  * The entry's icon, turning while the page it opens is on its way: the click
  * answers where it was made, beside the bar along the top edge.
@@ -176,7 +153,7 @@ export function SidebarNav({
   }, [collapsed, pathname]);
   const { can, hiddenNavigationItems, isLoaded } = usePermissions();
   const { user } = useAuthStore();
-  const { pinnedIds, toggle } = useNavPins();
+  const { pinnedIds, ready, toggle } = useNavPins();
   const t = useTranslations("nav");
 
   const { fixed, pinned, current, more } = buildNavLayout({
@@ -204,6 +181,7 @@ export function SidebarNav({
           <button
             type="button"
             onClick={() => toggle(navItemId(current))}
+            disabled={!ready}
             aria-label={t("pinItem", { item: t(current.labelKey) })}
             title={t("pinItem", { item: t(current.labelKey) })}
             className={cn(
@@ -218,6 +196,8 @@ export function SidebarNav({
       <NavMore
         sections={more}
         pinnedIds={pinned.map(navItemId)}
+        currentId={current ? navItemId(current) : null}
+        pinsReady={ready}
         onToggle={toggle}
         onNavigate={onNavigate}
         collapsed={collapsed}

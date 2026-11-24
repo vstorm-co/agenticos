@@ -10,7 +10,7 @@ const can = vi.fn<(permission: string) => boolean>();
 const currentPath = vi.fn<() => string>(() => "/dashboard");
 const currentUser = vi.fn<() => { is_app_admin?: boolean } | null>(() => ({}));
 const navigation = { hiddenItems: [] as string[], isLoaded: true };
-const pins = { ids: [] as string[], toggle: vi.fn<(id: string) => void>() };
+const pins = { ids: [] as string[], ready: true, toggle: vi.fn<(id: string) => void>() };
 
 vi.mock("next/navigation", () => ({
   usePathname: () => currentPath(),
@@ -29,7 +29,7 @@ vi.mock("@/hooks/use-permissions", () => ({
   }),
 }));
 vi.mock("@/hooks/use-nav-pins", () => ({
-  useNavPins: () => ({ pinnedIds: pins.ids, toggle: pins.toggle }),
+  useNavPins: () => ({ pinnedIds: pins.ids, ready: pins.ready, toggle: pins.toggle }),
 }));
 const waiting = vi.fn<() => { id: string }[]>(() => []);
 vi.mock("@/hooks/use-suggestions", () => ({ useSuggestions: () => ({ suggestions: waiting() }) }));
@@ -60,6 +60,7 @@ beforeEach(() => {
   navigation.hiddenItems = [];
   navigation.isLoaded = true;
   pins.ids = [];
+  pins.ready = true;
   questions.mockReturnValue(0);
 });
 
@@ -198,6 +199,21 @@ describe("SidebarNav", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: "pinItem" }));
     expect(pins.toggle).toHaveBeenCalledWith("skills");
+  });
+
+  it("keeps every pin button disabled until the saved pins have loaded", () => {
+    pins.ready = false;
+    currentPath.mockReturnValue("/skills");
+    render(<SidebarNav />);
+
+    const quick = screen.getByRole("button", { name: "pinItem" });
+    expect(quick).toBeDisabled();
+    fireEvent.click(quick);
+    openMore();
+    for (const pin of within(panel()).getAllByRole("button", { name: "pinItem" })) {
+      expect(pin).toBeDisabled();
+    }
+    expect(pins.toggle).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -468,5 +484,52 @@ describe("the connection-health badge", () => {
     connectionHealth.mockReturnValue({ total: 0 });
     render(<SidebarNav />);
     expect(screen.queryByLabelText("connectionHealthCount")).toBeNull();
+  });
+});
+
+describe("the connection-health badge when Connections is not in the column", () => {
+  it("shows on the More trigger and on the Connections row", () => {
+    can.mockReturnValue(true);
+    connectionHealth.mockReturnValue({ total: 3 });
+    render(<SidebarNav />);
+
+    const trigger = screen.getByRole("button", { name: /^more/ });
+    expect(within(trigger).getByLabelText("connectionHealthCount")).toHaveTextContent("3");
+    fireEvent.click(trigger);
+    const row = within(panel()).getByRole("link", { name: /connectors/ });
+    expect(within(row).getByLabelText("connectionHealthCount")).toHaveTextContent("3");
+  });
+
+  it("leaves the trigger alone once Connections is pinned or on screen", () => {
+    can.mockReturnValue(true);
+    connectionHealth.mockReturnValue({ total: 3 });
+    pins.ids = ["connectors"];
+    const { unmount } = render(<SidebarNav />);
+    expect(
+      within(screen.getByRole("button", { name: /^more/ })).queryByLabelText(
+        "connectionHealthCount",
+      ),
+    ).toBeNull();
+    unmount();
+
+    pins.ids = [];
+    currentPath.mockReturnValue("/connectors");
+    render(<SidebarNav />);
+    expect(
+      within(screen.getByRole("button", { name: /^more/ })).queryByLabelText(
+        "connectionHealthCount",
+      ),
+    ).toBeNull();
+  });
+
+  it("shows nothing on the trigger when the caller may not see Connections", () => {
+    can.mockReturnValue(false);
+    connectionHealth.mockReturnValue({ total: 3 });
+    render(<SidebarNav />);
+    expect(
+      within(screen.getByRole("button", { name: /^more/ })).queryByLabelText(
+        "connectionHealthCount",
+      ),
+    ).toBeNull();
   });
 });
