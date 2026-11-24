@@ -1,5 +1,5 @@
 ---
-source_sha: "d30c628ff803"
+source_sha: "9a37905fc1e3"
 ---
 
 # Twój pierwszy agent { #your-first-agent }
@@ -13,9 +13,12 @@ Najpierw potrzebujesz działającego stosu — zobacz [Instalację](install.md).
 
 !!! tip "Produkt przeprowadzi cię przez to również sam"
 
-    Przy pierwszym zalogowaniu kogokolwiek na dashboardzie otwiera się
-    przewodnik, a jego ukończenie proponuje zbudowanie pierwszego agenta *razem
-    z tobą*, obsługując prawdziwe dialogi.
+    Przy pierwszym zalogowaniu nic nie otwiera się samo. Dopóki nie ukończysz
+    pierwszego uruchomienia, dashboard pokazuje listę pierwszych kroków, a czat
+    ofertę startową — obie otwierają prowadzony start: wybierz cel, wykonaj
+    jedno zadanie z agentem i zobacz wynik. Sam przewodnik otwiera się tylko
+    na twoją prośbę — z prowadzonego startu albo przyciskiem **?** w nagłówku
+    dowolnej objętej nim strony.
 
     Ścieżkę ręczną i tak warto przeczytać raz — i tym właśnie jest ta strona.
     Prowadzona jest opisana [na końcu](#the-guided-walkthrough).
@@ -220,10 +223,11 @@ Wszystko po tym jest po prostu większą ilością kroków 4, 5 i 9.
 Produkt uczy sam siebie i warto wiedzieć jak — bo przewodnik jest też tym, z
 czego nauczy się produktu każdy, komu go przekażesz.
 
-**Pokazuje się raz, a ? go odtwarza.** Ukończenie, pominięcie albo zamknięcie
-przewodnika jest zapamiętywane przy koncie, a nie w przeglądarce, więc nie wraca
-na kolejnym urządzeniu. **?** w nagłówku dowolnej strony objętej przewodnikiem
-odtwarza jej wskazówki, kiedy tylko są potrzebne.
+Przewodnik nigdy nie otwiera się sam. Jest oferowany z listy pierwszych
+kroków na dashboardzie i z prowadzonego startu, a **?** w nagłówku dowolnej
+strony objętej przewodnikiem odtwarza jej wskazówki, kiedy tylko są potrzebne.
+Ukończenie, pominięcie albo zamknięcie przewodnika jest zapamiętywane przy
+koncie, a nie w przeglądarce, więc nie wraca na kolejnym urządzeniu.
 
 Jest oferowane tylko tam, gdzie jest co odtwarzać. Sekcja bez żadnych przystanków
 — strony administracji wdrożenia — nie ma **?** w ogóle, zamiast mieć takie,

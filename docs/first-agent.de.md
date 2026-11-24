@@ -1,5 +1,5 @@
 ---
-source_sha: "d30c628ff803"
+source_sha: "9a37905fc1e3"
 ---
 
 # Ihr erster Agent { #your-first-agent }
@@ -13,9 +13,13 @@ Sie brauchen zuerst einen laufenden Stack — siehe [Installation](install.md).
 
 !!! tip "Das Produkt führt Sie ebenfalls hindurch"
 
-    Wenn sich jemand zum ersten Mal anmeldet, öffnet sich auf dem Dashboard eine
-    Einführung, und wer sie zu Ende geht, bekommt das Angebot, den ersten Agent
-    *gemeinsam* zu bauen, in den echten Dialogen.
+    Beim ersten Anmelden öffnet sich nichts von selbst. Bis Sie einen ersten
+    Run abgeschlossen haben, zeigt das Dashboard eine Checkliste für den
+    Ersteinstieg und der Chat ein Startangebot — beide öffnen den geführten
+    Start: Wählen Sie ein Ziel, führen Sie eine Aufgabe mit einem Agenten aus
+    und sehen Sie das Ergebnis. Die Einführung selbst öffnet sich nur, wenn
+    Sie danach fragen — vom geführten Start aus, oder mit dem **?** in der
+    Kopfzeile jeder begangenen Seite.
 
     Den manuellen Weg einmal zu lesen lohnt sich trotzdem, und das ist diese
     Seite. Der geführte Weg ist [am Ende](#the-guided-walkthrough) beschrieben.
@@ -226,11 +230,12 @@ Das Produkt bringt sich selbst bei, und es lohnt sich zu wissen wie — denn die
 Einführung ist auch der Weg, auf dem jeder, dem Sie das übergeben, es lernen
 wird.
 
-**Sie zeigt sich einmal, und das ? spielt sie erneut ab.** Dass sie beendet,
-übersprungen oder geschlossen wurde, wird beim Konto gemerkt statt im Browser,
-sodass sie auf dem nächsten Gerät nicht wiederkommt. Das **?** in der Kopfzeile
-jeder begangenen Seite spielt die Hinweise dieser Seite ab, wann immer sie
-gewünscht sind.
+Die Einführung öffnet sich nie von selbst. Sie wird von der Checkliste für
+den Ersteinstieg auf dem Dashboard und vom geführten Start angeboten, und
+das **?** in der Kopfzeile jeder begangenen Seite spielt die Hinweise dieser
+Seite ab, wann immer sie gewünscht sind. Dass sie beendet, übersprungen oder
+geschlossen wurde, wird beim Konto gemerkt statt im Browser, sodass sie auf
+dem nächsten Gerät nicht wiederkommt.
 
 Es wird nur dort angeboten, wo es etwas abzuspielen gibt. Ein Bereich ohne Stopps
 — die Seiten der Deployment-Administration — hat gar **kein ?**, statt eines, das

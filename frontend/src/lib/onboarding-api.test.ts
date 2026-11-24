@@ -63,7 +63,7 @@ it("validates a read-only teammate preview", async () => {
   expect(apiClient.get).toHaveBeenCalledWith(`/me/onboarding/members/${id}`);
 });
 
-it.each(["activity", "agent", "dismissed", "completed", "walkthrough"])(
+it.each(["dismissed", "completed", "walkthrough", "activity"])(
   "does not offer repeated onboarding for %s",
   (reason) => {
     const data = {
@@ -74,14 +74,27 @@ it.each(["activity", "agent", "dismissed", "completed", "walkthrough"])(
       agents: new Array<{ id: string; name: string }>(),
     };
     expect(shouldOfferStart(data)).toBe(true);
-    if (reason === "activity") data.has_activity = true;
-    if (reason === "agent") data.agents = [{ id, name: "Existing agent" }];
     if (reason === "dismissed") data.dismissed = true;
     if (reason === "completed") data.has_result = true;
     if (reason === "walkthrough") data.completed = true;
+    if (reason === "activity") data.has_activity = true;
     expect(shouldOfferStart(data)).toBe(false);
   },
 );
+
+it("still offers the start when only starter agents exist", () => {
+  // Bootstrap publishes the Architect and AgenticOS starter agents into every
+  // new organization, so "no runnable agent yet" could never pass there. The
+  // agent list is not part of the decision.
+  const data = {
+    dismissed: false,
+    completed: false,
+    has_result: false,
+    has_activity: false,
+    agents: [{ id, name: "AgenticOS" }],
+  };
+  expect(shouldOfferStart(data)).toBe(true);
+});
 
 it("accepts a setup-only starter without adding it to runnable agents", async () => {
   vi.mocked(apiClient.get).mockResolvedValue({ ...state, setup_agent: { id, name: "AgenticOS" } });

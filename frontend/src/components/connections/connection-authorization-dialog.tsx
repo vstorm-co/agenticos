@@ -73,6 +73,9 @@ export function ConnectionAuthorizationDialog({
                 ? t(`toolkits.${target.app.toolkit}`)
                 : target.app.description}
             </p>
+            {!target.app.approval_required && (
+              <p className="text-muted-foreground mt-2 text-sm">{t("consentExplainer")}</p>
+            )}
             <p className="text-muted-foreground mt-2 text-xs">{t("providerPermissions")}</p>
           </div>
           {error && (

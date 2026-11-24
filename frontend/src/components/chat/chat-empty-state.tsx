@@ -26,6 +26,7 @@ import { useAgentSelectionStore } from "@/stores";
 import type { Agent } from "@/types/agents";
 
 import { ChatWelcome, WelcomeIcon, type WelcomeSuggestion } from "./chat-welcome";
+import { AgentCapabilitiesPanel } from "./agent-capabilities-panel";
 
 /** The starter agent also offers personalized opening messages. */
 const STARTER_SLUG = "agenticos";
@@ -157,50 +158,53 @@ function Welcome({
     : defaults;
 
   return (
-    <ChatWelcome
-      limitMobileSuggestions
-      quiet
-      showGreeting={showGreeting}
-      showLead={!isStarter || showDiscoveryHints}
-      showSuggestions={showSuggestions}
-      loading={loading}
-      suggestionsSlot={suggestionsSlot}
-      mark={
-        agent ? (
-          <AgentAvatar
-            agentId={agent.id}
-            slug={agent.slug}
-            hasAvatar={agent.has_avatar}
-            colorSlot={agent.avatar_color}
-            size="lg"
-          />
-        ) : loading ? (
-          <Skeleton className="size-14 rounded-full" data-testid="welcome-agent-loading" />
-        ) : (
-          <WelcomeIcon icon={Sparkles} />
-        )
-      }
-      title={
-        hour === null
-          ? ""
-          : firstName
-            ? t(greetingKey(hour), { name: firstName })
-            : t("greetingAnonymous")
-      }
-      lead={
-        isStarter ? (
-          th("lead")
-        ) : agent ? (
-          <>
-            <span className="text-foreground font-medium">{agent.name}</span>
-            {description ? ` · ${description}` : ""}
-          </>
-        ) : (
-          t("lead")
-        )
-      }
-      suggestions={suggestions}
-      onPick={onPick}
-    />
+    <div className="w-full">
+      <ChatWelcome
+        aside={<AgentCapabilitiesPanel agent={agent} onPick={onPick} />}
+        limitMobileSuggestions
+        quiet
+        showGreeting={showGreeting}
+        showLead={!isStarter || showDiscoveryHints}
+        showSuggestions={showSuggestions}
+        loading={loading}
+        suggestionsSlot={suggestionsSlot}
+        mark={
+          agent ? (
+            <AgentAvatar
+              agentId={agent.id}
+              slug={agent.slug}
+              hasAvatar={agent.has_avatar}
+              colorSlot={agent.avatar_color}
+              size="lg"
+            />
+          ) : loading ? (
+            <Skeleton className="size-14 rounded-full" data-testid="welcome-agent-loading" />
+          ) : (
+            <WelcomeIcon icon={Sparkles} />
+          )
+        }
+        title={
+          hour === null
+            ? ""
+            : firstName
+              ? t(greetingKey(hour), { name: firstName })
+              : t("greetingAnonymous")
+        }
+        lead={
+          isStarter ? (
+            th("lead")
+          ) : agent ? (
+            <>
+              <span className="text-foreground font-medium">{agent.name}</span>
+              {description ? ` · ${description}` : ""}
+            </>
+          ) : (
+            t("lead")
+          )
+        }
+        suggestions={suggestions}
+        onPick={onPick}
+      />
+    </div>
   );
 }

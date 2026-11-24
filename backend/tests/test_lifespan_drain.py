@@ -13,6 +13,8 @@ is exercised is the real `background.drain()` wiring on the way out.
 """
 
 import asyncio
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
@@ -49,6 +51,11 @@ class _FakeAdapter:
     async def aclose(self) -> None: ...
 
 
+@asynccontextmanager
+async def _no_database_session() -> AsyncGenerator[MagicMock]:
+    yield MagicMock()
+
+
 _ADAPTER_CLASSES = {
     "telegram": "TelegramAdapter",
     "slack": "SlackAdapter",
@@ -78,6 +85,11 @@ def _stub_startup(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(main, "RedisClient", lambda *a, **k: _FakeRedis())
     monkeypatch.setattr(main, "_start_channel_polling", AsyncMock())
     monkeypatch.setattr(main, "close_db", AsyncMock())
+    # The startup preflight opens a session to check the runtime role. Unit tests own
+    # no database: the per-worker one is created lazily by the first integration test
+    # on that worker, so a lifespan test that ran first found it missing (#238).
+    monkeypatch.setattr(main, "get_db_context", _no_database_session)
+    monkeypatch.setattr("app.db.table_rls.verify_table_runtime", AsyncMock())
     # Shutdown collaborators like `close_db`: each closes a module-global httpx
     # client that another test may have opened on its own event loop, so closing
     # it here - on this test's loop - raises "Event loop is closed" under xdist.
@@ -115,3 +127,28 @@ async def test_the_lifespan_waits_for_in_flight_background_work(
 
     # Exiting the context runs shutdown, which calls background.drain().
     assert finished == [True], "shutdown cancelled work that was still in flight"
+
+
+async def test_the_lifespan_needs_no_database_that_a_unit_test_never_created(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The per-worker database is made by the first integration test on that worker.
+
+    A unit test that runs the lifespan earlier in the shuffled order found it missing
+    (#238), because startup's role preflight opened a real session.
+    """
+    import asyncpg
+
+    from app import main
+    from app.db.session import engine
+
+    _stub_startup(monkeypatch)
+    await engine.dispose(close=False)
+
+    async def refuse(*_args: Any, **_kwargs: Any) -> None:
+        raise AssertionError("the lifespan reached for a database")
+
+    monkeypatch.setattr(asyncpg, "connect", refuse)
+
+    async with main.lifespan(FastAPI()):
+        pass

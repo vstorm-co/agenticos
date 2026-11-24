@@ -1,7 +1,9 @@
 "use client";
 
 import { useTranslations } from "next-intl";
+import { ExternalLink } from "lucide-react";
 import { Badge, Button } from "@/components/ui";
+import { COMPOSIO_SETUP_URL } from "@/lib/constants";
 import type { ConnectedAppDefinition } from "@/types/app-connections";
 import { AppConnectionIcon } from "./app-connection-icon";
 
@@ -35,11 +37,27 @@ export function ConnectionAppCard({
         {app.configured && app.approval_required && (
           <p className="text-muted-foreground text-xs">{t("approvalRequired")}</p>
         )}
-        {!app.configured && (
-          <p className="text-muted-foreground text-xs">
-            {t(app.availability === "unavailable" ? "unavailableAppHint" : "setupRequiredHint")}
-          </p>
-        )}
+        {!app.configured &&
+          (app.availability === "unavailable" ? (
+            <p className="text-muted-foreground text-xs">{t("unavailableAppHint")}</p>
+          ) : (
+            <p className="text-muted-foreground text-xs">
+              {t.rich("setupRequiredHint", {
+                name: app.name,
+                link: (chunks) => (
+                  <a
+                    href={COMPOSIO_SETUP_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="hover:text-foreground inline-flex items-center gap-0.5 underline underline-offset-4"
+                  >
+                    {chunks}
+                    <ExternalLink className="h-3 w-3" aria-hidden />
+                  </a>
+                ),
+              })}
+            </p>
+          ))}
         <Button
           variant="outline"
           size="sm"

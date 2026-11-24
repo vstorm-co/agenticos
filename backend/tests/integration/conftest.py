@@ -27,6 +27,7 @@ import os
 import re
 from collections.abc import AsyncGenerator, Iterator
 from unittest.mock import AsyncMock, patch
+from uuid import uuid4
 
 import pytest
 from sqlalchemy import text
@@ -318,6 +319,32 @@ async def engine(schema_url: str) -> AsyncGenerator[AsyncEngine]:
     await _reset(engine)
     yield engine
     await engine.dispose()
+
+
+@pytest.fixture
+async def scratch_engine(database_url: str) -> AsyncGenerator[AsyncEngine]:
+    """An engine on a database made for one test, with the modelled schema, dropped afterwards.
+
+    For tests that run DDL against the whole schema - a migration's downgrade, a
+    concurrent index build. The worker's database is shared by every test the worker
+    runs, so a migration left half-applied there fails whichever test comes next. This
+    database belongs to the requesting test alone: this fixture creates and drops it,
+    and its name carries the worker's own, so no other process can address it.
+    """
+    name = f"{os.environ['POSTGRES_DB']}_s{uuid4().hex[:8]}"
+    _refuse_a_real_database(name)
+    maintenance = _database_url(_MAINTENANCE_DATABASE)
+    url = _database_url(name)
+    await _outside_a_transaction(maintenance, f'CREATE DATABASE "{name}"')
+    scratch: AsyncEngine | None = None
+    try:
+        await _create_schema(url)
+        scratch = create_async_engine(url)
+        yield scratch
+    finally:
+        if scratch is not None:
+            await scratch.dispose()
+        await _outside_a_transaction(maintenance, f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)')
 
 
 @pytest.fixture
