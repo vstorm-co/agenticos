@@ -249,6 +249,11 @@ for (const platform of ["ios", "android"] as const) {
       for (const width of [320, 390]) {
         await page.setViewportSize({ width, height: 844 });
         await page.goto(href);
+        await expect(page.getByRole("tab", { name: "Chats", exact: true })).toHaveAttribute(
+          "aria-selected",
+          "true",
+        );
+        await page.getByRole("tab", { name: "Files", exact: true }).tap();
         const add = page.getByRole("button", { name: "Upload files", exact: true });
         const more = page.getByRole("button", { name: "More", exact: true });
         await expectTouchTarget(add);
