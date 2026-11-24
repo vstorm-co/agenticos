@@ -245,3 +245,4 @@ def test_every_console_language_has_a_voice_preview_line() -> None:
     assert set(PREVIEW_LINES) == set(get_args(ConsoleLocale))
     assert VoicePreviewRequest.model_validate({"voice": _block(), "locale": "tr"}).locale == "tr"
     assert VoicePreviewRequest.model_validate({"voice": _block(), "locale": "fr"}).locale == "fr"
+    assert VoicePreviewRequest.model_validate({"voice": _block(), "locale": "pt"}).locale == "pt"
