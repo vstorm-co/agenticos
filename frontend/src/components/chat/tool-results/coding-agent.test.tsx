@@ -1,17 +1,17 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { CodingAgentResult, parseCodingReport } from "./coding-agent";
 import type { ToolCall } from "@/types";
 
+vi.mock("./workspace", () => ({
+  WorkspaceFileCard: ({ path }: { path: string }) => <p>{`Archive ${path}`}</p>,
+}));
+
 vi.mock("./coding-changes", () => ({
-  TaskChanges: ({ changeId, fallback }: { changeId: string; fallback: ReactNode }) => (
-    <>
-      <p>{`changes ${changeId}`}</p>
-      <div data-testid="fallback">{fallback}</div>
-    </>
+  TaskChanges: ({ changeId, conversationId }: { changeId: string; conversationId?: string }) => (
+    <p data-origin={conversationId}>{`changes ${changeId}`}</p>
   ),
 }));
 
@@ -41,6 +41,17 @@ const REPORT = {
   refused: ["WebFetch"],
 };
 
+it("keeps undo bound to the coding task's recorded conversation file origin", () => {
+  render(
+    <CodingAgentResult
+      toolCall={call()}
+      resultText={JSON.stringify({ ...REPORT, changes_id: "change-1" })}
+      fileSource={{ kind: "conversation", id: "original-chat" }}
+    />,
+  );
+  expect(screen.getByText("changes change-1")).toHaveAttribute("data-origin", "original-chat");
+});
+
 describe("CodingAgentResult", () => {
   it("shows the harness, what it answered and the files it changed", async () => {
     render(<CodingAgentResult toolCall={call()} resultText={JSON.stringify(REPORT)} />);
@@ -61,8 +72,7 @@ describe("CodingAgentResult", () => {
     );
 
     expect(screen.getByText("changes c-1")).toBeInTheDocument();
-    // The names are handed over only as the fallback for a diff that cannot be read.
-    expect(screen.getByTestId("fallback")).toHaveTextContent("Changed 1 file:");
+    expect(screen.queryByText("Changed 1 file:")).not.toBeInTheDocument();
   });
 
   it("lists every step, a failed one marked as failed", async () => {
@@ -103,6 +113,7 @@ describe("CodingAgentResult", () => {
   });
 
   it("shows a refusal as the sentence it is, with the task open above it", () => {
+    // Text stored before failures became reports: it still reads as one.
     render(
       <CodingAgentResult
         toolCall={call()}
@@ -111,6 +122,25 @@ describe("CodingAgentResult", () => {
     );
     expect(screen.getByText("Fix the failing test")).toBeInTheDocument();
     expect(screen.getByText(/is not installed/)).toBeInTheDocument();
+  });
+
+  it("shows a refusal that arrived as a failed report with the failure marked", async () => {
+    // A run that could not start is a report with outcome failed, not a
+    // sentence the model answers from - so the badge says Failed.
+    render(
+      <CodingAgentResult
+        toolCall={call()}
+        resultText={JSON.stringify({
+          kind: "coding_agent",
+          harness: "claude_code",
+          access: "edit",
+          outcome: "failed",
+          answer: "Claude Code is not installed in this sandbox's runtime.",
+        })}
+      />,
+    );
+    expect(screen.getByText("Failed")).toBeInTheDocument();
+    expect(await screen.findByText(/is not installed/)).toBeInTheDocument();
   });
 
   it("shows nothing but the task while it runs, and nothing at all without one", () => {
@@ -134,6 +164,15 @@ describe("parseCodingReport", () => {
     expect(parseCodingReport(JSON.stringify({ answer: "no harness" }))).toBeNull();
   });
 
+  it("reads a harness prompt's report, the same shape under its own kind", () => {
+    const harness = { ...REPORT, kind: "harness" };
+    expect(parseCodingReport(JSON.stringify(harness))).toMatchObject({
+      kind: "harness",
+      harness: "claude_code",
+      answer: "Fixed **the off-by-one**.",
+    });
+  });
+
   it("reads a report stored before its kind reached the wire", () => {
     const { kind: _kind, ...stored } = REPORT;
     expect(parseCodingReport(JSON.stringify(stored))).toMatchObject({
@@ -141,4 +180,93 @@ describe("parseCodingReport", () => {
       harness: "claude_code",
     });
   });
+});
+
+it.each([
+  [true, "Session: api · continued"],
+  [false, "Session: api · new"],
+  [undefined, "Session: api"],
+])("shows the named personal session and its continuation state", (resumed, label) => {
+  render(
+    <CodingAgentResult
+      toolCall={call()}
+      resultText={JSON.stringify({ ...REPORT, session_name: "api", session_resumed: resumed })}
+    />,
+  );
+  expect(screen.getByText(label)).toBeInTheDocument();
+});
+
+it("does not render an invalid session name from stored tool output", () => {
+  render(
+    <CodingAgentResult
+      toolCall={call()}
+      resultText={JSON.stringify({ ...REPORT, session_name: "../private" })}
+    />,
+  );
+  expect(screen.queryByText(/Session:/)).not.toBeInTheDocument();
+});
+
+it("shows the personal account, source revision and validated result archive", () => {
+  const archive = "coding-results/12345678-1234-1234-1234-123456789abc.zip";
+  render(
+    <CodingAgentResult
+      toolCall={call()}
+      resultText={JSON.stringify({
+        ...REPORT,
+        account_label: "My Claude",
+        base_revision: "abcdef1234567890",
+        result_archive: archive,
+      })}
+    />,
+  );
+  expect(screen.getByText("Personal account: My Claude")).toBeInTheDocument();
+  expect(screen.getByText("Workspace snapshot: abcdef123456")).toBeInTheDocument();
+  expect(screen.getByText(`Archive ${archive}`)).toBeInTheDocument();
+});
+
+it("does not render a result archive outside the private result directory", () => {
+  render(
+    <CodingAgentResult
+      toolCall={call()}
+      resultText={JSON.stringify({
+        ...REPORT,
+        result_archive: "../private.zip",
+      })}
+    />,
+  );
+  expect(screen.queryByText(/Archive /)).not.toBeInTheDocument();
+});
+
+it.each([
+  { harness: "unknown" },
+  { steps: [{ kind: "unknown", title: "read" }] },
+  { steps: [{ kind: "read", title: 42 }] },
+  { steps: [null] },
+  { steps: "read" },
+  { files_changed: [42] },
+  { refused: [null] },
+  { answer: { text: "answer" } },
+  { session_resumed: "yes" },
+])("rejects malformed owned report fields instead of crashing the conversation: %j", (patch) => {
+  const text = JSON.stringify({ ...REPORT, ...patch });
+  expect(parseCodingReport(text)).toBeNull();
+  render(<CodingAgentResult toolCall={call()} resultText={text} />);
+  expect(screen.getByText(text)).toBeVisible();
+});
+
+it("reads nullable backend metadata without fetching a null changes id", () => {
+  const text = JSON.stringify({
+    ...REPORT,
+    changes_id: null,
+    session_name: null,
+    session_resumed: null,
+    account_label: null,
+    base_revision: null,
+    result_archive: null,
+    session_id: null,
+  });
+  expect(parseCodingReport(text)?.changes_id).toBeUndefined();
+  render(<CodingAgentResult toolCall={call()} resultText={text} />);
+  expect(screen.getByText("Claude Code")).toBeVisible();
+  expect(screen.queryByText("changes null")).toBeNull();
 });

@@ -408,3 +408,52 @@ class TestProvenanceOnEverySurface:
             note = await service.set_active(_ctx(PERSON), row.id, active=False)
 
         assert note.agent_name == "Support"
+
+
+async def test_subject_can_correct_own_note_without_rewriting_agent_provenance() -> None:
+    from app.schemas.memory import MemoryNoteEdit
+
+    service = _service()
+    stamp = datetime(2026, 8, 1, tzinfo=UTC)
+    row = _note(written_at=stamp)
+    lookup = AsyncMock(return_value=row)
+    update = AsyncMock()
+    audit = AsyncMock()
+    with (
+        patch(f"{FACADE}.memory_repo.get_owned", lookup),
+        patch(f"{FACADE}.memory_repo.update", update),
+        patch(f"{FACADE}.record_audit", audit),
+    ):
+        result = await service.edit_note(
+            _ctx(PERSON), row.id, MemoryNoteEdit(content="Corrected", expected_updated_at=None)
+        )
+    assert lookup.await_args.kwargs == {
+        "organization_id": ORG,
+        "owner_key": person_owner_key(PERSON),
+        "file_id": row.id,
+        "for_update": True,
+    }
+    assert update.await_args.kwargs["update_data"] == {"content": "Corrected"}
+    assert result.written_at == stamp
+    assert audit.await_args.kwargs["action"] == "memory.note.corrected"
+    assert "Corrected" not in str(audit.await_args.kwargs)
+
+
+@pytest.mark.parametrize("found,stale", [(False, False), (True, True)])
+async def test_note_correction_refuses_foreign_or_stale_notes(found: bool, stale: bool) -> None:
+    from app.core.exceptions import AlreadyExistsError
+    from app.schemas.memory import MemoryNoteEdit
+
+    row = _note(updated_at=datetime(2026, 8, 1, tzinfo=UTC)) if found else None
+    update = AsyncMock()
+    with (
+        patch(f"{FACADE}.memory_repo.get_owned", AsyncMock(return_value=row)),
+        patch(f"{FACADE}.memory_repo.update", update),
+        pytest.raises(AlreadyExistsError if stale else NotFoundError),
+    ):
+        await _service().edit_note(
+            _ctx(PERSON),
+            uuid.uuid4(),
+            MemoryNoteEdit(content="Correction", expected_updated_at=None),
+        )
+    update.assert_not_awaited()

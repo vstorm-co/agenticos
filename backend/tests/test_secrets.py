@@ -15,7 +15,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from pydantic import ValidationError
 
-from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
+from app.core.exceptions import (
+    AlreadyExistsError,
+    AuthorizationError,
+    BadRequestError,
+    NotFoundError,
+)
 from app.core.permissions import AuthContext, OrgRoleName
 from app.core.secret_kinds import (
     MIN_CREDENTIAL_LENGTH,
@@ -36,6 +41,7 @@ from app.core.secret_kinds import (
     unseal_secret,
 )
 from app.core.vault import VaultScope, seal
+from app.db.models.resource_grant import Visibility
 from app.repositories import member_repo
 from app.services.organization_secret import OrganizationSecretService
 from tests.test_model_profiles import service_account_json
@@ -644,6 +650,80 @@ class TestResolvingForARun:
             assert await OrganizationSecretService(db).resolve_for_bindings(_ctx(), []) == {}
 
         assert get_many.call_args.args[1] == []
+
+
+class TestRequiringViewAccess:
+    """`require_view` is the gate for naming a secret id in a write."""
+
+    def _builder(self, org_id: uuid.UUID) -> AuthContext:
+        return AuthContext(user_id=uuid.uuid4(), organization_id=org_id, role=OrgRoleName.BUILDER)
+
+    @pytest.mark.anyio
+    async def test_a_caller_who_may_view_the_secret_gets_it_back(self):
+        ctx = _ctx()
+        row = _row(ctx, ApiKeySecret(api_key="sk-live-1234"))
+        row.visibility = Visibility.ORG
+        row.owner_user_id = ctx.user_id
+        row.usage_scope = "organization"
+
+        with patch(
+            "app.services.organization_secret.organization_secret_repo.get",
+            new=AsyncMock(return_value=row),
+        ):
+            assert await OrganizationSecretService(_db()).require_view(ctx, row.id) is row
+
+    @pytest.mark.anyio
+    async def test_a_builder_cannot_name_somebody_elses_private_secret(self):
+        """The hole: a Builder holding `connections:manage` attaching a private
+        key to a sandbox connection and having it spent for them."""
+        owner = _ctx()
+        row = _row(owner, ApiKeySecret(api_key="sk-live-1234"))
+        row.visibility = Visibility.PRIVATE
+        row.owner_user_id = owner.user_id
+        row.usage_scope = "organization"
+
+        with (
+            patch(
+                "app.services.organization_secret.organization_secret_repo.get",
+                new=AsyncMock(return_value=row),
+            ),
+            pytest.raises(AuthorizationError),
+        ):
+            await OrganizationSecretService(_db()).require_view(
+                self._builder(owner.organization_id), row.id
+            )
+
+    @pytest.mark.anyio
+    async def test_a_missing_secret_is_refused_the_same_way(self):
+        """Missing and unviewable are answered alike, so the refusal says
+        nothing about which it was."""
+        with (
+            patch(
+                "app.services.organization_secret.organization_secret_repo.get",
+                new=AsyncMock(return_value=None),
+            ),
+            pytest.raises(AuthorizationError),
+        ):
+            await OrganizationSecretService(_db()).require_view(_ctx(), uuid.uuid4())
+
+    @pytest.mark.anyio
+    async def test_a_personal_secret_belongs_to_its_owner_alone(self):
+        owner = _ctx()
+        row = _row(owner, ApiKeySecret(api_key="sk-live-1234"))
+        row.visibility = Visibility.PRIVATE
+        row.owner_user_id = owner.user_id
+        row.usage_scope = "personal"
+
+        with (
+            patch(
+                "app.services.organization_secret.organization_secret_repo.get",
+                new=AsyncMock(return_value=row),
+            ),
+            pytest.raises(AuthorizationError),
+        ):
+            await OrganizationSecretService(_db()).require_view(
+                self._builder(owner.organization_id), row.id
+            )
 
 
 class TestTheKeyThatAsksAProviderForItsCatalog:

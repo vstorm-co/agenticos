@@ -1,5 +1,6 @@
 """Each platform MCP tool is exactly one public API call, made as the caller (#2058)."""
 
+import json
 import uuid
 from typing import Any, ClassVar
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -10,7 +11,9 @@ from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
 from fastmcp.exceptions import ValidationError as MCPValidationError
 from fastmcp.server.auth import AccessToken
+from pydantic import JsonValue
 
+from app.schemas.agent import PlatformToolGroup
 from app.services.platform_mcp import _unreachable, platform_tool_catalog
 from app.services.platform_mcp._api import PlatformApi
 from app.services.platform_mcp._oauth import PlatformOAuthProvider
@@ -29,7 +32,8 @@ RUN = uuid.UUID("00000000-0000-4000-8000-0000000000c1")
 @pytest.fixture
 def api() -> MagicMock:
     stub = MagicMock()
-    stub.request = AsyncMock(return_value={"organization_id": ORG})
+    stub.credential_id.return_value = "unit-caller"
+    stub.request = AsyncMock(return_value={"organization_id": ORG, "items": [], "total": 0})
     return stub
 
 
@@ -42,6 +46,13 @@ def server(api: MagicMock) -> FastMCP:
 
 
 CALLS: list[tuple[str, dict[str, Any], tuple[Any, ...]]] = [
+    ("get_my_appearance", {}, ("GET", "/users/me/appearance", {})),
+    (
+        "set_my_appearance",
+        {"preferences": {"theme": "dark", "accent": "blue"}},
+        ("PATCH", "/users/me/appearance", {"json": {"theme": "dark", "accent": "blue"}}),
+    ),
+    ("reset_my_appearance", {}, ("DELETE", "/users/me/appearance", {})),
     ("list_watches", {}, ("GET", "/me/watches", {})),
     (
         "create_watch",
@@ -246,7 +257,7 @@ CALLS: list[tuple[str, dict[str, Any], tuple[Any, ...]]] = [
         ("PATCH", f"/agents/{AGENT}/triggers/{RUN}", {"json": {"notification_channels": None}}),
     ),
     ("whoami", {}, ("GET", "/me/permissions", {})),
-    ("list_projects", {}, ("GET", "/projects", {"params": {"limit": 50, "skip": 0}})),
+    ("list_projects", {}, ("GET", "/projects", {"params": {"limit": 10, "skip": 0}})),
     (
         "list_projects",
         {"q": "wiki", "limit": 10, "skip": 20},
@@ -292,7 +303,7 @@ CALLS: list[tuple[str, dict[str, Any], tuple[Any, ...]]] = [
             },
         ),
     ),
-    ("list_agents", {}, ("GET", "/agents", {"params": {"limit": 50, "skip": 0}})),
+    ("list_agents", {}, ("GET", "/agents", {"params": {"limit": 10, "skip": 0}})),
     ("get_agent", {"agent_id": str(AGENT)}, ("GET", f"/agents/{AGENT}", {})),
     (
         "create_agent_draft",
@@ -346,9 +357,9 @@ CALLS: list[tuple[str, dict[str, Any], tuple[Any, ...]]] = [
     (
         "list_runs",
         {"agent_id": str(AGENT)},
-        ("GET", "/runs", {"params": {"limit": 20, "skip": 0, "agent_id": str(AGENT)}}),
+        ("GET", "/runs", {"params": {"limit": 10, "skip": 0, "agent_id": str(AGENT)}}),
     ),
-    ("list_runs", {}, ("GET", "/runs", {"params": {"limit": 20, "skip": 0}})),
+    ("list_runs", {}, ("GET", "/runs", {"params": {"limit": 10, "skip": 0}})),
     ("get_run", {"run_id": str(RUN)}, ("GET", f"/runs/{RUN}", {})),
     ("get_spend", {}, ("GET", "/spend", {"params": {"days": 30}})),
     ("list_knowledge_bases", {}, ("GET", "/kb", {})),
@@ -410,7 +421,7 @@ CALLS: list[tuple[str, dict[str, Any], tuple[Any, ...]]] = [
     (
         "list_skills",
         {"skip": 50},
-        ("GET", "/skills", {"params": {"limit": 50, "skip": 50}}),
+        ("GET", "/skills", {"params": {"limit": 10, "skip": 50}}),
     ),
     ("list_capabilities", {}, ("GET", "/agents/capabilities", {})),
     (
@@ -497,7 +508,7 @@ CALLS: list[tuple[str, dict[str, Any], tuple[Any, ...]]] = [
         ("POST", f"/agents/{AGENT}/publish", {"json": {}}),
     ),
     ("list_models", {}, ("GET", "/providers/model-profiles", {})),
-    ("list_routines", {}, ("GET", "/triggers", {"params": {"limit": 50}})),
+    ("list_routines", {}, ("GET", "/triggers", {"params": {"limit": 10, "skip": 0}})),
     ("list_routines", {"agent_id": str(AGENT)}, ("GET", f"/agents/{AGENT}/triggers", {})),
     (
         "create_routine",
@@ -607,7 +618,50 @@ CALLS: list[tuple[str, dict[str, Any], tuple[Any, ...]]] = [
         (
             "GET",
             "/conversations/00000000-0000-0000-0000-000000000001/transcript",
-            {"params": {"limit": 100, "skip": 0}},
+            {"params": {"limit": 10, "skip": 0, "for_model": True}},
+        ),
+    ),
+    (
+        "test_my_connection",
+        {"connection_id": "00000000-0000-0000-0000-000000000002"},
+        ("POST", "/me/mcp-connections/00000000-0000-0000-0000-000000000002/test", {}),
+    ),
+    (
+        "list_conversations",
+        {"search": "Geopolityka", "limit": 5},
+        (
+            "GET",
+            "/conversations",
+            {"params": {"limit": 5, "skip": 0, "search": "Geopolityka", "for_model": True}},
+        ),
+    ),
+    (
+        "create_conversation",
+        {"title": "GitHub daily"},
+        ("POST", "/conversations", {"json": {"title": "GitHub daily"}}),
+    ),
+    (
+        "update_proactivity_settings",
+        {
+            "watch_min_minutes": 20,
+            "briefing_hour": 10,
+            "monthly_limit_usd": "30",
+            "briefing_enabled": True,
+            "briefing_days": [1, 3],
+        },
+        (
+            "PATCH",
+            f"/orgs/{ORG}",
+            {
+                "json": {
+                    "proactive_watch_min_minutes": 20,
+                    "proactive_enabled": True,
+                    "proactive_days": [1, 3],
+                    "proactive_hour": 10,
+                    "proactive_timing": "fixed",
+                    "proactive_limit_usd": "30",
+                }
+            },
         ),
     ),
     # Only what the person said: a field left out stays as the account has it.
@@ -683,7 +737,7 @@ CALLS.extend(
         (
             "list_virtual_table_views",
             {"table_id": str(KB)},
-            ("GET", f"/tables/{KB}/views", {"params": {"limit": 50, "skip": 0}}),
+            ("GET", f"/tables/{KB}/views", {"params": {"limit": 10, "skip": 0}}),
         ),
     ]
 )
@@ -738,7 +792,6 @@ CALLS.extend(
 
 CALLS.extend(
     [
-        ("get_skill", {"skill_id": str(KB)}, ("GET", f"/skills/{KB}", {})),
         (
             "update_skill",
             {"skill_id": str(KB), "changes": {"content": "Revised"}},
@@ -756,7 +809,7 @@ CALLS.extend(
         (
             "list_context_files",
             {"q": "glossary"},
-            ("GET", "/context", {"params": {"q": "glossary", "skip": 0, "limit": 50}}),
+            ("GET", "/context", {"params": {"q": "glossary", "skip": 0, "limit": 10}}),
         ),
         ("get_context_file", {"context_id": str(KB)}, ("GET", f"/context/{KB}", {})),
         (
@@ -792,8 +845,12 @@ CALLS.extend(
 async def test_each_tool_is_one_public_api_call(
     server: FastMCP, api: MagicMock, tool: str, arguments: dict[str, Any], call: tuple[Any, ...]
 ) -> None:
-    if tool == "list_projects":
+    if tool in ("list_projects", "list_conversations"):
         api.request.return_value = {"items": [], "total": 0}
+    if tool == "get_context_file":
+        api.request.return_value = {"id": str(KB), "content": "body"}
+    if tool == "list_embedding_models":
+        api.request.return_value = {"providers": []}
     await server.call_tool(tool, arguments)
 
     method, path, kwargs = call
@@ -845,27 +902,30 @@ async def test_routine_update_sets_delivery_and_limits(server: FastMCP, api: Mag
 @pytest.mark.parametrize(
     ("method", "path"), sorted({(call[0], call[1]) for _tool, _args, call in CALLS})
 )
-def test_every_call_reaches_a_public_route(method: str, path: str) -> None:
-    """A tool is a call to the public API, so the route has to exist and admit a key.
+def test_every_call_reaches_a_route_its_key_may_call(method: str, path: str) -> None:
+    """A tool is a call to the API, so the route has to exist and admit the tool's key:
+    a public route, or one marked for the platform's own tools.
 
     The table above checks the call a tool makes, not that anything answers it:
     `list_models` once asked for `/model-profiles`, which is mounted under
     `/providers`, and every agent-building conversation hit a 404 (#2301).
     """
+    assert _reachable(method, path), f"no public or assistant route answers {method} {path}"
+
+
+def _reachable(method: str, path: str) -> bool:
     import re
 
-    from app.api.public_api import public_operations
+    from app.api.public_api import assistant_operations, public_operations
     from app.core.config import settings
     from app.main import app
 
     full = f"{settings.API_V1_STR}{path}"
-    public = [
-        template
-        for verb, template in public_operations(app.routes)
-        if verb == method.lower() and re.fullmatch(re.sub(r"\{[^}]+\}", "[^/]+", template), full)
-    ]
-
-    assert public, f"no public route answers {method} {path}"
+    operations = public_operations(app.routes) | assistant_operations(app.routes)
+    return any(
+        verb == method.lower() and re.fullmatch(re.sub(r"\{[^}]+\}", "[^/]+", template), full)
+        for verb, template in operations
+    )
 
 
 class TestListingMyConnections:
@@ -874,6 +934,7 @@ class TestListingMyConnections:
     LISTING: ClassVar[dict[str, Any]] = {
         "items": [
             {
+                "id": str(KB),
                 "name": "stripe",
                 "catalog_key": "stripe",
                 "authorized": True,
@@ -890,8 +951,18 @@ class TestListingMyConnections:
         result = await server.call_tool("list_my_connections", {})
 
         assert result.structured_content == {
-            "items": [{"name": "stripe", "catalog_key": "stripe", "authorized": True}],
+            "items": [
+                {
+                    "id": str(KB),
+                    "name": "stripe",
+                    "catalog_key": "stripe",
+                    "authorized": True,
+                    "tool_count": 2,
+                    "allowed_tool_count": 1,
+                }
+            ],
             "total": 1,
+            "next_skip": None,
         }
 
     async def test_the_tools_come_when_asked_for(self, server: FastMCP, api: MagicMock) -> None:
@@ -899,7 +970,272 @@ class TestListingMyConnections:
 
         result = await server.call_tool("list_my_connections", {"include_tools": True})
 
-        assert result.structured_content == self.LISTING
+        assert result.structured_content == {**self.LISTING, "next_skip": None}
+
+
+class TestConnectionDiscovery:
+    @staticmethod
+    def connection(tools: list[dict[str, JsonValue]] | None) -> dict[str, JsonValue]:
+        return {
+            "id": str(KB),
+            "name": "crm",
+            "label": "Sales",
+            "last_tools": tools,
+            "allowed_tools": ["lookup"],
+            "used_by": [{"id": str(AGENT)}],
+            "last_checked_at": "2026-11-12T12:00:00Z",
+        }
+
+    @pytest.mark.parametrize(
+        "account,path", [("organization", "/mcp-connections"), ("personal", "/me/mcp-connections")]
+    )
+    async def test_discovery_does_not_repeat_large_schemas(
+        self, server: FastMCP, api: MagicMock, account: str, path: str
+    ) -> None:
+        tools = [
+            {
+                "name": f"lookup_{i}",
+                "description": "Read records",
+                "input_schema": {"description": "x" * 19000},
+            }
+            for i in range(190)
+        ]
+        item = self.connection(tools)
+        api.request.return_value = {"items": [item], "total": 1}
+        name = "list_org_connections" if account == "organization" else "list_my_connections"
+        result = (await server.call_tool(name, {})).structured_content
+        assert len(json.dumps(result)) < 1000
+        assert result["items"][0]["tool_count"] == 190
+        assert "last_tools" not in result["items"][0]
+        assert "used_by" not in result["items"][0]
+        api.request.assert_awaited_once_with("GET", path)
+
+    async def test_names_are_searchable_and_pages_have_continuations(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        api.request.return_value = {
+            "items": [self.connection(None), self.connection([])],
+            "total": 2,
+        }
+        first = (
+            await server.call_tool("list_org_connections", {"q": "SALES", "limit": 1})
+        ).structured_content
+        second = (
+            await server.call_tool("list_org_connections", {"q": "sales", "limit": 1, "skip": 1})
+        ).structured_content
+        assert first["total"] == 2 and first["next_skip"] == 1
+        assert first["items"][0]["tool_count"] is None
+        assert second["next_skip"] is None and second["items"][0]["tool_count"] == 0
+        assert (await server.call_tool("list_my_connections", {"q": "absent"})).structured_content[
+            "total"
+        ] == 0
+
+    async def test_inspects_selected_tools_without_loading_every_contract(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        selected = {
+            "name": "lookup",
+            "description": "x" * 700,
+            "read_only_hint": True,
+            "input_schema": {"type": "object", "properties": {"id": {"type": "string"}}},
+        }
+        api.request.return_value = {
+            "items": [
+                self.connection(
+                    [
+                        selected,
+                        {"name": "write", "description": "Change record", "read_only_hint": None},
+                    ]
+                )
+            ],
+            "total": 1,
+        }
+        page = (
+            await server.call_tool(
+                "list_mcp_connection_tools", {"connection_id": str(KB), "limit": 1}
+            )
+        ).structured_content
+        assert page["next_skip"] == 1 and page["tools_cached"] is True
+        assert page["items"][0]["description_truncated"] is True
+        assert "input_schema" not in page["items"][0]
+        assert page["items"][0]["allowed"] is True
+        detail = (
+            await server.call_tool(
+                "get_mcp_connection_tool", {"connection_id": str(KB), "tool_name": "lookup"}
+            )
+        ).structured_content
+        assert detail["tool"] == selected and detail["allowed"] is True
+        writes = (
+            await server.call_tool(
+                "list_mcp_connection_tools", {"connection_id": str(KB), "q": "CHANGE"}
+            )
+        ).structured_content
+        assert writes["total"] == 1 and writes["items"][0]["read_only_hint"] is None
+        assert writes["items"][0]["allowed"] is False
+
+    @pytest.mark.parametrize("tool", ["list_mcp_connection_tools", "get_mcp_connection_tool"])
+    async def test_an_inaccessible_id_is_not_treated_as_an_empty_catalog(
+        self, server: FastMCP, api: MagicMock, tool: str
+    ) -> None:
+        api.request.return_value = {"items": [], "total": 0}
+        args = {
+            "connection_id": str(KB),
+            **({"tool_name": "read"} if tool.startswith("get") else {}),
+        }
+        with pytest.raises(ToolError, match="not found"):
+            await server.call_tool(tool, args)
+
+    async def test_uncached_is_distinct_from_empty_and_unknown_schema(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        api.request.return_value = {"items": [self.connection(None)], "total": 1}
+        args = {"connection_id": str(KB), "account": "personal"}
+        page = (await server.call_tool("list_mcp_connection_tools", args)).structured_content
+        assert page["tools_cached"] is False and page["total"] == 0
+        api.request.assert_awaited_once_with("GET", "/me/mcp-connections")
+        with pytest.raises(ToolError, match="No cached"):
+            await server.call_tool("get_mcp_connection_tool", {**args, "tool_name": "read"})
+        api.request.return_value = {"items": [self.connection([])], "total": 1}
+        with pytest.raises(ToolError, match="Tool not found"):
+            await server.call_tool("get_mcp_connection_tool", {**args, "tool_name": "read"})
+
+    async def test_legacy_bulk_opt_in_cannot_reintroduce_the_context_explosion(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        api.request.return_value = {
+            "items": [self.connection([{"name": "huge", "description": "x" * 100000}])],
+            "total": 1,
+        }
+        listing = await server.call_tool("list_my_connections", {"include_tools": True})
+        assert listing.structured_content["read_tool"] == "read_platform_details"
+        contract = await server.call_tool(
+            "get_mcp_connection_tool", {"connection_id": str(KB), "tool_name": "huge"}
+        )
+        assert contract.structured_content["read_tool"] == "read_platform_details"
+
+    @pytest.mark.parametrize(
+        "tool,args",
+        [
+            ("list_org_connections", {"limit": 0}),
+            ("list_my_connections", {"skip": -1}),
+            ("list_mcp_connection_tools", {"connection_id": str(KB), "limit": 51}),
+            (
+                "get_mcp_connection_tool",
+                {"connection_id": str(KB), "tool_name": "read", "account": "other"},
+            ),
+        ],
+    )
+    async def test_invalid_discovery_inputs_never_reach_the_api(
+        self, server: FastMCP, api: MagicMock, tool: str, args: dict[str, JsonValue]
+    ) -> None:
+        with pytest.raises(MCPValidationError):
+            await server.call_tool(tool, args)
+        api.request.assert_not_awaited()
+
+
+class TestFocusedCatalogs:
+    async def test_capability_discovery_omits_contracts_but_detail_retains_them(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        capability = {
+            "id": "web",
+            "name": "Web research",
+            "description": "Search pages",
+            "config_schema": {"properties": {"depth": {"type": "integer"}}},
+            "contracts": [{"tool_id": "search", "parameters": {"type": "object"}}],
+        }
+        api.request.return_value = {
+            "items": [capability, {**capability, "id": "other"}],
+            "total": 2,
+        }
+        page = (
+            await server.call_tool("list_capabilities", {"q": "WEB", "limit": 1})
+        ).structured_content
+        assert page == {
+            "items": [{"id": "web", "name": "Web research", "description": "Search pages"}],
+            "total": 2,
+            "next_skip": 1,
+        }
+        detail = (
+            await server.call_tool("get_capability", {"capability_id": "web"})
+        ).structured_content
+        assert detail == capability
+        assert (await server.call_tool("list_capabilities", {"q": "absent"})).structured_content[
+            "items"
+        ] == []
+        with pytest.raises(ToolError, match="Capability not found"):
+            await server.call_tool("get_capability", {"capability_id": "absent"})
+
+    async def test_skill_search_is_forwarded_and_body_excerpts_are_not_repeated(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        api.request.return_value = {
+            "items": [
+                {
+                    "id": str(KB),
+                    "name": "audit",
+                    "excerpt": "large body",
+                    "used_by": [{"id": str(AGENT)}],
+                    "drafted_by": [],
+                }
+            ],
+            "total": 2,
+        }
+        result = (
+            await server.call_tool("list_skills", {"q": "audit", "limit": 1})
+        ).structured_content
+        api.request.assert_awaited_once_with(
+            "GET", "/skills", params={"q": "audit", "limit": 1, "skip": 0}
+        )
+        assert result == {
+            "items": [{"id": str(KB), "name": "audit", "used_by_count": 1, "drafted_by_count": 0}],
+            "total": 2,
+            "next_skip": 1,
+        }
+        used = (
+            await server.call_tool("list_skills", {"include_usage": True, "skip": 1})
+        ).structured_content
+        assert used["items"][0]["used_by"] == [{"id": str(AGENT)}]
+        assert used["next_skip"] is None
+        api.request.return_value = {"items": [{"id": str(KB)}], "total": 1}
+        unknown = (await server.call_tool("list_skills", {})).structured_content
+        assert unknown["items"][0]["used_by_count"] is None
+
+    async def test_run_diagnostics_can_target_the_failing_surface_version_and_time(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        await server.call_tool(
+            "list_runs",
+            {
+                "agent_id": str(AGENT),
+                "status": "failed,budget_exceeded",
+                "surface": "mattermost",
+                "agent_version_id": str(KB),
+                "started_from": "2026-11-12T00:00:00Z",
+                "started_to": "2026-11-13T00:00:00Z",
+            },
+        )
+        api.request.assert_awaited_once_with(
+            "GET",
+            "/runs",
+            params={
+                "limit": 10,
+                "skip": 0,
+                "agent_id": str(AGENT),
+                "status": "failed,budget_exceeded",
+                "surface": "mattermost",
+                "agent_version_id": str(KB),
+                "started_from": "2026-11-12T00:00:00+00:00",
+                "started_to": "2026-11-13T00:00:00+00:00",
+            },
+        )
+
+    async def test_run_time_filters_require_a_timezone(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        with pytest.raises(MCPValidationError):
+            await server.call_tool("list_runs", {"started_from": "2026-11-12T00:00:00"})
+        api.request.assert_not_awaited()
 
 
 class TestUndoingADraft:
@@ -935,7 +1271,10 @@ class TestEditingADraft:
             "capabilities": [{"id": "ask_user"}, {"id": "clock", "config": {"timezone": "UTC"}}],
             "skill_ids": [],
         }
-        api.request.side_effect = [{"id": str(AGENT), "draft_spec": draft}, {"id": str(AGENT)}]
+        api.request.side_effect = [
+            {"id": str(AGENT), "draft_spec": draft, "draft_revision": "0" * 64},
+            {"id": str(AGENT)},
+        ]
 
         await server.call_tool(
             "update_agent_draft",
@@ -957,6 +1296,7 @@ class TestEditingADraft:
         read, write = api.request.await_args_list
         assert read.args == ("GET", f"/agents/{AGENT}")
         assert write.args == ("PUT", f"/agents/{AGENT}/draft")
+        assert write.kwargs["json"]["expected_revision"] == "0" * 64
         assert write.kwargs["json"]["spec"] == {
             "name": "Renamed Bot",
             "instructions": "New",
@@ -970,11 +1310,20 @@ class TestEditingADraft:
             "starters": ["How do refunds work?"],
         }
 
+    async def test_a_missing_revision_cannot_send_an_unconditional_write(
+        self, api: MagicMock
+    ) -> None:
+        api.request.return_value = {"draft_spec": {"name": "Bot", "capabilities": []}}
+        tool = {tool.name: tool for tool in platform_tools(api)}["update_agent_draft"]
+        with pytest.raises(TypeError, match="no draft revision"):
+            await tool.function(agent_id=AGENT)
+        assert api.request.await_count == 1
+
     async def test_a_draft_left_alone_is_written_back_as_it_was(
         self, server: FastMCP, api: MagicMock
     ) -> None:
         draft = {"name": "Bot", "instructions": "Old", "capabilities": [{"id": "ask_user"}]}
-        api.request.side_effect = [{"draft_spec": draft}, {}]
+        api.request.side_effect = [{"draft_spec": draft, "draft_revision": "0" * 64}, {}]
 
         await server.call_tool("update_agent_draft", {"agent_id": str(AGENT)})
 
@@ -1008,13 +1357,37 @@ class TestRemovingARoutine:
         assert await tool.function(agent_id=AGENT, routine_id=RUN) == refused
 
 
+class TestHowTheBuilderGroupsTheTools:
+    def test_each_table_write_is_grouped_with_the_tables(self) -> None:
+        tools = {tool.name: tool for tool in platform_tool_catalog()}
+
+        for name in (
+            "add_virtual_table_record",
+            "update_virtual_table_record",
+            "upsert_virtual_table_record",
+            "delete_virtual_table_record",
+            "query_virtual_table",
+        ):
+            assert tools[name].group is PlatformToolGroup.TABLES
+        assert tools["run_workflow"].group is PlatformToolGroup.WORKFLOWS
+        assert tools["publish_agent"].group is PlatformToolGroup.AGENTS
+        assert tools["search_knowledge"].group is PlatformToolGroup.KNOWLEDGE
+
+    def test_every_group_holds_a_tool(self) -> None:
+        """A group with nothing in it would be an empty heading in the Builder."""
+        assert {tool.group for tool in platform_tool_catalog()} == set(PlatformToolGroup)
+
+
 class TestWhatNeverWaitsForApproval:
     @pytest.mark.security
-    def test_only_console_language_bypasses_write_approval(self) -> None:
+    def test_only_reversible_console_preferences_bypass_write_approval(self) -> None:
         """Persistent automation requires the configured write confirmation."""
         tools = {tool.name: tool for tool in platform_tool_catalog()}
 
-        assert {name for name, tool in tools.items() if tool.ungated} == {"set_my_language"}
+        assert {name for name, tool in tools.items() if tool.ungated} == {
+            "set_my_language",
+            "set_my_console_experience",
+        }
         for name in ("create_routine", "update_routine", "create_watch", "update_watch"):
             assert tools[name].writes and not tools[name].ungated
         assert tools["set_my_language"].writes
@@ -1032,6 +1405,7 @@ class TestWhatNeverWaitsForApproval:
         assert not tools["get_project"].writes
         assert tools["create_skill"].writes and not tools["create_skill"].ungated
         assert tools["publish_agent"].writes and not tools["publish_agent"].ungated
+        assert tools["test_my_connection"].writes and not tools["test_my_connection"].ungated
 
     @pytest.mark.security
     async def test_reads_run_under_writes_but_all_still_requires_approval(self) -> None:
@@ -1059,6 +1433,15 @@ class TestWhatNeverWaitsForApproval:
         from app.services.platform_mcp._tools import UNGATED
 
         assert PLATFORM_UNGATED_TOOLS == UNGATED
+
+    def test_the_agent_layer_names_the_same_tools_that_always_ask(self) -> None:
+        from app.agents.mcp import PLATFORM_ALWAYS_ASK_TOOLS
+        from app.services.platform_mcp._tools import ALWAYS_ASKS
+
+        assert PLATFORM_ALWAYS_ASK_TOOLS == ALWAYS_ASKS
+        catalog = {tool.name: tool for tool in platform_tool_catalog()}
+        assert all(catalog[name].writes and catalog[name].always_asks for name in ALWAYS_ASKS)
+        assert not catalog["add_virtual_table_record"].always_asks
 
 
 def _token() -> AccessToken:
@@ -1101,6 +1484,29 @@ class TestTheInProcessCall:
         with pytest.raises(ToolError, match="Insufficient permissions"):
             await _api(handler).request("POST", "/agents", json={})
 
+    @pytest.mark.parametrize(("status", "code"), [(404, "NOT_FOUND"), (422, "VALIDATION_ERROR")])
+    async def test_a_missing_or_malformed_target_is_never_read_as_nothing_found(
+        self, status: int, code: str
+    ) -> None:
+        """Given an agent id it had made up, the Architect reported "no sessions" as fact."""
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(
+                status, json={"error": {"code": code, "message": "Agent not found"}}
+            )
+
+        with pytest.raises(ToolError) as refused:
+            await _api(handler).request("GET", "/agents/x/improvements")
+
+        error = json.loads(str(refused.value))["error"]
+        assert (error["status"], error["code"], error["message"]) == (
+            status,
+            code,
+            "Agent not found",
+        )
+        assert "it is not an empty result, so never report it as none" in error["hint"]
+        assert "matching listing tool" in error["hint"]
+
     async def test_an_unexpected_error_body_still_says_something(self) -> None:
         def handler(request: httpx.Request) -> httpx.Response:
             return httpx.Response(502, json=["not", "an", "envelope"])
@@ -1114,6 +1520,9 @@ class TestTheInProcessCall:
         assert answer is None
 
     async def test_an_unauthenticated_call_never_reaches_the_api(self) -> None:
+        assert (
+            _api(lambda request: httpx.Response(200, json={}), token=None).credential_id() is None
+        )
         with pytest.raises(ToolError, match="authenticated"):
             await _api(lambda request: httpx.Response(200, json={}), token=None).request(
                 "GET", "/agents"
@@ -1152,6 +1561,7 @@ class TestChainedCalls:
         there is the answer, not a key to index."""
         refusal = {"refused": "401 AUTHENTICATION_ERROR: gone"}
         api = MagicMock()
+        api.credential_id.return_value = "unit-caller"
         api.request = AsyncMock(return_value=refusal)
         tools = {tool.name: tool for tool in platform_tools(api)}
 
@@ -1192,6 +1602,11 @@ class TestTheCatalogTheBuilderLists:
         assert listed.total == len(platform_tool_catalog()) == len(by_name)
         assert by_name["run_agent"].writes is True
         assert by_name["get_run"].writes is False
+        assert by_name["create_task"].default_approval_free is True
+        assert by_name["create_task"].conditional_approval is True
+        assert by_name["create_task"].ungated is False
+        assert by_name["update_virtual_table_schema"].always_asks is True
+        assert by_name["create_agent_draft"].conditional_approval is False
 
     async def test_the_api_behind_the_catalog_answers_nothing(self) -> None:
         with pytest.raises(RuntimeError, match="nothing is called"):
@@ -1259,7 +1674,7 @@ class TestConfiguredDrafts:
             ],
             "mcp_servers": [],
         }
-        api.request.side_effect = [{"draft_spec": draft}, {}]
+        api.request.side_effect = [{"draft_spec": draft, "draft_revision": "0" * 64}, {}]
         await server.call_tool(
             "update_agent_draft",
             {
@@ -1297,11 +1712,12 @@ class TestConfiguredDrafts:
     ) -> None:
         api.request.side_effect = [
             {
+                "draft_revision": "0" * 64,
                 "draft_spec": {
                     "capabilities": [
                         {"id": "media", "secret_id": str(KB), "approval": "required"},
                     ]
-                }
+                },
             },
             {},
         ]
@@ -1320,12 +1736,13 @@ class TestConfiguredDrafts:
     ) -> None:
         api.request.side_effect = [
             {
+                "draft_revision": "0" * 64,
                 "draft_spec": {
                     "capabilities": [
                         {"id": "sandbox", "config": {"backend": "service"}},
                     ],
                     "mcp_servers": [{"account": "personal", "catalog_key": "github"}],
-                }
+                },
             },
             {},
         ]
@@ -1584,14 +2001,24 @@ async def test_an_unsupported_console_language_is_refused_before_any_api_call(
 
 async def test_mcp_can_find_and_settle_the_callers_working_case(api):
     tools = {tool.name: tool.function for tool in platform_tools(api)}
-    await tools["list_inbox_cases"](conversation_id=RUN)
+    api.request.return_value = {"items": []}
+    scoped = await tools["list_inbox_cases"](conversation_id=RUN)
+    assert scoped["whole_inbox"] is False
     api.request.assert_awaited_with(
-        "GET", "/outcomes", params={"include_source": "true", "conversation_id": str(RUN)}
+        "GET",
+        "/outcomes",
+        params={"include_source": "true", "conversation_id": str(RUN), "limit": 10, "skip": 0},
     )
     await tools["settle_inbox_case"](outcome_id=RUN, action="resolve")
     api.request.assert_awaited_with(
         "POST", f"/outcomes/{RUN}/settle", json={"action": "resolve", "via": "chat"}
     )
+
+
+async def test_mcp_reads_a_selected_inbox_card_without_settling_it(api):
+    tools = {tool.name: tool.function for tool in platform_tools(api)}
+    await tools["list_inbox_items"](item_id=RUN)
+    api.request.assert_awaited_once_with("GET", "/outcomes/inbox", params={"item_id": str(RUN)})
 
 
 async def test_mcp_routine_result_policy_is_preserved_on_create_and_update(api):
@@ -1628,7 +2055,7 @@ async def test_task_receipts_and_unfiltered_context_use_the_current_api(server, 
     await server.call_tool("get_task", {"task_id": str(RUN)})
     assert api.request.await_args.args == ("GET", f"/tasks/{RUN}")
     await server.call_tool("list_context_files", {})
-    assert api.request.await_args.kwargs == {"params": {"limit": 50, "skip": 0}}
+    assert api.request.await_args.kwargs == {"params": {"limit": 10, "skip": 0}}
     await server.call_tool(
         "create_routine", {"agent_id": str(AGENT), "prompt": "Check", "answer_to": "primary"}
     )
@@ -1647,4 +2074,385 @@ async def test_routine_notification_override_and_inheritance_are_mutually_exclus
                 "notification_channels": [],
             },
         )
+    api.request.assert_not_awaited()
+
+
+async def test_proactivity_settings_need_something_to_change(server: FastMCP, api: MagicMock):
+    with pytest.raises(Exception, match="at least one setting"):
+        await server.call_tool("update_proactivity_settings", {})
+    api.request.assert_not_called()
+
+
+async def test_proactivity_settings_need_an_organization(api: MagicMock):
+    api.request.return_value = {}
+    tools = {tool.name: tool.function for tool in platform_tools(api)}
+    with pytest.raises(ValueError, match="names no organization"):
+        await tools["update_proactivity_settings"](watches_enabled=True)
+
+
+async def test_a_conversation_listing_carries_only_ids_titles_and_dates(api: MagicMock):
+    api.request.return_value = {
+        "total": 1,
+        "next_skip": None,
+        "items": [{"id": "c1", "title": "Plan", "created_at": "t", "updated_at": "u", "x": 1}],
+    }
+    tools = {tool.name: tool.function for tool in platform_tools(api)}
+    assert await tools["list_conversations"]() == {
+        "total": 1,
+        "next_skip": None,
+        "items": [{"id": "c1", "title": "Plan", "created_at": "t", "updated_at": "u"}],
+    }
+
+
+async def test_a_connection_check_names_its_tools(api: MagicMock):
+    api.request.return_value = {"ok": True, "error": None, "tools": [{"name": "search"}]}
+    tools = {tool.name: tool.function for tool in platform_tools(api)}
+    assert await tools["test_my_connection"](connection_id=uuid.uuid4()) == {
+        "ok": True,
+        "error": None,
+        "tools": ["search"],
+    }
+
+
+def test_proactivity_tool_explains_both_required_scopes(api: MagicMock) -> None:
+    tool = next(tool for tool in platform_tools(api) if tool.name == "update_proactivity_settings")
+    assert tool.function.__doc__ is not None
+    assert "`org:settings` and `budgets:manage`" in tool.function.__doc__
+
+
+class TestRunInspection:
+    @staticmethod
+    def recording(*, result: JsonValue = "x" * 100000) -> dict[str, JsonValue]:
+        return {
+            "run_id": str(RUN),
+            "conversation_id": str(AGENT),
+            "total": 1,
+            "items": [
+                {
+                    "id": str(KB),
+                    "role": "assistant",
+                    "content": "Report: " + "a" * 10000,
+                    "thinking": "Do not repeat reasoning in the inspection summary",
+                    "tool_calls": [
+                        {
+                            "tool_call_id": "call-1",
+                            "tool_name": "crm_search",
+                            "status": "completed",
+                            "args": {"q": "Łódź"},
+                            "result": result,
+                            "duration_ms": 20,
+                        }
+                    ],
+                }
+            ],
+        }
+
+    async def test_run_summary_does_not_load_every_tool_payload_into_the_model(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        api.request.return_value = self.recording()
+        page = (
+            await server.call_tool("read_run_transcript", {"run_id": str(RUN)})
+        ).structured_content
+        assert len(json.dumps(page)) < 3000
+        assert page["items"][0]["next_offset"] == 2000
+        assert page["items"][0]["message_index"] == 0
+        assert page["next_skip"] is None
+        call = page["items"][0]["tool_calls"][0]
+        assert call == {
+            "tool_call_id": "call-1",
+            "tool_name": "crm_search",
+            "status": "completed",
+            "duration_ms": 20,
+        }
+        assert "thinking" not in page["items"][0]
+        api.request.assert_awaited_once_with(
+            "GET",
+            f"/runs/{RUN}/transcript",
+            params={
+                "limit": 10,
+                "skip": 0,
+                "scope": "run",
+                "for_model": True,
+            },
+        )
+
+    async def test_individual_payload_windows_retain_unicode_and_real_arguments(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        api.request.return_value = self.recording(result="A😀BC")
+        args = {
+            "run_id": str(RUN),
+            "message_index": 0,
+            "message_id": str(KB),
+            "tool_call_id": "call-1",
+        }
+        first = (
+            await server.call_tool("read_run_tool_call", {**args, "chars": 2})
+        ).structured_content
+        second = (
+            await server.call_tool(
+                "read_run_tool_call", {**args, "offset": first["next_offset"], "chars": 2}
+            )
+        ).structured_content
+        assert first["content"] + second["content"] == "A😀BC"
+        assert second["next_offset"] is None and second["total_chars"] == 4
+        recorded_args = (
+            await server.call_tool("read_run_tool_call", {**args, "field": "args"})
+        ).structured_content
+        assert json.loads(recorded_args["content"]) == {"q": "Łódź"}
+        api.request.assert_awaited_with(
+            "GET",
+            f"/runs/{RUN}/transcript",
+            params={
+                "limit": 1,
+                "skip": 0,
+                "scope": "run",
+                "for_model": True,
+            },
+        )
+        api.request.return_value = self.recording(result=None)
+        unavailable = (await server.call_tool("read_run_tool_call", args)).structured_content
+        assert unavailable["available"] is False and unavailable["content"] is None
+
+    @pytest.mark.parametrize(
+        "case", ["empty", "changed", "missing-call", "invalid-result", "invalid-content"]
+    )
+    async def test_missing_or_changed_records_are_explicit_errors(
+        self, server: FastMCP, api: MagicMock, case: str
+    ) -> None:
+        recording = self.recording()
+        items = recording["items"]
+        assert isinstance(items, list) and isinstance(items[0], dict)
+        item = items[0]
+        if case == "empty":
+            recording["items"] = []
+        elif case == "changed":
+            item["id"] = str(AGENT)
+        elif case == "missing-call":
+            item["tool_calls"] = []
+        elif case == "invalid-content":
+            item["content"] = None
+        else:
+            calls = item["tool_calls"]
+            assert isinstance(calls, list) and isinstance(calls[0], dict)
+            calls[0]["result"] = True
+        api.request.return_value = recording
+        with pytest.raises(ToolError):
+            if case == "invalid-content":
+                await server.call_tool("read_run_transcript", {"run_id": str(RUN)})
+            else:
+                await server.call_tool(
+                    "read_run_tool_call",
+                    {
+                        "run_id": str(RUN),
+                        "message_index": 0,
+                        "message_id": str(KB),
+                        "tool_call_id": "call-1",
+                    },
+                )
+
+    async def test_message_and_tool_pages_have_explicit_continuations(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        calls: list[JsonValue] = [
+            {"tool_call_id": str(i), "tool_name": "lookup", "result": "secret"} for i in range(21)
+        ]
+        api.request.return_value = {
+            "total": 3,
+            "items": [{"id": str(KB), "role": "assistant", "content": "Done", "tool_calls": calls}],
+        }
+        args = {"run_id": str(RUN), "limit": 1, "skip": 1}
+        page = (await server.call_tool("read_run_transcript", args)).structured_content
+        assert page["next_skip"] == 2 and page["items"][0]["next_tool_skip"] == 20
+        assert len(page["items"][0]["tool_calls"]) == 20
+        tail = (
+            await server.call_tool("read_run_transcript", {**args, "tool_skip": 20})
+        ).structured_content
+        assert tail["items"][0]["next_tool_skip"] is None
+        assert len(tail["items"][0]["tool_calls"]) == 1
+
+    @pytest.mark.security
+    @pytest.mark.parametrize(
+        "tool,args",
+        [
+            ("list_org_connections", {}),
+            ("get_capability", {"capability_id": "clock"}),
+            ("read_run_transcript", {"run_id": str(RUN)}),
+            (
+                "read_run_tool_call",
+                {
+                    "run_id": str(RUN),
+                    "message_index": 0,
+                    "message_id": str(KB),
+                    "tool_call_id": "call-1",
+                },
+            ),
+        ],
+    )
+    async def test_api_authorization_refusals_are_never_replaced_with_empty_data(
+        self, server: FastMCP, api: MagicMock, tool: str, args: dict[str, JsonValue]
+    ) -> None:
+        api.request.side_effect = ToolError("Caller lacks the required permission")
+        with pytest.raises(ToolError, match="required permission"):
+            await server.call_tool(tool, args)
+
+
+async def test_personal_transcript_reads_use_windows_without_changing_ownership(
+    server: FastMCP, api: MagicMock
+) -> None:
+    api.request.return_value = TestRunInspection.recording(result="abcdef")
+    page = (
+        await server.call_tool("read_conversation", {"conversation_id": str(AGENT)})
+    ).structured_content
+    assert len(json.dumps(page)) < 3000
+    assert "result" not in page["items"][0]["tool_calls"][0]
+    api.request.assert_awaited_with(
+        "GET",
+        f"/conversations/{AGENT}/transcript",
+        params={
+            "limit": 10,
+            "skip": 0,
+            "for_model": True,
+        },
+    )
+    selected = (
+        await server.call_tool(
+            "read_conversation_tool_call",
+            {
+                "conversation_id": str(AGENT),
+                "message_index": 0,
+                "message_id": str(KB),
+                "tool_call_id": "call-1",
+                "offset": 2,
+                "chars": 2,
+            },
+        )
+    ).structured_content
+    assert selected["content"] == "cd" and selected["next_offset"] == 4
+    assert selected["conversation_id"] == str(AGENT)
+    api.request.assert_awaited_with(
+        "GET",
+        f"/conversations/{AGENT}/transcript",
+        params={
+            "limit": 1,
+            "skip": 0,
+            "for_model": True,
+        },
+    )
+
+
+class TestAppPublicLink:
+    @pytest.mark.parametrize("existing", [False, True])
+    async def test_public_link_reuses_existing_settings_without_rotating(self, api, existing):
+        state = {
+            "public_url": "https://example.com/shared/token",
+            "public_link": {"password_protected": True, "expires_at": "2026-12-01T00:00:00Z"},
+            "public_data": {"state": "pending"},
+        }
+        api.request.side_effect = [state] if existing else [{**state, "public_url": None}, state]
+        tool = next(t for t in platform_tools(api) if t.name == "create_app_public_link")
+        result = await tool.function(artifact_id=AGENT, confirm_public=True)
+        assert tool.writes and not tool.ungated
+        assert result["url"] == state["public_url"]
+        assert result["settings"] == state["public_link"]
+        assert result["public_data"] == {"state": "pending"}
+        assert result["created"] is not existing
+        assert api.request.await_count == (1 if existing else 2)
+        if not existing:
+            api.request.assert_awaited_with("PUT", f"/artifacts/{AGENT}/public-link")
+
+    async def test_refused_public_link_is_not_claimed_successful(self, api):
+        api.request.side_effect = ToolError("No edit access")
+        tool = next(t for t in platform_tools(api) if t.name == "create_app_public_link")
+        with pytest.raises(ToolError, match="No edit access"):
+            await tool.function(artifact_id=AGENT, confirm_public=True)
+        assert api.request.await_count == 1
+
+    async def test_a_successful_write_without_a_url_is_not_a_published_link(self, api):
+        api.request.side_effect = [
+            {"public_url": None, "public_link": {}},
+            {"public_url": None, "public_link": {}},
+        ]
+        tool = next(t for t in platform_tools(api) if t.name == "create_app_public_link")
+        with pytest.raises(ToolError, match="did not confirm a public URL"):
+            await tool.function(artifact_id=AGENT, confirm_public=True)
+        assert api.request.await_count == 2
+
+    @pytest.mark.security
+    async def test_public_access_needs_explicit_confirmation_before_any_request(self, api):
+        tool = next(t for t in platform_tools(api) if t.name == "create_app_public_link")
+        with pytest.raises(ToolError, match="Explicit confirmation"):
+            await tool.function(artifact_id=AGENT, confirm_public=False)
+        api.request.assert_not_awaited()
+
+
+@pytest.mark.anyio
+@pytest.mark.security
+@pytest.mark.parametrize(
+    "update",
+    [
+        {"preferences": {"inbox": False}},
+        {"preferences": {"starters": None}},
+        {"preferences": None},
+        {"reminders": {"snooze_days": 7}},
+        {"reminders": {"enabled": None}},
+        {"reminders": None},
+    ],
+)
+async def test_console_experience_mcp_preserves_omission_and_explicit_inheritance(
+    api: MagicMock, server: FastMCP, update: dict[str, object]
+) -> None:
+    response = {
+        "availability": {},
+        "organization_defaults": {},
+        "preferences": {},
+        "effective": {},
+        "reminders": {"organization_defaults": {}, "preferences": {}, "effective": {}},
+    }
+    api.request.return_value = response
+    await server.call_tool("set_my_console_experience", {"update": update})
+    api.request.assert_awaited_once_with("PATCH", "/users/me/console-experience", json=update)
+
+
+@pytest.mark.anyio
+async def test_console_experience_mcp_reads_effective_personal_presentation(
+    api: MagicMock, server: FastMCP
+) -> None:
+    api.request.return_value = {
+        "availability": {"inbox": False},
+        "organization_defaults": {"inbox": True},
+        "preferences": {"inbox": True},
+        "effective": {"inbox": False},
+        "reminders": {
+            "availability": False,
+            "organization_defaults": {},
+            "preferences": {"snooze_days": 3},
+            "effective": {"enabled": False, "snooze_days": 3},
+        },
+    }
+    result = await server.call_tool("get_my_console_experience", {})
+    api.request.assert_awaited_once_with("GET", "/users/me/console-experience")
+    assert result.structured_content["effective"]["inbox"] is False
+    assert result.structured_content["reminders"]["effective"]["snooze_days"] == 3
+
+
+@pytest.mark.anyio
+@pytest.mark.security
+@pytest.mark.parametrize(
+    "update",
+    [
+        {"preferences": {"inbox": "false"}},
+        {"reminders": {"snooze_days": True}},
+        {"reminders": {"snooze_days": 2}},
+        {"organization_defaults": {}},
+        {"user_id": str(AGENT)},
+        {"theme": "dark"},
+    ],
+)
+async def test_console_experience_mcp_refuses_other_subjects_policy_fields_and_invalid_values(
+    api: MagicMock, server: FastMCP, update: dict[str, object]
+) -> None:
+    with pytest.raises(MCPValidationError):
+        await server.call_tool("set_my_console_experience", {"update": update})
     api.request.assert_not_awaited()

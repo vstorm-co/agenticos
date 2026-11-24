@@ -1,0 +1,31 @@
+{
+  "pr": 61,
+  "head_checked": "51195ee231f74cafd970d8aacb0224cb57c5c798 (brief named 51195ee2f68163f7bd8e2390824d8e4, which does not exist on GitHub; the live head sharing its first 8 characters was used)",
+  "before": "origin/t3 4ef7c6ea (base; the PR branch has no MFA step on the callback)",
+  "after": "feat/oidc-mfa-post-verify at 51195ee231f7 (PR head, no code changes)",
+  "method": "Playwright 1.63 Chromium in devbox against the Next.js dev server on port 3461; every /api/** request stubbed with synthetic data; no live sign-in, no secrets",
+  "viewports": [1440, 390],
+  "after_shots": ["oidc-mfa-challenge", "oidc-mfa-invalid", "oidc-desktop-handoff"],
+  "before_shots": {"oidc-callback": "callback page after the provider code is exchanged, before any further navigation"},
+  "recording": "after/oidc-mfa-flow.webm (1440 run): challenge, wrong code, valid code, desktop handoff",
+  "not_captured_before": [
+    "No before recording: base has no MFA step to record",
+    "No before screenshot of the chat landing: the stubbed API does not finish base's post-login load, so the callback page stays on 'Completing sign-in...'"
+  ],
+  "unavailable": [
+    "The real desktop deep link cannot open in headless Chromium: the handoff screen is a synthetic stand-in served by route at http://desktop-verifier.localtest/",
+    "No live sign-in and no real identity provider: the callback fragment mfa_token and the OIDC code are synthetic"
+  ],
+  "api_stubs": {
+    "/api/auth/mfa/verify": "after only: 401 for code 123456, 200 with desktop_callback_url for code 654321",
+    "/api/auth/oauth-callback": "before only: 200 with synthetic tokens and no second factor",
+    "/api/auth/me, /api/auth/refresh": "401",
+    "other /api/**": "200 {}"
+  },
+  "data": "synthetic user reviewer@example.com, synthetic codes 123456 (wrong) and 654321 (valid), synthetic tokens and nonce",
+  "results": {
+    "wrong_code": {"verify_status": 401, "input_still_shown": true},
+    "valid_code": {"verify_status": 200, "final_url": "desktop-verifier stand-in callback"},
+    "page_errors": 0
+  }
+}

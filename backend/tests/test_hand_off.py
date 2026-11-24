@@ -56,7 +56,7 @@ def _twin(respond) -> SimpleNamespace:
 
 def _call(ask_questions=None, generated_files=None) -> SimpleNamespace:
     return SimpleNamespace(
-        deps=SimpleNamespace(ask_questions=ask_questions, generated_files=generated_files or set())
+        deps=AgentDeps(ask_questions=ask_questions, generated_files=generated_files or set())
     )
 
 

@@ -52,10 +52,13 @@ from sqlalchemy.orm.attributes import set_committed_value
 from app.agents import mcp_oauth
 from app.agents.connect_on_use import OwnAccountGap, ServiceOutcome
 from app.agents.mcp import (
+    AuthorityChecked,
+    LeftOutOnClash,
     McpServerSpec,
     McpSourceIdentity,
     McpToolInfo,
     ToolOrigins,
+    fitted_tool_name,
     platform_spec,
     prefix_collisions,
     probe_error_message,
@@ -109,6 +112,10 @@ from app.schemas.resource_grant import AudienceChoice
 from app.schemas.resource_usage import AgentUsage
 from app.services import portal_catalog, portals
 from app.services.access import MCP_CONNECTION, accessible_ids, decider_context, resolve_access
+from app.services.app_connections._managed import (
+    is_managed_auth_type,
+    is_managed_catalog_key,
+)
 from app.services.impersonation import refuse_binding_while_impersonating
 from app.services.mcp_catalog import get_entry
 from app.services.notifications import NotificationService
@@ -926,7 +933,7 @@ async def _record_run_reachability(observed: list[tuple[UUID, bool]]) -> None:
 async def resolve_auth_headers(connection: McpConnection) -> dict[str, str] | None:
     """Auth headers to reach *connection*, or None if it can't be used right now
     (OAuth not authorized / expired, or an undecryptable bearer token)."""
-    if connection.auth_type == "composio":
+    if is_managed_auth_type(connection.auth_type):
         # A managed account is resolved through an account-pinned session, never
         # by turning its metadata-only URL into an ordinary bearer connection.
         return None
@@ -987,8 +994,8 @@ def account_source_organization(account: McpConnection) -> UUID | None:
 
 def _refuse_managed_app(catalog_key: str | None) -> None:
     entry = get_entry(catalog_key) if catalog_key is not None else None
-    if (catalog_key is not None and catalog_key.lower().startswith("composio-")) or (
-        entry is not None and entry.auth == "composio"
+    if is_managed_catalog_key(catalog_key) or (
+        entry is not None and is_managed_auth_type(entry.auth)
     ):
         raise BadRequestError(message="Connect this personal app from Connections → Apps")
 
@@ -1105,7 +1112,7 @@ class McpConnectionService:
             data, over=McpConnection, exclude={"clear_allowed_tools"}
         )
 
-        if db_connection.auth_type == "composio":
+        if is_managed_auth_type(db_connection.auth_type):
             # The managed lifecycle owns the endpoint and credential. These
             # familiar controls still apply, but a generic MCP patch cannot
             # turn a curated app into a token server or widen its action ceiling.
@@ -1224,7 +1231,7 @@ class McpConnectionService:
 
     async def delete(self, *, user_id: UUID, connection_id: UUID) -> None:
         db_connection = await self._get_owned(user_id=user_id, connection_id=connection_id)
-        if db_connection.auth_type == "composio":
+        if is_managed_auth_type(db_connection.auth_type):
             raise BadRequestError(message="Disconnect this account from Apps")
         await mcp_connection_repo.delete(self.db, db_connection=db_connection)
 
@@ -1233,7 +1240,7 @@ class McpConnectionService:
     ) -> tuple[McpConnection, list[McpToolInfo], str | None]:
         """Probe the server, persist the result, and return discovered tools."""
         db_connection = await self._get_owned(user_id=user_id, connection_id=connection_id)
-        if db_connection.auth_type == "composio":
+        if is_managed_auth_type(db_connection.auth_type):
             raise BadRequestError(message="Check this account from Apps")
         return await self._probe(db_connection)
 
@@ -1339,6 +1346,10 @@ class McpConnectionService:
         existing = await mcp_connection_repo.get_org_scoped_by_name(
             self.db, organization_id=ctx.organization_id, name=name
         )
+        if existing is not None and not await resolve_access(
+            self.db, ctx, existing, Perm.MCP_MANAGE, resource_type=MCP_CONNECTION
+        ):
+            raise NotFoundError(message="MCP connection not found")
         # Only a new row: authorizing an existing account again is not a second one.
         if existing is None and catalog_key is not None:
             await self._refuse_an_unnamed_second_org_account(
@@ -1421,7 +1432,7 @@ class McpConnectionService:
                 details={"catalog_key": catalog_key},
             )
         existing = await mcp_connection_repo.get_by_name(self.db, user_id=user_id, name=name)
-        if existing is not None and existing.auth_type == "composio":
+        if existing is not None and is_managed_auth_type(existing.auth_type):
             raise BadRequestError(message="Reconnect this account from Apps")
         client_org_id: UUID | None = None
         if client_id is None and ctx is not None and is_google_mcp(url):
@@ -2449,7 +2460,7 @@ class McpConnectionService:
         connection = await mcp_connection_repo.get_by_oauth_state(self.db, state)
         if connection is None or not connection.oauth_pending_payload:
             raise NotFoundError(message="OAuth session not found or already completed")
-        if connection.auth_type == "composio":
+        if is_managed_auth_type(connection.auth_type):
             raise OAuthError("Complete this authorization through Apps while signed in.")
         if connection.purpose == "account":
             await mcp_connection_repo.lock_account_owner(
@@ -2474,6 +2485,10 @@ class McpConnectionService:
             )
             if authority is None or not authority.has(Perm.MCP_MANAGE):
                 raise OAuthError("Your organization access changed; start the connection again.")
+            if connection.purpose == "mcp" and not await resolve_access(
+                self.db, authority, connection, Perm.MCP_MANAGE, resource_type=MCP_CONNECTION
+            ):
+                raise OAuthError("Your connection access changed; start the connection again.")
         if connection.purpose == "account":
             if (
                 browser_nonce is None
@@ -2647,24 +2662,35 @@ class McpConnectionService:
         return db_connection
 
     async def list_for_org(self, ctx: AuthContext) -> tuple[list[McpConnection], int]:
-        """The organization's servers the caller reaches: every one not narrowed to
-        groups, and those narrowed to theirs (#2072)."""
+        """Connections the caller may administer, including their private ones."""
         rows, _ = await mcp_connection_repo.list_org_scoped(
             self.db, organization_id=ctx.organization_id
         )
-        narrowed = [row for row in rows if row.visibility != Visibility.ORG.value]
         reached = await accessible_ids(
-            self.db, ctx, narrowed, Perm.MCP_MANAGE, resource_type=MCP_CONNECTION
+            self.db, ctx, rows, Perm.MCP_MANAGE, resource_type=MCP_CONNECTION
         )
-        kept = [row for row in rows if row.visibility == Visibility.ORG.value or row.id in reached]
+        kept = [row for row in rows if row.id in reached]
         return kept, len(kept)
 
     async def list_usable(self, ctx: AuthContext) -> list[McpConnection]:
         """The organization servers a workflow step may bind, disabled ones included
         (a step can still name one): the same set the step's publish check resolves
         (`get_org_connection`), which needs no `mcp:manage`."""
-        rows, _ = await self.list_for_org(ctx)
-        return rows
+        rows, _ = await mcp_connection_repo.list_org_scoped(
+            self.db, organization_id=ctx.organization_id
+        )
+        narrowed = [row for row in rows if row.visibility != Visibility.ORG.value]
+        usable = await accessible_ids(
+            self.db, ctx, narrowed, Perm.MCP_USE, resource_type=MCP_CONNECTION
+        )
+        return [
+            row
+            for row in rows
+            if (
+                row.visibility == Visibility.ORG.value
+                or (ctx.user_id is not None and row.id in usable)
+            )
+        ]
 
     async def used_by(
         self, ctx: AuthContext, connections: list[McpConnection]
@@ -2683,7 +2709,7 @@ class McpConnectionService:
         the server's current name gives it. The caller must reach the server;
         arguments and results are never read.
         """
-        connection = await self._get_org(ctx, connection_id)
+        connection = await self._get_managed_org(ctx, connection_id)
         prefix = tool_prefix(connection.name)
         calls = await conversation_repo.recent_tool_calls(
             self.db, organization_id=ctx.organization_id, connection_id=connection.id, limit=limit
@@ -2796,7 +2822,7 @@ class McpConnectionService:
         self, ctx: AuthContext, *, connection_id: UUID, data: OrgMcpConnectionUpdate
     ) -> McpConnection:
         # Locked from the read - same reason as `update` above.
-        db_connection = await self._get_org(ctx, connection_id, for_update=True)
+        db_connection = await self._get_managed_org(ctx, connection_id, for_update=True)
         update_data: dict[str, Any] = writable(
             data, over=McpConnection, exclude={"clear_allowed_tools"}
         )
@@ -2883,12 +2909,15 @@ class McpConnectionService:
             action="mcp_connection.updated",
             target_type="mcp_connection",
             target_id=str(connection.id),
-            details={"fields": sorted(edited_fields)},
+            details={
+                "fields": sorted(edited_fields),
+                **(_trust_details(connection) if "trust_read_only_hints" in edited_fields else {}),
+            },
         )
         return connection
 
     async def delete_for_org(self, ctx: AuthContext, *, connection_id: UUID) -> None:
-        db_connection = await self._get_org(ctx, connection_id)
+        db_connection = await self._get_managed_org(ctx, connection_id)
         # Any trigger webhook this account registered is deregistered first,
         # while its token still exists, and the trigger falls back to manual -
         # otherwise the trigger FK's SET NULL trips the shape CHECK (a registered
@@ -2918,7 +2947,7 @@ class McpConnectionService:
         self, ctx: AuthContext, *, connection_id: UUID
     ) -> tuple[McpConnection, list[McpToolInfo], str | None]:
         """Probe an organization server, persist the result, return its tools."""
-        db_connection = await self._get_org(ctx, connection_id)
+        db_connection = await self._get_managed_org(ctx, connection_id)
         return await self._probe(db_connection)
 
     async def webhook_access_token(
@@ -3079,6 +3108,20 @@ class McpConnectionService:
         """
         return await self._get_org(ctx, connection_id)
 
+    async def _get_managed_org(
+        self, ctx: AuthContext, connection_id: UUID, *, for_update: bool = False
+    ) -> McpConnection:
+        """Administrative actions need edit authority, beyond the existing use lookup."""
+        connection = await self._get_org(ctx, connection_id, for_update=for_update)
+        if not await resolve_access(
+            self.db, ctx, connection, Perm.MCP_MANAGE, resource_type=MCP_CONNECTION
+        ):
+            raise NotFoundError(
+                message="MCP connection not found",
+                details={"connection_id": str(connection_id)},
+            )
+        return connection
+
     async def _get_org(
         self, ctx: AuthContext, connection_id: UUID, *, for_update: bool = False
     ) -> McpConnection:
@@ -3094,14 +3137,13 @@ class McpConnectionService:
             organization_id=ctx.organization_id,
             for_update=for_update,
         )
-        # A server narrowed to groups is not there for anybody outside them - the
-        # same refusal as a missing one (#2072). One left to the organization is
-        # everybody's who got past the route's gate, including a trigger's author
-        # reaching a portal grant without managing servers at all.
+        # Preserve the existing binding and trigger policy. Organization-wide
+        # rows are usable after their caller's resource gate; private rows need
+        # a use grant. Administrative operations add _get_managed_org's check.
         if db_connection is None or (
             db_connection.visibility != Visibility.ORG.value
             and not await resolve_access(
-                self.db, ctx, db_connection, Perm.MCP_MANAGE, resource_type=MCP_CONNECTION
+                self.db, ctx, db_connection, Perm.MCP_USE, resource_type=MCP_CONNECTION
             )
         ):
             raise NotFoundError(
@@ -3253,6 +3295,13 @@ class AccountNote:
 
 
 @dataclass(frozen=True)
+class ManagedAppNote:
+    app: str
+    prefix: str
+    account: str
+
+
+@dataclass(frozen=True)
 class ResolvedMcpToolsets:
     """What a spec's MCP bindings amount to for one turn.
 
@@ -3267,6 +3316,8 @@ class ResolvedMcpToolsets:
     unavailable: list[UnavailableBinding]
     accounts: list[AccountNote] = field(default_factory=list)
     """The accounts of each service reached through more than one, by prefix."""
+    managed_apps: list[ManagedAppNote] = field(default_factory=list)
+    """Connected managed apps attached to this run, with their tool prefixes."""
     sources: dict[UUID, McpSourceIdentity] = field(default_factory=dict)
     """The concrete accounts admitted by reachable bindings, without credentials."""
     origins: dict[str, UUID] = field(default_factory=dict)
@@ -3281,9 +3332,12 @@ async def build_toolsets_for_agent(
     organization_id: UUID,
     refs: Sequence[McpServerRef],
     sender_user_id: UUID | None = None,
+    test_connections: Mapping[UUID, UUID | None] | None = None,
     platform_credential: str | None = None,
     personal_sources: Mapping[UUID, McpSourceIdentity] | None = None,
     organization_sources: Mapping[UUID, McpSourceIdentity] | None = None,
+    taken_names: Mapping[str, str] | None = None,
+    recheck_sources: bool = False,
 ) -> ResolvedMcpToolsets:
     """Agent toolsets for a published agent: exactly the servers its spec names.
 
@@ -3298,7 +3352,7 @@ async def build_toolsets_for_agent(
     reached, and it is reached on purpose: the spec says every person speaks to
     this service as themselves. `sender_user_id` is who is talking - the author
     of this message, never the thread's first speaker - and `None` where nobody
-    is: an API key, the widget, a schedule, a channel sender with no linked
+    is: a key without personal MCP delegation, the widget, a schedule, a channel sender with no linked
     account. The binding is then reported unavailable rather than quietly
     skipped, so the run can say so and say where the person connects one.
 
@@ -3311,9 +3365,28 @@ async def build_toolsets_for_agent(
     prefix, and listed on `accounts` so the run can be told which is which
     (#2125).
 
+    `test_connections` is the run's environment speaking: an organization
+    binding whose connection is a key there runs against the test connection it
+    maps to, under the production connection's name - so the model sees the same
+    tool names in staging as in production, and an eval's trajectory is
+    comparable across the two. A key mapping to `None` is a binding switched off
+    in that environment, as is a test connection that is gone, disabled or
+    without credentials: the production connection is never the fallback.
+
+    `taken_names` are the names the run's other tools hold, and whose each is -
+    its capabilities' and the platform's own, from
+    :func:`app.agents.tool_names.taken_tool_names`. A prefix keeps one server's
+    tools apart from another's but not from those, so every server is attached
+    inside :class:`~app.agents.mcp.LeftOutOnClash`, which leaves it out of a step
+    where one of its tool names is taken (#2890).
+
+    `recheck_sources` guards delegated external runs against connected-account
+    revocation or narrowing before each tool call, using a fresh session.
+
     Runs in the caller's session rather than opening its own: an OAuth refresh
     spent here has to be persisted by the same transaction that recorded the run.
     """
+    overrides = test_connections or {}
     specs: list[McpServerSpec] = []
     bindings: dict[int, str] = {}
     # Which service and account each spec reaches, for the accounts briefing.
@@ -3321,9 +3394,13 @@ async def build_toolsets_for_agent(
     # Whether each organization server had an outage open when this run read it.
     outage_open: dict[UUID, bool] = {}
     unavailable: list[UnavailableBinding] = []
+    org_ids = [ref.connection_id for ref in refs if isinstance(ref, OrgMcpServerRef)]
     found = await mcp_connection_repo.get_org_scoped_by_ids(
         db,
-        connection_ids=[ref.connection_id for ref in refs if isinstance(ref, OrgMcpServerRef)],
+        connection_ids=[
+            *org_ids,
+            *(test_id for ref_id in org_ids if (test_id := overrides.get(ref_id)) is not None),
+        ],
         organization_id=organization_id,
     )
     for ref in refs:
@@ -3331,13 +3408,16 @@ async def build_toolsets_for_agent(
             # This platform's own server, as whoever the run is for. Nobody to
             # act as - a visitor, a schedule - is no credential and no server.
             if platform_credential is not None:
-                # Never below `writes`: the credential is the asker's own authority,
-                # an Admin's included, and an agent anybody published must not
-                # invite, revoke or reconfigure with it without asking them first.
+                # Never below `writes` as a default: the credential is the asker's
+                # own authority, an Admin's included, and an agent anybody published
+                # must not invite, revoke or reconfigure with it without asking them
+                # first. A change runs unasked only where the spec names that one
+                # tool `never`, an explicit decision published with the agent.
                 spec = platform_spec(
                     platform_credential,
                     allowed_tools=ref.allowed_tools,
                     approval="all" if ref.approval == "all" else "writes",
+                    tool_approval=ref.tool_approval,
                 )
                 specs.append(spec)
                 bindings[id(spec)] = "this platform's own server"
@@ -3359,6 +3439,26 @@ async def build_toolsets_for_agent(
                 )
             if gap is not None:
                 unavailable.append(UnavailablePersonalService(ref.catalog_key, gap))
+            continue
+        if ref.connection_id in overrides:
+            production = found.get(ref.connection_id)
+            if (
+                recheck_sources
+                and overrides[ref.connection_id] is not None
+                and (production is None or not production.is_enabled)
+            ):
+                raise AuthorizationError(
+                    message="The production MCP account is no longer available"
+                )
+            spec = await _test_spec(
+                ref,
+                production=found.get(ref.connection_id),
+                test_id=overrides[ref.connection_id],
+                found=found,
+            )
+            if spec is not None:
+                specs.append(spec)
+                bindings[id(spec)] = f"the connection {spec.name!r}"
             continue
         connection = found.get(ref.connection_id)
         if connection is None or not connection.is_enabled:
@@ -3394,7 +3494,9 @@ async def build_toolsets_for_agent(
             url=connection.url,
             headers=headers,
             allowed_tools=_narrowed_tools(connection.allowed_tools, ref.allowed_tools),
+            trust_read_only_hints=connection.trust_read_only_hints,
             approval=ref.approval,
+            tool_approval=ref.tool_approval,
             include_instructions=connection.include_instructions,
             # Its label, where it has one: an organization holding two accounts on a
             # service names the second (#2125), and an approval should say which.
@@ -3469,17 +3571,36 @@ async def build_toolsets_for_agent(
                 server=spec.name, binding=bindings[id(spec)], held_by=holder
             )
         )
-    return ResolvedMcpToolsets(
-        toolsets=[
-            toolset
+    toolsets: list[Any] = []
+    for spec, toolset in attached:
+        guarded = _guarded(toolset, spec, binding=bindings[id(spec)], taken=taken_names)
+        if recheck_sources and spec.source_connection_id is not None:
+            guarded = AuthorityChecked(
+                wrapped=guarded,
+                check=_delegated_source_check(
+                    spec, organization_id=organization_id, user_id=sender_user_id
+                ),
+            )
+        toolsets.append(
+            guarded
             if spec.connection_id is None
-            else ToolOrigins(toolset, connection_id=spec.connection_id, seen=origins)
-            for spec, toolset in attached
-        ],
+            else ToolOrigins(guarded, connection_id=spec.connection_id, seen=origins)
+        )
+    return ResolvedMcpToolsets(
+        toolsets=toolsets,
         unavailable=unavailable,
         accounts=_several_accounts(
             [reaches[id(spec)] for spec, _ in attached if id(spec) in reaches]
         ),
+        managed_apps=[
+            ManagedAppNote(
+                app=spec.managed_app_name,
+                prefix=tool_prefix(spec.name),
+                account=spec.account or spec.name,
+            )
+            for spec, _ in attached
+            if spec.managed_app_name is not None
+        ],
         origins=origins,
         sources={
             spec.source_connection_id: McpSourceIdentity(
@@ -3490,6 +3611,144 @@ async def build_toolsets_for_agent(
             for spec, _ in attached
             if spec.source_connection_id is not None and spec.authorization_generation is not None
         },
+    )
+
+
+def _delegated_source_check(
+    spec: McpServerSpec, *, organization_id: UUID, user_id: UUID | None
+) -> Callable[[], Awaitable[None]]:
+    """Keep a cached toolset from outliving its connected account's authority."""
+
+    async def check() -> None:
+        assert spec.source_connection_id is not None
+        async with get_db_context() as db:
+            connection = await mcp_connection_repo.get_by_id(db, spec.source_connection_id)
+            if (
+                connection is None
+                or not connection.is_enabled
+                or connection.purpose != "mcp"
+                or connection.url != spec.url
+                or connection.authorization_generation != spec.authorization_generation
+                or (spec.include_instructions and not connection.include_instructions)
+                or (spec.trust_read_only_hints and not connection.trust_read_only_hints)
+                or (
+                    connection.scope == "user"
+                    and (user_id is None or connection.user_id != user_id)
+                )
+                or (connection.scope == "org" and connection.organization_id != organization_id)
+                or (
+                    connection.allowed_tools is not None
+                    and (
+                        spec.allowed_tools is None
+                        or not set(spec.allowed_tools).issubset(connection.allowed_tools)
+                    )
+                )
+            ):
+                raise AuthorizationError(
+                    message="An MCP account changed or was disconnected. Reconnect it and start a new run."
+                )
+            if spec.ceiling_source is not None:
+                ceiling_id, identity = spec.ceiling_source
+                ceiling = await mcp_connection_repo.get_by_id(db, ceiling_id)
+                if (
+                    ceiling is None
+                    or not ceiling.is_enabled
+                    or ceiling.purpose != "mcp"
+                    or ceiling.scope != "org"
+                    or ceiling.organization_id != organization_id
+                    or hashlib.sha256(ceiling.url.encode()).hexdigest() != identity.endpoint_hash
+                    or ceiling.authorization_generation != identity.authorization_generation
+                    or (
+                        ceiling.allowed_tools is not None
+                        and (
+                            spec.allowed_tools is None
+                            or not set(spec.allowed_tools).issubset(ceiling.allowed_tools)
+                        )
+                    )
+                ):
+                    raise AuthorizationError(
+                        message="The production MCP account changed. Start a new run."
+                    )
+
+    return check
+
+
+def _guarded(
+    toolset: Any, spec: McpServerSpec, *, binding: str, taken: Mapping[str, str] | None
+) -> Any:
+    """`toolset`, left out of a step where one of its tool names is already taken (#2890)."""
+    if not taken:
+        return toolset
+    return LeftOutOnClash(toolset, server=spec.name, binding=binding, taken=taken)
+
+
+def _trust_details(connection: McpConnection) -> dict[str, Any]:
+    """What believing this server's `readOnlyHint` covers: how many of its tools claim it.
+
+    Counted from the last probe, so the count is null until anything reached it.
+    """
+    tools = connection.last_tools
+    return {
+        "trust_read_only_hints": connection.trust_read_only_hints,
+        "read_only_hint_tools": None
+        if tools is None
+        else sum(1 for tool in tools if tool.get("read_only") is True),
+    }
+
+
+async def _test_spec(
+    ref: OrgMcpServerRef,
+    *,
+    production: McpConnection | None,
+    test_id: UUID | None,
+    found: Mapping[UUID, McpConnection],
+) -> McpServerSpec | None:
+    """The environment's test connection in place of the one the spec binds, or none.
+
+    Both allowlists narrow it - the production connection's, so the test side
+    offers no tool production does not, and the test connection's own - and so
+    does the binding's.
+    """
+    test = found.get(test_id) if test_id is not None else None
+    if test is None or not test.is_enabled:
+        logger.warning(
+            "MCP connection %s is switched off in this environment: its test connection "
+            "is gone or disabled",
+            ref.connection_id,
+        )
+        return None
+    headers = await resolve_auth_headers(test)
+    if headers is None:
+        logger.warning(
+            "Skipping test MCP connection %r for this run: no usable credentials", test.name
+        )
+        return None
+    ceiling = _narrowed_tools(
+        production.allowed_tools if production is not None else None, ref.allowed_tools
+    )
+    return McpServerSpec(
+        name=production.name if production is not None else test.name,
+        url=test.url,
+        headers=headers,
+        allowed_tools=_narrowed_tools(test.allowed_tools, ceiling),
+        test=True,
+        trust_read_only_hints=test.trust_read_only_hints,
+        approval=ref.approval,
+        tool_approval=ref.tool_approval,
+        include_instructions=test.include_instructions,
+        account=test.label,
+        connection_id=test.id,
+        source_connection_id=test.id,
+        authorization_generation=test.authorization_generation,
+        ceiling_source=(
+            production.id,
+            McpSourceIdentity(
+                endpoint_hash=hashlib.sha256(production.url.encode()).hexdigest(),
+                authorization_generation=production.authorization_generation,
+            ),
+        )
+        if production is not None
+        else None,
     )
 
 
@@ -3564,7 +3823,7 @@ async def _own_specs(
             # Two labels that read the same as a tool name (`Sales US`, `Sales-US`)
             # would share one prefix, and the resolver keeps only the first.
             name = f"{name[:55]}-{account.id.hex[:8]}"
-        if account.auth_type == "composio":
+        if is_managed_auth_type(account.auth_type):
             from app.services.app_connections.runtime import managed_connection_spec
 
             managed = await managed_connection_spec(
@@ -3597,6 +3856,7 @@ async def _own_specs(
             headers=headers,
             allowed_tools=_narrowed_tools(ref.allowed_tools, account.allowed_tools),
             approval=ref.approval,
+            tool_approval=ref.tool_approval,
             include_instructions=account.include_instructions,
             # Named on an approval wherever it is a question: one of several accounts
             # on the service, or one its person labelled.
@@ -3615,7 +3875,7 @@ async def watched_connection_spec(connection: McpConnection) -> McpServerSpec | 
     listed; the watch keeps only the tools the server marks read-only, so the
     approval policy here never comes into play.
     """
-    if connection.auth_type == "composio":
+    if is_managed_auth_type(connection.auth_type):
         from app.services.app_connections.runtime import managed_connection_spec
 
         return await managed_connection_spec(
@@ -3684,14 +3944,18 @@ def _extra_prefix(catalog_key: str, account: McpConnection) -> str:
     return f"{catalog_key}-{slug or account.id.hex[:8]}"[:64]
 
 
-async def connect_personal_toolset(ref: PersonalMcpServerRef, *, user_id: UUID) -> ServiceOutcome:
+async def connect_personal_toolset(
+    ref: PersonalMcpServerRef, *, user_id: UUID, taken_names: Mapping[str, str] | None = None
+) -> ServiceOutcome:
     """A person's own connection to this service, read again once they say they made it.
 
     What `connect_account` attaches mid-run (`app.agents.connect_on_use`). In a
     session of its own rather than the run's: the call arrives in the middle of
     a run whose session is busy with it, and the connection it looks for was
     committed by another request after this run's transaction began. An OAuth
-    refresh spent on the way is committed with that session.
+    refresh spent on the way is committed with that session. `taken_names` keeps
+    it off the run's other tools' names, as `build_toolsets_for_agent` keeps the
+    servers it attached (#2890).
     """
     async with get_db_context() as db:
         own = await _own_specs(db, ref, user_id=user_id)
@@ -3699,8 +3963,33 @@ async def connect_personal_toolset(ref: PersonalMcpServerRef, *, user_id: UUID) 
         return own
     # One account answers the turn that waited - their default, else their
     # first; any others of theirs join from their next message on.
-    ((_, toolset),) = await probe_toolsets([own[0].spec])
-    return "unreachable" if toolset is None else toolset
+    ((spec, toolset),) = await probe_toolsets([own[0].spec])
+    if toolset is None:
+        return "unreachable"
+    return _guarded(
+        toolset, spec, binding=f"each person's own {ref.catalog_key}", taken=taken_names
+    )
+
+
+def presented_tool_names(
+    connection: McpConnection, binding: list[str] | None
+) -> list[tuple[str, str]]:
+    """Each tool a connection's last check listed, beside the name the model calls it (#2890).
+
+    The prefix and the server's own name joined, and fitted, as the run's toolset
+    presents them, for the tools both allowlists let through: what publish
+    compares with the agent's other tools. Empty where nothing has reached the
+    server yet - its names are unknown, and the run decides on what it lists.
+    """
+    if connection.last_tools is None:
+        return []
+    allowed = _narrowed_tools(connection.allowed_tools, binding)
+    prefix = tool_prefix(connection.name)
+    return [
+        (tool["name"], fitted_tool_name(f"{prefix}_{tool['name']}"))
+        for tool in connection.last_tools
+        if allowed is None or tool["name"] in allowed
+    ]
 
 
 def _narrowed_tools(connection: list[str] | None, binding: list[str] | None) -> list[str] | None:

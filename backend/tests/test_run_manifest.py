@@ -49,6 +49,7 @@ from app.agents.manifest import (
     as_payload,
     carried_over,
     fit,
+    resolve_fallback_use,
 )
 from app.db.models.agent_run import RunStatus
 from app.db.models.run_manifest import RunManifest
@@ -709,3 +710,126 @@ def test_oversized_standalone_transcript_obeys_the_same_size_limit():
     payload, truncated = fit({"messages": [], "transcript": [{"text": "x" * MAX_PAYLOAD_BYTES}]})
     assert truncated is True
     assert payload["transcript"] == []
+
+
+class TestResolveFallbackUse:
+    """`resolve_fallback_use` reads the fallback out of the recorder's requests.
+
+    The run row names the primary profile, so without this the model that
+    answered a run could only be found by comparing the manifest's
+    per-request models against the profile by hand.
+    """
+
+    def _request(self, model: str | None, *, failed: str | None = None) -> RecordedRequest:
+        return RecordedRequest(
+            index=0,
+            started_at=datetime.now(UTC),
+            duration_ms=100,
+            model=model,
+            message_count=1,
+            input_tokens=10,
+            output_tokens=5,
+            cache_read_tokens=0,
+            tool_calls=[],
+            finish_reason="stop",
+            failed=failed,
+        )
+
+    def test_primary_only_is_not_a_fallback(self) -> None:
+        assert resolve_fallback_use(
+            [self._request("claude-sonnet-4-5")],
+            primary_model="claude-sonnet-4-5",
+            fallback_models=("gpt-5",),
+        ) == (False, "claude-sonnet-4-5")
+
+    def test_a_fallback_in_the_chain_is_one(self) -> None:
+        requests = [
+            self._request("claude-sonnet-4-5", failed="ModelAPIError"),
+            self._request("gpt-5"),
+        ]
+        assert resolve_fallback_use(
+            requests, primary_model="claude-sonnet-4-5", fallback_models=("gpt-5",)
+        ) == (True, "gpt-5")
+
+    def test_a_later_primary_request_keeps_the_fallback_flag(self) -> None:
+        # A resumed run can go back to the primary after a fallback served an
+        # earlier segment: the flag says a fallback served the run, the model
+        # says which one answered last.
+        requests = [self._request("gpt-5"), self._request("claude-sonnet-4-5")]
+        assert resolve_fallback_use(
+            requests, primary_model="claude-sonnet-4-5", fallback_models=("gpt-5",)
+        ) == (True, "claude-sonnet-4-5")
+
+    def test_a_reviewer_on_its_own_model_is_not_a_fallback(self) -> None:
+        # The recorder is shared with run reviewers, who run on their own
+        # cheap models: a request from one must not read as a fallback.
+        requests = [self._request("claude-sonnet-4-5"), self._request("claude-haiku-4-5")]
+        assert resolve_fallback_use(
+            requests, primary_model="claude-sonnet-4-5", fallback_models=("gpt-5",)
+        ) == (False, "claude-sonnet-4-5")
+
+    def test_failed_requests_are_skipped(self) -> None:
+        requests = [self._request("claude-sonnet-4-5", failed="ModelAPIError")]
+        assert resolve_fallback_use(
+            requests, primary_model="claude-sonnet-4-5", fallback_models=("gpt-5",)
+        ) == (False, None)
+
+    def test_a_request_with_no_model_is_skipped(self) -> None:
+        assert resolve_fallback_use(
+            [self._request(None)],
+            primary_model="claude-sonnet-4-5",
+            fallback_models=("gpt-5",),
+        ) == (False, None)
+
+    def test_no_requests_is_no_fallback(self) -> None:
+        assert resolve_fallback_use(
+            [], primary_model="claude-sonnet-4-5", fallback_models=("gpt-5",)
+        ) == (False, None)
+
+    def test_a_provider_prefixed_id_still_matches(self) -> None:
+        # `response.model_name` is the bare id, a chain id may carry its
+        # `provider:` prefix: the same model either way.
+        assert resolve_fallback_use(
+            [self._request("anthropic:claude-sonnet-4-5")],
+            primary_model="claude-sonnet-4-5",
+            fallback_models=(),
+        ) == (False, "anthropic:claude-sonnet-4-5")
+
+
+async def test_failed_provider_preparation_keeps_the_attempted_prompt_and_tools():
+    from pydantic_ai.messages import UserPromptPart
+
+    recorder = RunRecorder()
+    wrapped = FunctionModel(_one_word)
+    model = RecordingModel(wrapped, recorder)
+    parameters = ModelRequestParameters(function_tools=[ToolDefinition(name="lookup")])
+    with (
+        patch.object(
+            wrapped, "prepare_request", side_effect=ValueError("Invalid provider settings")
+        ),
+        pytest.raises(ValueError, match="Invalid provider settings"),
+    ):
+        await model.request(
+            [ModelRequest(parts=[UserPromptPart("Inspect this")])], None, parameters
+        )
+    assert [tool.name for tool in recorder.tools] == ["lookup"]
+    assert "Inspect this" in json.dumps(recorder.messages)
+    assert len(recorder.requests) == 1
+    assert recorder.requests[0].failed == "ValueError"
+
+
+def test_oversized_visible_names_do_not_erase_tool_counts_or_request_timing():
+    request = {
+        "index": 0,
+        "duration_ms": 12,
+        "tool_counts": {"visible": 10000},
+        "visible_tool_names": [f"lookup_{index:060d}" for index in range(10000)],
+    }
+    original = {"messages": [], "requests": [request, {"index": 1, "duration_ms": 7}]}
+    payload, truncated = fit(original)
+    assert truncated
+    assert payload["requests"][0]["visible_tool_names"] is None
+    assert payload["requests"][0]["tool_counts"] == {"visible": 10000}
+    assert [item["duration_ms"] for item in payload["requests"]] == [12, 7]
+    assert "visible_tool_names" not in payload["requests"][1]
+    assert _size(payload) <= MAX_PAYLOAD_BYTES

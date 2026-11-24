@@ -162,6 +162,7 @@ describe("editing a service-account Drive source", () => {
     name: "Engineering docs",
     connector_type: "gdrive",
     collection_name: "handbook",
+    knowledge_base_id: "kb-1",
     config: { folder_id: "1AbC" },
     secret_id: "secret-1",
     secret_hint: "a1b2",

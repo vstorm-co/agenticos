@@ -20,10 +20,12 @@ from pydantic_ai_harness.ask_user import AskUserRequest, AskUserResponse
 from app.agents.approval import ApprovalDecision, ApprovalRequest
 from app.agents.audience import RunAudience
 from app.agents.browser_events import BrowserEventSink
+from app.agents.code_checkpoint import CodeContinuations
 from app.agents.compaction_events import CompactionEvent
 from app.agents.steering import SteeringInbox
 from app.agents.subagent_events import SubagentEventSink
 from app.agents.visual_reports import VisualReports
+from app.core.tool_identity import ToolIdentity
 from app.db.vector_tables import VectorScope
 
 AskUserCallback = Callable[[str, list[str]], Awaitable[str]]
@@ -90,6 +92,10 @@ class AgentDeps:
     # closed - a deps built without it reaches nothing that needs one.
     run_person: UUID | None = None
     phone_call_id: UUID | None = None
+    tool_definitions: dict[str, ToolIdentity] = field(default_factory=dict)
+    tool_identities: dict[str, ToolIdentity] = field(default_factory=dict)
+    code_continuations: CodeContinuations = field(default_factory=CodeContinuations)
+
     draft_tool_names: frozenset[str] = field(default_factory=frozenset)
 
     # Whether the run was started under an administrator's impersonation of
@@ -251,6 +257,7 @@ class AgentDeps:
             ask_user=self.ask_user,
             ask_questions=None if self.parks_questions else self.ask_questions,
             request_approval=self.request_approval,
+            code_continuations=self.code_continuations,
             subagent_events=self.subagent_events,
             browser_events=self.browser_events,
             generated_files=self.generated_files,

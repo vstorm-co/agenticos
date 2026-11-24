@@ -10,7 +10,7 @@ import { AutoConsentSetting } from "@/components/artifacts/auto-consent-setting"
 import { PublicDataControl } from "@/components/artifacts/public-data-control";
 import { PublicLinkCard } from "@/components/artifacts/public-link-card";
 import { EmbedSnippet, PublicLinkSettings } from "@/components/artifacts/public-link-settings";
-import { CopyButton } from "@/components/chat/copy-button";
+import { ShareLinkField } from "@/components/sharing/share-link-field";
 import { SharingPanel } from "@/components/sharing/sharing-panel";
 import {
   Alert,
@@ -21,11 +21,9 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  Input,
-  Label,
 } from "@/components/ui";
 import { ROUTES } from "@/lib/constants";
-import { DIALOG_FORM, DIALOG_SCROLL } from "@/lib/dialog-sizes";
+import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
 import { useOrgStore } from "@/stores";
 import type {
@@ -40,6 +38,8 @@ interface ArtifactShareDialogProps {
   /** The kept versions, newest first - what the public link may be pinned to. */
   versions: ArtifactVersion[];
   open: boolean;
+  /** Keep actionable requests first when opening from their badge or notification. */
+  hasPendingRequests?: boolean;
   onOpenChange: (open: boolean) => void;
   /** A public-link request is in flight. */
   busy: boolean;
@@ -82,16 +82,7 @@ function PageLinkField({ artifactId }: { artifactId: string }) {
   const pageUrl = `${window.location.origin}${ROUTES.ARTIFACT_DETAIL(artifactId)}${org}`;
   return (
     <div className="space-y-2">
-      <Label htmlFor="artifact-page-link">{t("pageLink")}</Label>
-      <div className="flex items-center gap-2">
-        <Input
-          id="artifact-page-link"
-          readOnly
-          value={pageUrl}
-          className="font-mono text-base md:text-xs"
-        />
-        <CopyButton text={pageUrl} className="h-8 w-8 opacity-100" />
-      </div>
+      <ShareLinkField label={t("pageLink")} url={pageUrl} />
       <p className="text-muted-foreground text-sm">{t("pageLinkWhy")}</p>
     </div>
   );
@@ -110,6 +101,7 @@ export function ArtifactShareDialog({
   artifact,
   versions,
   open,
+  hasPendingRequests = false,
   onOpenChange,
   busy,
   onEnablePublicLink,
@@ -131,91 +123,97 @@ export function ArtifactShareDialog({
   const [needsConsent, setNeedsConsent] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const confirmable = artifact.consent?.may_confirm === true && artifact.current_version !== null;
+  const requestsPanel = (
+    <ArtifactRequests
+      artifact={artifact}
+      onReview={(request) => {
+        onOpenChange(false);
+        onReview(request);
+      }}
+      onConsentRequired={() => setNeedsConsent(true)}
+    />
+  );
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={cn(DIALOG_FORM, DIALOG_SCROLL)}>
+      <DialogContent mobilePresentation="sheet" className={cn(DIALOG_FORM, DIALOG_COLUMN)}>
         <DialogHeader>
           <DialogTitle>{t("shareTitle", { title: artifact.title })}</DialogTitle>
           <DialogDescription>{t("shareWhy")}</DialogDescription>
         </DialogHeader>
-        <ArtifactRequests
-          artifact={artifact}
-          onReview={(request) => {
-            onOpenChange(false);
-            onReview(request);
-          }}
-          onConsentRequired={() => setNeedsConsent(true)}
-        />
-        {needsConsent && (
-          <Alert>
-            <AlertDescription className="flex flex-wrap items-center gap-3">
-              <span>
-                {confirmable ? t("requests.consentRequired") : t("requests.consentRequiredOwner")}
-              </span>
-              {confirmable && (
-                <Button size="sm" onClick={() => setConfirming(true)}>
-                  {t("requests.confirmData")}
-                </Button>
-              )}
-            </AlertDescription>
-          </Alert>
-        )}
-        <PageLinkField artifactId={artifact.id} />
-        <PublicLinkCard
-          publicUrl={artifact.public_url}
-          link={artifact.public_link}
-          canManage={artifact.can_edit}
-          busy={busy}
-          onEnable={onEnablePublicLink}
-          onDisable={onDisablePublicLink}
-        >
-          <EmbedSnippet link={artifact.public_link} />
-          {artifact.can_edit && (
-            <PublicLinkSettings
-              // A fresh form for fresh settings: its fields start from what the server holds.
-              key={JSON.stringify(artifact.public_link)}
-              link={artifact.public_link}
-              publicDataConfirmed={artifact.public_data?.consented === true}
-              versions={versions}
-              saving={saving}
-              onSave={onUpdatePublicLink}
+        <div className={cn(DIALOG_BODY, "space-y-5")}>
+          {hasPendingRequests && requestsPanel}
+          {needsConsent && (
+            <Alert>
+              <AlertDescription className="flex flex-wrap items-center gap-3">
+                <span>
+                  {confirmable ? t("requests.consentRequired") : t("requests.consentRequiredOwner")}
+                </span>
+                {confirmable && (
+                  <Button size="sm" onClick={() => setConfirming(true)}>
+                    {t("requests.confirmData")}
+                  </Button>
+                )}
+              </AlertDescription>
+            </Alert>
+          )}
+          <PageLinkField artifactId={artifact.id} />
+          <SharingPanel
+            resourceType="artifact"
+            resourceId={artifact.id}
+            canManage={artifact.can_edit}
+            mayGrantEditData={artifact.may_grant_edit_data}
+            onConsentRequired={() => setNeedsConsent(true)}
+          />
+          <PublicLinkCard
+            publicUrl={artifact.public_url}
+            link={artifact.public_link}
+            canManage={artifact.can_edit}
+            busy={busy}
+            onEnable={onEnablePublicLink}
+            onDisable={onDisablePublicLink}
+          >
+            {!artifact.can_edit && <EmbedSnippet link={artifact.public_link} />}
+            {artifact.can_edit && (
+              <PublicLinkSettings
+                // A fresh form for fresh settings: its fields start from what the server holds.
+                key={JSON.stringify(artifact.public_link)}
+                link={artifact.public_link}
+                publicDataConfirmed={artifact.public_data?.consented === true}
+                versions={versions}
+                saving={saving}
+                onSave={onUpdatePublicLink}
+              />
+            )}
+            <PublicDataControl
+              artifact={artifact}
+              onConfirm={onConfirmPublicData}
+              confirmPending={confirmingPublicData}
+              onWithdraw={onWithdrawPublicData}
+              withdrawPending={withdrawingPublicData}
+            />
+          </PublicLinkCard>
+          {!hasPendingRequests && requestsPanel}
+          {artifact.consent !== null && (
+            <AutoConsentSetting
+              consent={artifact.consent}
+              onChange={onAutoConsent}
+              saving={savingAutoConsent}
             />
           )}
-          <PublicDataControl
-            artifact={artifact}
-            onConfirm={onConfirmPublicData}
-            confirmPending={confirmingPublicData}
-            onWithdraw={onWithdrawPublicData}
-            withdrawPending={withdrawingPublicData}
-          />
-        </PublicLinkCard>
-        <SharingPanel
-          resourceType="artifact"
-          resourceId={artifact.id}
-          canManage={artifact.can_edit}
-          mayGrantEditData={artifact.may_grant_edit_data}
-          onConsentRequired={() => setNeedsConsent(true)}
-        />
-        {artifact.consent !== null && (
-          <AutoConsentSetting
-            consent={artifact.consent}
-            onChange={onAutoConsent}
-            saving={savingAutoConsent}
-          />
-        )}
-        {confirmable && artifact.current_version !== null && (
-          <ConfirmDataDialog
-            artifactId={artifact.id}
-            versionId={artifact.current_version.id}
-            open={confirming}
-            onOpenChange={setConfirming}
-            onConfirm={async (fingerprint) => {
-              await onConfirmData(fingerprint);
-              setNeedsConsent(false);
-            }}
-            loading={confirmingData}
-          />
-        )}
+          {confirmable && artifact.current_version !== null && (
+            <ConfirmDataDialog
+              artifactId={artifact.id}
+              versionId={artifact.current_version.id}
+              open={confirming}
+              onOpenChange={setConfirming}
+              onConfirm={async (fingerprint) => {
+                await onConfirmData(fingerprint);
+                setNeedsConsent(false);
+              }}
+              loading={confirmingData}
+            />
+          )}
+        </div>
       </DialogContent>
     </Dialog>
   );

@@ -10,20 +10,31 @@ import { surfaceLabel } from "@/components/runs/surface-icon";
 import { Button, SwipeToDecide } from "@/components/ui";
 import { approvalSummary } from "@/lib/agent-step-captions";
 import { callSummary } from "@/lib/approval-view";
+import { isTableTool } from "@/lib/table-tool-calls";
 import { cn, formatDateTime, timeAgo } from "@/lib/utils";
 import type { ToolApproval } from "@/types/runs";
+import {
+  browserCredentialApproval,
+  isBrowserCredentialPreparation,
+  type BrowserCredentialSelection,
+} from "@/lib/browser-credential-approval";
 
 /**
  * What the call will do in names, resolved when it was parked as the person the
  * run acts for; else, for a call still waiting, the one telling argument, as a
- * call nobody described always read. A decided row keeps its arguments folded.
+ * call nobody described always read. A decided row keeps its arguments folded. A
+ * reader who may not see the run is told why the content is missing.
  */
 function useCallLine(approval: ToolApproval, withArguments: boolean): string | null {
+  const t = useTranslations("pages.runs");
   const tTools = useTranslations("chat.tools");
-  return (
-    approvalSummary(approval.capability_tool_id, approval.context, tTools) ??
-    (withArguments ? callSummary(approval.tool_args) : null)
-  );
+  if (browserCredentialApproval(approval).kind !== "ordinary") return null;
+  if (approval.content_hidden) return t("contentHidden");
+  // A table write's first string argument is its table's id: the card shows it
+  // only as the fallback of `TableCallReadout`, which names the table instead.
+  const argumentLine =
+    withArguments && !isTableTool(approval.tool_id) ? callSummary(approval.tool_args) : null;
+  return approvalSummary(approval.capability_tool_id, approval.context, tTools) ?? argumentLine;
 }
 
 /**
@@ -64,11 +75,15 @@ export function PendingApproval({
   deciding,
   onDecide,
   onOpenRun,
+  onReviewCredential,
+  className,
 }: {
+  className?: string;
   approval: ToolApproval;
   deciding: boolean;
   onDecide: (approved: boolean) => void;
   onOpenRun: () => void;
+  onReviewCredential?: (selection: BrowserCredentialSelection) => void;
 }) {
   const t = useTranslations("pages.runs");
   const tTime = useTranslations("time");
@@ -77,7 +92,59 @@ export function PendingApproval({
   const phrase = useActionPhrase();
   const ago = approval.created_at ? timeAgo(approval.created_at, tTime, locale) : null;
   const summary = useCallLine(approval, true);
+  // Kept for a table write whose table this approver cannot read, so the card
+  // still says what it targets; replaced by the named summary when it can.
+  const tableLine =
+    isTableTool(approval.tool_id) && !approval.content_hidden
+      ? callSummary(approval.tool_args)
+      : null;
   const askedLine = useAskedLine(approval);
+  const mayApprove = !(approval.always_asks && approval.content_hidden);
+  const browser = useTranslations("browserCredentials");
+  const credential = browserCredentialApproval(approval);
+  const continuation = useTranslations("browserContinuation");
+  const continuing = credential.kind === "plan" && !!credential.continuationId;
+
+  if (credential.kind !== "ordinary") {
+    return (
+      <li className="flex flex-wrap items-start gap-3 px-5 py-4">
+        <AgentFace agentId={approval.agent_id} className="size-9 shrink-0" />
+        <div className="min-w-0 flex-1 space-y-2">
+          <p className="text-sm font-medium">
+            {actor} · {continuing ? continuation("title") : browser("reviewTitle")}
+          </p>
+          <p className="text-muted-foreground text-sm">
+            {continuing
+              ? continuation("approvalConsent")
+              : credential.kind === "plan"
+                ? browser("fillConsent")
+                : browser("invalidApprovalPlan")}
+          </p>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() =>
+              credential.kind === "plan" && onReviewCredential
+                ? onReviewCredential({
+                    runId: credential.runId,
+                    planId: credential.planId,
+                    ...(credential.continuationId
+                      ? { continuationId: credential.continuationId }
+                      : {}),
+                  })
+                : onOpenRun()
+            }
+          >
+            {continuing
+              ? continuation("reviewContinuation")
+              : credential.kind === "plan"
+                ? browser("reviewDestination")
+                : t("openTheRun")}
+          </Button>
+        </div>
+      </li>
+    );
+  }
 
   return (
     <li>
@@ -87,7 +154,8 @@ export function PendingApproval({
         approveLabel={t("approve")}
         rejectLabel={t("reject")}
         disabled={deciding}
-        className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-start"
+        rejectOnly={!mayApprove}
+        className={cn("flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-start", className)}
       >
         <div className="flex min-w-0 flex-1 gap-3">
           <AgentFace agentId={approval.agent_id} className="size-9 shrink-0" />
@@ -122,14 +190,31 @@ export function PendingApproval({
               </p>
             </div>
             <ApprovalDelegate approval={approval} />
-            <ApprovalDetails toolName={approval.tool_id} args={approval.tool_args} />
+            {isBrowserCredentialPreparation(approval.capability_tool_id ?? approval.tool_id) && (
+              <p className="text-muted-foreground text-sm">{browser("requestPreparationOnly")}</p>
+            )}
+            <ApprovalDetails
+              toolName={approval.tool_id}
+              args={approval.tool_args}
+              fallback={
+                tableLine !== null && (
+                  <p className="text-foreground/80 truncate text-sm" title={tableLine}>
+                    {tableLine}
+                  </p>
+                )
+              }
+            />
           </div>
         </div>
         <div className="flex shrink-0 gap-2 sm:flex-col">
-          <Button size="sm" disabled={deciding} onClick={() => onDecide(true)}>
-            <CheckCircle2 className="h-4 w-4" aria-hidden />
-            {t("approve")}
-          </Button>
+          {mayApprove ? (
+            <Button size="sm" disabled={deciding} onClick={() => onDecide(true)}>
+              <CheckCircle2 className="h-4 w-4" aria-hidden />
+              {t("approve")}
+            </Button>
+          ) : (
+            <p className="text-muted-foreground max-w-48 text-xs">{t("approveNeedsTheRun")}</p>
+          )}
           <Button size="sm" variant="outline" disabled={deciding} onClick={() => onDecide(false)}>
             <XCircle className="h-4 w-4" aria-hidden />
             {t("reject")}
@@ -156,9 +241,11 @@ const DECISION_LABEL: Record<string, string> = {
 export function DecidedApproval({
   approval,
   onOpenRun,
+  onReviewCredential,
 }: {
   approval: ToolApproval;
   onOpenRun: () => void;
+  onReviewCredential?: (selection: BrowserCredentialSelection) => void;
 }) {
   const t = useTranslations("pages.runs");
   const tTime = useTranslations("time");
@@ -171,6 +258,47 @@ export function DecidedApproval({
   const labelKey = DECISION_LABEL[approval.status];
   const summary = useCallLine(approval, false);
   const askedLine = useAskedLine(approval);
+  const browser = useTranslations("browserCredentials");
+  const credential = browserCredentialApproval(approval);
+  const continuation = useTranslations("browserContinuation");
+  const continuing = credential.kind === "plan" && !!credential.continuationId;
+
+  if (credential.kind !== "ordinary") {
+    return (
+      <li className="flex flex-wrap items-center gap-3 px-5 py-3">
+        <AgentFace agentId={approval.agent_id} className="size-7 shrink-0" />
+        <div className="min-w-0 flex-1 space-y-1">
+          <p className="text-sm font-medium">
+            {actor} · {continuing ? continuation("title") : browser("reviewTitle")}
+          </p>
+          {credential.kind === "unavailable" && (
+            <p className="text-muted-foreground text-xs">{browser("invalidApprovalPlan")}</p>
+          )}
+        </div>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() =>
+            credential.kind === "plan" && onReviewCredential
+              ? onReviewCredential({
+                  runId: credential.runId,
+                  planId: credential.planId,
+                  ...(credential.continuationId
+                    ? { continuationId: credential.continuationId }
+                    : {}),
+                })
+              : onOpenRun()
+          }
+        >
+          {continuing
+            ? continuation("reviewContinuation")
+            : credential.kind === "plan"
+              ? browser("reviewReceipt")
+              : t("openTheRun")}
+        </Button>
+      </li>
+    );
+  }
 
   return (
     <li className="px-5 py-3">

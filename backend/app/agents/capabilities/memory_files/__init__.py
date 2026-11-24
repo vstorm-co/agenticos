@@ -1,13 +1,19 @@
-"""Memory files - an agent's own notes, indexed by a `MEMORY.md` it maintains."""
-
-from pydantic import BaseModel, Field
+"""Scoped short memories and durable notes."""
 
 from app.agents.capabilities._registry import (
     CapabilityBuildContext,
     CapabilityToolInfo,
     register,
 )
+from app.agents.capabilities.memory_files._approval import (
+    CORRECTION_PRIVATE_FIELDS,
+    SHARE_PRIVATE_FIELDS,
+    correction_is_wide,
+    describe_correction,
+    describe_share,
+)
 from app.agents.capabilities.memory_files._capability import MemoryFiles
+from app.agents.capabilities.memory_files._config import MemoryFilesConfig
 from app.agents.capabilities.memory_files._toolset import INDEX_NAME
 
 __all__ = [
@@ -20,47 +26,25 @@ __all__ = [
 MEMORY_FILES_CAPABILITY_ID = "memory_files"
 
 
-class MemoryFilesConfig(BaseModel):
-    """How an agent keeps its notes.
-
-    One field, and that is the point. This capability used to be one binding with
-    six - two store toggles, two write levers, a backend and its URL - so a
-    builder configured a matrix instead of picking a thing. Semantic recall (mem0) went with the organisation-wide store, which
-    leaves exactly one genuine choice (#1470, #2090).
-    """
-
-    allow_personal: bool = Field(
-        title="Keep private notes per person",
-        default=True,
-        description=(
-            "Whether the agent keeps private notes for each person it talks to, "
-            "readable only when it is alone with them. Off drops that store "
-            "entirely, for compliance or privacy; the notes it keeps in group "
-            "chats stay."
-        ),
-    )
-
-
 @register(
     id=MEMORY_FILES_CAPABILITY_ID,
     name="Memory",
     category="knowledge",
     description=(
-        "Let the agent keep its own notes across conversations, indexed by a "
-        f"`{INDEX_NAME}` it maintains and is shown to it at the start of every "
-        "request. A note goes where the conversation goes: one to one it is that "
-        "person's and nobody else reads it, in a group chat it is the chat's and "
-        "everyone in the chat reads it. Nothing an agent writes here is shared "
-        "across people - standing knowledge you author belongs in context files."
+        "Keep facts, preferences, decisions and longer notes across conversations. "
+        "In private conversations, a short overview is available before the first tool call. "
+        "A shared conversation can use its own permitted memories and notes."
     ),
     tools=(
         CapabilityToolInfo(
             id="list_memory",
             description="List your notes for this conversation, by name and description.",
+            read_only=True,
         ),
         CapabilityToolInfo(
             id="read_memory",
             description="Read one note's body by its name.",
+            read_only=True,
         ),
         CapabilityToolInfo(
             id="write_memory",
@@ -85,6 +69,7 @@ class MemoryFilesConfig(BaseModel):
         CapabilityToolInfo(
             id="recall",
             description="Find recorded facts, preferences and decisions relevant to a question.",
+            read_only=True,
         ),
         CapabilityToolInfo(
             id="correct_memory",
@@ -99,6 +84,12 @@ class MemoryFilesConfig(BaseModel):
         ),
     ),
     config_schema=MemoryFilesConfig,
+    describers={"share_memory": describe_share, "correct_memory": describe_correction},
+    private_approval_fields={
+        "share_memory": SHARE_PRIVATE_FIELDS,
+        "correct_memory": CORRECTION_PRIVATE_FIELDS,
+    },
+    always_asks_when={"correct_memory": correction_is_wide},
 )
 def _build(ctx: CapabilityBuildContext) -> MemoryFiles:
     """Build the capability from a binding's config.
@@ -108,4 +99,4 @@ def _build(ctx: CapabilityBuildContext) -> MemoryFiles:
     An agent that wants no notes does not bind it.
     """
     config = ctx.config if isinstance(ctx.config, MemoryFilesConfig) else MemoryFilesConfig()
-    return MemoryFiles(allow_personal=config.allow_personal)
+    return MemoryFiles(allow_personal=config.allow_personal, inject_context=config.inject_context)

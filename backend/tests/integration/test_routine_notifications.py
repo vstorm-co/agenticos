@@ -8,6 +8,7 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent import Agent
 from app.db.models.agent_trigger import AgentTrigger
 from app.db.models.notification import Notification, NotificationChannel, NotificationEventType
@@ -19,6 +20,10 @@ from app.services.notification_center import NotificationCenterService
 from app.services.notification_delivery import NotificationDeliveryService
 
 pytestmark = [pytest.mark.anyio, pytest.mark.security]
+
+
+def _owner_ctx(user: User, org: Organization) -> AuthContext:
+    return AuthContext(user_id=user.id, organization_id=org.id, role=OrgRoleName.OWNER)
 
 
 async def _routine(db: AsyncSession, selected: list[str] | None):
@@ -285,7 +290,7 @@ async def test_monthly_routine_budget_notices_share_one_case_and_honor_delivery_
     assert case is not None and case.source_run_id is None
     deliveries = list(await db.scalars(select(NotificationDelivery)))
     assert (len(deliveries) == 1) is email
-    key, context = NotificationDeliveryService(db)._render(note, recipient=user, role="owner")
+    key, context = NotificationDeliveryService(db)._render(note, ctx=_owner_ctx(user, org))
     assert key is EmailKey.NOTIFICATION
     assert context["summary"] == note.summary
     # There is no spend in this database: a raised/removed cap or fresh month can run again.
@@ -311,7 +316,7 @@ async def test_budget_alerts_without_routine_pause_metadata_keep_the_existing_re
         summary="A run hit its cap",
     )
     assert note.outcome_id is None
-    key, _ = NotificationDeliveryService(db)._render(note, recipient=user, role="owner")
+    key, _ = NotificationDeliveryService(db)._render(note, ctx=_owner_ctx(user, org))
     assert key is EmailKey.BUDGET_EXCEEDED
 
 

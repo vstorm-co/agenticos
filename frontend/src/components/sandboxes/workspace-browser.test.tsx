@@ -23,6 +23,7 @@ const state = vi.hoisted(() => ({
   flatLoading: false,
   flatError: null as string | null,
   flatAsked: [] as boolean[],
+  flatRefetch: vi.fn(),
   downloaded: [] as [string, string][],
   downloadError: null as string | null,
 }));
@@ -44,7 +45,12 @@ vi.mock("@/lib/workspace-files", async (importOriginal) => ({
 vi.mock("@/hooks", () => ({
   useAllWorkspaceFiles: (enabled: boolean) => {
     state.flatAsked.push(enabled);
-    return { listing: state.flat, isLoading: state.flatLoading, error: state.flatError };
+    return {
+      listing: state.flat,
+      isLoading: state.flatLoading,
+      error: state.flatError,
+      refetch: state.flatRefetch,
+    };
   },
   useWorkspaceFiles: (id: string | null) => {
     state.opened.push(id);
@@ -100,6 +106,7 @@ beforeEach(() => {
   state.flatLoading = false;
   state.flatError = null;
   state.flatAsked = [];
+  state.flatRefetch.mockReset();
   state.downloaded = [];
   state.downloadError = null;
 });
@@ -531,4 +538,12 @@ describe("compareFlat", () => {
     expect(compareFlat("agent", a, b)).toBeGreaterThan(0);
     expect(compareFlat("modified", a, b)).toBe(0);
   });
+});
+
+it("offers a retry when documents could not be loaded", async () => {
+  state.flatError = "The file service is unavailable";
+  render(<WorkspaceBrowser />);
+  expect(screen.getByRole("alert")).toHaveTextContent("The file service is unavailable");
+  await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+  expect(state.flatRefetch).toHaveBeenCalledOnce();
 });

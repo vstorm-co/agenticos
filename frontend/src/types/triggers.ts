@@ -1,3 +1,4 @@
+import type { RoutineSourceMode } from "@/lib/routine-sources-api";
 import type { RoutineNotificationChannel } from "@/types/routines";
 /**
  * Types for agent triggers - when an agent runs with nobody at the keyboard.
@@ -24,6 +25,19 @@ export type ScheduleKind = "interval" | "cron";
  */
 export type TriggerOverlap = "skip" | "queue" | "allow";
 
+/** The run-now 202 response identifies the exact queued activation. */
+export interface TriggerDispatch extends Trigger {
+  activation_id: string;
+  job_id: string | null;
+}
+/**
+ * Which conversation a fire's run goes in. Mirrors the backend's
+ * `TriggerConversationMode` (#14): `continue` appends every fire to the
+ * trigger's one run-log conversation; `fresh` opens a new conversation per
+ * fire and stores none of them on the trigger.
+ */
+export type TriggerConversationMode = "continue" | "fresh";
+
 /** Where an event trigger's fire comes from. Mirrors the backend's `EventSource`. */
 export type EventSource =
   | "github"
@@ -31,6 +45,7 @@ export type EventSource =
   | "google_calendar"
   | "google_drive"
   | "hubspot"
+  | "linear"
   | "microsoft_files"
   | "outlook"
   | "outlook_calendar"
@@ -54,6 +69,8 @@ export interface Trigger {
   /** A human title for this trigger; null lists it by the agent's name instead. */
   name: string | null;
   created_by_user_id: string | null;
+  setup_required?: boolean;
+  setup_issues?: string[];
   is_active: boolean;
   /**
    * Whether *this* caller may edit, pause, run-now or delete this trigger. The
@@ -99,6 +116,8 @@ export interface Trigger {
   time_zone: string | null;
   /** A schedule's overlap policy; an event trigger carries `skip` and ignores it. */
   overlap: TriggerOverlap;
+  /** Which conversation a fire's run goes in; `fresh` leaves `conversation_id` null. Optional so a partial fixture need not carry it - the live `TriggerRead` always does. */
+  conversation_mode?: TriggerConversationMode;
   event_source: EventSource | null;
   /** The per-source filter (which actions, which sender); `{}` on a schedule. */
   event_config: Record<string, unknown>;
@@ -110,7 +129,7 @@ export interface Trigger {
   last_delivery_status?:
     "delivered" | "unavailable" | "run_log" | "no_answer" | "not_completed" | null;
   last_run_id: string | null;
-  /** The one run-log conversation every fire appends to, opened eagerly on create. */
+  /** The one run-log conversation every fire appends to, opened eagerly on create. Null on a `fresh` trigger, whose fires open one conversation each instead. */
   conversation_id: string | null;
   /**
    * Where a provider must deliver, under the deployment's origin; null for a
@@ -152,6 +171,8 @@ export interface TriggerList {
 export type TriggerAnswerTo = "run_log" | "primary" | "conversation";
 
 export interface TriggerCreate {
+  source_mode?: RoutineSourceMode;
+  review_before_activation?: boolean;
   max_failures?: number | null;
   is_active?: boolean;
   notification_channels?: RoutineNotificationChannel[] | null;
@@ -176,6 +197,8 @@ export interface TriggerCreate {
   time_zone?: string | null;
   /** Schedules only; the server stores `skip` when omitted. */
   overlap?: TriggerOverlap;
+  /** Which conversation a fire's run goes in; the server stores `continue` when omitted. */
+  conversation_mode?: TriggerConversationMode;
   event_source?: EventSource | null;
   event_config?: Record<string, unknown> | null;
   event_secret?: string | null;
@@ -225,6 +248,7 @@ export interface TriggerUpdate {
   cron_expression?: string | null;
   time_zone?: string | null;
   overlap?: TriggerOverlap;
+  conversation_mode?: TriggerConversationMode;
   is_active?: boolean;
   environment_id?: string | null;
   pinned_version_id?: string | null;
@@ -237,4 +261,46 @@ export interface TriggerUpdate {
   runs_as_creator?: boolean;
   local_target?: LocalTarget | null;
   event_config?: Record<string, unknown>;
+}
+
+/** An activation that stopped before creating an agent run; no model cost. */
+export interface TriggerAttempt {
+  id: string;
+  activation_id: string;
+  status: "blocked" | "failed";
+  stage: "source_review" | "preparation";
+  reason:
+    | "platform_identity_required"
+    | "source_review_required"
+    | "agent_unavailable"
+    | "preparation_failed"
+    | "previous_run_active";
+  occurred_at: string;
+}
+
+export interface TriggerAttemptList {
+  items: TriggerAttempt[];
+  total: number;
+}
+
+export interface TriggerActivationStatus {
+  state: "pending" | "recorded" | "not_started";
+}
+
+export interface TriggerFilteredEventRead {
+  last_event: {
+    received_at: string;
+    reason:
+      | "event"
+      | "action"
+      | "bot"
+      | "ignored_login"
+      | "author"
+      | "draft"
+      | "branch"
+      | "mention"
+      | "conclusion"
+      | "not_branch";
+    authors: "members" | "contributors" | "anyone";
+  } | null;
 }

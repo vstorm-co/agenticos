@@ -22,6 +22,7 @@ from app.core.config import settings
 from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.main import app
+from app.schemas.table_record_access import RecordAccessRead
 from app.schemas.virtual_table import (
     RecordBatchResult,
     RecordCount,
@@ -60,6 +61,9 @@ async def _export(*_args: Any) -> RecordExport:
     return RecordExport(filename="Orders.csv", lines=lines())
 
 
+_AS_OF = datetime(2026, 11, 12, 9, 0, tzinfo=UTC)
+
+
 def _record(revision: int = 1) -> RecordRead:
     return RecordRead(
         id=_RECORD,
@@ -95,10 +99,16 @@ def service() -> MagicMock:
         archive_table=AsyncMock(return_value=_table()),
         unarchive_table=AsyncMock(return_value=_table()),
         update_schema=AsyncMock(return_value=_table()),
+        set_row_policy=AsyncMock(return_value=_table()),
         list_schema_versions=AsyncMock(return_value={"items": []}),
         list_records=AsyncMock(return_value=RecordList(items=[], skip=0, limit=50, has_more=False)),
+        list_backlinks=AsyncMock(
+            return_value=RecordList(items=[], skip=0, limit=50, has_more=False)
+        ),
         count_records=AsyncMock(return_value=RecordCount(count=3, capped=False)),
-        create_records=AsyncMock(return_value=RecordBatchResult(created=1, failed=[])),
+        write_batch=AsyncMock(
+            return_value=(RecordBatchResult(created=1, failed=[], as_of=_AS_OF), False)
+        ),
         export_records=AsyncMock(side_effect=_export),
         record_exists=AsyncMock(return_value=True),
         get_record=AsyncMock(return_value=_record()),
@@ -113,6 +123,13 @@ def service() -> MagicMock:
             return_value=RecordWrite(record=_record(), created=True, replayed=False)
         ),
         delete_record=AsyncMock(return_value=None),
+        get_record_access=AsyncMock(
+            return_value=RecordAccessRead(table_id=_TABLE, record_id=_RECORD, grants=[])
+        ),
+        set_record_grant=AsyncMock(
+            return_value=RecordAccessRead(table_id=_TABLE, record_id=_RECORD, grants=[])
+        ),
+        revoke_record_grant=AsyncMock(return_value=None),
     )
 
 
@@ -157,6 +174,39 @@ async def test_a_table_is_created_with_201_and_listed_with_its_total(client, ser
     }
 
 
+async def test_backlinks_are_a_bounded_read_delegated_to_endpoint_authorization(client, service):
+    source, column_id = uuid.uuid4(), uuid.uuid4()
+    async with client() as http:
+        response = await http.get(
+            _records(f"/{_RECORD}/backlinks"),
+            params={
+                "source_table_id": str(source),
+                "column_id": str(column_id),
+                "skip": 2,
+                "limit": 10,
+            },
+        )
+        refused = await http.get(
+            _records(f"/{_RECORD}/backlinks"),
+            params={
+                "source_table_id": str(source),
+                "column_id": str(column_id),
+                "limit": 101,
+            },
+        )
+    assert response.status_code == 200
+    assert refused.status_code == 422
+    args = service.list_backlinks.await_args.args
+    assert args[1:3] == (_TABLE, _RECORD)
+    assert args[3].model_dump() == {
+        "source_table_id": source,
+        "column_id": column_id,
+        "skip": 2,
+        "limit": 10,
+    }
+    assert service.list_backlinks.await_count == 1
+
+
 async def test_the_listing_can_be_asked_to_sort_by_most_recently_changed(client, service):
     async with client() as http:
         await http.get(_url(), params={"sort": "updated_at"})
@@ -177,6 +227,107 @@ async def test_the_per_table_routes_answer_with_the_table(client):
 
     assert [r.status_code for r in responses] == [200, 200, 200, 200, 200]
     assert versions.json() == {"items": []}
+
+
+async def test_setting_a_row_policy_passes_the_document_to_the_service(client, service):
+    assignee = str(uuid.uuid4())
+    async with client() as http:
+        response = await http.put(
+            _url(f"/{_TABLE}/row-policy"),
+            json={
+                "rule": "assignee",
+                "view_column_id": assignee,
+                "edit_column_id": assignee,
+            },
+        )
+
+    assert response.status_code == 200
+    assert response.json()["name"] == "Orders"
+    ctx, table_id, data = service.set_row_policy.await_args.args
+    assert table_id == _TABLE
+    assert data.rule == "assignee"
+    assert str(data.view_column_id) == assignee
+
+
+async def test_a_viewer_reaches_the_row_policy_service_because_no_route_gate_blocks_them(
+    client, service
+):
+    """The access decision is the service's, via `resolve_access`: a route-level
+    role gate would refuse a grant holder before the service is reached, so
+    this route carries none - a viewer gets the service's answer, not a 403."""
+    viewer = AuthContext(user_id=uuid.uuid4(), organization_id=_ORG, role=OrgRoleName.VIEWER)
+    app.dependency_overrides[deps.get_auth_context] = lambda: viewer
+
+    async with client() as http:
+        response = await http.put(_url(f"/{_TABLE}/row-policy"), json={"rule": "none"})
+
+    assert response.status_code == 200
+    service.set_row_policy.assert_awaited_once()
+
+
+@pytest.mark.parametrize(
+    ("subject_key", "level"), [("subject_user_id", "read"), ("subject_group_id", "write")]
+)
+async def test_record_grants_preserve_the_public_level_and_delegate_authority(
+    client, service, subject_key, level
+):
+    viewer = AuthContext(user_id=uuid.uuid4(), organization_id=_ORG, role=OrgRoleName.VIEWER)
+    app.dependency_overrides[deps.get_auth_context] = lambda: viewer
+    subject = uuid.uuid4()
+    async with client() as http:
+        response = await http.put(
+            _records(f"/{_RECORD}/access/grants"),
+            json={subject_key: str(subject), "level": level},
+        )
+        listed = await http.get(_records(f"/{_RECORD}/access"))
+
+    assert response.status_code == listed.status_code == 200
+    assert listed.json() == {"table_id": str(_TABLE), "record_id": str(_RECORD), "grants": []}
+    ctx, table_id, record_id, data = service.set_record_grant.await_args.args
+    assert ctx is viewer and table_id == _TABLE and record_id == _RECORD
+    assert data.level == level and getattr(data, subject_key) == subject
+    service.get_record_access.assert_awaited_once_with(viewer, _TABLE, _RECORD)
+
+
+async def test_record_grant_revocations_scope_user_and_group_subjects(client, service):
+    user, group = uuid.uuid4(), uuid.uuid4()
+    async with client() as http:
+        responses = [
+            await http.delete(_records(f"/{_RECORD}/access/grants/{user}")),
+            await http.delete(_records(f"/{_RECORD}/access/group-grants/{group}")),
+        ]
+
+    assert all(response.status_code == 204 and response.content == b"" for response in responses)
+    calls = service.revoke_record_grant.await_args_list
+    assert [(call.args[1:], call.kwargs) for call in calls] == [
+        ((_TABLE, _RECORD, user), {"kind": "user"}),
+        ((_TABLE, _RECORD, group), {"kind": "group"}),
+    ]
+
+
+@pytest.mark.parametrize("level", ["edit", "use", "manage"])
+async def test_record_grants_reject_administration_levels_before_the_service(
+    client, service, level
+):
+    async with client() as http:
+        response = await http.put(
+            _records(f"/{_RECORD}/access/grants"),
+            json={"subject_user_id": str(uuid.uuid4()), "level": level},
+        )
+
+    assert response.status_code == 422
+    service.set_record_grant.assert_not_awaited()
+
+
+async def test_record_grant_routes_preserve_a_service_access_refusal(client, service):
+    service.set_record_grant.side_effect = NotFoundError(message="Record not found")
+    async with client() as http:
+        response = await http.put(
+            _records(f"/{_RECORD}/access/grants"),
+            json={"subject_user_id": str(uuid.uuid4()), "level": "write"},
+        )
+    assert response.status_code == 404
+    service.set_record_grant.assert_awaited_once()
 
 
 async def test_creating_a_record_is_a_201_and_passes_the_operation_key_through(client, service):
@@ -289,9 +440,43 @@ async def test_a_batch_hands_the_service_at_most_two_hundred_records(client, ser
         too_many = await http.post(_records("/batch"), json={"records": [{"values": {}}] * 201})
 
     assert written.status_code == 200
-    assert written.json() == {"created": 1, "updated": 0, "failed": []}
+    assert written.json() == {
+        "created": 1,
+        "updated": 0,
+        "failed": [],
+        "as_of": _AS_OF.isoformat().replace("+00:00", "Z"),
+    }
+    assert "idempotent-replayed" not in written.headers
     assert (empty.status_code, too_many.status_code) == (422, 422)
-    assert len(service.create_records.await_args.args[2].records) == 1
+    assert len(service.write_batch.await_args.args[2].records) == 1
+    assert service.write_batch.await_args.kwargs["operation_key"] is None
+
+
+async def test_a_batch_naming_a_time_without_a_zone_is_refused(client, service):
+    async with client() as http:
+        naive = await http.post(
+            _records("/batch"),
+            json={"records": [{"values": {}}], "as_of": "2026-11-12T09:00:00"},
+        )
+
+    assert naive.status_code == 422
+    service.write_batch.assert_not_awaited()
+
+
+async def test_a_batch_sent_again_under_its_key_says_it_was_replayed(client, service):
+    service.write_batch.return_value = (
+        RecordBatchResult(created=1, failed=[], as_of=_AS_OF),
+        True,
+    )
+    async with client() as http:
+        replayed = await http.post(
+            _records("/batch"),
+            json={"records": [{"values": {}}]},
+            headers={"Idempotency-Key": "import-1"},
+        )
+
+    assert replayed.headers["idempotent-replayed"] == "true"
+    assert service.write_batch.await_args.kwargs["operation_key"] == "import-1"
 
 
 async def test_an_export_answers_a_csv_file_named_after_its_table(client, service):
@@ -393,7 +578,10 @@ def test_the_openapi_document_types_the_write_contract():
     }
     assert {"idempotency-key"} <= {p["name"] for p in patch["parameters"]}
     request = document["components"]["schemas"]["RecordUpdate"]
-    assert set(request["required"]) == {"expected_revision", "values"}
+    assert set(request["required"]) == {"expected_revision"}
+    assert request["properties"]["link_changes"]["additionalProperties"] == {
+        "$ref": "#/components/schemas/RecordLinkChange"
+    }
     assert request["additionalProperties"] is False
     assert {"created_at", "updated_at"} <= set(
         document["components"]["schemas"]["RecordRead"]["properties"]
@@ -528,7 +716,21 @@ def test_the_openapi_document_lists_403_on_the_gated_routes_and_only_on_them():
 
     with_403 = {key for key, operation in table_routes.items() if "403" in operation["responses"]}
 
-    assert with_403 == {(prefix, "get"), (prefix, "post")}
+    # The collection's role gate, and refusals about something the caller can already
+    # see, so answered outright rather than as a 404: changes to a task board itself, a
+    # view's visibility, which only its owner changes, and resuming a table trigger
+    # without the right to run its workflow.
+    assert with_403 == {
+        (prefix, "get"),
+        (prefix, "post"),
+        (f"{prefix}/{{table_id}}", "patch"),
+        (f"{prefix}/{{table_id}}/archive", "post"),
+        (f"{prefix}/{{table_id}}/unarchive", "post"),
+        (f"{prefix}/{{table_id}}/schema", "put"),
+        (f"{prefix}/{{table_id}}/triggers/{{trigger_id}}", "patch"),
+        (f"{prefix}/{{table_id}}/views/{{view_id}}", "patch"),
+        (f"{prefix}/{{table_id}}/views/{{view_id}}", "delete"),
+    }
     refusal = table_routes[(prefix, "post")]["responses"]["403"]
     assert refusal["content"]["application/json"]["schema"] == {
         "$ref": "#/components/schemas/ErrorEnvelope"
@@ -614,6 +816,7 @@ _MUTATIONS = [
     ("post", _url(f"/{_TABLE}/archive"), None),
     ("post", _url(f"/{_TABLE}/unarchive"), None),
     ("put", _url(f"/{_TABLE}/schema"), {"expected_version": 1, "columns": []}),
+    ("put", _url(f"/{_TABLE}/row-policy"), {"rule": "none"}),
     ("post", _records(), {"values": {}}),
     ("patch", _records(f"/{_RECORD}"), {"expected_revision": 1, "values": {}}),
     ("put", _records("/by-external-id/A-1"), {"values": {}}),
@@ -633,6 +836,7 @@ _MUTATIONS = [
         "archive-table",
         "unarchive-table",
         "change-schema",
+        "set-row-policy",
         "create-record",
         "update-record",
         "upsert-record",
@@ -821,3 +1025,12 @@ async def test_table_image_upload_and_private_bytes(client, service):
         assert served.headers["cache-control"] == "private, no-store"
         assert served.headers["x-content-type-options"] == "nosniff"
         assert served.headers["content-type"] == "image/png"
+
+
+async def test_schema_history_accepts_an_exact_positive_version(client, service):
+    async with client() as http:
+        response = await http.get(_url(f"/{_TABLE}/schema-versions?version=7"))
+        invalid = await http.get(_url(f"/{_TABLE}/schema-versions?version=0"))
+    assert response.status_code == 200
+    assert invalid.status_code == 422
+    assert service.list_schema_versions.call_args.kwargs == {"version": 7}

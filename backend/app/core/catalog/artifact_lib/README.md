@@ -27,6 +27,8 @@ that is not listed there is not served.
 | `agenticos-2.js` | `window.AO`: Chart.js in the console's style, number formatting, icons, tabs | 2 | Apache-2.0 (this repository) | written here |
 | `agenticos-3.css` | Version 2's classes, forgiving of a header or table built loosely, plus loading, notes, lists, a toolbar and the header's icon and actions | 3 | Apache-2.0 (this repository) | written here |
 | `agenticos-3.js` | Version 2's `window.AO`, plus icons drawn as a script adds them, `AO.onData` and `AO.records` | 3 | Apache-2.0 (this repository) | written here |
+| `agenticos-4.css` | Version 3's classes in the T3 design language (tokens, type, radii, light and dark, focus rings), plus ghost, danger and sized buttons, line tabs, stat tiles, a sticky-header table, chips, progress tones, initials and a nine-colour chart palette | 4 | Apache-2.0 (this repository); the free BoardUI design tokens re-drawn as original CSS, MIT, notice below | written here |
+| `agenticos-4.js` | Version 3's `window.AO`, plus `AO.initials`, initials chips filled from `data-ao-initials` and a nine-colour chart series | 4 | Apache-2.0 (this repository) | written here |
 | `agenticos-map-1.js` | `window.AOMap`: an itinerary of numbered pins on the deployment's tile server, or an outline without one | 1 | Apache-2.0 (this repository); the pin-drop timing adapted from Open Intelligent UI, MIT | written here |
 | `agenticos-map-2.js` | `window.AOMap`: an itinerary of numbered pins on the deployment's tile server, or an outline without one | 2 | Apache-2.0 (this repository); the pin-drop timing adapted from Open Intelligent UI, MIT | written here |
 | `agenticos-map-1.js` | Version 1, kept for the pages that name it; it drops the pins on load and keeps one height. `window.AOMap`: an itinerary of numbered pins on the deployment's tile server, or an outline without one | 1 | Apache-2.0 (this repository); the pin-drop timing adapted from Open Intelligent UI, MIT | written here |
@@ -298,6 +300,34 @@ furnished to do so, subject to the following conditions:
 
 The above copyright notice and this permission notice shall be included in
 all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+## BoardUI (agenticos-4.css)
+
+`agenticos-4.css` follows the colour, type and radius tokens of the free BoardUI
+material in the T3 design reference. The CSS is original; no BoardUI source file
+is copied. Its notice:
+
+The MIT License (MIT)
+
+Copyright (c) 2026 Mertcan Dundar Esmergul (BoardUI)
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,

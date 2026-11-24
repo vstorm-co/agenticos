@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useChatStore } from "./chat-store";
+import { conversationMessageToChatMessage } from "@/lib/conversation-to-chat";
+import type { TranscriptIdentity } from "./conversation-store";
 import type { ChatMessage, ToolCall } from "@/types";
 
 function message(overrides: Partial<ChatMessage> = {}): ChatMessage {
@@ -39,7 +41,64 @@ function timeline(id = "m-1") {
  * them would render differently after a refresh than it did live.
  */
 beforeEach(() => {
-  useChatStore.setState({ messages: [], isStreaming: false });
+  useChatStore.setState({ messages: [], isStreaming: false, loadedTranscript: null });
+});
+
+describe("committed transcript identity", () => {
+  const identity: TranscriptIdentity = {
+    conversationId: "room",
+    selectionVersion: 1,
+    accountId: "me",
+    tenantId: "organization",
+  };
+
+  it("publishes a loaded empty transcript atomically and clears readiness with the messages", () => {
+    const committed = vi.fn();
+    const unsubscribe = useChatStore.subscribe(committed);
+    store().rereadMessages([], identity);
+    expect(committed).toHaveBeenCalledTimes(1);
+    expect(committed.mock.calls[0]?.[0]).toMatchObject({
+      messages: [],
+      loadedTranscript: identity,
+    });
+    unsubscribe();
+    store().clearMessages();
+    expect(store().loadedTranscript).toBeNull();
+  });
+
+  it("keeps newer local and streaming messages when an empty refresh lands", () => {
+    store().rereadMessages([], identity);
+    store().addMessage(message({ id: "prompt", role: "user", isTemporaryId: true }));
+    store().addMessage(message({ id: "answer", content: "New", isStreaming: true }));
+    store().rereadMessages([], { ...identity });
+    store().appendTextDelta("answer", " answer");
+    expect(store().messages.map((item) => item.id)).toEqual(["prompt", "answer"]);
+    expect(store().messages[1]?.content).toBe("New answer");
+  });
+
+  it("retains unresolved live content only for its successful concrete-tenant revalidation", () => {
+    store().rereadMessages([], { ...identity, tenantId: null });
+    store().addMessage(message({ id: "answer", content: "Live", isStreaming: true }));
+    store().rereadMessages([], identity);
+    expect(store().messages[0]?.content).toBe("Live");
+    expect(store().loadedTranscript).toEqual(identity);
+    store().rereadMessages([], { ...identity, tenantId: "other" });
+    expect(store().messages).toEqual([]);
+  });
+
+  it.each([
+    { conversationId: "another-room" },
+    { selectionVersion: 2 },
+    { accountId: "another-account" },
+    { tenantId: "another-organization" },
+  ])("does not retain another loaded identity's messages: %j", (changed) => {
+    store().rereadMessages([], identity);
+    store().addMessage(message({ id: "old", content: "Old session" }));
+    const next = { ...identity, ...changed };
+    store().rereadMessages([], next);
+    expect(store().messages).toEqual([]);
+    expect(store().loadedTranscript).toEqual(next);
+  });
 });
 
 describe("the message list", () => {
@@ -507,6 +566,21 @@ it("retains late next-step buttons when an older history request finishes", () =
 });
 
 describe("a saved message arriving before its acknowledgement", () => {
+  it("updates the local bubble by its persisted id while the local id is retained", () => {
+    const local = message({
+      id: "live-local",
+      persistedId: "saved-message",
+      isTemporaryId: true,
+      isStreaming: true,
+      isPinned: false,
+    });
+    store().addMessage(local);
+
+    store().updateMessage("saved-message", (msg) => ({ ...msg, isPinned: true }));
+
+    expect(store().messages).toEqual([{ ...local, isPinned: true }]);
+  });
+
   it("keeps one answer and its tool results when the live id becomes the stored id", () => {
     const local = message({
       id: "live",
@@ -549,6 +623,61 @@ it("ignores a late update for a turn removed during navigation", () => {
   expect(updater).not.toHaveBeenCalled();
 });
 
+describe("reader-scoped transcript fields", () => {
+  const identity: TranscriptIdentity = {
+    conversationId: "conversation",
+    selectionVersion: 1,
+    accountId: "reader",
+    tenantId: "organization",
+  };
+
+  it("keeps a known pin status when a refresh omits it, but accepts an explicit unpin", () => {
+    const raw = {
+      id: "saved",
+      conversation_id: "conversation",
+      role: "assistant" as const,
+      content: "Saved answer",
+      created_at: "2026-11-17T00:00:00Z",
+    };
+    store().rereadMessages(
+      [message({ id: "saved", conversationId: "conversation", isPinned: true })],
+      identity,
+    );
+
+    store().rereadMessages([conversationMessageToChatMessage(raw)], identity);
+
+    expect(store().messages[0]?.isPinned).toBe(true);
+
+    store().rereadMessages(
+      [conversationMessageToChatMessage({ ...raw, is_pinned: false })],
+      identity,
+    );
+
+    expect(store().messages[0]?.isPinned).toBe(false);
+  });
+
+  it("does not carry a reader's pin status into a different transcript identity", () => {
+    const raw = {
+      id: "saved",
+      conversation_id: "conversation",
+      role: "assistant" as const,
+      content: "Saved answer",
+      created_at: "2026-11-17T00:00:00Z",
+    };
+    store().rereadMessages(
+      [message({ id: "saved", conversationId: "conversation", isPinned: true })],
+      identity,
+    );
+
+    store().rereadMessages([conversationMessageToChatMessage(raw)], {
+      ...identity,
+      accountId: "another-reader",
+    });
+
+    expect(store().messages[0]?.isPinned).toBeUndefined();
+  });
+});
+
 describe("HTTP continuation reconciliation", () => {
   const call = toolCall({ id: "verified-tasks", status: "completed" });
   const local = () =>
@@ -587,5 +716,537 @@ describe("HTTP continuation reconciliation", () => {
     store().rereadMessages(persisted());
     expect(store().messages).toHaveLength(2);
     expect(store().messages[0]?.renderKey).toBe("resume-local");
+  });
+});
+
+describe("room thread reconciliation", () => {
+  const identity: TranscriptIdentity = {
+    conversationId: "room",
+    selectionVersion: 1,
+    accountId: "me",
+    tenantId: "org",
+  };
+  const reply = (id: string, root = "root-a", changes: Partial<ChatMessage> = {}) =>
+    message({ id, conversationId: "room", threadRootMessageId: root, content: id, ...changes });
+
+  it("merges only the authorized root while retaining an in-progress answer and other scopes", () => {
+    store().rereadMessages([message({ id: "main", conversationId: "room" })], identity);
+    store().addMessage(reply("live-a", "root-a", { isStreaming: true, content: "Half" }));
+    store().addMessage(reply("reply-b", "root-b"));
+    store().rereadRoomThread(
+      [reply("saved-a"), reply("live-a", "root-a", { content: "Old snapshot" })],
+      "root-a",
+      identity,
+    );
+    store().appendTextDelta("live-a", " finished");
+    expect(store().messages.map((row) => row.id)).toEqual(["main", "reply-b", "saved-a", "live-a"]);
+    expect(store().messages.at(-1)?.content).toBe("Half finished");
+    store().addMessage(message({ id: "main-new", conversationId: "room" }));
+    store().rereadMessages(
+      [
+        message({ id: "main", conversationId: "room" }),
+        message({ id: "main-new", conversationId: "room" }),
+      ],
+      identity,
+    );
+    expect(store().messages.find((row) => row.id === "saved-a")?.threadRootMessageId).toBe(
+      "root-a",
+    );
+    expect(store().messages.find((row) => row.id === "reply-b")?.threadRootMessageId).toBe(
+      "root-b",
+    );
+    store().appendTextDelta("live-a", " again");
+    expect(store().messages.find((row) => row.id === "live-a")?.content).toBe(
+      "Half finished again",
+    );
+  });
+
+  it("keeps a thread's parked local control until its save acknowledgement without touching other roots", () => {
+    const question = reply("question", "root-a", { role: "user" });
+    const local = reply("local-answer", "root-a", {
+      isTemporaryId: true,
+      content: "Confirm this action",
+      runWaitingFor: "approval",
+    });
+    const other = reply("other-thread", "root-b");
+    store().rereadMessages([], identity);
+    store().addMessage(question);
+    store().addMessage(other);
+    store().addMessage(local);
+    store().rereadRoomThread(
+      [question, reply("saved-answer", "root-a", { content: local.content })],
+      "root-a",
+      identity,
+    );
+    expect(store().messages.find((row) => row.id === "other-thread")).toBe(other);
+    expect(store().messages.filter((row) => row.threadRootMessageId === "root-a")).toEqual([
+      expect.objectContaining({ id: "question" }),
+      expect.objectContaining({
+        id: "local-answer",
+        persistedId: "saved-answer",
+        runWaitingFor: "approval",
+      }),
+    ]);
+    store().updateMessage("local-answer", (row) => ({
+      ...row,
+      id: "saved-answer",
+      isTemporaryId: false,
+    }));
+    expect(store().messages.filter((row) => row.threadRootMessageId === "root-a")).toHaveLength(2);
+    expect(store().messages.find((row) => row.id === "saved-answer")?.runWaitingFor).toBe(
+      "approval",
+    );
+  });
+
+  it.each([
+    null,
+    { ...identity, conversationId: "other" },
+    { ...identity, selectionVersion: 2 },
+    { ...identity, accountId: "other" },
+    { ...identity, tenantId: "other" },
+  ])("rejects scoped history without the exact committed identity (%j)", (loaded) => {
+    const before = [reply("held", "root-b")];
+    useChatStore.setState({ messages: before, loadedTranscript: loaded });
+    store().rereadRoomThread([reply("incoming")], "root-a", identity);
+    expect(store().messages).toBe(before);
+  });
+
+  it.each([
+    reply("foreign-room", "root-a", { conversationId: "elsewhere" }),
+    reply("foreign-root", "root-b"),
+  ])("rejects mixed-scope response rows (%j)", (foreign) => {
+    store().rereadMessages([], identity);
+    const before = store().messages;
+    store().rereadRoomThread([reply("allowed"), foreign], "root-a", identity);
+    expect(store().messages).toBe(before);
+  });
+
+  it("keeps empty history and drafts through a conversation close, then invalidates drafts on reset", () => {
+    store().rereadMessages([], identity);
+    store().addMessage(reply("live", "root-a", { isStreaming: true }));
+    store().rereadRoomThread([], "root-a", identity);
+    expect(store().messages[0]?.id).toBe("live");
+    store().updateRoomDraft("scope", (draft) => ({ ...draft, content: "Keep me" }));
+    store().updateRoomDraft("scope", (draft) => ({ ...draft, agentId: "writer" }));
+    store().clearMessages();
+    expect(store().roomDrafts.scope).toMatchObject({ content: "Keep me", agentId: "writer" });
+    const generation = store().roomDraftGeneration;
+    store().clearRoomDrafts();
+    expect(store().roomDrafts).toEqual({});
+    expect(store().roomDraftGeneration).toBe(generation + 1);
+  });
+});
+
+it.each([
+  { content: "The deck is ready.", toolCalls: [] },
+  { content: "", toolCalls: [toolCall({ id: "publish-deck" })] },
+])("retains an acknowledged answer's details missing from history: %j", (missing) => {
+  store().addMessage(message({ id: "question", role: "user", content: "Make a deck" }));
+  store().addMessage(
+    message({
+      id: "live",
+      isTemporaryId: true,
+      isStreaming: false,
+      content: "The deck is ready.",
+      toolCalls: [toolCall({ id: "publish-deck" })],
+    }),
+  );
+  store().rereadMessages([
+    message({ id: "question", role: "user", content: "Make a deck" }),
+    message({ id: "saved", ...missing }),
+  ]);
+  expect(store().messages.filter((item) => item.role === "assistant")).toHaveLength(1);
+  expect(store().messages[1]?.id).toBe("live");
+  expect(store().messages[1]?.content).toBe("The deck is ready.");
+  expect(store().messages[1]?.toolCalls?.[0]?.id).toBe("publish-deck");
+  store().updateMessage("live", (item) => ({ ...item, id: "saved", isTemporaryId: false }));
+  expect(store().messages.map((item) => item.id)).toEqual(["question", "saved"]);
+});
+
+it("adopts a plain persisted answer without waiting for message_saved", () => {
+  store().addMessage(message({ id: "question", role: "user", content: "Make a deck" }));
+  store().addMessage(
+    message({
+      id: "live",
+      isTemporaryId: true,
+      isStreaming: false,
+      content: "The deck is ready.",
+      toolCalls: [],
+    }),
+  );
+  const question = message({ id: "question", role: "user", content: "Make a deck" });
+  const saved = message({ id: "saved", content: "The deck is ready.", toolCalls: [] });
+  store().rereadMessages([question, message({ ...saved, content: "" })]);
+  expect(store().messages[1]?.id).toBe("live");
+  store().rereadMessages([question, saved]);
+  expect(store().messages[1]).toMatchObject({
+    id: "saved",
+    content: "The deck is ready.",
+    renderKey: "live",
+    toolCalls: [],
+  });
+  expect(store().messages[1]?.isTemporaryId).toBeFalsy();
+  store().rereadMessages([question, saved]);
+  store().updateMessage("live", (item) => ({ ...item, id: "saved", isTemporaryId: false }));
+  expect(store().messages.map((item) => item.id)).toEqual(["question", "saved"]);
+  expect(store().messages[1]?.renderKey).toBe("live");
+});
+
+it("recovers the recorded room answer through the real history mapper", () => {
+  // The owner history response from the multiplayer failure, before conversion.
+  const recorded = {
+    created_at: "2026-11-16T03:53:56.421587+00:00",
+    updated_at: null,
+    role: "assistant" as const,
+    content: "PONG-ROOM-mwiqb1g6",
+    client_message_id: null,
+    thinking: null,
+    id: "8993754b-8c33-41a6-8e1f-ea9c924b9bd7",
+    conversation_id: "3760e7b3-550a-4ae8-96a8-e34048d2928f",
+    run_id: "aaa6cdfe-a0b3-40f0-a8ac-128d7495c071",
+    turn_id: null,
+    interrupted: false,
+    model_name: "e2e-room-model-mwiqb1g6",
+    parts: null,
+    tokens_used: null,
+    input_tokens: 2378,
+    output_tokens: 5,
+    cache_read_tokens: 0,
+    cache_write_tokens: 0,
+    cost_usd: "0.000959",
+    cost_is_partial: false,
+    context_used_tokens: 2378,
+    agent_id: "fe52a314-c4d9-4e7d-ba3c-c7be7aa31af4",
+    agent_version_id: "a6ec73e2-ec81-44e3-b46c-f353208247f0",
+    agent_version: null,
+    run_status: "completed",
+    run_error: null,
+    run_started_at: "2026-11-16T03:53:56.002144+00:00",
+    run_duration_ms: 437,
+    sender: null,
+    reply_to: null,
+    sender_gone: false,
+    tool_calls: [],
+    files: [],
+    user_rating: null,
+    rating_count: null,
+    author: null,
+  };
+  const saved = conversationMessageToChatMessage(recorded);
+  const identity: TranscriptIdentity = {
+    conversationId: saved.conversationId!,
+    selectionVersion: 1,
+    accountId: "owner",
+    tenantId: "organization",
+  };
+  store().rereadMessages([], identity);
+  const question = message({
+    id: "question",
+    role: "user",
+    content: "Please acknowledge the team's updates.",
+    conversationId: saved.conversationId,
+  });
+  store().addMessage(question);
+  const localId = "a27d30d6-b172-496e-b488-ba7d3e86df9b";
+  store().addMessage(
+    message({
+      id: localId,
+      conversationId: saved.conversationId,
+      agentId: saved.agentId,
+      isTemporaryId: true,
+      isStreaming: true,
+      parts: [],
+      toolCalls: [],
+    }),
+  );
+  store().appendTextDelta(localId, saved.content);
+  store().updateMessage(localId, (item) => ({ ...item, isStreaming: false }));
+
+  store().rereadMessages([question, saved], identity);
+
+  expect(store().messages.map((item) => item.id)).toEqual([question.id, saved.id]);
+  expect(store().messages[1]).toMatchObject({
+    content: saved.content,
+    renderKey: localId,
+    runId: saved.runId,
+    runDurationMs: 437,
+    parts: [{ type: "text", content: saved.content }],
+    usage: {
+      input_tokens: 2378,
+      output_tokens: 5,
+      cache_read_tokens: 0,
+      cache_write_tokens: 0,
+      cost_usd: "0.000959",
+      context: { used_tokens: 2378 },
+    },
+  });
+  expect(store().messages[1]?.isTemporaryId).toBeFalsy();
+  expect(store().loadedTranscript).toEqual(identity);
+});
+
+it.each([
+  { status: "unfinished" as const },
+  { status: "completed" as const, result: "Earlier result" },
+  { status: "completed" as const, result: "Current result" },
+])("keeps a tool outcome addressable until its save acknowledgement: %j", (persistedCall) => {
+  const question = message({ id: "question", role: "user", content: "Run this" });
+  const call = toolCall({ id: "execute", status: "completed", result: "Current result" });
+  const local = message({
+    id: "live",
+    isTemporaryId: true,
+    isStreaming: false,
+    content: "Done",
+    toolCalls: [call],
+    parts: [{ id: "tool-part", type: "tool", toolCall: call }],
+  });
+  store().addMessage(question);
+  store().addMessage(local);
+  store().rereadMessages([
+    question,
+    message({
+      id: "saved",
+      content: "Done",
+      toolCalls: [toolCall({ id: "execute", ...persistedCall })],
+    }),
+  ]);
+  expect(store().messages[1]).toEqual({ ...local, persistedId: "saved" });
+  store().updateMessage("live", (item) => ({
+    ...item,
+    id: "saved",
+    isTemporaryId: false,
+    renderKey: item.id,
+  }));
+  expect(store().messages.map((item) => item.id)).toEqual(["question", "saved"]);
+  expect(store().messages[1]?.toolCalls?.[0]?.result).toBe("Current result");
+});
+
+const detailedOutcomes: { name: string; details: Partial<ChatMessage> }[] = [
+  { name: "save failure", details: { runError: "Could not save the answer" } },
+  { name: "failed run", details: { runFailed: true } },
+  { name: "stopped run", details: { wasStopped: true } },
+  { name: "interrupted answer", details: { interrupted: true } },
+  { name: "HTTP continuation", details: { isLocalContinuation: true } },
+  { name: "thinking", details: { thinking: "The reasoning is still available." } },
+  {
+    name: "ordered correction",
+    details: { parts: [{ id: "correction", type: "steer", content: "Use the new value" }] },
+  },
+  {
+    name: "multiple text parts",
+    details: {
+      parts: [
+        { id: "first", type: "text", content: "Do" },
+        { id: "second", type: "text", content: "ne" },
+      ],
+    },
+  },
+  {
+    name: "incomplete text part",
+    details: { parts: [{ id: "text", type: "text", content: "Do" }] },
+  },
+  {
+    name: "attached file",
+    details: {
+      files: [{ id: "file", filename: "result.txt", mime_type: "text/plain", file_type: "text" }],
+    },
+  },
+  { name: "file reference", details: { fileIds: ["file"] } },
+  { name: "mention", details: { mentions: [{ kind: "agent", id: "agent", name: "Helper" }] } },
+  {
+    name: "reply reference",
+    details: { replyTo: { messageId: "source", role: "user", excerpt: "Original question" } },
+  },
+];
+
+describe.each(["local", "persisted"] as const)("a %s detailed outcome", (side) => {
+  it.each(detailedOutcomes)("keeps $name on its existing acknowledgement path", ({ details }) => {
+    const question = message({ id: "question", role: "user" });
+    const local = message({
+      id: "live",
+      isTemporaryId: true,
+      isStreaming: false,
+      content: "Done",
+      ...(side === "local" ? details : {}),
+    });
+    const saved = message({
+      id: "saved",
+      content: "Done",
+      ...(side === "persisted" ? details : {}),
+    });
+    store().addMessage(question);
+    store().addMessage(local);
+    store().rereadMessages([question, saved]);
+    expect(store().messages[1]).toEqual({ ...local, persistedId: "saved" });
+  });
+});
+
+it.each(["approval", "answer"] as const)(
+  "preserves a captured %s pointer while the parked row is reread",
+  (waitingFor) => {
+    const question = message({ id: "question", role: "user" });
+    const call = toolCall({
+      id: "parked-call",
+      status: waitingFor === "approval" ? "awaiting_approval" : "awaiting_answer",
+    });
+    const local = message({
+      id: "live",
+      content: "Waiting",
+      isTemporaryId: true,
+      isStreaming: false,
+      runId: "run",
+      runWaitingFor: waitingFor,
+      toolCalls: [call],
+      parts: [{ id: "parked-part", type: "tool", toolCall: call }],
+    });
+    const pending = { messageId: local.id };
+    store().addMessage(question);
+    store().addMessage(local);
+    store().rereadMessages([question, message({ ...local, id: "saved", isTemporaryId: false })]);
+    expect(store().messages[1]).toEqual({ ...local, persistedId: "saved" });
+    store().updateToolCallPart(pending.messageId, call.id, { status: "running" });
+    expect(store().messages[1]?.toolCalls?.[0]?.status).toBe("running");
+    expect(store().messages[1]?.parts?.[0]?.toolCall?.status).toBe("running");
+  },
+);
+
+it.each(["approval", "answer"] as const)(
+  "does not treat a persisted %s pause without visible tools as completed text",
+  (waitingFor) => {
+    const question = message({ id: "question", role: "user" });
+    store().addMessage(question);
+    store().addMessage(
+      message({ id: "live", content: "Waiting", isTemporaryId: true, isStreaming: false }),
+    );
+    store().rereadMessages([
+      question,
+      message({ id: "saved", content: "Waiting", runWaitingFor: waitingFor }),
+    ]);
+    expect(store().messages[1]).toMatchObject({ id: "live", isTemporaryId: true });
+  },
+);
+
+it("retains local live usage instead of replacing it with an earlier saved cost", () => {
+  const question = message({ id: "question", role: "user" });
+  const usage: NonNullable<ChatMessage["usage"]> = {
+    input_tokens: 25,
+    output_tokens: 5,
+    cost_usd: "0.2",
+    cost_is_partial: false,
+    budget_percent: null,
+    agent_budget_percent: null,
+    sandbox: null,
+    context: null,
+  };
+  store().addMessage(question);
+  store().addMessage(
+    message({ id: "live", content: "Done", isTemporaryId: true, isStreaming: false, usage }),
+  );
+  store().rereadMessages([
+    question,
+    message({ id: "saved", content: "Done", usage: { ...usage, cost_usd: "0.1" } }),
+  ]);
+  expect(store().messages[1]).toMatchObject({ id: "live", usage });
+});
+
+it("uses authoritative saved question corrections while keeping receipts scoped to invocation identity", () => {
+  const question = toolCall({
+    id: "question-call",
+    name: "ask_user_question",
+    status: "completed",
+    args: { questions: [{ header: "Day", question: "Which day?" }] },
+    result: JSON.stringify({ Day: ["Thursday"] }),
+  });
+  store().addMessage(message({ toolCalls: [question] }));
+  store().rereadMessages([
+    message({ toolCalls: [{ ...question, result: JSON.stringify({ Day: ["Friday"] }) }] }),
+  ]);
+  expect(store().messages[0]?.toolCalls?.[0]?.result).toBe(JSON.stringify({ Day: ["Friday"] }));
+  store().rereadMessages([
+    message({ toolCalls: [{ ...question, result: JSON.stringify({ cancelled: true }) }] }),
+  ]);
+  expect(store().messages[0]?.toolCalls?.[0]?.result).toBe(JSON.stringify({ cancelled: true }));
+  store().rereadMessages([
+    message({ toolCalls: [{ ...question, id: "different-call", result: "{}" }] }),
+  ]);
+  expect(store().messages[0]?.toolCalls?.[0]?.result).toBe("{}");
+});
+
+describe("transcript edge cases", () => {
+  it("extends a streamed part that has no content yet", () => {
+    store().addMessage(
+      message({
+        parts: [
+          { id: "t", type: "text" },
+          { id: "r", type: "thinking" },
+        ],
+      }),
+    );
+
+    store().appendThinkingDelta("m-1", "Reasoning.");
+    expect(timeline()).toEqual(["text:undefined", "thinking:Reasoning."]);
+    store().updateMessage("m-1", (msg) => ({ ...msg, parts: [{ id: "t", type: "text" }] }));
+    store().appendTextDelta("m-1", "Answer.");
+
+    expect(timeline()).toEqual(["text:Answer."]);
+  });
+
+  it("drops the row a renamed live bubble replaces", () => {
+    store().addMessage(message({ id: "live", content: "text" }));
+    store().addMessage(message({ id: "saved", content: "text" }));
+
+    store().updateMessage("live", (msg) => ({ ...msg, id: "saved" }));
+
+    expect(store().messages.map((msg) => msg.id)).toEqual(["saved"]);
+  });
+
+  it("drops a stale local row that sits before the persisted ones", () => {
+    store().addMessage(message({ id: "stale", role: "user", content: "gone" }));
+    store().addMessage(message({ id: "saved", content: "kept" }));
+
+    store().rereadMessages([message({ id: "saved", content: "kept" })]);
+
+    expect(store().messages.map((msg) => msg.id)).toEqual(["saved"]);
+  });
+
+  it("aliases a prompt's local answer to the saved reply before the next prompt", () => {
+    store().addMessage(message({ id: "q", role: "user", content: "first" }));
+    store().addMessage(message({ id: "local-a", content: "first answer", isTemporaryId: true }));
+
+    store().rereadMessages([
+      message({ id: "q", role: "user", content: "first" }),
+      message({ id: "a-1", content: "first answer" }),
+      message({ id: "q-2", role: "user", content: "second" }),
+      message({ id: "a-2", content: "second answer" }),
+    ]);
+
+    expect(store().messages.map((msg) => msg.id)).toEqual(["q", "a-1", "q-2", "a-2"]);
+    expect(store().messages[1]?.renderKey).toBe("local-a");
+  });
+
+  describe("a continuation whose saved rows carry no tool calls", () => {
+    const continuation = (overrides: Partial<ChatMessage> = {}) =>
+      message({ id: "resume", runId: "run", isLocalContinuation: true, ...overrides });
+
+    it("matches its text against saved rows without calls", () => {
+      store().addMessage(continuation({ content: "Done." }));
+      store().rereadMessages([message({ id: "saved", runId: "run", content: "Done." })]);
+      expect(store().messages.map((msg) => msg.id)).toEqual(["saved"]);
+    });
+
+    it("keeps a segment with neither text nor calls", () => {
+      store().addMessage(continuation());
+      store().rereadMessages([message({ id: "saved", runId: "run", content: "Done." })]);
+      expect(store().messages.map((msg) => msg.id)).toContain("resume");
+    });
+
+    it("finds its tool call past rows that have none", () => {
+      const call = toolCall({ id: "late-call", status: "completed" });
+      store().addMessage(continuation({ toolCalls: [call] }));
+      store().rereadMessages([
+        message({ id: "plain", runId: "run", content: "Intro" }),
+        message({ id: "with-call", runId: "run", toolCalls: [call] }),
+      ]);
+      expect(store().messages.map((msg) => msg.id)).toEqual(["plain", "with-call"]);
+    });
   });
 });

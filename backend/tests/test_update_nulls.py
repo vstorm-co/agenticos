@@ -43,9 +43,13 @@ from app.db.models.artifact import Artifact
 from app.db.models.channel_bot import ChannelBot
 from app.db.models.context import ContextFile
 from app.db.models.conversation import Conversation
+from app.db.models.conversation_share import ConversationShare
 from app.db.models.credential import ModelProfile
 from app.db.models.dashboard_layout import DashboardLayout
+from app.db.models.dataset import Dataset, DatasetCase
 from app.db.models.deployment_settings import DeploymentSettings
+from app.db.models.eval_suite import EvalSuite
+from app.db.models.failure_learning import AgentFailureLedger
 from app.db.models.group import Group, GroupMember
 from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.local_service import LocalService
@@ -56,9 +60,12 @@ from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.organization_assistant import OrganizationAssistant
 from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.project import Project
+from app.db.models.resource_grant import ResourceGrant
+from app.db.models.room_participant import RoomParticipant
 from app.db.models.sandbox_connection import SandboxConnection
 from app.db.models.session import Session
 from app.db.models.skill import Skill, SkillResource
+from app.db.models.skill_version import SkillFork
 from app.db.models.sync_source import SyncSource
 from app.db.models.system_agent_profile import SystemAgentProfile
 from app.db.models.table_view import TableView
@@ -71,7 +78,7 @@ from app.db.models.workflow import Workflow
 from app.db.models.workflow_exposure import WorkflowExposure
 from app.db.models.workflow_log_alert import WorkflowLogAlertRule
 from app.db.updates import cleared, writable
-from app.schemas.agent import AgentDraftUpdate
+from app.schemas.agent import AgentDraftUpdate, ApplyShippedAgentUpdate, ShippedAgentUpdate
 from app.schemas.agent_embed import EmbedUpdate
 from app.schemas.agent_environment import EnvironmentUpdate
 from app.schemas.agent_exposure import ExposureUpdate
@@ -85,10 +92,15 @@ from app.schemas.artifact import (
 from app.schemas.assistant import AssistantUpdate
 from app.schemas.channel_bot import ChannelBotUpdate
 from app.schemas.coding_account import CodingAccountUpdate
+from app.schemas.console_experience import ConsoleExperienceUpdate
 from app.schemas.context import ContextFileUpdate
 from app.schemas.conversation import ConversationUpdate
+from app.schemas.conversation_share import ConversationShareUpdate
 from app.schemas.dashboard_layout import DashboardLayoutUpdate
+from app.schemas.dataset import DatasetCaseUpdate, DatasetUpdate
 from app.schemas.deployment_settings import DeploymentSettingsUpdate
+from app.schemas.eval_suite import EvalSuiteUpdate
+from app.schemas.failure_learning import LedgerEntryUpdate
 from app.schemas.group import GroupLeadUpdate, GroupUpdate
 from app.schemas.knowledge_base import KnowledgeBaseUpdate
 from app.schemas.local_service import LocalServiceUpdate
@@ -101,22 +113,28 @@ from app.schemas.memory import MemoryNoteUpdate
 from app.schemas.model_profile import ModelProfileUpdate
 from app.schemas.notification import NotificationPreferenceUpdate
 from app.schemas.notification_route import NotificationRouteUpdate
+from app.schemas.onboarding import OnboardingUpdate
 from app.schemas.organization import OrganizationMemberUpdate, OrganizationUpdate
+from app.schemas.permissions import RoleNavigationUpdate
 from app.schemas.project import ProjectUpdate
 from app.schemas.push import ApnsKeyUpdate, PushFocusUpdate, PushPreferencesUpdate
 from app.schemas.resource_grant import VisibilityUpdate
 from app.schemas.retention import RetentionUpdate
+from app.schemas.room_participant import RoomParticipantAutoReplyUpdate
 from app.schemas.sandbox_connection import SandboxConnectionUpdate
+from app.schemas.scoring import DatasetScoringUpdate, JudgeScorerUpdate
 from app.schemas.secret import SecretUpdate
 from app.schemas.session import SessionAppUpdate
 from app.schemas.skill import SkillResourceUpdate, SkillUpdate
+from app.schemas.skill_version import SkillForkUpdate
 from app.schemas.sync_source import SyncSourceUpdate
 from app.schemas.system_agent import SystemAgentUpdate
+from app.schemas.table_record_access import RecordGrantUpdate
 from app.schemas.table_view import TableViewUpdate
 from app.schemas.task import TaskUpdate
 from app.schemas.user import UserUpdate
 from app.schemas.user_slash_command import UserSlashCommandUpdate
-from app.schemas.virtual_table import RecordUpdate, SchemaUpdate, TableUpdate
+from app.schemas.virtual_table import RecordUpdate, RowPolicyUpdate, SchemaUpdate, TableUpdate
 from app.schemas.virtual_table_trigger import TableTriggerUpdate
 from app.schemas.watch import WatchUpdate
 from app.schemas.workflow import WorkflowActiveUpdate, WorkflowDraftUpdate, WorkflowUpdate
@@ -138,8 +156,13 @@ from app.schemas.workflow_log_alert import WorkflowLogAlertUpdate
 # a schema-version row from a full column list rather than patching one.
 UPDATE_TARGETS: dict[type[BaseModel], type[DeclarativeBase] | None] = {
     AgentDraftUpdate: None,
+    # A diff response and a revision precondition, not partial row updates.
+    ShippedAgentUpdate: None,
+    ApplyShippedAgentUpdate: None,
     # Coding account and task updates merge credential/config or typed record cells, not row columns.
     CodingAccountUpdate: None,
+    # `preferences` and `reminders` merge/clear the member's nullable JSONB overrides.
+    ConsoleExperienceUpdate: OrganizationMember,
     TaskUpdate: None,
     NotificationRouteUpdate: NotificationRoute,
     # Sets `auto_consent` from `enabled`; `confirmed` is checked and audited, never stored.
@@ -152,8 +175,18 @@ UPDATE_TARGETS: dict[type[BaseModel], type[DeclarativeBase] | None] = {
     AssistantUpdate: OrganizationAssistant,
     ArtifactUpdate: Artifact,
     ChannelBotUpdate: ChannelBot,
+    # One required boolean, written through `room_participant_repo.set_auto_reply`.
+    RoomParticipantAutoReplyUpdate: RoomParticipant,
     ContextFileUpdate: ContextFile,
+    DatasetCaseUpdate: DatasetCase,
+    # Merged into the stored scoring, a JSONB document, and validated whole there.
+    DatasetScoringUpdate: None,
+    DatasetUpdate: Dataset,
+    EvalSuiteUpdate: EvalSuite,
+    JudgeScorerUpdate: None,
     ConversationUpdate: Conversation,
+    # Sets `permission` on one share (`conversation_share.change_permission`).
+    ConversationShareUpdate: ConversationShare,
     DashboardLayoutUpdate: DashboardLayout,
     DeploymentSettingsUpdate: DeploymentSettings,
     EmbedUpdate: AgentEmbed,
@@ -162,6 +195,7 @@ UPDATE_TARGETS: dict[type[BaseModel], type[DeclarativeBase] | None] = {
     GroupUpdate: Group,
     GroupLeadUpdate: GroupMember,
     KnowledgeBaseUpdate: KnowledgeBase,
+    LedgerEntryUpdate: AgentFailureLedger,
     LocalServiceUpdate: LocalService,
     SystemAgentUpdate: SystemAgentProfile,
     McpConnectionUpdate: McpConnection,
@@ -170,10 +204,17 @@ UPDATE_TARGETS: dict[type[BaseModel], type[DeclarativeBase] | None] = {
     NotificationPreferenceUpdate: None,
     OrgMcpConnectionUpdate: McpConnection,
     OrganizationMemberUpdate: OrganizationMember,
+    # Renames goal and maps dismissed to a timestamp; repository tests pin explicit-null behaviour.
+    OnboardingUpdate: OrganizationMember,
     OrganizationUpdate: Organization,
     PortalPollIntervalUpdate: McpConnection,
     ProjectUpdate: Project,
+    RecordGrantUpdate: ResourceGrant,
     RecordUpdate: None,
+    # Replaces one role's list inside role_navigation JSONB, not a hidden_items row column.
+    RoleNavigationUpdate: None,
+    # Replaces the validated row_policy JSONB document, not columns named after its fields.
+    RowPolicyUpdate: None,
     # Both patch keys within Session.push_preferences JSONB, not columns by name.
     PushFocusUpdate: None,
     PushPreferencesUpdate: None,
@@ -183,6 +224,7 @@ UPDATE_TARGETS: dict[type[BaseModel], type[DeclarativeBase] | None] = {
     SecretUpdate: OrganizationSecret,
     # The caller's own session row, labelled with the app it runs in (#2305).
     SessionAppUpdate: Session,
+    SkillForkUpdate: SkillFork,
     SkillResourceUpdate: SkillResource,
     SkillUpdate: Skill,
     SyncSourceUpdate: SyncSource,
@@ -203,7 +245,8 @@ UPDATE_TARGETS: dict[type[BaseModel], type[DeclarativeBase] | None] = {
 }
 
 # What is left, and none of it writes a row. `ingestion_config` merges two Pydantic
-# models - `exclude_unset` doing exactly what it is for - and `rag_document` puts an
+# models - `exclude_unset` doing exactly what it is for - as `scoring` merges a
+# grading change into the stored scoring before validating it whole; `rag_document` puts an
 # override into a JSONB payload, where a null is a value the column can hold.
 # `voice/transport` serializes a call's server frame for the socket, so a field the
 # frame was not built with stays off the wire; there is no row and no `over`.
@@ -212,8 +255,19 @@ _DUMP_EXEMPT = {
     # columns. Explicit null clears a secret reference; omitted fields must
     # preserve it. The draft API owns validation and persistence of the spec.
     "app/services/platform_mcp/_tools.py",
+    # HTTP transport must preserve omitted versus explicit null fields. The
+    # target API services apply writable before changing database columns.
+    "app/services/platform_mcp/_lifecycle.py",
+    "app/services/platform_mcp/_administration.py",
     "app/services/ingestion_config.py",
+    "app/services/scoring.py",
+    # Dataset helper patches merge a nested JSON document after writable filters
+    # row columns. Explicit null resets its model/instructions; omission keeps it.
+    "app/services/dataset.py",
     "app/services/rag_document.py",
+    # Appearance tokens merge into one JSONB document and are validated whole;
+    # omitted tokens preserve their value and explicit null is rejected by the schema.
+    "app/services/user_appearance.py",
     "app/services/voice/transport.py",
 }
 
@@ -282,10 +336,16 @@ class TestEveryUpdateSchemaIsAccountedFor:
         """
         assert {schema.__name__ for schema, model in UPDATE_TARGETS.items() if model is None} == {
             "AgentDraftUpdate",
+            "ShippedAgentUpdate",
+            "ApplyShippedAgentUpdate",
+            "DatasetScoringUpdate",
+            "JudgeScorerUpdate",
             "CodingAccountUpdate",
             "TaskUpdate",
             "NotificationPreferenceUpdate",
             "RecordUpdate",
+            "RoleNavigationUpdate",
+            "RowPolicyUpdate",
             "SchemaUpdate",
             "PushFocusUpdate",
             "PushPreferencesUpdate",
@@ -372,9 +432,9 @@ class TestNothingDumpsAnUpdateItself:
         root = Path(__file__).resolve().parent.parent
         searched = root / "app" / package
         offenders = sorted(
-            str(path.relative_to(root))
+            path.relative_to(root).as_posix()
             for path in searched.rglob("*.py")
-            if str(path.relative_to(root)) not in _DUMP_EXEMPT
+            if path.relative_to(root).as_posix() not in _DUMP_EXEMPT
             and _DUMP.search(path.read_text(encoding="utf-8"))
         )
 

@@ -52,6 +52,7 @@ from app.workflows.contracts.results import (
     Waiting,
     WorkflowError,
 )
+from app.workflows.graph.errors import GraphValidationError
 from app.workflows.graph.model import Edge, NodeInstance, NodePosition, WorkflowGraph
 from app.workflows.graph.validate import validate_graph
 from tests.integration.workflow_run_support import (
@@ -70,7 +71,11 @@ pytestmark = pytest.mark.anyio
 
 
 def _node(
-    definition_id: str, config: dict[str, Any] | None = None, *, policy: NodePolicy | None = None
+    definition_id: str,
+    config: dict[str, Any] | None = None,
+    *,
+    policy: NodePolicy | None = None,
+    scope: NodeInstance | None = None,
 ) -> NodeInstance:
     return NodeInstance(
         id=uuid.uuid4(),
@@ -79,6 +84,7 @@ def _node(
         config=config or {},
         policy=policy,
         layout=NodePosition(x=0, y=0),
+        scope_id=None if scope is None else scope.id,
     )
 
 
@@ -451,12 +457,12 @@ async def test_a_write_past_its_time_limit_is_uncertain_not_retried(
 
 
 class _Loop:
-    """input -> foreach(items) -body-> item -> map -> yield ; foreach -done-> output."""
+    """input -> foreach(items) -done-> output; in the body item -> map -> yield."""
 
     def __init__(self, *, policy: str = "stop", fail_on: str | None = None) -> None:
         self.entry = _node("core.input")
         self.loop = _node("control.foreach", {"item_error_policy": policy})
-        self.item = _node("loop.item")
+        self.item = _node("loop.item", scope=self.loop)
         self.map = _node(
             "data.map",
             {
@@ -469,13 +475,13 @@ class _Loop:
                     {"target_field": "at", "source_path": "source.index", "coerce_to": "integer"},
                 ]
             },
+            scope=self.loop,
         )
-        self.yield_ = _node("loop.yield")
+        self.yield_ = _node("loop.yield", scope=self.loop)
         self.out = _node("core.output")
         nodes = [self.entry, self.loop, self.item, self.map, self.yield_, self.out]
         edges = [
             _edge(self.entry, self.loop),
-            _edge(self.loop, self.item, "body"),
             _edge(self.loop, self.out, "done"),
         ]
         bindings = [
@@ -488,8 +494,12 @@ class _Loop:
             edges += [_edge(self.item, self.map), _edge(self.map, self.yield_)]
         else:
             # An item named `fail_on` is refused by `error.raise` instead.
-            self.decide = _node("logic.if", {"condition": f"value.item.name == '{fail_on}'"})
-            self.refuse = _node("error.raise", {"code": "BAD_ITEM", "message": "Refused"})
+            self.decide = _node(
+                "logic.if", {"condition": f"value.item.name == '{fail_on}'"}, scope=self.loop
+            )
+            self.refuse = _node(
+                "error.raise", {"code": "BAD_ITEM", "message": "Refused"}, scope=self.loop
+            )
             nodes += [self.decide, self.refuse]
             edges += [
                 _edge(self.item, self.decide),
@@ -619,22 +629,75 @@ async def test_a_run_past_its_node_run_ceiling_fails_rather_than_growing(
     assert run.error is not None and run.error["code"] == "NODE_RUN_LIMIT"
 
 
-async def test_nested_loops_keep_each_iteration_in_its_own_scope(engine: AsyncEngine):
-    entry, outer, outer_item = _node("core.input"), _node("control.foreach"), _node("loop.item")
-    inner, inner_item, inner_yield = (
-        _node("control.foreach"),
-        _node("loop.item"),
-        _node("loop.yield"),
+def _parked_in(loop: _Loop) -> tuple[WorkflowGraph, NodeInstance]:
+    """`loop`'s graph with a step switched off, and wired to nothing, in its body."""
+    parked = _node("data.combine", {"mode": "append"}, scope=loop.loop).model_copy(
+        update={"disabled": True}
     )
-    outer_yield, out = _node("loop.yield"), _node("core.output")
+    return loop.graph.model_copy(update={"nodes": (*loop.graph.nodes, parked)}), parked
+
+
+async def test_a_step_set_aside_in_a_loop_body_publishes_and_never_runs(engine: AsyncEngine):
+    loop = _Loop()
+    graph, parked = _parked_in(loop)
+    seeded = await _run(engine, graph, {"items": ITEMS})
+
+    run = await drive(seeded)
+
+    assert run.status == WorkflowRunStatus.SUCCEEDED.value
+    assert run.output is not None
+    assert run.output["structured"]["count"] == 3
+    assert run.output["structured"]["errors"] == []
+    assert await _body_rows(seeded, parked.id) == []
+
+
+async def test_a_step_with_no_edges_in_a_loop_body_that_is_on_is_still_unreachable(
+    engine: AsyncEngine,
+):
+    loop = _Loop()
+    graph, parked = _parked_in(loop)
+    graph = graph.model_copy(
+        update={
+            "nodes": tuple(
+                node.model_copy(update={"disabled": False}) if node.id == parked.id else node
+                for node in graph.nodes
+            )
+        }
+    )
+
+    with pytest.raises(GraphValidationError) as refused:
+        await _run(engine, graph, {"items": ITEMS})
+
+    assert {
+        "field": f"nodes.{parked.id}",
+        "message": "This step is not reachable from its loop's item step",
+    } in refused.value.details["fields"]
+
+
+async def test_a_step_set_aside_takes_nothing_from_the_node_run_ceiling(
+    engine: AsyncEngine, monkeypatch: pytest.MonkeyPatch
+):
+    """11 is the tightest ceiling the plain loop fits: its third iteration starts on
+    eight rows and adds three. Counted, the parked step would make that four."""
+    monkeypatch.setattr("app.core.config.settings.WORKFLOW_RUN_MAX_NODE_RUNS", 11)
+    graph, _parked = _parked_in(_Loop())
+
+    run = await drive(await _run(engine, graph, {"items": ITEMS}))
+
+    assert run.status == WorkflowRunStatus.SUCCEEDED.value
+
+
+async def test_nested_loops_keep_each_iteration_in_its_own_scope(engine: AsyncEngine):
+    entry, outer = _node("core.input"), _node("control.foreach")
+    outer_item, inner = _node("loop.item", scope=outer), _node("control.foreach", scope=outer)
+    inner_item, inner_yield = _node("loop.item", scope=inner), _node("loop.yield", scope=inner)
+    outer_yield, out = _node("loop.yield", scope=outer), _node("core.output")
     graph = WorkflowGraph(
         entry_node_id=entry.id,
         nodes=(entry, outer, outer_item, inner, inner_item, inner_yield, outer_yield, out),
         edges=(
             _edge(entry, outer),
-            _edge(outer, outer_item, "body"),
             _edge(outer_item, inner),
-            _edge(inner, inner_item, "body"),
             _edge(inner_item, inner_yield),
             _edge(inner, outer_yield, "done"),
             _edge(outer, out, "done"),
@@ -672,8 +735,9 @@ async def _world(engine: AsyncEngine) -> tuple[tuple[User, Organization], TableR
 
 
 def _writing_loop(table: TableRead) -> tuple[WorkflowGraph, NodeInstance, NodeInstance]:
-    """input -> foreach -body-> item -> map -> table.record.create -> yield."""
-    entry, loop, item = _node("core.input"), _node("control.foreach"), _node("loop.item")
+    """input -> foreach; in the body item -> map -> table.record.create -> yield."""
+    entry, loop = _node("core.input"), _node("control.foreach")
+    item = _node("loop.item", scope=loop)
     map_ = _node(
         "data.map",
         {
@@ -681,6 +745,7 @@ def _writing_loop(table: TableRead) -> tuple[WorkflowGraph, NodeInstance, NodeIn
                 {"target_field": "Name", "source_path": "source.item", "coerce_to": "string"}
             ]
         },
+        scope=loop,
     )
     create = _node(
         "table.record.create",
@@ -689,14 +754,14 @@ def _writing_loop(table: TableRead) -> tuple[WorkflowGraph, NodeInstance, NodeIn
                 mode="json"
             )
         },
+        scope=loop,
     )
-    yield_ = _node("loop.yield")
+    yield_ = _node("loop.yield", scope=loop)
     graph = WorkflowGraph(
         entry_node_id=entry.id,
         nodes=(entry, loop, item, map_, create, yield_),
         edges=(
             _edge(entry, loop),
-            _edge(loop, item, "body"),
             _edge(item, map_),
             _edge(map_, create),
             _edge(create, yield_),
@@ -909,14 +974,14 @@ async def _approve(seeded: SeededRun, agent_run_id: uuid.UUID) -> None:
 async def test_an_approval_inside_an_iteration_resumes_that_iteration(
     engine: AsyncEngine, synthetic_nodes: None
 ):
-    entry, loop, item = _node("core.input"), _node("control.foreach"), _node("loop.item")
-    ask, yield_, out = _node("test.asks_approval"), _node("loop.yield"), _node("core.output")
+    entry, loop = _node("core.input"), _node("control.foreach")
+    item, ask = _node("loop.item", scope=loop), _node("test.asks_approval", scope=loop)
+    yield_, out = _node("loop.yield", scope=loop), _node("core.output")
     graph = WorkflowGraph(
         entry_node_id=entry.id,
         nodes=(entry, loop, item, ask, yield_, out),
         edges=(
             _edge(entry, loop),
-            _edge(loop, item, "body"),
             _edge(item, ask),
             _edge(ask, yield_),
             _edge(loop, out, "done"),
@@ -1076,7 +1141,7 @@ async def test_loop_outputs_share_the_inline_result_allowance(engine, monkeypatc
 
 
 class _Parallel:
-    """input -> foreach(items) -body-> item -> (first, second); second -> yield.
+    """input -> foreach(items); in the body item -> (first, second); second -> yield.
 
     `first` and `second` are each a step that fails (`error.raise`) or one that succeeds.
     """
@@ -1118,6 +1183,12 @@ class _Parallel:
             else self.second
         )
         self.yield_ = _node("loop.yield")
+        self.item, self.first, self.second, self.feeder, self.yield_ = (
+            node.model_copy(update={"scope_id": self.loop.id})
+            for node in (self.item, self.first, self.second, self.feeder, self.yield_)
+        )
+        if not separate:
+            self.second = self.feeder
         self.out = _node("core.output")
         self.rescued = _node("core.output")
         nodes = [
@@ -1133,7 +1204,6 @@ class _Parallel:
             nodes.append(self.feeder)
         edges = [
             _edge(self.entry, self.loop),
-            _edge(self.loop, self.item, "body"),
             _edge(self.loop, self.out, "done"),
             _edge(self.item, self.first),
             _edge(self.item, self.second),
@@ -1295,16 +1365,18 @@ async def test_a_late_settle_in_a_failed_loop_starts_no_next_iteration(engine: A
 
 
 async def test_a_loop_whose_iteration_skips_a_step_still_ends(engine: AsyncEngine):
-    entry, loop, item = _node("core.input"), _node("control.foreach"), _node("loop.item")
-    decide = _node("logic.if", {"condition": "value.item"})
-    keep = _node("data.map", {"mappings": [{"target_field": "k", "source_path": "'kept'"}]})
-    yield_, out = _node("loop.yield"), _node("core.output")
+    entry, loop = _node("core.input"), _node("control.foreach")
+    item = _node("loop.item", scope=loop)
+    decide = _node("logic.if", {"condition": "value.item"}, scope=loop)
+    keep = _node(
+        "data.map", {"mappings": [{"target_field": "k", "source_path": "'kept'"}]}, scope=loop
+    )
+    yield_, out = _node("loop.yield", scope=loop), _node("core.output")
     graph = WorkflowGraph(
         entry_node_id=entry.id,
         nodes=(entry, loop, item, decide, keep, yield_, out),
         edges=(
             _edge(entry, loop),
-            _edge(loop, item, "body"),
             _edge(loop, out, "done"),
             _edge(item, decide),
             _edge(decide, keep, "true"),
@@ -1329,18 +1401,19 @@ async def test_a_loop_whose_iteration_skips_a_step_still_ends(engine: AsyncEngin
 async def test_under_collect_a_join_after_a_failed_leg_is_skipped_and_the_iteration_ends(
     engine: AsyncEngine, synthetic_nodes: None
 ):
-    entry, item = _node("core.input"), _node("loop.item")
+    entry = _node("core.input")
     loop = _node("control.foreach", {"item_error_policy": "collect"})
-    broken = _node("test.fails")
-    ok = _node("data.map", {"mappings": [{"target_field": "s", "source_path": "'2'"}]})
-    join = _node("data.map", {"mappings": [{"target_field": "j", "source_path": "'3'"}]})
-    yield_, out = _node("loop.yield"), _node("core.output")
+    item, broken = _node("loop.item", scope=loop), _node("test.fails", scope=loop)
+    ok = _node("data.map", {"mappings": [{"target_field": "s", "source_path": "'2'"}]}, scope=loop)
+    join = _node(
+        "data.map", {"mappings": [{"target_field": "j", "source_path": "'3'"}]}, scope=loop
+    )
+    yield_, out = _node("loop.yield", scope=loop), _node("core.output")
     graph = WorkflowGraph(
         entry_node_id=entry.id,
         nodes=(entry, loop, item, broken, ok, join, yield_, out),
         edges=(
             _edge(entry, loop),
-            _edge(loop, item, "body"),
             _edge(loop, out, "done"),
             _edge(item, broken),
             _edge(item, ok),
@@ -1390,11 +1463,13 @@ async def test_under_stop_a_sibling_needing_attention_is_cancelled_and_the_run_s
 async def test_a_loop_inside_a_loop_follows_its_own_policy_for_its_failed_legs(
     engine: AsyncEngine, synthetic_nodes: None, inner_policy: str
 ):
-    entry, outer, outer_item = _node("core.input"), _node("control.foreach"), _node("loop.item")
-    inner = _node("control.foreach", {"item_error_policy": inner_policy})
-    inner_item, broken = _node("loop.item"), _node("test.fails")
-    ok = _node("data.map", {"mappings": [{"target_field": "s", "source_path": "'2'"}]})
-    inner_yield, outer_yield, out = _node("loop.yield"), _node("loop.yield"), _node("core.output")
+    entry, outer = _node("core.input"), _node("control.foreach")
+    outer_item = _node("loop.item", scope=outer)
+    inner = _node("control.foreach", {"item_error_policy": inner_policy}, scope=outer)
+    inner_item, broken = _node("loop.item", scope=inner), _node("test.fails", scope=inner)
+    ok = _node("data.map", {"mappings": [{"target_field": "s", "source_path": "'2'"}]}, scope=inner)
+    inner_yield, outer_yield = _node("loop.yield", scope=inner), _node("loop.yield", scope=outer)
+    out = _node("core.output")
     graph = WorkflowGraph(
         entry_node_id=entry.id,
         nodes=(
@@ -1411,10 +1486,8 @@ async def test_a_loop_inside_a_loop_follows_its_own_policy_for_its_failed_legs(
         ),
         edges=(
             _edge(entry, outer),
-            _edge(outer, outer_item, "body"),
             _edge(outer, out, "done"),
             _edge(outer_item, inner),
-            _edge(inner, inner_item, "body"),
             _edge(inner, outer_yield, "done"),
             _edge(inner_item, broken),
             _edge(inner_item, ok),

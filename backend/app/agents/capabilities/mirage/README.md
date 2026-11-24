@@ -99,7 +99,8 @@ are hidden, so terminal commands cannot start unmetered model calls.
 MongoDB and GridFS connect directly to one allowlisted `mongodb://` authority.
 The platform forces `directConnection=true`; SRV and replica-set discovery are
 not available because discovered hosts would bypass the exact-host allowlist.
-Unlinked channel senders need approval for all terminal tools, including reads.
+Channel runs use the same binding and per-tool approval policy as web chat,
+including for unlinked senders.
 Organization-account consent rechecks the initiator’s current permissions before
 exchanging the provider code.
 

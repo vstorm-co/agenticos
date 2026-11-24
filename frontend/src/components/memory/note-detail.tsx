@@ -1,90 +1,157 @@
 "use client";
 
-import { useState } from "react";
-import { EyeOff, RotateCcw, Trash2 } from "lucide-react";
+import { useId, useState } from "react";
+import { Download, EyeOff, RotateCcw, Trash2 } from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
-import { FileViewer } from "@/components/files";
-import { saveBlob, type FileAccess } from "@/lib/file-access";
-import { useOrgStore } from "@/stores";
-import { Badge, Button, ConfirmDialog } from "@/components/ui";
+import { saveBlob } from "@/lib/file-access";
+import {
+  Badge,
+  Button,
+  ConfirmDialog,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui";
+import { FileEditor } from "@/components/files/file-editor";
+import { DIALOG_WIDE, DIALOG_COLUMN, DIALOG_BODY } from "@/lib/dialog-sizes";
+import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
+import { useUnsavedChangesStore } from "@/stores/unsaved-changes-store";
 import type { MemoryNote } from "@/lib/memory-api";
+import type { AgentUsage } from "@/types/agents";
+import { MemoryAgentAvatar } from "./memory-agent-avatar";
 
 export function NoteDetail({
   note,
+  agent,
   onClose,
   setActive,
   remove,
+  update,
 }: {
   note: MemoryNote;
+  agent?: AgentUsage;
   onClose: () => void;
   setActive: (id: string, active: boolean) => Promise<boolean>;
   remove: (id: string) => Promise<boolean>;
+  update: (note: MemoryNote, content: string) => Promise<boolean>;
 }) {
   const t = useTranslations("pages.memory");
   const view = useTranslations("pages.memory.browser");
+  const common = useTranslations("common");
+  const files = useTranslations("files");
   const format = useFormatter();
-  const org = useOrgStore((state) => state.activeOrgId);
+  const unsavedId = useId();
+  const [original] = useState(note);
+  const [content, setContent] = useState(note.content);
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
+  const dirty = content !== original.content;
   const stamp = note.written_at ?? note.created_at;
-  const access: FileAccess = {
-    textKey: ["memory", org, "note-text", note.id, note.updated_at, note.written_at],
-    bytesKey: ["memory", org, "note-bytes", note.id, note.updated_at, note.written_at],
-    readText: async () => ({ content: note.content, truncated: false }),
-    readBytes: async () => new Blob([note.content], { type: "text/plain;charset=utf-8" }),
-    download: async () =>
-      saveBlob(new Blob([note.content], { type: "text/plain;charset=utf-8" }), note.name),
+  const save = async (): Promise<boolean> => {
+    if (busy || !content.trim()) return false;
+    setBusy(true);
+    try {
+      if (!(await update(original, content))) return false;
+      onClose();
+      return true;
+    } finally {
+      setBusy(false);
+    }
   };
-  const details = (
-    <div className="space-y-5 py-2">
-      <p className="text-muted-foreground text-sm">
-        {t("writtenBy", {
-          agent: note.agent_name ?? t("anAgent"),
-          when: stamp ? format.dateTime(new Date(stamp), { dateStyle: "medium" }) : "",
-        })}
-      </p>
-      {note.description && <p className="text-sm leading-6">{note.description}</p>}
-      {note.deactivated_at && <Badge variant="outline">{t("suppressed")}</Badge>}
-      <div className="flex flex-wrap gap-2">
-        <Button
-          variant="outline"
-          disabled={busy}
-          onClick={async () => {
-            setBusy(true);
-            try {
-              await setActive(note.id, Boolean(note.deactivated_at));
-            } finally {
-              setBusy(false);
-            }
-          }}
-        >
-          {note.deactivated_at ? (
-            <RotateCcw className="size-4" aria-hidden />
-          ) : (
-            <EyeOff className="size-4" aria-hidden />
-          )}
-          {t(note.deactivated_at ? "restore" : "suppress")}
-        </Button>
-        <Button variant="ghost" disabled={busy} onClick={() => setConfirming(true)}>
-          <Trash2 className="size-4" aria-hidden />
-          {t("delete")}
-        </Button>
-      </div>
-    </div>
-  );
+  useUnsavedChanges(unsavedId, { dirty, save, discard: onClose });
+  const close = () => {
+    if (!busy) useUnsavedChangesStore.getState().leave(onClose, [unsavedId]);
+  };
   return (
     <>
-      <FileViewer
-        file={{
-          name: note.name,
-          modifiedAt: stamp,
-          mimeType:
-            note.format === "md" || note.format === "markdown" ? "text/markdown" : "text/plain",
-        }}
-        access={access}
-        onClose={onClose}
-        extraTabs={[{ value: "memory-details", label: view("noteDetails"), content: details }]}
-      />
+      <Dialog open onOpenChange={(open) => !open && close()}>
+        <DialogContent dismissible={!busy} className={`${DIALOG_WIDE} ${DIALOG_COLUMN}`}>
+          <DialogHeader>
+            <DialogTitle>{note.name}</DialogTitle>
+            <DialogDescription>{view("editNoteHint")}</DialogDescription>
+          </DialogHeader>
+          <div className={`${DIALOG_BODY} space-y-4`}>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className="text-muted-foreground flex min-w-0 items-center gap-1.5 text-xs">
+                <MemoryAgentAvatar agent={agent} />
+                <span className="min-w-0 wrap-anywhere">
+                  {t("writtenBy", {
+                    agent: note.agent_name ?? t("anAgent"),
+                    when: stamp ? format.dateTime(new Date(stamp), { dateStyle: "medium" }) : "",
+                  })}
+                </span>
+              </p>
+              {note.deactivated_at && <Badge variant="outline">{t("suppressed")}</Badge>}
+            </div>
+            {note.description && (
+              <p className="text-muted-foreground text-sm">{note.description}</p>
+            )}
+            <FileEditor
+              name={note.name.endsWith(".md") ? note.name : `${note.name}.md`}
+              label={note.name}
+              content={content}
+              canEdit={!busy}
+              onChange={(value) => {
+                if (value.length <= 100_000) setContent(value);
+              }}
+              initialMode="preview"
+              className="h-[min(25rem,50dvh)]"
+            />
+          </div>
+          <DialogFooter className="flex-wrap sm:justify-between">
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="ghost"
+                disabled={busy}
+                onClick={() =>
+                  saveBlob(new Blob([content], { type: "text/plain;charset=utf-8" }), note.name)
+                }
+              >
+                <Download className="size-4" aria-hidden />
+                {files("download")}
+              </Button>
+              <Button
+                variant="outline"
+                disabled={busy || dirty}
+                onClick={async () => {
+                  setBusy(true);
+                  try {
+                    if (await setActive(note.id, Boolean(note.deactivated_at))) onClose();
+                  } finally {
+                    setBusy(false);
+                  }
+                }}
+              >
+                {note.deactivated_at ? (
+                  <RotateCcw className="size-4" aria-hidden />
+                ) : (
+                  <EyeOff className="size-4" aria-hidden />
+                )}
+                {t(note.deactivated_at ? "restore" : "suppress")}
+              </Button>
+              <Button variant="ghost" disabled={busy} onClick={() => setConfirming(true)}>
+                <Trash2 className="size-4" aria-hidden />
+                {t("delete")}
+              </Button>
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={close} disabled={busy}>
+                {common("cancel")}
+              </Button>
+              <Button
+                onClick={() => void save()}
+                loading={busy}
+                disabled={!dirty || !content.trim() || busy}
+              >
+                {common("save")}
+              </Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <ConfirmDialog
         open={confirming}
         onOpenChange={setConfirming}

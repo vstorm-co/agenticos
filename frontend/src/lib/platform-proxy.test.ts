@@ -59,6 +59,16 @@ describe("platformProxy", () => {
     vi.unstubAllGlobals();
   });
 
+  it("passes Retry-After through on a rate refusal", async () => {
+    backendReplies(JSON.stringify({ detail: "Busy" }), {
+      status: 429,
+      headers: { "Retry-After": "17" },
+    });
+    const response = await platformProxy().GET(request("/api/eval-runs/r/comparison"));
+    expect(response.status).toBe(429);
+    expect(response.headers.get("Retry-After")).toBe("17");
+  });
+
   it("forwards the path and query verbatim to the backend's v1 prefix", async () => {
     const backend = backendReplies('{"items":[]}');
 
@@ -214,22 +224,14 @@ describe("platformProxy", () => {
     const transcript = JSON.stringify({ items: Array(200).fill({ content: "said something" }) });
     const compressed = { headers: { "Content-Encoding": "gzip", "Content-Length": "60" } };
 
-    async function gunzip(response: Response): Promise<string> {
-      const body = response.body?.pipeThrough(new DecompressionStream("gzip"));
-      return new Response(body).text();
-    }
-
-    it("is compressed again for a browser that accepts gzip", async () => {
+    it("leaves the decoded body for Next.js to compress once", async () => {
       backendReplies(transcript, compressed);
-
       const response = await platformProxy().GET(
         request("/api/conversations/c1/messages", { headers: { "Accept-Encoding": "gzip, br" } }),
       );
-
-      expect(response.headers.get("Content-Encoding")).toBe("gzip");
-      expect(response.headers.get("Vary")).toBe("Accept-Encoding");
+      expect(response.headers.get("Content-Encoding")).toBeNull();
       expect(response.headers.get("Content-Length")).toBeNull();
-      expect(await gunzip(response)).toBe(transcript);
+      expect(await response.text()).toBe(transcript);
     });
 
     it("is not compressed for a client that refuses gzip by quality", async () => {
@@ -242,10 +244,11 @@ describe("platformProxy", () => {
       );
 
       expect(response.headers.get("Content-Encoding")).toBeNull();
-      expect(await response.text()).toBe(transcript);
+      expect(response.headers.get("Content-Length")).toBeNull();
+      expect(response.headers.get("Vary")).toBe("Accept-Encoding");
     });
 
-    it("arrives whole and plain for a client that does not", async () => {
+    it("is untouched for a client that sends no Accept-Encoding", async () => {
       backendReplies(transcript, compressed);
 
       const response = await platformProxy().GET(request("/api/conversations/c1/messages"));

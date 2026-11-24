@@ -431,7 +431,6 @@ def loop_graph(parallel: bool = True) -> Built:
     ]
     edges = [
         ("start", "out", "F"),
-        ("F", "body", "item"),
         ("F", "done", "after"),
         ("J", "out", "done"),
     ]
@@ -446,6 +445,13 @@ def loop_graph(parallel: bool = True) -> Built:
         ]
     else:
         edges += [("item", "out", "X"), ("X", "out", "Y"), ("Y", "out", "J")]
+    loop = nodes[1].id
+    nodes = [
+        node.model_copy(update={"scope_id": loop})
+        if node.label in {"item", "S", "X", "Y", "J", "done"}
+        else node
+        for node in nodes
+    ]
     return _build(*nodes, edges=edges)
 
 
@@ -602,12 +608,35 @@ def test_a_loop_body_is_analysed_against_the_loop() -> None:
     assert inside.together("X", "after")
 
 
-def test_a_wire_from_the_loop_itself_is_always_live_inside_its_body() -> None:
+def test_a_loop_item_runs_whenever_its_loop_does_with_no_wire_into_it() -> None:
     built = loop_graph()
-    wire = built.analysis.incoming[built.id("item")][0]
-    condition = wire_condition(built.analysis, built.id("item"), wire)
+    assert built.id("item") not in built.analysis.incoming
+    assert built.condition("item").terms == {frozenset()}
+    assert runs_whenever(built.analysis, built.id("F"), built.id("item"))
+
+
+def test_a_wire_from_the_loop_itself_is_always_live_inside_its_body() -> None:
+    """Publishing refuses it, but a draft may hold one: it reads as the iteration's start."""
+    built = loop_graph(parallel=False)
+    graph = built.graph.model_copy(
+        update={
+            "edges": (
+                *built.graph.edges,
+                Edge(
+                    id=uuid4(),
+                    source_node_id=built.id("F"),
+                    source_port="done",
+                    target_node_id=built.id("Y"),
+                    target_port="in",
+                ),
+            )
+        }
+    )
+    analysis = analyze_graph(graph)
+    wire = next(w for w in analysis.incoming[built.id("Y")] if w.source_node_id == built.id("F"))
+    condition = wire_condition(analysis, built.id("Y"), wire)
     assert condition is not None and condition.terms == {frozenset()}
-    assert wire_runs_whenever(built.analysis, built.id("item"), wire)
+    assert wire_runs_whenever(analysis, built.id("Y"), wire)
 
 
 def test_a_step_runs_whenever_a_later_one_does_only_if_it_comes_before_it() -> None:
@@ -670,11 +699,13 @@ def _long_chain_graph(steps: int, *, branching: bool) -> Built:
     return _build(*nodes, edges=edges)
 
 
+# Graph construction and analysis are CPU-only. Exclude time spent descheduled
+# while other pytest workers compete for the same CI runner; keep the 5s CPU budget.
 def test_a_fan_in_of_many_wide_conditions_is_analysed_in_bounded_time_and_refused_safely() -> None:
-    started = time.perf_counter()
+    started = time.process_time()
     built = _fan_in_graph(450)
     assert len(built.graph.nodes) <= 500 and len(built.graph.edges) <= 2000
-    assert time.perf_counter() - started < 5
+    assert time.process_time() - started < 5
     assert built.condition("T").unknown
     assert can_run_together(built.analysis, built.id("T"), built.id("I0"))
     assert not runs_whenever(built.analysis, built.id("M5"), built.id("T"))
@@ -684,9 +715,9 @@ def test_a_fan_in_of_many_wide_conditions_is_analysed_in_bounded_time_and_refuse
 
 
 def test_a_long_chain_after_a_wide_condition_is_analysed_in_bounded_time() -> None:
-    started = time.perf_counter()
+    started = time.process_time()
     built = _long_chain_graph(450, branching=False)
-    assert time.perf_counter() - started < 5
+    assert time.process_time() - started < 5
     assert len(built.graph.nodes) <= 500
     last = built.id("C449")
     assert built.id("M5") in built.analysis.precede[last]
@@ -694,9 +725,9 @@ def test_a_long_chain_after_a_wide_condition_is_analysed_in_bounded_time() -> No
 
 
 def test_a_long_chain_of_choices_after_a_wide_condition_is_analysed_in_bounded_time() -> None:
-    started = time.perf_counter()
+    started = time.process_time()
     built = _long_chain_graph(450, branching=True)
-    assert time.perf_counter() - started < 5
+    assert time.process_time() - started < 5
     assert built.id("C449") in built.analysis.conditions
 
 

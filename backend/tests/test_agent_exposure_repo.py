@@ -276,6 +276,26 @@ class TestWriting:
         assert updated.is_active is is_active
         assert session.added == [exposure]
 
+    async def test_leaving_pauses_only_that_members_active_bindings_in_the_org(self):
+        """The departure pause is one UPDATE: the leaver's active bindings in
+        this organization, and nothing else - another member's bindings, another
+        organization's, and ones already paused keep answering."""
+        organization_id, user_id = uuid.uuid4(), uuid.uuid4()
+        session = _RecordingSession(MagicMock(rowcount=2))
+
+        paused = await agent_exposure_repo.pause_for_creator(
+            session, organization_id=organization_id, user_id=user_id
+        )
+
+        assert paused == 2
+        statement = session.statements[0]
+        sql = str(statement.compile(dialect=postgresql.dialect()))
+        assert sql.startswith("UPDATE agent_exposures SET is_active=")
+        params = _filters(session)
+        assert organization_id in params.values()
+        assert user_id in params.values()
+        assert False in params.values()
+
     async def test_only_the_fields_that_were_sent_are_written(self):
         """A dict rather than named arguments, so "unsent" is expressible.
 

@@ -217,10 +217,11 @@ describe("ModelProfilePicker", () => {
     expect(screen.getByRole("radio", { name: "openai default" })).toBeDisabled();
   });
 
-  it("names the model, not just the label somebody typed", () => {
+  it("shows the saved label without a second technical line", () => {
     mount();
 
-    expect(screen.getByText("openai · gpt-4.1")).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "openai default" })).toBeVisible();
+    expect(screen.queryByText("openai · gpt-4.1")).not.toBeInTheDocument();
   });
 
   it("tells an empty organization what is wrong and where a model comes from", () => {
@@ -428,15 +429,6 @@ describe("ModelProfilePicker", () => {
     expect(within(current).queryByText(/openrouter · openai\/gpt-5\.5/)).toBeNull();
   });
 
-  it("still names the model where the label does not, on the row that offers it", () => {
-    // The other half of `modelDetail`: a name somebody chose says nothing about what
-    // runs. It is the *list* that carries it now - the line above the form carries
-    // the name, and the form's own fields carry the pair.
-    mount({ value: "p1", profiles: [profile({ label: "the cheap one" })] });
-
-    expect(screen.getByText("openai · gpt-4.1")).toBeInTheDocument();
-  });
-
   it("names what the agent runs on rather than relying on it reading differently", () => {
     // The strip and the selected row now hold the same string, which is what
     // saying it once costs. The caption is what tells them apart, and it is
@@ -513,4 +505,68 @@ describe("a model an agent cannot run on (#2487)", () => {
     expect(screen.queryByText("not a chat model")).toBeNull();
     expect(screen.queryByRole("alert")).toBeNull();
   });
+});
+
+it("offers a compact model selector without the row list or model management", async () => {
+  const onChange = vi.fn();
+  mount({ compact: true, onChange });
+  expect(screen.queryByRole("radiogroup")).toBeNull();
+  expect(screen.queryByRole("button", { name: "Add model" })).toBeNull();
+  const picker = screen.getByRole("combobox", { name: "Model" });
+  expect(picker).toHaveTextContent("Use default model");
+  await userEvent.click(picker);
+  await userEvent.click(screen.getByRole("option", { name: "openai default" }));
+  expect(onChange).toHaveBeenCalledWith("p1");
+});
+
+it("lets the compact selector restore the assistant's default model", async () => {
+  const onChange = vi.fn();
+  mount({ compact: true, value: "p1", onChange });
+  await userEvent.click(screen.getByRole("combobox", { name: "Model" }));
+  await userEvent.click(screen.getByRole("option", { name: "Use default model" }));
+  expect(onChange).toHaveBeenCalledWith(null);
+});
+
+it("labels a required independent model without promising the default model", () => {
+  mount({ compact: true, emptyLabel: "Choose a decision model" });
+  expect(screen.getByRole("combobox", { name: "Model" })).toHaveTextContent(
+    "Choose a decision model",
+  );
+});
+
+it("offers a keyless chat destination only when the agent uses a personal key", async () => {
+  const changed = vi.fn();
+  const { rerender } = render(
+    <ModelProfilePicker
+      profiles={[keyless]}
+      profilesStatus="loaded"
+      value={null}
+      onChange={changed}
+      compact
+    />,
+    { wrapper },
+  );
+  expect(screen.queryByRole("radio", { name: /openai default/ })).toBeNull();
+  rerender(
+    <ModelProfilePicker
+      profiles={[keyless]}
+      profilesStatus="loaded"
+      value={null}
+      onChange={changed}
+      requireOrganizationKey={false}
+    />,
+  );
+  await userEvent.click(screen.getByRole("radio", { name: /openai default/ }));
+  expect(changed).toHaveBeenCalledWith("p1");
+  rerender(
+    <ModelProfilePicker
+      profiles={[keyless]}
+      profilesStatus="loaded"
+      value="p1"
+      onChange={changed}
+      requireOrganizationKey={false}
+    />,
+  );
+  expect(screen.queryByRole("alert")).toBeNull();
+  expect(screen.queryByText("No key")).toBeNull();
 });

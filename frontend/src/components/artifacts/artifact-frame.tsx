@@ -108,7 +108,12 @@ export function assistantContextFrom(
   frame: HTMLIFrameElement | null,
   nonce: string,
 ): { details: AssistantPageDetails } | null {
-  if (!nonce || frame === null || frame.contentWindow === null || event.source !== frame.contentWindow) {
+  if (
+    !nonce ||
+    frame === null ||
+    frame.contentWindow === null ||
+    event.source !== frame.contentWindow
+  ) {
     return null;
   }
   const data: unknown = event.data;
@@ -118,9 +123,13 @@ export function assistantContextFrom(
   if (
     message.context !== null &&
     (typeof message.context !== "object" || Array.isArray(message.context))
-  ) return null;
-  const { title: _title, resource: _resource, ...details } =
-    sanitizeAssistantPageDetails(message.context);
+  )
+    return null;
+  const {
+    title: _title,
+    resource: _resource,
+    ...details
+  } = sanitizeAssistantPageDetails(message.context);
   return { details };
 }
 
@@ -451,7 +460,13 @@ export function ArtifactFrame({
   // Identity includes the owning account/organization and document. A reused
   // component must never publish a previous app's view under a new scope.
   const contextIdentity = JSON.stringify([
-    userId, orgId, pathname, artifactId, resolvedVersionId, nonce, view.data?.url,
+    userId,
+    orgId,
+    pathname,
+    artifactId,
+    resolvedVersionId,
+    nonce,
+    view.data?.url,
   ]);
   const loadedContextIdentity = useRef<string | null>(null);
   const [appContext, setAppContext] = useState<{
@@ -488,7 +503,10 @@ export function ArtifactFrame({
     loadedContextIdentity.current = contextIdentity;
     setAppContext(null);
     if (primaryPage && nonce && !view.isError) {
-      frame.current?.contentWindow?.postMessage({ type: "assistant_context_request", n: nonce }, "*");
+      frame.current?.contentWindow?.postMessage(
+        { type: "assistant_context_request", n: nonce },
+        "*",
+      );
     }
   }, [contextIdentity, primaryPage, nonce, view.isError]);
   const data = useArtifactData(artifactId, view.data?.version.id, live && !injected);

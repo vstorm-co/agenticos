@@ -14,6 +14,7 @@ import {
   Settings2,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { toast } from "sonner";
 
 import {
   Button,
@@ -37,6 +38,11 @@ import type { ValidationProblem } from "@/components/workflows/validation";
 import type { NodeDefinition, Uuid } from "@/lib/workflows/types";
 import { cn } from "@/lib/utils";
 import { useWorkflowNodeStyleStore } from "@/stores/workflow-node-style-store";
+import { useAuthStore } from "@/stores/auth-store";
+import { appearanceGeneration, adoptAccountAppearance } from "@/lib/account-appearance";
+import { saveUserAppearance } from "@/lib/user-appearance-api";
+import { getErrorMessage } from "@/lib/api-error";
+import { useNarrowScreen } from "@/hooks/use-narrow-screen";
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 
 import { ScopeBreadcrumb } from "./scope-breadcrumb";
@@ -80,10 +86,36 @@ export function CanvasToolbar({
   const editNode = useWorkflowEditorStore((state) => state.editNode);
   const overlay = useWorkflowEditorStore((state) => state.overlay);
   const setOverlay = useWorkflowEditorStore((state) => state.setOverlay);
-  const minimapShown = useWorkflowEditorStore((state) => state.minimapShown);
+  const onPhone = useNarrowScreen();
+  const minimapShown = useWorkflowEditorStore((state) =>
+    onPhone ? state.phoneMinimapShown : state.minimapShown,
+  );
   const toggleMinimap = useWorkflowEditorStore((state) => state.toggleMinimap);
+  const tableDrift = useWorkflowEditorStore((state) => state.tableDrift);
+  const rebindTables = useWorkflowEditorStore((state) => state.rebindTables);
   const nodeStyle = useWorkflowNodeStyleStore((state) => state.style);
-  const setNodeStyle = useWorkflowNodeStyleStore((state) => state.setStyle);
+  const [savingAppearance, setSavingAppearance] = useState(false);
+  const tErrors = useTranslations("errors");
+  const setNodeStyle = async (style: "colour" | "simple") => {
+    const owner = useAuthStore.getState().user?.id;
+    // The unauthed canvas preview has no account to write.
+    if (!owner) {
+      useWorkflowNodeStyleStore.getState().setStyle(style);
+      return;
+    }
+    const epoch = appearanceGeneration();
+    setSavingAppearance(true);
+    try {
+      const saved = await saveUserAppearance({ workflow_nodes: style });
+      if (adoptAccountAppearance(owner, epoch, saved)) {
+        window.dispatchEvent(new Event("account-appearance-changed"));
+      }
+    } catch (error) {
+      toast.error(getErrorMessage(error, tErrors));
+    } finally {
+      setSavingAppearance(false);
+    }
+  };
   // Opened from the "+", from Tab, or from the "+" on a connection.
   const adding = overlay === "picker" && !empty;
   const setAdding = (open: boolean) => setOverlay(open ? "picker" : null);
@@ -123,7 +155,7 @@ export function CanvasToolbar({
   return (
     <>
       <div className="pointer-events-none absolute inset-x-3 top-3 z-10 flex items-start justify-between gap-3">
-        <div className="pointer-events-auto flex flex-wrap items-center gap-2">
+        <div className="panel pointer-events-auto flex flex-wrap items-center gap-1 rounded-2xl p-1.5">
           {!readOnly && !empty && (
             <Popover open={adding} onOpenChange={setAdding}>
               <PopoverTrigger asChild>
@@ -132,7 +164,7 @@ export function CanvasToolbar({
                   variant="outline"
                   aria-label={t("toolbarAddStep")}
                   title={t("toolbarAddStep")}
-                  className="bg-background/90 hover:bg-background h-8 rounded-lg shadow-sm backdrop-blur"
+                  className="h-8 rounded-lg"
                 >
                   <Plus className="h-4 w-4" />
                   {t("toolbarAddStep")}
@@ -151,7 +183,7 @@ export function CanvasToolbar({
               <Button
                 size="icon"
                 variant="outline"
-                className="bg-background/90 size-8 rounded-lg shadow-sm"
+                className="size-8 rounded-lg border-transparent bg-transparent shadow-none"
                 aria-label={t("toolbarDisplay")}
               >
                 <Settings2 className="size-4" />
@@ -161,7 +193,7 @@ export function CanvasToolbar({
               <DropdownMenuCheckboxItem
                 className="gap-3"
                 checked={minimapShown}
-                onCheckedChange={toggleMinimap}
+                onCheckedChange={() => toggleMinimap(onPhone)}
               >
                 <MapIcon className="size-4" />
                 {t(minimapShown ? "toolbarHideMinimap" : "toolbarShowMinimap")}
@@ -169,7 +201,8 @@ export function CanvasToolbar({
               <DropdownMenuCheckboxItem
                 className="gap-3"
                 checked={nodeStyle === "colour"}
-                onCheckedChange={(on) => setNodeStyle(on ? "colour" : "simple")}
+                disabled={savingAppearance}
+                onCheckedChange={(on) => void setNodeStyle(on ? "colour" : "simple")}
               >
                 <Palette className="size-4" />
                 {t(nodeStyle === "colour" ? "toolbarSimpleSteps" : "toolbarColourSteps")}
@@ -211,6 +244,37 @@ export function CanvasToolbar({
                 </PopoverTrigger>
                 <PopoverContent align="end" sideOffset={8} className="w-96 p-3">
                   <p className="text-muted-foreground mb-2 text-xs">{t("toolbarProblemsHint")}</p>
+                  {tableDrift.length > 0 && (
+                    // One click for every step whose table changed under it, rather
+                    // than opening each step to update it.
+                    <div className="mb-3 rounded-lg border border-dashed p-2.5">
+                      <p className="text-muted-foreground text-xs">
+                        {t("toolbarTablesChanged", { count: tableDrift.length })}
+                      </p>
+                      {tableDrift.some((entry) => entry.requiresReview) && (
+                        <p className="text-muted-foreground mt-1 text-xs">
+                          {t("problemTableDependenciesChanged")}
+                        </p>
+                      )}
+                      {tableDrift.some((entry) => !entry.requiresReview) && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="mt-2"
+                          onClick={() =>
+                            rebindTables(
+                              tableDrift
+                                .filter((entry) => !entry.requiresReview)
+                                .map((entry) => ({ site: entry.site, ref: entry.rebound })),
+                            )
+                          }
+                        >
+                          {t("toolbarRebindTables")}
+                        </Button>
+                      )}
+                    </div>
+                  )}
                   <ProblemsFooter
                     problems={problems}
                     names={names}
@@ -244,7 +308,7 @@ export function CanvasToolbar({
         </div>
       )}
       {!readOnly && selected.length > 1 && (
-        <div className="bg-background/95 border-border absolute bottom-4 left-1/2 z-10 flex -translate-x-1/2 items-center gap-3 rounded-xl border px-3 py-2 shadow-md backdrop-blur">
+        <div className="panel absolute bottom-4 left-1/2 z-10 flex -translate-x-1/2 items-center gap-3 rounded-2xl px-3 py-2">
           <span className="text-sm">{t("panelMultiSelected", { count: selected.length })}</span>
           <Button
             size="sm"
@@ -281,7 +345,7 @@ function ToolbarIcon({
       title={label}
       onClick={onClick}
       className={cn(
-        "bg-background/70 hover:bg-background size-8 rounded-lg shadow-sm backdrop-blur",
+        "size-8 rounded-lg border-transparent bg-transparent shadow-none",
         pressed && "bg-accent",
       )}
     >
@@ -326,7 +390,7 @@ export function ShortcutSheet() {
   const setOverlay = useWorkflowEditorStore((state) => state.setOverlay);
   return (
     <Dialog open={overlay === "shortcuts"} onOpenChange={(open) => !open && setOverlay(null)}>
-      <DialogContent className="max-w-md">
+      <DialogContent data-workflow-fields className="max-w-md">
         <DialogHeader>
           <DialogTitle>{t("shortcutsTitle")}</DialogTitle>
         </DialogHeader>

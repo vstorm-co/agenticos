@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, fireEvent, render as renderBare, screen } from "@testing-library/react";
+import { act, fireEvent, render as renderBare, screen, waitFor } from "@testing-library/react";
 import type { ReactElement } from "react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -128,7 +128,9 @@ function render(ui: ReactElement) {
 class FakeSocket {
   static last: FakeSocket | null = null;
   static readonly OPEN = 1;
-  readyState = 1;
+  static autoOpen = true;
+  readyState = FakeSocket.autoOpen ? 1 : 0;
+  onopen: (() => void) | null = null;
   sent: string[] = [];
   onmessage: ((event: { data: string }) => void) | null = null;
   onclose: ((event: { code: number }) => void) | null = null;
@@ -136,6 +138,12 @@ class FakeSocket {
 
   constructor(readonly url: string) {
     FakeSocket.last = this;
+    if (FakeSocket.autoOpen) queueMicrotask(() => this.onopen?.());
+  }
+
+  open() {
+    this.readyState = 1;
+    this.onopen?.();
   }
 
   send(payload: string) {
@@ -181,6 +189,7 @@ beforeEach(() => {
     action.mockReset();
   }
   FakeSocket.last = null;
+  FakeSocket.autoOpen = true;
   vi.stubGlobal("WebSocket", FakeSocket);
   window.localStorage.clear();
 });
@@ -195,6 +204,134 @@ function socket(): FakeSocket {
 }
 
 describe("the hosted page", () => {
+  it("keeps Send disabled until the current socket opens without losing the draft", async () => {
+    FakeSocket.autoOpen = false;
+    render(<HostedChat config={config()} />);
+    const input = screen.getByRole("textbox", { name: "Ask a question…" });
+    await userEvent.type(input, "First question");
+    expect(screen.getByRole("button", { name: "Send" })).toBeDisabled();
+    expect(socket().sent).toHaveLength(0);
+    act(() => socket().open());
+    await userEvent.click(screen.getByRole("button", { name: "Send" }));
+    expect(socket().sent).toHaveLength(1);
+    expect(input).toHaveValue("");
+  });
+
+  it("composes multiple lines with Shift+Enter and sends once with Enter", async () => {
+    render(<HostedChat config={config()} />);
+    const field = screen.getByRole("textbox", { name: "Ask a question…" });
+    expect(field.tagName).toBe("TEXTAREA");
+    await userEvent.type(field, "First line{Shift>}{Enter}{/Shift}Second line");
+    expect(field).toHaveValue("First line\nSecond line");
+    expect(socket().sent).toHaveLength(0);
+    await userEvent.keyboard("{Enter}");
+    expect(socket().sent).toHaveLength(1);
+    const message = socket().sent[0];
+    if (message === undefined) throw new Error("expected a sent turn");
+    expect(JSON.parse(message)).toMatchObject({
+      type: "message",
+      text: "First line\nSecond line",
+    });
+    expect(field).toHaveValue("");
+  });
+
+  it("does not send while confirming composed text or handling legacy IME Enter", () => {
+    render(<HostedChat config={config()} />);
+    const field = screen.getByRole("textbox");
+    fireEvent.change(field, { target: { value: "確認" } });
+    fireEvent.keyDown(field, { key: "Enter", isComposing: true });
+    fireEvent.keyDown(field, { key: "Enter", keyCode: 229 });
+    expect(socket().sent).toHaveLength(0);
+    expect(field).toHaveValue("確認");
+    fireEvent.keyDown(field, { key: "Enter" });
+    expect(socket().sent).toHaveLength(1);
+  });
+
+  it("bounds a long draft and shrinks the field when its contents become shorter", () => {
+    let height = 360;
+    const scrollHeight = vi
+      .spyOn(HTMLTextAreaElement.prototype, "scrollHeight", "get")
+      .mockImplementation(() => height);
+    try {
+      render(<HostedChat config={config()} />);
+      const field = screen.getByRole("textbox");
+      fireEvent.change(field, { target: { value: "Long pasted message" } });
+      expect(field).toHaveStyle({ height: "192px" });
+      height = 64;
+      fireEvent.change(field, { target: { value: "Short" } });
+      expect(field).toHaveStyle({ height: "64px" });
+      expect(socket().sent).toHaveLength(0);
+    } finally {
+      scrollHeight.mockRestore();
+    }
+  });
+
+  it("pauses streaming and resize following while reading, resumes at bottom or on an own send", async () => {
+    const OriginalObserver = global.ResizeObserver;
+    const observers: Array<{ target: Element; notify: () => void }> = [];
+    class Observer implements ResizeObserver {
+      constructor(private readonly callback: ResizeObserverCallback) {}
+      observe(target: Element) {
+        observers.push({ target, notify: () => this.callback([], this) });
+      }
+      unobserve() {}
+      disconnect() {}
+    }
+    global.ResizeObserver = Observer;
+    try {
+      const { container } = render(<HostedChat config={config()} />);
+      const thread = container.querySelector("div.scrollbar-thin");
+      if (!(thread instanceof HTMLDivElement)) throw new Error("missing hosted transcript");
+      let height = 1600;
+      Object.defineProperties(thread, {
+        scrollHeight: { get: () => height },
+        clientHeight: { value: 400 },
+      });
+      const resize = () => {
+        for (const observer of observers) {
+          if (observer.target === thread || observer.target === thread.firstElementChild)
+            observer.notify();
+        }
+      };
+      act(() => socket().deliver({ type: "text_delta", data: { content: "First answer" } }));
+      expect(thread.scrollTop).toBe(1600);
+      thread.scrollTop = 300;
+      fireEvent.scroll(thread);
+      height = 2000;
+      act(() => socket().deliver({ type: "text_delta", data: { content: " keeps growing" } }));
+      act(() => resize());
+      expect(thread.scrollTop).toBe(300);
+
+      thread.scrollTop = 1600;
+      fireEvent.scroll(thread);
+      height = 2200;
+      act(() => socket().deliver({ type: "text_delta", data: { content: " follows again" } }));
+      expect(thread.scrollTop).toBe(2200);
+      thread.scrollTop = 250;
+      fireEvent.scroll(thread);
+      act(() => socket().deliver({ type: "complete", data: {} }));
+      await userEvent.type(screen.getByRole("textbox"), "My next question{Enter}");
+      expect(socket().sent).toHaveLength(1);
+      expect(thread.scrollTop).toBe(2200);
+
+      thread.scrollTop = 200;
+      fireEvent.scroll(thread);
+      act(() => socket().onclose?.({ code: 1006 }));
+      expect(thread.scrollTop).toBe(200);
+      await userEvent.click(screen.getByRole("button", { name: "Reconnect" }));
+      act(() =>
+        socket().deliver({
+          type: "history",
+          data: { messages: [{ role: "assistant", text: "Replayed" }] },
+        }),
+      );
+      act(() => resize());
+      expect(thread.scrollTop).toBe(200);
+    } finally {
+      global.ResizeObserver = OriginalObserver;
+    }
+  });
+
   it("names itself with the title the operator chose", () => {
     render(<HostedChat config={config()} />);
 
@@ -462,6 +599,56 @@ describe("what the operator lets the page offer", () => {
     expect(await screen.findByDisplayValue("where is my order")).toBeInTheDocument();
     expect(FakeSocket.last!.sent).toEqual([]);
   });
+
+  function failingRecognition() {
+    const recognition = {
+      continuous: false,
+      interimResults: false,
+      lang: "",
+      onresult: null,
+      onend: null,
+      onerror: null as ((event: { error: string }) => void) | null,
+      start: vi.fn(),
+      stop: vi.fn(),
+    };
+    vi.stubGlobal(
+      "SpeechRecognition",
+      vi.fn(function () {
+        return recognition;
+      }),
+    );
+    vi.stubGlobal("isSecureContext", true);
+    return recognition;
+  }
+
+  it.each([
+    ["not-allowed", /Microphone blocked for this site/],
+    ["audio-capture", /No microphone found/],
+    ["network", /Couldn't reach the speech service/],
+    ["service-not-allowed", /Voice input isn't available in this browser/],
+    ["no-speech", /No speech heard/],
+    ["language-not-supported", /Voice input stopped/],
+  ])("tells the visitor what to do when the browser's recogniser says %s", async (error, said) => {
+    const recognition = failingRecognition();
+    render(<HostedChat config={config({ dictation: "browser" })} />);
+    await userEvent.click(screen.getByRole("button", { name: "Dictate" }));
+
+    act(() => recognition.onerror?.({ error }));
+
+    expect(await screen.findByText(said)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Dismiss" }));
+    await waitFor(() => expect(screen.queryByText(said)).toBeNull());
+  });
+
+  it("says nothing when the recogniser was only stopped", async () => {
+    const recognition = failingRecognition();
+    render(<HostedChat config={config({ dictation: "browser" })} />);
+    await userEvent.click(screen.getByRole("button", { name: "Dictate" }));
+
+    act(() => recognition.onerror?.({ error: "aborted" }));
+
+    expect(screen.queryByRole("button", { name: "Dismiss" })).toBeNull();
+  });
 });
 
 describe("server dictation on the page", () => {
@@ -668,7 +855,8 @@ describe("what the page does with the frames it is sent", () => {
     // Behind the step rather than under it, which is what web chat does: a
     // transcript that opened every finished call is a wall of results.
     expect(screen.queryByText("30 days")).toBeNull();
-    await userEvent.click(screen.getByRole("button", { name: /Post Invoice/ }));
+    await userEvent.click(screen.getByRole("button", { name: /^Working/ }));
+    await userEvent.click(screen.getByRole("button", { name: /^Post Invoice/ }));
 
     expect(screen.getByText("30 days")).toBeInTheDocument();
   });
@@ -707,7 +895,62 @@ describe("what the page does with the frames it is sent", () => {
     );
   });
 
-  it("renders the reasoning it was sent, and nothing where it was not", () => {
+  it("keeps generated media visible once while expanded diagnostics stay raw", async () => {
+    render(<HostedChat config={config()} />);
+    act(() =>
+      socket().deliver({
+        type: "tool_call",
+        data: { tool_call_id: "image", tool_name: "generate_image" },
+      }),
+    );
+    act(() =>
+      socket().deliver({
+        type: "tool_result",
+        data: {
+          tool_call_id: "image",
+          content: JSON.stringify({
+            kind: "generated_image",
+            filename: "evidence.png",
+            prompt: "Hosted evidence",
+            token: "scoped",
+          }),
+        },
+      }),
+    );
+    expect(screen.getAllByRole("img", { name: "Hosted evidence" })).toHaveLength(1);
+    await userEvent.click(screen.getByRole("button", { name: /^Working/ }));
+    const step = screen
+      .getAllByRole("button")
+      .find(
+        (button) =>
+          button.getAttribute("aria-expanded") === "false" &&
+          /image/i.test(button.textContent ?? ""),
+      );
+    expect(step).toBeDefined();
+    await userEvent.click(step!);
+    expect(screen.getAllByRole("img", { name: "Hosted evidence" })).toHaveLength(1);
+    expect(screen.getByText(/"kind":\s*"generated_image"/)).toBeVisible();
+  });
+
+  it("does not infer a private workspace for a public produced file", () => {
+    render(<HostedChat config={config()} />);
+    act(() =>
+      socket().deliver({
+        type: "tool_call",
+        data: { tool_call_id: "file", tool_name: "write_file", args: { path: "public-report.md" } },
+      }),
+    );
+    act(() =>
+      socket().deliver({ type: "tool_result", data: { tool_call_id: "file", content: "Written" } }),
+    );
+    expect(screen.getByText("public-report.md")).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Open" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Download public-report/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("renders the reasoning it was sent, and nothing where it was not", async () => {
     // The page has no branch that hides it: a page whose operator left
     // `show_thinking` off never receives the frame, which is what makes the
     // setting mean something on a surface with devtools.
@@ -715,7 +958,10 @@ describe("what the page does with the frames it is sent", () => {
 
     act(() => socket().deliver({ type: "thinking_delta", data: { content: "Checking policy." } }));
 
-    expect(screen.getByText("Checking policy.")).toBeInTheDocument();
+    expect(screen.queryByText("Checking policy.")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /^Working/ }));
+    await userEvent.click(screen.getByText("Thought about it"));
+    expect(screen.getByText("Checking policy.")).toBeVisible();
   });
 
   it("keeps one bubble for a turn rather than one per frame", async () => {
@@ -940,11 +1186,12 @@ describe("a turn laid out the way web chat lays one out", () => {
         data: { tool_call_id: "c1", tool_name: "post_invoice" },
       }),
     );
-    expect(screen.getByText("Running")).toBeInTheDocument();
-
+    const progress = screen.getByRole("button", { name: /^Working/ });
+    expect(progress).toHaveAttribute("aria-expanded", "false");
     act(() => socket().deliver({ type: "complete", data: {} }));
-
-    expect(screen.queryByText("Running")).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Working/ })).toBeNull();
+    expect(screen.getByRole("button", { name: "Worked · 1 step" })).toBe(progress);
+    expect(progress).toHaveAttribute("aria-expanded", "false");
   });
 
   it("renders the answer as Markdown and the question as plain text", () => {

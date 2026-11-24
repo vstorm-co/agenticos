@@ -11,6 +11,7 @@ import {
   Lock,
   MoreHorizontal,
   ShieldOff,
+  Star,
   UserRoundCog,
   GitPullRequest,
   Trash2,
@@ -30,6 +31,7 @@ import {
   IconButton,
 } from "@/components/ui";
 import { ArtifactActionsMenu } from "@/components/artifacts/artifact-actions-menu";
+import type { ArtifactCardFavourite } from "@/components/artifacts/artifact-card";
 import { LiveBadge, type LiveHealth } from "@/components/artifacts/live-badge";
 import { RestartTourButton } from "@/components/onboarding/restart-tour-button";
 import { ROUTES } from "@/lib/constants";
@@ -59,6 +61,7 @@ function AccessBadge({ artifact }: { artifact: ArtifactDetail }) {
 }
 
 interface ArtifactViewerBarProps {
+  backHref?: string | null;
   /** Null while it loads, or once it turned out not to be available. */
   artifact: ArtifactDetail | null;
   /** How the shown version's live data stands; absent when it reads none. */
@@ -78,6 +81,8 @@ interface ArtifactViewerBarProps {
   waitingRequests?: number;
   /** Opens the Share dialog on its Requests. */
   onRequests?: () => void;
+  /** The star beside the controls; drawn only while the page is loaded. */
+  favourite?: ArtifactCardFavourite;
 }
 
 /**
@@ -86,6 +91,10 @@ interface ArtifactViewerBarProps {
  * Share: each takes the page away from everyone who reads it. An archived page
  * has nothing to share - it serves nobody - so only the menu is left, without
  * Archive.
+ *
+ * Keep the floating phone controls in the layout flow, including their expanded
+ * row, so the app frame always starts below them. Native shells already reserve
+ * their top inset on body; only any remaining browser safe area belongs here.
  */
 export function ArtifactViewerBar({
   artifact,
@@ -98,7 +107,9 @@ export function ArtifactViewerBar({
   onWithdrawConsent,
   onChangeOwner,
   waitingRequests = 0,
+  backHref = null,
   onRequests,
+  favourite,
 }: ArtifactViewerBarProps) {
   const t = useTranslations("artifacts");
   const tc = useTranslations("common");
@@ -118,14 +129,14 @@ export function ArtifactViewerBar({
   return (
     <header
       data-tour="artifact-strip"
-      className="grid shrink-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-x-2 gap-y-1 border-b px-2 py-2 max-sm:pointer-events-none max-sm:fixed max-sm:inset-x-3 max-sm:top-[calc(max(var(--shell-inset-top,0px),env(safe-area-inset-top))+0.75rem)] max-sm:z-40 max-sm:flex max-sm:justify-between max-sm:border-0 max-sm:p-0 sm:flex sm:min-h-12 sm:gap-2 sm:px-3 sm:py-1.5"
+      className="grid shrink-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-x-2 gap-y-1 border-b px-2 py-2 max-sm:pointer-events-none max-sm:relative max-sm:z-40 max-sm:mx-3 max-sm:mt-[calc(max(var(--shell-inset-top,0px),env(safe-area-inset-top))-var(--shell-inset-top,0px)+0.75rem)] max-sm:mb-2 max-sm:flex max-sm:flex-wrap max-sm:justify-between max-sm:gap-y-3 max-sm:border-0 max-sm:p-0 sm:flex sm:min-h-12 sm:gap-2 sm:px-3 sm:py-1.5"
     >
       <IconButton
         asChild
-        aria-label={t("backToArtifacts")}
+        aria-label={backHref ? t("backToConversation") : t("backToArtifacts")}
         className="max-sm:bg-background/95 max-sm:pointer-events-auto max-sm:size-11 max-sm:rounded-full max-sm:border max-sm:shadow-sm"
       >
-        <Link href={ROUTES.ARTIFACTS}>
+        <Link href={backHref ?? ROUTES.ARTIFACTS}>
           <ArrowLeft className="h-4 w-4" />
         </Link>
       </IconButton>
@@ -146,10 +157,30 @@ export function ArtifactViewerBar({
           </>
         )}
       </div>
+      <RestartTourButton />
       {live !== undefined && (
         <span className="max-sm:bg-background/95 shrink-0 max-sm:rounded-full max-sm:border max-sm:px-3 max-sm:py-2 max-sm:shadow-sm">
           <LiveBadge health={live} />
         </span>
+      )}
+      {artifact !== null && favourite && (
+        <IconButton
+          aria-label={
+            favourite.on
+              ? t("removeFavouriteNamed", { name: artifact.title })
+              : t("addFavouriteNamed", { name: artifact.title })
+          }
+          aria-pressed={favourite.on}
+          title={favourite.on ? t("removeFavourite") : t("addFavourite")}
+          disabled={favourite.busy}
+          onClick={favourite.onToggle}
+          className="bg-background/95 pointer-events-auto size-11 rounded-full border shadow-sm sm:size-8"
+        >
+          <Star
+            className={cn("h-4 w-4", favourite.on && "text-warning fill-current")}
+            aria-hidden
+          />
+        </IconButton>
       )}
       {artifact !== null && (
         <IconButton
@@ -178,7 +209,7 @@ export function ArtifactViewerBar({
         <div
           id={controlsId}
           className={cn(
-            "max-sm:bg-background col-span-2 flex min-w-0 items-center justify-start gap-1 overflow-x-auto max-sm:pointer-events-auto max-sm:absolute max-sm:top-14 max-sm:right-0 max-sm:left-0 max-sm:flex-wrap max-sm:rounded-xl max-sm:border max-sm:p-2 max-sm:shadow-lg sm:max-w-full sm:shrink-0 sm:flex-wrap sm:justify-end sm:gap-2",
+            "max-sm:bg-background col-span-2 flex min-w-0 items-center justify-start gap-1 overflow-x-auto max-sm:pointer-events-auto max-sm:basis-full max-sm:flex-wrap max-sm:rounded-xl max-sm:border max-sm:p-2 max-sm:shadow-lg sm:max-w-full sm:shrink-0 sm:flex-wrap sm:justify-end sm:gap-2",
             !controlsOpen && "max-sm:hidden",
           )}
         >
@@ -187,7 +218,6 @@ export function ArtifactViewerBar({
           </p>
           {children}
           <ArtifactActionsMenu actions={actions} />
-          <RestartTourButton />
           {waitingRequests > 0 && (
             <Button
               size="sm"

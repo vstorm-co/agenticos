@@ -4,7 +4,7 @@ import type { DocumentMetadata } from "./document-properties";
 
 import { useState } from "react";
 import { Star } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import {
   Input,
   Select,
@@ -18,6 +18,7 @@ import {
 import { PrincipalCell } from "./principal-cell";
 import { MarkdownCellEditor } from "./markdown-cell-editor";
 import { DateCell } from "./date-cell";
+import { useTableDisplay } from "./table-display-context";
 import { DatetimeCell } from "./datetime-cell";
 import { LinkCell } from "./link-cell";
 import { MultiSelectCell } from "./multi-select-cell";
@@ -31,6 +32,7 @@ import {
   type CellValue,
   type ColumnDef,
   type LinkedRecord,
+  type RecordLinkChange,
 } from "@/types/tables";
 
 const UNSET = "__unset__";
@@ -305,13 +307,15 @@ export function RecordCellEditor({
   value: CellValue;
   /** A link column's records, named as the record was read. */
   links?: LinkedRecord[];
-  onChange: (value: CellValue) => void;
+  onChange: (value: CellValue, linkChange?: RecordLinkChange) => void;
   disabled?: boolean;
   error?: string;
   /** What a typed value's empty field says - text and numbers only. */
   placeholder?: string;
 }) {
   const t = useTranslations("tables.cells");
+  const locale = useLocale();
+  const display = useTableDisplay();
   const id = `cell-${column.id}`;
   const errorId = `${id}-error`;
   const invalid =
@@ -499,7 +503,8 @@ export function RecordCellEditor({
       {COMPUTED_TYPES.has(column.type) && (
         // Worked out from other columns or linked records; there is nothing to edit.
         <p id={id} className="text-muted-foreground min-h-9 py-2 text-sm">
-          {formatCellValue(column, value, (on) => t(on ? "true" : "false")) || t("workedOut")}
+          {formatCellValue(column, value, (on) => t(on ? "true" : "false"), locale, display) ||
+            t("workedOut")}
         </p>
       )}
 

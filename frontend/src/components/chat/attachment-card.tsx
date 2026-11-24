@@ -20,7 +20,7 @@ interface AttachmentCardProps {
   file: FileUploadResponse;
   /** A long paste, turned into a file. */
   pasted?: boolean;
-  onRemove: () => void;
+  onRemove?: () => void;
 }
 
 export function AttachmentCard({ file, pasted, onRemove }: AttachmentCardProps) {
@@ -51,6 +51,14 @@ export function AttachmentCard({ file, pasted, onRemove }: AttachmentCardProps) 
   );
 }
 
-export function PendingAttachmentCard({ name, size }: { name: string; size: number }) {
-  return <PendingFileCard name={name} size={size} compact />;
+export function PendingAttachmentCard({
+  name,
+  size,
+  imageUrl,
+}: {
+  name: string;
+  size: number;
+  imageUrl?: string;
+}) {
+  return <PendingFileCard name={name} size={size} imageUrl={imageUrl} compact />;
 }

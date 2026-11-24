@@ -1,5 +1,5 @@
 ---
-source_sha: "2df43efb8afc"
+source_sha: "6aaedf36ba33"
 ---
 
 # Configurar un trigger de evento { #setting-up-an-event-trigger }
@@ -10,7 +10,7 @@ Hay dos maneras de que eso nos llegue, y cuál usa una fuente es asunto de la
 fuente y no tuyo:
 
 - **Por envío (push).** Un provider hace POST de una carga firmada: **GitHub**,
-  **HubSpot**, **Zendesk**, o cualquier cosa que pueda enviar JSON firmado (la
+  **HubSpot**, **Zendesk**, **Linear**, o cualquier cosa que pueda enviar JSON firmado (la
   fuente **API**).
 - **Por sondeo (polling).** La plataforma lee una cuenta conectada con una
   cadencia: los buzones (**Gmail**, **Outlook**), los archivos (**Google Drive**,
@@ -66,11 +66,20 @@ pasa:
 
 Un trigger de evento no tiene este ajuste: cada entrega es su propio disparo.
 
+**En qué conversación corre cada disparo.** `conversation_mode` en la API lo
+decide: `continue`, el valor por defecto, añade cada disparo al único registro de
+ejecuciones del trigger, así que la pestaña Runs los enumera todos; `fresh` abre
+una conversación nueva por disparo, así que un disparo nunca lee los turnos de
+los disparos anteriores — y la pestaña Runs no tiene una conversación que
+enumerar. Un trigger `fresh` no abre ningún registro de ejecuciones al crearse,
+así que no hay ningún elemento en la barra lateral hasta que corre el primer
+disparo.
+
 Todo lo de abajo es para el caso de los eventos.
 
 ## Adónde va la respuesta y cuándo termina una rutina { #answers-and-ends }
 
-Cada ejecución queda registrada en el registro de ejecuciones del trigger. `answer_to` dice adónde va
+Cada ejecución queda registrada en la conversación en la que corre: el registro de ejecuciones del trigger, salvo que el trigger abra una conversación nueva por disparo. `answer_to` dice adónde va
 además la respuesta, para la persona que lo creó (#2575): `primary`, el valor por defecto, es su propia
 conversación con el agente, así que todo lo que le dice está en un solo lugar; `conversation` es uno de
 sus otros chats (`delivery_conversation_id`), para una rutina creada en ese chat; `run_log` no la publica
@@ -90,6 +99,9 @@ ejecuciones que inició. Cuando se agota, sus disparos se omiten antes de abrir 
 aparece pausada por su presupuesto y vuelve a empezar el día uno sin nada que reanudar a mano. Solo
 estrecha los límites del agente y de la organización. Un disparo que ya está en curso cuando se cruza el
 límite termina, porque el límite es sobre lo gastado, no sobre una previsión.
+
+Un disparo aparcado en una aprobación no ha empezado su continuación: si se aprueba cuando el mes de la
+rutina ya está gastado, termina como `budget_exceeded` sin llamar al modelo.
 
 ## Dónde viven en el producto, y cómo llamarlos { #where-they-live-in-the-product-and-what-to-call-them }
 
@@ -118,7 +130,7 @@ cada fila necesitan `runs:view` y sin ese permiso sencillamente no aparecen.
 
 ## El mecanismo, una vez { #the-mechanism-once }
 
-Un trigger de evento te entrega dos cosas: una **URL de webhook** y un **secreto
+Un trigger de evento usa dos cosas: una **URL de webhook** y un **secreto
 de firma**. Un provider hace POST de su carga a la URL y firma la petición; la
 plataforma recalcula la firma y dispara el agent solo si las dos coinciden.
 
@@ -130,9 +142,9 @@ flowchart TD
     V -->|yes| J{a JSON object?}
     J -->|no| R400["400"]
     J -->|yes| F{trigger active,<br/>filter matches?}
-    F -->|no| R202["202 - nothing to do"]
+    F -->|no| R202["202, or 200 for Linear - nothing to do"]
     F -->|yes| SUB["queue a fire-trigger job"]
-    SUB --> R202b["202 - accepted, not finished"]
+    SUB --> R202b["202, or 200 for Linear - accepted, not finished"]
     SUB -.->|later, in the worker| RUN[the agent runs, spending the org's budget]
 ```
 
@@ -144,7 +156,7 @@ flowchart TD
   {PUBLIC_BASE_URL}/api/v1/webhooks/triggers/{source}/{trigger_id}
   ```
 
-  `source` es `github`, `hubspot`, `zendesk` o `webhook` (el nombre en el cable de
+  `source` es `github`, `hubspot`, `zendesk`, `linear` o `webhook` (el nombre en el cable de
   la fuente API); `trigger_id` es un UUID imposible de adivinar. El diálogo la
   rellena por ti - cópiala, no la construyas a mano. **Una fuente por sondeo no
   tiene URL**: no tiene puerta de entrada, y un POST que la nombre recibe la
@@ -158,14 +170,23 @@ flowchart TD
   | `github` | `X-Hub-Signature-256` | El cuerpo crudo, `sha256=<hex>` |
   | `webhook` | `X-Signature-256` | El cuerpo crudo, `sha256=<hex>` - o la hora y el cuerpo, ver [abajo](#signing-a-delivery-yourself) |
   | `hubspot` | `X-HubSpot-Signature-v3` | El método, la URL, el cuerpo y `X-HubSpot-Request-Timestamp`, base64 |
+  | `linear` | `Linear-Signature` | El cuerpo crudo, HMAC-SHA256 hexadecimal |
   | `zendesk` | `X-Zendesk-Webhook-Signature` | `X-Zendesk-Webhook-Signature-Timestamp` y el cuerpo, base64 |
 
-  GitHub, HubSpot y Zendesk firman sus propias entregas, así que le das al
-  provider el secreto - o, en HubSpot y Zendesk, tomas el que él emitió - y él
-  firma. La fuente API reutiliza el esquema de GitHub bajo `X-Signature-256`, que
+  GitHub, HubSpot, Zendesk y Linear firman sus propias entregas, así que le das al
+  provider el secreto o usas el que emitió, y él
+  firma. La fuente API reutiliza por defecto el esquema de GitHub bajo `X-Signature-256`, que
   tiene que poner por sí mismo lo que apuntes a la URL. Una fuente **por sondeo**
   no firma nada ni guarda secreto: no se le envió nada, se leyó, y lo que autorizó
   leerla es el consentimiento OAuth de la propia cuenta.
+
+El `webhook` genérico usa por defecto la firma anterior. En la consola, elige el esquema de firma y la cabecera al crear o editar un trigger de API. Mediante la API, configura `event_config` como `{"signature_scheme":"hmac-sha256-base64","signature_header":"X-Shopify-Hmac-Sha256"}` para Shopify, o usa `X-Hookdeck-Signature` para la firma predeterminada de Hookdeck. `hmac-sha256-hex` acepta un resumen hexadecimal sin prefijo. Ambos firman el cuerpo crudo exacto y requieren el secreto del proveedor como `event_secret`; los nombres de cabecera no distinguen mayúsculas.
+
+Estos modos no autentican una marca de tiempo, por lo que se pueden repetir solicitudes capturadas. La cabecera genérica de ID de entrega no está firmada y puede modificarse. Filtra en el proveedor y usa una integración específica si su contrato requiere comprobar la fecha, otra respuesta de éxito u otro esquema de firma. Estas opciones no implementan el contrato de webhooks de Linear.
+
+Shopify y Hookdeck no suelen enviar `X-Delivery-ID`, así que los reintentos pueden ejecutar el trigger otra vez. Este trigger no comprueba sus ID de entrega. Las firmas del cuerpo no vinculan la URL de destino ni las cabeceras del proveedor: usa un secreto distinto por límite de confianza y no autorices entregas con cabeceras de tienda o tema sin firmar. El secreto de la aplicación Shopify puede compartirse entre tiendas; no uses este modo si la firma debe demostrar la tienda o suscripción de origen.
+
+Rotate genera un secreto nuevo de AgenticOS; no permite instalar uno emitido por el proveedor. Si el proveedor controla el secreto, crea un trigger nuevo y actualiza su URL en el proveedor después del cambio. No se comprueba la segunda firma de Hookdeck durante una rotación diferida.
 
 !!! danger "La firma no es un adorno"
 
@@ -180,21 +201,24 @@ Una petición cuya firma no se verifica se rechaza con un `403` antes de llegar
 siquiera al runner; el secreto está sellado en el [vault](secrets.md) y nunca
 aparece en una lectura, en un listado ni en la URL.
 
-!!! info "El `202` significa aceptado, no terminado"
+Para Linear el estado de éxito es `200`, también cuando el filtro no coincide.
+
+!!! info "Aceptar la entrega no significa que el run haya terminado"
 
     Una entrega que coincide se encola como un job `fire-trigger` en la propia
     transacción de la petición y el agent se ejecuta en el worker, así que el
-    provider recibe su respuesta tras un insert en vez de esperar a un modelo. No leas un `202` como «el agent ya ha respondido» - para
+    provider recibe su respuesta tras un insert en vez de esperar a un modelo. No leas una respuesta de éxito como «el agent ya ha respondido» - para
     eso lee el run en Activity.
 
 Una entrega verificada que no tiene nada que hacer - un trigger inactivo, o una
-carga que el filtro no hace coincidir - responde `202` exactamente igual que una
-que dispara, así que tener el secreto no te dice nada sobre qué triggers existen.
-Un cuerpo que no es un objeto JSON es un `400`.
+carga que el filtro no hace coincidir - responde con el mismo estado de éxito
+que una que dispara, así que tener el secreto no te dice nada sobre qué triggers existen.
+Un cuerpo que no es un objeto JSON recibe `400` (HubSpot acepta un array);
+Linear rechaza un cuerpo inválido con `403`.
 
 **Un trigger se dispara como mucho 60 veces por minuto.** Una entrega verificada
-por encima de eso se rechaza con `429` y `Retry-After`, y el reintento del
-provider la dispara cuando pasa el minuto. Solo cuenta cuando la firma es
+por encima de eso se rechaza con `429` y `Retry-After`. El provider puede
+reintentarlo tras el minuto, siempre que la firma siga siendo reciente. Solo cuenta cuando la firma es
 correcta, así que nadie sin el secreto puede agotarlo - y es lo que impide que un
 secreto filtrado o un relé en bucle gaste el budget en una tarde.
 
@@ -203,6 +227,14 @@ y después el evento dentro de un bloque `<event_content>` que le dice al modelo
 que lo lea como datos. Una issue, un correo o un nombre de archivo lo escribe
 quien lo envió, y una frase dentro que suene a orden sigue siendo parte del
 evento.
+
+Una entrega de GitHub también llega al run como una parte estructurada: la
+entrega completa como JSON, con la misma forma con la que el trigger GitHub de
+workflows se la entrega a un run, dentro de un bloque `<event_payload>` junto al
+texto renderizado. Es el mismo contenido no confiable — el run lo lee como
+información con la que trabajar, nunca como instrucciones — y se elimina de la
+fila de espera cuando termina el procesamiento del disparo, así que una espera
+terminada no conserva ni el payload ni el contexto renderizado.
 
 ## Rotar el secreto y editar el filtro { #rotating-the-secret-and-editing-the-filter }
 
@@ -217,6 +249,9 @@ POST /agents/{agent_id}/triggers/{trigger_id}/rotate-secret
 Acuña un secreto nuevo, lo sella y devuelve el trigger con `reveal_secret` puesto
 una vez — el mismo campo que usa la creación. Rota en cuanto un secreto pueda
 haberse filtrado; el antiguo deja de verificar inmediatamente.
+
+El secreto de Linear no se puede rotar aquí: crea un trigger nuevo con el secreto
+nuevo de Linear y actualiza la URL del webhook.
 
 Para un hook que registró la propia plataforma (`auto_webhook`), la rotación lo
 vuelve a registrar con el secreto nuevo, así que sus entregas siguen verificando
@@ -393,6 +428,33 @@ remitente.
 El filtro de remitente compara la dirección analizada, nunca el nombre visible.
 Una dirección completa o un filtro `@dominio` requiere coincidencia exacta; otro
 texto se busca dentro de la dirección. DMARC no autentica el nombre visible.
+
+## Linear { #linear }
+
+1. Genera un secreto de firma robusto y mantenlo privado. En AgenticOS, crea un
+   trigger de evento con la fuente **Linear** e introduce ese secreto. Copia la URL del webhook.
+2. Usa la mutación `webhookCreate` de la API GraphQL de Linear con esa URL y el mismo
+   `secret`. Indica al menos una entrada en `resourceTypes` y un `teamId` o
+   `allPublicTeams: true`. Consulta los campos en el [esquema de webhooks de Linear](https://github.com/linear/linear/blob/master/packages/sdk/src/schema.graphql).
+
+También puedes crear un webhook de Linear desactivado con una URL HTTPS pública
+temporal, copiar su secreto generado a un trigger nuevo de Linear en AgenticOS y usar
+`webhookUpdate` en Linear para establecer la URL del trigger y activar las entregas.
+No uses un endpoint temporal que no controles. Estas formas de configuración no se
+han probado con entregas reales de Linear.
+
+La API también admite filtros opcionales `event_types` y `actions` en `event_config`.
+
+AgenticOS verifica `Linear-Signature` sobre el cuerpo exacto y comprueba que el
+`webhookTimestamp` firmado no se aleje más de 60 segundos del momento actual. `200` indica
+una entrega aceptada o sin trabajo, no que el agent haya terminado. Los cuerpos
+idénticos se deduplican durante 15 minutos mientras Redis esté disponible.
+
+Linear reintenta las entregas fallidas al minuto, a la hora y a las seis horas.
+Si un reintento conserva la marca de tiempo original del cuerpo, la comprobación
+lo rechaza; la documentación de Linear no especifica si la actualiza. Consulta
+el historial de entregas si no llega un reintento. Para cambiar el secreto, crea
+un trigger nuevo con el secreto nuevo de Linear y actualiza la URL del webhook.
 
 ## HubSpot { #hubspot }
 
@@ -800,12 +862,12 @@ cualquier relé alojado - no pueden ver tu máquina. Dos maneras de salvarlo:
 
 ## Resumen { #recap }
 
-- Un trigger te entrega una **URL** y un **secreto de firma**. La URL es su
-  identidad y nunca cambia; el secreto es una credencial y se puede rotar.
+- Un trigger usa una **URL** y un **secreto de firma**. La URL es su identidad;
+  el secreto es una credencial. Cambiar el secreto de Linear requiere un trigger nuevo.
 - La firma es un `HMAC-SHA256` sobre los **bytes crudos exactos**, en el esquema
   de cada provider, y es lo que hace que una entrega sea auténtica y no solo esté
-  bien dirigida. Los secretos de HubSpot y Zendesk los emite el provider.
-- Un `202` significa **aceptado**, no terminado. Lee el run en Activity.
+  bien dirigida. Usa el mismo secreto de firma en el provider y en AgenticOS.
+- Una respuesta de éxito (`202`, o `200` para Linear) significa **aceptado**, no terminado. Lee el run en Activity.
 - **Los buzones, los archivos y los calendarios se sondean**, así que no tienen
   URL ni secreto alguno - conecta la cuenta y ese es todo el montaje.
 - Un filtro de remitente solo se dispara con correo que firmó el dominio del

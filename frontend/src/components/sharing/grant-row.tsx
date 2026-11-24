@@ -22,6 +22,7 @@ import { levelOptions, shareInput, subjectLabel, subjectOf, toLevel } from "./gr
 
 interface GrantRowProps {
   grant: ResourceGrant;
+  /** Which levels this kind of resource offers. */
   resourceType: SharingResourceType;
   /** Whether the caller may give "including data" - the server's answer, never worked out here. */
   mayGrantEditData: boolean;
@@ -45,8 +46,8 @@ interface GrantRowProps {
  * subject back with it.
  */
 export function GrantRow({
-  grant,
   resourceType,
+  grant,
   mayGrantEditData,
   fullName,
   groupIcon,
@@ -94,7 +95,7 @@ export function GrantRow({
       >
         <SelectTrigger
           id={id}
-          className="text-muted-foreground hover:text-foreground h-8 w-auto gap-1.5 border-transparent bg-transparent px-2.5 shadow-none"
+          className="text-muted-foreground hover:text-foreground h-10 w-auto gap-1.5 border-transparent bg-transparent px-2.5 shadow-none pointer-coarse:h-11"
         >
           <SelectValue />
         </SelectTrigger>
@@ -121,7 +122,7 @@ export function GrantRow({
           aria-label={tc("removeNamed", { name })}
           disabled={revoking}
           onClick={() => onRevoke(subject)}
-          className="text-muted-foreground hover:text-destructive"
+          className="text-muted-foreground hover:text-destructive size-10 shrink-0 pointer-coarse:size-11"
         >
           <X />
         </IconButton>

@@ -103,3 +103,17 @@ it("uses a supported read-only mode on devices without workspace isolation", asy
   await expect(answer).resolves.toEqual({ folder: "/work", mode: "read_only" });
   expect(desktop.pick).toHaveBeenCalledWith("read_only");
 });
+
+it("shows the requesting turn's reason before granting remembered access", async () => {
+  mount();
+  act(() => {
+    void useLocalAccessStore.getState().request({
+      id: "agent-1",
+      name: "AgenticOS",
+      coding: false,
+      reason: "Read the project README to explain its setup.",
+    });
+  });
+  expect(await screen.findByText("Read the project README to explain its setup.")).toBeVisible();
+  await userEvent.click(screen.getByRole("button", { name: "Not now" }));
+});

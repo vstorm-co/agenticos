@@ -2,19 +2,28 @@
 
 import type { Delegation } from "@/types";
 
-import { memo, useId, useState } from "react";
+import { memo, useId, useRef, useState } from "react";
 
+import { ModelSetupReply } from "./model-setup-reply";
 import { MentionChip } from "./mention-chip";
 import { stillMentioned } from "@/lib/mentions";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { ThinkingOrb } from "@/components/ui/thinking-orb";
 import { cn } from "@/lib/utils";
-import type { ChatMessage, ChatMessageFile, TurnUsage } from "@/types";
+import type { ChatMessage, ChatMessageFile, MessageReply, TurnUsage } from "@/types";
+import { RoomThreadButton } from "./room-thread-button";
+import { RoomMessageReactions } from "./room-message-reactions";
 import type { Agent } from "@/types/agents";
-import { ToolCallCard } from "./tool-call-card";
-import { AgentSteps } from "./agent-step";
-import { foldWork, runsOf, TextBubble, ThinkingBlock, TurnParts } from "./turn-parts";
+import { buildAssistantParts } from "@/lib/conversation-to-chat";
+import { groupWorkParts } from "@/lib/turn-timeline";
+import { runsOf, TextBubble, TurnParts } from "./turn-parts";
+import { STALLED_AFTER_MS, useTurnElapsed } from "./work-fold";
+import { formatElapsed } from "@/lib/elapsed";
 import type { PinnedPrompts } from "./chat-container";
+import {
+  ConversationSideThreads,
+  type ConversationSideThreadActions,
+} from "./conversation-side-threads";
 import { CopyButton } from "./copy-button";
 import { MessageSources } from "./message-sources";
 import { TurnDelegations } from "./turn-delegations";
@@ -32,7 +41,10 @@ import { useInChatScope } from "@/stores/chat-scope-context";
 import { useSourcesPanelStore } from "@/stores/sources-panel-store";
 import {
   Bot,
+  CircleAlert,
   CornerUpLeft,
+  GitBranch,
+  Loader2,
   Mic,
   MoreHorizontal,
   OctagonPause,
@@ -52,9 +64,15 @@ import { FileCard, FileIcon } from "@/components/files";
 import { extractSources, toolCallsOf } from "@/lib/chat-sources";
 import { draftsOf, withDraftText } from "@/lib/drafts";
 import type { DelegateRef } from "@/lib/delegations";
+import type { AskedBefore } from "@/components/datasets/follows-on";
 import { publishedApps, PublishedArtifactResult } from "./tool-results/artifact";
 import { writtenRoutines, RoutineResult } from "./tool-results/routine";
 import { writtenWatches, WatchResult } from "./tool-results/watch";
+import {
+  selectedMessageQuote,
+  type SelectedMessageQuote,
+  type UnquotableMessageSelection,
+} from "@/lib/selected-message-quote";
 
 import { PlatformObjects } from "./tool-results/platform-objects";
 
@@ -72,7 +90,6 @@ interface MessageItemProps {
    * before it is one line. Opening every finished call made a reopened conversation a
    * wall of results; opening none of them hid the thing that was asked for.
    */
-  openLastStep?: boolean;
   /** The published agent that answered. Absent for the general assistant. */
   /** The agent that produced this turn, when one did. */
   agent?: Agent;
@@ -106,12 +123,30 @@ interface MessageItemProps {
    */
   turnUsage?: TurnUsage;
   onRegenerate?: () => void;
+  sideThreadActions?: ConversationSideThreadActions;
+  /** Fork the conversation at a message, given its id; absent where the reader may not (#2762). */
+  onFork?: (messageId: string) => void;
+  onOpenThread?: (messageId: string) => void;
+  canStartThread?: boolean;
+  onReply?: (reply: MessageReply) => void;
+  allowReply?: boolean;
+  /** Personal message pin action; only supplied on authenticated transcript surfaces. */
+  onTogglePin?: (messageId: string, pinned: boolean) => void;
+  pinPending?: boolean;
+  threadRootPreview?: boolean;
+  forkingMessageId?: string | null;
   /** In the test panel: a question can be pinned to ask again after each change (#2075). */
   pins?: PinnedPrompts;
   /** The agents the reader can see, which name the one a delegation asked. */
   agents?: readonly DelegateRef[];
+  /** The question an answer replied to, when `MessageList` can see it. */
+  asked?: AskedBefore;
   /** What the person asked for, on the answer that ends the turn: a skill can be made of it. */
   request?: string;
+  /** The message belongs to a first-class or project room. */
+  roomReactionsEnabled?: boolean;
+  /** The current reader may write to the room. */
+  canReactToRoomMessages?: boolean;
 }
 
 export const MessageItem = memo(function MessageItem({
@@ -122,18 +157,33 @@ export const MessageItem = memo(function MessageItem({
   continuesTurn = false,
   endsTurn = true,
   turnUsage,
-  openLastStep = false,
   onRegenerate,
+  sideThreadActions,
+  onFork,
+  onOpenThread,
+  canStartThread = false,
+  onReply,
+  allowReply = true,
+  onTogglePin,
+  pinPending = false,
+  threadRootPreview = false,
+  forkingMessageId = null,
   pins,
   agents = [],
+  asked,
   request,
+  roomReactionsEnabled = false,
+  canReactToRoomMessages = false,
 }: MessageItemProps) {
   const t = useTranslations("chat");
   const tInput = useTranslations("chat.input");
   const tc = useTranslations("common");
   const [actionsOpen, setActionsOpen] = useState(false);
+  const messageElementRef = useRef<HTMLDivElement>(null);
+  const replySelectionRef = useRef<SelectedMessageQuote | UnquotableMessageSelection | null>(null);
   const actionsId = useId();
   const isUser = message.role === "user";
+  const savedMessageId = message.persistedId ?? (message.isTemporaryId ? null : message.id);
   // A mention sits in the text it was typed into; only one the text does not
   // carry - a turn sent before that was so - is shown as a chip beside it.
   const unplaced = (message.mentions ?? []).filter(
@@ -142,6 +192,7 @@ export const MessageItem = memo(function MessageItem({
   const updateMessage = useChatStore((state) => state.updateMessage);
   const setReplyTo = useChatStore((state) => state.setReplyTo);
   const tReply = useTranslations("chat.reply");
+  const tPins = useTranslations("chat.messagePins");
   const openPreview = useFilePreviewStore((s) => s.open);
   const openSources = useSourcesPanelStore((s) => s.open);
   const { user: authUser } = useAuthStore();
@@ -164,12 +215,26 @@ export const MessageItem = memo(function MessageItem({
   // A stopped turn with work folds it into "Stopped after 12s", which says it; the
   // footer's own marker is for a turn cut off with nothing to fold.
   const stopFolded =
-    message.wasStopped === true && foldWork(runsOf(message.parts ?? []), true) !== null;
+    message.wasStopped === true &&
+    groupWorkParts(
+      runsOf(
+        message.parts?.length
+          ? message.parts
+          : buildAssistantParts(
+              message.toolCalls ?? [],
+              message.content,
+              message.id,
+              message.thinking,
+            ),
+      ),
+    ).some((group) => group.kind === "work");
   // A turn produced something worth a footer if it wrote content *or* left a
   // timeline part - the latter is the ask-only turn that was stopped after
   // answering a question and before any text (#502), which otherwise loses its
   // stopped indicator, timestamp and cost.
-  const hasBody = Boolean(message.content) || (!isUser && (message.parts?.length ?? 0) > 0);
+  const hasBody =
+    Boolean(message.content) ||
+    (!isUser && ((message.parts?.length ?? 0) > 0 || message.runFailed === true));
   const sources = !isUser ? extractSources(message, t) : [];
   const canShowActions = !message.isStreaming && hasBody && endsTurn;
   const hasSources = sources.length > 0 && !message.isStreaming;
@@ -218,10 +283,20 @@ export const MessageItem = memo(function MessageItem({
 
   return (
     <div
+      ref={messageElementRef}
       // The anchor the turn rail scrolls to. On the row rather than on a wrapper
       // of its own, so the rail lands on the top of the turn and not on a box
       // drawn around it.
-      data-message-id={message.id}
+      data-message-id={threadRootPreview ? undefined : message.id}
+      data-message-ids={
+        threadRootPreview
+          ? undefined
+          : [message.persistedId, ...(message.coalescedMessageIds ?? [])]
+              .filter(Boolean)
+              .join(" ") || undefined
+      }
+      data-thread-root={threadRootPreview ? message.id : undefined}
+      data-chat-message-key={message.clientMessageId ?? message.renderKey ?? message.id}
       className={cn(
         // The face and the name on one line over the message, as in the
         // Architect's window, and the message under them at the column's full
@@ -374,10 +449,40 @@ export const MessageItem = memo(function MessageItem({
           isUser={isUser}
           mcpServers={mcpServers}
           agents={agents}
-          openLastStep={openLastStep}
           endsTurn={endsTurn}
           onCiteClick={onCiteClick}
         />
+
+        {roomReactionsEnabled &&
+          !threadRootPreview &&
+          !message.isStreaming &&
+          !message.isTemporaryId &&
+          savedMessageId !== null &&
+          message.conversationId &&
+          message.role !== "system" && (
+            <RoomMessageReactions
+              conversationId={message.conversationId}
+              messageId={savedMessageId}
+              initialReactions={message.reactions}
+              canReact={canReactToRoomMessages}
+              align={isUser ? "end" : "start"}
+            />
+          )}
+
+        {!isUser && message.runFailed && endsTurn && (
+          <div
+            role="alert"
+            className="border-destructive/25 bg-destructive/5 flex max-w-2xl gap-3 rounded-xl border px-4 py-3 text-sm"
+          >
+            <CircleAlert aria-hidden className="text-destructive mt-0.5 size-4 shrink-0" />
+            <div className="min-w-0 space-y-1">
+              <p className="font-medium">{t("runFailedTitle")}</p>
+              <p className="text-muted-foreground break-words">
+                {message.runError || t("runFailedHint")}
+              </p>
+            </div>
+          </div>
+        )}
 
         {!isUser && <PlatformObjects calls={toolCallsOf(message)} />}
 
@@ -403,7 +508,11 @@ export const MessageItem = memo(function MessageItem({
           // work above the reply.
           <div className="mt-1 max-w-xl space-y-2">
             {apps.map((app) => (
-              <PublishedArtifactResult key={app.artifactId} data={app} />
+              <PublishedArtifactResult
+                key={app.artifactId}
+                data={app}
+                returnTo={message.conversationId ? `/chat?id=${message.conversationId}` : undefined}
+              />
             ))}
           </div>
         )}
@@ -502,6 +611,30 @@ export const MessageItem = memo(function MessageItem({
                 className={cn(TURN_ACTION, "p-0 sm:opacity-0 sm:group-hover:opacity-100")}
               />
             )}
+            {onTogglePin && savedMessageId !== null && (
+              <button
+                type="button"
+                onClick={() => onTogglePin(savedMessageId, !message.isPinned)}
+                title={tPins(message.isPinned ? "unpin" : "pin")}
+                aria-label={tPins(message.isPinned ? "unpin" : "pin")}
+                aria-pressed={message.isPinned === true}
+                aria-busy={pinPending}
+                disabled={pinPending}
+                className={cn(
+                  TURN_ACTION,
+                  "focus-visible:opacity-100 disabled:cursor-wait sm:opacity-0 sm:group-hover:opacity-100",
+                  (message.isPinned || pinPending) && "sm:opacity-100",
+                )}
+              >
+                {pinPending ? (
+                  <Loader2 className="animate-spin motion-reduce:animate-none" aria-hidden />
+                ) : message.isPinned ? (
+                  <PinOff aria-hidden />
+                ) : (
+                  <Pin aria-hidden />
+                )}
+              </button>
+            )}
             {isUser && pins && message.content && (
               <PinButton pins={pins} prompt={message.content} />
             )}
@@ -515,21 +648,38 @@ export const MessageItem = memo(function MessageItem({
             )}
             {/* Stored messages only: a reply names the row it answers, and a
                 message still on this tab's own id has none yet. */}
-            {!message.isTemporaryId && !message.isStreaming && message.content && (
+            {allowReply && savedMessageId !== null && !message.isStreaming && message.content && (
               <button
                 type="button"
-                onClick={() =>
-                  setReplyTo({
-                    messageId: message.id,
+                onPointerDown={() => {
+                  replySelectionRef.current = selectedMessageQuote(
+                    window.getSelection(),
+                    messageElementRef.current,
+                  );
+                }}
+                onClick={() => {
+                  const selectedQuote =
+                    replySelectionRef.current ??
+                    selectedMessageQuote(window.getSelection(), messageElementRef.current);
+                  replySelectionRef.current = null;
+                  // A selection from an unsaved coalesced segment has no stable
+                  // reply target yet. Keep it separate from the ordinary reply
+                  // fallback so it can never be attributed to the combined row.
+                  if (selectedQuote?.kind === "unquotable") return;
+                  const quote = selectedQuote?.kind === "quote" ? selectedQuote : null;
+                  (onReply ?? setReplyTo)({
+                    messageId: quote?.sourceMessageId ?? savedMessageId,
                     role: message.role,
-                    excerpt: replyExcerpt(message.content),
+                    excerpt: quote?.text ?? replyExcerpt(message.content),
+                    ...(quote ? { selectedText: quote.text } : {}),
                     sender: isUser ? message.sender : undefined,
                     agentId: isUser ? undefined : agent?.id,
                     agentName: isUser ? undefined : agent?.name,
-                  })
-                }
+                  });
+                }}
                 title={tReply("reply")}
                 aria-label={tReply("reply")}
+                data-tour="chat-selected-quote"
                 className={cn(TURN_ACTION, "sm:opacity-0 sm:group-hover:opacity-100")}
               >
                 <CornerUpLeft />
@@ -542,6 +692,9 @@ export const MessageItem = memo(function MessageItem({
                 conversationId={message.conversationId}
               />
             )}
+            {onOpenThread && (
+              <RoomThreadButton message={message} canStart={canStartThread} onOpen={onOpenThread} />
+            )}
             {!isUser && onRegenerate && (
               <button
                 type="button"
@@ -553,6 +706,41 @@ export const MessageItem = memo(function MessageItem({
                 <RefreshCw />
               </button>
             )}
+            {/* A fork copies the stored history up to this answer, so it needs the
+                saved row; the server refuses one a run is still writing. */}
+            {message.role === "assistant" && onFork && !message.isTemporaryId && (
+              <button
+                type="button"
+                onClick={() => onFork(message.id)}
+                title={t("fork")}
+                aria-label={t(forkingMessageId === message.id ? "forking" : "fork")}
+                disabled={forkingMessageId !== null}
+                aria-busy={forkingMessageId === message.id}
+                className={cn(
+                  TURN_ACTION,
+                  "focus-visible:opacity-100 disabled:cursor-wait sm:opacity-0 sm:group-hover:opacity-100",
+                  forkingMessageId === message.id && "sm:opacity-100",
+                )}
+              >
+                {forkingMessageId === message.id ? (
+                  <Loader2 className="animate-spin motion-reduce:animate-none" />
+                ) : (
+                  <GitBranch />
+                )}
+              </button>
+            )}
+            {message.role === "assistant" &&
+              savedMessageId !== null &&
+              !message.isStreaming &&
+              sideThreadActions && (
+                <ConversationSideThreads
+                  sourceConversationId={sideThreadActions.sourceConversationId}
+                  messageId={savedMessageId}
+                  creatingMessageId={sideThreadActions.creatingMessageId}
+                  onCreate={sideThreadActions.onCreate}
+                  onOpen={(fork) => sideThreadActions.onOpen(savedMessageId, fork)}
+                />
+              )}
             {/* A rating is stored against the saved message; a turn that failed
                 before the server saved it has only a client id, which the
                 rating endpoint answers with "Message not found". */}
@@ -563,6 +751,7 @@ export const MessageItem = memo(function MessageItem({
                 currentRating={message.user_rating ?? null}
                 ratingCount={message.rating_count ?? undefined}
                 isAssistant={!isUser}
+                asked={asked}
                 onRatingChange={(updatedData) => {
                   updateMessage(message.id, (msg) => ({
                     ...msg,
@@ -592,7 +781,6 @@ function MessageBody({
   isUser,
   mcpServers,
   agents,
-  openLastStep,
   endsTurn,
   onCiteClick,
 }: {
@@ -600,7 +788,6 @@ function MessageBody({
   isUser: boolean;
   mcpServers: ReturnType<typeof useMcpToolServers>;
   agents: readonly DelegateRef[];
-  openLastStep: boolean;
   /** The run's span is said once, under the turn's last segment. */
   endsTurn: boolean;
   onCiteClick?: (index: number) => void;
@@ -608,20 +795,33 @@ function MessageBody({
   const workingSince = useWorkingStore((state) =>
     message.isStreaming && message.conversationId ? state.since[message.conversationId] : undefined,
   );
+  const workingHeartbeat = useWorkingStore((state) =>
+    message.isStreaming && message.conversationId
+      ? state.heartbeatAt[message.conversationId]
+      : undefined,
+  );
   const startedAt =
     (workingSince ? new Date(workingSince) : message.runStartedAt) ?? message.timestamp;
+  const lastHeartbeatAt = workingHeartbeat ? new Date(workingHeartbeat) : undefined;
   const t = useTranslations("chat");
-  const parts = message.parts ?? [];
+  const tSteps = useTranslations("chat.steps");
+  // A turn with nothing streamed yet has no work fold to say it has gone quiet,
+  // so the placeholder says so itself once the run's heartbeat is stale.
+  const heartbeatAgeMs = useTurnElapsed(lastHeartbeatAt, Boolean(message.isStreaming));
+  const stalledFor =
+    heartbeatAgeMs !== null && heartbeatAgeMs > STALLED_AFTER_MS
+      ? formatElapsed(heartbeatAgeMs, tSteps)
+      : null;
+  const parts = message.parts?.length
+    ? message.parts
+    : !isUser
+      ? buildAssistantParts(message.toolCalls ?? [], message.content, message.id, message.thinking)
+      : [];
   const useParts = !isUser && parts.length > 0;
-  const legacyCalls = message.toolCalls ?? [];
+  const setupPart = parts.find((part) => part.type === "model_setup");
 
   // "Thinking…" placeholder - shown until anything streams in.
-  const showPlaceholder =
-    !isUser &&
-    message.isStreaming &&
-    !message.content &&
-    parts.length === 0 &&
-    legacyCalls.length === 0;
+  const showPlaceholder = !isUser && message.isStreaming && !message.content && parts.length === 0;
 
   return (
     <>
@@ -633,38 +833,39 @@ function MessageBody({
         <div className="py-1" role="status" aria-live="polite">
           <span className="bg-foreground/[0.04] inline-flex items-center gap-1.5 rounded-full py-1 pr-3.5 pl-1.5">
             <ThinkingOrb state="breathing" size={20} className="h-7 w-7" />
-            <span className="text-muted-foreground text-xs">{t("thinking")}</span>
+            <span className="text-muted-foreground text-xs">
+              {stalledFor === null ? t("thinking") : tSteps("stalledFor", { duration: stalledFor })}
+            </span>
           </span>
         </div>
       )}
 
-      {useParts ? (
+      {!isUser && message.animateSetupReply && setupPart ? (
+        <ModelSetupReply text={message.content} agentId={setupPart.setupAgentId} />
+      ) : useParts ? (
         /* Ordered timeline: each part in arrival order, with runs of tool
            calls on one rail. The same component the hosted page renders. */
         <TurnParts
+          messageId={message.id}
+          allowSetupActions
+          allowQuotes={!message.guardrailRefused}
           parts={parts}
+          fileSource={message.fileSource}
           isStreaming={Boolean(message.isStreaming)}
           isUser={isUser}
           mcpServers={mcpServers}
           agents={agents}
-          openLastStep={openLastStep}
-          fileSource={message.fileSource}
           onCiteClick={onCiteClick}
           startedAt={startedAt}
           durationMs={endsTurn ? message.runDurationMs : undefined}
           stopped={message.wasStopped === true}
+          failed={message.runFailed === true}
           waitingFor={message.runWaitingFor}
+          lastHeartbeatAt={lastHeartbeatAt}
         />
       ) : (
         /* Legacy fallback: user / pre-parts messages. */
         <>
-          {!isUser && message.thinking && (
-            <ThinkingBlock
-              text={message.thinking}
-              open={Boolean(message.isStreaming)}
-              isStreaming={Boolean(message.isStreaming)}
-            />
-          )}
           {(message.content || (isUser && message.replyTo)) && (
             <TextBubble
               text={message.content}
@@ -674,23 +875,9 @@ function MessageBody({
               isUser={isUser}
               onCiteClick={onCiteClick}
               mentions={isUser ? message.mentions : undefined}
+              roomMentions={isUser ? message.roomMentions : undefined}
+              quoteable={!message.isStreaming && !message.guardrailRefused}
             />
-          )}
-          {legacyCalls.length > 0 && (
-            <div className="w-full">
-              <AgentSteps>
-                {legacyCalls.map((toolCall, step) => (
-                  <ToolCallCard
-                    key={toolCall.id}
-                    toolCall={toolCall}
-                    fileSource={message.fileSource}
-                    mcpServers={mcpServers}
-                    agents={agents}
-                    startOpen={openLastStep && step === legacyCalls.length - 1}
-                  />
-                ))}
-              </AgentSteps>
-            </div>
           )}
         </>
       )}

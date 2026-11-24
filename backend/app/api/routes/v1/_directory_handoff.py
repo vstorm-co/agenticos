@@ -14,6 +14,7 @@ never a token in a URL.
 import base64
 import binascii
 import html
+from datetime import UTC, datetime
 from urllib.parse import urlencode
 from uuid import UUID, uuid4
 
@@ -93,7 +94,9 @@ async def issue_sign_in_code(
         subject=str(user.id), credential_version=user.credential_version
     )
     session_id: UUID = uuid4()
-    access_token = create_access_token(subject=str(user.id), sid=str(session_id))
+    access_token = create_access_token(
+        subject=str(user.id), sid=str(session_id), auth_time=int(datetime.now(UTC).timestamp())
+    )
     challenge = native_code_challenge(
         request.query_params.get("client"), request.query_params.get("desktop_nonce")
     )

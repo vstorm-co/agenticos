@@ -17,6 +17,9 @@ from app.services.workflow_execution import context as workflow_context
 
 _agent: ContextVar[tuple[UUID | None] | None] = ContextVar("table_record_agent", default=None)
 
+SYSTEM_SOURCE = RecordSource(kind="system", name="System")
+"""A write the platform made on nobody's behalf."""
+
 
 @contextmanager
 def from_agent(agent_id: UUID | None) -> Generator[None]:
@@ -67,8 +70,13 @@ async def source_for(db: AsyncSession, ctx: AuthContext) -> RecordSource:
             kind="workflow", id=dispatch.workflow_id, name=workflow.name if workflow else "Workflow"
         )
     if ctx.user_id is not None:
-        user = await user_repo.get_by_id(db, ctx.user_id)
-        return RecordSource(
-            kind="user", id=ctx.user_id, name=(user.full_name or user.email) if user else "User"
-        )
-    return RecordSource(kind="system", name="System")
+        return await person_source(db, ctx.user_id)
+    return SYSTEM_SOURCE
+
+
+async def person_source(db: AsyncSession, user_id: UUID) -> RecordSource:
+    """A write a person made, named as the console names them."""
+    user = await user_repo.get_by_id(db, user_id)
+    return RecordSource(
+        kind="user", id=user_id, name=(user.full_name or user.email) if user else "User"
+    )

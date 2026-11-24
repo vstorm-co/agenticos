@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useConsoleRouter as useRouter } from "@/hooks/use-console-router";
 import { useAuthStore } from "@/stores";
 import { readSession, sessionUnavailable, stayOffline, useAdoptSession } from "@/hooks/use-auth";
 import { ROUTES } from "@/lib/constants";
@@ -49,6 +49,16 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     [router],
   );
 
+  const signInAgain = useCallback(async () => {
+    const { pathname, search, hash } = window.location;
+    const invitationToken = invitationTokenFrom(pathname);
+    if (invitationToken) {
+      await stageAndGo(invitationToken);
+    } else {
+      router.replace(`${ROUTES.LOGIN}?returnTo=${encodeURIComponent(pathname + search + hash)}`);
+    }
+  }, [router, stageAndGo]);
+
   useEffect(() => {
     if (isAuthenticated) return;
 
@@ -66,24 +76,14 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
           setUnavailable(true);
           return;
         }
-        // Off `window.location`, not the navigation hooks: a hook here would
-        // tie the verify effect to every navigation this guard sits above.
-        const { pathname, search, hash } = window.location;
-        const invitationToken = invitationTokenFrom(pathname);
-        if (invitationToken) {
-          await stageAndGo(invitationToken);
-        } else {
-          router.replace(
-            `${ROUTES.LOGIN}?returnTo=${encodeURIComponent(pathname + search + hash)}`,
-          );
-        }
+        await signInAgain();
       } finally {
         setChecking(false);
       }
     };
 
     verify();
-  }, [isAuthenticated, router, adoptSession, stageAndGo, attempt]);
+  }, [isAuthenticated, adoptSession, signInAgain, attempt]);
 
   const retryStaging = async (token: string) => {
     setChecking(true);
@@ -96,7 +96,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
 
   if (checking && !isAuthenticated) {
     return (
-      <div className="flex h-screen items-center justify-center" role="status" aria-live="polite">
+      <div className="flex h-dvh items-center justify-center" role="status" aria-live="polite">
         <Spinner className="text-muted-foreground h-6 w-6" />
         <span className="sr-only">{t("checkingAuthentication")}</span>
       </div>
@@ -105,11 +105,12 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
 
   if (unavailable && !isAuthenticated) {
     return (
-      <div className="flex min-h-screen items-center justify-center p-4">
+      <div className="flex min-h-dvh items-center justify-center p-4">
         <ErrorState
           className="w-full max-w-md"
           title={t("sessionUnavailable")}
           description={t("sessionUnavailableHint")}
+          secondaryCta={{ label: t("signInAgain"), onClick: () => void signInAgain() }}
           cta={{
             label: t("retrySession"),
             onClick: () => {
@@ -125,7 +126,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
 
   if (unstagedToken && !isAuthenticated) {
     return (
-      <div className="flex min-h-screen items-center justify-center p-4">
+      <div className="flex min-h-dvh items-center justify-center p-4">
         <ErrorState
           className="w-full max-w-md"
           title={t("invitationNotStaged")}

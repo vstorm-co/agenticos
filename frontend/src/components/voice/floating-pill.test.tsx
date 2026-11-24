@@ -41,3 +41,15 @@ describe("FloatingPill", () => {
     rerender(<FloatingPill pill={null} />);
   });
 });
+
+it("keeps embedded audio status in the composer column and removes its empty spacing", () => {
+  motionState.reduced = true;
+  const view = render(
+    <FloatingPill embedded pill={{ key: "dictation", node: <span>Listening</span> }} />,
+  );
+  const slot = screen.getByTestId("floating-pill").parentElement;
+  expect(slot).not.toHaveClass("absolute");
+  expect(slot).toHaveClass("mb-2");
+  view.rerender(<FloatingPill embedded pill={null} />);
+  expect(view.container.firstElementChild).not.toHaveClass("mb-2");
+});

@@ -1,5 +1,5 @@
 ---
-source_sha: "31d0a04c39bf"
+source_sha: "74d7e5d2126c"
 title: "AgenticOS vs Dify"
 seo_title: "AgenticOS vs Dify: alternativa Apache-2.0 y multi-tenant"
 description: "Compara Dify y AgenticOS, dos plataformas de agents de IA autoalojadas: condiciones de licencia, multi-tenancy, SSO, budgets, aprobaciones, auditoría y precios."
@@ -26,7 +26,7 @@ Las funciones de AgenticOS se actualizaron el 2 de noviembre de 2026 con v1.35.0
 | Control del gasto | Facturación del provider, o créditos de mensajes de Cloud | Un budget mensual por agent y por organización, comprobado antes de cada petición al modelo |
 | Aprobación humana | Un nodo Human Input en un workflow | Aprobación por capability y por herramienta, y una política de aprobación por conexión MCP (none, writes o all); el run queda detenido hasta que alguien decide |
 | Superficies | App web, embed, API, servidor MCP; Slack mediante un plugin | Chat web, widget, página alojada, API HTTP, WebSocket, Slack, Telegram, Mattermost |
-| Kubernetes | Helm charts de la comunidad; la alta disponibilidad oficial es Enterprise | Docker Compose en un único host; un Postgres externo y más hosts de API y workers están [documentados](../scaling.md), sin manifiestos de Kubernetes |
+| Kubernetes | Helm charts de la comunidad; la alta disponibilidad oficial es Enterprise | [Chart Helm mantenido](../kubernetes.md) para API, worker y consola con servicios de datos externos; OpenShift sin validar |
 
 ## Dónde llega más lejos AgenticOS { #where-agenticos-goes-further }
 

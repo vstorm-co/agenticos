@@ -1,6 +1,6 @@
 """The AI reviewer's configuration guard, run as the workflow runs it.
 
-The guard is eight lines of bash inside `.github/workflows/ai-review.yml`, and
+The guard is eight lines of bash inside `.github/workflows-disabled/ai-review.yml`, and
 it exists because every consumer of those three variables treats an empty value
 as "use your default" - Codex's default reasoning effort being `none`, which is
 how the first live run reviewed a deliberate cross-tenant leak and reported
@@ -23,7 +23,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-WORKFLOW = Path(__file__).resolve().parents[2] / ".github" / "workflows" / "ai-review.yml"
+WORKFLOW = Path(__file__).resolve().parents[2] / ".github" / "workflows-disabled" / "ai-review.yml"
 STEP_NAME = "Check the configuration"
 
 # Resolved rather than named: the runner and a developer's machine disagree

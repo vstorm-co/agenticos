@@ -1,44 +1,43 @@
 "use client";
 
 import { Fragment, useMemo } from "react";
-import { useRouter } from "next/navigation";
+import { useConsoleRouter as useRouter } from "@/hooks/use-console-router";
 import { useLocale, useTranslations } from "next-intl";
 
 import { useAgents } from "@/hooks";
+import { appLinkFromChat } from "@/lib/app-return";
 import { consoleLink, pointAt } from "@/lib/assistant-highlight";
+import { canonicalParts, mergeToolCall } from "@/lib/turn-timeline";
 import { buildAssistantParts } from "@/lib/conversation-to-chat";
 import { dayLabel, startsADay } from "@/lib/day-separator";
-import type { ChatMessage, TurnUsage, Delegation } from "@/types";
+import type { AskedBefore } from "@/components/datasets/follows-on";
+import type { ChatMessage, TurnUsage, Delegation, MessageReply, ToolCall } from "@/types";
 import type { PinnedPrompts } from "./chat-container";
+import type { ConversationSideThreadActions } from "./conversation-side-threads";
 import { MessageItem } from "./message-item";
+
+export interface MessagePinActions {
+  pendingMessageId: string | null;
+  togglePin: (messageId: string, pinned: boolean) => void;
+}
 
 interface MessageListProps {
   messages: ChatMessage[];
   delegations?: Delegation[];
+  sideThreadActions?: ConversationSideThreadActions;
+  messagePinActions?: MessagePinActions;
   onRegenerate?: (messageId: string) => void;
+  /** Fork the conversation at this answer; absent where the reader may not (#2762). */
+  onFork?: (messageId: string) => void;
+  forkingMessageId?: string | null;
+  onOpenThread?: (messageId: string) => void;
+  canStartThread?: boolean;
+  onReply?: (reply: MessageReply) => void;
+  allowReply?: boolean;
+  roomReactionsEnabled?: boolean;
+  canReactToRoomMessages?: boolean;
   /** The test panel's pinned questions; a question here can be pinned or taken off. */
   pins?: PinnedPrompts;
-}
-
-/**
- * The turn whose last step stays open, or -1 when no turn did any work.
- *
- * The most recent turn that *used a tool*, which is not the most recent turn: an agent
- * that writes a file and then answers about it ends the conversation with prose, and
- * anchoring on "the newest assistant message" left the file that was just written folded
- * away. What somebody opening a conversation is looking for is the last thing the agent
- * did, wherever in the transcript that landed.
- */
-export function lastToolTurnIndex(messages: ChatMessage[]): number {
-  for (let index = messages.length - 1; index >= 0; index--) {
-    const message = messages[index];
-    if (message === undefined || message.role !== "assistant") continue;
-    const usedATool =
-      (message.parts ?? []).some((part) => part.type === "tool" && part.toolCall) ||
-      (message.toolCalls?.length ?? 0) > 0;
-    if (usedATool) return index;
-  }
-  return -1;
 }
 
 /**
@@ -79,6 +78,20 @@ export function continuesTurn(messages: ChatMessage[], index: number): boolean {
   return message.groupId !== undefined && message.groupId === previous.groupId;
 }
 
+/**
+ * The question an assistant message replied to, and whether anything came before it.
+ *
+ * Undefined for a user message, or an answer with no question above it.
+ */
+export function askedBefore(messages: ChatMessage[], index: number): AskedBefore | undefined {
+  if (messages[index]?.role !== "assistant") return undefined;
+  for (let at = index - 1; at >= 0; at--) {
+    const message = messages[at];
+    if (message?.role === "user") return { question: message.content, earlier: at > 0 };
+  }
+  return undefined;
+}
+
 /** Whether the turn ends here, so the time and the cost belong under this message. */
 export function endsTurn(messages: ChatMessage[], index: number): boolean {
   return !continuesTurn(messages, index + 1);
@@ -89,6 +102,13 @@ export function endsTurn(messages: ChatMessage[], index: number): boolean {
  */
 export function coalesceActivity(messages: ChatMessage[]): ChatMessage[] {
   const result: ChatMessage[] = [];
+  const sourcedParts = (message: ChatMessage) => {
+    const sourceMessageId = message.persistedId ?? (message.isTemporaryId ? null : message.id);
+    return (
+      message.parts ??
+      buildAssistantParts(message.toolCalls ?? [], message.content, message.id, message.thinking)
+    ).map((part) => (part.sourceMessageId !== undefined ? part : { ...part, sourceMessageId }));
+  };
   for (const message of messages) {
     const previous = result.at(-1);
     const sameRun =
@@ -103,42 +123,46 @@ export function coalesceActivity(messages: ChatMessage[]): ChatMessage[] {
       previous.files?.length ||
       previous.fileIds?.length ||
       previous.replyTo ||
+      previous.threadRootMessageId !== message.threadRootMessageId ||
+      (previous.threadReplyCount ?? 0) > 0 ||
+      (message.threadReplyCount ?? 0) > 0 ||
       previous.agentId !== message.agentId
     ) {
       result.push(message);
       continue;
     }
-    const calls = new Map(
-      [...(previous.toolCalls ?? []), ...(message.toolCalls ?? [])].map((call) => [call.id, call]),
-    );
+    const calls = new Map<string, ToolCall>();
+    for (const call of [...(previous.toolCalls ?? []), ...(message.toolCalls ?? [])]) {
+      const existing = calls.get(call.id);
+      calls.set(call.id, existing ? mergeToolCall(existing, call) : call);
+    }
     const parts = new Map(
-      [
-        ...(previous.parts ??
-          buildAssistantParts(
-            previous.toolCalls ?? [],
-            previous.content,
-            previous.id,
-            previous.thinking,
-          )),
-        ...(message.parts ??
-          buildAssistantParts(
-            message.toolCalls ?? [],
-            message.content,
-            message.id,
-            message.thinking,
-          )),
-      ].map((part) => [part.id, part]),
+      [...sourcedParts(previous), ...sourcedParts(message)].map((part) => [part.id, part]),
     );
     result[result.length - 1] = {
       ...message,
       renderKey: previous.renderKey ?? previous.id,
+      coalescedMessageIds: [
+        ...new Set(
+          [
+            ...(previous.coalescedMessageIds ?? [previous.id]),
+            previous.persistedId,
+            message.id,
+            message.persistedId,
+          ].filter((id): id is string => id !== undefined),
+        ),
+      ],
       timestamp: previous.timestamp,
       fileSource: message.fileSource ?? previous.fileSource,
       runStartedAt: previous.runStartedAt ?? message.runStartedAt,
       runDurationMs: message.runDurationMs ?? previous.runDurationMs,
       toolCalls: [...calls.values()],
-      parts: [...parts.values()].map((part) =>
-        part.toolCall ? { ...part, toolCall: calls.get(part.toolCall.id) ?? part.toolCall } : part,
+      parts: canonicalParts(
+        [...parts.values()].map((part) =>
+          part.toolCall
+            ? { ...part, toolCall: calls.get(part.toolCall.id) ?? part.toolCall }
+            : part,
+        ),
       ),
       thinking: [previous.thinking, message.thinking].filter(Boolean).join("\n\n") || undefined,
       usage: message.usage ?? previous.usage,
@@ -205,7 +229,17 @@ export function layoutMessages(messages: ChatMessage[]): MessageLayout[] {
 export function MessageList({
   messages: sourceMessages,
   delegations,
+  sideThreadActions,
+  messagePinActions,
   onRegenerate,
+  onFork,
+  forkingMessageId = null,
+  onOpenThread,
+  canStartThread,
+  onReply,
+  allowReply,
+  roomReactionsEnabled = false,
+  canReactToRoomMessages = false,
   pins,
 }: MessageListProps) {
   const messages = useMemo(() => coalesceActivity(sourceMessages), [sourceMessages]);
@@ -233,7 +267,6 @@ export function MessageList({
     if (onRegenerate === undefined || lastAssistantId === undefined) return undefined;
     return () => onRegenerate(lastAssistantId);
   }, [onRegenerate, lastAssistantId]);
-  const openStepsAt = lastToolTurnIndex(messages);
   const timestamps = messages.map((message) => message.timestamp);
   const now = new Date();
 
@@ -242,10 +275,20 @@ export function MessageList({
   // Architect's links do - rather than reloading the whole app.
   const onClickCapture = (event: React.MouseEvent) => {
     const anchor = (event.target as Element).closest("a");
-    const link = consoleLink(anchor?.getAttribute("href") ?? null, window.location.origin);
+    const href = anchor?.getAttribute("href");
+    const link = consoleLink(
+      href
+        ? appLinkFromChat(
+            href,
+            window.location.pathname + window.location.search,
+            window.location.origin,
+          )
+        : null,
+      window.location.origin,
+    );
     if (link === null) return;
     event.preventDefault();
-    router.push(link.path);
+    router.push(appLinkFromChat(link.path, window.location.pathname + window.location.search));
     if (link.anchor) void pointAt(link.anchor, link.path);
   };
 
@@ -265,10 +308,21 @@ export function MessageList({
             continuesTurn={row.continuesTurn}
             endsTurn={row.endsTurn}
             turnUsage={row.turnUsage}
-            openLastStep={index === openStepsAt}
             pins={pins}
             agents={agents}
+            asked={askedBefore(messages, index)}
             request={pins ? undefined : row.request}
+            sideThreadActions={sideThreadActions}
+            onTogglePin={messagePinActions?.togglePin}
+            pinPending={messagePinActions?.pendingMessageId === (message.persistedId ?? message.id)}
+            onFork={onFork}
+            onOpenThread={onOpenThread}
+            canStartThread={canStartThread}
+            onReply={onReply}
+            allowReply={allowReply}
+            roomReactionsEnabled={roomReactionsEnabled}
+            canReactToRoomMessages={canReactToRoomMessages}
+            forkingMessageId={forkingMessageId}
             onRegenerate={
               onRegenerate && index === lastAssistantIndex && !message.isStreaming
                 ? regenerateLast

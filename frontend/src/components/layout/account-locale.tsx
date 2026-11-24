@@ -5,6 +5,7 @@ import { useLocale } from "next-intl";
 
 import { usePathname, useRouter } from "@/lib/locale-navigation";
 import { ACCOUNT_LOCALE_STORAGE_KEY, sharedAccountLocale } from "@/lib/account-locale";
+import { locales } from "@/lib/locales";
 import { useAuthStore } from "@/stores";
 
 /**
@@ -13,7 +14,9 @@ import { useAuthStore } from "@/stores";
  * A choice made on another device, or by an agent asked to switch, arrives as
  * `user.locale`; a page in any other language moves to it, through
  * `locale-navigation` so the cookie follows. An account that never chose has no
- * `locale`, and the cookie and the URL decide as they always did.
+ * `locale`, and the cookie and the URL decide as they always did. A choice this
+ * deployment does not serve - `pl` saved before the fork went English-only -
+ * is ignored rather than followed to a retired prefix.
  */
 export function AccountLocale() {
   const chosen = useAuthStore((state) => state.user?.locale ?? null);
@@ -38,7 +41,7 @@ export function AccountLocale() {
     // With the query string, read here rather than through `useSearchParams` -
     // which would need a Suspense boundary around the whole dashboard - so a
     // switch inside `/chat?id=...` or `/agents/<id>?test=open` stays put.
-    if (chosen && chosen !== locale) {
+    if (chosen && chosen !== locale && (locales as readonly string[]).includes(chosen)) {
       router.replace(`${pathname}${window.location.search}`, { locale: chosen });
     }
   }, [chosen, locale, pathname, router]);

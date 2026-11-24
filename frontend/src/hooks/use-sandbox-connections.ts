@@ -68,8 +68,13 @@ export function useSandboxConnections(enabled = true): UseSandboxConnectionsResu
     enabled,
   });
 
+  // The capability catalog recommends a container workspace only where one would
+  // publish, which is what registering or removing a connection changes.
   const invalidate = useCallback(async () => {
-    await queryClient.invalidateQueries({ queryKey: qk.sandboxConnections.all() });
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: qk.sandboxConnections.all() }),
+      queryClient.invalidateQueries({ queryKey: qk.agents.capabilityCatalog() }),
+    ]);
   }, [queryClient]);
 
   const create = useCallback(
@@ -158,7 +163,7 @@ interface UseLocalSandboxServiceResult {
   /** Store this deployment's own token in the vault, and answer with its id. */
   storeCredential: () => Promise<string>;
   /** Ask an unsaved address what it allows. Throws with what went wrong. */
-  probe: (baseUrl: string, secretId: string | null) => Promise<SandboxPolicy>;
+  probe: typeof probeSandboxService;
 }
 
 /**

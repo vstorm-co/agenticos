@@ -157,3 +157,53 @@ describe("NewRecordDialog", () => {
     expect(screen.queryByText("New record")).not.toBeInTheDocument();
   });
 });
+
+it("keeps required, document and prefilled fields visible in a large schema and retains optional edits", async () => {
+  vi.mocked(apiClient.post).mockResolvedValueOnce({ id: "r-large" });
+  const large: ColumnDef[] = [
+    ...Array.from({ length: 8 }, (_, index): ColumnDef => ({
+      ...base,
+      id: `c${index}`,
+      label: `Field ${index}`,
+      type: "text",
+    })),
+    { ...base, id: "required", label: "Required title", type: "text", nullable: false },
+    { ...base, id: "document", label: "Document body", type: "rich_text", default: "# Notes" },
+  ];
+  render(
+    <NewRecordDialog
+      tableId="t1"
+      columns={large}
+      open
+      onOpenChange={vi.fn()}
+      initial={{ c7: "From the grid" }}
+    />,
+    { wrapper },
+  );
+  expect(screen.getByLabelText("Field 0")).toBeVisible();
+  expect(screen.getByLabelText("Field 7")).toHaveValue("From the grid");
+  expect(screen.getByLabelText(/Required title/)).toBeVisible();
+  expect(screen.getByRole("textbox", { name: "Document body" })).toHaveValue("# Notes");
+  expect(screen.queryByLabelText("Field 3")).toBeNull();
+  const more = screen.getByRole("button", { name: "4 more fields" });
+  fireEvent.click(more);
+  fireEvent.change(screen.getByLabelText("Field 3"), { target: { value: "Optional draft" } });
+  fireEvent.blur(screen.getByLabelText("Field 3"));
+  fireEvent.click(more);
+  expect(screen.getByLabelText("Field 3")).not.toBeVisible();
+  fireEvent.click(more);
+  expect(screen.getByLabelText("Field 3")).toHaveValue("Optional draft");
+  fireEvent.change(screen.getByLabelText(/Required title/), { target: { value: "A record" } });
+  fireEvent.blur(screen.getByLabelText(/Required title/));
+  fireEvent.click(screen.getByRole("button", { name: "Add record" }));
+  await waitFor(() =>
+    expect(apiClient.post).toHaveBeenCalledWith(expect.anything(), {
+      values: {
+        c7: "From the grid",
+        c3: "Optional draft",
+        required: "A record",
+        document: "# Notes",
+      },
+    }),
+  );
+});

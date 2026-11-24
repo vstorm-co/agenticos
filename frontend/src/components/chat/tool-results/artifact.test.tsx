@@ -119,3 +119,20 @@ describe("the apps a turn published", () => {
     ]);
   });
 });
+
+it("finds renamed published apps and ignores an external call using the built-in name", () => {
+  const common = {
+    id: "app",
+    args: {},
+    status: "completed" as const,
+    result: JSON.stringify(PUBLISHED),
+  };
+  expect(
+    publishedApps([{ ...common, name: "ship_report", tool_id: "publish_artifact" }]),
+  ).toHaveLength(1);
+  expect(
+    publishedApps([
+      { ...common, name: "publish_artifact", tool_id: null, presentation_kind: "generic" },
+    ]),
+  ).toEqual([]);
+});

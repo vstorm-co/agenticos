@@ -197,6 +197,22 @@ describe("DesktopBridge", () => {
     );
   });
 
+  it.each([
+    ["it cannot read", true],
+    ["it can read", false],
+  ])("offers no decision on a notification for an always-asking call %s", (_, hidden) => {
+    env.approvals = [];
+    const view = mount();
+    env.approvals = [approval("asks", { always_asks: true, content_hidden: hidden })];
+    view.again();
+    expect(env.notify).toHaveBeenCalledWith({
+      kind: "inbox",
+      title: "Support wants to run send_email",
+      body: "to: a@b.c",
+      path: "/runs?tab=approvals",
+    });
+  });
+
   it("watches no queue for somebody who may not decide", () => {
     env.can = false;
     env.approvals = [approval("a")];
@@ -213,6 +229,7 @@ describe("DesktopBridge", () => {
     env.inbox = [
       row("2", "2026-10-21T10:05:00Z", {
         agent: { id: "a", slug: "s", name: "Support", has_avatar: false, avatar_color: null },
+        wording_params: { wording: "run_completed", agent_name: "Support" },
       }),
       row("3", "2026-10-21T10:06:00Z", { context_url: null }),
       ...env.inbox,
@@ -223,7 +240,7 @@ describe("DesktopBridge", () => {
     expect(env.notify).toHaveBeenCalledWith({
       kind: "inbox",
       title: "Support",
-      body: "Your run finished.",
+      body: "Support finished a run.",
       path: "/runs/1",
     });
     expect(env.notify).toHaveBeenCalledWith({

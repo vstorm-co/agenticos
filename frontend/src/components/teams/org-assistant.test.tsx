@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AssistantState } from "@/types/assistant";
@@ -83,24 +84,34 @@ describe("OrgAssistant", () => {
     expect(state.mutate).toHaveBeenCalledWith({ enabled: false });
   });
 
-  it("shows a switched-off assistant as off, with its greeting", () => {
+  it("shows the switched-off assistant without a greeting editor", () => {
     state.assistant = assistant({ status: "disabled", greeting: "Hej" });
     render(<OrgAssistant orgId="o1" />);
 
     expect(screen.getByRole("switch", { name: "Switched on" })).not.toBeChecked();
-    expect(screen.getByLabelText("Greeting")).toHaveValue("Hej");
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
   });
 
-  it("saves a greeting trimmed, an empty one as none, and only once it changed", () => {
-    state.assistant = assistant({ greeting: "Hello" });
+  it("offers the Builder directly and keeps its switch independent", async () => {
     render(<OrgAssistant orgId="o1" />);
-    const save = screen.getByRole("button", { name: "Save" });
-    expect(save).toBeDisabled();
+    expect(screen.getByRole("heading", { name: "AI Architect" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "AI Architect" })).toBeNull();
+    const builder = screen.getByRole("link", { name: "Open in Agent Builder" });
+    expect(builder).toBeVisible();
+    expect(builder).toHaveAttribute("href", "/agents/a1");
+    await userEvent.click(screen.getByRole("switch", { name: "Switched on" }));
+    expect(state.mutate).toHaveBeenCalledWith({ enabled: false });
+    expect(builder).toBeVisible();
+  });
 
-    fireEvent.change(screen.getByLabelText("Greeting"), { target: { value: "   " } });
-    fireEvent.click(save);
-
-    expect(state.mutate).toHaveBeenCalledWith({ greeting: null });
+  it("blocks another toggle while its write is pending", async () => {
+    state.isPending = true;
+    render(<OrgAssistant orgId="o1" />);
+    const toggle = screen.getByRole("switch", { name: "Switched on" });
+    expect(toggle).toBeDisabled();
+    await userEvent.click(toggle);
+    expect(state.mutate).not.toHaveBeenCalled();
+    expect(screen.getByRole("link", { name: "Open in Agent Builder" })).toBeVisible();
   });
 
   it("says where to give it a model when it has none", () => {

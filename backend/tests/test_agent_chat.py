@@ -17,15 +17,18 @@ import uuid
 from collections.abc import Iterator
 from contextlib import contextmanager
 from decimal import Decimal
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from pydantic_ai.exceptions import ModelRequestTimeout
 from pydantic_ai.messages import ModelMessage, ModelRequest, SystemPromptPart
 from pydantic_ai.tools import DeferredToolRequests
 from pydantic_ai.usage import RequestUsage
 
+from app.agents.approval import ApprovalRequest
 from app.agents.capabilities.budget import (
     BudgetExceeded,
     BudgetScope,
@@ -49,7 +52,13 @@ from app.services.agent_chat import (
     requested_model_profile_id,
     requested_testing,
 )
-from app.services.agent_runner import AgentRunnerService, PersonalServiceGap, PreparedRun
+from app.services.agent_runner import (
+    AgentRunnerService,
+    ApprovalChannel,
+    PersonalServiceGap,
+    PreparedRun,
+)
+from app.services.message_history import ModelHistory
 
 pytestmark = pytest.mark.anyio
 
@@ -255,13 +264,14 @@ async def _run(
     request_connection: Any = None,
     steering: Any = None,
     on_sandbox_wait: Any = None,
+    history: list[ModelMessage] | None = None,
 ):
     return await ChatAgentRunner(db).run(
         user=user or _user(),
         organization_id=organization_id or uuid.uuid4(),
         agent_id=agent_id or uuid.uuid4(),
         user_input=user_input,
-        message_history=[],
+        message_history=[] if history is None else history,
         conversation_id=conversation_id,
         prompt_message_id=prompt_message_id,
         on_run_open=on_run_open,
@@ -289,16 +299,37 @@ class TestKeepingASummary:
             return_value=_Iteration(
                 _agent_run(
                     "the refund window is 30 days",
-                    messages=[ModelRequest(parts=[SystemPromptPart(content="Summary: …")])],
+                    messages=[
+                        ModelRequest(
+                            parts=[
+                                SystemPromptPart(content="Summary of previous conversation:\n\n…")
+                            ]
+                        )
+                    ],
                 )
             )
         )
 
-        with _runner(prepared):
-            turn = await _run(_db())
+        from app.schemas.conversation import HistoryCheckpointFrontier
 
-        assert turn.summarized_history is not None
-        assert turn.summarized_history[0]["parts"][0]["content"] == "Summary: …"
+        frontier = HistoryCheckpointFrontier(summary_ordinal=2, message_ordinal=4)
+        db = _db()
+        db.scalar = AsyncMock(return_value=7)
+        with _runner(prepared):
+            turn = await _run(
+                db,
+                conversation_id=uuid.uuid4(),
+                history=ModelHistory([], revision=7, frontier=frontier),
+            )
+
+        assert turn.history_snapshot is not None
+        assert (
+            turn.history_snapshot[0]["parts"][0]["content"]
+            == "Summary of previous conversation:\n\n…"
+        )
+
+        assert turn.history_revision == 7
+        assert turn.history_frontier is frontier
 
     async def test_an_agent_bound_to_media_offload_stores_the_offloaded_history(self):
         """The one place media piles up is this blob, so the capability that
@@ -315,7 +346,13 @@ class TestKeepingASummary:
             return_value=_Iteration(
                 _agent_run(
                     "the refund window is 30 days",
-                    messages=[ModelRequest(parts=[SystemPromptPart(content="Summary: …")])],
+                    messages=[
+                        ModelRequest(
+                            parts=[
+                                SystemPromptPart(content="Summary of previous conversation:\n\n…")
+                            ]
+                        )
+                    ],
                 )
             )
         )
@@ -323,8 +360,62 @@ class TestKeepingASummary:
         with _runner(prepared):
             turn = await _run(_db())
 
-        assert turn.summarized_history == [{"kind": "request", "parts": []}]
+        assert turn.history_snapshot == [{"kind": "request", "parts": []}]
         offload.externalize.assert_awaited_once()
+
+    @pytest.mark.security
+    async def test_a_shared_chat_never_checkpoints_hidden_personal_tool_results(self) -> None:
+        from tests.test_history_audience_privacy import hidden_exchange
+
+        prepared = _prepared()
+        prepared.shared_history = True
+        prepared.built.agent.iter = MagicMock(
+            return_value=_Iteration(
+                _agent_run("You have an appointment.", messages=hidden_exchange())
+            )
+        )
+        with _runner(prepared):
+            turn = await _run(_db())
+        assert turn.history_snapshot is None
+
+    async def test_media_is_offloaded_before_the_checkpoint_size_limit(
+        self, tmp_path: Path
+    ) -> None:
+        from pydantic_ai.messages import BinaryContent, ModelMessagesTypeAdapter, UserPromptPart
+
+        from app.agents.capabilities.media import OrganizationMediaStore
+        from app.services.file_storage import LocalFileStorage
+        from app.services.message_history import HISTORY_TRIMMED, MODEL_HISTORY_BYTES
+
+        prepared = _prepared()
+        offload: MediaOffload[object] = MediaOffload(
+            organization_id=uuid.uuid4(), conversation_id=uuid.uuid4()
+        )
+        offload._store = OrganizationMediaStore(
+            offload.organization_id, offload.conversation_id, LocalFileStorage(base_dir=tmp_path)
+        )
+        prepared.built.capabilities = [offload]
+        messages = [
+            ModelRequest(
+                parts=[
+                    SystemPromptPart("OLD_AGENT_PROMPT"),
+                    UserPromptPart(
+                        ["Chart", BinaryContent(b"pixels" * 500_000, media_type="image/png")]
+                    ),
+                ]
+            )
+        ]
+        prepared.built.agent.iter = MagicMock(
+            return_value=_Iteration(_agent_run("Read it", messages=messages))
+        )
+        with _runner(prepared):
+            turn = await _run(_db())
+        assert turn.history_snapshot is not None
+        stored = str(turn.history_snapshot)
+        assert "media+sha256://" in stored
+        assert HISTORY_TRIMMED not in stored and "OLD_AGENT_PROMPT" not in stored
+        assert len(stored.encode()) < MODEL_HISTORY_BYTES
+        assert len(ModelMessagesTypeAdapter.dump_json(messages)) > MODEL_HISTORY_BYTES
 
     async def test_the_overhead_the_turn_measured_leaves_with_it(self):
         """A one-request turn never measures one of its own before it decides, so
@@ -347,15 +438,14 @@ class TestKeepingASummary:
 
         assert turn.overhead_tokens is None
 
-    async def test_a_turn_that_did_not_carries_nothing(self):
-        """Most turns. Writing one per turn would pin the thread to whatever the
-        last request happened to hold."""
+    async def test_a_turn_without_compaction_still_carries_its_history(self):
+        """Discovery and tool evidence survive ordinary turns too."""
         prepared = _prepared()
 
         with _runner(prepared):
             turn = await _run(_db())
 
-        assert turn.summarized_history is None
+        assert turn.history_snapshot == []
 
 
 class TestAddressingAnAgent:
@@ -646,6 +736,40 @@ class TestRecordingTheRun:
         # Two commits: the one that opened the run row to other sessions before
         # the stream started, and the one that lands the terminal write.
         assert db.commit.await_count == 2
+
+    async def test_a_timed_out_chat_run_is_recorded_as_timed_out_not_failed(self):
+        """A deadline is the platform working, not a malfunction: its own
+        terminal status and its own sentence, and the exception is still
+        raised on, because somebody is sitting there waiting."""
+        db = _db()
+
+        with _runner(_prepared()) as runner, pytest.raises(ModelRequestTimeout):
+            await _run(
+                db,
+                stream=AsyncMock(side_effect=ModelRequestTimeout("gpt-4.1", 300.0)),
+            )
+
+        finished = runner.finish.call_args.kwargs
+        assert finished["status"] is RunStatus.TIMED_OUT
+        assert "did not finish within 300 seconds" in (finished["error"] or "")
+
+    async def test_a_grouped_timeout_is_still_timed_out_in_chat(self):
+        db = _db()
+
+        with _runner(_prepared()) as runner, pytest.raises(ExceptionGroup):
+            await _run(
+                db,
+                stream=AsyncMock(
+                    side_effect=ExceptionGroup(
+                        "all fallbacks failed",
+                        [ModelRequestTimeout("gpt-4.1", 120.0, setting="first_event_timeout")],
+                    )
+                ),
+            )
+
+        finished = runner.finish.call_args.kwargs
+        assert finished["status"] is RunStatus.TIMED_OUT
+        assert "without producing any output" in (finished["error"] or "")
 
     async def test_a_failed_chat_run_records_the_refusal_and_not_the_provider(self, caplog):
         """The same rule the chat frame took in #659, on the row rather than the
@@ -1352,3 +1476,48 @@ def test_a_chat_frame_preserves_every_native_grant() -> None:
     assert result is not None
     assert result.folder == "/work" and result.model_service == "model"
     assert result.mcp_services == ["files"] and result.browser
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("remembered", [False, True])
+@pytest.mark.parametrize("pending", [False, True])
+async def test_chat_exposes_only_pending_approvals_after_automatic_consent(
+    remembered: bool, pending: bool
+) -> None:
+    """Approved audit entries must never become actionable WebSocket prompts (#2994)."""
+    prepared = _prepared(DeferredToolRequests() if pending else "done")
+    user_id = uuid.uuid4()
+    approvals = ApprovalChannel(
+        organization_id=uuid.uuid4(), agent_id=uuid.uuid4(), run_id=prepared.run.id
+    )
+    if remembered:
+        approvals.tool_consent = AsyncMock(return_value=user_id)
+    else:
+        approvals.standing_consent_by = user_id
+    prepared.approvals = approvals
+    await approvals(
+        ApprovalRequest(
+            capability_id=None,
+            tool_name="agenticos_run_agent",
+            tool_call_id="granted",
+            tool_args={},
+        )
+    )
+    if pending:
+        await approvals(
+            ApprovalRequest(
+                capability_id=None,
+                tool_name="must_ask",
+                tool_call_id="pending",
+                tool_args={},
+                always_asks=True,
+            )
+        )
+    with _runner(prepared):
+        turn = await _run(_db())
+    assert [entry.tool_call_id for entry in turn.parked] == (["pending"] if pending else [])
+    assert [entry.tool_call_id for entry in approvals.requested] == (
+        ["granted", "pending"] if pending else ["granted"]
+    )
+    assert approvals.requested[0].standing
+    assert approvals.requested[0].tool_consented_by == user_id

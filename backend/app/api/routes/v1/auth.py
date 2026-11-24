@@ -1,27 +1,48 @@
 """Authentication routes."""
 
+import hashlib
+import json
 import logging
 from typing import Annotated, Any
+from urllib.parse import urlencode
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, Request, status
+from fastapi.responses import RedirectResponse
 from fastapi.security import OAuth2PasswordRequestForm
 
 from app.api.deps import (
+    CurrentSessionId,
     CurrentUser,
     DeploymentSettingsSvc,
     DevicePairingSvc,
+    DirectorySyncSvc,
     ImpersonationSvc,
     InvitationStagingSvc,
+    MfaSvc,
+    OAuthExchangeSvc,
+    RecentAuth,
+    Redis,
     SessionSvc,
     UserSvc,
     enforce_auth_limit,
 )
 from app.core.config import settings
-from app.core.exceptions import AuthenticationError
+from app.core.exceptions import AuthenticationError, NotFoundError, RateLimitError
 from app.core.security import (
     create_access_token,
+    create_mfa_token,
     create_refresh_token,
+    verify_special_token,
     verify_token,
+)
+from app.schemas.mfa import (
+    MfaCodeRequest,
+    MfaRecoveryCodesRead,
+    MfaRequired,
+    MfaSetupRead,
+    MfaStatusRead,
+    MfaVerifyRequest,
 )
 from app.schemas.password_reset import (
     EmailChangeConfirm,
@@ -43,7 +64,9 @@ from app.schemas.token import (
     Token,
 )
 from app.schemas.user import MeRead, UserCreate, UserRead
+from app.services import rate_limit
 from app.services.email.service import get_email_service
+from app.services.oauth_exchange import native_code_challenge
 from app.services.session import refresh_expiry, successor_refresh_token
 
 logger = logging.getLogger(__name__)
@@ -51,31 +74,208 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-@router.post("/login", response_model=Token)
+@router.post("/login", response_model=Token | MfaRequired)
 async def login(
     request: Request,
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
     user_service: UserSvc,
     session_service: SessionSvc,
 ) -> Any:
-    """OAuth2 password login, returns access and refresh tokens."""
+    """OAuth2 password login, returns access and refresh tokens.
+
+    An account with a second factor enabled stops here instead: the response
+    names the challenge, and the client completes it at `/auth/mfa/verify`.
+    """
     await enforce_auth_limit(request, surface="auth_login", identifier=form_data.username)
     user = await user_service.authenticate(form_data.username, form_data.password)
-    refresh_token = create_refresh_token(
-        subject=str(user.id), credential_version=user.credential_version
-    )
-
-    # The session row is created before the access token is minted, so the token
-    # can name it in `sid` - which is what lets signing out everywhere revoke the
-    # access token, not only stop the next refresh (#1501).
-    session = await session_service.create_session(
+    if user.totp_enabled:
+        return MfaRequired(
+            mfa_token=create_mfa_token(
+                subject=str(user.id), credential_version=user.credential_version
+            )
+        )
+    access_token, refresh_token = await session_service.issue_tokens(
         user_id=user.id,
-        refresh_token=refresh_token,
+        credential_version=user.credential_version,
         ip_address=request.client.host if request.client else None,
         user_agent=request.headers.get("User-Agent"),
     )
-    access_token = create_access_token(subject=str(user.id), sid=str(session.id))
     return Token(access_token=access_token, refresh_token=refresh_token)
+
+
+@router.post("/mfa/verify", response_model=Token | MagicLinkToken)
+async def verify_mfa(
+    request: Request,
+    body: MfaVerifyRequest,
+    user_service: UserSvc,
+    session_service: SessionSvc,
+    mfa_service: MfaSvc,
+    redis: Redis,
+    directory_sync: DirectorySyncSvc,
+    exchange_service: OAuthExchangeSvc,
+) -> Any:
+    """Complete the second step of a sign-in: the challenge and the code for tokens.
+
+    The challenge proves the password step; the code proves the factor. A
+    challenge minted before a password change is refused, and a code that
+    does not match is refused the same way a wrong password is - without
+    saying which half failed. A challenge that arrived by magic link carries
+    its destination through, so the second step is not what drops it.
+    """
+    payload = verify_special_token(body.mfa_token, expected_type="mfa")
+    if payload is None or "sub" not in payload or "cv" not in payload:
+        raise AuthenticationError(message="This sign-in step is invalid or has expired")
+    try:
+        user_id = UUID(str(payload["sub"]))
+    except (TypeError, ValueError) as exc:
+        raise AuthenticationError(message="This sign-in step is invalid or has expired") from exc
+    try:
+        user = await user_service.get_by_id(user_id)
+    except NotFoundError as exc:
+        raise AuthenticationError(message="This sign-in step is invalid or has expired") from exc
+    await enforce_auth_limit(request, surface="auth_mfa_verify", identifier=str(user.id))
+    if await rate_limit.mfa_backoff_locked(str(user.id)):
+        raise RateLimitError(
+            message="Too many incorrect codes. Please wait five minutes before trying again.",
+            details={"retry_after_seconds": 300},
+        )
+    challenge_decision = await rate_limit.consume(
+        surface="auth_mfa_challenge",
+        caller=f"token:{hashlib.sha256(body.mfa_token.encode()).hexdigest()}",
+        limit=rate_limit.Limit(attempts=5, window_seconds=300),
+    )
+    if not challenge_decision.allowed:
+        raise RateLimitError(
+            message="Too many attempts for this sign-in step. Please wait and try again.",
+            details={"retry_after_seconds": challenge_decision.retry_after_seconds},
+        )
+    if not user.is_active or payload["cv"] != user.credential_version:
+        raise AuthenticationError(message="This sign-in step is invalid or has expired")
+    if not await mfa_service.verify_challenge(user, body.code):
+        await rate_limit.record_mfa_failure(str(user.id))
+        raise AuthenticationError(
+            message="That code did not match - try the code your authenticator shows now"
+        )
+    jti = payload.get("jti")
+    if not isinstance(jti, str) or not jti:
+        raise AuthenticationError(message="This sign-in step is invalid or has expired")
+    # Claim the token before consuming its optional OAuth context. This atomic
+    # marker also closes the race where two requests both pass the code check
+    # and only one wins GETDEL of an OAuth context.
+    if not await redis.set(f"auth:mfa:consumed:{jti}", "1", ttl=300, nx=True):
+        raise AuthenticationError(message="This sign-in step is invalid or has expired")
+    raw_context = await redis.getdel(f"auth:mfa:oauth:{jti}")
+    context = None
+    if raw_context is not None:
+        try:
+            context = json.loads(raw_context)
+        except (TypeError, ValueError) as exc:
+            raise AuthenticationError(
+                message="This sign-in step is invalid or has expired"
+            ) from exc
+        if not isinstance(context, dict):
+            raise AuthenticationError(message="This sign-in step is invalid or has expired")
+        groups = context.get("groups")
+        if groups is not None:
+            await directory_sync.apply(user.id, frozenset(groups), provider=context["provider"])
+    await rate_limit.reset_mfa_failures(str(user.id))
+    proved_email = user.email if payload.get("mbp") is True else None
+    access_token, refresh_token = await session_service.issue_tokens(
+        user_id=user.id,
+        credential_version=user.credential_version,
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("User-Agent"),
+        proved_email=proved_email,
+    )
+    if context is not None:
+        started = context.get("client")
+        if isinstance(started, dict) and started.get("client") == "desktop":
+            code = await exchange_service.issue(
+                access_token=access_token,
+                refresh_token=refresh_token,
+                code_challenge=native_code_challenge("desktop", started.get("nonce")),
+            )
+            params = urlencode({"code": code, "desktop_nonce": started.get("nonce") or ""})
+            return RedirectResponse(
+                url=f"{settings.DESKTOP_DEEP_LINK_SCHEME}://auth/callback?{params}"
+            )
+    return_to = payload.get("rt")
+    if return_to is not None:
+        return MagicLinkToken(
+            access_token=access_token, refresh_token=refresh_token, return_to=return_to
+        )
+    return Token(access_token=access_token, refresh_token=refresh_token)
+
+
+@router.get("/mfa/status", response_model=MfaStatusRead)
+async def mfa_status(
+    current_user: CurrentUser, mfa_service: MfaSvc, _recent_auth: RecentAuth
+) -> Any:
+    """Whether this account's sign-in stops at a second factor."""
+    return MfaStatusRead(enabled=mfa_service.is_enabled(current_user))
+
+
+@router.post("/mfa/setup", response_model=MfaSetupRead, status_code=status.HTTP_201_CREATED)
+async def mfa_setup(
+    request: Request, current_user: CurrentUser, mfa_service: MfaSvc, _recent_auth: RecentAuth
+) -> Any:
+    """Start enrolment: seal a secret and show what the authenticator needs.
+
+    The secret is shown once, here. Enabling - proving the authenticator
+    can produce a code - is a separate call, so a setup abandoned halfway
+    changes nothing about sign-in.
+    """
+    await enforce_auth_limit(request, surface="auth_mfa_manage", identifier=str(current_user.id))
+    provisioning_uri, secret = await mfa_service.begin_setup(current_user)
+    return MfaSetupRead(provisioning_uri=provisioning_uri, secret=secret)
+
+
+@router.post("/mfa/enable", response_model=MfaRecoveryCodesRead)
+async def mfa_enable(
+    request: Request,
+    body: MfaCodeRequest,
+    current_user: CurrentUser,
+    mfa_service: MfaSvc,
+    _recent_auth: RecentAuth,
+) -> Any:
+    """Prove the enrolled authenticator and switch the second factor on.
+
+    Answers with the ten recovery codes, once - the way back in if the
+    authenticator is lost.
+    """
+    await enforce_auth_limit(request, surface="auth_mfa_manage", identifier=str(current_user.id))
+    codes = await mfa_service.enable(current_user, body.code)
+    return MfaRecoveryCodesRead(recovery_codes=codes)
+
+
+@router.post("/mfa/disable", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
+async def mfa_disable(
+    request: Request,
+    body: MfaCodeRequest,
+    current_user: CurrentUser,
+    mfa_service: MfaSvc,
+    _recent_auth: RecentAuth,
+) -> None:
+    """Switch the second factor off, proved by a code from the account."""
+    await enforce_auth_limit(request, surface="auth_mfa_manage", identifier=str(current_user.id))
+    await mfa_service.disable(current_user, body.code)
+
+
+@router.post("/mfa/recovery-codes", response_model=MfaRecoveryCodesRead)
+async def mfa_regenerate_recovery_codes(
+    request: Request,
+    body: MfaCodeRequest,
+    current_user: CurrentUser,
+    mfa_service: MfaSvc,
+    _recent_auth: RecentAuth,
+) -> Any:
+    """Replace the recovery codes, proved by a code from the account.
+
+    The old set stops working at once; the new codes are shown once, here.
+    """
+    await enforce_auth_limit(request, surface="auth_mfa_manage", identifier=str(current_user.id))
+    codes = await mfa_service.regenerate_recovery_codes(current_user, body.code)
+    return MfaRecoveryCodesRead(recovery_codes=codes)
 
 
 @router.post("/pairing-codes", response_model=PairingCodeRead, status_code=status.HTTP_201_CREATED)
@@ -214,7 +414,9 @@ async def refresh_token(
             ip_address=request.client.host if request.client else None,
             user_agent=request.headers.get("User-Agent"),
         )
-    access_token = create_access_token(subject=str(user.id), sid=str(session.id))
+    access_token = create_access_token(
+        subject=str(user.id), sid=str(session.id), auth_time=int(session.created_at.timestamp())
+    )
     return Token(access_token=access_token, refresh_token=new_refresh_token)
 
 
@@ -269,16 +471,30 @@ async def change_password(
         ip_address=request.client.host if request.client else None,
         user_agent=request.headers.get("User-Agent"),
     )
-    access_token = create_access_token(subject=str(updated.id), sid=str(session.id))
+    access_token = create_access_token(
+        subject=str(updated.id), sid=str(session.id), auth_time=int(session.created_at.timestamp())
+    )
     return Token(access_token=access_token, refresh_token=refresh_token)
 
 
 @router.get("/me", response_model=MeRead)
-async def get_current_user_info(current_user: CurrentUser, impersonation: ImpersonationSvc) -> Any:
+async def get_current_user_info(
+    current_user: CurrentUser,
+    impersonation: ImpersonationSvc,
+    sessions: SessionSvc,
+    session_id: CurrentSessionId,
+) -> Any:
     """The account this request acts as - and, when an administrator is acting as
     it, who and until when, which is what the console's banner is drawn from."""
     me = MeRead.model_validate(current_user)
-    return me.model_copy(update={"impersonation": await impersonation.describe()})
+    return me.model_copy(
+        update={
+            "impersonation": await impersonation.describe(),
+            "email_verified": await sessions.has_mailbox_proof(
+                current_user.id, current_user.email, session_id
+            ),
+        }
+    )
 
 
 @router.delete("/impersonation", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
@@ -312,7 +528,7 @@ async def request_password_reset(
     if issued is not None:
         reset_user, token = issued
         try:
-            reset_url = f"{settings.FRONTEND_URL.rstrip('/')}/reset-password?token={token}"
+            reset_url = user_service.password_reset_url(token)
             await get_email_service().send_password_reset(
                 to=body.email,
                 name=reset_user.full_name or body.email,
@@ -383,7 +599,7 @@ async def request_magic_link(
     return PasswordResetResponse(message="Check your email for a sign-in link.")
 
 
-@router.post("/magic-link/verify", response_model=MagicLinkToken)
+@router.post("/magic-link/verify", response_model=MagicLinkToken | MfaRequired)
 async def verify_magic_link(
     request: Request,
     body: MagicLinkVerifyRequest,
@@ -395,19 +611,32 @@ async def verify_magic_link(
     Answers with the return path the link was minted for, unapplied: the client
     navigates, and `postSignInDestination` there is the one place that decides
     whether a path is safe to honour - the same judgement for every door in.
+
+    An account with a second factor enabled stops at the challenge instead,
+    carrying the return path through it, so the second step is not what
+    drops the destination.
     """
     await enforce_auth_limit(request, surface="auth_magic_link_verify")
     user, return_to = await user_service.consume_magic_link_token(body.token)
-    refresh_token = create_refresh_token(
-        subject=str(user.id), credential_version=user.credential_version
-    )
-    session = await session_service.create_session(
+    proof = verify_special_token(body.token, expected_type="magic_link")
+    mailbox_proved = proof is not None and proof.get("email") == user.email
+    if user.totp_enabled:
+        return MfaRequired(
+            mfa_token=create_mfa_token(
+                subject=str(user.id),
+                credential_version=user.credential_version,
+                return_to=return_to,
+                mailbox_proved=mailbox_proved,
+            ),
+            return_to=return_to,
+        )
+    access_token, refresh_token = await session_service.issue_tokens(
         user_id=user.id,
-        refresh_token=refresh_token,
+        credential_version=user.credential_version,
         ip_address=request.client.host if request.client else None,
         user_agent=request.headers.get("User-Agent"),
+        proved_email=user.email if mailbox_proved else None,
     )
-    access_token = create_access_token(subject=str(user.id), sid=str(session.id))
     return MagicLinkToken(
         access_token=access_token, refresh_token=refresh_token, return_to=return_to
     )

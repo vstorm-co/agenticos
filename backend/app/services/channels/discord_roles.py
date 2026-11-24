@@ -393,9 +393,12 @@ class DiscordRoleSync:
         role = retained_role(membership.role, role, unread_roles)
         if role is None:
             previous = membership.role
-            await end_membership(self.db, membership)
-            await self._audit(
-                "discord.member_removed", user_id, organization_id, {"role": previous}
+            await end_membership(
+                self.db,
+                membership,
+                actor_user_id=user_id,
+                action="discord.member_removed",
+                details={"role": previous},
             )
             return False
         if membership.role != role:

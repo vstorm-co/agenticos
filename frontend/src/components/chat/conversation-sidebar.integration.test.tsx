@@ -19,10 +19,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Conversation } from "@/types/conversation";
 import { ConversationSidebar } from "./conversation-sidebar";
 import { apiClient } from "@/lib/api-client";
+import { toast } from "sonner";
 import * as invalidation from "@/lib/coalesced-invalidation";
 import {
   useAgentSelectionStore,
   useChatBandsStore,
+  useChatListModeStore,
   useChatSidebarStore,
   useConversationStore,
   useWorkingStore,
@@ -44,8 +46,16 @@ vi.mock("@/components/agents/agent-avatar", () => ({
   AgentAvatar: ({ name }: { name: string }) => <span>{name}</span>,
 }));
 vi.mock("@/components/agents/conversation-agents", () => ({
-  ConversationAgents: ({ agents }: { agents: Array<{ name: string }> }) => (
-    <span data-testid="row-agents">{agents.map((agent) => agent.name).join(", ")}</span>
+  ConversationAgents: ({
+    agents,
+    showName = true,
+  }: {
+    agents: Array<{ name: string }>;
+    showName?: boolean;
+  }) => (
+    <span data-testid="row-agents" data-names={agents.map((agent) => agent.name).join(", ")}>
+      {showName ? agents.map((agent) => agent.name).join(", ") : null}
+    </span>
   ),
 }));
 // The event path is the portal grid, covered by the portal tests; stubbed here so
@@ -56,6 +66,8 @@ vi.mock("@/components/triggers/new-event-trigger-dialog", () => ({
 }));
 
 let urlParams = new URLSearchParams();
+/** What `/conversations/shared-with-me` answers with: nothing, unless a test shares something. */
+let shared: Conversation[] = [];
 vi.mock("next/navigation", () => ({
   useSearchParams: () => urlParams,
   useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
@@ -78,6 +90,8 @@ function conversation(id: string, title: string, favourite = false): Conversatio
 function serve(items: ReturnType<typeof conversation>[], total = items.length) {
   vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
     if (path.includes("/messages")) return { items: [], total: 0 };
+    if (path.startsWith("/conversations/shared-with-me"))
+      return { items: shared, total: shared.length };
     if (path === "/orgs") return { items: [{ id: "fallback", is_personal: true }], total: 1 };
     // The trigger-menu gate sweeps /agents itself for a runnable one.
     if (path === "/agents") return { items: mockAgents, total: mockAgents.length };
@@ -90,7 +104,13 @@ function listRequests(): string[] {
   return vi
     .mocked(apiClient.get)
     .mock.calls.map(([path]) => path as string)
-    .filter((path) => !path.includes("/messages") && path !== "/agents" && path !== "/orgs");
+    .filter(
+      (path) =>
+        !path.includes("/messages") &&
+        !path.startsWith("/conversations/shared-with-me") &&
+        path !== "/agents" &&
+        path !== "/orgs",
+    );
 }
 
 function mount() {
@@ -116,6 +136,7 @@ beforeEach(() => {
   useWorkingStore.getState().reset();
   useChatSidebarStore.getState().close();
   useChatBandsStore.setState({ folded: [], opened: [] });
+  shared = [];
   mockAgents = [{ id: "a-1", name: "Analyst", status: "published", can_run: true }];
   serve([conversation("c-1", "Quarterly numbers")]);
 });
@@ -174,7 +195,7 @@ describe("a sidebar that leaves while refreshing", () => {
     let refuseFirst: (reason: unknown) => void = () => {};
     let messagesRead = 0;
     vi.mocked(apiClient.get).mockImplementation(async (path, options) => {
-      if (path === "/conversations/c-reopen/messages?latest=true&limit=101") {
+      if (path === "/conversations/c-reopen/messages?latest=true&limit=101&top_level_only=true") {
         messagesRead += 1;
         if (messagesRead === 1)
           return new Promise((_, reject) => {
@@ -211,7 +232,8 @@ describe("a sidebar that leaves while refreshing", () => {
     });
     const ordinaryGet = vi.mocked(apiClient.get).getMockImplementation();
     vi.mocked(apiClient.get).mockImplementation(async (path, options) => {
-      if (path === "/conversations/c-late/messages?latest=true&limit=101") return transcript;
+      if (path === "/conversations/c-late/messages?latest=true&limit=101&top_level_only=true")
+        return transcript;
       return ordinaryGet?.(path, options);
     });
     const invalidate = vi.spyOn(invalidation, "invalidateSoon").mockReturnValue(pending);
@@ -220,7 +242,7 @@ describe("a sidebar that leaves while refreshing", () => {
       await waitFor(() => expect(invalidate).toHaveBeenCalled());
       await waitFor(() =>
         expect(vi.mocked(apiClient.get).mock.calls.map(([path]) => path)).toContain(
-          "/conversations/c-late/messages?latest=true&limit=101",
+          "/conversations/c-late/messages?latest=true&limit=101&top_level_only=true",
         ),
       );
       unmount();
@@ -273,6 +295,29 @@ describe("what the sidebar says about the list", () => {
     expect(within(busy).getByText(/Working/)).toBeInTheDocument();
     const quiet = within(list()).getByText("Quiet one").closest("[class*='group']") as HTMLElement;
     expect(within(quiet).queryByText(/Working/)).toBeNull();
+  });
+
+  it("says a thread is waiting on its person, from the server's word alone", async () => {
+    // No turn ran in this tab: the run parked on a question somewhere else,
+    // and the thread must not look done for it.
+    serve([
+      {
+        ...conversation("c-1", "Waiting one"),
+        waiting_since: new Date(Date.now() - 60_000).toISOString(),
+        waiting_status: "awaiting_answer",
+        waiting_question: "Which model should I use?",
+      },
+      conversation("c-2", "Quiet one"),
+    ] as unknown as ReturnType<typeof conversation>[]);
+    mount();
+    await screen.findAllByText("Waiting one");
+
+    const waiting = within(list())
+      .getByText("Waiting one")
+      .closest("[class*='group']") as HTMLElement;
+    expect(within(waiting).getByText("Waiting for an answer")).toBeInTheDocument();
+    const quiet = within(list()).getByText("Quiet one").closest("[class*='group']") as HTMLElement;
+    expect(within(quiet).queryByText("Waiting for an answer")).toBeNull();
   });
 
   it("says a thread is at work the moment this tab asks in it, before the server does", async () => {
@@ -439,6 +484,7 @@ describe("what the sidebar says about the list", () => {
       if (path === "/agents") return { items: [], total: 0 };
       if (path.startsWith("/projects"))
         return { items: [{ id: "p-1", name: "Q3 launch" }], total: 1 };
+      if (path.startsWith("/conversations/shared-with-me")) return { items: [], total: 0 };
       return {
         items: [
           { ...conversation("c-1", "Press release"), project_id: "p-1" },
@@ -456,6 +502,95 @@ describe("what the sidebar says about the list", () => {
       .map((heading) => heading.textContent);
     // Each project heading carries its initial's tile before the name.
     expect(headings.slice(0, 3)).toEqual(["QQ3 launch", "AA project", "Today"]);
+  });
+
+  it("lists the threads shared with the reader under their own heading, leaving out the owner's actions", async () => {
+    shared = [{ ...conversation("c-shared", "Their pricing plan"), user_id: "someone-else" }];
+    mount();
+    await screen.findAllByText("Their pricing plan");
+
+    const band = within(list()).getByRole("button", { name: /Shared with you/ });
+    expect(band).toHaveAttribute("aria-expanded", "true");
+    // Rename, share, archive and delete are the owner's; leaving is the reader's own.
+    const row = within(list()).getByText("Their pricing plan").closest(".group") as HTMLElement;
+    await userEvent.click(within(row).getByRole("button", { name: "Conversation actions" }));
+    expect(screen.getByRole("menuitem", { name: "Remove from my chats" })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Rename" })).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: "Delete" })).toBeNull();
+  });
+
+  it("opens no conversation when its menu is opened, or closed by clicking away", async () => {
+    serve([conversation("c-1", "Quarterly numbers")]);
+    mount();
+    await screen.findAllByText("Quarterly numbers");
+
+    await userEvent.click(within(list()).getByRole("button", { name: "Conversation actions" }));
+    expect(await screen.findByRole("menuitem", { name: "Rename" })).toBeInTheDocument();
+    expect(useConversationStore.getState().currentConversationId).toBeNull();
+
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("menuitem", { name: "Rename" })).toBeNull());
+    expect(useConversationStore.getState().currentConversationId).toBeNull();
+  });
+
+  it("takes a shared thread out of the reader's chats, and closes it if it was open", async () => {
+    shared = [conversation("c-shared", "Their pricing plan")];
+    vi.mocked(apiClient.delete).mockImplementation(async () => {
+      shared = [];
+      return undefined;
+    });
+    useConversationStore.getState().setCurrentConversationId("c-shared");
+    mount();
+    await screen.findAllByText("Their pricing plan");
+
+    const row = within(list()).getByText("Their pricing plan").closest(".group") as HTMLElement;
+    await userEvent.click(within(row).getByRole("button", { name: "Conversation actions" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Remove from my chats" }));
+
+    expect(apiClient.delete).toHaveBeenCalledWith("/conversations/c-shared/shared-with-me");
+    await waitFor(() => expect(within(list()).queryByText("Their pricing plan")).toBeNull());
+    expect(useConversationStore.getState().currentConversationId).toBeNull();
+    expect(toast.success).toHaveBeenCalledWith("Removed from your chats");
+  });
+
+  it("says so when a shared thread could not be removed, and keeps it", async () => {
+    shared = [conversation("c-shared", "Their pricing plan")];
+    vi.mocked(apiClient.delete).mockRejectedValue("boom");
+    useConversationStore.getState().setCurrentConversationId("c-shared");
+    mount();
+    await screen.findAllByText("Their pricing plan");
+
+    const row = within(list()).getByText("Their pricing plan").closest(".group") as HTMLElement;
+    await userEvent.click(within(row).getByRole("button", { name: "Conversation actions" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Remove from my chats" }));
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith("Failed to remove the conversation"),
+    );
+    expect(useConversationStore.getState().currentConversationId).toBe("c-shared");
+  });
+
+  it("leaves out a shared thread its owner archived", async () => {
+    shared = [
+      conversation("c-live", "Their live plan"),
+      { ...conversation("c-old", "Their old plan"), is_archived: true },
+    ];
+    mount();
+    await screen.findAllByText("Their live plan");
+
+    expect(within(list()).queryByText("Their old plan")).toBeNull();
+  });
+
+  it("leaves the shared heading out of the archive and out of an agent filter", async () => {
+    shared = [conversation("c-shared", "Their pricing plan")];
+    urlParams = new URLSearchParams("view=archived");
+    mount();
+    await screen.findAllByText("Quarterly numbers");
+
+    expect(screen.queryByText("Their pricing plan")).toBeNull();
+    expect(vi.mocked(apiClient.get).mock.calls.map(([path]) => path)).not.toContain(
+      "/conversations/shared-with-me?skip=0&limit=50&include_archived=false",
+    );
   });
 
   it("keeps one run, without days, in an order that is not by date", async () => {
@@ -495,7 +630,7 @@ describe("what the sidebar says about the list", () => {
     mount();
 
     await userEvent.click(within(list()).getByRole("button", { name: "Filter and sort" }));
-    await userEvent.click(screen.getByRole("button", { name: "Archived" }));
+    await userEvent.click(screen.getByRole("radio", { name: "Archived" }));
 
     expect((await screen.findAllByText("No archived conversations"))[0]).toBeVisible();
     await waitFor(() => expect(listRequests().at(-1)).toContain("archived_only=true"));
@@ -522,6 +657,15 @@ describe("the collapsed rail", () => {
     return screen.getByRole("button", { name: "Expand conversations sidebar" }).parentElement!
       .parentElement as HTMLElement;
   }
+
+  it("keeps the shared threads under their own mark", async () => {
+    shared = [conversation("c-shared", "Their pricing plan")];
+
+    const rail = await collapse();
+
+    expect(await within(rail).findByRole("button", { name: "Shared with you" })).toBeVisible();
+    expect(within(rail).getByRole("button", { name: "Their pricing plan" })).toBeVisible();
+  });
 
   it("offers the recent threads, named, without expanding", async () => {
     serve([conversation("c-1", "Quarterly numbers"), conversation("c-2", "Refund policy")]);
@@ -567,7 +711,7 @@ describe("the collapsed rail", () => {
     const rail = await collapse();
 
     await userEvent.click(within(rail).getByRole("button", { name: "Filter and sort" }));
-    await userEvent.click(await screen.findByRole("button", { name: "Archived" }));
+    await userEvent.click(await screen.findByRole("radio", { name: "Archived" }));
 
     await waitFor(() => expect(listRequests().at(-1)).toContain("archived_only=true"));
     expect(await within(rail).findByRole("img", { name: "Archived" })).toBeVisible();
@@ -625,13 +769,18 @@ describe("the three icons over the list", () => {
     expect(screen.queryByRole("menu")).toBeNull();
   });
 
-  it("searches the server from a window, and opens the pick", async () => {
+  it("searches conversation titles on the server from a window, and opens the pick", async () => {
     mount();
     await screen.findAllByText("Quarterly numbers");
 
     await userEvent.click(within(list()).getByRole("button", { name: "Search conversations" }));
     const dialog = await screen.findByRole("dialog", { name: "Search conversations" });
-    expect(within(dialog).getByText("Type to search your conversations by title.")).toBeVisible();
+    const mode = within(dialog).getByRole("combobox", { name: "Search by" });
+    await userEvent.selectOptions(mode, "titles");
+    expect(mode).toHaveValue("titles");
+    expect(
+      within(dialog).getByText("Search conversation titles, including archived conversations."),
+    ).toBeVisible();
 
     serve([conversation("c-9", "Refund policy")]);
     await userEvent.type(within(dialog).getByRole("textbox"), "refund");
@@ -642,16 +791,23 @@ describe("the three icons over the list", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
-  it("says when nothing matches the search", async () => {
+  it("uses message search by default and says when no messages match", async () => {
     mount();
     await screen.findAllByText("Quarterly numbers");
     await userEvent.click(within(list()).getByRole("button", { name: "Search conversations" }));
     const dialog = await screen.findByRole("dialog", { name: "Search conversations" });
+    const mode = within(dialog).getByRole("combobox", { name: "Search by" });
+    expect(mode).toHaveValue("messages");
+    expect(
+      within(dialog).getByText(
+        "Search message text across your conversations, or choose conversation title.",
+      ),
+    ).toBeVisible();
 
     serve([]);
     await userEvent.type(within(dialog).getByRole("textbox"), "nothing");
 
-    expect(await within(dialog).findByText("No conversation matches.")).toBeVisible();
+    expect(await within(dialog).findByText("No messages match.")).toBeVisible();
   });
 });
 
@@ -695,7 +851,7 @@ describe("the favourites band", () => {
     mount();
     await within(list()).findByText("Refund policy");
 
-    expect(within(list()).queryByRole("button", { name: "Favourite" })).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: "Favourite" })).toBeNull();
 
     await userEvent.click(within(list()).getByRole("button", { name: "Conversation actions" }));
     await userEvent.click(screen.getByRole("menuitem", { name: "Favourite" }));
@@ -893,7 +1049,7 @@ describe("who a row is with", () => {
 
     await screen.findAllByText("Quarterly numbers");
     const faces = within(list()).getAllByTestId("row-agents");
-    expect(faces.map((face) => face.textContent)).toEqual(["Analyst"]);
+    expect(faces.map((face) => face.getAttribute("data-names"))).toEqual(["Analyst"]);
   });
 });
 
@@ -918,6 +1074,70 @@ it("shows the coding harness kept by the list API after reopening the sidebar", 
   view.unmount();
   mount();
   expect(await screen.findByText(/AgenticOS · Claude Code/)).toBeVisible();
+});
+
+it("shows a failed shared list and retries without hiding the reader's own conversations", async () => {
+  const user = userEvent.setup();
+  const own = conversation("own", "My working notes");
+  vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
+    if (path.startsWith("/conversations/shared-with-me")) throw new Error("Offline");
+    if (path === "/orgs") return { items: [{ id: "fallback", is_personal: true }], total: 1 };
+    return { items: [own], total: 1 };
+  });
+  mount();
+  expect(
+    await within(list()).findByText("Shared conversations could not be loaded."),
+  ).toBeVisible();
+  expect(within(list()).getByText("My working notes")).toBeVisible();
+  shared = [conversation("shared-recovered", "Team notes")];
+  serve([own]);
+  await user.click(within(list()).getByRole("button", { name: "Retry shared conversations" }));
+  expect(await within(list()).findByText("Team notes")).toBeVisible();
+  expect(
+    within(list()).queryByText("Shared conversations could not be loaded."),
+  ).not.toBeInTheDocument();
+});
+
+it("lets a reader favourite and unfavourite a shared conversation", async () => {
+  shared = [conversation("shared-favourite", "Team pricing")];
+  serve([]);
+  vi.mocked(apiClient.post).mockImplementation(async () => {
+    shared = [{ ...shared[0]!, is_favourite: true }];
+  });
+  vi.mocked(apiClient.delete).mockImplementation(async () => {
+    shared = [{ ...shared[0]!, is_favourite: false }];
+  });
+  mount();
+  await within(list()).findByText("Team pricing");
+  await userEvent.click(within(list()).getByRole("button", { name: "Conversation actions" }));
+  await userEvent.click(await screen.findByRole("menuitem", { name: "Favourite" }));
+  await waitFor(() =>
+    expect(apiClient.post).toHaveBeenCalledWith("/conversations/shared-favourite/favourite", {}),
+  );
+  await userEvent.click(within(list()).getByRole("button", { name: "Conversation actions" }));
+  await userEvent.click(await screen.findByRole("menuitem", { name: "Remove from favourites" }));
+  await waitFor(() =>
+    expect(apiClient.delete).toHaveBeenCalledWith("/conversations/shared-favourite/favourite"),
+  );
+});
+
+it("lists a shared channel thread once even when channel participation also lists it", async () => {
+  const row = conversation("shared-channel", "Shared channel planning");
+  shared = [row];
+  serve([row]);
+  mount();
+  await within(list()).findByText("Shared with you");
+  expect(within(list()).getAllByText("Shared channel planning")).toHaveLength(1);
+});
+
+it("uses the usual favourite band for a starred shared thread while retaining its reader menu", async () => {
+  shared = [conversation("shared-starred", "Shared favourite", true)];
+  serve([]);
+  mount();
+  expect(await within(list()).findByRole("button", { name: "Favourites" })).toBeVisible();
+  await userEvent.click(within(list()).getByRole("button", { name: "Conversation actions" }));
+  expect(await screen.findByRole("menuitem", { name: "Remove from my chats" })).toBeVisible();
+  expect(screen.queryByRole("menuitem", { name: "Rename" })).not.toBeInTheDocument();
 });
 
 describe("conversation row keyboard access and actions", () => {
@@ -1052,4 +1272,161 @@ it("keeps the small-screen chat sheet available after collapsing the desktop sid
 
   await waitFor(() => expect(useConversationStore.getState().currentConversationId).toBe("c-1"));
   expect(useChatSidebarStore.getState().isOpen).toBe(false);
+});
+
+/** A thread a named agent answered in, as the listing sends it. */
+function answeredBy(
+  id: string,
+  title: string,
+  agent: { id: string; name: string },
+  favourite = false,
+): Conversation {
+  return {
+    ...conversation(id, title, favourite),
+    agents: [{ id: agent.id, slug: agent.id, name: agent.name, has_avatar: false }],
+  } as Conversation;
+}
+
+describe("the Chats | Agents toggle", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+    useChatListModeStore.setState({ mode: "chats" });
+  });
+
+  it("gathers each agent's threads under its name, newest agent first, and no agent under Other", async () => {
+    serve([
+      answeredBy("c-1", "Revenue deck", { id: "a-1", name: "Analyst" }),
+      answeredBy("c-2", "Launch copy", { id: "a-2", name: "Writer" }),
+      answeredBy("c-3", "Churn cut", { id: "a-1", name: "Analyst" }),
+      conversation("c-4", "Brand new chat"),
+    ]);
+    mount();
+    await screen.findAllByText("Revenue deck");
+    await userEvent.click(screen.getByRole("button", { name: "Agents", pressed: false }));
+
+    const headings = within(list())
+      .getAllByRole("button", { expanded: true })
+      .map((heading) => heading.textContent);
+    expect(headings).toEqual(["Analyst", "Writer", "Other"]);
+    const analyst = within(list()).getByRole("button", { name: "Analyst", expanded: true });
+    const group = analyst.parentElement as HTMLElement;
+    expect(within(group).getByRole("button", { name: "Revenue deck" })).toBeInTheDocument();
+    expect(within(group).getByRole("button", { name: "Churn cut" })).toBeInTheDocument();
+    expect(within(group).queryByRole("button", { name: "Launch copy" })).toBeNull();
+    expect(within(list()).getByRole("button", { name: "Brand new chat" })).toBeInTheDocument();
+  });
+
+  it("puts the agent's face on its heading, as the rows carry it", async () => {
+    serve([
+      answeredBy("c-1", "Revenue deck", { id: "a-1", name: "Analyst" }),
+      answeredBy("c-2", "Launch copy", { id: "a-2", name: "Writer" }),
+    ]);
+    mount();
+    await screen.findAllByText("Revenue deck");
+    await userEvent.click(screen.getByRole("button", { name: "Agents", pressed: false }));
+
+    const analyst = within(list()).getByRole("button", { name: "Analyst", expanded: true });
+    expect(within(analyst).getByTestId("row-agents")).toHaveAttribute("data-names", "Analyst");
+    const writer = within(list()).getByRole("button", { name: "Writer", expanded: true });
+    expect(within(writer).getByTestId("row-agents")).toHaveAttribute("data-names", "Writer");
+  });
+
+  it("puts each agent's face on its collapsed rail band, but not Other", async () => {
+    serve([
+      answeredBy("c-1", "Revenue deck", { id: "a-1", name: "Analyst" }),
+      answeredBy("c-2", "Launch copy", { id: "a-2", name: "Writer" }),
+      conversation("c-3", "Brand new chat"),
+    ]);
+    mount();
+    await screen.findAllByText("Revenue deck");
+    await userEvent.click(screen.getByRole("button", { name: "Agents", pressed: false }));
+    await userEvent.click(
+      within(list()).getByRole("button", { name: "Collapse conversations sidebar" }),
+    );
+
+    const rail = screen.getByRole("button", { name: "Expand conversations sidebar" }).parentElement!
+      .parentElement as HTMLElement;
+    const analyst = within(rail).getByRole("button", { name: "Analyst" });
+    const writer = within(rail).getByRole("button", { name: "Writer" });
+    const other = within(rail).getByRole("button", { name: "Other" });
+    expect(within(analyst).getByTestId("row-agents")).toHaveAttribute("data-names", "Analyst");
+    expect(within(writer).getByTestId("row-agents")).toHaveAttribute("data-names", "Writer");
+    expect(within(other).queryByTestId("row-agents")).toBeNull();
+  });
+
+  it("folds one agent's threads away from its heading, and opens them again", async () => {
+    serve([answeredBy("c-1", "Revenue deck", { id: "a-1", name: "Analyst" })]);
+    mount();
+    await screen.findAllByText("Revenue deck");
+    await userEvent.click(screen.getByRole("button", { name: "Agents", pressed: false }));
+
+    const heading = within(list()).getByRole("button", { name: "Analyst", expanded: true });
+    await userEvent.click(heading);
+    expect(within(list()).queryByRole("button", { name: "Revenue deck" })).toBeNull();
+    const folded = within(list()).getByRole("button", { name: /Analyst/, expanded: false });
+    expect(folded).toHaveTextContent("1");
+
+    await userEvent.click(folded);
+    expect(within(list()).getByRole("button", { name: "Revenue deck" })).toBeInTheDocument();
+  });
+
+  it("keeps a starred thread under Favourites, not repeated under its agent", async () => {
+    serve([
+      answeredBy("c-1", "Revenue deck", { id: "a-1", name: "Analyst" }, true),
+      answeredBy("c-2", "Churn cut", { id: "a-1", name: "Analyst" }),
+    ]);
+    mount();
+    await screen.findAllByText("Revenue deck");
+    await userEvent.click(screen.getByRole("button", { name: "Agents", pressed: false }));
+
+    const headings = within(list())
+      .getAllByRole("button", { expanded: true })
+      .map((heading) => heading.textContent);
+    expect(headings).toEqual(["Favourites", "Analyst"]);
+    const analyst = within(list()).getByRole("button", { name: "Analyst", expanded: true });
+    const group = analyst.parentElement as HTMLElement;
+    expect(within(group).queryByRole("button", { name: "Revenue deck" })).toBeNull();
+    expect(within(group).getByRole("button", { name: "Churn cut" })).toBeInTheDocument();
+  });
+
+  it("remembers the choice across a reload, and returns to the chats list from it", async () => {
+    serve([answeredBy("c-1", "Revenue deck", { id: "a-1", name: "Analyst" })]);
+    mount();
+    await screen.findAllByText("Revenue deck");
+    await userEvent.click(screen.getByRole("button", { name: "Agents", pressed: false }));
+
+    expect(window.localStorage.getItem("chat-list-mode")).toContain('"mode":"agents"');
+    await userEvent.click(screen.getByRole("button", { name: "Chats", pressed: false }));
+    expect(window.localStorage.getItem("chat-list-mode")).toContain('"mode":"chats"');
+    expect(within(list()).queryByRole("button", { name: "Analyst", expanded: true })).toBeNull();
+  });
+
+  it("opens on the agents view when the choice was stored before", async () => {
+    window.localStorage.setItem(
+      "chat-list-mode",
+      JSON.stringify({ state: { mode: "agents" }, version: 1 }),
+    );
+    await useChatListModeStore.persist.rehydrate();
+    serve([answeredBy("c-1", "Revenue deck", { id: "a-1", name: "Analyst" })]);
+    mount();
+    await screen.findAllByText("Revenue deck");
+
+    expect(screen.getByRole("button", { name: "Agents", pressed: true })).toBeInTheDocument();
+    expect(
+      within(list()).getByRole("button", { name: "Analyst", expanded: true }),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps the search and the agent filter working in the agents view", async () => {
+    urlParams = new URLSearchParams("agent=a-1");
+    serve([answeredBy("c-1", "Revenue deck", { id: "a-1", name: "Analyst" })]);
+    mount();
+    await screen.findAllByText("Revenue deck");
+    await userEvent.click(screen.getByRole("button", { name: "Agents", pressed: false }));
+
+    expect(listRequests().some((path) => path.includes("agent_id=a-1"))).toBe(true);
+    expect(
+      within(list()).getByRole("button", { name: "Analyst", expanded: true }),
+    ).toBeInTheDocument();
+  });
 });

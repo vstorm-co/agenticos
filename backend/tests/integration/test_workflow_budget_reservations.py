@@ -12,6 +12,7 @@ from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
+from unittest.mock import patch
 
 import pytest
 from pydantic import BaseModel, ConfigDict
@@ -36,6 +37,7 @@ from app.workflows.contracts.results import Completed, NodeResult, Waiting
 from app.workflows.graph.model import Edge, NodeInstance, NodePosition, WorkflowGraph
 from tests.integration.workflow_run_support import (
     SeededRun,
+    SkewedClock,
     begin,
     seed_run,
     settle,
@@ -280,6 +282,26 @@ async def test_a_waiting_spender_backs_off_with_how_long_it_has_waited_and_logs_
             .all()
         )
     assert len(logged) == 1
+
+
+@pytest.mark.security
+async def test_how_long_a_spender_has_waited_is_measured_on_the_databases_clock(
+    engine: AsyncEngine, spenders: None
+):
+    """A host clock an hour ahead would read a 100-second wait as an hour long and
+    jump straight to the ceiling, then schedule it from the wrong now as well."""
+    seeded, _entry, first, second = await _two_spenders(engine, limit="1.00")
+    await begin(seeded, await _row_id(seeded, first))
+    await _tick(seeded, second)
+    await _wait_began_ago(seeded, second, timedelta(seconds=100))
+    await _due_now(seeded, second)
+
+    with patch(
+        "app.services.workflow_execution.dispatcher.datetime", SkewedClock(timedelta(hours=1))
+    ):
+        await _tick(seeded, second)
+
+    assert 95 < await _delay_of_the_wait(seeded, second) < 110
 
 
 @pytest.mark.security

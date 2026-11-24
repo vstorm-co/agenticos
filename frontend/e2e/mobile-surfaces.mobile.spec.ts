@@ -157,16 +157,16 @@ for (const platform of ["ios", "android"] as const) {
       await expect(dialog).toBeHidden();
 
       await page.goto("/chat");
-      await page.getByRole("button", { name: "Add to message", exact: true }).tap();
-      const attachmentSheet = page.getByRole("dialog");
-      await expect(attachmentSheet).toBeVisible();
-      const picker = attachmentSheet.getByRole("button", { name: /^Agent:/ });
+      const picker = page.getByRole("button", { name: /^Agent:/ });
       await expectTouchTarget(picker);
       await picker.tap();
       await expect(page.getByRole("radiogroup")).toBeVisible();
       await page.keyboard.press("Escape");
+      await page.getByRole("button", { name: "Add to message", exact: true }).tap();
       await expect(
-        page.getByRole("dialog").getByRole("button", { name: "Files", exact: true }),
+        page
+          .locator("[data-chat-popover]")
+          .getByRole("button", { name: "Attach file", exact: true }),
       ).toBeVisible();
       await page.keyboard.press("Escape");
       await expectContained(page);
@@ -175,7 +175,11 @@ for (const platform of ["ios", "android"] as const) {
     test("uses touch targets throughout settings and preserves the viewport", async ({ page }) => {
       test.setTimeout(60_000);
       await page.goto("/settings/profile");
-      await expectTouchTarget(page.getByRole("radio", { name: "Automatic colour", exact: true }));
+      await expectTouchTarget(
+        page
+          .getByRole("radiogroup", { name: "Style", exact: true })
+          .getByRole("radio", { name: /^Standard/ }),
+      );
       const theme = page
         .locator('[data-tour="settings-appearance"]')
         .getByRole("radio", { name: "Dark", exact: true });
@@ -184,6 +188,10 @@ for (const platform of ["ios", "android"] as const) {
       await theme.tap();
       await expect(theme).toBeChecked();
       await expectContained(page);
+      await page.screenshot({
+        path: test.info().outputPath("appearance-phone-preview.png"),
+        animations: "disabled",
+      });
       await page.goto("/settings/notifications");
       const switches = page.getByRole("switch");
       await expect(switches.first()).toBeVisible();
@@ -198,22 +206,20 @@ for (const platform of ["ios", "android"] as const) {
       await expectContained(page);
     });
 
-    test("keeps phone catalog filters compact and preserves their selection", async ({ page }) => {
+    test("keeps the phone status filter visible and preserves its selection", async ({ page }) => {
       for (const width of [320, 390]) {
         await page.setViewportSize({ width, height: 844 });
         await page.goto("/agents");
-        const toggle = page.getByRole("button", { name: /^Filters/ });
-        await expectTouchTarget(toggle);
+        // The toolbar mounts before the catalog query settles. Interact with
+        // the loaded seeded page, including after the viewport/navigation change.
+        await expect(
+          page.getByRole("heading", { name: "AgenticOS", exact: true, level: 3 }),
+        ).toBeVisible();
         const status = page.getByRole("combobox", { name: "Filter by status" });
-        await expect(status).toBeHidden();
-        await toggle.tap();
-        await expect(status).toBeVisible();
+        await expectTouchTarget(status);
         await status.tap();
         await page.getByRole("option", { name: "Published", exact: true }).tap();
-        await toggle.tap();
-        await expect(status).toBeHidden();
-        await expect(toggle).toHaveText("Filters 1");
-        await toggle.tap();
+        await expect(status).toBeVisible();
         await expect(status).toContainText("Published");
         const title = page.getByRole("heading", { level: 3 }).first();
         await expect(title).toBeVisible();
@@ -356,6 +362,16 @@ for (const platform of ["ios", "android"] as const) {
         const floating = await controls.boundingBox();
         if (!floating) throw new Error("Expected the floating app controls");
         expect(floating.y).toBeGreaterThanOrEqual((platform === "ios" ? 54 : 28) + 12);
+        const preview = page.locator('iframe[title="Layout report"]');
+        await expect(
+          page.frameLocator('iframe[title="Layout report"]').getByRole("heading", {
+            name: "Layout report",
+            exact: true,
+          }),
+        ).toBeVisible();
+        const collapsedPreview = await preview.boundingBox();
+        if (!collapsedPreview) throw new Error("Expected the loaded app preview");
+        expect(collapsedPreview.y).toBeGreaterThanOrEqual(floating.y + floating.height);
         const share = page.getByRole("button", { name: "Share", exact: true });
         await expect(share).toBeHidden();
         await controls.tap();
@@ -370,7 +386,19 @@ for (const platform of ["ios", "android"] as const) {
         expect(action.y - bounds.y).toBeGreaterThanOrEqual(8);
         expect(bounds.y + bounds.height - action.y - action.height).toBeGreaterThanOrEqual(8);
         expect((await follow.boundingBox())?.height).toBe(action.height);
+        // The host reserves the actual expanded height. The unpadded app must
+        // remain readable; adding spacing to this fixture would hide the defect.
+        const expandedPreview = await preview.boundingBox();
+        if (!expandedPreview) throw new Error("Expected the expanded app preview");
+        expect(expandedPreview.y).toBeGreaterThanOrEqual(bounds.y + bounds.height);
+        expect(expandedPreview.y).toBeGreaterThan(collapsedPreview.y);
         await page.screenshot({ path: test.info().outputPath(`app-toolbar-${width}.png`) });
+        await controls.tap();
+        await expect(controls).toHaveAttribute("aria-expanded", "false");
+        await expect(share).toBeHidden();
+        await expect(preview).toBeVisible();
+        await controls.tap();
+        await expect(controls).toHaveAttribute("aria-expanded", "true");
         await share.tap();
         await expect(page.getByRole("dialog")).toBeVisible();
         await page.keyboard.press("Escape");
@@ -400,7 +428,8 @@ for (const platform of ["ios", "android"] as const) {
         await expect(card).toBeVisible();
         const add = card.getByRole("button", { name: "Add to an agent", exact: true });
         await expectTouchTarget(add);
-        const content = await card.locator(":scope > button").boundingBox();
+        // A skill's card is a link to its page; a context file's opens it in place.
+        const content = await card.locator(":scope > a, :scope > button").first().boundingBox();
         const action = await add.boundingBox();
         if (!content || !action) throw new Error("Expected the resource card's bounds");
         expect(action.y).toBeGreaterThanOrEqual(content.y + content.height);
@@ -412,9 +441,9 @@ for (const platform of ["ios", "android"] as const) {
     test("contains CSV exports inside every Activity tab header", async ({ page }) => {
       // This layout probe must not depend on a journey in another CI shard creating spend.
       const spend: CostSummary = {
-        period_days: 30,
+        period_days: null,
         from_date: "2026-11-01T00:00:00Z",
-        to_date: null,
+        to_date: "2026-11-02T00:00:00Z",
         month_to_date_usd: "1.25",
         partial_run_count: 0,
         by_agent: [
@@ -424,7 +453,7 @@ for (const platform of ["ios", "android"] as const) {
             agent_name: "E2E layout spend",
             model_label: null,
             cost_usd: "1.25",
-            run_count: 1,
+            run_count: 2,
             partial_run_count: 0,
             month_to_date_usd: "1.25",
             monthly_cap_usd: null,
@@ -432,7 +461,10 @@ for (const platform of ["ios", "android"] as const) {
         ],
         by_provider: [],
         by_key: [],
-        by_day: [],
+        by_day: [
+          { day: "2026-11-01", cost_usd: "0.50", run_count: 1 },
+          { day: "2026-11-02", cost_usd: "0.75", run_count: 1 },
+        ],
         cache_by_agent_model: [],
       };
       await page.route(/\/api\/spend(?:\?|$)/, (route) => route.fulfill({ json: spend }));
@@ -461,6 +493,37 @@ for (const platform of ["ios", "android"] as const) {
             expect(cost.x + cost.width).toBeLessThanOrEqual(width);
           }
         }
+        const chart = page
+          .getByText("Spend over time", { exact: true })
+          .locator("..")
+          .locator("..");
+        // The card survives the lazy render; Recharts replaces its animated SVG marks.
+        await chart.scrollIntoViewIfNeeded();
+        await expect(chart.locator("svg.recharts-surface")).toBeVisible();
+        const bars = chart.locator(".recharts-bar-rectangle");
+        await expect(bars).toHaveCount(2);
+        await expect(bars.first()).toBeVisible();
+        await expect(bars.last()).toBeVisible();
+        // Recharts renders tick labels in a separate SVG layer from the axis group.
+        await expect(
+          chart.locator("svg.recharts-surface").getByText("$0.75", { exact: true }),
+        ).toBeVisible();
+        // Capture the fixture's actual $0.50/$0.75 heights, after the entrance animation.
+        await expect
+          .poll(() =>
+            chart.evaluate((card) => {
+              const levels = Array.from(
+                card.querySelectorAll<SVGLineElement>(".recharts-cartesian-grid-horizontal line"),
+                (line) => Number(line.getAttribute("y1")),
+              );
+              const plotHeight = Math.max(...levels) - Math.min(...levels);
+              return Array.from(
+                card.querySelectorAll<SVGGraphicsElement>(".recharts-bar-rectangle"),
+                (bar) => Math.round((bar.getBBox().height / plotHeight) * 1000) / 1000,
+              );
+            }),
+          )
+          .toEqual([0.667, 1]);
         await page.screenshot({ path: test.info().outputPath(`activity-${width}.png`) });
       }
     });

@@ -28,6 +28,8 @@ Use `PageHeader` for compact titles and actions. Grid catalogs use
 Action buttons use neutral `action` tokens, independently of the `primary`
 ink used by checked controls and badges. Keep focus and input edges visible.
 
+Form controls come from `components/ui`: `Input`, `Textarea`, `SelectTrigger`, `NativeSelect`, `Button`, `Checkbox` and `Switch`. Reuse `control-styles.ts` for custom combobox triggers. Filled fields, soft 2px edges, keyboard focus, invalid and disabled states derive from the active look; do not override all descendant inputs in a page stylesheet. Standard fields and actions are 40px high on desktop, with explicit compact/large variants and 44px touch targets. Sign-in and registration respect the selected theme and look. Use the development component gallery to compare all five looks in light and dark.
+
 People and organizations use `EntityAvatar`: uploaded photos are cropped into
 circles, with stable colours and initials as the fallback. Agents retain their
 generated faces. Gallery descriptions reserve two lines; opening an item shows
@@ -197,3 +199,14 @@ keep a spec that mounts more than its assertions read.
 
 [The backend →](architecture.md) · [Adding a feature →](adding_features.md) ·
 [Testing →](testing.md)
+
+
+## Evals in the console
+
+Evals reuse the console's `PageHeader`, `ListCard`, dialog sizes, tabs and `WizardSteps`. Data changes invalidate the registered query families through `/ws/events`; a manual verdict also refreshes suites, improvement sessions and environment guards. A read failure has a retry action instead of an empty-success state. Narrow layouts keep form fields at 16 px and leave bottom space for the Architect.
+
+Datasets retain their own sharing and resource grants and can be reused across agents. Grading model and instructions belong to the dataset; generation and improvement settings have their own Settings tab. Code-defined helpers keep internal run identities for attribution without appearing in the user-agent catalog. Cases and evals use the console's shared tables; case and review details open in side panels.
+
+The Architect does not receive a new dataset-writing capability in this milestone. Creating questions is an explicitly estimated, permission-checked action in the improvement flow; the corner assistant cannot silently start that paid work. Its button remains reachable beside the eval views.
+
+`e2e/improvement.mobile.spec.ts` crosses the real API and background worker. It checks dataset cases, the case editor, grading, review, the eval result, the improvement wizard and confirmed publication with an environment guard. Only the external model is a fixture. GitHub Actions retains light/dark screenshots at phone and desktop widths for the visual pass.

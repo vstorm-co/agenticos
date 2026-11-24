@@ -1,4 +1,5 @@
 import asyncio
+from base64 import b64encode
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
@@ -92,3 +93,59 @@ async def test_disconnected_http_peer_cancels_native_task(
         response = await client.post("/v1/infer", json=body)
         assert response.status_code == 499
         assert cancelled.is_set()
+
+
+@pytest.mark.parametrize(
+    "extra",
+    [
+        {"thinking": {"budget_tokens": 4096}},
+        {"images": [{"media_type": "image/png", "data": "private-invalid-image"}]},
+        {"images": [{"media_type": "image/png", "url": "https://example.com/private"}]},
+    ],
+)
+async def test_invalid_inference_options_are_private_and_never_start_native_work(
+    native_runtime, owner, extra
+):
+    app = create_app(native_runtime, KEY)
+    body = {
+        "organization_id": str(owner.organization_id),
+        "user_id": str(owner.user_id),
+        "model": "opus",
+        "prompt": "private-prompt",
+        "output_schema": {"type": "object"},
+        **extra,
+    }
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app),
+        base_url="http://runtime",
+        headers={"X-Claude-Runtime-Key": KEY},
+    ) as client:
+        response = await client.post("/v1/infer", json=body)
+    assert response.status_code == 422
+    assert response.json() == {"error": {"code": "CLAUDE_INVALID_REQUEST"}}
+    assert not native_runtime.accounts and not native_runtime.processes
+
+
+async def test_image_and_prompt_share_the_existing_total_body_cap(
+    native_runtime, owner
+):
+    app = create_app(native_runtime, KEY)
+    body = {
+        "organization_id": str(owner.organization_id),
+        "user_id": str(owner.user_id),
+        "model": "opus",
+        "prompt": "p" * 500_000,
+        "output_schema": {"type": "object"},
+        "images": [
+            {"media_type": "image/jpeg", "data": b64encode(b"x" * 500_000).decode()}
+        ],
+    }
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app),
+        base_url="http://runtime",
+        headers={"X-Claude-Runtime-Key": KEY},
+    ) as client:
+        response = await client.post("/v1/infer", json=body)
+    assert response.status_code == 413
+    assert response.json() == {"error": {"code": "CLAUDE_INVALID_REQUEST"}}
+    assert not native_runtime.accounts and not native_runtime.processes

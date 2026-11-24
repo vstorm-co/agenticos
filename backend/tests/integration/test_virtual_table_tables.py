@@ -19,6 +19,7 @@ from app.core.exceptions import (
 )
 from app.core.permissions import AuthContext
 from app.db.models.audit_log import AppAdminAuditLog
+from app.db.models.organization import OrganizationMember
 from app.db.models.resource_grant import GrantLevel
 from app.repositories import resource_grant_repo
 from app.schemas.virtual_table import (
@@ -119,6 +120,8 @@ async def test_the_listing_shows_what_the_caller_may_see_and_hides_archived_by_d
     await service.archive_table(ctx, gone.id)
     colleague = await make_user(db)
     stranger = ctx_for(colleague, org, "member")
+    db.add(OrganizationMember(organization_id=org.id, user_id=colleague.id, role="member"))
+    await db.flush()
 
     assert [item.name for item in (await service.list_tables(ctx)).items] == ["Mine"]
     everything = await service.list_tables(ctx, include_archived=True)
@@ -228,6 +231,8 @@ async def test_listing_resolves_can_edit_for_every_row_in_one_grant_query(db, en
     await service.create_table(owner_ctx, TableCreate(name="Ungranted B"))
 
     builder = await make_user(db)
+    db.add(OrganizationMember(organization_id=org.id, user_id=builder.id, role="builder"))
+    await db.flush()
     await resource_grant_repo.upsert(
         db,
         organization_id=org.id,
@@ -261,6 +266,8 @@ async def test_a_private_table_is_a_404_to_another_member_but_a_grant_opens_it(d
     table = await service.create_table(ctx, TableCreate(name="Private"))
     colleague = await make_user(db)
     other = ctx_for(colleague, org, "member")
+    db.add(OrganizationMember(organization_id=org.id, user_id=colleague.id, role="member"))
+    await db.flush()
 
     with pytest.raises(NotFoundError):
         await service.describe_table(other, table.id)
@@ -299,6 +306,9 @@ async def test_a_rename_keeps_the_column_id_and_the_records_keep_their_values(db
     }
     versions = await service.list_schema_versions(ctx, table.id)
     assert [version.columns[0].label for version in versions.items] == ["Name", "Full name"]
+    exact = await service.list_schema_versions(ctx, table.id, version=1)
+    assert [version.columns[0].label for version in exact.items] == ["Name"]
+    assert (await service.list_schema_versions(ctx, table.id, version=999)).items == []
 
 
 @pytest.mark.security
@@ -403,6 +413,132 @@ async def test_a_type_change_rewrites_every_value_it_survives(db):
     assert [record.values[str(stage_id)] for record in records] == [won, new, won]
     # An edit against what a record held before is now a conflict, not a write.
     assert all(record.revision > 1 for record in records)
+
+
+async def test_a_type_change_records_each_rewritten_cell_and_leaves_the_rest_alone(db):
+    from app.db.models.virtual_table import (
+        VirtualTableOutbox,
+        VirtualTableRecord,
+        VirtualTableRecordHistory,
+    )
+
+    service, ctx, owner, _org = await _setup(db)
+    table = await service.create_table(
+        ctx,
+        TableCreate(name="Leads", columns=[column("Score", "integer"), column("Note", "text")]),
+    )
+    score_id, note_id = (col.id for col in table.columns)
+    scored, unscored = [
+        (await service.create_record(ctx, table.id, RecordCreate(values=values))).record
+        for values in ({str(score_id): 20, str(note_id): "hot"}, {str(note_id): "cold"})
+    ]
+    events = await db.scalar(select(func.count()).select_from(VirtualTableOutbox))
+
+    await service.update_schema(
+        ctx,
+        table.id,
+        SchemaUpdate(
+            expected_version=1,
+            columns=[column("Score", "text", id=score_id), column("Note", "long_text", id=note_id)],
+        ),
+    )
+
+    rewritten = await db.get(VirtualTableRecord, scored.id, populate_existing=True)
+    untouched = await db.get(VirtualTableRecord, unscored.id, populate_existing=True)
+    assert rewritten is not None and untouched is not None
+    assert rewritten.values[str(score_id)] == "20"
+    assert rewritten.revision == scored.revision + 1
+    assert rewritten.updated_by == owner.id
+    assert rewritten.updated_source is not None and rewritten.updated_source["kind"] == "user"
+    assert untouched.revision == unscored.revision
+    history = list(
+        await db.scalars(
+            select(VirtualTableRecordHistory).where(
+                VirtualTableRecordHistory.table_id == table.id,
+                VirtualTableRecordHistory.operation == "update",
+            )
+        )
+    )
+    assert [(row.record_id, row.revision, row.before, row.after) for row in history] == [
+        (scored.id, rewritten.revision, {str(score_id): 20}, {str(score_id): "20"})
+    ]
+    assert history[0].actor_user_id == owner.id
+    # Nothing a trigger would act on: one schema edit must not start a workflow per record.
+    assert await db.scalar(select(func.count()).select_from(VirtualTableOutbox)) == events
+
+
+async def test_a_value_a_type_change_empties_is_recorded_as_cleared(db):
+    from app.db.models.virtual_table import VirtualTableRecordHistory
+
+    service, ctx, _owner, _org = await _setup(db)
+    table = await service.create_table(
+        ctx, TableCreate(name="Leads", columns=[column("Score", "text")])
+    )
+    score_id = table.columns[0].id
+    blank = (
+        await service.create_record(ctx, table.id, RecordCreate(values={str(score_id): " "}))
+    ).record
+
+    await service.update_schema(
+        ctx,
+        table.id,
+        SchemaUpdate(expected_version=1, columns=[column("Score", "integer", id=score_id)]),
+    )
+
+    row = await db.scalar(
+        select(VirtualTableRecordHistory).where(
+            VirtualTableRecordHistory.record_id == blank.id,
+            VirtualTableRecordHistory.operation == "update",
+        )
+    )
+    assert row is not None
+    assert (row.before, row.after) == ({str(score_id): " "}, {})
+
+
+@pytest.mark.security
+async def test_a_type_change_past_the_storage_limit_writes_nothing(db, monkeypatch):
+    from app.core.config import settings
+    from app.db.models.virtual_table import VirtualTableRecord, VirtualTableRecordHistory
+    from app.repositories import virtual_table_repo
+    from app.services.virtual_tables.exceptions import QuotaExceededError
+
+    service, ctx, _owner, org = await _setup(db)
+    table = await service.create_table(
+        ctx, TableCreate(name="Leads", columns=[column("Score", "integer")])
+    )
+    score_id = table.columns[0].id
+    for score in range(20):
+        await service.create_record(ctx, table.id, RecordCreate(values={str(score_id): score}))
+    # The refusal audits in its own transaction, which waits on the audit chain this one holds.
+    await db.commit()
+    used = await virtual_table_repo.storage_bytes(db, organization_id=org.id)
+    monkeypatch.setattr(settings, "TABLES_MAX_STORAGE_BYTES_PER_ORGANIZATION", used)
+
+    with pytest.raises(QuotaExceededError):
+        await service.update_schema(
+            ctx,
+            table.id,
+            SchemaUpdate(expected_version=1, columns=[column("Score", "text", id=score_id)]),
+        )
+
+    assert (await service.describe_table(ctx, table.id)).schema_version == 1
+    held = await db.scalars(
+        select(VirtualTableRecord.values[str(score_id)]).where(
+            VirtualTableRecord.table_id == table.id
+        )
+    )
+    assert all(isinstance(value, int) for value in held)
+    assert (
+        await db.scalar(
+            select(func.count())
+            .select_from(VirtualTableRecordHistory)
+            .where(
+                VirtualTableRecordHistory.table_id == table.id,
+                VirtualTableRecordHistory.operation == "update",
+            )
+        )
+        == 0
+    )
 
 
 async def test_a_type_change_a_value_does_not_survive_writes_nothing(db, monkeypatch):
@@ -743,6 +879,8 @@ async def test_restoring_a_table_needs_the_right_to_edit_it(db):
     await service.archive_table(ctx, table.id)
     colleague = await make_user(db)
     member = ctx_for(colleague, org, "member")
+    db.add(OrganizationMember(organization_id=org.id, user_id=colleague.id, role="member"))
+    await db.flush()
     await resource_grant_repo.upsert(
         db,
         organization_id=org.id,
@@ -839,6 +977,7 @@ async def test_another_organizations_table_does_not_exist(db):
         service.archive_table(intruder, table.id),
         service.unarchive_table(intruder, table.id),
         service.list_schema_versions(intruder, table.id),
+        service.list_schema_versions(intruder, table.id, version=1),
         service.update_schema(intruder, table.id, SchemaUpdate(expected_version=1, columns=[])),
     ):
         with pytest.raises(NotFoundError):

@@ -1,0 +1,28 @@
+# The trigger pins BOTH this configuration and its source to a reviewed SHA.
+# The source validation build has no permission to read either secret.
+steps:
+  - id: downstream-sync
+    name: '${_UPDATER_IMAGE}'
+    entrypoint: bash
+    args:
+      - -ceu
+      - |
+        command -v gcloud >/dev/null
+        command -v git >/dev/null
+        command -v python3 >/dev/null
+        command -v openssl >/dev/null
+        python3 ci/downstream_sync.py --build-id "$$SOURCE_BUILD_ID"
+    env:
+      - 'SOURCE_BUILD_ID=${_SOURCE_BUILD_ID}'
+    secretEnv:
+      - T3OS_DOWNSTREAM_CONFIG
+      - T3OS_GITHUB_APP_PRIVATE_KEY
+availableSecrets:
+  secretManager:
+    - versionName: projects/${PROJECT_ID}/secrets/t3os-downstream-config/versions/latest
+      env: T3OS_DOWNSTREAM_CONFIG
+    - versionName: projects/${PROJECT_ID}/secrets/t3os-github-app-private-key/versions/latest
+      env: T3OS_GITHUB_APP_PRIVATE_KEY
+options:
+  logging: CLOUD_LOGGING_ONLY
+timeout: 1800s

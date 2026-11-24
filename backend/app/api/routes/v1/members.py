@@ -45,8 +45,9 @@ async def list_members(
             joined_at=m.joined_at,
             source=m.source,
             can_change_role=can_change_role,
+            last_action_at=last_action_at,
         )
-        for m, email, full_name, avatar_url, avatar_color, can_change_role in rows
+        for m, email, full_name, avatar_url, avatar_color, last_action_at, can_change_role in rows
     ]
     return OrganizationMemberList(items=items, total=total)
 

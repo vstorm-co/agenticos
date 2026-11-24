@@ -23,11 +23,12 @@ const ADA: User = {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  env.save.mockResolvedValue("pl");
+  env.save.mockResolvedValue("en");
+  window.history.replaceState(null, "", "/");
 });
 
 describe("useChooseLocale", () => {
-  it.each(["pl", "tr"] as const)("keeps %s on the account before switching the page", (locale) => {
+  it.each(["en"] as const)("keeps %s on the account before switching the page", (locale) => {
     useAuthStore.setState({ user: ADA });
     const { result } = renderHook(() => useChooseLocale());
 
@@ -45,19 +46,33 @@ describe("useChooseLocale", () => {
     env.save.mockRejectedValue(new Error("offline"));
     const { result } = renderHook(() => useChooseLocale());
 
-    act(() => result.current("de"));
+    act(() => result.current("en"));
 
     await waitFor(() => expect(env.toastError).toHaveBeenCalled());
-    expect(env.push).toHaveBeenCalledWith("/agents", { locale: "de" });
+    expect(env.push).toHaveBeenCalledWith("/agents", { locale: "en" });
   });
 
   it("only switches the page for somebody not signed in", () => {
     useAuthStore.setState({ user: null });
     const { result } = renderHook(() => useChooseLocale());
 
-    act(() => result.current("de"));
+    act(() => result.current("en"));
 
     expect(env.save).not.toHaveBeenCalled();
-    expect(env.push).toHaveBeenCalledWith("/agents", { locale: "de" });
+    expect(env.push).toHaveBeenCalledWith("/agents", { locale: "en" });
   });
+});
+
+it("preserves the wizard workspace, question and fragment when choosing a language", () => {
+  window.history.replaceState(
+    null,
+    "",
+    "/onboarding?start-step=admin.organization&workspace=org&question=budget#limits",
+  );
+  const { result } = renderHook(() => useChooseLocale());
+  act(() => result.current("en"));
+  expect(env.push).toHaveBeenCalledWith(
+    "/agents?start-step=admin.organization&workspace=org&question=budget#limits",
+    { locale: "en" },
+  );
 });

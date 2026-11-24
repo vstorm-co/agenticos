@@ -25,7 +25,7 @@ from app.core.exceptions import (
     ValidationError,
 )
 from app.core.field_errors import field_details
-from app.core.permissions import AuthContext
+from app.core.permissions import AuthContext, Perm, Scope
 from app.db.models.workflow_approval import WorkflowApproval, WorkflowApprovalStatus
 from app.db.models.workflow_run import (
     NodeRun,
@@ -45,6 +45,10 @@ from app.schemas.workflow_approval import (
 )
 from app.services import text_similarity
 from app.services.workflow_execution import dispatch_queue
+from app.services.workflow_execution.approval_audience import (
+    group_approvers,
+    groups_deciding_through,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -60,9 +64,12 @@ def _normalised(text: str) -> str:
     return "\n".join(line.rstrip() for line in lines).strip()
 
 
-def _read(approval: WorkflowApproval, workflow_name: str) -> WorkflowApprovalRead:
+def _read(
+    approval: WorkflowApproval, workflow_name: str, *, can_decide: bool = False
+) -> WorkflowApprovalRead:
     return WorkflowApprovalRead(
         id=approval.id,
+        can_decide=can_decide,
         workflow_id=approval.workflow_id,
         workflow_name=workflow_name,
         workflow_run_id=approval.workflow_run_id,
@@ -70,6 +77,7 @@ def _read(approval: WorkflowApproval, workflow_name: str) -> WorkflowApprovalRea
         title=approval.title,
         details=approval.details,
         approver_user_ids=[UUID(str(user_id)) for user_id in approval.approver_user_ids],
+        approver_group_ids=[UUID(group_id) for group_id in approval.approver_group_ids or []],
         status=WorkflowApprovalStatus(approval.status),
         expires_at=approval.expires_at,
         decided_by_user_id=approval.decided_by_user_id,
@@ -106,12 +114,31 @@ class WorkflowApprovalService:
         created_from: datetime | None = None,
         created_to: datetime | None = None,
         oldest_first: bool = True,
+        decidable: bool = False,
     ) -> WorkflowApprovalList:
         """The organization's requests in `statuses` - pending when none.
 
         Oldest first, as the queue drains; newest first reads the record of
         decisions. `created_from` and `created_to` narrow it to a window.
+        `decidable` keeps only the requests the caller may decide, and `total`
+        then counts those across every page. The database applies it to the
+        page and the count alike, with the caller's groups read once, because
+        the console polls this for every decider.
+
+        A caller who is not a privileged decider is always read as
+        `decidable`: a member holding `approvals:decide` only at `OWN` may
+        decide their own run's approvals, not a workflow step's, so the
+        organization's queue is not theirs to list - only the requests that
+        name them, which they still may not decide.
         """
+        privileged = ctx.has_at(Perm.APPROVALS_DECIDE, Scope.ALL)
+        if not privileged:
+            decidable = True
+        my_groups: set[str] = set()
+        if decidable:
+            my_groups = await groups_deciding_through(
+                self.db, organization_id=ctx.organization_id, user_id=ctx.subject_id
+            )
         rows, total = await approval_repo.list_with_workflow(
             self.db,
             organization_id=ctx.organization_id,
@@ -121,8 +148,36 @@ class WorkflowApprovalService:
             created_from=created_from,
             created_to=created_to,
             oldest_first=oldest_first,
+            decidable_by=ctx.subject_id if decidable else None,
+            through_groups=my_groups,
         )
-        return WorkflowApprovalList(items=[_read(row, name) for row, name in rows], total=total)
+        items = [
+            _read(
+                row,
+                name,
+                can_decide=(privileged and decidable) or await self._eligible(ctx, row),
+            )
+            for row, name in rows
+        ]
+        return WorkflowApprovalList(items=items, total=total)
+
+    async def _eligible(self, ctx: AuthContext, approval: WorkflowApproval) -> bool:
+        # A workflow step is somebody else's work by design: only a privileged
+        # decider may decide one, whether the step names approvers or nobody
+        # at all. The own-run exception is for an agent run's tool approvals,
+        # and it does not reach here.
+        if not ctx.has_at(Perm.APPROVALS_DECIDE, Scope.ALL):
+            return False
+        approvers = {str(user_id) for user_id in approval.approver_user_ids}
+        groups = [UUID(group_id) for group_id in approval.approver_group_ids or []]
+        if groups:
+            approvers.update(
+                str(user_id)
+                for user_id in await group_approvers(
+                    self.db, organization_id=ctx.organization_id, group_ids=groups
+                )
+            )
+        return not (approval.approver_user_ids or groups) or str(ctx.subject_id) in approvers
 
     async def decide(
         self,
@@ -162,8 +217,7 @@ class WorkflowApprovalService:
             raise NotFoundError(
                 message="Approval not found", details={"approval_id": str(approval_id)}
             )
-        approvers = {str(user_id) for user_id in approval.approver_user_ids}
-        if approvers and str(ctx.subject_id) not in approvers:
+        if not await self._eligible(ctx, approval):
             raise AuthorizationError(
                 message="Only the people this step names may decide it",
                 details={"approval_id": str(approval_id)},

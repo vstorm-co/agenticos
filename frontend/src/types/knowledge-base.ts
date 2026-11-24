@@ -97,7 +97,14 @@ export type IngestionOverride = Partial<Omit<IngestionConfig, "image_description
   image_description?: Partial<ImageDescriptionConfig>;
 };
 
+export interface KnowledgeBaseDetail extends KnowledgeBase {
+  /** Effective access returned by single-base reads and mutations. */
+  can_edit: boolean;
+}
+
 export interface KnowledgeBase {
+  gap_drafter_agent_id?: string | null;
+  gap_classifier_agent_id?: string | null;
   id: string;
   organization_id: string | null;
   owner_user_id: string | null;

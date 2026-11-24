@@ -563,3 +563,206 @@ class TestAWebChatTurnTheEdgeRefusedKeepsNoBriefing:
         assert row.attachment_context is None
         # Marked in the transaction that ends the run: the row outlives it.
         assert row.guardrail_refused is True
+
+
+@pytest.mark.parametrize("invalidated", [False, True])
+@pytest.mark.parametrize("versioned", [False, True])
+@pytest.mark.parametrize("external_source", [False, True])
+async def test_a_parked_question_cannot_replay_history_refused_while_it_waited(
+    db, model_calls, invalidated, versioned, external_source
+):
+    from pydantic_ai.messages import (
+        ModelMessagesTypeAdapter,
+        ModelRequest,
+        ToolCallPart,
+        UserPromptPart,
+    )
+
+    from app.services.agent_runner import PausedRunState
+    from app.services.workflow_execution.agent_conversations import ChatSourceGuard
+    from app.services.workflow_execution.context import ChatSource
+
+    ctx = await _owner(db)
+    agent = await _guarded_agent_without_a_workspace(db, ctx)
+    chat = Conversation(organization_id=ctx.organization_id, user_id=ctx.user_id)
+    db.add(chat)
+    await db.flush()
+    source_chat = chat
+    if external_source:
+        source_chat = Conversation(organization_id=ctx.organization_id, user_id=ctx.user_id)
+        db.add(source_chat)
+        await db.flush()
+    source = await conversation_repo.create_message(
+        db, conversation_id=source_chat.id, role="user", content=f"Remember {BLOCKED}"
+    )
+    history = await ConversationService(db).model_history(chat.id, limit=20)
+    runner = AgentRunnerService(db)
+    prepared = await runner.prepare(ctx, agent.id, surface=RunSurface.WEB, conversation_id=chat.id)
+    question = {
+        "questions": [
+            {
+                "header": "Tone",
+                "question": "How formal?",
+                "options": [{"label": "Formal"}, {"label": "Casual"}],
+            }
+        ]
+    }
+    paused = PausedRunState(
+        messages=ModelMessagesTypeAdapter.dump_python(
+            [
+                *history,
+                ModelRequest(parts=[UserPromptPart(content="Draft a reply")]),
+                ModelResponse(
+                    parts=[ToolCallPart("ask_user_question", question, tool_call_id="ask-1")]
+                ),
+            ],
+            mode="json",
+        ),
+        tool_call_ids={},
+        questions=["ask-1"],
+        guardrail_revision=history.revision if versioned else None,
+    )
+    await runner.finish(prepared, status=RunStatus.AWAITING_ANSWER, paused_state=paused)
+    await db.commit()
+    assert ("guardrail_revision" in prepared.run.paused_state) is versioned
+    if invalidated:
+        await conversation_repo.mark_message_refused(
+            db, message_id=source.id, conversation_id=source_chat.id
+        )
+        await db.commit()
+    resumed = await runner.resume(
+        ctx,
+        prepared.run.id,
+        answers={"ask-1": {"Tone": ["Formal"]}},
+        on_run_open=ChatSourceGuard(db, ChatSource(source_chat.id, source.id)).check
+        if external_source
+        else None,
+    )
+    assert resumed.run.status == (
+        RunStatus.GUARDRAIL_BLOCKED.value if invalidated else RunStatus.COMPLETED.value
+    )
+    assert len(model_calls) == (0 if invalidated else 1)
+    assert resumed.run.paused_state is None
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("surface", ["api", "chat"])
+async def test_an_ordinary_turn_revalidates_history_loaded_before_a_refusal(
+    db, model_calls, surface
+):
+    ctx = await _owner(db)
+    agent = await _guarded_agent_without_a_workspace(db, ctx)
+    chat = Conversation(organization_id=ctx.organization_id, user_id=ctx.user_id)
+    db.add(chat)
+    await db.flush()
+    source = await conversation_repo.create_message(
+        db, conversation_id=chat.id, role="user", content=f"Remember {BLOCKED}"
+    )
+    history = await ConversationService(db).model_history(chat.id, limit=20)
+    await conversation_repo.mark_message_refused(db, message_id=source.id, conversation_id=chat.id)
+    await db.commit()
+    if surface == "api":
+        _, run = await AgentRunnerService(db).execute(
+            ctx,
+            agent.id,
+            "Continue",
+            surface=RunSurface.API,
+            conversation_id=chat.id,
+            message_history=history,
+        )
+        assert run.status == RunStatus.GUARDRAIL_BLOCKED.value
+    else:
+        user = await db.get(User, ctx.user_id)
+        assert user is not None
+        with pytest.raises(GuardrailBlocked):
+            await ChatAgentRunner(db).run(
+                user=user,
+                organization_id=ctx.organization_id,
+                agent_id=agent.id,
+                user_input="Continue",
+                message_history=history,
+                conversation_id=chat.id,
+                ask_user=AsyncMock(return_value=[]),
+                stream=AsyncMock(),
+            )
+    assert model_calls == []
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("streamed", [False, True])
+@pytest.mark.parametrize("workflow_source", [False, True])
+async def test_a_refusal_committed_during_a_tool_stops_the_next_provider_request(
+    db, monkeypatch, streamed, workflow_source
+):
+    from pydantic_ai import Agent as PydanticAgent
+    from pydantic_ai.messages import ToolCallPart
+    from pydantic_ai.models.function import DeltaToolCall
+
+    from app.db.session import get_db_context
+    from app.services.workflow_execution.agent_conversations import ChatSourceGuard
+    from app.services.workflow_execution.context import ChatSource
+
+    ctx = await _owner(db)
+    agent = await _guarded_agent_without_a_workspace(db, ctx)
+    chat = Conversation(organization_id=ctx.organization_id, user_id=ctx.user_id)
+    db.add(chat)
+    await db.flush()
+    source = await conversation_repo.create_message(
+        db, conversation_id=chat.id, role="user", content=f"Remember {BLOCKED}"
+    )
+    source_id, conversation_id = source.id, chat.id
+    history = (
+        [] if workflow_source else await ConversationService(db).model_history(chat.id, limit=20)
+    )
+    calls = 0
+
+    async def response(messages, info):
+        nonlocal calls
+        calls += 1
+        return ModelResponse(parts=[ToolCallPart("invalidate_context", {}, tool_call_id="mark-1")])
+
+    async def stream_response(messages, info):
+        nonlocal calls
+        calls += 1
+        yield {0: DeltaToolCall(name="invalidate_context", json_args="{}", tool_call_id="mark-1")}
+
+    monkeypatch.setattr(
+        ModelRequestSpec,
+        "build",
+        lambda self: FunctionModel(response, stream_function=stream_response),
+    )
+    runner = AgentRunnerService(db)
+    prepared = await runner.prepare(
+        ctx,
+        agent.id,
+        surface=RunSurface.WORKFLOW if workflow_source else RunSurface.API,
+        conversation_id=None if workflow_source else chat.id,
+    )
+
+    @prepared.built.agent.tool_plain
+    async def invalidate_context() -> str:
+        async with get_db_context() as own:
+            await conversation_repo.mark_message_refused(
+                own, message_id=source_id, conversation_id=conversation_id
+            )
+        return "done"
+
+    async def stream(run):
+        async for node in run:
+            if PydanticAgent.is_model_request_node(node) or PydanticAgent.is_call_tools_node(node):
+                async with node.stream(run.ctx) as events:
+                    async for _ in events:
+                        pass
+
+    source_guard = ChatSourceGuard(db, ChatSource(conversation_id, source_id))
+    segment = await runner._run(
+        prepared,
+        user_prompt="Continue",
+        said="Continue",
+        message_history=history,
+        deferred_tool_results=None,
+        stream=stream if streamed else None,
+        check_model_request=source_guard.check_request if workflow_source else None,
+    )
+    assert segment.run.status == RunStatus.GUARDRAIL_BLOCKED.value
+    assert calls == 1

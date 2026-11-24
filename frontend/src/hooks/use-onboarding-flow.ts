@@ -1,13 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useIsMutating } from "@tanstack/react-query";
 import { qk } from "@/lib/query-keys";
 
 import { isAtAgentLimit } from "@/components/agents/agent-limit-notice";
 import { useAgent, useAgentCeiling, useAgents } from "@/hooks/use-agents";
 import { useCanCreateTriggerQuery } from "@/hooks/use-can-create-trigger";
+import { useDatasets } from "@/hooks/use-datasets";
 import { useKnowledgeBases } from "@/hooks/use-knowledge-bases";
 import { useMcpConnections } from "@/hooks/use-mcp-connections";
 import { useModelProviders } from "@/hooks/use-model-providers";
@@ -18,6 +19,7 @@ import { useOrganizationList } from "@/hooks/use-organizations";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useSkills } from "@/hooks/use-skills";
 import { useTables } from "@/hooks/use-tables";
+import { useNetworkConnections } from "@/hooks/use-network-connections";
 import { stripLocale } from "@/lib/active-route";
 import { usableForAgents } from "@/lib/model-profiles";
 import {
@@ -79,6 +81,7 @@ const DEFAULT_STATE: OrgState = {
   hasOrgMcp: false,
   hasPublishedAgent: false,
   hasRunnableAgent: false,
+  hasNetworkRuntime: false,
   // No agents, so room for one - the same "nothing yet" as the rest.
   hasRoomForAgent: true,
 };
@@ -111,7 +114,7 @@ function settled(loading: boolean, fetching: boolean, count: number): MaybeCount
  * while a flow is live, because the coach that calls this hook is mounted only
  * then.
  */
-function useOrgSnapshot(): {
+function useOrgSnapshot(flowId: FlowId | null): {
   counts: Record<FlowResource, MaybeCount>;
   liveState: OrgState | null;
   agentLimitReached: boolean;
@@ -133,12 +136,18 @@ function useOrgSnapshot(): {
   // The org-wide list, which is what the Routines page shows and therefore what
   // grows by one when the reader creates a schedule or a trigger.
   const routines = useOrgTriggers();
+  const datasets = useDatasets();
+  // The picker's own query, so the coach shares its cache rather than adding one.
+  const recentDatasets = useDatasets({ sort: "updated", limit: 100 });
   // The same query the Routines page gates its create buttons on
   // (`qk.agents.anyRunnable()`), so the flow and the buttons can never disagree.
   // `isFetching` too, not only `isLoading`: a cached answer being refetched is a
   // stale one, and freezing it can strand the flow either way - a revoked grant
   // waits on buttons the refresh hides, a fresh grant reads as inert.
   const anyRunnable = useCanCreateTriggerQuery();
+  const networkConnections = useNetworkConnections({
+    enabled: flowId === "connect-tailscale" && can(Perm.networksView),
+  });
   const stateSettled =
     !agents.isLoading &&
     !models.isLoading &&
@@ -149,7 +158,9 @@ function useOrgSnapshot(): {
     !personalMcp.isLoading &&
     !anyRunnable.isLoading &&
     !anyRunnable.isFetching &&
-    agentCeiling.known;
+    agentCeiling.known &&
+    (flowId !== "connect-tailscale" ||
+      (!networkConnections.isLoading && !networkConnections.isFetching));
   return {
     agentLimitReached: isAtAgentLimit(agentCeiling.ceiling),
     counts: {
@@ -173,6 +184,17 @@ function useOrgSnapshot(): {
       org: settled(orgs.isLoading, orgs.isFetching, orgs.data?.length ?? 0),
       group: settled(groups.isLoading, groups.isFetching, groups.groups.length),
       routine: settled(routines.isLoading, false, routines.total),
+      dataset: settled(datasets.isLoading, datasets.isFetching, datasets.total),
+      case: settled(
+        recentDatasets.isLoading,
+        recentDatasets.isFetching,
+        recentDatasets.datasets.reduce((sum, dataset) => sum + dataset.case_count, 0),
+      ),
+      networkConnection: settled(
+        networkConnections.isLoading,
+        networkConnections.isFetching,
+        networkConnections.total,
+      ),
     },
     // A profile is runnable when it is keyed by a vault secret, or self-hosted at
     // a `base_url` with no key — the same rule the model resolver enforces — and
@@ -192,6 +214,7 @@ function useOrgSnapshot(): {
           hasPublishedAgent: agents.agents.some((agent) => agent.status === "published"),
           hasRunnableAgent: anyRunnable.canCreate,
           hasRoomForAgent: !isAtAgentLimit(agentCeiling.ceiling),
+          hasNetworkRuntime: networkConnections.available === true,
         }
       : null,
   };
@@ -242,7 +265,7 @@ export function useOnboardingFlow(): OnboardingFlowState {
   const flowAgentId = useOnboardingStore((state) => state.flowAgentId);
   const setFlowAgentId = useOnboardingStore((state) => state.setFlowAgentId);
   const { can } = usePermissions();
-  const { counts, liveState, agentLimitReached } = useOrgSnapshot();
+  const { counts, liveState, agentLimitReached } = useOrgSnapshot(flowId);
   // The live draft of the agent this flow built, for the steps that gate on its
   // state rather than a list: the model step waits for its draft to gain a model,
   // the publish step for it to gain a published version. Disabled until an id is
@@ -250,7 +273,11 @@ export function useOnboardingFlow(): OnboardingFlowState {
   // the builder's autosave and publish invalidations refresh it here too.
   const agentDetail = useAgent(flowAgentId);
   const creatingAgent = useIsMutating({ mutationKey: qk.agents.create() }) > 0;
-  const here = pageKey(stripLocale(usePathname()));
+  const pathname = usePathname();
+  const improve = useSearchParams().get("improve");
+  const here = pageKey(
+    stripLocale(pathname) + (improve === null ? "" : `?improve=${encodeURIComponent(improve)}`),
+  );
   // The chat run's tail keys off the chat stores rather than a list: which agent
   // is selected, and how many messages are *on screen* — sending appends one
   // optimistically, so the count growing is the send. Read here so `signalMet` can

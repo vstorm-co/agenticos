@@ -25,6 +25,7 @@ vi.mock("@/lib/org-mcp-connections-api", () => ({
   deleteOrgMcpConnection: vi.fn(),
   testOrgMcpConnection: vi.fn(),
 }));
+vi.mock("./use-permissions", () => ({ usePermissions: () => ({ can: () => true }) }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 function wrapper({ children }: { children: ReactNode }) {
@@ -50,6 +51,7 @@ function connection(overrides: Partial<McpConnectionRecord> = {}): McpConnection
     visibility: "org",
     catalog_key: null,
     is_default: false,
+    trust_read_only_hints: false,
     label: null,
     last_tools: null,
     created_at: "2026-07-01T00:00:00Z",
@@ -79,8 +81,8 @@ async function personal() {
  * bound only to the second. `useMcpServers` joins both onto the catalog so one
  * page can answer "what exists, and who has connected it" - which is why the
  * *catalog's* and the *personal* failures are surfaced as the page's error and
- * the organization's is not: a member without `connections:manage` gets a 403
- * on the org list and can still read the rest.
+ * the organization's is not: an authorized organization query can fail
+ * without preventing personal connection management.
  */
 describe("a person's own connections", () => {
   it("reads their connections", async () => {
@@ -205,7 +207,7 @@ describe("every server, with who has connected it", () => {
   });
 
   it("reports the personal failure and not the organization's", async () => {
-    // The org list needs `connections:manage`; surfacing its 403 as the page's
+    // The org list needs `mcp:manage`; surfacing its failure as the page's
     // error would replace a usable screen with a refusal about one column of it.
     vi.mocked(orgApi.listOrgMcpConnections).mockRejectedValue(new Error("Forbidden"));
     vi.mocked(personalApi.listMcpConnections).mockResolvedValue([]);
@@ -226,6 +228,11 @@ describe("every server, with who has connected it", () => {
     const { result } = renderHook(() => useMcpServers(), { wrapper });
 
     await waitFor(() => expect(result.current.error).not.toBeNull());
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [] });
+    await act(async () => {
+      await result.current.retry();
+    });
+    await waitFor(() => expect(result.current.error).toBeNull());
   });
 
   it("remembers the tools a check discovered, keyed by connection", async () => {

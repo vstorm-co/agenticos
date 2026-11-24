@@ -113,6 +113,9 @@ class SyncSourceRead(BaseSchema):
     name: str
     connector_type: str
     collection_name: str | None
+    # The knowledge base the source syncs into; `None` for an integration not
+    # assigned to one, or one whose base was deleted (#2551).
+    knowledge_base_id: str | None = None
     config: dict[str, object]
     secret_id: str | None
     connected_account_id: str | None = None

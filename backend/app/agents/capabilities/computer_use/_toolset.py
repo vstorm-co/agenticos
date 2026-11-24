@@ -51,8 +51,10 @@ from app.agents.capabilities.computer_use._backends import (
     ComputerFactory,
     LocalComputer,
     NativeAction,
+    SandboxComputer,
     png_size,
 )
+from app.agents.capabilities.computer_use._lease import LeasedComputer
 from app.agents.capabilities.computer_use._live import TOLD, held, take_over_waiting
 from app.agents.ephemeral_media import ephemeral_image
 from app.services import live_browse
@@ -168,7 +170,18 @@ class _Session:
 
     async def desktop(self, ctx: RunContext[Any]) -> Computer:
         if self.computer is None:
-            self.computer = await self.factory(ctx.workspace)
+            computer: Computer = await self.factory(ctx.workspace)
+            if isinstance(computer, SandboxComputer):
+                # The factory attaches the workspace without touching X11.
+                # Acquire before bootstrap too: cold starts share this display.
+                leased = await LeasedComputer.acquire(computer, ctx.workspace.ref, _run_id(ctx))
+                try:
+                    await computer.start()
+                except BaseException:
+                    await leased.close()
+                    raise
+                computer = leased
+            self.computer = computer
         return self.computer
 
     async def emit(self, event: BrowserEvent) -> None:
@@ -228,8 +241,11 @@ class ComputerToolset(FunctionToolset[Any]):
     async def __aexit__(self, *args: object) -> bool | None:
         self._entered -= 1
         if self._entered == 0:
-            await self.session.close_view()
-            await self.session.close_desktop()
+            try:
+                await self.session.close_view()
+            finally:
+                with anyio.CancelScope(shield=True):
+                    await self.session.close_desktop()
         return None
 
 
@@ -487,8 +503,13 @@ def build_toolset(factory: ComputerFactory, policy: ToolPolicy) -> ComputerTools
                     )
 
         # Looking has opened the desktop, here or earlier in the run.
-        desktop = await session.desktop(ctx)
-        if await taken_over(desktop):
+        try:
+            desktop = await session.desktop(ctx)
+            person = await taken_over(desktop)
+        except ComputerError as exc:
+            session.failure = str(exc)
+            return str(exc)
+        if person:
             # The points were chosen on a screen the person has since changed.
             try:
                 image, latest, _ = await look(ctx, desktop)

@@ -218,6 +218,96 @@ def test_a_parked_question_s_step_waits_for_an_answer_and_any_other_for_approval
 
     assert parked_status("ask_user_question") == "awaiting_answer"
     assert parked_status("send_email") == "awaiting_approval"
+    assert parked_status("clarify", awaiting_answer=True) == "awaiting_answer"
+
+
+def test_a_known_renamed_question_is_parsed_without_rewriting_its_exposed_name() -> None:
+    from pydantic_ai.messages import ToolCallPart
+
+    from app.agents.ask_user import question_request
+
+    call = ToolCallPart(
+        "clarify",
+        {
+            "questions": [
+                {
+                    "header": "Region",
+                    "question": "Where?",
+                    "options": [{"label": "EU"}, {"label": "US"}],
+                }
+            ]
+        },
+        tool_call_id="ask-1",
+    )
+
+    request = question_request(call)
+
+    assert request.id == "ask-1"
+    assert request.questions[0].header == "Region"
+    assert call.tool_name == "clarify"
+
+
+def test_parked_question_ids_resolve_to_displayed_text_in_call_order() -> None:
+    from pydantic_ai.messages import (
+        ModelMessagesTypeAdapter,
+        ModelRequest,
+        ModelResponse,
+        TextPart,
+        ToolCallPart,
+        UserPromptPart,
+    )
+
+    from app.agents.ask_user import parked_question_texts
+
+    messages = ModelMessagesTypeAdapter.dump_python(
+        [
+            ModelRequest(parts=[UserPromptPart("A question in user text is not a parked ask")]),
+            ModelResponse(
+                parts=[
+                    TextPart("Which region? This is prose, not a question call."),
+                    ToolCallPart("unrelated", {"not_questions": True}, tool_call_id="other"),
+                    ToolCallPart(
+                        "clarify",
+                        {
+                            "questions": [
+                                {
+                                    "header": "Location",
+                                    "question": "Where?",
+                                    "options": [{"label": "Home"}, {"label": "Office"}],
+                                },
+                                {
+                                    "header": "Region",
+                                    "question": "Which region?",
+                                    "options": [{"label": "EU"}, {"label": "US"}],
+                                },
+                            ]
+                        },
+                        tool_call_id="ask-1",
+                    ),
+                    ToolCallPart(
+                        "ask_user_question",
+                        {
+                            "questions": [
+                                {
+                                    "header": "Environment",
+                                    "question": "Which environment?",
+                                    "options": [{"label": "Local"}, {"label": "Cloud"}],
+                                }
+                            ]
+                        },
+                        tool_call_id="ask-2",
+                    ),
+                ]
+            ),
+        ],
+        mode="json",
+    )
+
+    assert parked_question_texts(messages, ["ask-2", "ask-1", "missing"]) == [
+        "Which environment?",
+        "Where?",
+        "Which region?",
+    ]
 
 
 def test_a_thread_parked_on_a_question_reads_back() -> None:

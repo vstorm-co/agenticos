@@ -56,6 +56,41 @@
         "name": "Voxtral Mini Transcribe 2",
         "description": "Mistral's transcription model, among the cheapest per minute. European hosting, which is sometimes the deciding factor.",
         "chat": true
+      },
+      {
+        "id": "voxtral-mini-transcribe-3-0",
+        "name": "Voxtral Mini Transcribe 3",
+        "description": "Current multilingual file transcription with segment timestamps and overlapping speaker segments."
+      },
+      {
+        "id": "voxtral-small-transcribe-latest",
+        "name": "Voxtral Small Transcribe 3",
+        "description": "The current larger Voxtral transcription model for recorded audio."
+      }
+    ]
+  },
+  {
+    "provider": "elevenlabs",
+    "base_url": "https://api.elevenlabs.io/v1",
+    "api": "elevenlabs",
+    "models": [
+      {
+        "id": "scribe_v3",
+        "name": "Scribe v3",
+        "description": "Accurate multilingual transcription for recorded audio, with automatic language detection.",
+        "language_field": "language_code"
+      },
+      {
+        "id": "scribe_v2",
+        "name": "Scribe v2",
+        "description": "Multilingual transcription for recordings already using Scribe v2.",
+        "language_field": "language_code"
+      },
+      {
+        "id": "scribe_v2_medical",
+        "name": "Scribe v2 Medical",
+        "description": "Transcription specialized for medical and clinical recordings, using the Scribe file transcription API.",
+        "language_field": "language_code"
       }
     ]
   }

@@ -189,6 +189,23 @@ describe("the conversation selection", () => {
     });
   });
 
+  it("adopts a server-created conversation atomically and clears that fact on navigation or reset", () => {
+    const states: unknown[] = [];
+    const unsubscribe = useConversationStore.subscribe((state) => {
+      states.push([state.currentConversationId, state.createdConversationId]);
+    });
+    useConversationStore.getState().adoptCreatedConversation("c-new");
+    expect(states).toEqual([["c-new", "c-new"]]);
+    useConversationStore.getState().setCurrentConversationId("c-new");
+    expect(useConversationStore.getState().createdConversationId).toBe("c-new");
+    useConversationStore.getState().setCurrentConversationId("c-other");
+    expect(useConversationStore.getState().createdConversationId).toBeNull();
+    useConversationStore.getState().adoptCreatedConversation("c-next");
+    useConversationStore.getState().reset();
+    expect(useConversationStore.getState().createdConversationId).toBeNull();
+    unsubscribe();
+  });
+
   it("appends a message to the loaded history", () => {
     useConversationStore.getState().setCurrentMessages([message]);
 

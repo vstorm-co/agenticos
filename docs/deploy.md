@@ -1,14 +1,9 @@
 # Deploy to a server
 
-One host, Docker Compose, a reverse proxy in front. That is the whole shipped
-path, and it is what runs the deployments this project is used in.
-
-There are no Kubernetes manifests, and no one-click quickstarts for the
-platform-as-a-service providers. That is not modesty about scale. The stack is
-six containers, two of which hold state, one of which can start containers of
-its own, and one of which is a Postgres that must have pgvector - which is
-already more than a `git push` deploy target models, and a guide that pretended
-otherwise would be describing a deployment nobody has run.
+One host, Docker Compose and a reverse proxy remain the shipped single-server
+path. For clusters, use the maintained [Kubernetes Helm chart](kubernetes.md),
+with external data services and a blocking migration Job. OpenShift has a candidate
+configuration but is not yet validated. There are no one-click PaaS quickstarts.
 
 Past one host - a managed Postgres, several API hosts, several deployments - is
 [Scale beyond one host](scaling.md).
@@ -297,8 +292,7 @@ The shorter path, and the one to pick on a host that already has Traefik: the
 containers carry labels, Traefik discovers them, asks for the certificate and
 renews it. Nothing to reload and no second config file to keep in step.
 
-If Traefik is not there yet, the repository ships one: `traefik/traefik.yml` and
-`docker-compose-traefik.yml`, which is an entrypoint on 443 with a Let's Encrypt
+If Traefik is not there yet, the repository ships one: `docker-compose-traefik.yml`, which is an entrypoint on 443 with a Let's Encrypt
 resolver and 80 redirecting to it.
 
 ```bash
@@ -322,9 +316,16 @@ make prod-frontend PROXY=traefik
 where `scripts/deploy.sh` reads it from — so later deploys keep the proxy this
 host was set up with rather than the one a script assumed.
 
+The shipped proxy reads all static settings from the Compose command arguments,
+including `ACME_EMAIL` and `TRAEFIK_NETWORK`. Do not also mount a static
+`traefik.yml`: Traefik chooses one static source and ignores those arguments
+when a static file is present. `traefik/dynamic.yml` remains the file provider's
+routing configuration, including HSTS. WebSocket upgrades pass through without
+additional middleware; uploads stream without a proxy body limit.
+
 !!! info "`exposedByDefault: false` is doing real work"
 
-    It is the one setting in `traefik/traefik.yml` worth reading before you run
+    It is the one setting in `docker-compose-traefik.yml` worth reading before you run
     it. Only `app` and `frontend` carry `traefik.enable=true`, so Postgres, Redis,
     the worker and the sandbox daemon are reachable from nothing outside
     the host — and that is a property of *not being labelled*, so it survives
@@ -375,7 +376,7 @@ host was set up with rather than the one a script assumed.
     and ids, are kept.
 
     Traefik can keep, drop or redact a whole field but cannot rewrite part of
-    one, so `traefik/traefik.yml` drops `RequestPath`, which includes the query
+    one, so `docker-compose-traefik.yml` drops `RequestPath`, which includes the query
     string, from Traefik's access log. Nginx can rewrite part of a value, but
     `nginx/nginx.conf` drops the path, the query string and the `Referer` the
     same way, with the `agenticos_no_path` log format each
@@ -406,6 +407,25 @@ deliberately leaves to whatever terminates TLS. The template's access log leaves
 out the request path, the query string and the `Referer`; *Some request paths
 and query strings are credentials*, above, says why and what the error log
 still writes.
+
+The template requires **Nginx 1.25.1 or later**, because it uses `http2 on`.
+Ubuntu 24.04's Nginx 1.24 needs either a newer package or `listen 443 ssl http2;`
+(and the IPv6 equivalent) in place of the separate `http2 on;` directives.
+Install the template inside the `http` context, for example as
+`/etc/nginx/conf.d/agenticos.conf`, then run `nginx -t` before reloading.
+
+The API host and the console's listed multipart upload routes set
+`client_max_body_size 55m;`: the largest of
+`MAX_UPLOAD_SIZE_MB`, `CHAT_MAX_UPLOAD_SIZE_MB`, `EMBED_MAX_UPLOAD_SIZE_MB` and
+`ML_MAX_UPLOAD_SIZE_MB`, plus 5 MiB for multipart framing. Raise **both** proxy
+limits when raising that largest setting. Nginx otherwise defaults to 1 MiB,
+including framing, and rejects uploads before they reach the application.
+The console forwards uploads from its own host; hosted pages call the API host.
+
+Console pages, authentication and ordinary JSON keep a 1 MiB limit. Add new
+console upload routes to the template's upload location list when introducing them.
+The API proxy forwards WebSocket upgrades on every path, including `/api/v1/ws/`,
+embedded chat and voice, and phone media. Ordinary HTTP keeps `Connection: close`.
 
 !!! warning "`BIND_HOST` is a security setting, not a convenience"
 
@@ -599,8 +619,9 @@ ssh you@your-host "trap 'rm -f $remote' EXIT; bash $remote <commit-sha>"
 ```
 
 `scripts/deploy.sh` fetches that commit, waits for the images CI published for it
-(`sha-<short>`, usually already there), pulls them, restarts, and waits for both
-containers to report healthy before it returns non-zero or not. It takes a
+(`sha-<short>`, usually already there), pulls them, restarts, and waits for the
+API, background worker and frontend to report healthy before it returns non-zero
+or not. It takes a
 **commit** rather than a branch, so what is deployed is what was reviewed, not
 whatever `main` has moved to since - and what runs is byte-for-byte what CI
 built, on a host that never needs the toolchain.
@@ -619,6 +640,50 @@ built, on a host that never needs the toolchain.
 
 It is not zero-downtime. Compose recreates the containers whose image changed, so
 the site is unavailable for the few seconds that takes.
+
+### Release image retention
+
+Before pulling, the script removes old, unused release images from only
+`ghcr.io/vstorm-co/agenticos-backend`, `agenticos-frontend` and `agenticos-browser`.
+It keeps two additional unused image IDs per repository, newest first; several
+SHA or version tags on one ID count as one image. Only `sha-<hex>` and numeric
+version tags are eligible. All aliases of a removable ID are removed together,
+without `--force`. `--no-prune` also prevents implicit deletion of untagged
+parent images.
+
+Every running or stopped container on the host protects its image, including
+other Compose projects. A target image, any mutable/manual tag, or a tag or
+digest in another repository also protects the entire ID. Sandbox/runtime
+images, dangling images and application volumes are outside this cleanup.
+These protections can keep more images than the unused-image allowance.
+
+The hash of the deployment directory separates pins for stacks sharing a host.
+Local `deploy-<stack-hash>-current` and `deploy-<stack-hash>-rollback` tags preserve each component's last
+healthy image and its predecessor after containers are replaced. On first use,
+`deploy-<stack-hash>-current` is seeded from this stack's healthy containers, not the checkout;
+inconsistent healthy image IDs refuse the deploy. Pins advance only after the
+new services pass health checks. Failed deploys retain the recorded pins, and
+redeploying the same image does not replace its rollback. Continue to roll back
+by an approved commit SHA; these local tags are retention markers, not registry
+releases.
+
+The script requires at least **5 GiB free** on Docker's storage filesystem before
+each pull and after optional runtime preparation. It checks `DockerRootDir` and
+the default `/var/lib/containerd` store when present. This is a capacity floor,
+not a reservation or an image-size estimate; monitor custom containerd stores
+separately. Both backend and frontend images are pulled before either service
+is restarted. An insufficient-capacity refusal reports the filesystem and
+available space: free space outside the protections or expand storage, then
+retry the approved deployment. Never use a blanket `docker image prune -a` to
+implement this policy.
+
+On Docker Desktop, the storage directory is inside its Linux VM. The script
+measures VM free space through a temporary, read-only, network-isolated container
+using an already-cached backend image, preferably the last healthy one. The
+probe cannot pull images and is removed automatically. It also checks the host
+filesystem containing the deployment directory; monitor a custom VM backing
+disk's host filesystem separately. This update procedure requires a cached
+backend image; complete the normal initial installation first.
 
 ### From GitHub, with an approval
 
@@ -742,3 +807,18 @@ migration. Read it before assuming.
   required reviewers on the `production` environment, every merge deploys itself.
 - **Back up `postgres_data` and `backend/.env` together.** Either without the
   other is not a restore.
+
+## Fork images and local verification
+
+Compose and `scripts/deploy.sh` accept `AGENTICOS_IMAGE_PREFIX`, defaulting to
+`ghcr.io/vstorm-co/agenticos`. Set it to the fork's application image prefix and
+set `AGENTICOS_SOURCE_REPOSITORY` to its GitHub `owner/repository`. Backend,
+frontend and browser images use that prefix; the separately versioned sandbox
+daemon stays an upstream dependency. The Images workflow defaults to its own
+repository's lowercased GHCR prefix. A GitHub repository variable of the same
+name can override it; package permissions must cover that destination.
+
+Forking does not configure SSH secrets, environment reviewers or repository
+protections. Verify those before enabling release-triggered deployment.
+For the plugin and a disposable, published-image local check, see
+[Operate AgenticOS with an AI client](howto/operate-with-ai.md).

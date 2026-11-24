@@ -1,8 +1,11 @@
 //! Persistent local authority is narrower than an interactive folder grant.
 //!
-//! Each consent belongs to one paired device session, person, server,
-//! organization and routine. Replacing a consent creates a fresh ID; a queued
-//! or parked run cannot borrow the replacement.
+//! Each consent belongs to a person, server and organization on this computer.
+//! One-routine grants also bind the paired session; all-routine grants survive
+//! that person's new sessions. Replacing a consent creates a fresh ID; queued
+//! or parked work cannot borrow the replacement.
+
+use std::path::{Component, Path, PathBuf};
 
 use base64::Engine;
 use serde::{Deserialize, Serialize};
@@ -129,29 +132,92 @@ pub struct RoutineGrant {
     pub id: Uuid,
     pub identity: DeviceIdentity,
     pub organization_id: Uuid,
-    pub routine_id: Uuid,
+    /// One routine, or `None` for every routine of this person in this
+    /// organization: the person said once that their routines may work here.
+    #[serde(default)]
+    pub routine_id: Option<Uuid>,
     pub name: String,
     pub root: String,
     pub operations: Operations,
 }
 
+/// Validate a local, absolute root without touching the filesystem. Windows
+/// network/device prefixes must never trigger authentication before authorization.
+pub fn local_root(root: &Path) -> Result<PathBuf, &'static str> {
+    if !root.is_absolute() || root.components().any(|part| part == Component::ParentDir) {
+        return Err("Routine folders must be absolute local paths without parent traversal");
+    }
+    #[cfg(windows)]
+    {
+        use std::path::Prefix;
+
+        let mut parts = root.components();
+        let drive = match parts.next() {
+            Some(Component::Prefix(prefix)) => match prefix.kind() {
+                Prefix::Disk(drive) | Prefix::VerbatimDisk(drive) => drive,
+                _ => return Err("Routine folders cannot use network or device paths"),
+            },
+            _ => return Err("Routine folders must name a local drive"),
+        };
+        // Canonical Windows paths use a verbatim disk prefix; compare them with
+        // ordinary drive paths without resolving an untrusted root first.
+        let mut local = PathBuf::from(format!("{}:\\", char::from(drive.to_ascii_uppercase())));
+        for part in parts {
+            match part {
+                Component::RootDir | Component::CurDir => (),
+                Component::Normal(name) if name != ".." => local.push(name),
+                _ => return Err("Routine folders cannot use parent traversal"),
+            }
+        }
+        Ok(local)
+    }
+    #[cfg(not(windows))]
+    {
+        Ok(root.to_path_buf())
+    }
+}
+
 impl RoutineGrant {
+    /// Regranting one routine revokes its old authority. A grant shared by all
+    /// routines stays addressable until explicitly revoked, even at the same root.
+    pub fn replaces(&self, old: &Self) -> bool {
+        self.routine_id.is_some()
+            && self.routine_id == old.routine_id
+            && self.identity.origin == old.identity.origin
+            && self.identity.user_id == old.identity.user_id
+            && self.organization_id == old.organization_id
+    }
+
+    /// Check identity, operations and lexical containment without filesystem I/O.
+    /// The caller must open the returned root without following links before use;
+    /// resolving either the grant or request first could retarget its authority.
     pub fn authorize(
         &self,
         identity: &DeviceIdentity,
         scope: &RoutineScope,
         root: &str,
         op: &str,
-    ) -> Result<(), &'static str> {
+    ) -> Result<PathBuf, &'static str> {
         self.operations.validate()?;
         scope.operations.validate()?;
+        // A grant for every routine is the person's, on this computer, wherever
+        // they are signed in to it: a new session after signing in again keeps it.
+        // A grant for one routine stays bound to the session that approved it.
+        let same_person = match self.routine_id {
+            Some(_) => &self.identity == identity,
+            None => {
+                self.identity.origin == identity.origin && self.identity.user_id == identity.user_id
+            }
+        };
+        let routine_matches = self.routine_id.map_or(true, |id| id == scope.routine_id);
+        let root_matches = self.routine_id.is_none() || self.root == root;
         if self.id != scope.grant_id
-            || &self.identity != identity
+            || !same_person
             || scope.user_id != identity.user_id
             || scope.device_id != identity.device_id
             || self.organization_id != scope.organization_id
-            || self.routine_id != scope.routine_id
-            || self.root != root
+            || !routine_matches
+            || !root_matches
             || !self.operations.contains(scope.operations)
             || !scope.operations.allows(op)
         {
@@ -159,13 +225,37 @@ impl RoutineGrant {
                 "This routine has no current consent for that folder operation on this device",
             );
         }
-        Ok(())
+        if self.routine_id.is_none() {
+            let approved = local_root(Path::new(&self.root))?;
+            let requested = local_root(Path::new(root))?;
+            if !requested.starts_with(&approved) {
+                return Err("The routine folder is outside its approved folder");
+            }
+        }
+        Ok(PathBuf::from(root))
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    struct TestFolder(PathBuf);
+
+    impl TestFolder {
+        fn new() -> Self {
+            let root = std::env::temp_dir().join(format!("routine-grants-{}", Uuid::new_v4()));
+            std::fs::create_dir_all(root.join("reports/q3")).unwrap();
+            std::fs::create_dir_all(root.join("outside")).unwrap();
+            Self(root.canonicalize().unwrap())
+        }
+    }
+
+    impl Drop for TestFolder {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
 
     fn granted() -> (RoutineGrant, RoutineScope) {
         let identity = DeviceIdentity {
@@ -177,7 +267,7 @@ mod tests {
             id: Uuid::new_v4(),
             identity,
             organization_id: Uuid::new_v4(),
-            routine_id: Uuid::new_v4(),
+            routine_id: Some(Uuid::new_v4()),
             name: "Prepare reports".into(),
             root: "/work/reports".into(),
             operations: Operations {
@@ -189,12 +279,125 @@ mod tests {
         let scope = RoutineScope {
             grant_id: grant.id,
             organization_id: grant.organization_id,
-            routine_id: grant.routine_id,
+            routine_id: grant.routine_id.unwrap(),
             user_id: grant.identity.user_id,
             device_id: grant.identity.device_id,
             operations: grant.operations,
         };
         (grant, scope)
+    }
+
+    #[test]
+    fn approving_another_root_or_stronger_operations_keeps_existing_routines_authorized() {
+        let folder = TestFolder::new();
+        let (mut old, mut scope) = granted();
+        old.routine_id = None;
+        old.root = folder.0.join("reports").to_string_lossy().into_owned();
+        old.operations = Operations {
+            read: true,
+            write: false,
+            execute: false,
+        };
+        scope.operations = old.operations;
+        for root in [
+            old.root.clone(),
+            folder.0.join("outside").to_string_lossy().into_owned(),
+        ] {
+            let mut added = old.clone();
+            added.id = Uuid::new_v4();
+            added.root = root;
+            added.operations = Operations {
+                read: true,
+                write: true,
+                execute: true,
+            };
+            let mut grants = vec![old.clone()];
+            grants.retain(|grant| !added.replaces(grant));
+            grants.push(added);
+            let existing = grants
+                .iter()
+                .find(|grant| grant.id == scope.grant_id)
+                .unwrap();
+            assert!(existing
+                .authorize(&old.identity, &scope, &old.root, "fs.read")
+                .is_ok());
+            assert_eq!(grants.len(), 2);
+        }
+    }
+
+    #[test]
+    fn only_a_new_grant_for_the_same_person_and_routine_replaces_old_authority() {
+        let (old, _) = granted();
+        let mut added = old.clone();
+        added.id = Uuid::new_v4();
+        added.identity.device_id = Uuid::new_v4();
+        assert!(added.replaces(&old));
+        let mut other = old.clone();
+        other.organization_id = Uuid::new_v4();
+        assert!(!added.replaces(&other));
+        other = old.clone();
+        other.identity.user_id = Uuid::new_v4();
+        assert!(!added.replaces(&other));
+        other = old.clone();
+        other.identity.origin = "https://other.example".into();
+        assert!(!added.replaces(&other));
+        other = old.clone();
+        other.routine_id = Some(Uuid::new_v4());
+        assert!(!added.replaces(&other));
+        added.routine_id = None;
+        assert!(!added.replaces(&old));
+    }
+
+    #[test]
+    fn an_outside_root_is_refused_before_filesystem_resolution() {
+        let folder = TestFolder::new();
+        let (mut grant, scope) = granted();
+        grant.routine_id = None;
+        grant.root = folder.0.join("reports").to_string_lossy().into_owned();
+        let missing = folder.0.join("not-created");
+        assert_eq!(
+            grant.authorize(
+                &grant.identity,
+                &scope,
+                missing.to_str().unwrap(),
+                "fs.read"
+            ),
+            Err("The routine folder is outside its approved folder")
+        );
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_network_and_device_roots_are_refused_without_filesystem_access() {
+        let (mut grant, scope) = granted();
+        grant.routine_id = None;
+        grant.root = r"C:\not-created-routine-folder".into();
+        for root in [
+            r"\\attacker\share",
+            r"\\?\UNC\attacker\share",
+            r"\\.\C:\work",
+            r"\\?\GLOBALROOT\Device\Mup\attacker\share",
+            "//attacker/share",
+        ] {
+            assert_eq!(
+                local_root(Path::new(root)),
+                Err("Routine folders cannot use network or device paths"),
+                "accepted {root}"
+            );
+            assert_eq!(
+                grant.authorize(&grant.identity, &scope, root, "fs.read"),
+                Err("Routine folders cannot use network or device paths")
+            );
+        }
+        assert_eq!(
+            local_root(Path::new(r"\\?\C:\work")).unwrap(),
+            PathBuf::from(r"C:\work")
+        );
+        assert_eq!(
+            local_root(Path::new(r"c:\work")).unwrap(),
+            PathBuf::from(r"C:\work")
+        );
+        assert!(local_root(Path::new(r"C:\work\..\outside")).is_err());
     }
 
     #[test]
@@ -237,6 +440,113 @@ mod tests {
         assert!(grant
             .authorize(&grant.identity, &scope, "/work/other", "fs.read")
             .is_err());
+    }
+
+    #[test]
+    fn a_grant_for_every_routine_covers_its_folder_and_survives_a_new_session() {
+        let (mut grant, scope) = granted();
+        grant.routine_id = None;
+        let folder = TestFolder::new();
+        grant.root = folder.0.join("reports").to_string_lossy().into_owned();
+        let child = folder.0.join("reports/q3");
+        let other_routine = RoutineScope {
+            routine_id: Uuid::new_v4(),
+            ..scope.clone()
+        };
+        assert!(grant
+            .authorize(
+                &grant.identity,
+                &other_routine,
+                child.to_str().unwrap(),
+                "fs.read"
+            )
+            .is_ok());
+        // Signed in again: a new session, the same person on the same server.
+        let mut again = grant.identity.clone();
+        again.device_id = Uuid::new_v4();
+        let rebound = RoutineScope {
+            device_id: again.device_id,
+            ..scope.clone()
+        };
+        assert!(grant
+            .authorize(&again, &rebound, &grant.root, "fs.read")
+            .is_ok());
+        for (identity, root) in [
+            (
+                DeviceIdentity {
+                    user_id: Uuid::new_v4(),
+                    ..again.clone()
+                },
+                grant.root.as_str(),
+            ),
+            (
+                DeviceIdentity {
+                    origin: "https://elsewhere.example.com".into(),
+                    ..again.clone()
+                },
+                grant.root.as_str(),
+            ),
+            (again.clone(), "/work/reports-old"),
+            (again.clone(), "/work"),
+        ] {
+            let scope = RoutineScope {
+                device_id: identity.device_id,
+                user_id: identity.user_id,
+                ..scope.clone()
+            };
+            assert!(grant.authorize(&identity, &scope, root, "fs.read").is_err());
+        }
+    }
+
+    #[test]
+    fn all_routine_roots_cannot_escape_through_parent_components() {
+        let folder = TestFolder::new();
+        let (mut grant, scope) = granted();
+        grant.routine_id = None;
+        grant.root = folder.0.join("reports").to_string_lossy().into_owned();
+        let escape = Path::new(&grant.root).join("../outside");
+        assert!(grant
+            .authorize(
+                &grant.identity,
+                &scope,
+                escape.to_str().unwrap(),
+                "shell.run"
+            )
+            .is_err());
+    }
+
+    #[test]
+    fn lexical_authorization_does_not_resolve_or_require_a_filesystem_root() {
+        let folder = TestFolder::new();
+        let (mut grant, scope) = granted();
+        grant.routine_id = None;
+        grant.root = folder.0.join("not-created").to_string_lossy().into_owned();
+        let requested = Path::new(&grant.root).join("child");
+        assert_eq!(
+            grant
+                .authorize(
+                    &grant.identity,
+                    &scope,
+                    requested.to_str().unwrap(),
+                    "fs.read"
+                )
+                .unwrap(),
+            requested
+        );
+    }
+
+    #[test]
+    fn a_grant_from_an_older_app_still_names_its_routine() {
+        let (grant, _) = granted();
+        let stored = serde_json::to_value(&grant).unwrap();
+        let read: RoutineGrant = serde_json::from_value(stored).unwrap();
+        assert_eq!(read.routine_id, grant.routine_id);
+        let mut legacy = serde_json::to_value(&grant).unwrap();
+        legacy["routine_id"] = serde_json::Value::String(grant.routine_id.unwrap().to_string());
+        assert_eq!(
+            serde_json::from_value::<RoutineGrant>(legacy).unwrap(),
+            grant
+        );
     }
 
     #[test]

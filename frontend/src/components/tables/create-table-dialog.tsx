@@ -9,6 +9,11 @@ import { OptionColorPicker } from "./option-color-picker";
 import { DocumentTemplateField } from "./document-template-field";
 import { ColumnTypeIcon } from "./column-type-icon";
 import { SYSTEM_COLUMN_KEYS } from "@/lib/table-system-columns";
+import {
+  AudiencePicker,
+  audiencePayload,
+  type Audience,
+} from "@/components/sharing/audience-picker";
 import { inferType, readCsvFile } from "./csv-cells";
 import {
   Button,
@@ -30,7 +35,8 @@ import {
 import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
 import { NO_FAILURE, submitFailure } from "@/lib/api-error";
 import { COLUMN_TYPES, REFERENCE_TYPES } from "@/types/tables";
-import type { ColumnInput, ColumnTypeName, TableVisibility } from "@/types/tables";
+import type { AudiencePayload } from "@/types/sharing";
+import type { ColumnInput, ColumnTypeName } from "@/types/tables";
 
 const FORM = { fields: ["name"], identifiedBy: "name" } as const;
 
@@ -39,6 +45,8 @@ const MAX_COLUMNS = 100;
 /** The longest table or column name; `Label` in the service's schema. */
 const MAX_LABEL = 64;
 const SYSTEM_HEADERS: ReadonlySet<string> = new Set(SYSTEM_COLUMN_KEYS);
+/** A table starts as its creator's, as the service's own default does. */
+const ONLY_ME: Audience = { mode: "private", group_ids: [], user_ids: [] };
 
 interface DraftColumn {
   key: string;
@@ -103,7 +111,7 @@ function columnsFrom(
   });
 }
 
-/** Name, columns, visibility - a table's creation flow, in one dialog. */
+/** Name, audience, columns - a table's creation flow, in one dialog. */
 export function CreateTableDialog({
   open,
   onOpenChange,
@@ -114,10 +122,9 @@ export function CreateTableDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onCreate: (
-    input: {
+    input: AudiencePayload & {
       name: string;
       description: string | null;
-      visibility: TableVisibility;
       columns: ColumnInput[];
     },
     csv: CsvStart | null,
@@ -130,7 +137,7 @@ export function CreateTableDialog({
   const tm = useTranslations("tables.markdown");
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [visibility, setVisibility] = useState<TableVisibility>("private");
+  const [audience, setAudience] = useState<Audience>(ONLY_ME);
   // A table starts with the column every record is named by; a CSV replaces it.
   const firstColumn = (): DraftColumn[] => [
     { key: crypto.randomUUID(), label: t("firstColumn"), type: "text" },
@@ -155,14 +162,24 @@ export function CreateTableDialog({
   // a dialog that has not failed at all.
   const failure = error != null ? submitFailure(error, FORM, tErrors) : NO_FAILURE;
   const nameProblem = failure.fields.name;
+  // `audiencePayload` sends a half-made choice to the whole organization; a
+  // table starts as its creator's, so "Some people" waits for somebody instead.
+  const nobodyChosen =
+    audience.mode === "chosen" && !audience.group_ids.length && !audience.user_ids.length;
 
   function reset() {
     setName("");
     setDescription("");
-    setVisibility("private");
+    setAudience(ONLY_ME);
     setColumns(firstColumn());
     setCsv(null);
     setCsvError(null);
+  }
+
+  const [wasOpen, setWasOpen] = useState(open);
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (!open) reset();
   }
 
   async function startFrom(file: File) {
@@ -190,7 +207,7 @@ export function CreateTableDialog({
       {
         name: name.trim(),
         description: description.trim() || null,
-        visibility,
+        ...audiencePayload(audience),
         columns: kept.map((column) => ({
           label: column.label.trim(),
           type: column.type,
@@ -244,6 +261,10 @@ export function CreateTableDialog({
               aria-invalid={nameProblem ? true : undefined}
             />
             {nameProblem && <p className="text-destructive text-xs">{nameProblem}</p>}
+          </div>
+          <div className="space-y-1.5" data-tour="table-dialog-visibility">
+            <Label>{t("audienceLabel")}</Label>
+            <AudiencePicker value={audience} onChange={setAudience} />
           </div>
           <div className="space-y-1.5">
             <label className="border-border hover:bg-accent/40 focus-within:ring-ring flex cursor-pointer items-center gap-2 rounded-lg border border-dashed px-3 py-2 text-sm focus-within:ring-2">
@@ -421,35 +442,17 @@ export function CreateTableDialog({
               <Plus className="h-3.5 w-3.5" /> {t("addColumn")}
             </Button>
           </div>
-          <div data-tour="table-dialog-visibility">
-            <MoreOptions label={t("moreOptions")}>
-              <div className="space-y-1.5">
-                <Label htmlFor="table-description">{t("descriptionLabel")}</Label>
-                <Textarea
-                  id="table-description"
-                  value={description}
-                  onChange={(event) => setDescription(event.target.value)}
-                  placeholder={t("descriptionPlaceholder")}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="table-visibility">{t("visibilityLabel")}</Label>
-                <Select
-                  value={visibility}
-                  onValueChange={(next) => setVisibility(next as TableVisibility)}
-                >
-                  <SelectTrigger id="table-visibility">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="private">{t("visibility.private")}</SelectItem>
-                    <SelectItem value="team">{t("visibility.team")}</SelectItem>
-                    <SelectItem value="org">{t("visibility.org")}</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </MoreOptions>
-          </div>
+          <MoreOptions label={t("moreOptions")}>
+            <div className="space-y-1.5">
+              <Label htmlFor="table-description">{t("descriptionLabel")}</Label>
+              <Textarea
+                id="table-description"
+                value={description}
+                onChange={(event) => setDescription(event.target.value)}
+                placeholder={t("descriptionPlaceholder")}
+              />
+            </div>
+          </MoreOptions>
         </div>
         {failure.toast !== null && <p className="text-destructive text-sm">{failure.toast}</p>}
         <DialogFooter>
@@ -466,7 +469,7 @@ export function CreateTableDialog({
           <Button
             type="button"
             onClick={submit}
-            disabled={isCreating || !name.trim()}
+            disabled={isCreating || !name.trim() || nobodyChosen}
             data-tour="table-dialog-create"
           >
             {t("submit")}

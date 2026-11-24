@@ -1,5 +1,5 @@
 ---
-source_sha: "c3245b98d9c8"
+source_sha: "8cd4ed76ebd2"
 ---
 
 # Logowanie katalogowe i grupy { #directory-sign-in-and-groups }
@@ -36,6 +36,10 @@ Grant dla grupy sięga do tego, kto jest w grupie **w chwili sprawdzania
 dostępu**. Ktoś, kto dołączy do grupy w przyszłym miesiącu, dostaje dostęp do
 zasobu; ktoś, kto z niej odejdzie, go traci. Nie ma niczego do odbierania osobno
 każdej osobie.
+
+Granty dla grup domyślnie wygasają po 90 dniach. Istniejące granty dla grup
+otrzymają 90-dniowy okres przejściowy po instalacji tej wersji; udostępnij zasób
+ponownie, aby odnowić dostęp.
 
 Grupa nie niesie żadnej roli. To, co członek może robić w organizacji, nadal
 wynika z roli jego członkostwa, a grupa dodaje jedynie granty, które jej nadano.
@@ -277,8 +281,11 @@ Akceptowany jest wyłącznie bilet przyjęty w jednym kroku. NTLM nie jest ofero
 Jeśli twoja firma już stawia dostawcę tożsamości przed swoim katalogiem, skieruj
 AgenticOS na niego, przez [OIDC](configuration.md#single-sign-on-generic-oidc).
 Do mapowań użyj jego claimu grup. Natywne logowanie LDAP i Kerberos nie są wtedy
-potrzebne. To także odpowiedź w sprawie uwierzytelniania wieloskładnikowego,
-którego natywne logowanie nie zapewnia.
+potrzebne. Jeśli wdrożenie wymaga MFA, egzekwuj ją u dostawcy tożsamości.
+AgenticOS nie sprawdza w OIDC claimów `amr`, `acr` ani innego potwierdzenia MFA,
+więc nie może odrzucić logowania, gdy dostawca go nie zwróci. Kerberos ma to samo
+ograniczenie; wymagaj MFA w polityce Kerberos dostawcy. Logowanie hasłem LDAP
+może korzystać z authenticatora AgenticOS danego konta.
 
 **Keycloak** federuje oba. W **User federation** dodaj providera **LDAP** dla
 swojego katalogu i włącz tam **Allow Kerberos authentication**, jeśli chcesz
@@ -336,9 +343,11 @@ członkostwa nadane przez drugie, więc proces z oboma odmawia startu.
   katalogu zatrzymuje jego następne logowanie, a następne logowanie to moment,
   w którym mapowania są czytane od nowa. Sesja już otwarta trwa, dopóki nie
   wygaśnie jej refresh token, czyli `REFRESH_TOKEN_EXPIRE_MINUTES`, domyślnie
-  siedem dni. Żeby ją zakończyć wcześniej, dezaktywuj konto w **Admin → Users**,
-  co odrzuca je wszędzie naraz. Nie ma SCIM ani zaplanowanej synchronizacji
-  katalogu.
+  siedem dni - chyba że synchronizacja usunie członkostwo tej osoby, co w tym
+  samym kroku zamyka jej sesje oraz wstrzymuje opublikowane przez nią
+  ekspozycje i embedy. Żeby zakończyć sesję wcześniej bez usuwania członkostwa,
+  dezaktywuj konto w **Admin → Users**, co odrzuca je wszędzie naraz. Nie ma
+  SCIM ani zaplanowanej synchronizacji katalogu.
 - **Konto katalogowe nadal może używać resetu hasła i magic linka.** Trafiają one
   na adres konta, jak w przypadku każdego innego konta. Jeśli katalog ma być
   jedyną drogą wejścia, trzymaj te adresy pod kontrolą samej firmy, tak jak

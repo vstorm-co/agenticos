@@ -16,12 +16,16 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
-import { CreateKBDialog, LocalServices, ReusableIntegrations } from "@/components/kb";
+import { CreateKBDialog, KnowledgeIntegrations } from "@/components/kb";
 import { SearchTab } from "@/components/rag/search-tab";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { ErrorState } from "@/components/states";
 import {
   Badge,
+  ResourceCard,
+  ResourceCardHeader,
+  ResourceCardDescription,
+  ResourceCardFooter,
   Button,
   ListCard,
   ListCardEmpty,
@@ -148,44 +152,58 @@ export default function RAGPage() {
             is nothing to search, which is the list's own error wearing a fact's
             face. */}
         <TabsContent value="search" className="flex flex-1 flex-col">
-          {loading ? (
-            <Skeleton className="h-48 w-full rounded-xl" />
-          ) : listError ? (
+          {listError ? (
             <ErrorState
               title={t("listFailedTitle")}
               description={t("listFailedDescription")}
               cta={{ label: t("retry"), onClick: () => fetchKBs() }}
             />
           ) : (
-            <SearchTab kbs={sorted} onCreate={mayEdit ? () => setCreateOpen(true) : undefined} />
+            <SearchTab
+              kbs={sorted}
+              loading={loading}
+              onCreate={mayEdit ? () => setCreateOpen(true) : undefined}
+            />
           )}
         </TabsContent>
 
         <TabsContent value="bases" className="flex-1 flex-col data-[state=active]:flex">
           <ListCard
+            layout="grid"
             fill
             namedByPage
             title={t("bases")}
             counted={loading || listError ? null : t("storedCount", { count: kbs.length })}
             empty={!loading && !listError && kbs.length === 0}
             controls={
-              !loading && !listError && kbs.length > 0 ? (
+              loading ? (
+                <Skeleton className="h-8 w-36 rounded-lg" />
+              ) : !listError && kbs.length > 0 ? (
                 <GroupFilter value={groupId} onChange={setGroupId} />
               ) : undefined
             }
-            contentClassName="p-4"
           >
             {loading ? (
               // The same tiles the populated grid draws, as skeletons - a skeleton
               // that draws a different shape is a layout jump on every load.
               <div className="grid auto-rows-fr grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {[0, 1, 2].map((tile) => (
-                  <div key={tile} className="border-border rounded-xl border p-5">
-                    <Skeleton className="h-9 w-9 rounded-lg" />
-                    <Skeleton className="mt-4 h-4 w-32" />
-                    <Skeleton className="mt-2 h-3 w-full" />
-                    <Skeleton className="mt-5 h-3 w-24" />
-                  </div>
+                  <ResourceCard key={tile} aria-hidden="true">
+                    <ResourceCardHeader>
+                      <Skeleton className="size-10 shrink-0 rounded-xl" />
+                      <div className="flex-1 space-y-2">
+                        <Skeleton className="h-4 w-32" />
+                        <Skeleton className="h-3 w-24" />
+                      </div>
+                    </ResourceCardHeader>
+                    <div className="my-5 flex-1 space-y-2">
+                      <Skeleton className="h-3 w-full" />
+                      <Skeleton className="h-3 w-4/5" />
+                    </div>
+                    <ResourceCardFooter>
+                      <Skeleton className="h-3 w-24" />
+                    </ResourceCardFooter>
+                  </ResourceCard>
                 ))}
               </div>
             ) : listError ? (
@@ -231,18 +249,9 @@ export default function RAGPage() {
             and cloned into each base that needs it. `targets` is the base list,
             so this tab needs it loaded - which is why it is the same query
             rather than a second one. */}
-        <TabsContent
-          value="integrations"
-          className="grid min-w-0 flex-1 grid-cols-1 content-start items-start gap-5 xl:grid-cols-[minmax(0,1.3fr)_minmax(20rem,1fr)]"
-        >
-          <div data-tour="knowledge-integrations" className="flex min-h-0 flex-col">
-            <ReusableIntegrations targets={kbs} />
-          </div>
-          {/* Servers on the deployment's own network, registered once and chosen
-              per collection - the same shape as the integrations above, and
-              hidden by the same permission. */}
-          <div data-tour="knowledge-local-services" className="flex min-h-0 flex-col">
-            <LocalServices />
+        <TabsContent value="integrations" className="flex min-w-0 flex-1 flex-col gap-5">
+          <div data-tour="knowledge-integrations" className="flex min-h-0 flex-1 flex-col">
+            <KnowledgeIntegrations targets={kbs} />
           </div>
         </TabsContent>
       </Tabs>
@@ -265,7 +274,7 @@ function KBCard({ kb }: { kb: KnowledgeBase }) {
   // only `group-hover` in this file was on the delete button #303 removed, so
   // it named a relationship nothing was on the other end of.
   return (
-    <div className="peek-card border-border bg-card hover:border-foreground/30 relative flex flex-col rounded-xl border">
+    <ResourceCard className="min-h-52">
       {/* The card is a link and nothing else, so the layering is a link over
           content that declines the click rather than the three-way z-index
           argument this used to be. Deleting a collection now lives on the
@@ -276,42 +285,27 @@ function KBCard({ kb }: { kb: KnowledgeBase }) {
         aria-label={t("openCollection", { name: kb.name })}
       />
 
-      <div className="pointer-events-none flex h-full flex-col p-5">
-        <div className="flex items-start justify-between gap-2">
-          {/* The card's mark is what it is - a knowledge base, as the page's own
-              icon says - and the scope is said once, in its footer. */}
-          <span className="bg-muted text-foreground inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg">
-            <Database className="h-4 w-4" />
-          </span>
+      <ResourceCardHeader className="pointer-events-none">
+        <span className="bg-muted text-foreground grid size-10 shrink-0 place-items-center rounded-xl">
+          <Database className="size-5" aria-hidden />
+        </span>
+        <div className="min-w-0 flex-1 space-y-1.5">
+          <p className="text-foreground line-clamp-2 font-semibold break-words">{kb.name}</p>
+          <AudienceChip visibility={kb.visibility ?? "private"} groups={kb.shared_groups} />
+        </div>
+      </ResourceCardHeader>
+      <ResourceCardDescription className="pointer-events-none my-4 line-clamp-2">
+        {kb.description}
+      </ResourceCardDescription>
+      <div className="pointer-events-none relative">
+        {(kb.used_by?.length ?? 0) > 0 && <UsedBy agents={kb.used_by} className="mt-2" />}
 
+        <ResourceCardFooter className="text-muted-foreground border-0 pt-0 text-xs">
           {kb.is_default && (
-            <Badge variant="outline" className="border-border text-muted-foreground font-normal">
+            <Badge variant="outline" className="font-normal">
               {t("default")}
             </Badge>
           )}
-        </div>
-
-        <div className="mt-4 flex-1">
-          <p className="text-foreground text-base leading-tight font-semibold">{kb.name}</p>
-          {kb.description ? (
-            <p className="text-muted-foreground mt-1.5 line-clamp-2 text-sm leading-relaxed">
-              {kb.description}
-            </p>
-          ) : (
-            <p className="text-muted-foreground mt-1.5 truncate font-mono text-xs">
-              {kb.collection_name}
-            </p>
-          )}
-        </div>
-
-        <AudienceChip
-          visibility={kb.visibility ?? "private"}
-          groups={kb.shared_groups}
-          className="mt-4"
-        />
-        <UsedBy agents={kb.used_by} className="mt-2" />
-
-        <div className="text-muted-foreground mt-3 flex items-center justify-between gap-2 text-xs">
           <span className="inline-flex items-center gap-1.5 truncate">
             <meta.icon className="h-3.5 w-3.5 shrink-0" />
             <span className="truncate">{t(meta.labelKey)}</span>
@@ -322,13 +316,13 @@ function KBCard({ kb }: { kb: KnowledgeBase }) {
             <AddToAgent
               resource={{ kind: "collection", id: kb.id }}
               name={kb.name}
-              className="pointer-events-auto relative z-10 -my-1 h-8 text-xs"
+              className="pointer-events-auto relative z-10 -my-1 ml-auto h-8 text-[13px]"
             />
           ) : (
-            <ArrowUpRight className="h-4 w-4 shrink-0" />
+            <ArrowUpRight className="ml-auto h-4 w-4 shrink-0" />
           )}
-        </div>
+        </ResourceCardFooter>
       </div>
-    </div>
+    </ResourceCard>
   );
 }

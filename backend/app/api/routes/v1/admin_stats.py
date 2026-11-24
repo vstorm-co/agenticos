@@ -3,16 +3,17 @@
 from typing import Any, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
 
-from app.api.deps import AdminSvc, CurrentAppAdmin, DBSession, Redis
+from app.api.deps import AdminSvc, CurrentAppAdmin, DBSession, Redis, require_deployment_mcp_scope
+from app.api.public_api import ASSISTANT
 from app.api.routes.v1._stored_bytes import stored_image_response
 from app.core.exceptions import NotFoundError
 from app.schemas.admin import AdminOrganizationDetail, AdminOrganizationList, AdminStats
 from app.schemas.health import SystemHealthResponse
 from app.services.health import system_health
 
-router = APIRouter()
+router = APIRouter(dependencies=[ASSISTANT, Depends(require_deployment_mcp_scope)])
 
 
 @router.get("/stats", response_model=AdminStats)

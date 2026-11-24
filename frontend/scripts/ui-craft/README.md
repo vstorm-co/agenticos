@@ -35,4 +35,3 @@ Evidence is written to `frontend/.qa/ui-craft/<stage>/`: viewport PNGs, long-con
 ## Limits
 
 The fixture does not prove backend authorization, database persistence, real uploads/downloads, provider behavior, reconnect correctness, or native mobile keyboard/IME behavior. The composition check dispatches DOM composition events. The mobile captures are narrow desktop-browser viewports; they are not physical-device tests. Synthetic identities and messages are deliberately neutral. Do not treat screenshots as production user data or the API fixture as a substitute for the backend E2E suite.
-

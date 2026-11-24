@@ -1,5 +1,5 @@
 ---
-source_sha: "112189419852"
+source_sha: "8bc14e41e751"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -52,7 +52,7 @@ superficie en `triggered_by`.
 
 Sus **campos de entrada** convierten la entrada en un contrato. Un campo tiene un
 nombre, un tipo - texto, lista de textos, número, número entero, sí o no, fecha u opción - y si es
-obligatorio. Sin campos, un run acepta cualquier objeto JSON. Con campos, **Start a
+obligatorio. Sin campos ni esquema, un run acepta cualquier objeto JSON. Con campos, **Start a
 run** pide cada uno por su nombre, un run cuya entrada omite uno, envía uno del tipo
 equivocado o uno no declarado se rechaza antes de empezar con
 `WORKFLOW_RUN_INPUT_INVALID`, y un binding a `payload.<campo>` se comprueba por tipo
@@ -72,11 +72,129 @@ está disponible en los triggers Manual, Form y Called by a workflow.
 
 ::: app.workflows.contracts.fields.InputField
 
+#### Contratos de entrada con JSON Schema { #json-schema-input-contracts }
+
+Para entradas anidadas, establece `config.input_schema` del trigger en un documento
+JSON Schema Draft 2020-12. **API request**, **Manual** y **Called by a workflow**
+aceptan esta alternativa a los `fields` simples. Usa un contrato cada vez: no se
+puede combinar un esquema con una lista `fields` no vacía. Los triggers públicos
+**Form** conservan su contrato de campos simples.
+
+El contrato admite objetos anidados, arrays de objetos, `enum`, `required`,
+longitudes de cadenas (`minLength` y `maxLength`), longitudes de arrays (`minItems`
+y `maxItems`) y `additionalProperties`. Reutiliza definiciones con `$defs` y
+referencias `$ref` locales. Las referencias deben resolverse dentro del mismo
+documento; las referencias externas se rechazan y nunca se descargan. Se permite
+un URI absoluto o relativo si resuelve un recurso ya incluido en el documento. No se
+requieren modelos Python definidos por el usuario ni un framework concreto para
+quien llama.
+
+La entrada del workflow siempre es un objeto JSON. Publicar rechaza un contrato
+cuando sus restricciones explícitas de raíz mediante `type`, `const`, `enum`,
+`$ref` locales estáticas o `allOf`/`anyOf`/`oneOf` demuestran que ningún objeto
+puede cumplirlo. Esta comprobación conservadora de compatibilidad no es una
+prueba general de que el esquema sea satisfacible: las restricciones con `not`,
+condiciones o `$dynamicRef` pueden quedar sin resolver y se comprueban contra
+la entrada real al admitir el run. Se siguen admitiendo subesquemas de valores
+primitivos y arrays dentro de las propiedades de objetos.
+
+Esta configuración del trigger acepta un cliente y una o más líneas de pedido:
+
+```json
+{
+  "input_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+      "customer": {
+        "type": "object",
+        "properties": {
+          "name": {"type": "string", "minLength": 1, "maxLength": 120},
+          "tier": {"enum": ["standard", "priority"]}
+        },
+        "required": ["name"],
+        "additionalProperties": false
+      },
+      "items": {
+        "type": "array",
+        "minItems": 1,
+        "maxItems": 100,
+        "items": {"$ref": "#/$defs/line"}
+      }
+    },
+    "required": ["customer", "items"],
+    "additionalProperties": false,
+    "$defs": {
+      "line": {
+        "type": "object",
+        "properties": {
+          "sku": {"type": "string", "minLength": 1},
+          "quantity": {"type": "integer", "minimum": 1}
+        },
+        "required": ["sku", "quantity"],
+        "additionalProperties": false
+      }
+    }
+  }
+}
+```
+
+Publicar congela el esquema dentro de la versión del workflow. La entrada se
+comprueba contra el contrato de esa versión antes de admitir un run, también en
+llamadas por API, WebSocket, MCP y workflows secundarios; las pruebas usan el
+contrato del borrador. Una entrada inválida devuelve `WORKFLOW_RUN_INPUT_INVALID`
+con rutas de campos y mensajes. El esquema no convierte valores ni inserta valores
+predeterminados. Sin campos simples ni esquema, incluido un objeto de esquema
+vacío, se conserva la entrada existente como objeto JSON sin tipado.
+
+Los esquemas sin procesar tienen un límite de 256 KiB al publicar. Antes de
+admitir un run, la petición de validación serializada como JSON, con el esquema
+y la entrada, debe caber en 1 MiB. La validación se ejecuta en un proceso aislado
+con un plazo de dos segundos, incluido el arranque. Cada bucle de eventos de la
+API o de un worker admite como máximo dos validaciones simultáneas; si ambas
+plazas están ocupadas, la admisión se rechaza inmediatamente con `429`. Los
+contratos existentes de campos simples siguen validándose sin un proceso
+separado.
+
+Linux impone además un límite de espacio de direcciones de 256 MiB y un límite
+de CPU. El desarrollo nativo en macOS conserva los límites de CPU y tiempo,
+pero no el de espacio de direcciones porque Darwin no admite `RLIMIT_AS`.
+
+Un tiempo de espera agotado, memoria agotada en el validador o un límite de tamaño del protocolo de validación
+rechaza la admisión con `422 WORKFLOW_RUN_INPUT_INVALID`, indicando `input` en
+`error.details.fields` y `validation_limit` como el `type` del problema en el
+formato existente. Un fallo al arrancar el validador, una terminación anormal
+(incluida la causada por un límite de recursos del sistema operativo) o una salida
+inválida devuelve `503 WORKFLOW_INPUT_VALIDATION_UNAVAILABLE`. Ninguno de estos
+rechazos crea un run. Los diagnósticos se limitan a 50 entradas y 4 KiB de JSON UTF-8. Al alcanzar
+cualquiera de los límites, la última entrada resume el truncamiento. Los diagnósticos nunca citan los
+valores enviados.
+
+Los esquemas o expresiones regulares que superan los límites de anidamiento
+o repetición del validador se rechazan al publicar, en lugar de provocar un
+error del servidor.
+
+Quien llama puede inspeccionar el contrato efectivo antes de ejecutar mediante la
+[API del esquema de entrada del workflow](../api.md#running-a-workflow) o el
+[descubrimiento MCP](../mcp.md#workflow-and-table-tools). Los contratos existentes de
+campos simples también se exponen como JSON Schema.
+
+El descubrimiento por HTTP expone únicamente la primera entrada **Called by a workflow**, con la entrada predeterminada primero, porque las llamadas a workflows secundarios no permiten seleccionar otra entrada. El descubrimiento del MCP de la plataforma expone solo las entradas Manual/API admitidas por su herramienta de ejecución.
+
+Las ramas `then`/`else` independientes y las excluidas por un valor booleano
+literal en `if` se comprueban para asegurar referencias seguras, pero no crean
+aristas de recursión durante la evaluación.
+
+Los contratos con `$dynamicRef` se limitan durante la comprobación de
+publicación a 2048 contextos del resolver y 64 recursos distintos en un ámbito
+dinámico. Superar cualquiera de los límites provoca un rechazo explícito de la
+configuración.
+
 ### trigger.manual { #trigger-manual }
 
 **Manual.** Lo inicia una persona - **Test draft** en el editor, o **Start a run** en su
 página de runs. Entrega al grafo lo mismo que **API request** y acepta los mismos
-campos de entrada, que el editor pide antes de empezar el run.
+campos de entrada o un contrato JSON Schema. El editor pide la entrada antes de empezar el run.
 
 ### trigger.chat { #trigger-chat }
 
@@ -121,8 +239,9 @@ lectura a la tabla.
 ### trigger.workflow_call { #trigger-workflow-call }
 
 **Called by a workflow.** Lo inicia el paso `workflow.run` de otro workflow, con los
-campos que declara - los mismos que **Manual** - y nunca a mano ni por la API. La
-entrada de quien llama se comprueba contra ellos antes de que empiece la ejecución.
+contrato de entrada que declara - campos simples o JSON Schema, como **Manual** -
+y nunca a mano ni por la API. La entrada de quien llama se comprueba contra ese
+contrato antes de que empiece la ejecución.
 
 ### trigger.form { #trigger-form }
 
@@ -193,9 +312,9 @@ conectado de la organización que encaja con todos los filtros puestos, leído e
 **Folder** y **Shared mailbox** son a la vez donde mira el poller y un filtro, y la
 primera lectura de una carpeta empieza en el momento en que se publicó o se encendió por última vez el workflow. Nombrar un
 buzón compartido que el grant de Microsoft de la organización pueda abrir exige el
-permiso para gestionar conexiones, como en los triggers de agente de Outlook; un workflow
-que ya escucha uno lo conserva en publicaciones posteriores, y cambiarlo exige el permiso
-otra vez.
+permiso para gestionar conexiones, como en los triggers de agente de Outlook; toda publicación que lo nombre lo exige, porque quien publica pasa a ser el miembro
+como el que se lee el buzón, y un mensaje que llega a un workflow cuyo publicador
+ya no lo tiene no inicia ningún run.
 **Sender contains** compara la dirección del remitente, como en Gmail, y exige correo
 que el dominio del remitente autenticó o que vino de dentro del tenant. Una carpeta o
 un buzón compartido que Outlook dice que no se pueden leer apaga el workflow, con
@@ -210,7 +329,8 @@ que ya no valida la omite el poller. Los adjuntos se guardan como en
 
 **Channel message.** Se inicia con un mensaje a uno de los bots de Slack,
 Mattermost o Telegram de la organización que el bot habría respondido con su propio
-agente y que encaja con el filtro del nodo. Publicarlo requiere `channels:manage`, y
+agente y que encaja con el filtro del nodo. Publicarlo requiere `channels:manage`,
+comprobado de nuevo en cada mensaje, y
 los mensajes de un bot inician como mucho un workflow. `triggered_by` es
 `channel_message`.
 Un bot de Teams se rechaza al publicar y en una ejecución de prueba; un oyente de
@@ -264,6 +384,21 @@ se puede convertir falla con `MAPPING_COERCION_FAILED` y nombra el campo.
 ::: app.workflows.nodes.data_map._handler.DataMapConfig
 
 ::: app.workflows.nodes.data_map._handler.FieldMapping
+
+## data.value { #data-value }
+
+**Data** guarda un valor para los pasos siguientes: un objeto, una lista o un
+único número, texto o booleano. Escríbalo como JSON o vincúlelo entero a una
+salida anterior. El paso lo entrega sin cambios como `value`, y un paso
+posterior vincula el valor completo o una ruta dentro de él, como
+`value.customer.email`.
+
+El valor se fija una vez por run y nunca se sobrescribe. La salida de un paso
+queda fijada cuando el paso termina, así que ningún paso posterior puede
+cambiarla: Data es una constante con nombre, no una variable. Para cambiar un
+valor, añada un paso que construya uno nuevo a partir de él. Para reunir valores
+de los elementos de un bucle, use `loop.yield`. Un run de prueba de un paso Data
+sin valor falla con `DATA_NOT_SET`.
 
 ## data.filter y data.combine { #data-filter-and-data-combine }
 
@@ -322,6 +457,8 @@ paleta dibuja el paso con un icono de diferencias, entre los pasos de datos.
 ::: app.workflows.nodes.text_compare._handler.TextCompareOutput
 
 ## html.parse { #html-parse }
+
+Desde la versión 1.72.0, los selectores del documento y la extracción de enlaces excluyen el contenido inerte de `<template>`. Seleccionar el propio elemento `template` sigue devolviendo su HTML y texto. Soup Sieve 4 ajusta los selectores de estado de formularios al comportamiento del navegador; al actualizar, revise los flujos que dependan de las reglas anteriores. La evaluación utiliza caché; los límites de tiempo y memoria del proceso lector siguen vigentes.
 
 **Parse HTML** lee HTML como su texto, sus enlaces y los elementos que elige un
 selector CSS. Sirve para el HTML con el que se topa un flujo: el cuerpo de un
@@ -607,16 +744,9 @@ categorías a un mismo paso de registro.
 
 ## Decisiones { #decisions }
 
-Tres pasos hacen a Jev, de TypeSafe, una pregunta tipada sobre un `text` enlazado,
-con una clave de API de TypeSafe del vault. Jev no escribe texto: responde la
-pregunta con una confianza de 0 a 1, en una sola petición, y solo puede responder
-con una de las respuestas que el paso permite. Por debajo del `min_confidence` del
-paso, sale por su puerto `unsure`, así que el workflow decide ahí qué hace una
-persona o un agent con un caso dudoso.
+Tres pasos plantean una pregunta tipada a un modelo nativo de decisión sobre el `text` de entrada. Elige un perfil con proveedor, clave del almacén y endpoint. Las configuraciones existentes con clave TypeSafe y modelo Jev siguen siendo válidas sin cambios. El proveedor determina los tipos de pregunta admitidos.
 
-`decide.*` solo llama al Jev alojado de TypeSafe. Para encaminar los casos dudosos
-con un modelo autoalojado usa `ai.classify` con `min_confidence`, que sale por
-`unsure` de la misma manera.
+El modelo devuelve una respuesta y su confianza. Por debajo de `min_confidence`, el paso sigue `unsure`; el workflow puede escalar o elegir otra ruta. Los perfiles nativos usan OpenAI, Google, OpenRouter, TypeSafe o un endpoint System One propio mediante Pydantic AI. Consulta [modelos de decisión](../models.md#decision-models) para conocer disponibilidad y diferencias con las valoraciones de un LLM.
 
 | Paso | Pregunta | Sale por |
 |---|---|---|
@@ -624,12 +754,7 @@ con un modelo autoalojado usa `ai.classify` con `min_confidence`, que sale por
 | `decide.choose` | cuál de hasta 255 opciones encaja | `out` con la `choice`, o `unsure` |
 | `decide.score` | dónde queda el texto en una escala de 2 a 10 niveles | `out` con el `score`, o `unsure` |
 
-La clave se comprueba al publicar y se vuelve a leer en cada run. Una clave que ya
-no existe o no está compartida hace fallar el paso con `SECRET_NOT_USABLE`, un
-modelo que no responde con `DECISION_FAILED`, que se reintenta según la política
-del paso, y un despliegue construido sin el extra `browser` con
-`DECISION_MODEL_UNAVAILABLE`. Un merge puede volver a unir las ramas de una
-decisión, como las de un If.
+Las credenciales y el acceso se comprueban al publicar y en cada ejecución. Una clave antigua eliminada produce `SECRET_NOT_USABLE`; un perfil sin API nativa, `DECISION_MODEL_REQUIRED`. Los fallos del proveedor producen `DECISION_FAILED` según la política de reintentos. El coste cuenta para los presupuestos del workflow y la organización. Merge puede reunir las ramas de decisión.
 
 ::: app.workflows.nodes._decide.DecisionConfig
 
@@ -691,6 +816,10 @@ guardrails y el historial de runs del agent. El run se registra con la superfici
 Una llamada a una herramienta que requiere aprobación detiene el paso, y la
 decisión reanuda el mismo run del agent.
 
+La herramienta existente `ask_user_question` también pausa este paso. El workflow muestra `waiting_for_user`; la tarjeta de la pregunta está disponible en el chat de origen y la vista del run. Solo la persona a quien se preguntó puede responder. Las respuestas se guardan antes de poner en cola la continuación del workflow, que reanuda la llamada pendiente con el presupuesto actual del workflow. Recargar la página conserva la pregunta. Cancelar el workflow cierra sus runs de agentes en espera; las preguntas sin respuesta caducan tras `QUESTION_EXPIRY_HOURS` (24 por defecto).
+
+Esto se aplica al agent del propio paso cuando una persona con sesión iniciada está detrás del run. Los runs de origen público no tienen una persona a quien preguntar. Los delegados siguen necesitando una superficie de preguntas activa. Si el modelo agrupa una pregunta con una llamada que requiere aprobación, la aprobación tiene prioridad y la pregunta se trata como rechazada al reanudar.
+
 `inline` configura el agent en el paso en lugar de `agent`, y solo uno de los dos
 está fijado. La spec es del paso y se versiona con el grafo: el primer run crea un
 agent propiedad del workflow, fuera del catálogo y alcanzable mediante el acceso al
@@ -711,6 +840,7 @@ respuesta sin objeto donde se pidió uno, con `STRUCTURED_OUTPUT_MISMATCH`.
 |---|---|
 | Completed | Completed |
 | Esperando aprobación | Espera y luego reanuda el mismo run |
+| Esperando respuesta | Espera a la persona y reanuda la misma conversación |
 | Presupuesto superado | `AGENT_BUDGET_EXCEEDED` |
 | Bloqueado por un guardrail | `AGENT_GUARDRAIL_BLOCKED` |
 | En otro caso | `AGENT_RUN_FAILED` |
@@ -899,11 +1029,15 @@ vuelve a enviar.
 **Ask for approval** detiene el run hasta que una persona apruebe o rechace lo
 que está a punto de hacer, y sigue por `approved` o `rejected`. Quien aprueba lee
 el `title` del paso y los `details` vinculados en la pestaña **Approvals** de
-Activity o por `GET /api/v1/workflow-approvals`. `approvers` nombra quién puede
-decidir, y esas personas reciben un aviso en la aplicación; vacío, puede
-cualquiera con `approvals:decide`. Pasado `timeout_hours` la solicitud caduca y el
+Activity o por `GET /api/v1/workflow-approvals`. `approvers` y
+`approver_groups` nombran quién puede decidir: esas personas y los miembros de
+los grupos que tienen `approvals:decide`
+([grupos de aprobación](../governance.md#approval-groups)). Reciben un aviso en
+la aplicación. Si ambos están vacíos, puede decidir cualquiera con
+`approvals:decide`, y todas esas personas reciben el aviso. La
+solicitud también encabeza el Inbox de quien puede decidirla. Pasado `timeout_hours` la solicitud caduca y el
 paso sale por `rejected` con `decision: "expired"`. Cancelar el run cancela lo que
-pidió. Cada ejecución del paso pregunta una vez, así que un reintento o una
+pidió, y también cancelar un workflow que llamó a ese run. Cada ejecución del paso pregunta una vez, así que un reintento o una
 iteración de un bucle nunca preguntan dos veces lo mismo.
 
 Los aprobadores nombrados deben ser miembros activos con `approvals:decide`. Se comprueba al publicar y de nuevo antes de pedir la aprobación. Si han perdido ese permiso, el paso falla con `APPROVER_UNAVAILABLE` en lugar de dejar una solicitud que nadie puede resolver.
@@ -1101,9 +1235,12 @@ fallar igual.
 `control.foreach` ejecuta su cuerpo una vez por cada elemento de una lista
 `items` enlazada, un elemento cada vez y en orden. Después continúa por su
 puerto `done` con `results` en el orden de entrada, `errors` y `count`. El
-cuerpo empieza en `loop.item`, conectado desde el puerto `body` del bucle, que
-ofrece `item`, `index` y `count`. Termina en `loop.yield`, cuyo `value` enlazado
-es el resultado de la iteración. Ninguna arista vuelve al bucle. Un paso del
+cuerpo son los pasos que nombran el bucle en `scope_id`; ninguna arista entra en
+él. Empieza en `loop.item`, que ofrece `item`, `index` y `count`, y cada paso del
+cuerpo debe alcanzarse desde `loop.item` por las aristas del propio cuerpo. Termina en `loop.yield`, cuyo `value` enlazado
+es el resultado de la iteración.
+
+Ninguna arista vuelve al bucle. Un paso del
 cuerpo puede enlazarse a cualquier cosa que se ejecutara antes del bucle, y nada
 fuera del cuerpo puede enlazarse a su interior.
 
@@ -1192,6 +1329,8 @@ workflow puede crear su tabla la primera vez que se ejecuta y reutilizarla
 después. Las dos preguntas salen por exactamente un puerto, y un `logic.merge`
 puede volver a unir las ramas.
 
+`table.record.exists` y `table.record.query` aceptan etiquetas de opciones de selección además de IDs en filtros guardados. Resuelven las etiquetas con la tabla actual antes de consultar; las etiquetas desconocidas o ambiguas siguen causando errores de validación.
+
 ::: app.workflows.nodes.table_list._handler.TableListOutput
 
 ::: app.workflows.nodes.table_describe._handler.TableDescribeOutput
@@ -1207,6 +1346,75 @@ puede volver a unir las ramas.
 ::: app.workflows.nodes.table_create._handler.TableCreateConfig
 
 ::: app.workflows.nodes.table_create._handler.TableCreatedOutput
+
+## Asset { #asset-input }
+
+`asset.input@1` comprueba una imagen, grabación de audio o vídeo que el run tenga
+permiso para leer. Vincule `file` con un `FileRef` admitido o producido. Se
+rechazan nombres de archivo, URL arbitrarias y archivos no importados de otro
+run. La salida conserva la misma referencia duradera y añade metadatos
+verificados a partir de sus bytes.
+
+::: app.workflows.nodes.asset_input._handler.AssetInputConfig
+
+::: app.workflows.nodes.asset_input._handler.AssetInput
+
+::: app.workflows.nodes.asset_input._handler.AssetOutput
+
+Admite imágenes estáticas PNG, JPEG, WebP y GIF; audio WAV, FLAC, MP3 y Ogg
+reconocido; y MP4 o WebM con una pista de vídeo y audio opcional. Las imágenes
+animadas, formatos no compatibles, archivos ausentes y discrepancias de tipo
+o tamaño producen errores controlados. `required_input_name` exige
+opcionalmente la misma referencia en la entrada del run. Los límites de bytes,
+píxeles y duración se aplican al contenido real.
+
+`WORKFLOW_ASSET_INPUT_ENABLED` es false por defecto. Las instalaciones
+desactivadas conservan definición y salidas guardadas, ocultan el paso en la
+paleta y rechazan nuevas ejecuciones. La inspección de audio y vídeo requiere
+`ffprobe`, incluido en la imagen del backend. Este nodo no llama a proveedores
+ni modelos.
+
+## Generar imagen { #image-generate }
+
+`image.generate@1` recibe un `prompt` y un archivo `reference_image` autorizado
+opcional. El catálogo de workflows debe admitir proveedor, modelo y opciones;
+OpenAI acepta inicialmente solo texto. Seleccione una clave API de organización
+cuyo propósito coincida con el proveedor. `WORKFLOW_IMAGE_GENERATION_ENABLED`
+es false por defecto.
+
+::: app.workflows.nodes._media_config.ImageGenerateConfig
+
+::: app.workflows.nodes._media_config.MediaGenerateInput
+
+::: app.workflows.nodes._media_config.ImageGenerationOutput
+
+Este paso de escritura consume presupuesto y declara `retry_guarantee=none`.
+Su operación duradera reserva coste y bytes antes de una única solicitud al
+proveedor. La salida confirmada es un archivo inspeccionado del run, con un
+comprobante que separa el coste incurrido de la reserva pendiente. Recuperar
+devuelve la salida guardada original; un envío desconocido no se convierte
+silenciosamente en otra solicitud. Consulte
+[reservas y recuperación multimedia](../workflows.md#media-reservations).
+
+## Generar vídeo { #video-generate }
+
+`video.generate@1` usa las mismas entradas de prompt e imagen de referencia
+y reglas de clave. El catálogo proporciona opciones compatibles de resolución,
+relación de aspecto, duración y sonido. El sonido opcional está desactivado
+por defecto. Una duración elegida por el proveedor reserva el máximo del
+modelo. `WORKFLOW_VIDEO_GENERATION_ENABLED` es false por defecto.
+
+::: app.workflows.nodes._media_config.VideoGenerateConfig
+
+::: app.workflows.nodes._media_config.VideoGenerationOutput
+
+Este paso de escritura también consume presupuesto y declara
+`retry_guarantee=none`. Un comprobante conocido permite consultar y recoger ese
+mismo trabajo, con permisos vigentes y la generación original de la clave.
+Nunca autoriza otro envío. Los bytes se inspeccionan antes de publicar un
+archivo del run. Cancelar o agotar el tiempo puede dejar un cargo del proveedor
+y una reserva pendiente. Revise
+[las opciones de recuperación](../workflows.md#media-recovery) antes de reemplazarlo.
 
 ## Archivos { #files }
 
@@ -1295,6 +1503,7 @@ de confianza.
 | El trabajo superó `timeout_seconds` | `PYTHON_SANDBOX_TIMEOUT`, la sesión purgada |
 | No hay una conexión `sandboxd` utilizable | `SANDBOX_UNAVAILABLE` |
 | Escribió más de 20 archivos o 100 MB, o imprimió más de 10 MB | `PYTHON_OUTPUT_TOO_LARGE`, medido en la sandbox antes de traer nada, y la sesión purgada |
+| El host respondió pero no pudo iniciar el sandbox: un directorio de workspace en el que no puede escribir, una imagen que no se pudo construir | `SANDBOX_START_FAILED` con un diagnóstico seguro; la salida sin procesar queda en los registros del host, se reintenta |
 | No se pudo alcanzar el host | `SANDBOX_UNREACHABLE`, se reintenta |
 
 ::: app.workflows.nodes.code_python_simple._handler.PythonSimpleConfig

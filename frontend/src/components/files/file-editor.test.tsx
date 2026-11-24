@@ -93,7 +93,7 @@ describe("the file editor", () => {
   it("says it is loading rather than showing an empty file", () => {
     mount({ loading: true, content: "" });
 
-    expect(screen.getByText("Loading...")).toBeInTheDocument();
+    expect(screen.getByRole("status", { name: "Loading..." })).toHaveAttribute("aria-busy", "true");
   });
 
   it("sandboxes an HTML file with no allowances", () => {

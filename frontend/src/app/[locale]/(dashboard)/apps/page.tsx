@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useConsoleRouter as useRouter } from "@/hooks/use-console-router";
 import { Lock } from "lucide-react";
 import { AppIcon as PanelsTopLeft } from "@/components/icons/product-icons";
 import { useTranslations } from "next-intl";
@@ -13,7 +13,8 @@ import {
 } from "@/components/artifacts/artifact-archive";
 import { ArtifactCard } from "@/components/artifacts/artifact-card";
 import { PageHeader } from "@/components/dashboard/page-header";
-import { EmptyState, ErrorState, LoadingState } from "@/components/states";
+import { CatalogLoading } from "@/components/states/catalog-loading";
+import { EmptyState, ErrorState } from "@/components/states";
 import {
   ListCard,
   ListCardEmpty,
@@ -29,7 +30,12 @@ import {
 } from "@/components/ui";
 import { GroupFilter, NothingSharedWithGroup } from "@/components/groups/group-filter";
 import { usePermissions, useUrlState } from "@/hooks";
-import { useArtifactAgents, useArtifactListActions, useArtifacts } from "@/hooks/use-artifacts";
+import {
+  useArtifactAgents,
+  useArtifactListActions,
+  useArtifacts,
+  useToggleArtifactFavourite,
+} from "@/hooks/use-artifacts";
 import { getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
 import type { Artifact } from "@/types/artifact";
@@ -74,6 +80,7 @@ export default function ArtifactsPage() {
   // the server still decides each page, and refuses one the caller may not change.
   const canEdit = can(Perm.artifactsEdit);
   const { archive, unarchive, remove } = useArtifactListActions();
+  const favourites = useToggleArtifactFavourite();
   const [pendingArchive, setPendingArchive] = useState<Artifact | null>(null);
   const [pendingDelete, setPendingDelete] = useState<Artifact | null>(null);
   const busyId = archive.isPending
@@ -161,7 +168,7 @@ export default function ArtifactsPage() {
         }
       >
         {isLoading || isLoadingPermissions ? (
-          <LoadingState variant="skeleton-cards" rows={3} />
+          <CatalogLoading kind="document" />
         ) : error ? (
           <ErrorState
             description={getErrorMessage(error, tErrors)}
@@ -174,6 +181,17 @@ export default function ArtifactsPage() {
           <NothingSharedWithGroup groupId={groupId} />
         ) : artifacts.length === 0 ? (
           <ListCardEmpty
+            onClearFilters={
+              isFiltering
+                ? () => {
+                    setQuery("");
+                    setAgentId(null);
+                    setGroupId(null);
+                    setShownParam(null);
+                    setPage(0);
+                  }
+                : undefined
+            }
             icon={PanelsTopLeft}
             title={isFiltering ? t("noMatches") : t("noneYet")}
             description={isFiltering ? t("noMatchesWhy") : t("noneYetWhy")}
@@ -192,6 +210,15 @@ export default function ArtifactsPage() {
                   key={artifact.id}
                   artifact={artifact}
                   busy={busyId === artifact.id}
+                  favourite={{
+                    on: artifact.is_favourite === true,
+                    busy: favourites.isPending && favourites.variables?.id === artifact.id,
+                    onToggle: () =>
+                      favourites.mutate({
+                        id: artifact.id,
+                        favourite: artifact.is_favourite !== true,
+                      }),
+                  }}
                   actions={
                     canEdit
                       ? {

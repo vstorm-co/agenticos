@@ -20,9 +20,11 @@ from app.agents.capabilities.budget._capability import (
     price_request,
     record_ambient_cost,
     record_ambient_usage,
+    require_ambient_price,
     reserved_limits,
     usage_counts,
     usage_delta,
+    usd,
 )
 
 __all__ = [
@@ -45,7 +47,9 @@ __all__ = [
     "price_request",
     "record_ambient_cost",
     "record_ambient_usage",
+    "require_ambient_price",
     "reserved_limits",
     "usage_counts",
     "usage_delta",
+    "usd",
 ]

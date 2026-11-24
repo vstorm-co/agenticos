@@ -49,7 +49,7 @@ class WorkflowStepEval(Base, TimestampMixin):
     # by step id - **Test step**'s own two inputs.
     run_input: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
     outputs: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
-    # `{kind, field, value}` - see `app.schemas.workflow_eval.EvalExpectation`.
+    # `{kind, field, value}` - see `app.schemas.eval_judging.EvalExpectation`.
     expectation: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
     created_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),

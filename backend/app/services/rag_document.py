@@ -15,7 +15,7 @@ from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundErr
 from app.core.permissions import AuthContext
 from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.rag_document import DocumentStatus, RAGDocument
-from app.db.vector_tables import VectorScope
+from app.db.vector_tables import VectorWriterKind, VectorScope
 from app.services.rag.config import get_supported_formats
 from app.services.rag.documents import has_indexable_text
 from app.services.rag.ingestion import IngestionService
@@ -185,6 +185,17 @@ class RAGDocumentService:
                 details={"collection": collection_name},
             )
 
+    async def audit_unfiled_provenance(
+        self, collection_name: str
+    ) -> rag_document_repo.UnfiledProvenanceCounts:
+        """Read-only aggregate audit for the server operator, never an API grant."""
+        return await rag_document_repo.unfiled_provenance_counts(self.db, collection_name)
+
+    async def confirm_operator_unfiled(self, collection_name: str) -> int:
+        """Apply an explicit operator assertion to this name's unknown unfiled data."""
+        await self.hold_ingestion_name(collection_name)
+        return await rag_document_repo.confirm_operator_unfiled(self.db, collection_name)
+
     async def create_document(
         self,
         *,
@@ -203,6 +214,8 @@ class RAGDocumentService:
         embedding_model: str | None = None,
         organizational_unit: str | None = None,
         initiated_by_user_id: UUID | None = None,
+        knowledge_gap_topic_id: UUID | None = None,
+        writer_kind: VectorWriterKind = VectorWriterKind.DOCUMENT,
     ) -> RAGDocument:
         """Create a new RAG document tracking record.
 
@@ -234,6 +247,8 @@ class RAGDocumentService:
         the row is opened claimed by it: that claim is what lets a later run of
         the source remove it once it is no longer listed (`unlisted_by_source`).
 
+        `knowledge_gap_topic_id` is the knowledge gap topic a person wrote the
+        document for, when they added it from the topic.
         The previous attempts retired are those in the new row's own scope - the
         base it is filed under, else the unfiled rows of `organization_id` - and
         never another tenant's or another base's at the same path (#2747).
@@ -272,6 +287,8 @@ class RAGDocumentService:
             embedding_model=embedding_model,
             organizational_unit=organizational_unit,
             initiated_by_user_id=initiated_by_user_id,
+            knowledge_gap_topic_id=knowledge_gap_topic_id,
+            writer_kind=writer_kind,
         )
 
     async def _filing_scope(self, knowledge_base_id: UUID | None) -> CollectionScope | None:
@@ -299,6 +316,7 @@ class RAGDocumentService:
         organization_id: UUID | None = None,
         knowledge_base_id: UUID | None = None,
         organizational_unit: str | None = None,
+        knowledge_gap_topic_id: UUID | None = None,
     ) -> RAGIngestResponse:
         """Validate, persist, and queue an uploaded file for ingestion.
 
@@ -387,6 +405,7 @@ class RAGDocumentService:
             embedding_model=collection.embedding_model,
             organizational_unit=blank_is_absent(organizational_unit),
             initiated_by_user_id=ctx.user_id,
+            knowledge_gap_topic_id=knowledge_gap_topic_id,
         )
         doc_id = rag_doc.id
 
@@ -429,10 +448,10 @@ class RAGDocumentService:
         through to `complete_ingestion`/`fail_ingestion` at settlement, per
         Decision 1's "threaded through the call, not read back" rule.
 
-        The copy under `MEDIA_DIR/_rag_tmp` is what the flow opens: permanent
-        storage may be somewhere the worker container cannot reach, and the
-        directory is shared between the two. One file per dispatch, removed by
-        the job once no attempt of it is coming (`app.services.rag_scratch`).
+        Local storage uses a shared copy under `MEDIA_DIR/_rag_tmp`, one per
+        dispatch, removed once no attempt remains (`app.services.rag_scratch`).
+        S3 needs no shared filesystem: the worker downloads the stored object
+        into a private temporary directory for each execution.
 
         Queued as an `ingest-document` job in this request's transaction: the job
         reads this document by id on a session of its own, and the two commit
@@ -442,12 +461,11 @@ class RAGDocumentService:
         is stopped there and written down on the job, not in the API.
         """
         scratch = rag_scratch.scratch_path(doc_id, attempt=attempt, filename=filename)
-        scratch.parent.mkdir(parents=True, exist_ok=True)
         tmp_path = str(scratch)
-        # anyio, not open(): an upload can be tens of megabytes, and writing it
-        # synchronously stalls every other request on this worker until it lands.
-        async with await anyio.open_file(tmp_path, "wb") as f:
-            await f.write(file_data)
+        if settings.FILE_STORAGE_BACKEND == "local":
+            scratch.parent.mkdir(parents=True, exist_ok=True)
+            async with await anyio.open_file(tmp_path, "wb") as file:
+                await file.write(file_data)
         await enqueue(
             self.db,
             INGEST_DOCUMENT,
@@ -527,6 +545,7 @@ class RAGDocumentService:
                 keep_id=doc.id,
                 source_path=doc.source_path,
             )
+        await self._content_changed(doc)
         # No notification on the way out. A document that indexed cleanly is
         # not news: the collection already shows its status, and one row per
         # file made the ordinary case - thirty files dropped in at once -
@@ -555,6 +574,22 @@ class RAGDocumentService:
                 knowledge_base_id=scope.knowledge_base_id,
             ),
             organization_id=scope.tenant,
+        )
+
+    async def _content_changed(self, doc: RAGDocument) -> None:
+        """Queue the eval suites of the agents that search this document's knowledge base.
+
+        What a collection holds is what its agents answer from, and it changes
+        with no publish - so the suites watching for that change are what notice.
+        """
+        if doc.organization_id is None or doc.knowledge_base_id is None:
+            return
+        from app.services.eval_suite import EvalSuiteService
+
+        await EvalSuiteService(self.db).dependency_changed(
+            organization_id=doc.organization_id,
+            kind="knowledge_base",
+            resource_id=doc.knowledge_base_id,
         )
 
     async def _retire_superseded(
@@ -794,6 +829,7 @@ class RAGDocumentService:
         # settlement deletes the settled row. A row still without one belongs to an
         # ingest whose settlement removes its own chunks (#2565).
         deleted = await rag_document_repo.delete_with_vectors(self.db, doc.id)
+        await self._content_changed(doc)
 
         from app.core.background import spawn_after_commit
 
@@ -829,7 +865,7 @@ class RAGDocumentService:
         )
 
     async def unlisted_by_source(
-        self, *, sync_source_id: UUID, collection_name: str, listed: set[str]
+        self, *, sync_source_id: UUID, scope: CollectionScope, listed: set[str]
     ) -> list[RAGDocument]:
         """The documents a source claims that its latest listing no longer names.
 
@@ -838,7 +874,7 @@ class RAGDocumentService:
         download, is still there.
         """
         rows = await rag_document_repo.get_settled_for_sync_source(
-            self.db, sync_source_id=sync_source_id, collection_name=collection_name
+            self.db, sync_source_id=sync_source_id, scope=scope
         )
         return [row for row in rows if row.source_path not in listed]
 
@@ -866,7 +902,7 @@ class RAGDocumentService:
         return None
 
     async def claim_listed(
-        self, *, sync_source_id: UUID, collection_name: str, documents: set[tuple[str, str]]
+        self, *, sync_source_id: UUID, scope: CollectionScope, documents: set[tuple[str, str]]
     ) -> None:
         """Claim the stored documents at addresses a sync listed (`claim_listed`).
 
@@ -876,7 +912,7 @@ class RAGDocumentService:
         await rag_document_repo.claim_listed(
             self.db,
             sync_source_id=sync_source_id,
-            collection_name=collection_name,
+            scope=scope,
             documents=documents,
         )
 
@@ -889,28 +925,28 @@ class RAGDocumentService:
         return await rag_document_repo.get_claimants(self.db, [UUID(doc_id) for doc_id in doc_ids])
 
     async def stale_for_source(
-        self, *, sync_source_id: UUID, collection_name: str
+        self, *, sync_source_id: UUID, scope: CollectionScope
     ) -> list[RAGDocument]:
         """The rows a dead run of this source left `PROCESSING` (`get_stale_for_sync_source`)."""
         return await rag_document_repo.get_stale_for_sync_source(
-            self.db, sync_source_id=sync_source_id, collection_name=collection_name
+            self.db, sync_source_id=sync_source_id, scope=scope
         )
 
     async def settled_at(
-        self, *, sync_source_id: UUID, collection_name: str, source_path: str
+        self, *, sync_source_id: UUID, scope: CollectionScope, source_path: str
     ) -> list[RAGDocument]:
         """The settled rows this source claims at one address."""
         rows = await rag_document_repo.get_settled_for_sync_source(
-            self.db, sync_source_id=sync_source_id, collection_name=collection_name
+            self.db, sync_source_id=sync_source_id, scope=scope
         )
         return [row for row in rows if row.source_path == source_path]
 
     async def tracked_vector_ids(
-        self, *, collection_name: str, vector_document_ids: set[str]
+        self, *, scope: CollectionScope, vector_document_ids: set[str]
     ) -> set[str]:
         """Which of these stored documents some row of the collection tracks."""
         return await rag_document_repo.get_tracked_vector_ids(
-            self.db, collection_name=collection_name, vector_document_ids=vector_document_ids
+            self.db, scope=scope, vector_document_ids=vector_document_ids
         )
 
     async def forget_document(self, doc_id: str) -> None:
@@ -922,7 +958,11 @@ class RAGDocumentService:
         failed vector delete leaves the row for the next run to try again,
         rather than vectors nothing tracks. A synced document stores no file.
         """
-        await rag_document_repo.delete(self.db, UUID(doc_id))
+        doc = await rag_document_repo.get_by_id(self.db, UUID(doc_id))
+        if doc is None:
+            return
+        await rag_document_repo.delete(self.db, doc.id)
+        await self._content_changed(doc)
 
     async def get_parsed_content(
         self, doc_id: str, vector_store: BaseVectorStore

@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "baseline": {
+    "minimum_tested_server_version": "1.82.2",
+    "required_tools": [
+      "whoami",
+      "list_agents",
+      "get_agent",
+      "create_agent_draft"
+    ]
+  },
+  "lifecycle": {
+    "mcp_contract_version": 1,
+    "discovery_tool": "get_platform_context",
+    "features": [
+      "dependency_setup",
+      "quality_lifecycle",
+      "knowledge_sync",
+      "solution_bundles"
+    ]
+  },
+  "disclosure": {
+    "mcp_contract_version": 2,
+    "features": [
+      "bounded_disclosure",
+      "prepared_solutions",
+      "account_preferences",
+      "platform_tool_policies",
+      "administration",
+      "deployment_admin_oauth"
+    ]
+  }
+}

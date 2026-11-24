@@ -56,7 +56,7 @@ export function useGroups(orgId: string) {
   const queryClient = useQueryClient();
   const invalidate = useInvalidateGroups(orgId);
 
-  const { data, isLoading, isFetching, error } = useQuery({
+  const { data, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: qk.organizations.groups(orgId),
     queryFn: () => listGroups(orgId),
     enabled: !!orgId,
@@ -94,7 +94,16 @@ export function useGroups(orgId: string) {
     onError: (failure) => toast.error(getErrorMessage(failure, tErrors)),
   });
 
-  return { groups: data?.items ?? [], isLoading, isFetching, error, create, update, remove };
+  return {
+    groups: data?.items ?? [],
+    isLoading,
+    isFetching,
+    error,
+    refetch,
+    create,
+    update,
+    remove,
+  };
 }
 
 /** Who is in one group, and adding or removing somebody by hand. */
@@ -149,7 +158,7 @@ export function useGroupSharing(orgId: string, groupId: string) {
   const t = useTranslations("groups");
   const tErrors = useTranslations("errors");
   const queryClient = useQueryClient();
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: qk.organizations.groupShareable(orgId, groupId),
     queryFn: () => listShareableWithGroup(orgId, groupId),
     enabled: !!orgId && !!groupId,
@@ -167,17 +176,17 @@ export function useGroupSharing(orgId: string, groupId: string) {
     },
     onError: (failure) => toast.error(getErrorMessage(failure, tErrors)),
   });
-  return { shareable: data?.items ?? [], isLoading, error, share };
+  return { shareable: data?.items ?? [], isLoading, error, refetch, share };
 }
 
 /** What one group has been given - agents, knowledge, skills, context and apps (#2072). */
 export function useGroupResources(orgId: string, groupId: string) {
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: qk.organizations.groupResources(orgId, groupId),
     queryFn: () => listGroupResources(orgId, groupId),
     enabled: !!orgId && !!groupId,
   });
-  return { resources: data?.items ?? [], isLoading, error };
+  return { resources: data?.items ?? [], isLoading, error, refetch };
 }
 
 /**

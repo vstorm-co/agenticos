@@ -1,13 +1,26 @@
 """Database models."""
 
 # ruff: noqa: I001, RUF022 - Imports structured for Jinja2 template conditionals
+from app.db.models.solution_installation import SolutionInstallation
 from app.db.models.task_board import TaskBoard, TaskLink
+from app.db.models.virtual_table_relation import (
+    VirtualTableLinkEvidence,
+    VirtualTableRecordLink,
+    VirtualTableRelation,
+)
 from app.db.models.project_tracking import ProjectTracking
 from app.db.models.routine_delivery import RoutineDelivery
+from app.db.models.personal_context import PersonalContextCache
 from app.db.models.user import User
 from app.db.models.session import Session
 from app.db.models.conversation import Conversation, Message, ToolCall
+from app.db.models.conversation_message_pin import ConversationMessagePin
 from app.db.models.conversation_task import ConversationTask, ConversationTurnClaim
+from app.db.models.room_submission import RoomSubmission
+from app.db.models.room_participant import RoomParticipant
+from app.db.models.room_message_reaction import RoomMessageReaction
+from app.db.models.room_thread import RoomThread, RoomThreadFollow, RoomThreadRead
+from app.db.models.room_routing import RoomLeadPolicy, RoomRoutingProposal, RoomTaskLink
 from app.db.models.coding_task_change import CodingTaskChange
 from app.db.models.chat_file import ChatFile
 from app.db.models.message_rating import MessageRating
@@ -18,7 +31,23 @@ from app.db.models.sync_source import SyncSource
 from app.db.models.conversation_favourite import ConversationFavourite
 from app.db.models.conversation_last_read import ConversationLastRead
 from app.db.models.browser_sign_in import BrowserSignIn
+from app.db.models.browser_credential_continuation import BrowserCredentialContinuation
+from app.db.models.browser_teaching import (
+    BrowserTeachingSession,
+)
+from app.db.models.browser_procedure_teaching import (
+    BrowserProcedureTeachingPolicy,
+    BrowserProcedureTeachingPreference,
+    BrowserProcedureTeachingSession,
+)
+from app.db.models.browser_credential import (
+    BrowserCredentialAgentGrant,
+    BrowserCredentialMemberGrant,
+    BrowserCredentialPlan,
+    BrowserCredentialPolicy,
+)
 from app.db.models.coding_account import CodingAccount
+from app.db.models.personal_model_key import PersonalModelKey
 from app.db.models.conversation_share import ConversationShare
 from app.db.models.channel_bot import ChannelBot
 from app.db.models.channel_identity import ChannelIdentity
@@ -36,12 +65,17 @@ from app.db.models.diagnostics import DiagnosticsIdentity
 from app.db.models.dashboard_layout import DashboardLayout
 from app.db.models.dashboard_preset import DashboardPreset
 from app.db.models.mcp_connection import McpConnection
+from app.db.models.network_connection import NetworkConnection
 from app.db.models.mcp_registry_server import McpRegistryServer
 from app.db.models.mcp_server_check import McpServerCheck
 from app.db.models.agent_embed import AgentEmbed
 from app.db.models.embed_visitor import EmbedVisitor
 from app.db.models.agent import Agent, AgentStatus, AgentVersion
-from app.db.models.agent_environment import AgentEnvironment
+from app.db.models.agent_environment import (
+    AgentEnvironment,
+    AgentEnvironmentConnection,
+    ConnectionKind,
+)
 from app.db.models.agent_message import (
     AgentMessage,
     AgentMessageAttachment,
@@ -53,12 +87,55 @@ from app.db.models.agent_workspace import AgentWorkspace
 from app.db.models.sandbox_connection import SandboxConnection
 from app.db.models.sandbox_operation import SandboxOperation
 from app.db.models.agent_exposure import AgentExposure, ExposureSurface
+from app.db.models.channel_observation import ChannelObservation, ChannelObservationReceipt
 from app.db.models.agent_run import AgentRun, ApprovalStatus, RunStatus, RunSurface, ToolApproval
-from app.db.models.agent_trigger import AgentTrigger, ScheduleKind
+from app.db.models.agent_trigger import AgentTrigger, ScheduleKind, TriggerAttempt
 from app.db.models.run_manifest import RunManifest
+from app.db.models.intercepted_tool_call import (
+    InterceptedToolCall,
+    InterceptionOutcome,
+    InterceptionReason,
+)
+from app.db.models.authoring import (
+    AuthoringKind,
+    AuthoringRequest,
+    AuthoringStatus,
+    AuthoringTarget,
+    BatchStatus,
+    HunkKind,
+    HunkOrigin,
+    HunkStatus,
+    SpecProposalBatch,
+    SpecProposalHunk,
+)
+from app.db.models.improvement import (
+    ImprovementIteration,
+    ImprovementRun,
+    ImprovementStage,
+    ImprovementStatus,
+    ImprovementVerdict,
+    StopReason,
+)
+from app.db.models.eval_run import (
+    ArmRole,
+    ArmSource,
+    CaseAttemptStatus,
+    EvalRun,
+    EvalRunArm,
+    EvalRunCase,
+    EvalRunPurpose,
+    EvalRunStatus,
+)
+from app.db.models.eval_suite import (
+    EvalSuite,
+    EvalSuiteResult,
+    EvalSuiteResultStatus,
+    EvalSuiteTrigger,
+)
 from app.db.models.ingestion_spend import IngestionSpend
 from app.db.models.ml_service_call import MLCallStatus, MLServiceCall
 from app.db.models.pending_sandbox_destroy import PendingSandboxDestroy
+from app.db.models.promotion_gate import EnvironmentGuard, PromotionOverride
 from app.db.models.background_job import BackgroundJob
 from app.db.models.background_schedule import BackgroundSchedule
 from app.db.models.background_task_kind import BackgroundTaskKind
@@ -66,7 +143,9 @@ from app.db.models.background_worker import BackgroundWorker
 from app.db.models.purged_run_spend import PurgedRunSpend
 from app.db.models.credential import ModelProfile
 from app.db.models.organization_secret import OrganizationSecret
+from app.db.models.secret_request import SecretRequest, SecretRequestStatus
 from app.db.models.context import ContextFile, ContextMode
+from app.db.models.context_proposal import ContextProposal
 from app.db.models.memory import AgentMemoryFile
 from app.db.models.memory_claim import MemoryClaim, MemoryScopeState
 from app.db.models.primary_conversation import PrimaryConversation
@@ -82,7 +161,12 @@ from app.db.models.virtual_table import (
 )
 from app.db.models.table_view import TableView
 from app.db.models.skill import Skill, SkillResource
+from app.db.models.skill_usage import RunSkillUse
+from app.db.models.skill_improvement import SkillImprovementIteration, SkillImprovementRun
+from app.db.models.skill_check import SkillCheck, SkillCheckAgent
+from app.db.models.skill_merge import SkillMerge
 from app.db.models.skill_proposal import ProposalStatus, SkillProposal
+from app.db.models.skill_version import SkillFile, SkillFork, SkillVersion, SkillVersionSource
 from app.db.models.resource_grant import GrantLevel, ResourceGrant, Visibility
 from app.db.models.group import Group, GroupMember
 from app.db.models.directory_mapping import DirectoryGroupMapping
@@ -119,6 +203,15 @@ from app.db.models.artifact import (
     ArtifactMediaType,
     ArtifactVersion,
 )
+from app.db.models.case_score import CaseScore
+from app.db.models.dataset import Dataset, DatasetCase, DatasetVersion
+from app.db.models.case_generation import CaseGeneration, CaseProposal
+from app.db.models.knowledge_gap import (
+    KnowledgeGapClassification,
+    KnowledgeGapMember,
+    KnowledgeGapTopic,
+    KnowledgeSearch,
+)
 from app.db.models.voice_call import VoiceCall, VoiceEndReason
 from app.db.models.generated_media import GeneratedMedia, GeneratedMediaReservation
 from app.db.models.visual import Visual
@@ -150,7 +243,14 @@ from app.db.models.workflow_exposure import (
 )
 from app.db.models.workflow_approval import WorkflowApproval, WorkflowApprovalStatus
 from app.db.models.workflow_eval import WorkflowEvalRun, WorkflowStepEval
+from app.db.models.failure_learning import (
+    AgentEvalCase,
+    AgentEvalRun,
+    AgentFailureLedger,
+    AgentInstructionProposal,
+)
 from app.db.models.workflow_file import WorkflowFile
+from app.db.models.workflow_media_operation import WorkflowMediaOperation
 from app.db.models.workflow_log_alert import WorkflowLogAlertFiring, WorkflowLogAlertRule
 from app.db.models.workflow_log_entry import WorkflowLogEntry
 from app.db.models.virtual_table_trigger import (
@@ -161,8 +261,11 @@ from app.db.models.virtual_table_trigger import (
     VirtualTableTriggerRevision,
 )
 from app.db.models.artifact_share_request import ArtifactShareRequest
+from app.db.models.artifact_favourite import ArtifactFavourite
 
 __all__ = [
+    "PersonalContextCache",
+    "SolutionInstallation",
     "TaskBoard",
     "TaskLink",
     "PhoneCall",
@@ -174,7 +277,17 @@ __all__ = [
     "Visual",
     "ApiKey",
     "BrowserSignIn",
+    "BrowserTeachingSession",
+    "BrowserProcedureTeachingPolicy",
+    "BrowserProcedureTeachingPreference",
+    "BrowserProcedureTeachingSession",
+    "BrowserCredentialAgentGrant",
+    "BrowserCredentialMemberGrant",
+    "BrowserCredentialPlan",
+    "BrowserCredentialContinuation",
+    "BrowserCredentialPolicy",
     "CodingAccount",
+    "PersonalModelKey",
     "OrganizationAssistant",
     "ChannelPrompt",
     "ExternalAgent",
@@ -189,15 +302,36 @@ __all__ = [
     "OAuthRefreshToken",
     "Artifact",
     "ArtifactFollower",
+    "ArtifactFavourite",
     "ArtifactMediaType",
     "ArtifactShareRequest",
     "ArtifactVersion",
+    "CaseGeneration",
+    "CaseProposal",
+    "CaseScore",
+    "Dataset",
+    "DatasetCase",
+    "DatasetVersion",
+    "KnowledgeGapClassification",
+    "KnowledgeGapMember",
+    "KnowledgeGapTopic",
+    "KnowledgeSearch",
     "User",
     "Session",
     "Conversation",
+    "ConversationMessagePin",
     "CodingTaskChange",
     "ConversationTask",
     "ConversationTurnClaim",
+    "RoomSubmission",
+    "RoomParticipant",
+    "RoomMessageReaction",
+    "RoomThread",
+    "RoomThreadFollow",
+    "RoomThreadRead",
+    "RoomLeadPolicy",
+    "RoomRoutingProposal",
+    "RoomTaskLink",
     "Message",
     "ToolCall",
     "ChatFile",
@@ -227,6 +361,7 @@ __all__ = [
     "DashboardLayout",
     "DashboardPreset",
     "McpConnection",
+    "NetworkConnection",
     "McpRegistryServer",
     "McpServerCheck",
     "AgentEmbed",
@@ -240,16 +375,54 @@ __all__ = [
     "AgentMessageReaction",
     "AgentMessageRead",
     "AgentMessageThread",
+    "AgentEnvironmentConnection",
+    "ConnectionKind",
     "AgentWorkspace",
     "LocalService",
     "SandboxConnection",
     "SandboxOperation",
     "AgentExposure",
+    "ChannelObservation",
+    "ChannelObservationReceipt",
     "ExposureSurface",
     "AgentTrigger",
+    "TriggerAttempt",
     "ScheduleKind",
     "AgentRun",
     "RunManifest",
+    "InterceptedToolCall",
+    "AuthoringKind",
+    "AuthoringRequest",
+    "AuthoringStatus",
+    "AuthoringTarget",
+    "BatchStatus",
+    "HunkKind",
+    "HunkOrigin",
+    "HunkStatus",
+    "SpecProposalBatch",
+    "SpecProposalHunk",
+    "ImprovementIteration",
+    "ImprovementRun",
+    "ImprovementStage",
+    "ImprovementStatus",
+    "ImprovementVerdict",
+    "StopReason",
+    "EvalRun",
+    "EvalRunArm",
+    "EvalRunCase",
+    "EvalRunStatus",
+    "EvalRunPurpose",
+    "EvalSuite",
+    "EvalSuiteResult",
+    "EvalSuiteResultStatus",
+    "EvalSuiteTrigger",
+    "EnvironmentGuard",
+    "PromotionOverride",
+    "ArmRole",
+    "ArmSource",
+    "CaseAttemptStatus",
+    "InterceptionOutcome",
+    "InterceptionReason",
     "IngestionSpend",
     "MLServiceCall",
     "MLCallStatus",
@@ -260,6 +433,8 @@ __all__ = [
     "ApprovalStatus",
     "ModelProfile",
     "OrganizationSecret",
+    "SecretRequest",
+    "SecretRequestStatus",
     "PendingSandboxDestroy",
     "BackgroundJob",
     "BackgroundSchedule",
@@ -267,6 +442,7 @@ __all__ = [
     "BackgroundWorker",
     "Project",
     "ContextFile",
+    "ContextProposal",
     "ContextMode",
     "AgentMemoryFile",
     "MemoryClaim",
@@ -278,13 +454,26 @@ __all__ = [
     "VirtualTableOutbox",
     "VirtualTableReceipt",
     "VirtualTableRecord",
+    "VirtualTableRecordLink",
+    "VirtualTableRelation",
+    "VirtualTableLinkEvidence",
     "VirtualTableRecordHistory",
     "VirtualTableSchemaVersion",
     "TableView",
+    "RunSkillUse",
     "Skill",
+    "SkillImprovementIteration",
+    "SkillImprovementRun",
     "SkillProposal",
     "ProposalStatus",
     "SkillResource",
+    "SkillCheck",
+    "SkillCheckAgent",
+    "SkillMerge",
+    "SkillVersion",
+    "SkillVersionSource",
+    "SkillFork",
+    "SkillFile",
     "ResourceGrant",
     "GrantLevel",
     "Group",
@@ -331,8 +520,13 @@ __all__ = [
     "WorkflowApproval",
     "WorkflowEvalRun",
     "WorkflowStepEval",
+    "AgentEvalCase",
+    "AgentEvalRun",
+    "AgentFailureLedger",
+    "AgentInstructionProposal",
     "WorkflowApprovalStatus",
     "WorkflowFile",
+    "WorkflowMediaOperation",
     "WorkflowLogAlertFiring",
     "WorkflowLogAlertRule",
     "WorkflowLogEntry",

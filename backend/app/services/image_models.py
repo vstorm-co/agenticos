@@ -34,6 +34,7 @@ from pydantic_ai.native_tools import ImageGenerationTool
 
 from app.agents.model_resolver import PROVIDERS
 from app.core import catalog
+from app.core.image_workflow_catalog import ImageWorkflowSupport
 from app.core.secret_kinds import SecretKind
 
 
@@ -44,6 +45,7 @@ class ImageModel:
     id: str
     name: str
     description: str
+    workflow: ImageWorkflowSupport | None = None
 
 
 @dataclass(frozen=True)

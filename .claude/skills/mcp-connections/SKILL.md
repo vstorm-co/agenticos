@@ -35,7 +35,7 @@ A spec binds a service one of two ways (`McpServerRef` in `app/agents/spec.py`).
 `OrgMcpServerRef` is the organization's connection, answering for everybody.
 `PersonalMcpServerRef` names a catalog key: `build_toolsets_for_agent` looks up
 the *sender's* own connection by that key on every turn - the message's author,
-never the thread's - and where there is none (an API key, the widget, a
+never the thread's - and where there is none (an API key without explicit `mcp:personal:use`, the widget, a
 schedule, an unlinked chat sender) reports the gap instead of skipping the
 server, and `_with_personal_service_gaps` in the runner tells the model what is
 missing and where the person connects it. A member's connection is never named
@@ -53,7 +53,7 @@ probe before the turn; failures log a warning and the turn proceeds without thos
 tools. Pydantic AI enters every toolset when a run starts, so raising would let one
 expired token abort every agent that names the connection. The trade is real: a
 skipped server means the model answers *without* the tools. It is briefed, though:
-`UnavailableUnreachableServer` for a failed probe, and `AnsweredRecently` for a
+`UnavailableUnreachableServer` for a failed probe, and `ResilientMcpToolset` for a
 server that answered within two minutes and fails on connect, both through
 `unreachable_briefing` in `app/agents/mcp.py`. `/test` and `last_status` are how you
 find out.
@@ -134,15 +134,30 @@ provider. Revoking their access there breaks the organization's server.
 by `ApprovalMarked` and enforced by the same `ApprovalGate`. A binding's `writes`
 policy trusts only `readOnlyHint: true`; missing or false hints require approval.
 `all` also gates reads, and `none` waives the binding's gate. The platform server
-always enforces at least `writes`, with the explicit `UNGATED` exceptions in
-`services/platform_mcp/_tools.py`.
+always enforces at least `writes`. `app/core/platform_tool_policy.py` classifies
+trusted default-free draft/record writes, ungated self preferences and fresh-human
+floors. Writes remain `readOnlyHint: false`; external metadata grants no exception.
 
-Channel runs, including delegates and resumptions, enforce at least `writes` on
-all MCP bindings. Read-only calls no longer acquire an extra approval merely by
-running in a chat app for a linked member. Unlinked room participants still
-require approval for every MCP call, including organization reads. Personal
+`tool_approval`, keyed by the server's original name, takes precedence over ordinary
+binding defaults: `required` asks and `never` runs. `all` asks when no tool-specific
+choice applies. `approval_needed` in `app/agents/mcp.py` is shared by routine action
+options. Mandatory floors override every choice and standing consent. Task writes
+also ask when their post-state may start/reschedule agent work. Generic task-board
+updates use authorized point reads and revision-bound mutation; ambiguous upserts
+ask unless their values explicitly force Person or a terminal/waiting state.
+Already approved workflow/table triggers do not add a fresh gate to ordinary records.
+
+Only trusted in-process bindings receive these defaults and conditional checks.
+The Builder catalog exposes the defaults independently of side-effect annotations;
+authors can require confirmation for default-free writes. Empty per-tool settings
+stay absent from dumps and keys stay sorted, preserving source fingerprints.
+
+Channel runs, including delegates and resumptions, retain the binding and per-tool
+approval settings for linked and unlinked senders alike. The channel does not add
+an approval requirement or discard a tool's `never` override. The platform server
+keeps its platform-wide `writes` floor. Personal
 connections resolve for each message's linked sender, never the publisher or a
-different participant.
+different participant. A watch leaves out a read its binding asks before.
 
 Cost is the same story: what a server does on its own side is outside this platform's
 budget. Only model tokens are counted.
@@ -165,3 +180,13 @@ POST /api/v1/mcp-connections/oauth/start   declared above /{id} — that route p
 assertions are the refusals: a personal connection is not bindable by a spec, a
 connection from another organization is unreachable, and a prefix collision drops the
 second server rather than aborting the turn.
+
+
+## Platform administration
+
+Use `list_administration_actions` and `get_administration_schema` for bounded
+on-demand discovery; `read_administration` must never install or publish resources.
+Writes are separated into `change_organization` and `change_deployment`. Global
+administration is external OAuth only, with a distinct unchecked consent option
+and live app-admin checks. Keep internal run credentials organization-scoped.
+Both change tools retain the platform's mandatory write-approval floor.

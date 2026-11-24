@@ -24,7 +24,8 @@ from datetime import datetime
 from enum import StrEnum
 from typing import Any
 
-from sqlalchemy import DateTime, ForeignKey, Index, String, Text
+from pydantic import JsonValue
+from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
@@ -49,6 +50,14 @@ class SkillProposal(Base, TimestampMixin):
         # first. Composite because filtering on status alone would scan every
         # decided proposal the deployment has ever recorded.
         Index("ix_skill_proposals_pending", "organization_id", "status"),
+        UniqueConstraint("id", "organization_id", name="uq_skill_proposals_tenant"),
+        Index(
+            "uq_skill_proposal_browser_source",
+            "organization_id",
+            text("(browser_procedure->>'source_session_id')"),
+            unique=True,
+            postgresql_where=text("browser_procedure IS NOT NULL"),
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -105,6 +114,8 @@ class SkillProposal(Base, TimestampMixin):
     Writing them there would make a proposal indistinguishable from an applied
     change for every reader that joins on `skill_id`.
     """
+    revision: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
+    """Raised each time a new run rewrites the pending proposal; a decision names it."""
 
     status: Mapped[str] = mapped_column(
         String(16), nullable=False, default=ProposalStatus.PENDING.value, index=True
@@ -122,6 +133,68 @@ class SkillProposal(Base, TimestampMixin):
         nullable=True,
     )
     decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    base_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    """The skill version the body was written against, for a proposal that records one.
+
+    Apply refuses once the skill has moved past it: a body reviewed against v3
+    must not silently replace a v4 somebody wrote meanwhile. A workspace change
+    records the version its run was given. `None` for a new skill, and for a
+    workspace change recorded before that, which is refused once the skill was
+    edited after it was proposed.
+    """
+
+    base_version_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("skill_versions.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    """The exact version the body was written against. Apply compares it with the
+    newest version of the same line; a proposal recorded before versions has only
+    `base_version`, and is treated as written against a skill that has since moved."""
+
+    fork_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("skill_forks.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
+    """The fork the change is for, or `None` for main: the line its agent read from."""
+
+    source: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    browser_procedure: Mapped[dict[str, JsonValue] | None] = mapped_column(
+        JSONB(none_as_null=True), nullable=True
+    )
+    """What wrote it: `workspace`, `improve` or `library`. `None` for a proposal recorded
+    before the source was kept, read by whether it has an authoring request."""
+
+    rationale: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    evidence: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, nullable=False, default=list)
+    """Checked against the runs the proposal was derived from; see `spec_proposal_hunks`."""
+
+    evidence_dropped: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    expected_effect: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    authoring_request_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("authoring_requests.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+
+    browser_teaching_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("browser_teaching_sessions.id", ondelete="SET NULL"),
+        nullable=True,
+        unique=True,
+        index=True,
+    )
+    """The reviewed browser demonstration this proposal was built from (#113).
+
+    Unique: one demonstration yields at most one proposal, however often its build
+    job is retried. Its content holds only reviewed steps, parameter names and the
+    demonstration's allowed origins.
+    """
 
     def __repr__(self) -> str:
         return f"<SkillProposal(name={self.name}, status={self.status})>"

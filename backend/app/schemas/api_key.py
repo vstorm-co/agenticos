@@ -23,7 +23,8 @@ class ApiKeyCreate(BaseSchema):
         ),
     )
     expires_at: AwareDatetime | None = Field(
-        default=None, description="When the key stops working; omit for no expiry"
+        default=None,
+        description="When the key stops working; omit for 90 days. A key cannot exceed 90 days.",
     )
 
 

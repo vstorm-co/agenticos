@@ -1,6 +1,7 @@
 import { defineRouting } from "next-intl/routing";
 
 import { locales, defaultLocale, type Locale } from "@/i18n";
+import { retiredLocales } from "@/lib/locales";
 
 /**
  * The cookie holding the locale the visitor picked.
@@ -55,4 +56,21 @@ export function pickedLocale(value: string | undefined): Locale | null {
   return value && value !== defaultLocale && (locales as readonly string[]).includes(value)
     ? (value as Locale)
     : null;
+}
+
+/**
+ * The same path without a retired locale's prefix, or `null` when it has none.
+ *
+ * Upstream served `/pl/...`, `/de/...` and `/tr/...`; this fork serves English
+ * only, so an old bookmark or a shared link names a locale that no longer
+ * exists. Without this, next-intl reads `/pl/agents` as an unprefixed English
+ * path whose first segment is `pl` - a 404. Matched case-insensitively, like
+ * `localePrefixOf`.
+ */
+export function withoutRetiredPrefix(pathname: string): string | null {
+  const [, segment, ...rest] = pathname.split("/");
+  if (!segment || !(retiredLocales as readonly string[]).includes(segment.toLowerCase())) {
+    return null;
+  }
+  return `/${rest.join("/")}`;
 }

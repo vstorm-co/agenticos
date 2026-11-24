@@ -1,5 +1,5 @@
 ---
-source_sha: "f415e83adfe5"
+source_sha: "531cae3a8bfb"
 title: "Rozmowy głosowe"
 seo_title: "Rozmowy głosowe: rozmawiaj z opublikowanym agentem"
 description: "Zadzwoń do opublikowanego agenta i porozmawiaj z nim: modele realtime, zatwierdzenia w rozmowie, limity czasu i budżety, bezpieczne rozłączanie i transkrypcje."
@@ -16,7 +16,7 @@ nie jest przechowywany nigdzie.
 
 Rozmowy prowadzi się z `/chat` w konsoli, a z widgetu albo hostowanej strony -
 gdy włączony jest własny przełącznik embeda. Każda rozmowa to jeden
-[run](concepts.md) z nazwą modelu realtime, więc Aktywność (Activity), ekran
+[run](concepts.md) z nazwą modelu realtime, więc **Aktywność** (Activity), ekran
 kosztów i ślad audytowy widzą ją jak każdy inny run.
 
 W `/chat` rozmowa to pigułka unosząca się nad polem wiadomości, które się nie
@@ -39,8 +39,7 @@ Publiczne osadzenia zachowują odrębny zakres odwiedzającego.
 opublikowany agent z głosem odbiera rozmowy, ograniczony własną najdłuższą
 rozmową i budżetami, jak każdy run.
 
-**Agent.** Jego karta Głos (Voice) w Builderze ma zakładkę **Rozmowy głosowe**,
-zapisywaną w [polu `voice`](reference/spec.md#voice) spec. Wskazuje providera,
+**Agent.** Jego karta Głos (Voice) w Builderze pokazuje **Rozmowy głosowe** i **Dyktowanie** w jednej pionowej liście, bez wewnętrznych zakładek. Każda sekcja ma własny przełącznik. Ustawienia transkrypcji pozostają dostępne także przy wyłączonym dyktowaniu, bo dotyczą również wiadomości głosowych z kanałów. Sekcja rozmów jest zapisywana w [polu `voice`](reference/spec.md#voice) spec. Wskazuje providera,
 model (albo, dla Azure, nazwę deploymentu i model bazowy, na którym działa),
 klucz z vaulta, którym prowadzi się rozmowy, głos, opcjonalny język,
 opcjonalną najdłuższą rozmowę (10 minut, gdy nieustawiona, najwyżej 50) i
@@ -57,7 +56,7 @@ głos i język.
 **Każdy agent ma przycisk.** W `/chat` przycisk rozmowy stoi w miejscu
 „Wyślij”, dopóki pole jest puste, a „Wyślij” wraca, gdy coś wpiszesz. Dla agenta bez głosu albo z kluczem, który nie utrzyma już
 rozmowy, jest przekreślony, a jego powód prowadzi tego, kto może edytować
-agenta, do zakładki Rozmowy na jego karcie Głos (Voice). Okno Architekta i panel
+agenta, do sekcji rozmów na jego karcie Głos (Voice). Okno Architekta i panel
 testowy Buildera oferują go tak samo; w panelu testowym rozmowa uruchamia
 opublikowaną wersję, nie testowany draft, i przycisk to mówi.
 
@@ -81,6 +80,7 @@ nazywa się model realtime.
 | Azure OpenAI | wdrożenie `gpt-realtime` | Relay | **Nie zweryfikowane na żywo** |
 | Google | Gemini Live: `gemini-2.5-flash-native-audio-latest`, `gemini-3.1-flash-live-preview` | Relay | **Nie zweryfikowane na żywo** |
 | xAI | `grok-voice-latest`, rozliczany za minutę | Relay | **Nie zweryfikowane na żywo** |
+| ElevenLabs | `eleven_realtime_v1_mini`, `eleven_realtime_v1_max` | Relay | **Nie zweryfikowane na żywo** |
 
 Tylko OpenAI dało się przetestować na prawdziwym koncie. Azure, Gemini i xAI są
 zbudowane na podstawie dokumentacji providerów i Pydantic AI i przetestowane z
@@ -180,6 +180,10 @@ budżetu. Odpowiada tym, co zrobił, a model rozmowy mówi to na głos.
   wywołane przez model tekstowy albo jego subagenta, pokazuje tę samą kartę
   zatwierdzenia co narzędzie wywołane przez rozmowę. Rozmowa gościa i tu nie ma
   narzędzi wymagających zatwierdzenia.
+- **Wywołanie, które pyta za każdym razem, rozstrzyga się na piśmie.**
+  Narzędzie takie jak `share_memory` czeka na kogoś, kto przeczyta dokładnie, co
+  zmieni, a karta w rozmowie głosowej tego nie pokaże. Rozmowa je odrzuca, a agent
+  proponuje zapytać na czacie tekstowym.
 - **Jedno przekazanie naraz.** Każde kontynuuje to, co w tej rozmowie zrobiło
   poprzednie, więc „teraz wyślij ten plik” działa po „spisz to”.
 - **Porażka jest mówiona, nie ukrywana.** Przekazanie, któremu skończy się budżet
@@ -426,3 +430,9 @@ Potwierdzenie, rozwiązanie lub wyciszenie tej sprawy oraz odczytanie jej powiad
 Usuwanie konta i organizacji jest odrzucane, dopóki istnieją niezakończone połączenia telefoniczne. Zakończ je i poczekaj na stan końcowy przed ponownym usuwaniem; zachowuje to obsługę callbacków dostawcy i limity czasu. Eksport osobisty obejmuje wszystkie sprawy, także bez próby połączenia, a pełna treść jest wliczana do limitu rozmiaru eksportu.
 
 Zmiana danych uwierzytelniających bota SMS jest także blokowana do zakończenia jego połączeń telefonicznych. Anulowanie podczas wysyłania żądania połączenia zapisuje zamiar przerwania i rozłącza po nadejściu identyfikatora od dostawcy. Procedura kończenia zatwierdza ten zapis przed kontaktem z dostawcą, dzięki czemu podpisane callbacki stanu mogą równolegle rozliczyć połączenie.
+
+ElevenLabs Realtime udostępnia `eleven_realtime_v1_mini` oraz `eleven_realtime_v1_max` przez relay PCM 24 kHz, z domyślnym głosem `brian` i semantycznym wykrywaniem tur.
+
+SDK nie raportuje opłat za tokeny. Połączenia z ustawionym budżetem wydatków są odrzucane przed nawiązaniem; połączenia bez takiego budżetu zachowują limit czasu i zapisują koszt audio jako dolną granicę, a nie pełny rachunek. Stawka katalogowa audio wynosi 0,08 USD/minutę (0,16 USD w trybie burst); tokeny kosztują dodatkowo. Wartość kontekstu 16k jest ostrożnym limitem historii przyjętym przez platformę, a nie oknem kontekstu ogłoszonym przez dostawcę. Integrację sprawdzono offline na konstrukcji modeli SDK i kontrolowanych transportach, bez testów na rzeczywistym koncie. [SDK](https://pydantic.dev/docs/ai/api/realtime/elevenlabs/), [ElevenLabs API pricing](https://elevenlabs.io/pricing/api).
+
+Pominięcie języka rozmowy oznacza angielski; wybór języka pokazuje tę wartość zamiast oferować automatyczne wykrywanie.

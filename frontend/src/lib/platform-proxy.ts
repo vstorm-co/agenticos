@@ -46,7 +46,7 @@ const ORG_HEADER = "X-Organization-Id";
 const WITH_BODY = new Set(["POST", "PUT", "PATCH"]);
 
 /**
- * Response headers that describe the body and must survive the hop.
+ * Response headers that describe the body or its retry policy and must survive the hop.
  *
  * A proxy forwards what the origin said rather than inventing a policy of its
  * own: `Content-Disposition` is how a download gets its filename, and a
@@ -58,11 +58,12 @@ const WITH_BODY = new Set(["POST", "PUT", "PATCH"]);
  * detected against. It is dropped when the backend compressed the body: `fetch`
  * hands that body over decoded, and the length it declared counts the gzip.
  */
-const DESCRIBES_THE_BODY = [
+const FORWARDED_RESPONSE_HEADERS = [
   "content-type",
   "content-disposition",
   "cache-control",
   "content-length",
+  "retry-after",
 ];
 
 /**
@@ -94,7 +95,7 @@ export type ProxyHandlers = {
 function describingHeaders(source: Headers): Headers {
   const headers = new Headers();
   const decoded = source.has("content-encoding");
-  for (const name of DESCRIBES_THE_BODY) {
+  for (const name of FORWARDED_RESPONSE_HEADERS) {
     if (decoded && name === "content-length") continue;
     const value = source.get(name);
     if (value) headers.set(name, value);
@@ -102,15 +103,6 @@ function describingHeaders(source: Headers): Headers {
   if (!headers.has("content-type")) headers.set("content-type", "application/json");
   if (!headers.has("cache-control")) headers.set("cache-control", NO_POLICY_MEANS);
   return headers;
-}
-
-/** Whether `Accept-Encoding` lists gzip with a quality above zero. */
-function acceptsGzip(header: string | null): boolean {
-  return (header ?? "").split(",").some((entry) => {
-    const [coding, ...params] = entry.split(";").map((part) => part.trim().toLowerCase());
-    const quality = params.find((param) => param.startsWith("q="));
-    return coding === "gzip" && (quality === undefined || Number(quality.slice(2)) > 0);
-  });
 }
 
 /**
@@ -166,18 +158,14 @@ export function platformProxy(): ProxyHandlers {
     // is how `detail` goes missing from a refusal and time-to-first-byte becomes
     // the whole transfer.
     const headers = describingHeaders(response.headers);
-    let body = response.body;
-    // The backend compressed this, so it is worth compressing again for the
-    // browser: `fetch` decoded it, and Next does not compress a route handler's
-    // answer.
-    if (body && response.headers.has("content-encoding")) {
+    // Next.js owns response compression. Compressing this decoded stream here
+    // makes the HTTP server gzip it a second time under a single encoding header.
+    // `fetch` already decoded the backend's body; `Vary` keeps caches honest about the
+    // encoding the edge may still apply.
+    if (response.headers.has("content-encoding")) {
       headers.set("vary", "Accept-Encoding");
-      if (acceptsGzip(request.headers.get("accept-encoding"))) {
-        body = body.pipeThrough(new CompressionStream("gzip"));
-        headers.set("content-encoding", "gzip");
-      }
     }
-    return new NextResponse(body, { status: response.status, headers });
+    return new NextResponse(response.body, { status: response.status, headers });
   };
 
   return { GET: forward, POST: forward, PUT: forward, PATCH: forward, DELETE: forward };

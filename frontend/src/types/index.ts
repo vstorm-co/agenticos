@@ -4,3 +4,4 @@ export * from "./chat";
 export * from "./conversation";
 export * from "./organization";
 export * from "./knowledge-base";
+export * from "./onboarding";

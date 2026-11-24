@@ -22,12 +22,11 @@ from uuid import UUID
 
 from jsonschema import validators
 from pydantic_ai import Agent as PydanticAgent
-from pydantic_ai import ModelRetry, StructuredDict
+from pydantic_ai import ModelRetry, StructuredDict, ToolOutput
 from pydantic_ai.capabilities import (
     AbstractCapability,
     HandleDeferredToolCalls,
     ReinjectSystemPrompt,
-    ToolSearch,
 )
 from pydantic_ai.output import OutputSpec
 from pydantic_ai.settings import ModelSettings
@@ -38,17 +37,21 @@ from pydantic_ai_harness.guardrails import GuardrailResult
 
 from app.agents.audience import RunAudience
 from app.agents.cache_watch import CacheWatch
+from app.agents.capabilities import CapabilityBinding
 from app.agents.capabilities import build as build_capabilities
 from app.agents.capabilities import get as capability_def
 from app.agents.capabilities._overrides import ToolOverrides
 from app.agents.capabilities.approval import (
     ApprovalGate,
+    always_asking_checks,
+    always_asking_tools,
     approval_describers,
     approval_required_tools,
     approval_tool_ids,
     refuse_ungateable_approvals,
 )
 from app.agents.capabilities.artifacts import ARTIFACTS_CAPABILITY_ID
+from app.agents.capabilities.babysit_pr import BABYSIT_PR_RECORDER_RESOURCE
 from app.agents.capabilities.browser_use import BROWSER_CAPABILITY_ID, WebBrowser
 from app.agents.capabilities.budget import (
     BudgetGuard,
@@ -57,6 +60,7 @@ from app.agents.capabilities.budget import (
     SpendLedger,
     SpendLimit,
 )
+from app.agents.capabilities.burst import BURST_RECORDER_RESOURCE
 from app.agents.capabilities.compaction import (
     CONTEXT_GAUGE_RESOURCE,
     MODEL_CONTEXT_WINDOW_RESOURCE,
@@ -64,7 +68,14 @@ from app.agents.capabilities.compaction import (
     build_gauge,
 )
 from app.agents.capabilities.conversation_search import CONVERSATION_SEARCH_CAPABILITY_ID
+from app.agents.capabilities.council import (
+    COUNCIL_MODELS_RESOURCE,
+    COUNCIL_RECORDER_RESOURCE,
+)
 from app.agents.capabilities.drafts._spec import draft_tool_names
+from app.agents.capabilities.eval_tool_tuning import (
+    EVAL_TOOL_TUNING_RECORDER_RESOURCE,
+)
 from app.agents.capabilities.guardrails import (
     ANSWER_TOOLS_RESOURCE,
     GuardrailsConfig,
@@ -78,17 +89,26 @@ from app.agents.capabilities.media import (
     ORGANIZATION_RESOURCE as MEDIA_ORGANIZATION_RESOURCE,
 )
 from app.agents.capabilities.memory_files import MEMORY_FILES_CAPABILITY_ID
+from app.agents.capabilities.proof_scenario import PROOF_SCENARIO_RECORDER_RESOURCE
+from app.agents.capabilities.skills._loader import SkillLoader
+from app.agents.capabilities.sol_loop import (
+    SOL_LOOP_MODELS_RESOURCE,
+    SOL_LOOP_RECORDER_RESOURCE,
+)
 from app.agents.capabilities.system_reminders import (
     REMINDER_STATE_RESOURCE,
     ReminderState,
     SystemReminders,
 )
+from app.agents.capabilities.tool_search import ConfiguredToolSearch, ToolSearchConfig
 from app.agents.capabilities.visuals import WEB_REACH_RESOURCE, web_reach
 from app.agents.code_mode import CodeCalls, code_mode
+from app.agents.computer_on_use import REQUEST_COMPUTER_ACCESS, RequestComputerOnUse
 from app.agents.connect_on_use import CONNECT_ACCOUNT, ConnectOnUse
 from app.agents.deps import AgentDeps, ApprovalCallback
+from app.agents.isolation import IsolationGuard, RunIsolation, capability_tools
 from app.agents.loop_guard import LoopGuard
-from app.agents.manifest import RecordingModel, RunRecorder
+from app.agents.manifest import RecordedToolSearch, RecordingModel, RunRecorder
 from app.agents.model_resolver import PROMPT_CACHE, ModelRequestSpec
 from app.agents.observability import instrument_agent, suppress_content
 from app.agents.routine_actions import RoutineToolCheck
@@ -97,6 +117,9 @@ from app.agents.setup_briefing import SetupBriefing
 from app.agents.spec import AgentSpec
 from app.agents.steering import Steering
 from app.agents.tool_call_ids import UniqueToolCallIds
+from app.agents.tool_errors import ToolErrors
+from app.agents.tool_identity import CaptureToolIdentity
+from app.agents.tool_recovery import ToolRecovery
 from app.agents.tool_repair import CountedRepair, RepairTally
 from app.agents.voice import (
     AnswerUnknownTools,
@@ -130,6 +153,27 @@ _AUDIENCE_AWARE = frozenset(
 # only the never-finishing loop, which 100 still catches.
 DEFAULT_MAX_STEPS = 100
 
+# The deadlines a model request gets when neither the model profile nor the
+# agent spec sets one. Before these, a request had no deadline at all unless
+# somebody chose one, and a model that never answered left the run showing
+# "Working" for ever: the heartbeat keeps beating on a live process, so the
+# stale-run sweep never fires, and failover cannot fire because no exception
+# is raised. These are merged at the lowest precedence in `build_agent` (and
+# `_reviewers`), so a profile or spec value still wins.
+#
+# `timeout` is the per-attempt transport deadline, enforced by the provider
+# clients - and by the Claude-subscription model, which enforces only this
+# one, not the two Pydantic AI deadlines below. `request_timeout` is one
+# clock over the whole request to one model, however many times the provider
+# retries it. `first_event_timeout` bounds only the wait for the first
+# streamed event, so it catches a model that never starts answering, not one
+# that answers slowly. All three cap at the 600s `ModelSettingsSpec` allows.
+DEFAULT_MODEL_TIMEOUTS: dict[str, float] = {
+    "timeout": 300.0,
+    "request_timeout": 300.0,
+    "first_event_timeout": 120.0,
+}
+
 
 type AgentAnswer = str | dict[str, Any]
 """What a finished run answers: prose, or an object of the spec's `output_schema`."""
@@ -154,6 +198,14 @@ def answer_text(answer: AgentAnswer) -> str:
 # How often the model may be sent back to fix an answer that does not fit the
 # spec's `output_schema` before the run fails on it.
 OUTPUT_RETRIES = 2
+
+
+class OutputSchemaRetry(ModelRetry):
+    """Schema feedback whose stored diagnosis never includes the model's values."""
+
+    def __init__(self, message: str, *, schema_path: str) -> None:
+        super().__init__(message)
+        self.diagnosis = f"The answer did not match its output schema at {schema_path}"
 
 
 @dataclass
@@ -206,6 +258,15 @@ class BuiltAgent:
     # capability list, where a capability with one gated tool and one ungated
     # one has no single answer.
     approval_required_tools: frozenset[str]
+    # The chain this run was built with, as raw model ids - the primary, then
+    # its fallbacks in order. The run row records only the label, which is a
+    # display name, so without these the caller that persists the run cannot
+    # tell a fallback's answer from the primary's: it would have to compare a
+    # recorded model id against a label, which false-positives whenever the
+    # two differ. Read by `finish()` to derive `fallback_used` and
+    # `serving_model` from the recorder.
+    primary_model: str
+    fallback_models: tuple[str, ...] = ()
     # How many of the run's tool calls arrived malformed and were repaired, read
     # by whoever persists the run - see `app/agents/tool_repair.py`.
     repairs: RepairTally = field(default_factory=RepairTally)
@@ -228,6 +289,8 @@ def build_agent(
     resources: dict[str, Any] | None = None,
     secrets: Mapping[UUID, StorableSecret] | None = None,
     reviewer_models: Mapping[UUID, ModelRequestSpec] | None = None,
+    council_models: Mapping[UUID, ModelRequestSpec] | None = None,
+    sol_loop_models: Mapping[UUID, ModelRequestSpec] | None = None,
     extra_toolsets: list[AbstractToolset[Any]] | None = None,
     extra_capabilities: Sequence[AbstractCapability[AgentDeps]] = (),
     agent_period_spend: PeriodSpendLookup | None = None,
@@ -241,13 +304,18 @@ def build_agent(
     shared_budget: BudgetGuard | None = None,
     recorded_overhead: int | None = None,
     recorded_reminder_state: dict[str, Any] | None = None,
+    isolation: RunIsolation | None = None,
+    test_bindings: frozenset[str] = frozenset(),
     voice: VoiceOptions | None = None,
     answering_call: VoiceOptions | None = None,
+    offer_setup_tools: bool = True,
 ) -> BuiltAgent:
     """Instantiate an agent from its spec.
 
     Args:
         spec: The published (or draft, when previewing) agent definition.
+        offer_setup_tools: Whether to offer implicit setup actions. Restricted
+            automatic turns and answer-only turns cannot expand their setup.
         model_spec: Already-resolved model and credentials.
         run_person: The member who answers for this run, or `None` when nobody
             does - derived by the runner, which alone knows the request. Handed
@@ -308,6 +376,13 @@ def build_agent(
             and the ceiling that matters is the one on the run somebody started.
             The delegate's own cap still governs runs of the delegate itself, and
             its run rows still accumulate against it - see `docs/governance.md`.
+        isolation: Run this agent isolated - an eval: only reads and calls to the
+            environment's test connections execute, and everything else is
+            recorded instead (see :mod:`app.agents.isolation`). An isolated agent
+            has no approval channel, so a gated call is refused, never parked.
+        test_bindings: The capability bindings whose vault key the run's
+            environment swapped for a test one. Their tools may write in an
+            isolated run only where the capability declares `test_key_isolates`.
         voice: Build for a realtime call: see `app/agents/voice.py`. The
             capabilities a call cannot carry are left out, approvals resolve
             inline through `voice.on_deferred`, and the instructions go in as
@@ -359,6 +434,25 @@ def build_agent(
     # N requests in a chat of one-request turns. The reminders capability mutates
     # this during the run; the runner writes it back after.
     reminder_state = ReminderState.seed(recorded_reminder_state)
+    # Wrapped, so what the provider is handed is written down as it is handed
+    # over. Reconstructing the prompt and the tool schemas from the spec
+    # afterwards would be a second implementation of everything above this line.
+    # Made before the capabilities, because run reviewers, council, code mode,
+    # sol-loop, proof scenarios, the burst, `CacheWatch` and babysit-pr write
+    # onto it. Babysit-pr also reads it through the resources below.
+    recorder = RunRecorder()
+    for binding in bindings:
+        if binding.capability_id == "tool_search":
+            search = ToolSearchConfig.model_validate(binding.config)
+            recorder.tool_search = RecordedToolSearch(
+                strategy=search.strategy,
+                max_results=search.max_results,
+                defer_capabilities=search.defer_capabilities,
+                defer_mcp_servers=search.defer_mcp_servers,
+                exclude_capabilities=tuple(search.exclude_capabilities),
+                exclude_mcp_servers=tuple(search.exclude_mcp_servers),
+                exclude_tools=tuple(search.exclude_tools),
+            )
     configured = build_capabilities(
         bindings,
         granted_scopes=granted_scopes,
@@ -388,6 +482,26 @@ def build_agent(
             # Which tools' arguments are what the person is shown, so the output
             # guardrails screen them the way they screen the text around them.
             ANSWER_TOOLS_RESOURCE: answer_tools(bindings),
+            # Which models the council's members review on, and where its rounds
+            # are recorded - resolved by the runner, read by the capability.
+            COUNCIL_MODELS_RESOURCE: council_models,
+            COUNCIL_RECORDER_RESOURCE: recorder,
+            # Where a babysit-pr watch's events are recorded - the run's
+            # recorder, read by the capability, resolved by the runner.
+            BABYSIT_PR_RECORDER_RESOURCE: recorder,
+            # Which model sol-loop's reviewer reviews on, and where its rounds
+            # are recorded - resolved by the runner, read by the capability.
+            SOL_LOOP_MODELS_RESOURCE: sol_loop_models,
+            SOL_LOOP_RECORDER_RESOURCE: recorder,
+            # Where eval-driven tool-tuning runs are recorded - the run's
+            # recorder, read by the capability.
+            EVAL_TOOL_TUNING_RECORDER_RESOURCE: recorder,
+            # Where its bursts are recorded - the run's recorder, read by the
+            # capability.
+            BURST_RECORDER_RESOURCE: recorder,
+            # Where proof scenarios are recorded - resolved by the runner, read
+            # by the capability.
+            PROOF_SCENARIO_RECORDER_RESOURCE: recorder,
         },
         secrets=secrets,
     )
@@ -404,6 +518,10 @@ def build_agent(
             ),
         )
     )
+    if any(binding.enabled and binding.capability_id == "skills" for binding in bindings) and (
+        resources or {}
+    ).get("skills"):
+        configured.append(SkillLoader())
     if voice is not None:
         configured = voice_configured(configured)
 
@@ -439,7 +557,7 @@ def build_agent(
         # for one list is how they drift apart.
         kb_collection_names=list((resources or {}).get("kb_collection_names") or []),
         kb_vector_scopes=dict((resources or {}).get("kb_vector_scopes") or {}),
-        request_approval=request_approval,
+        request_approval=None if isolation is not None else request_approval,
     )
 
     # A child spends against the run's ledger and under the run's caps, but
@@ -471,21 +589,31 @@ def build_agent(
     # a side-effecting capability to a spec is the only thing that has to be
     # right for approval to apply.
     repairs = RepairTally()
-    # Wrapped, so what the provider is handed is written down as it is handed
-    # over. Reconstructing the prompt and the tool schemas from the spec
-    # afterwards would be a second implementation of everything above this line.
-    # Made before the capabilities, because a run reviewer, code mode and
-    # `CacheWatch` write onto it.
-    recorder = RunRecorder()
-    asking = (
-        frozenset({CONNECT_ACCOUNT})
-        if any(isinstance(extra, ConnectOnUse) for extra in extra_capabilities)
-        else frozenset()
+    asking = frozenset(
+        name
+        for name, kind in (
+            (CONNECT_ACCOUNT, ConnectOnUse),
+            (REQUEST_COMPUTER_ACCESS, RequestComputerOnUse),
+        )
+        if any(isinstance(extra, kind) for extra in extra_capabilities)
+    )
+    gate = ApprovalGate(
+        routine_policy=routine_policy,
+        required_tool_names=approval_required,
+        always_asking_tool_names=always_asking_tools(spec),
+        always_asking_checks=always_asking_checks(spec),
+        gate_every_tool=gate_every_tool,
+        describers=approval_describers(spec),
+        tool_ids=approval_tool_ids(spec),
+        asking_tool_names=asking,
     )
     capabilities: list[Any] = [
         # First, so every hook after it - the approval gate and the guardrails
         # among them - sees the arguments the tool will actually be called with.
         CountedRepair(tally=repairs),
+        ToolErrors(),
+        ToolRecovery(),
+        CaptureToolIdentity.for_spec(spec),
         # Long conversations drift away from their instructions; re-stating the
         # system prompt is cheap insurance for an agent whose behaviour *is* its
         # instructions.
@@ -495,21 +623,30 @@ def build_agent(
         # request from that history must find them there.
         Steering(),
         budget,
-        ApprovalGate(
-            routine_policy=routine_policy,
-            required_tool_names=approval_required,
-            gate_every_tool=gate_every_tool,
-            describers=approval_describers(spec),
-            tool_ids=approval_tool_ids(spec),
-            asking_tool_names=asking,
+        *(
+            ()
+            if isolation is None
+            else (
+                IsolationGuard(
+                    isolation=isolation,
+                    tools=capability_tools(spec, test_bindings=test_bindings),
+                    agent_id=agent_id,
+                    approval=gate,
+                ),
+            )
         ),
+        gate,
         *configured,
         # Every agent, in text: what it can and cannot do here, from the spec
         # rather than from a prompt that goes stale the moment a capability is
         # switched (#2301). A call is told by its text twin instead.
-        *((SetupBriefing.for_spec(spec, agent_id=agent_id),) if voice is None else ()),
+        *(
+            (SetupBriefing.for_spec(spec, agent_id=agent_id),)
+            if voice is None and offer_setup_tools
+            else ()
+        ),
         *extra_capabilities,
-        *(() if voice is None else (AnswerUnknownTools(),)),
+        AnswerUnknownTools(structured=voice is None),
         *(
             ()
             if call is None
@@ -569,6 +706,7 @@ def build_agent(
     # parameter however it is spelled. See `ModelSettingsSpec`.
     model_settings = ModelSettings(
         **{
+            **DEFAULT_MODEL_TIMEOUTS,
             **PROMPT_CACHE,
             **model_spec.params,
             **spec.model_settings.model_dump(),
@@ -578,10 +716,11 @@ def build_agent(
     agent = PydanticAgent[AgentDeps, AgentOutput](
         model=RecordingModel(model_spec.build(), recorder),
         model_settings=model_settings,
-        # A realtime session reads only `instructions=` (#54), so a call carries
-        # the spec's instructions there and no system prompt at all.
-        system_prompt="" if voice is not None else spec.instructions or "",
-        instructions=None if voice is None else voice_instructions(spec.instructions, voice),
+        # Instructions are resolved on every run, including one continuing a
+        # stored model history from an older published version.
+        instructions=(spec.instructions or "")
+        if voice is None
+        else voice_instructions(spec.instructions, voice),
         # The answer first - text, or the spec's object - then
         # `DeferredToolRequests`, which is not a shape the model can choose: it
         # is what the run ends with when the approval gate parks a call.
@@ -592,7 +731,7 @@ def build_agent(
         toolsets=(
             (extra_toolsets or [])
             if voice is not None
-            else _defer_for_tool_search(configured, extra_toolsets or [])
+            else _defer_for_tool_search(configured, extra_toolsets or [], bindings=bindings)
         ),
     )
 
@@ -610,6 +749,8 @@ def build_agent(
         capabilities=configured,
         recorder=recorder,
         model_label=model_spec.label,
+        primary_model=model_spec.model,
+        fallback_models=tuple(model for _, model in model_spec.fallbacks),
         approval_required_tools=approval_required,
         usage_limits=UsageLimits(request_limit=spec.max_steps or DEFAULT_MAX_STEPS),
         repairs=repairs,
@@ -647,7 +788,7 @@ def _reviewers(
             RunReviewer(
                 name=reviewer.name,
                 model=model.build(),
-                model_settings=ModelSettings(**model.params),
+                model_settings=ModelSettings(**{**DEFAULT_MODEL_TIMEOUTS, **model.params}),
                 instructions=reviewer.instructions,
                 every=reviewer.every,
                 window=window,
@@ -668,30 +809,30 @@ def _input_screen(spec: AgentSpec) -> Callable[[str], GuardrailResult] | None:
 def _defer_for_tool_search(
     configured: list[AbstractCapability[Any]],
     extra_toolsets: list[AbstractToolset[Any]],
+    *,
+    bindings: list[CapabilityBinding],
 ) -> list[AbstractToolset[Any]]:
-    """Hide the MCP toolsets behind tool search when the agent enabled it.
+    """Pair configured function-tool and MCP deferral with the agent's search.
 
-    The two are paired here or not at all. `ToolSearch` is inert with nothing
-    deferred, and a deferred tool with no `ToolSearch` to find it is a tool the
-    model can never call - so deferring a toolset without the capability, or
-    binding the capability without deferring anything, is each half of a broken
-    agent. Binding `tool_search` is what asks for both.
-
-    MCP is the target the capability exists for. An agent may bind an arbitrary
-    number of servers, and every tool's schema is context the model pays for on
-    every request until it searches for one instead; `extra_toolsets` is exactly
-    those servers. The registry's own tools stay visible - they are few, chosen
-    per agent, and cheap to carry.
-
-    Deferring changes what the model *sees*, never a tool's identity: a
-    discovered MCP tool arrives under its real prefixed name, so the approval
-    gate still pairs on it and a binding's rename still reaches it. `ToolSearch`
-    also sits outermost, so it reads the names a rename already applied rather
-    than the ones underneath.
+    Select registered tools by their binding's effective names: a composed
+    capability's tools may carry anonymous child ids generated per run.
+    Surface-added tools stay visible; realtime bypasses this pairing altogether.
     """
-    if not any(isinstance(capability, ToolSearch) for capability in configured):
-        return extra_toolsets
-    return [toolset.defer_loading() for toolset in extra_toolsets]
+    for capability in configured:
+        if isinstance(capability, ConfiguredToolSearch):
+            configured_ids = {item.id for item in configured}
+            capability.capability_tool_names = frozenset(
+                tool.name
+                for binding in bindings
+                if binding.enabled
+                and binding.capability_id in configured_ids
+                and binding.capability_id not in capability.exclude_capabilities
+                for tool in capability_def(binding.capability_id).effective_tools(
+                    binding.tool_overrides
+                )
+            )
+            return [capability.defer_toolset(toolset) for toolset in extra_toolsets]
+    return extra_toolsets
 
 
 def _as_decimal(value: float) -> Decimal:
@@ -766,13 +907,85 @@ def _spend_limits(
 
 
 def _output_type(schema: dict[str, Any] | None) -> OutputSpec[AgentOutput]:
-    """Text, or an object of `schema` handed back as one tool call's arguments."""
+    """Text, or an object of `schema` handed back as one tool call's arguments.
+
+    A schema a strict grammar can express keeps the provider's default, so Gemini
+    still validates every call in the request. Any other is sent non-strict:
+    Anthropic compiles a strict tool into a grammar and rejects the whole request
+    over a node it cannot express. The schema is enforced either way, because
+    `_fits_schema` sends a misshapen answer back.
+    """
     if schema is None:
         return [str, DeferredToolRequests]
     return [
-        StructuredDict(schema, name="answer", description="The answer, in the shape asked for"),
+        ToolOutput(
+            StructuredDict(schema, name="answer", description="The answer, in the shape asked for"),
+            strict=None if _grammar_expresses(schema) else False,
+        ),
         DeferredToolRequests,
     ]
+
+
+_TYPED = frozenset({"type", "$ref", "enum", "const", "anyOf", "oneOf", "allOf"})
+_GRAMMAR_KEYS = frozenset(
+    {
+        "type",
+        "$ref",
+        "enum",
+        "const",
+        "anyOf",
+        "oneOf",
+        "allOf",
+        "properties",
+        "required",
+        "additionalProperties",
+        "items",
+        "prefixItems",
+        "$defs",
+        "minItems",
+        "title",
+        "description",
+        "default",
+        "examples",
+        "deprecated",
+        "readOnly",
+        "writeOnly",
+        "$schema",
+        "$id",
+        "$anchor",
+        "$comment",
+    }
+)
+
+
+def _grammar_expresses(node: object) -> bool:
+    """Whether a provider's strict-mode grammar accepts `node` and every schema under it.
+
+    It cannot express a free JSON value (`{}`, no type at all), numeric or length
+    bounds, or `minItems` above one. Unknown keywords take the locally validated
+    non-strict path rather than hiding an unvisited child schema.
+    """
+    if not isinstance(node, dict):
+        # Draft-07 tuple-form items are outside the strict compatibility contract.
+        return node is not True and not isinstance(node, list)
+    if not _TYPED & node.keys() or node.keys() - _GRAMMAR_KEYS or node.get("minItems", 0) > 1:
+        return False
+    declared = node.get("type")
+    array = declared == "array" or (isinstance(declared, list) and "array" in declared)
+    object_ = declared == "object" or (isinstance(declared, list) and "object" in declared)
+    children: list[object] = [
+        *node.get("properties", {}).values(),
+        *node.get("$defs", {}).values(),
+        *node.get("prefixItems", []),
+        *node.get("anyOf", []),
+        *node.get("oneOf", []),
+        *node.get("allOf", []),
+        node.get("items", True) if array or "items" in node or "prefixItems" in node else None,
+        node.get("additionalProperties", True)
+        if object_ or "properties" in node or "additionalProperties" in node
+        else None,
+    ]
+    return all(_grammar_expresses(child) for child in children)
 
 
 def _fits_schema(schema: dict[str, Any]) -> Callable[[AgentOutput], AgentOutput]:
@@ -791,8 +1004,9 @@ def _fits_schema(schema: dict[str, Any]) -> Callable[[AgentOutput], AgentOutput]
             problem = next(iter(sorted(checker.iter_errors(output), key=str)), None)
             if problem is not None:
                 where = "/".join(str(part) for part in problem.absolute_path) or "the answer"
-                raise ModelRetry(
-                    f"The answer does not fit its schema at {where}: {problem.message}"
+                raise OutputSchemaRetry(
+                    f"The answer does not fit its schema at {where}: {problem.message}",
+                    schema_path="/".join(str(part) for part in problem.absolute_schema_path),
                 )
         return output
 

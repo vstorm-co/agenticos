@@ -1,5 +1,5 @@
 ---
-source_sha: "767b18fe1f07"
+source_sha: "e5046cc457c6"
 ---
 
 # El inventario de componentes { #the-component-inventory }
@@ -109,6 +109,7 @@ compilan aquí y no están en el SBOM de este proyecto.
 | Glifos de marcas y providers | `frontend/src/components/brand/`, `backend/app/core/catalog/icons/` | Font Awesome, Simple Icons y marcas dibujadas a mano; las fuentes las nombra `NOTICE` |
 | El catálogo de servidores MCP | `backend/app/core/catalog/` | Datos propios de este proyecto sobre servidores de terceros, no los servidores |
 | Valores por defecto de los perfiles de modelo | `backend/app/core/catalog/` | Datos propios de este proyecto; los modelos nunca se entregan |
+| Plantillas de agents y skills de terceros para finanzas y contabilidad | `backend/app/core/catalog/agent_templates/finance/`, `backend/app/core/catalog/skill_gallery/finance/` | Adaptados de `financial-services` y `knowledge-work-plugins` de Anthropic (Apache-2.0) y del proyecto comunitario Agency Agents (MIT). Cada carpeta adaptada incluye referencias a versiones concretas de las fuentes, notas de modificación y la licencia completa; `NOTICE` y `licenses/components.toml` registran los componentes |
 
 ## Modelos, providers y servicios: la mitad del despliegue { #models-providers-and-services-the-deployments-half }
 

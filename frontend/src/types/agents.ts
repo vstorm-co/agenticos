@@ -7,11 +7,28 @@
  * backend will reject at publish.
  */
 
+import type { PromotionOverride } from "@/types/promotion-gate";
 import type { SecretRequirement } from "./secrets";
 import type { Visibility } from "./sharing";
 
+/** What an agent is for: `agent` for the ones people use, every other kind the platform's own. */
+export type AgentKind = "agent" | "judge" | "drafter" | "generator" | "classifier" | "improver";
+
+/** A kind only the platform runs. */
+export type SystemAgentKind = Exclude<AgentKind, "agent">;
+
 export type AgentStatus = "draft" | "published" | "archived";
 export type ApprovalMode = "default" | "required" | "never";
+
+/**
+ * A bound skill that does not read its main line's newest version: a main version
+ * it stays on (`version`), or a fork it follows (`fork_id`). Exactly one is set.
+ */
+export interface SkillBindingSpec {
+  skill_id: string;
+  version?: number | null;
+  fork_id?: string | null;
+}
 
 /**
  * What one tool is called and how it is described *for this agent*.
@@ -95,6 +112,8 @@ export interface CodeModeSpec {
 
 /** Where this agent's traces go, when not to the deployment's own project. */
 export interface ObservabilitySpec {
+  organization?: string | null;
+  project?: string | null;
   /** An organization secret holding a Logfire write token - an id, never a token. */
   token_secret_id?: string | null;
   /** What the agent is called in Logfire; falls back to the agent's name. */
@@ -186,6 +205,7 @@ export interface AlertSpec {
   enabled: boolean;
   to: AlertAudience[];
   user_ids: string[];
+  group_ids?: string[];
 }
 
 /**
@@ -284,6 +304,8 @@ export interface SpecialistSpec {
   capabilities: CapabilityBindingSpec[];
   collection_ids: string[];
   skill_ids: string[];
+  /** Which version of a bound skill it reads, where not main's newest. */
+  skill_bindings?: SkillBindingSpec[];
   context_ids: string[];
   max_steps?: number | null;
   preferred_mode?: DelegationMode | null;
@@ -300,6 +322,8 @@ export interface SpecialistSpec {
  */
 export interface SubagentsConfig {
   inline: SpecialistSpec[];
+  /** Discover current published agents the person running this conversation may use. */
+  allow_any_agent: boolean;
   mode: DelegationMode;
   /** Whether the model may invent a specialist mid-run. Off by default. */
   allow_dynamic: boolean;
@@ -327,10 +351,21 @@ export interface OrgMcpServerRef {
    * without it never compares equal to the stored draft, so autosave never settles.
    */
   approval: McpApproval;
+  /** Each tool's own approval, over `approval` - see {@link McpToolApproval}. */
+  tool_approval?: McpToolApproval;
 }
 
 /** How much of an MCP server's tools wait for a person's approval (#2060). */
 export type McpApproval = "writes" | "all" | "none";
+
+/**
+ * Approval per tool, keyed by the name the server gives it (#2884): `required`
+ * asks first and `never` runs freely, whatever `approval` and the server's
+ * read-only hint say. Optional, unlike `approval`, because the API leaves it
+ * out while no tool has one, and sorts it by name - so a binding is written
+ * the same way for its draft to compare equal to the stored one.
+ */
+export type McpToolApproval = Record<string, "required" | "never">;
 
 /**
  * A service each person reaches through their own account.
@@ -347,6 +382,7 @@ export interface PersonalMcpServerRef {
   /** The administrator's ceiling; the person's own connection may narrow further. */
   allowed_tools: string[] | null;
   approval: McpApproval;
+  tool_approval?: McpToolApproval;
 }
 
 /**
@@ -357,6 +393,8 @@ export interface PlatformMcpServerRef {
   account: "platform";
   allowed_tools: string[] | null;
   approval: McpApproval;
+  /** Each tool's own approval, over `approval` - see {@link McpToolApproval}. */
+  tool_approval?: McpToolApproval;
 }
 
 /** One MCP binding: the organization's connection, each person's own, or the platform's. */
@@ -411,15 +449,19 @@ export interface AgentSpec {
   variables?: PromptVariableSpec[];
   /** Up to four first messages an empty chat offers. Optional here, always on the wire. */
   starters?: string[];
+  show_starters?: boolean;
   starter_icons?: StarterIcons;
   starter_titles?: StarterTitles;
   /** `system`, `user` (the person's own) or an IANA zone, for `{{current_time}}`. */
   time_zone?: string;
   model_profile_id?: string | null;
+  model_credential_mode?: "organization" | "personal";
   model_settings: ModelSettingsSpec;
   capabilities: CapabilityBindingSpec[];
   collection_ids: string[];
   skill_ids: string[];
+  /** Which version of a bound skill it reads, where not main's newest. */
+  skill_bindings?: SkillBindingSpec[];
   context_ids: string[];
   /** App data bindings, not a separate tool capability. */
   table_bindings?: { table_id: string; operations: ("read" | "create" | "update" | "delete")[] }[];
@@ -481,6 +523,8 @@ export interface PublishedModel {
 }
 
 export interface Agent {
+  is_starter?: boolean;
+  setup_required?: boolean;
   id: string;
   slug: string;
   name: string;
@@ -491,6 +535,18 @@ export interface Agent {
   shared_groups?: string[];
   owner_user_id: string | null;
   current_version_id: string | null;
+  /**
+   * Set on an agent the platform seeded and starts itself - `eval_judge` for the
+   * default eval judge. Edited and shared like any agent.
+   */
+  system_key?: string | null;
+  /**
+   * What the agent is for. Anything but `agent` is a system agent - a judge
+   * grading evals, the drafter writing a knowledge gap's missing content: only
+   * the platform runs it, so it has no chat, channels or delegation, and the
+   * console lists it apart.
+   */
+  kind?: AgentKind;
   /**
    * The workflow whose step configures this agent, when one does. Such an agent
    * is changed in that step - versioned with the workflow - never here.
@@ -508,6 +564,19 @@ export interface Agent {
    * backend re-checks on every create, so it is not a security boundary.
    */
   can_run: boolean;
+  /**
+   * Whether the current caller may edit this agent - resolved per caller like
+   * `can_run`, so an edit grant on one agent reads true where the role check
+   * would not. What the agent page's edit controls, testing the draft and stopping
+   * an eval run read; the backend re-checks every edit.
+   */
+  can_edit?: boolean;
+  /**
+   * Whether the current caller may publish this agent - a version, a rollback, its
+   * embeds, exposures and environments. Resolved like `can_edit`, and not the same
+   * answer: a Member edits the agents they own but publishes none.
+   */
+  can_publish?: boolean;
   /** Whether other systems may reach it over A2A, by its agent card (#2092). */
   a2a_enabled?: boolean;
   /** How many members hold an explicit grant. Filled by the listing only. */
@@ -549,9 +618,12 @@ export interface Agent {
    * Read off the frozen spec, not the draft; null for a draft agent and when the
    * profile has been deleted. Listing only.
    */
+  personal_model_key?: boolean;
   published_model?: PublishedModel | null;
   /** Enabled bindings from the frozen version; absent on older servers. */
   published_capabilities?: string[] | null;
+  /** Enabled frozen bindings configured for hosted browser/computer use; not a health probe. */
+  published_hosted_capabilities?: string[] | null;
   /**
    * The coding agent the published version runs on the person's own computer, or
    * null when it runs none there; the composer names it. Listing only.
@@ -566,6 +638,7 @@ export interface Agent {
   personal_coding_harness?: LocalCodingAgent["harness"] | null;
   /** The published version's first messages, which an empty chat offers. Listing only. */
   starters?: string[];
+  show_starters?: boolean;
   starter_icons?: StarterIcons;
   starter_titles?: StarterTitles;
   created_at?: string;
@@ -579,7 +652,22 @@ export interface Agent {
 }
 
 export interface AgentDetail extends Agent {
+  can_review_shipped_update?: boolean;
   draft_spec: AgentSpec;
+  /** Resolved for this caller, including resource grants. Absent on older servers. */
+  can_edit?: boolean;
+  can_publish?: boolean;
+  draft_revision: string;
+}
+
+export interface AgentDraftUpdate {
+  spec: AgentSpec;
+  expected_revision: string;
+}
+
+export interface AgentDraftDiscard {
+  expected_revision: string;
+  expected_version_id: string;
 }
 
 /**
@@ -645,6 +733,20 @@ export interface DelegationTree {
   nodes: DelegationTreeNode[];
 }
 
+/**
+ * One binding a named environment answers with a test system instead.
+ *
+ * `production_id` is the MCP connection or vault key the spec binds; `test_id`
+ * is what runs in its place here. Null means the binding is off in this
+ * environment - set on purpose, or left behind when the test side was deleted -
+ * and never that production answers.
+ */
+export interface EnvironmentConnection {
+  kind: "mcp" | "secret";
+  production_id: string;
+  test_id: string | null;
+}
+
 /** One named environment of an agent, pinned to one published version. */
 export interface AgentEnvironment {
   id: string;
@@ -672,6 +774,10 @@ export interface AgentEnvironment {
   /** Which vault key this environment's traces are written with; null = the spec's. */
   logfire_token_secret_id: string | null;
   service_name: string | null;
+  /** Bindings this environment answers with test systems. Empty on the default. */
+  connections: EnvironmentConnection[];
+  /** The eval suites that must pass on a version before this environment takes it. */
+  guard_suite_ids: string[];
   created_at: string;
 }
 
@@ -694,6 +800,8 @@ export interface AgentVersion {
    */
   published_by_email?: string | null;
   created_at?: string;
+  /** Each promotion of this version past eval suites that had not passed on it. */
+  overrides?: PromotionOverride[];
 }
 
 /** One version with the spec it froze - what a diff is read from. */
@@ -819,6 +927,7 @@ export interface JsonSchemaProperty {
   default?: unknown;
   minimum?: number;
   maximum?: number;
+  "x-percent"?: boolean;
   maxLength?: number;
   enum?: unknown[];
   /**

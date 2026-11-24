@@ -16,7 +16,12 @@ import {
 import { WorkflowIcon as Workflow } from "@/components/icons/product-icons";
 import { useTranslations } from "next-intl";
 
+import { ErrorState } from "@/components/states";
+import { ApiError, getErrorMessage } from "@/lib/api-error";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { ResourceIcon, ResourceIconPicker } from "@/components/ui/resource-icon";
 import { PageHeader } from "@/components/dashboard/page-header";
+import { SharingPanel } from "@/components/sharing/sharing-panel";
 import { LiveRun, LiveRunStop, StaleRun, WorkflowCanvas } from "@/components/workflows/canvas";
 import {
   ConflictBanner,
@@ -32,6 +37,7 @@ import { TriggerPanel } from "@/components/workflows/triggers";
 import { NodeEditorDialog, StepDataFeed } from "@/components/workflows/node-editor";
 import {
   Button,
+  FormField,
   Input,
   Label,
   Textarea,
@@ -46,7 +52,6 @@ import {
   SheetContent,
   SheetHeader,
   SheetTitle,
-  Skeleton,
 } from "@/components/ui";
 import {
   useNodeCatalog,
@@ -54,10 +59,16 @@ import {
   useWorkflow,
   useWorkflowActions,
   useWorkflowExport,
+  useWorkflowTableDrift,
 } from "@/hooks";
 import { TagsEditor } from "@/components/workflows/tags-editor";
 import { ActiveSwitch } from "@/components/workflows/editor/active-switch";
 import { WorkflowStatus } from "@/components/workflows/editor/workflow-status";
+import {
+  WorkflowEditorLoading,
+  WORKFLOW_EDITOR_CANVAS,
+  WORKFLOW_EDITOR_LAYOUT,
+} from "@/components/workflows/editor/editor-loading";
 import { ROUTES } from "@/lib/constants";
 import type { WorkflowGraph } from "@/lib/workflows/types";
 import { useWorkflowEditorStore } from "@/stores";
@@ -108,15 +119,38 @@ const EMPTY_GRAPH: WorkflowGraph = {
 export default function WorkflowEditorPage({ params }: PageProps) {
   const { id } = use(params);
   const t = useTranslations("pages.workflows");
-  const { workflow, isLoading, saveDraft, publish, restore } = useWorkflow(id);
+  const tSharing = useTranslations("sharing");
+  const {
+    workflow,
+    isLoading,
+    error: workflowError,
+    refetch: refetchWorkflow,
+    saveDraft,
+    publish,
+    restore,
+  } = useWorkflow(id);
   const actions = useWorkflowActions();
   const exporting = useWorkflowExport();
   const restoreVersion = useRestoreVersion(restore.mutateAsync);
-  const { nodes, isLoading: catalogLoading } = useNodeCatalog();
+  const {
+    nodes,
+    isLoading: catalogLoading,
+    error: catalogError,
+    refetch: refetchCatalog,
+  } = useNodeCatalog();
+  const tErrors = useTranslations("errors");
+  const tc = useTranslations("common");
+  const readError = workflowError ?? catalogError;
+  const retryRead = () => {
+    void refetchWorkflow();
+    void refetchCatalog();
+  };
   const canEdit = workflow?.can_edit === true;
   // An editor can look without touching: the read-only editor a reader gets.
   const [viewing, setViewing] = useState(false);
   const editing = canEdit && !viewing;
+  // A table whose schema moved on is settled here, before a run or a publish is refused for it.
+  useWorkflowTableDrift(editing);
   const load = useWorkflowEditorStore((state) => state.load);
   const seedGraph = useWorkflowEditorStore((state) => state.seedGraph);
   const draft = useWorkflowEditorStore((state) => state.graph);
@@ -125,6 +159,7 @@ export default function WorkflowEditorPage({ params }: PageProps) {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [triggersOpen, setTriggersOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [nameError, setNameError] = useState<string | null>(null);
   // The test run started from Run, shown on the canvas until the next edit.
   const [liveRunId, setLiveRunId] = useState<string | null>(null);
   // That run once an edit ended its overlay: its page stays one click away.
@@ -157,15 +192,21 @@ export default function WorkflowEditorPage({ params }: PageProps) {
   // The canvas waits for the catalog too: a card drawn without its definition
   // has no ports, and its connections cannot find where to attach (xyflow 008).
   if (isLoading || catalogLoading) {
+    return <WorkflowEditorLoading />;
+  }
+
+  const unavailable =
+    workflowError instanceof ApiError && [403, 404].includes(workflowError.status);
+  if (readError && !unavailable && (!workflow || (catalogError && nodes.length === 0))) {
     return (
-      <div className="space-y-6">
-        <Skeleton className="h-8 w-64" />
-        <Skeleton className="h-96 w-full" />
-      </div>
+      <ErrorState
+        description={getErrorMessage(readError, tErrors)}
+        cta={{ label: tc("retry"), onClick: retryRead }}
+      />
     );
   }
 
-  if (!workflow) {
+  if (!workflow || unavailable) {
     return (
       <div className="space-y-4">
         <PageHeader
@@ -189,12 +230,34 @@ export default function WorkflowEditorPage({ params }: PageProps) {
   return (
     // Fills what the shell's `main` leaves: the editor is a workspace, and a canvas
     // in a fixed-height box scrolls the page instead of the graph.
-    <div key={workflow.id} className="flex min-h-0 flex-1 flex-col gap-3 pb-4 sm:min-h-[40rem]">
+    <div key={workflow.id} className={WORKFLOW_EDITOR_LAYOUT}>
+      {readError && (
+        <Alert variant="destructive">
+          <AlertDescription className="flex items-center justify-between gap-3">
+            <span>{getErrorMessage(readError, tErrors)}</span>
+            <Button variant="outline" size="sm" onClick={retryRead}>
+              {tc("retry")}
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
       <PageHeader
         // The canvas is the page: the header gives it the height a list page
         // would keep for breathing room.
         className="mb-0 md:mb-0"
         title={workflow.name}
+        icon={
+          editing ? (
+            <ResourceIconPicker
+              kind="workflow"
+              icon={workflow.icon}
+              disabled={actions.update.isPending}
+              onChange={(icon) => actions.update.mutateAsync({ id: workflow.id, update: { icon } })}
+            />
+          ) : (
+            <ResourceIcon kind="workflow" icon={workflow.icon} />
+          )
+        }
         breadcrumbs={[{ label: t("title"), href: ROUTES.WORKFLOWS }, { label: workflow.name }]}
         badges={statusBadge}
         actions={
@@ -266,10 +329,7 @@ export default function WorkflowEditorPage({ params }: PageProps) {
         }
       />
       {canEdit && <ConflictBanner workflowId={workflow.id} />}
-      <div
-        data-workflow-editor
-        className="border-border bg-card relative flex min-h-0 flex-1 overflow-hidden rounded-xl border"
-      >
+      <div data-workflow-editor className={WORKFLOW_EDITOR_CANVAS}>
         <div className="relative min-w-0 flex-1">
           {liveRunId === null ? (
             <WorkflowCanvas workflow={workflow} catalog={nodes} readOnly={!editing} />
@@ -323,20 +383,33 @@ export default function WorkflowEditorPage({ params }: PageProps) {
           <div className="space-y-6 p-5">
             <section className="space-y-4 border-b pb-6">
               <p className="text-muted-foreground text-xs">{t("detailsAutosave")}</p>
-              <div className="space-y-1.5">
-                <Label htmlFor="workflow-name">{t("detailsName")}</Label>
+              <FormField
+                htmlFor="workflow-name"
+                label={t("detailsName")}
+                error={nameError}
+                required
+              >
                 <Input
-                  id="workflow-name"
                   defaultValue={workflow.name}
                   disabled={!editing}
                   maxLength={128}
+                  onChange={() => setNameError(null)}
                   onBlur={(event) => {
                     const name = event.target.value.trim();
-                    if (name && name !== workflow.name)
-                      actions.update.mutate({ id: workflow.id, update: { name } });
+                    if (!name) {
+                      setNameError(t("nameRequired"));
+                      return;
+                    }
+                    if (name !== workflow.name)
+                      actions.update.mutate(
+                        { id: workflow.id, update: { name } },
+                        {
+                          onError: (error) => setNameError(getErrorMessage(error, tErrors)),
+                        },
+                      );
                   }}
                 />
-              </div>
+              </FormField>
               <div className="space-y-1.5">
                 <Label htmlFor="workflow-description">{t("detailsDescription")}</Label>
                 <Textarea
@@ -361,17 +434,32 @@ export default function WorkflowEditorPage({ params }: PageProps) {
               </div>
             </section>
             {settingsOpen && (
-              <WorkflowSettingsForm
-                workflow={workflow}
-                disabled={!editing}
-                saving={actions.saveSettings.isPending}
-                onSave={(settings) =>
-                  actions.saveSettings.mutate(
-                    { id: workflow.id, settings },
-                    { onSuccess: () => setSettingsOpen(false) },
-                  )
-                }
-              />
+              <>
+                <section
+                  aria-labelledby="workflow-access-heading"
+                  className="space-y-3 border-b pb-6"
+                >
+                  <h3 id="workflow-access-heading" className="text-sm font-medium">
+                    {tSharing("access")}
+                  </h3>
+                  <SharingPanel
+                    resourceType="workflow"
+                    resourceId={workflow.id}
+                    canManage={editing}
+                  />
+                </section>
+                <WorkflowSettingsForm
+                  workflow={workflow}
+                  disabled={!editing}
+                  saving={actions.saveSettings.isPending}
+                  onSave={(settings) =>
+                    actions.saveSettings.mutate(
+                      { id: workflow.id, settings },
+                      { onSuccess: () => setSettingsOpen(false) },
+                    )
+                  }
+                />
+              </>
             )}
           </div>
         </SheetContent>

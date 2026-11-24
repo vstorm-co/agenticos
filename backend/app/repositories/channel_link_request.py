@@ -7,6 +7,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.channel_link_request import ChannelLinkRequest
+from app.repositories.channel_identity import require_identity_scope
 
 
 async def create(
@@ -18,12 +19,15 @@ async def create(
     platform_username: str | None,
     platform_display_name: str | None,
     expires_at: datetime,
+    server_url: str = "",
 ) -> ChannelLinkRequest:
     """Store one outstanding request for a chat account."""
+    require_identity_scope(platform, server_url)
     request = ChannelLinkRequest(
         token=token,
         platform=platform,
         platform_user_id=platform_user_id,
+        server_url=server_url,
         platform_username=platform_username,
         platform_display_name=platform_display_name,
         expires_at=expires_at,
@@ -51,7 +55,7 @@ async def get_valid(db: AsyncSession, *, token: str, now: datetime) -> ChannelLi
 
 
 async def get_for_identity(
-    db: AsyncSession, *, platform: str, platform_user_id: str
+    db: AsyncSession, *, platform: str, platform_user_id: str, server_url: str = ""
 ) -> ChannelLinkRequest | None:
     """The outstanding request for one chat account, if there is one.
 
@@ -59,26 +63,32 @@ async def get_for_identity(
     answer with the request the winner committed rather than propagating the
     conflict. At most one row can match - the constraint is on exactly this pair.
     """
+    require_identity_scope(platform, server_url)
     result = await db.execute(
         select(ChannelLinkRequest).where(
             ChannelLinkRequest.platform == platform,
             ChannelLinkRequest.platform_user_id == platform_user_id,
+            ChannelLinkRequest.server_url == server_url,
         )
     )
     return result.scalar_one_or_none()
 
 
-async def delete_for_identity(db: AsyncSession, *, platform: str, platform_user_id: str) -> None:
+async def delete_for_identity(
+    db: AsyncSession, *, platform: str, platform_user_id: str, server_url: str = ""
+) -> None:
     """Drop every outstanding request for one chat account.
 
     Called before minting one and again once a request is spent. That is what
     makes a link single-use, and what keeps the unique constraint true without
     an upsert: somebody who asks twice must not leave the first URL live.
     """
+    require_identity_scope(platform, server_url)
     await db.execute(
         delete(ChannelLinkRequest).where(
             ChannelLinkRequest.platform == platform,
             ChannelLinkRequest.platform_user_id == platform_user_id,
+            ChannelLinkRequest.server_url == server_url,
         )
     )
     await db.flush()
@@ -93,4 +103,4 @@ async def delete_by_id(db: AsyncSession, request_id: UUID) -> bool:
     """
     result = await db.execute(delete(ChannelLinkRequest).where(ChannelLinkRequest.id == request_id))
     await db.flush()
-    return (result.rowcount or 0) > 0  # ty: ignore[unresolved-attribute]
+    return (result.rowcount or 0) > 0  # ty: ignore[missing-attribute]

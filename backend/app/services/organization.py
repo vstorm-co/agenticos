@@ -16,19 +16,18 @@ from app.core.exceptions import (
     NotFoundError,
 )
 from app.core.field_errors import refused_field
-from app.core.permissions import AuthContext, OrgRoleName, Perm, role_has
+from app.core.permissions import AuthContext, OrgRoleName, Perm, Scope, role_has, role_has_at
 from app.db.locks import LockScope, hold_name, hold_subject, try_hold_name
 from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.organization import Organization, OrganizationMember, OrgRole
 from app.repositories import (
-    collection_teardown_repo,
     credential_repo,
     invitation_repo,
     knowledge_base_repo,
     member_repo,
     organization_repo,
-    rag_document_repo,
 )
+from app.schemas.console_experience import ChatHomeOverrides, OnboardingReminderOverrides
 from app.schemas.organization import (
     OrganizationCreate,
     OrganizationList,
@@ -40,10 +39,12 @@ from app.services.deployment_settings import DeploymentSettingsService
 from app.services.file_storage import avatar_filename, get_file_storage
 from app.services.invitation_admission import admits
 from app.services.model_outputs import model_outputs, not_chat_refusal
+from app.services.network_connections import NetworkConnectionService
 from app.services.proactive import ProactiveService
 from app.services.skills import SkillService
 from app.services.speech_to_text_settings import SpeechToTextSettingsService
-from app.worker.jobs import BasePurge, Restamp
+from app.services.text_to_speech_settings import TextToSpeechSettingsService
+from app.worker.jobs import Restamp
 
 if TYPE_CHECKING:
     from app.services.rag.vectorstore import BaseVectorStore
@@ -88,6 +89,12 @@ def _org_read(
     """
     return OrganizationRead(
         id=org.id,
+        onboarding_reminders=OnboardingReminderOverrides.model_validate(org.onboarding_reminders)
+        if org.onboarding_reminders is not None
+        else None,
+        chat_home_defaults=ChatHomeOverrides.model_validate(org.chat_home_defaults)
+        if org.chat_home_defaults is not None
+        else None,
         name=org.name,
         slug=org.slug,
         is_personal=org.is_personal,
@@ -108,7 +115,9 @@ def _org_read(
         welcome_dm_enabled=org.welcome_dm_enabled,
         welcome_dm_text=org.welcome_dm_text,
         chat_may_waive_approvals=org.chat_may_waive_approvals,
+        public_agenticos_attribution=org.public_agenticos_attribution,
         public_live_data=org.public_live_data,
+        text_to_speech=org.text_to_speech,
         speech_to_text_provider=org.speech_to_text_provider,
         speech_to_text_model=org.speech_to_text_model,
         speech_to_text_secret_id=org.speech_to_text_secret_id,
@@ -229,7 +238,15 @@ class OrganizationService:
             role=OrgRole.OWNER.value,
         )
         await self._seed_bundled_skills(org.id, owner_id)
+        await self._seed_system_agents(org.id, owner_id)
         return org
+
+    async def _seed_system_agents(self, organization_id: UUID, owner_id: UUID) -> None:
+        # Imported locally: the system agents reach the agent registry, whose
+        # browser capability imports this module back through the user service.
+        from app.services.system_agents import SystemAgentService
+
+        await SystemAgentService(self.db).seed(organization_id=organization_id, owner_id=owner_id)
 
     async def _seed_bundled_skills(self, organization_id: UUID, owner_id: UUID) -> None:
         """Copy every bundled skill into a brand-new organization.
@@ -417,6 +434,7 @@ class OrganizationService:
             role=OrgRole.OWNER.value,
         )
         await self._seed_bundled_skills(org.id, user_id)
+        await self._seed_system_agents(org.id, user_id)
         return org
 
     async def update(
@@ -429,9 +447,8 @@ class OrganizationService:
         """Update org metadata and settings.
 
         Three permissions decide this PATCH, each covering the fields it names:
-        `org:settings` for the metadata (name, avatar), `budgets:manage` for
-        the monthly spending cap, `approvals:decide` for whether chat sessions
-        may waive approvals. The built-in Owner and Admin hold all three, so
+        `org:settings` for the metadata (name, avatar), `budgets:manage` for the monthly spending cap, `approvals:decide`
+        for whether chat sessions may waive approvals. The built-in Owner and Admin hold all three, so
         nothing changes for them - but the catalog advertises each as its own
         entitlement, and a permission the matrix shows and no endpoint consults
         is a row that means nothing.
@@ -451,7 +468,8 @@ class OrganizationService:
         The speech-to-text default falls under `org:settings` with the metadata,
         and is validated only when one of its fields is named - so a rename never
         trips over a default that went stale (#1797). Calls and dictation are
-        switched on per agent, so nothing else about voice is the organization's.
+        switched on per agent. Text-to-speech defaults are a separate group,
+        inherited only by agents that explicitly choose them.
 
         `key_scopes` are those of the API key the request came with, `None` for
         a session: each field's permission must be one the key was issued for
@@ -484,7 +502,14 @@ class OrganizationService:
             raise AuthorizationError(message="Only Owner or Admin can update the organization")
         if (wants_budget or wants_proactive) and not holds(Perm.BUDGETS_MANAGE):
             raise AuthorizationError(message="Changing a spending limit requires 'budgets:manage'")
-        if wants_waiver and not holds(Perm.APPROVALS_DECIDE):
+        # The waiver switch is organization-wide, not a run's: it takes a
+        # privileged decider, not merely somebody who may decide their own
+        # run. `approvals:decide` at `OWN` decides one person's runs; flipping
+        # the switch decides what every chat in the organization may waive.
+        if wants_waiver and not (
+            role_has_at(membership.role, Perm.APPROVALS_DECIDE, Scope.ALL)
+            and (key_scopes is None or Perm.APPROVALS_DECIDE in key_scopes)
+        ):
             raise AuthorizationError(
                 message="Changing whether chats may waive approvals requires 'approvals:decide'"
             )
@@ -503,6 +528,24 @@ class OrganizationService:
                     "Changing whether pages may show data publicly is not allowed while "
                     "impersonating another account."
                 )
+            )
+
+        if "onboarding_reminders" in data.model_fields_set:
+            org = await organization_repo.set_onboarding_reminders(
+                self.db,
+                org,
+                changes=data.onboarding_reminders.changes()
+                if data.onboarding_reminders is not None
+                else None,
+            )
+
+        if "chat_home_defaults" in data.model_fields_set:
+            org = await organization_repo.set_chat_home_defaults(
+                self.db,
+                org,
+                changes=data.chat_home_defaults.changes()
+                if data.chat_home_defaults is not None
+                else None,
             )
 
         if wants_budget:
@@ -564,8 +607,24 @@ class OrganizationService:
                 target_id=str(org.id),
                 details={"from": before, "to": org.public_live_data},
             )
+        if data.public_agenticos_attribution is not None:
+            org = await organization_repo.set_public_agenticos_attribution(
+                self.db, org, enabled=data.public_agenticos_attribution
+            )
         if data.model_fields_set & _SPEECH_FIELDS:
             org = await self._apply_speech_settings(org, data)
+
+        if "text_to_speech" in data.model_fields_set:
+            await TextToSpeechSettingsService(self.db).validate_defaults(
+                org.id, data.text_to_speech
+            )
+            org = await organization_repo.set_text_to_speech(
+                self.db,
+                org,
+                defaults=data.text_to_speech.model_dump(mode="json")
+                if data.text_to_speech is not None
+                else None,
+            )
 
         return await organization_repo.update(
             self.db,
@@ -791,35 +850,41 @@ class OrganizationService:
         not dropped - `collection_name` is not tenant-unique (#913) - and each name
         that is dropped is reserved in `collection_teardowns`, committed with the
         delete, so a claim of the name in the commit-to-drop window is refused rather
-        than adopting the still-populated table (#1362). The gap this does not close
-        is commit-to-dispatch - a crash before `spawn_after_commit` fires still loses
-        the cleanup, which only a record committed with the delete (an outbox) would
-        close.
+        than adopting the still-populated table (#1362). The durable cleanup job
+        is committed with the deletion; a failed table drop retains its reservation
+        for the worker or stale-reservation sweep to retry.
         """
         # Teardown locks before the org row lock, from a snapshot read without it,
         # so claim (teardown then org FK) and purge cannot invert into a deadlock
         # (#1387). Sorted, so two purges sharing a name (#913) take it in one order.
         held: set[str] = set()
-        if self._vector_store is not None:
-            snapshot = await knowledge_base_repo.list_org_scoped(self.db, org.id)
-            for collection in sorted({kb.collection_name for kb in snapshot}):
-                await hold_name(self.db, LockScope.COLLECTION_TEARDOWN, collection)
-                held.add(collection)
+        snapshot = await knowledge_base_repo.list_org_scoped(self.db, org.id)
+        for collection in sorted({kb.collection_name for kb in snapshot}):
+            await hold_name(self.db, LockScope.COLLECTION_TEARDOWN, collection)
+            held.add(collection)
 
         await organization_repo.get_by_id_for_update(self.db, org.id)
+        await NetworkConnectionService(self.db).prepare_organization_deletion(org.id)
         from app.repositories import telephony as phone_repo
 
         # The org row lock fences new call intents through their foreign key.
         if await phone_repo.organization_has_unfinished_calls(self.db, org.id):
             raise ConflictError(message="End all telephone calls before deleting this organization")
-        collections: list[str] = []
-        storage_paths: list[str] = []
-        deleted_bases: list[BasePurge] = []
-        for kb in await knowledge_base_repo.list_org_scoped(self.db, org.id):
-            storage_paths.extend(await rag_document_repo.delete_by_knowledge_base(self.db, kb.id))
-            collections.append(kb.collection_name)
-            deleted_bases.append(BasePurge(collection=kb.collection_name, knowledge_base_id=kb.id))
-            await knowledge_base_repo.delete(self.db, kb.id)
+        from app.services.knowledge_base import KnowledgeBaseService
+
+        bases = await knowledge_base_repo.list_org_scoped(self.db, org.id)
+        for kb in sorted(bases, key=lambda row: row.collection_name):
+            if kb.collection_name not in held and not await try_hold_name(
+                self.db, LockScope.COLLECTION_TEARDOWN, kb.collection_name
+            ):
+                raise ConcurrentChangeError(
+                    message="The organization's knowledge collections changed during deletion. Nothing was deleted; try again.",
+                    details={"collection_name": kb.collection_name},
+                )
+            held.add(kb.collection_name)
+            await KnowledgeBaseService(self.db).purge(
+                kb, cleanup_vectors=self._vector_store is not None
+            )
 
         # A personal base carrying this org's id is left standing by the `SET NULL`,
         # which flips its `vector_tenant` to `None` while its rows stay stamped with
@@ -833,50 +898,15 @@ class OrganizationService:
         if self._vector_store is not None:
             restamp_orphans = await knowledge_base_repo.list_personal_carrying_org(self.db, org.id)
 
+        from app.services.sandbox_workspace import SandboxWorkspaceService
+
+        await SandboxWorkspaceService(self.db).purge_personal_coding(organization_id=org.id)
         await organization_repo.delete(self.db, org)
 
-        # A store is wired only on the teardown path, and it is the signal to clean up
-        # the vector tables. A collection another organization still references is left
-        # alone - the name is not tenant-unique (#913). The rest are dropped by the
-        # deferred cleanup, under the teardown lock (#1355) and only while reserved,
-        # and every one of them is reserved here, so a claim in the
-        # commit-to-drop window is refused rather than adopting the still-populated
-        # table (#1362). Both readings below therefore happen under the name's lock:
-        # the ones the snapshot saw are already held, and one created since is taken
-        # without waiting - see the note above on why waiting here cannot be done and
-        # why a name that cannot be locked is a refusal rather than an unreserved drop.
-        # Files are unlinked whether or not a store was wired.
-        to_drop: list[str] = []
-        if self._vector_store is not None:
-            for collection in dict.fromkeys(collections):
-                if collection not in held and not await try_hold_name(
-                    self.db, LockScope.COLLECTION_TEARDOWN, collection
-                ):
-                    raise ConcurrentChangeError(
-                        message=(
-                            "This organization gained a knowledge collection while it "
-                            "was being deleted, and something else is working on that "
-                            "collection right now. Nothing was deleted; try again."
-                        ),
-                        details={"collection_name": collection},
-                    )
-                held.add(collection)
-                if await knowledge_base_repo.list_by_collection_name(self.db, collection):
-                    continue
-                to_drop.append(collection)
-                await collection_teardown_repo.reserve(self.db, collection)
         restamps = [
             Restamp(collection=kb.collection_name, organization_id=org.id, knowledge_base_id=kb.id)
             for kb in restamp_orphans
         ]
-        # A base whose table another organization keeps leaves its chunks in it,
-        # filed under an id no scope reads; the job deletes them by that id (#2537).
-        # Only with a store wired, the same signal the drops follow.
-        base_purges = (
-            [purge for purge in deleted_bases if purge.collection not in to_drop]
-            if self._vector_store is not None
-            else []
-        )
         # The images, speech and video its agents generated go in the same job
         # (#2310): their rows cascade with the organization, so the job is the
         # only record of the bytes left. One prefix, which also takes the files
@@ -886,12 +916,12 @@ class OrganizationService:
 
         await queue_external_state_cleanup(
             self.db,
-            storage_paths,
-            to_drop,
+            [],
+            [],
             restamps,
             prefixes=[organization_directory(org.id)],
             organization_id=org.id,
-            base_purges=base_purges,
+            base_purges=[],
         )
         # Whatever the `media` capability offloaded out of any of this tenant's
         # compacted histories. Content-addressed objects record nothing about who
