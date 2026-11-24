@@ -26,6 +26,7 @@ import anyio
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm.attributes import set_committed_value
 
+from app.core.tool_identity import PresentationKind
 from app.db.models.conversation import Message, ToolCall
 from app.repositories import conversation_repo
 from app.schemas.conversation import MessageRead
@@ -84,6 +85,8 @@ class SpokenToolCall:
     result: str | None = None
     success: bool = True
     completed_at: datetime | None = None
+    tool_id: str | None = None
+    presentation_kind: PresentationKind | None = None
 
 
 class TurnWriter:
@@ -172,6 +175,8 @@ class TurnWriter:
                         message_id=message.id,
                         tool_call_id=tool.tool_call_id,
                         tool_name=tool.tool_name,
+                        tool_id=tool.tool_id,
+                        presentation_kind=tool.presentation_kind,
                         args=tool.args,
                         started_at=tool.started_at,
                     )

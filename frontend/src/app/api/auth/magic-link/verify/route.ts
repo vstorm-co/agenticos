@@ -9,6 +9,7 @@ import {
   forwardRateLimit,
 } from "@/lib/server-api";
 import { ACCESS_TOKEN_COOKIE, REFRESH_TOKEN_COOKIE, secureCookies } from "@/lib/session-cookie";
+import type { MfaRequiredResponse } from "@/types";
 
 interface TokenResponse {
   access_token: string;
@@ -23,11 +24,20 @@ interface TokenResponse {
 export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as Record<string, unknown>;
-    const data = await backendFetch<TokenResponse>("/api/v1/auth/magic-link/verify", {
-      method: "POST",
-      headers: { ...forwardedFor(request) },
-      body: JSON.stringify(body),
-    });
+    const data = await backendFetch<TokenResponse | MfaRequiredResponse>(
+      "/api/v1/auth/magic-link/verify",
+      {
+        method: "POST",
+        headers: { ...forwardedFor(request) },
+        body: JSON.stringify(body),
+      },
+    );
+
+    // An account with a second factor enabled stops here: the challenge
+    // passes through untouched - no session, no cookies - carrying the
+    // link's destination with it, and the page completes it at
+    // `/auth/mfa/verify`.
+    if ("mfa_required" in data) return bffJson(data);
 
     const user = await backendFetch("/api/v1/auth/me", {
       headers: { Authorization: `Bearer ${data.access_token}` },

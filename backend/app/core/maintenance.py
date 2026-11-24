@@ -70,10 +70,25 @@ _ALLOWED_PREFIXES = (
     "/api/v1/health",
     "/api/v1/branding",
     "/api/v1/auth/",
+    "/api/v1/mcp-oauth/requests/",
     "/api/v1/admin/",
     "/docs",
     "/redoc",
     "/openapi.json",
+)
+
+_MCP_AUTH_PATHS = frozenset(
+    {
+        "/mcp",
+        "/.well-known/oauth-protected-resource/mcp",
+        "/.well-known/oauth-authorization-server",
+        "/authorize",
+        "/token",
+        "/register",
+        "/revoke",
+        "/api/v1/me/platform-context",
+        "/api/v1/me/permissions",
+    }
 )
 
 _redis: RedisClient | None = None
@@ -157,7 +172,9 @@ class MaintenanceModeMiddleware:
             return
 
         path: str = scope.get("path", "")
-        if path.startswith(_ALLOWED_PREFIXES):
+        # MCP transport and OAuth are authentication surfaces. Each operation
+        # still traverses the API middleware; ordinary writes remain blocked.
+        if path in _MCP_AUTH_PATHS or path.startswith(_ALLOWED_PREFIXES):
             await self.app(scope, receive, send)
             return
 

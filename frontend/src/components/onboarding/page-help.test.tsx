@@ -32,7 +32,7 @@ it("keeps explanations available on pages without a walkthrough", async () => {
 });
 
 it("offers the walkthrough without repeating a live summary", async () => {
-  nav.pathname = "/pl/agents";
+  nav.pathname = "/en/agents";
   render(<PageHelp />);
   await userEvent.click(screen.getByRole("button", { name: "More information" }));
   expect(screen.getByRole("button", { name: "Show tips for this page" })).toBeVisible();

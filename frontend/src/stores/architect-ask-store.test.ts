@@ -28,6 +28,7 @@ describe("useArchitectAskStore", () => {
 
     expect(second?.text).toBe("Make an agent");
     expect(second?.id).not.toBe(first?.id);
+    expect(second?.draft).toBe(false);
   });
 
   it("drops an answered ask, and never a newer one asked meanwhile", () => {
@@ -51,4 +52,9 @@ describe("useArchitectAskStore", () => {
 
     expect(useArchitectAskStore.getState().request!.id).toBeGreaterThan(first.id);
   });
+});
+
+it("opens without sending or drafting any text", () => {
+  useArchitectAskStore.getState().open();
+  expect(useArchitectAskStore.getState().request).toMatchObject({ openOnly: true, text: "" });
 });

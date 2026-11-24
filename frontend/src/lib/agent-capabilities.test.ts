@@ -108,6 +108,7 @@ function connection(overrides: Partial<McpConnectionRecord> & { id: string }): M
     catalog_key: null,
     label: null,
     is_default: false,
+    trust_read_only_hints: false,
     last_tools: null,
     created_at: "2026-01-01T00:00:00Z",
     updated_at: null,

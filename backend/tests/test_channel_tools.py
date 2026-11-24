@@ -36,6 +36,7 @@ from app.services.channels.directory import (
     supported_tools,
 )
 from app.services.channels.discord import DiscordAdapter
+from app.services.channels.matrix import MatrixAdapter
 from app.services.channels.mattermost import MattermostAdapter
 from app.services.channels.slack import SlackAdapter
 from app.services.channels.telegram import TelegramAdapter
@@ -389,6 +390,7 @@ class TestWhatEachPlatformCanActuallyAnswer:
             ("telegram", TelegramAdapter),
             ("mattermost", MattermostAdapter),
             ("discord", DiscordAdapter),
+            ("matrix", MatrixAdapter),
         ],
     )
     def test_the_offered_list_matches_what_the_adapter_implements(
@@ -823,6 +825,42 @@ class TestWhichTranscriptEachAdapterReads:
         client.__aenter__ = AsyncMock(return_value=client)
         client.__aexit__ = AsyncMock(return_value=False)
         return client
+
+    @pytest.mark.parametrize("thread_id", [None, "root"])
+    async def test_mattermost_history_sorts_and_bounds_the_platforms_unordered_posts(
+        self, thread_id: str | None
+    ) -> None:
+        client = self._mattermost_client(
+            {
+                "order": ["new", "old", "system", "missing", "middle"],
+                "posts": {
+                    "old": {"user_id": "u1", "message": "old", "create_at": 1},
+                    "middle": {"user_id": "u1", "message": "middle", "create_at": 2},
+                    "new": {"user_id": "u1", "message": "new", "create_at": 3},
+                    "system": {
+                        "user_id": "u2",
+                        "message": "joined",
+                        "create_at": 4,
+                        "type": "system_join_channel",
+                    },
+                },
+            },
+            [{"id": "u1", "username": "ada"}],
+        )
+
+        with patch("app.services.channels.mattermost.httpx.AsyncClient", return_value=client):
+            found = await MattermostAdapter().channel_history(
+                "tok", "c1", api_base_url="https://mm.acme.com", limit=2, thread_id=thread_id
+            )
+
+        assert [post.text for post in found] == ["middle", "new"]
+        assert client.post.await_args.kwargs["json"] == ["u1"]
+        params = client.get.await_args.kwargs["params"]
+        if thread_id:
+            assert params["perPage"] == 2 and params["direction"] == "up"
+            assert params["fromCreateAt"] > 0
+        else:
+            assert params == {"per_page": 2}
 
     async def test_slack_reads_a_thread_with_conversations_replies(self):
         client = MagicMock()

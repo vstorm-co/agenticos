@@ -66,7 +66,7 @@ from tests.integration.test_artifact_consent import (
 )
 from tests.integration.virtual_table_support import make_org, make_user
 
-pytestmark = pytest.mark.anyio
+pytestmark = [pytest.mark.anyio, pytest.mark.usefixtures("artifact_read_clock")]
 
 __all__ = ["storage"]
 
@@ -738,6 +738,7 @@ class TestApprovingAnAudienceRequest:
             resource_type=ARTIFACT.key,
             resource_id=page.id,
             level=GrantLevel.EDIT,
+            expires_at=datetime.now(UTC) + timedelta(days=30),
         )
         page.visibility = "org"
         await db.flush()

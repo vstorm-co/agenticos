@@ -1,18 +1,22 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
+import { useConsoleTitle } from "@/hooks/use-console-title";
 import { usePathname } from "next/navigation";
 import { stripLocale } from "@/lib/active-route";
 import { cn } from "@/lib/utils";
 
 /** The frame owns page insets; chat uses its own draggable header and full area. */
 export function MainViewport({ children }: { children: ReactNode }) {
+  const main = useRef<HTMLElement>(null);
+  useConsoleTitle(main);
   const chat = stripLocale(usePathname()) === "/chat";
   return (
-    <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+    <div className="bg-background border-border relative flex min-h-0 min-w-0 flex-1 flex-col md:my-2 md:me-2 md:rounded-2xl md:border">
       {chat && <div aria-hidden className="chat-window-drag-region" data-tauri-drag-region />}
       {!chat && <div aria-hidden className="window-drag-strip" data-tauri-drag-region />}
       <main
+        ref={main}
         id="main"
         tabIndex={-1}
         className={cn(

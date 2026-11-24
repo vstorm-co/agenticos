@@ -175,7 +175,7 @@ export function LogAlertDialog({
   return (
     // Mounted only while open, so the one change of openness it can report is closing.
     <Dialog open onOpenChange={onClose}>
-      <DialogContent className={`${DIALOG_FORM} ${DIALOG_SCROLL}`}>
+      <DialogContent data-workflow-fields className={`${DIALOG_FORM} ${DIALOG_SCROLL}`}>
         <DialogHeader>
           <DialogTitle>{rule === null ? t("alertNew") : t("alertEdit")}</DialogTitle>
         </DialogHeader>

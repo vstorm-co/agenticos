@@ -3,10 +3,12 @@ import { platformProxy } from "@/lib/platform-proxy";
 
 const proxy = platformProxy();
 
+export const POST = proxy.POST;
+
 /** Image elements cannot send the organization header; the backend still checks agent access. */
 export function GET(request: NextRequest): Promise<Response> {
   const headers = new Headers(request.headers);
   const organization = request.nextUrl.searchParams.get("organization_id");
   if (organization) headers.set("X-Organization-Id", organization);
-  return proxy.GET(new NextRequest(request, { headers }));
+  return proxy.GET(new NextRequest(request.url, { headers }));
 }

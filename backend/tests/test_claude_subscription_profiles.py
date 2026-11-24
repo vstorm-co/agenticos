@@ -84,6 +84,9 @@ async def test_profile_creation_uses_only_connected_owner_without_api_secret_or_
         ) as create,
         patch("app.services.model_profile.record_audit", AsyncMock()),
         patch("app.services.model_profile.OrganizationSecretService", autospec=True) as secrets,
+        patch(
+            "app.services.system_agents.SystemAgentService.adopt_model", new=AsyncMock()
+        ) as adopt_model,
     ):
         result = await _service().create_profile(
             ctx,
@@ -96,6 +99,7 @@ async def test_profile_creation_uses_only_connected_owner_without_api_secret_or_
     assert create.await_args.kwargs["personal_owner_user_id"] == ctx.user_id
     assert create.await_args.kwargs["secret_id"] is None
     assert create.await_args.kwargs["runs_without_key"] is False
+    adopt_model.assert_awaited_once_with(organization_id=ctx.organization_id)
     runtime.status.assert_awaited_once_with(
         ClaudeSubscriptionOwner(ctx.organization_id, ctx.user_id)
     )

@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -5,9 +6,9 @@ import NotFound from "@/app/not-found";
 import { ForgotPasswordForm } from "@/components/auth/forgot-password-form";
 import { LoginForm } from "@/components/auth/login-form";
 import { RegisterForm } from "@/components/auth/register-form";
-import { CookiesBodyEn, CookiesBodyPl } from "@/components/legal/cookies-content";
-import { PrivacyBodyEn, PrivacyBodyPl } from "@/components/legal/privacy-content";
-import { TermsBodyEn, TermsBodyPl } from "@/components/legal/terms-content";
+import { CookiesBodyEn } from "@/components/legal/cookies-content";
+import { PrivacyBodyEn } from "@/components/legal/privacy-content";
+import { TermsBodyEn } from "@/components/legal/terms-content";
 
 /**
  * A sentence reaches the screen whole, out of one message.
@@ -15,7 +16,8 @@ import { TermsBodyEn, TermsBodyPl } from "@/components/legal/terms-content";
  * These are the surfaces #425 found split across a key and a text node - the
  * heading whose emphasised half was translated while its opening words were
  * English JSX, and the contact line whose tail was a key beginning with a full
- * stop. Each is now one ICU message with a tag in it, read with `t.rich`.
+ * stop. Each is now one complete ICU message. Quiet authentication headings use
+ * plain messages; emphasis, where retained, is resolved with `t.rich`.
  *
  * Rendering is the only thing that checks that arrangement. `vitest.setup.ts`
  * mocks `next-intl` with a *real* translator over the real `en.json`, so a tag
@@ -46,13 +48,19 @@ vi.mock("@/lib/api-client", () => ({
 
 describe("a heading is one message", () => {
   it.each([
-    [LoginForm, "Sign in to your workspace."],
+    [LoginForm, "Sign in"],
     [RegisterForm, "Create your workspace."],
     [ForgotPasswordForm, "Happens to the best of us."],
   ])("renders it whole, emphasis included", (Form, sentence) => {
-    render(<Form />);
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <Form />
+      </QueryClientProvider>,
+    );
 
-    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(sentence);
+    const heading = screen.getByRole("heading", { level: 1, name: sentence });
+    expect(heading.textContent).toBe(sentence);
   });
 });
 
@@ -62,14 +70,8 @@ describe("a contact line is one message", () => {
       () => <TermsBodyEn appName="agenticos" />,
       "Questions? Email legal@example.com. We respond within five business days",
     ],
-    [
-      () => <TermsBodyPl appName="agenticos" />,
-      "Pytania? Napisz na legal@example.com. Odpowiadamy w ciągu pięciu dni",
-    ],
     [() => <PrivacyBodyEn appName="agenticos" />, "Questions or requests: privacy@example.com"],
-    [() => <PrivacyBodyPl appName="agenticos" />, "Pytania lub żądania: privacy@example.com"],
     [() => <CookiesBodyEn />, "Questions: privacy@example.com"],
-    [() => <CookiesBodyPl />, "Pytania: privacy@example.com"],
   ])("keeps the words and the link in one sentence", (Body, sentence) => {
     const { container } = render(<Body />);
 

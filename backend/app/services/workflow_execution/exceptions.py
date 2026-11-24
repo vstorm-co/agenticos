@@ -5,6 +5,7 @@ from typing import Literal
 from uuid import UUID
 
 from app.core.exceptions import AppException
+from app.core.field_errors import named_field_problems
 
 
 class WorkflowRunNotFoundError(AppException):
@@ -288,20 +289,40 @@ class WorkflowParentStoppedError(WorkflowDispatchRefusedError):
         super().__init__(details={"run_id": run_id})
 
 
-class WorkflowRunInputInvalidError(AppException):
-    """The run's input does not fit the fields its Manual or API trigger declares (422).
+class WorkflowInputValidationUnavailableError(AppException):
+    """The isolated input validator could not return a trustworthy answer (503)."""
 
-    `details["problems"]` names each field that is missing, of the wrong type,
-    not one of a choice's options, or not declared at all. Each entry is
-    `{field, message, type}`, `type` being the validator's own error type.
+    message = "Workflow input validation is unavailable; retry in a moment"
+    code = "WORKFLOW_INPUT_VALIDATION_UNAVAILABLE"
+    status_code = 503
+
+    def __init__(self, *, reason: Literal["not_started", "failed", "invalid_output"]) -> None:
+        super().__init__(details={"reason": reason})
+
+
+class WorkflowRunInputInvalidError(AppException):
+    """The run's input does not fit its trigger's fields or JSON Schema contract (422).
+
+    `details["fields"]` names rejected paths below the request's `input`, or
+    `values` for a public form. The legacy `details["problems"]` list retains
+    input-relative `{field, message, type}` entries for existing callers.
     """
 
-    message = "The run's input does not fit the fields this workflow asks for"
+    message = "The run's input does not fit this workflow's input contract"
     code = "WORKFLOW_RUN_INPUT_INVALID"
     status_code = 422
 
-    def __init__(self, *, problems: list[dict[str, str]]) -> None:
-        super().__init__(details={"problems": problems})
+    def __init__(self, *, problems: list[dict[str, str]], root: str = "input") -> None:
+        named = [
+            (
+                "" if problem["type"] == "json_invalid" else problem["field"],
+                problem["message"],
+            )
+            for problem in problems
+        ]
+        super().__init__(
+            details={"fields": named_field_problems(named, root=root), "problems": problems}
+        )
 
 
 class WorkflowInlineStorageLimitError(AppException):

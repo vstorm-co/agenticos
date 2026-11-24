@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Download } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 import { HeadroomBar } from "@/components/dashboard/widgets/budget-headroom";
@@ -23,6 +23,7 @@ import type { Group } from "@/types/groups";
  */
 export function DepartmentBudget({ orgId, group }: { orgId: string; group: Group }) {
   const t = useTranslations("groups");
+  const locale = useLocale();
   const tErrors = useTranslations("errors");
   const { spend, isLoading, error } = useGroupSpend(orgId);
   const [saving, setSaving] = useState(false);
@@ -57,11 +58,14 @@ export function DepartmentBudget({ orgId, group }: { orgId: string; group: Group
       ) : (
         <div className="space-y-3">
           <Figure
-            value={formatUsd(used)}
+            value={formatUsd(used, locale)}
             caption={
               cap === null
                 ? t("noCapSpent")
-                : t("ofCap", { cap: formatUsd(cap), left: formatUsd(Math.max(cap - used, 0)) })
+                : t("ofCap", {
+                    cap: formatUsd(cap, locale),
+                    left: formatUsd(Math.max(cap - used, 0), locale),
+                  })
             }
           />
           {cap !== null && <HeadroomBar used={used} cap={cap} />}

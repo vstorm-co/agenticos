@@ -28,6 +28,9 @@ vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 const params = new URLSearchParams("agent=agent-1");
 vi.mock("next/navigation", () => ({
+  // The browser continuation panel reaches next-intl's navigation, which reads these.
+  redirect: vi.fn(),
+  permanentRedirect: vi.fn(),
   // The empty Activity window offers to ask an agent (#2075).
   useRouter: () => ({ push: vi.fn() }),
   useSearchParams: () => params,

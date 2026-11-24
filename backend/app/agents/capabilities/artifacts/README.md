@@ -1,6 +1,6 @@
 # Artifacts
 
-Exposes five tools. `publish_artifact` publishes a finished page - a report, a small
+Exposes six tools. `publish_artifact` publishes a finished page - a report, a small
 dashboard, a one-page summary - as an **artifact**: a shared resource with an owner,
 a visibility and grants, opened in a browser under a link that stays put.
 `read_artifact` reads the current version back, so a small change is an edit rather
@@ -17,7 +17,7 @@ permissions remain separate.
 
 | File | Holds |
 |---|---|
-| `_toolset.py` | `build_artifacts_toolset`: the five tools, their prompts, the preview report, reading the page out of the workspace, `apply_edits`; `PAGE_CONTRACT`; `PublishedArtifactResult`/`parse_published_artifact`, the wire format the chat card reads |
+| `_toolset.py` | `build_artifacts_toolset`: the six tools, their prompts, the preview report, reading the page out of the workspace, `apply_edits`; `PAGE_CONTRACT`; `PublishedArtifactResult`/`parse_published_artifact`, the wire format the chat card reads |
 | `_capability.py` | The `Artifacts` dataclass, `get_instructions()` (the page contract) and `get_toolset()` |
 | `__init__.py` | The registry entry, `ArtifactsConfig` and exports |
 
@@ -88,11 +88,11 @@ no head and icons that never drew (#1974). Three things answer that, cheapest
 first.
 
 - **The page contract**, `PAGE_CONTRACT`, is this capability's standing
-  instruction: the skeleton, a closed list of the kit's most-used classes, icons
+  instruction: the skeleton, a kit-first rule (kit classes for layout and look, inline `style` only for run-time values), icons
   rather than emoji, `AO.records` for bound data, and "load `artifact-pages`
   when it is listed". It is static so the cached prompt prefix keeps it, and
   short because every request pays for it. A test holds each class it names to
-  `agenticos-3.css`.
+  `agenticos-4.css`.
 - **One steer a run to the guide.** The first whole HTML page of a run that
   offers the `artifact-pages` skill without having loaded it is sent back to
   load it and rebuild. Once per run, because the flag lives in the toolset the
@@ -225,3 +225,16 @@ approve each republish of an already-shared page sets `tool_approval` on
   agent declares what may be asked and starts nothing.
 - **A browser in the API image.** The renderer is an operator's service on a network
   with no egress, never a process beside the vault.
+
+## PDF export
+
+`export_artifact` reads the same admitted current version and data as the preview,
+then prints the sandboxed document in an isolated top-level browser target. Printing
+a fixed-height host iframe would clip multi-page content. It retains network
+interception, the content CSP, a fresh context, deadlines and disposal. The data
+bridge accepts only the matching nonce from its own window. The renderer streams
+at most 20 MB; it prints up to 51 pages and refuses a result above 50 instead of
+silently truncating it. The resulting PDF is validated and written to a unique
+workspace filename; normal file delivery owns sending it to a chat or channel.
+Unavailable or withheld bound data prevents an export, rather than producing a
+misleading empty report. This adds browser slides and PDF, not a new PowerPoint format.

@@ -1,5 +1,5 @@
 ---
-source_sha: "aa764453821d"
+source_sha: "bcb89fe0725e"
 ---
 
 # Governance { #governance }
@@ -46,6 +46,32 @@ alerta, que no para nunca.
 Un trigger de evento añade un rechazo más en su borde: un webhook cuya firma no se
 verifica contra el secreto propio del trigger es un 403 que nunca llega al runner.
 
+Las rutinas de GitHub muestran un filtro de autores al crear o editar triggers
+de issues, pull requests y comentarios. **Repository members (default)** admite
+`OWNER`, `MEMBER` y `COLLABORATOR`; **Members and contributors** añade
+`CONTRIBUTOR`. **Anyone** incluye a quienes contribuyen por primera vez y a otros
+usuarios que reportan problemas. Son asociaciones de autores de GitHub, no roles
+de organización de AgenticOS. Los bots y el login conectado excluido explícitamente
+siguen bloqueados con cualquier opción. El filtro no se aplica a pushes, runs de
+workflow ni releases. Las rutinas existentes conservan su política; una
+configuración sin `authors` sigue significando `members`.
+
+En el historial de la rutina, su propietario autenticado puede ver **Latest filtered
+GitHub event**: cuándo un webhook verificado fue rechazado por un filtro, el motivo
+y la política de autores al recibirlo. Tanto los webhooks individuales como las
+entregas de GitHub App registran este diagnóstico. Solo se conserva la última
+muestra, actualizada como máximo una vez por minuto por rutina según el reloj de
+la base de datos. No se guardan el payload, el texto del autor ni secretos, ni se
+crea un run o se consume la cuota de admisión de runs.
+
+La ausencia de diagnóstico indica que no se ha registrado un rechazo; no confirma la
+entrega de un webhook. Las respuestas públicas de los webhooks no cambian.
+
+Los fallos que registra la plataforma también alimentan el
+[bucle de aprendizaje de errores](failure-learning.md), que identifica los
+fallos recurrentes, los reúne en un registro y evalúa una corrección frente al
+comportamiento anterior antes de aplicarla.
+
 ## Entrega de rutinas { #routine-delivery }
 
 Una rutina creada en un chat privado mediante el MCP de la plataforma responde en
@@ -82,6 +108,10 @@ El formulario de la rutina permite definir o quitar su fecha de fin. La fecha us
 
 Una rutina vuelve a comprobar su creador, membresía activa, rol y permisos de ejecución antes de cada herramienta, también en delegaciones y después de una aprobación. Pausar, borrar, caducar, retirar el consentimiento personal o cambiar esa autoridad impide las siguientes llamadas. La comprobación no revierte efectos ya enviados a servicios externos. La migración `0260_routine_run_origin` conserva el origen tras borrar la rutina; los horarios antiguos aparcados cuyo origen ya se perdió se rechazan en lugar de usar la autoridad de quien aprueba.
 
+El servidor MCP integrado de AgenticOS requiere **Actuar como creador**, también cuando lo vincula un delegado publicado. Sin una identidad de persona, la revisión de fuentes y la creación de la rutina rechazan esta configuración con una explicación concreta. Active la opción o quite la vinculación de plataforma del agente y sus delegados. La plataforma nunca adopta automáticamente la identidad del creador.
+
+El historial de la rutina también muestra intentos bloqueados o fallidos anteriores a un run del agente. Cada uno incluye la hora, la etapa y una indicación para solucionarlo. No generan cargos de modelo ni contienen prompts, errores del proveedor o credenciales. Los registros permanecen hasta eliminar la rutina o la organización; un fallo en la entrega de notificaciones no los elimina. El job fire-trigger guarda un resultado separado bloqueado o fallido. Completar el job de la cola no significa que el agente se haya ejecutado correctamente.
+
 ## Budgets { #budgets }
 
 !!! abstract "Tres niveles, y no son variaciones de un mismo número"
@@ -91,10 +121,15 @@ Una rutina vuelve a comprobar su creador, membresía activa, rol y permisos de e
     techo alguno. Mira [por qué no se pueden fundir](#why-they-cannot-be-collapsed).
 
 | Nivel | Se fija en | Mide | Lo sube |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | **Agent, mensual** | el spec del agent | los runs de ese mismo agent | quien pueda editar el agent |
 | **Departamento, mensual** | los ajustes del departamento | los runs que iniciaron sus miembros, en cualquier agent | quien tenga `members:manage` y `budgets:manage` |
-| **Organización, mensual** | los ajustes de la organización | cada run *y* cada ingesta de la organización | quien tenga `budgets:manage` |
+| **Organización, mensual** | los ajustes de la organización | cada run _y_ cada ingesta de la organización | quien tenga `budgets:manage` |
+
+Cada tope mensual cuenta el coste entero de un run en el mes en que empezó, igual que
+los informes de gasto. Un run que cruza el límite de un mes - aparcado en una
+aprobación la última tarde y aprobado el día uno - aparece entero en el mes anterior,
+y al reanudarse se compara con el gasto de ese mes, no con el del nuevo.
 
 Una **organización nueva empieza con el techo de la organización ya puesto** — el
 `DEFAULT_ORG_MONTHLY_BUDGET_USD` del deployment ([configuración](configuration.md),
@@ -112,7 +147,7 @@ es precisamente lo que hace que no sea un tope. El tope de una organización med
 contra el gasto de un solo agent no ataría nunca.
 
 Así que cada tope mide su propia magnitud, y la consulta viaja con el límite. Un
-agent de $5 bajo un techo de $50 ata ahora cuando *él* ha gastado $5, y el rechazo
+agent de $5 bajo un techo de $50 ata ahora cuando _él_ ha gastado $5, y el rechazo
 nombra el tope que de verdad ató en vez de deducirlo de cuál de los dos números era
 menor.
 
@@ -123,10 +158,15 @@ bajo una organización de $10 se detiene en $10.
 
 Ambos topes se leen donde está su gasto: el de la organización en su propia fila
 (`GET /orgs/{org_id}`), y el de cada agent como `budget_monthly_usd` en el listado
-de agents — el número de la versión *publicada*, ya que es la que aplica el runner,
+de agents — el número de la versión _publicada_, ya que es la que aplica el runner,
 no lo que prometa el borrador en este momento. La tarjeta de margen del dashboard
 cruza estos datos con `GET /spend`, de modo que se puede ver un tope acercándose
 antes de que `budget_exceeded` empiece a aparecer en el historial de runs.
+
+Ese número publicado se aplica a todos los runs del agent, también a un run de una
+versión anterior: una rutina, un entorno o un paso de workflow fijados a ella,
+o un run reanudado en la versión en la que quedó aparcado. Fijar una versión decide
+cómo se comporta el agent, no cuánto puede gastar.
 
 ### El tope de un departamento { #a-departments-cap }
 
@@ -135,8 +175,8 @@ tope mensual. Se sitúa entre los otros dos: un run se comprueba contra el tope
 del agent, luego contra cada departamento con tope de la persona que lo inició y
 por último contra el de la organización. Cada departamento mide el mes de sus
 propios miembros, así que a una persona de Finanzas y Ventas la detiene el que
-se agote primero, y el rechazo lo nombra - *Sales department monthly budget
-exhausted*.
+se agote primero, y el rechazo lo nombra - _Sales department monthly budget
+exhausted_.
 
 El responsable del departamento y los administradores reciben un aviso cuando
 supera el 80% de su mes, y otro cuando su tope detiene un run. Un run que no
@@ -157,7 +197,7 @@ ningún departamento y no se cuenta.
     dejarse al contexto de sesión — que revierte ante cualquier excepción y no se
     alcanza en absoluto si hay una cancelación.
 
-!!! important "Una línea base es lo que han gastado los *demás* runs"
+!!! important "Una línea base es lo que han gastado los _demás_ runs"
 
     Ambas consultas dejan fuera la fila del propio run que pregunta. Un run
     reanudado conserva su fila, y para entonces `finish_run` ya ha confirmado lo
@@ -169,7 +209,7 @@ ningún departamento y no se cuenta.
     había alcanzado un tope del que estaba al 60%. El tope de la organización se
     contaba doble igual.
 
-La guarda es una parada en seco para un run que *ve* el gasto, y el coste propio de
+La guarda es una parada en seco para un run que _ve_ el gasto, y el coste propio de
 un run solo aterriza en su fila cuando termina.
 
 Así que la línea base que lee un run es la suma de los runs que ya han terminado, y
@@ -186,12 +226,23 @@ petición sí acota. Es la razón de que el tope sea un techo sobre el gasto
 Un deployment que necesite un tope estricto ejecuta sus agents por una sola cola en
 vez de en paralelo.
 
+### Los evals gastan de los mismos budgets { #evals-spend-from-the-same-budgets }
+
+Un [eval run](evals.md) está hecho de runs normales, así que cada caso se
+comprueba contra los límites del agent y de la organización antes de cada
+petición al modelo, y lo que gasta cuenta contra ambos: no hay un budget aparte
+para evals. Un dataset grande puede por tanto agotar el budget del mes que
+necesita el tráfico de producción. Iniciar un run muestra lo que conserva cada
+límite una vez gastada su estimación, y se rechaza antes de que nada se ejecute
+cuando la estimación supera lo que queda en cualquiera de los dos; consulta
+[El budget que deja](evals.md#the-budget-it-leaves).
+
 ### Un run cuesta más que sus peticiones al modelo { #a-run-costs-more-than-its-model-requests }
 
 Una búsqueda en la base de conocimiento embebe la pregunta antes de poder
 buscarla, y ese embedding se factura al run que lo pidió. El servicio de
 embeddings es global al proceso — sirve a cada run y a cada trabajo de ingesta a la
-vez — así que apunta contra el run que esté *medido en ese momento* en lugar de
+vez — así que apunta contra el run que esté _medido en ese momento_ en lugar de
 recibir un budget como argumento.
 
 Lo que convierte al medidor en algo que una superficie puede olvidar, y olvidarlo
@@ -204,7 +255,7 @@ preparado sin él.
 La capability [Conversaciones largas](reference/capabilities.md#context-management) es el otro
 caso. Su estrategia de resumen escribe el resumen a través de un agent que
 construye ella misma, así que esa petición no pasa por ninguna guarda de budget; la
-capability apunta lo que costó contra el mismo medidor. Estar *fuera* de la guarda
+capability apunta lo que costó contra el mismo medidor. Estar _fuera_ de la guarda
 tiene una consecuencia que conviene conocer: el gasto se registra en vez de
 rechazarse, así que una compactación que cruza un tope detiene el run en la
 petición siguiente.
@@ -231,13 +282,13 @@ Esa marca viaja ahora hasta el final. Está en la fila del run, en la fila del
 mensaje que escribe un turno, y en el total que informa una conversación; cada
 superficie que dibuja dinero dibuja un `≥` delante en vez de una cifra que se lea
 como exacta. Un nulo en un mensaje escrito antes de que existiera la columna
-significa *no registrado*, que no es la misma afirmación que "exacto" — un cliente
+significa _no registrado_, que no es la misma afirmación que "exacto" — un cliente
 solo marca lo que sabe.
 
 **Ahora lo registra cada superficie, y cada turno registra su propia parte.** Un
 mensaje escrito por un canal, la API o el widget no llevaba coste alguno hasta hace
 poco, así que un hilo de Slack no se podía totalizar. El número que se escribe es
-la *diferencia* respecto a lo que ya reclaman los turnos anteriores de ese run, no
+la _diferencia_ respecto a lo que ya reclaman los turnos anteriores de ese run, no
 la cifra de la fila del run: una fila de run es acumulativa, y un run que se aparcó
 y fue reanudado escribe dos turnos de asistente — estampar ambos con la fila
 contaría dos veces la mitad aparcada. Los mensajes de un run suman por tanto
@@ -257,8 +308,8 @@ lo rechaza el provider, a media respuesta, y el run simplemente falla.
 
 Por eso cada agent lleva un indicador — no solo el que tenga enlazada la
 capability [Conversaciones largas](reference/capabilities.md#context-management), porque el aviso
-importa más en el agent que *no* va a compactar. Informa de cuántos tokens llevaba
-la última petición de un turno, *después* de cualquier compactación: la lectura baja
+importa más en el agent que _no_ va a compactar. Informa de cuántos tokens llevaba
+la última petición de un turno, _después_ de cualquier compactación: la lectura baja
 cuando la compactación funciona, porque mide lo que salió y no lo que guarda la
 conversación.
 
@@ -318,7 +369,7 @@ petición compraría entonces un resumen que no cambia nada. La compactación se
 el chat dice por qué, y el arreglo es de quien escribe el agent: una ventana mayor,
 o una fracción más alta.
 
-Ese rechazo se apoya en un número que produce una *respuesta*, así que un turno no
+Ese rechazo se apoya en un número que produce una _respuesta_, así que un turno no
 puede medir el suyo antes de tener que decidir — y un turno de chat suele ser una
 petición. La conversación lleva la última lectura, y un run parte de ella. El primer
 turno de un hilo no tiene por tanto nada en que basarse y compacta según lo
@@ -335,14 +386,14 @@ Un run tiene **un solo ledger de gasto**, y cada delegado escribe en él. Eso es
 que hace que el tope del padre vea el gasto de una delegación antes de su siguiente
 petición al modelo, justo en el momento en que la delegación multiplica lo que
 puede costar un turno. Cada entrada lleva estampada la delegación que la apuntó,
-que es como un único ledger sigue respondiendo a "cuánto costó *este* delegado" —
+que es como un único ledger sigue respondiendo a "cuánto costó _este_ delegado" —
 mira más abajo.
 
 De ahí se sigue que **los topes que atan dentro de una delegación son los del
 padre**. El `budget.monthly_usd` propio de un delegado no se aplica a mitad del run
 del padre: dos guardas midiendo un mismo ledger contarían doble cada petición, y el
 techo que importa es el del run que alguien inició. El tope propio del delegado
-sigue gobernando los runs *del delegado mismo*.
+sigue gobernando los runs _del delegado mismo_.
 
 Cada delegado, eso sí, pone precio a sus propias peticiones, porque una guarda pone
 precio a lo que registra: un delegado en Anthropic medido por una guarda construida
@@ -357,7 +408,7 @@ acota su bucle. Mira la
 
 Dos de esos tres son del propio delegado, que es la línea que el budget no cruza:
 `max_steps` se lee del spec del delegado, y su `max_depth` limita cuán profundo
-puede ir *él* por mucho margen que le quedara a quien lo llamó. Un tope sobre el
+puede ir _él_ por mucho margen que le quedara a quien lo llamó. Un tope sobre el
 gasto es un tope sobre el run que alguien inició; un tope sobre el anidamiento es
 una decisión que tomó quien escribió el delegado y que leen sus revisores, así que
 quien llama no puede ensancharla.
@@ -366,16 +417,16 @@ quien llama no puede ensancharla.
 
 Una delegación a un agent **publicado** obtiene su propia fila en `agent_runs`, con
 `parent_run_id` y el id de tarea de la delegación. Un **especialista inline** no
-obtiene ninguna: no tiene un agent al que atribuirla, así que su coste es el *del
-run* y la llamada a la herramienta en la transcripción es el registro.
+obtiene ninguna: no tiene un agent al que atribuirla, así que su coste es el _del
+run_ y la llamada a la herramienta en la transcripción es el registro.
 
 Cuál es ese run, sin embargo, es la pregunta que respondió la
 [#228](https://github.com/vstorm-co/agenticos/issues/228).
 
 - Un especialista directamente bajo el agent propio del run se factura a la **fila
   de nivel superior**, que de todos modos es el ledger entero.
-- Un especialista bajo un **delegado publicado** se factura a la fila *de ese
-  delegado*, no a la de nivel superior — así el mes del delegado incluye lo que
+- Un especialista bajo un **delegado publicado** se factura a la fila _de ese
+  delegado_, no a la de nivel superior — así el mes del delegado incluye lo que
   gastó su especialista, que es el único sitio donde podría aterrizar honestamente.
 
 Cada entrada del ledger lleva por tanto dos atribuciones: la delegación que la hizo,
@@ -443,12 +494,12 @@ delegado que se aparcó dos veces deja tres segmentos y una fila.
 
 `cost_is_partial` se arrastra igual, y por un motivo que el dinero no comparte:
 ahora es por fila y no por run, así que un delegado que hizo una petición no
-tarifada *antes* de la aprobación y se reanudó sobre un modelo tarifado tendría si
+tarifada _antes_ de la aprobación y se reanudó sobre un modelo tarifado tendría si
 no una fila afirmando un coste exacto. La marca es verdadera si lo fue en cualquier
 segmento.
 
 Vale la pena decirlo porque el fallo al que sustituye era invisible. La fila
-guardaba solo lo que el delegado gastó *después* de la última reanudación, que en la
+guardaba solo lo que el delegado gastó _después_ de la última reanudación, que en la
 forma corriente — haz el trabajo, luego pide permiso para actuar sobre el resultado
 — es la mitad pequeña. Nada dejaba de cuadrar, porque el dinero estaba en la fila
 del padre desde el principio; lo que estaba mal era cada número que responde a
@@ -458,9 +509,9 @@ La fila hija es lo que hace respondibles dos preguntas distintas, y quieren la
 aritmética contraria:
 
 | La pregunta | Filas hijas |
-|---|---|
+| --- | --- |
 | **¿Qué debe la organización?** | **excluidas** — la fila del padre ya contiene esos tokens, así que contar ambas le factura a la organización dos veces una misma petición |
-| **¿Cuánto costó *este agent* este mes?** | **incluidas** — las filas de un delegado son el único sitio donde se registra su propio gasto, y cada una guarda las peticiones de ese agent y las de sus especialistas inline ([#228](https://github.com/vstorm-co/agenticos/issues/228)) pero no las de sus delegados publicados, que tienen filas propias |
+| **¿Cuánto costó _este agent_ este mes?** | **incluidas** — las filas de un delegado son el único sitio donde se registra su propio gasto, y cada una guarda las peticiones de ese agent y las de sus especialistas inline ([#228](https://github.com/vstorm-co/agenticos/issues/228)) pero no las de sus delegados publicados, que tienen filas propias |
 
 La segunda es lo que hace respondible "el investigador costó $40 este mes", y es
 sobre lo que se dispara un informe de uso por agent o una alerta de budget sobre ese
@@ -477,7 +528,7 @@ servidor. Un delegado detenido por su límite de uso o por un techo de budget
 conserva entero el mensaje del límite: eso es un techo haciendo su trabajo, no un
 fallo que diagnosticar.
 
-La regla alcanza también la transcripción del *padre*. Cuando un agent delega en
+La regla alcanza también la transcripción del _padre_. Cuando un agent delega en
 segundo plano consulta `check_task` y `wait_tasks` por el resultado, y lo que esos
 responden se convierte en una fila de llamada a herramienta en la conversación —
 guardada entera, porque el retorno de una herramienta es la respuesta de la propia
@@ -487,7 +538,7 @@ excepción en lugar de repetir el mensaje del provider, que es
 
 **La cifra por ventana del dashboard también lo lleva.** `GET /stats/usage` responde
 con un bloque `cost` para el periodo que eligiera el filtro, y ese bloque son los
-runs *más* la ingesta — la misma aritmética con la que se mide el tope mensual — con
+runs _más_ la ingesta — la misma aritmética con la que se mide el tope mensual — con
 `model_usd` e `ingestion_usd` al lado para que quien lo lea vea adónde fue el dinero
 sin restar. Informaba solo de la mitad de modelo hasta la 0.0.152, lo que ponía dos
 definiciones distintas de coste en una tarjeta: el titular se movía con el filtro de
@@ -503,7 +554,7 @@ ventana de una persona por una colección que sincronizó otra sería inventarle
 la predeterminada. La cifra de mes en curso y el desglose por agent detrás de ella
 excluyen las filas hijas, así que suman al total impreso encima — y el correo de uso
 de la organización informa de ese mismo total y no de una suma de uno de ellos. Solo
-una pregunta hecha *sobre un agent* las incluye. Tres de estas cinco consultas se
+una pregunta hecha _sobre un agent_ las incluye. Tres de estas cinco consultas se
 entregaron sin la distinción y cada una informaba de $1,40 por $1,00 de trabajo; si
 se añade otra, el valor por defecto es el seguro.
 
@@ -511,10 +562,10 @@ se añade otra, el valor por defecto es el seguro.
 
 **By provider** y **By key** no pueden usar ninguna de las dos columnas, y
 equivocarse ahí es invisible en pantalla. Excluir las filas hijas totaliza bien y
-luego atribuye el dinero del delegado al proveedor del *padre*, porque ese es el
+luego atribuye el dinero del delegado al proveedor del _padre_, porque ese es el
 provider de la fila que se suma: un orquestador en OpenAI que delegaba $0,40 de
-trabajo a un agent en Anthropic informaba `openai $1.00` y ninguna fila de Anthropic.
-Incluirlas informaba `openai $1.00` + `anthropic $0.40` — más que la factura.
+trabajo a un agent en Anthropic informaba `openai $1.00`y ninguna fila de Anthropic.
+Incluirlas informaba`openai $1.00` + `anthropic $0.40` — más que la factura.
 
 Así que esas dos suman el gasto **propio** de cada run: su coste menos el de sus
 delegaciones directas. `openai $0.60` + `anthropic $0.40`, que es a la vez la
@@ -597,6 +648,27 @@ como un run de la superficie **proactive** y contada contra el budget de la
 organización como cualquier otra. Una persona puede excluirse en **Ajustes →
 Asistente**.
 
+Cada petición al modelo de un run así - la primera y cada reintento - se comprueba
+contra el límite de gasto en proactividad de la persona, el budget mensual del
+agent atribuido y el de la organización. Un run que alcanza uno a medio camino se
+detiene ahí, termina como `budget_exceeded` y conserva lo que gastó. Estos runs no
+cuentan para ningún departamento.
+
+La mirada nocturna vence 20 horas después de su propio último intento. Las
+vigilancias y el mantenimiento de memoria no cambian ese momento. Las
+vigilancias siguen contando para el límite personal de gasto en proactividad.
+
+Una mirada completada guarda la persona y un hash de cada prompt leído, sin
+copiar el texto. Finalizar una pausa de aprobación o pregunta ya leída no
+provoca otra llamada de pago al modelo. Un prompt aplazado sigue sin leer
+hasta que una mirada posterior lo incluya; el texto modificado vuelve a ser
+nuevo. Las llamadas fallidas al modelo no marcan prompts como leídos.
+
+Tras actualizar, los runs antiguos de fondo sin rol no aplazan la siguiente
+mirada. Los mensajes existentes no tienen comprobante de lectura, por lo que
+los prompts recientes elegibles pueden incluirse una vez para ponerse al día,
+con los interruptores y presupuestos habituales.
+
 La tarea nocturna solo lee un prompt que pasó el
 [guardrail](reference/capabilities.md#guardrails) de entrada del agent al que se
 envió, porque el modelo de proactividad no tiene guardrails propios:
@@ -616,6 +688,12 @@ envió, porque el modelo de proactividad no tiene guardrails propios:
   que el rechazo de un guardrail de entrada, que no dejó respuesta, queda fuera.
   Un turno hablado no registra el modelo, así que queda fuera cuando ya no existe
   su run.
+
+Los prompts de rutinas se comprueban con la versión fijada del agent, la versión
+del entorno indicado o la versión actual del agent, como al ejecutar la rutina.
+Se omiten los destinos ausentes y las specs ilegibles, así como una rutina cuya
+última ejecución fue rechazada. También se omite una rutina ya ejecutada cuyo
+último run eliminó la retención: un resultado desconocido no puede anular un rechazo.
 
 Un prompt que un guardrail redactó pasa, y la tarea lo lee tal como está guardado,
 sin redactar ([#2655](https://github.com/vstorm-co/agenticos/issues/2655)).
@@ -646,7 +724,8 @@ herramientas o fuentes. **Volver a aprobar las fuentes actuales** renueva
 explícitamente el permiso. Una cuenta principal nueva no sustituye la aprobada.
 
 Cada revisión es un run **proactive** normal atribuido al agente y versión reales.
-Las herramientas de origen deben tener `readOnlyHint`. Se permiten la cuenta
+Las herramientas de origen deben tener `readOnlyHint`, y una lectura ante la que
+pregunta la vinculación MCP del agent queda fuera de la revisión. Se permiten la cuenta
 aprobada, conocimiento/contexto, guardrails, planificación y recordatorios del
 sistema; no están disponibles web, sandbox, skills ejecutables, escritura de
 memoria ni delegación. Las aprobaciones interactivas obligatorias impiden la
@@ -755,17 +834,34 @@ alcanzarlo; un caso silenciado sigue silenciado durante ese mes.
 
 ### Consentimiento para acciones { #routine-action-consent }
 
-Una rutina desatendida pide aprobación antes de acciones de capacidades, cambios
-en archivos locales y delegaciones. Las llamadas MCP externas preguntan salvo que
-su servidor las marque como solo lectura; sigue vigente una política más estricta
-de la conexión. No cambian los valores del agente interactivo. El modo de código
-se desactiva en rutinas para que los scripts agrupados no eviten controles por acción.
+Las acciones se agrupan por capability o cuenta MCP concreta y se pueden buscar.
+Selecciona o desmarca un grupo o todas las acciones permitidas; los controles masivos
+incluyen entradas ocultas por la búsqueda. Se mantienen las exclusiones individuales.
+Un review admite hasta 1000 acciones seleccionadas; una selección mayor se muestra y
+debe reducirse antes de guardar, nunca se trunca silenciosamente.
+
+Cambiar solo el título o la frecuencia conserva el consentimiento. Si cambia la versión,
+el trabajo, las instrucciones o la cuenta, el diálogo explica el límite afectado.
+**Volver a seleccionar acciones revisadas** es una nueva elección explícita de identidades
+permitidas coincidentes; no concede nada hasta guardar el review actual. Las acciones
+nuevas y cuentas modificadas no se seleccionan automáticamente. Siguen vigentes las
+aprobaciones obligatorias, la revocación y los controles de review obsoleto.
+
+Las rutinas que siguen al agente usan sus reglas de aprobación sin un requisito adicional para toda la rutina. Las restringidas preguntan además antes de acciones de capacidades, cambios de archivos locales y delegaciones, y de llamadas MCP externas no marcadas como solo lectura. Los requisitos explícitos del agente o la conexión y las aprobaciones obligatorias siguen vigentes en ambos modos. El modo de código permanece desactivado en rutinas para impedir que scripts agrupados eludan controles por herramienta.
 
 Las escrituras en Virtual Tables de AgenticOS se ejecutan dentro de sus permisos vigentes de tabla y operación sin una excepción de rutina. Una política explícita de aprobación del agente sigue aplicándose a estas escrituras internas.
 
-El creador abre **Consentimiento para acciones** en su rutina y elige acciones de capacidades y acciones MCP individuales de una cuenta identificada. Requiere `approvals:decide` y el ajuste `chat_may_waive_approvals` de la organización. Una clave API, un agente, una sesión suplantada o un administrador actuando por otro propietario no pueden consentir. No se pueden omitir aprobaciones explícitas del agente o de una vinculación MCP.
+El creador abre **Consentimiento para acciones** en su rutina y elige acciones de capacidades y acciones MCP individuales de una cuenta identificada. Requiere `approvals:decide` en `ALL` y el ajuste `chat_may_waive_approvals` de la organización. Una clave API, un agente, una sesión suplantada o un administrador actuando por otro propietario no pueden consentir. No se pueden omitir aprobaciones explícitas del agente o de una vinculación MCP.
 
 Una excepción MCP identifica la cuenta concreta, el hash de la dirección, la generación de autorización y el nombre original de la acción. Enviar correo no autoriza borrar ni escribir en otra cuenta. Las cuentas personales solo aparecen si la rutina actúa como su creador. El selector usa la lista de herramientas guardada; comprueba la conexión o pide ayuda a su administrador cuando no esté disponible. Revocar todo el consentimiento no requiere una lista operativa.
+
+La revisión muestra las capabilities del agente, AgenticOS y cada otra cuenta MCP como secciones separadas, cada una con sus grupos. Solo aparecen las acciones que el agente ya ejecuta sin preguntar: una ante la que pregunta no admite consentimiento aquí, así que no se muestra. **Usar la configuración del agente** selecciona exactamente esas acciones y reemplaza la selección actual; nada se guarda hasta elegir **Guardar consentimiento**.
+
+El panel **Fuentes revisadas** de arriba lista las fuentes de la rutina por tipo - capabilities, skills, bases de conocimiento, tablas, cuentas -, cada tipo plegado a un recuento y cada fuente con su nombre. Una fuente que ya no existe aparece como no disponible; su identificador se ve al pasar el cursor.
+
+Cuando una rutina actúa como su creador, las herramientas propias del servidor de AgenticOS aparecen en los grupos que muestra el Builder: tablas, tareas, workflows, agentes y el resto. Solo aparecen las que cambian algo, porque las lecturas nunca preguntan; la búsqueda de herramientas tampoco pregunta. Una herramienta ante la que el agente pregunta no aparece. Eso cubre cada cambio que su vinculación no marca como **Run freely** y las herramientas que siempre preguntan. Así, una rutina mantiene las aprobaciones del agente o las endurece, y nunca libera ninguna.
+
+Una excepción de la plataforma nombra solo la herramienta: las ejecuciones de la rutina llegan a la plataforma solo como su creador, la única persona que puede revisarla.
 
 Al guardar, la versión y configuración deben seguir coincidiendo con lo revisado
 por la persona. El consentimiento identifica la versión publicada inmutable, los identificadores
@@ -776,7 +872,6 @@ consentir de nuevo crea una identidad nueva. Se comprueban de nuevo la pertenenc
 los permisos, la política y el consentimiento antes de cada herramienta. Cada
 llamada autorizada registra una fila aprobada con persona y argumentos. Los
 delegados requieren sus propias decisiones y no heredan la excepción del padre.
-
 
 El consentimiento permanente también registra las revisiones actuales de las skills vinculadas, sus recursos, los archivos de contexto y las instrucciones del proyecto. Cualquier edición invalida la excepción, aunque no cambie la versión publicada del agente o se restaure después el texto anterior. Revisa las acciones de nuevo para conceder otra excepción. Las excepciones existentes sin huella de revisión siguen siendo válidas solo para agentes sin estas fuentes de instrucciones modificables.
 
@@ -849,14 +944,16 @@ Parte del trabajo es de la propia plataforma y aun así necesita un modelo. Un
 **rol de sistema** le da un responsable que un operador puede ver: una
 configuración por organización y rol, nunca una fila de agent, nunca una por tarea
 y nunca atribuida al agent inicial ni a ningún agent cuyas instrucciones no se
-ejecutaron (#2575). **Organizaciones → AI & services → Background services**
+ejecutaron (#2575). **Organizaciones → AI & services**
 (`budgets:manage`) lista cada rol con el modelo en que corre, el gasto de este mes
 y sus últimas ejecuciones.
 
 | Rol | Qué hace | Configuración |
-|---|---|---|
+| --- | --- | --- |
 | `daily_briefing` | La mirada nocturna a la semana de cada persona y el briefing que se construye con ella | En la pestaña Proactivity: el mismo modelo y límite, aquí solo de lectura |
 | `memory_maintenance` | Lee una vez un turno admitido terminado y registra los hechos, preferencias y decisiones duraderos que contiene como [claims](reference/capabilities.md#memory-claims) | Aquí: un interruptor, un modelo y un presupuesto mensual propio |
+
+Daily briefing lee la memoria vigente del perfil personal y la que la persona comparte con el agente inicial, además de las notas anteriores. Las propuestas de rutinas y agentes requieren evidencia de distintos hilos o días y se contrastan con las propuestas previas y las rutinas existentes. Memory maintenance compara las entradas vigentes del ámbito de origen y exige una cita del usuario antes de guardar una afirmación.
 
 El mantenimiento de memoria no necesita al agente inicial AgenticOS. Su run conserva el agente de origen como referencia de almacenamiento y se contabiliza como `memory_maintenance`; solo ejecuta las instrucciones de extracción de la plataforma con el modelo elegido para el rol. Eliminar o retirar la publicación del agente inicial no desactiva la extracción de otros agentes publicados.
 
@@ -884,11 +981,11 @@ $0,40 junto a una cifra de mes en curso de $1,00, y ambas mitades tenían razón
 una pregunta distinta.
 
 La lista toma la misma aritmética de dos caras que las sumas de arriba, por la misma
-razón — de modo que una superficie acotada a un agent muestre lo que hizo *ese
-agent*, trabajo delegado incluido:
+razón — de modo que una superficie acotada a un agent muestre lo que hizo _ese
+agent_, trabajo delegado incluido:
 
 | Pregunta | Respuesta |
-|---|---|
+| --- | --- |
 | `GET /runs` | Los runs que alguien inició. `parent_run_id IS NULL` |
 | `GET /runs?agent_id=<id>&include_delegations=true` | El historial propio de un agent. Lo que piden el panel Recent runs del Builder y el `?agent=` de Activity, porque las filas de un delegado son el único registro de lo que hizo él mismo |
 | `GET /runs?parent_run_id=<id>` | Lo que delegó ese run — la consulta para la que existe `agent_runs_parent_run_id_idx`. Tiene prioridad sobre `include_delegations` |
@@ -940,13 +1037,13 @@ solo filas de nivel superior: el coste del periodo y su reparto por provider (la
 doble factura de arriba), pero también el total de runs, la serie por día, el
 reparto de desenlaces, las superficies, los percentiles de latencia, el número de
 personas activas y la tabla por persona. Más allá del coste, una fila delegada
-*copia* el `user_id` y la `surface` de su padre, así que contarla inventaría además
+_copia_ el `user_id` y la `surface` de su padre, así que contarla inventaría además
 una segunda persona y una segunda llegada por un canal que alguien usó una vez.
 
 Dos agregados toman la otra cara, y ambos se preguntan sobre un agent:
 
 | Pregunta | Filas hijas |
-|---|---|
+| --- | --- |
 | `by_agent` — la tarjeta de adopción | **incluidas.** Excluidas, un agent que corre cuatrocientas veces al día como delegado de alguien no tiene fila, y la tarjeta señala como olvidado a cada agent publicado sin una y ofrece archivarlo. Sus barras pueden por tanto superar el total de runs a su lado; nada las suma |
 | `?group_by=version` — la tarjeta de comparación de versiones | **incluidas.** Un especialista que solo se ejecuta como delegado no tendría si no nada que comparar entre sus versiones |
 
@@ -965,7 +1062,7 @@ Las dos últimas son `?run=<id>` en la página Activity: un run, las delegacione
 un enlace hacia arriba al run al que se cargó una delegación. Un panel de delegación
 en un chat enlaza ahí con el `run_id` que lleva su frame terminal — razón por la que
 el frame lleva uno. Anidar las filas delegadas dentro de la tabla de nivel superior
-aquí deliberadamente *no* se hace; un componente de tabla compartido por
+aquí deliberadamente _no_ se hace; un componente de tabla compartido por
 todo el producto está
 [propuesto aparte](https://github.com/vstorm-co/agenticos/issues/139), y el anidado
 pertenece a ese y no a una tabla de runs hecha a medida.
@@ -973,8 +1070,8 @@ pertenece a ese y no a una tabla de runs hecha a medida.
 ### Qué muestra la pantalla de coste { #what-the-cost-screen-shows }
 
 `GET /spend` toma su ventana de dos maneras, porque la página pide las dos: `days`
-para los preajustes de *últimos N días*, y `from`/`to` para *este mes*, *el mes
-pasado* y un rango de calendario. `from` gana cuando llegan ambos — un rango
+para los preajustes de _últimos N días_, y `from`/`to` para _este mes_, _el mes
+pasado_ y un rango de calendario. `from` gana cuando llegan ambos — un rango
 explícito es una petición más específica que un valor por defecto que nadie cambió —
 y `period_days` vuelve nulo en ese caso en vez de repetir un número que el rango
 contradice.
@@ -991,14 +1088,14 @@ un 20% usado el día en que el tope se alcanzó de verdad.
 Cada fila por agent lleva **dos cifras de coste bajo dos nombres distintos**, que es
 la regla de esta página de principio a fin:
 
-| | |
-|---|---|
+|  |  |
+| --- | --- |
 | `cost_usd` | Su parte de la ventana, **solo runs de nivel superior**, así que la columna suma el total de encima |
 | `month_to_date_usd` | Su **propio** mes natural, filas delegadas **incluidas** — el gasto del que su `monthly_cap_usd` es tope. No suma el mes de la organización y no se dibuja como si lo hiciera |
 
 `partial_run_count` dice cuánto de todo eso es un hecho: cuántos **runs de nivel
 superior** de la ventana no se pudieron tarifar del todo, de modo que el coste es un
-suelo por exactamente esa cantidad. *"3 de 40 runs no se pudieron tarifar"* es algo
+suelo por exactamente esa cantidad. _"3 de 40 runs no se pudieron tarifar"_ es algo
 sobre lo que alguien puede actuar; una cifra con un signo de más no lo es.
 
 Un run cuenta cuando cualquier modelo de su árbol no tenía precio, **los de sus
@@ -1020,8 +1117,8 @@ tarifada bajo un padre sin tarifar fuera de la ventana no levanta salvedad, porq
 dinero de la ventana es exacto
 ([#620](https://github.com/vstorm-co/agenticos/issues/620)).
 
-Una fila es **una por agent**, con `agent_name` en ella. Antes era una por agent *y
-modelo*, llevando solo `model_label` — así que la pestaña listaba nombres de modelo
+Una fila es **una por agent**, con `agent_name` en ella. Antes era una por agent _y
+modelo_, llevando solo `model_label` — así que la pestaña listaba nombres de modelo
 donde quien lee espera un agent, y partía un agent en dos filas por haber respondido
 en dos modelos. La forma por modelo sobrevive donde es la pregunta que se hace: el
 correo de uso sigue agrupando así.
@@ -1055,8 +1152,8 @@ es el registro de lo que se decidió, y lleva el nombre y la nota de quien decid
 porque un UUID pelado no es un rastro de responsabilidad. Deliberadamente no hay
 controles en una fila ya resuelta.
 
-| Parámetro | |
-|---|---|
+| Parámetro |  |
+| --- | --- |
 | `status` | Se repite. Ausente significa pendientes — la cola |
 | `triggered_by_user_id` | De quién son los runs que aparcaron la llamada. Se lee de `agent_runs`: una aprobación pertenece a un run y un run pertenece a una persona. Deja fuera los runs en que el publicador sustituyó a una cuenta de chat sin enlazar; esas filas llevan en su lugar `asked_in_chat` (plataforma, nombre y bot), y sus campos `triggered_by_*` quedan vacíos |
 | `created_from`, `created_to` | Cuándo se aparcó la llamada, inclusive por ambos extremos |
@@ -1071,8 +1168,8 @@ anónimo de entrada.
 
 ### Acotar el historial de runs { #narrowing-run-history }
 
-| Parámetro | |
-|---|---|
+| Parámetro |  |
+| --- | --- |
 | `status` | Se repite. `?status=failed&status=budget_exceeded` es la consulta de enséñame-los-problemas, y los dos son estados separados precisamente para que pedir uno no sea pedir el otro |
 | `surface` | De dónde vino el run |
 | `user_id` | Como quién corrió el run, que no siempre es quien preguntó — los runs de un widget llevan la identidad de su propietario, porque la visita es anónima |
@@ -1090,7 +1187,7 @@ filtro que alcanza solo una de ellas se lee como un fallo de paginación y no co
 cláusula que falta.
 
 `started_from` es además lo que hace ese recuento reconciliable con el dinero que
-tiene al lado. Sin ventana se lee *desde siempre* mientras una cifra de gasto lee un
+tiene al lado. Sin ventana se lee _desde siempre_ mientras una cifra de gasto lee un
 mes natural, así que una organización de tres años mostraba "8.412 runs" junto a
 "$31,20" y la lectura evidente del par se equivocaba en tres años. Una cifra y una
 cifra de gasto en una pantalla comparten una ventana, o dicen qué ventana es cada
@@ -1098,8 +1195,8 @@ una.
 
 Un valor fuera de su tipo se rechaza con un 422 en vez de compararse contra nada:
 `status` y `surface` son columnas de texto, así que `?status=complete` respondería si
-no con una página vacía — y una página vacía se lee como *no ha ido nada mal esta
-semana*. `order_by` toma uno de cuatro órdenes y no un nombre de columna, por la
+no con una página vacía — y una página vacía se lee como _no ha ido nada mal esta
+semana_. `order_by` toma uno de cuatro órdenes y no un nombre de columna, por la
 misma razón más otra: un `ORDER BY` montado desde una query string es una superficie
 de inyección.
 
@@ -1114,7 +1211,7 @@ no había nada honesto a lo que apuntarlas.
 cola y la pantalla de coste; el historial de runs es el valor por defecto y nunca se
 escribe.
 
-Esa es la dirección que necesita un enlace a una *decisión*, y la razón de que el
+Esa es la dirección que necesita un enlace a una _decisión_, y la razón de que el
 parámetro exista: el "See all" de la tarjeta de aprobaciones y la alerta que dice que
 un run está aparcado tenían ambos que apuntar al historial de runs, donde no se puede
 decidir nada (#934).
@@ -1131,7 +1228,7 @@ viva mientras el contenido de cada pestaña estaba oculto.
 
 **La duración se calcula en SQL, sobre todo el conjunto acotado.**
 
-Eso es lo que lleva de *"el p95 es 14,8 s"* en el dashboard a **esos runs**. Ordenar
+Eso es lo que lleva de _"el p95 es 14,8 s"_ en el dashboard a **esos runs**. Ordenar
 una página de veinticinco ordena el conjunto equivocado, porque el run más lento de un
 mes no está en las filas que devolviera una página de más recientes primero. `cost` y
 `tokens` son la misma disposición para el dinero y el peso del contexto.
@@ -1141,7 +1238,7 @@ tiene duración, tampoco es el run más rápido, y sus cifras de coste y tokens 
 escriben solo al terminar — ordenado tal como está guardado, un run aún en marcha se
 leería como el más barato y ligero de la organización.
 
-Cuánto lleva corriendo un run *todavía en marcha* es una pregunta distinta, y ninguno
+Cuánto lleva corriendo un run _todavía en marcha_ es una pregunta distinta, y ninguno
 de estos órdenes la responde.
 
 Activity saca esa duración de tres maneras, y las tres llevan a la misma consulta:
@@ -1204,9 +1301,9 @@ adjunta a una auditoría. Una página que puede responder la pregunta en pantall
 fuera de ella manda a la gente a la base de datos.
 
 | Pregunta | Respuesta |
-|---|---|
+| --- | --- |
 | `GET /runs/export` | El historial de runs, los mismos filtros que `GET /runs` y el mismo valor por defecto de solo nivel superior. `runs:view` |
-| `GET /approvals/export` | El registro de aprobaciones, los mismos filtros que `GET /approvals`. `approvals:decide` |
+| `GET /approvals/export` | El registro de aprobaciones, los mismos filtros que `GET /approvals`. `approvals:decide` — quien lo tiene solo en `OWN` exporta las filas de sus propios runs |
 | `GET /spend/export` | El desglose de gasto por agent, la misma ventana que `GET /spend`. `runs:view` |
 | `GET /audit/export` | El rastro de auditoría sobre una ventana, CSV o JSONL (`?fmt=`). `audit:read` |
 
@@ -1237,7 +1334,7 @@ las rutas de listado no tienen por qué responder:
   no es aquella desde la que pregunta. Las dos que van con `runs:view` aplican además
   un **suelo `Scope.OWN` en la consulta**: quien tenga un `runs:view` que alcance
   menos que toda la organización exporta solo sus propias filas, `WHERE user_id =
-  <ellos>`, y un `user_id` que pase se sobrescribe con el suyo en vez de ensancharlo.
+<ellos>`, y un `user_id` que pase se sobrescribe con el suyo en vez de ensancharlo.
   Ningún rol integrado tiene `runs:view` por debajo de `all` todavía; el suelo está
   puesto para cuando aterrice la decisión de alcance de member/viewer.
 - **Tamaño.** Una exportación no tiene techo por naturaleza, así que se le da uno por
@@ -1312,7 +1409,7 @@ guardián, junto a `max_steps` (`loop_guard` en el spec).
 
 Un run largo deriva: las instrucciones se desvanecen, se acumulan afirmaciones sin
 fuente, el agente se aleja de la petición. Un agente puede llevar hasta cinco
-revisores (`reviewers` en el spec, *Revisores del run* en el Builder junto a los
+revisores (`reviewers` en el spec, _Revisores del run_ en el Builder junto a los
 límites), cada uno un segundo modelo, normalmente más barato, con un solo
 cometido. Cada `every` peticiones al modelo un revisor lee los últimos `window`
 tokens del run y lo deja seguir o envía una corrección breve, que el modelo del
@@ -1329,7 +1426,7 @@ llamadas de modelo adicionales.
 
 Un agente que recorre registros - actualiza diez filas y luego las resume - paga
 un turno de modelo por cada llamada dependiente, y cada turno reenvía todo el
-contexto. Con el *Modo código* activado (`code_mode` en el spec, junto a los
+contexto. Con el _Modo código_ activado (`code_mode` en el spec, junto a los
 límites en el Builder) las herramientas del agente se pliegan en una sola
 herramienta `run_code`: el modelo escribe un script corto de Python que corre en
 el sandbox Monty y llama a las herramientas en bucles y en paralelo, hasta
@@ -1340,12 +1437,32 @@ un script que reparte cientos de llamadas en el sandbox no puede abrirlas todas
 juntas.
 
 Cada llamada desde un script pasa por los mismos guardrails, el mismo budget y
-las mismas comprobaciones de permisos que una llamada directa. Una herramienta
-que necesita aprobación nunca se pliega: sigue siendo una llamada normal, y el run
-se detiene para la persona como siempre. Lo mismo vale para preguntas,
-delegaciones y herramientas cuya llamada es lo que ve la persona (borradores,
-gráficos, dibujos). La vista del run lista cada script y
-cada llamada que hizo.
+las mismas comprobaciones de permisos que una llamada directa. Si una herramienta
+necesita aprobación, el run se detiene en esa llamada. Las operaciones ya iniciadas
+terminan antes de que el servidor guarde el intérprete, los resultados, el
+manifiesto y el contador de llamadas. Tras la decisión, cualquier worker puede
+continuar el script sin otro turno del modelo ni repetir operaciones terminadas.
+El rechazo lanza un `RuntimeError` dentro del script; el código de la herramienta
+no se ejecuta. Aprobar `run_code` no aprueba ninguna operación interna.
+
+El estado guardado pertenece al servidor y tiene un límite de tamaño. La captura
+bruta del intérprete admite hasta 512 kB y todos los checkpoints de código de un
+run, hasta 1 MB de JSON. Las reservas atómicas en la base de datos limitan los
+checkpoints retenidos a 8 MB por usuario iniciador (entre organizaciones) y 32 MB
+por organización, incluidas las reanudaciones en curso. Si se agota la capacidad,
+el run falla sin guardar aprobaciones pendientes; al terminar definitivamente
+libera su reserva.
+
+Si está
+dañado, cambia la identidad de la herramienta o una actualización de harness/Monty
+impide restaurarlo, la llamada falla con un error claro antes de ejecutar una
+herramienta pendiente. Nunca se reinicia el script desde su código fuente.
+
+Las preguntas, delegaciones y herramientas visibles directamente (borradores,
+gráficos, dibujos) siguen siendo nativas. Las sesiones que preguntan antes de
+cada herramienta y los runs de rutinas mantienen su política de herramientas
+nativas. La vista del run muestra cada script una sola vez, con sus llamadas y
+su estado de aprobación o ejecución a través de las reanudaciones.
 
 ### Informes { #reporting }
 
@@ -1372,14 +1489,14 @@ mientras el principio de cada petición sigue idéntico; una lista de herramient
 reordenada o una marca de tiempo en las instrucciones hacen que el proveedor
 cobre a precio completo tokens que tenía en caché. Cada agente lee las cifras de
 caché del proveedor en cada respuesta, y una petición cuyo prefijo en caché se
-hundió se marca en la cascada de peticiones del run - *caché rota* cuando el
-proveedor aún debía conservarla, *caché caducada* cuando pasó su retención - con
+hundió se marca en la cascada de peticiones del run - _caché rota_ cuando el
+proveedor aún debía conservarla, _caché caducada_ cuando pasó su retención - con
 cuántos tokens en caché no leyó, y se registra con el agente y el modelo.
 La primera petición de un turno se compara con lo que guardó el turno anterior,
 cuando el mismo worker de API atiende ambos.
 
 Los recuentos se guardan en cada run, así que **Runs → Spend** suma dónde no
-aguantó la caché: una tarjeta *Prompt cache*, una fila por agent y modelo, con
+aguantó la caché: una tarjeta _Prompt cache_, una fila por agent y modelo, con
 sus busts, expiraciones y los tokens en caché que no se leyeron de vuelta en la
 ventana - una medida del fallo, no de lo que se volvió a cobrar, ya que una
 compactación también puede acortar el prompt que la caché guardaba.
@@ -1387,9 +1504,17 @@ La tarjeta no aparece mientras todas las cachés aguantaron.
 
 ## Aprobaciones { #approvals }
 
-Una herramienta que el autor del agent puso tras una puerta aparca el run y espera
-a una persona. Nada queda tras una puerta hasta que alguien lo pide: una puerta que
-nadie eligió aparca runs en canales y rutinas donde no hay nadie para responderla.
+Una herramienta con aprobación aparca el run y espera a una persona. El Builder ofrece
+**Preguntar siempre** y **No preguntar nunca** para una capability; las herramientas
+individuales también pueden seguir su política. Las capabilities nuevas del Builder
+empiezan con **Preguntar siempre**. Los bindings existentes, incluso sin approval o con
+`default` almacenado, conservan su política anterior.
+
+Las aprobaciones requeridas pueden detener rutinas y canales igual que un chat. Para
+trabajo desatendido, elige expresamente qué acciones pueden ejecutarse sin preguntar.
+Las aprobaciones obligatorias y las políticas más estrictas de la organización siguen
+vigentes. Las herramientas ejecutadas por el provider necesitan un método local para
+pedir aprobación; publicar rechaza una aprobación que no pueda aplicarse.
 
 La resolución va de lo más específico a lo menos:
 
@@ -1437,8 +1562,7 @@ Cinco propiedades que conviene conocer:
   `GET /runs/{id}/parked` responde con las llamadas pendientes (la aprobación a
   decidir, la herramienta, sus argumentos), que es como el chat reconstruye el panel
   de aprobación que el frame en vivo `tool_approval_required` dio a quien estuviera
-  mirando. Responde vacío para un run que no está aparcado, y está protegido por
-  `approvals:decide` como la cola, porque sus filas se ofrecen para ser decididas
+  mirando. Responde vacío para un run que no está aparcado, y está protegido por decidir el run — un decisor privilegiado, o la persona que lo inició — como la cola, porque sus filas se ofrecen para ser decididas
   ([#601](https://github.com/vstorm-co/agenticos/issues/601)). El paso no se lee como
   a la espera para siempre: una reanudación lo resuelve con lo que devolvió la
   llamada, y una caducidad lo resuelve con el aviso de tiempo agotado.
@@ -1464,7 +1588,7 @@ Cinco propiedades que conviene conocer:
   construirse desde entonces — un secreto que nombra un binding borrado, un perfil de
   modelo eliminado, una capability caída en un despliegue, una conexión MCP dejada de
   compartir. El spec se ensambla antes de que el run salga de la cola de aprobaciones,
-  así que un rechazo ahí rechaza el *intento*: la decisión se mantiene y reanudar
+  así que un rechazo ahí rechaza el _intento_: la decisión se mantiene y reanudar
   vuelve a funcionar en cuanto el spec funcione. Un run planteado en un chat que nadie
   continuó lo termina la red de seguridad aproximadamente una hora después de su
   última decisión.
@@ -1492,7 +1616,7 @@ Cinco propiedades que conviene conocer:
   externos. "Esto solo lee, pero en mi organización alguien lo aprueba igualmente" es
   una decisión real y expresable.
 - **Salvo en una herramienta que ejecuta el provider del modelo, donde se rechaza al
-  publicar.** La puerta envuelve la *ejecución de la herramienta*, que es el único
+  publicar.** La puerta envuelve la _ejecución de la herramienta_, que es el único
   sitio donde se puede retener una llamada, así que una búsqueda o una descarga
   nativas — ejecutadas del lado del provider — nunca la alcanzan, y controlar una
   dejaría la cola vacía mientras el agent actuaba sin aprobación. Qué configuraciones
@@ -1533,13 +1657,14 @@ Cinco propiedades que conviene conocer:
 
 ### Cuánto quiere una conversación que se le pregunte { #how-much-one-conversation-wants-to-be-asked }
 
-La tarjeta de aprobación también ofrece permitir esta herramienta en este chat o permitirla siempre para este agente. La elección solo se aplica a la herramienta y cuenta indicadas, a la persona que consiente y a la versión publicada del agente. Requiere el mismo permiso y ajuste de organización que aprobar todas las acciones. No autoriza delegados ni ejecuciones desatendidas. Una nueva versión del agente requiere una nueva elección.
+La tarjeta de aprobación también ofrece permitir esta herramienta en este chat o permitirla siempre para este agente. La elección solo se aplica a la herramienta y cuenta indicadas, a la persona que consiente y a la versión publicada del agente. Requiere el mismo permiso y ajuste de organización que aprobar todas las acciones. No autoriza delegados ni ejecuciones desatendidas. Una nueva versión del agente requiere una nueva elección. Una herramienta que pregunta siempre, como `share_memory`, nunca se recuerda y aprobar todas las acciones no la responde: su tarjeta no ofrece ninguna de las dos opciones y el servidor se niega a recordarla.
 
 Las elecciones se guardan en el servidor. **Chat controls → Preferences → Remembered tool approvals → Ask again** revoca una elección sin borrar la aprobación original. Antes de cada aprobación automática se vuelven a comprobar la pertenencia, el permiso de aprobación y la política de la organización. El modo de preguntar por todo tiene prioridad sobre las elecciones guardadas. Cada aprobación automática sigue registrando quién consintió y los argumentos reales de la llamada.
 
+La cola de aprobaciones es de la organización, pero algunas llamadas citan lo que lee la persona de su run: el hecho que compartiría `share_memory`. Esa cita solo la ve quien puede ver el run: la persona para la que corrió, o un miembro que lee todos los runs y puede ver el agent. Los demás ven la herramienta, la audiencia y un aviso de que el contenido está oculto. Una llamada que pregunta siempre solo la aprueba quien puede leer lo que cita: cualquier otra persona puede rechazarla, y su aprobación se rechaza.
 
 La regla de arriba es la del agent, decidida al publicar y por herramienta, y ese es
-el sitio correcto para ella: es una afirmación sobre lo que el agent *es*. Lo que no
+el sitio correcto para ella: es una afirmación sobre lo que el agent _es_. Lo que no
 puede expresar es el ánimo de una sesión — alguien que trabaja veinte turnos con un
 agent que controla tres herramientas responde las mismas tres preguntas cada turno, y
 su única salida era republicar el agent y cambiarlo para todo el mundo, de forma
@@ -1550,7 +1675,7 @@ Así que una sesión de chat lleva un **modo de aprobación**, en el frame de en
 a la anulación de modelo y leído dentro del run:
 
 | Modo | Qué hace |
-|---|---|
+| --- | --- |
 | **Follow the agent** (por defecto) | Decide el spec. Exactamente el comportamiento que existía antes del control, y lo que obtiene un cliente que no envía nada |
 | **Approve everything** | Consentimiento permanente para esta conversación: cada llamada controlada se concede sin aparcarse — y cada una escribe igualmente su fila |
 | **Ask about everything** | Controla cada herramienta que el agent pueda alcanzar, incluidas las que el spec dejó sin controlar y las que no pertenecen a ninguna capability |
@@ -1564,12 +1689,10 @@ Cuatro cosas hacen de esto un ajuste de sesión y no un agujero en el modelo:
   comparten un run nuevo y uno reanudado, y no en un socket que quien llama podría
   olvidar.
 - **Renunciar requiere `approvals:decide`, y el permiso de la organización.** Un
-  consentimiento permanente *es* la decisión que la cola de aprobaciones existe para
-  registrar, y `member` y `builder` ejecutan agents sin tenerlo — así que sin la
-  comprobación de permiso quien usa el chat a diario se concede a sí mismo, en un
-  clic, la autoridad que la API le niega un endpoint más allá. El interruptor propio de
-  la organización (`chat_may_waive_approvals`, activado por defecto para las organizaciones nuevas, cambiado por
-  alguien con `approvals:decide`) es el techo: sin él, la puerta deliberada de un
+  consentimiento permanente _es_ la decisión que la cola de aprobaciones existe para
+  registrar, y `member` y `builder` lo tienen en `OWN` — solo para sus propios runs — así que pueden renunciar en un run que ellos mismos inician, desde una sesión web o de chat con sesión iniciada, y en ningún otro. Sin la comprobación de permiso quien usa el chat a diario se concede a sí mismo, en un clic, la autoridad que la API le niega un endpoint más allá. El interruptor propio de
+  la organización (`chat_may_waive_approvals`, activado por defecto para las organizaciones nuevas, cambiado solo por
+  alguien con `approvals:decide` en `ALL`) es el techo: sin él, la puerta deliberada de un
   Builder sobre `send_email` está a un clic de nada en cada conversación y el modelo
   por herramienta es orientativo.
 - **Ningún canal sigue significando no.** Solo una sesión de chat web puede renunciar.
@@ -1608,7 +1731,7 @@ está en ella:
 - **60 segundos** sin decisión la caducan, sin nadie que decida: el mismo null
   que escribe el barrido. Una llamada que termina por cualquier motivo caduca lo
   que todavía estuviera esperando.
-- A un miembro sin `approvals:decide` se le dice claramente, y la herramienta se
+- A quien no tiene `approvals:decide` se le dice claramente, y la herramienta se
   rechaza. Un visitante en un widget o en una página alojada nunca ve una
   herramienta que necesite aprobación: se deja fuera de su llamada.
 
@@ -1633,9 +1756,15 @@ dashboard, así que el barrido sigue cada llamada caducada hasta el run que hay 
 y lo termina, `cancelled` — nadie volvió, y lo que gastó antes de aparcarse se
 mantiene.
 
+Al propietario del run se le dice que murió, con el motivo y el run desde el que reintentarlo: un run aparcado en un chat ya oyó allí la caducidad, así que al propietario de un run de la consola web se le dice en cambio a través del centro de notificaciones — un aviso, que nombra al agent y la herramienta, y un enlace al run, donde Retry es un clic. La fila sola solo se lee como `cancelled`, que no es ningún aviso.
+
+El iniciador abre ese run, lee su transcripción y lo reintenta sin `runs:view`, que un `member` no tiene: el run es suyo por el iniciador almacenado, desde una sesión web iniciada con una membresía activa, y solo mientras conserve `approvals:decide` — necesita el run para decidir. Ningún otro run se abre así, y el manifiesto del run, la lista de runs y las exportaciones siguen con `runs:view`. Se rechazan una clave de API, la identidad de respaldo de un publicador, una routine, una sesión suplantada y el run de otro `member`.
+
+El aviso solo llega a un iniciador que aún podría decidir la approval, con la misma comprobación que la decisión misma, así que un iniciador degradado a `viewer` o retirado de la organización no oye nada.
+
 Tres cosas que deliberadamente no hace:
 
-- **No continúa el run.** Una llamada *rechazada* se resuelve reanudando: la
+- **No continúa el run.** Una llamada _rechazada_ se resuelve reanudando: la
   denegación se reproduce y el agent sigue hasta una respuesta. Eso es una petición al
   modelo contra las claves propias de la organización, y hacer una según un horario,
   para un run que nadie espera, no es un coste en el que incurrir sin que nadie lo
@@ -1715,7 +1844,7 @@ hecho borrarlo después de existir la fila.
 Lo que hace el run del padre es aparcarse, en vez de recibir algo que parece una
 delegación terminada. Vale la pena decirlo porque antes era de otro modo: cada agent
 construido aquí declara un tipo de salida que permite a un run terminar con sus
-llamadas aparcadas como *salida* en lugar de lanzar, y la librería de delegación
+llamadas aparcadas como _salida_ en lugar de lanzar, y la librería de delegación
 serializaba ese objeto y le entregaba al modelo del padre
 `{"calls": [], "approvals": [...]}` como el informe del especialista, con la tarea
 marcada como completada. Era el camino por defecto y no un caso límite, y está
@@ -1738,7 +1867,7 @@ la delegación por fin acaba lo cubre todo — mira
 [cómo se registra un run delegado](#what-a-delegated-run-is-recorded-as). Ambas
 mitades del árbol se guardan por delegación y no por run, que es lo que permite a un
 especialista tres niveles más abajo aparcarse y aun así contabilizarse a su propio
-agent. El gasto se guarda incluso cuando el *sitio* del delegado no se pudo guardar —
+agent. El gasto se guarda incluso cuando el _sitio_ del delegado no se pudo guardar —
 el historial de mensajes de la librería es telemetría de mejor esfuerzo, y una
 delegación reejecutada desde el principio ha gastado igualmente lo que gastó.
 
@@ -1768,6 +1897,12 @@ las llamadas a herramientas. Un
 paso que nombra a quienes aprueban solo puede decidirlo esa gente. Una solicitud
 que nadie decide a tiempo caduca, y un run cancelado cancela sus solicitudes.
 
+Un paso que nombra a quienes aprueban o [grupos de aprobación](#approval-groups)
+avisa a esas personas y a los miembros de los grupos que tienen
+`approvals:decide` en `ALL`. Un paso que no nombra ni a unos ni a otros avisa a todos los
+que tienen `approvals:decide` en `ALL`. El aviso llega en la campana, y la solicitud
+encabeza el Inbox de quien puede decidirla.
+
 Un paso `editable` también muestra a quien aprueba una propuesta, como una
 respuesta redactada, que puede cambiar antes de aprobarla. La entrada de auditoría
 registra si el paso era editable, si la persona lo editó (`edited`) y la longitud
@@ -1793,7 +1928,7 @@ valor de filtro ni una fila: contienen versiones, huellas, ids de solicitud y la
 que una persona confirmó.
 
 | Acción | Se registra cuando |
-|---|---|
+| --- | --- |
 | `artifact.published` | Se publicó una versión, con su número, la huella de sus page queries y `actions`, los ids de los workflows que declara |
 | `artifact.data_consented` | El propietario confirmó los datos de una versión, o se consintió automáticamente (`automatic`). Nombra la versión y la huella, `for_owner` cuando un Owner o Admin confirmó por él, y `via_grant` cuando lo dio una concesión `edit_data` |
 | `artifact.data_withdrawn` | Un editor dejó de compartir los datos de la página; nombra la versión que se servía a la audiencia, si el consentimiento automático estaba activo y cuántas concesiones `edit_data` bajó a `edit` |
@@ -1832,7 +1967,7 @@ que alguien sabe de ello es cuando pregunta por qué el agent se ha callado.
 
 Cada alerta de esta sección escribe dos cosas: el correo que se describe más
 abajo, y una fila en **la campana** de [la consola](console.md#the-bell) — el
-propio buzón de la consola, no una copia del correo. La fila *es* la entrega
+propio buzón de la consola, no una copia del correo. La fila _es_ la entrega
 en la aplicación; no hace falta que nada más tenga éxito para que aparezca. El
 correo es un segundo canal, reintentado de forma independiente a partir de la
 misma escritura, que es por lo que uno puede fallar — una dirección rebotada,
@@ -1843,6 +1978,8 @@ Notifications** — una persona puede conservar la fila en la aplicación para
 las aprobaciones y apagar su correo, o al revés.
 
 Las solicitudes para compartir páginas y los cambios de propietario nombran la página y la persona, nunca sus datos.
+
+Un run `eval` es uno de los muchos que la evaluación comunica juntos; no envía una notificación individual de finalización o fallo.
 
 La misma página lleva además
 cada uno de los demás eventos que entrega el buzón: un run que termina o falla
@@ -1898,7 +2035,7 @@ significaría reescribirlo en cada evento posterior, que es justo la inundación
 que el tope existe para evitar.
 
 Una fila se retira del buzón noventa días después de escribirse si está
-*leída*, y un año después sin importar si llegó a abrirse — contando siempre
+_leída_, y un año después sin importar si llegó a abrirse — contando siempre
 desde que se escribió, nunca desde que se leyó, así que una fila abierta el
 día antes de su límite superior desaparece junto con cualquier otra de esa
 edad. Un barrido en segundo plano, no algo que dispare una persona. El barrido
@@ -1947,7 +2084,7 @@ perderse en el mismo ajuste, así que la única forma de callar al primero era q
 sordo al segundo.
 
 | Alerta | Se dispara cuando | Audiencia por defecto |
-|---|---|---|
+| --- | --- | --- |
 | **Budget** | este agent alcanzó su propio tope mensual | los admins y el dueño del agent |
 | **Approvals** | una llamada a herramienta se aparcó | quien inició el run, más los admins |
 | **Usage** | semanal y mensual, lo que gastó este agent | apagada |
@@ -1961,7 +2098,7 @@ y correo que el resto de esta sección, en **Workflow log alerts**.
 Una audiencia es una lista de roles, no de direcciones:
 
 | Audiencia | Se resuelve a |
-|---|---|
+| --- | --- |
 | `admins` | los owners y admins de la organización, **más los app admins del deployment** |
 | `owner` | el dueño del agent |
 | `initiator` | quien inició el run; nadie, para un run que empezó un horario |
@@ -1979,7 +2116,7 @@ un error — una cola de aprobaciones no debe quedarse muda porque un id ya no r
 Approvals de Activity, que es la única superficie que lleva Approve y Reject. Antes
 abría `/agents/{id}`, el Builder: una frase de prosa sobre llamadas a herramientas
 que llegan a una cola, y ninguna cola. Así que el único correo cuyo propósito entero
-es *alguien tiene que decidir, ya* aterrizaba a una búsqueda de la decisión, mientras
+es _alguien tiene que decidir, ya_ aterrizaba a una búsqueda de la decisión, mientras
 el run aparcado envejecía hacia `ApprovalService.expire_stale` (#935). No hubo URL
 para la pestaña hasta que la #934 la puso en `?tab=`.
 
@@ -1993,23 +2130,25 @@ que informa se edita ahí.
 
 ### La alerta de aprobación son dos correos { #the-approval-alert-is-two-emails }
 
-`approvals:decide` pertenece a `owner`, `admin` y `operator`. La audiencia por defecto
+`approvals:decide` en `ALL` pertenece a `owner`, `admin` y `operator`; `member` y `builder` lo tienen en `OWN`, para un run que ellos mismos iniciaron. La audiencia por defecto
 de una llamada aparcada incluye a quien inició el run, y un builder que inicia su
-propio agent desde el chat es el iniciador corriente — así que la alerta llegaba
-habitualmente a alguien a quien la plataforma iba a rechazar. Recibían **"waiting on
+propio agent desde el chat es el iniciador corriente — así que la alerta solía llegar a alguien a quien la plataforma iba a rechazar. Recibían **"waiting on
 your approval"** con un botón **Review the request**, lo seguían, y Activity no
 dibujaba pestaña Approvals alguna: el rechazo llegando como una pestaña ausente en vez
 de como una frase.
 
-Así que la audiencia se divide por el permiso en lugar de recortarse a él:
+Así que la audiencia se divide según si quien recibe puede decidir *este* run, en lugar de recortarse al permiso:
 
 | Quien recibe tiene | Recibe |
-|---|---|
-| `approvals:decide` | la solicitud, con el enlace a la cola |
-| cualquier cosa menor | el *hecho*: el run está retenido y no fallido, aprobarlo corresponde a un owner, admin u operator, y no se le pide nada |
+| --- | --- |
+| `approvals:decide` en `ALL` | la solicitud, con el enlace a la cola |
+| el propietario del run, en `OWN` | la solicitud, con el enlace a su propia cola — las filas de sus propios runs, no las de la organización |
+| cualquier cosa menor | el _hecho_: el run está retenido y no fallido, decidirlo corresponde a su propietario o a un decisor privilegiado, y no se le pide nada |
 
 Recortarla dejaría a la única persona que seguro espera el run — quien lo inició — sin
 oír nada sobre por qué se detuvo.
+
+El enlace se somete a la misma comprobación que la decisión. El propietario de un run que fue degradado a `viewer` desde que el run se aparcó, y un publicador cuya identidad de respaldo hizo de un desconocido, leen el hecho sin el enlace, en la bandeja y en el correo.
 
 El segundo correo **no lleva enlace**, y eso es deliberado, no algo a medias. Que
 `agents:view` sea un permiso de rol no hace alcanzable un agent: el acceso se resuelve
@@ -2030,7 +2169,7 @@ La consola actúa sobre la organización que quien lee usara por última vez: `a
 estampa `X-Organization-Id` desde una selección guardada por navegador. Antes ninguna
 URL de alerta llevaba ninguna, así que alguien en dos organizaciones que hubiera
 trabajado por última vez en Globex abría la alerta de aprobación de un run de Acme y
-leía la cola **de Globex** — muy probablemente vacía, y leyéndose como *nada espera*
+leía la cola **de Globex** — muy probablemente vacía, y leyéndose como _nada espera_
 sobre un run que está aparcado y envejeciendo hacia `ApprovalService.expire_stale`.
 Los enlaces a agents fallaban más calladamente: `/agents/{id}` bajo la organización
 equivocada es un rechazo para un agent que quien lee sí puede ver, a un cambio de
@@ -2040,7 +2179,7 @@ Así que cada enlace lleva `org=<id>`, construido en un solo sitio —
 `NotificationService._link`, que elige el separador según la ruta porque el
 enlace de aprobaciones ya lleva `?tab=approvals` — y no en las cuatro llamadas.
 La consola lo adopta igual que el id de `/orgs/{id}`: una página que nombra una
-organización *es* esa organización. La adopción es un layout effect en
+organización _es_ esa organización. La adopción es un layout effect en
 `ActiveOrgGuard`, antes del reinicio de la caché de tenant y de las consultas de
 la página, así que su primera petición ya lleva el tenant correcto. La ruta manda
 sobre el parámetro: un enlace dice de qué organización trataba una alerta, y no
@@ -2077,6 +2216,34 @@ que ningún informe, porque los dos números parecen autoritativos.
 
 El envío nunca bloquea y nunca lanza hacia quien llama: un run que ya ha terminado no
 debe fallar otra vez porque SMTP estuviera caído.
+
+## Evaluación de pago { #ai-assistance }
+
+Calificar, generar casos y mejorar son acciones de pago explícitas. El dataset posee sus modelos e instrucciones: **Grading** configura el calificador; **Settings**, la generación y mejora. La consola muestra una estimación antes del inicio.
+
+No hay interruptor organizacional de asistencia de IA ni modelo organizacional que sustituya al del dataset. El precio no elige un modelo supuestamente más capaz. Un test set creado automáticamente empieza con el modelo del agent; elegir un calificador independiente es una decisión explícita del dataset.
+
+Se mantienen los permisos, credenciales, budgets de la organización y límites de runs. Cada llamada se mide y registra en Activity. Los trabajos en cola conservan su configuración inicial; los cambios afectan a trabajo posterior. Las filas históricas de ayudantes se conservan para atribución y control de budgets.
+
+## Excepciones de promoción { #promotion-overrides }
+
+Un entorno [guardado por suites de evals](environments.md#guarding-a-promotion-with-evals)
+acepta una versión solo cuando pasan en ella. Promocionar por encima de ellas es
+una **excepción**: necesita `promotions:override` - lo tienen owners y admins, y
+se puede dar a un rol propio - de una persona que ha iniciado sesión como ella
+misma, no de una clave de API ni de un administrador que la suplanta, y un
+motivo de al menos diez caracteres. Se registra en la
+[auditoría](#audit) como `agent.environment_promotion_overridden`, con el motivo
+y el resultado de cada guardiana, se muestra en la versión del historial y se
+envía al propietario de cada guardiana que no pasó.
+
+Cambiar qué suites guardan un entorno, mover la fijación de una guardiana o
+debilitar lo que comprueba una guardiana necesita el mismo permiso; cada uno de
+estos cambios, y un umbral más estricto, se registra como
+`agent.environment_guards_changed`. Un cambio en la puntuación de un dataset se
+registra como `dataset.scoring_changed`, con los nombres de las partes que
+cambiaron en lugar de su contenido, y la creación de su juez como
+`dataset.judge_created`.
 
 ## Auditoría { #audit }
 
@@ -2158,7 +2325,7 @@ la cuenta, la fila de sesión que es la suplantación, y cuándo caduca;
 termina, con el administrador como actor. Una caducidad no escribe nada, porque nadie
 actuó — y tampoco lo hace quien cierra sesión en todas partes, que termina una
 suplantación con `DELETE /sessions` igual que termina cualquier otra sesión. Si a la
-persona se le *dice* es el ajuste `notify_impersonated_users` del deployment
+persona se le _dice_ es el ajuste `notify_impersonated_users` del deployment
 ([El deployment](deployment.md#acting-as-another-account)); apagado, que es lo normal,
 este rastro es el único registro.
 
@@ -2219,10 +2386,10 @@ ellos; la página de la organización es donde se fijan los periodos por tenant.
 ### Las clases { #the-classes }
 
 | Clase | Qué se va con ella | Medido desde |
-|---|---|---|
+| --- | --- | --- |
 | Conversaciones | Mensajes, llamadas a herramientas y archivos; un lote bloqueado excluye conversaciones con runs sin terminar, y la tarea duradera de borrar archivos se confirma junto con las filas | La última actividad del hilo, para que uno al que alguien vuelve no sea viejo |
 | Runs | La fila del run, su manifiesto y sus aprobaciones de herramientas | El inicio del run |
-| Workspaces | El registro que la plataforma tiene de los archivos de un agente. Con el backend `state` la fila *es* el almacenamiento; los archivos de un backend de sandbox los recoge el TTL del propio sandbox. Los de un proyecto se conservan mientras exista el proyecto | El último uso |
+| Workspaces | El registro que la plataforma tiene de los archivos de un agente. Con el backend `state` la fila _es_ el almacenamiento; los archivos de un backend de sandbox los recoge el TTL del propio sandbox. Los de un proyecto se conservan mientras exista el proyecto | El último uso |
 | Aplicaciones | Una [página publicada](artifacts.md), todas sus versiones, grants y enlace público; el borrado de archivos se encola en la misma transacción | La última publicación, para que un informe que una programación vuelve a publicar no sea viejo |
 | Memoria | Los archivos de memoria de un agente | La última escritura, porque una nota se escribe una vez y se lee durante meses |
 | Documentos subidos | La fila, sus vectores y el archivo subido | El momento de la subida |
@@ -2346,6 +2513,8 @@ Vale la pena decirlo, porque una página de governance da a entender lo contrari
   colega, y el de otro tenant se lee como ausente.
 - **El silencio significa algo.** Una alerta que no llegó significa que la cosa no
   ocurrió, lo cual solo es cierto porque aquí nada es de mejor esfuerzo.
+- **Una promoción por encima de sus evals es una excepción**, con un motivo, un
+  permiso propio y un registro en la versión.
 
 ## Referencias { #reference }
 
@@ -2355,7 +2524,7 @@ Vale la pena decirlo, porque una página de governance da a entender lo contrari
 
 ## Pausa automática por fallos repetidos { #routine-health }
 
-Las rutinas y observaciones se pausan por defecto tras **tres comprobaciones fallidas consecutivas**. El formulario permite elegir un límite de 1 a 20 o desactivarlo. Cuentan los fallos del proveedor o de ejecución, las lecturas inválidas y las fuentes inaccesibles. No cuentan la espera de aprobación, un ordenador desconectado ni los fallos de entrega; una comprobación vacía pero verificada como correcta reinicia la serie. Los demás bloqueos de permisos y presupuesto siguen aplicándose aunque se desactive este límite.
+Las rutinas y observaciones se pausan por defecto tras **tres comprobaciones fallidas consecutivas**. El formulario permite elegir un límite de 1 a 20 o desactivarlo. Cuentan los fallos del proveedor o de ejecución, las lecturas inválidas y las fuentes inaccesibles. No cuentan la espera de aprobación, un ordenador desconectado, los fallos de entrega ni las paradas por presupuesto: una comprobación que el presupuesto rechazó espera a la siguiente y ni alarga la serie ni la reinicia. Una comprobación vacía pero verificada como correcta reinicia la serie. Los demás bloqueos de permisos y presupuesto siguen aplicándose aunque se desactive este límite.
 
 Cada activación tiene una única observación persistente. Los reintentos no aumentan el contador y los resultados tardíos se evalúan según el orden de activación. La pausa automática detiene futuras activaciones; una solicitud al modelo ya iniciada puede terminar.
 
@@ -2363,26 +2532,27 @@ El incidente existente del propietario registra la pausa y su notificación usa 
 
 La lista muestra la pausa automática y el número de fallos. Se conservan como máximo 50 observaciones por rutina, sin cuerpos de fuentes ni errores del proveedor. Se incluyen en la exportación personal con límite de tamaño y se eliminan en cascada con el propietario o la rutina. La migración `0275_routine_health.py` activa el valor predeterminado también para las rutinas existentes: actualice API y workers juntos. Revertir elimina los metadatos y la política, pero conserva la pausa.
 
-
 ## Fuentes revisadas de las rutinas { #routine-sources }
 
-Al crear una rutina se fija la configuración publicada de sus fuentes, las cuentas MCP concretas, las generaciones de consentimiento y los nombres de herramientas conocidos. La revisión incluye delegados fijados, colecciones de conocimiento, habilidades, contexto y configuración de capacidades; las inscripciones A2A remotas conservan también la vinculación de endpoint, tarjeta y credencial. Los cambios de instrucciones o ajustes del modelo pueden seguir una publicación. Añadir fuentes, cambiar cuentas o renovar su consentimiento requiere que el propietario revise el panel de fuentes en el diálogo de consentimientos. Esta revisión no elimina las aprobaciones de acciones ni concede acceso a recursos. Siguen aplicándose los permisos actuales.
+Las rutinas nuevas admiten automáticamente la configuración inicialmente disponible del agente publicado dentro de los permisos vigentes del creador. Las eliminaciones seguras de fuentes y los cambios exclusivamente de modelo o presentación del agente principal no requieren revisión. Las fuentes, cuentas o herramientas nuevas, los cambios de instrucciones o variables y los cambios de capacidades, skills efectivos, contexto o comportamiento delegado requieren la revisión de acceso del propietario antes de otra ejecución. Publicar el agente compartido no amplía por sí solo la autoridad permanente de una persona. Las cuentas MCP opcionales ausentes no bloquean otras tareas; siguen vigentes las entradas obligatorias de eventos, identidad, permisos, presupuestos y aprobaciones obligatorias.
 
-Las activaciones en cola, las esperas de dispositivos y las ejecuciones aparcadas conservan la identidad de su revisión original. Una revisión posterior no amplía los permisos del trabajo anterior. El sondeo del buzón comprueba la cuenta de entrada antes de leer; los eventos conservan el consentimiento admitido antes de esa lectura. Las llamadas MCP usan alias revisados y excluyen herramientas no aprobadas. Las fuentes revisadas no disponibles provocan un rechazo explícito. Una revisión necesaria antes de ejecutar aparece en el caso de atención existente del propietario y no cuenta como un fallo del modelo.
+Cambiar la versión fijada de un delegado requiere revisión, incluso si su publicación solo modifica el modelo.
+
+El propietario puede elegir `restricted`, que fija la configuración revisada, cuentas MCP concretas, generaciones de autorización y nombres de herramientas conocidos. La revisión incluye delegados fijados, conocimiento, skills, contexto, capacidades y registros A2A remotos. Las fuentes nuevas o cambios en la autorización de una cuenta requieren otra revisión. Las políticas existentes sin modo permanecen restringidas; actualizar no las amplía automáticamente.
+
+Cada ejecución admitida conserva su propia instantánea de fuentes y cuentas. Una ejecución aparcada no puede tomar una cuenta, autorización o revisión posterior. La titularidad, revocación y listas de herramientas permitidas se comprueban de nuevo antes de las llamadas. Las herramientas opcionales ausentes se comunican, no se tratan como trabajo completado. El propietario puede cambiar explícitamente el modo de una rutina existente mediante sus ajustes de acceso protegidos por un token de revisión.
 
 La migración `0276_routine_sources.py` no concede consentimiento a rutinas existentes. Drena los workers antiguos, actualiza API y workers conjuntamente y revisa explícitamente las rutinas antiguas antes de ejecutarlas. Solo el propietario en la consola puede sustituir el consentimiento; no pueden hacerlo las claves API, la suplantación ni los agentes desatendidos.
 
-
 Las rutinas con presupuesto comparten una clave de concurrencia de la cola para evitar que eventos simultáneos admitan varios modelos sobre el mismo gasto completado. La extracción de memoria también se ejecuta en serie por organización y rol de mantenimiento. Cada trabajo comprueba el presupuesto actual; una llamada ya admitida todavía puede terminar por encima del límite.
-
 
 Las alertas de trabajos pausados de todo el despliegue conservan el estado normal de lectura y descarte de notificaciones; no se presentan como casos de una organización.
 
 ### Rutinas, conversaciones de trabajo e Inbox { #routines-working-conversations-and-inbox }
 
 **Routines** reúne tareas programadas, tareas por eventos y plantillas de
-supervisión de solo lectura. Un trigger determina *cuándo* se ejecuta la rutina;
-la plantilla de supervisión limita *qué* puede hacer. Use una rutina por
+supervisión de solo lectura. Un trigger determina _cuándo_ se ejecuta la rutina;
+la plantilla de supervisión limita _qué_ puede hacer. Use una rutina por
 responsabilidad, sin duplicar una observación y una tarea programada para el mismo buzón.
 
 Elija **Después de cada ejecución completada** (`result_mode: report`, el valor
@@ -2418,3 +2588,11 @@ Las herramientas MCP de Inbox sirven a sesiones iniciadas y credenciales de
 confianza de un chat privado; estas últimas solo acceden a casos de ese chat.
 Las claves API ordinarias, ejecuciones desatendidas e identidades de respaldo del
 publicador no pueden leer ni resolver casos privados de Inbox.
+
+## Grupos de aprobación { #approval-groups }
+
+Los pasos de aprobación humana y llamadas MCP de workflows pueden indicar personas, grupos de la organización o ambos. Cualquier persona elegible puede decidir por sí sola y debe tener `approvals:decide` en `ALL` de forma independiente. Sin personas ni grupos configurados sigue vigente la regla anterior basada en ese permiso. Un grupo configurado vacío o eliminado nunca permite que decida cualquiera.
+
+La pertenencia al grupo y la cuenta activa se comprueban al decidir. Las notificaciones resuelven miembros elegibles al crear la solicitud y eliminan duplicados con personas indicadas. Incorporarse después puede dar derecho a decidir sin otra notificación; salir o perder permisos lo retira.
+
+Las alertas del agente sobre aprobaciones, presupuesto y uso también admiten grupos como destinatarios elegidos. Solo son audiencias de notificación: no conceden ni restringen autoridad para decidir. Se respetan las preferencias personales de notificación.

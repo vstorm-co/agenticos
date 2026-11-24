@@ -3,6 +3,7 @@
 // apart from `art.generated.ts`, which the canvas rewrites whole.
 
 export const DRAWN_HUE: Readonly<Record<string, number>> = {
+  channel_actions: 220,
   visuals: 140,
   background_tools: 222,
   background_tasks: 222,
@@ -15,7 +16,15 @@ export const DRAWN_HUE: Readonly<Record<string, number>> = {
   phone_calls: 195,
 
   monitor: 55,
+  babysit_pr: 160,
   drafts: 36,
+  harness: 90,
+  council: 280,
+  sol_loop: 120,
+  eval_tool_tuning: 150,
+  burst: 150,
+  proof_scenario: 150,
+  secret_request: 45,
 };
 
 /** Independent topic windows with a return path to the main conversation. */
@@ -307,17 +316,207 @@ const PHONE_CALLS =
   '<path class="ln w2" d="M16 15L24 12L30 25L25 30Q29 40 39 45L44 40L56 47L53 55Q31 60 16 32Z"/>' +
   '<path class="ln w2 breathe" d="M12 63H20L24 58L29 69L35 59L40 65H52"/></g></svg>';
 
+/**
+ * Harness: a terminal session standing on the base, kept open while a second
+ * prompt joins it below - one session, prompted across turns.
+ */
+const HARNESS =
+  '<svg viewBox="0 0 240 135" aria-hidden="true" preserveAspectRatio="xMidYMid meet">' +
+  '<polygon class="ishb" points="120,46.5 195.7,90.2 120,133.8 44.3,90.2"/>' +
+  '<g><polygon class="ict" points="120,33.1 195.7,76.8 120,120.5 44.3,76.8"/>' +
+  '<polygon class="icl" points="44.3,82 120,125.7 120,120.5 44.3,76.8"/>' +
+  '<polygon class="icr" points="195.7,82 120,125.7 120,120.5 195.7,76.8"/></g>' +
+  '<g><polygon class="int" points="120,30 195.7,73.7 120,117.4 44.3,73.7"/>' +
+  '<polygon class="inl" points="44.3,76.8 120,120.5 120,117.4 44.3,73.7"/>' +
+  '<polygon class="inr" points="195.7,76.8 120,120.5 120,117.4 195.7,73.7"/></g>' +
+  '<g transform="matrix(0.9 0.5 -0.9 0.5 120 30)"><path class="igrid2" d="M21 3V81M42 3V81M63 3V81M3 21H81M3 42H81M3 63H81"/></g>' +
+  '<polygon class="int" points="91.2,10 148.8,42 146.6,43 89.4,11"/>' +
+  '<polygon class="inr" points="148.8,42 148.8,92 146.6,93 146.6,43"/>' +
+  '<polygon class="inl" points="89.4,61 146.6,93 146.6,43 89.4,11"/>' +
+  '<g transform="matrix(0.9 0.5 0 1 89.4 11)">' +
+  '<rect x="3" y="3" width="42" height="25" rx="2" class="term" />' +
+  '<text x="6" y="10" class="termtx s4 ty0">$ claude -p "fix it"</text>' +
+  '<text x="6" y="17" class="termok s4 ty1">\u2713 22 tests passed</text>' +
+  '<text x="6" y="24" class="termtx s4 ty2">$</text>' +
+  '<rect x="9.5" y="20.6" width="2.6" height="4" rx="0" class="cov blink" style="fill:var(--termFg)"/></g>' +
+  '<g><polygon class="int" points="76.8,67.4 112.8,88.2 102,94.5 66,73.7"/>' +
+  '<polygon class="inl" points="66,75.8 102,96.6 102,94.5 66,73.7"/>' +
+  '<polygon class="inr" points="112.8,90.3 102,96.6 102,94.5 112.8,88.2"/></g>' +
+  '<g transform="matrix(0.9 0.5 0 1 66 73.7)">' +
+  '<text x="3" y="8" class="tx s5 b">and the tests?</text></g>' +
+  '<g class="bob"><g transform="translate(176 32)"><rect x="-19" y="-9" width="38" height="16" rx="8" class="pp" />' +
+  '<text x="0" y="2.4" class="tx mono s7 mid b" >main</text></g></g>' +
+  "</svg>";
+
+/** A pull request watched through CI: three checks, each ticking green in turn. */
+const BABYSIT_PR =
+  '<svg viewBox="0 0 240 135" aria-hidden="true" preserveAspectRatio="xMidYMid meet">' +
+  '<polygon class="ishb" points="120,46.5 195.7,90.2 120,133.8 44.3,90.2"/>' +
+  '<polygon class="ict" points="120,35 195,78 120,121 45,78"/>' +
+  '<path class="igrid" d="M76 70L118 94L165 67M118 94V55"/>' +
+  '<g class="breathe"><circle class="inl" cx="80" cy="52" r="9"/><path class="igrid2" d="M76 52l3 3 5-6"/></g>' +
+  '<g class="bob"><circle class="inr" cx="160" cy="52" r="9"/><path class="igrid2" d="M156 52l3 3 5-6"/></g>' +
+  '<circle class="ict" cx="120" cy="30" r="9"/><path class="igrid2" d="M116 30l3 3 5-6"/>' +
+  "</svg>";
+
+/** A council weighing several reviews into one shared verdict. */
+const COUNCIL =
+  '<svg viewBox="0 0 240 135" aria-hidden="true" preserveAspectRatio="xMidYMid meet">' +
+  '<polygon class="ishb" points="120,46.5 195.7,90.2 120,133.8 44.3,90.2"/>' +
+  '<g><polygon class="ict" points="120,33.1 195.7,76.8 120,120.5 44.3,76.8"/>' +
+  '<polygon class="icl" points="44.3,82 120,125.7 120,120.5 44.3,76.8"/>' +
+  '<polygon class="icr" points="195.7,82 120,125.7 120,120.5 195.7,76.8"/></g>' +
+  '<g><polygon class="int" points="120,30 195.7,73.7 120,117.4 44.3,73.7"/>' +
+  '<polygon class="inl" points="44.3,76.8 120,120.5 120,117.4 44.3,73.7"/>' +
+  '<polygon class="inr" points="195.7,76.8 120,120.5 120,117.4 195.7,73.7"/></g>' +
+  '<g transform="matrix(0.9 0.5 -0.9 0.5 120 30)">' +
+  '<circle class="icl" cx="22" cy="27" r="9"/><circle class="icr" cx="40" cy="20" r="9"/>' +
+  '<circle class="icl" cx="58" cy="27" r="9"/><path class="igrid2" d="M22 42v12m18-19v19m18-12v12"/>' +
+  '<rect class="term" x="8" y="61" width="64" height="15" rx="3"/>' +
+  '<text class="termtx s5 mid" x="40" y="71">shared verdict</text></g>' +
+  '<g class="bob"><g transform="translate(176 32)"><rect x="-23" y="-9" width="46" height="16" rx="8" class="pp" />' +
+  '<text x="0" y="2.4" class="tx mono s7 mid b" >COUNCIL</text></g></g>' +
+  "</svg>";
+
+/**
+ * Sol-loop: one reviewer judges the same work, round after round - a verdict
+ * over the ledger, with the findings listed under it until none are open.
+ */
+const SOL_LOOP =
+  '<svg viewBox="0 0 240 135" aria-hidden="true" preserveAspectRatio="xMidYMid meet">' +
+  '<polygon class="ishb" points="120,46.5 195.7,90.2 120,133.8 44.3,90.2"/>' +
+  '<g><polygon class="ict" points="120,33.1 195.7,76.8 120,120.5 44.3,76.8"/>' +
+  '<polygon class="icl" points="44.3,82 120,125.7 120,120.5 44.3,76.8"/>' +
+  '<polygon class="icr" points="195.7,82 120,125.7 120,120.5 195.7,76.8"/></g>' +
+  '<g><polygon class="int" points="120,30 195.7,73.7 120,117.4 44.3,73.7"/>' +
+  '<polygon class="inl" points="44.3,76.8 120,120.5 120,117.4 44.3,73.7"/>' +
+  '<polygon class="inr" points="195.7,76.8 120,120.5 120,117.4 195.7,73.7"/></g>' +
+  '<polygon class="int" points="91.2,10 148.8,42 146.6,43 89.4,11"/>' +
+  '<polygon class="inr" points="148.8,42 148.8,92 146.6,93 146.6,43"/>' +
+  '<polygon class="inl" points="89.4,61 146.6,93 146.6,43 89.4,11"/>' +
+  '<g transform="matrix(0.9 0.5 0 1 89.4 11)">' +
+  '<rect x="6" y="6" width="10" height="8" rx="2" class="ac" />' +
+  '<text x="20" y="13" class="tx s7 b">S1 blocker</text>' +
+  '<g class="breathe" style="animation-delay:-0.8s"><rect x="6" y="18" width="10" height="8" rx="2" class="ac" /></g>' +
+  '<text x="20" y="25" class="tx s7 b">S2 should</text>' +
+  '<rect x="6" y="30" width="10" height="8" rx="2" class="ac" />' +
+  '<text x="20" y="37" class="tx s7 b">S3 nit</text></g>' +
+  '<g class="bob"><g transform="translate(176 32)"><rect x="-23" y="-9" width="46" height="16" rx="8" class="pp" />' +
+  '<text x="0" y="2.4" class="tx mono s7 mid b" >APPROVE</text></g></g>' +
+  "</svg>";
+
+/**
+ * Eval tool tuning: one tool scored against a row of eval cases - a pass
+ * tick, a miss, and the draft proposal written under the score.
+ */
+const EVAL_TOOL_TUNING =
+  '<svg viewBox="0 0 240 135" aria-hidden="true" preserveAspectRatio="xMidYMid meet">' +
+  '<polygon class="ishb" points="120,46.5 195.7,90.2 120,133.8 44.3,90.2"/>' +
+  '<g><polygon class="ict" points="120,33.1 195.7,76.8 120,120.5 44.3,76.8"/>' +
+  '<polygon class="icl" points="44.3,82 120,125.7 120,120.5 44.3,76.8"/>' +
+  '<polygon class="icr" points="195.7,82 120,125.7 120,120.5 195.7,76.8"/></g>' +
+  '<g><polygon class="int" points="120,30 195.7,73.7 120,117.4 44.3,73.7"/>' +
+  '<polygon class="inl" points="44.3,76.8 120,120.5 120,117.4 44.3,73.7"/>' +
+  '<polygon class="inr" points="195.7,76.8 120,120.5 120,117.4 195.7,73.7"/></g>' +
+  '<g transform="matrix(0.9 0.5 0 1 89.4 11)">' +
+  '<text x="6" y="13" class="tx s7 b">✓ case 1</text>' +
+  '<text x="6" y="25" class="tx s7 b">✗ case 2</text>' +
+  '<text x="6" y="37" class="tx s7 b">✓ case 3</text></g>' +
+  '<g class="bob"><g transform="translate(176 32)"><rect x="-23" y="-9" width="46" height="16" rx="8" class="pp" />' +
+  '<text x="0" y="2.4" class="tx mono s7 mid b" >DRAFT</text></g></g>' +
+  "</svg>";
+
+/**
+ * Proof scenario: the same reproduction, run twice - failing before the fix,
+ * passing after it. The checkmark is the observed evidence, not the diff.
+ */
+const PROOF_SCENARIO =
+  '<svg viewBox="0 0 240 135" aria-hidden="true" preserveAspectRatio="xMidYMid meet">' +
+  '<polygon class="ishb" points="120,46.5 195.7,90.2 120,133.8 44.3,90.2"/>' +
+  '<g><polygon class="ict" points="120,33.1 195.7,76.8 120,120.5 44.3,76.8"/>' +
+  '<polygon class="icl" points="44.3,82 120,125.7 120,120.5 44.3,76.8"/>' +
+  '<polygon class="icr" points="195.7,82 120,125.7 120,120.5 195.7,76.8"/></g>' +
+  '<g><polygon class="int" points="120,30 195.7,73.7 120,117.4 44.3,73.7"/>' +
+  '<polygon class="inl" points="44.3,76.8 120,120.5 120,117.4 44.3,73.7"/>' +
+  '<polygon class="inr" points="195.7,76.8 120,120.5 120,117.4 195.7,73.7"/></g>' +
+  '<g transform="matrix(0.9 0.5 0 1 66 42)">' +
+  '<rect x="4" y="4" width="86" height="34" rx="3" class="ac" />' +
+  '<text x="10" y="15" class="tx s7 b">before: FAILED</text>' +
+  '<text x="10" y="27" class="tx s7 b">after: PASSED</text></g>' +
+  '<g class="bob"><g transform="translate(176 32)"><rect x="-23" y="-9" width="46" height="16" rx="8" class="pp" />' +
+  '<text x="0" y="2.4" class="tx mono s7 mid b" >PROVEN</text></g></g>' +
+  "</svg>";
+
+/**
+ * Burst: one task splits into three parallel lanes, each doing its part,
+ * and the lanes merge back into one outcome.
+ */
+const BURST =
+  '<svg viewBox="0 0 240 135" aria-hidden="true" preserveAspectRatio="xMidYMid meet">' +
+  '<polygon class="ishb" points="120,46.5 195.7,90.2 120,133.8 44.3,90.2"/>' +
+  '<g><polygon class="ict" points="120,33.1 195.7,76.8 120,120.5 44.3,76.8"/>' +
+  '<polygon class="icl" points="44.3,82 120,125.7 120,120.5 44.3,76.8"/>' +
+  '<polygon class="icr" points="195.7,82 120,125.7 120,120.5 195.7,76.8"/></g>' +
+  '<g><polygon class="int" points="120,30 195.7,73.7 120,117.4 44.3,73.7"/>' +
+  '<polygon class="inl" points="44.3,76.8 120,120.5 120,117.4 44.3,73.7"/>' +
+  '<polygon class="inr" points="195.7,76.8 120,120.5 120,117.4 195.7,73.7"/></g>' +
+  '<g class="breathe"><rect x="96" y="14" width="48" height="14" rx="7" class="ac" />' +
+  '<text x="120" y="23.5" class="tx s7 mid b">one task</text></g>' +
+  '<path class="igrid" d="M120 28L84 48M120 28L120 46M120 28L156 48"/>' +
+  '<g class="bob"><rect x="52" y="48" width="52" height="20" rx="4" class="inl" />' +
+  '<text x="78" y="61" class="tx s7 mid b">B1</text></g>' +
+  '<g class="bob" style="animation-delay:-0.6s"><rect x="94" y="46" width="52" height="20" rx="4" class="inl" />' +
+  '<text x="120" y="59" class="tx s7 mid b">B2</text></g>' +
+  '<g class="bob" style="animation-delay:-1.2s"><rect x="136" y="48" width="52" height="20" rx="4" class="inl" />' +
+  '<text x="162" y="61" class="tx s7 mid b">B3</text></g>' +
+  '<path class="igrid" d="M78 68L120 92M120 66L120 92M162 68L120 92"/>' +
+  '<g><rect x="88" y="92" width="64" height="16" rx="8" class="pp" />' +
+  '<text x="120" y="102.4" class="tx mono s7 mid b">one outcome</text></g>' +
+  "</svg>";
+
+/** A key over the base: the agent asks, the person hands over the credential. */
+const SECRET_REQUEST =
+  '<svg viewBox="0 0 240 135" aria-hidden="true" preserveAspectRatio="xMidYMid meet">' +
+  '<polygon class="ishb" points="120,46.5 195.7,90.2 120,133.8 44.3,90.2"/>' +
+  '<polygon class="ict" points="120,35 195,78 120,121 45,78"/>' +
+  '<path class="igrid" d="M76 70L118 94L165 67M118 94V55"/>' +
+  '<g class="bob"><circle class="inl" cx="102" cy="52" r="13"/><circle class="ict" cx="102" cy="52" r="6"/>' +
+  '<path class="igrid2" d="M112 60L138 74M130 68V76M138 72V80"/></g>' +
+  '<g class="breathe"><rect class="inr" x="143" y="38" width="39" height="30" rx="4"/><path class="igrid2" d="M151 47H174M151 55H168"/></g>' +
+  '<rect class="ict" x="57" y="40" width="39" height="30" rx="4"/><path class="igrid2" d="M64 49H87M64 57H81"/>' +
+  "</svg>";
+/** Connected chat apps: two conversations linked above the shared work surface. */
+const CHANNEL_ACTIONS =
+  '<svg viewBox="0 0 240 135" aria-hidden="true" preserveAspectRatio="xMidYMid meet">' +
+  '<polygon class="ishb" points="120,46.5 195.7,90.2 120,133.8 44.3,90.2"/>' +
+  '<polygon class="ict" points="120,33.1 195.7,76.8 120,120.5 44.3,76.8"/>' +
+  '<polygon class="icl" points="44.3,82 120,125.7 120,120.5 44.3,76.8"/>' +
+  '<polygon class="icr" points="195.7,82 120,125.7 120,120.5 195.7,76.8"/>' +
+  '<g transform="matrix(0.9 0.5 0 1 67 12)"><rect class="int" width="46" height="34" rx="6"/>' +
+  '<path class="ln w2" d="M10 12H35M10 20H26M9 34V42L20 34M48 24L69 36"/>' +
+  '<rect class="int" x="68" y="22" width="46" height="34" rx="6"/>' +
+  '<path class="ln w2" d="M78 34H103M78 42H94M103 56V64L92 56"/></g></svg>';
+
 export const DRAWN_ART: Readonly<Record<string, string>> = {
+  channel_actions: CHANNEL_ACTIONS,
   visuals: VISUALS,
   background_tools: BACKGROUND_TOOLS,
   background_tasks: BACKGROUND_TASKS,
   agent_messages: AGENT_MESSAGES,
   workflows: WORKFLOWS,
   monitor: MONITOR,
+  babysit_pr: BABYSIT_PR,
   text_to_speech: TEXT_TO_SPEECH,
   computer_use: COMPUTER_USE,
   video_generation: VIDEO_GENERATION,
   follow_ups: FOLLOW_UPS,
   phone_calls: PHONE_CALLS,
   drafts: DRAFTS,
+  harness: HARNESS,
+  council: COUNCIL,
+  sol_loop: SOL_LOOP,
+  eval_tool_tuning: EVAL_TOOL_TUNING,
+  burst: BURST,
+  proof_scenario: PROOF_SCENARIO,
+  secret_request: SECRET_REQUEST,
 };

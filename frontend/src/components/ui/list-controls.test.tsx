@@ -88,12 +88,19 @@ describe("Pager", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("still reports a filtered count on a single page", () => {
-    render(
+  it("omits the redundant filtered footer on a single page", () => {
+    const { container } = render(
       <Pager page={0} pageCount={1} matched={3} total={40} onPage={() => {}} counted="40 skills" />,
     );
 
-    expect(screen.getByText("3 of 40 skills")).toBeInTheDocument();
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it("renders no footer for an empty search, even with a stale page count", () => {
+    const { container } = render(
+      <Pager page={0} pageCount={3} matched={0} total={80} onPage={vi.fn()} counted="80 skills" />,
+    );
+    expect(container).toBeEmptyDOMElement();
   });
 
   it("frames the count it is handed and owns no noun of its own", () => {
@@ -113,7 +120,7 @@ describe("Pager", () => {
       />,
     );
 
-    expect(screen.getByText("3 of 40 umiejętności · page 1 of 2")).toBeInTheDocument();
+    expect(screen.getByText("3 of 40 umiejętności")).toBeInTheDocument();
   });
 
   it("moves a page when asked", async () => {
@@ -236,3 +243,20 @@ it.each(["sheet", "dialog"] as const)(
     expect(close).toHaveBeenCalledWith(false);
   },
 );
+
+it("keeps a primary-list pager at one page with both directions disabled", () => {
+  render(
+    <Pager
+      showSinglePage
+      page={0}
+      pageCount={1}
+      matched={4}
+      total={4}
+      onPage={vi.fn()}
+      counted="4 servers"
+    />,
+  );
+  expect(screen.getByText("1 / 1")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Previous page" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Next page" })).toBeDisabled();
+});

@@ -455,7 +455,7 @@ def _form_request(form: dict[str, str]) -> MagicMock:
 
 
 def _bot_service(bot: MagicMock | None) -> MagicMock:
-    return MagicMock(find_active=AsyncMock(return_value=bot))
+    return MagicMock(find_active=AsyncMock(return_value=bot), queue_message=AsyncMock())
 
 
 class TestTheRequestURLs:
@@ -487,17 +487,17 @@ class TestTheRequestURLs:
         assert self.spawn.call_args.kwargs["name"].startswith("slack_press:")
         self.spawn.call_args.args[0].close()
 
-    async def test_a_shortcut_is_run_as_a_message(self):
+    async def test_a_shortcut_is_queued_before_responding(self):
+        service = _bot_service(MagicMock())
         await slack_interactions(
             uuid.uuid4(),
             self._payload(
                 {"type": "message_action", "callback_id": SHORTCUT_ID, "message": {"text": "x"}}
             ),
-            _bot_service(MagicMock()),
+            service,
         )
-
-        assert self.spawn.call_args.kwargs["name"].startswith("slack_shortcut:")
-        self.spawn.call_args.args[0].close()
+        service.queue_message.assert_awaited_once()
+        self.spawn.assert_not_called()
 
     async def test_what_was_wrong_is_kept_in_the_background(self):
         from app.services.channels.slack_app import FEEDBACK_COMMENT
@@ -551,13 +551,14 @@ class TestTheRequestURLs:
         self.spawn.assert_not_called()
 
     async def test_agent_command_runs_and_an_empty_one_explains_itself(self):
+        service = _bot_service(MagicMock())
         await slack_commands(
             uuid.uuid4(),
             _form_request({"text": "hi", "channel_id": "C1", "user_id": "U1"}),
-            _bot_service(MagicMock()),
+            service,
         )
-        assert self.spawn.call_args.kwargs["name"].startswith("slack_command:")
-        self.spawn.call_args.args[0].close()
+        service.queue_message.assert_awaited_once()
+        self.spawn.assert_not_called()
 
         empty = await slack_commands(
             uuid.uuid4(), _form_request({"channel_id": "C1"}), _bot_service(MagicMock())
@@ -590,7 +591,7 @@ class TestSocketMode:
             patch(
                 "app.worker.background.channel.process_channel_press", new=AsyncMock()
             ) as pressed,
-            patch("app.worker.background.channel.process_channel_event", new=AsyncMock()) as asked,
+            patch("app.services.channels.ingress.admit_message", new=AsyncMock()) as asked,
         ):
             await adapter._handle_interaction(
                 "interactive",

@@ -8,6 +8,35 @@ full terms.
 
 --------------------------------------------------------------------------------
 
+Finance and accounting catalog
+
+The opt-in finance catalog includes adapted agent instructions and skills from:
+
+  Anthropic financial-services
+  https://github.com/anthropics/financial-services
+  Commit 60565064557ca77b12f62aa7877f365d111c129d
+  Apache License 2.0
+
+  Anthropic knowledge-work-plugins (finance and selected small-business skills)
+  https://github.com/anthropics/knowledge-work-plugins
+  Commit e605d8ddbfb688da57dfaaceebd93f12a64ef1d3
+  Apache License 2.0
+
+  Agency Agents
+  https://github.com/msitarzewski/agency-agents
+  Commit 8ae6164602c95ca78828b148b9052460ee426885
+  MIT License, Copyright (c) 2025 AgentLand Contributors
+
+Each adapted catalog folder carries its full upstream LICENSE or LICENSE.txt,
+and SOURCE.md with source paths and modification details. Changes adapt the manifests,
+invocation, tool assumptions, evidence requirements, and review boundaries to
+t3OS. Supporting text resources are retained where the workflows need them.
+
+These are t3OS adaptations, not upstream-managed agents. Inclusion implies no
+affiliation with or endorsement by Anthropic or the Agency Agents contributors.
+
+--------------------------------------------------------------------------------
+
 Third-party brand marks
 
 frontend/src/lib/brand-glyphs.generated.ts contains SVG path data for the brand

@@ -161,6 +161,27 @@ describe("@-mentions in the composer", () => {
     expect(marked()).toEqual(["@Web research"]);
   });
 
+  it("keeps a picked mention on the normal send path when Steer is selected", async () => {
+    const onSend = vi.fn();
+    const onSteer = vi.fn(() => true);
+    const { box } = composer({
+      onSend,
+      onSteer,
+      sendMode: "steer",
+      onSendModeChange: vi.fn(),
+      isProcessing: true,
+    });
+    await userEvent.type(box, "@con");
+    await userEvent.click(screen.getByRole("option", { name: /Contracts/ }));
+    await userEvent.type(box, "review this");
+    await userEvent.keyboard("{Enter}");
+
+    expect(onSteer).not.toHaveBeenCalled();
+    expect(onSend).toHaveBeenCalledWith("@Contracts review this", undefined, undefined, [
+      CONTRACTS,
+    ]);
+  });
+
   it("drops what was picked for one agent when the thread switches to another", async () => {
     const { box, view, marked } = composer();
     await userEvent.type(box, "@goo{Enter}");

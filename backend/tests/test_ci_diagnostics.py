@@ -6,7 +6,7 @@ import pytest
 import yaml
 from pydantic import BaseModel, Field, JsonValue
 
-WORKFLOWS = Path(__file__).resolve().parents[2] / ".github" / "workflows"
+GITHUB = Path(__file__).resolve().parents[2] / ".github"
 
 
 class EnvironmentScope(BaseModel):
@@ -21,9 +21,18 @@ class Workflow(EnvironmentScope):
     jobs: dict[str, Job]
 
 
-@pytest.mark.parametrize("filename", ["ci.yml", "load.yml", "dependency-freshness.yml"])
-def test_test_workflows_disable_live_diagnostics_at_every_environment_scope(filename: str) -> None:
-    workflow = Workflow.model_validate(yaml.safe_load((WORKFLOWS / filename).read_text()))
+@pytest.mark.parametrize(
+    ("directory", "filename"),
+    [
+        ("workflows", "ci.yml"),
+        ("workflows-disabled", "load.yml"),
+        ("workflows-disabled", "dependency-freshness.yml"),
+    ],
+)
+def test_test_workflows_disable_live_diagnostics_at_every_environment_scope(
+    directory: str, filename: str
+) -> None:
+    workflow = Workflow.model_validate(yaml.safe_load((GITHUB / directory / filename).read_text()))
     assert workflow.env.get("DIAGNOSTICS_ENABLED") == "false"
     for name, job in workflow.jobs.items():
         enabled = job.env.get("DIAGNOSTICS_ENABLED", workflow.env["DIAGNOSTICS_ENABLED"])

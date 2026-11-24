@@ -551,10 +551,18 @@ class SandboxComputer:
 
     label = "Linux"
 
-    def __init__(self, workspace: Workspace) -> None:
+    def __init__(self, workspace: Workspace, *, startup: tuple[int, int] | None = None) -> None:
         self._workspace = workspace
+        self._startup = startup
         # One file per run's desktop: runs sharing a workspace share its `/tmp`.
         self._shot = f"/tmp/agenticos-screen-{uuid4().hex}.png"  # noqa: S108 - inside the sandbox
+
+    async def start(self) -> None:
+        """Start the display after the caller holds its shared desktop lease."""
+        if self._startup is not None:
+            width, height = self._startup
+            await _start_sandbox_desktop(self._workspace, width=width, height=height)
+            self._startup = None
 
     async def _run(self, argv: list[str], what: str) -> str:
         try:
@@ -614,7 +622,9 @@ class SandboxComputer:
         )
 
 
-async def open_sandbox_desktop(workspace: Workspace, *, width: int, height: int) -> SandboxComputer:
+async def open_sandbox_desktop(
+    workspace: Workspace, *, width: int, height: int, defer_start: bool = False
+) -> SandboxComputer:
     """The desktop in the run's sandbox, started if it is not running.
 
     Raises:
@@ -627,6 +637,21 @@ async def open_sandbox_desktop(workspace: Workspace, *, width: int, height: int)
             "Computer use works on the agent's sandbox, and this run has none that runs "
             "commands. Add the Sandbox capability on a sandbox connection."
         )
+    if defer_start and workspace.ref is None:
+        # A named workspace attaches lazily. Materialize its actual session id
+        # without touching X11, so even simultaneous cold starts share a lease.
+        try:
+            await workspace.stat("/")
+        except (WorkspaceError, OSError) as exc:
+            logger.warning("sandbox identity could not be read: %s", type(exc).__name__)
+            raise ComputerError("The sandbox could not be reached to open its desktop.") from exc
+    computer = SandboxComputer(workspace, startup=(width, height))
+    if not defer_start:
+        await computer.start()
+    return computer
+
+
+async def _start_sandbox_desktop(workspace: Workspace, *, width: int, height: int) -> None:
     try:
         result = await workspace.run(_desktop_start(width, height), shell=True, timeout=90)  # noqa: S604
     except (WorkspaceError, OSError) as exc:
@@ -639,4 +664,3 @@ async def open_sandbox_desktop(workspace: Workspace, *, width: int, height: int)
         )
     if result.exit_code != 0:
         raise ComputerError("The desktop in the sandbox did not start.")
-    return SandboxComputer(workspace)

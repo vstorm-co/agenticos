@@ -69,11 +69,7 @@ vi.mock("@/components/chat/chat-container", () => ({
     sendDisabled?: boolean;
     emptyState?: (onPick: (text: string) => void) => ReactNode;
   }) => (
-    <div
-      data-testid="chat"
-      data-agent-fixed={agentFixed}
-      data-send-disabled={sendDisabled}
-    >
+    <div data-testid="chat" data-agent-fixed={agentFixed} data-send-disabled={sendDisabled}>
       {emptyState ? emptyState(() => undefined) : <div data-testid="agent-welcome" />}
     </div>
   ),
@@ -89,8 +85,12 @@ vi.mock("./assistant-history", () => ({
     onNew: () => void;
   }) => (
     <div data-testid="history" data-agent-id={agentId}>
-      <button type="button" onClick={onClose}>Close history</button>
-      <button type="button" onClick={onNew}>Start from history</button>
+      <button type="button" onClick={onClose}>
+        Close history
+      </button>
+      <button type="button" onClick={onNew}>
+        Start from history
+      </button>
     </div>
   ),
 }));

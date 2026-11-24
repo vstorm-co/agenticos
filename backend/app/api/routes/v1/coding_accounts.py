@@ -3,9 +3,9 @@
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, status
+from fastapi import APIRouter, Response, status
 
-from app.api.deps import Auth, CodingAccountSvc, OpenAICodexSvc
+from app.api.deps import Auth, CodingAccountSvc, CodingAccountUsageSvc, OpenAICodexSvc
 from app.schemas.coding_account import (
     CodingAccountCreate,
     CodingAccountList,
@@ -13,6 +13,8 @@ from app.schemas.coding_account import (
     CodingAccountOAuthStart,
     CodingAccountRead,
     CodingAccountUpdate,
+    CodingAccountUsageRead,
+    CodingAccountUsageRefresh,
 )
 from app.services.coding_accounts import account_owner
 
@@ -20,9 +22,39 @@ router = APIRouter()
 
 
 @router.get("", response_model=CodingAccountList)
-async def mine(ctx: Auth, service: CodingAccountSvc) -> Any:
+async def mine(ctx: Auth, service: CodingAccountUsageSvc, response: Response) -> Any:
     """List only the caller's account metadata, never credentials."""
+    response.headers["Cache-Control"] = "no-store"
     return {"items": await service.mine(ctx)}
+
+
+@router.get("/{account_id}/usage", response_model=CodingAccountUsageRead)
+async def usage(
+    account_id: UUID,
+    ctx: Auth,
+    service: CodingAccountUsageSvc,
+    response: Response,
+) -> Any:
+    """Read this owner's fresh normalized evidence; this GET never calls the provider."""
+    response.headers["Cache-Control"] = "no-store"
+    return await service.read(ctx, account_id)
+
+
+@router.post(
+    "/{account_id}/usage/refresh",
+    response_model=CodingAccountUsageRead,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def refresh_usage(
+    account_id: UUID,
+    data: CodingAccountUsageRefresh,
+    ctx: Auth,
+    service: CodingAccountUsageSvc,
+    response: Response,
+) -> Any:
+    """Queue an owner-authorized native metadata read, without a model or coding task."""
+    response.headers["Cache-Control"] = "no-store"
+    return await service.refresh(ctx, account_id, data.generation)
 
 
 @router.post("", response_model=CodingAccountRead, status_code=status.HTTP_201_CREATED)

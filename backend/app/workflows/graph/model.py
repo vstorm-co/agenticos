@@ -5,11 +5,12 @@ nothing execution-relevant reads it, which is what makes "layout moves do not
 alter execution semantics" (AC3) testable rather than merely asserted:
 `validate_graph` and every future consumer never dereference `.layout`.
 
-`scopes` is **not client-authored**. The editor sends nodes, edges and
-bindings; `app.workflows.graph.validate.derive_scopes` computes
-`body_node_ids` from the graph's own topology and the server persists that
-computed set, overwriting whatever a client claimed. See its docstring for
-why a plain forward walk is not enough.
+A step inside a loop names that loop in `NodeInstance.scope_id`; that is the
+one statement of which body a step belongs to, and wires never change it.
+`scopes` is **not client-authored**: `app.workflows.graph.validate.derive_scopes`
+computes each body from those names and the server persists that, overwriting
+whatever a client claimed. A graph in the pre-#2770 shape, whose bodies hung
+off the loop's `body` port, is read through `app.workflows.graph.legacy`.
 """
 
 import json
@@ -22,6 +23,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from app.workflows.contracts.io import Binding
 from app.workflows.contracts.policy import NodePolicy
+from app.workflows.graph.legacy import adopt_named_loop_bodies
 
 
 class NodePosition(BaseModel):
@@ -148,6 +150,11 @@ class NodeInstance(BaseModel):
     notes: str | None = Field(
         default=None, max_length=2000, description="A note on the step, shown on the canvas"
     )
+    scope_id: UUID | None = Field(
+        default=None,
+        description="The loop this step sits directly inside, or null at the top level. "
+        "Which body a step belongs to; its wires never change it",
+    )
     disabled: bool = Field(
         default=False,
         description="Switched off: the step is skipped when the run reaches it and "
@@ -190,10 +197,9 @@ class Edge(BaseModel):
 class ScopeBoundary(BaseModel):
     """A control node and the body it owns, as the server has computed it.
 
-    `entry_port` is always a port of `scope_node_id` itself: the control node
-    is the single node a client wires into and out of in the editor, and the
-    body's own reachability walk starts from `scope_node_id`'s outgoing
-    `entry_port` edges - never ambiguous, never delegated.
+    `body_node_ids` is every step whose chain of `scope_id`s leads to
+    `scope_node_id` - transitive, so a nested loop's body is in its outer
+    loop's too. No wire enters a body: it starts at its `loop.item`.
 
     `exit_port` belongs to `exit_node_id`, which is **not** always
     `scope_node_id`. For the simplest scope owners the two coincide - every
@@ -220,7 +226,6 @@ class ScopeBoundary(BaseModel):
 
     scope_node_id: UUID
     body_node_ids: frozenset[UUID]
-    entry_port: str
     exit_node_id: UUID
     exit_port: str
 
@@ -273,6 +278,11 @@ class WorkflowGraph(BaseModel):
     scopes: tuple[ScopeBoundary, ...] = ()
     notes: tuple[CanvasNote, ...] = Field(default=(), max_length=MAX_CANVAS_NOTES)
 
+    @model_validator(mode="before")
+    @classmethod
+    def _named_loop_bodies(cls, data: Any) -> Any:
+        return adopt_named_loop_bodies(data) if isinstance(data, dict) else data
+
     @model_validator(mode="after")
     def _no_duplicate_node_ids(self) -> WorkflowGraph:
         seen: set[UUID] = set()
@@ -285,3 +295,19 @@ class WorkflowGraph(BaseModel):
     @property
     def node_by_id(self) -> dict[UUID, NodeInstance]:
         return {node.id: node for node in self.nodes}
+
+
+def loop_item_of(graph: WorkflowGraph, loop_id: UUID) -> UUID | None:
+    """The `loop.item` step a loop's body starts at, or None when the body has none.
+
+    Found by membership, not by a wire: each iteration starts there because it is
+    the body's item step (#2770). A body with two is refused at publish.
+    """
+    return next(
+        (
+            node.id
+            for node in graph.nodes
+            if node.scope_id == loop_id and node.definition_id == "loop.item"
+        ),
+        None,
+    )

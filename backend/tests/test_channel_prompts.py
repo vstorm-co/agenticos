@@ -28,7 +28,6 @@ from app.services.channels.base import (
     read_press,
 )
 from app.services.channels.prompts import (
-    ALREADY,
     LINK_FIRST,
     NOT_ASKED,
     NOT_YOURS,
@@ -449,7 +448,9 @@ class TestPressingAnApproval:
         )
 
         decide.assert_not_awaited()
-        assert env.said() == [ALREADY]
+        assert env.said() == []
+        env.adapter.acknowledge.assert_awaited_once()
+        env.adapter.settle_prompt.assert_not_awaited()
 
 
 class TestSettlingAPress:
@@ -840,7 +841,7 @@ class TestAPressThatLostTheRace:
 
         assert approvals_service.return_value.decide.await_count == 1
         assert env.answered == [{"settled": "decided"}]
-        assert env.said() == ["This request was already approved", ALREADY]
+        assert env.said() == ["This request was already approved"]
 
     @pytest.mark.security
     async def test_a_refusal_for_another_reason_leaves_the_row_open(self):
@@ -1026,8 +1027,9 @@ async def test_a_completed_channel_continuation_defers_buttons_after_posting_its
 ):
     import app.services.channels.prompts as module
 
-    segment = SimpleNamespace(
+    segment = RunSegment(
         output="Sent.",
+        channel_destination=None,
         tool_calls=[],
         settled={},
         generated_files=frozenset(),
@@ -1141,3 +1143,69 @@ class TestDelivering:
 
         assert merged.tool_calls == [replace(c1, result="ok"), later]
         assert untouched.tool_calls == [later]
+
+
+@pytest.mark.security
+@pytest.mark.parametrize(
+    "case", ["only", "text", "partial", "wrong_message", "legacy", "preview", "file", "receipt"]
+)
+async def test_a_resumed_reaction_keeps_the_text_reply_instead_of_deleting_progress(
+    monkeypatch, case
+):
+    import app.services.channels.prompts as module
+    from app.agents.capabilities.channel_actions._contract import ReactionReceipt
+    from app.agents.capabilities.channel_tools._directory import ChannelDestination
+    from app.services.transcript import RecordedToolCall
+
+    bot = _bot()
+    receipt = ReactionReceipt(
+        bot_id=bot.id,
+        channel_id="C1",
+        message_id="other" if case == "wrong_message" else "original",
+        applied=["heart"],
+        failed=["tada"] if case == "partial" else [],
+        reaction_only=case != "text",
+    )
+    segment = RunSegment(
+        output="",
+        run=MagicMock(id=RUN, conversation_id=None, status="completed"),
+        tool_calls=[
+            RecordedToolCall(
+                tool_call_id="react",
+                tool_name="react_to_chat_message",
+                args={},
+                result=receipt.model_dump_json(),
+            )
+        ],
+        settled={},
+        channel_destination=ChannelDestination(
+            bot_id=bot.id,
+            platform_chat_id="C1:1.0",
+            private_chat=False,
+            message_id=None if case == "legacy" else "original",
+        ),
+        generated_files=frozenset({"report.pdf"}) if case == "file" else frozenset(),
+    )
+    adapter = MagicMock(
+        send_message=AsyncMock(return_value="native-answer" if case == "receipt" else None)
+    )
+    bind = AsyncMock()
+    monkeypatch.setattr(module.conversation_repo, "bind_channel_source", bind)
+    monkeypatch.setattr(module, "get_adapter", lambda platform: adapter)
+    monkeypatch.setattr(module, "unseal_bot_token", lambda row: "private-token")
+    monkeypatch.setattr(module, "drawn_picture", AsyncMock(return_value=None))
+    monkeypatch.setattr(
+        module,
+        "with_preview_links",
+        AsyncMock(return_value="Preview link" if case == "preview" else ""),
+    )
+    db = AsyncMock()
+    await ChannelPrompts(db)._send_segment(bot, "slack", "C1:1.0", segment)
+    assert adapter.send_message.await_args.args[1].reply_to_message_id == (
+        None if case == "legacy" else "original"
+    )
+    assert adapter.send_message.await_count == 1
+    if case == "receipt":
+        bind.assert_awaited_once_with(db, run_id=RUN, role="assistant", source_id="native-answer")
+    else:
+        bind.assert_not_awaited()

@@ -561,10 +561,13 @@ class TestASlashAPlatformAte:
         assert _as_command(text) == text.strip()
 
     def test_nothing_else_gains_a_bare_form(self):
-        """Only `link`. The others are reachable wherever a slash is delivered,
-        and a bare `new` or `help` would swallow real messages."""
+        """Bare reset commands must not swallow ordinary conversation."""
         assert _as_command("new") == "new"
-        assert _as_command("help") == "help"
+        assert _as_command("agents") == "agents"
+
+    @pytest.mark.parametrize("command", ["help", "status", "stop"])
+    def test_task_controls_and_help_survive_platform_slash_commands(self, command: str):
+        assert _as_command(command) == f"/{command}"
 
 
 class TestWhatSomebodyHasConnected:
@@ -954,3 +957,20 @@ class TestCommandsGateOnLinkAdmission:
 
         assert "New conversation started" in reply
         assert create_conv.await_args.kwargs["user_id"] is None
+
+
+@pytest.mark.parametrize("platform", [None, "slack"])
+async def test_a_matrix_link_requires_a_live_matrix_bot(platform):
+    from app.core.exceptions import NotFoundError
+
+    bot = None if platform is None else SimpleNamespace(platform=platform)
+    incoming = _incoming()
+    incoming.platform = "matrix"
+    with (
+        patch(
+            "app.services.channel_link.channel_bot_repo.get_for_inbound",
+            AsyncMock(return_value=bot),
+        ),
+        pytest.raises(NotFoundError),
+    ):
+        await ChannelLinkService(_db()).request(incoming)

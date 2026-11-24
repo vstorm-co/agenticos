@@ -220,7 +220,10 @@ describe("PortalAccount", () => {
     state.items = [gmail("connect", "oauth_app_secret")];
     render(<PortalAccount account={ACCOUNT_TRIGGERS["trigger.gmail"]!} />);
     expect(screen.getByText(/Gmail OAuth app credentials/)).toBeVisible();
-    expect(screen.getByRole("link", { name: "Open the vault" })).toHaveAttribute("href", "/vault");
+    expect(screen.getByRole("link", { name: "Open the vault" })).toHaveAttribute(
+      "href",
+      "/connectors/vault",
+    );
   });
 
   it("stores the missing OAuth app from the step and refreshes its connection prerequisites", async () => {

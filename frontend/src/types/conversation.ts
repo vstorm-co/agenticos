@@ -6,6 +6,7 @@ import {
   type UserRating,
 } from "./chat";
 import type { RatingsByDay } from "./stats";
+import type { RoomMessageReactionSummary } from "./room-message-reaction";
 
 /**
  * An agent that answered in a conversation.
@@ -29,6 +30,21 @@ export interface ChatPerson {
   name: string;
   has_avatar: boolean;
   avatar_color: number | null;
+}
+
+/** A person or agent addressed in a mixed room, resolved by the server. */
+export interface RoomMessageMention {
+  kind: "user" | "agent";
+  id: string;
+  name: string;
+}
+
+export interface RoomThreadSummary {
+  state: "open" | "closed" | "archived";
+  following: boolean;
+  /** Reader-scoped unread reply count, capped by the backend at 100. */
+  unread: number;
+  can_manage: boolean;
 }
 
 export interface Conversation {
@@ -57,7 +73,33 @@ export interface Conversation {
   unread?: boolean;
   /** When the run still at work in it began; null when none is. Listings only. */
   running_since?: string | null;
+  /** When that run last stamped itself alive; null when none is. Listings only. */
+  running_heartbeat_at?: string | null;
   running_run_ids?: string[];
+  /** When the run parked in it stopped to wait; null when none is parked. Listings only. */
+  waiting_since?: string | null;
+  /** What the parked run waits on: an unanswered question or an undecided approval. */
+  waiting_status?: "awaiting_answer" | "awaiting_approval" | null;
+  /** The parked run's first unanswered question; null when it parked on an approval alone. */
+  waiting_question?: string | null;
+  waiting_run_ids?: string[];
+  /**
+   * The conversation this one was forked from (#2762). Only ever set for a caller
+   * who owns both, so a fork shared with somebody else does not name its source.
+   */
+  forked_from?: ConversationForkOrigin | null;
+  /** On the shared-with-me listing: whether the caller may only read it, or write in it too. */
+  share_permission?: "view" | "edit" | null;
+  /** A mixed human/agent room; absent on older ordinary conversations. */
+  room_visibility?: "private" | "public" | null;
+}
+
+/** Where a fork came from: the source conversation and the answer it was forked at. */
+export interface ConversationForkOrigin {
+  conversation_id: string;
+  /** Null once that answer is gone. */
+  message_id: string | null;
+  title: string | null;
 }
 
 /** One of a project's chats, with the people around it - a project's chats are its members'. */
@@ -76,6 +118,15 @@ export interface ConversationMessage {
   /** Authenticated author, paired with the submission correlation. */
   sender?: ChatPerson | null;
   client_message_id?: string | null;
+  thread_root_message_id?: string | null;
+  thread_reply_count?: number;
+  thread_last_activity_at?: string | null;
+  /** Reader-scoped follow, unread and lifecycle state on a room thread root. */
+  thread_summary?: RoomThreadSummary | null;
+  /** Room recipients resolved by the server, separate from resource mentions. */
+  room_mentions?: RoomMessageMention[];
+  /** Aggregated room reactions returned by the conversation transcript. */
+  reactions?: RoomMessageReactionSummary[];
   id: string;
   conversation_id: string;
   role: "user" | "assistant" | "system";
@@ -124,6 +175,8 @@ export interface ConversationMessage {
    * one, so without this the reader believes the agent said all it had to say.
    */
   run_status?: string | null;
+  /** Safe failure explanation, never the provider response body. */
+  run_error?: string | null;
   run_started_at?: string | null;
   run_duration_ms?: number | null;
   /** Which configured agent answered. Null for the general assistant. */
@@ -131,10 +184,14 @@ export interface ConversationMessage {
   tool_calls?: ConversationToolCall[];
   files?: ChatMessageFile[];
   user_rating?: UserRating;
+  /** Current reader's private pin status; absent on unpersonalized reads. */
+  is_pinned?: boolean | null;
   rating_count?: { likes: number; dislikes: number } | null;
 }
 
 export interface ConversationToolCall {
+  tool_id?: string | null;
+  presentation_kind?: "draft" | "generic" | "platform" | null;
   id: string;
   message_id: string;
   tool_call_id: string;
@@ -256,6 +313,8 @@ export interface AdminUser {
   is_active: boolean;
   is_app_admin: boolean;
   conversation_count: number;
+  last_seen_at?: string | null;
+  active_sessions?: number;
   created_at: string;
 }
 

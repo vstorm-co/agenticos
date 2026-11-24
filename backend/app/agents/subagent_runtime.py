@@ -29,6 +29,7 @@ from uuid import UUID
 from pydantic_ai import Agent as PydanticAgent
 from pydantic_ai.messages import ModelMessage
 from pydantic_ai.tools import DeferredToolResults
+from pydantic_ai.workspaces import Workspace
 
 from app.agents.spec import DelegationMode, SubagentRef
 from app.db.vector_tables import VectorScope
@@ -48,13 +49,14 @@ falls back to an in-memory backend.
 
 DelegationStatus = Literal["completed", "failed", "cancelled"]
 
-DelegateWorkspace = Literal["parent", "own", "none"]
+DelegateWorkspace = Literal["parent", "own", "none"] | Workspace
 """Which workspace a delegation runs in.
 
 `parent` - the delegating run's own, because `sandbox` is in its
 `share_with_delegates`: a researcher writes `/workspace/notes.md` and a writer
 reads it. `own` - a fresh in-memory one, for a delegate that binds `sandbox`
-itself without being shared the parent's. `none` - no workspace, for a delegate
+itself without being shared the parent's. A concrete `Workspace` pins the root
+run's approved computer across cloud-only intermediate delegates. `none` - no workspace, for a delegate
 that binds no `sandbox` at all.
 
 Decided here rather than left to the delegation library, which hands every

@@ -1,0 +1,112 @@
+{
+  "mode": "after",
+  "runs": [
+    {
+      "width": 1440,
+      "steps": [
+        {
+          "step": "challenge shown",
+          "url": "/auth/callback"
+        },
+        {
+          "step": "wrong code",
+          "verify_status": 401,
+          "input_still_shown": true
+        },
+        {
+          "step": "valid code, desktop handoff",
+          "verify_status": 200,
+          "final_url": "http://desktop-verifier.localtest/callback?code=synthetic-code&desktop_nonce=syn"
+        }
+      ],
+      "video": "docs/pr-61/after/oidc-mfa-flow.webm (from 1440px run)"
+    },
+    {
+      "width": 390,
+      "steps": [
+        {
+          "step": "challenge shown",
+          "url": "/auth/callback"
+        },
+        {
+          "step": "wrong code",
+          "verify_status": 401,
+          "input_still_shown": true
+        },
+        {
+          "step": "valid code, desktop handoff",
+          "verify_status": 200,
+          "final_url": "http://desktop-verifier.localtest/callback?code=synthetic-code&desktop_nonce=syn"
+        }
+      ]
+    }
+  ],
+  "api_calls": [
+    {
+      "width": 1440,
+      "method": "GET",
+      "path": "/api/auth/me",
+      "status": 401
+    },
+    {
+      "width": 1440,
+      "method": "POST",
+      "path": "/api/auth/refresh",
+      "status": 401
+    },
+    {
+      "width": 1440,
+      "method": "POST",
+      "path": "/api/auth/mfa/verify",
+      "status": 401,
+      "code_kind": "wrong-synthetic"
+    },
+    {
+      "width": 1440,
+      "method": "POST",
+      "path": "/api/auth/refresh",
+      "status": 401
+    },
+    {
+      "width": 1440,
+      "method": "POST",
+      "path": "/api/auth/mfa/verify",
+      "status": 200,
+      "code_kind": "valid-synthetic"
+    },
+    {
+      "width": 390,
+      "method": "GET",
+      "path": "/api/auth/me",
+      "status": 401
+    },
+    {
+      "width": 390,
+      "method": "POST",
+      "path": "/api/auth/refresh",
+      "status": 401
+    },
+    {
+      "width": 390,
+      "method": "POST",
+      "path": "/api/auth/mfa/verify",
+      "status": 401,
+      "code_kind": "wrong-synthetic"
+    },
+    {
+      "width": 390,
+      "method": "POST",
+      "path": "/api/auth/refresh",
+      "status": 401
+    },
+    {
+      "width": 390,
+      "method": "POST",
+      "path": "/api/auth/mfa/verify",
+      "status": 200,
+      "code_kind": "valid-synthetic"
+    }
+  ],
+  "page_errors": [],
+  "captured_at": "2026-11-12T10:59:55.787Z"
+}

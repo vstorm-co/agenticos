@@ -14,10 +14,12 @@ vi.mock("@/hooks/use-desktop", () => ({
   useChangeServer: () => ({ mutate: desktop.change, isPending: false }),
 }));
 vi.mock("@/components/layout/account-preferences", () => ({
-  AppearanceMenu: () => null,
-  LanguageMenu: () => null,
+  AppearanceMenu: () => <div role="menuitem">appearance</div>,
+  LanguageMenu: () => <div role="menuitem">language</div>,
 }));
-vi.mock("@/components/teams", () => ({ OrganizationMenuItems: () => null }));
+vi.mock("@/components/teams", () => ({
+  OrganizationMenuItems: () => <div role="menuitem">organization selection</div>,
+}));
 beforeEach(() => {
   desktop.shell = null;
   desktop.change.mockClear();
@@ -42,6 +44,15 @@ vi.mock("@/stores", () => ({
 }));
 
 describe("SidebarUser", () => {
+  it.each([true, false])("offers administration only for an app admin (%s)", async (admin) => {
+    currentUser.mockReturnValue({ ...OWNER, is_app_admin: admin });
+    render(<SidebarUser />);
+    await userEvent.click(screen.getByRole("button"));
+    const item = screen.queryByRole("menuitem", { name: "adminOverview" });
+    if (admin) expect(item).toHaveAttribute("href", "/admin");
+    else expect(item).not.toBeInTheDocument();
+  });
+
   it("says which account is signed in without being opened", () => {
     // On a platform where the account decides what every request is allowed to
     // do, "who am I" should not cost a click.
@@ -81,6 +92,28 @@ describe("SidebarUser", () => {
     const { container } = render(<SidebarUser />);
 
     expect(container).toBeEmptyDOMElement();
+  });
+
+  it("offers no language in the account menu of an English-only deployment", async () => {
+    currentUser.mockReturnValue(OWNER);
+
+    render(<SidebarUser />);
+    await userEvent.click(screen.getByRole("button"));
+
+    expect(await screen.findByRole("menuitem", { name: "appearance" })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "language" })).not.toBeInTheDocument();
+  });
+
+  it("keeps organization selection out of the account menu", async () => {
+    currentUser.mockReturnValue(OWNER);
+    render(<SidebarUser />);
+
+    await userEvent.click(screen.getByRole("button"));
+
+    expect(await screen.findByRole("menu")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("menuitem", { name: "organization selection" }),
+    ).not.toBeInTheDocument();
   });
 });
 

@@ -36,7 +36,7 @@ import json
 import os
 from dataclasses import dataclass
 from enum import StrEnum
-from uuid import UUID
+from uuid import UUID, uuid5
 
 from cryptography.fernet import Fernet, InvalidToken
 from cryptography.hazmat.primitives import hashes
@@ -62,6 +62,8 @@ class VaultScopeKind(StrEnum):
     ORGANIZATION = "org"
     USER = "user"
     DEPLOYMENT = "deployment"
+    BROWSER_MEMBER = "browser_member"
+    NETWORK_CONNECTION = "network_connection"
 
 
 @dataclass(frozen=True)
@@ -74,6 +76,9 @@ class VaultScope:
     has no `organization_id` at all, and a member may be in several
     organizations, so binding it to whichever one happened to be active when
     they added it would make the token unreadable after they switch.
+
+    Browser passwords use a separate member scope that also binds the organization.
+    Moving one to another tenant or changing its owner cannot transfer the credential.
     """
 
     kind: VaultScopeKind
@@ -88,10 +93,27 @@ class VaultScope:
         return cls(kind=VaultScopeKind.USER, subject_id=user_id)
 
     @classmethod
+    def browser_member(cls, organization_id: UUID, user_id: UUID) -> VaultScope:
+        """A browser credential belongs to this member in this organization only."""
+        return cls(
+            kind=VaultScopeKind.BROWSER_MEMBER, subject_id=uuid5(organization_id, str(user_id))
+        )
+
+    @classmethod
     def deployment(cls) -> VaultScope:
         """The installation itself, for the few secrets no tenant owns - the Web
         Push signing key (#2097). One deployment per database, so one subject."""
         return cls(kind=VaultScopeKind.DEPLOYMENT, subject_id=UUID(int=0))
+
+    @classmethod
+    def network_connection(
+        cls, *, organization_id: UUID, connection_id: UUID, owner_user_id: UUID | None
+    ) -> VaultScope:
+        """A node identity cannot move between connections, members or organizations."""
+        return cls(
+            kind=VaultScopeKind.NETWORK_CONNECTION,
+            subject_id=uuid5(organization_id, f"{connection_id}:{owner_user_id or 'org'}"),
+        )
 
     def __str__(self) -> str:
         return f"{self.kind.value}:{self.subject_id}"

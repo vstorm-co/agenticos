@@ -7,11 +7,13 @@ real HMAC-SHA256 - a test that faked the signature would prove nothing about the
 verifier.
 """
 
+import base64
 import hashlib
 import hmac
 
 import pytest
 
+from app.schemas.agent_trigger import GithubAuthors, GithubTriggerConfig
 from app.services import trigger_events
 
 pytestmark = pytest.mark.anyio
@@ -480,6 +482,33 @@ class TestThreadLines:
 
 
 class TestGenericWebhook:
+    @pytest.mark.parametrize("scheme", ["hmac-sha256-hex", "hmac-sha256-base64"])
+    def test_raw_body_hmac_with_a_configured_header(self, scheme):
+        body = b'{"ticket": 7}'
+        digest = hmac.new(_SECRET.encode(), body, hashlib.sha256).digest()
+        signed = digest.hex() if scheme.endswith("hex") else base64.b64encode(digest).decode()
+        config = {"signature_scheme": scheme, "signature_header": "X-Custom-Signature"}
+        headers = {"x-custom-signature": signed}
+        assert trigger_events.verify_signature(
+            "webhook", secret=_SECRET, body=body, headers=headers, config=config
+        )
+        assert not trigger_events.verify_signature(
+            "webhook", secret=_SECRET, body=body + b" ", headers=headers, config=config
+        )
+        assert not trigger_events.verify_signature(
+            "webhook", secret=_SECRET, body=body, headers={}, config=config
+        )
+        assert not trigger_events.verify_signature(
+            "webhook", secret="wrong", body=body, headers=headers, config=config
+        )
+        assert not trigger_events.verify_signature(
+            "webhook",
+            secret=_SECRET,
+            body=body,
+            headers={"x-signature-256": _sign(_SECRET, body)},
+            config=config,
+        )
+
     def test_a_webhook_delivery_uses_the_relay_signature_header(self):
         body = b'{"ticket": 7}'
         headers = {"x-signature-256": _sign(_SECRET, body)}
@@ -801,3 +830,191 @@ def test_a_plain_sender_fragment_narrows_the_address(source, fragment, matches):
         )
         is matches
     )
+
+
+class TestLinearWebhook:
+    def test_fresh_authentic_delivery_and_filters(self):
+        body = b'{"webhookTimestamp":1000000,"type":"Issue","action":"create"}'
+        headers = {"linear-signature": _sign(_SECRET, body)[7:]}
+        assert trigger_events.verify_signature(
+            "linear", secret=_SECRET, body=body, headers=headers, now=1000
+        )
+        assert trigger_events.event_matches(
+            "linear",
+            headers=headers,
+            payload={"type": "Issue", "action": "create"},
+            config={"event_types": ["Issue"], "actions": ["create"]},
+        )
+        assert not trigger_events.event_matches(
+            "linear",
+            headers=headers,
+            payload={"type": "Issue", "action": "update"},
+            config={"actions": ["create"]},
+        )
+        assert not trigger_events.event_matches(
+            "linear",
+            headers=headers,
+            payload={"type": "Comment", "action": "create"},
+            config={"event_types": ["Issue"]},
+        )
+        assert "Linear" in trigger_events.render_context("linear", payload={"type": "Issue"})
+
+    @pytest.mark.security
+    @pytest.mark.parametrize("signature", [None, "", "a" * 63, "g" * 64, "ÿ" * 64])
+    def test_missing_or_malformed_signature_is_refused(self, signature):
+        body = b'{"webhookTimestamp":1000000}'
+        headers = {} if signature is None else {"linear-signature": signature}
+        assert not trigger_events.verify_signature(
+            "linear", secret=_SECRET, body=body, headers=headers, now=1000
+        )
+
+    @pytest.mark.security
+    @pytest.mark.parametrize(
+        "body,sign_body,now",
+        [
+            (b'{"webhookTimestamp":1000000}', b'{"webhookTimestamp":1000001}', 1000),
+            (b'{"webhookTimestamp":1000000}', b'{"webhookTimestamp":1000000}', 1061),
+            (b'{"webhookTimestamp":1000000}', b'{"webhookTimestamp":1000000}', 939),
+            (b"{}", b"{}", 1000),
+            (b'{"webhookTimestamp":true}', b'{"webhookTimestamp":true}', 1000),
+            (b"[]", b"[]", 1000),
+            (b"{", b"{", 1000),
+        ],
+    )
+    def test_invalid_or_stale_delivery_is_refused(self, body, sign_body, now):
+        headers = {"linear-signature": _sign(_SECRET, sign_body)[7:]}
+        assert not trigger_events.verify_signature(
+            "linear", secret=_SECRET, body=body, headers=headers, now=now
+        )
+
+    def test_unsigned_delivery_id_cannot_change_replay_identity(self):
+        payload = {"webhookTimestamp": 1000000, "type": "Issue"}
+        one = trigger_events.delivery_id("linear", {"linear-delivery": "one"}, payload)
+        assert one == trigger_events.delivery_id("linear", {"linear-delivery": "two"}, payload)
+        # A provider retry that changes the signed timestamp gets a different key.
+        assert one != trigger_events.delivery_id(
+            "linear", {}, {**payload, "webhookTimestamp": 1000001}
+        )
+
+
+class TestGithubAuthorPolicies:
+    @pytest.mark.security
+    @pytest.mark.parametrize(
+        "event,object_key,action",
+        [
+            ("issues", "issue", "opened"),
+            ("pull_request", "pull_request", "opened"),
+            ("issue_comment", "comment", "created"),
+        ],
+    )
+    @pytest.mark.parametrize("policy", ["members", "contributors", "anyone"])
+    @pytest.mark.parametrize(
+        "association",
+        [
+            "OWNER",
+            "MEMBER",
+            "COLLABORATOR",
+            "CONTRIBUTOR",
+            "FIRST_TIME_CONTRIBUTOR",
+            "FIRST_TIMER",
+            "NONE",
+            "MANNEQUIN",
+            None,
+        ],
+    )
+    def test_only_the_selected_author_associations_are_admitted(
+        self,
+        event: str,
+        object_key: str,
+        action: str,
+        policy: GithubAuthors,
+        association: str | None,
+    ) -> None:
+        payload = {"action": action, object_key: {"author_association": association}}
+        config = {"event": event, "authors": policy}
+        expected = (
+            policy == "anyone"
+            or association in {"OWNER", "MEMBER", "COLLABORATOR"}
+            or (policy == "contributors" and association == "CONTRIBUTOR")
+        )
+        assert _github(event, payload, config) is expected
+        assert trigger_events.github_filter_reason({"x-github-event": event}, payload, config) == (
+            None if expected else "author"
+        )
+
+    @pytest.mark.security
+    @pytest.mark.parametrize("policy", ["members", "contributors", "anyone"])
+    def test_widening_authors_does_not_allow_bots_or_the_excluded_account(
+        self, policy: str
+    ) -> None:
+        payload = {"action": "opened", "issue": _BY_MEMBER, "sender": {"type": "Bot"}}
+        config = {"authors": policy, "ignore_login": "agent-account"}
+        assert not _github("issues", payload, config)
+        payload["sender"] = {"type": "User", "login": "Agent-Account"}
+        assert not _github("issues", payload, config)
+
+    def test_old_stored_config_still_uses_members(self) -> None:
+        assert GithubTriggerConfig.model_validate({"actions": ["opened"]}).authors == "members"
+
+    @pytest.mark.parametrize(
+        "event,payload,config,reason",
+        [
+            ("ping", {}, {}, "event"),
+            ("issues", {"action": "closed"}, {}, "action"),
+            ("issues", {"action": "opened", "sender": {"type": "Bot"}}, {}, "bot"),
+            (
+                "issues",
+                {"action": "opened", "sender": {"login": "bot-account"}},
+                {"ignore_login": "bot-account"},
+                "ignored_login",
+            ),
+            (
+                "pull_request",
+                {"action": "opened", "pull_request": {**_BY_MEMBER, "draft": True}},
+                {"event": "pull_request"},
+                "draft",
+            ),
+            (
+                "pull_request",
+                {"action": "opened", "pull_request": {**_BY_MEMBER, "base": {"ref": "other"}}},
+                {"event": "pull_request", "branches": ["main"]},
+                "branch",
+            ),
+            (
+                "issue_comment",
+                {"action": "created", "comment": {**_BY_MEMBER, "body": "hello"}},
+                {"event": "issue_comment", "mention": "@agent"},
+                "mention",
+            ),
+            (
+                "workflow_run",
+                {"action": "completed", "workflow_run": {"conclusion": "success"}},
+                {"event": "workflow_run"},
+                "conclusion",
+            ),
+            (
+                "workflow_run",
+                {
+                    "action": "completed",
+                    "workflow_run": {"conclusion": "failure", "head_branch": "other"},
+                },
+                {"event": "workflow_run", "branches": ["main"]},
+                "branch",
+            ),
+            ("push", {"ref": "refs/tags/v1"}, {"event": "push"}, "not_branch"),
+            (
+                "push",
+                {"ref": "refs/heads/other"},
+                {"event": "push", "branches": ["main"]},
+                "branch",
+            ),
+        ],
+    )
+    def test_filter_diagnostics_report_the_actual_refusal(
+        self, event: str, payload: dict[str, object], config: dict[str, object], reason: str
+    ) -> None:
+        assert (
+            trigger_events.github_filter_reason({"x-github-event": event}, payload, config)
+            == reason
+        )
+        assert not _github(event, payload, config)

@@ -1,16 +1,18 @@
 "use client";
 
 import { Fragment, useMemo, useState } from "react";
-import { ArrowRight, Loader2, TriangleAlert } from "lucide-react";
+import { ArrowRight, Loader2, Mic, TriangleAlert } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 import { SetupIndicator } from "@/components/settings/setup-indicator";
 import { voiceSetupHints } from "@/lib/setup-hints";
-import { SettingsSection } from "@/components/settings/settings-section";
+import { ServiceCard } from "@/components/settings/service-card";
+import { OrgTextToSpeechSettings } from "./org-text-to-speech-settings";
 import { OrgVoiceUsage } from "@/components/teams/org-voice-usage";
-import { ProviderIcon } from "@/components/vault/provider-icon";
-import { SpeechKeyField, useSpeechKeyCheck } from "@/components/vault/speech-key-field";
+import { ProviderRow } from "@/components/vault/provider-row";
+import { ModelLabel } from "@/components/icons/model-icon";
+import { SpeechKeyField } from "@/components/vault/speech-key-field";
 import {
   Alert,
   AlertDescription,
@@ -23,9 +25,11 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  Switch,
 } from "@/components/ui";
 import { FormField } from "@/components/ui/form-field";
 import { useOrganizations, usePermissions } from "@/hooks";
+import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { useChanged } from "@/hooks/use-changed";
 import { useSpeechToTextProviders } from "@/hooks/use-model-providers";
 import type { SpeechToTextProvider } from "@/hooks/use-model-providers";
@@ -96,11 +100,22 @@ function secondsOf(draft: Draft): number | null {
  * rather than disabled, like the spending limit beside it: a section that could
  * only report a refusal is worse than no section.
  */
-export function OrgVoiceSettings({ org }: { org: Organization }) {
+export function OrgVoiceSettings({
+  org,
+  collapsible = false,
+}: {
+  org: Organization;
+  collapsible?: boolean;
+}) {
   const { can } = usePermissions();
   // A separate component so that its catalog and vault reads are never issued
   // for somebody who may not change them.
-  return can(Perm.orgSettings) ? <VoiceForm org={org} /> : null;
+  return can(Perm.orgSettings) ? (
+    <>
+      <VoiceForm org={org} collapsible={collapsible} />
+      <OrgTextToSpeechSettings org={org} />
+    </>
+  ) : null;
 }
 
 /**
@@ -134,11 +149,11 @@ function useVoiceDraft(org: Organization) {
     setLengthInvalid(false);
   };
 
-  const save = async () => {
+  const save = async (): Promise<boolean> => {
     const seconds = secondsOf(draft);
     if (seconds === null) {
       setLengthInvalid(true);
-      return;
+      return false;
     }
     const settings: VoiceSettingsUpdate = {
       speech_to_text_language: draft.language,
@@ -161,14 +176,26 @@ function useVoiceDraft(org: Organization) {
     try {
       await setVoiceSettings(org.id, settings);
       toast.success(t("voice.saved"));
+      return true;
     } catch (error) {
       const problem = submitFailure(error, { fields: FIELDS }, tErrors);
       setFailure(problem);
       if (problem.toast) toast.error(problem.toast);
+      return false;
     } finally {
       setSaving(false);
     }
   };
+
+  useUnsavedChanges(`org-voice:${org.id}`, {
+    dirty: JSON.stringify(draft) !== JSON.stringify(stored),
+    save,
+    discard: () => {
+      setDraft(stored);
+      setFailure(NO_FAILURE);
+      setLengthInvalid(false);
+    },
+  });
 
   return {
     draft,
@@ -186,22 +213,45 @@ function useVoiceDraft(org: Organization) {
   };
 }
 
-function VoiceForm({ org }: { org: Organization }) {
+function VoiceForm({ org, collapsible }: { org: Organization; collapsible: boolean }) {
   const t = useTranslations("teams");
   const { providers, languages } = useSpeechToTextProviders();
-  // Only organization-wide keys: the platform spends this one for everybody.
-  const hasKey = useSpeechKeyCheck(true);
   const form = useVoiceDraft(org);
+  const [forceOpen, setForceOpen] = useState(false);
   const { draft, failure } = form;
 
   return (
     <div id="org-voice" data-tour="org-voice">
-      <SettingsSection
+      <ServiceCard
+        icon={Mic}
+        collapsible={collapsible}
+        open={forceOpen}
+        onOpenChange={setForceOpen}
+        action={
+          <Switch
+            aria-label={t("voice.sttTitle")}
+            checked={Boolean(draft.provider && draft.model)}
+            disabled={form.saving}
+            onCheckedChange={(enabled) => {
+              const provider = providers[0];
+              const model = provider?.models[0];
+              form.edit(
+                enabled
+                  ? {
+                      provider: provider?.provider ?? null,
+                      model: model?.id ?? null,
+                      secretId: null,
+                    }
+                  : { provider: null, model: null, secretId: null },
+              );
+              setForceOpen(true);
+            }}
+          />
+        }
         status={<SetupIndicator hints={voiceSetupHints(org)} />}
-        title={t("voice.title")}
-        description={t("voice.description")}
+        title={t("voice.sttTitle")}
+        description={t(collapsible ? "voice.summary" : "voice.description")}
       >
-        <h3 className="text-sm font-semibold">{t("voice.sttTitle")}</h3>
         <p className="text-muted-foreground mt-0.5 mb-4 text-sm">{t("voice.sttDescription")}</p>
         <OrgVoiceUsage />
         <NotReady org={org} providers={providers} />
@@ -209,7 +259,6 @@ function VoiceForm({ org }: { org: Organization }) {
           draft={draft}
           providers={providers}
           languages={languages}
-          hasKey={hasKey}
           failure={failure}
           lengthInvalid={form.lengthInvalid}
           onChange={form.edit}
@@ -228,7 +277,7 @@ function VoiceForm({ org }: { org: Organization }) {
             {t("voice.save")}
           </Button>
         </div>
-      </SettingsSection>
+      </ServiceCard>
     </div>
   );
 }
@@ -273,7 +322,6 @@ interface FieldsProps {
   draft: Draft;
   providers: SpeechToTextProvider[];
   languages: string[];
-  hasKey: (provider: string) => boolean;
   failure: SubmitFailure;
   lengthInvalid: boolean;
   onChange: (next: Partial<Draft>) => void;
@@ -284,7 +332,7 @@ interface FieldsProps {
  * recording, and where a recording sent to that provider travels.
  */
 function DefaultFields(props: FieldsProps) {
-  const { draft, providers, hasKey, failure, onChange } = props;
+  const { draft, providers, failure, onChange } = props;
   const t = useTranslations("teams");
   const chosen = providers.find((entry) => entry.provider === draft.provider);
   return (
@@ -295,7 +343,7 @@ function DefaultFields(props: FieldsProps) {
         <FormField
           label={t("voice.provider")}
           htmlFor="org-voice-provider"
-          description={t("voice.providerHint")}
+          help={t("voice.providerHint")}
           error={failure.fields.speech_to_text_provider}
         >
           <Select
@@ -319,15 +367,10 @@ function DefaultFields(props: FieldsProps) {
                 {t("voice.providerNone")}
               </SelectItem>
               {providers.map((entry) => {
-                const label = hasKey(entry.provider)
-                  ? entry.name
-                  : t("voice.providerNoKey", { name: entry.name });
+                const label = entry.name;
                 return (
                   <SelectItem key={entry.provider} value={entry.provider} textValue={label}>
-                    <span className="flex items-center gap-2">
-                      <ProviderIcon provider={entry.provider} className="h-3.5 w-3.5" />
-                      {label}
-                    </span>
+                    <ProviderRow provider={entry.provider} name={label} />
                   </SelectItem>
                 );
               })}
@@ -338,7 +381,7 @@ function DefaultFields(props: FieldsProps) {
           <FormField
             label={t("voice.model")}
             htmlFor="org-voice-model"
-            description={t("voice.modelHint", { provider: chosen.name })}
+            help={t("voice.modelHint", { provider: chosen.name })}
             error={failure.fields.speech_to_text_model}
           >
             <Select value={draft.model ?? undefined} onValueChange={(model) => onChange({ model })}>
@@ -348,7 +391,7 @@ function DefaultFields(props: FieldsProps) {
               <SelectContent>
                 {chosen.models.map((model) => (
                   <SelectItem key={model.id} value={model.id} textValue={model.name}>
-                    {model.name}
+                    <ModelLabel model={model.id} provider={chosen.provider} label={model.name} />
                   </SelectItem>
                 ))}
               </SelectContent>

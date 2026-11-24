@@ -57,13 +57,14 @@ from pydantic import BaseModel, Field, ValidationError, field_validator
 
 from app.core.config import settings
 from app.core.exceptions import AppException, BadRequestError, ExternalServiceError, NotFoundError
-from app.core.secret_kinds import EntraAppSecret, SecretKind, StorableSecret
+from app.core.secret_kinds import EntraAppSecret, SecretKind
 from app.services.rag.connectors import (
     BaseSyncConnector,
     ConfigRefusal,
     ConnectorConfig,
     RemoteFile,
     RemoteListing,
+    SyncCredential,
     WithdrawnFile,
 )
 
@@ -612,7 +613,7 @@ class SharePointConnector(BaseSyncConnector):
         return None
 
     async def remote_version(
-        self, config: ConnectorConfig, credential: StorableSecret | None, previous: str | None
+        self, config: ConnectorConfig, credential: SyncCredential | None, previous: str | None
     ) -> str:
         """`<drive id> <delta link>`: where the library's change feed stood when this run began.
 
@@ -637,7 +638,7 @@ class SharePointConnector(BaseSyncConnector):
         return f"{drive_id} {latest}"
 
     async def list_files(
-        self, config: ConnectorConfig, credential: StorableSecret | None
+        self, config: ConnectorConfig, credential: SyncCredential | None
     ) -> RemoteListing:
         """Every file of the configured types in the folder, and below it unless told not to.
 
@@ -697,7 +698,7 @@ class SharePointConnector(BaseSyncConnector):
         file: RemoteFile,
         dest_path: Path,
         config: ConnectorConfig,
-        credential: StorableSecret | None,
+        credential: SyncCredential | None,
     ) -> None:
         """Download one file to the path the base class chose.
 
@@ -735,7 +736,7 @@ class SharePointConnector(BaseSyncConnector):
         if graph is not None:
             await graph.aclose()
 
-    def _session(self, credential: StorableSecret | None) -> _Graph:
+    def _session(self, credential: SyncCredential | None) -> _Graph:
         """This sync's Graph session, opened with the source's own credential.
 
         Raises:

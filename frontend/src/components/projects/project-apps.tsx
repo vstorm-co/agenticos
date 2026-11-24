@@ -5,7 +5,8 @@ import { LayoutTemplate } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { ArtifactCard } from "@/components/artifacts/artifact-card";
-import { EmptyState, ErrorState, LoadingState } from "@/components/states";
+import { CatalogLoading } from "@/components/states/catalog-loading";
+import { EmptyState, ErrorState } from "@/components/states";
 import { PAGE_SIZE, Pager } from "@/components/ui";
 import { useArtifacts } from "@/hooks/use-artifacts";
 import { getErrorMessage } from "@/lib/api-error";
@@ -29,13 +30,7 @@ export function ProjectApps({ project }: { project: Project }) {
     limit: PAGE_SIZE,
   });
 
-  if (isLoading)
-    return (
-      <LoadingState
-        variant="skeleton-cards"
-        className="grid-cols-1 sm:grid-cols-1 md:grid-cols-2"
-      />
-    );
+  if (isLoading) return <CatalogLoading kind="document" />;
   if (error) return <ErrorState description={getErrorMessage(error, tErrors)} />;
   if (artifacts.length === 0) {
     return (

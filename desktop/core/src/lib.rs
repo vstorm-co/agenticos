@@ -286,6 +286,27 @@ pub fn is_oauth_start(server: Option<&Url>, url: &Url) -> bool {
     path.starts_with("/api/v1/oauth/") && path.ends_with("/login")
 }
 
+/// A provider's consent page the console asks to open in the person's browser.
+///
+/// MCP consent is authenticated by its `state` alone, so it finishes in the
+/// system browser - where the person's passwords, passkeys and existing
+/// sign-ins are, and which providers that refuse embedded webviews accept. Only
+/// a web page qualifies: https anywhere, plain http only on this machine, and
+/// never one carrying credentials in the address.
+pub fn browser_consent_url(url: &str) -> Result<Url, String> {
+    let url = Url::parse(url).map_err(|_| "That is not a web address.".to_owned())?;
+    let host = url.host_str().unwrap_or_default();
+    let web = match url.scheme() {
+        "https" => !host.is_empty(),
+        "http" => is_loopback(host),
+        _ => false,
+    };
+    if !web || !url.username().is_empty() || url.password().is_some() {
+        return Err("Only a provider's https sign-in page opens in your browser.".to_owned());
+    }
+    Ok(url)
+}
+
 /// The same sign-in, marked as this shell's so the callback returns by deep link.
 ///
 /// `client=desktop` is recorded in the session at the *start* and read at the
@@ -456,13 +477,30 @@ mod tests {
     use url::Url;
 
     use super::{
-        activity_link, constant_time_eq, deep_link_return, external_sign_in_url, is_oauth_start,
-        mint_nonce, pairing_link, parse_server_url, parse_server_url_with, sign_in_challenge,
-        ActivityAction, ManagedPolicy, Mode, PendingSignIn, SignInProof,
+        activity_link, browser_consent_url, constant_time_eq, deep_link_return,
+        external_sign_in_url, is_oauth_start, mint_nonce, pairing_link, parse_server_url,
+        parse_server_url_with, sign_in_challenge, ActivityAction, ManagedPolicy, Mode,
+        PendingSignIn, SignInProof,
     };
 
     fn url(spelled: &str) -> Url {
         Url::parse(spelled).expect("a test URL")
+    }
+
+    #[test]
+    fn a_consent_page_opens_in_the_browser_only_when_it_is_a_web_page() {
+        assert!(browser_consent_url("https://mcp.notion.com/authorize?state=x").is_ok());
+        assert!(browser_consent_url("http://127.0.0.1:8000/authorize").is_ok());
+        for refused in [
+            "http://mcp.notion.com/authorize",
+            "file:///etc/passwd",
+            "javascript:alert(1)",
+            "agenticos://auth/callback?code=x",
+            "https://user:secret@example.com/",
+            "not a url",
+        ] {
+            assert!(browser_consent_url(refused).is_err(), "{refused}");
+        }
     }
 
     #[test]

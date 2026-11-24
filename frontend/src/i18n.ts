@@ -1,13 +1,13 @@
 import { getRequestConfig } from "next-intl/server";
 
-import { locales, defaultLocale, type Locale } from "./lib/locales";
+import { locales, defaultLocale, hasLocaleChoice, type Locale } from "./lib/locales";
 
 import en from "../messages/en.json";
 
 // Imported and re-exported rather than declared here: `next.config.ts` needs the
 // same list and cannot import this file, which drags in next-intl and the whole
 // English catalog. Fifty modules import these from `@/i18n`, so the name stays.
-export { locales, defaultLocale, type Locale };
+export { locales, defaultLocale, hasLocaleChoice, type Locale };
 
 type Messages = { [key: string]: string | Messages };
 
@@ -55,9 +55,6 @@ export default getRequestConfig(async ({ requestLocale }) => {
 export function getLocaleLabel(locale: Locale): string {
   const labels: Record<Locale, string> = {
     en: "English",
-    pl: "Polski",
-    de: "Deutsch",
-    tr: "Türkçe",
   };
   return labels[locale];
 }
@@ -65,9 +62,6 @@ export function getLocaleLabel(locale: Locale): string {
 export function getLocaleFlag(locale: Locale): string {
   const flags: Record<Locale, string> = {
     en: "🇬🇧",
-    pl: "🇵🇱",
-    de: "🇩🇪",
-    tr: "🇹🇷",
   };
   return flags[locale];
 }

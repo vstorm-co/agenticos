@@ -1,5 +1,5 @@
 ---
-source_sha: "a1c685490bed"
+source_sha: "5e90ed7a08dd"
 ---
 
 # Aplikacje { #artifacts }
@@ -14,6 +14,10 @@ Aplikacja nie jest plikiem. Wykres, wygenerowany PDF i plik w workspace'ie mają
 swoje miejsce w czacie i w [workspace'ie](sandbox.md). Aplikacja to rzecz, która
 jest *serwowana*: ma właściciela, widoczność i granty, tak jak agent czy skill, i
 można jej nadać publiczny link dla kogoś bez konta.
+
+## Oznaczenie udostępnionych stron { #shared-page-attribution }
+
+Publiczne podglądy aplikacji domyślnie pokazują pływające oznaczenie z logo AgenticOS i linkiem do GitHuba. Strony udostępnionych rozmów pokazują takie samo oznaczenie pod rozmową. Właściciel lub administrator może ukryć stopkę dla całej organizacji w **Ustawienia organizacji → Nadzór → AgenticOS na udostępnionych stronach**. Kolejne otwarcie strony odczytuje aktualne ustawienie. Aplikacje chronione hasłem pokazują stopkę dopiero po odblokowaniu. Stopka należy do podglądu; pobierane pliki i osadzona treść aplikacji nie są modyfikowane.
 
 ## Wygląd aplikacji { #app-appearance }
 
@@ -812,9 +816,9 @@ jeśli wdrożenie przeniesie później treść do innego originu:
 | `lib/chart-4.5.1.umd.min.js` | Chart.js 4.5.1, jako `window.Chart` |
 | `lib/d3-7.9.0.min.js` | d3 7.9.0, jako `window.d3` |
 | `lib/lucide-1.46.0.min.js` | Ikony Lucide 1.46.0, jako `window.lucide` - ten sam zestaw, którego używa konsola |
-| `lib/agenticos-3.css` | Biblioteka stron: wygląd konsoli dla stron, jasny i ciemny, oraz komponenty `ao-`, z których buduje się stronę |
-| `lib/agenticos-3.js` | `window.AO`: Chart.js w stylu konsoli, formatowanie liczb w języku strony, ikony, zakładki, `AO.onData`, `AO.records` oraz `AO.run` i `AO.onRun` dla [akcji](#actions) |
-| `lib/agenticos-2.css`, `lib/agenticos-2.js` | Poprzednia wersja biblioteki, zostawiona dla stron opublikowanych z nią |
+| `lib/agenticos-4.css` | Biblioteka stron: wygląd konsoli dla stron, jasny i ciemny, oraz komponenty `ao-`, z których buduje się stronę |
+| `lib/agenticos-4.js` | `window.AO`: Chart.js w stylu konsoli, formatowanie liczb w języku strony, ikony, zakładki, `AO.onData`, `AO.records` oraz `AO.run` i `AO.onRun` dla [akcji](#actions) |
+| `lib/agenticos-3.css`, `lib/agenticos-3.js`, `lib/agenticos-2.css`, `lib/agenticos-2.js` | Wcześniejsze wersje biblioteki, zostawiona dla stron opublikowanych z nią |
 | `lib/agenticos-1.css` | Pierwsza wersja wyglądu, zostawiona dla stron opublikowanych z nią |
 | `lib/three-0.186.0/three.module.js` | three.js 0.186.0 jako moduł ES, z `addons/controls/OrbitControls.js` obok - zmapuj `three` i `three/addons/` mapą importów |
 | `lib/mermaid-12.1.0.min.js` | Mermaid 12.1.0, jako `window.mermaid` |
@@ -882,7 +886,7 @@ Sprawdzane są:
 ### Udostępnianie kontekstu asystentowi { #sharing-context-with-the-assistant }
 
 `agenticos.setAssistantContext` pozwala aplikacji statycznej lub aplikacji z
-bindingami danych opisać bieżący widok pływającemu asystentowi. Funkcja jest
+powiązaniami danych opisać bieżący widok pływającemu asystentowi. Funkcja jest
 dostępna w głównym widoku `/apps/{artifactId}` konsoli dla zalogowanego
 użytkownika. Wywołuj ją ponownie po zmianie widoku, filtrów lub wybranych
 rekordów:
@@ -912,7 +916,7 @@ limitów, a nadmiarowe wpisy są pomijane:
 Konsola dostarcza ID, tytuł i wersję aplikacji oraz bieżącą ścieżkę. Ramka iframe
 nie może zastąpić tej tożsamości ani nadać dodatkowych uprawnień. API korzysta z
 istniejącego mostu sandboxa; nie odczytuje DOM ani nie zbiera automatycznie pól
-formularzy lub parametrów zapytania w adresie URL. Oglądający kontroluje
+formularzy lub parametrów zapytania w adresie URL. Osoba korzystająca z aplikacji kontroluje
 udostępnianie w [oknie asystenta](console.md#the-assistant).
 
 ### Jak wygląda strona: podgląd { #seeing-the-page-preview }
@@ -947,7 +951,7 @@ raport, bez obrazu, i mówi, że wdrożenie nie ma renderera. Dla modelu, który
 czyta obrazów, wyłącz **Preview screenshot** w ustawieniach capability; raport
 nadal wraca. `agenticos cmd doctor` mówi, czy renderer odpowiada.
 
-Trzy kolejne dołączone skille budują **prezentację** jako aplikację: `presentation-decks` (gotowy szablon z kadrem slajdu 16:9, nawigacją klawiaturą i dotykiem, notatkami prelegenta pod `n` i jednym slajdem na stronę przy druku do PDF), `deck-storyline` (odbiorcy, decyzja i opowieść z tez, zanim powstanie jakikolwiek slajd) i `deck-review` (tytuły czytane jak argument, jedna myśl na slajd, każda liczba prześledzona, czytelność z daleka). Nie dodają biblioteki ani eksportu do PowerPointa.
+Trzy kolejne dołączone skille budują **prezentację** jako aplikację: `presentation-decks` (zróżnicowana prezentacja HTML 16:9 z `artifact-pages`, z nawigacją klawiaturą, przeglądem, wyborem palety i jednym slajdem na stronę wydruku), `deck-storyline` (odbiorcy, decyzja i opowieść z tez, zanim powstanie jakikolwiek slajd) i `deck-review` (tytuły czytane jak argument, jedna myśl na slajd, każda liczba prześledzona, czytelność z daleka). Nie dodają biblioteki ani eksportu do PowerPointa.
 
 ## Wizualizacje { #visuals }
 
@@ -1001,7 +1005,7 @@ nie podłączono serwera map i że administrator włącza prawdziwe mapy tym
 ustawieniem. Obraz mapy w aplikacji czatowej
 jest rysowany w stanie końcowym, ze wszystkimi pinezkami.
 
-**Mapy świata nie potrzebują żadnej.** Do wszystkiego, co dotyczy krajów - klienci według kraju, biura, trasa między dwoma miastami - `AOWorldMap` rysuje mapę w SVG z konturów krajów, które wdrożenie serwuje samo: bez serwera kafelków, sieci i dodatkowego kontenera. Agent woli ją od mapy z kafelkami, która zostaje na poziom ulic.
+**Mapy świata nie potrzebują żadnej.** Do wszystkiego, co dotyczy krajów - klienci według kraju, biura, trasa między dwoma miastami - `AOWorldMap` rysuje mapę w SVG z konturów krajów, które wdrożenie serwuje samo: bez serwera kafelków, sieci i dodatkowego kontenera. To domyślny wariant nowych map, także tras między miastami. Agent ładuje lokalne kontury krajów i rysuje pinezki oraz połączenia bez dodatkowej konfiguracji. Administrator może włączyć podkład uliczny przez `VISUAL_MAP_TILES`; gdy kafelki są niedostępne, agent powinien użyć mapy SVG.
 
 **Wybór formy.** Skill `visual-design` mówi agentowi, kiedy rysunek w ogóle jest
 właściwą odpowiedzią: tekst dla faktu albo rady, tabela Markdown dla dokładnych
@@ -1455,3 +1459,15 @@ wdrożenia, pod `artifacts/<organization>/<artifact>/`.
 - Archiwizacja zachowuje stronę i nie serwuje z niej niczego, przy wyłączonym
   publicznym linku, dopóki ktoś, kto może ją edytować, jej nie przywróci.
 - Osobna klasa retencji, liczona od ostatniej publikacji.
+
+## Ładowanie podglądów i udostępnianie { #preview-loading-and-sharing }
+
+Podglądy w chacie rezerwują miejsce podczas ładowania renderera wizualizacji lub miniatury Apps. Pojawiają się płynnie po zakończeniu renderowania lub dekodowania obrazu; preferencja ograniczonego ruchu wyłącza animację. Lista Apps używa buforowanych, statycznych miniatur przypisanych do wersji, zamiast ponownie uruchamiać każdą aplikację po powrocie do listy.
+
+Przejściowe błędy renderera i przekroczenia czasu otrzymują najwyżej dwie automatyczne próby ponowienia z rosnącym opóźnieniem. Brak konfiguracji renderera i odmowa dostępu nie uruchamiają ponowień. Powrót do karty ani zmiana jej widoczności nie odnawiają wyczerpanego limitu prób. Gotowe obrazy pozostają w buforze dla wersji, do której czytelnik ma dostęp.
+
+Skill Apps zawiera interaktywne prezentacje HTML, style wydruku PDF i przykłady komponentów do wielokrotnego użytku. Eksport PDF wymaga skonfigurowanego renderera; podgląd ograniczony do walidacji nie dowodzi poprawnego wykonania skryptu. Wykresy, tabele i treści interaktywne sprawdzaj w wyrenderowanym podglądzie. Eksport PowerPoint nie jest dostępny.
+
+Narzędzie MCP platformy `create_app_public_link` wymaga prawa edycji i jawnego potwierdzenia publicznego udostępnienia aplikacji. Używa istniejącego linku, zachowując hasło, termin ważności i przypiętą wersję. Dane na żywo wymagają osobnej zgody właściciela. Wywołanie kończy się sukcesem dopiero po potwierdzeniu publicznego URL-a przez API.
+
+Dołączony przykład prezentacji ma pięć różnych kompozycji: ilustrowaną okładkę, dużą metrykę, porównanie, sekwencję i decyzję. Przykład raportu przelicza wybrane sumy oraz wykres z tych samych liczebności. Visual design zawiera też proceduralne studio produktu z modelowanymi krawędziami, wariantami materiałów, lokalnym oświetleniem studyjnym, rozkładaniem części, nazwanymi widokami i widokiem zastępczym przy braku WebGL. To przykłady HTML do adaptacji, a nie eksport PowerPoint lub modelu produkcyjnego. Istniejące organizacje otrzymują wersje skilli przez standardowe aktualizacje biblioteki i przegląd; lokalnie edytowane kopie pozostają chronione.

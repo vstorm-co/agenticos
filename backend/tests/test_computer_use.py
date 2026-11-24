@@ -37,7 +37,7 @@ from pydantic_ai.messages import (
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 from pydantic_ai.models.test import TestModel
 from pydantic_ai.usage import RunUsage
-from pydantic_ai.workspaces import CommandResult, Workspace, WorkspaceError
+from pydantic_ai.workspaces import CommandResult, Workspace, WorkspaceError, WorkspaceRef
 from pydantic_ai_backends import StateBackend
 
 from app.agents.browser_events import BrowserEvent
@@ -77,6 +77,7 @@ from app.agents.capabilities.computer_use._backends import (
     x11_keys,
     xdotool,
 )
+from app.agents.capabilities.computer_use._lease import LeasedComputer
 from app.agents.capabilities.computer_use._toolset import (
     SEEN,
     ComputerToolset,
@@ -815,6 +816,7 @@ class _Box:
         self.fails = fails
         self.attached = attached
         self.backend = self
+        self.ref = WorkspaceRef(provider="sandboxd:test", id="test-desktop")
         self.unreadable = False
         self.undeletable = False
         self.removed: list[str] = []
@@ -1582,9 +1584,18 @@ class TestTheCapability:
         desktop = await capability._open(box)  # ty: ignore[invalid-argument-type] - the members it uses
 
         assert isinstance(desktop, SandboxComputer)
+        assert box.ran == []
+        await desktop.start()
+        await desktop.start()
+        assert len(box.ran) == 1
         assert "Xvfb :0 -ac -screen 0 1024x768x24" in box.ran[0][0]
 
-    async def test_the_toolset_hands_the_runs_workspace_to_the_desktop(self):
+    async def test_the_toolset_hands_the_runs_workspace_to_the_desktop(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        monkeypatch.setattr(
+            LeasedComputer, "acquire", AsyncMock(side_effect=lambda computer, *_: computer)
+        )
         frames = _Frames()
         box = _Box()
         toolset = ComputerUse().get_toolset()
@@ -2012,3 +2023,37 @@ async def test_live_takeover_discards_the_agents_old_coordinates(
     assert "browser_held" in kinds and "browser_released" in kinds
     assert kinds[-1] == "browser_finished"
     assert bool(chat.events) is not failed_after_release
+
+
+@pytest.mark.security
+async def test_a_failed_takeover_capture_refuses_agent_input_and_closes_the_desktop(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from unittest.mock import MagicMock
+
+    from app.agents.capabilities.computer_use import _toolset as module
+    from app.services.live_browse import BrowserCommand
+
+    desktop = _Desktop(size=(100, 80), native=(100, 80))
+    frames = _Frames()
+    ctx = _ctx(frames)
+    ctx.deps.organization_id = uuid4()
+    ctx.deps.user_id = str(uuid4())
+    control = MagicMock(
+        poll=AsyncMock(return_value=BrowserCommand(type="take_over", by_user_id=ctx.deps.user_id)),
+        wait=AsyncMock(),
+    )
+    monkeypatch.setattr(module.live_browse, "available", lambda: True)
+    monkeypatch.setattr(module.live_browse, "open_view", AsyncMock())
+    monkeypatch.setattr(module.live_browse, "publish", AsyncMock())
+    monkeypatch.setattr(module.live_browse, "LiveControl", lambda _run, _call: control)
+    toolset = _toolset(desktop)
+    async with toolset:
+        await toolset.tools["computer_screenshot"].function(ctx)
+        desktop.blind = True
+        answer = await toolset.tools["computer_act"].function(ctx, [Click(x=10, y=10)])
+        assert answer == "The desktop did not return a screenshot."
+    assert desktop.performed == []
+    assert desktop.closed == 1
+    control.wait.assert_not_awaited()
+    assert frames.events[-1].kind == "browser_finished"

@@ -25,80 +25,56 @@ function cookieSetTo(response: NextResponse): string | null {
   return response.cookies.get(LOCALE_COOKIE_NAME)?.value ?? null;
 }
 
-describe("the locale a visitor picked", () => {
-  it("still holds on a path that carries no prefix", () => {
-    // The whole of #285: `router.push("/orgs")` and any plain `<Link>` drop the
-    // prefix, and with it - before this - the language.
-    expect(redirectedTo(middleware(request("/orgs", { locale: "pl" })))).toBe("/pl/orgs");
+describe("an English-only deployment", () => {
+  it("ignores a cookie left by a locale it no longer serves", () => {
+    // A visitor who picked Polish before the fork went English-only still holds
+    // `NEXT_LOCALE=pl`. Restoring it would send every plain `<Link>` to `/pl/...`.
+    expect(redirectedTo(middleware(request("/orgs", { locale: "pl" })))).toBeNull();
+    expect(redirectedTo(middleware(request("/", { locale: "de" })))).toBeNull();
   });
 
-  it("still holds at the root", () => {
-    expect(redirectedTo(middleware(request("/", { locale: "pl" })))).toBe("/pl");
-  });
-
-  it("keeps the query string it was carrying", () => {
-    expect(redirectedTo(middleware(request("/orgs?create=1", { locale: "pl" })))).toBe(
-      "/pl/orgs?create=1",
-    );
-  });
-
-  it("does not redirect a path that already names it", () => {
-    expect(redirectedTo(middleware(request("/pl/orgs", { locale: "pl" })))).toBeNull();
-  });
-
-  it("does not prefix a path whose prefix is merely in the wrong case", () => {
-    // next-intl matches a prefix case-insensitively and canonicalises `/PL/orgs`
-    // to `/pl/orgs`. Reading it as unprefixed here made that `/pl/PL/orgs` - a 404
-    // on a URL that worked before the cookie existed.
-    expect(redirectedTo(middleware(request("/PL/orgs", { locale: "pl" })))).toBe("/pl/orgs");
-  });
-
-  it("loses to the path when the two disagree, so a shared URL means what it says", () => {
-    expect(redirectedTo(middleware(request("/pl/orgs", { locale: "en" })))).toBeNull();
-    expect(redirectedTo(middleware(request("/orgs", { locale: "en" })))).toBeNull();
-  });
-});
-
-describe("a visitor who picked nothing", () => {
-  it("is served the default locale, unprefixed", () => {
-    expect(redirectedTo(middleware(request("/orgs")))).toBeNull();
-  });
-
-  it("is served English even from a Polish browser", () => {
-    // `localeDetection: false` is deliberate - Polish is opted into, never sniffed.
-    // Reading the cookie by hand is what must not quietly reintroduce the header.
+  it("serves English to a Polish browser, unprefixed", () => {
     expect(
       redirectedTo(middleware(request("/orgs", { acceptLanguage: "pl-PL,pl;q=0.9" }))),
     ).toBeNull();
   });
 
-  it("is unaffected by a cookie naming a locale this deployment does not have", () => {
+  it("is unaffected by a cookie naming a locale it never had", () => {
     expect(redirectedTo(middleware(request("/orgs", { locale: "fr" })))).toBeNull();
     expect(redirectedTo(middleware(request("/orgs", { locale: "" })))).toBeNull();
   });
 });
 
-describe("a path that names a locale", () => {
-  it("is remembered, so the next unprefixed link keeps it", () => {
-    // next-intl writes the cookie itself only when `accept-language` disagrees with
-    // the locale it resolved, so a Polish browser opening a shared `/pl/...` link
-    // persisted nothing and reverted to English on the next plain `<Link>`.
-    const response = middleware(request("/pl/orgs", { acceptLanguage: "pl-PL,pl;q=0.9" }));
-    expect(cookieSetTo(response)).toBe("pl");
+describe("a path under a retired locale", () => {
+  it.each([
+    ["/pl/orgs", "/orgs"],
+    ["/de/agents/abc", "/agents/abc"],
+    ["/tr/login", "/login"],
+    ["/pl", "/"],
+    ["/de/", "/"],
+  ])("sends %s to its English page %s", (from, to) => {
+    const response = middleware(request(from));
+    expect(response.status).toBe(308);
+    expect(redirectedTo(response)).toBe(to);
   });
 
-  it("is remembered for a browser that asked for nothing in particular", () => {
-    expect(cookieSetTo(middleware(request("/pl/orgs")))).toBe("pl");
+  it("keeps the query string", () => {
+    expect(redirectedTo(middleware(request("/pl/orgs?create=1")))).toBe("/orgs?create=1");
   });
 
-  it("says nothing when the cookie already agrees", () => {
-    expect(cookieSetTo(middleware(request("/pl/orgs", { locale: "pl" })))).toBeNull();
+  it("matches the prefix whatever case it was written in", () => {
+    expect(redirectedTo(middleware(request("/PL/orgs")))).toBe("/orgs");
   });
 
-  it("leaves a background request alone", () => {
-    // The router revalidates routes of the locale just switched away from; writing
-    // the cookie from one of those would undo the switch that has just been made.
-    expect(cookieSetTo(middleware(request("/pl/orgs", { dest: "empty" })))).toBeNull();
+  it("wins over a cookie naming the same retired locale, and writes none", () => {
+    const response = middleware(request("/pl/orgs", { locale: "pl" }));
+    expect(redirectedTo(response)).toBe("/orgs");
+    expect(cookieSetTo(response)).toBeNull();
+  });
+
+  it("leaves a route whose first segment merely starts with one alone", () => {
+    expect(redirectedTo(middleware(request("/plans")))).toBeNull();
+    expect(redirectedTo(middleware(request("/design")))).toBeNull();
   });
 });
 
@@ -121,9 +97,9 @@ describe("the content security policy", () => {
   });
 
   it("rides the locale redirect too, so no document leaves without it", () => {
-    const redirected = middleware(request("/orgs", { locale: "pl" }));
+    const redirected = middleware(request("/pl/orgs"));
 
-    expect(redirected.headers.get("location")).toContain("/pl/orgs");
+    expect(redirected.headers.get("location")).toContain("/orgs");
     expect(redirected.headers.get("content-security-policy")).toContain("default-src 'self'");
   });
 

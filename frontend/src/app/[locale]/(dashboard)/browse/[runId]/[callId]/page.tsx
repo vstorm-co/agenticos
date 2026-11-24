@@ -28,14 +28,19 @@ interface PageProps {
 export default function LiveBrowsePage({ params }: PageProps) {
   const { runId, callId } = use(params);
   const t = useTranslations("browse");
+  const credentials = useTranslations("browserCredentials");
   const ts = useTranslations("states");
-  const { browse, task, canControl, canRemember, status, send } = useLiveBrowse(runId, callId);
+  const { browse, task, canControl, canRemember, status, send, protect } = useLiveBrowse(
+    runId,
+    callId,
+  );
 
   if (status === "gone" || status === "forbidden" || status === "unavailable") {
     return (
       <EmptyState icon={MonitorPlay} title={t(`${status}Title`)} description={t(`${status}Body`)} />
     );
   }
+  // A protected frame can arrive before the first snapshot, so the loading view can name it.
   if (status === "connecting" || browse === null) {
     return (
       <div
@@ -46,7 +51,7 @@ export default function LiveBrowsePage({ params }: PageProps) {
       >
         <PageHeader
           className="mb-0 md:mb-0"
-          title={t("title")}
+          title={browse?.outputProtected ? credentials("protectedTitle") : t("title")}
           description={
             <span
               aria-hidden
@@ -66,19 +71,27 @@ export default function LiveBrowsePage({ params }: PageProps) {
     <div className="mx-auto flex h-[calc(100dvh-7rem)] w-full max-w-7xl min-w-0 flex-col gap-4">
       <PageHeader
         className="mb-0 md:mb-0"
-        title={t("title")}
+        title={browse.outputProtected ? credentials("protectedTitle") : t("title")}
         description={
-          <>
-            <span className="line-clamp-2">{task || browse.goal}</span>
-            {isRunning(browse) && !canControl && (
-              <span className="mt-1 block text-xs">{t("watchOnly")}</span>
-            )}
-          </>
+          browse.outputProtected ? undefined : (
+            <>
+              <span className="line-clamp-2">{task || browse.goal}</span>
+              {isRunning(browse) && !canControl && (
+                <span className="mt-1 block text-xs">{t("watchOnly")}</span>
+              )}
+            </>
+          )
         }
       />
       {/* The same window the chat draws under a message, given the page. */}
       <div className="border-border bg-background min-h-0 w-full min-w-0 flex-1 overflow-hidden rounded-2xl border shadow-sm">
-        <BrowserWindow waitForFit browse={browse} control={{ canControl, canRemember, send }} />
+        <BrowserWindow
+          waitForFit
+          titledByPage
+          browse={browse}
+          control={{ canControl, canRemember, send }}
+          onProtected={protect}
+        />
       </div>
     </div>
   );

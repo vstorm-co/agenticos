@@ -18,7 +18,7 @@ import type { LucideIcon } from "lucide-react";
 import { getErrorMessage } from "@/lib/api-error";
 import { ErrorState } from "@/components/states";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Button, ListCard } from "@/components/ui";
+import { Button, CardDescription, ListCard } from "@/components/ui";
 import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
 import { cn } from "@/lib/utils";
@@ -236,7 +236,7 @@ export default function SystemHealthPage() {
                         </span>
                       )}
                     </p>
-                    <p className="text-muted-foreground mt-0.5 text-xs">{check.detail}</p>
+                    <CardDescription className="mt-0.5 text-xs">{check.detail}</CardDescription>
                   </div>
                   <div className="flex shrink-0 flex-col items-end gap-1 pl-1">
                     <div className="flex items-center gap-2">

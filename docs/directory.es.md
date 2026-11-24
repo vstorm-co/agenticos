@@ -1,5 +1,5 @@
 ---
-source_sha: "c3245b98d9c8"
+source_sha: "8cd4ed76ebd2"
 ---
 
 # Inicio de sesión con el directorio y grupos { #directory-sign-in-and-groups }
@@ -38,6 +38,10 @@ Una concesión a un grupo alcanza a quien esté en el grupo **en el momento en q
 comprueba el acceso**. Quien entre en el grupo el mes que viene alcanza el
 recurso; quien salga deja de alcanzarlo. No hay nada que revocar persona a
 persona.
+
+Las concesiones a grupos caducan de forma predeterminada a los 90 días. Al
+instalar esta versión, las concesiones existentes reciben un plazo de 90 días;
+vuelve a compartir el recurso para renovarlas.
 
 Un grupo no lleva rol. Lo que un miembro puede hacer en la organización sigue
 siendo el rol de su membresía, y un grupo solo añade las concesiones hechas a él.
@@ -284,8 +288,15 @@ acepta un ticket aceptado en un único paso. NTLM no se ofrece.
 Si tu empresa ya pone un proveedor de identidad delante de su directorio, apunta
 AgenticOS a él en su lugar, por [OIDC](configuration.md#single-sign-on-generic-oidc).
 Usa su claim de grupos para los mapeos. El inicio de sesión nativo por LDAP y por
-Kerberos deja entonces de hacer falta. Esta es también la respuesta para la
-autenticación multifactor, que el inicio de sesión nativo no hace.
+Kerberos deja entonces de hacer falta.
+
+Esta es también la respuesta para la
+autenticación multifactor. Si tu despliegue exige MFA, aplícala en el proveedor
+de identidad. AgenticOS no comprueba `amr`, `acr` ni otra afirmación de MFA en
+OIDC, así que no puede rechazar un inicio de sesión si el proveedor no la incluye.
+Kerberos tiene la misma limitación; exige MFA en la política Kerberos del
+proveedor. El inicio de sesión por contraseña LDAP puede usar el autenticador de
+AgenticOS de la cuenta.
 
 **Keycloak** federa los dos. En **User federation**, añade un proveedor **LDAP**
 para tu directorio, y activa ahí **Allow Kerberos authentication** si quieres el
@@ -343,9 +354,11 @@ membresías que creó el otro, así que el proceso se niega a arrancar con ambos
   cuenta en el directorio detiene su siguiente inicio de sesión, y el siguiente
   inicio de sesión es cuando se vuelven a leer los mapeos. Una sesión ya abierta
   dura hasta que caduca su refresh token, que es `REFRESH_TOKEN_EXPIRE_MINUTES` y
-  siete días por defecto. Para terminarla antes, desactiva la cuenta en
-  **Admin → Users**, lo que la rechaza en todas partes a la vez. No hay SCIM ni
-  sincronización programada del directorio.
+  siete días por defecto, salvo que la sincronización elimine la membresía de la
+  persona, lo que cierra sus sesiones y pausa las exposiciones y los embeds que
+  publicó, en el mismo paso. Para terminar una sesión antes sin eliminar la
+  membresía, desactiva la cuenta en **Admin → Users**, lo que la rechaza en
+  todas partes a la vez. No hay SCIM ni sincronización programada del directorio.
 - **Una cuenta del directorio todavía puede usar el restablecimiento de contraseña
   y el enlace mágico.** Van a la dirección de la cuenta, como los de cualquier otra
   cuenta. Si el directorio tiene que ser la única vía de entrada, mantén esas

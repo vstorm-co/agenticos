@@ -28,7 +28,7 @@ from app.services.channels.teams import (
     teams_adapter,
 )
 from app.services.channels.teams_auth import TeamsAuthError, TeamsCredentials, is_connector_url
-from app.worker.background.channel import process_channel_event, process_channel_press
+from app.worker.background.channel import process_channel_press
 
 logger = logging.getLogger(__name__)
 
@@ -82,7 +82,7 @@ async def teams_messages(bot_id: UUID, request: Request, bot_service: ChannelBot
     if kind == "message":
         incoming = adapter.parse_incoming(activity, str(bot_id))
         if incoming is not None:
-            spawn(process_channel_event(incoming), name=f"teams_event:{bot_id}")
+            await bot_service.queue_message(bot, incoming)
         return Response(status_code=200)
 
     if kind == "invoke" and activity.get("name") == "adaptiveCard/action":

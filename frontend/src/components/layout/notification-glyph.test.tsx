@@ -69,14 +69,17 @@ describe("NotificationGlyph", () => {
 });
 
 describe("notification event metadata", () => {
-  it.each(["run_failed", "mcp_server_down", "approval_requested", "budget_warning"])(
-    "keeps %s visible beside the timestamp",
-    (event_type) => {
-      render(<NotificationMeta item={notification({ event_type })}>5m ago</NotificationMeta>);
-      expect(screen.getByText("Needs attention")).toBeInTheDocument();
-      expect(screen.getByText("5m ago")).toBeInTheDocument();
-    },
-  );
+  it.each([
+    "run_failed",
+    "mcp_server_down",
+    "approval_requested",
+    "approval_expired",
+    "budget_warning",
+  ])("keeps %s visible beside the timestamp", (event_type) => {
+    render(<NotificationMeta item={notification({ event_type })}>5m ago</NotificationMeta>);
+    expect(screen.getByText("Needs attention")).toBeInTheDocument();
+    expect(screen.getByText("5m ago")).toBeInTheDocument();
+  });
 
   it.each(["run_completed", "mcp_server_recovered", "something_new"])(
     "leaves routine %s events quiet",

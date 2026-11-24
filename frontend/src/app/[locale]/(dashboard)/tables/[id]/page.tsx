@@ -25,10 +25,12 @@ import {
 import { TableIcon as Table2 } from "@/components/icons/product-icons";
 
 import { cn } from "@/lib/utils";
+import { ResourceIcon, ResourceIconPicker } from "@/components/ui/resource-icon";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { getErrorMessage, schemaDependents } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
 import { SharingPanel } from "@/components/sharing/sharing-panel";
+import { TableRowAccess } from "@/components/tables/table-row-access";
 import { HasMorePager } from "@/components/tables/has-more-pager";
 import { NewRecordDialog } from "@/components/tables/new-record-dialog";
 import { ImportCsvDialog } from "@/components/tables/import-csv-dialog";
@@ -44,6 +46,7 @@ import { ViewSettingsPopover } from "@/components/tables/view-settings-popover";
 import { TableDisplayContext } from "@/components/tables/table-display-context";
 import { DEFAULT_TABLE_DISPLAY, orderedTableColumns } from "@/lib/table-display";
 import type { TableDisplay } from "@/types/tables";
+import { useFormulaProblem } from "@/components/tables/formula-problem";
 import { RecordDetailSheet } from "@/components/tables/record-detail-sheet";
 import { filterable, isComplete } from "@/components/tables/record-filters";
 import { RecordSortPopover } from "@/components/tables/record-sort-popover";
@@ -96,6 +99,7 @@ import {
   useTableDefaultView,
 } from "@/hooks";
 import { DIALOG_FORM, DIALOG_SCROLL } from "@/lib/dialog-sizes";
+import { CreateTaskDialog } from "@/components/tasks/create-task-dialog";
 import { useDurableTasks } from "@/hooks/use-durable-tasks";
 import { useUrlState } from "@/hooks/use-url-state";
 import { COMPUTED_TYPES, emptyViewConfig } from "@/types/tables";
@@ -129,8 +133,10 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
   const tp = useTranslations("pages.tables");
   const tTriggers = useTranslations("pages.tables.triggers");
   const tErrors = useTranslations("errors");
+  const formulaProblem = useFormulaProblem();
   const tc = useTranslations("common");
   const tTasks = useTranslations("durableTasks");
+  const [creatingTask, setCreatingTask] = useState(false);
   const taskBoards = useDurableTasks().boards;
   const taskBoard = taskBoards.data?.find((board) => board.table_id === id);
   const tMenu = useTranslations("tables.columnMenu");
@@ -144,6 +150,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
     isLoading,
     error,
     changeSchema,
+    update: updateMetadata,
     archive,
     unarchive,
     invalidate: refreshTable,
@@ -258,10 +265,19 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
   const matching = useTableRecordCount(id, { filters: applied, search });
 
   if (isLoading || (!!table?.default_view_id && !viewIdParam && !tabParam && viewsLoading))
-    return <LoadingState variant="skeleton-panel" rows={3} />;
-  if (error || !table) return <ErrorState />;
+    return <LoadingState variant="pending" />;
+  if (error || !table)
+    return (
+      <ErrorState
+        description={getErrorMessage(error, tErrors)}
+        cta={{ label: tc("retry"), onClick: () => void refreshTable() }}
+      />
+    );
 
   const canEdit = table.can_edit;
+  // On a task board everyone in its audience edits tasks, but only an administrator or
+  // the scope's leader changes the board itself.
+  const canManage = canEdit && table.can_manage;
   const allColumns = [...liveColumns, ...TABLE_SYSTEM_COLUMNS];
   const columns = orderedTableColumns(allColumns, display.column_order).filter((column) =>
     column.system
@@ -358,19 +374,22 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
         // Only archiving can be refused for what still uses a column, and the
         // archive dialog lists that in place of a toast that names nothing.
         onError: (failure) => {
-          if (schemaDependents(failure) === null) toast.error(getErrorMessage(failure, tErrors));
+          if (schemaDependents(failure) !== null) return;
+          toast.error(formulaProblem(failure)?.text ?? getErrorMessage(failure, tErrors));
         },
       },
     );
   const columnActions: ColumnActions = {
     onSort: setSort,
-    onRename: setRenaming,
     onHide: (column) => setShown(column.id, false),
-    onArchive: (column) => {
-      // A refusal from the last archive belongs to that column, not this one.
-      changeSchema.reset();
-      setArchiving(column);
-    },
+    ...(canManage && {
+      onRename: setRenaming,
+      onArchive: (column: ColumnDef) => {
+        // A refusal from the last archive belongs to that column, not this one.
+        changeSchema.reset();
+        setArchiving(column);
+      },
+    }),
   };
 
   const content = (
@@ -378,6 +397,18 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
       <PageHeader
         className="mb-4"
         title={table.name}
+        icon={
+          canManage ? (
+            <ResourceIconPicker
+              kind="table"
+              icon={table.icon}
+              disabled={updateMetadata.isPending}
+              onChange={(icon) => updateMetadata.mutateAsync({ icon })}
+            />
+          ) : (
+            <ResourceIcon kind="table" icon={table.icon} />
+          )
+        }
         descriptionMode="summary"
         description={table.description ?? undefined}
         breadcrumbs={[{ label: tp("title"), href: ROUTES.TABLES }, { label: table.name }]}
@@ -402,7 +433,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
         }
         secondaryActions={
           <div className="flex flex-wrap items-center gap-2">
-            {canEdit && (
+            {canManage && (
               <Button
                 variant="outline"
                 size="sm"
@@ -445,7 +476,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
                 <DropdownMenuItem disabled={exporting} onSelect={exportShown}>
                   <Download className="h-4 w-4" /> {t("export")}
                 </DropdownMenuItem>
-                {canEdit && (
+                {canManage && (
                   <>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem
@@ -465,13 +496,16 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
         }
         actions={
           canEdit && (
-            <Button size="sm" onClick={() => addRecord()}>
-              <Plus className="h-4 w-4" /> {t("addRecord")}
+            <Button size="sm" onClick={() => (taskBoard ? setCreatingTask(true) : addRecord())}>
+              <Plus className="h-4 w-4" /> {taskBoard ? tTasks("newTask") : t("addRecord")}
             </Button>
           )
         }
       />
 
+      {creatingTask && taskBoard && canEdit && (
+        <CreateTaskDialog open onOpenChange={setCreatingTask} board={taskBoard} />
+      )}
       {table.archived_at && (
         <ArchivedTableNotice
           archivedAt={table.archived_at}
@@ -488,23 +522,23 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
           "bg-card border-border flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border",
         )}
       >
-        <div className="bg-background/40 flex shrink-0 flex-col items-start gap-3 border-b px-4 py-4 sm:px-5">
+        <div className="bg-background/40 flex shrink-0 flex-col items-start gap-2 border-b px-3 py-3 sm:gap-3 sm:px-5 sm:py-4">
           {/* What the records are laid out as, and which saved view of them - one group. */}
-          <div className="flex w-full min-w-0 flex-wrap items-center justify-between gap-3">
+          <div className="flex w-full min-w-0 items-center gap-2 sm:justify-between sm:gap-3">
             <div className="flex flex-col gap-1" data-tour="table-view-tabs">
               <span id="table-format-label" className="sr-only">
                 {t("formatLabel")}
               </span>
               <div className="sm:hidden">
                 <Select value={tab} onValueChange={(next) => setTab(parseTab(next))}>
-                  <SelectTrigger aria-label={t("formatLabel")} className="w-24">
+                  <SelectTrigger aria-label={t("formatLabel")} className="w-24 text-[13px]">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     {VIEW_TABS.map(({ kind, icon: Icon }) => (
                       <SelectItem key={kind} value={kind}>
                         <span className="flex items-center gap-1.5">
-                          <Icon aria-hidden className="size-3.5" />
+                          <Icon aria-hidden className="hidden size-3.5 shrink-0 sm:block" />
                           {t(`tabs.${kind}`)}
                         </span>
                       </SelectItem>
@@ -581,13 +615,13 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
           </div>
           <div
             data-table-view-toolbar
-            className="flex w-full flex-wrap items-center gap-2 [&>button]:h-9"
+            className="grid w-full grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-center gap-2 sm:flex sm:flex-wrap [&>button]:h-9"
           >
             <SearchInput
               value={searchDraft}
               onChange={setSearchDraft}
               placeholder={t("search")}
-              className="min-w-0 flex-1 max-sm:basis-full sm:w-56 sm:flex-none"
+              className="col-span-full min-w-0 sm:w-56 sm:flex-none"
             />
             <RecordFiltersPopover
               columns={liveColumns.filter(filterable)}
@@ -595,8 +629,53 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
               onChange={setFilters}
             />
             <RecordSortPopover columns={allColumns} sort={sort} onChange={setSort} />
+            <ViewSettingsPopover
+              actions={
+                canManage && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={groupingPending || defaultView.isPending || isDefaultView}
+                    title={tViews("defaultHint")}
+                    onClick={() =>
+                      defaultView.mutate(
+                        {
+                          view: activeView,
+                          kind: tab,
+                          config: { ...emptyViewConfig(), ...working },
+                          names: views.map((view) => view.name),
+                        },
+                        {
+                          onSuccess: (view) => {
+                            setViewIdParam(view.id);
+                            setTab(view.kind);
+                          },
+                        },
+                      )
+                    }
+                  >
+                    {tViews(isDefaultView ? "isDefault" : "setDefault")}
+                  </Button>
+                )
+              }
+              columns={allColumns}
+              visible={visible}
+              display={display}
+              onChange={setDisplay}
+              onToggle={(column, shown) => {
+                if (column.system) {
+                  const key = column.system;
+                  setDisplay((current) => ({
+                    ...current,
+                    hidden_system_columns: shown
+                      ? current.hidden_system_columns.filter((item) => item !== key)
+                      : [...current.hidden_system_columns, key],
+                  }));
+                } else setShown(column.id, shown);
+              }}
+            />
             {tab === "kanban" && groupBy !== null && groupable.length > 1 && (
-              <div className="text-muted-foreground flex items-center gap-2 text-xs">
+              <div className="text-muted-foreground col-span-full flex flex-wrap items-center gap-2 text-xs sm:col-auto">
                 {t("kanbanGroupBy")}
                 <Select
                   value={groupBy ?? ""}
@@ -617,59 +696,19 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
               </div>
             )}
             {hidden.length > 0 && (
-              <HiddenColumnsPopover
-                hidden={hidden}
-                onShow={(column) => setShown(column.id, true)}
-                onShowAll={() => setVisible(null)}
-              />
+              <div className="col-span-full sm:col-auto">
+                <HiddenColumnsPopover
+                  hidden={hidden}
+                  onShow={(column) => setShown(column.id, true)}
+                  onShowAll={() => setVisible(null)}
+                />
+              </div>
             )}
-            {canEdit && (
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={groupingPending || defaultView.isPending || isDefaultView}
-                title={tViews("defaultHint")}
-                onClick={() =>
-                  defaultView.mutate(
-                    {
-                      view: activeView,
-                      kind: tab,
-                      config: { ...emptyViewConfig(), ...working },
-                      names: views.map((view) => view.name),
-                    },
-                    {
-                      onSuccess: (view) => {
-                        setViewIdParam(view.id);
-                        setTab(view.kind);
-                      },
-                    },
-                  )
-                }
-              >
-                {tViews(isDefaultView ? "isDefault" : "setDefault")}
-              </Button>
-            )}
-            <ViewSettingsPopover
-              columns={allColumns}
-              visible={visible}
-              display={display}
-              onChange={setDisplay}
-              onToggle={(column, shown) => {
-                if (column.system) {
-                  const key = column.system;
-                  setDisplay((current) => ({
-                    ...current,
-                    hidden_system_columns: shown
-                      ? current.hidden_system_columns.filter((item) => item !== key)
-                      : [...current.hidden_system_columns, key],
-                  }));
-                } else setShown(column.id, shown);
-              }}
-            />
             {unsaved && (
               <Button
                 variant="outline"
                 size="sm"
+                className="col-span-full sm:col-auto"
                 onClick={() =>
                   void updateView
                     .mutateAsync({
@@ -702,14 +741,14 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
             <>
               {tab === "table" && (
                 // A bounded height, so the grid scrolls its own rows and draws only those in view.
-                <div className={cn("flex min-h-80 flex-col", "min-h-80 flex-1")}>
+                <div className="flex min-h-0 flex-1 flex-col">
                   <TableGridView
                     recordColumns={liveColumns}
                     tableId={id}
                     canEdit={canEdit}
                     onAddRecord={canEdit ? addRecord : undefined}
                     columnActions={canEdit ? columnActions : undefined}
-                    onAddColumn={canEdit ? () => setAddingColumn(true) : undefined}
+                    onAddColumn={canManage ? () => setAddingColumn(true) : undefined}
                     columns={columns}
                     records={grid.records}
                     isLoading={grid.isLoading}
@@ -771,7 +810,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
                         <p className="text-muted-foreground max-w-md text-sm">
                           {t("kanbanNoGroupable")}
                         </p>
-                        {canEdit && (
+                        {canManage && (
                           <Button size="sm" onClick={() => setAddingColumn(true)}>
                             <Plus className="h-4 w-4" /> {t("kanbanAddColumn")}
                           </Button>
@@ -954,6 +993,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
             <DialogDescription>{t("shareDescription")}</DialogDescription>
           </DialogHeader>
           <SharingPanel resourceType="table" resourceId={id} canManage={canEdit} />
+          <TableRowAccess key={JSON.stringify(table.row_policy)} table={table} />
         </DialogContent>
       </Dialog>
     </div>

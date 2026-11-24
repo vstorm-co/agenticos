@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -10,16 +10,16 @@ import type { SecretPurpose } from "@/types/secrets";
 import type { ModelProfile } from "@/types/providers";
 import { providerMarkIn } from "@/test-utils/brand-marks";
 
+const secretRead = { isLoading: false, listError: null as Error | null };
 const listedProfiles = vi.fn<() => ModelProfile[]>(() => []);
-const listedSecrets = vi.fn<
-  () => { id: string; purpose: string; name?: string; usage_scope?: "organization" | "personal" }[]
->(() => []);
+const listedSecrets = vi.fn<() => { id: string; purpose: string }[]>(() => []);
 const listedModels = vi.fn<() => ProviderModel[]>(() => []);
 const refusedModels = vi.fn<() => string[]>(() => []);
 const loadingModels = vi.fn(() => false);
-const listingRequests = vi.fn();
+const modelCatalog = vi.fn<(provider: string, endpoint?: string, key?: string) => void>();
 const mutateAsync = vi.fn();
 const refetchProfiles = vi.fn();
+const refetchSecrets = vi.fn();
 const profileRead: { isLoading: boolean; profilesStatus: ProfilesStatus } = {
   isLoading: false,
   profilesStatus: "loaded",
@@ -44,17 +44,23 @@ vi.mock("@/hooks", () => ({
   usePermissions: () => ({
     can: (permission: Permission) => held.permissions.includes(permission),
   }),
-  useProviderModels: (...args: [string, string?, string?]) => {
-    listingRequests(...args);
+  useProviderModels: (provider: string, endpoint?: string, key?: string) => {
+    modelCatalog(provider, endpoint, key);
     return {
       models: listedModels(),
       refused: refusedModels(),
       source: "curated",
       isLoading: loadingModels(),
+      refetch: vi.fn(),
     };
   },
   useSecretPurposes: () => ({ purposes: PURPOSES, isLoading: false }),
-  useSecrets: () => ({ secrets: listedSecrets(), create: { mutate: vi.fn(), isPending: false } }),
+  useSecrets: () => ({
+    secrets: listedSecrets(),
+    ...secretRead,
+    refetch: refetchSecrets,
+    create: { mutate: vi.fn(), isPending: false },
+  }),
 }));
 
 // The real one signs in with ChatGPT through the vault. What is asserted here is
@@ -113,6 +119,8 @@ async function typeModel(id: string) {
 }
 
 beforeEach(() => {
+  secretRead.isLoading = false;
+  secretRead.listError = null;
   profileRead.isLoading = false;
   profileRead.profilesStatus = "loaded";
   refetchProfiles.mockReset();
@@ -126,106 +134,37 @@ beforeEach(() => {
 });
 
 describe("the chat's two-step model picker", () => {
-  it("uses the explicitly chosen personal connection instead of the first matching organization profile", async () => {
-    listedSecrets.mockReturnValue([
-      { id: "s1", purpose: "openai", name: "Team account" },
-      { id: "s-personal", purpose: "openai", name: "My account", usage_scope: "personal" },
-    ]);
-    listedProfiles.mockReturnValue([
-      profile("p-team", "openai", "gpt-5"),
-      {
-        ...profile("p-personal", "openai", "gpt-5"),
-        secret_id: "s-personal",
-        usage_scope: "personal",
-      },
-    ]);
-    const onChange = vi.fn();
-    renderExpandedPicker(<ChatModelPicker value="p-team" agentModel={null} onChange={onChange} />);
-    await userEvent.click(screen.getByLabelText("Connection"));
-    await userEvent.click(screen.getByRole("option", { name: /My account/ }));
-    expect(listingRequests).toHaveBeenCalledWith("openai", undefined, "s-personal");
-    await userEvent.click(screen.getByRole("button", { name: "Run on this model" }));
-    expect(onChange).toHaveBeenCalledWith("p-personal");
-    expect(mutateAsync).not.toHaveBeenCalled();
-  });
+  it.each(["loading", "failed"])(
+    "waits for a successful credential read before selecting a saved model (%s)",
+    async (state) => {
+      secretRead.isLoading = state === "loading";
+      secretRead.listError = state === "failed" ? new Error("offline") : null;
+      listedProfiles.mockReturnValue([profile("saved", "openai", "gpt-5")]);
+      const onChange = vi.fn();
+      const props = { value: null, agentModel: null, onChange };
+      const { rerender } = renderExpandedPicker(<ChatModelPicker {...props} />);
+      await pickProvider("OpenAI");
+      await typeModel("gpt-5");
+      const apply = screen.getByRole("button", { name: "Run on this model" });
+      expect(apply).toBeDisabled();
+      await userEvent.click(apply);
+      expect(onChange).not.toHaveBeenCalled();
+      expect(mutateAsync).not.toHaveBeenCalled();
+      if (state === "failed") {
+        expect(screen.getByRole("alert")).toHaveTextContent("Model settings could not be read");
+        await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+        expect(refetchProfiles).toHaveBeenCalledOnce();
+        expect(refetchSecrets).toHaveBeenCalledOnce();
+      }
 
-  it("creates a new profile on the selected personal key when a shared profile has the same model", async () => {
-    listedSecrets.mockReturnValue([
-      { id: "s1", purpose: "openai", name: "Team account" },
-      { id: "s-personal", purpose: "openai", name: "My account", usage_scope: "personal" },
-    ]);
-    listedProfiles.mockReturnValue([
-      { ...profile("p-team", "openai", "gpt-5"), base_url: "https://team.example/v1" },
-    ]);
-    mutateAsync.mockResolvedValue({
-      ...profile("p-personal", "openai", "gpt-5"),
-      secret_id: "s-personal",
-    });
-    const onChange = vi.fn();
-    renderExpandedPicker(<ChatModelPicker value="p-team" agentModel={null} onChange={onChange} />);
-    await userEvent.click(screen.getByLabelText("Connection"));
-    await userEvent.click(screen.getByRole("option", { name: /My account/ }));
-    await userEvent.click(screen.getByRole("button", { name: "Run on this model" }));
-    expect(mutateAsync).toHaveBeenCalledWith({
-      label: "My account · OpenAI · gpt-5",
-      provider: "openai",
-      model: "gpt-5",
-      secret_id: "s-personal",
-    });
-    expect(onChange).toHaveBeenCalledWith("p-personal");
-  });
-
-  it("requires an explicit connection when multiple accounts are available", async () => {
-    listedSecrets.mockReturnValue([
-      { id: "s1", purpose: "openai", name: "Team account" },
-      { id: "s-personal", purpose: "openai", name: "My account", usage_scope: "personal" },
-    ]);
-    renderExpandedPicker(<ChatModelPicker value={null} agentModel={null} onChange={vi.fn()} />);
-    await pickProvider("OpenAI");
-    await typeModel("gpt-5");
-    expect(screen.getByLabelText("Connection")).toHaveTextContent("Choose a connection");
-    expect(screen.getByRole("button", { name: "Run on this model" })).toBeDisabled();
-    expect(mutateAsync).not.toHaveBeenCalled();
-  });
-
-  it("does not discover a personal custom-endpoint account at the public provider", () => {
-    listedSecrets.mockReturnValue([
-      { id: "s1", purpose: "openai", name: "My gateway", usage_scope: "personal" },
-    ]);
-    listedProfiles.mockReturnValue([
-      {
-        ...profile("p-personal", "openai", "gpt-5"),
-        usage_scope: "personal",
-        base_url: "https://my-gateway.example/v1",
-      },
-    ]);
-    renderExpandedPicker(
-      <ChatModelPicker value="p-personal" agentModel={null} onChange={vi.fn()} />,
-    );
-    expect(listingRequests).toHaveBeenCalledWith("", undefined, undefined);
-    expect(listingRequests).not.toHaveBeenCalledWith("openai", undefined, "s1");
-  });
-
-  it("does not fall back to an organization account after a personal connection is deleted", async () => {
-    listedSecrets.mockReturnValue([{ id: "s1", purpose: "openai", name: "Team account" }]);
-    listedProfiles.mockReturnValue([
-      profile("p-team", "openai", "gpt-5"),
-      {
-        ...profile("p-personal", "openai", "gpt-5"),
-        secret_id: null,
-        usage_scope: "personal",
-        missing_key: true,
-      },
-    ]);
-    const onChange = vi.fn();
-    renderExpandedPicker(
-      <ChatModelPicker value="p-personal" agentModel={null} onChange={onChange} />,
-    );
-    await userEvent.click(screen.getByRole("button", { name: "Run on this model" }));
-    expect(screen.getByText(/gpt-5 is saved without a key/)).toBeVisible();
-    expect(onChange).not.toHaveBeenCalled();
-    expect(mutateAsync).not.toHaveBeenCalled();
-  });
+      secretRead.isLoading = false;
+      secretRead.listError = null;
+      listedSecrets.mockReturnValue([{ id: "s1", purpose: "openai" }]);
+      rerender(<ChatModelPicker {...props} />);
+      await userEvent.click(screen.getByRole("button", { name: "Run on this model" }));
+      expect(onChange).toHaveBeenCalledWith("saved");
+    },
+  );
 
   it("offers only model providers in step one, not every vault purpose", async () => {
     renderExpandedPicker(<ChatModelPicker value={null} agentModel={null} onChange={vi.fn()} />);
@@ -623,7 +562,7 @@ describe("the chat's two-step model picker", () => {
     );
 
     expect(screen.getByText("Team gpt-5")).toBeInTheDocument();
-    expect(screen.getByText("openai · gpt-5")).toBeInTheDocument();
+    expect(screen.queryByText("openai · gpt-5")).not.toBeInTheDocument();
     expect(screen.getByText("Just this chat")).toBeInTheDocument();
     expect(screen.queryByText("Agent")).not.toBeInTheDocument();
   });
@@ -643,7 +582,7 @@ describe("the chat's two-step model picker", () => {
     );
 
     expect(screen.getByText("Claude Sonnet")).toBeInTheDocument();
-    expect(screen.getByText("anthropic · claude-sonnet-4-5")).toBeInTheDocument();
+    expect(screen.queryByText("anthropic · claude-sonnet-4-5")).not.toBeInTheDocument();
     expect(screen.getByText("Agent's model")).toBeInTheDocument();
   });
 
@@ -698,7 +637,7 @@ describe("storing the key the chosen model runs on", () => {
   });
 });
 
-it("shows the current model and keeps changes collapsed until requested", async () => {
+it("shows only the current model name and keeps changes collapsed until requested", async () => {
   render(
     <ChatModelPicker
       value={null}
@@ -711,17 +650,17 @@ it("shows the current model and keeps changes collapsed until requested", async 
       onChange={vi.fn()}
     />,
   );
-  expect(screen.getByText("OpenRouter · demo/model")).toBeInTheDocument();
+  expect(screen.queryByText("OpenRouter · demo/model")).not.toBeInTheDocument();
   const toggle = screen.getByRole("button", { name: "Change model" });
   expect(toggle).toHaveAttribute("aria-expanded", "false");
-  expect(toggle).toHaveTextContent("OpenRouter · demo/model");
+  expect(toggle).toHaveTextContent("model");
   expect(toggle).toHaveAttribute("data-tour", "chat-model-picker");
   expect(screen.queryByRole("combobox", { name: "Provider" })).not.toBeInTheDocument();
   await userEvent.click(toggle);
   expect(screen.getByRole("combobox", { name: "Provider" })).toHaveTextContent("OpenRouter");
   await userEvent.click(toggle);
   expect(screen.queryByLabelText("Model")).not.toBeInTheDocument();
-  expect(screen.getByText("OpenRouter · demo/model")).toBeInTheDocument();
+  expect(within(toggle).getByText("model")).toBeInTheDocument();
 });
 
 it("keeps the current regional endpoint and key when another model is selected", async () => {
@@ -755,6 +694,7 @@ it("requires a successful profile read before creating a replacement model", asy
   profileRead.profilesStatus = "failed";
   renderExpandedPicker(<ChatModelPicker value={null} agentModel={null} onChange={vi.fn()} />);
   expect(screen.getByRole("alert")).toHaveTextContent("Model settings could not be read");
+  expect(screen.queryByText("Not connected")).not.toBeInTheDocument();
   await userEvent.click(screen.getByRole("button", { name: "Retry" }));
   expect(refetchProfiles).toHaveBeenCalledOnce();
   expect(screen.getByRole("button", { name: "Run on this model" })).toBeDisabled();
@@ -769,4 +709,199 @@ it("does not bypass missing-key checks for the prefilled current model", async (
   await userEvent.click(screen.getByRole("button", { name: "Run on this model" }));
   expect(screen.getByText(/vendor\/model is saved without a key/)).toBeInTheDocument();
   expect(onChange).not.toHaveBeenCalled();
+});
+
+it("offers inline key creation for a provider selected in the library", async () => {
+  listedSecrets.mockReturnValue([{ id: "key", purpose: "openai" }]);
+  render(
+    <ChatModelPicker presentation="library" value={null} agentModel={null} onChange={vi.fn()} />,
+  );
+  const providers = screen.getByRole("group", { name: "Provider" });
+  expect(within(providers).getAllByRole("button")[0]).toHaveTextContent("OpenAI");
+  await userEvent.click(within(providers).getByRole("button", { name: /OpenRouter/ }));
+  expect(screen.getByRole("button", { name: "Add a key: OpenRouter" })).toBeVisible();
+});
+it("preserves a saved profile's own endpoint when another profile names the same model", async () => {
+  const one = {
+    ...profile("one", "openrouter", "demo/model"),
+    label: "Gateway EU",
+    base_url: "https://eu.example.test/v1",
+  };
+  const two = {
+    ...profile("two", "openrouter", "demo/model"),
+    label: "Gateway US",
+    base_url: "https://us.example.test/v1",
+  };
+  listedProfiles.mockReturnValue([one, two]);
+  listedSecrets.mockReturnValue([{ id: "s1", purpose: "openrouter" }]);
+  const changed = vi.fn();
+  render(
+    <ChatModelPicker presentation="library" value="one" agentModel={null} onChange={changed} />,
+  );
+  await userEvent.click(screen.getByRole("tab", { name: "Saved models" }));
+  await userEvent.click(screen.getByRole("option", { name: /Gateway US/ }));
+  expect(changed).toHaveBeenCalledWith("two");
+  expect(mutateAsync).not.toHaveBeenCalled();
+});
+
+it("applies a catalog selection directly with its chosen model ID", async () => {
+  listedSecrets.mockReturnValue([{ id: "s1", purpose: "openrouter" }]);
+  listedModels.mockReturnValue([
+    { id: "demo/one", name: "One" },
+    { id: "demo/two", name: "Two" },
+  ]);
+  mutateAsync.mockResolvedValue(profile("new-profile", "openrouter", "demo/two"));
+  const changed = vi.fn();
+  render(
+    <ChatModelPicker
+      presentation="library"
+      value={null}
+      agentModel={{
+        profile_id: "agent-profile",
+        provider: "openrouter",
+        model: "demo/one",
+        label: "One",
+      }}
+      onChange={changed}
+    />,
+  );
+  await userEvent.click(screen.getByRole("option", { name: /Two/ }));
+  expect(mutateAsync).toHaveBeenCalledWith(
+    expect.objectContaining({ model: "demo/two", provider: "openrouter", secret_id: "s1" }),
+  );
+  expect(changed).toHaveBeenCalledWith("new-profile");
+  expect(screen.queryByRole("button", { name: "Run on this model" })).not.toBeInTheDocument();
+});
+
+it("loads and applies catalog models on the key inherited from the current profile", async () => {
+  const current = { ...profile("current", "openrouter", "demo/one"), secret_id: "s2" };
+  listedSecrets.mockReturnValue([
+    { id: "s1", purpose: "openrouter" },
+    { id: "s2", purpose: "openrouter" },
+  ]);
+  listedProfiles.mockReturnValue([
+    current,
+    profile("other-key", "openrouter", "demo/two"),
+    { ...profile("same-key", "openrouter", "demo/two"), secret_id: "s2" },
+  ]);
+  listedModels.mockReturnValue([{ id: "demo/two", name: "Second catalog model" }]);
+  const onChange = vi.fn();
+  render(
+    <ChatModelPicker
+      presentation="library"
+      value="current"
+      agentModel={null}
+      onChange={onChange}
+    />,
+  );
+
+  await userEvent.click(screen.getByRole("option", { name: /Second catalog model/ }));
+
+  expect(modelCatalog).toHaveBeenLastCalledWith("openrouter", undefined, "s2");
+  expect(onChange).toHaveBeenCalledWith("same-key");
+  expect(mutateAsync).not.toHaveBeenCalled();
+});
+
+it("keeps the current selection when applying another catalog model fails", async () => {
+  listedSecrets.mockReturnValue([{ id: "s1", purpose: "openrouter" }]);
+  listedModels.mockReturnValue([
+    { id: "demo/one", name: "One" },
+    { id: "demo/two", name: "Two" },
+  ]);
+  mutateAsync.mockRejectedValue(new Error("Unavailable"));
+  const changed = vi.fn();
+  render(
+    <ChatModelPicker
+      presentation="library"
+      value={null}
+      agentModel={{
+        profile_id: "agent-profile",
+        provider: "openrouter",
+        model: "demo/one",
+        label: "One",
+      }}
+      onChange={changed}
+    />,
+  );
+  await userEvent.click(screen.getByRole("option", { name: /Two/ }));
+  await screen.findByRole("alert");
+  expect(changed).not.toHaveBeenCalled();
+  expect(
+    within(screen.getByRole("option", { name: /One/ })).getByLabelText("Selected"),
+  ).toBeInTheDocument();
+  expect(
+    within(screen.getByRole("option", { name: /Two/ })).queryByLabelText("Selected"),
+  ).not.toBeInTheDocument();
+});
+
+it("does not claim that provider keys are missing when their read failed", () => {
+  secretRead.listError = new Error("offline");
+  render(
+    <ChatModelPicker
+      presentation="library"
+      value={null}
+      agentModel={{
+        profile_id: "agent-profile",
+        provider: "openrouter",
+        model: "demo/one",
+        label: "One",
+      }}
+      onChange={vi.fn()}
+    />,
+  );
+  expect(screen.getByRole("alert")).toHaveTextContent("Model settings could not be read");
+  expect(screen.queryByRole("button", { name: /Add a key/ })).not.toBeInTheDocument();
+});
+
+it("leaves non-chat models and profiles without keys out of Saved models", async () => {
+  listedProfiles.mockReturnValue([
+    profile("chat", "openrouter", "demo/chat"),
+    { ...profile("image", "openrouter", "demo/image"), chat_capable: false },
+    { ...profile("missing", "openrouter", "demo/missing"), missing_key: true },
+  ]);
+  listedSecrets.mockReturnValue([{ id: "s1", purpose: "openrouter" }]);
+  render(
+    <ChatModelPicker presentation="library" value="chat" agentModel={null} onChange={vi.fn()} />,
+  );
+  await userEvent.click(screen.getByRole("tab", { name: "Saved models" }));
+  expect(screen.getByRole("option", { name: /Team demo\/chat/ })).toBeVisible();
+  expect(
+    screen.queryByRole("option", { name: /demo\/image|demo\/missing/ }),
+  ).not.toBeInTheDocument();
+});
+
+it("applies a catalog model with the explicitly selected provider key", async () => {
+  const keys = [
+    { id: "s1", purpose: "openrouter", name: "Workspace key", hint: "1111" },
+    { id: "s2", purpose: "openrouter", name: "Team key", hint: "2222" },
+  ];
+  listedSecrets.mockReturnValue(keys);
+  listedModels.mockReturnValue([{ id: "demo/other", name: "Other model" }]);
+  mutateAsync.mockResolvedValue({
+    ...profile("new-profile", "openrouter", "demo/other"),
+    secret_id: "s2",
+  });
+  const onChange = vi.fn();
+  render(
+    <ChatModelPicker
+      presentation="library"
+      value={null}
+      agentModel={{
+        profile_id: "current",
+        provider: "openrouter",
+        model: "demo/current",
+        label: "Current",
+      }}
+      onChange={onChange}
+    />,
+  );
+  await userEvent.click(screen.getByRole("tab", { name: "Key" }));
+  await userEvent.click(screen.getByRole("combobox", { name: "Key" }));
+  await userEvent.click(screen.getByRole("option", { name: /Team key/ }));
+  await userEvent.click(screen.getByRole("tab", { name: "Models" }));
+  await userEvent.click(screen.getByRole("option", { name: /Other model/ }));
+  expect(mutateAsync).toHaveBeenCalledWith(
+    expect.objectContaining({ model: "demo/other", secret_id: "s2" }),
+  );
+  expect(onChange).toHaveBeenCalledWith("new-profile");
 });

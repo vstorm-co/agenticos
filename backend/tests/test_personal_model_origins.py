@@ -29,7 +29,12 @@ from app.db.models.credential import ModelProfile
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.user import User
 from app.services.agent_chat import ChatAgentRunner
-from app.services.agent_runner import AgentRunnerService, _Delegation, _RunBudget
+from app.services.agent_runner import (
+    AgentRunnerService,
+    _Delegation,
+    _RunBudget,
+    _TestConnections,
+)
 from app.services.mcp_connection import ResolvedMcpToolsets
 from app.services.workflow_execution import context as workflow_context
 
@@ -155,8 +160,11 @@ async def test_origin_is_checked_before_the_first_model_resolution(
     )
     seen: list[AuthContext] = []
 
-    async def resolve(models_ctx: AuthContext, *, profile_id: UUID | None) -> NoReturn:
+    async def resolve(
+        models_ctx: AuthContext, *, profile_id: UUID | None, decision: bool = False
+    ) -> NoReturn:
         assert profile_id == spec.model_profile_id
+        assert decision is False
         seen.append(models_ctx)
         if models_ctx.personal_user_id is None:
             raise AuthorizationError(message="A personal connection needs its own signed-in user")
@@ -176,7 +184,7 @@ async def test_origin_is_checked_before_the_first_model_resolution(
     ):
         await service._assemble(
             ctx,
-            agent=MagicMock(id=uuid4()),
+            agent=MagicMock(id=uuid4(), kind="agent", system_key=None, current_version_id=None),
             spec=spec,
             existing_run=MagicMock(id=uuid4()) if resumed else None,
             surface=RunSurface.WORKFLOW if workflow else RunSurface.WEB,
@@ -231,8 +239,11 @@ async def test_a_parked_nested_workflow_keeps_its_origin_without_a_live_dispatch
     )
     seen: list[AuthContext] = []
 
-    async def resolve(ctx: AuthContext, *, profile_id: UUID | None) -> NoReturn:
+    async def resolve(
+        ctx: AuthContext, *, profile_id: UUID | None, decision: bool = False
+    ) -> NoReturn:
         assert profile_id == spec.model_profile_id
+        assert decision is False
         seen.append(ctx)
         if ctx.personal_user_id is None:
             raise AuthorizationError(message="Workflow execution cannot use a personal connection")
@@ -249,7 +260,14 @@ async def test_a_parked_nested_workflow_keeps_its_origin_without_a_live_dispatch
             ),
         ),
         patch.object(
-            service, "_parked_spec", new=AsyncMock(return_value=(MagicMock(id=uuid4()), spec))
+            service,
+            "_parked_spec",
+            new=AsyncMock(
+                return_value=(
+                    MagicMock(id=uuid4(), kind="agent", system_key=None, current_version_id=None),
+                    spec,
+                )
+            ),
         ),
         patch.object(service, "_with_environment_observability", new=AsyncMock(return_value=spec)),
         patch(f"{RUNNER}.restore_directory", new=AsyncMock(return_value=None)),
@@ -278,6 +296,7 @@ def _delegation(owner: AuthContext) -> _Delegation:
         user_id=str(owner.user_id),
         user_name=None,
         personal_mcp_user_id=owner.user_id,
+        personal_apps_allowed=True,
         sender_present=True,
         approvals=MagicMock(),
         budget=_RunBudget(),
@@ -288,6 +307,9 @@ def _delegation(owner: AuthContext) -> _Delegation:
         attribution={},
         runtimes=[],
         stash=DelegationStash(),
+        test_connections=_TestConnections(),
+        isolation=None,
+        personal_model_root=AgentSpec(name="Personal assistant", model_profile_id=uuid4()),
     )
 
 
@@ -357,7 +379,14 @@ async def test_a_resumed_delegates_review_uses_the_owners_personal_connection() 
         ],
     )
     ref = SubagentRef(agent_id=uuid4(), agent_version_id=uuid4())
-    delegate = MagicMock(id=ref.agent_id, slug="researcher", status=AgentStatus.PUBLISHED.value)
+    delegate = MagicMock(
+        id=ref.agent_id,
+        slug="researcher",
+        status=AgentStatus.PUBLISHED.value,
+        kind="agent",
+        system_key=None,
+        current_version_id=None,
+    )
     version = MagicMock(id=ref.agent_version_id, agent_id=ref.agent_id)
     version.spec = spec.model_dump(mode="json")
     main_model = MagicMock(spec=ModelRequestSpec)

@@ -7,9 +7,9 @@ import { saveAccountLocale } from "./account-locale-api";
 
 describe("saveAccountLocale", () => {
   it("keeps the choice on the account and answers with what was saved", async () => {
-    put.mockResolvedValue({ locale: "de" });
+    put.mockResolvedValue({ locale: "en" });
 
-    await expect(saveAccountLocale("de")).resolves.toBe("de");
-    expect(put).toHaveBeenCalledWith("/users/me/locale", { locale: "de" });
+    await expect(saveAccountLocale("en")).resolves.toBe("en");
+    expect(put).toHaveBeenCalledWith("/users/me/locale", { locale: "en" });
   });
 });

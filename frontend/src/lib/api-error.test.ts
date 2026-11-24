@@ -1,31 +1,31 @@
 import { readFileSync, readdirSync } from "node:fs";
-import { join } from "node:path";
+import { join, sep } from "node:path";
 
 import { createTranslator } from "next-intl";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import en from "../../messages/en.json";
-import pl from "../../messages/pl.json";
 import type { Translate } from "./agent-step-captions";
 import {
   ApiError,
+  credentialsRejected,
   fieldProblems,
   getErrorMessage,
   parseErrorMessage,
   problemList,
   schemaDependents,
+  formulaRefusal,
   submitFailure,
 } from "./api-error";
 import { BFF_ERROR_KEYS } from "./bff-errors";
 import { INGESTION_FORM_FIELDS } from "./ingestion-config";
 
 /**
- * The real `errors` messages, in both locales: what a refusal shows is what these
+ * The real `errors` messages: what a refusal shows is what these
  * tests are about, and resolving them here also proves every code in
  * `BFF_ERROR_KEYS` has its copy. Cast for the reason `tool-steps.test.ts` casts.
  */
 const tEn = createTranslator({ locale: "en", messages: en, namespace: "errors" }) as Translate;
-const tPl = createTranslator({ locale: "pl", messages: pl, namespace: "errors" }) as Translate;
 
 /** A domain refusal, exactly as `app_exception_handler` writes it. */
 function envelope(code: string, message: string, details: Record<string, unknown> | null = null) {
@@ -43,6 +43,20 @@ const CONFLICT = envelope("ALREADY_EXISTS", "An agent with the handle 'support' 
 
 const VALIDATION = envelope("VALIDATION_ERROR", "Some fields need fixing: spec.name", {
   fields: [{ field: "spec.name", message: "String should have at most 128 characters" }],
+});
+
+describe("retry deadlines", () => {
+  it.each(["20", "Thu, 19 Nov 2026 13:00:20 GMT"])("reads Retry-After %s", (header) => {
+    const now = new Date("2026-11-19T13:00:00Z");
+    vi.spyOn(Date, "now").mockReturnValue(now.getTime());
+    try {
+      expect(new ApiError(429, "Busy", undefined, header).retryAt).toBe(now.getTime() + 20_000);
+      expect(new ApiError(429, "Busy", undefined, "invalid").retryAt).toBe(now.getTime() + 60_000);
+      expect(new ApiError(500, "Failed").retryAt).toBeNull();
+    } finally {
+      vi.restoreAllMocks();
+    }
+  });
 });
 
 describe("parseErrorMessage", () => {
@@ -425,23 +439,21 @@ describe("getErrorMessage", () => {
     const refusal = apiError(401, { code: "NOT_AUTHENTICATED" });
     expect(refusal.code).toBe("NOT_AUTHENTICATED");
     expect(getErrorMessage(refusal, tEn)).toBe("Not authenticated");
-    expect(getErrorMessage(refusal, tPl)).toBe("Nie jesteś zalogowany");
   });
 
   it("shows the backend's own message as written, whatever its code", () => {
     const refused = apiError(409, CONFLICT);
-    expect(getErrorMessage(refused, tPl)).toBe("An agent with the handle 'support' already exists");
+    expect(getErrorMessage(refused, tEn)).toBe("An agent with the handle 'support' already exists");
   });
 
   it("does not mistake an unmapped top-level code for a BFF refusal", () => {
     const stranger = apiError(500, { code: "SOMETHING_ELSE" });
     expect(stranger.code).toBe("UNKNOWN");
-    expect(getErrorMessage(stranger, tPl)).toBe("Żądanie nie powiodło się");
+    expect(getErrorMessage(stranger, tEn)).toBe("Request failed");
   });
 
   it("translates the fallback sentinel a body that named nothing gets", () => {
     expect(getErrorMessage(apiError(502, null), tEn)).toBe("Request failed");
-    expect(getErrorMessage(apiError(502, null), tPl)).toBe("Żądanie nie powiodło się");
   });
 
   it("uses the error's own sentence, which is the server's refusal", () => {
@@ -453,18 +465,16 @@ describe("getErrorMessage", () => {
   it("falls back for something thrown that is not an error", () => {
     // A rejected fetch can throw a string or an event; neither is worth showing.
     expect(getErrorMessage("boom", tEn)).toBe("An unexpected error occurred");
-    expect(getErrorMessage("boom", tPl)).toBe("Wystąpił nieoczekiwany błąd");
     expect(getErrorMessage(undefined, tEn, "Could not save")).toBe("Could not save");
   });
 });
 
 describe("BFF_ERROR_KEYS", () => {
-  it("holds copy for every code, in both catalogs", () => {
+  it("holds copy for every code", () => {
     // A code without a message would reach the toast as raw English fallback -
     // exactly the defect the table exists to end.
     for (const key of Object.values(BFF_ERROR_KEYS)) {
       expect(en.errors[key as keyof typeof en.errors]).toBeTruthy();
-      expect(pl.errors[key as keyof typeof pl.errors]).toBeTruthy();
     }
   });
 
@@ -472,9 +482,9 @@ describe("BFF_ERROR_KEYS", () => {
     const failure = submitFailure(
       apiError(500, { code: "INTERNAL_SERVER_ERROR" }),
       { fields: ["name"] },
-      tPl,
+      tEn,
     );
-    expect(failure.toast).toBe("Wewnętrzny błąd serwera");
+    expect(failure.toast).toBe("Internal server error");
   });
 });
 
@@ -530,7 +540,7 @@ describe("nothing outside this module shows a refusal's raw message", () => {
       // forwards the backend's own sentence to the client that *will* render it,
       // and that client is what this rule is about. Its own refusals are a
       // separate contract - `bffRefusal` with a code from `BFF_ERROR_KEYS`.
-      .filter((path) => !path.startsWith(join("app", "api") + "/"))
+      .filter((path) => !path.startsWith(join("app", "api") + sep))
       .filter((path) => READS_MESSAGE.test(readFileSync(join(root, path), "utf8")));
 
     expect(offenders).toEqual([]);
@@ -594,5 +604,61 @@ describe("schemaDependents", () => {
     expect(schemaDependents(new ApiError(403, "Insufficient permissions", null))).toBeNull();
     expect(schemaDependents(refusal("not a list"))).toBeNull();
     expect(schemaDependents(refusal([{ kind: 1, id: "x", name: null }]))).toBeNull();
+  });
+});
+
+describe("formulaRefusal", () => {
+  const refusal = (
+    formula: unknown,
+    fields: unknown = [{ field: "columns.2.formula", message: "…" }],
+  ) =>
+    new ApiError(422, "…", {
+      error: { code: "INVALID_SCHEMA", message: "…", details: { fields, formula } },
+    });
+
+  it("returns the reason, the formula's field and the values its sentence names", () => {
+    expect(
+      formulaRefusal(refusal({ reason: "not_a_column", params: { label: "Cena", odd: [1] } })),
+    ).toEqual({ field: "columns.2.formula", reason: "not_a_column", params: { label: "Cena" } });
+    expect(formulaRefusal(refusal({ reason: "decimal_comma" }))).toEqual({
+      field: "columns.2.formula",
+      reason: "decimal_comma",
+      params: {},
+    });
+  });
+
+  it("is null for any other failure", () => {
+    expect(formulaRefusal(new Error("boom"))).toBeNull();
+    expect(formulaRefusal(refusal(undefined))).toBeNull();
+    expect(formulaRefusal(refusal({ reason: 3 }))).toBeNull();
+    expect(formulaRefusal(refusal({ reason: "syntax" }, []))).toBeNull();
+  });
+});
+
+describe("credential-specific refusal feedback", () => {
+  it.each([
+    [401, "AUTHENTICATION_ERROR", { reason: "invalid_credentials" }, true],
+    [401, "DIRECTORY_CREDENTIALS_REJECTED", null, true],
+    [401, "AUTHENTICATION_ERROR", null, false],
+    [401, "DIRECTORY_ACCOUNT_UNUSABLE", null, false],
+    [401, "KERBEROS_TICKET_REJECTED", null, false],
+    [503, "AUTHENTICATION_ERROR", { reason: "invalid_credentials" }, false],
+  ] as const)(
+    "classifies status=%s code=%s without reading message text",
+    (status, code, details, rejected) => {
+      expect(
+        credentialsRejected(
+          new ApiError(
+            status,
+            "A translated server message",
+            envelope(code, "A translated server message", details),
+          ),
+        ),
+      ).toBe(rejected);
+    },
+  );
+  it("does not mark input for an unknown or non-API error", () => {
+    expect(credentialsRejected(new ApiError(401, "Unknown reason"))).toBe(false);
+    expect(credentialsRejected(new Error("Offline"))).toBe(false);
   });
 });

@@ -61,7 +61,11 @@ async def test_upload_and_read_use_table_permissions_and_tenant(context, setup):
     )
 
 
-@pytest.mark.parametrize("data", [b"", b"<svg></svg>", PNG + b"x" * media.MAX_IMAGE_BYTES])
+@pytest.mark.parametrize(
+    "data",
+    [b"", b"<svg></svg>", PNG + b"x" * media.MAX_IMAGE_BYTES],
+    ids=["empty", "svg", "oversized"],
+)
 async def test_invalid_or_oversized_images_write_nothing(context, setup, data):
     service, table, _, created, _ = setup
     with pytest.raises(BadRequestError):

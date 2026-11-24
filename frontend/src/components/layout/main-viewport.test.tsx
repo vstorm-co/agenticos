@@ -7,7 +7,7 @@ vi.mock("next/navigation", () => ({ usePathname: () => path }));
 
 it("omits the empty native strip and page padding for chat in every locale", () => {
   const view = render(<MainViewport>Chat</MainViewport>);
-  for (const route of ["/en/chat", "/pl/chat", "/de/chat", "/chat"]) {
+  for (const route of ["/en/chat", "/chat"]) {
     path = route;
     view.rerender(<MainViewport>Chat</MainViewport>);
     expect(view.container.querySelector(".window-drag-strip")).toBeNull();

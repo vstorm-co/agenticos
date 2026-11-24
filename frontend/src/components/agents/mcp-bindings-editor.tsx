@@ -10,16 +10,16 @@ import {
   useConnectEntry,
   useSignInOwn,
 } from "@/components/agents/connect-server-dialog";
-import { bindingKey, McpServerPicker } from "@/components/agents/mcp-server-picker";
+import { McpServerPicker } from "@/components/agents/mcp-server-picker";
 import { McpToolLoadNotice } from "@/components/agents/mcp-tool-load-notice";
 import type { ToolPickerState } from "@/components/mcp/mcp-server-list-types";
 import { McpToolPickerDialog } from "@/components/mcp/mcp-tool-picker-dialog";
 import { useMcpCatalog, useMcpConnections, useOrgMcpConnections, usePermissions } from "@/hooks";
-import { withCapability } from "@/lib/agent-spec";
+import { enableMcpToolSearch } from "@/lib/agent-spec";
 import { getErrorMessage } from "@/lib/api-error";
 import { toolsForBinding } from "@/lib/binding-tools";
 import { hereForMcpOAuthReturn } from "@/lib/mcp-oauth";
-import { narrowedSelection } from "@/lib/mcp-servers";
+import { applyMcpToolSelection, bindingKey } from "@/lib/mcp-servers";
 import type { OrgMcpConnectionRecord } from "@/lib/org-mcp-connections-api";
 import type { AgentSpec, McpServerRef } from "@/types/agents";
 import type { McpCatalogEntry } from "@/types/mcp";
@@ -30,7 +30,7 @@ import { Perm } from "@/types/permissions";
  *
  * The tools come from the connection's **last successful probe** rather than a
  * fresh one: probing dials out to a third party and is gated on
- * `connections:manage`, which an agent author need not hold (#1341).
+ * `mcp:manage`, which an agent author need not hold (#1341).
  *
  * A connection nothing has probed yet has no catalogue, and a binding that
  * already names tools would then read "0 of 0 on" while its card says three -
@@ -113,7 +113,7 @@ export function McpBindingsEditor({
         connections={connections}
         personalConnections={myConnections}
         onEnableToolSearch={() =>
-          onChange({ capabilities: withCapability(spec.capabilities, "tool_search", true) })
+          onChange({ capabilities: enableMcpToolSearch(spec.capabilities) })
         }
         disabled={disabled}
       />
@@ -133,7 +133,7 @@ export function McpBindingsEditor({
           try {
             const { connection: probed, error } = await toolsForBinding(
               connection,
-              can(Perm.connectionsManage) ? probe : null,
+              can(Perm.mcpManage) ? probe : null,
             );
             if (error !== null) toast.error(error);
             setToolPicker(toolChoice(ref, probed, name));
@@ -150,24 +150,15 @@ export function McpBindingsEditor({
         toolPicker={toolPicker}
         setToolPicker={setToolPicker}
         submitting={false}
-        // Written into the spec rather than onto the connection: this is the
-        // agent's narrowing, and the connection's own allowlist is everybody's.
-        // Every tool checked means "no narrowing from here", which is null - not
-        // a list that would freeze out a tool the server adds later.
         onSave={() => {
           if (toolPicker === null) return;
-          const allowed = narrowedSelection(
+          const next = applyMcpToolSelection(
+            value,
+            toolBinding,
             toolPicker.checked,
             toolPicker.tools,
-            // Only a real probe can mean "everything": where the catalogue is
-            // the binding's own names, all-checked is true by construction.
-            toolPicker.connection.last_tools !== null,
           );
-          setServers(
-            value.map((ref) =>
-              bindingKey(ref) === toolBinding ? { ...ref, allowed_tools: allowed } : ref,
-            ),
-          );
+          if (next !== value) setServers(next);
           setToolPicker(null);
           setToolBinding(null);
         }}

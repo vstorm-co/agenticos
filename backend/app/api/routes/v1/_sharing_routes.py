@@ -126,6 +126,7 @@ def build_sharing_router(
                 group_id=data.subject_group_id,
                 level=GrantLevel(data.level),
                 confirmed=data.confirmed,
+                expires_at=data.expires_at,
             )
         else:
             # `ResourceGrantUpsert` guarantees exactly one subject, so with no
@@ -138,6 +139,7 @@ def build_sharing_router(
                 subject_user_id=data.subject_user_id,
                 level=GrantLevel(data.level),
                 confirmed=data.confirmed,
+                expires_at=data.expires_at,
             )
         if isinstance(grant, Deferred):
             return _requested(grant)

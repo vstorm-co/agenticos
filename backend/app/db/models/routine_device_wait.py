@@ -1,6 +1,7 @@
 """An activation awaiting its particular computer before any model/effect starts."""
 
 from datetime import datetime
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import (
@@ -14,6 +15,7 @@ from sqlalchemy import (
     Text,
     text,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -38,6 +40,15 @@ class RoutineDeviceWait(Base, TimestampMixin):
     intent_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     is_event: Mapped[bool] = mapped_column(Boolean, nullable=False)
     event_context: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # The full event payload parked beside its rendered context (#14): the
+    # GitHub delivery's `GithubTriggerOutput`-shaped dict, so a fire that waits
+    # for its computer still hands the run the whole payload when it wakes -
+    # the job queue carries it on the direct path, this row on the waiting one.
+    # SQL NULL on a scheduled wait, an event without payload, and after redaction.
+    # JSON null would fail the terminal-state redaction constraint below.
+    event_payload: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONB(none_as_null=True), nullable=True
+    )
     status: Mapped[str] = mapped_column(
         String(16), nullable=False, default="waiting", server_default="waiting"
     )
@@ -55,7 +66,7 @@ class RoutineDeviceWait(Base, TimestampMixin):
             name="ck_routine_device_wait_status",
         ),
         CheckConstraint(
-            "status IN ('waiting', 'failed') OR event_context IS NULL",
+            "status IN ('waiting', 'failed') OR (event_context IS NULL AND event_payload IS NULL)",
             name="ck_routine_device_wait_redacted",
         ),
         CheckConstraint("admission_failures >= 0", name="ck_routine_device_wait_failures"),

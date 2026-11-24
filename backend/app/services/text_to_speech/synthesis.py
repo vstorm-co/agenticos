@@ -189,7 +189,7 @@ async def synthesize(
     pieces = split_text(text, chosen.max_characters)
     if not pieces:
         raise ValueError("There is no text to speak")
-    speak = CLIENTS[provider.api]
+    speak = CLIENTS[chosen.api or provider.api]
     audio: list[bytes] = []
     try:
         async with httpx.AsyncClient(timeout=TIMEOUT_SECONDS) as client:

@@ -54,7 +54,7 @@ from app.agents.capabilities.approval import (
 )
 from app.agents.deps import AgentDeps
 from app.agents.factory import build_agent
-from app.agents.mcp import ACCOUNT, NEEDS_APPROVAL
+from app.agents.mcp import ACCOUNT, ALWAYS_ASKS, NEEDS_APPROVAL
 from app.agents.model_resolver import ModelRequestSpec, ResolvedCredential
 from app.agents.spec import AgentSpec
 from app.core.exceptions import AuthorizationError, BadRequestError
@@ -743,6 +743,8 @@ class TestApprovalQueue:
             # Nobody waived it either: a parked call is one somebody still has to
             # read, and `None` here is what leaves the row `pending` (#925).
             "standing_consent_by": None,
+            # An ordinary gated tool: a person may remember their answer to it.
+            "always_asks": False,
         }
 
     @pytest.mark.anyio
@@ -812,10 +814,10 @@ def gated_capability():
 class TestWhoMayWaive:
     """The refusals, which are the point of the ceiling (#925).
 
-    A standing consent *is* the decision the approval queue exists to record, and
-    `member` and `builder` hold `agents:run` without `approvals:decide` - so
-    without these checks the everyday chat user grants themselves, in one click,
-    the authority the API refuses them one endpoint over.
+    A standing consent *is* the decision the approval queue exists to record. A
+    member holds `approvals:decide` at `OWN`, so they may waive for their own web
+    chat - but a viewer, a key or an impersonated session may not, and the
+    organization's switch caps everybody.
 
     Refused, never downgraded: quietly following the spec instead would leave
     somebody believing they had turned the questions off, and the next gated call
@@ -833,10 +835,62 @@ class TestWhoMayWaive:
         return AgentRunnerService(MagicMock())
 
     @pytest.mark.anyio
-    async def test_a_member_may_not_waive(self):
+    async def test_a_viewer_may_not_waive(self):
+        """A viewer holds no `approvals:decide`, so there is nothing to waive with."""
         service = self._service()
 
         with pytest.raises(AuthorizationError):
+            await service._allowed_approval_mode(
+                self._ctx(OrgRoleName.VIEWER.value),
+                ApprovalMode.APPROVE_ALL,
+                surface=RunSurface.WEB,
+            )
+
+    @pytest.mark.anyio
+    async def test_a_member_behind_an_api_key_may_not_waive(self):
+        """The own-run exception is the signed-in person's: a key is not them."""
+        service = self._service()
+        ctx = AuthContext(
+            user_id=uuid.uuid4(),
+            organization_id=uuid.uuid4(),
+            role=OrgRoleName.MEMBER.value,
+            api_key_id=uuid.uuid4(),
+        )
+
+        with pytest.raises(AuthorizationError):
+            await service._allowed_approval_mode(
+                ctx, ApprovalMode.APPROVE_ALL, surface=RunSurface.WEB
+            )
+
+    @pytest.mark.anyio
+    async def test_a_member_may_waive_their_own_web_run_when_the_organization_allows_it(self):
+        service = self._service()
+        organization = MagicMock(chat_may_waive_approvals=True)
+
+        with patch(
+            "app.services.agent_runner.organization_repo.get_by_id",
+            new=AsyncMock(return_value=organization),
+        ):
+            mode = await service._allowed_approval_mode(
+                self._ctx(OrgRoleName.MEMBER.value),
+                ApprovalMode.APPROVE_ALL,
+                surface=RunSurface.WEB,
+            )
+
+        assert mode is ApprovalMode.APPROVE_ALL
+
+    @pytest.mark.anyio
+    async def test_the_organization_switch_still_refuses_a_member(self):
+        service = self._service()
+        organization = MagicMock(chat_may_waive_approvals=False)
+
+        with (
+            patch(
+                "app.services.agent_runner.organization_repo.get_by_id",
+                new=AsyncMock(return_value=organization),
+            ),
+            pytest.raises(AuthorizationError),
+        ):
             await service._allowed_approval_mode(
                 self._ctx(OrgRoleName.MEMBER.value),
                 ApprovalMode.APPROVE_ALL,
@@ -1047,6 +1101,44 @@ class TestTheFrameThatCarriesTheMode:
         a run they think is running."""
         with pytest.raises(BadRequestError):
             requested_approval_mode({"approval_mode": "yolo"})
+
+
+@pytest.mark.anyio
+@pytest.mark.security
+@pytest.mark.parametrize("marked", [True, False])
+@pytest.mark.parametrize(
+    "tool_name",
+    ["invite_member", "update_proactivity_settings", "change_organization", "change_deployment"],
+)
+async def test_an_mcp_tool_marked_always_asks_is_asked_about_on_every_call(
+    marked: bool, tool_name: str
+) -> None:
+    """Its request is `always_asks`, so neither "approve all" nor a remembered answer runs it.
+
+    A routine's standing consent cannot release it either.
+    """
+    from app.agents.routine_actions import RoutineToolDecision
+
+    callback = AsyncMock(return_value=ApprovalPending())
+    ctx = _ctx(None)
+    ctx.deps.request_approval = callback
+    definition = _tool_def(None, name=f"agenticos_{tool_name}")
+    definition.metadata = {ALWAYS_ASKS: marked}
+    person = uuid.uuid4()
+    gate = ApprovalGate(
+        routine_policy=AsyncMock(
+            return_value=RoutineToolDecision(required=True, consented_by=person)
+        )
+    )
+    tool = _Recorder()
+    with pytest.raises(ApprovalRequired):
+        await gate.wrap_tool_execute(
+            ctx, call=_call({}), tool_def=definition, args={}, handler=tool
+        )
+    asked = callback.await_args.args[0]
+    assert asked.always_asks is marked
+    assert asked.routine_consented_by == (None if marked else person)
+    assert tool.calls == []
 
 
 @pytest.mark.anyio

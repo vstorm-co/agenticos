@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { Search } from "lucide-react";
 
 import { ErrorState } from "@/components/states";
 import {
@@ -8,6 +9,7 @@ import {
   DataTable,
   EntityAvatar,
   ListCard,
+  ListCardEmpty,
   ListCardFootRow,
   PaginationBar,
   SearchInput,
@@ -195,13 +197,27 @@ export default function AdminOrganizationsPage() {
             <ErrorState description={t("organizationsCouldNotBeRead")} className="m-5" />
           ) : null
         }
-        empty={term ? t("noOrganizationsMatch", { query: term }) : t("noOrganizationsYet")}
+        empty={
+          term ? (
+            <ListCardEmpty
+              icon={Search}
+              title={t("noOrganizationsMatch", { query: term })}
+              onClearFilters={() => {
+                setSearch("");
+                setPage(0);
+              }}
+            />
+          ) : (
+            t("noOrganizationsYet")
+          )
+        }
         className="rounded-none border-0 bg-transparent [&_table]:min-w-[36rem]"
       />
 
-      {total > 0 && (
+      {!error && (
         <ListCardFootRow>
           <PaginationBar
+            showSinglePage
             page={page}
             pageSize={PAGE_SIZE}
             total={total}

@@ -172,6 +172,40 @@ describe("ModelSettingsForm", () => {
 });
 
 /**
+ * A judge's grade and a classifier's label are verdicts: the same answer should
+ * get the same one twice, which a temperature above zero does not promise.
+ */
+describe("ModelSettingsForm for an agent whose answer is a verdict", () => {
+  const GRADED = /the same answer can be graded differently twice/;
+  const LABELLED = /the same answer can be labelled differently twice/;
+
+  it.each([
+    ["judge", GRADED],
+    ["classifier", LABELLED],
+  ] as const)("warns a %s's author off a temperature above zero", (verdict, warning) => {
+    render(<ModelSettingsForm value={{ temperature: 0.7 }} onChange={vi.fn()} verdict={verdict} />);
+
+    expect(screen.getByText(warning)).toBeInTheDocument();
+  });
+
+  it.each([
+    ["at zero", { temperature: 0 }],
+    ["left to the provider", {}],
+  ])("says nothing with the temperature %s", (_case, value: ModelSettingsSpec) => {
+    render(<ModelSettingsForm value={value} onChange={vi.fn()} verdict="judge" />);
+
+    expect(screen.queryByText(GRADED)).toBeNull();
+  });
+
+  it("says nothing to an agent that drafts rather than decides", () => {
+    renderForm({ temperature: 1.2 });
+
+    expect(screen.queryByText(GRADED)).toBeNull();
+    expect(screen.queryByText(LABELLED)).toBeNull();
+  });
+});
+
+/**
  * Drag a range input to a value.
  *
  * `userEvent` has no gesture for one: a drag needs a track, and jsdom lays

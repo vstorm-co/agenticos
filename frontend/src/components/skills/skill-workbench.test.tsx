@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+
+import { useUnsavedChangesStore } from "@/stores/unsaved-changes-store";
 
 import { SkillWorkbench } from "./skill-workbench";
 import type { Skill } from "@/types/providers";
@@ -9,7 +11,7 @@ import type { Skill } from "@/types/providers";
 // both drive them and read what they were asked to do.
 const skillHooks = vi.hoisted(() => ({
   addResource: { isPending: false, mutateAsync: vi.fn(async () => undefined) },
-  saveResource: { isPending: false, mutate: vi.fn() },
+  saveResource: { isPending: false, mutateAsync: vi.fn(async () => undefined) },
   removeResource: { mutateAsync: vi.fn(async () => undefined) },
   uploadResources: { mutateAsync: vi.fn(async () => undefined) },
   loaded: { resource: undefined as { content: string } | undefined, isLoading: false },
@@ -22,6 +24,7 @@ vi.mock("@/hooks", () => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
+  useUnsavedChangesStore.setState({ sources: {}, prompt: null, saving: false });
   skillHooks.addResource.isPending = false;
   skillHooks.saveResource.isPending = false;
   skillHooks.loaded.resource = undefined;
@@ -35,20 +38,24 @@ const SKILL: Skill = {
   content: "## Refunds\n\nWithin 30 days, no questions asked.",
   category: null,
   version: 3,
+  latest_version_id: "v3",
   visibility: "organization",
   owner_user_id: null,
   resources: [],
 };
 
 function renderWorkbench(props: Partial<React.ComponentProps<typeof SkillWorkbench>> = {}) {
-  const onSave = vi.fn();
+  const onSave = vi.fn().mockResolvedValue(undefined);
   const onCancel = vi.fn();
+  const onFilesWritten = vi.fn();
   const workbench = (overrides: Partial<React.ComponentProps<typeof SkillWorkbench>>) => (
     <SkillWorkbench
       skill={SKILL}
       canEdit
       isSaving={false}
+      saveWarning="Saving makes v4 on main."
       onSave={onSave}
+      onFilesWritten={onFilesWritten}
       onCancel={onCancel}
       {...props}
       {...overrides}
@@ -58,6 +65,7 @@ function renderWorkbench(props: Partial<React.ComponentProps<typeof SkillWorkben
   return {
     onSave,
     onCancel,
+    onFilesWritten,
     update: (overrides: Partial<React.ComponentProps<typeof SkillWorkbench>>) =>
       rerender(workbench(overrides)),
   };
@@ -68,14 +76,14 @@ const description = () => screen.getByLabelText("Description");
 /**
  * The body's editor, which lives behind the Source toggle.
  *
- * `SKILL.md` is Markdown and opens rendered, like every other Markdown file in
+ * The instructions are Markdown and open rendered, like every other Markdown file in
  * the skill - reading it as raw asterisks was the odd one out. Editing it is a
  * deliberate second step.
  */
 async function content() {
   const source = screen.queryByRole("button", { name: "Source" });
   if (source) await userEvent.click(source);
-  return screen.getByLabelText("SKILL.md source");
+  return screen.getByLabelText("Instructions source");
 }
 const save = () => screen.getByRole("button", { name: "Save" });
 
@@ -96,13 +104,17 @@ describe("SkillWorkbench", () => {
 
   it("says who an edit reaches, before it is saved rather than after", async () => {
     renderWorkbench();
-    // The blast radius is the thing people get wrong about skills: there is no
-    // draft, so the warning has to arrive while the save is still avoidable.
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     await userEvent.type(await content(), "!");
-    expect(screen.getByRole("alert")).toHaveTextContent(
-      "Saving reaches every agent bound to this skill on its next run.",
-    );
+    expect(screen.getByRole("alert")).toHaveTextContent("Saving makes v4 on main.");
+  });
+
+  it("keeps a fork's files and category read-only, since they are main's", async () => {
+    renderWorkbench({ fork: true });
+    expect(screen.queryByRole("button", { name: /New/ })).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Category")).toHaveAttribute("readonly");
+    await userEvent.type(await content(), "!");
+    expect(save()).toBeEnabled();
   });
 
   it("hands back the edited skill, not a patch of it", async () => {
@@ -202,7 +214,7 @@ describe("SkillWorkbench", () => {
 /**
  * The files beside the body.
  *
- * A skill is a folder, so `SKILL.md` sits in the tree with everything else and
+ * A skill is a folder, so its instructions sit in the tree with everything else and
  * the pane shows whichever one is open. The rules that are easy to break: the
  * body is what an unselected tree shows (not a blank pane), opening a file
  * leaves the unsaved body alone, and deleting the open file has to return the
@@ -221,7 +233,7 @@ describe("the skill's files", () => {
   it("shows the body when nothing in the tree is selected", () => {
     renderWorkbench({ skill: withFile });
 
-    expect(screen.getByRole("button", { name: /^SKILL\.md$/ })).toHaveAttribute(
+    expect(screen.getByRole("button", { name: "Instructions" })).toHaveAttribute(
       "aria-current",
       "true",
     );
@@ -234,6 +246,8 @@ describe("the skill's files", () => {
     await userEvent.click(screen.getByRole("button", { name: "workflows.md" }));
 
     expect(screen.getByRole("treeitem", { selected: true })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "workflows.md" }));
+    expect(useUnsavedChangesStore.getState().prompt).toBeNull();
     expect(screen.getByLabelText("references/workflows.md source")).toHaveValue(
       "1. Ask. 2. Escalate.",
     );
@@ -247,39 +261,60 @@ describe("the skill's files", () => {
     await userEvent.type(await content(), "\n\nExcept gift cards.");
 
     await userEvent.click(screen.getByRole("button", { name: "workflows.md" }));
-    await userEvent.click(screen.getByRole("button", { name: /^SKILL\.md$/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Instructions" }));
 
     expect(await content()).toHaveValue(`${SKILL.content}\n\nExcept gift cards.`);
   });
 
-  it("saves a file's edit against that file's id", async () => {
+  it("asks before switching away from an edited resource", async () => {
     skillHooks.loaded.resource = { content: "old" };
     renderWorkbench({ skill: withFile });
+    await userEvent.click(screen.getByRole("button", { name: "workflows.md" }));
+    const input = screen.getByLabelText("references/workflows.md source");
+    await userEvent.type(input, " changed");
+    await userEvent.click(screen.getByRole("button", { name: "Instructions" }));
+    expect(input).toHaveValue("old changed");
+    expect(useUnsavedChangesStore.getState().prompt).not.toBeNull();
+    await act(() => useUnsavedChangesStore.getState().answer("stay"));
+    expect(input).toHaveValue("old changed");
+    await userEvent.click(screen.getByRole("button", { name: "Instructions" }));
+    await act(() => useUnsavedChangesStore.getState().answer("discard"));
+    expect(await content()).toHaveValue(SKILL.content);
+  });
+
+  it("saves a file's edit against that file's id", async () => {
+    skillHooks.loaded.resource = { content: "old" };
+    const { onFilesWritten } = renderWorkbench({ skill: withFile });
     await userEvent.click(screen.getByRole("button", { name: "workflows.md" }));
 
     await userEvent.type(screen.getByLabelText("references/workflows.md source"), "!");
     await userEvent.click(screen.getByRole("button", { name: "Save file" }));
 
-    expect(skillHooks.saveResource.mutate).toHaveBeenCalledWith({ id: "r-1", content: "old!" });
+    expect(skillHooks.saveResource.mutateAsync).toHaveBeenCalledWith({
+      id: "r-1",
+      content: "old!",
+    });
+    expect(onFilesWritten).toHaveBeenCalledOnce();
   });
 
   it("returns to the body after the open file is deleted", async () => {
     // Otherwise the pane keeps rendering a resource the skill no longer has.
     skillHooks.loaded.resource = { content: "old" };
-    renderWorkbench({ skill: withFile });
+    const { onFilesWritten } = renderWorkbench({ skill: withFile });
     await userEvent.click(screen.getByRole("button", { name: "workflows.md" }));
 
     await userEvent.click(screen.getByRole("button", { name: "Remove references/workflows.md" }));
 
     expect(skillHooks.removeResource.mutateAsync).toHaveBeenCalledWith("r-1");
-    expect(screen.getByRole("button", { name: /^SKILL\.md$/ })).toHaveAttribute(
+    expect(onFilesWritten).toHaveBeenCalledOnce();
+    expect(screen.getByRole("button", { name: "Instructions" })).toHaveAttribute(
       "aria-current",
       "true",
     );
   });
 
   it("adds a file, and closes the form once it is added", async () => {
-    renderWorkbench({ skill: withFile });
+    const { onFilesWritten } = renderWorkbench({ skill: withFile });
 
     await userEvent.click(screen.getByRole("button", { name: "New" }));
     await userEvent.type(screen.getByLabelText("Path"), "references/refunds.md");
@@ -292,6 +327,7 @@ describe("the skill's files", () => {
       content: "Within 30 days.",
     });
     expect(screen.queryByLabelText("Path")).toBeNull();
+    expect(onFilesWritten).toHaveBeenCalledOnce();
   });
 
   it("abandons a new file when the form is cancelled", async () => {
@@ -310,7 +346,7 @@ describe("the skill's files", () => {
     renderWorkbench({ skill: withFile });
     await userEvent.click(screen.getByRole("button", { name: "New" }));
 
-    await userEvent.click(screen.getByRole("button", { name: /^SKILL\.md$/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Instructions" }));
 
     expect(screen.queryByLabelText("Path")).toBeNull();
   });
@@ -326,12 +362,13 @@ describe("the skill's files", () => {
   });
 
   it("uploads the files that were picked", async () => {
-    renderWorkbench({ skill: withFile });
+    const { onFilesWritten } = renderWorkbench({ skill: withFile });
     const picked = new File(["a"], "checklist.md", { type: "text/markdown" });
 
     await userEvent.upload(screen.getByLabelText("Files"), picked);
 
     expect(skillHooks.uploadResources.mutateAsync).toHaveBeenCalledWith([picked]);
+    expect(onFilesWritten).toHaveBeenCalledOnce();
   });
 
   it("asks for nothing when a picker is dismissed with no files", () => {
@@ -347,31 +384,27 @@ describe("the skill's files", () => {
     // The mutation reports its own failure; what must not happen is an
     // unhandled rejection taking the workbench down with it.
     skillHooks.uploadResources.mutateAsync.mockRejectedValueOnce(new Error("413"));
-    renderWorkbench({ skill: withFile });
+    const { onFilesWritten } = renderWorkbench({ skill: withFile });
 
     await userEvent.upload(
       screen.getByLabelText("Files"),
       new File(["a"], "huge.md", { type: "text/markdown" }),
     );
 
-    expect(screen.getByRole("button", { name: /^SKILL\.md$/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Instructions" })).toBeInTheDocument();
+    expect(onFilesWritten).not.toHaveBeenCalled();
   });
 
-  it("closes the pane even when the delete is refused", async () => {
-    // The pane is closed unconditionally on purpose: it was rendering a
-    // resource whose fate is now unknown, and showing it as present is the one
-    // answer that is definitely wrong.
+  it("keeps an open file and its draft when removal is refused", async () => {
+    skillHooks.removeResource.mutateAsync.mockRejectedValueOnce(new Error("Removal refused"));
     skillHooks.loaded.resource = { content: "old" };
-    skillHooks.removeResource.mutateAsync.mockRejectedValueOnce(new Error("409"));
     renderWorkbench({ skill: withFile });
     await userEvent.click(screen.getByRole("button", { name: "workflows.md" }));
-
+    const input = screen.getByLabelText("references/workflows.md source");
+    await userEvent.type(input, " changed");
     await userEvent.click(screen.getByRole("button", { name: "Remove references/workflows.md" }));
-
-    expect(screen.getByRole("button", { name: /^SKILL\.md$/ })).toHaveAttribute(
-      "aria-current",
-      "true",
-    );
+    expect(input).toHaveValue("old changed");
+    expect(useUnsavedChangesStore.getState().sources["skill-resource:skill-1:r-1"]).toBeDefined();
   });
 
   it("offers a viewer no way to add, upload or delete a file", async () => {
@@ -443,4 +476,38 @@ it("shows only one auxiliary panel and closes files after choosing a document", 
   await userEvent.click(screen.getByRole("button", { name: "workflows.md" }));
   expect(files).toHaveAttribute("aria-expanded", "false");
   expect(screen.getByLabelText("references/workflows.md source")).toHaveValue("reference");
+});
+
+it("places full view beside sharing in the bottom action group", async () => {
+  const open = vi.fn();
+  const { update } = renderWorkbench({ onOpenFull: open });
+  const button = screen.getByRole("button", { name: "Open full view" });
+  expect(button.parentElement).toHaveClass("mr-auto");
+  await userEvent.click(button);
+  expect(open).toHaveBeenCalledOnce();
+  update({ isSaving: true });
+  expect(button).toBeDisabled();
+});
+
+it("retains the skill draft after a refused navigation save", async () => {
+  renderWorkbench({ onSave: vi.fn().mockRejectedValue(new Error("Refused")) });
+  await userEvent.type(description(), " Changed");
+  const proceed = vi.fn();
+  act(() => useUnsavedChangesStore.getState().leave(proceed));
+  await act(() => useUnsavedChangesStore.getState().answer("save"));
+  expect(proceed).not.toHaveBeenCalled();
+  expect(description()).toHaveValue(`${SKILL.description} Changed`);
+});
+
+it("discards all skill metadata and instructions before leaving", async () => {
+  const { onSave } = renderWorkbench();
+  await userEvent.type(description(), " Changed");
+  await userEvent.type(await content(), " Changed");
+  const proceed = vi.fn();
+  act(() => useUnsavedChangesStore.getState().leave(proceed));
+  await act(() => useUnsavedChangesStore.getState().answer("discard"));
+  expect(proceed).toHaveBeenCalledOnce();
+  expect(description()).toHaveValue(SKILL.description);
+  expect(await content()).toHaveValue(SKILL.content);
+  expect(onSave).not.toHaveBeenCalled();
 });

@@ -1,21 +1,33 @@
 """Google Drive's organization-owned folder picker endpoint."""
 
 import uuid
-from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import httpx
 import pytest
 from google.auth.exceptions import RefreshError
 from httpx import ASGITransport, AsyncClient
-from pydantic import SecretStr
 
 from app.api import deps
 from app.core.config import settings
 from app.core.permissions import AuthContext, OrgRoleName
+from app.core.secret_kinds import GoogleOAuthAppSecret
+from app.db.models.mcp_connection import AUTHORIZATION_EXPIRED, McpConnection
 from app.main import app
 from app.repositories import mcp_connection as mcp_connection_repo
+from app.services.gdrive_picker import GoogleDrivePickerService
+from app.services.organization_secret import OrganizationSecretService
+from app.services.portals.google_oauth import DRIVE
 from app.services.rag.drive_api import DRIVE_API, DriveClient
+from tests.test_connected_accounts import (
+    SOURCE_GENERATION,
+    SOURCE_SECRET,
+    _payload,
+    _sealed,
+)
+from tests.test_connected_accounts import (
+    _account as _connected_account,
+)
 
 pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
@@ -30,31 +42,45 @@ class _Credentials:
         raise AssertionError("the mock token is already valid")
 
 
-def _account(organization_id: uuid.UUID) -> SimpleNamespace:
-    return SimpleNamespace(
-        id=uuid.uuid4(),
+def _account(organization_id: uuid.UUID) -> McpConnection:
+    account = _connected_account(
         scope="org",
+        user_id=None,
         organization_id=organization_id,
-        catalog_key="google",
-        oauth_payload="sealed-account-grant",
+        account_source_organization_id=organization_id,
+        granted_scopes=[_DRIVE_READONLY],
     )
+    account.oauth_payload = _sealed(
+        account,
+        _payload(
+            client_id="client-id",
+            client_secret="client-secret",
+            refresh_token="refresh-token",
+            account_source_organization_id=organization_id,
+        ),
+    )
+    return account
 
 
-def _client(monkeypatch, *, organization_id, account, handler):
+def _client(monkeypatch, *, organization_id, account, handler, google_client_id="client-id"):
     context = AuthContext(
         user_id=uuid.uuid4(),
         organization_id=organization_id,
         role=OrgRoleName.OWNER.value,
     )
-    service = MagicMock()
-    service.db = MagicMock()
-    service.account_grant = AsyncMock(
-        return_value=SimpleNamespace(
-            client_id="client-id",
-            client_secret=SecretStr("client-secret"),
-            refresh_token=SecretStr("refresh-token"),
-            scopes=frozenset({_DRIVE_READONLY}),
-        )
+    service = GoogleDrivePickerService(MagicMock())
+    # Keep account_grant real: the picker must follow the current app and refuse
+    # an expired grant or a client that no longer matches the account's token.
+    monkeypatch.setattr(
+        OrganizationSecretService,
+        "oauth_app_identity_for_org",
+        AsyncMock(
+            return_value=(
+                GoogleOAuthAppSecret(client_id=google_client_id, client_secret="client-secret"),
+                SOURCE_SECRET,
+                SOURCE_GENERATION,
+            )
+        ),
     )
     monkeypatch.setattr(
         mcp_connection_repo,
@@ -72,23 +98,29 @@ def _client(monkeypatch, *, organization_id, account, handler):
     monkeypatch.setattr(DriveClient, "from_oauth_grant", classmethod(make_drive))
     previous = app.dependency_overrides.copy()
     app.dependency_overrides[deps.get_auth_context] = lambda: context
-    app.dependency_overrides[deps.get_mcp_connection_service] = lambda: service
+    app.dependency_overrides[deps.get_google_drive_picker_service] = lambda: service
     app.dependency_overrides[deps.get_redis] = lambda: MagicMock()
     return service, previous
 
 
-async def _get(monkeypatch, *, organization_id, account, handler, parent="root"):
+async def _get(
+    monkeypatch, *, organization_id, account, handler, parent="root", google_client_id="client-id"
+):
     service, previous = _client(
         monkeypatch,
         organization_id=organization_id,
         account=account,
         handler=handler,
+        google_client_id=google_client_id,
     )
     try:
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             return await client.get(
                 f"{settings.API_V1_STR}/sync-sources/gdrive/folders",
-                params={"account": str(account.id), "parent": parent},
+                params={
+                    "account": str(account.id if account is not None else uuid.uuid4()),
+                    "parent": parent,
+                },
             )
     finally:
         app.dependency_overrides.clear()
@@ -219,6 +251,67 @@ async def test_an_account_from_another_organization_is_not_used(monkeypatch):
 
     assert response.status_code == 404
     assert not drive_called
+
+
+@pytest.mark.parametrize(
+    "unusable", ["missing", "personal", "provider", "unsealed", "expired", "scope", "client"]
+)
+async def test_an_unusable_account_cannot_reach_google(monkeypatch, unusable):
+    organization_id = uuid.uuid4()
+    account = _account(organization_id)
+    if unusable == "missing":
+        account = None
+    elif unusable == "personal":
+        account.scope = "user"
+        account.user_id = uuid.uuid4()
+        account.organization_id = None
+    elif unusable == "provider":
+        account.catalog_key = "github"
+    elif unusable == "unsealed":
+        account.oauth_payload = None
+    elif unusable == "expired":
+        account.last_status = "error"
+        account.last_error = AUTHORIZATION_EXPIRED
+    elif unusable == "scope":
+        account.granted_scopes = []
+
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(200, json={})
+
+    response = await _get(
+        monkeypatch,
+        organization_id=organization_id,
+        account=account,
+        handler=handler,
+        google_client_id="replacement-client" if unusable == "client" else "client-id",
+    )
+
+    assert response.status_code == 404
+    assert response.json()["error"]["message"] == "Google account not found"
+    assert not requests
+
+
+@pytest.mark.parametrize("scope", [DRIVE, _DRIVE_READONLY])
+async def test_either_drive_scope_can_list_folders(monkeypatch, scope):
+    organization_id = uuid.uuid4()
+    account = _account(organization_id)
+    account.granted_scopes = [scope]
+    response = await _get(
+        monkeypatch,
+        organization_id=organization_id,
+        account=account,
+        handler=lambda _request: httpx.Response(200, json={"files": [], "drives": []}),
+    )
+    assert response.status_code == 200
+    assert response.json() == {"drives": [], "folders": []}
+
+
+def test_the_picker_dependency_uses_the_requests_session():
+    db = MagicMock()
+    assert deps.get_google_drive_picker_service(db).db is db
 
 
 @pytest.mark.parametrize(

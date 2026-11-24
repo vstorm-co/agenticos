@@ -6,10 +6,7 @@ import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
 import { useAuthStore, useOrgStore } from "@/stores";
 import { useAppConnections } from "./use-app-connections";
-import type {
-  AppConnectionAuthorization,
-  ConnectedAppDefinition,
-} from "@/types/app-connections";
+import type { AppConnectionAuthorization, ConnectedAppDefinition } from "@/types/app-connections";
 
 vi.mock("@/lib/api-client", () => ({
   apiClient: { get: vi.fn(), post: vi.fn(), delete: vi.fn(), patch: vi.fn() },
@@ -217,4 +214,33 @@ describe("useAppConnections", () => {
     await waitFor(() => expect(result.current.connections.isError).toBe(true));
     expect(client.getQueryData(qk.appConnections.list(scope.userId, scope.orgId))).toBeUndefined();
   });
+
+  it.each(["organization", "user"] as const)(
+    "does not refresh a scope left by the %s",
+    async (boundary) => {
+      const { client, wrapper } = setup();
+      const { result } = renderHook(() => useAppConnections(scope), { wrapper });
+      await waitFor(() => expect(result.current.connections.isSuccess).toBe(true));
+      const invalidate = vi.spyOn(client, "invalidateQueries");
+      const reads = vi.mocked(apiClient.get).mock.calls.length;
+
+      if (boundary === "organization") useOrgStore.setState({ activeOrgId: "org-2" });
+      else
+        useAuthStore.setState({
+          user: {
+            id: "user-2",
+            email: "two@example.test",
+            is_active: true,
+            created_at: "2026-01-01",
+          },
+        });
+      await act(async () => result.current.refresh());
+
+      expect(invalidate).not.toHaveBeenCalled();
+      expect(apiClient.get).toHaveBeenCalledTimes(reads);
+      expect(
+        client.getQueryState(qk.appConnections.list(scope.userId, scope.orgId))?.isInvalidated,
+      ).toBe(false);
+    },
+  );
 });

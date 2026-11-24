@@ -515,7 +515,7 @@ async def test_on_this_computer_the_task_needs_no_key_and_reports_like_any_other
     assert report["kind"] == "coding_agent"
     assert report["outcome"] == "completed"
     assert report["answer"] == "Done."
-    assert report["files_changed"] == ["/w/a.py", "/w/b.py"]
+    assert report["files_changed"] == ["a.py", "b.py"]
     assert computer.ops[0] == "agent.open" and computer.ops[-1] == "agent.close"
     kinds = [type(frame).__name__ for frame in frames]
     assert kinds[0] == "SubagentStarted" and kinds[-1] == "SubagentFinished"
@@ -528,7 +528,9 @@ async def test_a_chat_not_working_on_a_computer_is_told_how_to_fix_it(
 ) -> None:
     computer = Computer(ScriptedAgent())
     answer, frames = await _local_task(monkeypatch, computer, None)
-    assert "Work on needs to be set to This computer" in answer
+    report = CodingReport.model_validate_json(answer)
+    assert report.outcome == "failed"
+    assert "Work on needs to be set to This computer" in report.answer
     assert computer.ops == [] and frames == []
 
 
@@ -551,7 +553,9 @@ async def test_a_computer_that_is_gone_ends_the_panel_with_the_reason(
     answer, frames = await _local_task(
         monkeypatch, Computer(ScriptedAgent(), unavailable=True), _local_workspace()
     )
-    assert answer.startswith("Claude Code could not run on this computer:")
+    report = CodingReport.model_validate_json(answer)
+    assert report.outcome == "failed"
+    assert report.answer.startswith("Claude Code could not run on this computer:")
     assert frames[-1].status == "failed"
 
 
@@ -1011,7 +1015,9 @@ async def test_translated_native_refusals_end_the_task_as_failed(
     ledger = SpendLedger()
     with metered_by(ledger):
         answer, frames = await _local_task(monkeypatch, computer, _local_workspace())
-    assert "could not run on this computer: Native launch refused" in answer
+    report = CodingReport.model_validate_json(answer)
+    assert report.outcome == "failed"
+    assert "could not run on this computer: Native launch refused" in report.answer
     assert frames[-1].status == "failed"
     assert ledger.entries == []
 
@@ -1301,7 +1307,7 @@ async def test_a_session_name_is_short_and_safe(session: str) -> None:
         await _local_tools()(_ctx(_local_workspace(), []), task="Fix", session=session)
 
 
-async def test_harness_and_folder_are_choices_only_on_the_persons_computer() -> None:
+async def test_an_organization_sandbox_stays_pinned_to_its_harness_and_workspace() -> None:
     from pydantic_ai.exceptions import ModelRetry
 
     call = (
@@ -1316,7 +1322,7 @@ async def test_harness_and_folder_are_choices_only_on_the_persons_computer() -> 
         .tools["run_coding_agent"]
         .function
     )
-    with pytest.raises(ModelRetry, match="runs only on the person's computer"):
+    with pytest.raises(ModelRetry, match="sandbox is configured for Claude Code only"):
         await call(_ctx(_local_workspace(), []), task="Fix", harness="codex")
     with pytest.raises(ModelRetry, match="`folder` chooses a project"):
         await call(_ctx(_local_workspace(), []), task="Fix", folder="app")
@@ -1388,3 +1394,50 @@ async def test_parallel_local_tools_use_independent_targeted_steering(
         group.start_soon(task, "web")
     assert sorted(corrections) == [["Change the API"], ["Change the web app"]]
     assert len(inbox.unapplied()) == 2
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("steering", [False, True])
+async def test_every_acp_prompt_rechecks_the_source_before_sending_it(steering):
+    from app.agents.capabilities.guardrails import GuardrailBlocked
+    from app.agents.model_context import checking_model_context
+    from app.agents.steering import SteeringInbox
+
+    refused = False
+
+    async def check():
+        if refused:
+            raise GuardrailBlocked(edge="input", message="Source refused")
+
+    agent = ScriptedAgent()
+    pipe = ScriptedPipe(agent)
+    conversation = acp.Conversation(pipe, access="edit", collector=acp._Collector(), shown=_nothing)
+    with checking_model_context(check):
+        await conversation.prompt("s-1", "first", None)
+        refused = True
+        with pytest.raises(GuardrailBlocked):
+            await conversation.prompt("s-1", "second", SteeringInbox() if steering else None)
+    assert (
+        len([message for message in agent.seen if message.get("method") == "session/prompt"]) == 1
+    )
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("late", [False, True])
+async def test_a_refused_source_never_opens_the_local_coding_adapter(monkeypatch, late):
+    from app.agents.capabilities.guardrails import GuardrailBlocked
+    from app.agents.model_context import checking_model_context
+
+    checks = 0
+
+    async def check():
+        nonlocal checks
+        checks += 1
+        if not late or checks > 1:
+            raise GuardrailBlocked(edge="input", message="Source refused")
+
+    computer = Computer(ScriptedAgent())
+    with checking_model_context(check), pytest.raises(GuardrailBlocked):
+        await _local_task(monkeypatch, computer, _local_workspace())
+    assert "agent.open" not in computer.ops
+    assert checks == (2 if late else 1)

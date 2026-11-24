@@ -1,3 +1,4 @@
+import type { ResourceIconName } from "@/types/resource-icons";
 /**
  * TypeScript mirror of the backend workflow + node-catalog contracts (#1786).
  *
@@ -15,6 +16,9 @@
  * palette, property panel, pickers, validation mirror, store and hooks all take
  * their types from here. Nothing here renders; nothing here fetches.
  */
+
+import type { AskUserAnswer } from "@/types/chat";
+import type { ParkedQuestion } from "@/types/runs";
 
 /** A serialized UUID. An alias, so a signature reads as the contract does. */
 export type Uuid = string;
@@ -54,9 +58,13 @@ export interface NodeDefinition {
   input_schema: JsonSchema | null;
   output_schema: JsonSchema | null;
   ports: Port[];
+  /** Localized labels for standard ports synthesized from instance configuration. */
+  standardPortLabels?: { error: string; unsure: string };
   effect_kind: "pure" | "read" | "write";
   retry_guarantee: "none" | "idempotent" | "at_least_once";
   scopes: string[];
+  /** Disabled versions remain readable but cannot be added for new use. */
+  available?: boolean;
   /** Whether the node exists only inside a `control.foreach` body (`loop.item`, `loop.yield`). */
   loop_body_only?: boolean;
   /** Whether the node leaves by exactly one output port per run, so a merge may rejoin its branches. */
@@ -185,6 +193,11 @@ export interface NodeInstance {
   config: Record<string, unknown>;
   policy?: NodePolicy | null;
   layout: NodePosition;
+  /**
+   * The loop this step sits directly inside, or null/absent at the top level. Which
+   * body a step belongs to; its wires never change it.
+   */
+  scope_id?: Uuid | null;
   /** What the builder calls this step, unique in the graph; the catalog name when unset. */
   label?: string | null;
   /** A note on the step, shown on the canvas. */
@@ -245,15 +258,14 @@ export interface WorkflowEdge {
  * A control node and the body it owns, as the server has computed it. Mirrors
  * `ScopeBoundary`.
  *
- * `body_node_ids` is **server-derived** from edge topology, never client-authored:
- * a draft save that implies a different membership than the server recomputes has
- * that implication overwritten, not honored. The editor reads this to filter the
- * scoped view; it never writes it.
+ * `body_node_ids` is **derived** from each step's `scope_id` - every step whose chain
+ * of loops leads to `scope_node_id`, nested bodies included - never client-authored.
+ * The editor re-derives it (`deriveScopes`) to filter the scoped view; it never
+ * writes it. No wire enters a body: it starts at its `loop.item`.
  */
 export interface ScopeBoundary {
   scope_node_id: Uuid;
   body_node_ids: Uuid[];
-  entry_port: string;
   exit_node_id: Uuid;
   exit_port: string;
 }
@@ -294,6 +306,7 @@ export type WorkflowStatus = "draft" | "published" | "archived";
 
 /** A workflow as the list shows it. Mirrors `WorkflowRead`. */
 export interface WorkflowRead {
+  icon?: ResourceIconName | null;
   id: Uuid;
   slug: string;
   name: string;
@@ -553,6 +566,7 @@ export type WorkflowRunStatus =
   | "queued"
   | "running"
   | "waiting_approval"
+  | "waiting_for_user"
   | "waiting_retry"
   | "needs_attention"
   | "budget_exceeded"
@@ -598,11 +612,20 @@ export interface WorkflowRunRead {
   /** The run this one retries; its succeeded steps were not run again. */
   retry_of_run_id: Uuid | null;
   depth: number;
+  /** The one step a step test ran; null for a whole-draft test and a real run. */
+  tested_step?: WorkflowTestedStep | null;
   /** Whether the caller may cancel the run and resolve its steps; the single-run read says so. */
   can_cancel: boolean;
   started_at: string | null;
   ended_at: string | null;
   created_at: string | null;
+}
+
+/** The step a step test ran, as the run's own snapshot names it. */
+export interface WorkflowTestedStep {
+  node_id: Uuid;
+  label: string | null;
+  definition_id: string | null;
 }
 
 export interface WorkflowRunList {
@@ -628,9 +651,20 @@ export interface ReplyExpectationEdit extends ReplyExpectationInput {
   review_mailbox: boolean;
 }
 
+/** How an approval step's request was settled. Mirrors `WorkflowStepDecision`. */
+export interface WorkflowStepDecision {
+  status: "pending" | "approved" | "rejected" | "expired" | "cancelled";
+  /** When a person decided it; null while pending, and when it expired or was cancelled. */
+  decided_at: string | null;
+  /** The decider's name or email; null when nobody decided or their account is gone. */
+  decided_by_name: string | null;
+}
+
 /** One step of a run, in one loop iteration. Mirrors `WorkflowNodeRunRead`. */
 export interface WorkflowNodeRunRead {
   reply_expectation?: ReplyExpectation | null;
+  /** Durable provider status; absent for older responses and null for other node families. */
+  media_operation?: WorkflowMediaOperationRead | null;
   id: Uuid;
   node_instance_id: Uuid;
   scope_path: { loop_node_id: Uuid; index: number }[];
@@ -647,7 +681,95 @@ export interface WorkflowNodeRunRead {
   late_output: Record<string, unknown> | null;
   started_at: string | null;
   ended_at: string | null;
+  /** The decision an approval step asked for; null for every other step. */
+  approval?: WorkflowStepDecision | null;
 }
+
+/** Unparsed editor settings: the estimate route validates the complete provider-specific config. */
+export type WorkflowMediaEstimateRequest =
+  | { kind: "image"; config: Record<string, unknown> }
+  | { kind: "video"; config: Record<string, unknown> };
+
+export type WorkflowMediaEstimateAssumption =
+  | {
+      code:
+        | "conservative_reservation"
+        | "single_submission"
+        | "dispatch_limits_rechecked"
+        | "unresolved_hold_retained"
+        | "text_only";
+    }
+  | { code: "image_token_ceiling"; max_input_tokens: number; max_output_tokens: number }
+  | {
+      code: "image_tool_ceiling";
+      prompt_max_characters: number;
+      quality: "low" | "medium" | "high";
+      size: string;
+      output_estimate_usd: string;
+      output_ceiling_usd: string;
+    }
+  | {
+      code: "video_duration_rate";
+      seconds: number;
+      resolution: string;
+      usd_per_second: string;
+      uses_model_maximum: boolean;
+      sound_on_ceiling: boolean;
+    };
+
+/** Decimal amounts stay strings; the server is the only reservation calculator. */
+export interface WorkflowMediaEstimateRead {
+  kind: "image" | "video";
+  provider: string;
+  model: string;
+  reservation_usd: string;
+  reserved_bytes: number;
+  pricing_as_of: string;
+  configured_max_cost_usd: string | null;
+  sufficient_max_cost_usd: boolean;
+  deficit_usd: string;
+  assumptions: WorkflowMediaEstimateAssumption[];
+}
+
+export type WorkflowMediaRetryEffect =
+  | "collect_existing"
+  | "recover_output"
+  | "new_billable_submission"
+  | "reconciliation_required"
+  | "none";
+
+/** Journal facts from an authorized node read, including unresolved superseded operations. */
+export interface WorkflowMediaOperationRead {
+  operation_id: Uuid;
+  phase:
+    | "prepared"
+    | "submitting"
+    | "submitted"
+    | "collecting"
+    | "stored"
+    | "unknown"
+    | "failed"
+    | "cancelled";
+  held_usd: string;
+  incurred_usd: string;
+  booked_usd: string;
+  cost_source: "reported" | "catalog_estimate" | null;
+  accounting_complete: boolean;
+  node_unresolved_usd: string;
+  has_receipt: boolean;
+  retry_effect: WorkflowMediaRetryEffect;
+}
+
+/** Questions the reading caller may answer for one suspended agent step. */
+export interface WorkflowQuestionRead {
+  /** The actual run owning the question, including synchronous nested workflows. */
+  workflow_run_id: Uuid;
+  node_run_id: Uuid;
+  agent_run_id: Uuid;
+  questions: ParkedQuestion[];
+}
+
+export type WorkflowQuestionResponses = Record<string, AskUserAnswer[]>;
 
 export interface WorkflowNodeRunList {
   items: WorkflowNodeRunRead[];
@@ -662,6 +784,8 @@ export interface WorkflowLogEntry {
   node_instance_id: Uuid;
   /** The step's name as it was when the line was written. */
   step_label: string;
+  /** The definition to translate; null for a custom label or an unavailable saved graph. */
+  step_definition_id?: string | null;
   /** The port the step left by, or `error`. */
   outcome: string;
   status: string;
@@ -735,6 +859,8 @@ export interface RunHistoryQuery {
   workflowId?: Uuid;
   status?: WorkflowRunStatus;
   mode?: "real" | "test";
+  /** Only step tests when true; leaves them out when false. */
+  stepTest?: boolean;
   triggeredBy?: string;
   /** Only runs started at or after this instant, ISO 8601. */
   createdAfter?: string;
@@ -833,6 +959,8 @@ export interface WorkflowApprovalRead {
   details: string | null;
   /** Who may decide it; empty means anyone holding `approvals:decide`. */
   approver_user_ids: Uuid[];
+  approver_group_ids?: Uuid[];
+  can_decide?: boolean;
   status: WorkflowApprovalStatus;
   expires_at: string | null;
   decided_by_user_id: Uuid | null;
@@ -875,6 +1003,7 @@ export interface WorkflowApprovalList {
 
 /** Rename a workflow, describe it or tag it. An absent field is kept. Mirrors `WorkflowUpdate`. */
 export interface WorkflowUpdate {
+  icon?: ResourceIconName | null;
   name?: string;
   description?: string | null;
   tags?: string[];

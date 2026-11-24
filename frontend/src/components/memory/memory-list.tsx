@@ -1,9 +1,10 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { ChevronRight, ChevronLeft, type LucideIcon } from "lucide-react";
+import { ChevronRight, type LucideIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { Button, ListCardFootRow } from "@/components/ui";
+import { ListCardFootRow } from "@/components/ui";
+import { PageNavigation } from "@/components/ui/pagination-bar";
 
 export function MemoryRow({
   title,
@@ -23,7 +24,7 @@ export function MemoryRow({
       <button
         type="button"
         onClick={onOpen}
-        className="group hover:bg-muted/50 focus-visible:ring-ring flex w-full items-center gap-3 rounded-lg px-3 py-4 text-left transition-colors duration-150 outline-none focus-visible:ring-2 focus-visible:ring-inset sm:gap-3 sm:px-3"
+        className="group hover:bg-foreground/4 focus-visible:ring-ring active:bg-foreground/6 flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left transition-colors duration-150 outline-none focus-visible:ring-2 focus-visible:ring-inset"
       >
         <span className="text-muted-foreground/70 flex size-8 shrink-0 items-center justify-center self-start pt-1">
           <Icon className="size-4" aria-hidden />
@@ -61,32 +62,17 @@ export function MemoryPager({
   onPage: (skip: number) => void;
 }) {
   const t = useTranslations("pages.memory");
-  if (total <= size) return null;
   return (
-    <ListCardFootRow className="flex items-center justify-between gap-3">
+    <ListCardFootRow className="mt-auto flex shrink-0 items-center justify-between gap-3">
       <span className="text-muted-foreground text-xs">
         {t("showing", { from: count ? skip + 1 : 0, to: skip + count, total })}
       </span>
-      <div className="flex gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={skip === 0}
-          onClick={() => onPage(Math.max(0, skip - size))}
-        >
-          <ChevronLeft className="size-4" aria-hidden />
-          <span className="sr-only sm:not-sr-only">{t("newer")}</span>
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={skip + count >= total}
-          onClick={() => onPage(skip + size)}
-        >
-          <span className="sr-only sm:not-sr-only">{t("older")}</span>
-          <ChevronRight className="size-4" aria-hidden />
-        </Button>
-      </div>
+      <PageNavigation
+        page={Math.floor(skip / size)}
+        pageCount={Math.max(1, Math.ceil(total / size))}
+        hasNext={skip + count < total}
+        onPage={(page) => onPage(page * size)}
+      />
     </ListCardFootRow>
   );
 }

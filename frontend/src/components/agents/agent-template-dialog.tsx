@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useConsoleRouter as useRouter } from "@/hooks/use-console-router";
 import { useTranslations } from "next-intl";
 import {
   ArrowLeft,
@@ -18,23 +18,14 @@ import {
   Sparkles,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import {
-  Badge,
-  Button,
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui";
+import { Avatar, AvatarFallback, AvatarImage, Badge, Button } from "@/components/ui";
 import { ErrorState, LoadingState } from "@/components/states";
+import { DIALOG_SCROLL_GUTTER } from "@/lib/dialog-sizes";
 import {
-  DIALOG_BROAD,
-  DIALOG_CANVAS,
-  DIALOG_COLUMN,
-  DIALOG_FILL,
-  DIALOG_SCROLL_GUTTER,
-} from "@/lib/dialog-sizes";
+  TemplateLibraryDialog,
+  TemplateCategoryButton,
+  TemplateLibraryItem,
+} from "@/components/templates/template-library";
 import { ROUTES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { useAgentTemplates } from "@/hooks/use-agent-templates";
@@ -42,6 +33,7 @@ import { useCapabilityGuide } from "@/hooks/use-capability-guide";
 import { useMcpCatalog } from "@/hooks/use-mcp-servers";
 import { McpServerIcon } from "@/components/mcp/mcp-server-icon";
 import { AgentLimitNotice, isAtAgentLimit } from "@/components/agents/agent-limit-notice";
+import { AvatarFace } from "@/components/ui/avatar-face";
 import type { AgentCeiling } from "@/types/agents";
 import type { AgentTemplate, TemplateIndustry } from "@/types/providers";
 
@@ -92,35 +84,32 @@ export function AgentTemplateDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent
-        className={cn(industry ? [DIALOG_FILL, DIALOG_CANVAS] : [DIALOG_COLUMN, DIALOG_BROAD])}
-      >
-        <DialogHeader>
-          <DialogTitle>{industry ? t(`industry.${industry.id}`) : t("title")}</DialogTitle>
-          <DialogDescription>{industry ? t("industryHint") : t("description")}</DialogDescription>
-        </DialogHeader>
+    <TemplateLibraryDialog
+      open={open}
+      onOpenChange={setOpen}
+      detail={industry !== null}
+      title={industry ? t(`industry.${industry.id}`) : t("title")}
+      description={industry ? t("industryHint") : t("description")}
+    >
+      {atLimit ? <AgentLimitNotice ceiling={ceiling} /> : null}
 
-        {atLimit ? <AgentLimitNotice ceiling={ceiling} /> : null}
-
-        {isLoading ? (
-          <LoadingState variant="skeleton-tiles" />
-        ) : isError ? (
-          <ErrorState />
-        ) : industry ? (
-          <IndustryTemplates
-            industry={industry}
-            onBack={() => setIndustryId(null)}
-            onInstall={install}
-            isInstalling={isInstalling}
-            installingKey={installingKey}
-            blocked={atLimit}
-          />
-        ) : (
-          <IndustryCards industries={industries} onPick={setIndustryId} />
-        )}
-      </DialogContent>
-    </Dialog>
+      {isLoading ? (
+        <LoadingState variant="skeleton-tiles" />
+      ) : isError ? (
+        <ErrorState />
+      ) : industry ? (
+        <IndustryTemplates
+          industry={industry}
+          onBack={() => setIndustryId(null)}
+          onInstall={install}
+          isInstalling={isInstalling}
+          installingKey={installingKey}
+          blocked={atLimit}
+        />
+      ) : (
+        <IndustryCards industries={industries} onPick={setIndustryId} />
+      )}
+    </TemplateLibraryDialog>
   );
 }
 
@@ -139,18 +128,13 @@ function IndustryCards({
         {industries.map((industry) => {
           const Icon = INDUSTRY_ICONS[industry.id] ?? Library;
           return (
-            <button
+            <TemplateCategoryButton
               key={industry.id}
-              type="button"
+              icon={Icon}
+              title={t(`industry.${industry.id}`)}
+              count={t("count", { count: industry.templates.length })}
               onClick={() => onPick(industry.id)}
-              className="group hover:border-primary hover:bg-accent grid grid-cols-[2rem_minmax(0,1fr)] items-center gap-x-3 gap-y-1 rounded-lg border p-4 text-left transition-colors sm:flex sm:flex-col sm:gap-2 sm:p-5 sm:text-center"
-            >
-              <Icon className="text-muted-foreground group-hover:text-primary row-span-3 size-7 transition-colors sm:size-8" />
-              <span className="font-medium">{t(`industry.${industry.id}`)}</span>
-              <span className="text-muted-foreground text-sm">
-                {t("count", { count: industry.templates.length })}
-              </span>
-            </button>
+            />
           );
         })}
       </div>
@@ -214,7 +198,17 @@ function TemplateRow({
   const { servers } = useMcpCatalog();
 
   return (
-    <div className="flex items-start justify-between gap-4 rounded-lg border p-4">
+    <TemplateLibraryItem>
+      <Avatar className="size-9 shrink-0 ring-0" aria-hidden>
+        {template.avatar_url && <AvatarImage src={template.avatar_url} alt="" />}
+        <AvatarFallback className="bg-transparent" delayMs={template.avatar_url ? 600 : undefined}>
+          <AvatarFace
+            seed={template.slug ?? template.key}
+            background={false}
+            className="scale-110"
+          />
+        </AvatarFallback>
+      </Avatar>
       <div className="min-w-0 space-y-2">
         <div className="flex flex-wrap items-center gap-2">
           <span className="font-medium">{template.name}</span>
@@ -260,7 +254,7 @@ function TemplateRow({
       </div>
 
       {template.installed ? (
-        <span className="text-muted-foreground flex shrink-0 items-center gap-1.5 text-sm">
+        <span className="text-muted-foreground col-start-2 flex shrink-0 items-center gap-1.5 text-sm sm:col-start-auto">
           <Check className="size-4" />
           {t("alreadyInstalled")}
         </span>
@@ -268,13 +262,13 @@ function TemplateRow({
         <Button
           variant="outline"
           size="sm"
-          className="shrink-0"
+          className="col-start-2 w-fit shrink-0 sm:col-start-auto"
           disabled={disabled}
           onClick={onInstall}
         >
           {busy ? <Loader2 className="size-4 animate-spin" /> : t("use")}
         </Button>
       )}
-    </div>
+    </TemplateLibraryItem>
   );
 }

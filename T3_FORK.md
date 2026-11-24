@@ -13,8 +13,9 @@ The initial source baseline is upstream `v1.52.0`, commit
 
 This initial change adds documentation and baseline metadata. It does not add an
 adapter, change application behavior, or establish runtime compatibility.
-GitHub Actions is disabled in this fork at repository level. No automatic update
-or deployment schedule is configured.
+GitHub Actions is enabled for checks only; central validation and downstream
+updates are also documented in [T3_SYNC.md](T3_SYNC.md). Deployment remains a
+separate acceptance step.
 
 ## Branches
 
@@ -64,15 +65,40 @@ remaining source files. It downloads missing files and does not install software
 4. Create `sync/upstream-<version>` from current `origin/t3` and merge the selected
    release tag. Resolve conflicts on this branch. Do not merge an unreviewed
    moving branch into a deployment.
-5. Update `integrations/upstream.json` with the selected release and full commit.
+5. Keep the console English-only. Delete `frontend/messages/pl.json`,
+   `frontend/messages/de.json` and `frontend/messages/tr.json` again, along with
+   any other non-English catalog the release adds. Keep `locales = ["en"]` in
+   `frontend/src/lib/locales.ts`, and add any new upstream locale to
+   `retiredLocales` there so its old URLs redirect to English. Remove imports of
+   the deleted catalogs from upstream tests. Do not change backend voice or
+   speech-to-text language settings.
+6. Update `integrations/upstream.json` with the selected release and full commit.
    Leave compatibility as `not_tested` until actual adapter checks have passed;
    record their commands, results and exact code revisions in the PR.
-6. Run the relevant contract tests and the upstream checks required for the
+7. Run the relevant contract tests and the upstream checks required for the
    changed code. Include permission denial, stale data, unavailable services and
    retry behavior. Use deterministic fixtures for model-dependent tests.
-7. Open the update PR explicitly against `t3grp/agenticos`, base `t3`. After
+8. Open the update PR explicitly against `t3grp/agenticos`, base `t3`. After
    review and passing checks, merge with upstream ancestry intact. Promotion to
    any running deployment is a separate step with its own acceptance evidence.
+
+This manual procedure receives changes from Vstorm into the T3 baseline. The
+[downstream updater](T3_SYNC.md) separately distributes validated T3 commits to
+privately configured consumers; it does not automatically import Vstorm releases.
+
+### Migration-number collisions to expect
+
+Three `0296` revisions already exist on `t3`, all with
+`down_revision = "0295_tool_approval_consent"`: `0296_personal_model_connections`,
+`0296_sync_source_connected_account` and upstream's `0296_tool_identity`,
+joined by the merge migrations `0299_merge_personal_composio` and
+`0302_merge_upstream`. Upstream PR #2805 (native business-app tools) adds a
+fourth, `0296_integration_watch_cursor` (also down `0295`). When that PR lands
+in a sync, its migration needs a renumbered merge migration on top of the
+then-current head — do not renumber the existing three — and its
+check-constraint replacements (`ck_trigger_event_source`,
+`ck_trigger_shape`) must be rebased onto whatever the current head did to
+those constraints, because the PR's `_OLD_CHECKS` assume the pre-0296 state.
 
 This is a documented manual update procedure, not an installed sync automation.
 
@@ -90,15 +116,18 @@ release attribution; do not present a custom T3 build as an upstream release.
 
 ## Workflows and releases
 
-Inherited workflows include upstream-specific image namespaces, package
-publishing, Pages, deployment and optional AI review. Repository environment
-approval rules and secrets do not become a safe fork configuration merely by
-copying their YAML. Keep Actions disabled until a deliberate CI setup is reviewed.
+Fast CI runs on every pull request. Full CI runs only when a pull request has the
+`full-ci` label, its head starts with `sync/upstream-`, or the event is a release
+point (`v*` tag push). Pushes run on `t3`; docs-only pushes are ignored. The only
+active workflow is `.github/workflows/ci.yml`, and it uses GitHub-hosted runners.
+Its top-level `GITHUB_TOKEN` permission is `contents: read`; any additional token
+permissions are read-only. Codecov upload failures do not fail CI and no Codecov
+token is configured. Pull requests from forks require maintainer approval before
+their workflows run.
 
-Before enabling CI, select approved runners, separate checks from publishing,
-audit all workflow triggers and permissions, and keep deployment credentials out
-of untrusted PR jobs. Review new upstream workflows on every update. Do not add
-model credentials merely to satisfy the inherited optional AI reviewer.
+All other inherited workflows are parked under `.github/workflows-disabled/`.
+Review each one separately before restoring it. Do not put deployment credentials
+in untrusted PR jobs or add model credentials for the optional AI reviewer.
 
 External MCP adapters can use explicitly pinned upstream images. A platform code
 change requires T3-built images and an explicit deployment override: the upstream

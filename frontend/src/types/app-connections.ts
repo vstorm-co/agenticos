@@ -27,7 +27,13 @@ export interface ConnectedAppDefinition {
   availability: "ready" | "setup_required" | "unavailable";
   approval_required: boolean;
   action_count: number;
-  actions: { name: string; label: string; read_only: boolean }[];
+  actions: {
+    name: string;
+    label: string;
+    read_only: boolean;
+    side_effecting: boolean;
+    scopes: string[];
+  }[];
 }
 
 export interface AppConnectionCatalog {

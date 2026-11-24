@@ -59,6 +59,7 @@ from app.api.public_api import PUBLIC
 from app.api.routes.v1._path_convertors import ANYTEXT
 from app.api.routes.v1._table_responses import answer
 from app.core.permissions import Perm
+from app.schemas.table_record_access import RecordAccessRead, RecordGrantUpdate
 from app.schemas.virtual_table import (
     ErrorEnvelope,
     OperationKey,
@@ -76,6 +77,7 @@ from app.schemas.virtual_table import (
     RecordSource,
     RecordUpdate,
     RecordUpsert,
+    RowPolicyUpdate,
     SchemaUpdate,
     SchemaVersionList,
     SortDirection,
@@ -85,6 +87,7 @@ from app.schemas.virtual_table import (
     TableRead,
     TableUpdate,
 )
+from app.schemas.virtual_table_relation import BacklinkQuery
 from app.services.virtual_tables.media import MAX_IMAGE_BYTES
 
 router = APIRouter(dependencies=[PUBLIC])
@@ -144,6 +147,15 @@ _TOO_LARGE: dict[int | str, dict[str, Any]] = {
     413: {"model": ErrorEnvelope, "description": "More records match than one export writes"},
 }
 _STORING_REFUSALS: dict[int | str, dict[str, Any]] = {**_WRITE_REFUSALS, **_QUOTA}
+# Changing a task board itself is narrower than working on it: a caller who reaches the
+# table, and so learns nothing from a refusal, may still not rename, reshape or archive it.
+_BOARD_REFUSALS: dict[int | str, dict[str, Any]] = {
+    **_WRITE_REFUSALS,
+    403: {
+        "model": ErrorEnvelope,
+        "description": "A task board this caller may work on but not change",
+    },
+}
 
 _GATED_REFUSALS: dict[int | str, dict[str, Any]] = {
     403: {
@@ -200,7 +212,7 @@ async def describe_table(table_id: UUID, service: VirtualTableSvc, ctx: Auth) ->
 @router.patch(
     "/{table_id}",
     response_model=TableRead,
-    responses=_WRITE_REFUSALS,
+    responses=_BOARD_REFUSALS,
     dependencies=[Depends(limit_table_write)],
 )
 async def update_table(
@@ -213,7 +225,7 @@ async def update_table(
 @router.post(
     "/{table_id}/archive",
     response_model=TableRead,
-    responses=_WRITE_REFUSALS,
+    responses=_BOARD_REFUSALS,
     dependencies=[Depends(limit_table_write)],
 )
 async def archive_table(table_id: UUID, service: VirtualTableSvc, ctx: Auth) -> Any:
@@ -226,7 +238,7 @@ async def archive_table(table_id: UUID, service: VirtualTableSvc, ctx: Auth) -> 
     response_model=TableRead,
     responses={
         400: {"model": ErrorEnvelope, "description": "`BAD_REQUEST`: the table is not archived"},
-        **_WRITE_REFUSALS,
+        **_BOARD_REFUSALS,
     },
     dependencies=[Depends(limit_table_write)],
 )
@@ -243,7 +255,7 @@ async def unarchive_table(table_id: UUID, service: VirtualTableSvc, ctx: Auth) -
 @router.put(
     "/{table_id}/schema",
     response_model=TableRead,
-    responses=_WRITE_REFUSALS,
+    responses=_BOARD_REFUSALS,
     dependencies=[Depends(limit_table_write)],
 )
 async def change_schema(
@@ -253,10 +265,35 @@ async def change_schema(
     return await service.update_schema(ctx, table_id, data)
 
 
+@router.put(
+    "/{table_id}/row-policy",
+    response_model=TableRead,
+    responses=_WRITE_REFUSALS,
+    dependencies=[Depends(limit_table_write)],
+)
+async def set_row_policy(
+    table_id: UUID, data: RowPolicyUpdate, service: VirtualTableSvc, ctx: Auth
+) -> Any:
+    """Set or clear a table's row-level access policy.
+
+    Anyone holding `tables:edit` on the table may set it; the service
+    decides access, so grant holders are not refused by a route-level
+    role gate. Refused with `BAD_REQUEST` (400) on a managed board table
+    and with `INVALID_SCHEMA` (422) when a named column is missing,
+    archived, or the wrong kind.
+    """
+    return await service.set_row_policy(ctx, table_id, data)
+
+
 @router.get("/{table_id}/schema-versions", response_model=SchemaVersionList, responses=_REFUSALS)
-async def list_schema_versions(table_id: UUID, service: VirtualTableSvc, ctx: Auth) -> Any:
-    """Every schema version the table has had."""
-    return await service.list_schema_versions(ctx, table_id)
+async def list_schema_versions(
+    table_id: UUID,
+    service: VirtualTableSvc,
+    ctx: Auth,
+    version: int | None = Query(None, ge=1, description="Return only this schema version"),
+) -> Any:
+    """Schema history, optionally restricted to one version without loading the rest."""
+    return await service.list_schema_versions(ctx, table_id, version=version)
 
 
 @router.get("/{table_id}/records", response_model=RecordList, responses=_REFUSALS)
@@ -370,15 +407,28 @@ async def create_record(
     dependencies=[Depends(limit_table_write)],
 )
 async def create_records(
-    table_id: UUID, data: RecordBatchCreate, service: VirtualTableSvc, ctx: Auth
+    table_id: UUID,
+    data: RecordBatchCreate,
+    response: Response,
+    service: VirtualTableSvc,
+    ctx: Auth,
+    idempotency_key: IdempotencyKey = None,
 ) -> Any:
     """Create up to 200 records, each on its own - what a CSV import sends.
 
     A record that is refused is listed in `failed` with the code a single create
     would answer (`INVALID_RECORD`, `ALREADY_EXISTS`, `QUOTA_EXCEEDED`...), and the
-    others are written. The whole batch counts once against the write rate limit.
+    others are written. A row repeating an external id the batch already named is
+    `INVALID_RECORD`. With `update_existing`, a record changed after `as_of` is left
+    as it is and listed as `REVISION_CONFLICT`; the first batch of an import omits
+    `as_of` and sends the one it is answered with on the rest. The whole batch counts
+    once against the write rate limit, and with an `Idempotency-Key` a batch sent
+    again answers what it did the first time.
     """
-    return await service.create_records(ctx, table_id, data)
+    result, replayed = await service.write_batch(ctx, table_id, data, operation_key=idempotency_key)
+    if replayed:
+        response.headers["Idempotent-Replayed"] = "true"
+    return result
 
 
 @router.post(
@@ -418,6 +468,28 @@ async def get_record(table_id: UUID, record_id: UUID, service: VirtualTableSvc, 
     return await service.get_record(ctx, table_id, record_id)
 
 
+@router.get(
+    "/{table_id}/records/{record_id}/backlinks", response_model=RecordList, responses=_REFUSALS
+)
+async def list_backlinks(
+    table_id: UUID,
+    record_id: UUID,
+    source_table_id: UUID,
+    column_id: UUID,
+    service: VirtualTableSvc,
+    ctx: Auth,
+    skip: int = Query(default=0, ge=0, le=10_000),
+    limit: int = Query(default=50, ge=1, le=100),
+) -> Any:
+    """Visible records from one source relationship that link to this record."""
+    return await service.list_backlinks(
+        ctx,
+        table_id,
+        record_id,
+        BacklinkQuery(source_table_id=source_table_id, column_id=column_id, skip=skip, limit=limit),
+    )
+
+
 @router.patch(
     "/{table_id}/records/{record_id}",
     response_model=RecordRead,
@@ -433,7 +505,7 @@ async def update_record(
     ctx: Auth,
     idempotency_key: IdempotencyKey = None,
 ) -> Any:
-    """Change the named cells, if the record is still at `expected_revision`.
+    """Change named cells and explicit links at `expected_revision`.
 
     An update that would leave every cell as it is changes nothing: the revision stays and
     the current record is returned.
@@ -467,6 +539,57 @@ async def delete_record(
         expected_revision=expected_revision,
         operation_key=idempotency_key,
     )
+
+
+@router.get(
+    "/{table_id}/records/{record_id}/access", response_model=RecordAccessRead, responses=_REFUSALS
+)
+async def get_record_access(
+    table_id: UUID, record_id: UUID, service: VirtualTableSvc, ctx: Auth
+) -> Any:
+    """The row's explicit Read and Write grants, for a table administrator."""
+    return await service.get_record_access(ctx, table_id, record_id)
+
+
+@router.put(
+    "/{table_id}/records/{record_id}/access/grants",
+    response_model=RecordAccessRead,
+    responses=_WRITE_REFUSALS,
+    dependencies=[Depends(limit_table_write)],
+)
+async def set_record_grant(
+    table_id: UUID, record_id: UUID, data: RecordGrantUpdate, service: VirtualTableSvc, ctx: Auth
+) -> Any:
+    """Give one member or group Read or Write on this row; table access remains separate."""
+    return await service.set_record_grant(ctx, table_id, record_id, data)
+
+
+@router.delete(
+    "/{table_id}/records/{record_id}/access/grants/{subject_user_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_model=None,
+    responses=_WRITE_REFUSALS,
+    dependencies=[Depends(limit_table_write)],
+)
+async def revoke_record_user_grant(
+    table_id: UUID, record_id: UUID, subject_user_id: UUID, service: VirtualTableSvc, ctx: Auth
+) -> None:
+    """Revoke one member's explicit row grant."""
+    await service.revoke_record_grant(ctx, table_id, record_id, subject_user_id, kind="user")
+
+
+@router.delete(
+    "/{table_id}/records/{record_id}/access/group-grants/{subject_group_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_model=None,
+    responses=_WRITE_REFUSALS,
+    dependencies=[Depends(limit_table_write)],
+)
+async def revoke_record_group_grant(
+    table_id: UUID, record_id: UUID, subject_group_id: UUID, service: VirtualTableSvc, ctx: Auth
+) -> None:
+    """Revoke one group's explicit row grant."""
+    await service.revoke_record_grant(ctx, table_id, record_id, subject_group_id, kind="group")
 
 
 @router.post(

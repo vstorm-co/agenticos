@@ -105,7 +105,13 @@ class TestWhatItReports:
 
     async def test_credentials_count_the_tables_that_seal_in_place(self) -> None:
         """A bot token is a sealed credential that has no organization_secrets row."""
-        db = _db([], counts=[3] + [0] * (SEALED_IN_PLACE - 1))
+        counts = [3 if table.label == "channel_bots" else 0 for table in SEALED_TABLES]
+        counts = [
+            count
+            for table, count in zip(SEALED_TABLES, counts, strict=True)
+            if table.model is not OrganizationSecret
+        ]
+        db = _db([], counts=counts)
 
         section = await _credentials(db)
 

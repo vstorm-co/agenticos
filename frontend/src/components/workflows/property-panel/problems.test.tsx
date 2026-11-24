@@ -63,12 +63,11 @@ describe("problem selectors", () => {
     expect(named("quick_log/outputs/0")).toBe("Quick log: Required.");
   });
 
-  it("names the quick log in the viewer's language, not as a humanised field", async () => {
-    const { default: de } = await import("../../../../messages/de.json");
+  it("names the quick log in the viewer's language, not as a humanised field", () => {
     const text = problemText(
       problem({ nodeId: "N", field: "quick_log/outputs/0", message: "Weg." }),
       null,
-      () => de.workflows.quickLogTitle,
+      () => "Schnelles Log",
     );
     expect(text).toBe("Schnelles Log: Weg.");
   });

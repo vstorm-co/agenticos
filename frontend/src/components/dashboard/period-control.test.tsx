@@ -86,14 +86,14 @@ describe("PeriodControl as one button", () => {
     const button = screen.getByRole("button", { name: "Period" });
     expect(button).toHaveTextContent("Last 30 days");
     await userEvent.click(button);
-    expect(screen.getByRole("menuitemradio", { name: "Last 30 days" })).toHaveAttribute(
-      "aria-checked",
+    expect(screen.getByRole("button", { name: "Last 30 days" })).toHaveAttribute(
+      "aria-pressed",
       "true",
     );
-    await userEvent.click(screen.getByRole("menuitemradio", { name: "This month" }));
+    await userEvent.click(screen.getByRole("button", { name: "This month" }));
 
     expect(onChange.mock.calls[0]?.[0]).toMatchObject({ preset: "tm" });
-    expect(screen.queryByRole("menu")).toBeNull();
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 
   it("opens the calendar for a custom range and answers two picks", async () => {
@@ -104,7 +104,7 @@ describe("PeriodControl as one button", () => {
     const onChange = renderControl(resolvePreset("30d"), vi.fn(), "menu");
 
     await userEvent.click(screen.getByRole("button", { name: "Period" }));
-    await userEvent.click(screen.getByRole("menuitemradio", { name: "Custom range" }));
+    await userEvent.click(screen.getByRole("button", { name: "Custom range" }));
     await userEvent.click(await screen.findByRole("button", { name: from }));
     await userEvent.click(screen.getByRole("button", { name: to }));
 
@@ -117,10 +117,10 @@ describe("PeriodControl as one button", () => {
     const button = screen.getByRole("button", { name: "Period" });
     expect(button).toHaveTextContent("2026-08-03 – 2026-08-10");
     await userEvent.click(button);
-    await userEvent.click(screen.getByRole("menuitemradio", { name: "Custom range" }));
+    await userEvent.click(screen.getByRole("button", { name: "Custom range" }));
     await userEvent.keyboard("{Escape}");
     await userEvent.click(button);
 
-    expect(screen.getByRole("menu", { name: "Period" })).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Period" })).toBeInTheDocument();
   });
 });

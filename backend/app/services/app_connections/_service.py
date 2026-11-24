@@ -35,7 +35,13 @@ from app.schemas.app_connection import (
 )
 from app.services.impersonation import refuse_binding_while_impersonating
 
-from ._catalog import APPS, ComposioApp, get_app_by_catalog_key, toolkit_from_catalog_key
+from ._catalog import (
+    APPS,
+    ComposioApp,
+    get_app_by_catalog_key,
+    resolve_action,
+    toolkit_from_catalog_key,
+)
 from ._client import (
     ComposioAccount,
     ComposioAccountMissing,
@@ -181,6 +187,8 @@ def _catalog_entry(
                 name=action.name,
                 label=_safe_text(action.label, fallback=action.name, limit=100),
                 read_only=action.read_only,
+                side_effecting=action.side_effecting,
+                scopes=list(action.scopes),
             )
             for action in app.actions
         ],
@@ -396,7 +404,7 @@ class AppConnectionService:
         if curated is not None:
             app = curated
             auth_config_id: str | None = _auth_config(app.toolkit)
-            allowed_tools = [action.name for action in app.actions]
+            allowed_tools = [resolve_action(action).tool_name for action in app.actions]
         else:
             if not _runtime_configured():
                 raise ConfigurationError(message="Set COMPOSIO_API_KEY to enable app connections")
@@ -548,6 +556,10 @@ class AppConnectionService:
             )
             link = await client.link_session(session_id=session_id, toolkit=app.toolkit)
         expires_at = min(link.expires_at, datetime.now(UTC) + _DYNAMIC_ATTEMPT_TTL)
+        if expires_at <= datetime.now(UTC):
+            raise ExternalServiceError(
+                message="The app connection provider returned an expired link"
+            )
         pending = _PendingConsent(
             attempt_id=attempt_id,
             user_id=user_id,

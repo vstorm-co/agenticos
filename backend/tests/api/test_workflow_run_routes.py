@@ -21,11 +21,13 @@ from httpx import ASGITransport, AsyncClient
 
 from app.api import deps
 from app.core.config import settings
+from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.resource_grant import Visibility
 from app.db.models.workflow import WorkflowStatus
 from app.db.models.workflow_run import WorkflowRunMode, WorkflowRunStatus
 from app.main import app
+from app.repositories.workflow_approval import StepDecision
 from app.schemas.reply_expectation import ReplyExpectation
 from app.services.workflow_execution.facade import WorkflowExecutionService, _read
 from app.workflows.graph.model import NodeInstance, NodePosition, WorkflowGraph
@@ -87,6 +89,7 @@ def _run_row(**overrides: object):
     run.causation_run_id = None
     run.parent_node_run_id = None
     run.retry_of_run_id = None
+    run.tested_step_node_id = None
     run.depth = 0
     run.started_at = datetime.now(UTC)
     run.ended_at = None
@@ -139,6 +142,90 @@ def _no_dispatch_trigger():
         "app.services.workflow_execution.facade.dispatch_queue.queue_dispatch", new=AsyncMock()
     ):
         yield
+
+
+class TestQuestionRoutes:
+    async def test_questions_identify_the_saved_step_and_tool_call(self, owner_client: OpenClient):
+        run_id, step_id, agent_run_id = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+        questions = [
+            {
+                "workflow_run_id": run_id,
+                "node_run_id": step_id,
+                "agent_run_id": agent_run_id,
+                "questions": [
+                    {"tool_call_id": "question-1", "questions": [{"question": "Which region?"}]}
+                ],
+            }
+        ]
+        with patch.object(
+            WorkflowExecutionService, "questions", AsyncMock(return_value=questions)
+        ) as read:
+            async with owner_client() as http:
+                response = await http.get(_url(f"/{run_id}/questions"))
+        assert response.status_code == 200
+        row = response.json()[0]
+        assert row["workflow_run_id"] == str(run_id)
+        assert row["node_run_id"] == str(step_id)
+        assert row["agent_run_id"] == str(agent_run_id)
+        assert row["questions"][0]["tool_call_id"] == "question-1"
+        assert read.await_args is not None and read.await_args.args[1] == run_id
+
+    async def test_answer_queues_the_identified_step(self, owner_client: OpenClient):
+        run = _run_row()
+        step_id = uuid.uuid4()
+        responses = {"question-1": [{"answer": "Europe"}]}
+        with patch.object(
+            WorkflowExecutionService, "answer_questions", AsyncMock(return_value=_read(run))
+        ) as answer:
+            async with owner_client() as http:
+                response = await http.post(
+                    _url(f"/{run.id}/nodes/{step_id}/answers"), json={"responses": responses}
+                )
+        assert response.status_code == 200
+        assert response.json()["id"] == str(run.id)
+        assert answer.await_args is not None
+        assert answer.await_args.args[1:] == (run.id, step_id, responses)
+
+    @pytest.mark.parametrize("operation", ["read", "answer"])
+    async def test_foreign_runs_are_absent(self, owner_client: OpenClient, operation: str):
+        run_id, step_id = uuid.uuid4(), uuid.uuid4()
+        method = "questions" if operation == "read" else "answer_questions"
+        with patch.object(
+            WorkflowExecutionService,
+            method,
+            AsyncMock(side_effect=NotFoundError(message="Workflow run not found")),
+        ):
+            async with owner_client() as http:
+                response = (
+                    await http.get(_url(f"/{run_id}/questions"))
+                    if operation == "read"
+                    else await http.post(
+                        _url(f"/{run_id}/nodes/{step_id}/answers"),
+                        json={"responses": {"question-1": [{"answer": "Europe"}]}},
+                    )
+                )
+        assert response.status_code == 404
+
+    async def test_stale_answers_return_the_service_refusal(self, owner_client: OpenClient):
+        with patch.object(
+            WorkflowExecutionService,
+            "answer_questions",
+            AsyncMock(side_effect=BadRequestError(message="This run is not waiting for an answer")),
+        ):
+            async with owner_client() as http:
+                response = await http.post(
+                    _url(f"/{uuid.uuid4()}/nodes/{uuid.uuid4()}/answers"),
+                    json={"responses": {"old-question": [{"answer": "Europe"}]}},
+                )
+        assert response.status_code == 400
+        assert response.json()["error"]["message"] == "This run is not waiting for an answer"
+
+    async def test_an_empty_answer_batch_is_rejected(self, owner_client: OpenClient):
+        async with owner_client() as http:
+            response = await http.post(
+                _url(f"/{uuid.uuid4()}/nodes/{uuid.uuid4()}/answers"), json={"responses": {}}
+            )
+        assert response.status_code == 422
 
 
 class TestReplyExpectationRoute:
@@ -266,6 +353,113 @@ class TestStartRoute:
         assert response.json()["error"]["code"] == "WORKFLOW_NOT_RUNNABLE"
 
 
+async def test_schema_input_errors_name_nested_request_fields_without_creating_a_run(
+    owner_client: OpenClient,
+) -> None:
+    workflow = _workflow()
+    entry = NodeInstance(
+        id=uuid.uuid4(),
+        definition_id="core.input",
+        definition_version=1,
+        config={
+            "input_schema": {
+                "properties": {
+                    "items": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {"name": {"type": "string"}},
+                        },
+                    }
+                },
+            }
+        },
+        layout=NodePosition(x=0, y=0),
+    )
+    version = MagicMock(
+        id=workflow.current_version_id,
+        budget_limit=None,
+        graph=WorkflowGraph(entry_node_id=entry.id, nodes=(entry,)).model_dump(mode="json"),
+    )
+    with (
+        patch(f"{FACADE_PATH}.workflow_repo.get", new=AsyncMock(return_value=workflow)),
+        patch(f"{FACADE_PATH}.workflow_repo.get_version", new=AsyncMock(return_value=version)),
+        patch(f"{FACADE_PATH}.resolve_access", new=AsyncMock(return_value=True)),
+        patch(f"{FACADE_PATH}.workflow_run_repo.create_run", new=AsyncMock()) as create_run,
+    ):
+        async with owner_client() as http:
+            response = await http.post(
+                _url(),
+                json={
+                    "workflow_id": str(workflow.id),
+                    "input": {"items": [{"name": {"secret": "private-input-value"}}]},
+                },
+            )
+    assert response.status_code == 422
+    error = response.json()["error"]
+    assert error["code"] == "WORKFLOW_RUN_INPUT_INVALID"
+    assert error["details"]["fields"] == [
+        {"field": "input.items.0.name", "message": "Must be of type string"}
+    ]
+    assert error["details"]["problems"] == [
+        {"field": "items.0.name", "message": "Must be of type string", "type": "type"}
+    ]
+    assert "private-input-value" not in response.text
+    create_run.assert_not_awaited()
+
+
+async def test_a_selected_entry_validates_its_own_contract_instead_of_the_default(
+    owner_client: OpenClient,
+) -> None:
+    workflow = _workflow()
+    primary = NodeInstance(
+        id=uuid.uuid4(),
+        definition_id="core.input",
+        definition_version=1,
+        config={"input_schema": {"properties": {"code": {"type": "string"}}, "required": ["code"]}},
+        layout=NodePosition(x=0, y=0),
+    )
+    selected = primary.model_copy(
+        update={
+            "id": uuid.uuid4(),
+            "definition_id": "trigger.manual",
+            "config": {
+                "input_schema": {
+                    "properties": {"amount": {"type": "integer"}},
+                    "required": ["amount"],
+                }
+            },
+        }
+    )
+    version = MagicMock(
+        id=workflow.current_version_id,
+        budget_limit=None,
+        graph=WorkflowGraph(entry_node_id=primary.id, nodes=(primary, selected)).model_dump(
+            mode="json"
+        ),
+    )
+    with (
+        patch(f"{FACADE_PATH}.workflow_repo.get", new=AsyncMock(return_value=workflow)),
+        patch(f"{FACADE_PATH}.workflow_repo.get_version", new=AsyncMock(return_value=version)),
+        patch(f"{FACADE_PATH}.resolve_access", new=AsyncMock(return_value=True)),
+        patch(f"{FACADE_PATH}.workflow_run_repo.create_run", new=AsyncMock()) as create_run,
+    ):
+        async with owner_client() as http:
+            response = await http.post(
+                _url(),
+                json={
+                    "workflow_id": str(workflow.id),
+                    "entry_node_id": str(selected.id),
+                    "input": {"code": "fits only the default"},
+                },
+            )
+    assert response.status_code == 422
+    assert response.json()["error"]["details"]["fields"] == [
+        {"field": "input.amount", "message": "Field required"}
+    ]
+    create_run.assert_not_awaited()
+
+
 class TestListRoute:
     """The `workflows:view` gate itself is proven generically by
     `tests/api/test_platform_routes.py`'s `CALLS`-driven sweep, which now
@@ -378,6 +572,10 @@ class TestCancelRoute:
             patch(f"{FACADE_PATH}.workflow_repo.get", new=AsyncMock(return_value=workflow)),
             patch(f"{FACADE_PATH}.resolve_access", new=AsyncMock(return_value=True)),
             patch(f"{FACADE_PATH}.cleanup.stop_run_work", new=AsyncMock()),
+            patch(
+                f"{FACADE_PATH}.workflow_run_repo.list_called_run_ids",
+                new=AsyncMock(return_value=[]),
+            ),
             patch(
                 f"{FACADE_PATH}.workflow_run_repo.update_run", new=AsyncMock(return_value=cancelled)
             ),
@@ -576,6 +774,14 @@ class TestNodesRoute:
             patch(
                 f"{FACADE_PATH}.workflow_run_repo.list_attempts_of", new=AsyncMock(return_value=[])
             ),
+            patch(
+                f"{FACADE_PATH}.workflow_approval_repo.step_decisions",
+                new=AsyncMock(return_value=[]),
+            ),
+            patch(
+                f"{FACADE_PATH}.WorkflowMediaReadService.for_nodes",
+                new=AsyncMock(return_value={}),
+            ),
         ):
             async with owner_client() as http:
                 response = await http.get(_url(f"/{run.id}/nodes"))
@@ -583,9 +789,123 @@ class TestNodesRoute:
         body = response.json()
         assert body["total"] == 1
         assert body["items"][0]["status"] == "succeeded" and body["items"][0]["attempts"] == 0
+        assert body["items"][0]["approval"] is None
+
+    async def test_an_approval_step_says_who_decided_and_when(self, owner_client: OpenClient):
+        run = _run_row()
+        workflow = _workflow(id=run.workflow_id)
+        decided_at = datetime.now(UTC)
+        node_run = MagicMock(
+            id=uuid.uuid4(),
+            node_instance_id=uuid.uuid4(),
+            scope_path=[],
+            status="succeeded",
+            waiting_reason=None,
+            started_at=decided_at,
+            ended_at=decided_at,
+        )
+        decision = StepDecision(
+            node_run_id=node_run.id,
+            status="rejected",
+            decided_at=decided_at,
+            decided_by_name="Ola Nowak",
+        )
+        with (
+            patch(f"{FACADE_PATH}.workflow_run_repo.get_run", new=AsyncMock(return_value=run)),
+            patch(f"{FACADE_PATH}.workflow_repo.get", new=AsyncMock(return_value=workflow)),
+            patch(f"{FACADE_PATH}.resolve_access", new=AsyncMock(return_value=True)),
+            patch(
+                f"{FACADE_PATH}.workflow_run_repo.list_node_runs_page",
+                new=AsyncMock(return_value=([node_run], 1)),
+            ),
+            patch(
+                f"{FACADE_PATH}.workflow_run_repo.list_attempts_of", new=AsyncMock(return_value=[])
+            ),
+            patch(
+                f"{FACADE_PATH}.workflow_approval_repo.step_decisions",
+                new=AsyncMock(return_value=[decision]),
+            ),
+            patch(
+                f"{FACADE_PATH}.WorkflowMediaReadService.for_nodes",
+                new=AsyncMock(return_value={}),
+            ),
+        ):
+            async with owner_client() as http:
+                response = await http.get(_url(f"/{run.id}/nodes"))
+        assert response.status_code == 200
+        assert response.json()["items"][0]["approval"] == {
+            "status": "rejected",
+            "decided_at": decided_at.isoformat(),
+            "decided_by_name": "Ola Nowak",
+        }
 
 
 class TestGraphRoute:
+    async def test_a_key_that_may_not_list_members_reads_the_decision_without_its_decider(self):
+        """A key scoped to workflows sees that a step was approved, and when - not by whom."""
+        run = _run_row()
+        workflow = _workflow(id=run.workflow_id)
+        decided_at = datetime.now(UTC)
+        node_run = MagicMock(
+            id=uuid.uuid4(),
+            node_instance_id=uuid.uuid4(),
+            scope_path=[],
+            status="succeeded",
+            waiting_reason=None,
+            started_at=decided_at,
+            ended_at=decided_at,
+        )
+        decision = StepDecision(
+            node_run_id=node_run.id,
+            status="approved",
+            decided_at=decided_at,
+            decided_by_name="Ola Nowak",
+        )
+        context = AuthContext(
+            user_id=uuid.uuid4(),
+            organization_id=_ORGANIZATION_ID,
+            role=OrgRoleName.OWNER,
+            key_scopes=frozenset({Perm.WORKFLOWS_VIEW}),
+        )
+        app.dependency_overrides[deps.get_auth_context] = lambda: context
+        app.dependency_overrides[deps.get_workflow_execution_service] = lambda: (
+            WorkflowExecutionService(_db())
+        )
+        try:
+            with (
+                patch(f"{FACADE_PATH}.workflow_run_repo.get_run", new=AsyncMock(return_value=run)),
+                patch(f"{FACADE_PATH}.workflow_repo.get", new=AsyncMock(return_value=workflow)),
+                patch(f"{FACADE_PATH}.resolve_access", new=AsyncMock(return_value=True)),
+                patch(
+                    f"{FACADE_PATH}.workflow_run_repo.list_node_runs_page",
+                    new=AsyncMock(return_value=([node_run], 1)),
+                ),
+                patch(
+                    f"{FACADE_PATH}.workflow_run_repo.list_attempts_of",
+                    new=AsyncMock(return_value=[]),
+                ),
+                patch(
+                    f"{FACADE_PATH}.workflow_approval_repo.step_decisions",
+                    new=AsyncMock(return_value=[decision]),
+                ),
+                patch(
+                    f"{FACADE_PATH}.WorkflowMediaReadService.for_nodes",
+                    new=AsyncMock(return_value={}),
+                ),
+            ):
+                async with AsyncClient(
+                    transport=ASGITransport(app=app), base_url="http://test"
+                ) as http:
+                    response = await http.get(_url(f"/{run.id}/nodes"))
+        finally:
+            app.dependency_overrides.clear()
+        assert response.status_code == 200
+        assert response.json()["items"][0]["approval"] == {
+            "status": "approved",
+            "decided_at": decided_at.isoformat(),
+            "decided_by_name": None,
+        }
+
     async def test_answering_with_the_graph_a_run_executes(self, owner_client: OpenClient):
         run = _run_row()
         workflow = _workflow(id=run.workflow_id)
@@ -741,6 +1061,7 @@ def _log_row(**overrides: object):
     row.run_id = uuid.uuid4()
     row.node_instance_id = uuid.uuid4()
     row.step_label = "Send the mail"
+    row.step_definition_id = None
     row.outcome = "out"
     row.status = "succeeded"
     row.message = "Send the mail → out"

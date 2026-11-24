@@ -4,6 +4,7 @@ from typing import Any
 from uuid import UUID
 
 from sqlalchemy import select
+from sqlalchemy import update as sql_update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.agent import Agent
@@ -11,13 +12,15 @@ from app.db.models.agent_exposure import AgentExposure
 
 
 async def get(
-    db: AsyncSession, exposure_id: UUID, *, organization_id: UUID
+    db: AsyncSession, exposure_id: UUID, *, organization_id: UUID, fresh: bool = False
 ) -> AgentExposure | None:
     result = await db.execute(
-        select(AgentExposure).where(
+        select(AgentExposure)
+        .where(
             AgentExposure.id == exposure_id,
             AgentExposure.organization_id == organization_id,
         )
+        .execution_options(populate_existing=fresh)
     )
     return result.scalar_one_or_none()
 
@@ -89,6 +92,28 @@ async def list_active_for_bot(
         .order_by(Agent.slug)
     )
     return [(exposure, agent) for exposure, agent in result.all()]
+
+
+async def list_observers_for_bot(
+    db: AsyncSession,
+    *,
+    channel_bot_id: UUID,
+) -> list[tuple[AgentExposure, str]]:
+    """An opt-in check reads neither other agents' drafts nor disabled bindings."""
+    result = await db.execute(
+        select(AgentExposure, Agent.slug)
+        .join(
+            Agent,
+            (Agent.id == AgentExposure.agent_id)
+            & (Agent.organization_id == AgentExposure.organization_id),
+        )
+        .where(
+            AgentExposure.channel_bot_id == channel_bot_id,
+            AgentExposure.is_active.is_(True),
+            AgentExposure.observation["enabled"].as_boolean().is_(True),
+        )
+    )
+    return [(exposure, slug) for exposure, slug in result.all()]
 
 
 async def active_agents_for_bots(
@@ -195,6 +220,7 @@ async def create(
     environment_id: UUID | None = None,
     session_scope: str | None = None,
     prompt: str | None = None,
+    tools: list[str] | None = None,
 ) -> AgentExposure:
     exposure = AgentExposure(
         organization_id=organization_id,
@@ -205,6 +231,7 @@ async def create(
         environment_id=environment_id,
         session_scope=session_scope,
         prompt=prompt,
+        tools=list(tools) if tools is not None else [],
     )
     db.add(exposure)
     await db.flush()
@@ -232,3 +259,28 @@ async def update(
 async def delete(db: AsyncSession, exposure: AgentExposure) -> None:
     await db.delete(exposure)
     await db.flush()
+
+
+async def pause_for_creator(db: AsyncSession, *, organization_id: UUID, user_id: UUID) -> int:
+    """Pause every binding one member created in one organization.
+
+    A paused binding stops answering in its rooms and disappears from the
+    agent gallery, but the row stays - who bound it and when is the first
+    question asked after an agent answers somewhere nobody expected, and an
+    administrator can resume it. Called when the member leaves, so a departed
+    publisher's agents stop running as them. Only bindings still active are
+    touched, and the count returned is the newly paused ones.
+    """
+    result = await db.execute(
+        sql_update(AgentExposure)
+        .where(
+            AgentExposure.organization_id == organization_id,
+            AgentExposure.created_by_user_id == user_id,
+            AgentExposure.is_active.is_(True),
+        )
+        .values(is_active=False)
+    )
+    await db.flush()
+    # `execute` is typed to return `Result`, which has no `rowcount`; a DML
+    # statement's result carries it at runtime.
+    return int(getattr(result, "rowcount", 0) or 0)

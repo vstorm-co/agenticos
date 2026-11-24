@@ -28,12 +28,12 @@ from typing import ClassVar
 
 from pydantic import BaseModel
 
-from app.core.secret_kinds import StorableSecret
 from app.services.rag.connectors import (
     BaseSyncConnector,
     ConnectorConfig,
     RemoteFile,
     RemoteListing,
+    SyncCredential,
 )
 
 logger = logging.getLogger(__name__)
@@ -77,7 +77,7 @@ class ObjectStoreConnector(BaseSyncConnector):
     own console says."""
 
     async def list_files(
-        self, config: ConnectorConfig, credential: StorableSecret | None
+        self, config: ConnectorConfig, credential: SyncCredential | None
     ) -> RemoteListing:
         """Every document under the configured prefix, newest state as listed.
 
@@ -98,7 +98,7 @@ class ObjectStoreConnector(BaseSyncConnector):
         container: str,
         prefix: str,
         config: ConnectorConfig,
-        credential: StorableSecret | None,
+        credential: SyncCredential | None,
     ) -> list[RemoteFile]:
         """The listing converted as it arrives, on the thread that fetched it.
 
@@ -131,7 +131,7 @@ class ObjectStoreConnector(BaseSyncConnector):
         file: RemoteFile,
         dest_path: Path,
         config: ConnectorConfig,
-        credential: StorableSecret | None,
+        credential: SyncCredential | None,
     ) -> None:
         """Write one object to the path the base class chose."""
         container = file.source_path.removeprefix(f"{self.SCHEME}://").split("/", 1)[0]
@@ -150,7 +150,7 @@ class ObjectStoreConnector(BaseSyncConnector):
         container: str,
         prefix: str,
         config: ConnectorConfig,
-        credential: StorableSecret | None,
+        credential: SyncCredential | None,
     ) -> Iterable[StoredObject]:
         """This store's listing, paginated the way its SDK paginates.
 
@@ -167,6 +167,6 @@ class ObjectStoreConnector(BaseSyncConnector):
         key: str,
         dest_path: Path,
         config: ConnectorConfig,
-        credential: StorableSecret | None,
+        credential: SyncCredential | None,
     ) -> None:
         """Write one object's bytes to `dest_path`. Blocking, on a worker thread."""

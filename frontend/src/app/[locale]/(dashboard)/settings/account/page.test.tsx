@@ -11,7 +11,7 @@ vi.mock("@/components/dashboard/active-sessions", () => ({
 vi.mock("@/hooks", () => ({ useAuth: () => ({ user: { id: "u1" }, logout: vi.fn() }) }));
 vi.mock("@/lib/api-client", async () => ({
   ...(await vi.importActual<typeof import("@/lib/api-client")>("@/lib/api-client")),
-  apiClient: { post: vi.fn(), delete: vi.fn() },
+  apiClient: { get: vi.fn().mockResolvedValue({ enabled: false }), post: vi.fn(), delete: vi.fn() },
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 

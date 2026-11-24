@@ -18,6 +18,7 @@ export function WorkspaceFullscreenButton({
       type="button"
       variant="ghost"
       size="icon"
+      className="md:hidden"
       aria-label={label}
       title={label}
       onClick={onToggle}

@@ -25,8 +25,8 @@ from pydantic import BaseModel, Field, ValidationError
 from app.core.config import settings
 from app.core.exceptions import BadRequestError
 from app.core.sanitize import UrlRefusedError, deployment_allowlist, resolve_pinned_url
-from app.core.secret_kinds import AwsCredentialsSecret, SecretKind, StorableSecret
-from app.services.rag.connectors import ConfigRefusal, ConnectorConfig
+from app.core.secret_kinds import AwsCredentialsSecret, SecretKind
+from app.services.rag.connectors import ConfigRefusal, ConnectorConfig, SyncCredential
 from app.services.rag.connectors.object_store import ObjectStoreConnector, StoredObject
 
 if TYPE_CHECKING:
@@ -113,7 +113,7 @@ class S3Connector(ObjectStoreConnector):
         return None
 
     def _get_s3_client(
-        self, config: ConnectorConfig, credential: StorableSecret | None
+        self, config: ConnectorConfig, credential: SyncCredential | None
     ) -> BaseClient:
         """Build a boto3 S3 client from the vault secret the source names.
 
@@ -175,7 +175,7 @@ class S3Connector(ObjectStoreConnector):
         container: str,
         prefix: str,
         config: ConnectorConfig,
-        credential: StorableSecret | None,
+        credential: SyncCredential | None,
     ) -> Iterator[StoredObject]:
         """One page at a time, as `list_objects_v2` hands them over.
 
@@ -209,6 +209,6 @@ class S3Connector(ObjectStoreConnector):
         key: str,
         dest_path: Path,
         config: ConnectorConfig,
-        credential: StorableSecret | None,
+        credential: SyncCredential | None,
     ) -> None:
         self._get_s3_client(config, credential).download_file(container, key, str(dest_path))

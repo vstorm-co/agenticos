@@ -3,6 +3,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
+import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 
 import { qk } from "@/lib/query-keys";
 import * as logsApi from "@/lib/workflows/logs-api";
@@ -52,6 +53,133 @@ beforeEach(() => {
 });
 
 describe("useWorkflowRuns", () => {
+  it.each([false, true])(
+    "routes named admission errors to the visible input form: %s",
+    async (inForm) => {
+      vi.mocked(api.listWorkflowRuns).mockResolvedValue({ items: [], total: 0 });
+      vi.mocked(api.startWorkflowRun).mockRejectedValue(
+        new ApiError(422, "Input rejected", {
+          error: {
+            code: "WORKFLOW_RUN_INPUT_INVALID",
+            message: "Input rejected",
+            details: {
+              fields: [{ field: "input.items.0.sku", message: "Field required" }],
+            },
+          },
+        }),
+      );
+      const { result } = renderHook(() => useWorkflowRuns("wf", inForm), { wrapper });
+      await act(async () => {
+        await result.current.start.mutateAsync({ workflow_id: "wf" }).catch(() => undefined);
+      });
+      if (inForm) expect(toast.error).not.toHaveBeenCalled();
+      else expect(toast.error).toHaveBeenCalledWith("input.items.0.sku: Field required");
+      await waitFor(() => expect(result.current.start.error).toBeInstanceOf(ApiError));
+    },
+  );
+
+  it("still toasts non-field failures while the input form is open", async () => {
+    vi.mocked(api.listWorkflowRuns).mockResolvedValue({ items: [], total: 0 });
+    vi.mocked(api.startWorkflowRun).mockRejectedValue(new Error("boom"));
+    const { result } = renderHook(() => useWorkflowRuns("wf", true), { wrapper });
+    await act(async () => {
+      await result.current.start.mutateAsync({ workflow_id: "wf" }).catch(() => undefined);
+    });
+    expect(toast.error).toHaveBeenCalledWith("boom");
+  });
+
+  it("toasts orphaned graph fields while the input form owns only input refusals", async () => {
+    vi.mocked(api.listWorkflowRuns).mockResolvedValue({ items: [], total: 0 });
+    vi.mocked(api.startWorkflowRun).mockRejectedValue(
+      new ApiError(422, "Graph invalid", {
+        error: {
+          code: "GRAPH_INVALID",
+          message: "Graph invalid",
+          details: {
+            fields: [
+              { field: "nodes.start.config.input_schema", message: "Invalid trigger schema" },
+              { field: "input.items", message: "Field required" },
+            ],
+          },
+        },
+      }),
+    );
+    const { result } = renderHook(() => useWorkflowRuns("wf", true), { wrapper });
+    await act(async () => {
+      await result.current.start.mutateAsync({ workflow_id: "wf" }).catch(() => undefined);
+    });
+    expect(toast.error).toHaveBeenCalledWith(
+      "nodes.start.config.input_schema: Invalid trigger schema",
+    );
+  });
+  it.each([
+    "This table's schema has changed",
+    "Table not found",
+    "You may not read this table",
+    "Unknown live column",
+  ])("refreshes tables while preserving the actionable refusal: %s", async (message) => {
+    vi.mocked(api.listWorkflowRuns).mockResolvedValue({ items: [], total: 0 });
+    vi.mocked(api.startWorkflowRun).mockRejectedValue(
+      new ApiError(422, "Graph invalid", {
+        error: {
+          code: "GRAPH_INVALID",
+          message: "Graph invalid",
+          details: {
+            fields: [
+              { field: "nodes.a.config.table", message },
+              { field: "bindings.2", message },
+            ],
+          },
+        },
+      }),
+    );
+    // Binding 2 reads a table; the editor's graph is what says so.
+    const table = { kind: "table", table_id: "t", column_ids: null, schema_version: 1 };
+    const literal = { kind: "literal", value: 1 };
+    useWorkflowEditorStore.getState().seedGraph({
+      entry_node_id: "a",
+      nodes: [],
+      edges: [],
+      bindings: [
+        { target_node_id: "a", target_field: "x", source: literal },
+        { target_node_id: "a", target_field: "y", source: literal },
+        { target_node_id: "a", target_field: "rows", source: table },
+      ],
+      scopes: [],
+    } as never);
+    const before = useWorkflowEditorStore.getState().tablesStale;
+    const { result } = renderHook(() => useWorkflowRuns("wf"), { wrapper });
+    await act(async () => {
+      await result.current.start.mutateAsync({ workflow_id: "wf" }).catch(() => undefined);
+    });
+    expect(toast.error).toHaveBeenCalledTimes(1);
+    expect(toast.error).toHaveBeenCalledWith(
+      `nodes.a.config.table: ${message}\nbindings.2: ${message}`,
+    );
+    expect(useWorkflowEditorStore.getState().tablesStale).toBe(before + 1);
+    useWorkflowEditorStore.getState().teardown();
+  });
+
+  it("toasts a binding problem as it is when that binding does not read a table", async () => {
+    vi.mocked(api.listWorkflowRuns).mockResolvedValue({ items: [], total: 0 });
+    vi.mocked(api.startWorkflowRun).mockRejectedValue(
+      new ApiError(422, "Graph invalid", {
+        error: {
+          code: "GRAPH_INVALID",
+          message: "Graph invalid",
+          details: { fields: [{ field: "bindings.0", message: "Not a number" }] },
+        },
+      }),
+    );
+    const before = useWorkflowEditorStore.getState().tablesStale;
+    const { result } = renderHook(() => useWorkflowRuns("wf"), { wrapper });
+    await act(async () => {
+      await result.current.start.mutateAsync({ workflow_id: "wf" }).catch(() => undefined);
+    });
+    expect(toast.error).toHaveBeenCalledWith("bindings.0: Not a number");
+    expect(useWorkflowEditorStore.getState().tablesStale).toBe(before);
+  });
+
   it("lists a workflow's runs and starts one", async () => {
     vi.mocked(api.listWorkflowRuns).mockResolvedValue({ items: [run("running")], total: 1 });
     vi.mocked(api.startWorkflowRun).mockResolvedValue(run("queued"));
@@ -359,6 +487,21 @@ it("refreshes the paused step after an expectation change and after a refused ch
   vi.mocked(api.editReplyExpectation).mockRejectedValue(new Error("Mailbox access changed"));
   await act(async () => {
     await result.current.mutateAsync(body).catch(() => undefined);
+  });
+  expect(toast.error).toHaveBeenCalled();
+});
+
+it("lets an inline run surface own start feedback while keeping admission errors visible", async () => {
+  vi.mocked(api.listWorkflowRuns).mockResolvedValue({ items: [], total: 0 });
+  vi.mocked(api.startWorkflowRun).mockResolvedValue(run("queued"));
+  const { result } = renderHook(() => useWorkflowRuns("wf", false, { startFeedback: "inline" }), {
+    wrapper,
+  });
+  await act(() => result.current.start.mutateAsync({ workflow_id: "wf" }));
+  expect(toast.success).not.toHaveBeenCalled();
+  vi.mocked(api.startWorkflowRun).mockRejectedValue(new Error("admission refused"));
+  await act(async () => {
+    await result.current.start.mutateAsync({ workflow_id: "wf" }).catch(() => undefined);
   });
   expect(toast.error).toHaveBeenCalled();
 });

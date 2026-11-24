@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.permissions import AuthContext
 from app.schemas.virtual_table import RecordFilter, RecordQuery
 from app.services.virtual_tables.facade import VirtualTableService
+from app.services.virtual_tables.presentation import filters_by_label
 from app.workflows.contracts.io import TableIORef
 from app.workflows.contracts.results import Completed, NodeResult
 from app.workflows.nodes._tables import TABLE_FIELD, check_table, not_configured, with_service
@@ -59,8 +60,11 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
         return not_configured("This step has no table")
 
     async def work(service: VirtualTableService, auth: AuthContext) -> NodeResult:
+        table = await service.describe_table(auth, config.table.table_id)
         page = await service.list_records(
-            auth, config.table.table_id, RecordQuery(filters=config.filters, limit=1)
+            auth,
+            table.id,
+            RecordQuery(filters=filters_by_label(table.columns, config.filters), limit=1),
         )
         first = page.items[0] if page.items else None
         return Completed[TableRecordExistsOutput](

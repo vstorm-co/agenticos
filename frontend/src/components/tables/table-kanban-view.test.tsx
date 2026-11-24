@@ -205,6 +205,101 @@ describe("TableKanbanView", () => {
     expect(screen.getByText(/needs a single-select grouping column/i)).toBeInTheDocument();
   });
 
+  it("keeps every lane stretched with a flexible content area even for empty lanes", async () => {
+    mockLanes({ o1: [record("r1", "o1")], o2: [], none: [], archived: [] });
+    const { container } = render(
+      <TableKanbanView
+        tableId="t1"
+        columns={COLUMNS}
+        groupByColumnId="status"
+        baseFilters={[]}
+        sort={{ by: "created_at", direction: "asc" }}
+        onOpenRecord={vi.fn()}
+        canEdit
+      />,
+      { wrapper },
+    );
+    await screen.findByText("Record r1");
+    const board = container.querySelector("[data-kanban-board]");
+    expect(board).toHaveClass("flex-1", "items-stretch");
+    const lanes = container.querySelectorAll("[data-kanban-lane]");
+    expect(lanes).toHaveLength(4);
+    for (const lane of lanes) {
+      expect(lane).toHaveClass("min-h-full");
+      expect(lane.children[1]).toHaveClass("flex-1");
+    }
+    expect(await screen.findAllByText("No records")).toHaveLength(3);
+  });
+
+  it("drags the full card fields at their original width and pointer grab position", async () => {
+    const note: ColumnDef = { ...TITLE, id: "note", label: "Note" };
+    const hidden: ColumnDef = { ...TITLE, id: "hidden", label: "Hidden column" };
+    mockLanes({
+      o1: [
+        {
+          ...record("r1", "o1"),
+          values: {
+            name: "Record r1",
+            status: "o1",
+            paid: true,
+            note: "Keep this card detail",
+            hidden: "Hidden value",
+          },
+        },
+      ],
+    });
+    render(
+      <TableKanbanView
+        tableId="t1"
+        columns={[...COLUMNS, PAID, note, hidden]}
+        shownColumns={[...COLUMNS, PAID, note]}
+        groupByColumnId="status"
+        baseFilters={[]}
+        sort={{ by: "created_at", direction: "asc" }}
+        onOpenRecord={vi.fn()}
+        canEdit
+      />,
+      { wrapper },
+    );
+    const title = await screen.findByRole("button", { name: "Record r1" });
+    const card = title.closest("div[draggable]");
+    if (!(card instanceof HTMLDivElement)) throw new Error("missing draggable card");
+    const bounds = vi
+      .spyOn(card, "getBoundingClientRect")
+      .mockReturnValue(new DOMRect(80, 80, 296, 160));
+    const pointer = (type: string, x: number, y: number) => {
+      const event = new MouseEvent(type, { bubbles: true, button: 0, clientX: x, clientY: y });
+      Object.defineProperty(event, "pointerId", { value: 1 });
+      fireEvent(card, event);
+    };
+    try {
+      pointer("pointerdown", 100, 100);
+      pointer("pointermove", 140, 150);
+      const preview = document.querySelector("[data-kanban-drag-preview]");
+      expect(preview).toBeInTheDocument();
+      expect(preview).toHaveAttribute("inert");
+      expect(preview).toHaveAttribute("aria-hidden", "true");
+      expect(preview).toHaveStyle({
+        left: "120px",
+        top: "130px",
+        width: "296px",
+        minHeight: "160px",
+      });
+      expect(preview).toHaveTextContent("Record r1");
+      expect(preview).toHaveTextContent("Paid");
+      expect(preview).toHaveTextContent("Note");
+      expect(preview).toHaveTextContent("Keep this card detail");
+      expect(preview).not.toHaveTextContent("Hidden column");
+      expect(preview).not.toHaveTextContent("Hidden value");
+      expect(preview?.querySelector("button")).toBeNull();
+      fireEvent.keyDown(document, { key: "Escape" });
+      expect(document.querySelector("[data-kanban-drag-preview]")).toBeNull();
+      expect(apiClient.patch).not.toHaveBeenCalled();
+    } finally {
+      bounds.mockRestore();
+    }
+  });
+
   it("renders one lane per live option, plus no-value and archived", async () => {
     mockLanes({ o1: [record("r1", "o1")], o2: [], none: [], archived: [] });
     render(
@@ -244,10 +339,15 @@ describe("TableKanbanView", () => {
       { wrapper },
     );
 
-    const card = await screen.findByText("Record r1");
+    const card = await screen.findByRole("button", { name: "Record r1" });
+    expect(card.closest("div[draggable]")).toHaveClass("relative");
     await user.click(card);
+    expect(onOpenRecord).toHaveBeenCalledExactlyOnceWith(record("r1", "o1"));
 
-    expect(onOpenRecord).toHaveBeenCalledWith(record("r1", "o1"));
+    onOpenRecord.mockClear();
+    card.focus();
+    await user.keyboard("{Enter}");
+    expect(onOpenRecord).toHaveBeenCalledExactlyOnceWith(record("r1", "o1"));
   });
 
   it("moves a card via the keyboard-reachable Move to menu", async () => {
@@ -501,6 +601,30 @@ describe("TableKanbanView", () => {
     );
   });
 
+  it("does not retry a conflicted lane move after its grouping field becomes read-only", async () => {
+    mockLanes({ o1: [record("r1", "o1")] });
+    vi.mocked(apiClient.patch).mockRejectedValueOnce(conflict409());
+    vi.mocked(apiClient.get).mockResolvedValue({
+      ...record("r1", "o1", 5),
+      access: "write",
+      read_only_column_ids: ["status"],
+    });
+    const user = userEvent.setup();
+    renderBoard();
+    await screen.findByText("Record r1");
+    await user.click(screen.getByRole("button", { name: /move to/i }));
+    await user.click(screen.getByRole("menuitem", { name: "Closed" }));
+    await screen.findByText(/someone else changed this record/i);
+
+    await user.click(screen.getByRole("button", { name: /reload and reapply/i }));
+
+    await waitFor(() => expect(apiClient.get).toHaveBeenCalledWith("/tables/t1/records/r1"));
+    expect(apiClient.patch).toHaveBeenCalledTimes(1);
+    expect(useTableViewStore.getState().conflicts.r1?.status?.pendingValues).toEqual({
+      status: "o2",
+    });
+  });
+
   it("keeps the conflict banner when the retry move itself fails, not only when the refetch does", async () => {
     mockLanes({ o1: [record("r1", "o1")], o2: [], none: [], archived: [] });
     vi.mocked(apiClient.patch).mockRejectedValueOnce(
@@ -606,6 +730,36 @@ describe("TableKanbanView", () => {
     );
 
     expect(await screen.findByRole("button", { name: "r1" })).toBeInTheDocument();
+  });
+
+  it("lets a row writer drag a card without granting table-wide edit access", async () => {
+    mockLanes({ o1: [{ ...record("r1", "o1"), access: "write" }] });
+    vi.mocked(apiClient.patch).mockResolvedValue(record("r1", "o2", 2));
+    render(
+      <TableKanbanView
+        tableId="t1"
+        columns={COLUMNS}
+        groupByColumnId="status"
+        baseFilters={[]}
+        sort={{ by: "created_at", direction: "asc" }}
+        onOpenRecord={vi.fn()}
+        canEdit={false}
+      />,
+      { wrapper },
+    );
+    const card = (await screen.findByText("Record r1")).closest("div[draggable]") as HTMLElement;
+    const target = screen.getByText("Closed").closest("[data-kanban-lane]") as HTMLElement;
+    expect(target).toHaveAttribute("data-kanban-accepts", "false");
+    dragStart(card);
+    expect(target).toHaveAttribute("data-kanban-accepts", "true");
+    fireEvent.dragOver(target);
+    fireEvent.drop(target);
+    await waitFor(() =>
+      expect(apiClient.patch).toHaveBeenCalledWith("/tables/t1/records/r1", {
+        expected_revision: 1,
+        values: { status: "o2" },
+      }),
+    );
   });
 
   it("dragging a card into another lane writes the same move a Move-to click would", async () => {

@@ -6,8 +6,7 @@ import { persist } from "zustand/middleware";
 import { useAuthStore } from "./auth-store";
 import { useOrgStore } from "./org-store";
 
-import type { LocalTarget, SkillSource } from "@/lib/desktop/commands";
-import type { CodingHarness } from "@/types/chat";
+import type { LocalAgent, LocalTarget, SkillSource } from "@/lib/desktop/commands";
 
 export type { LocalTarget };
 
@@ -36,10 +35,10 @@ interface WorkOnState {
   fileRoots: Record<string, string>;
   rememberFileRoot: (id: string, root: string) => void;
   fileRootFor: (id: string) => string | undefined;
-  codingByConversation: Record<string, CodingHarness | null>;
-  draftCoding: CodingHarness | null;
-  codingFor: (conversationId: string | null) => CodingHarness | null;
-  setCoding: (conversationId: string | null, harness: CodingHarness | null) => void;
+  codingByConversation: Record<string, LocalAgent["id"] | null>;
+  draftCoding: LocalAgent["id"] | null;
+  codingFor: (conversationId: string | null) => LocalAgent["id"] | null;
+  setCoding: (conversationId: string | null, harness: LocalAgent["id"] | null) => void;
   codingPreferencesByConversation: Record<string, CodingPreferences>;
   draftCodingPreferences: CodingPreferences;
   codingPreferencesFor: (conversationId: string | null) => CodingPreferences;

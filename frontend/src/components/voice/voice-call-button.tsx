@@ -3,10 +3,9 @@
 import { AudioLines, AudioLinesOff } from "lucide-react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
-import { useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 
 import { Button, Popover, PopoverAnchor, PopoverContent } from "@/components/ui";
-import { cn } from "@/lib/utils";
 import type { VoiceReadiness, VoiceUnavailable } from "@/types/voice";
 
 const REASON_KEYS: Record<VoiceUnavailable, string> = {
@@ -63,6 +62,13 @@ export function VoiceCallButton({
   const closing = useRef<number | null>(null);
   const content = useRef<HTMLDivElement>(null);
   const link = useRef<HTMLAnchorElement>(null);
+  // The reason opens above the whole composer, not above this small button: over
+  // the button it covers the text box until it is closed (phone, 390px).
+  const [composer, setComposer] = useState<HTMLElement | null>(null);
+  const trigger = useCallback(
+    (node: HTMLButtonElement | null) => setComposer(node?.closest("form") ?? null),
+    [],
+  );
   const keepOpen = () => {
     if (closing.current !== null) window.clearTimeout(closing.current);
     closing.current = null;
@@ -85,7 +91,7 @@ export function VoiceCallButton({
         data-tour="chat-voice-call"
         aria-label={t("start")}
         title={publishedOnly ? t("startPublished") : t("start")}
-        className={cn(BUTTON, prominent && "transition-transform active:scale-90")}
+        className={BUTTON}
       >
         <AudioLines className={prominent ? "h-4 w-4" : "text-muted-foreground h-4 w-4"} />
       </Button>
@@ -98,48 +104,60 @@ export function VoiceCallButton({
   const title = t(`unavailable.${key}.title`);
   const body = t(`unavailable.${key}.body`);
 
+  // Radix renders nothing for an anchor given a virtualRef, so the composer case
+  // takes the anchor as a sibling and the button is never wrapped in it.
+  const callButton = (
+    <Button
+      ref={trigger}
+      type="button"
+      variant="ghost"
+      size="icon"
+      aria-disabled="true"
+      aria-label={t("start")}
+      aria-describedby={describedBy}
+      data-tour="chat-voice-call"
+      className={`${BUTTON} cursor-not-allowed aria-disabled:pointer-events-auto`}
+      onPointerEnter={(event) => {
+        if (event.pointerType !== "mouse") return;
+        keepOpen();
+        setOpen(true);
+      }}
+      onPointerLeave={(event) => {
+        if (event.pointerType === "mouse") closeSoon();
+      }}
+      onPointerDown={() => {
+        pressed.current = true;
+      }}
+      onFocus={() => {
+        if (!pressed.current) setOpen(true);
+        pressed.current = false;
+      }}
+      onBlur={(event) => {
+        if (!content.current?.contains(event.relatedTarget)) setOpen(false);
+      }}
+      // A press opens it and hands focus to the link, so a keyboard reaches it too.
+      onClick={() => {
+        setOpen(true);
+        window.requestAnimationFrame(() => link.current?.focus());
+      }}
+    >
+      <AudioLinesOff className="text-muted-foreground h-4 w-4" />
+      <span id={describedBy} className="sr-only">
+        {title} {body}
+      </span>
+    </Button>
+  );
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverAnchor asChild>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          aria-disabled="true"
-          aria-label={t("start")}
-          aria-describedby={describedBy}
-          data-tour="chat-voice-call"
-          className={`${BUTTON} cursor-not-allowed aria-disabled:pointer-events-auto`}
-          onPointerEnter={(event) => {
-            if (event.pointerType !== "mouse") return;
-            keepOpen();
-            setOpen(true);
-          }}
-          onPointerLeave={(event) => {
-            if (event.pointerType === "mouse") closeSoon();
-          }}
-          onPointerDown={() => {
-            pressed.current = true;
-          }}
-          onFocus={() => {
-            if (!pressed.current) setOpen(true);
-            pressed.current = false;
-          }}
-          onBlur={(event) => {
-            if (!content.current?.contains(event.relatedTarget)) setOpen(false);
-          }}
-          // A press opens it and hands focus to the link, so a keyboard reaches it too.
-          onClick={() => {
-            setOpen(true);
-            window.requestAnimationFrame(() => link.current?.focus());
-          }}
-        >
-          <AudioLinesOff className="text-muted-foreground h-4 w-4" />
-          <span id={describedBy} className="sr-only">
-            {title} {body}
-          </span>
-        </Button>
-      </PopoverAnchor>
+      {composer ? (
+        <>
+          <PopoverAnchor virtualRef={{ current: composer }} />
+          {callButton}
+        </>
+      ) : (
+        <PopoverAnchor asChild>{callButton}</PopoverAnchor>
+      )}
       <PopoverContent
         ref={content}
         side="top"

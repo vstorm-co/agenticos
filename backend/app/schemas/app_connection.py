@@ -13,6 +13,8 @@ class AppActionRead(BaseSchema):
     name: str
     label: str
     read_only: bool
+    side_effecting: bool
+    scopes: list[str]
 
 
 class AppCatalogEntry(BaseSchema):

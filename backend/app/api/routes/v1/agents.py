@@ -35,10 +35,12 @@ from app.api.deps import (
     Auth,
     ConversationSvc,
     DBSession,
+    EvalHelperSvc,
     KnowledgeReachSvc,
     MentionSvc,
     MLSvc,
     PrefersAsync,
+    SandboxConnectionSvc,
     limit_agent_run,
     limit_dictation,
     require,
@@ -49,6 +51,7 @@ from app.core.config import settings
 from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.field_errors import refused_field
 from app.core.permissions import Perm
+from app.db.models.agent import AgentKind
 from app.db.models.agent_run import RunSurface
 from app.schemas.agent import (
     AgentA2ARequest,
@@ -57,6 +60,8 @@ from app.schemas.agent import (
     AgentClone,
     AgentCreate,
     AgentDetail,
+    AgentDraftDiscard,
+    AgentDraftRevision,
     AgentDraftUpdate,
     AgentKnowledgeReach,
     AgentList,
@@ -71,6 +76,7 @@ from app.schemas.agent import (
     AgentVersionDetail,
     AgentVersionList,
     AgentVersionRead,
+    ApplyShippedAgentUpdate,
     CapabilityCatalog,
     CapabilityCatalogEntry,
     CapabilityEnabled,
@@ -84,7 +90,9 @@ from app.schemas.agent import (
     PromptVariableCatalog,
     PromptVariableRead,
     RunRequestRead,
+    ShippedAgentUpdate,
     SpecialistPromote,
+    SystemAgentCreate,
     TemplateInstallRequest,
     TemplateInstallResult,
 )
@@ -95,6 +103,7 @@ from app.services import agent_templates, mcp_listing, transcription
 from app.services.attachments import load_attached_files
 from app.services.capability_contracts import tool_contracts
 from app.services.platform_mcp import platform_tool_catalog
+from app.services.shipped_agents import ShippedAgentService
 
 router = APIRouter(dependencies=[PUBLIC])
 
@@ -119,10 +128,16 @@ async def list_prompt_variables() -> Any:
     response_model=CapabilityCatalog,
     dependencies=[Depends(require(Perm.AGENTS_VIEW))],
 )
-async def list_capability_catalog() -> Any:
-    """Every capability an agent can be given, with the schema its form is built from."""
+async def list_capability_catalog(ctx: Auth, sandboxes: SandboxConnectionSvc) -> Any:
+    """Every capability an agent can be given, with the schema its form is built from.
+
+    `recommended` is what a new agent starts with in the caller's organization: a
+    container workspace only where one would publish, the files-only one otherwise.
+    """
     contracts = await tool_contracts()
-    starter = agent_templates.starter_capabilities()
+    starter = agent_templates.starter_capabilities(
+        container_workspace=await sandboxes.can_provide(ctx.organization_id)
+    )
     items = [
         CapabilityCatalogEntry(
             id=definition.id,
@@ -130,6 +145,7 @@ async def list_capability_catalog() -> Any:
             category=definition.category,
             description=definition.description,
             side_effecting=definition.side_effecting,
+            read_only=definition.read_only,
             tools=list(definition.tools),
             tool_settings=definition.tool_settings,
             scopes=sorted(definition.scopes),
@@ -242,8 +258,12 @@ async def list_platform_mcp_tools() -> Any:
         PlatformMcpTool(
             name=tool.name,
             description=tool.summary,
+            group=tool.group,
             writes=tool.writes,
             ungated=tool.ungated,
+            always_asks=tool.always_asks,
+            default_approval_free=tool.default_approval_free,
+            conditional_approval=tool.conditional_approval,
         )
         for tool in platform_tool_catalog()
     ]
@@ -310,6 +330,16 @@ async def list_agents(
         False, description="Only what was shared with the caller - never their own rows"
     ),
     include_archived: bool = Query(False),
+    kind: AgentKind = Query(
+        AgentKind.AGENT,
+        description=(
+            "`agent` for the agents people use, `judge` for the ones grading evals, "
+            "`drafter` for the one drafting knowledge gaps' missing content, "
+            "`generator` for the one drafting dataset cases, "
+            "`classifier` for the one reading answers for knowledge gaps, "
+            "`improver` for the authoring assistant"
+        ),
+    ),
     category: Annotated[
         list[str], Query(description="Keep agents in any of these categories")
     ] = [],  # noqa: B006
@@ -327,13 +357,14 @@ async def list_agents(
         ctx,
         shared_with_me=shared_with_me,
         include_archived=include_archived,
+        kind=kind,
         categories=category,
         tags=tag,
         skip=skip,
         limit=limit,
     )
     categories, tags = await service.list_labels(
-        ctx, shared_with_me=shared_with_me, include_archived=include_archived
+        ctx, shared_with_me=shared_with_me, include_archived=include_archived, kind=kind
     )
     return AgentList(items=items, total=total, categories=categories, tags=tags)
 
@@ -374,6 +405,22 @@ async def create_agent(data: AgentCreate, service: AgentRegistrySvc, ctx: Auth) 
         user_ids=data.user_ids,
         from_starter=data.from_starter,
     )
+
+
+@router.post(
+    "/system",
+    response_model=AgentRead,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require(Perm.AGENTS_EDIT))],
+)
+async def create_system_agent(data: SystemAgentCreate, service: EvalHelperSvc, ctx: Auth) -> Any:
+    """Create a system agent of the organization's own - today, a judge.
+
+    It starts from its kind's definition and publishes when the caller may
+    publish it. Every other kind is refused naming `kind`: the platform always
+    runs the organization's seeded one, so another would never run.
+    """
+    return await service.create_from_console(ctx, data)
 
 
 @router.post(
@@ -428,23 +475,73 @@ async def list_mentionables(
 async def get_agent(agent_id: UUID, service: AgentRegistrySvc, ctx: Auth) -> Any:
     """One agent with the spec currently being edited."""
     agent = await service.get(ctx, agent_id)
-    # `model_validate` reads the row's columns and parses `draft_spec` (JSONB) into
-    # `AgentSpec` off the schema field, so this route names only the one value the
-    # row does not carry: `can_run` is this caller's, not the agent's (#545).
-    return AgentDetail.model_validate(agent).model_copy(
-        update={"can_run": await service.may_run(ctx, agent)}
-    )
+    return await service.detail_for(ctx, agent)
+
+
+@router.get("/{agent_id}/shipped-update", response_model=ShippedAgentUpdate, openapi_extra=INTERNAL)
+async def review_shipped_update(agent_id: UUID, db: DBSession, ctx: Auth) -> Any:
+    """Preview which fields the built-in defaults replace."""
+    return await ShippedAgentService(db).review_update(ctx, agent_id)
+
+
+@router.post(
+    "/{agent_id}/shipped-update", status_code=204, response_model=None, openapi_extra=INTERNAL
+)
+async def apply_shipped_update(
+    agent_id: UUID, data: ApplyShippedAgentUpdate, db: DBSession, ctx: Auth
+) -> Any:
+    """Apply the exact revision the caller reviewed."""
+    await ShippedAgentService(db).apply_update(ctx, agent_id, data.expected_revision)
+
+
+@router.get("/{agent_id}/draft-revision", response_model=AgentDraftRevision)
+async def draft_revision(agent_id: UUID, service: AgentRegistrySvc, ctx: Auth) -> Any:
+    """Read the draft token with agents:edit, including edit-only API keys."""
+    return await service.draft_revision(ctx, agent_id)
 
 
 @router.put(
     "/{agent_id}/draft",
-    response_model=AgentRead,
+    response_model=AgentDetail,
 )
 async def save_draft(
     agent_id: UUID, data: AgentDraftUpdate, service: AgentRegistrySvc, ctx: Auth
 ) -> Any:
-    """Save an edit without making it live. Half-finished specs are allowed here."""
-    return await service.save_draft(ctx, agent_id, data.spec)
+    """Save an edit and return its normalized draft without making it live.
+
+    Send expected_revision from the base draft's draft_revision. A stale token
+    returns 409 without writes; reload and reconcile before submitting again.
+    Missing tokens return 422, including older console tabs without this guard.
+
+    Half-finished specs are allowed; reference validation waits for publish.
+    The returned draft is the canonical saved value an editor may adopt when
+    no newer local edits have been made.
+    """
+    return await service.save_draft(
+        ctx, agent_id, data.spec, expected_revision=data.expected_revision
+    )
+
+
+@router.post(
+    "/{agent_id}/draft/discard",
+    response_model=AgentDetail,
+)
+async def discard_draft(
+    agent_id: UUID, data: AgentDraftDiscard, service: AgentRegistrySvc, ctx: Auth
+) -> Any:
+    """Reset the draft to the latest published spec without creating a version.
+
+    Requires edit and view access. Returns 409 without writing if the draft revision or
+    the latest published version changed since confirmation. Returns the restored draft
+    with the caller's effective permissions, like the agent detail endpoint.
+    """
+    agent = await service.discard_draft(
+        ctx,
+        agent_id,
+        expected_revision=data.expected_revision,
+        expected_version_id=data.expected_version_id,
+    )
+    return await service.detail_for(ctx, agent)
 
 
 @router.post(
@@ -597,7 +694,9 @@ async def import_spec(
     agent_id: UUID, data: AgentSpecImport, service: AgentRegistrySvc, ctx: Auth
 ) -> Any:
     """Replace the draft with a hand-written or externally-managed spec."""
-    return await service.import_spec(ctx, agent_id, data.yaml)
+    return await service.import_spec(
+        ctx, agent_id, data.yaml, expected_revision=data.expected_revision
+    )
 
 
 @router.post(

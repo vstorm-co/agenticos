@@ -1,5 +1,5 @@
 ---
-source_sha: "d3a18b2e5b08"
+source_sha: "57bc6e1afff1"
 ---
 
 # Los servicios de ML { #the-ml-services }
@@ -484,3 +484,5 @@ Lo que está separado es el proceso, los límites y el reinicio — que es lo qu
 pide "desplegado, actualizado y escalado de forma independiente".
 
 `deploy/profiles/ml-services/README.md` describe el overlay y lo que espera.
+
+ElevenLabs Scribe está disponible para transcripciones de organizaciones, agentes y canales: `scribe_v3` y `scribe_v2`. Usa una clave ElevenLabs elegida explícitamente en la bóveda y los campos de transporte `xi-api-key`, `model_id` y `language_code`. No utiliza perfiles de modelos de texto ni claves de entorno. Se conservan los límites de tiempo y carga, la selección de idioma, las comprobaciones del inquilino y el registro de uso. [ElevenLabs API](https://elevenlabs.io/docs/api-reference/speech-to-text/convert).

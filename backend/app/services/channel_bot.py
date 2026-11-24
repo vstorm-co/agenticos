@@ -18,27 +18,37 @@ from pydantic import JsonValue, SecretStr
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.spec import AgentSpec
+from app.core.audit import record_audit
 from app.core.background import spawn_after_commit
 from app.core.exceptions import AuthorizationError, BadRequestError, ConflictError, NotFoundError
 from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext, Perm, assignable_roles
 from app.core.vault import SealedSecret, VaultScope, seal, unseal
+from app.db.models.agent import AgentStatus
+from app.db.models.agent_exposure import AgentExposure
 from app.db.models.channel_bot import ChannelBot
 from app.db.models.teams_conversation import TeamsConversation
 from app.db.updates import cleared, writable
 from app.repositories import (
+    agent_environment_repo,
     agent_exposure_repo,
+    agent_repo,
     channel_bot_repo,
     channel_session_repo,
     discord_role_mapping_repo,
+    organization_assistant_repo,
     teams_conversation_repo,
 )
 from app.schemas.channel_bot import (
+    SELF_HOSTED,
     AccessPolicy,
     BotAgent,
     ChannelBotCreate,
     ChannelBotRead,
     ChannelBotUpdate,
+    ChannelDiagnosticCheck,
+    ChannelDiagnosticsRead,
     InheritedSpeechToTextRead,
 )
 from app.services.channels import (
@@ -52,6 +62,7 @@ from app.services.channels import (
 from app.services.channels.base import IncomingMessage
 from app.services.channels.email import is_address
 from app.services.channels.exceptions import ChannelNotConfigured
+from app.services.channels.identity_scope import canonical_matrix_server
 from app.services.channels.imessage import TAPBACK_REACTIONS
 from app.services.channels.imessage_transport import BridgeCredentials
 from app.services.channels.slack_manifest import slack_manifest
@@ -207,6 +218,31 @@ class ChannelBotService:
             )
         return self.organization_id
 
+    async def _audit(
+        self,
+        action: str,
+        bot: ChannelBot,
+        ctx: AuthContext | None,
+        details: dict[str, Any] | None = None,
+    ) -> None:
+        """Record a management change to a bot, in the request's transaction.
+
+        A bot holds the credentials a channel answers with, so creating one,
+        replacing its token, switching it off, or pointing its webhook elsewhere
+        is an access change the trail should show - who did it, to which bot.
+        The actor is the caller when the call has one; a management call without
+        a person names nobody rather than inventing one.
+        """
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.user_id if ctx is not None else None,
+            organization_id=self._org_id,
+            action=action,
+            target_type="channel_bot",
+            target_id=str(bot.id),
+            details={"platform": bot.platform, "name": bot.name, **(details or {})},
+        )
+
     def _reopen_stream(self, bot: ChannelBot) -> None:
         """Make this bot's inbound connection match the row it now has.
 
@@ -250,6 +286,12 @@ class ChannelBotService:
             ),
             name=f"open_channel_stream:{bot_id}",
         )
+
+    async def queue_message(self, bot: ChannelBot, incoming: IncomingMessage) -> None:
+        """Commit-safe admission of a normalized message before the provider is acknowledged."""
+        from app.services.channels.ingress import queue_message
+
+        await queue_message(self.db, bot, incoming)
 
     async def queue_delivery(
         self, bot: ChannelBot, payload: dict[str, JsonValue], incoming: IncomingMessage
@@ -303,7 +345,7 @@ class ChannelBotService:
                 return
             raise
 
-    async def create(self, data: ChannelBotCreate) -> ChannelBot:
+    async def create(self, data: ChannelBotCreate, ctx: AuthContext | None = None) -> ChannelBot:
         """Create a new channel bot with its credentials sealed, and open its stream.
 
         A polling bot is reached over a connection this process holds, and only
@@ -365,6 +407,7 @@ class ChannelBotService:
             step_display=data.step_display,
             rate_answers=data.rate_answers,
         )
+        await self._audit("channel_bot.created", bot, ctx)
         self._reopen_stream(bot)
         return bot
 
@@ -499,7 +542,12 @@ class ChannelBotService:
         an attachment, which is the state every Mattermost bot was in before the
         field existed.
         """
-        if platform in {"mattermost", "imessage"} and api_base_url is None:
+        if platform == "matrix" and api_base_url is not None:
+            try:
+                canonical_matrix_server(api_base_url)
+            except ValueError as exc:
+                raise refused_field("api_base_url", str(exc)) from exc
+        if platform in SELF_HOSTED and api_base_url is None:
             raise refused_field(
                 "api_base_url",
                 "A self-hosted bot cannot lose its server URL - "
@@ -512,7 +560,7 @@ class ChannelBotService:
                 raise refused_field(
                     "api_base_url", "An iMessage bridge endpoint cannot contain query or fragment"
                 )
-        if platform not in {"mattermost", "imessage"} and api_base_url is not None:
+        if platform not in SELF_HOSTED and api_base_url is not None:
             raise refused_field(
                 "api_base_url",
                 f"A server URL is for a self-hosted platform - a {platform} bot "
@@ -613,6 +661,105 @@ class ChannelBotService:
                 details={"bot_id": str(bot_id)},
             )
         return bot
+
+    async def _diagnostic_spec(self, binding: AgentExposure) -> AgentSpec | None:
+        """Inspect this organization's binding without borrowing the manager's run rights."""
+        agent = await agent_repo.get(self.db, binding.agent_id, organization_id=self._org_id)
+        if (
+            agent is None
+            or agent.status == AgentStatus.ARCHIVED.value
+            or agent.current_version_id is None
+        ):
+            return None
+        assistant = await organization_assistant_repo.for_agent(self.db, agent.id)
+        if assistant is not None and not assistant.enabled:
+            return None
+        version_id = agent.current_version_id
+        if binding.environment_id is not None:
+            environment = await agent_environment_repo.get(
+                self.db, binding.environment_id, organization_id=self._org_id
+            )
+            if environment is None or environment.agent_id != agent.id:
+                return None
+            version_id = environment.version_id
+        version = await agent_repo.get_version(self.db, version_id, organization_id=self._org_id)
+        if version is None or version.agent_id != agent.id:
+            return None
+        return AgentSpec.model_validate(version.spec)
+
+    async def diagnostics(self, bot_id: UUID, ctx: AuthContext) -> ChannelDiagnosticsRead:
+        """Inspect configuration without invoking a model or refreshing credentials."""
+        from app.repositories import channel_identity_repo, mcp_connection_repo
+
+        bot = await self.get(bot_id)
+        checks = [
+            ChannelDiagnosticCheck(code="active", status="ok" if bot.is_active else "blocked")
+        ]
+        state = None if bot.webhook_mode else await connection_state.read(bot.id)
+        missing = (
+            (bot.platform == "slack" and not bot.webhook_mode and not bot.slack_app_token_encrypted)
+            or (
+                bot.platform == "slack"
+                and bot.webhook_mode
+                and not bot.slack_signing_secret_encrypted
+            )
+            or (
+                bot.platform in {"mattermost", "telegram"}
+                and bot.webhook_mode
+                and not bot.webhook_secret_encrypted
+            )
+        )
+        checks.append(
+            ChannelDiagnosticCheck(
+                code="transport",
+                status="blocked"
+                if missing or (state is not None and state.state == "down")
+                else "unknown"
+                if bot.webhook_mode or state is None
+                else "ok",
+                detail=None if state is None else state.reason,
+            )
+        )
+        binding = await agent_exposure_repo.bound_to_bot(self.db, channel_bot_id=bot.id)
+        checks.append(
+            ChannelDiagnosticCheck(
+                code="binding",
+                status="ok" if binding is not None and binding.is_active else "blocked",
+            )
+        )
+        identities = (
+            (await channel_identity_repo.list_for_user(self.db, user_id=ctx.user_id))
+            if ctx.user_id is not None
+            else []
+        )
+        linked = any(identity.platform == bot.platform for identity in identities)
+        checks.append(ChannelDiagnosticCheck(code="identity", status="ok" if linked else "warning"))
+        if binding is not None and binding.is_active:
+            spec = await self._diagnostic_spec(binding)
+            if spec is None:
+                checks.append(ChannelDiagnosticCheck(code="published", status="blocked"))
+            else:
+                checks.append(ChannelDiagnosticCheck(code="published", status="ok"))
+                for reference in spec.mcp_servers:
+                    if reference.account != "personal":
+                        continue
+                    accounts = (
+                        (
+                            await mcp_connection_repo.list_user_scoped_by_catalog_key(
+                                self.db, user_id=ctx.user_id, catalog_key=reference.catalog_key
+                            )
+                        )
+                        if ctx.user_id is not None
+                        else []
+                    )
+                    checks.append(
+                        ChannelDiagnosticCheck(
+                            code="personal_service",
+                            status="ok" if linked and accounts else "warning",
+                            detail=reference.catalog_key,
+                        )
+                    )
+        return ChannelDiagnosticsRead(checks=checks)
 
     async def read(self, bot_id: UUID) -> ChannelBotRead:
         """One bot as its form reads it, with what "inherit" would transcribe on.
@@ -895,6 +1042,12 @@ class ChannelBotService:
             if value is not None and hasattr(value, "model_dump"):
                 update_data[field] = value.model_dump()
         updated = await channel_bot_repo.update(self.db, db_bot=bot, update_data=update_data)
+        await self._audit(
+            "channel_bot.updated",
+            updated,
+            ctx,
+            {"fields": sorted(update_data)},
+        )
         self._reopen_stream(updated)
         return updated
 
@@ -923,6 +1076,11 @@ class ChannelBotService:
         bot = await self.get(bot_id, for_update=True)
         await self._refuse_unless_mappings_removable(bot, ctx)
         platform = bot.platform
+        # Before the row goes: the audit reads the bot's name and platform, and
+        # a deleted row no longer answers for them. The entry shares the
+        # request's transaction, so a delete that fails afterwards takes it
+        # back with it.
+        await self._audit("channel_bot.deleted", bot, ctx)
         await channel_bot_repo.delete(self.db, bot_id, organization_id=self._org_id)
         # After the commit, and read out first: the row is gone by then, so the
         # platform has to be a string this coroutine already holds.
@@ -954,16 +1112,17 @@ class ChannelBotService:
                     details={"bot_id": bot.id, "role": mapping.role},
                 )
 
-    async def activate(self, bot_id: UUID) -> ChannelBot:
+    async def activate(self, bot_id: UUID, ctx: AuthContext | None = None) -> ChannelBot:
         """Set is_active = True, and open the stream it is reached over."""
         bot = await self.get(bot_id)
         activated = await channel_bot_repo.update(
             self.db, db_bot=bot, update_data={"is_active": True}
         )
+        await self._audit("channel_bot.activated", activated, ctx)
         self._reopen_stream(activated)
         return activated
 
-    async def deactivate(self, bot_id: UUID) -> ChannelBot:
+    async def deactivate(self, bot_id: UUID, ctx: AuthContext | None = None) -> ChannelBot:
         """Set is_active = False, and close the stream, so it stops now.
 
         The mirror of `activate`, and the worse of the two to get wrong: a bot
@@ -986,6 +1145,7 @@ class ChannelBotService:
         deactivated = await channel_bot_repo.update(
             self.db, db_bot=bot, update_data={"is_active": False}
         )
+        await self._audit("channel_bot.deactivated", deactivated, ctx)
         self._reopen_stream(deactivated)
         return deactivated
 
@@ -1009,7 +1169,9 @@ class ChannelBotService:
         total = await channel_session_repo.count_by_bot(self.db, bot_id)
         return items, total
 
-    async def register_webhook(self, bot_id: UUID) -> dict[str, Any]:
+    async def register_webhook(
+        self, bot_id: UUID, ctx: AuthContext | None = None
+    ) -> dict[str, Any]:
         """Register a webhook URL with the bot's platform.
 
         Looks up the bot, picks the adapter for its platform, builds the platform-specific
@@ -1027,12 +1189,14 @@ class ChannelBotService:
         success = await adapter.register_webhook(
             token, url=webhook_url, secret=unseal_webhook_secret(bot)
         )
+        await self._audit("channel_bot.webhook_registered", bot, ctx, {"webhook_url": webhook_url})
         return {"success": success, "webhook_url": webhook_url}
 
-    async def delete_webhook(self, bot_id: UUID) -> dict[str, Any]:
+    async def delete_webhook(self, bot_id: UUID, ctx: AuthContext | None = None) -> dict[str, Any]:
         """Remove the webhook from the bot's platform (switches to polling mode)."""
         bot = await self.get(bot_id)
         adapter = get_adapter(bot.platform)
         token = self.get_decrypted_token(bot)
         success = await adapter.delete_webhook(token)
+        await self._audit("channel_bot.webhook_deleted", bot, ctx)
         return {"success": success}

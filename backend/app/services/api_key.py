@@ -12,16 +12,22 @@ logged, audited or returned again; refusals name the key by its prefix at most.
 
 import hashlib
 import secrets
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import current_impersonator, record_audit
-from app.core.exceptions import AuthenticationError, InternalError, NotFoundError
+from app.core.exceptions import (
+    AuthenticationError,
+    AuthorizationError,
+    BadRequestError,
+    InternalError,
+    NotFoundError,
+)
 from app.core.field_errors import refused_field
-from app.core.permissions import AuthContext, Perm
+from app.core.permissions import DEPLOYMENT_ADMIN_SCOPE, AuthContext, Perm
 from app.db.models.api_key import ApiKey
 from app.db.models.organization import Organization
 from app.db.models.user import User
@@ -53,6 +59,12 @@ _TOUCH_EVERY = timedelta(minutes=1)
 _RUN_CREDENTIAL_LIFETIME = timedelta(hours=2)
 """Long enough for a run that waits on an approval for a while; a run parked
 longer than this asks the platform again for a fresh one when it resumes."""
+_DEFAULT_LIFETIME = timedelta(days=90)
+"""What a key created without an expiry gets. A key that lives for ever is a
+secret that never stops working when it leaks, so the default is a lifetime,
+not an absence of one."""
+_MAX_LIFETIME = timedelta(days=90)
+_EXPIRY_CLOCK_TOLERANCE = timedelta(minutes=5)
 _REFUSED = "Invalid, expired or revoked API key"
 
 # Keys never manage keys: a leaked one must not be able to mint its successors.
@@ -123,6 +135,9 @@ class KeyCaller:
     surface: ChangeSurface = "api_key"
     """Which kind of client holds the key - what a change it makes is attributed to."""
 
+    name: str = ""
+    deployment_admin_granted: bool = False
+
 
 class ApiKeyService:
     def __init__(self, db: AsyncSession) -> None:
@@ -147,8 +162,15 @@ class ApiKeyService:
             presets.append(ApiKeyPreset(id="read_only", scopes=read_only))
         if set(held) >= _KNOWLEDGE_INGEST:
             presets.append(ApiKeyPreset(id="knowledge_ingest", scopes=sorted(_KNOWLEDGE_INGEST)))
-        if held:
-            presets.append(ApiKeyPreset(id="full_access", scopes=[perm.value for perm in held]))
+        # Standing personal consent is a separate, informed opt-in, including
+        # when the person chooses the broad organization-access preset.
+        ordinary = [
+            perm.value
+            for perm in held
+            if perm not in {Perm.PERSONAL_CONSENT, Perm.MCP_PERSONAL_USE}
+        ]
+        if ordinary:
+            presets.append(ApiKeyPreset(id="full_access", scopes=ordinary))
         return ApiKeyScopeCatalog(scopes=[perm.value for perm in held], presets=presets)
 
     async def create(self, ctx: AuthContext, data: ApiKeyCreate) -> ApiKeyCreated:
@@ -164,15 +186,20 @@ class ApiKeyService:
             raise refused_field(
                 "scopes", f"You cannot grant what you do not hold: {', '.join(refused)}"
             )
+        if Perm.MCP_PERSONAL_USE in data.scopes and current_impersonator() is not None:
+            raise AuthorizationError(message="Personal MCP delegation requires your own session")
         now = datetime.now(UTC)
-        if data.expires_at is not None and data.expires_at <= now:
-            raise refused_field("expires_at", "The expiry has to be in the future")
+        if data.expires_at is not None:
+            if data.expires_at <= now:
+                raise refused_field("expires_at", "The expiry has to be in the future")
+            if data.expires_at > now + _MAX_LIFETIME + _EXPIRY_CLOCK_TOLERANCE:
+                raise refused_field("expires_at", "The expiry cannot be more than 90 days away")
         key, row = await self._mint(
             organization_id=ctx.organization_id,
             user_id=ctx.subject_id,
             name=data.name,
             scopes=sorted({perm.value for perm in data.scopes}),
-            expires_at=data.expires_at,
+            expires_at=data.expires_at if data.expires_at is not None else now + _DEFAULT_LIFETIME,
             oauth_grant_id=None,
         )
         await record_audit(
@@ -310,6 +337,69 @@ class ApiKeyService:
             await api_key_repo.update(self.db, key=_row, update_data=provenance)
         return key
 
+    async def rotate(self, ctx: AuthContext, key_id: UUID) -> ApiKeyCreated:
+        """Replace a key's secret, revoking the old one in the same transaction.
+
+        The replacement carries the same name, scopes, issuer and organization
+        as the key it replaces - the same access, under a secret nobody has
+        seen. Its expiry is the old key's when one was set, and a fresh default
+        lifetime when the old key had none. The old key stops working at once:
+        there is no overlap window, so the caller swaps to the returned secret
+        in the same step. Provenance (`source_agent_id`,
+        `source_conversation_id`) is not carried over - it names the chat that
+        minted an internal key, not authority.
+
+        The plaintext is in exactly one response, this one, like `create`.
+
+        Raises:
+            NotFoundError: Not this organization's key, or not issued by the
+                caller - the same answer as `revoke`, so an id cannot be used
+                to learn which keys exist.
+            BadRequestError: The key is internal, OAuth-grant-backed, revoked,
+                or expired.
+        """
+        key = await api_key_repo.get(self.db, key_id, organization_id=ctx.organization_id)
+        if key is None or key.user_id != ctx.subject_id:
+            raise NotFoundError(message="API key not found", details={"api_key_id": key_id})
+        if key.internal or key.oauth_grant_id is not None:
+            raise BadRequestError(message="Internal and OAuth keys cannot be rotated")
+        now = datetime.now(UTC)
+        if _status(key, now) != "active":
+            # A revoked key rotated back to life would undo the revocation -
+            # the leak it was revoked for would have a fresh secret.
+            raise BadRequestError(
+                message="Only an active key can be rotated",
+                details={"api_key_id": key_id, "status": _status(key, now)},
+            )
+        new_key, row = await self._mint(
+            organization_id=key.organization_id,
+            user_id=key.user_id,
+            name=key.name,
+            scopes=list(key.scopes),
+            expires_at=min(key.expires_at, now + _MAX_LIFETIME)
+            if key.expires_at is not None
+            else now + _DEFAULT_LIFETIME,
+            oauth_grant_id=key.oauth_grant_id,
+            internal=key.internal,
+        )
+        await api_key_repo.update(self.db, key=key, update_data={"revoked_at": now})
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            action="api_key.rotated",
+            target_type="api_key",
+            target_id=str(row.id),
+            details={
+                "name": key.name,
+                "old_prefix": key.prefix,
+                "new_prefix": row.prefix,
+            },
+        )
+        issuer = await user_repo.get_by_id(self.db, key.user_id)
+        email = issuer.email if issuer is not None else ""
+        return ApiKeyCreated(**_read(row, email, now).model_dump(), key=new_key)
+
     async def list_keys(self, ctx: AuthContext) -> ApiKeyList:
         """Every key in the organization for `api_keys:manage`, otherwise the caller's own."""
         mine_only = None if ctx.has(Perm.API_KEYS_MANAGE) else ctx.subject_id
@@ -373,17 +463,42 @@ class ApiKeyService:
         `authenticate` makes - minus the secret, which it never had - rather
         than trusting the one the request was answered under.
 
+        One check differs: a key that has merely expired still stands for work it
+        started while it was valid. Expiry bounds what a key can start; the work
+        then belongs to its issuer, so an OAuth token's hour or a run credential's
+        two hours do not cut a long run short. Revoking the key, or its OAuth
+        grant, stops the work, as does its issuer leaving.
+
         Raises:
-            AuthenticationError: The key is gone, revoked or expired, or its
-                issuer is no longer an active member of its organization.
+            AuthenticationError: The key is gone or revoked, or its issuer is no
+                longer an active member of its organization.
         """
         key = await api_key_repo.get(self.db, api_key_id, organization_id=organization_id)
         if key is None:
             raise AuthenticationError(message=_REFUSED)
-        return (await self._caller(key, datetime.now(UTC))).context
+        return (await self._caller(key, datetime.now(UTC), started_earlier=True)).context
 
-    async def _caller(self, key: ApiKey, now: datetime) -> KeyCaller:
-        if _status(key, now) != "active":
+    async def personal_mcp_context(
+        self, key_id: UUID, *, organization_id: UUID, user_id: UUID
+    ) -> AuthContext:
+        """Recheck the original credential before using delegated personal MCP.
+
+        Owner and organization come from trusted run state, never tool arguments.
+        Expiry, revocation, active membership and current role are checked anew.
+        """
+        key = await api_key_repo.get(self.db, key_id, organization_id=organization_id)
+        if key is None:
+            raise AuthenticationError(message=_REFUSED)
+        ctx = (await self._caller(key, datetime.now(UTC))).context
+        if ctx.user_id != user_id or not ctx.may_delegate_personal_mcp:
+            raise AuthorizationError(message="Personal MCP delegation is no longer authorized")
+        return ctx
+
+    async def _caller(
+        self, key: ApiKey, now: datetime, *, started_earlier: bool = False
+    ) -> KeyCaller:
+        status = _status(key, now)
+        if status == "revoked" or (status == "expired" and not started_earlier):
             raise AuthenticationError(message=_REFUSED, details={"prefix": key.prefix})
         membership = await member_repo.get_active(
             self.db, organization_id=key.organization_id, user_id=key.user_id
@@ -392,21 +507,82 @@ class ApiKeyService:
         organization = await organization_repo.get_by_id(self.db, key.organization_id)
         if membership is None or issuer is None or not issuer.is_active or organization is None:
             raise AuthenticationError(message=_REFUSED, details={"prefix": key.prefix})
+        deployment_admin_granted = bool(
+            key.oauth_grant_id is not None
+            and not key.internal
+            and DEPLOYMENT_ADMIN_SCOPE in key.scopes
+        )
         return KeyCaller(
             user=issuer,
             organization=organization,
             api_key_id=key.id,
             prefix=key.prefix,
+            name=key.name,
             surface="mcp" if key.oauth_grant_id else "assistant" if key.internal else "api_key",
+            deployment_admin_granted=deployment_admin_granted,
             context=AuthContext(
                 user_id=key.user_id,
                 organization_id=key.organization_id,
                 role=membership.role,
+                is_app_admin=bool(issuer.is_app_admin and deployment_admin_granted),
                 api_key_id=key.id,
                 key_scopes=frozenset(Perm(scope) for scope in key.scopes if scope in Perm),
+                key_internal=key.internal,
                 source_conversation_id=key.source_conversation_id if key.internal else None,
             ),
         )
+
+
+#: What a job's row says when the API key it was started with no longer stands.
+KEY_GONE = "The API key that started this was revoked or no longer exists, so it was stopped."
+
+
+async def job_context(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    user_id: UUID | None,
+    api_key_id: UUID | None,
+) -> AuthContext | None:
+    """The authority background work runs with, rebuilt when the work starts.
+
+    Work queued by a request runs later, under a context it rebuilds rather
+    than the request's: whoever started it may have lost their role, and a key
+    it was started with may have been narrowed or revoked. So it is the
+    starter's role as it is now, narrowed to the key's scopes as they are now
+    - a job does no more than the request that started it could do today. A
+    job is not the starter talking, so it reads and writes none of their
+    personal memory.
+
+    Returns:
+        The context, or `None` when the starter is no longer an active member.
+
+    Raises:
+        AuthenticationError: Started with a key that is now revoked, gone or in
+            another organization, with :data:`KEY_GONE` as the message the job's
+            row shows. A key that has only expired still stands for the job.
+    """
+    if api_key_id is not None:
+        try:
+            ctx = await ApiKeyService(db).context_for_key(
+                api_key_id, organization_id=organization_id
+            )
+        except AuthenticationError:
+            raise AuthenticationError(message=KEY_GONE) from None
+        return replace(ctx, subject_is_publisher_fallback=True)
+    membership = (
+        None
+        if user_id is None
+        else await member_repo.get_active(db, organization_id=organization_id, user_id=user_id)
+    )
+    if user_id is None or membership is None:
+        return None
+    return AuthContext(
+        user_id=user_id,
+        organization_id=organization_id,
+        role=membership.role,
+        subject_is_publisher_fallback=True,
+    )
 
 
 async def mint_for_run(

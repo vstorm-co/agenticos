@@ -58,6 +58,19 @@ PATH = "app.services.artifact"
 
 
 @pytest.fixture(autouse=True)
+def _organization_attribution(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Public viewers read their organization's current footer preference."""
+    from app.db.models.organization import Organization
+
+    monkeypatch.setattr(
+        f"{PATH}.organization_repo.get_by_id",
+        AsyncMock(
+            return_value=Organization(public_agenticos_attribution=True, public_live_data=False)
+        ),
+    )
+
+
+@pytest.fixture(autouse=True)
 def _shared_with_no_group(monkeypatch: pytest.MonkeyPatch) -> None:
     """The listing names each page's groups; the session here is a mock."""
 
@@ -75,6 +88,8 @@ def _nobody_follows(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setattr(artifact_repo, "is_following", AsyncMock(return_value=False))
     monkeypatch.setattr(artifact_repo, "follower_ids", AsyncMock(return_value=[]))
+    monkeypatch.setattr(artifact_repo, "is_favourite", AsyncMock(return_value=False))
+    monkeypatch.setattr(artifact_repo, "favourite_ids", AsyncMock(return_value=set()))
 
 
 def _ctx(role: str = OrgRoleName.OWNER, *, org_id: uuid.UUID | None = None) -> AuthContext:
@@ -505,6 +520,64 @@ class TestListing:
         assert listing.await_args.kwargs["shared_ids"] == [artifact.id]
         assert result.items[0].current_version is not None
 
+    async def test_favourites_filter_is_scoped_to_the_reader(self) -> None:
+        reader = _ctx()
+        artifact = _artifact(reader)
+        with (
+            patch(f"{PATH}.visible_resource_ids", new=AsyncMock(return_value=None)),
+            patch(
+                f"{PATH}.artifact_repo.list_visible",
+                new=AsyncMock(return_value=([artifact], 1)),
+            ) as listing,
+            patch(f"{PATH}.artifact_repo.latest_versions", new=AsyncMock(return_value={})),
+            patch(f"{PATH}.artifact_repo.favourite_ids", new=AsyncMock(return_value={artifact.id})),
+        ):
+            result = await _service().list_readable(reader, favourites=True)
+
+        assert listing.await_args.kwargs["favourites_for"] == reader.user_id
+        assert result.items[0].is_favourite is True
+
+    async def test_favourite_flag_is_read_for_each_user(self) -> None:
+        first, second = _ctx(), _ctx()
+        artifact = _artifact(first)
+
+        async def favourites(_db: object, *, user_id: uuid.UUID, artifact_ids: list[uuid.UUID]):
+            return {artifact.id} if user_id == first.user_id else set()
+
+        with (
+            patch(f"{PATH}.visible_resource_ids", new=AsyncMock(return_value=None)),
+            patch(
+                f"{PATH}.artifact_repo.list_visible",
+                new=AsyncMock(return_value=([artifact], 1)),
+            ),
+            patch(f"{PATH}.artifact_repo.latest_versions", new=AsyncMock(return_value={})),
+            patch(f"{PATH}.artifact_repo.favourite_ids", new=favourites),
+        ):
+            first_list = await _service().list_readable(first)
+            second_list = await _service().list_readable(second)
+
+        assert first_list.items[0].is_favourite is True
+        assert second_list.items[0].is_favourite is False
+
+
+class TestFavourites:
+    async def test_favourite_uses_the_readable_artifact_and_returns_its_updated_read(self) -> None:
+        ctx = _ctx()
+        artifact = _artifact(ctx)
+        result = MagicMock()
+        service = _service()
+        with (
+            patch.object(service, "get", new=AsyncMock(return_value=artifact)),
+            patch(f"{PATH}.artifact_repo.set_favourite", new=AsyncMock()) as set_favourite,
+            patch.object(service, "read", new=AsyncMock(return_value=result)),
+        ):
+            actual = await service.set_favourite(ctx, artifact.id, favourite=True)
+
+        assert actual is result
+        set_favourite.assert_awaited_once_with(
+            service.db, user_id=ctx.user_id, artifact_id=artifact.id, favourite=True
+        )
+
     async def test_versions_are_listed_newest_first(self) -> None:
         ctx = _ctx()
         artifact = _artifact(ctx)
@@ -577,7 +650,9 @@ class TestDelete:
         with (
             patch(f"{PATH}.artifact_repo.get", new=AsyncMock(return_value=artifact)),
             patch(f"{PATH}.resolve_access", new=AsyncMock(return_value=True)),
+            patch(f"{PATH}.hold_subject", new=AsyncMock()),
             patch(f"{PATH}.resource_grant_repo.delete_for_resource", new=AsyncMock()) as grants,
+            patch(f"{PATH}.artifact_repo.lock_for_delete", new=AsyncMock()),
             patch(f"{PATH}.artifact_repo.delete_artifact", new=AsyncMock()) as delete,
             patch(f"{PATH}.record_audit", new=AsyncMock()),
             patch(f"{PATH}.spawn_after_commit") as after_commit,
@@ -587,6 +662,24 @@ class TestDelete:
         delete.assert_awaited_once()
         after_commit.call_args.args[1].close()
         assert after_commit.call_args.kwargs["name"] == "artifact-delete"
+
+    async def test_unrelated_database_errors_in_the_lock_phase_remain_errors(self) -> None:
+        ctx = _ctx()
+        artifact = _artifact(ctx)
+        failure = DBAPIError("lock", {}, RuntimeError("broken connection"))
+        with (
+            patch(f"{PATH}.artifact_repo.get", new=AsyncMock(return_value=artifact)),
+            patch(f"{PATH}.resolve_access", new=AsyncMock(return_value=True)),
+            patch(f"{PATH}.hold_subject", new=AsyncMock()),
+            patch(f"{PATH}.artifact_repo.lock_for_delete", new=AsyncMock(side_effect=failure)),
+            patch(f"{PATH}.artifact_repo.delete_artifact", new=AsyncMock()) as delete,
+            patch(f"{PATH}.spawn_after_commit") as cleanup,
+            pytest.raises(DBAPIError) as raised,
+        ):
+            await _service().delete(ctx, artifact.id)
+        assert raised.value is failure
+        delete.assert_not_awaited()
+        cleanup.assert_not_called()
 
 
 class TestView:
@@ -790,7 +883,13 @@ class TestPublicView:
             public = await _service().public_view("k")
         assert public.title == "Weekly report"
         assert public.password_required is False
-        assert set(public.model_dump()) == {"password_required", "title", "published_at", "view"}
+        assert set(public.model_dump()) == {
+            "password_required",
+            "title",
+            "published_at",
+            "view",
+            "show_agenticos_attribution",
+        }
         assert counted.await_args.args[1] == artifact.id
 
     @pytest.mark.security
@@ -804,7 +903,11 @@ class TestPublicView:
             patch(f"{PATH}.artifact_repo.count_public_view", new=AsyncMock()),
             patch(
                 f"{PATH}.organization_repo.get_by_id",
-                new=AsyncMock(return_value=MagicMock(public_live_data=False)),
+                new=AsyncMock(
+                    return_value=MagicMock(
+                        public_live_data=False, public_agenticos_attribution=True
+                    )
+                ),
             ),
             patch(f"{PATH}.owner_membership_id", new=AsyncMock(return_value=None)),
         ):

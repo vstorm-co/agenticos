@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from app.agents.spec import AgentSpec
 from app.core.exceptions import AuthorizationError
 from app.core.permissions import AuthContext, OrgRoleName
-from app.db.models.agent import Agent
+from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_run import AgentRun
 from app.db.models.agent_trigger import AgentTrigger
 from app.db.models.organization import Organization, OrganizationMember
@@ -120,11 +120,33 @@ async def _world(db: AsyncSession) -> World:
         "agent",
     ],
 )
+@pytest.mark.parametrize("mode", ["follow_agent", "restricted"])
 async def test_current_authority_can_revoke_a_previously_admitted_tool(
     db: AsyncSession,
     change: str,
+    mode: str,
 ) -> None:
     world = await _world(db)
+    if mode == "follow_agent":
+        from app.services.routine_sources import RoutineSourceService
+
+        version = AgentVersion(
+            id=world.trigger.approved_sources["version_id"],
+            agent_id=world.agent.id,
+            organization_id=world.organization.id,
+            version=1,
+            spec=AgentSpec(name="Monitor").model_dump(mode="json"),
+        )
+        db.add(version)
+        await db.flush()
+        world.agent.current_version_id = version.id
+        world.agent.status = "published"
+        policy = await RoutineSourceService(db).initial(
+            world.ctx, world.trigger, mode="follow_agent"
+        )
+        world.trigger.approved_sources = policy.model_dump(mode="json")
+        world.ctx = replace(world.ctx, routine_source_policy_id=policy.id)
+    await db.flush()
     authority = await RoutineAuthority.capture(db, world.ctx, agent_id=world.agent.id, run=None)
     assert authority is not None
     await authority.check_in(db, world.delegate.id)
@@ -243,6 +265,53 @@ async def test_nonpersonal_routines_and_runs_with_no_routine_keep_their_contract
     assert resumed is not None and not resumed.acts_as_creator
     run.routine_origin_id = None
     assert await RoutineAuthority.capture(db, world.ctx, agent_id=world.agent.id, run=run) is None
+
+
+@pytest.mark.parametrize("recorded", [None, False])
+async def test_a_nonpersonal_schedule_resumes_without_borrowing_creator_authority(
+    db: AsyncSession, recorded: bool | None
+) -> None:
+    world = await _world(db)
+    world.trigger.runs_as_creator = False
+    reviewed_sources(world.trigger, spec=AgentSpec(name="Monitor"), version_id=uuid4())
+    await db.flush()
+    policy = {"approved_sources": world.trigger.approved_sources}
+    if recorded is not None:
+        policy["acts_as_creator"] = recorded
+    run = AgentRun(
+        agent_id=world.agent.id,
+        organization_id=world.organization.id,
+        routine_origin_id=world.trigger.id,
+        user_id=world.user.id,
+        initiated_by_publisher_fallback=False,
+        routine_kind="trigger",
+        routine_policy=policy,
+    )
+    approver = replace(world.ctx, user_id=world.owner.id, role="owner", routine_id=None)
+    resumed = await RoutineAuthority.capture(db, approver, agent_id=world.agent.id, run=run)
+    assert resumed is not None and not resumed.acts_as_creator
+    assert resumed.user_id == world.user.id
+    world.trigger.runs_as_creator = True
+    await db.flush()
+    with pytest.raises(AuthorizationError):
+        await RoutineAuthority.capture(db, approver, agent_id=world.agent.id, run=run)
+
+
+async def test_an_invalid_recorded_routine_actor_is_refused(db: AsyncSession) -> None:
+    world = await _world(db)
+    run = AgentRun(
+        agent_id=world.agent.id,
+        organization_id=world.organization.id,
+        routine_origin_id=world.trigger.id,
+        user_id=world.user.id,
+        routine_kind="trigger",
+        routine_policy={
+            "approved_sources": world.trigger.approved_sources,
+            "acts_as_creator": "false",
+        },
+    )
+    with pytest.raises(AuthorizationError):
+        await RoutineAuthority.capture(db, world.ctx, agent_id=world.agent.id, run=run)
 
 
 async def test_each_tool_checks_current_committed_state_in_a_fresh_session(

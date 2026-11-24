@@ -3,7 +3,7 @@
 import { useEffect, useRef, type FocusEvent, type KeyboardEvent } from "react";
 
 import { RecordCellEditor } from "./record-cell-editor";
-import type { CellValue, ColumnDef, LinkedRecord } from "@/types/tables";
+import type { CellValue, ColumnDef, LinkedRecord, RecordLinkChange } from "@/types/tables";
 
 // A select's list, a popover: rendered in a portal, but still this cell's own.
 const POPUP = '[data-radix-popper-content-wrapper], [role="listbox"], [role="dialog"]';
@@ -29,7 +29,7 @@ export function InlineCell({
   value: CellValue;
   /** A link column's records, named as the record was read. */
   links?: LinkedRecord[];
-  onCommit: (value: CellValue) => void;
+  onCommit: (value: CellValue, linkChange?: RecordLinkChange) => void;
   onDone: () => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -39,9 +39,10 @@ export function InlineCell({
     ref.current?.querySelector<HTMLElement>("input, textarea, button")?.focus();
   }, []);
 
-  const change = (next: CellValue) => {
+  const change = (next: CellValue, linkChange?: RecordLinkChange) => {
     if (cancelled.current) return;
-    onCommit(next);
+    if (linkChange) onCommit(next, linkChange);
+    else onCommit(next);
     if (
       column.type === "single_select" ||
       column.type === "user" ||

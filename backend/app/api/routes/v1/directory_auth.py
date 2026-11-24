@@ -8,6 +8,7 @@ outside (#1773).
 import base64
 import logging
 from typing import Any
+from urllib.parse import urlencode
 
 from fastapi import APIRouter, Request
 from fastapi.responses import RedirectResponse
@@ -26,9 +27,11 @@ from app.api.routes.v1._directory_handoff import (
     negotiate_token,
     return_url,
 )
+from app.core.config import settings
 from app.core.exceptions import AppException
-from app.core.security import create_access_token, create_refresh_token
+from app.core.security import create_access_token, create_mfa_token, create_refresh_token
 from app.schemas.directory import DirectoryLogin
+from app.schemas.mfa import MfaRequired
 from app.schemas.token import Token
 
 logger = logging.getLogger(__name__)
@@ -36,7 +39,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-@router.post("/ldap/login", response_model=Token)
+@router.post("/ldap/login", response_model=Token | MfaRequired)
 async def ldap_login(
     request: Request,
     body: DirectoryLogin,
@@ -50,6 +53,9 @@ async def ldap_login(
     policy, and the person's memberships are reconciled with the directory group
     mappings on every one. Rate-limited per address and per username, like the
     password login beside it.
+
+    An account with a second factor enabled stops at the challenge, as the
+    password login does - the directory checked the password, not the factor.
     """
     await enforce_auth_limit(request, surface="auth_ldap_login", identifier=body.username)
     invitation_token = (
@@ -58,6 +64,12 @@ async def ldap_login(
     user = await sign_in.sign_in_with_password(
         body.username, body.password, invitation_token=invitation_token
     )
+    if user.totp_enabled:
+        return MfaRequired(
+            mfa_token=create_mfa_token(
+                subject=str(user.id), credential_version=user.credential_version
+            )
+        )
     refresh_token = create_refresh_token(
         subject=str(user.id), credential_version=user.credential_version
     )
@@ -67,7 +79,9 @@ async def ldap_login(
         ip_address=request.client.host if request.client else None,
         user_agent=request.headers.get("User-Agent"),
     )
-    access_token = create_access_token(subject=str(user.id), sid=str(session.id))
+    access_token = create_access_token(
+        subject=str(user.id), sid=str(session.id), auth_time=int(session.created_at.timestamp())
+    )
     return Token(access_token=access_token, refresh_token=refresh_token)
 
 
@@ -99,6 +113,17 @@ async def kerberos_login(
         user, response_token = await sign_in.sign_in_with_ticket(
             token, invitation_token=invitation_token
         )
+        if user.totp_enabled:
+            mfa_token = create_mfa_token(
+                subject=str(user.id), credential_version=user.credential_version
+            )
+            callback = f"{settings.FRONTEND_URL.rstrip('/')}/auth/callback"
+            response = RedirectResponse(url=f"{callback}#{urlencode({'mfa_token': mfa_token})}")
+            if response_token:
+                response.headers["WWW-Authenticate"] = (
+                    f"Negotiate {base64.b64encode(response_token).decode('ascii')}"
+                )
+            return response
         code = await issue_sign_in_code(
             request, user, exchange_service=exchange_service, session_service=session_service
         )

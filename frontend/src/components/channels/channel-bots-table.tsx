@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo } from "react";
-import { Pause, Pencil, Play, Trash2, Users } from "lucide-react";
+import { useMemo, useState, type ReactNode } from "react";
+import { Pause, Pencil, Play, Trash2, Users, Stethoscope } from "lucide-react";
 
+import { ChannelDiagnosticsDialog } from "./channel-diagnostics-dialog";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { ChannelPlatformIcon } from "@/components/channels/channel-platform-icon";
 import { Badge, Button, DataTable, type Column } from "@/components/ui";
@@ -23,11 +24,14 @@ const PLATFORM_LABEL: Record<ChannelPlatform, string> = {
   imessage: "iMessage",
 
   discord: "Discord",
+  matrix: "Matrix",
 };
 
 interface ChannelBotsTableProps {
   bots: readonly ChannelBot[];
   busy: boolean;
+  loading?: boolean;
+  empty?: ReactNode;
   onEdit: (bot: ChannelBot) => void;
   onToggleActive: (bot: ChannelBot) => void;
   onDelete: (bot: ChannelBot) => void;
@@ -89,6 +93,8 @@ function paused(bot: ChannelBot): string | false {
 export function ChannelBotsTable({
   bots,
   busy,
+  loading = false,
+  empty,
   onEdit,
   onToggleActive,
   onDelete,
@@ -96,6 +102,7 @@ export function ChannelBotsTable({
 }: ChannelBotsTableProps) {
   const t = useTranslations("pages.channels");
 
+  const [diagnosticBot, setDiagnosticBot] = useState<ChannelBot | null>(null);
   const rows = useMemo(() => [...bots], [bots]);
 
   const columns = useMemo<Column<ChannelBot>[]>(
@@ -174,9 +181,19 @@ export function ChannelBotsTable({
         key: "actions",
         header: t("columnActions"),
         align: "right",
-        className: "w-40 pr-5",
+        className: "w-40 pr-5 @max-md/table:text-left",
         cell: (bot) => (
-          <div className={cn("flex justify-end gap-1", paused(bot))}>
+          <div className={cn("flex justify-end gap-1 @max-md/table:justify-start", paused(bot))}>
+            <Button
+              variant="ghost"
+              size="icon"
+              disabled={busy}
+              data-tour="channels-diagnostics"
+              aria-label={t("diagnostics.open", { bot: bot.name })}
+              onClick={() => setDiagnosticBot(bot)}
+            >
+              <Stethoscope className="h-4 w-4" />
+            </Button>
             <Button
               variant="ghost"
               size="icon"
@@ -226,11 +243,22 @@ export function ChannelBotsTable({
   );
 
   return (
-    <DataTable
-      columns={columns}
-      rows={rows}
-      getRowKey={(bot) => bot.id}
-      className="rounded-none border-0 bg-transparent"
-    />
+    <>
+      {diagnosticBot && (
+        <ChannelDiagnosticsDialog bot={diagnosticBot} onClose={() => setDiagnosticBot(null)} />
+      )}
+      <DataTable
+        clientPagination
+        empty={empty}
+        fillHeight
+        columns={columns}
+        rows={rows}
+        loading={loading}
+        skeletonRows={3}
+        stackOnNarrow
+        getRowKey={(bot) => bot.id}
+        className="rounded-none border-0 bg-transparent"
+      />
+    </>
   );
 }

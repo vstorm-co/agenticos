@@ -1,0 +1,1275 @@
+{
+  "schema_version": 1,
+  "pack_id": "anthropic-financial-services",
+  "title": "Anthropic financial-services templates for t3OS",
+  "scope": "Reusable t3OS agent-template and skill-gallery content; no client-specific branding or deployment claim.",
+  "source": {
+    "repository": "anthropics/financial-services",
+    "commit": "60565064557ca77b12f62aa7877f365d111c129d",
+    "commit_date_utc": "2026-10-28T17:23:23Z",
+    "license": "Apache-2.0",
+    "license_path": "LICENSE",
+    "notice_files": [],
+    "announcement_url": "https://www.anthropic.com/news/finance-agents",
+    "release_date": "2026-05-05",
+    "deduplication": {
+      "original_skill_copies": 51,
+      "unique_skill_names": 31,
+      "method": "Every upstream SKILL.md copy with the same name had an identical Git blob SHA at the pinned commit; all source copies are listed for each skill."
+    }
+  },
+  "adapted_date": "2026-11-10",
+  "counts": {
+    "templates": 10,
+    "unique_skills": 31,
+    "template_skill_bindings": 51,
+    "reference_resources": 15
+  },
+  "templates": [
+    {
+      "template_key": "finance/anthropic-month-end-closer",
+      "name": "Anthropic Month-End Closer",
+      "group": "accounting-operations",
+      "source_repository": "anthropics/financial-services",
+      "source_commit": "60565064557ca77b12f62aa7877f365d111c129d",
+      "source_path": "plugins/agent-plugins/month-end-closer/agents/month-end-closer.md",
+      "source_blob_sha": "e24db8ca74ddb09bc85271f0beeeb68c21a033ec",
+      "skill_keys": [
+        "finance/anthropic-fs-accrual-schedule",
+        "finance/anthropic-fs-audit-xls",
+        "finance/anthropic-fs-roll-forward",
+        "finance/anthropic-fs-variance-commentary",
+        "finance/anthropic-fs-xlsx-author"
+      ],
+      "capabilities": [
+        "ask_user",
+        "drafts",
+        "knowledge",
+        "skills",
+        "code_execution",
+        "planning",
+        "clock"
+      ],
+      "attach": [
+        "collection",
+        "sandbox"
+      ],
+      "adaptations": [
+        "t3OS AGENT.md frontmatter and capability IDs",
+        "namespaced deduplicated gallery skills",
+        "sequential phases rather than unprovisioned subagents",
+        "operator-configured source and sandbox bindings",
+        "engagement and evidence requirements",
+        "drafts and professional review only"
+      ],
+      "scope_note": "Prepare period-end accruals, roll-forwards, variance commentary, and a close package for controller review."
+    },
+    {
+      "template_key": "finance/anthropic-gl-reconciler",
+      "name": "Anthropic GL Reconciler",
+      "group": "accounting-operations",
+      "source_repository": "anthropics/financial-services",
+      "source_commit": "60565064557ca77b12f62aa7877f365d111c129d",
+      "source_path": "plugins/agent-plugins/gl-reconciler/agents/gl-reconciler.md",
+      "source_blob_sha": "5317f06cd359a3487b80cf542739883e1e162d3d",
+      "skill_keys": [
+        "finance/anthropic-fs-audit-xls",
+        "finance/anthropic-fs-break-trace",
+        "finance/anthropic-fs-gl-recon",
+        "finance/anthropic-fs-xlsx-author"
+      ],
+      "capabilities": [
+        "ask_user",
+        "drafts",
+        "knowledge",
+        "skills",
+        "code_execution",
+        "planning",
+        "clock"
+      ],
+      "attach": [
+        "collection",
+        "sandbox"
+      ],
+      "adaptations": [
+        "t3OS AGENT.md frontmatter and capability IDs",
+        "namespaced deduplicated gallery skills",
+        "sequential phases rather than unprovisioned subagents",
+        "operator-configured source and sandbox bindings",
+        "engagement and evidence requirements",
+        "drafts and professional review only"
+      ],
+      "scope_note": "Reconcile GL and subledger records, investigate evidenced breaks, and stage an exception report for controller review."
+    },
+    {
+      "template_key": "finance/anthropic-statement-auditor",
+      "name": "Anthropic Statement Auditor (LP Statements)",
+      "group": "fund-accounting",
+      "source_repository": "anthropics/financial-services",
+      "source_commit": "60565064557ca77b12f62aa7877f365d111c129d",
+      "source_path": "plugins/agent-plugins/statement-auditor/agents/statement-auditor.md",
+      "source_blob_sha": "50f398b1fde28fa5858950511e178208d239e424",
+      "skill_keys": [
+        "finance/anthropic-fs-audit-xls",
+        "finance/anthropic-fs-nav-tieout",
+        "finance/anthropic-fs-xlsx-author"
+      ],
+      "capabilities": [
+        "ask_user",
+        "drafts",
+        "knowledge",
+        "skills",
+        "code_execution",
+        "planning",
+        "clock"
+      ],
+      "attach": [
+        "collection",
+        "sandbox"
+      ],
+      "adaptations": [
+        "t3OS AGENT.md frontmatter and capability IDs",
+        "namespaced deduplicated gallery skills",
+        "sequential phases rather than unprovisioned subagents",
+        "operator-configured source and sandbox bindings",
+        "engagement and evidence requirements",
+        "drafts and professional review only"
+      ],
+      "scope_note": "LP capital-account statements against a trusted fund NAV pack; not general statutory audit"
+    },
+    {
+      "template_key": "finance/anthropic-kyc-screener",
+      "name": "Anthropic KYC Screener",
+      "group": "client-onboarding",
+      "source_repository": "anthropics/financial-services",
+      "source_commit": "60565064557ca77b12f62aa7877f365d111c129d",
+      "source_path": "plugins/agent-plugins/kyc-screener/agents/kyc-screener.md",
+      "source_blob_sha": "f79cb4800b81de51506098920c5227db344bda1f",
+      "skill_keys": [
+        "finance/anthropic-fs-kyc-doc-parse",
+        "finance/anthropic-fs-kyc-rules",
+        "finance/anthropic-fs-xlsx-author"
+      ],
+      "capabilities": [
+        "ask_user",
+        "drafts",
+        "knowledge",
+        "skills",
+        "code_execution",
+        "planning",
+        "clock"
+      ],
+      "attach": [
+        "collection",
+        "sandbox"
+      ],
+      "adaptations": [
+        "t3OS AGENT.md frontmatter and capability IDs",
+        "namespaced deduplicated gallery skills",
+        "sequential phases rather than unprovisioned subagents",
+        "operator-configured source and sandbox bindings",
+        "engagement and evidence requirements",
+        "drafts and professional review only"
+      ],
+      "scope_note": "Extract an onboarding packet, apply approved firm rules, and assemble evidenced screening exceptions for compliance review."
+    },
+    {
+      "template_key": "finance/anthropic-valuation-reviewer",
+      "name": "Anthropic Valuation Reviewer",
+      "group": "fund-accounting",
+      "source_repository": "anthropics/financial-services",
+      "source_commit": "60565064557ca77b12f62aa7877f365d111c129d",
+      "source_path": "plugins/agent-plugins/valuation-reviewer/agents/valuation-reviewer.md",
+      "source_blob_sha": "ed306e55bda691c8c814e6c075e95934aa1d908d",
+      "skill_keys": [
+        "finance/anthropic-fs-ic-memo",
+        "finance/anthropic-fs-portfolio-monitoring",
+        "finance/anthropic-fs-returns-analysis",
+        "finance/anthropic-fs-xlsx-author"
+      ],
+      "capabilities": [
+        "ask_user",
+        "drafts",
+        "knowledge",
+        "skills",
+        "code_execution",
+        "planning",
+        "clock",
+        "web_research"
+      ],
+      "attach": [
+        "collection",
+        "sandbox"
+      ],
+      "adaptations": [
+        "t3OS AGENT.md frontmatter and capability IDs",
+        "namespaced deduplicated gallery skills",
+        "sequential phases rather than unprovisioned subagents",
+        "operator-configured source and sandbox bindings",
+        "engagement and evidence requirements",
+        "drafts and professional review only"
+      ],
+      "scope_note": "Review GP valuation packages, fund policy, NAV and allocation calculations, and draft LP reporting for authorized review."
+    },
+    {
+      "template_key": "finance/anthropic-meeting-prep-agent",
+      "name": "Anthropic Meeting Prep Agent",
+      "group": "client-advisory",
+      "source_repository": "anthropics/financial-services",
+      "source_commit": "60565064557ca77b12f62aa7877f365d111c129d",
+      "source_path": "plugins/agent-plugins/meeting-prep-agent/agents/meeting-prep-agent.md",
+      "source_blob_sha": "0ee13472ea4b8d30b2ad926ff19945063a4d188c",
+      "skill_keys": [
+        "finance/anthropic-fs-client-report",
+        "finance/anthropic-fs-client-review",
+        "finance/anthropic-fs-investment-proposal",
+        "finance/anthropic-fs-pptx-author"
+      ],
+      "capabilities": [
+        "ask_user",
+        "drafts",
+        "knowledge",
+        "skills",
+        "code_execution",
+        "planning",
+        "clock",
+        "web_research"
+      ],
+      "attach": [
+        "collection",
+        "sandbox"
+      ],
+      "adaptations": [
+        "t3OS AGENT.md frontmatter and capability IDs",
+        "namespaced deduplicated gallery skills",
+        "sequential phases rather than unprovisioned subagents",
+        "operator-configured source and sandbox bindings",
+        "engagement and evidence requirements",
+        "drafts and professional review only"
+      ],
+      "scope_note": "Draft a private advisor briefing with relationship context, portfolio activity, relevant events, and a proposed meeting agenda."
+    },
+    {
+      "template_key": "finance/anthropic-earnings-reviewer",
+      "name": "Anthropic Earnings Reviewer",
+      "group": "research-modeling",
+      "source_repository": "anthropics/financial-services",
+      "source_commit": "60565064557ca77b12f62aa7877f365d111c129d",
+      "source_path": "plugins/agent-plugins/earnings-reviewer/agents/earnings-reviewer.md",
+      "source_blob_sha": "474e1e9464dfc94e40c2eb4631eb38490440ef1f",
+      "skill_keys": [
+        "finance/anthropic-fs-audit-xls",
+        "finance/anthropic-fs-earnings-analysis",
+        "finance/anthropic-fs-earnings-preview",
+        "finance/anthropic-fs-model-update",
+        "finance/anthropic-fs-morning-note",
+        "finance/anthropic-fs-xlsx-author"
+      ],
+      "capabilities": [
+        "ask_user",
+        "drafts",
+        "knowledge",
+        "skills",
+        "code_execution",
+        "planning",
+        "clock",
+        "web_research"
+      ],
+      "attach": [
+        "collection",
+        "sandbox"
+      ],
+      "adaptations": [
+        "t3OS AGENT.md frontmatter and capability IDs",
+        "namespaced deduplicated gallery skills",
+        "sequential phases rather than unprovisioned subagents",
+        "operator-configured source and sandbox bindings",
+        "engagement and evidence requirements",
+        "drafts and professional review only"
+      ],
+      "scope_note": "Review a reporting event, update a coverage model with sourced actuals, and draft an earnings note for analyst review."
+    },
+    {
+      "template_key": "finance/anthropic-model-builder",
+      "name": "Anthropic Model Builder",
+      "group": "research-modeling",
+      "source_repository": "anthropics/financial-services",
+      "source_commit": "60565064557ca77b12f62aa7877f365d111c129d",
+      "source_path": "plugins/agent-plugins/model-builder/agents/model-builder.md",
+      "source_blob_sha": "a5927e52436452eb54bf060609acbc764b3565fa",
+      "skill_keys": [
+        "finance/anthropic-fs-3-statement-model",
+        "finance/anthropic-fs-audit-xls",
+        "finance/anthropic-fs-comps-analysis",
+        "finance/anthropic-fs-dcf-model",
+        "finance/anthropic-fs-lbo-model",
+        "finance/anthropic-fs-xlsx-author"
+      ],
+      "capabilities": [
+        "ask_user",
+        "drafts",
+        "knowledge",
+        "skills",
+        "code_execution",
+        "planning",
+        "clock",
+        "web_research"
+      ],
+      "attach": [
+        "collection",
+        "sandbox"
+      ],
+      "adaptations": [
+        "t3OS AGENT.md frontmatter and capability IDs",
+        "namespaced deduplicated gallery skills",
+        "sequential phases rather than unprovisioned subagents",
+        "operator-configured source and sandbox bindings",
+        "engagement and evidence requirements",
+        "drafts and professional review only"
+      ],
+      "scope_note": "Build or populate DCF, LBO, integrated financial-statement, and comparable-company models with sourced inputs and explicit checks."
+    },
+    {
+      "template_key": "finance/anthropic-market-researcher",
+      "name": "Anthropic Market Researcher",
+      "group": "research-modeling",
+      "source_repository": "anthropics/financial-services",
+      "source_commit": "60565064557ca77b12f62aa7877f365d111c129d",
+      "source_path": "plugins/agent-plugins/market-researcher/agents/market-researcher.md",
+      "source_blob_sha": "3f6f83f5a8a9674397c0c5d17cb1a27d5672511b",
+      "skill_keys": [
+        "finance/anthropic-fs-competitive-analysis",
+        "finance/anthropic-fs-comps-analysis",
+        "finance/anthropic-fs-idea-generation",
+        "finance/anthropic-fs-pptx-author",
+        "finance/anthropic-fs-sector-overview"
+      ],
+      "capabilities": [
+        "ask_user",
+        "drafts",
+        "knowledge",
+        "skills",
+        "code_execution",
+        "planning",
+        "clock",
+        "web_research"
+      ],
+      "attach": [
+        "collection",
+        "sandbox"
+      ],
+      "adaptations": [
+        "t3OS AGENT.md frontmatter and capability IDs",
+        "namespaced deduplicated gallery skills",
+        "sequential phases rather than unprovisioned subagents",
+        "operator-configured source and sandbox bindings",
+        "engagement and evidence requirements",
+        "drafts and professional review only"
+      ],
+      "scope_note": "Draft a sourced sector or thematic primer, competitive landscape, peer comparison, and research shortlist for analyst review."
+    },
+    {
+      "template_key": "finance/anthropic-pitch-agent",
+      "name": "Anthropic Pitch Agent",
+      "group": "research-modeling",
+      "source_repository": "anthropics/financial-services",
+      "source_commit": "60565064557ca77b12f62aa7877f365d111c129d",
+      "source_path": "plugins/agent-plugins/pitch-agent/agents/pitch-agent.md",
+      "source_blob_sha": "ca06b91a7c51122d21e6bedf9d3b935a52ced539",
+      "skill_keys": [
+        "finance/anthropic-fs-3-statement-model",
+        "finance/anthropic-fs-audit-xls",
+        "finance/anthropic-fs-comps-analysis",
+        "finance/anthropic-fs-dcf-model",
+        "finance/anthropic-fs-deck-refresh",
+        "finance/anthropic-fs-ib-check-deck",
+        "finance/anthropic-fs-lbo-model",
+        "finance/anthropic-fs-pitch-deck",
+        "finance/anthropic-fs-pptx-author",
+        "finance/anthropic-fs-sector-overview",
+        "finance/anthropic-fs-xlsx-author"
+      ],
+      "capabilities": [
+        "ask_user",
+        "drafts",
+        "knowledge",
+        "skills",
+        "code_execution",
+        "planning",
+        "clock",
+        "web_research"
+      ],
+      "attach": [
+        "collection",
+        "sandbox"
+      ],
+      "adaptations": [
+        "t3OS AGENT.md frontmatter and capability IDs",
+        "namespaced deduplicated gallery skills",
+        "sequential phases rather than unprovisioned subagents",
+        "operator-configured source and sandbox bindings",
+        "engagement and evidence requirements",
+        "drafts and professional review only"
+      ],
+      "scope_note": "Draft an investment-banking pitch with sourced valuation models, comparable transactions, and a template-based deck for banker review."
+    }
+  ],
+  "skills": [
+    {
+      "skill_key": "finance/anthropic-fs-audit-xls",
+      "name": "anthropic-fs-audit-xls",
+      "source_repository": "anthropics/financial-services",
+      "source_commit": "60565064557ca77b12f62aa7877f365d111c129d",
+      "source_paths": [
+        {
+          "path": "plugins/agent-plugins/earnings-reviewer/skills/audit-xls/SKILL.md",
+          "blob_sha": "a2cae1d11c5e6704b95623a0ffeec8863ef1b8c2"
+        },
+        {
+          "path": "plugins/agent-plugins/gl-reconciler/skills/audit-xls/SKILL.md",
+          "blob_sha": "a2cae1d11c5e6704b95623a0ffeec8863ef1b8c2"
+        },
+        {
+          "path": "plugins/agent-plugins/model-builder/skills/audit-xls/SKILL.md",
+          "blob_sha": "a2cae1d11c5e6704b95623a0ffeec8863ef1b8c2"
+        },
+        {
+          "path": "plugins/agent-plugins/month-end-closer/skills/audit-xls/SKILL.md",
+          "blob_sha": "a2cae1d11c5e6704b95623a0ffeec8863ef1b8c2"
+        },
+        {
+          "path": "plugins/agent-plugins/pitch-agent/skills/audit-xls/SKILL.md",
+          "blob_sha": "a2cae1d11c5e6704b95623a0ffeec8863ef1b8c2"
+        },
+        {
+          "path": "plugins/agent-plugins/statement-auditor/skills/audit-xls/SKILL.md",
+          "blob_sha": "a2cae1d11c5e6704b95623a0ffeec8863ef1b8c2"
+        }
+      ],
+      "resources": [],
+      "omitted_runtime_files": [],
+      "adaptations": [
+        "t3OS tool availability and artifact fallback",
+        "engagement/jurisdiction/currency/evidence/review requirements",
+        "namespaced skill references",
+        "no managed-agent or Office tool bindings",
+        "retained Markdown resources and self-contained runtime procedures"
+      ]
+    },
+    {
+      "skill_key": "finance/anthropic-fs-earnings-analysis",
+      "name": "anthropic-fs-earnings-analysis",
+      "source_repository": "anthropics/financial-services",
+      "source_commit": "60565064557ca77b12f62aa7877f365d111c129d",
+      "source_paths": [
+        {
+          "path": "plugins/agent-plugins/earnings-reviewer/skills/earnings-analysis/SKILL.md",
+          "blob_sha": "447de2f9ec277f976eb2b52501465250c80e1adf"
+        }
+      ],
+      "resources": [
+        {
+          "local_path": "references/best-practices.md",
+          "source_path": "plugins/agent-plugins/earnings-reviewer/skills/earnings-analysis/references/best-practices.md",
+          "blob_sha": "3684a189ea38230ffc195e47a18a4893e2caeb37"
+        },
+        {
+          "local_path": "references/report-structure.md",
+          "source_path": "plugins/agent-plugins/earnings-reviewer/skills/earnings-analysis/references/report-structure.md",
+          "blob_sha": "0dfdb2be551b68dc828ef0526f3b59e1dcf399ce"
+        },
+        {
+          "local_path": "references/workflow.md",
+          "source_path": "plugins/agent-plugins/earnings-reviewer/skills/earnings-analysis/references/workflow.md",
+          "blob_sha": "7c170e5e2d4783c231d2313650aacebb625c0fe8"
+        }
+      ],
+      "omitted_runtime_files": [],
+      "adaptations": [
+        "t3OS tool availability and artifact fallback",
+        "engagement/jurisdiction/currency/evidence/review requirements",
+        "namespaced skill references",
+        "no managed-agent or Office tool bindings",
+        "retained Markdown resources and self-contained runtime procedures",
+        "Changed the source's publication instruction to preparing a review-ready draft under an authorized review and distribution workflow."
+      ]
+    },
+    {
+      "skill_key": "finance/anthropic-fs-earnings-preview",
+      "name": "anthropic-fs-earnings-preview",
+      "source_repository": "anthropics/financial-services",
+      "source_commit": "60565064557ca77b12f62aa7877f365d111c129d",
+      "source_paths": [
+        {
+          "path": "plugins/agent-plugins/earnings-reviewer/skills/earnings-preview/SKILL.md",
+          "blob_sha": "555d593882e86885e4a8c11328fcbfd299c5a764"
+        }
+      ],
+      "resources": [],
+      "omitted_runtime_files": [],
+      "adaptations": [
+        "t3OS tool availability and artifact fallback",
+        "engagement/jurisdiction/currency/evidence/review requirements",
+        "namespaced skill references",
+        "no managed-agent or Office tool bindings",
+        "retained Markdown resources and self-contained runtime procedures"
+      ]
+    },
+    {
+      "skill_key": "finance/anthropic-fs-model-update",
+      "name": "anthropic-fs-model-update",
+      "source_repository": "anthropics/financial-services",
+      "source_commit": "60565064557ca77b12f62aa7877f365d111c129d",
+      "source_paths": [
+        {
+          "path": "plugins/agent-plugins/earnings-reviewer/skills/model-update/SKILL.md",
+          "blob_sha": "dc90f5948f7efff2ff0c17c6cfefd67505e0ca81"
+        }
+      ],
+      "resources": [],
+      "omitted_runtime_files": [],
+      "adaptations": [
+        "t3OS tool availability and artifact fallback",
+        "engagement/jurisdiction/currency/evidence/review requirements",
+        "namespaced skill references",
+        "no managed-agent or Office tool bindings",
+        "retained Markdown resources and self-contained runtime procedures"
+      ]
+    },
+    {
+      "skill_key": "finance/anthropic-fs-morning-note",
+      "name": "anthropic-fs-morning-note",
+      "source_repository": "anthropics/financial-services",
+      "source_commit": "60565064557ca77b12f62aa7877f365d111c129d",
+      "source_paths": [
+        {
+          "path": "plugins/agent-plugins/earnings-reviewer/skills/morning-note/SKILL.md",
+          "blob_sha": "966dc05bb3f1f719ce0be733b263180a3b0b7bdf"
+        }
+      ],
+      "resources": [],
+      "omitted_runtime_files": [],
+      "adaptations": [
+        "t3OS tool availability and artifact fallback",
+        "engagement/jurisdiction/currency/evidence/review requirements",
+        "namespaced skill references",
+        "no managed-agent or Office tool bindings",
+        "retained Markdown resources and self-contained runtime procedures"
+      ]
+    },
+    {
+      "skill_key": "finance/anthropic-fs-xlsx-author",
+      "name": "anthropic-fs-xlsx-author",
+      "source_repository": "anthropics/financial-services",
+      "source_commit": "60565064557ca77b12f62aa7877f365d111c129d",
+      "source_paths": [
+        {
+          "path": "plugins/agent-plugins/earnings-reviewer/skills/xlsx-author/SKILL.md",
+          "blob_sha": "0d757862a9257f69801adaf6f93e2bf70f8a7fe9"
+        },
+        {
+          "path": "plugins/agent-plugins/gl-reconciler/skills/xlsx-author/SKILL.md",
+          "blob_sha": "0d757862a9257f69801adaf6f93e2bf70f8a7fe9"
+        },
+        {
+          "path": "plugins/agent-plugins/kyc-screener/skills/xlsx-author/SKILL.md",
+          "blob_sha": "0d757862a9257f69801adaf6f93e2bf70f8a7fe9"
+        },
+        {
+          "path": "plugins/agent-plugins/model-builder/skills/xlsx-author/SKILL.md",
+          "blob_sha": "0d757862a9257f69801adaf6f93e2bf70f8a7fe9"
+        },
+        {
+          "path": "plugins/agent-plugins/month-end-closer/skills/xlsx-author/SKILL.md",
+          "blob_sha": "0d757862a9257f69801adaf6f93e2bf70f8a7fe9"
+        },
+        {
+          "path": "plugins/agent-plugins/pitch-agent/skills/xlsx-author/SKILL.md",
+          "blob_sha": "0d757862a9257f69801adaf6f93e2bf70f8a7fe9"
+        },
+        {
+          "path": "plugins/agent-plugins/statement-auditor/skills/xlsx-author/SKILL.md",
+          "blob_sha": "0d757862a9257f69801adaf6f93e2bf70f8a7fe9"
+        },
+        {
+          "path": "plugins/agent-plugins/valuation-reviewer/skills/xlsx-author/SKILL.md",
+          "blob_sha": "0d757862a9257f69801adaf6f93e2bf70f8a7fe9"
+        }
+      ],
+      "resources": [],
+      "omitted_runtime_files": [],
+      "adaptations": [
+        "t3OS tool availability and artifact fallback",
+        "engagement/jurisdiction/currency/evidence/review requirements",
+        "namespaced skill references",
+        "no managed-agent or Office tool bindings",
+        "retained Markdown resources and self-contained runtime procedures"
+      ]
+    },
+    {
+      "skill_key": "finance/anthropic-fs-break-trace",
+      "name": "anthropic-fs-break-trace",
+      "source_repository": "anthropics/financial-services",
+      "source_commit": "60565064557ca77b12f62aa7877f365d111c129d",
+      "source_paths": [
+        {
+          "path": "plugins/agent-plugins/gl-reconciler/skills/break-trace/SKILL.md",
+          "blob_sha": "8cdc7bce57111845dd9a1c2d303afb9e0bc708ef"
+        }
+      ],
+      "resources": [],
+      "omitted_runtime_files": [],
+      "adaptations": [
+        "t3OS tool availability and artifact fallback",
+        "engagement/jurisdiction/currency/evidence/review requirements",
+        "namespaced skill references",
+        "no managed-agent or Office tool bindings",
+        "retained Markdown resources and self-contained runtime procedures",
+        "Changed adjustments, duplicate suppression, and tickets to proposed resolutions for an actual reviewer; required evidence and preserved unresolved causes and dates instead of implying a resolver agent or executed action."
+      ]
+    },
+    {
+      "skill_key": "finance/anthropic-fs-gl-recon",
+      "name": "anthropic-fs-gl-recon",
+      "source_repository": "anthropics/financial-services",
+      "source_commit": "60565064557ca77b12f62aa7877f365d111c129d",
+      "source_paths": [
+        {
+          "path": "plugins/agent-plugins/gl-reconciler/skills/gl-recon/SKILL.md",
+          "blob_sha": "d97da4cb0cb78186ac5c9ea1edfe704bac9fa1eb"
+        }
+      ],
+      "resources": [],
+      "omitted_runtime_files": [],
+      "adaptations": [
+        "t3OS tool availability and artifact fallback",
+        "engagement/jurisdiction/currency/evidence/review requirements",
+        "namespaced skill references",
+        "no managed-agent or Office tool bindings",
+        "retained Markdown resources and self-contained runtime procedures",
+        "Preserved identifiers and source precision; required documented common grain, valid aggregation, duplicate-key checks, and currency/account-specific matching tolerances; replaced the fictional resolver handoff with an assigned review stage."
+      ]
+    },
+    {
+      "skill_key": "finance/anthropic-fs-kyc-doc-parse",
+      "name": "anthropic-fs-kyc-doc-parse",
+      "source_repository": "anthropics/financial-services",
+      "source_commit": "60565064557ca77b12f62aa7877f365d111c129d",
+      "source_paths": [
+        {
+          "path": "plugins/agent-plugins/kyc-screener/skills/kyc-doc-parse/SKILL.md",
+          "blob_sha": "1674fbe2437439730a402e884c9529cca1ab2681"
+        }
+      ],
+      "resources": [],
+      "omitted_runtime_files": [],
+      "adaptations": [
+        "t3OS tool availability and artifact fallback",
+        "engagement/jurisdiction/currency/evidence/review requirements",
+        "namespaced skill references",
+        "no managed-agent or Office tool bindings",
+        "retained Markdown resources and self-contained runtime procedures",
+        "Replaced the universal three-month address-proof example with the approved jurisdiction and firm validity policy; clarified missing-data extraction and a sequential rules phase."
+      ]
+    },
+    {
+      "skill_key": "finance/anthropic-fs-kyc-rules",
+      "name": "anthropic-fs-kyc-rules",
+      "source_repository": "anthropics/financial-services",
+      "source_commit": "60565064557ca77b12f62aa7877f365d111c129d",
+      "source_paths": [
+        {
+          "path": "plugins/agent-plugins/kyc-screener/skills/kyc-rules/SKILL.md",
+          "blob_sha": "1c0f271a2f8ebd308096101786ae60c027a0f886"
+        }
+      ],
+      "resources": [],
+      "omitted_runtime_files": [],
+      "adaptations": [
+        "t3OS tool availability and artifact fallback",
+        "engagement/jurisdiction/currency/evidence/review requirements",
+        "namespaced skill references",
+        "no managed-agent or Office tool bindings",
+        "retained Markdown resources and self-contained runtime procedures",
+        "Replaced clearance with a review-ready recommendation and human decision pending; added incomplete/undetermined outcomes, screening provenance, current approved rules, and explicit missing-screening handling; removed an implied escalator agent."
+      ]
+    },
+    {
+      "skill_key": "finance/anthropic-fs-competitive-analysis",
+      "name": "anthropic-fs-competitive-analysis",
+      "source_repository": "anthropics/financial-services",
+      "source_commit": "60565064557ca77b12f62aa7877f365d111c129d",
+      "source_paths": [
+        {
+          "path": "plugins/agent-plugins/market-researcher/skills/competitive-analysis/SKILL.md",
+          "blob_sha": "2632b3d1507424ac2d81578c7e05f81e7d54791d"
+        }
+      ],
+      "resources": [
+        {
+          "local_path": "references/frameworks.md",
+          "source_path": "plugins/agent-plugins/market-researcher/skills/competitive-analysis/references/frameworks.md",
+          "blob_sha": "66b9f3d138db176c0a0a1a8caa0e7c97bc92eb61"
+        },
+        {
+          "local_path": "references/schemas.md",
+          "source_path": "plugins/agent-plugins/market-researcher/skills/competitive-analysis/references/schemas.md",
+          "blob_sha": "8449f144ee4a0f33baf4f78824a79e0ffce3be76"
+        }
+      ],
+      "omitted_runtime_files": [],
+      "adaptations": [
+        "t3OS tool availability and artifact fallback",
+        "engagement/jurisdiction/currency/evidence/review requirements",
+        "namespaced skill references",
+        "no managed-agent or Office tool bindings",
+        "retained Markdown resources and self-contained runtime procedures",
+        "Removed the source platform's assumed four-question tool limit in favor of the actual exposed user-question tool."
+      ]
+    },
+    {
+      "skill_key": "finance/anthropic-fs-comps-analysis",
+      "name": "anthropic-fs-comps-analysis",
+      "source_repository": "anthropics/financial-services",
+      "source_commit": "60565064557ca77b12f62aa7877f365d111c129d",
+      "source_paths": [
+        {
+          "path": "plugins/agent-plugins/market-researcher/skills/comps-analysis/SKILL.md",
+          "blob_sha": "8eea74c4f9c91e449657ca51d8e2c7f106f601dd"
+        },
+        {
+          "path": "plugins/agent-plugins/model-builder/skills/comps-analysis/SKILL.md",
+          "blob_sha": "8eea74c4f9c91e449657ca51d8e2c7f106f601dd"
+        },
+        {
+          "path": "plugins/agent-plugins/pitch-agent/skills/comps-analysis/SKILL.md",
+          "blob_sha": "8eea74c4f9c91e449657ca51d8e2c7f106f601dd"
+        }
+      ],
+      "resources": [],
+      "omitted_runtime_files": [],
+      "adaptations": [
+        "t3OS tool availability and artifact fallback",
+        "engagement/jurisdiction/currency/evidence/review requirements",
+        "namespaced skill references",
+        "no managed-agent or Office tool bindings",
+        "retained Markdown resources and self-contained runtime procedures"
+      ]
+    },
+    {
+      "skill_key": "finance/anthropic-fs-idea-generation",
+      "name": "anthropic-fs-idea-generation",
+      "source_repository": "anthropics/financial-services",
+      "source_commit": "60565064557ca77b12f62aa7877f365d111c129d",
+      "source_paths": [
+        {
+          "path": "plugins/agent-plugins/market-researcher/skills/idea-generation/SKILL.md",
+          "blob_sha": "2dc90ce59e15cce9a811ef22ac2484a391c1f63e"
+        }
+      ],
+      "resources": [],
+      "omitted_runtime_files": [],
+      "adaptations": [
+        "t3OS tool availability and artifact fallback",
+        "engagement/jurisdiction/currency/evidence/review requirements",
+        "namespaced skill references",
+        "no managed-agent or Office tool bindings",
+        "retained Markdown resources and self-contained runtime procedures"
+      ]
+    },
+    {
+      "skill_key": "finance/anthropic-fs-pptx-author",
+      "name": "anthropic-fs-pptx-author",
+      "source_repository": "anthropics/financial-services",
+      "source_commit": "60565064557ca77b12f62aa7877f365d111c129d",
+      "source_paths": [
+        {
+          "path": "plugins/agent-plugins/market-researcher/skills/pptx-author/SKILL.md",
+          "blob_sha": "8d84786a222a83050f15313e2d668c76731ed843"
+        },
+        {
+          "path": "plugins/agent-plugins/meeting-prep-agent/skills/pptx-author/SKILL.md",
+          "blob_sha": "8d84786a222a83050f15313e2d668c76731ed843"
+        },
+        {
+          "path": "plugins/agent-plugins/pitch-agent/skills/pptx-author/SKILL.md",
+          "blob_sha": "8d84786a222a83050f15313e2d668c76731ed843"
+        }
+      ],
+      "resources": [],
+      "omitted_runtime_files": [],
+      "adaptations": [
+        "t3OS tool availability and artifact fallback",
+        "engagement/jurisdiction/currency/evidence/review requirements",
+        "namespaced skill references",
+        "no managed-agent or Office tool bindings",
+        "retained Markdown resources and self-contained runtime procedures"
+      ]
+    },
+    {
+      "skill_key": "finance/anthropic-fs-sector-overview",
+      "name": "anthropic-fs-sector-overview",
+      "source_repository": "anthropics/financial-services",
+      "source_commit": "60565064557ca77b12f62aa7877f365d111c129d",
+      "source_paths": [
+        {
+          "path": "plugins/agent-plugins/market-researcher/skills/sector-overview/SKILL.md",
+          "blob_sha": "edd4cf59305095b46b6feb580271a772fdfd1a59"
+        },
+        {
+          "path": "plugins/agent-plugins/pitch-agent/skills/sector-overview/SKILL.md",
+          "blob_sha": "edd4cf59305095b46b6feb580271a772fdfd1a59"
+        }
+      ],
+      "resources": [],
+      "omitted_runtime_files": [],
+      "adaptations": [
+        "t3OS tool availability and artifact fallback",
+        "engagement/jurisdiction/currency/evidence/review requirements",
+        "namespaced skill references",
+        "no managed-agent or Office tool bindings",
+        "retained Markdown resources and self-contained runtime procedures"
+      ]
+    },
+    {
+      "skill_key": "finance/anthropic-fs-client-report",
+      "name": "anthropic-fs-client-report",
+      "source_repository": "anthropics/financial-services",
+      "source_commit": "60565064557ca77b12f62aa7877f365d111c129d",
+      "source_paths": [
+        {
+          "path": "plugins/agent-plugins/meeting-prep-agent/skills/client-report/SKILL.md",
+          "blob_sha": "2e88b469963a635086774c04e285e26a50c334b4"
+        }
+      ],
+      "resources": [],
+      "omitted_runtime_files": [],
+      "adaptations": [
+        "t3OS tool availability and artifact fallback",
+        "engagement/jurisdiction/currency/evidence/review requirements",
+        "namespaced skill references",
+        "no managed-agent or Office tool bindings",
+        "retained Markdown resources and self-contained runtime procedures"
+      ]
+    },
+    {
+      "skill_key": "finance/anthropic-fs-client-review",
+      "name": "anthropic-fs-client-review",
+      "source_repository": "anthropics/financial-services",
+      "source_commit": "60565064557ca77b12f62aa7877f365d111c129d",
+      "source_paths": [
+        {
+          "path": "plugins/agent-plugins/meeting-prep-agent/skills/client-review/SKILL.md",
+          "blob_sha": "e8dfba18b327ba621e599c85c47bf962bff8dcf2"
+        }
+      ],
+      "resources": [],
+      "omitted_runtime_files": [],
+      "adaptations": [
+        "t3OS tool availability and artifact fallback",
+        "engagement/jurisdiction/currency/evidence/review requirements",
+        "namespaced skill references",
+        "no managed-agent or Office tool bindings",
+        "retained Markdown resources and self-contained runtime procedures"
+      ]
+    },
+    {
+      "skill_key": "finance/anthropic-fs-investment-proposal",
+      "name": "anthropic-fs-investment-proposal",
+      "source_repository": "anthropics/financial-services",
+      "source_commit": "60565064557ca77b12f62aa7877f365d111c129d",
+      "source_paths": [
+        {
+          "path": "plugins/agent-plugins/meeting-prep-agent/skills/investment-proposal/SKILL.md",
+          "blob_sha": "ed5322b7a7e17af49e9e85c0e8221d9274c78e32"
+        }
+      ],
+      "resources": [],
+      "omitted_runtime_files": [],
+      "adaptations": [
+        "t3OS tool availability and artifact fallback",
+        "engagement/jurisdiction/currency/evidence/review requirements",
+        "namespaced skill references",
+        "no managed-agent or Office tool bindings",
+        "retained Markdown resources and self-contained runtime procedures",
+        "Changed direct follow-up language to a proposed draft for adviser review without sending or scheduling contact."
+      ]
+    },
+    {
+      "skill_key": "finance/anthropic-fs-3-statement-model",
+      "name": "anthropic-fs-3-statement-model",
+      "source_repository": "anthropics/financial-services",
+      "source_commit": "60565064557ca77b12f62aa7877f365d111c129d",
+      "source_paths": [
+        {
+          "path": "plugins/agent-plugins/model-builder/skills/3-statement-model/SKILL.md",
+          "blob_sha": "01bcfe1d0db56ab910400531c280735cd118d734"
+        },
+        {
+          "path": "plugins/agent-plugins/pitch-agent/skills/3-statement-model/SKILL.md",
+          "blob_sha": "01bcfe1d0db56ab910400531c280735cd118d734"
+        }
+      ],
+      "resources": [
+        {
+          "local_path": "references/formatting.md",
+          "source_path": "plugins/agent-plugins/model-builder/skills/3-statement-model/references/formatting.md",
+          "blob_sha": "1fbe938c1623ea73c9707b15775f0f92e21c948f"
+        },
+        {
+          "local_path": "references/formulas.md",
+          "source_path": "plugins/agent-plugins/model-builder/skills/3-statement-model/references/formulas.md",
+          "blob_sha": "db2645727e258a4543c13925dab3c0ced7d40d90"
+        },
+        {
+          "local_path": "references/sec-filings.md",
+          "source_path": "plugins/agent-plugins/model-builder/skills/3-statement-model/references/sec-filings.md",
+          "blob_sha": "e0fa48453a151a8d6770dda9c8b2ecede0fe363b"
+        }
+      ],
+      "omitted_runtime_files": [],
+      "adaptations": [
+        "t3OS tool availability and artifact fallback",
+        "engagement/jurisdiction/currency/evidence/review requirements",
+        "namespaced skill references",
+        "no managed-agent or Office tool bindings",
+        "retained Markdown resources and self-contained runtime procedures",
+        "Corrected the source's separate SBC add-back to retained earnings and taxable-income-to-net-income shortcut; replaced universal US tax-loss and zero-opening-balance assumptions with jurisdiction-specific approved inputs, recognized deferred-tax requirements, and reconciling schedules. Reworked the formula reference into a self-contained set of linkages with no unexplained balancing plugs."
+      ]
+    },
+    {
+      "skill_key": "finance/anthropic-fs-dcf-model",
+      "name": "anthropic-fs-dcf-model",
+      "source_repository": "anthropics/financial-services",
+      "source_commit": "60565064557ca77b12f62aa7877f365d111c129d",
+      "source_paths": [
+        {
+          "path": "plugins/agent-plugins/model-builder/skills/dcf-model/SKILL.md",
+          "blob_sha": "cc17fc002b7e739d00e6b62c4c7a3a806b6f3f22"
+        },
+        {
+          "path": "plugins/agent-plugins/pitch-agent/skills/dcf-model/SKILL.md",
+          "blob_sha": "cc17fc002b7e739d00e6b62c4c7a3a806b6f3f22"
+        }
+      ],
+      "resources": [
+        {
+          "local_path": "TROUBLESHOOTING.md",
+          "source_path": "plugins/agent-plugins/model-builder/skills/dcf-model/TROUBLESHOOTING.md",
+          "blob_sha": "eb46365ca1a4264a73cc5796b216faad4307a323"
+        }
+      ],
+      "omitted_runtime_files": [
+        {
+          "path": "plugins/agent-plugins/model-builder/skills/dcf-model/requirements.txt",
+          "reason": "Optional upstream executable helper or dependency manifest replaced by self-contained t3OS calculation, extraction, and verification instructions; no executable runtime is installed by a skill."
+        },
+        {
+          "path": "plugins/agent-plugins/model-builder/skills/dcf-model/scripts/validate_dcf.py",
+          "reason": "Optional upstream executable helper or dependency manifest replaced by self-contained t3OS calculation, extraction, and verification instructions; no executable runtime is installed by a skill."
+        }
+      ],
+      "adaptations": [
+        "t3OS tool availability and artifact fallback",
+        "engagement/jurisdiction/currency/evidence/review requirements",
+        "namespaced skill references",
+        "no managed-agent or Office tool bindings",
+        "retained Markdown resources and self-contained runtime procedures"
+      ]
+    },
+    {
+      "skill_key": "finance/anthropic-fs-lbo-model",
+      "name": "anthropic-fs-lbo-model",
+      "source_repository": "anthropics/financial-services",
+      "source_commit": "60565064557ca77b12f62aa7877f365d111c129d",
+      "source_paths": [
+        {
+          "path": "plugins/agent-plugins/model-builder/skills/lbo-model/SKILL.md",
+          "blob_sha": "391fa556c54584ac04c9889ed814393b630f341d"
+        },
+        {
+          "path": "plugins/agent-plugins/pitch-agent/skills/lbo-model/SKILL.md",
+          "blob_sha": "391fa556c54584ac04c9889ed814393b630f341d"
+        }
+      ],
+      "resources": [],
+      "omitted_runtime_files": [],
+      "adaptations": [
+        "t3OS tool availability and artifact fallback",
+        "engagement/jurisdiction/currency/evidence/review requirements",
+        "namespaced skill references",
+        "no managed-agent or Office tool bindings",
+        "retained Markdown resources and self-contained runtime procedures"
+      ]
+    },
+    {
+      "skill_key": "finance/anthropic-fs-accrual-schedule",
+      "name": "anthropic-fs-accrual-schedule",
+      "source_repository": "anthropics/financial-services",
+      "source_commit": "60565064557ca77b12f62aa7877f365d111c129d",
+      "source_paths": [
+        {
+          "path": "plugins/agent-plugins/month-end-closer/skills/accrual-schedule/SKILL.md",
+          "blob_sha": "c3e4f50d98906c189b685836e6605b0df33517fe"
+        }
+      ],
+      "resources": [],
+      "omitted_runtime_files": [],
+      "adaptations": [
+        "t3OS tool availability and artifact fallback",
+        "engagement/jurisdiction/currency/evidence/review requirements",
+        "namespaced skill references",
+        "no managed-agent or Office tool bindings",
+        "retained Markdown resources and self-contained runtime procedures",
+        "Clarified expense versus closing-liability methods, same-basis already-booked amounts, reversals, invoice overlap, negative adjustments, and proposed reversal dates to prevent double-counting prior accruals or implying posted reversals."
+      ]
+    },
+    {
+      "skill_key": "finance/anthropic-fs-roll-forward",
+      "name": "anthropic-fs-roll-forward",
+      "source_repository": "anthropics/financial-services",
+      "source_commit": "60565064557ca77b12f62aa7877f365d111c129d",
+      "source_paths": [
+        {
+          "path": "plugins/agent-plugins/month-end-closer/skills/roll-forward/SKILL.md",
+          "blob_sha": "875b170bb1f7f257fed2af25684cdfa4964ff4d1"
+        }
+      ],
+      "resources": [],
+      "omitted_runtime_files": [],
+      "adaptations": [
+        "t3OS tool availability and artifact fallback",
+        "engagement/jurisdiction/currency/evidence/review requirements",
+        "namespaced skill references",
+        "no managed-agent or Office tool bindings",
+        "retained Markdown resources and self-contained runtime procedures"
+      ]
+    },
+    {
+      "skill_key": "finance/anthropic-fs-variance-commentary",
+      "name": "anthropic-fs-variance-commentary",
+      "source_repository": "anthropics/financial-services",
+      "source_commit": "60565064557ca77b12f62aa7877f365d111c129d",
+      "source_paths": [
+        {
+          "path": "plugins/agent-plugins/month-end-closer/skills/variance-commentary/SKILL.md",
+          "blob_sha": "6a66c19d436bbf56ca3b6e3988378bccaa800751"
+        }
+      ],
+      "resources": [],
+      "omitted_runtime_files": [],
+      "adaptations": [
+        "t3OS tool availability and artifact fallback",
+        "engagement/jurisdiction/currency/evidence/review requirements",
+        "namespaced skill references",
+        "no managed-agent or Office tool bindings",
+        "retained Markdown resources and self-contained runtime procedures",
+        "Replaced an implicit 5% materiality default with documented engagement thresholds and an explicit provisional-analysis fallback; added zero-denominator and sign-change handling."
+      ]
+    },
+    {
+      "skill_key": "finance/anthropic-fs-deck-refresh",
+      "name": "anthropic-fs-deck-refresh",
+      "source_repository": "anthropics/financial-services",
+      "source_commit": "60565064557ca77b12f62aa7877f365d111c129d",
+      "source_paths": [
+        {
+          "path": "plugins/agent-plugins/pitch-agent/skills/deck-refresh/SKILL.md",
+          "blob_sha": "c24d11296306690a03b83992b10e98e68ca4960b"
+        }
+      ],
+      "resources": [],
+      "omitted_runtime_files": [],
+      "adaptations": [
+        "t3OS tool availability and artifact fallback",
+        "engagement/jurisdiction/currency/evidence/review requirements",
+        "namespaced skill references",
+        "no managed-agent or Office tool bindings",
+        "retained Markdown resources and self-contained runtime procedures"
+      ]
+    },
+    {
+      "skill_key": "finance/anthropic-fs-ib-check-deck",
+      "name": "anthropic-fs-ib-check-deck",
+      "source_repository": "anthropics/financial-services",
+      "source_commit": "60565064557ca77b12f62aa7877f365d111c129d",
+      "source_paths": [
+        {
+          "path": "plugins/agent-plugins/pitch-agent/skills/ib-check-deck/SKILL.md",
+          "blob_sha": "a9a1b59c5e2ed37eccfa4bb1fe2e5b4aa4a71730"
+        }
+      ],
+      "resources": [
+        {
+          "local_path": "references/ib-terminology.md",
+          "source_path": "plugins/agent-plugins/pitch-agent/skills/ib-check-deck/references/ib-terminology.md",
+          "blob_sha": "9d503181b2d4276c653c3514890d83c68a1b2154"
+        },
+        {
+          "local_path": "references/report-format.md",
+          "source_path": "plugins/agent-plugins/pitch-agent/skills/ib-check-deck/references/report-format.md",
+          "blob_sha": "432162324b5bd9a5b1547a7e313f15c4e3ee0adc"
+        }
+      ],
+      "omitted_runtime_files": [
+        {
+          "path": "plugins/agent-plugins/pitch-agent/skills/ib-check-deck/scripts/extract_numbers.py",
+          "reason": "Optional upstream executable helper or dependency manifest replaced by self-contained t3OS calculation, extraction, and verification instructions; no executable runtime is installed by a skill."
+        }
+      ],
+      "adaptations": [
+        "t3OS tool availability and artifact fallback",
+        "engagement/jurisdiction/currency/evidence/review requirements",
+        "namespaced skill references",
+        "no managed-agent or Office tool bindings",
+        "retained Markdown resources and self-contained runtime procedures"
+      ]
+    },
+    {
+      "skill_key": "finance/anthropic-fs-pitch-deck",
+      "name": "anthropic-fs-pitch-deck",
+      "source_repository": "anthropics/financial-services",
+      "source_commit": "60565064557ca77b12f62aa7877f365d111c129d",
+      "source_paths": [
+        {
+          "path": "plugins/agent-plugins/pitch-agent/skills/pitch-deck/SKILL.md",
+          "blob_sha": "830f9f11f8ff29d982961a79ca37d0d05cd8ea67"
+        }
+      ],
+      "resources": [
+        {
+          "local_path": "reference/calculation-standards.md",
+          "source_path": "plugins/agent-plugins/pitch-agent/skills/pitch-deck/reference/calculation-standards.md",
+          "blob_sha": "d62a761ac7ee3d464c7d50d70e2b30f770a4c216"
+        },
+        {
+          "local_path": "reference/formatting-standards.md",
+          "source_path": "plugins/agent-plugins/pitch-agent/skills/pitch-deck/reference/formatting-standards.md",
+          "blob_sha": "2352c72e92cfb28b03d870a53411b921739ef0af"
+        },
+        {
+          "local_path": "reference/slide-templates.md",
+          "source_path": "plugins/agent-plugins/pitch-agent/skills/pitch-deck/reference/slide-templates.md",
+          "blob_sha": "bac14319ef16a9a031dde9adb6dd37e466d8d26d"
+        },
+        {
+          "local_path": "reference/xml-reference.md",
+          "source_path": "plugins/agent-plugins/pitch-agent/skills/pitch-deck/reference/xml-reference.md",
+          "blob_sha": "9c611a25750d6f6aa336e3190402518b6199724e"
+        }
+      ],
+      "omitted_runtime_files": [],
+      "adaptations": [
+        "t3OS tool availability and artifact fallback",
+        "engagement/jurisdiction/currency/evidence/review requirements",
+        "namespaced skill references",
+        "no managed-agent or Office tool bindings",
+        "retained Markdown resources and self-contained runtime procedures"
+      ]
+    },
+    {
+      "skill_key": "finance/anthropic-fs-nav-tieout",
+      "name": "anthropic-fs-nav-tieout",
+      "source_repository": "anthropics/financial-services",
+      "source_commit": "60565064557ca77b12f62aa7877f365d111c129d",
+      "source_paths": [
+        {
+          "path": "plugins/agent-plugins/statement-auditor/skills/nav-tieout/SKILL.md",
+          "blob_sha": "fa0824343cdba6ac995958cafcd80952fcbd95c0"
+        }
+      ],
+      "resources": [],
+      "omitted_runtime_files": [],
+      "adaptations": [
+        "t3OS tool availability and artifact fallback",
+        "engagement/jurisdiction/currency/evidence/review requirements",
+        "namespaced skill references",
+        "no managed-agent or Office tool bindings",
+        "retained Markdown resources and self-contained runtime procedures",
+        "Preserved LP fund-statement scope; made allocations depend on partnership/class/period terms rather than commitment percentage; replaced the universal 0.01 tolerance, reconciled the appropriate partner/NAV scope, and removed implied publisher authority."
+      ]
+    },
+    {
+      "skill_key": "finance/anthropic-fs-ic-memo",
+      "name": "anthropic-fs-ic-memo",
+      "source_repository": "anthropics/financial-services",
+      "source_commit": "60565064557ca77b12f62aa7877f365d111c129d",
+      "source_paths": [
+        {
+          "path": "plugins/agent-plugins/valuation-reviewer/skills/ic-memo/SKILL.md",
+          "blob_sha": "70cb5d2bcd45309e335bcc3638392c752aa9da0b"
+        }
+      ],
+      "resources": [],
+      "omitted_runtime_files": [],
+      "adaptations": [
+        "t3OS tool availability and artifact fallback",
+        "engagement/jurisdiction/currency/evidence/review requirements",
+        "namespaced skill references",
+        "no managed-agent or Office tool bindings",
+        "retained Markdown resources and self-contained runtime procedures"
+      ]
+    },
+    {
+      "skill_key": "finance/anthropic-fs-portfolio-monitoring",
+      "name": "anthropic-fs-portfolio-monitoring",
+      "source_repository": "anthropics/financial-services",
+      "source_commit": "60565064557ca77b12f62aa7877f365d111c129d",
+      "source_paths": [
+        {
+          "path": "plugins/agent-plugins/valuation-reviewer/skills/portfolio-monitoring/SKILL.md",
+          "blob_sha": "42a9790ad07bd496000531f85f9b01c42f8ace8a"
+        }
+      ],
+      "resources": [],
+      "omitted_runtime_files": [],
+      "adaptations": [
+        "t3OS tool availability and artifact fallback",
+        "engagement/jurisdiction/currency/evidence/review requirements",
+        "namespaced skill references",
+        "no managed-agent or Office tool bindings",
+        "retained Markdown resources and self-contained runtime procedures"
+      ]
+    },
+    {
+      "skill_key": "finance/anthropic-fs-returns-analysis",
+      "name": "anthropic-fs-returns-analysis",
+      "source_repository": "anthropics/financial-services",
+      "source_commit": "60565064557ca77b12f62aa7877f365d111c129d",
+      "source_paths": [
+        {
+          "path": "plugins/agent-plugins/valuation-reviewer/skills/returns-analysis/SKILL.md",
+          "blob_sha": "1c24090523ceeb4cc9cdc0c53a73f94e3c91a33a"
+        }
+      ],
+      "resources": [],
+      "omitted_runtime_files": [],
+      "adaptations": [
+        "t3OS tool availability and artifact fallback",
+        "engagement/jurisdiction/currency/evidence/review requirements",
+        "namespaced skill references",
+        "no managed-agent or Office tool bindings",
+        "retained Markdown resources and self-contained runtime procedures"
+      ]
+    }
+  ],
+  "runtime": {
+    "required_capabilities": [
+      "ask_user",
+      "drafts",
+      "knowledge",
+      "skills",
+      "code_execution",
+      "planning",
+      "clock"
+    ],
+    "research_capability": "web_research",
+    "optional_artifact_attachment": "sandbox",
+    "installs_external_accounts": false,
+    "installs_isolated_subagents": false,
+    "executes_managed_agent_api": false,
+    "artifact_fallback": "Return a structured draft and calculation specification; state that file generation, recalculation, or rendering has not run when the required runtime is unavailable.",
+    "source_access": "Use only operator-configured authorized tools or supplied exports with engagement scope and dated evidence.",
+    "authority": "No autonomous ledger posting, payments, trades, filings, onboarding approval, publication, distribution, or sending."
+  }
+}

@@ -1,3 +1,4 @@
+import { startLanguage } from "./language.js";
 import { localComputerStep } from "./local-computer.js";
 import { permissionStep } from "./permissions.js";
 
@@ -108,7 +109,7 @@ localForm.addEventListener("submit", async (event) => {
   const owner = {
     instance_name: String(data.get("instance-name")),
     instance_id: String(data.get("instance-id")) || null,
-    organization: String(data.get("organization")),
+    organization: String(data.get("organization") || data.get("instance-name")),
     email: String(data.get("email")),
     password: String(data.get("password")),
     provider: String(data.get("provider")),
@@ -131,6 +132,7 @@ localForm.addEventListener("submit", async (event) => {
 });
 
 async function start() {
+  await startLanguage(invoke);
   await listen("docker:download", ({ payload }) => {
     const label = document.querySelector("[data-local-message]");
     if (payload && typeof payload.message === "string") {
@@ -143,6 +145,7 @@ async function start() {
     }
   });
   await listen("local:progress", ({ payload }) => {
+    checkLocal.progress(payload);
     if (typeof payload.instance_id === "string")
       localForm.querySelector("[name=instance-id]").value = payload.instance_id;
     const detail = document.querySelector("[data-progress-detail]");
@@ -157,6 +160,17 @@ async function start() {
     invoke("startup_notice"),
   ]);
   if (state.server_url) serverField.value = state.server_url;
+  if (typeof state.desktop_version === "string") {
+    const label = document.createElement("span");
+    label.textContent = "Desktop app";
+    document
+      .querySelector("[data-desktop-version]")
+      .replaceChildren(label, ` ${state.desktop_version}`);
+  }
+  if (new URLSearchParams(location.search).get("local") === "update") {
+    show("local");
+    return;
+  }
   if (state.local_setup_pending) {
     show("local");
     await checkLocal.prepare();
@@ -165,6 +179,8 @@ async function start() {
   // Somebody who has been through it - "Change Server…", or a server that
   // stopped answering - is asked where, not welcomed again.
   if (notice) {
+    for (const hint of document.querySelectorAll("[data-recovery]"))
+      hint.hidden = false;
     show(state.deployment === "local" ? "local" : "server");
     if (state.deployment === "local") {
       await checkLocal.resume();

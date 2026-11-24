@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   READABLE_ATTRS,
   duplicatedInSource,
+  isProductSource,
   isTemplateCopy,
   missingKeys,
   offences,
@@ -47,6 +48,26 @@ function texts(source: string): string[] {
 function saidTs(source: string): string[] {
   return offences("sample.ts", source).map(({ what }) => what);
 }
+
+describe("the source selection policy across development platforms", () => {
+  it.each([
+    "/repo/frontend/src/app/[locale]/(dashboard)/dev/components/page.tsx",
+    "D:\\repo\\frontend\\src\\app\\[locale]\\(dashboard)\\dev\\components\\page.tsx",
+  ])("excludes the development playground at %s", (path) => {
+    expect(isProductSource(path)).toBe(false);
+  });
+
+  it.each([
+    "/repo/frontend/src/components/settings/mfa-settings.tsx",
+    "D:\\repo\\frontend\\src\\components\\settings\\mfa-settings.tsx",
+    "/repo/frontend/src/app/api/auth/mfa/verify/route.ts",
+    "D:\\repo\\frontend\\src\\app\\api\\auth\\mfa\\verify\\route.ts",
+    "/repo/frontend/src/components/devtools-panel.tsx",
+    "D:\\repo\\frontend\\src\\components\\devtools-panel.tsx",
+  ])("still checks product copy and BFF refusals at %s", (path) => {
+    expect(isProductSource(path)).toBe(true);
+  });
+});
 
 describe("a phrase in JSX", () => {
   it("is refused when it sits beside an inline handler (#314)", () => {

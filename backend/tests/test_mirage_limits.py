@@ -122,10 +122,17 @@ async def test_shell_http_cannot_reach_even_an_allowlisted_server(
         assert server.sockets
         port = server.sockets[0].getsockname()[1]
         workspace = await terminal.workspace()
+        # Mirage hydrates its namespace, metadata and sessions on the first shell
+        # call. Finish that bounded setup before timing the network refusal; an
+        # empty line leaves both command-policy variants unchanged.
+        async with asyncio.timeout(10):
+            ready = await workspace.shell("")
+        assert ready.exit_code == 0
         result = await _backend.BoundedBackend(workspace).run(
             [command, f"http://127.0.0.1:{port}/"], timeout=2
         )
         assert result.exit_code != 0
+        assert "policy denied: Use a mounted service or a web capability" in result.stderr
         assert not connected.is_set()
     finally:
         if terminal._workspace is not None:

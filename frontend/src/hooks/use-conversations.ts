@@ -2,7 +2,7 @@
 
 import { useWorkOnStore } from "@/stores/work-on-store";
 import { useCallback, useMemo, useRef, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient, type QueryKey } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { getErrorMessage } from "@/lib/api-error";
@@ -18,11 +18,17 @@ import {
   useConversationStore,
   useChatStore,
   useInChatScope,
-  useLiveFeedStore,
   useOrgStore,
   useWorkingStore,
 } from "@/stores";
 import type { Conversation, ConversationListResponse, ConversationMessagesResponse } from "@/types";
+
+/** Own and shared list windows hold the same row shape, unlike metadata and share grants. */
+function isConversationList(key: QueryKey): boolean {
+  return [qk.conversations.list(), qk.conversationShares.sharedLists()].some((prefix) =>
+    prefix.every((part, index) => key[index] === part),
+  );
+}
 
 /**
  * One chain of pending stars per reader, tenant and conversation, so two clicks
@@ -65,6 +71,7 @@ const PAGE_SIZE = 30;
 const MESSAGE_PAGE_SIZE = 100;
 const transcriptPath = (id: string, before?: string) => {
   const params = new URLSearchParams({ latest: "true", limit: String(MESSAGE_PAGE_SIZE + 1) });
+  params.set("top_level_only", "true");
   if (before) params.set("before", before);
   return `/conversations/${encodeURIComponent(id)}/messages?${params}`;
 };
@@ -92,6 +99,7 @@ export interface ConversationQuery {
   sortDir: ConversationSortDir;
   /** Leave out conversations an API key's runs opened (#2122). */
   hideApi: boolean;
+  projectScope: "include" | "only" | "exclude";
 }
 
 const DEFAULT_QUERY: ConversationQuery = {
@@ -101,6 +109,7 @@ const DEFAULT_QUERY: ConversationQuery = {
   sortBy: "updated_at",
   sortDir: "desc",
   hideApi: false,
+  projectScope: "include",
 };
 
 /**
@@ -132,22 +141,26 @@ function listParams(query: ConversationQuery): string {
   if (query.view === "archived") params.set("archived_only", "true");
   if (query.search.trim()) params.set("search", query.search.trim());
   if (query.agentId) params.set("agent_id", query.agentId);
+  if (query.projectScope !== "include") params.set("project_scope", query.projectScope);
   if (query.hideApi) params.set("hide_api", "true");
   return params.toString();
 }
 
-export function useConversations(query: Partial<ConversationQuery> = {}) {
+export function useConversations(query: Partial<ConversationQuery> = {}, enabled = true) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("chat");
   const queryClient = useQueryClient();
-  const { view, search, agentId, sortBy, sortDir, hideApi } = { ...DEFAULT_QUERY, ...query };
+  const { view, search, agentId, sortBy, sortDir, hideApi, projectScope } = {
+    ...DEFAULT_QUERY,
+    ...query,
+  };
   // Memoized on the five values rather than on the object they arrive in: a
   // caller building that object inline hands over a new reference every render,
   // and `listKey` is a dependency of half the callbacks below - one of which
   // the sidebar runs from an effect keyed on its identity.
   const params = useMemo(
-    () => listParams({ view, search, agentId, sortBy, sortDir, hideApi }),
-    [view, search, agentId, sortBy, sortDir, hideApi],
+    () => listParams({ view, search, agentId, sortBy, sortDir, hideApi, projectScope }),
+    [view, search, agentId, sortBy, sortDir, hideApi, projectScope],
   );
   const listKey = useMemo(() => qk.conversations.list(params), [params]);
   const {
@@ -217,6 +230,7 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
   // too, rather than waiting for a network to try.
   const { data, isLoading: listLoading } = useQuery({
     queryKey: listKey,
+    enabled,
     queryFn: async () => {
       const ask = () => apiClient.get<ConversationListResponse>(`/conversations?${params}`);
       const response = search.trim() ? await ask() : await readThrough(`list:${params}`, ask);
@@ -224,18 +238,20 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
       return response;
     },
     networkMode: "offlineFirst",
-    // While a thread on the page is at work, ask again every few seconds, so its
-    // row stops saying so when the run ends - a routine's, or another tab's, as
+    // While a thread on the page is at work - or waiting on its person - ask
+    // again every few seconds, so its row stops saying so when the run ends or
+    // the question is answered elsewhere: a routine's, or another tab's, as
     // well as this one's. A thread this tab handed off counts too: the listing
     // has to catch up with it before it can say anything about it.
-    // While the live-update socket is up it announces the run ending, so the poll
-    // is only the safety net for what it does not announce (#2219).
+    // The poll also carries the run's heartbeat, which the stalled status reads.
+    // It stays at the short interval while the live-update socket is up too: a
+    // socket announces the run's end, not its heartbeat, so a slower poll left the
+    // page without a heartbeat to show a stall from (#2219 traded this away).
     refetchInterval: (query) =>
-      query.state.data?.items.some((conversation) => conversation.running_since) ||
-      Object.keys(handedOff).length > 0
-        ? useLiveFeedStore.getState().connected
-          ? RUNNING_POLL_LIVE_MS
-          : RUNNING_POLL_MS
+      query.state.data?.items.some(
+        (conversation) => conversation.running_since || conversation.waiting_since,
+      ) || Object.keys(handedOff).length > 0
+        ? RUNNING_POLL_MS
         : false,
   });
   const conversations = data?.items ?? [];
@@ -322,9 +338,9 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
       const openAddress = async () => {
         if (!stillCurrent() || !stillAddressed()) return;
         if (urlId && conversationApi.getState().currentConversationId !== urlId) {
-          const selectedBefore = conversationApi.getState().currentConversationId;
+          const selectedBefore = conversationApi.getState().selectionVersion;
           const stillSelected = () =>
-            conversationApi.getState().currentConversationId === selectedBefore;
+            conversationApi.getState().selectionVersion === selectedBefore;
           try {
             const msgs = await readConversation(urlId, () =>
               apiClient.get<ConversationMessagesResponse>(transcriptPath(urlId), { signal }),
@@ -333,7 +349,12 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
             clearMessages();
             setCurrentConversationId(urlId);
             const page = transcriptPage(msgs);
-            setCurrentMessages(page.items, msgs.cost, page.hasEarlier);
+            setCurrentMessages(page.items, msgs.cost, page.hasEarlier, {
+              conversationId: urlId,
+              selectionVersion: conversationApi.getState().selectionVersion,
+              accountId: startedAs ?? null,
+              tenantId: startedIn,
+            });
           } catch {
             // The failure belongs to whoever asked. A refusal answering after
             // somebody else has signed in says nothing about the conversation they
@@ -342,6 +363,8 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
             // The rejected address must not keep the page in its opening state.
             const address = new URL(window.location.href);
             address.searchParams.delete("id");
+            address.searchParams.delete("thread");
+            address.searchParams.delete("message");
             window.history.replaceState(window.history.state, "", address);
             // Not accessible (deleted, no permission) - clear the stale id
             clearMessages();
@@ -436,12 +459,22 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
         stillSameAccount(startedAs) &&
         useOrgStore.getState().activeOrgId === startedOrg &&
         stillSameTenant(tenant) &&
+        conversationApi.getState().selectionVersion === selectionVersion &&
         conversationApi.getState().currentConversationId === id;
 
       setCurrentConversationId(id);
+      const selectionVersion = conversationApi.getState().selectionVersion;
       clearMessages();
       setCurrentMessages([]);
-      if (!scoped) setUrlParam("id", id);
+      if (!scoped) {
+        // A root belongs to the room in the URL. Keep a direct link on initial
+        // load, but do not carry it into a different conversation selection.
+        if (new URL(window.location.href).searchParams.get("id") !== id) {
+          setUrlParam("thread", null);
+          setUrlParam("message", null);
+        }
+        setUrlParam("id", id);
+      }
       setLoading(true);
       setError(null);
       try {
@@ -453,7 +486,12 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
         // Guard against a superseded request resolving after a newer select.
         if (!stillSelected()) return;
         const page = transcriptPage(response);
-        setCurrentMessages(page.items, response.cost, page.hasEarlier);
+        setCurrentMessages(page.items, response.cost, page.hasEarlier, {
+          conversationId: id,
+          selectionVersion,
+          accountId: startedAs ?? null,
+          tenantId: tenant,
+        });
       } catch (err) {
         // Ignore aborted/superseded requests - they're expected on rapid switch.
         if (
@@ -469,7 +507,7 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
       } finally {
         // Only the most recent request owns the loading flag.
         if (messagesAbortRef.current === controller) {
-          setLoading(false);
+          if (conversationApi.getState().selectionVersion === selectionVersion) setLoading(false);
           messagesAbortRef.current = null;
         }
       }
@@ -498,6 +536,7 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
   const rereadConversation = useCallback(
     async (id: string) => {
       const ticket = ++rereadRef.current;
+      const selectionVersion = conversationApi.getState().selectionVersion;
       const startedAs = useAuthStore.getState().user?.id;
       const startedOrg = useOrgStore.getState().activeOrgId;
       let response: ConversationMessagesResponse;
@@ -512,6 +551,7 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
       }
       if (
         ticket !== rereadRef.current ||
+        conversationApi.getState().selectionVersion !== selectionVersion ||
         conversationApi.getState().currentConversationId !== id ||
         useOrgStore.getState().activeOrgId !== startedOrg ||
         !stillSameTenant(tenant) ||
@@ -521,18 +561,29 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
       }
       const page = transcriptPage(response);
       const previous = conversationApi.getState();
-      const first = previous.currentMessages[0];
+      const loaded = previous.loadedTranscript;
+      // A fresh authorized read may resolve an unknown tenant, but must not
+      // relabel rows retained from another account, tenant or selection visit.
+      const previousMessages =
+        loaded?.conversationId === id &&
+        loaded.selectionVersion === selectionVersion &&
+        loaded.accountId === (startedAs ?? null) &&
+        (loaded.tenantId === tenant || loaded.tenantId === null)
+          ? previous.currentMessages
+          : [];
+      const first = previousMessages[0];
       const keepsEarlier =
         first !== undefined && !page.items.some((message) => message.id === first.id);
       const merged = [
         ...new Map(
-          [...previous.currentMessages, ...page.items].map((message) => [message.id, message]),
+          [...previousMessages, ...page.items].map((message) => [message.id, message]),
         ).values(),
       ];
       setCurrentMessages(
         merged,
         response.cost,
         keepsEarlier ? previous.hasEarlierMessages : page.hasEarlier,
+        { conversationId: id, selectionVersion, accountId: startedAs ?? null, tenantId: tenant },
       );
     },
     [setCurrentMessages, conversationApi, tenant, stillSameTenant],
@@ -544,13 +595,25 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
     const selected = conversationApi.getState();
     const id = selected.currentConversationId;
     const first = selected.currentMessages[0];
-    if (!id || !first || !selected.hasEarlierMessages || earlierRequest.current) return;
     const account = useAuthStore.getState().user?.id;
+    const loaded = selected.loadedTranscript;
+    if (
+      !id ||
+      !first ||
+      !selected.hasEarlierMessages ||
+      earlierRequest.current ||
+      loaded?.conversationId !== id ||
+      loaded.selectionVersion !== selected.selectionVersion ||
+      loaded.accountId !== (account ?? null) ||
+      loaded.tenantId !== tenant
+    )
+      return;
     const organization = useOrgStore.getState().activeOrgId;
     const stillSelected = () =>
       stillSameAccount(account) &&
       stillSameTenant(tenant) &&
       useOrgStore.getState().activeOrgId === organization &&
+      conversationApi.getState().selectionVersion === selected.selectionVersion &&
       conversationApi.getState().currentConversationId === id;
     earlierRequest.current = true;
     setLoadingEarlier(true);
@@ -566,7 +629,12 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
           [...page.items, ...previous.currentMessages].map((message) => [message.id, message]),
         ).values(),
       ];
-      setCurrentMessages(merged, previous.currentCost, page.hasEarlier);
+      setCurrentMessages(merged, previous.currentCost, page.hasEarlier, {
+        conversationId: id,
+        selectionVersion: selected.selectionVersion,
+        accountId: account ?? null,
+        tenantId: tenant,
+      });
       setError(null);
     } catch (error) {
       if (stillSelected()) {
@@ -593,6 +661,40 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
       }
     },
     [invalidateLists, setError, t, tErrors],
+  );
+
+  /**
+   * Fork one of the caller's conversations at an answer, and open the fork (#2762).
+   *
+   * The server copies the history up to and including `messageId` into a new
+   * conversation of the caller's own; the original is left as it was.
+   */
+  const forkConversation = useCallback(
+    async (conversationId: string, messageId: string): Promise<Conversation | null> => {
+      const startedAs = useAuthStore.getState().user?.id;
+      const startedIn = useOrgStore.getState().activeOrgId;
+      const startedAt = useConversationStore.getState().currentConversationId;
+      const sameReader = () =>
+        stillSameAccount(startedAs) && useOrgStore.getState().activeOrgId === startedIn;
+      try {
+        const fork = await apiClient.post<Conversation>(`/conversations/${conversationId}/fork`, {
+          message_id: messageId,
+        });
+        if (!sameReader()) return null;
+        await invalidateLists();
+        if (!sameReader()) return null;
+        if (useConversationStore.getState().currentConversationId === startedAt) {
+          await selectConversation(fork.id);
+        }
+        if (!sameReader()) return null;
+        toast.success(t("forkedToast"));
+        return fork;
+      } catch (err) {
+        if (sameReader()) toast.error(getErrorMessage(err, tErrors, t("failedForkConversation")));
+        return null;
+      }
+    },
+    [invalidateLists, selectConversation, t, tErrors],
   );
 
   const unarchiveConversation = useCallback(
@@ -622,7 +724,7 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
   const patchFavourite = useCallback(
     (id: string, favourite: boolean) => {
       queryClient.setQueriesData<ConversationListResponse>(
-        { queryKey: qk.conversations.list() },
+        { predicate: (query) => isConversationList(query.queryKey) },
         (prev) =>
           prev === undefined
             ? prev
@@ -640,7 +742,7 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
   const patchUnread = useCallback(
     (id: string, unread: boolean) => {
       queryClient.setQueriesData<ConversationListResponse>(
-        { queryKey: qk.conversations.list() },
+        { predicate: (query) => isConversationList(query.queryKey) },
         (prev) =>
           prev === undefined
             ? prev
@@ -661,14 +763,13 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
       const account = useAuthStore.getState().user?.id;
       const organization = tenant;
       await queryClient.cancelQueries({
-        queryKey: qk.conversations.list(),
         // An initial fetch is also where the open chat learns its agent and run
         // state. Cancelling it leaves the observer with neither data nor a retry.
-        predicate: (query) => query.state.data !== undefined,
+        predicate: (query) => isConversationList(query.queryKey) && query.state.data !== undefined,
       });
       if (!stillSameAccount(account) || !stillSameTenant(organization)) return;
       const before = queryClient.getQueriesData<ConversationListResponse>({
-        queryKey: qk.conversations.list(),
+        predicate: (query) => isConversationList(query.queryKey),
       });
       patchUnread(id, false);
       try {
@@ -683,16 +784,16 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
           return;
         invalidateSoon(queryClient, qk.projects.all());
         await queryClient.cancelQueries({
-          queryKey: qk.conversations.list(),
-          predicate: (query) => query.state.data !== undefined,
+          predicate: (query) =>
+            isConversationList(query.queryKey) && query.state.data !== undefined,
         });
         // Join any initial list still in flight before applying the committed
         // marker. Refetching with no cached data joins its existing promise.
         if (stillSameAccount(account) && stillSameTenant(organization)) {
           await queryClient.refetchQueries({
-            queryKey: qk.conversations.list(),
             type: "active",
-            predicate: (query) => query.state.data === undefined,
+            predicate: (query) =>
+              isConversationList(query.queryKey) && query.state.data === undefined,
           });
         }
         if (
@@ -781,9 +882,12 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
       if (!sent || !newest || !stillHere()) return;
       // The band is an ordering the server applies, so the list is refetched to
       // move the row - the star itself is already right on screen.
-      await invalidateLists();
+      await Promise.all([
+        invalidateLists(),
+        invalidateSoon(queryClient, qk.conversationShares.sharedLists()),
+      ]);
     },
-    [patchFavourite, invalidateLists, setError, t, tErrors],
+    [patchFavourite, invalidateLists, queryClient, setError, t, tErrors],
   );
 
   const deleteConversation = useCallback(
@@ -799,7 +903,11 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
           clearMessages();
           setCurrentMessages([]);
           setCurrentConversationId(null);
-          if (!scoped) setUrlParam("id", null);
+          if (!scoped) {
+            setUrlParam("thread", null);
+            setUrlParam("message", null);
+            setUrlParam("id", null);
+          }
         }
         toast.success(t("conversationDeleted"));
       } catch (err) {
@@ -854,7 +962,11 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
       // Strip the stale ?id= immediately so a refresh mid-flight lands on a
       // fresh /chat instead of the old conversation. The new id will be set
       // by the WS conversation_created event on first message.
-      if (!scoped) setUrlParam("id", null);
+      if (!scoped) {
+        setUrlParam("thread", null);
+        setUrlParam("message", null);
+        setUrlParam("id", null);
+      }
     },
     [
       clearMessages,
@@ -895,6 +1007,7 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
     loadEarlierMessages,
     archiveConversation,
     unarchiveConversation,
+    forkConversation,
     setFavourite,
     markRead,
     deleteConversation,
@@ -903,20 +1016,64 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
   };
 }
 
-/**
- * Conversations whose title matches `term`, archived ones included - what the
- * chat's search window lists. Nothing is asked until something is typed.
- */
 /** How often a listing with a thread at work in it is read again. */
 const RUNNING_POLL_MS = 4000;
-/** The same poll while the live-update socket carries the run's end as an event. */
-const RUNNING_POLL_LIVE_MS = 30_000;
 
-export function useConversationSearch(term: string) {
+export interface ConversationSearchResult {
+  id: string;
+  title: string | null;
+  updated_at: string;
+  created_at?: string;
+  snippet?: string;
+  hits?: number;
+}
+
+interface MessageSearchResult {
+  conversation_id: string;
+  title: string | null;
+  updated_at: string;
+  snippet: string;
+  hits: number;
+}
+
+/** Search conversation titles only, including archived conversations. */
+export function useConversationTitleSearch(term: string) {
   const params = listParams({ ...DEFAULT_QUERY, search: term });
   return useQuery({
     queryKey: qk.conversations.list(params),
     queryFn: () => apiClient.get<ConversationListResponse>(`/conversations?${params}`),
     enabled: term.trim() !== "",
+  });
+}
+
+/** Search both titles and indexed messages; a failed half is an explicit query error. */
+export function useConversationSearch(term: string) {
+  const normalized = term.trim();
+  const params = listParams({ ...DEFAULT_QUERY, search: normalized });
+  return useQuery({
+    queryKey: qk.conversations.search(normalized),
+    queryFn: async (): Promise<{ items: ConversationSearchResult[] }> => {
+      const [titles, messages] = await Promise.all([
+        apiClient.get<ConversationListResponse>(`/conversations?${params}`),
+        apiClient.get<{ items: MessageSearchResult[] }>(
+          `/conversations/search?${new URLSearchParams({ query: normalized, limit: "40" })}`,
+        ),
+      ]);
+      const results = new Map<string, ConversationSearchResult>();
+      for (const hit of messages.items) {
+        results.set(hit.conversation_id, { ...hit, id: hit.conversation_id });
+      }
+      for (const title of titles.items) {
+        if (!results.has(title.id)) {
+          results.set(title.id, {
+            id: title.id,
+            title: title.title ?? null,
+            updated_at: title.updated_at || title.created_at,
+          });
+        }
+      }
+      return { items: [...results.values()] };
+    },
+    enabled: normalized !== "",
   });
 }

@@ -9,6 +9,7 @@ import { qk } from "@/lib/query-keys";
 import {
   archiveTable,
   createTable,
+  getRecord,
   getTable,
   listTables,
   listAllTables,
@@ -158,4 +159,17 @@ export function useTable(tableId: string | null) {
     unarchive,
     invalidate,
   };
+}
+
+/**
+ * One record, read-only - what a record a tool call names currently holds.
+ * Disabled until both ids are known.
+ */
+export function useTableRecord(tableId: string | null, recordId: string | null) {
+  const { data, isLoading, error } = useQuery({
+    queryKey: qk.tables.record(tableId ?? "", recordId ?? ""),
+    queryFn: () => getRecord(tableId as string, recordId as string),
+    enabled: !!tableId && !!recordId,
+  });
+  return { record: data, isLoading, error };
 }

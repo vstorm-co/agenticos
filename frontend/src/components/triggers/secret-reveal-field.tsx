@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { toast } from "sonner";
 import { useTranslations } from "next-intl";
 
+import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";
 import { Button, Input, Label } from "@/components/ui";
 
 interface SecretRevealFieldProps {
@@ -33,18 +34,23 @@ export function SecretRevealField({
   id = "revealed-secret",
 }: SecretRevealFieldProps) {
   const t = useTranslations("triggers");
-  const [copied, setCopied] = useState(false);
+  const tc = useTranslations("common");
+  const { copy: write, copied } = useCopyToClipboard();
 
   async function copy() {
-    await navigator.clipboard.writeText(secret);
-    setCopied(true);
+    if (!(await write(secret))) toast.error(tc("copyFailed"));
   }
 
   return (
     <div className="space-y-1">
       <Label htmlFor={id}>{label}</Label>
       <div className="flex gap-2">
-        <Input id={id} value={secret} readOnly className="flex-1 font-mono text-base md:text-xs" />
+        <Input
+          id={id}
+          value={secret}
+          readOnly
+          className="min-w-0 flex-1 font-mono text-base md:text-xs"
+        />
         <Button type="button" variant="outline" onClick={copy}>
           {copied ? t("copied") : t("copy")}
         </Button>

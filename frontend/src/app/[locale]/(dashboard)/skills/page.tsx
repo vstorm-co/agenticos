@@ -3,6 +3,7 @@
 import { FILTER_CONTROL } from "@/components/ui/control-styles";
 
 import { useState } from "react";
+import Link from "next/link";
 import type { ReactNode } from "react";
 import { BookOpen, ChevronDown, Library, ListFilter, Lock, Plus } from "lucide-react";
 
@@ -11,19 +12,13 @@ import { PageHeader } from "@/components/dashboard/page-header";
 import { ProposedChanges } from "@/components/skills/proposed-changes";
 import { CreateSkillDialog } from "@/components/skills/create-skill-dialog";
 import { SkillGalleryDialog } from "@/components/skills/skill-gallery-dialog";
+import { SkillDetailDialog } from "@/components/skills/skill-detail-dialog";
 import { SkillCard } from "@/components/skills/skill-card";
-import { SkillWorkbench } from "@/components/skills/skill-workbench";
-import { categoryLabel, categorySuggestions } from "@/components/skills/category-input";
-import { Skeleton } from "@/components/ui/skeleton";
-import { EmptyState, ErrorState, LoadingState } from "@/components/states";
+import { categoryLabel } from "@/components/skills/category-input";
+import { CatalogLoading } from "@/components/states/catalog-loading";
+import { EmptyState, ErrorState } from "@/components/states";
 import {
   Button,
-  ConfirmDialog,
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
@@ -38,14 +33,14 @@ import {
   useDebounced,
 } from "@/components/ui";
 import { GroupFilter, NothingSharedWithGroup } from "@/components/groups/group-filter";
-import { usePermissions, useSkill, useSkills, useUrlState } from "@/hooks";
-import type { SkillEdit, SkillSort } from "@/hooks/use-skills";
+import { usePermissions, useSkills, useUrlState } from "@/hooks";
+import { useUrlOverlay } from "@/hooks/use-url-state";
+import type { SkillSort } from "@/hooks/use-skills";
 import { getErrorMessage } from "@/lib/api-error";
 import { cn } from "@/lib/utils";
+import { ROUTES } from "@/lib/constants";
 import { Perm } from "@/types/permissions";
-import type { SkillSummary } from "@/types/providers";
-import { useTranslations } from "next-intl";
-import { DIALOG_CANVAS, DIALOG_FILL } from "@/lib/dialog-sizes";
+import { useLocale, useTranslations } from "next-intl";
 
 /**
  * One pressed-or-not control, used for the sort.
@@ -83,6 +78,9 @@ function Chip({
 }
 
 export default function SkillsPage() {
+  const locale = useLocale();
+  const teaching = useTranslations("browserProcedureTeaching");
+  const [selectedSkill, skillView] = useUrlOverlay("skill");
   const t = useTranslations("pages.skills");
   const tc = useTranslations("common");
   const tErrors = useTranslations("errors");
@@ -95,20 +93,15 @@ export default function SkillsPage() {
   const search = useDebounced(query);
   // In the address, so a group's skills are a link somebody can send.
   const [groupId, setGroupId] = useUrlState("group");
-  const { skills, total, categories, suggestedCategories, isLoading, error, refetch, remove } =
-    useSkills({
-      search,
-      categories: selectedCategories,
-      sort,
-      skip: page * PAGE_SIZE,
-      limit: PAGE_SIZE,
-      groupId,
-    });
+  const { skills, total, categories, isLoading, error, refetch } = useSkills({
+    search,
+    categories: selectedCategories,
+    sort,
+    skip: page * PAGE_SIZE,
+    limit: PAGE_SIZE,
+    groupId,
+  });
   const { can, isLoading: isLoadingPermissions } = usePermissions();
-
-  const [selected, setSelected] = useState<SkillSummary | null>(null);
-  const [pendingDelete, setPendingDelete] = useState<SkillSummary | null>(null);
-  const { skill, save } = useSkill(selected?.id ?? null);
 
   const [createOpen, setCreateOpen] = useState(false);
   const [galleryOpen, setGalleryOpen] = useState(false);
@@ -126,11 +119,6 @@ export default function SkillsPage() {
     setPage(0);
   }
 
-  async function handleSave(edit: SkillEdit) {
-    await save.mutateAsync(edit);
-    setSelected(null);
-  }
-
   const isBusy = isLoading || isLoadingPermissions;
 
   const header = (
@@ -138,12 +126,21 @@ export default function SkillsPage() {
       title={t("skills2")}
       description={t("skillKnowHowWritten")}
       secondaryActions={
-        canCreate ? (
-          <Button variant="outline" data-tour="skills-gallery" onClick={() => setGalleryOpen(true)}>
-            <Library className="h-4 w-4" />
-            {tGallery("browse")}
+        <>
+          <Button asChild variant="outline" data-tour="skills-teaching">
+            <Link href={`/${locale}${ROUTES.SKILLS_TEACHING}`}>{teaching("listTitle")}</Link>
           </Button>
-        ) : undefined
+          {canCreate ? (
+            <Button
+              variant="outline"
+              data-tour="skills-gallery"
+              onClick={() => setGalleryOpen(true)}
+            >
+              <Library className="h-4 w-4" />
+              {tGallery("browse")}
+            </Button>
+          ) : null}
+        </>
       }
       actions={
         canCreate ? (
@@ -172,125 +169,111 @@ export default function SkillsPage() {
     );
   }
 
-  // The same card the page renders, with card skeletons inside it. A skeleton
-  // that draws a different shape from what follows is a layout jump on load.
-  if (isBusy) {
-    return (
-      <div className="flex flex-1 flex-col space-y-4">
-        {header}
-        <ListCard fill namedByPage title={t("skills")} counted={null}>
-          <LoadingState variant="skeleton-cards" rows={3} />
-        </ListCard>
-      </div>
-    );
-  }
-
   // Rendered even on an empty result, unlike the grid: a search or a chip that
   // matched nothing has to leave the reader something to clear.
-  const controls =
-    isFiltering || total > 0 || categories.length > 0 ? (
-      <div className="flex min-w-0 flex-wrap items-center gap-2">
-        <SearchInput
-          value={query}
-          onChange={(next) => {
-            setQuery(next);
-            setPage(0);
-          }}
-          placeholder={t("searchSkills")}
-          className="min-w-0 flex-1 sm:w-56 sm:flex-none"
-        />
-        <ListFilters
-          compact
-          active={selectedCategories.length + Number(groupId !== null) + Number(sort !== "name")}
-        >
-          <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-            {/* A menu of checkboxes rather than a chip row: shelves are
+  const controls = (
+    <div className="flex min-w-0 flex-wrap items-center gap-2">
+      <SearchInput
+        value={query}
+        onChange={(next) => {
+          setQuery(next);
+          setPage(0);
+        }}
+        placeholder={t("searchSkills")}
+        className="min-w-0 flex-1 sm:w-56 sm:flex-none"
+      />
+      <ListFilters
+        compact
+        active={selectedCategories.length + Number(groupId !== null) + Number(sort !== "name")}
+      >
+        <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+          {/* A menu of checkboxes rather than a chip row: shelves are
                   additive - "devops or data" is a sensible question - and a
                   row of twenty chips is a wall where a count is a summary.
                   It appears only once somebody has categorized something -
                   a filter over one shelf filters nothing. */}
-            <div className="grid w-full grid-cols-1 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center max-sm:[&>button]:w-full max-sm:[&>button]:justify-between">
-              {categories.length > 0 && (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    {/* Drawn like every other filter in the console - the
+          <div className="grid w-full grid-cols-1 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center max-sm:[&>button]:w-full max-sm:[&>button]:justify-between">
+            {categories.length > 0 && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  {/* Drawn like every other filter in the console - the
                           agents' label filters and the selects beside them. */}
-                    <Button variant="outline" className={FILTER_CONTROL}>
-                      <ListFilter
-                        className="size-3.5 shrink-0 opacity-70"
-                        strokeWidth={1.75}
-                        aria-hidden
-                      />
-                      {selectedCategories.length === 0
-                        ? t("allCategories")
-                        : selectedCategories.length === 1
-                          ? categoryLabel(selectedCategories[0]!)
-                          : t("categoryCount", { count: selectedCategories.length })}
-                      <ChevronDown className="h-4 w-4 opacity-60" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start">
-                    {categories.map((entry) => (
-                      <DropdownMenuCheckboxItem
-                        key={entry}
-                        checked={selectedCategories.includes(entry)}
-                        onCheckedChange={() => toggleCategory(entry)}
-                        // Picking several is the point; the menu staying open
-                        // is what makes it a multi-select rather than a detour.
-                        onSelect={(event) => event.preventDefault()}
+                  <Button variant="outline" className={FILTER_CONTROL}>
+                    <ListFilter
+                      className="size-3.5 shrink-0 opacity-70"
+                      strokeWidth={1.75}
+                      aria-hidden
+                    />
+                    {selectedCategories.length === 0
+                      ? t("allCategories")
+                      : selectedCategories.length === 1
+                        ? categoryLabel(selectedCategories[0]!)
+                        : t("categoryCount", { count: selectedCategories.length })}
+                    <ChevronDown className="h-4 w-4 opacity-60" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                  {categories.map((entry) => (
+                    <DropdownMenuCheckboxItem
+                      key={entry}
+                      checked={selectedCategories.includes(entry)}
+                      onCheckedChange={() => toggleCategory(entry)}
+                      // Picking several is the point; the menu staying open
+                      // is what makes it a multi-select rather than a detour.
+                      onSelect={(event) => event.preventDefault()}
+                    >
+                      {categoryLabel(entry)}
+                    </DropdownMenuCheckboxItem>
+                  ))}
+                  {selectedCategories.length > 0 && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        onSelect={() => {
+                          setSelectedCategories([]);
+                          setPage(0);
+                        }}
                       >
-                        {categoryLabel(entry)}
-                      </DropdownMenuCheckboxItem>
-                    ))}
-                    {selectedCategories.length > 0 && (
-                      <>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          onSelect={() => {
-                            setSelectedCategories([]);
-                            setPage(0);
-                          }}
-                        >
-                          {t("clearFilter")}
-                        </DropdownMenuItem>
-                      </>
-                    )}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              )}
-              <GroupFilter
-                value={groupId}
-                onChange={(next) => {
-                  setGroupId(next);
-                  setPage(0);
-                }}
-              />
-            </div>
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span className="text-muted-foreground text-xs">{t("sort")}</span>
-              <Chip
-                active={sort === "name"}
-                onClick={() => {
-                  setSort("name");
-                  setPage(0);
-                }}
-              >
-                {t("name")}
-              </Chip>
-              <Chip
-                active={sort === "updated"}
-                onClick={() => {
-                  setSort("updated");
-                  setPage(0);
-                }}
-              >
-                {t("recentlyUpdated")}
-              </Chip>
-            </div>
+                        {t("clearFilter")}
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+            <GroupFilter
+              value={groupId}
+              onChange={(next) => {
+                setGroupId(next);
+                setPage(0);
+              }}
+            />
           </div>
-        </ListFilters>
-      </div>
-    ) : undefined;
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-muted-foreground text-xs">{t("sort")}</span>
+            <Chip
+              active={sort === "name"}
+              onClick={() => {
+                setSort("name");
+                setPage(0);
+              }}
+            >
+              {t("name")}
+            </Chip>
+            <Chip
+              active={sort === "updated"}
+              onClick={() => {
+                setSort("updated");
+                setPage(0);
+              }}
+            >
+              {t("recentlyUpdated")}
+            </Chip>
+          </div>
+        </div>
+      </ListFilters>
+    </div>
+  );
 
   return (
     <div className="flex flex-1 flex-col space-y-4">
@@ -301,18 +284,20 @@ export default function SkillsPage() {
       <ProposedChanges canEdit={canCreate} />
 
       <ListCard
+        layout="grid"
         fill
         data-tour="skills-list"
         namedByPage
         title={t("skills")}
         // The count is a claim about the organization, and a failed request has
         // made none - so an error draws the skeleton, not "0 skills".
-        counted={error ? null : t("skillCount", { count: total })}
+        counted={isBusy || error ? null : t("skillCount", { count: total })}
         controls={controls}
-        empty={!error && !isFiltering && total === 0 && categories.length === 0}
       >
         <div className="space-y-4">
-          {error ? (
+          {isBusy ? (
+            <CatalogLoading kind="document" />
+          ) : error ? (
             // Not the empty state: "no skills yet" and "the request failed" are
             // different facts, and only one of them offers a create button.
             <ErrorState
@@ -326,6 +311,16 @@ export default function SkillsPage() {
             <NothingSharedWithGroup groupId={groupId} />
           ) : skills.length === 0 ? (
             <ListCardEmpty
+              onClearFilters={
+                isFiltering
+                  ? () => {
+                      setQuery("");
+                      setSelectedCategories([]);
+                      setGroupId(null);
+                      setPage(0);
+                    }
+                  : undefined
+              }
               icon={BookOpen}
               title={isFiltering ? t("noSkillMatches") : t("noSkillsYet")}
               description={
@@ -351,9 +346,9 @@ export default function SkillsPage() {
             />
           ) : (
             <>
-              <div className="rise-in grid grid-cols-1 items-start gap-3 md:grid-cols-2 xl:grid-cols-3">
+              <div className="rise-in grid grid-cols-1 items-stretch gap-3 md:grid-cols-2 xl:grid-cols-3">
                 {skills.map((entry) => (
-                  <SkillCard key={entry.id} skill={entry} onOpen={() => setSelected(entry)} />
+                  <SkillCard key={entry.id} skill={entry} onOpen={() => skillView.open(entry.id)} />
                 ))}
               </div>
               <Pager
@@ -369,74 +364,16 @@ export default function SkillsPage() {
         </div>
       </ListCard>
 
-      <Dialog
-        open={selected !== null}
-        onOpenChange={(open) => {
-          if (!open) setSelected(null);
-        }}
-      >
-        {selected !== null && (
-          <DialogContent className={cn(DIALOG_FILL, DIALOG_CANVAS, "max-md:overflow-y-auto")}>
-            <DialogHeader>
-              <DialogTitle className="font-mono">{selected.name}</DialogTitle>
-              <DialogDescription className="max-md:sr-only">
-                {t("nameHowModelRefers")}
-              </DialogDescription>
-            </DialogHeader>
-            {skill === undefined ? (
-              <div
-                className="flex min-h-0 flex-1 flex-col gap-3 max-md:flex-none"
-                role="status"
-                aria-label={tc("loading")}
-              >
-                <div className="flex flex-wrap gap-4 rounded-md border p-3" aria-hidden>
-                  <Skeleton className="h-20 min-w-0 flex-1 basis-72" />
-                  <Skeleton className="h-20 w-56" />
-                  <Skeleton className="h-20 w-12" />
-                </div>
-                <div
-                  className="grid min-h-0 flex-1 gap-3 max-md:flex-none md:grid-cols-[minmax(0,15rem)_minmax(0,1fr)]"
-                  aria-hidden
-                >
-                  <Skeleton className="min-h-24 w-full max-md:h-48" />
-                  <Skeleton className="min-h-[22rem] w-full" />
-                </div>
-              </div>
-            ) : (
-              <SkillWorkbench
-                categorySuggestions={categorySuggestions(categories, suggestedCategories)}
-                key={skill.id}
-                skill={skill}
-                canEdit={selected.can_edit === true}
-                isSaving={save.isPending}
-                onSave={handleSave}
-                onCancel={() => setSelected(null)}
-                onDelete={() => setPendingDelete(selected)}
-              />
-            )}
-          </DialogContent>
-        )}
-      </Dialog>
-
-      <CreateSkillDialog open={createOpen} onOpenChange={setCreateOpen} />
-      <SkillGalleryDialog open={galleryOpen} onOpenChange={setGalleryOpen} />
-
-      {pendingDelete !== null && (
-        <ConfirmDialog
-          open
-          onOpenChange={() => setPendingDelete(null)}
-          title={tc("deleteNamedConfirm", { name: pendingDelete.name })}
-          description={t("agentsBoundSkillWill")}
-          confirmLabel={t("delete")}
-          destructive
-          loading={remove.isPending}
-          onConfirm={async () => {
-            await remove.mutateAsync(pendingDelete.id);
-            if (selected?.id === pendingDelete.id) setSelected(null);
-            setPendingDelete(null);
-          }}
+      {selectedSkill !== null && (
+        <SkillDetailDialog
+          id={selectedSkill}
+          name={skills.find((skill) => skill.id === selectedSkill)?.name}
+          canEdit={skills.find((skill) => skill.id === selectedSkill)?.can_edit}
+          onClose={skillView.close}
         />
       )}
+      <CreateSkillDialog open={createOpen} onOpenChange={setCreateOpen} />
+      <SkillGalleryDialog open={galleryOpen} onOpenChange={setGalleryOpen} />
     </div>
   );
 }

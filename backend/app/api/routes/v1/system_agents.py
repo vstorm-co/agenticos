@@ -10,6 +10,7 @@ from typing import Any
 from fastapi import APIRouter, Depends
 
 from app.api.deps import Auth, SystemAgentSvc, require
+from app.api.public_api import ASSISTANT
 from app.core.permissions import Perm
 from app.schemas.system_agent import SystemAgentList, SystemAgentRead, SystemAgentUpdate
 
@@ -26,10 +27,20 @@ async def list_system_agents(service: SystemAgentSvc, ctx: Auth) -> Any:
     return await service.overview(ctx)
 
 
+@router.get(
+    "/configuration",
+    response_model=SystemAgentList,
+    dependencies=[ASSISTANT, Depends(require(Perm.BUDGETS_MANAGE))],
+)
+async def system_agent_configuration(service: SystemAgentSvc, ctx: Auth) -> Any:
+    """Read current state without provisioning system-agent profiles."""
+    return await service.overview(ctx, provision=False)
+
+
 @router.put(
     "/{role}",
     response_model=SystemAgentRead,
-    dependencies=[Depends(require(Perm.BUDGETS_MANAGE))],
+    dependencies=[ASSISTANT, Depends(require(Perm.BUDGETS_MANAGE))],
 )
 async def update_system_agent(
     role: str, data: SystemAgentUpdate, service: SystemAgentSvc, ctx: Auth

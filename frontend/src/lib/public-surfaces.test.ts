@@ -32,7 +32,7 @@ describe("isPublicSurface", () => {
   it("expects the locale prefix already gone", () => {
     // Not a wish: `usePathname` from `@/lib/locale-navigation` answers without it,
     // and this asserts the consequence of reading the other one by mistake, so the
-    // failure names the cause rather than presenting as "no banner for Poles".
-    expect(isPublicSurface("/pl/e/abc")).toBe(false);
+    // failure names the cause rather than presenting as a missing banner.
+    expect(isPublicSurface("/en/e/abc")).toBe(false);
   });
 });

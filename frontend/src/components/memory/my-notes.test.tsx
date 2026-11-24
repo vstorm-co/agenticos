@@ -54,13 +54,19 @@ function mount(
     skip: 0,
     showPage,
     setActive,
+    update: vi.fn(),
     remove,
   });
   render(
     <QueryClientProvider
       client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
     >
-      <MyNotes />
+      <MyNotes
+        agents={[
+          { id: "other-agent", slug: "other-playground", name: note.agent_name ?? "" },
+          { id: note.agent_id, slug: "playground", name: note.agent_name ?? "" },
+        ]}
+      />
     </QueryClientProvider>,
   );
 }
@@ -72,15 +78,17 @@ beforeEach(() => {
 it("opens one note at a time instead of expanding every file inline", async () => {
   mount();
   expect(screen.queryByText("Checklist content")).not.toBeInTheDocument();
-  await userEvent.click(screen.getByRole("button", { name: /checklist.md/ }));
+  const row = screen.getByRole("button", { name: /checklist\.md/ });
+  expect(within(row).getByText("Playground")).toBeVisible();
+  expect(row.querySelector('[data-agent-avatar="a-1"]')).toBeVisible();
+  await userEvent.click(row);
   expect(await screen.findByText("Checklist content")).toBeVisible();
-  await userEvent.click(screen.getByRole("tab", { name: "noteDetails" }));
   expect(screen.getByText("writtenBy:Playground|4 Nov 2026")).toBeVisible();
+  expect(screen.getByRole("dialog").querySelector('[data-agent-avatar="a-1"]')).toBeVisible();
 });
 it("suppresses and restores a note without deleting it", async () => {
   mount({ deactivated_at: "2026-11-04T12:00:00Z" });
   await userEvent.click(screen.getByRole("button", { name: /checklist.md/ }));
-  await userEvent.click(screen.getByRole("tab", { name: "noteDetails" }));
   await userEvent.click(screen.getByRole("button", { name: "restore" }));
   expect(setActive).toHaveBeenCalledWith("n-1", true);
   expect(remove).not.toHaveBeenCalled();
@@ -88,7 +96,6 @@ it("suppresses and restores a note without deleting it", async () => {
 it("requires confirmation before permanent deletion", async () => {
   mount();
   await userEvent.click(screen.getByRole("button", { name: /checklist.md/ }));
-  await userEvent.click(screen.getByRole("tab", { name: "noteDetails" }));
   await userEvent.click(screen.getByRole("button", { name: "delete" }));
   expect(remove).not.toHaveBeenCalled();
   const confirm = screen.getAllByRole("dialog").at(-1)!;
@@ -99,7 +106,6 @@ it("keeps the note visible after deletion is refused", async () => {
   remove.mockResolvedValue(false);
   mount();
   await userEvent.click(screen.getByRole("button", { name: /checklist.md/ }));
-  await userEvent.click(screen.getByRole("tab", { name: "noteDetails" }));
   await userEvent.click(screen.getByRole("button", { name: "delete" }));
   const confirm = screen.getAllByRole("dialog").at(-1)!;
   await userEvent.click(within(confirm).getByRole("button", { name: "delete" }));
@@ -147,4 +153,13 @@ it("does not replace a selected note for an empty relative reference", async () 
   await userEvent.click(await screen.findByRole("link", { name: "Current note" }));
   expect(screen.getByRole("link", { name: "Current note" })).toBeInTheDocument();
   expect(showPage).not.toHaveBeenCalled();
+});
+
+it("keeps note rows in their own scroll area with a visible one-page footer", () => {
+  mount();
+  const rows = screen.getByRole("list");
+  expect(rows).toHaveClass("min-h-0", "flex-1", "overflow-auto");
+  expect(screen.getByText("1 / 1")).toBeVisible();
+  expect(screen.getByRole("button", { name: "previousPage" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "nextPage" })).toBeDisabled();
 });

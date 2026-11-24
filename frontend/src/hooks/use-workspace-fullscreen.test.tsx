@@ -1,6 +1,6 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { expect, it } from "vitest";
+import { expect, it, vi } from "vitest";
 import { useWorkspaceFullscreen } from "./use-workspace-fullscreen";
 
 it("expands without remounting edits, dismisses with Escape and restores the shell", async () => {
@@ -80,4 +80,44 @@ it("stays expanded for any other key and for an Escape something else already ha
 
   fireEvent.keyDown(window, { key: "Escape" });
   expect(shell).toHaveAttribute("data-expanded", "false");
+});
+
+it("restores the desktop shell after expanding on mobile without losing the draft", async () => {
+  const query = Object.assign(new EventTarget(), {
+    matches: false,
+    media: "(min-width: 768px)",
+    onchange: null,
+    addListener: () => {},
+    removeListener: () => {},
+  });
+  const media = vi.spyOn(window, "matchMedia").mockReturnValue(query);
+  function Example() {
+    const { ref, expanded, toggle } = useWorkspaceFullscreen();
+    return (
+      <div ref={ref} data-expanded={expanded}>
+        <input aria-label="Mobile draft" />
+        <button onClick={toggle}>Expand mobile</button>
+      </div>
+    );
+  }
+  try {
+    render(
+      <div>
+        <button>Desktop navigation</button>
+        <Example />
+      </div>,
+    );
+    const navigation = screen.getByRole("button", { name: "Desktop navigation" });
+    const draft = screen.getByRole("textbox", { name: "Mobile draft" });
+    await userEvent.type(draft, "Keep my edits");
+    await userEvent.click(screen.getByRole("button", { name: "Expand mobile" }));
+    expect(navigation.inert).toBe(true);
+    query.matches = true;
+    act(() => query.dispatchEvent(new Event("change")));
+    expect(navigation.inert).toBe(false);
+    expect(draft).toHaveValue("Keep my edits");
+    expect(draft.parentElement).toHaveAttribute("data-expanded", "false");
+  } finally {
+    media.mockRestore();
+  }
 });

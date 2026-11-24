@@ -20,6 +20,31 @@ export function SetupIndicator({
   const t = useTranslations("setupHints");
   const reducedMotion = useReducedMotion();
   if (!hints.length) return null;
+  const marker = (
+    <span aria-hidden className="relative inline-flex size-2">
+      <span
+        className={cn(
+          "absolute inset-0 rounded-full bg-amber-400/45",
+          !reducedMotion && "animate-ping",
+        )}
+      />
+      <span className="relative size-2 rounded-full bg-amber-500 dark:bg-amber-300" />
+    </span>
+  );
+  // A tab already exposes these hints through aria-describedby. A second button
+  // inside its tablist breaks the tab pattern, even with tabindex=-1.
+  if (!focusable)
+    return (
+      <span
+        aria-hidden
+        className={cn(
+          "pointer-events-none inline-flex size-5 items-center justify-center",
+          className,
+        )}
+      >
+        {marker}
+      </span>
+    );
   const description = hints.map((hint) => t(hint)).join(" ");
   const content = (
     <div className="space-y-1.5">
@@ -38,21 +63,13 @@ export function SetupIndicator({
               <button
                 type="button"
                 aria-label={description}
-                tabIndex={focusable ? 0 : -1}
+                tabIndex={0}
                 className={cn(
                   "touch:size-7 focus-visible:ring-ring inline-flex size-5 shrink-0 cursor-help items-center justify-center rounded-full outline-none focus-visible:ring-2",
                   className,
                 )}
               >
-                <span aria-hidden className="relative inline-flex size-2">
-                  <span
-                    className={cn(
-                      "absolute inset-0 rounded-full bg-amber-400/45",
-                      !reducedMotion && "animate-ping",
-                    )}
-                  />
-                  <span className="relative size-2 rounded-full bg-amber-500 dark:bg-amber-300" />
-                </span>
+                {marker}
               </button>
             </PopoverTrigger>
           </TooltipTrigger>

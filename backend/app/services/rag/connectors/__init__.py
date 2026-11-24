@@ -9,9 +9,14 @@ from typing import Any, ClassVar
 from pydantic import BaseModel
 
 from app.core.secret_kinds import SecretKind, StorableSecret
+from app.services.rag.drive_api import GoogleDriveOAuthGrant
 from app.services.rag.remote_names import destination_within
 
 logger = logging.getLogger(__name__)
+
+
+type SyncCredential = StorableSecret | GoogleDriveOAuthGrant
+"""The source-bound vault secret or transient OAuth grant, checked by each connector."""
 
 
 ConnectorConfig = dict[str, Any]
@@ -125,7 +130,7 @@ class BaseSyncConnector(ABC):
 
     @abstractmethod
     async def list_files(
-        self, config: ConnectorConfig, credential: StorableSecret | None
+        self, config: ConnectorConfig, credential: SyncCredential | None
     ) -> RemoteListing:
         """List files available for sync from this source.
 
@@ -145,7 +150,7 @@ class BaseSyncConnector(ABC):
         file: RemoteFile,
         dest_dir: Path,
         config: ConnectorConfig | None = None,
-        credential: StorableSecret | None = None,
+        credential: SyncCredential | None = None,
     ) -> Path:
         """Download one file into `dest_dir` and answer the local path it landed at.
 
@@ -168,12 +173,12 @@ class BaseSyncConnector(ABC):
         file: RemoteFile,
         dest_path: Path,
         config: ConnectorConfig,
-        credential: StorableSecret | None,
+        credential: SyncCredential | None,
     ) -> None:
         """Write `file`'s bytes to `dest_path`, which is already inside the sync directory."""
 
     async def remote_version(
-        self, config: ConnectorConfig, credential: StorableSecret | None, previous: str | None
+        self, config: ConnectorConfig, credential: SyncCredential | None, previous: str | None
     ) -> str | None:
         """What the source's whole content is at now, if that is cheap to ask.
 

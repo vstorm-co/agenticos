@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Shield } from "lucide-react";
+import { Shield, Search } from "lucide-react";
 
 import { UserDetailDrawer } from "@/components/admin/user-detail-drawer";
 import { ErrorState } from "@/components/states";
@@ -11,6 +11,7 @@ import {
   Button,
   DataTable,
   ListCard,
+  ListCardEmpty,
   ListCardFootRow,
   PaginationBar,
   SearchInput,
@@ -18,7 +19,7 @@ import {
 } from "@/components/ui";
 import { useAdminUsers, useUrlSort } from "@/hooks";
 import type { AdminUser } from "@/types";
-import { formatDate } from "@/lib/utils";
+import { formatDate, formatDateTime } from "@/lib/utils";
 import { useChanged } from "@/hooks/use-changed";
 
 import { useLocale, useTranslations } from "next-intl";
@@ -29,6 +30,7 @@ const SORT_KEYS = ["email", "full_name", "conversations", "created_at"] as const
 
 export default function AdminUsersPage() {
   const t = useTranslations("pages.admin");
+  const ta = useTranslations("admin");
   const locale = useLocale();
   const { users, total, isLoading, error, fetchUsers, updateUser, deleteUser, impersonateUser } =
     useAdminUsers();
@@ -95,8 +97,11 @@ export default function AdminUsersPage() {
               ariaHidden
             />
             <div className="min-w-0">
-              <div className="flex items-center gap-1.5">
-                <p className="text-foreground truncate text-sm font-medium">
+              <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+                <p
+                  title={u.full_name || u.email}
+                  className="text-foreground max-w-full truncate text-sm font-medium"
+                >
                   {u.full_name || u.email.split("@")[0]}
                 </p>
                 {/* The deployment superadmin, which is the only authority a user
@@ -145,6 +150,27 @@ export default function AdminUsersPage() {
           ),
       },
       {
+        key: "last_seen_at",
+        hideBelow: "lg",
+        header: ta("lastSeen"),
+        cell: (u) => (
+          <span className="text-muted-foreground text-xs">
+            {u.last_seen_at === undefined
+              ? "—"
+              : u.last_seen_at
+                ? formatDateTime(u.last_seen_at, locale)
+                : ta("neverSignedIn")}
+          </span>
+        ),
+      },
+      {
+        key: "active_sessions",
+        hideBelow: "lg",
+        header: ta("activeSessions"),
+        align: "right",
+        cell: (u) => <span className="tabular-nums">{u.active_sessions ?? "—"}</span>,
+      },
+      {
         key: "created_at",
         hideBelow: "md",
         header: t("joined"),
@@ -173,7 +199,7 @@ export default function AdminUsersPage() {
         ),
       },
     ],
-    [t, locale, handleOpenUser],
+    [t, ta, locale, handleOpenUser],
   );
 
   return (
@@ -198,13 +224,27 @@ export default function AdminUsersPage() {
           sort={sort}
           onSort={setSort}
           error={error ? <ErrorState description={error} className="m-5" /> : null}
-          empty={search ? t("noUsersMatch", { query: search }) : t("noUsersYet")}
+          empty={
+            search ? (
+              <ListCardEmpty
+                icon={Search}
+                title={t("noUsersMatch", { query: search })}
+                onClearFilters={() => {
+                  setSearch("");
+                  setPage(0);
+                }}
+              />
+            ) : (
+              t("noUsersYet")
+            )
+          }
           className="rounded-none border-0 bg-transparent"
         />
 
-        {total > 0 && (
+        {!error && (
           <ListCardFootRow>
             <PaginationBar
+              showSinglePage
               page={page}
               pageSize={PAGE_SIZE}
               total={total}

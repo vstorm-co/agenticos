@@ -83,13 +83,17 @@ export interface ProviderCost {
 
 export interface CostBlock {
   /**
-   * Serialised Decimals. `period_usd` is the whole bill - models plus
-   * ingestion - and the two halves below sum to it; the calendar
+   * Serialised Decimals. `period_usd` is the whole bill - models, evals and
+   * ingestion - and the three parts below sum to it; the calendar
    * month-to-date figure still lives on GET /spend.
    */
   period_usd: string;
   previous_period_usd: string;
   model_usd: string;
+  /** What eval runs and their judge cost: inside the bill, outside `model_usd`. */
+  eval_usd: string;
+  /** What the authoring assistant cost proposing improvements: named apart from evals. */
+  authoring_usd?: string;
   /** Zero at scope=own: a document is indexed by a worker, for nobody. */
   ingestion_usd: string;
   by_provider: ProviderCost[];
@@ -177,4 +181,21 @@ export interface SurfaceRatings {
   surface: string;
   likes: number;
   dislikes: number;
+}
+
+/** One agent with something to look at in a window - counts only. Mirrors `AgentAttention`. */
+export interface AgentAttention {
+  agent_id: string;
+  name: string;
+  rated_down: number;
+  failed_runs: number;
+  failing_suites: number;
+  /** Whether the reader may edit the agent, a grant included - where Improve is offered. */
+  can_edit: boolean;
+}
+
+export interface AgentAttentionList {
+  from: string;
+  to: string;
+  items: AgentAttention[];
 }

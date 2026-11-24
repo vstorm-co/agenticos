@@ -6,6 +6,10 @@
     in this platform passes through `app/core/vault.py`. Adding a second way to
     hold a credential at rest is the defect two migrations removed.
 
+## In the console
+
+Vault lists keys, your connected accounts and organization accounts in one table. **Add key** stores a credential; **Connect account** lets you choose your own account or, with permission, an organization account. Each row keeps its own access and actions: key sharing/rotation, or account reconnection/disconnection. OAuth tokens stay hidden, and disconnecting an account asks for confirmation.
+
 ## Envelope encryption
 
 Each secret is sealed with its own random data key. That data key is sealed with a
@@ -191,6 +195,14 @@ transcription's [usage record](ml-services.md#what-is-recorded) names the key it
 was sent with. See [which engine a recording reaches](ml-services.md#which-engine-a-recording-reaches).
 A key's list of the agents using it does not show this use.
 
+**Workflow media.** Generation nodes name an organization-scoped `api_key` with
+the exact selected provider purpose. Publication checks metadata without
+decrypting it. `OrganizationSecretService.workflow_media_key` locks and refreshes
+the row, rechecks the run principal's current access and the operation's pinned
+authorization generation, then opens it only for the trusted generation adapter.
+Rotation cannot silently substitute another paid credential during recovery.
+The graph and receipts contain ids and accounting metadata, never key values.
+
 **Voice calls.** The key a [voice call](voice.md) is held with is named on the
 agent's Voice card, beside the realtime provider and model. Its purpose must be
 the provider and its kind the provider's: an `api_key`, or an `azure_openai`
@@ -353,7 +365,7 @@ version too, so the next secret sealed into it lands on a key that still exists.
 are untouched, which is what makes rotation cheap.
 
 ```bash
-uv run agenticos cmd doctor    # reports whether a vault key is configured at all
+uv run agenticos cmd doctor    # says whether a dedicated key or the SECRET_KEY fallback seals the vault
 ```
 
 `make platform-bootstrap BOOTSTRAP_API_KEY=sk-...` stores the first provider key

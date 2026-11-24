@@ -33,6 +33,7 @@ from pydantic_ai.tools import RunContext
 from pydantic_ai.workspaces import WorkspaceError
 
 from app.agents.capabilities.coding_agent._harness import Invocation, TaskFiles
+from app.agents.model_context import check_model_context
 
 WORK_DIR = ".agenticos/coding-agent"
 """Where a task's files are written while it runs, and the session it continues."""
@@ -184,8 +185,12 @@ async def run_detached(
     await ctx.workspace.make_dir(WORK_DIR)
     # The credential reaches the harness through this command's environment,
     # which the detached process inherits; it is never on a command line.
+    await check_model_context()
     started = await ctx.workspace.run(  # noqa: S604
-        command.detached_line(files), shell=True, env=command.env, timeout=60
+        command.detached_line(files, timeout_seconds=timeout_seconds),
+        shell=True,
+        env=command.env,
+        timeout=60,
     )
     group = _group(started.stdout)
     if group is None:
@@ -205,7 +210,12 @@ async def run_detached(
                 if rest := reader.rest():
                     await on_events(rest)
                 finished = True
-                return Outcome(reader.events, await _read(ctx, files.errors), exit_code)
+                return Outcome(
+                    reader.events,
+                    await _read(ctx, files.errors),
+                    exit_code,
+                    timed_out=command.supervised and exit_code == 124,
+                )
             if time.monotonic() >= deadline:
                 return Outcome(reader.events, await _read(ctx, files.errors), None, timed_out=True)
             await anyio.sleep(POLL_SECONDS)
@@ -279,7 +289,8 @@ async def _read(ctx: RunContext[Any], path: str) -> str:
 async def clean_up(ctx: RunContext[Any], files: TaskFiles) -> None:
     """Remove a finished task's files; the session it continues stays."""
     line = "rm -f " + " ".join(
-        shlex.quote(path) for path in (files.events, files.errors, files.status)
+        shlex.quote(path)
+        for path in (files.events, files.errors, files.status, files.status + ".part")
     )
     await ctx.workspace.run(line, shell=True, timeout=30)  # noqa: S604
 

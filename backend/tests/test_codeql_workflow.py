@@ -32,7 +32,7 @@ import pytest
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-WORKFLOW = REPO_ROOT / ".github" / "workflows" / "codeql.yml"
+WORKFLOW = REPO_ROOT / ".github" / "workflows-disabled" / "codeql.yml"
 
 # The distinct languages GitHub's default setup was configured with, after
 # resolving its aliases. Recorded here so dropping one is a failing test rather

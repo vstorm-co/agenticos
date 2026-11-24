@@ -165,3 +165,15 @@ receive or decode their base64 data. Remote preview delivery keeps one pending i
 queue. A socket write exceeding two seconds, or a full narration queue, ends that
 viewer with close code 1013. Reconnecting obtains a fresh snapshot. Images are
 not also copied into the resumable chat buffer when a live-view socket owns them.
+
+Tab actions are offered according to live state. Opening, browsing and restoration remain available without a tab. Switching or closing requires an open tab; click, type, select, scroll and back require an active tab. The capability filters definitions after renames using owned metadata, and existing execution guards remain in place. Restorable sessions are reached through `browser_read` or `browser_tabs`; merely enumerating tools does not restore or open a browser.
+
+
+## Built-in browser availability
+
+The shipped AgenticOS uses `connection=built_in` with `max_steps=100`. A blank
+agent endpoint inherits `BROWSER_SIGN_IN_CDP_URL`; an explicit endpoint still
+wins and must pass the operator host allowlist. Missing deployment configuration
+does not remove the capability or prevent publication. Browser connections open
+only on a tool call, and an absent endpoint or unreachable container is returned
+as a browser-tool failure while the agent can continue other work.

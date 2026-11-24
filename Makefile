@@ -1,4 +1,4 @@
-.PHONY: ci-test-db-configure test-frontend-jobs-check test-frontend-reports-check test-frontend-merge build-frontend-pack docker-test-db docker-test-db-down docker-minio install format lint desktop-dev desktop-build desktop-check mobile-android mobile-ios mobile-check lint-backend lint-frontend check audit licenses licenses-check build-frontend test run clean help sandbox-token sandbox-runtimes deps-upgrade deps-upgrade-all db-init dev dev-down dev-logs dev-rebuild dev-frontend docker-clean dev-server dev-server-down dev-server-logs dev-server-frontend stage stage-down prod prod-down prod-frontend upgrade upgrade-dry-run upgrade-new-features upgrade-finalize docs docs-build docs-slug-check presentation audit-frontend sbom
+.PHONY: ci-test-db-configure ci-media-inspector ci-browser-runtime-check test-backend-jobs-check test-backend-reports-check test-backend-merge test-backend-partition-check backend-file-times test-deployment test-frontend-jobs-check test-frontend-reports-check test-frontend-merge build-frontend-pack docker-test-db docker-test-db-down docker-minio install format lint desktop-dev desktop-build desktop-check mobile-android mobile-ios mobile-check lint-backend lint-frontend check audit licenses licenses-check build-frontend test run clean help sandbox-token sandbox-workspace sandbox-runtimes deps-upgrade deps-upgrade-all db-init dev dev-down dev-logs dev-rebuild dev-frontend docker-clean dev-server dev-server-down dev-server-logs dev-server-frontend stage stage-down prod prod-down prod-frontend upgrade upgrade-dry-run upgrade-new-features upgrade-finalize docs docs-build docs-slug-check presentation audit-frontend sbom
 
 # === Environments ===========================================================
 # Three. The images are published to GHCR by `.github/workflows/images.yml`
@@ -45,6 +45,40 @@ sandbox-token:
 		echo "▶ Generated SANDBOXD_TOKEN in backend/.env"; \
 	fi
 
+# Where the sandbox service keeps each session's files, mounted at the same path
+# on the host. Created here, world-writable like `/tmp` itself, because a missing
+# bind source is created by the Docker daemon as root:root 755 on Linux, under
+# Docker Desktop's WSL integration as much as with a native engine - and the
+# service, running as uid 10001, then cannot write it, so every sandbox fails to
+# start while the service still reports healthy. An existing directory is only
+# checked: changing the owner of one Docker created takes root. Under WSL, do not
+# delete it while a container mounts it either: Docker Desktop keeps a mount of
+# the old directory, and the next container fails "no such file or directory"
+# until every container using it is stopped or Docker Desktop restarts.
+# The pinned sandboxd image runs as uid 10001, primary gid 999.
+SANDBOX_WORKSPACE_ROOT ?= /tmp/agenticos-sandbox-workspaces
+
+sandbox-workspace:
+	@dir="$(SANDBOX_WORKSPACE_ROOT)"; \
+	if [ ! -d "$$dir" ]; then \
+		if mkdir -p "$$dir" && chmod 1777 "$$dir"; then \
+			echo "▶ Created $$dir for the sandbox service"; \
+		else \
+			echo "⚠ Could not create $$dir. Create it writable by uid 10001, or sandboxes will not start."; \
+		fi; \
+	else \
+		owner=$$(ls -Lnd "$$dir" | awk '{print $$3}'); \
+		group=$$(ls -Lnd "$$dir" | awk '{print $$4}'); \
+		if [ "$$owner" = 10001 ]; then bits=3,4; \
+		elif [ "$$group" = 999 ]; then bits=6,7; \
+		else bits=9,10; fi; \
+		access=$$(ls -Lnd "$$dir" | awk '{print $$1}' | cut -c $$bits); \
+		case "$$access" in wx|ws|wt) ;; *) \
+			echo "⚠ The sandbox service (uid 10001) needs write and search access to $$dir."; \
+			echo "  Fix it once with: sudo chown 10001 $$dir && sudo chmod u+wx $$dir"; \
+		;; esac; \
+	fi
+
 # The runtime allowlist the compose files hand the sandbox service, written from
 # backend/app/core/catalog/sandbox_runtimes.json. Run it after editing that file;
 # `backend/tests/test_sandbox_runtime_catalog.py` is what fails when nobody did.
@@ -61,7 +95,7 @@ sandbox-runtimes:
 # `sandboxd:0.2` once served an older API than the backend's client spoke, and
 # every command failed as a lost session (#2484). `--pull missing` would add
 # nothing, and would override `pull_policy: never` on the images built here.
-dev: sandbox-token
+dev: sandbox-token sandbox-workspace
 	@echo "▶ Building the backend image and starting the stack (migrations run as the \`migrate\` service)…"
 	@if ! docker compose $(COMPOSE_LOCAL) $(COMPOSE_DEV_PROFILES) up -d --build; then \
 		echo ""; \
@@ -107,6 +141,13 @@ platform-bootstrap:
 		agenticos cmd bootstrap
 
 bootstrap: dev seed
+
+# Needs a running stack, SKILLS_LAB_EMAIL, SKILLS_LAB_PASSWORD and SKILLS_LAB_OPENROUTER_KEY;
+# PROBE=v1|broad|narrow measures one wording of the skill, DROP_PROBES=1 deletes those orgs.
+SKILLS_LAB_URL ?= http://localhost:8000
+seed-skills-lab:
+	uv run --directory backend python ../scripts/seed_skills_lab.py \
+		--url $(SKILLS_LAB_URL) $(if $(PROBE),--probe $(PROBE)) $(if $(DROP_PROBES),--drop-probes)
 
 dev-down:
 	docker compose $(COMPOSE_LOCAL) $(COMPOSE_DEV_PROFILES) --profile console down
@@ -316,8 +357,8 @@ lint: lint-backend lint-frontend lint-spelling lint-precommit
 # outside `backend/` and so is a fourth path rather than a second invocation; its
 # relaxations are declared in `pyproject.toml` under `../scripts/**`.
 lint-backend:
-	uv run --directory backend ruff check . ../scripts ../deploy/updater
-	uv run --directory backend ruff format . ../scripts ../deploy/updater --check
+	uv run --directory backend ruff check . ../scripts ../deploy/updater ../evals
+	uv run --directory backend ruff format . ../scripts ../deploy/updater ../evals --check
 	uv run --directory backend ty check
 	uv run --directory backend vulture
 	uv run --directory backend deptry app cli alembic
@@ -328,9 +369,12 @@ lint-backend:
 	# still work - until the next one written this way needs 3.10+ too.
 	uv run --directory backend python3 ../scripts/check_backticks.py
 	uv run --directory backend python3 ../scripts/check_routes.py
+	uv run --directory backend python3 ../scripts/check_agenticos_plugin.py
 	uv run --directory backend python3 ../scripts/check_comments.py
 	uv run --directory backend python3 ../scripts/check_docs_paragraphs.py
 	uv run --directory backend python3 ../scripts/check_docs_i18n.py
+	uv run --directory backend python3 ../scripts/gen_architect_guide.py --check
+	uv run --directory backend python3 ../scripts/check_docs_glossary.py
 
 # Unused functions and methods, reported rather than gated. `make lint` runs
 # vulture at a confidence high enough to be a gate (unused variables and
@@ -360,10 +404,18 @@ dead-code:
 # imported nowhere, and *listed in knip's own ignores*, so the report that
 # would have found it had been told not to (#156). The rest of knip's output
 # needs a human and stays in `make dead-code`.
+#
+# The type check has two interchangeable engines that report the same errors:
+# `tsc` (the default, and the merge queue's final gate) and `bun check`, about 18x
+# faster (78s against 4s on CI), which PR runs and the quick check use through
+# FRONTEND_TYPECHECK=fast. Both were run on one commit, clean and with a probe of
+# known .ts and .tsx errors, and reported identical errors. tsc exits 2 on an error
+# and bun check 1, so the line exits 1 for either and the target fails the same way.
+FRONTEND_TYPECHECK ?= tsc
 lint-frontend:
 	cd frontend && bun run lint
 	cd frontend && bunx prettier --check "scripts/**/*.ts" "src/**/*.{ts,tsx}" "e2e/**/*.ts"
-	cd frontend && bun run type-check
+	cd frontend && bun run $(if $(filter fast,$(FRONTEND_TYPECHECK)),type-check:fast,type-check) || exit 1
 	cd frontend && bun run check:i18n
 	cd frontend && bun run lint:deps
 
@@ -408,8 +460,8 @@ lint-precommit:
 # applying it, so without the second line here the only way to fix a formatting
 # failure would be to let the pre-commit hook rewrite the file for you.
 format:
-	uv run --directory backend ruff format . ../scripts ../deploy/updater
-	uv run --directory backend ruff check . ../scripts ../deploy/updater --fix
+	uv run --directory backend ruff format . ../scripts ../deploy/updater ../evals
+	uv run --directory backend ruff check . ../scripts ../deploy/updater ../evals --fix
 	cd frontend && bunx prettier --write "src/**/*.{ts,tsx}" "e2e/**/*.ts"
 
 # === Testing ===
@@ -428,6 +480,24 @@ format:
 # when a test failed, and the recipe then fails with the suite's status.
 COV_REPORT ?= term-missing
 PLATFORM_COVERAGE = $(shell uv run --quiet --directory backend python -c 'import tomllib; print(",".join(tomllib.load(open("pyproject.toml", "rb"))["tool"]["coverage"]["run"]["include"]))')
+# The platform gate over whatever `backend/.coverage` holds: one run's data, or
+# the shards' data once `test-backend-merge` has combined it. Expects `status` to
+# hold the suite's exit code and leaves it non-zero if the gate fails.
+TEST_GATE = $(if $(findstring xml,$(COV_REPORT)),uv run --directory backend coverage xml -q --fail-under=0 --include="$(PLATFORM_COVERAGE)" || status=1;) \
+	uv run --directory backend coverage report --include="$(PLATFORM_COVERAGE)" || [ $$status -ne 0 ] || status=2;
+
+# CI splits the backend suite over this many `test-shard` jobs (#119).
+# `BACKEND_SHARD=K/N` makes `make test` run shard K's files only and keep its
+# coverage data as `backend/.coverage.shardK` instead of applying the gate, which
+# only means anything over the whole suite. `scripts/ci_backend_shard.py` decides
+# membership, so every file runs in exactly one shard.
+#
+# The shard's data is written there directly (`COVERAGE_FILE`), not renamed from
+# `.coverage` afterwards: pytest-cov erases `.coverage` and every `.coverage.*`
+# beside it when a run starts, so a second shard run in the same tree used to
+# delete the first one's data.
+BACKEND_SHARDS := 3
+BACKEND_SHARD_INDEX = $(firstword $(subst /, ,$(BACKEND_SHARD)))
 
 # The backend suite runs against a throwaway Postgres (docker-compose.test.yml)
 # rather than the development one. The integration reset TRUNCATEs the tables
@@ -458,11 +528,33 @@ endif
 # Only the workflow's ephemeral service container may use reduced durability.
 ci-test-db-configure:
 	@test "$(CI)" = true && test -n "$(POSTGRES_CONTAINER)"
+	# Parallel workers each run whole migration chains in one transaction and hold a
+	# lock per table and index; Postgres's default of 64 locks per transaction ran the
+	# shared lock table out ("out of shared memory", #232). The setting only applies at
+	# server start, and a service container takes no server flags and keeps its data on
+	# tmpfs, which a restart wipes - so an init script writes it into the fresh cluster.
+	printf '%s\n' '#!/bin/sh' 'echo "max_locks_per_transaction = 256" >> "$$PGDATA/postgresql.conf"' > "$${RUNNER_TEMP:-/tmp}/10-max-locks.sh"
+	chmod 0755 "$${RUNNER_TEMP:-/tmp}/10-max-locks.sh"
+	docker cp "$${RUNNER_TEMP:-/tmp}/10-max-locks.sh" "$(POSTGRES_CONTAINER):/docker-entrypoint-initdb.d/10-max-locks.sh"
+	docker restart "$(POSTGRES_CONTAINER)"
+	@# TCP, not the socket: during init the entrypoint's temporary server listens on the socket only.
+	@for i in $$(seq 60); do docker exec "$(POSTGRES_CONTAINER)" pg_isready -q -h 127.0.0.1 -U postgres && exit 0; sleep 1; done; echo "Postgres did not come back after the restart" >&2; exit 1
 	@for setting in fsync synchronous_commit full_page_writes; do \
 	  docker exec "$(POSTGRES_CONTAINER)" psql -U postgres -c "ALTER SYSTEM SET $$setting = off" || exit 1; \
 	done
 	docker exec "$(POSTGRES_CONTAINER)" psql -U postgres -c 'SELECT pg_reload_conf()'
-	docker exec "$(POSTGRES_CONTAINER)" psql -U postgres -c 'SHOW fsync' -c 'SHOW synchronous_commit' -c 'SHOW full_page_writes'
+	docker exec "$(POSTGRES_CONTAINER)" psql -U postgres -c 'SHOW fsync' -c 'SHOW synchronous_commit' -c 'SHOW full_page_writes' -c 'SHOW max_locks_per_transaction'
+	@test "$$(docker exec "$(POSTGRES_CONTAINER)" psql -U postgres -tAc 'SHOW max_locks_per_transaction')" = 256
+
+# The pinned ffmpeg build the media-inspection tests run; it writes `$GITHUB_PATH`.
+ci-media-inspector:
+	@test "$(CI)" = true && test -n "$(GITHUB_PATH)"
+	bash scripts/ci_install_media_inspector.sh
+
+# The Chromium the native browser acceptance tests drive must be on the runner.
+ci-browser-runtime-check:
+	test -x "$(T3OS_TEST_CHROMIUM_EXECUTABLE)"
+	"$(T3OS_TEST_CHROMIUM_EXECUTABLE)" --version
 
 # `-n auto --maxprocesses 4`: run across worker processes. The integration
 # suite is I/O-bound on one Postgres and roughly halves; the unit suite is
@@ -473,10 +565,39 @@ ci-test-db-configure:
 # stays serial: worker startup is not worth paying for one file.
 test:
 	$(TEST_DB_START)
-	@status=0; \
-	$(TEST_DB_ENV) uv run --directory backend pytest tests/ -v --cov=app --cov-report= --cov-fail-under=0 -n auto --maxprocesses 4 || status=$$?; \
-	$(if $(findstring xml,$(COV_REPORT)),uv run --directory backend coverage xml -q --fail-under=0 --include="$(PLATFORM_COVERAGE)" || status=1;) \
-	uv run --directory backend coverage report --include="$(PLATFORM_COVERAGE)" || [ $$status -ne 0 ] || status=2; \
+	@status=0; paths=tests/; \
+	$(if $(BACKEND_SHARD),paths=$$(uv run --quiet --directory backend python ../scripts/ci_backend_shard.py $(BACKEND_SHARD) tests) || exit 1; printf '%s\n' $$paths > backend/.shard$(BACKEND_SHARD_INDEX)-files.txt;) \
+	$(TEST_DB_ENV) $(if $(BACKEND_SHARD),COVERAGE_FILE=.coverage.shard$(BACKEND_SHARD_INDEX)) uv run --directory backend pytest $$paths -v --cov=app --cov-report= --cov-fail-under=0 -n auto --maxprocesses 4 $(if $(BACKEND_SHARD),--junitxml=junit-shard$(BACKEND_SHARD_INDEX).xml) || status=$$?; \
+	$(if $(BACKEND_SHARD),test -s backend/.coverage.shard$(BACKEND_SHARD_INDEX) || status=1;,$(TEST_GATE)) \
+	exit $$status
+
+# The aggregate `test` job in CI: every shard must have succeeded, every shard's
+# coverage data must be present, and the gate then runs once over their union.
+test-backend-jobs-check:
+	@test "$(TESTS)" = success
+
+test-backend-reports-check:
+	@for shard in $$(seq 1 $(BACKEND_SHARDS)); do test -s "backend/.coverage.shard$$shard" || exit 1; done
+	@test "$$(find backend -maxdepth 1 -name ".coverage.shard*" -type f | wc -l | tr -d " ")" = $(BACKEND_SHARDS)
+
+# `unset COVERAGE_FILE`: combined into a file named by an inherited COVERAGE_FILE,
+# such as a shard's own data file, `combine` erased that shard's data first.
+# The shards' file lists must partition the suite: every test file in exactly one
+# shard. `ci_backend_shard.py` splits by recorded times, which are a second input,
+# so this proves the split rather than trusting it.
+test-backend-partition-check:
+	uv run --quiet --directory backend python ../scripts/ci_backend_shard.py verify tests \
+		$(foreach shard,$(shell seq 1 $(BACKEND_SHARDS)),.shard$(shard)-files.txt)
+
+# Seconds per backend test file from the shards' JUnit reports. The next run's
+# `changes` job fetches this from the last green full run to balance the shards.
+backend-file-times:
+	cd backend && uv run --quiet python ../scripts/ci_backend_shard.py times junit-shard*.xml > backend-file-times.json
+
+test-backend-merge:
+	@status=0; unset COVERAGE_FILE; \
+	(cd backend && uv run coverage combine -q .coverage.shard*) || exit 1; \
+	$(TEST_GATE) \
 	exit $$status
 
 # Fast loop while writing code — no coverage, no gate.
@@ -502,8 +623,10 @@ test-security:
 	$(TEST_DB_START)
 	$(TEST_DB_ENV) uv run --directory backend pytest tests/ -m security -q --no-cov -p no:randomly
 
-# The list of refusal tests written to backend/security-tests.txt, and appended to
-# the CI job summary when one is present. Collection only - no database, no run -
+# The complete list of refusal tests is written to backend/security-tests.txt;
+# a bounded preview is appended to the CI job summary when one is present.
+# GitHub caps each summary at 1 MiB. The artifact retains every collected test.
+# Collection only - no database, no run -
 # so it is the cheap step CI calls with `if: always()`. Informational: it lists,
 # it does not gate, which is why `check` never reaches it and test_ci_parity.py
 # names it in CI_ONLY_TARGETS.
@@ -515,8 +638,9 @@ security-report:
 	if [ -n "$$GITHUB_STEP_SUMMARY" ]; then \
 	  { echo "## Security refusal tests"; echo; \
 	    echo "$$count tests carry the security marker. Run them with: make test-security"; echo; \
-	    echo '<details><summary>The list</summary>'; echo; echo '```'; \
-	    cat backend/security-tests.txt; echo '```'; echo; echo '</details>'; \
+		    echo 'Download the security-tests artifact for the complete list.'; echo; \
+		    echo '<details><summary>First 100 tests (up to 500 characters each)</summary>'; echo; echo '```'; \
+		    head -n 100 backend/security-tests.txt | cut -c 1-500; echo '```'; echo; echo '</details>'; \
 	  } >> "$$GITHUB_STEP_SUMMARY"; \
 	fi
 
@@ -628,7 +752,7 @@ audit:
 # target was added: `next` and `postcss` raised, `nanoid` and `js-yaml` pinned
 # forward through their parents.
 AUDIT_LEVEL ?= high
-# The one other case is a finding with no fixed release anywhere in its chain: it
+# The other case is a finding with no fixed release anywhere in its chain: it
 # is named here with the path it arrives by and the condition that removes it,
 # and the audit ignores that advisory only.
 #   GHSA-vfj7-8cjw-p6xm (CVE-2026-93687): braces <= 3.0.3 has no patched release.
@@ -636,7 +760,13 @@ AUDIT_LEVEL ?= high
 #   > fast-glob > micromatch, a lint-time dependency that the built console does
 #   not ship. Remove when braces publishes a fix or @next/eslint-plugin-next
 #   drops fast-glob. bun matches advisories by their GHSA id, not the CVE.
-AUDIT_IGNORE ?= GHSA-vfj7-8cjw-p6xm
+#   GHSA-fc5q-39xc-vjpf (CVE-2026-112366): picomatch <= 4.0.7 has no fixed
+#   release. The locked paths are lint/build/test tools and next-intl's source
+#   watcher, absent from the standalone image. Next's bundled matcher is traced
+#   only by image pattern checks; this build has no remote patterns and the
+#   fixed local pattern **. Requests cannot supply glob patterns. Track #3102;
+#   remove after an upstream fix, and reassess if runtime patterns change.
+AUDIT_IGNORE ?= GHSA-vfj7-8cjw-p6xm GHSA-fc5q-39xc-vjpf
 
 audit-frontend:
 	cd frontend && bun audit --audit-level=$(AUDIT_LEVEL) $(addprefix --ignore=,$(AUDIT_IGNORE))
@@ -742,6 +872,18 @@ load-test:
 		$(if $(API_PID),--api-pid $(API_PID),) \
 		$(if $(DATABASE_URL),--database-url $(DATABASE_URL),)
 
+# The retrieval evaluation (#2482): a question set over docs/ and the harness
+# that measures knowledge retrieval on it. Not part of `make check` and never in
+# CI: every run makes billed embedding and model calls. `docs/retrieval-eval.md`
+# has what it needs, the options and what a run costs.
+EVAL_ARGS ?=
+eval-retrieval:
+	@uv run --directory backend python ../evals/retrieval/run.py $(EVAL_ARGS)
+
+.PHONY: eval-personal
+eval-personal:
+	@uv run --directory backend python ../evals/personal/run.py $(EVAL_ARGS)
+
 # Every CI job, in the order the workflow declares them, with the exceptions
 # named below. This is the one claim in this file that has to be exactly true:
 # a command advertised as CI that runs less than CI prints "All checks passed"
@@ -772,15 +914,16 @@ load-test:
 #     locally it runs against a database of its own on the throwaway Postgres,
 #     but it is slow and rarely needed, so `check` leaves it to a hand run.
 CHECK_DB_PORT ?= 5432
+CHECK_DB_HOST ?= $(if $(POSTGRES_HOST),$(POSTGRES_HOST),127.0.0.1)
 # Where `test` reached its database: the throwaway one, or the one `CHECK_DB_PORT` names.
 INTEGRATION_DB_PORT = $(if $(TEST_DB_START),$(TEST_DB_PORT),$(CHECK_DB_PORT))
 
 check: lint test db-check test-frontend-cov build-frontend docs-build docs-slug-check audit audit-frontend licenses-check
 	@echo ""
 	@echo "All checks passed — every CI job except e2e."
-	@if ! python3 -c 'import socket; socket.create_connection(("127.0.0.1", $(INTEGRATION_DB_PORT)), 1).close()' 2>/dev/null; then \
+	@if ! python3 -c 'import socket; socket.create_connection(("$(CHECK_DB_HOST)", $(INTEGRATION_DB_PORT)), 1).close()' 2>/dev/null; then \
 		echo ""; \
-		echo "⚠  No database on 127.0.0.1:$(INTEGRATION_DB_PORT), so tests/integration skipped itself"; \
+		echo "⚠  No database on $(CHECK_DB_HOST):$(INTEGRATION_DB_PORT), so tests/integration skipped itself"; \
 		echo "   — and CI's test job has one, so it did not. '$(if $(TEST_DB_START),make docker-test-db,make docker-db)' closes that gap."; \
 	fi
 
@@ -839,16 +982,18 @@ presentation:
 #
 # Locally this starts the throwaway test Postgres and cycles the chain in a
 # database it drops and creates first (`MIGRATIONS_TEST_DB`), so `downgrade base`
-# can never empty a database with your work in it. With `TEST_DB=external` (CI)
-# it runs against the database `POSTGRES_*` / `backend/.env` name, as before.
+# can never empty a database with your work in it. Override the optional owner
+# URL too: it otherwise takes precedence over these throwaway POSTGRES_* values.
+# With `TEST_DB=external` (CI), the configured migration URL or POSTGRES_* values
+# still select the explicitly supplied database.
 MIGRATIONS_TEST_DB ?= agenticos_migrations_test
 test-migrations:
 ifeq ($(TEST_DB),throwaway)
 	$(TEST_DB_START)
 	docker compose -p agenticos-test -f docker-compose.test.yml exec -T db psql -U postgres -v ON_ERROR_STOP=1 -c 'DROP DATABASE IF EXISTS $(MIGRATIONS_TEST_DB) WITH (FORCE)' -c 'CREATE DATABASE $(MIGRATIONS_TEST_DB)'
-	$(TEST_DB_ENV) POSTGRES_DB=$(MIGRATIONS_TEST_DB) uv run --directory backend alembic upgrade head
-	$(TEST_DB_ENV) POSTGRES_DB=$(MIGRATIONS_TEST_DB) uv run --directory backend alembic downgrade base
-	$(TEST_DB_ENV) POSTGRES_DB=$(MIGRATIONS_TEST_DB) uv run --directory backend alembic upgrade head
+	$(TEST_DB_ENV) POSTGRES_DB=$(MIGRATIONS_TEST_DB) POSTGRES_MIGRATION_URL=postgresql://postgres:postgres@localhost:$(TEST_DB_PORT)/$(MIGRATIONS_TEST_DB) uv run --directory backend alembic upgrade head
+	$(TEST_DB_ENV) POSTGRES_DB=$(MIGRATIONS_TEST_DB) POSTGRES_MIGRATION_URL=postgresql://postgres:postgres@localhost:$(TEST_DB_PORT)/$(MIGRATIONS_TEST_DB) uv run --directory backend alembic downgrade base
+	$(TEST_DB_ENV) POSTGRES_DB=$(MIGRATIONS_TEST_DB) POSTGRES_MIGRATION_URL=postgresql://postgres:postgres@localhost:$(TEST_DB_PORT)/$(MIGRATIONS_TEST_DB) uv run --directory backend alembic upgrade head
 else
 	uv run --directory backend alembic upgrade head
 	uv run --directory backend alembic downgrade base
@@ -869,10 +1014,10 @@ endif
 # the integration suite. CI always has a database, so there it runs for real,
 # after `test-migrations` has left it at head.
 db-check:
-	@if python3 -c 'import socket; socket.create_connection(("127.0.0.1", $(CHECK_DB_PORT)), 1).close()' 2>/dev/null; then \
+	@if python3 -c 'import socket; socket.create_connection(("$(CHECK_DB_HOST)", $(CHECK_DB_PORT)), 1).close()' 2>/dev/null; then \
 		uv run --directory backend alembic check; \
 	else \
-		echo "⚠  No database on 127.0.0.1:$(CHECK_DB_PORT), so 'alembic check' was skipped"; \
+		echo "⚠  No database on $(CHECK_DB_HOST):$(CHECK_DB_PORT), so 'alembic check' was skipped"; \
 		echo "   — and CI's test job has one, so it did not. 'make docker-db' closes that gap."; \
 	fi
 
@@ -1050,6 +1195,7 @@ help:
 	@echo "Day-to-day dev:"
 	@echo "  make dev            Build + start dev stack; migrations run as a service (idempotent)"
 	@echo "  make seed           One-shot admin seed (admin@example.com / admin123)"
+	@echo "  make seed-skills-lab  Skills lab: one skill shared by several agents (PROBE=, DROP_PROBES=1)"
 	@echo "  make dev-down       Stop dev stack"
 	@echo "  make dev-logs       Tail dev container logs"
 	@echo "  make dev-rebuild    Force-rebuild backend image"
@@ -1085,6 +1231,10 @@ help:
 	@echo "  make load-stub-model  The slow-on-purpose model the suite measures against"
 	@echo "  make load-seed        Build the fixture: an agent, a collection, a routine"
 	@echo "  make load-test        Offer the workload and print the report"
+	@echo ""
+	@echo "Retrieval evaluation (billed model calls - see docs/retrieval-eval.md):"
+	@echo "  make eval-personal    Validate the personal assistant corpus; EVAL_ARGS= passes options"
+	@echo "  make eval-retrieval   Measure knowledge retrieval on the docs; EVAL_ARGS= passes options"
 	@echo ""
 	@echo "Database:"
 	@echo "  make db-init       Initialize database (start + migrate)"
@@ -1135,3 +1285,7 @@ help:
 .PHONY: release-cut
 release-cut: ## Plan a release train cut (BUMP=patch|minor; CREATE_PR=1 opens it)
 	python3 scripts/release_cut.py $(BUMP) $(if $(filter 1,$(CREATE_PR)),--create-pr,)
+
+# Disposable proxy containers and synthetic Compose settings; no app/database.
+test-deployment: ## Test Nginx, Traefik and Compose with disposable containers
+	uv run --no-project --python "$$(cat backend/.python-version)" python scripts/deployment/test_proxies.py

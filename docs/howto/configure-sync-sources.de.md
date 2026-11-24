@@ -1,5 +1,5 @@
 ---
-source_sha: "c38c8588f596"
+source_sha: "0e3f3c6c82f8"
 ---
 
 # Sync-Quellen einrichten { #configure-sync-sources }
@@ -623,29 +623,11 @@ verlangt `collections:view`, und alles, was eine Quelle verändert, verlangt
 sagen, welche Quellen jeweils erreicht werden. Siehe
 [wer eine Collection erreichen darf](../file-processing.md#who-may-reach-a-collection).
 
-`GET /api/v1/rag/sync/sources` listet alle Quellen Ihrer Organisation, auch nicht
-zugeordnete, nur mit `connections:manage`, wie `/org/integrations`. Ohne die
-Berechtigung enthält die Liste nur die Quellen, die eine Base speisen, die Sie
-lesen dürfen, und `collection_name` muss eine Collection nennen, die Sie lesen
-dürfen, sonst lautet die Antwort 404. Wenn Sie ohne die Berechtigung eine nicht
-zugeordnete Quelle anlegen oder lösen, behalten Sie ihre ID aus der Antwort, denn
-keine Liste zeigt sie Ihnen. Die Liste vorhandener Integrationen, die der Assistent der
-Knowledge Base zur Wiederverwendung anbietet, verlangt ebenfalls
-`connections:manage`. Siehe [Berechtigungen](../permissions.md).
+`GET /api/v1/rag/sync/sources` listet alle Quellen einschließlich nicht zugeordneter Vorlagen nur mit `connections:manage`. Sonst erscheinen nur Quellen lesbarer Bases. Anlegen, Lösen, Bearbeiten, Löschen und Klonen einer nicht zugeordneten Vorlage erfordert **Manage connections**. Zugeordnete Quellen erfordern Bearbeitungszugriff auf ihre Base, auch über `/org/integrations`; die Organisationsberechtigung umgeht diesen Zugriff nicht. Beim Klonen werden Quelle und Ziel getrennt geprüft.
 
-Um eine Quelle über `/api/v1/rag/sync/sources/{id}` zu aktualisieren, zu löschen
-oder auszulösen, müssen Sie außerdem in die Base schreiben dürfen, die von der
-Quelle gespeist wird. Das gilt auch für einen `PATCH`, der `collection_name` auf `null` setzt.
-Eine nicht zugeordnete Quelle braucht nur Ihre Organisation. `/org/integrations`
-verwaltet Quellen auf Ebene der Organisation und verlangt stattdessen
-`connections:manage`.
+Quelländerungen prüfen entfernte Adressen vor dem Setzen von Schreibsperren. Der gesperrte Schreibvorgang prüft die validierte Revision und verweigert veraltete Änderungen. Eingereihte Synchronisierungen prüfen vor der Verarbeitung ihr ursprüngliches Ziel erneut. Konto- und Organisationslöschungen verwenden dieselben Eigentumsregeln und Sperren wie das Löschen einer Base; auch CLI-Ingestion zeichnet die Herkunft auf und beachtet diese Sperren.
 
-Der Sync-Verlauf und das Laufprotokoll einer Quelle zeigen die Läufe der Quellen
-Ihrer Organisation, auch über eine app-weite Base, die jede Organisation liest.
-Ein Plattform-Admin sieht auch die Quellen anderer Organisationen in den Bases,
-die er liest. Ein Lauf ohne Quelle, etwa ein lokaler Sync oder ein Lauf, dessen
-Quelle gelöscht wurde, wird über den Namen seiner Collection jedem angezeigt, der
-diese Collection liest.
+Der Sync-Verlauf behält die auslösende Organisation und Ziel-Base nach dem Löschen einer Quelle. Ein Lauf ohne Quelle ist nur bei nachgewiesenem Eigentum und Zugriff auf diese Base sichtbar. Alte quellenlose Logs ohne nachweisbaren Eigentümer bleiben verborgen; ein gemeinsamer Collection-Name weist sie keiner Organisation zu.
 
 ### CRUD für Sync-Quellen { #sync-sources-crud }
 
@@ -727,8 +709,24 @@ curl -X PATCH http://localhost:8000/api/v1/rag/sync/sources/{source_id} \
 Änderbare Felder: `name`, `config`, `sync_mode`, `schedule_minutes`,
 `is_active`, `collection_name`.
 
+Ein neuer `collection_name` verschiebt die Quelle in die Wissensbasis, zu der dieser
+Name für Ihre Organisation aufgelöst wird und auf die Sie Schreibrechte haben müssen;
+`null` trennt sie von jeder Basis, und eine Quelle ohne Basis synchronisiert nicht.
+
 Setzen Sie `is_active` auf `false`, um eine Quelle anzuhalten, ohne sie zu
-löschen.
+löschen. Eine pausierte Quelle kann weder nach Zeitplan noch über API oder CLI
+synchronisiert werden. Die Konsole deaktiviert die Sync-Schaltfläche. Ein Job
+in der Warteschlange prüft den Zustand vor dem Herunterladen erneut und endet
+mit einem Fehler, wenn die Quelle während der Wartezeit pausiert wurde. Eine
+bereits gestartete Synchronisierung wird nicht unterbrochen. Setzen Sie
+`is_active` auf `true`, um neue Synchronisierungen zu erlauben.
+
+Beim Auflösen eines Sammlungsnamens wird die älteste Basis in der Organisation
+der Quelle gewählt, ersatzweise eine Basis mit App-Geltungsbereich. Gleiche
+Erstellungszeiten werden nach Basis-ID geordnet. Die API verweigert die
+Zuordnung einer Quelle über den Sammlungsnamen, wenn mehrere passende Basen
+dieselbe älteste Erstellungszeit haben. Verwenden Sie eine Wissensbasis mit
+eindeutigem Sammlungsnamen, um diese Mehrdeutigkeit zu beseitigen.
 
 ## Sync-Vorgänge überwachen { #monitoring-sync-operations }
 

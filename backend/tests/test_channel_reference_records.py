@@ -17,6 +17,7 @@ from pydantic_ai.models.function import FunctionModel
 from pydantic_ai_harness.guardrails import GuardrailResult
 
 from app.agents.capabilities.guardrails._capability import GuardrailsConfig, input_screen
+from app.agents.channel_reference import ChannelReferencePart
 from app.agents.manifest import RecordingModel, RunRecorder, as_payload
 from app.db.models.channel_identity import ChannelIdentity
 from app.services.channels.base import IncomingMessage
@@ -73,11 +74,14 @@ def test_author_reference_ids_are_validated() -> None:
             _history_author(ModelRequest(parts=[], metadata={CHANNEL_AUTHOR_ID: bad}))
 
 
-async def test_history_uses_opaque_refs_and_resolves_names_only_for_the_model() -> None:
+@pytest.mark.parametrize("platform", ["mattermost", "slack"])
+async def test_history_uses_opaque_refs_and_resolves_names_only_for_the_model(
+    platform: str,
+) -> None:
     identity_id = uuid4()
     identity = ChannelIdentity(
         id=identity_id,
-        platform="slack",
+        platform=platform,
         platform_user_id="U-PRIVATE",
         platform_username="alice@example.com",
         platform_display_name="Secret Name",
@@ -102,12 +106,23 @@ async def test_history_uses_opaque_refs_and_resolves_names_only_for_the_model() 
         screen=input_screen(GuardrailsConfig(redact_pii_in=True, blocked_keywords_in="classified")),
         lookup_authors=lookup,
         authors_by_timestamp=channel_author_references(history),
+        author_identity_id=identity_id,
     )
     agent = Agent(RecordingModel(FunctionModel(respond), recorder), capabilities=[reference])
     result = await agent.run("Current question", message_history=history)
     dispatched = str(observed)
     assert "U-PRIVATE" in dispatched and "Secret Name" in dispatched
     assert "alice@example.com" not in dispatched and "classified" not in dispatched
+    references = [
+        part.content
+        for message in observed[0]
+        if isinstance(message, ModelRequest)
+        for part in message.parts
+        if isinstance(part, ChannelReferencePart)
+    ]
+    assert references
+    assert any("Author of the following channel message" in content for content in references)
+    assert all("Message:\n" not in content for content in references)
     kept = json.dumps(as_payload(recorder), default=str)
     for private in ["U-PRIVATE", "Secret Name", "alice@example.com", "classified"]:
         assert private not in kept
@@ -389,3 +404,43 @@ async def test_resumed_channel_dispatch_screens_the_last_saved_user_prompt(saved
     )
     assert saved_text not in str(observed)
     assert saved.content == saved_text
+
+
+async def test_checkpoints_preserve_mixed_authors_after_request_normalization() -> None:
+    from pydantic_ai.messages import ModelMessagesTypeAdapter, UserPromptPart
+
+    from app.services.message_history import without_standing_instructions
+
+    alice, bob = uuid4(), uuid4()
+    first, second = (
+        UserPromptPart("First person's message"),
+        UserPromptPart("Second person's message"),
+    )
+    merged = ModelRequest(parts=[first, second])
+    unlabelled = ModelRequest(parts=[UserPromptPart("No channel author")])
+    expected = {first.timestamp.isoformat(): alice, second.timestamp.isoformat(): bob}
+    stored = ModelMessagesTypeAdapter.dump_json(
+        without_standing_instructions([merged, unlabelled], channel_authors=expected)
+    )
+    assert channel_author_references(ModelMessagesTypeAdapter.validate_json(stored)) == expected
+    assert merged.metadata is None
+
+
+async def test_a_new_channel_turn_keeps_its_opaque_author_in_the_checkpoint() -> None:
+    from pydantic_ai.models.function import AgentInfo
+
+    from app.services.message_history import without_standing_instructions
+
+    identity = uuid4()
+    reference = ChannelReference(
+        "", author_identity_id=identity, lookup_authors=AsyncMock(return_value={})
+    )
+
+    def reply(_messages: list[ModelMessage], _info: AgentInfo) -> ModelResponse:
+        return ModelResponse(parts=[TextPart("Done")])
+
+    result = await Agent(FunctionModel(reply), capabilities=[reference]).run("A new question")
+    saved = without_standing_instructions(
+        result.all_messages(), channel_authors=reference.authors_by_timestamp
+    )
+    assert set(channel_author_references(saved).values()) == {identity}

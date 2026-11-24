@@ -26,6 +26,62 @@
 @custom-variant motion-reduce (&:where([data-motion="reduce"], [data-motion="reduce"] *));
 @custom-variant motion-safe (&:where(:root:not([data-motion="reduce"]) *));
 
+:root {
+  interpolate-size: allow-keywords;
+}
+
+/* Theme changes replace a palette; component color fades must not trail it. */
+.theme-switching *,
+.theme-switching *::before,
+.theme-switching *::after {
+  transition: none !important;
+}
+
+/* Grid is the cross-browser fallback; intrinsic sizing enhances supporting engines. */
+.disclosure-content {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+}
+.disclosure-content[data-open="true"] {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+@supports (interpolate-size: allow-keywords) {
+  .disclosure-content {
+    display: block;
+    block-size: 0;
+    overflow: clip;
+  }
+  .disclosure-content[data-open="true"] {
+    block-size: auto;
+  }
+}
+:root:not([data-motion="reduce"]) .disclosure-content {
+  transition:
+    grid-template-rows var(--duration-base) var(--ease-out),
+    block-size var(--duration-base) var(--ease-out),
+    opacity var(--duration-fast) var(--ease-out),
+    visibility 0s var(--duration-base);
+}
+:root:not([data-motion="reduce"]) .disclosure-content[data-open="true"] {
+  transition-delay: 0s;
+}
+
+@starting-style {
+  :root:not([data-motion="reduce"]) .disclosure-content[data-open="true"] {
+    grid-template-rows: 0fr;
+    opacity: 0;
+  }
+}
+@supports (interpolate-size: allow-keywords) {
+  @starting-style {
+    :root:not([data-motion="reduce"]) .disclosure-content[data-open="true"] {
+      block-size: 0;
+    }
+  }
+}
+
 /* =========================================================================
    Design tokens.
 
@@ -61,10 +117,10 @@
 
 /* --- Layer 1: the accent ramp. This is the retheme knob. ----------------- */
 :root {
-  /* Standard emphasis is neutral. Statuses, avatars and provider marks keep
-     meaningful color; custom looks may override the accent ramp. */
-  --brand-h: 265;
-  --brand-c: 0;
+  /* Blue identifies links, selection and focus; status and identity colors
+     keep their own meanings. Primary actions remain neutral. */
+  --brand-h: 255;
+  --brand-c: 0.14;
 
   --brand-50: oklch(97% calc(var(--brand-c) * 0.06) var(--brand-h));
   --brand-100: oklch(94% calc(var(--brand-c) * 0.12) var(--brand-h));
@@ -177,9 +233,9 @@
   --color-track: oklch(95% 0.022 277);
 
   /* Neutral page chrome. Page, card and floating surfaces have separate roles;
-     fields use the page surface as a well inside a card or dialog. */
-  --color-sidebar: #eeeef1;
-  --color-background: #f7f7f9;
+     fields share the raised surface so they stay legible on the page and in dialogs. */
+  --color-sidebar: #f4f4f6;
+  --color-background: #fafafa;
   --color-foreground: #242428;
   --color-card: oklch(100% 0 0);
   --color-card-foreground: #242428;
@@ -205,12 +261,12 @@
   --color-secondary: #eeeef1;
   --color-secondary-foreground: oklch(22% 0.004 265);
   --color-muted: #eeeef1;
-  --color-muted-foreground: #62626c;
+  --color-muted-foreground: #62626b;
   /* Deeper than `muted`, where the two used to be the same value. `accent` is
      what paints a selected nav row and a hover, and the sidebar it paints them
      on is now a tinted surface of its own - at the muted step the selected row
      was a 1.01:1 difference from the column behind it, which is no difference. */
-  --color-accent: #e5e5ea;
+  --color-accent: #e5e5eb;
   --color-accent-foreground: oklch(22% 0.004 265);
   /* Washed from `oklch(57.7% 0.245 27.325)`, which was the loudest thing on
      any page it appeared on. At this chroma the fill still carries white text
@@ -229,10 +285,7 @@
      the loudest. */
   --color-warning: oklch(64% 0.1 72);
   --color-success: oklch(58% 0.1 155);
-  /* Fields use a soft filled surface and a quiet edge. Focus adds a wider,
-     low-opacity halo rather than a bright hairline. */
-  --color-border: #dddde3;
-  --color-input: #c6c6ce;
+  --color-border: #dedee5;
   --color-destructive-ink: #a52a34;
   --color-warning-ink: #795000;
   --color-success-ink: #236846;
@@ -249,7 +302,8 @@
      the shadow only lifts the surface off the page - and a heavier one for
      things that float (menus, dialogs). */
   --shadow-card: 0 1px 2px 0 oklch(0% 0 0 / 0.05), 0 1px 3px 0 oklch(0% 0 0 / 0.03);
-  --shadow-float: 0 4px 6px -2px oklch(0% 0 0 / 0.05), 0 10px 15px -3px oklch(0% 0 0 / 0.08);
+  --shadow-float: 0 2px 4px oklch(0% 0 0 / 0.04), 0 12px 32px -8px oklch(0% 0 0 / 0.12);
+  --shadow-dialog: 0 2px 8px oklch(0% 0 0 / 0.06), 0 24px 64px -16px oklch(0% 0 0 / 0.18);
 
   /* Typography */
   --font-display: var(--font-display), "Bricolage Grotesque", system-ui, sans-serif;
@@ -260,20 +314,62 @@
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
   --duration-fast: 150ms;
+  --duration-panel: 180ms;
   --duration-base: 220ms;
   --duration-slow: 400ms;
 }
 
 /* Dark surfaces rise from navigation to page, cards and floating panels.
-   Input wells use the page surface. Their edge stays stronger than decorative
-   card borders. Keep both root dark mappings aligned. */
+   Fields use a filled surface and a soft edge derived from the current look.
+   Keep both root dark mappings aligned. */
 @theme inline {
   /* Neutral controls resolve against the current look, not whatever sits behind them. */
   --color-control: color-mix(in oklab, var(--color-card) 92%, var(--color-foreground));
   --color-control-hover: color-mix(in oklab, var(--color-card) 87%, var(--color-foreground));
   --color-control-active: color-mix(in oklab, var(--color-card) 82%, var(--color-foreground));
-  --color-field: color-mix(in oklab, var(--color-background) 80%, var(--color-card));
+  --color-input: color-mix(in oklab, var(--color-card) 82%, var(--color-foreground));
+  --color-field-border: color-mix(in oklab, var(--color-card) 50%, var(--color-foreground));
+  --color-field: color-mix(in oklab, var(--color-card) 94%, var(--color-foreground));
   --color-sidebar-secondary: color-mix(in oklab, var(--color-sidebar) 45%, var(--color-background));
+  /* Dataset accents follow the foreground lightness, keeping their hue visible in both themes. */
+  --color-dataset-blue-foreground: oklch(
+    from var(--color-foreground) calc(l * 0.4 + 0.38) 0.17 250
+  );
+  --color-dataset-blue: color-mix(
+    in oklab,
+    var(--color-card) 85%,
+    var(--color-dataset-blue-foreground)
+  );
+  --color-dataset-green-foreground: oklch(
+    from var(--color-foreground) calc(l * 0.4 + 0.38) 0.15 155
+  );
+  --color-dataset-green: color-mix(
+    in oklab,
+    var(--color-card) 85%,
+    var(--color-dataset-green-foreground)
+  );
+  --color-dataset-yellow-foreground: oklch(
+    from var(--color-foreground) calc(l * 0.4 + 0.38) 0.13 75
+  );
+  --color-dataset-yellow: color-mix(
+    in oklab,
+    var(--color-card) 85%,
+    var(--color-dataset-yellow-foreground)
+  );
+  --color-dataset-purple-foreground: oklch(
+    from var(--color-foreground) calc(l * 0.4 + 0.38) 0.18 295
+  );
+  --color-dataset-purple: color-mix(
+    in oklab,
+    var(--color-card) 85%,
+    var(--color-dataset-purple-foreground)
+  );
+  --color-dataset-red-foreground: oklch(from var(--color-foreground) calc(l * 0.4 + 0.38) 0.17 25);
+  --color-dataset-red: color-mix(
+    in oklab,
+    var(--color-card) 85%,
+    var(--color-dataset-red-foreground)
+  );
   /* Table labels inherit the app surface and ink, including an explicit Light
      choice on a dark OS. Mixing in hue keeps color secondary to readable text. */
   --color-table-blue: color-mix(in oklab, var(--color-card) 90%, oklch(60% 0.11 230));
@@ -310,12 +406,12 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not(.light) {
-    --color-sidebar: #141416;
-    --color-background: #1c1c1f;
+    --color-sidebar: #1f1f23;
+    --color-background: #17171b;
     --color-foreground: #eeeef1;
-    --color-card: #232326;
+    --color-card: #202024;
     --color-card-foreground: #eeeef1;
-    --color-popover: #2b2b30;
+    --color-popover: #29292f;
     --color-popover-foreground: #eeeef1;
     --color-peek-well: oklch(21.5% 0.0025 265);
     --color-peek-sheet: oklch(25.5% 0.0025 265);
@@ -339,14 +435,13 @@
     --color-brand-subtle: var(--brand-950);
     --color-brand-subtle-hover: var(--brand-900);
     --color-brand-line: var(--brand-800);
-    --color-secondary: #2d2d32;
+    --color-secondary: #29292f;
     --color-secondary-foreground: oklch(95% 0 0);
-    --color-muted: #2d2d32;
-    --color-muted-foreground: #b1b1b9;
-    --color-accent: #38383f;
+    --color-muted: #29292f;
+    --color-muted-foreground: #b0b0ba;
+    --color-accent: #34343c;
     --color-accent-foreground: oklch(95% 0 0);
-    --color-border: #3b3b43;
-    --color-input: #51515c;
+    --color-border: #393941;
     --color-destructive-ink: #ffb4b4;
     --color-warning-ink: #f0cc84;
     --color-success-ink: #99d5b1;
@@ -364,12 +459,12 @@
 }
 
 :root.dark {
-  --color-sidebar: #141416;
-  --color-background: #1c1c1f;
+  --color-sidebar: #1f1f23;
+  --color-background: #17171b;
   --color-foreground: #eeeef1;
-  --color-card: #232326;
+  --color-card: #202024;
   --color-card-foreground: #eeeef1;
-  --color-popover: #2b2b30;
+  --color-popover: #29292f;
   --color-popover-foreground: #eeeef1;
   --color-peek-well: oklch(21.5% 0.0025 265);
   --color-peek-sheet: oklch(25.5% 0.0025 265);
@@ -391,14 +486,13 @@
   --color-brand-subtle: var(--brand-950);
   --color-brand-subtle-hover: var(--brand-900);
   --color-brand-line: var(--brand-800);
-  --color-secondary: #2d2d32;
+  --color-secondary: #29292f;
   --color-secondary-foreground: oklch(95% 0 0);
-  --color-muted: #2d2d32;
-  --color-muted-foreground: #b1b1b9;
-  --color-accent: #38383f;
+  --color-muted: #29292f;
+  --color-muted-foreground: #b0b0ba;
+  --color-accent: #34343c;
   --color-accent-foreground: oklch(95% 0 0);
-  --color-border: #3b3b43;
-  --color-input: #51515c;
+  --color-border: #393941;
   --color-destructive-ink: #ffb4b4;
   --color-warning-ink: #f0cc84;
   --color-success-ink: #99d5b1;
@@ -420,19 +514,18 @@
    ========================================================================= */
 
 .theme-light {
-  --color-input: #c6c6ce;
   --color-destructive-ink: #a52a34;
   --color-warning-ink: #795000;
   --color-success-ink: #236846;
   --color-popover: #ffffff;
   --color-popover-foreground: #242428;
-  --color-background: #f7f7f9;
+  --color-background: #fafafa;
   --color-foreground: #242428;
   --color-card: #ffffff;
   --color-card-foreground: #242428;
   --color-muted: #eeeef1;
-  --color-muted-foreground: #62626c;
-  --color-border: #dddde3;
+  --color-muted-foreground: #62626b;
+  --color-border: #dedee5;
   /* A pinned-light subtree inside a dark root needs the light accent mapping
      too, or its buttons and links keep the root theme's accent. */
   --color-primary: oklch(21% 0.01 250);
@@ -460,7 +553,7 @@
   --series-3: oklch(80% 0.15 78);
   --series-4: oklch(64% 0.19 22);
   --series-5: oklch(58% 0.18 312);
-  --color-sidebar: #eeeef1;
+  --color-sidebar: #f4f4f6;
   --color-secondary: #eeeef1;
   --color-secondary-foreground: #242428;
   --color-accent: #e5e5ea;
@@ -468,20 +561,19 @@
 }
 
 .theme-dark {
-  --color-input: #51515c;
   --color-destructive-ink: #ffb4b4;
   --color-warning-ink: #f0cc84;
   --color-success-ink: #99d5b1;
-  --color-popover: #2b2b30;
+  --color-popover: #29292f;
   --color-popover-foreground: #eeeef1;
-  --color-sidebar: #141416;
-  --color-background: #1c1c1f;
+  --color-sidebar: #1f1f23;
+  --color-background: #17171b;
   --color-foreground: #eeeef1;
-  --color-card: #232326;
+  --color-card: #202024;
   --color-card-foreground: #eeeef1;
-  --color-muted: #2d2d32;
-  --color-muted-foreground: #b1b1b9;
-  --color-border: #3b3b43;
+  --color-muted: #29292f;
+  --color-muted-foreground: #b0b0ba;
+  --color-border: #393941;
   --color-primary: oklch(96% 0.003 250);
   --color-primary-foreground: oklch(16% 0.01 250);
   --color-primary-hover: oklch(88% 0.004 250);
@@ -507,9 +599,9 @@
   --series-3: oklch(78% 0.14 78);
   --series-4: oklch(64% 0.17 22);
   --series-5: oklch(62% 0.16 312);
-  --color-secondary: #2d2d32;
+  --color-secondary: #29292f;
   --color-secondary-foreground: oklch(95% 0 0);
-  --color-accent: #38383f;
+  --color-accent: #34343c;
   --color-accent-foreground: oklch(95% 0 0);
 }
 
@@ -549,32 +641,23 @@
 
   /* Visible focus ring on every interactive element. Browsers handle :focus-visible
      correctly only when we don't override outline universally; here we set a
-     consistent brand ring with a 2px offset. */
+     consistent neutral outline with a 2px offset. */
   :focus-visible {
-    outline: 2px solid var(--color-ring);
+    outline: 2px solid color-mix(in oklab, var(--color-foreground) 60%, transparent);
     outline-offset: 2px;
     border-radius: 4px;
+  }
+  @media (forced-colors: active) {
+    /* Windows high contrast removes box-shadow rings. Override control utilities
+       that suppress outlines so keyboard focus still has a visible boundary. */
+    :focus-visible {
+      outline: 2px solid Highlight !important;
+      outline-offset: 2px;
+    }
   }
   /* Remove the default inner button focus ring on Firefox. */
   ::-moz-focus-inner {
     border: 0;
-  }
-
-  /* Route transition - subtle fade + slide-up on each page change.
-     Keyed on pathname in components/layout/page-transition.tsx so it replays
-     on navigation. Neutralized under reduced motion below. */
-  .page-enter {
-    animation: page-enter var(--duration-base) var(--ease-out);
-  }
-  @keyframes page-enter {
-    from {
-      opacity: 0;
-      transform: translateY(6px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
   }
 
   /* The bar along the top edge while a navigation is on its way
@@ -611,7 +694,7 @@
   .skip-link:focus,
   .skip-link:focus-visible {
     transform: translateY(0);
-    outline: 2px solid var(--color-ring);
+    outline: 2px solid color-mix(in oklab, var(--color-foreground) 60%, transparent);
     outline-offset: 2px;
   }
 }
@@ -751,52 +834,15 @@
    ========================================================================= */
 
 @layer utilities {
-  /* Tiny fade+scale entrance for popovers / dropdowns. */
+  /* Short entrance for popovers and dropdowns. */
   @keyframes lsFadeIn {
     from {
       opacity: 0;
-      transform: translateY(-4px) scale(0.97);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0) scale(1);
-    }
-  }
-
-  /* The empty composer's examples: each slides in from above as the last one
-     slides down and out. Reduced motion swaps them in place. */
-  @keyframes composer-hint-in {
-    from {
-      opacity: 0;
-      transform: translateY(-60%);
+      transform: translateY(-4px);
     }
     to {
       opacity: 1;
       transform: translateY(0);
-    }
-  }
-  @keyframes composer-hint-out {
-    from {
-      opacity: 1;
-      transform: translateY(0);
-    }
-    to {
-      opacity: 0;
-      transform: translateY(60%);
-    }
-  }
-  .composer-hint-in {
-    animation: composer-hint-in 650ms cubic-bezier(0.22, 1, 0.36, 1) both;
-  }
-  .composer-hint-out {
-    animation: composer-hint-out 650ms cubic-bezier(0.22, 1, 0.36, 1) both;
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .composer-hint-in {
-      animation: none;
-    }
-    .composer-hint-out {
-      display: none;
     }
   }
 
@@ -843,11 +889,6 @@
         0 14px 34px -18px oklch(0% 0 0 / 0.28);
     }
   }
-  @media (hover: hover) {
-    :root:not([data-motion="reduce"]) .dash-editable:hover {
-      transform: scale(1.012);
-    }
-  }
   /* The card being dragged: dimmed and held in place while the drop target is
      ringed, so nothing shuffles under the cursor. The reorder is applied on
      drop, where FLIP glides every moved card to its new place at once. */
@@ -861,7 +902,6 @@
   @keyframes dash-pop {
     from {
       opacity: 0;
-      transform: scale(0.94);
     }
     to {
       opacity: 1;
@@ -1035,14 +1075,14 @@
 @keyframes step-card-in {
   0% {
     opacity: 0;
-    transform: translateY(10px) scale(0.94);
+    transform: translateY(6px);
   }
   60% {
     opacity: 1;
   }
   100% {
     opacity: 1;
-    transform: translateY(0) scale(1);
+    transform: translateY(0);
   }
 }
 
@@ -1086,7 +1126,7 @@
 @keyframes bubble-rise {
   from {
     opacity: 0;
-    transform: translateY(8px) scale(0.98);
+    transform: translateY(6px);
   }
   to {
     opacity: 1;
@@ -1214,7 +1254,6 @@
 @keyframes pop-in {
   from {
     opacity: 0;
-    transform: scale(0.6);
   }
   to {
     opacity: 1;
@@ -1229,7 +1268,7 @@
 @keyframes map-tile-in {
   from {
     opacity: 0;
-    transform: translateY(3px) scale(0.97);
+    transform: translateY(3px);
   }
   to {
     opacity: 1;
@@ -2092,30 +2131,15 @@ body .tour-spotlight {
      that is what it is now - a class called `glass` that is not glass is the
      kind of name this codebase spends its comments avoiding. */
   .panel {
-    border: 1px solid color-mix(in oklab, var(--color-foreground) 8%, transparent);
+    border: 1px solid var(--color-border);
     background: var(--color-popover);
-    box-shadow:
-      0 1px 2px 0 rgb(0 0 0 / 0.08),
-      0 12px 40px -12px rgb(0 0 0 / 0.3);
+    box-shadow: var(--shadow-float);
   }
   /* Keep the typing surface opaque so scrolling text cannot compete with a draft. */
   .panel.composer-box {
     background: var(--color-card);
     border-color: color-mix(in oklab, var(--color-foreground) 10%, transparent);
     box-shadow: 0 4px 20px -8px rgb(0 0 0 / 0.12);
-  }
-  /* Menus, popovers and select lists: open for a moment and closed again, so
-     the blur the .panel note retired from everything costs a frame or two here,
-     not every scroll. Mostly opaque, so they read the same where a browser does
-     not draw the blur - a screenshot, a throttled tab. Declared after .panel. */
-  .panel-glass {
-    background: color-mix(in oklab, var(--color-popover) 88%, transparent);
-    -webkit-backdrop-filter: blur(16px) saturate(1.6);
-    backdrop-filter: blur(16px) saturate(1.6);
-    border-color: color-mix(in oklab, var(--color-foreground) 10%, transparent);
-    box-shadow:
-      0 1px 2px 0 rgb(0 0 0 / 0.06),
-      0 16px 48px -12px rgb(0 0 0 / 0.32);
   }
   .panel-strong {
     border: 1px solid var(--color-border);
@@ -2424,6 +2448,13 @@ body .tour-spotlight {
   }
 }
 
+.dash-widget[data-widget-surface="plain"],
+.dash-widget[data-widget-surface="plain"]:hover {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
+
 /* A live thumbnail fades in once its frame has painted, rather than popping
    from the placeholder to the page. */
 .peek-frame {
@@ -2436,11 +2467,11 @@ body .tour-spotlight {
 
 /* A grid of cards arriving: each rises into place a beat after the one before,
    so a page of twelve reads as twelve things rather than one block. Capped at
-   the ninth, past which a delay is waiting rather than rhythm. */
+   the seventh, past which a delay is waiting rather than rhythm. */
 @keyframes rise-in {
   from {
-    opacity: 0;
-    transform: translateY(8px);
+    opacity: 0.5;
+    transform: translateY(4px);
   }
   to {
     opacity: 1;
@@ -2448,34 +2479,28 @@ body .tour-spotlight {
   }
 }
 .rise-in > * {
-  animation: rise-in 240ms var(--ease-out) both;
+  animation: rise-in 180ms var(--ease-out) both;
 }
 .rise-in > :nth-child(2) {
-  animation-delay: 24ms;
+  animation-delay: 12ms;
 }
 .rise-in > :nth-child(3) {
-  animation-delay: 48ms;
+  animation-delay: 24ms;
 }
 .rise-in > :nth-child(4) {
-  animation-delay: 72ms;
+  animation-delay: 36ms;
 }
 .rise-in > :nth-child(5) {
-  animation-delay: 96ms;
+  animation-delay: 48ms;
 }
 .rise-in > :nth-child(6) {
-  animation-delay: 120ms;
+  animation-delay: 60ms;
 }
-.rise-in > :nth-child(7) {
-  animation-delay: 144ms;
-}
-.rise-in > :nth-child(8) {
-  animation-delay: 168ms;
-}
-.rise-in > :nth-child(n + 9) {
-  animation-delay: 192ms;
+.rise-in > :nth-child(n + 7) {
+  animation-delay: 72ms;
 }
 /* The global reduced-motion rule shortens durations but keeps these delays, and
-   with `both` fill a later card would sit invisible for up to 192ms and then
+   with `both` fill a later card would wait for up to 72ms and then
    appear at once (#1930). Without motion the grid is simply there. */
 @media (prefers-reduced-motion: reduce) {
   .rise-in > * {
@@ -2525,7 +2550,7 @@ body .tour-spotlight {
 @keyframes wizard-step-in {
   from {
     opacity: 0;
-    transform: translateX(10px);
+    transform: translateX(var(--wizard-step-offset, 10px));
   }
   to {
     opacity: 1;
@@ -2533,13 +2558,16 @@ body .tour-spotlight {
   }
 }
 .wizard-step-in {
-  animation: wizard-step-in 320ms var(--ease-out) both;
+  animation: wizard-step-in var(--duration-base) var(--ease-out) both;
+}
+.wizard-step-in[data-direction="backward"] {
+  --wizard-step-offset: -10px;
 }
 
 /* =========================================================================
    Enter and exit motion for overlays - dialogs, menus, selects, popovers,
    sheets. The primitives were written against the `tw-animate-css` class
-   vocabulary (`data-[state=open]:animate-in fade-in-0 zoom-in-95 …`), and that
+   vocabulary (`data-[state=open]:animate-in fade-in-0 …`), and that
    plugin was never installed, so every one of those classes compiled to
    nothing: a dialog, a dropdown and a select all appeared in a single frame
    and vanished in one. These are the same names, so the ten call sites need
@@ -2552,36 +2580,28 @@ body .tour-spotlight {
 @keyframes overlay-enter {
   from {
     opacity: var(--tw-enter-opacity, 1);
-    transform: translate3d(var(--tw-enter-translate-x, 0), var(--tw-enter-translate-y, 0), 0)
-      scale(var(--tw-enter-scale, 1));
+    transform: translate3d(var(--tw-enter-translate-x, 0), var(--tw-enter-translate-y, 0), 0);
   }
 }
 @keyframes overlay-exit {
   to {
     opacity: var(--tw-exit-opacity, 1);
-    transform: translate3d(var(--tw-exit-translate-x, 0), var(--tw-exit-translate-y, 0), 0)
-      scale(var(--tw-exit-scale, 1));
+    transform: translate3d(var(--tw-exit-translate-x, 0), var(--tw-exit-translate-y, 0), 0);
   }
 }
 
 @utility animate-in {
-  animation: overlay-enter var(--tw-duration, var(--duration-base)) var(--tw-ease, var(--ease-out))
+  animation: overlay-enter var(--tw-duration, var(--duration-fast)) var(--tw-ease, var(--ease-out))
     both;
 }
 @utility animate-out {
-  animation: overlay-exit var(--tw-duration, var(--duration-fast)) var(--ease-out) both;
+  animation: overlay-exit var(--tw-duration, calc(var(--duration-fast) * 0.8)) var(--ease-out) both;
 }
 @utility fade-in-* {
   --tw-enter-opacity: calc(--value(integer) * 1%);
 }
 @utility fade-out-* {
   --tw-exit-opacity: calc(--value(integer) * 1%);
-}
-@utility zoom-in-* {
-  --tw-enter-scale: calc(--value(integer) * 1%);
-}
-@utility zoom-out-* {
-  --tw-exit-scale: calc(--value(integer) * 1%);
 }
 @utility slide-in-from-top-* {
   --tw-enter-translate-y: calc(var(--spacing) * --value(integer) * -1);
@@ -2903,6 +2923,16 @@ body .tour-spotlight {
       var(--app-height, 100dvh) - var(--shell-inset-top, 0px) - var(--safe-bottom, 0px) - 1.5rem
     );
   }
+
+  /* Keep contextual edits in one modal surface without covering the whole page.
+     The shared visible-height budget also keeps the bottom above a keyboard. */
+  .console-dialog[data-mobile-presentation="sheet"] {
+    top: calc(var(--dialog-center) + var(--dialog-available-height) / 2);
+    translate: -50% -100%;
+    width: calc(100% - 1rem);
+    max-height: min(var(--dialog-available-height), calc(var(--app-height, 100dvh) * 0.92));
+    border-radius: 1.25rem;
+  }
 }
 
 /* Sonner's default palette follows its own theme; these roles also follow a
@@ -2939,11 +2969,15 @@ body .tour-spotlight {
   .chat-input-form[data-editing] .chat-input-send {
     order: 3;
     align-self: flex-end;
+    min-block-size: 2.75rem;
+    align-items: center;
     padding-bottom: 0;
+  }
+  .chat-input-form[data-editing] .composer-editor-shell {
+    --composer-padding: 0.625rem;
   }
   .chat-input-form[data-editing] .composer-editor {
     min-height: 44px;
-    padding-block: 10px;
   }
   /* Keep the scroll gesture, without a scrollbar beside the send action. */
   .chat-input-form .composer-editor {
@@ -2970,7 +3004,13 @@ body .tour-spotlight {
     min-height: 44px;
     min-width: 44px;
   }
-  .chat-input-form[data-editing] .chat-input-selection,
+  /* Agent and permission mode remain visible before sending, even while the
+     compact phone editor is focused. They share one context row above it. */
+  .chat-input-form[data-editing] .chat-input-selection {
+    display: flex;
+    order: 0;
+    flex: 0 0 100%;
+  }
   .chat-input-form[data-editing] .chat-input-mic {
     display: none;
   }
@@ -2979,17 +3019,31 @@ body .tour-spotlight {
     order: 0;
     width: 100%;
   }
-  /* A programmatic focus does not mean the person has started writing. */
-  .chat-home-column:has(.chat-input-form[data-editing][data-drafting]) {
-    justify-content: flex-end;
+}
+
+/* Keep the prompt slot's geometry while the person writes. Visibility changes
+   after the fade; inert and aria-hidden already prevent interaction. */
+.chat-welcome-suggestions {
+  opacity: 1;
+  visibility: visible;
+}
+.chat-welcome-suggestions[data-suggestions-hidden] {
+  opacity: 0;
+  visibility: hidden;
+}
+@media (prefers-reduced-motion: no-preference) {
+  :root:not([data-motion="reduce"]) .chat-welcome-suggestions {
+    transition:
+      opacity var(--duration-panel) var(--ease-out),
+      visibility 0s;
   }
-  .chat-home-column:has(.chat-input-form[data-editing][data-drafting]) [data-transcript] {
-    padding-block: 0;
+  :root:not([data-motion="reduce"]) .chat-welcome-suggestions[data-suggestions-hidden] {
+    transition-delay: 0s, var(--duration-panel);
   }
-  .chat-surface:has(.chat-input-form[data-editing][data-drafting]) .chat-empty-state,
-  .chat-surface:has(.chat-input-form[data-editing][data-drafting]) .chat-composer-suggestions,
-  .chat-surface:has(.chat-input-form[data-editing][data-drafting]) .chat-home-hints {
-    display: none;
+  @starting-style {
+    :root:not([data-motion="reduce"]) .chat-welcome-suggestions:not([data-suggestions-hidden]) {
+      opacity: 0;
+    }
   }
 }
 
@@ -3021,4 +3075,235 @@ body .tour-spotlight {
 }
 .soft-enter {
   animation: soft-enter var(--duration-base) var(--ease-out) both;
+}
+
+/* Closed groups retain their DOM for an interruptible reveal. Inert and
+   aria-hidden remove their links from interaction as soon as they close. */
+.sidebar-group-content {
+  display: grid;
+  width: 100%;
+  grid-template-rows: 0fr;
+  visibility: hidden;
+}
+.sidebar-group-content[data-open] {
+  grid-template-rows: 1fr;
+  visibility: visible;
+}
+.sidebar-group-links {
+  overflow: hidden;
+}
+.sidebar-nav-link:active {
+  background-color: color-mix(in oklab, var(--color-foreground) 8%, transparent);
+}
+.pressable-icon:active {
+  background-color: var(--color-control-active);
+}
+:root:not([data-motion="reduce"]) {
+  .sidebar-width-motion {
+    transition: width var(--duration-base) var(--ease-out);
+  }
+  .sidebar-group-content {
+    transition:
+      grid-template-rows var(--duration-base) var(--ease-out),
+      visibility var(--duration-base);
+  }
+  .pressable-control:not(.pressable-icon) {
+    transition:
+      background-color var(--duration-fast),
+      border-color var(--duration-fast),
+      color var(--duration-fast),
+      box-shadow var(--duration-fast);
+  }
+  .pressable-icon {
+    transition:
+      background-color var(--duration-fast),
+      color var(--duration-fast),
+      box-shadow var(--duration-fast);
+  }
+}
+
+.console-toasts [data-sonner-toast][data-removed="true"] {
+  transition-duration: 150ms;
+}
+
+/* Panels enter without moving their tab strip or changing retained form state. */
+@keyframes tab-panel-enter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+:root:not([data-motion="reduce"]) .tab-panel[data-state="active"] {
+  animation: tab-panel-enter 160ms var(--ease-out);
+}
+
+/* Command palettes use the same surface on the main and embedded chats. */
+.chat-command-palette {
+  padding: 0.375rem;
+  border-radius: 1rem;
+  border: 1px solid var(--color-border);
+  background: var(--color-popover);
+  box-shadow: var(--shadow-float);
+}
+.chat-command-palette-header {
+  padding: 0.5rem 0.625rem;
+  border: none;
+  font-family: inherit;
+  font-size: 0.6875rem;
+  letter-spacing: normal;
+  text-transform: none;
+}
+.chat-command-palette-row {
+  min-height: 2.75rem;
+  border-radius: 0.75rem;
+  padding: 0.625rem;
+}
+.chat-command-palette-row p:first-child {
+  font-family: inherit;
+  font-weight: 500;
+  font-size: 0.8125rem;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .chat-command-palette {
+    animation: chat-panel-enter 180ms ease-out;
+    transform-origin: bottom left;
+  }
+  .chat-command-palette-row {
+    transition: background-color 120ms ease-out;
+  }
+}
+@keyframes chat-panel-enter {
+  from {
+    opacity: 0;
+    transform: translateY(0.25rem);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+:root[data-motion="reduce"] :is(.chat-command-palette, .chat-command-palette-row) {
+  animation: none;
+  transition: none;
+}
+
+/* Native disclosures share trigger rhythm without replacing native keyboard,
+   find-in-page or persistent form behavior. Feature-local utilities can refine density. */
+:where(.native-disclosure > summary) {
+  min-block-size: 2.25rem;
+  padding-block: 0.375rem;
+  align-content: center;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  font-weight: 500;
+}
+:where(.native-disclosure > summary)::marker {
+  color: var(--color-muted-foreground);
+  font-size: 0.625rem;
+}
+:where(.native-disclosure > summary):focus-visible {
+  outline: 2px solid var(--color-foreground);
+  outline-offset: 2px;
+}
+/* The enclosing build section draws the keyboard focus around its full frame. */
+.native-disclosure[data-focus-frame] > summary:focus-visible {
+  outline: none;
+}
+@media (pointer: coarse) {
+  :where(.native-disclosure > summary) {
+    min-block-size: 2.75rem;
+  }
+}
+/* Browsers without intrinsic-size transitions keep the working native disclosure. */
+@supports (interpolate-size: allow-keywords) and selector(details::details-content) {
+  .native-disclosure::details-content {
+    interpolate-size: allow-keywords;
+    overflow: clip;
+    contain: layout;
+  }
+  .native-disclosure:not([open])::details-content {
+    block-size: 0;
+  }
+  :root:not([data-motion="reduce"]) .native-disclosure::details-content {
+    transition-property: block-size, content-visibility, display;
+    transition-duration: var(--duration-base);
+    transition-timing-function: var(--ease-out);
+    transition-behavior: allow-discrete;
+  }
+}
+
+/* A single marker keeps selection continuous without changing tab semantics. */
+[data-tab-indicator] {
+  position: relative;
+  isolation: isolate;
+}
+[data-tab-indicator][data-indicator-ready]
+  > :is(
+    [aria-selected="true"],
+    [aria-current="page"],
+    [aria-checked="true"],
+    [aria-pressed="true"]
+  ) {
+  border-bottom-color: transparent;
+  background-color: transparent;
+}
+[data-tab-indicator][data-indicator-ready]::before {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+  z-index: -1;
+  bottom: 0;
+  left: 0;
+  width: var(--tab-width);
+  transform: translateX(var(--tab-x));
+  border-bottom: 2px solid var(--color-foreground);
+}
+[data-tab-indicator="pill"][data-indicator-ready]::before {
+  top: 0;
+  bottom: auto;
+  height: var(--tab-height);
+  transform: translate(var(--tab-x), var(--tab-y));
+  border: 1px solid transparent;
+  border-radius: var(--radius-lg);
+  background: var(--color-control-active);
+}
+@media (prefers-reduced-motion: no-preference) {
+  :root:not([data-motion="reduce"]) [data-tab-indicator][data-indicator-ready]::before {
+    transition:
+      transform 220ms ease-out,
+      width 220ms ease-out,
+      height 220ms ease-out;
+  }
+}
+@media (forced-colors: active) {
+  [data-tab-indicator="pill"][data-indicator-ready]::before {
+    border-color: Highlight;
+  }
+}
+
+/* Disclosure headers and image cards retain their geometry while pressed. */
+button[aria-expanded]:not([data-press-feedback="quiet"]):active,
+button[data-press-feedback="surface"]:active {
+  background-color: var(--color-control-active);
+}
+
+/* The selected console theme owns editor ink, independently of the OS theme. */
+.code-area-variable {
+  color: var(--color-violet-950);
+  background-color: var(--color-violet-100);
+}
+:root.dark .code-area-variable {
+  color: var(--color-violet-200);
+  background-color: color-mix(in oklab, var(--color-violet-500) 20%, var(--color-card));
+}
+@media (forced-colors: active) {
+  .code-area-variable {
+    color: CanvasText;
+    background-color: Canvas;
+    border-bottom: 1px solid CanvasText;
+  }
 }

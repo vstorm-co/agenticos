@@ -482,6 +482,10 @@ class _LazyAgent:
         nobody shared the sandbox with ran its own `execute` in the parent's
         container.
         """
+        from pydantic_ai.workspaces import Workspace
+
+        if isinstance(self._delegate.workspace, Workspace):
+            return {**kwargs, "workspace": self._delegate.workspace}
         if self._delegate.workspace == "parent":
             return kwargs
         return {**kwargs, "workspace": "new" if self._delegate.workspace == "own" else None}

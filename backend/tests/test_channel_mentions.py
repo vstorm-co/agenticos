@@ -1239,3 +1239,72 @@ async def test_each_turn_keeps_author_context_separate_from_persisted_text_after
                 prompt,
                 message_history=router.runner.execute.await_args.kwargs.get("message_history"),
             )
+
+
+@pytest.mark.parametrize("named", [False, True])
+async def test_the_terminal_snapshot_uses_the_same_usage_rendering_as_the_live_answer(named):
+    from types import SimpleNamespace
+
+    from app.services.agent_runner import RunSegment
+    from app.services.channels.base import IncomingMessage
+    from app.services.channels.reply_receipts import RequiredReply, required_reply
+
+    ctx = _ctx()
+    run = SimpleNamespace(
+        id=uuid.uuid4(),
+        status="completed",
+        organization_id=ctx.organization_id,
+        conversation_id=None,
+    )
+    bot = SimpleNamespace(id=_BOT_ID, organization_id=ctx.organization_id)
+    incoming = IncomingMessage(
+        platform="slack",
+        bot_id=str(bot.id),
+        platform_user_id="sender",
+        platform_chat_id="room:thread",
+        chat_type="group",
+        text="hello",
+    )
+    db = MagicMock()
+    router = ChannelAgentRouter(db)
+    router._with_usage = AsyncMock(return_value="Answer\n\n_Cost: $0.03_")
+    exposure = MagicMock(is_active=True, usage_reporting={"mode": "always"})
+
+    async def execute(*args, **kwargs):
+        await kwargs["on_segment"](RunSegment(output="Answer", run=run, tool_calls=[], settled={}))
+        return "Answer", run
+
+    router.runner.execute = AsyncMock(side_effect=execute)
+    with (
+        patch.object(router, "_membership_context", AsyncMock(return_value=ctx)),
+        patch(
+            "app.services.channels.mentions.agent_repo.get_by_slug",
+            AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+        ),
+        patch(
+            "app.services.channels.mentions.agent_exposure_repo.get_for_bot",
+            AsyncMock(return_value=exposure),
+        ),
+        patch(
+            "app.services.channels.mentions.agent_exposure_repo.list_active_for_bot",
+            AsyncMock(return_value=[(exposure, MagicMock(id=uuid.uuid4()))]),
+        ),
+        patch(
+            "app.services.channels.reply_receipts.conversation_repo.bind_channel_source",
+            AsyncMock(),
+        ),
+        patch(
+            "app.services.channels.reply_receipts.enqueue", AsyncMock(return_value=uuid.uuid4())
+        ) as enqueue,
+        required_reply(RequiredReply(db, bot, incoming)),
+    ):
+        answer = await (router.answer if named else router.answer_default)(
+            "@sales hello" if named else "hello",
+            platform="slack",
+            organization_id=ctx.organization_id,
+            bot_id=bot.id,
+            user_id=ctx.user_id,
+        )
+    assert answer.text == "Answer\n\n_Cost: $0.03_"
+    assert enqueue.await_args.args[2].output == answer.text
+    router._with_usage.assert_awaited_once()

@@ -48,7 +48,7 @@ rule: `{"fields": sorted(update_data)}`, not the body that was submitted (#412).
 is the only place it is built.** `details={"fields": [{"field", "message"}]}` is
 what `fieldProblems` in `frontend/src/lib/api-error.ts` reads, and it is the
 whole reason for naming a field at all - a form marks the input rather than
-showing a sentence somebody has to re-scan the page for. Three entry points:
+showing a sentence somebody has to re-scan the page for. Use the matching entry point:
 
 ```python
 # A rule stated in prose. The sentence is the envelope's and the field's - one
@@ -59,10 +59,12 @@ raise refused_field("base_url", "A model endpoint must include a host")
 raise BadRequestError(message=..., details={"fields": field_problems(exc.errors(), root="yaml")})
 ```
 
-`request_field_problems` is the third and belongs to
+`request_field_problems` belongs to
 `validation_exception_handler` alone. `field_details` builds the same `details`
 without the exception, for a raiser that needs another status or that may have
-no field to name.
+no field to name. Non-Pydantic validators use `named_field_problems` to root
+their `(field, message)` pairs under the request's document field. Preserve
+domain-specific error metadata separately when existing callers rely on it.
 
 **Name a field only when the caller sent it in that request.** A refusal about a
 value nobody submitted - a remote file's name chosen by whoever shares the synced

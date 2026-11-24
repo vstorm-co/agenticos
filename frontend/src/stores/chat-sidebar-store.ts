@@ -70,3 +70,29 @@ export const useChatBandsStore = create<ChatBandsState>()(
     },
   ),
 );
+
+/**
+ * How the conversation list is laid out: by its bands (`chats`), or with the
+ * threads gathered under the agent that answered them (`agents`). A reader's
+ * choice, kept in the browser like the folds above.
+ */
+export type ChatListMode = "chats" | "agents";
+
+interface ChatListModeState {
+  mode: ChatListMode;
+  setMode: (mode: ChatListMode) => void;
+}
+
+export const useChatListModeStore = create<ChatListModeState>()(
+  persist(
+    (set) => ({
+      mode: "chats",
+      setMode: (mode) => set({ mode }),
+    }),
+    {
+      name: "chat-list-mode",
+      version: 1,
+      partialize: (state) => ({ mode: state.mode }),
+    },
+  ),
+);

@@ -4,6 +4,7 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.audit import record_audit
 from app.core.config import settings
 from app.core.exceptions import (
     AlreadyExistsError,
@@ -14,12 +15,14 @@ from app.core.exceptions import (
     PaymentRequiredError,
 )
 from app.core.permissions import Perm, assignable_roles, role_has
-from app.db.models.organization import Invitation, InvitationStatus
+from app.db.models.organization import Invitation, InvitationStatus, Organization
 from app.repositories import invitation_repo, member_repo, organization_repo, user_repo
+from app.schemas.organization import ReceivedInvitation
 from app.services.deployment_settings import DeploymentSettingsService
 from app.services.email.service import get_email_service
 from app.services.invitation_admission import admits_anyone
 from app.services.proactive import ProactiveService
+from app.services.session import SessionService
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +30,81 @@ logger = logging.getLogger(__name__)
 class InvitationService:
     def __init__(self, db: AsyncSession):
         self.db = db
+
+    async def received(
+        self, user_id: UUID, session_id: UUID | None = None, *, skip: int = 0, limit: int = 50
+    ) -> list[ReceivedInvitation]:
+        rows = await self._received_rows(user_id, session_id=session_id, skip=skip, limit=limit)
+        return [
+            ReceivedInvitation(
+                id=invite.id,
+                organization_id=organization.id,
+                organization_name=organization.name,
+                organization_has_avatar=bool(organization.avatar_url),
+                organization_avatar_color=organization.avatar_color,
+                role=invite.role,
+                expires_at=invite.expires_at,
+            )
+            for invite, organization in rows
+        ]
+
+    async def _received_rows(
+        self,
+        user_id: UUID,
+        *,
+        session_id: UUID | None = None,
+        skip: int = 0,
+        limit: int = 50,
+        invitation_id: UUID | None = None,
+    ) -> list[tuple[Invitation, Organization]]:
+        person = await user_repo.get_by_id(self.db, user_id)
+        if person is None:
+            raise NotFoundError(message="User not found", details={"user_id": user_id})
+        if not await SessionService(self.db).has_mailbox_proof(user_id, person.email, session_id):
+            return []
+        return await invitation_repo.received(
+            self.db,
+            email=person.email,
+            user_id=user_id,
+            skip=skip,
+            limit=limit,
+            invitation_id=invitation_id,
+        )
+
+    async def received_avatar(
+        self, invitation_id: UUID, user_id: UUID, session_id: UUID | None = None
+    ) -> str:
+        """An active addressed invitation grants its recipient a preview of the org logo."""
+        rows = await self._received_rows(
+            user_id, session_id=session_id, invitation_id=invitation_id, limit=1
+        )
+        for invite, organization in rows:
+            if invite.id == invitation_id and organization.avatar_url:
+                return organization.avatar_url
+        raise NotFoundError(
+            message="Invitation avatar not found", details={"invitation_id": invitation_id}
+        )
+
+    async def accept_received(
+        self, invitation_id: UUID, user_id: UUID, session_id: UUID | None = None
+    ) -> Invitation:
+        person = await user_repo.get_by_id(self.db, user_id)
+        invite = await invitation_repo.get_by_id(self.db, invitation_id)
+        if (
+            person is None
+            or not await SessionService(self.db).has_mailbox_proof(
+                user_id, person.email, session_id
+            )
+            or invite is None
+            or invite.email is None
+            or invite.email.lower() != person.email.lower()
+        ):
+            raise NotFoundError(
+                message="Invitation not found", details={"invitation_id": invitation_id}
+            )
+        # The existing acceptance locks and revalidates status, expiry and the
+        # account's current address before creating membership atomically.
+        return await self.accept(invite.token, accepting_user_id=user_id)
 
     async def invite(
         self,
@@ -91,6 +169,15 @@ class InvitationService:
             email=normalized_email,
             role=role,
             invited_by_user_id=requester_id,
+        )
+        await record_audit(
+            self.db,
+            actor_user_id=requester_id,
+            organization_id=organization_id,
+            action="invitation.created",
+            target_type="invitation",
+            target_id=str(invite.id),
+            details={"email": normalized_email, "role": role},
         )
         logger.info(
             "Invitation created for %s to org %s (role=%s) by user %s",
@@ -171,6 +258,15 @@ class InvitationService:
             max_uses=max_uses,
             email_domain=(email_domain or "").lstrip("@").lower() or None,
         )
+        await record_audit(
+            self.db,
+            actor_user_id=requester_id,
+            organization_id=organization_id,
+            action="invitation.link_created",
+            target_type="invitation",
+            target_id=str(invite.id),
+            details={"role": role, "max_uses": max_uses, "email_domain": email_domain},
+        )
         logger.info(
             "Invite link created for org %s (role=%s, max_uses=%s, domain=%s) by user %s",
             organization_id,
@@ -218,7 +314,7 @@ class InvitationService:
         if invite is None or not admits_anyone(invite):
             raise NotFoundError(message="Invitation not found or no longer valid")
 
-    async def accept(self, token: str, accepting_user_id: UUID):
+    async def accept(self, token: str, accepting_user_id: UUID) -> Invitation:
         # Locked for the rest of the request: the `used_count`/`max_uses` guard
         # below and the increment in `record_use` are a check-then-act, and two
         # accepts of a one-use link arriving together would otherwise both pass
@@ -304,6 +400,15 @@ class InvitationService:
             await invitation_repo.record_use(self.db, invite, email=accepting_user.email)
         else:
             await invitation_repo.accept(self.db, invite, accepted_by_user_id=accepting_user_id)
+        await record_audit(
+            self.db,
+            actor_user_id=accepting_user_id,
+            organization_id=invite.organization_id,
+            action="invitation.accepted",
+            target_type="invitation",
+            target_id=str(invite.id),
+            details={"role": invite.role, "invited_by": str(invite.invited_by_user_id)},
+        )
         logger.info(
             "Invitation %s accepted by user %s (org %s)",
             invite.id,
@@ -359,6 +464,15 @@ class InvitationService:
             )
 
         await invitation_repo.revoke(self.db, invite)
+        await record_audit(
+            self.db,
+            actor_user_id=requester_id,
+            organization_id=organization_id,
+            action="invitation.revoked",
+            target_type="invitation",
+            target_id=str(invite.id),
+            details={"email": invite.email, "role": invite.role},
+        )
         logger.info(
             "Invitation %s revoked by user %s (org %s)", invite.id, requester_id, organization_id
         )
@@ -393,4 +507,13 @@ class InvitationService:
             raise AuthorizationError(message="Only Owner or Admin can revoke invitations")
 
         await invitation_repo.revoke(self.db, invite)
+        await record_audit(
+            self.db,
+            actor_user_id=requester_id,
+            organization_id=invite.organization_id,
+            action="invitation.revoked",
+            target_type="invitation",
+            target_id=str(invite.id),
+            details={"email": invite.email, "role": invite.role},
+        )
         return invite
