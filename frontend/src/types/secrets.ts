@@ -18,6 +18,7 @@ export type SecretKind =
   | "gcp_service_account"
   | "github_oauth_app"
   | "google_oauth_app"
+  | "mcp_oauth_client"
   | "git_token"
   | "entra_app"
   | "http_credential"

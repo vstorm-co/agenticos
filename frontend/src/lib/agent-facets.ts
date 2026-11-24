@@ -38,8 +38,10 @@ export function agentListParams(
   includeArchived: boolean,
   categories: string[],
   tags: string[],
+  projectId: string | null = null,
 ): Record<string, string> | [string, string][] | undefined {
   const pairs = facetParams(categories, tags);
+  if (projectId) pairs.push(["project_id", projectId]);
   if (pairs.length === 0) {
     return includeArchived ? { include_archived: "true" } : undefined;
   }

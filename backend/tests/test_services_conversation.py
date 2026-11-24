@@ -3191,6 +3191,11 @@ class TestAFavouriteBelongsToTheReader:
             assert listed.await_args.kwargs["favourites_first_for"] == reader
 
             await service.list_conversations(
+                user_id=reader, organization_id=TEST_ORG_ID, favourites_first=False
+            )
+            assert listed.await_args.kwargs["favourites_first_for"] is None
+
+            await service.list_conversations(
                 user_id=reader, organization_id=TEST_ORG_ID, archived_only=True
             )
             assert listed.await_args.kwargs["favourites_first_for"] is None

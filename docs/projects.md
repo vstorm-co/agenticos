@@ -295,3 +295,12 @@ An ownerless scheduled conversation in a project can be renamed, archived or del
 
 
 Deleting a project also erases its memory claims and derived shared copies, and attempts to remove its registered provider webhooks before cascading its routines. An unavailable provider is logged; it does not block deletion.
+
+
+## Linked resources
+
+The **Resources** tab groups existing agents, workflows, apps and tables without copying them. Choose **Add existing resources**, select one or several items, and optionally mark a linked workflow as the main workflow. A resource can belong to several projects. Search this list by name or description; the agent and workflow catalogs also offer a project filter. Project names are searchable from the command palette.
+
+Links do not grant access: each resource keeps its own permissions, versions and schedules. Removing a link or deleting a project leaves the original resource intact. Deleting a resource removes its links. Marking a main workflow does not run it.
+
+A project opens on **Chats** by default; an explicit tab link still opens that tab. Use the plus beside a recent project in the chat sidebar to start a new chat there. Read-only projects do not offer this action.

@@ -148,6 +148,7 @@ async def create(
     hint: str,
     key_version: int,
     created_by_user_id: UUID | None,
+    mcp_oauth_server: str | None = None,
 ) -> OrganizationSecret:
     secret = OrganizationSecret(
         organization_id=organization_id,
@@ -161,6 +162,7 @@ async def create(
         hint=hint,
         key_version=key_version,
         created_by_user_id=created_by_user_id,
+        mcp_oauth_server=mcp_oauth_server,
     )
     db.add(secret)
     await db.flush()
@@ -272,3 +274,19 @@ async def authorization_generation(
             OrganizationSecret.organization_id == organization_id,
         )
     )
+
+
+async def mcp_oauth_client(
+    db: AsyncSession, *, organization_id: UUID, server_url: str
+) -> OrganizationSecret | None:
+    result = await db.execute(
+        select(OrganizationSecret)
+        .where(
+            OrganizationSecret.organization_id == organization_id,
+            OrganizationSecret.kind == "mcp_oauth_client",
+            OrganizationSecret.visibility == Visibility.ORG.value,
+            OrganizationSecret.mcp_oauth_server == server_url,
+        )
+        .execution_options(populate_existing=True)
+    )
+    return result.scalar_one_or_none()

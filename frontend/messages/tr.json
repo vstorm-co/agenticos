@@ -8872,7 +8872,7 @@
       },
       "project-tabs": {
         "title": "Sohbetler, dosyalar ve talimatlar",
-        "body": "Projede sohbet başlatın, agent’ların çalışacağı dosya ve klasörleri ekleyin, buradaki tüm agent’lara verilecek talimatları belirleyin. Masaüstü uygulamasında dosyaları yüklemeden yerel bir klasör de bağlayabilirsiniz."
+        "body": "Mevcut ajanları, iş akışlarını, uygulamaları ve tabloları Kaynaklar altında gruplayın. Önce Sohbetler açılır; Dosyalar ve Talimatlar proje sohbetlerinin ortak çalışma alanını içerir."
       },
       "chat-visual": {
         "title": "Çizimler",
@@ -9589,7 +9589,9 @@
       "retryShared": "Paylaşılan konuşmaları yeniden yükle",
       "searchFailed": "Konuşmalar aranamadı.",
       "searchMatches": "{count, plural, one {# eşleşen mesaj} other {# eşleşen mesaj}}",
-      "searchKeys": "↑ ↓ gezin · Enter aç · Esc kapat"
+      "searchKeys": "↑ ↓ gezin · Enter aç · Esc kapat",
+      "flatView": "En son etkinlik (düz liste)",
+      "groupedView": "Sohbetleri projeye göre grupla"
     },
     "skipComment": "Yorumu atla",
     "sourceCount": "{count, plural, =1 {1 kaynak} other {# kaynak}}",
@@ -12628,7 +12630,26 @@
       "title": "Otomatik proje takibi",
       "openTracker": "Takip agentı"
     },
-    "initialSetup": "Talimatlar ve varsayılanlar"
+    "initialSetup": "Talimatlar ve varsayılanlar",
+    "newChatIn": "{name} içinde yeni sohbet",
+    "resources": {
+      "title": "Kaynaklar",
+      "search": "Kaynak ara",
+      "add": "Mevcut kaynakları ekle",
+      "hint": "Kaynaklar kendi izinlerini korur. Bağlantıyı kaldırmak kaynağı silmez.",
+      "empty": "Bağlı kaynak yok",
+      "agent": "Ajan",
+      "workflow": "İş akışı",
+      "app": "Uygulama",
+      "table": "Tablo",
+      "main": "Ana iş akışı",
+      "unsetMain": "Ana iş akışını temizle",
+      "setMain": "Ana iş akışı olarak ayarla",
+      "remove": "{name} kaynağını projeden kaldır",
+      "kind": "Kaynak türü",
+      "addSelected": "Seçilenleri ekle ({count})",
+      "filterHint": "Bu kataloğu filtrelemek için bir proje seçin."
+    }
   },
   "vault": {
     "access": "Erişim",

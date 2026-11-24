@@ -1,5 +1,7 @@
 "use client";
 
+import { ProjectFilter } from "@/components/projects/project-filter";
+
 import { CatalogLoading } from "@/components/states/catalog-loading";
 
 import { useWorkspaceFullscreen } from "@/hooks/use-workspace-fullscreen";
@@ -79,9 +81,11 @@ export default function WorkflowsPage() {
   const tc = useTranslations("common");
   const { can, isLoading: permissionsLoading } = usePermissions();
   const canCreate = can(Perm.workflowsCreate);
+  const [projectId, setProjectId] = useUrlState("project");
   // Gate the list query so a caller without workflows:view never hits the network
   // for a list a refusal would answer — not fetched, not a 403 in the log (#1787 F3).
   const { workflows, isLoading, error, refetch, create, duplicate } = useWorkflows({
+    projectId,
     enabled: can(Perm.workflowsView),
   });
 
@@ -126,13 +130,15 @@ export default function WorkflowsPage() {
       (workflow.description ?? "").toLowerCase().includes(needle) ||
       workflow.tags.some((tag) => tag.includes(needle)),
   });
-  const filtersActive = filter !== "all" || tagParam !== null || (queryParam ?? "") !== "";
+  const filtersActive =
+    projectId !== null || filter !== "all" || tagParam !== null || (queryParam ?? "") !== "";
 
   const onFilter = (value: Filter) => {
     setFilterParam(value === "all" ? null : value);
     list.setPage(0);
   };
   const clearFilters = () => {
+    setProjectId(null);
     setFilterParam(null);
     setTagParam(null);
     setQueryParam(null);
@@ -155,6 +161,7 @@ export default function WorkflowsPage() {
 
   const statusControls = (
     <div data-tour="workflows-list" className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+      <ProjectFilter value={projectId} onChange={setProjectId} />
       <SearchInput
         className="min-w-0 flex-1 sm:flex-none"
         value={queryParam ?? ""}

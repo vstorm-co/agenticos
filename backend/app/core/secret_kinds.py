@@ -103,6 +103,7 @@ class SecretKind(StrEnum):
     GITHUB_OAUTH_APP = "github_oauth_app"
     GITHUB_APP = "github_app"
     GOOGLE_OAUTH_APP = "google_oauth_app"
+    MCP_OAUTH_CLIENT = "mcp_oauth_client"
     GIT_TOKEN = "git_token"
     ENTRA_APP = "entra_app"
     HTTP_CREDENTIAL = "http_credential"
@@ -333,6 +334,48 @@ class GitTokenSecret(_SecretBase):
         host = f"[{hostname}]" if ":" in hostname else hostname
         expected = host if port in (None, 443) else f"{host}:{port}"
         return self.host.lower().removesuffix(":443") == expected.lower()
+
+
+def normalized_mcp_server(url: str) -> str:
+    """A server identity, including its path, without credentials or redirect fragments."""
+    try:
+        parts = urlsplit(url.strip())
+        port = parts.port
+    except ValueError:
+        raise ValueError("Use a valid HTTP(S) MCP server URL") from None
+    if (
+        parts.scheme not in {"https", "http"}
+        or not parts.hostname
+        or parts.username is not None
+        or parts.password is not None
+        or parts.query
+        or parts.fragment
+    ):
+        raise ValueError("Use an HTTP(S) MCP server URL without credentials, query or fragment")
+    host = parts.hostname.lower()
+    if ":" in host:
+        host = f"[{host}]"
+    if port is not None and port != (443 if parts.scheme == "https" else 80):
+        host = f"{host}:{port}"
+    return f"{parts.scheme}://{host}{parts.path.rstrip('/')}"
+
+
+class McpOAuthClientSecret(_SecretBase):
+    """The organization's pre-registered app for exactly one MCP endpoint."""
+
+    kind: Literal[SecretKind.MCP_OAUTH_CLIENT] = SecretKind.MCP_OAUTH_CLIENT
+    server_url: str = Field(min_length=1, max_length=2048, title="MCP server URL")
+    client_id: str = Field(min_length=1, max_length=2048, title="Client ID")
+    client_secret: SealedStr | None = Field(default=None, title="Client secret")
+
+    @field_validator("server_url")
+    @classmethod
+    def server_identity(cls, value: str) -> str:
+        return normalized_mcp_server(value)
+
+    @property
+    def hint(self) -> str:
+        return self.client_id[-4:]
 
 
 class SmtpAccountSecret(_SecretBase):
@@ -663,6 +706,7 @@ StorableSecret = Annotated[
     | GithubOAuthAppSecret
     | GithubAppSecret
     | GoogleOAuthAppSecret
+    | McpOAuthClientSecret
     | GitTokenSecret
     | EntraAppSecret
     | SmtpAccountSecret
@@ -682,6 +726,7 @@ TypedSecret = Annotated[
     | GithubOAuthAppSecret
     | GithubAppSecret
     | GoogleOAuthAppSecret
+    | McpOAuthClientSecret
     | GitTokenSecret
     | EntraAppSecret
     | SmtpAccountSecret
@@ -705,6 +750,7 @@ SecretValue = Annotated[
     | GithubOAuthAppSecret
     | GithubAppSecret
     | GoogleOAuthAppSecret
+    | McpOAuthClientSecret
     | GitTokenSecret
     | EntraAppSecret
     | SmtpAccountSecret
@@ -812,6 +858,7 @@ _KIND_MODELS: dict[SecretKind, type[BaseModel]] = {
     SecretKind.GITHUB_OAUTH_APP: GithubOAuthAppSecret,
     SecretKind.GITHUB_APP: GithubAppSecret,
     SecretKind.GOOGLE_OAUTH_APP: GoogleOAuthAppSecret,
+    SecretKind.MCP_OAUTH_CLIENT: McpOAuthClientSecret,
     SecretKind.GIT_TOKEN: GitTokenSecret,
     SecretKind.ENTRA_APP: EntraAppSecret,
     SecretKind.HTTP_CREDENTIAL: HttpCredentialSecret,
@@ -822,6 +869,10 @@ _KIND_MODELS: dict[SecretKind, type[BaseModel]] = {
 }
 
 _KIND_LABELS: dict[SecretKind, tuple[str, str]] = {
+    SecretKind.MCP_OAUTH_CLIENT: (
+        "MCP OAuth client",
+        "A pre-registered OAuth application for one MCP server. Store it organization-visible so each member only signs in.",
+    ),
     SecretKind.OPENAI_CHATGPT: (
         "ChatGPT plan usage (official)",
         "An application-specific ChatGPT grant for the public Responses API. Requires an eligible deployment; independent of Codex sign-in.",

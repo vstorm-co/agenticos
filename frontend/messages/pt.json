@@ -1813,7 +1813,9 @@
       "retryShared": "Tentar novamente as conversas compartilhadas",
       "searchFailed": "Não foi possível buscar conversas.",
       "searchMatches": "{count, plural, one {# mensagem correspondente} other {# mensagens correspondentes}}",
-      "searchKeys": "↑ ↓ para navegar · Enter para abrir · Esc para fechar"
+      "searchKeys": "↑ ↓ para navegar · Enter para abrir · Esc para fechar",
+      "flatView": "Atividade mais recente (lista simples)",
+      "groupedView": "Agrupar chats por projeto"
     },
     "skipComment": "Pular comentário",
     "sourceCount": "{count, plural, =1 {1 fonte} other {# fontes}}",
@@ -5683,7 +5685,7 @@
       },
       "project-tabs": {
         "title": "Chats, arquivos e instruções",
-        "body": "Inicie um chat no projeto, adicione arquivos e pastas com que os agentes trabalham e defina o que cada agente aqui recebe como instrução. No aplicativo de desktop, você também pode conectar uma pasta local sem enviar seus arquivos."
+        "body": "Agrupe agentes, workflows, aplicações e tabelas existentes em Recursos. Chats abre primeiro; Ficheiros e Instruções contêm o espaço partilhado dos chats do projeto."
       },
       "chat-visual": {
         "title": "Desenhos",
@@ -14897,7 +14899,26 @@
       "scopeHint": "O projeto reutiliza um único quadro de tarefas. O acesso segue o projeto; pessoas e agentes são registros vinculados, e o campo de próximo passo controla a transferência.",
       "openTracker": "Agente de acompanhamento"
     },
-    "initialSetup": "Instruções e padrões"
+    "initialSetup": "Instruções e padrões",
+    "newChatIn": "Novo chat em {name}",
+    "resources": {
+      "title": "Recursos",
+      "search": "Pesquisar recursos",
+      "add": "Adicionar recursos existentes",
+      "hint": "Os recursos mantêm as próprias permissões. Remover uma ligação não elimina o recurso.",
+      "empty": "Sem recursos associados",
+      "agent": "Agente",
+      "workflow": "Workflow",
+      "app": "Aplicação",
+      "table": "Tabela",
+      "main": "Workflow principal",
+      "unsetMain": "Remover workflow principal",
+      "setMain": "Definir como workflow principal",
+      "remove": "Remover {name} do projeto",
+      "kind": "Tipo de recurso",
+      "addSelected": "Adicionar seleção ({count})",
+      "filterHint": "Escolha um projeto para filtrar este catálogo."
+    }
   },
   "voiceGlow": {
     "title": "Brilho de voz",

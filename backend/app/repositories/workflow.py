@@ -105,6 +105,7 @@ async def list_visible(
     user_id: UUID,
     see_all: bool,
     shared_ids: list[UUID],
+    only_ids: list[UUID] | None = None,
     skip: int,
     limit: int,
 ) -> tuple[list[Workflow], int]:
@@ -118,6 +119,8 @@ async def list_visible(
     where = [Workflow.organization_id == organization_id]
     if not see_all:
         where.append(visible_to(user_id=user_id, shared_ids=shared_ids))
+    if only_ids is not None:
+        where.append(Workflow.id.in_(only_ids))
     total = await db.scalar(select(func.count()).select_from(Workflow).where(*where)) or 0
     result = await db.execute(
         select(Workflow)

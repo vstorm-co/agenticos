@@ -394,3 +394,10 @@ External A2A source consent also binds the referenced vault credential’s autho
 Personal Copilot OAuth access tokens use the existing user-sealed model credential store; no organization-key fallback occurs. Device authorization state is owner/tenant/agent-bound and expires in Redis; tokens never reach API responses or audit details. New sign-ins, key replacement and disconnection advance a database generation in the same transaction. This metadata survives key deletion to refuse older pending grants, is included in the owner’s personal-data export without the generation value, and is removed with membership or user deletion. Disconnect removes the local credential; revoke the OAuth application separately in GitHub.
 
 Before each model request, personal Copilot credentials are checked against the stored connection revision. Disconnecting or replacing the connection stops subsequent requests in an active run; an already submitted request cannot be withdrawn.
+
+
+## MCP OAuth client storage
+
+The `mcp_oauth_client` kind seals a server URL, public client ID and optional client secret together. Select purpose `custom` when adding it in Vault. Only organization-visible instances participate in automatic MCP sign-in. The database keeps a normalized server identity for unique matching; it never stores the client secret in plaintext. Making a private client organization-visible is refused if another client already occupies that server's slot.
+
+Personal OAuth grants record the source organization, secret ID and authorization generation inside their own sealed payload. Source rotation, deletion or loss of organization visibility invalidates these grants. See [shared MCP OAuth clients](mcp.md#shared-mcp-oauth-clients) for connection behavior.

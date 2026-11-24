@@ -1813,7 +1813,9 @@
       "retryShared": "Gedeelde gesprekken opnieuw proberen",
       "searchFailed": "Kon de gesprekken niet doorzoeken.",
       "searchMatches": "{count, plural, one {# overeenkomend bericht} other {# overeenkomende berichten}}",
-      "searchKeys": "↑ ↓ om te navigeren · Enter om te openen · Esc om te sluiten"
+      "searchKeys": "↑ ↓ om te navigeren · Enter om te openen · Esc om te sluiten",
+      "flatView": "Meest recente activiteit (platte lijst)",
+      "groupedView": "Chats groeperen per project"
     },
     "skipComment": "Opmerking overslaan",
     "sourceCount": "{count, plural, =1 {1 bron} other {# bronnen}}",
@@ -5683,7 +5685,7 @@
       },
       "project-tabs": {
         "title": "Chats, bestanden en instructies",
-        "body": "Start een chat in het project, voeg bestanden en mappen toe waarin de agents werken, en stel in wat elke agent hier te horen krijgt. In de desktop-app kun je ook een lokale map koppelen zonder de bestanden te uploaden."
+        "body": "Groepeer bestaande agents, workflows, apps en tabellen onder Bronnen. Chats opent eerst; Bestanden en Instructies bevatten de gedeelde werkruimte van projectchats."
       },
       "chat-visual": {
         "title": "Tekeningen",
@@ -14897,7 +14899,26 @@
       "scopeHint": "Het project hergebruikt één takenbord. De toegang volgt het project; mensen en agents zijn gekoppelde records, en het veld voor de volgende stap regelt de overdracht.",
       "openTracker": "Trackeragent"
     },
-    "initialSetup": "Instructies en standaarden"
+    "initialSetup": "Instructies en standaarden",
+    "newChatIn": "Nieuwe chat in {name}",
+    "resources": {
+      "title": "Bronnen",
+      "search": "Bronnen zoeken",
+      "add": "Bestaande bronnen toevoegen",
+      "hint": "Bronnen behouden hun eigen rechten. Een koppeling verwijderen verwijdert de bron niet.",
+      "empty": "Geen gekoppelde bronnen",
+      "agent": "Agent",
+      "workflow": "Workflow",
+      "app": "App",
+      "table": "Tabel",
+      "main": "Hoofdworkflow",
+      "unsetMain": "Hoofdworkflow wissen",
+      "setMain": "Instellen als hoofdworkflow",
+      "remove": "{name} uit project verwijderen",
+      "kind": "Brontype",
+      "addSelected": "Selectie toevoegen ({count})",
+      "filterHint": "Kies een project om deze catalogus te filteren."
+    }
   },
   "voiceGlow": {
     "title": "Spraakgloed",

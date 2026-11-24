@@ -1550,3 +1550,12 @@ APNs private-key entry and binary logo/favicon uploads return secure console
 handoffs. Secret values and image bytes stay out of model context. Environment-owned
 settings remain read-only. Console branding fetched through the frontend cache
 can take up to five minutes to reflect a direct MCP change.
+
+
+## Shared MCP OAuth clients
+
+For an OAuth MCP server without dynamic client registration, an administrator can add an organization-visible **MCP OAuth client** in Vault (`mcp_oauth_client`, purpose `custom`). Store the exact MCP server URL, client ID and optional client secret. Only one organization-visible client is allowed per server. URL identity retains the endpoint path and normalizes the host, default port and trailing slash; credentials, query strings and fragments are not accepted.
+
+When a member chooses OAuth without entering a client ID, the connection uses this client only if the server offers no registration endpoint. An explicitly entered client takes precedence; dynamic registration remains unchanged. The availability probe returns only a boolean, never client credentials. If none is configured, the connection explains that an administrator must add one in Vault.
+
+Each resulting personal grant remains sealed to its user and bound to the issuing organization, current membership and exact secret generation. Rotating, deleting or making the shared client private requires reconnection, even when an access token has not expired. A grant issued through one organization's client cannot be used in another organization.

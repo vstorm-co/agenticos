@@ -52,6 +52,7 @@ interface ConversationFiltersProps {
   agentId: string | null;
   onAgentChange: (agentId: string | null) => void;
   sort: ConversationSort;
+  sortDisabled?: boolean;
   onSortChange: (sort: ConversationSort) => void;
   /** Leave out conversations an API key's runs opened. */
   hideApi: boolean;
@@ -88,6 +89,7 @@ export function ConversationFilters({
   agentId,
   onAgentChange,
   sort,
+  sortDisabled = false,
   onSortChange,
   hideApi,
   onHideApiChange,
@@ -196,7 +198,11 @@ export function ConversationFilters({
             <ArrowDownWideNarrow className="size-3.5" aria-hidden />
             {t("sortLabel")}
           </Label>
-          <Select value={sort} onValueChange={(value) => onSortChange(value as ConversationSort)}>
+          <Select
+            value={sort}
+            disabled={sortDisabled}
+            onValueChange={(value) => onSortChange(value as ConversationSort)}
+          >
             <SelectTrigger className="w-full" id="conversation-sort" aria-label={t("sortLabel")}>
               <SelectValue />
             </SelectTrigger>

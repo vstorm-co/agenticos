@@ -31,25 +31,35 @@ from app.core.secret_kinds import (
     ApiKeySecret,
     GithubOAuthAppSecret,
     GoogleOAuthAppSecret,
+    McpOAuthClientSecret,
     MicrosoftOAuthAppSecret,
     SecretKind,
     SecretValue,
     SmtpAccountSecret,
     StorableSecret,
     describe_kind,
+    normalized_mcp_server,
     seal_secret,
     unseal_kind,
     unseal_secret,
 )
 from app.core.secret_purposes import CUSTOM
 from app.core.vault import VaultScope
+from app.db.locks import LockScope, hold_subject
 from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.resource_grant import Visibility
 from app.repositories import member_repo, organization_secret_repo, resource_grant_repo
 from app.schemas.resource_grant import as_visibility
 from app.schemas.secret import SecretSummary, SecretUsage
-from app.services.access import SECRET, accessible_ids, resolve_access, visible_resource_ids
+from app.services.access import (
+    SECRET,
+    OwnedResource,
+    accessible_ids,
+    resolve_access,
+    visible_resource_ids,
+)
 from app.services.notifications import NotificationService
+from app.services.sharing import Deferred, ShareChange, register_sharing_guard
 
 if TYPE_CHECKING:
     from app.agents.pi_keys import NativeKeyProvider, NativeRuntimeKey
@@ -219,6 +229,8 @@ class OrganizationSecretService:
             BadRequestError: If the purpose is not one this deployment offers,
                 or wants a different shape of credential than was given.
         """
+        if isinstance(value, McpOAuthClientSecret) and visibility is Visibility.ORG:
+            await self._refuse_duplicate_mcp_client(ctx.organization_id, value.server_url)
         self._check_purpose(purpose, value.kind)
         await self._refuse_duplicate_name(ctx, name)
         sealed = seal_secret(value, scope=VaultScope.organization(ctx.organization_id))
@@ -238,6 +250,11 @@ class OrganizationSecretService:
             hint=sealed.hint,
             key_version=sealed.key_version,
             created_by_user_id=ctx.user_id,
+            **(
+                {"mcp_oauth_server": value.server_url}
+                if isinstance(value, McpOAuthClientSecret)
+                else {}
+            ),
         )
         notifications = NotificationService(self.db)
         # Before the audit entry, never after it: `record_audit` holds the
@@ -289,6 +306,12 @@ class OrganizationSecretService:
             update_data["description"] = description
         if value is not None:
             self._refuse_kind_change(secret, value)
+            if isinstance(value, McpOAuthClientSecret):
+                if secret.visibility == Visibility.ORG.value:
+                    await self._refuse_duplicate_mcp_client(
+                        ctx.organization_id, value.server_url, excluding=secret.id
+                    )
+                update_data["mcp_oauth_server"] = value.server_url
             sealed = seal_secret(value, scope=VaultScope.organization(ctx.organization_id))
             update_data["authorization_generation"] = uuid4()
             update_data["sealed_secret"] = sealed.ciphertext
@@ -534,6 +557,41 @@ class OrganizationSecretService:
             key_version=row.key_version,
         )
 
+    async def _refuse_duplicate_mcp_client(
+        self, organization_id: UUID, server_url: str, *, excluding: UUID | None = None
+    ) -> None:
+        await hold_subject(self.db, LockScope.MCP_OAUTH_CLIENTS_PER_ORG, organization_id)
+        row = await organization_secret_repo.mcp_oauth_client(
+            self.db, organization_id=organization_id, server_url=server_url
+        )
+        if row is not None and row.id != excluding:
+            raise AlreadyExistsError(
+                message="This organization already has an OAuth client for this MCP server. Rotate its Vault secret instead.",
+                details={},
+            )
+
+    async def mcp_oauth_client_identity(
+        self, ctx: AuthContext, server_url: str
+    ) -> tuple[McpOAuthClientSecret, UUID, UUID] | None:
+        """Spend an org-visible client only in the matching server's OAuth flow."""
+        try:
+            identity = normalized_mcp_server(server_url)
+        except ValueError:
+            return None
+        row = await organization_secret_repo.mcp_oauth_client(
+            self.db, organization_id=ctx.organization_id, server_url=identity
+        )
+        if row is None:
+            return None
+        value = unseal_secret(
+            row.sealed_secret,
+            kind=SecretKind.MCP_OAUTH_CLIENT,
+            scope=VaultScope.organization(ctx.organization_id),
+            key_version=row.key_version,
+        )
+        assert isinstance(value, McpOAuthClientSecret)
+        return value, row.id, row.authorization_generation
+
     async def oauth_app(self, ctx: AuthContext, *, kind: SecretKind) -> OAuthAppSecret:
         value, _, _ = await self.oauth_app_identity(ctx, kind=kind)
         return value
@@ -739,3 +797,28 @@ class OrganizationSecretService:
                 ),
                 details={"secret_id": str(secret.id), "kind": secret.kind},
             )
+
+
+class SecretSharingGuard:
+    """Keep the organization-wide MCP client unique when a private secret is shared."""
+
+    async def before_visibility(
+        self, db: AsyncSession, ctx: AuthContext, resource: OwnedResource, visibility: Visibility
+    ) -> None:
+        assert isinstance(resource, OrganizationSecret)
+        if visibility is Visibility.ORG and resource.kind == SecretKind.MCP_OAUTH_CLIENT.value:
+            assert resource.mcp_oauth_server is not None
+            await OrganizationSecretService(db)._refuse_duplicate_mcp_client(
+                ctx.organization_id, resource.mcp_oauth_server, excluding=resource.id
+            )
+
+    async def before_share(
+        self, db: AsyncSession, ctx: AuthContext, resource: OwnedResource, change: ShareChange
+    ) -> Deferred | None:
+        return None
+
+    async def adopt(self, db: AsyncSession, ctx: AuthContext, resource: OwnedResource) -> None:
+        resource.owner_user_id = ctx.user_id
+
+
+register_sharing_guard(SECRET, SecretSharingGuard())

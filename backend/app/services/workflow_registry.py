@@ -1014,17 +1014,28 @@ class WorkflowRegistryService:
             details={"slug": base_slug},
         )
 
-    async def list(self, ctx: AuthContext, *, skip: int = 0, limit: int = 50) -> WorkflowList:
+    async def list(
+        self, ctx: AuthContext, *, project_id: UUID | None = None, skip: int = 0, limit: int = 50
+    ) -> WorkflowList:
         """The workflows this caller may see: their own, org-visible ones and those shared."""
         shared = await visible_resource_ids(
             self.db, ctx, resource_type=WORKFLOW, perm=Perm.WORKFLOWS_VIEW
         )
+        member_ids = None
+        if project_id is not None:
+            from app.db.models.project_resource import ProjectResourceKind
+            from app.services.project_resources import ProjectResourceService
+
+            member_ids = await ProjectResourceService(self.db).member_ids(
+                ctx, project_id, ProjectResourceKind.WORKFLOW
+            )
         items, total = await workflow_repo.list_visible(
             self.db,
             organization_id=ctx.organization_id,
             user_id=ctx.subject_id,
             see_all=shared is None,
             shared_ids=shared or [],
+            **({"only_ids": member_ids} if project_id is not None else {}),
             skip=skip,
             limit=limit,
         )

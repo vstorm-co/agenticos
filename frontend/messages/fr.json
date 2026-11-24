@@ -1784,7 +1784,9 @@
       "retryShared": "Réessayer les conversations partagées",
       "searchFailed": "Impossible de rechercher dans les conversations.",
       "searchMatches": "{count, plural, one {# message correspondant} other {# messages correspondants}}",
-      "searchKeys": "↑ ↓ pour naviguer · Entrée pour ouvrir · Échap pour fermer"
+      "searchKeys": "↑ ↓ pour naviguer · Entrée pour ouvrir · Échap pour fermer",
+      "flatView": "Activité récente (liste à plat)",
+      "groupedView": "Grouper les chats par projet"
     },
     "skipComment": "Passer le commentaire",
     "sourceCount": "{count, plural, =1 {1 source} other {# sources}}",
@@ -5583,7 +5585,7 @@
       },
       "project-tabs": {
         "title": "Chats, fichiers et instructions",
-        "body": "Démarrez un chat dans le projet, ajoutez les fichiers et dossiers dans lesquels ses agents travaillent, et définissez ce que chaque agent reçoit comme consigne. Dans l’application de bureau, vous pouvez aussi connecter un dossier local sans téléverser ses fichiers."
+        "body": "Regroupez agents, workflows, applications et tables existants dans Ressources. Chats s’ouvre en premier ; Fichiers et Instructions contiennent l’espace partagé des chats du projet."
       },
       "chat-visual": {
         "title": "Dessins",
@@ -14621,7 +14623,26 @@
       "scopeHint": "Le projet réutilise un seul tableau de tâches. L’accès suit le projet ; les personnes et les agents sont des enregistrements liés, et le champ de prochaine étape contrôle le passage de relais.",
       "openTracker": "Agent de suivi"
     },
-    "initialSetup": "Instructions et valeurs par défaut"
+    "initialSetup": "Instructions et valeurs par défaut",
+    "newChatIn": "Nouveau chat dans {name}",
+    "resources": {
+      "title": "Ressources",
+      "search": "Rechercher des ressources",
+      "add": "Ajouter des ressources existantes",
+      "hint": "Les ressources conservent leurs propres autorisations. Supprimer un lien ne supprime pas la ressource.",
+      "empty": "Aucune ressource liée",
+      "agent": "Agent",
+      "workflow": "Workflow",
+      "app": "Application",
+      "table": "Table",
+      "main": "Workflow principal",
+      "unsetMain": "Retirer le workflow principal",
+      "setMain": "Définir comme workflow principal",
+      "remove": "Retirer {name} du projet",
+      "kind": "Type de ressource",
+      "addSelected": "Ajouter la sélection ({count})",
+      "filterHint": "Choisissez un projet pour filtrer ce catalogue."
+    }
   },
   "voiceGlow": {
     "title": "Halo vocal",

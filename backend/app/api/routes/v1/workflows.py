@@ -65,11 +65,19 @@ async def list_node_catalog(service: WorkflowRegistrySvc) -> Any:
 async def list_workflows(
     service: WorkflowRegistrySvc,
     ctx: Auth,
+    project_id: UUID | None = Query(
+        None, description="Only resources linked to this accessible project"
+    ),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
 ) -> Any:
     """Workflows this member can see - their own, plus what was shared with them."""
-    return await service.list(ctx, skip=skip, limit=limit)
+    return await service.list(
+        ctx,
+        skip=skip,
+        limit=limit,
+        **({"project_id": project_id} if project_id is not None else {}),
+    )
 
 
 @router.post(

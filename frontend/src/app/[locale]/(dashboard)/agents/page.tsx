@@ -1,5 +1,8 @@
 "use client";
 
+import { useUrlState } from "@/hooks/use-url-state";
+import { ProjectFilter } from "@/components/projects/project-filter";
+
 import { CatalogLoading } from "@/components/states/catalog-loading";
 
 import { useMemo, useState } from "react";
@@ -90,6 +93,7 @@ export default function AgentsPage() {
   const tc = useTranslations("common");
   const tErrors = useTranslations("errors");
   const router = useRouter();
+  const [projectId, setProjectId] = useUrlState("project");
   const [filter, setFilter] = useState<Filter>("all");
   const [query, setQuery] = useState("");
   // The discovery facet is server-driven: it filters the whole set rather than
@@ -119,6 +123,7 @@ export default function AgentsPage() {
     unarchive,
     remove,
   } = useAgents({
+    projectId,
     includeArchived: filter === "all" || filter === "archived",
     categories,
     tags,
@@ -140,9 +145,14 @@ export default function AgentsPage() {
   // A zero-match facet returns an empty page, so this is what tells "no agent
   // matched" from "no agents exist", and it gates the Clear-filters CTA.
   const filtersActive =
-    filter !== "all" || query.trim() !== "" || categories.length > 0 || tags.length > 0;
+    projectId !== null ||
+    filter !== "all" ||
+    query.trim() !== "" ||
+    categories.length > 0 ||
+    tags.length > 0;
 
   const clearFilters = () => {
+    setProjectId(null);
     setFilter("all");
     setQuery("");
     setCategories([]);
@@ -171,6 +181,7 @@ export default function AgentsPage() {
   // container's own controls slot, like every list card's.
   const galleryControls = (
     <div data-tour="agents-filters" className="flex min-w-0 flex-wrap items-center gap-2">
+      <ProjectFilter value={projectId} onChange={setProjectId} />
       <SearchInput
         value={query}
         onChange={setQuery}

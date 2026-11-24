@@ -322,3 +322,41 @@ async def test_project_tracker_requires_explicit_publication_of_the_reviewed_ver
     assert reviewed.await_args.kwargs == {"agent_id": agent_id, "version_id": version_id}
     assert create.await_args.args[2].source_review_token == "a" * 64
     create.assert_awaited_once()
+
+
+async def test_project_resource_routes_preserve_typed_refs_and_delegate_authorization(
+    client: OpenClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.schemas.project_resource import ProjectResourceList
+    from app.services.project_resources import ProjectResourceService
+
+    listing = ProjectResourceList(items=[], total=0)
+    service = MagicMock(
+        list_resources=AsyncMock(return_value=listing),
+        add=AsyncMock(return_value=listing),
+        remove=AsyncMock(),
+        set_entrypoint=AsyncMock(return_value=listing),
+    )
+    resource_id = uuid.uuid4()
+    async with client(OrgRoleName.VIEWER) as http:
+        app.dependency_overrides[deps.get_project_resource_service] = lambda: service
+        listed = await http.get(f"/api/v1/projects/{PROJECT_ID}/resources?q=research")
+        added = await http.post(
+            f"/api/v1/projects/{PROJECT_ID}/resources",
+            json={"resources": [{"kind": "agent", "resource_id": str(resource_id)}]},
+        )
+        removed = await http.delete(f"/api/v1/projects/{PROJECT_ID}/resources/agent/{resource_id}")
+        selected = await http.patch(
+            f"/api/v1/projects/{PROJECT_ID}/entrypoint", json={"workflow_id": None}
+        )
+        invalid = await http.post(
+            f"/api/v1/projects/{PROJECT_ID}/resources", json={"resources": []}
+        )
+    assert listed.json() == {"items": [], "total": 0}
+    assert service.list_resources.await_args.kwargs == {"search": "research"}
+    assert added.status_code == selected.status_code == 200
+    assert removed.status_code == 204 and invalid.status_code == 422
+    assert service.add.await_args.args[2][0].resource_id == resource_id
+    assert service.remove.await_args.args[2].kind.value == "agent"
+    assert service.set_entrypoint.await_args.args[2] is None
+    assert isinstance(deps.get_project_resource_service(MagicMock()), ProjectResourceService)

@@ -3740,7 +3740,7 @@ class TestMcpConnectionService:
         discovered = mcp_oauth.DiscoveredServer(
             authorization_endpoint="https://srv/authorize",
             token_endpoint="https://srv/token",
-            registration_endpoint=None,
+            registration_endpoint="https://srv/register",
             resource="https://srv/mcp",
             scope=None,
             metadata=MagicMock(),
@@ -3986,7 +3986,7 @@ class TestMcpConnectionService:
         discovered = mcp_oauth.DiscoveredServer(
             authorization_endpoint="https://srv/authorize",
             token_endpoint="https://srv/token",
-            registration_endpoint=None,
+            registration_endpoint="https://srv/register",
             resource="https://other/mcp",
             scope=None,
             metadata=MagicMock(),
@@ -5438,7 +5438,7 @@ class TestOrganizationConnections:
         discovered = mcp_oauth.DiscoveredServer(
             authorization_endpoint="https://srv/authorize",
             token_endpoint="https://srv/token",
-            registration_endpoint=None,
+            registration_endpoint="https://srv/register",
             resource="https://srv/mcp",
             scope=None,
             metadata=MagicMock(),

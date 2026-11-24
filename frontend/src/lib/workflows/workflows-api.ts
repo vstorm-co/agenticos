@@ -62,13 +62,15 @@ export async function getNodeCatalog(): Promise<NodeCatalog> {
 export async function listWorkflows(params?: {
   skip?: number;
   limit?: number;
+  projectId?: string | null;
 }): Promise<WorkflowList> {
   const query =
-    params && (params.skip !== undefined || params.limit !== undefined)
+    params && (params.skip !== undefined || params.limit !== undefined || params.projectId)
       ? {
           params: {
             skip: String(params.skip ?? 0),
             limit: String(params.limit ?? 50),
+            ...(params.projectId ? { project_id: params.projectId } : {}),
           },
         }
       : undefined;

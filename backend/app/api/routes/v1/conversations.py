@@ -197,6 +197,9 @@ async def list_conversations(
         "updated_at", description="Sort column"
     ),
     sort_dir: Literal["asc", "desc"] = Query("desc", description="Sort direction"),
+    favourites_first: bool = Query(
+        True, description="Pin favourites before the requested ordering"
+    ),
     hide_api: bool = Query(False, description="Leave out conversations opened over the API"),
     hide_channels: bool = Query(
         True,
@@ -234,6 +237,7 @@ async def list_conversations(
         archived_only=archived_only,
         sort_by=sort_by,
         sort_dir=sort_dir,
+        **({"favourites_first": False} if not favourites_first else {}),
         hide_api=hide_api,
         hide_channels=hide_channels,
         project_id=project_id,

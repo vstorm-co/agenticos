@@ -1,7 +1,7 @@
 "use client";
 
 import { normalizeIdentifier } from "@/lib/normalize-identifier";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Building2, User } from "lucide-react";
 import { useTranslations } from "next-intl";
 
@@ -150,6 +150,22 @@ function ConnectionForm({
   const custom = draft.row.entry === null && draft.existing === null;
   const [prefixEdited, setPrefixEdited] = useState(false);
   const [signIn, setSignIn] = useState<"checking" | McpSignInProbeResult | null>(null);
+  // Catalog sign-in can use the organization's app too; custom URLs are probed on blur.
+  useEffect(() => {
+    if (custom || draft.existing !== null || draft.row.entry?.auth !== "oauth") return;
+    let current = true;
+    void probeMcpSignIn(url).then(
+      (result) => {
+        if (current) setSignIn(result);
+      },
+      () => {
+        if (current) setSignIn(null);
+      },
+    );
+    return () => {
+      current = false;
+    };
+  }, [custom, draft.existing, draft.row.entry?.auth, url]);
   const recommended = recommendedScope(draft);
   const scopes = (["organization", "personal"] as const).filter(
     (option) => option !== "organization" || canManageOrganization,
@@ -233,10 +249,13 @@ function ConnectionForm({
   // A client registered at the provider by hand: optional for most servers, so
   // folded with the rest - and unfolded when the probe says this one needs it.
   const ownClient = auth === "oauth" && draft.existing === null;
-  const googleClient = ownClient && needsGoogleOAuthClient(url);
+  const sharedClient =
+    signIn !== null && signIn !== "checking" && signIn.organization_client_available === true;
+  const googleClient = ownClient && needsGoogleOAuthClient(url) && !sharedClient;
   const needsClient =
-    googleClient ||
-    (signIn !== null && signIn !== "checking" && signIn.sign_in && !signIn.registers_clients);
+    !sharedClient &&
+    (googleClient ||
+      (signIn !== null && signIn !== "checking" && signIn.sign_in && !signIn.registers_clients));
 
   // The hint under the radio group. It used to be rendered as the *key* -
   // `authTokenHint` on screen, in every locale (#446).
@@ -262,7 +281,7 @@ function ConnectionForm({
             ? t("signInChecking")
             : !signIn.sign_in
               ? t("signInNone")
-              : signIn.registers_clients
+              : signIn.registers_clients || sharedClient
                 ? t("signInSupported")
                 : t("signInNeedsClient")}
         </p>

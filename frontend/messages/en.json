@@ -1813,7 +1813,9 @@
       "retryShared": "Retry shared conversations",
       "searchFailed": "Could not search conversations.",
       "searchMatches": "{count, plural, one {# matching message} other {# matching messages}}",
-      "searchKeys": "↑ ↓ to navigate · Enter to open · Esc to close"
+      "searchKeys": "↑ ↓ to navigate · Enter to open · Esc to close",
+      "flatView": "Most recent first (flat list)",
+      "groupedView": "Group chats by project"
     },
     "skipComment": "Skip comment",
     "sourceCount": "{count, plural, =1 {1 source} other {# sources}}",
@@ -5799,7 +5801,7 @@
       },
       "project-tabs": {
         "title": "Chats, files and instructions",
-        "body": "Start a chat in the project, add files and folders its agents work in, and set what every agent here is told. In the desktop app, you can also connect a local folder without uploading its files."
+        "body": "Group existing agents, workflows, apps and tables in Resources. Chats opens first; Files and Instructions hold the workspace shared by project chats."
       },
       "chat-visual": {
         "title": "Drawings",
@@ -15013,7 +15015,26 @@
       "scopeHint": "The project reuses one task board. Access follows the project; people and agents are linked records, and the next-step field controls handoff.",
       "openTracker": "Tracking agent"
     },
-    "initialSetup": "Instructions and defaults"
+    "initialSetup": "Instructions and defaults",
+    "newChatIn": "New chat in {name}",
+    "resources": {
+      "title": "Resources",
+      "search": "Search resources",
+      "add": "Add existing resources",
+      "hint": "Links keep their own permissions. Removing a link leaves the resource intact.",
+      "empty": "No linked resources",
+      "agent": "Agent",
+      "workflow": "Workflow",
+      "app": "App",
+      "table": "Table",
+      "main": "Main workflow",
+      "unsetMain": "Clear main workflow",
+      "setMain": "Set as main workflow",
+      "remove": "Remove {name} from project",
+      "kind": "Resource type",
+      "addSelected": "Add selected ({count})",
+      "filterHint": "Choose a project to filter this catalog."
+    }
   },
   "voiceGlow": {
     "title": "Voice glow",

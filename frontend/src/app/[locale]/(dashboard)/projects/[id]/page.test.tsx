@@ -61,7 +61,7 @@ describe("project loading layout", () => {
       const active = await screen.findByRole("tab", { selected: true });
       expect(active).toBeDisabled();
       expect(active).toHaveAttribute("data-state", "active");
-      expect(screen.getAllByRole("tab")).toHaveLength(4);
+      expect(screen.getAllByRole("tab")).toHaveLength(5);
     },
   );
 
@@ -100,4 +100,15 @@ describe("project loading layout", () => {
       gridClasses,
     );
   });
+});
+
+it("opens a project on Chats while keeping explicit Files links", async () => {
+  tab = "";
+  const view = await mount(<ProjectPage params={Promise.resolve({ id: "p-1" })} />);
+  expect(await screen.findByRole("tab", { selected: true })).toHaveTextContent("Chats");
+  expect(screen.getAllByRole("tab")[0]).toHaveTextContent("Chats");
+  view.rerender(<ProjectPage params={Promise.resolve({ id: "p-1" })} />);
+  tab = "files";
+  view.rerender(<ProjectPage params={Promise.resolve({ id: "p-1" })} />);
+  expect(await screen.findByRole("tab", { selected: true })).toHaveTextContent("Files");
 });

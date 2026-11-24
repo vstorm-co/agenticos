@@ -27,7 +27,16 @@ composes.
 
 import uuid
 
-from sqlalchemy import CheckConstraint, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import (
+    CheckConstraint,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    text,
+)
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -83,6 +92,8 @@ class OrganizationSecret(Base, TimestampMixin):
     )
     # Envelope produced by app.core.secret_kinds.seal_secret. Unlike a
     # credential, this is never NULL: "none" is not a secret anyone can store.
+    mcp_oauth_server: Mapped[str | None] = mapped_column(String(2048), nullable=True)
+    """Indexed server identity; client credentials stay in the encrypted payload."""
     authorization_generation: Mapped[uuid.UUID] = mapped_column(
         PG_UUID(as_uuid=True), nullable=False, default=uuid.uuid4
     )
@@ -98,6 +109,17 @@ class OrganizationSecret(Base, TimestampMixin):
     )
 
     __table_args__ = (
+        CheckConstraint(
+            "(kind = 'mcp_oauth_client') = (mcp_oauth_server IS NOT NULL)",
+            name="ck_secret_mcp_oauth_identity",
+        ),
+        Index(
+            "uq_secret_org_mcp_oauth_server",
+            "organization_id",
+            "mcp_oauth_server",
+            unique=True,
+            postgresql_where=text("kind = 'mcp_oauth_client' AND visibility = 'org'"),
+        ),
         UniqueConstraint("organization_id", "name", name="uq_organization_secret_org_name"),
         CheckConstraint("visibility IN ('private', 'team', 'org')", name="ck_secret_visibility"),
         # A private key with no owner is one nobody can reach and nobody can

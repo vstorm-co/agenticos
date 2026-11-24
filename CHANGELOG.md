@@ -19,6 +19,33 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- Switch Chats between the default project grouping and a flat, most-recent-first
+  list. The preference persists per user, and server pagination does not pin
+  old favourites above recent activity in flat mode.
+
+- Group existing agents, workflows, apps and tables in projects without copying
+  resources or changing their permissions. Link several at once, search the
+  project, choose a main workflow and filter agent/workflow catalogs by project.
+- Store a shared MCP OAuth client in the organization Vault for servers without
+  dynamic client registration. Personal grants remain bound to the issuing
+  organization, membership and current Vault secret generation.
+
+### Fixed
+
+- Open projects on Chats by default and start a project chat directly from the
+  sidebar; explicit links to other tabs keep working.
+- Resize the iOS webview for the software keyboard instead of combining native
+  page panning with the console's viewport adjustment.
+- Refresh the backend dependency lock and verify compatibility with current SDKs.
+
+### Upgrading
+
+- Apply `0365_project_resources.py` and `0366_shared_mcp_oauth_clients.py` to add
+  resource links and the unique organization MCP OAuth client identity. Existing
+  resources, projects, credentials and connection flows are preserved.
+
 ## [1.93.0] - 2026-11-24
 
 ### Added

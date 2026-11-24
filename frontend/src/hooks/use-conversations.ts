@@ -100,6 +100,7 @@ export interface ConversationQuery {
   /** Leave out conversations an API key's runs opened (#2122). */
   hideApi: boolean;
   projectScope: "include" | "only" | "exclude";
+  favouritesFirst: boolean;
 }
 
 const DEFAULT_QUERY: ConversationQuery = {
@@ -110,6 +111,7 @@ const DEFAULT_QUERY: ConversationQuery = {
   sortDir: "desc",
   hideApi: false,
   projectScope: "include",
+  favouritesFirst: true,
 };
 
 /**
@@ -142,6 +144,7 @@ function listParams(query: ConversationQuery): string {
   if (query.search.trim()) params.set("search", query.search.trim());
   if (query.agentId) params.set("agent_id", query.agentId);
   if (query.projectScope !== "include") params.set("project_scope", query.projectScope);
+  if (!query.favouritesFirst) params.set("favourites_first", "false");
   if (query.hideApi) params.set("hide_api", "true");
   return params.toString();
 }
@@ -150,7 +153,7 @@ export function useConversations(query: Partial<ConversationQuery> = {}, enabled
   const tErrors = useTranslations("errors");
   const t = useTranslations("chat");
   const queryClient = useQueryClient();
-  const { view, search, agentId, sortBy, sortDir, hideApi, projectScope } = {
+  const { view, search, agentId, sortBy, sortDir, hideApi, projectScope, favouritesFirst } = {
     ...DEFAULT_QUERY,
     ...query,
   };
@@ -159,8 +162,18 @@ export function useConversations(query: Partial<ConversationQuery> = {}, enabled
   // and `listKey` is a dependency of half the callbacks below - one of which
   // the sidebar runs from an effect keyed on its identity.
   const params = useMemo(
-    () => listParams({ view, search, agentId, sortBy, sortDir, hideApi, projectScope }),
-    [view, search, agentId, sortBy, sortDir, hideApi, projectScope],
+    () =>
+      listParams({
+        view,
+        search,
+        agentId,
+        sortBy,
+        sortDir,
+        hideApi,
+        projectScope,
+        favouritesFirst,
+      }),
+    [view, search, agentId, sortBy, sortDir, hideApi, projectScope, favouritesFirst],
   );
   const listKey = useMemo(() => qk.conversations.list(params), [params]);
   const {

@@ -32,6 +32,7 @@ vi.mock("@/hooks", () => ({ useAuth: () => ({ user: currentUser(), logout: vi.fn
 vi.mock("@/lib/api-client", () => ({ apiClient: { get: vi.fn() } }));
 
 const ANSWERS: Record<string, unknown> = {
+  "/projects?skip=0&limit=6": { items: [{ id: "p1", name: "Launch" }], total: 1 },
   "/agents": { items: [{ id: "a1", name: "Getting Started" }], total: 1 },
   "/kb": { items: [{ id: "k1", name: "E2E Handbook" }], total: 1 },
   "/conversations": { items: [{ id: "c1", title: "Refund policy" }] },
@@ -175,7 +176,7 @@ describe("the palette's named entities", () => {
       }
       expect(push).not.toHaveBeenCalled();
       expect(await screen.findByRole("option", { name: "Getting Started" })).toBeVisible();
-      expect(apiClient.get).toHaveBeenCalledTimes(4);
+      expect(apiClient.get).toHaveBeenCalledTimes(5);
       expect(vi.mocked(apiClient.get).mock.calls.filter(([path]) => path === "/kb")).toHaveLength(
         1,
       );

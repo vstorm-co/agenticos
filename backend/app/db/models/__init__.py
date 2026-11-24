@@ -228,6 +228,7 @@ from app.db.models.virtual_table_trigger import (
 from app.db.models.artifact_share_request import ArtifactShareRequest
 
 __all__ = [
+    "ProjectResource",
     "PersonalContextCache",
     "SolutionInstallation",
     "TaskBoard",
@@ -479,3 +480,5 @@ __all__ = [
 from app.db.models.telephony import PhoneCall, PhoneContact, PhoneEndpoint
 
 from app.db.models.chatgpt_registration import ChatGPTRegistration as ChatGPTRegistration
+
+from app.db.models.project_resource import ProjectResource

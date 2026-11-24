@@ -2,7 +2,7 @@
 title: Projekty
 seo_title: Projekty - wspólne pliki i instrukcje czatów
 description: Projekt daje bieżącej pracy jeden kontener plików i jeden zestaw instrukcji, wspólne dla każdego czatu w nim, niezależnie od tego, który agent odpowiada.
-source_sha: "1749ff5d3130"
+source_sha: "f78e6bb59f63"
 ---
 
 # Projekty { #projects }
@@ -297,3 +297,12 @@ Rozmowę harmonogramową w projekcie, która nie ma właściciela, może zmieni�
 
 
 Usunięcie projektu usuwa również jego wpisy pamięci i pochodne udostępnione kopie oraz próbuje wyrejestrować webhooki u dostawców przed kaskadowym usunięciem rutyn. Niedostępność dostawcy jest logowana i nie blokuje usunięcia.
+
+
+## Powiązane zasoby { #linked-resources }
+
+Karta **Zasoby** grupuje istniejących agentów, workflowy, aplikacje i tabele bez ich kopiowania. Wybierz **Dodaj istniejące zasoby**, zaznacz jeden lub kilka elementów i opcjonalnie oznacz powiązany workflow jako główny. Zasób może należeć do kilku projektów. Listę można przeszukiwać po nazwie lub opisie; katalogi agentów i workflowów mają też filtr projektu. Nazwy projektów są dostępne w wyszukiwaniu palety poleceń.
+
+Powiązania nie nadają dostępu: każdy zasób zachowuje własne uprawnienia, wersje i harmonogramy. Usunięcie powiązania lub projektu pozostawia oryginalny zasób. Usunięcie zasobu usuwa jego powiązania. Oznaczenie głównego workflow nie uruchamia go.
+
+Projekt domyślnie otwiera kartę **Chaty**; link wskazujący konkretną kartę nadal ją otwiera. Plus obok ostatniego projektu w panelu bocznym chatu rozpoczyna w nim nowy chat. Projekty tylko do odczytu nie oferują tej akcji.

@@ -2,7 +2,7 @@
 title: Proyectos
 seo_title: Proyectos - archivos e instrucciones compartidos
 description: Un proyecto da al trabajo en curso un contenedor de archivos y unas instrucciones que comparte cada chat iniciado en él, responda el agent que responda.
-source_sha: "1749ff5d3130"
+source_sha: "f78e6bb59f63"
 ---
 
 # Proyectos { #projects }
@@ -316,3 +316,12 @@ Una conversación programada sin propietario dentro de un proyecto puede ser ren
 
 
 Eliminar un proyecto también borra sus entradas de memoria y copias compartidas derivadas e intenta retirar los webhooks registrados antes de eliminar sus rutinas en cascada. Un proveedor no disponible se registra y no bloquea la eliminación.
+
+
+## Recursos vinculados { #linked-resources }
+
+La pestaña **Recursos** agrupa agentes, workflows, aplicaciones y tablas existentes sin copiarlos. Elige **Añadir recursos existentes**, selecciona uno o varios elementos y, si quieres, marca un workflow vinculado como principal. Un recurso puede pertenecer a varios proyectos. Busca en la lista por nombre o descripción; los catálogos de agentes y workflows también ofrecen un filtro de proyecto. Los nombres de proyectos se encuentran en la paleta de comandos.
+
+Los vínculos no conceden acceso: cada recurso conserva sus propios permisos, versiones y horarios. Quitar un vínculo o eliminar un proyecto mantiene intacto el recurso original. Eliminar un recurso elimina sus vínculos. Marcar un workflow principal no lo ejecuta.
+
+Un proyecto abre **Chats** por defecto; un enlace a una pestaña concreta sigue abriendo esa pestaña. Usa el signo más junto a un proyecto reciente en la barra lateral del chat para iniciar allí un nuevo chat. Los proyectos de solo lectura no ofrecen esta acción.

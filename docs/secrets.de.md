@@ -1,5 +1,5 @@
 ---
-source_sha: "8cfdb42a43a8"
+source_sha: "7c24a7a450df"
 ---
 
 # Secrets und der Vault { #secrets-and-the-vault }
@@ -440,3 +440,10 @@ Die Zustimmung zu externen A2A-Quellen bindet auch die Autorisierungsgeneration 
 Persönliche Copilot-OAuth-Token liegen im bestehenden benutzerverschlüsselten Modellspeicher, ohne Organisationsschlüsselersatz. Geräteautorisierung ist an Eigentümer, Mandant und Agent gebunden und läuft in Redis ab; Token erscheinen weder in API-Antworten noch Auditdetails. Neue Anmeldung, Schlüsselwechsel und Trennen ändern eine Datenbankgeneration in derselben Transaktion. Diese Metadaten bleiben nach Schlüssellöschung zur Abwehr älterer Freigaben bestehen, erscheinen ohne Generationswert im persönlichen Datenexport und werden mit Mitgliedschaft oder Benutzer gelöscht. Trennen entfernt lokale Zugangsdaten; widerrufen Sie die OAuth-App separat in GitHub.
 
 Vor jeder Modellanfrage werden persönliche Copilot-Zugangsdaten gegen die gespeicherte Verbindungsversion geprüft. Das Trennen oder Ersetzen der Verbindung blockiert weitere Anfragen eines laufenden Durchlaufs; eine bereits gesendete Anfrage kann nicht zurückgezogen werden.
+
+
+## Speicherung von MCP-OAuth-Clients { #mcp-oauth-client-storage }
+
+Der Typ `mcp_oauth_client` verschlüsselt Server-URL, öffentliche Client-ID und optionales Client-Secret zusammen. Wähle beim Anlegen im Vault den Zweck `custom`. Nur organisationsweit sichtbare Instanzen werden für die automatische MCP-Anmeldung verwendet. Die Datenbank hält eine normalisierte Serveridentität für die eindeutige Zuordnung; das Client-Secret wird niemals im Klartext gespeichert. Die organisationsweite Freigabe eines privaten Clients wird verweigert, wenn bereits ein anderer Client für diesen Server existiert.
+
+Persönliche OAuth-Autorisierungen halten Quellorganisation, Secret-ID und Autorisierungsgeneration in ihrem eigenen verschlüsselten Payload fest. Rotation, Löschung oder Verlust der organisationsweiten Sichtbarkeit der Quelle machen diese Autorisierungen ungültig. Das Verbindungsverhalten beschreiben [gemeinsame MCP-OAuth-Clients](mcp.md#shared-mcp-oauth-clients).

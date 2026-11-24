@@ -125,11 +125,13 @@ export function useAgents({
   enabled = true,
   categories = [],
   tags = [],
+  projectId = null,
 }: {
   includeArchived?: boolean;
   enabled?: boolean;
   categories?: string[];
   tags?: string[];
+  projectId?: string | null;
 } = {}) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("agents");
@@ -142,12 +144,15 @@ export function useAgents({
   const facetTags = canonicalFacet(tags);
 
   const { data, isLoading, isFetching, error, refetch } = useQuery({
-    queryKey: qk.agents.list(includeArchived, facetCategories, facetTags),
+    queryKey: projectId
+      ? [...qk.agents.list(includeArchived, facetCategories, facetTags), { projectId }]
+      : qk.agents.list(includeArchived, facetCategories, facetTags),
     queryFn: () => {
-      const ask = () => everyAgent(agentListParams(includeArchived, facetCategories, facetTags));
+      const ask = () =>
+        everyAgent(agentListParams(includeArchived, facetCategories, facetTags, projectId));
       // The unfiltered list - the chat's picker, an agent's name and face
       // beside its answers - is kept on the device in the apps (#2097).
-      if (facetCategories.length > 0 || facetTags.length > 0) return ask();
+      if (projectId || facetCategories.length > 0 || facetTags.length > 0) return ask();
       return readThrough(includeArchived ? "agents:all" : "agents:active", ask);
     },
     networkMode: "offlineFirst",
@@ -192,6 +197,7 @@ export function useAgents({
       user_ids?: string[];
       categories?: string[];
       tags?: string[];
+      projectId?: string | null;
       /** Fill what the spec leaves empty from the AgenticOS starter agent (#2301). */
       from_starter?: boolean;
     }) =>

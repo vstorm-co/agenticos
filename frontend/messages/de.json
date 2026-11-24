@@ -1813,7 +1813,9 @@
       "retryShared": "Geteilte Unterhaltungen erneut laden",
       "searchFailed": "Die Unterhaltungen konnten nicht durchsucht werden.",
       "searchMatches": "{count, plural, one {# passende Nachricht} other {# passende Nachrichten}}",
-      "searchKeys": "↑ ↓ navigieren · Enter öffnen · Esc schließen"
+      "searchKeys": "↑ ↓ navigieren · Enter öffnen · Esc schließen",
+      "flatView": "Neueste Aktivität zuerst (flache Liste)",
+      "groupedView": "Chats nach Projekt gruppieren"
     },
     "skipComment": "Kommentar überspringen",
     "sourceCount": "{count, plural, =1 {1 Quelle} other {# Quellen}}",
@@ -5678,7 +5680,7 @@
       },
       "project-tabs": {
         "title": "Chats, Dateien und Anweisungen",
-        "body": "Beginne einen Chat im Projekt, füge Dateien und Ordner hinzu, in denen seine Agents arbeiten, und lege fest, was jeder Agent hier gesagt bekommt. In der Desktop-App können Sie auch einen lokalen Ordner verbinden, ohne seine Dateien hochzuladen."
+        "body": "Gruppiere vorhandene Agenten, Workflows, Apps und Tabellen unter Ressourcen. Chats öffnet zuerst; Dateien und Anweisungen enthalten den gemeinsamen Arbeitsbereich der Projektchats."
       },
       "chat-visual": {
         "title": "Zeichnungen",
@@ -14699,7 +14701,26 @@
       "scopeHint": "Das Projekt verwendet eine gemeinsame Aufgabentabelle. Der Zugriff folgt dem Projekt; Personen und Agenten sind verknüpfte Datensätze, und das Feld für den nächsten Schritt steuert die Übergabe.",
       "openTracker": "Agent zur Projektverfolgung"
     },
-    "initialSetup": "Anweisungen und Voreinstellungen"
+    "initialSetup": "Anweisungen und Voreinstellungen",
+    "newChatIn": "Neuer Chat in {name}",
+    "resources": {
+      "title": "Ressourcen",
+      "search": "Ressourcen suchen",
+      "add": "Vorhandene Ressourcen hinzufügen",
+      "hint": "Ressourcen behalten ihre eigenen Berechtigungen. Das Entfernen einer Verknüpfung löscht die Ressource nicht.",
+      "empty": "Keine verknüpften Ressourcen",
+      "agent": "Agent",
+      "workflow": "Workflow",
+      "app": "App",
+      "table": "Tabelle",
+      "main": "Hauptworkflow",
+      "unsetMain": "Hauptworkflow zurücksetzen",
+      "setMain": "Als Hauptworkflow festlegen",
+      "remove": "{name} aus dem Projekt entfernen",
+      "kind": "Ressourcentyp",
+      "addSelected": "Auswahl hinzufügen ({count})",
+      "filterHint": "Wähle ein Projekt, um diesen Katalog zu filtern."
+    }
   },
   "voiceGlow": {
     "title": "Diktieranimation",

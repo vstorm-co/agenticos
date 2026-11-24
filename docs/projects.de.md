@@ -2,7 +2,7 @@
 title: Projekte
 seo_title: Projekte - gemeinsame Dateien und Anweisungen
 description: Ein Projekt gibt laufender Arbeit einen Container mit Dateien und eine Reihe von Anweisungen, die jeder Chat darin teilt, egal welcher Agent antwortet.
-source_sha: "1749ff5d3130"
+source_sha: "f78e6bb59f63"
 ---
 
 # Projekte { #projects }
@@ -319,3 +319,12 @@ Eine geplante Unterhaltung ohne Eigentümer in einem Projekt kann von Personen m
 
 
 Beim Löschen eines Projekts werden auch seine Gedächtniseinträge und abgeleiteten geteilten Kopien entfernt. Registrierte Provider-Webhooks werden vor der kaskadierenden Löschung der Routinen bestmöglich entfernt. Ein nicht erreichbarer Provider wird protokolliert und blockiert die Löschung nicht.
+
+
+## Verknüpfte Ressourcen { #linked-resources }
+
+Der Tab **Ressourcen** gruppiert vorhandene Agenten, Workflows, Apps und Tabellen, ohne sie zu kopieren. Wähle **Vorhandene Ressourcen hinzufügen**, markiere ein oder mehrere Elemente und lege bei Bedarf einen verknüpften Workflow als Hauptworkflow fest. Eine Ressource kann mehreren Projekten angehören. Die Liste lässt sich nach Name oder Beschreibung durchsuchen; die Agenten- und Workflow-Kataloge bieten ebenfalls einen Projektfilter. Projektnamen sind über die Befehlspalette auffindbar.
+
+Verknüpfungen gewähren keinen Zugriff: Jede Ressource behält ihre Berechtigungen, Versionen und Zeitpläne. Das Entfernen einer Verknüpfung oder Löschen eines Projekts lässt die ursprüngliche Ressource bestehen. Das Löschen einer Ressource entfernt ihre Verknüpfungen. Das Festlegen eines Hauptworkflows führt ihn nicht aus.
+
+Ein Projekt öffnet standardmäßig **Chats**; ein Link mit einem bestimmten Tab öffnet weiterhin diesen Tab. Das Plus neben einem kürzlich verwendeten Projekt in der Chat-Seitenleiste startet dort einen neuen Chat. Schreibgeschützte Projekte bieten diese Aktion nicht an.

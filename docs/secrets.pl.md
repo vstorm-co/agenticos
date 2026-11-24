@@ -1,5 +1,5 @@
 ---
-source_sha: "8cfdb42a43a8"
+source_sha: "7c24a7a450df"
 ---
 
 # Sekrety i vault { #secrets-and-the-vault }
@@ -421,3 +421,10 @@ Zgoda na źródło zewnętrznego agenta A2A obejmuje też generację autoryzacji
 Osobiste tokeny OAuth Copilot trafiają do istniejącego magazynu poświadczeń modeli szyfrowanego dla użytkownika, bez zastępowania kluczem organizacji. Stan logowania jest związany z właścicielem, tenantem i agentem oraz wygasa w Redis; tokeny nie trafiają do odpowiedzi API ani audytu. Nowe logowanie, zmiana klucza i odłączenie zmieniają rewizję w bazie w tej samej transakcji. Metadane pozostają po usunięciu klucza, aby odrzucać starsze zgody; eksport danych właściciela obejmuje je bez wartości rewizji. Usuwa się je wraz z członkostwem lub użytkownikiem. Odłączenie usuwa lokalne poświadczenie; aplikację OAuth cofa się osobno w GitHub.
 
 Przed każdym żądaniem modelu osobiste dane Copilota są sprawdzane względem zapisanej wersji połączenia. Odłączenie lub zastąpienie połączenia blokuje kolejne żądania aktywnego uruchomienia; wysłanego już żądania nie można wycofać.
+
+
+## Przechowywanie klienta OAuth MCP { #mcp-oauth-client-storage }
+
+Typ `mcp_oauth_client` szyfruje razem URL serwera, publiczny identyfikator klienta i opcjonalny sekret. Dodając go w Vault, wybierz przeznaczenie `custom`. W automatycznym logowaniu MCP uczestniczą wyłącznie instancje widoczne dla organizacji. Baza przechowuje znormalizowaną tożsamość serwera do jednoznacznego dopasowania; nigdy nie zapisuje sekretu klienta jawnym tekstem. Udostępnienie prywatnego klienta całej organizacji jest odrzucane, jeśli miejsce dla tego serwera zajmuje już inny klient.
+
+Osobiste autoryzacje OAuth zapisują organizację źródłową, identyfikator sekretu i generację autoryzacji we własnym zaszyfrowanym ładunku. Rotacja, usunięcie lub utrata widoczności źródła dla organizacji unieważnia te autoryzacje. Zachowanie połączeń opisują [współdzielone klienty OAuth MCP](mcp.md#shared-mcp-oauth-clients).

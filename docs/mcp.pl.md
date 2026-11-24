@@ -1,5 +1,5 @@
 ---
-source_sha: "ae26ea67fe6f"
+source_sha: "cecb91d8da63"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -1604,3 +1604,12 @@ odbywa się przez bezpieczny formularz konsoli. Wartości sekretów i bajty obra
 nie trafiają do kontekstu modelu. Ustawienia zarządzane przez środowisko pozostają
 tylko do odczytu. Pamięć podręczna frontendu może opóźnić widoczność zmiany
 identyfikacji wizualnej wykonanej przez MCP o maksymalnie pięć minut.
+
+
+## Współdzielone klienty OAuth MCP { #shared-mcp-oauth-clients }
+
+Dla serwera MCP OAuth bez dynamicznej rejestracji klientów administrator może dodać widoczny dla organizacji **klient OAuth MCP** w Vault (`mcp_oauth_client`, przeznaczenie `custom`). Zapisz dokładny URL serwera MCP, identyfikator klienta i opcjonalny sekret. Dla jednego serwera dozwolony jest tylko jeden klient widoczny dla organizacji. Tożsamość URL zachowuje ścieżkę endpointu i normalizuje host, domyślny port oraz końcowy ukośnik; dane logowania, parametry zapytania i fragmenty nie są przyjmowane.
+
+Gdy członek wybiera OAuth bez wpisania identyfikatora klienta, połączenie używa tego klienta tylko wtedy, gdy serwer nie oferuje endpointu rejestracji. Jawnie wpisany klient ma pierwszeństwo; dynamiczna rejestracja działa bez zmian. Sprawdzenie dostępności zwraca tylko wartość logiczną, nigdy dane klienta. Brak konfiguracji skutkuje wskazówką, aby administrator dodał klienta w Vault.
+
+Każda osobista autoryzacja pozostaje zaszyfrowana dla użytkownika i związana z organizacją wydającą, aktualnym członkostwem oraz konkretną generacją sekretu. Rotacja, usunięcie lub zmiana widoczności klienta na prywatną wymaga ponownego połączenia, nawet jeśli token dostępu nie wygasł. Autoryzacji wydanej przez klienta jednej organizacji nie można używać w innej.

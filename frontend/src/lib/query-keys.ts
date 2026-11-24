@@ -902,6 +902,8 @@ export const qk = {
     source: (source: import("./workspace-files").FileSource) => ["wiki-graph", source] as const,
   },
   projects: {
+    resources: (id: string, search: string) => ["projects", id, "resources", search] as const,
+    candidates: (kind: string) => ["projects", "candidates", kind] as const,
     tracking: (id: string) => ["projects", id, "tracking"] as const,
     trackingReviews: (id: string) => ["projects", id, "tracking-review"] as const,
     trackingReview: (id: string, agentId: string | null, versionId: string | null) =>

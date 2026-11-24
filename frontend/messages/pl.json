@@ -814,7 +814,9 @@
       "retryShared": "Wczytaj udostępnione rozmowy ponownie",
       "searchFailed": "Nie udało się przeszukać rozmów.",
       "searchMatches": "{count, plural, one {# pasująca wiadomość} few {# pasujące wiadomości} many {# pasujących wiadomości} other {# pasującej wiadomości}}",
-      "searchKeys": "↑ ↓ nawigacja · Enter otwiera · Esc zamyka"
+      "searchKeys": "↑ ↓ nawigacja · Enter otwiera · Esc zamyka",
+      "flatView": "Ostatnia aktywność (płaska lista)",
+      "groupedView": "Grupuj chaty według projektu"
     },
     "skipComment": "Pomiń komentarz",
     "sourceCount": "{count, plural, one {1 źródło} few {# źródła} many {# źródeł} other {# źródła}}",
@@ -7449,7 +7451,7 @@
       },
       "project-tabs": {
         "title": "Czaty, pliki i instrukcje",
-        "body": "Zacznij czat w projekcie, dodaj pliki i foldery, na których pracują jego agenci, i ustaw, co każdy agent tu dostaje. W aplikacji desktopowej możesz też podłączyć lokalny folder bez przesyłania jego plików."
+        "body": "W Zasobach grupuj istniejących agentów, workflowy, aplikacje i tabele. Najpierw otwierają się Chaty; Pliki i Instrukcje przechowują wspólną przestrzeń chatów projektu."
       },
       "chat-visual": {
         "title": "Rysunki",
@@ -11577,7 +11579,26 @@
       "scopeHint": "Projekt używa jednej wspólnej tabeli zadań. Dostęp wynika z projektu; osoby i agenci są powiązani z rekordami, a pole następnego kroku wskazuje przekazanie pracy.",
       "openTracker": "Agent śledzący postęp"
     },
-    "initialSetup": "Instrukcje i ustawienia domyślne"
+    "initialSetup": "Instrukcje i ustawienia domyślne",
+    "newChatIn": "Nowy chat w {name}",
+    "resources": {
+      "title": "Zasoby",
+      "search": "Szukaj zasobów",
+      "add": "Dodaj istniejące zasoby",
+      "hint": "Zasoby zachowują własne uprawnienia. Usunięcie powiązania nie usuwa zasobu.",
+      "empty": "Brak powiązanych zasobów",
+      "agent": "Agent",
+      "workflow": "Workflow",
+      "app": "Aplikacja",
+      "table": "Tabela",
+      "main": "Główny workflow",
+      "unsetMain": "Usuń oznaczenie głównego workflow",
+      "setMain": "Ustaw jako główny workflow",
+      "remove": "Usuń {name} z projektu",
+      "kind": "Typ zasobu",
+      "addSelected": "Dodaj wybrane ({count})",
+      "filterHint": "Wybierz projekt, aby przefiltrować ten katalog."
+    }
   },
   "voiceGlow": {
     "title": "Animacja dyktowania",

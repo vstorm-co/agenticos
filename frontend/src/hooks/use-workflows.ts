@@ -75,18 +75,29 @@ const WORKFLOWS_MAX_PAGE = 100;
  * Mutations invalidate rather than patch: a create returns a fresh draft row and
  * guessing the list's new shape is how a stale registry shows.
  */
-export function useWorkflows({ enabled = true }: { enabled?: boolean } = {}) {
+export function useWorkflows({
+  enabled = true,
+  projectId = null,
+}: { enabled?: boolean; projectId?: string | null } = {}) {
   const t = useTranslations("workflows");
   const tErrors = useTranslations("errors");
   const queryClient = useQueryClient();
 
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: qk.workflows.list(),
+    queryKey: projectId ? [...qk.workflows.list(), { projectId }] : qk.workflows.list(),
     queryFn: async () => {
-      const first = await listWorkflows({ skip: 0, limit: WORKFLOWS_MAX_PAGE });
+      const first = await listWorkflows({
+        skip: 0,
+        limit: WORKFLOWS_MAX_PAGE,
+        ...(projectId ? { projectId } : {}),
+      });
       const items = [...first.items];
       while (items.length < first.total && items.length > 0) {
-        const next = await listWorkflows({ skip: items.length, limit: WORKFLOWS_MAX_PAGE });
+        const next = await listWorkflows({
+          skip: items.length,
+          limit: WORKFLOWS_MAX_PAGE,
+          ...(projectId ? { projectId } : {}),
+        });
         // A page that answers nothing ends the walk rather than looping: a
         // workflow deleted between two requests makes `total` larger than what is
         // left to read, and a `while` trusting the count alone would spin.

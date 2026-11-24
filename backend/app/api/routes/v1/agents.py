@@ -344,6 +344,9 @@ async def list_agents(
         list[str], Query(description="Keep agents in any of these categories")
     ] = [],  # noqa: B006
     tag: Annotated[list[str], Query(description="Keep agents carrying any of these tags")] = [],  # noqa: B006
+    project_id: UUID | None = Query(
+        None, description="Only resources linked to this accessible project"
+    ),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
 ) -> Any:
@@ -360,6 +363,7 @@ async def list_agents(
         kind=kind,
         categories=category,
         tags=tag,
+        **({"project_id": project_id} if project_id is not None else {}),
         skip=skip,
         limit=limit,
     )

@@ -1,5 +1,5 @@
 ---
-source_sha: "ae26ea67fe6f"
+source_sha: "cecb91d8da63"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -1679,3 +1679,12 @@ Konsolenformulare eingegeben. Geheimwerte und Bilddaten gelangen nicht in den
 Modellkontext. Umgebungsverwaltete Einstellungen bleiben schreibgeschützt. Wegen
 des Frontend-Caches kann eine direkte MCP-Änderung am Branding bis zu fünf Minuten
 später sichtbar werden.
+
+
+## Gemeinsame MCP-OAuth-Clients { #shared-mcp-oauth-clients }
+
+Für einen OAuth-MCP-Server ohne dynamische Clientregistrierung kann ein Administrator einen organisationsweit sichtbaren **MCP-OAuth-Client** im Vault anlegen (`mcp_oauth_client`, Zweck `custom`). Speichere die genaue MCP-Server-URL, die Client-ID und optional das Client-Secret. Pro Server ist nur ein organisationsweit sichtbarer Client erlaubt. Die URL-Identität behält den Endpunktpfad und normalisiert Host, Standardport und abschließenden Schrägstrich; Zugangsdaten, Query-Parameter und Fragmente werden nicht akzeptiert.
+
+Wählt ein Mitglied OAuth ohne Client-ID, verwendet die Verbindung diesen Client nur, wenn der Server keinen Registrierungsendpunkt anbietet. Eine ausdrücklich eingegebene Client-ID hat Vorrang; die dynamische Registrierung bleibt unverändert. Die Verfügbarkeitsprüfung liefert nur einen booleschen Wert, niemals Zugangsdaten. Fehlt die Konfiguration, erklärt die Verbindung, dass ein Administrator den Client im Vault anlegen muss.
+
+Jede persönliche Autorisierung bleibt benutzergebunden verschlüsselt und an die ausstellende Organisation, aktuelle Mitgliedschaft und genaue Secret-Generation gebunden. Rotation, Löschung oder private Sichtbarkeit des gemeinsamen Clients erfordern eine neue Verbindung, selbst bei noch gültigem Zugriffstoken. Eine über den Client einer Organisation erteilte Autorisierung kann nicht in einer anderen Organisation verwendet werden.

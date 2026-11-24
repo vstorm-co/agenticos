@@ -39,6 +39,7 @@ import { useConversationAgentLabel } from "@/hooks/use-conversation-agent-label"
 import { ConversationAgents } from "@/components/agents/conversation-agents";
 import { cn, setUrlParam, timeAgo } from "@/lib/utils";
 import {
+  useAuthStore,
   useAgentSelectionStore,
   useChatBandsStore,
   useChatSidebarStore,
@@ -47,7 +48,11 @@ import {
 import { useChatPanelStore } from "@/stores/chat-panel-store";
 import { useSourcesPanelStore } from "@/stores/sources-panel-store";
 import { useChanged } from "@/hooks/use-changed";
-import { DEFAULT_COLLAPSED_BANDS, LONG_LIST } from "@/stores/chat-sidebar-store";
+import {
+  DEFAULT_COLLAPSED_BANDS,
+  LONG_LIST,
+  useChatListPreferencesStore,
+} from "@/stores/chat-sidebar-store";
 import { useFillChatBands } from "@/hooks/use-fill-chat-bands";
 import { useProjects } from "@/hooks/use-projects";
 import {
@@ -63,6 +68,8 @@ import {
   ChevronDown,
   ChevronRight,
   GitBranch,
+  List,
+  Folders,
   LogOut,
   Users,
   Loader2,
@@ -520,6 +527,7 @@ function ConversationItem({
 type ConversationView = "active" | "archived";
 
 interface ConversationListProps {
+  flat?: boolean;
   layout?: SidebarLayout;
   conversations: Conversation[];
   total: number;
@@ -660,17 +668,29 @@ function useBands(
   datedOrder: boolean,
   shared: Conversation[] = [],
   groupProjects = true,
+  flat = false,
 ): Band[] {
   const t = useTranslations("chat");
   const ts = useTranslations("chat.sidebar");
   // The names a project band is headed with. Every project the reader works in
   // fits one page; one they lost access to is headed generically by `byProject`.
-  const { projects } = useProjects({ limit: 100 });
+  const { projects } = useProjects({ limit: 100, enabled: !flat });
   const names = useMemo(
     () => new Map(projects.map((project) => [project.id, project.name])),
     [projects],
   );
   return useMemo((): Band[] => {
+    if (flat) {
+      const unique = new Map(
+        [...conversations, ...(isArchivedView ? [] : shared)].map((row) => [row.id, row]),
+      );
+      const rows = [...unique.values()].sort(
+        (a, b) =>
+          Date.parse(b.updated_at ?? b.created_at) - Date.parse(a.updated_at ?? a.created_at) ||
+          a.id.localeCompare(b.id),
+      );
+      return rows.length ? [{ key: "flat", heading: null, icon: null, rows }] : [];
+    }
     // Channel participation can also put a direct share in the ordinary list.
     // Use the shared row once, retaining its reader controls in every band.
     const sharedRows = isArchivedView ? [] : shared;
@@ -744,6 +764,7 @@ function useBands(
     t,
     ts,
     groupProjects,
+    flat,
   ]);
 }
 
@@ -813,6 +834,7 @@ function ConversationList({
   datedOrder,
   shared,
   onLeaveShared,
+  flat = false,
 }: ConversationListProps) {
   const t = useTranslations("chat");
   const ts = useTranslations("chat.sidebar");
@@ -834,6 +856,7 @@ function ConversationList({
     datedOrder,
     shared,
     layout === "workspace",
+    flat,
   );
   const scrollerRef = useRef<HTMLDivElement>(null);
   const { isFolded, flip } = useBandFolds(bands, conversations.length, scrollerRef);
@@ -1075,6 +1098,11 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
     return () => observer.disconnect();
   }, []);
   const isCollapsed = preferredCollapsed || (panelOpen && tight && !sourcesOverride);
+  const userId = useAuthStore((state) => state.user?.id);
+  const grouped = useChatListPreferencesStore((state) =>
+    userId ? (state.groupedByUser[userId] ?? true) : true,
+  );
+  const setGrouped = useChatListPreferencesStore((state) => state.setGrouped);
   const [searchOpen, setSearchOpen] = useState(false);
   const collapse = () => setPreferredCollapsed(true);
   const { isOpen, close } = useChatSidebarStore();
@@ -1118,8 +1146,9 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
     view,
     agentId,
     hideApi,
-    projectScope: view === "active" ? "exclude" : "include",
-    ...splitSort(sort),
+    projectScope: grouped && view === "active" ? "exclude" : "include",
+    favouritesFirst: grouped,
+    ...splitSort(grouped ? sort : DEFAULT_SORT),
   });
   const projectList = useConversations(
     {
@@ -1129,7 +1158,7 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
       projectScope: "only",
       ...splitSort(sort),
     },
-    view === "active",
+    view === "active" && grouped,
   );
   const activeProjectRows =
     view === "active"
@@ -1138,13 +1167,13 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
         )
       : [];
   const rows = [
-    ...activeProjectRows,
-    ...conversations.filter((row) => view !== "active" || !row.project_id),
+    ...(grouped ? activeProjectRows : []),
+    ...conversations.filter((row) => !grouped || view !== "active" || !row.project_id),
   ];
   const fetchMore = useCallback(() => {
     void fetchMoreConversations();
-    if (view === "active") void projectList.fetchMoreConversations();
-  }, [fetchMoreConversations, projectList.fetchMoreConversations, view]);
+    if (view === "active" && grouped) void projectList.fetchMoreConversations();
+  }, [fetchMoreConversations, projectList.fetchMoreConversations, view, grouped]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -1201,7 +1230,7 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
   const listProps = {
     layout,
     conversations: rows,
-    total: total + (view === "active" ? projectList.total : 0),
+    total: total + (view === "active" && grouped ? projectList.total : 0),
     view,
     onViewChange: changeView,
     // The sort is not a filter: it reorders the same threads, so an empty list
@@ -1210,7 +1239,7 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
     isFiltered: agentId !== null,
     onClearFilters: clearFilters,
     currentConversationId,
-    isLoading: isLoading || (view === "active" && projectList.isLoading),
+    isLoading: isLoading || (view === "active" && grouped && projectList.isLoading),
     onSelect: selectConversation,
     onDelete: deleteConversation,
     onArchive: archiveConversation,
@@ -1219,6 +1248,7 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
     onRename: renameConversation,
     onLoadMore: fetchMore,
     datedOrder: sort === DEFAULT_SORT,
+    flat: !grouped,
     shared,
     onLeaveShared: (id: string) => void leave(id),
   };
@@ -1233,7 +1263,8 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
     <ConversationFilters
       agentId={agentId}
       onAgentChange={changeAgent}
-      sort={sort}
+      sort={grouped ? sort : DEFAULT_SORT}
+      sortDisabled={!grouped}
       onSortChange={changeSort}
       hideApi={hideApi}
       onHideApiChange={changeHideApi}
@@ -1268,6 +1299,19 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
         <Search />
       </IconButton>
       {filters(column)}
+      <IconButton
+        size="icon"
+        aria-label={grouped ? ts("flatView") : ts("groupedView")}
+        title={grouped ? ts("flatView") : ts("groupedView")}
+        aria-pressed={!grouped}
+        disabled={!userId}
+        onClick={() => {
+          if (userId) setGrouped(userId, !grouped);
+        }}
+        className={HEADER_ICON}
+      >
+        {grouped ? <List /> : <Folders />}
+      </IconButton>
       {column && sharedState.failed && (
         <IconButton
           size="icon"

@@ -1269,3 +1269,8 @@ New accounts open `/onboarding` after password registration or their first OAuth
 After subscriptions, model setup presents a provider first, then its connection and model. Personal subscriptions remain in their previous step. Tools start with suggested services; **Browse all services** opens the complete MCP catalog.
 
 When an agent asks a question, its card and the normal composer stay visible together. The composer keeps your draft and attachments; new messages wait in the queue while you answer through the card. Stopping a response pauses queued messages until you explicitly resume the queue. Natural completion continues the queue normally.
+
+
+## Flat recent chat list
+
+The Chats header offers **Most recent first (flat list)**. It combines project and ordinary chats in one list ordered by last activity, without project, unread or favourite headings. Favourites keep their stars but are not pinned above newer activity. Pagination uses this order on the server, so old favourites cannot displace recent chats from the first page. Existing agent, archive and API filters still apply. The choice is saved in this browser separately for each signed-in user; **Group chats by project** restores the default grouped view.

@@ -356,6 +356,7 @@ class McpSignInProbeResult(BaseSchema):
     sign_in: bool = Field(
         description="Whether the server publishes OAuth metadata, so Connect can open its sign-in"
     )
+    organization_client_available: bool = False
     registers_clients: bool = Field(
         description=(
             "Whether it registers this app itself (RFC 7591). Without it, a client id and "

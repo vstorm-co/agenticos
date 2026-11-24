@@ -1,5 +1,5 @@
 ---
-source_sha: "8cfdb42a43a8"
+source_sha: "7c24a7a450df"
 ---
 
 # Secretos y el vault { #secrets-and-the-vault }
@@ -423,3 +423,10 @@ El consentimiento de fuentes A2A externas también vincula la generación de aut
 Los tokens OAuth personales Copilot usan el almacén existente cifrado para el usuario, sin claves de organización de respaldo. La autorización está vinculada a propietario, tenant y agente y caduca en Redis; los tokens no aparecen en respuestas API ni auditoría. Nuevos accesos, sustitución de clave y desconexión avanzan una generación en la misma transacción. Estos metadatos sobreviven al borrado de la clave para rechazar concesiones antiguas, se exportan sin el valor de generación y se eliminan con la membresía o el usuario. Desconectar elimina la credencial local; revoca la aplicación OAuth por separado en GitHub.
 
 Antes de cada solicitud al modelo, las credenciales personales de Copilot se comprueban frente a la versión guardada de la conexión. Desconectar o sustituir la conexión bloquea las siguientes solicitudes de una ejecución activa; una solicitud ya enviada no puede retirarse.
+
+
+## Almacenamiento de clientes OAuth MCP { #mcp-oauth-client-storage }
+
+El tipo `mcp_oauth_client` cifra juntos la URL del servidor, el ID público del cliente y su secreto opcional. Selecciona el propósito `custom` al añadirlo en Vault. Solo las instancias visibles para la organización participan en el inicio de sesión MCP automático. La base de datos conserva una identidad de servidor normalizada para una coincidencia única; nunca guarda el secreto del cliente en texto plano. Se rechaza hacer visible un cliente privado para toda la organización si otro cliente ya ocupa el espacio de ese servidor.
+
+Las autorizaciones OAuth personales guardan la organización de origen, el ID del secreto y la generación de autorización dentro de su propia carga cifrada. La rotación, eliminación o pérdida de visibilidad organizativa del origen invalida estas autorizaciones. Consulta [clientes OAuth MCP compartidos](mcp.md#shared-mcp-oauth-clients) para el comportamiento de las conexiones.

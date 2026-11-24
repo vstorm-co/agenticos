@@ -1,5 +1,5 @@
 ---
-source_sha: "9f7bdb001aef"
+source_sha: "3dfdff8360c1"
 ---
 
 **Refresh models** en el catálogo del proveedor vuelve a obtener la lista y conserva la búsqueda y la selección. Junto a los modelos guardados de la organización, vuelve a cargar los perfiles guardados. Actualizar no guarda un modelo ni inicia un agente. Endpoint, clave de Vault, tipo de API y región aparecen según las capacidades del proveedor; las suscripciones personales utilizan los ajustes de su cuenta conectada.
@@ -1333,3 +1333,8 @@ Las cuentas nuevas abren `/onboarding` tras registrarse con contraseña o inicia
 Después de las suscripciones, la configuración del modelo muestra primero el proveedor, luego su conexión y modelo. Las suscripciones personales permanecen en el paso anterior. Las herramientas empiezan con servicios sugeridos; **Explorar todos los servicios** abre el catálogo MCP completo.
 
 Cuando un agente hace una pregunta, su tarjeta y el editor normal permanecen visibles juntos. El editor conserva el borrador y los adjuntos; los mensajes nuevos esperan en la cola mientras respondes mediante la tarjeta. Detener una respuesta pausa los mensajes pendientes hasta que reanudes la cola explícitamente. La finalización normal sigue procesando la cola.
+
+
+## Lista plana de chats recientes { #flat-recent-chat-list }
+
+La cabecera de Chats ofrece **Actividad más reciente (lista plana)**. Combina chats de proyectos y normales en una lista ordenada por última actividad, sin encabezados de proyectos, no leídos o favoritos. Los favoritos conservan sus estrellas, pero no se fijan por encima de actividad más reciente. La paginación utiliza este orden en el servidor, de modo que los favoritos antiguos no desplazan los chats recientes de la primera página. Se mantienen los filtros existentes de agente, archivo y API. La elección se guarda en este navegador por separado para cada usuario; **Agrupar chats por proyecto** restaura la vista agrupada predeterminada.

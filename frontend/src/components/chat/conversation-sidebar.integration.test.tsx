@@ -27,9 +27,11 @@ import { ConversationSidebar } from "./conversation-sidebar";
 import { apiClient } from "@/lib/api-client";
 import { useChatPanelStore } from "@/stores/chat-panel-store";
 import { useSourcesPanelStore } from "@/stores/sources-panel-store";
+import { useChatListPreferencesStore } from "@/stores/chat-sidebar-store";
 import { toast } from "sonner";
 import * as invalidation from "@/lib/coalesced-invalidation";
 import {
+  useAuthStore,
   useAgentSelectionStore,
   useChatBandsStore,
   useChatSidebarStore,
@@ -133,6 +135,8 @@ afterEach(() => vi.useRealTimers());
 
 beforeEach(() => {
   vi.clearAllMocks();
+  useAuthStore.setState({ user: null });
+  useChatListPreferencesStore.setState({ groupedByUser: {} });
   useChatSidebarStore.getState().close();
   urlParams = new URLSearchParams();
   window.history.replaceState({}, "", "/chat");
@@ -1443,5 +1447,57 @@ describe("one mobile conversation surface", () => {
     const returned = await screen.findByRole("dialog", { name: "Chats" });
     expect(screen.getAllByRole("dialog")).toHaveLength(1);
     expect(within(returned).getByRole("button", { name: "Search conversations" })).toHaveFocus();
+  });
+});
+
+describe("a user-scoped flat recent list", () => {
+  it("requests all project scopes without favourite pinning and draws one recency-ordered list", async () => {
+    useAuthStore.setState({
+      user: {
+        id: "reader",
+        email: "reader@example.com",
+        is_active: true,
+        created_at: "2026-01-01T00:00:00Z",
+      },
+    });
+    serve([
+      { ...conversation("old", "Old starred", true), updated_at: "2026-07-01T12:00:00Z" },
+      {
+        ...conversation("project", "Recent project"),
+        project_id: "p1",
+        updated_at: "2026-07-03T12:00:00Z",
+      },
+      { ...conversation("middle", "Middle chat"), updated_at: "2026-07-02T12:00:00Z" },
+    ]);
+    const mounted = mount();
+    await userEvent.click(
+      within(list()).getByRole("button", { name: "Most recent first (flat list)" }),
+    );
+    await waitFor(() =>
+      expect(
+        listRequests().some(
+          (path) => path.includes("favourites_first=false") && !path.includes("project_scope="),
+        ),
+      ).toBe(true),
+    );
+    await within(list()).findByText("Recent project");
+    const titles = ["Old starred", "Recent project", "Middle chat"];
+    const order = Array.from(list().querySelectorAll("[data-conversation-layout]")).map((row) =>
+      titles.find((title) => row.textContent?.includes(title)),
+    );
+    expect(order).toEqual(["Recent project", "Middle chat", "Old starred"]);
+    expect(within(list()).queryByText("Favourites")).not.toBeInTheDocument();
+    expect(within(list()).getByRole("button", { name: "Group chats by project" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    mounted.unmount();
+    mount();
+    expect(within(list()).getByRole("button", { name: "Group chats by project" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    await userEvent.click(within(list()).getByRole("button", { name: "Group chats by project" }));
+    expect(useChatListPreferencesStore.getState().groupedByUser.reader).toBe(true);
   });
 });

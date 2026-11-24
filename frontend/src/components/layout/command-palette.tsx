@@ -13,7 +13,17 @@ import { useConsoleRouter as useRouter } from "@/hooks/use-console-router";
 import { useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
 import { Command } from "cmdk";
-import { ArrowRight, BookOpen, Bot, Database, LogOut, Plus, Search, X } from "lucide-react";
+import {
+  ArrowRight,
+  BookOpen,
+  Bot,
+  Database,
+  FolderKanban,
+  LogOut,
+  Plus,
+  Search,
+  X,
+} from "lucide-react";
 import { ChatIcon as MessageSquare } from "@/components/icons/product-icons";
 import type { LucideIcon } from "lucide-react";
 
@@ -22,6 +32,8 @@ import { SETTINGS_TABS } from "@/app/[locale]/(dashboard)/settings/settings-tabs
 import { NAV_GROUPS } from "@/components/layout/app-sidebar";
 import type { PageTab } from "@/components/dashboard/page-tabs";
 import { useAuth } from "@/hooks";
+import { useProjects } from "@/hooks/use-projects";
+import { useDebounced } from "@/components/ui";
 import { usePermissions } from "@/hooks/use-permissions";
 import { usePublicConfig } from "@/components/public-config/public-config-provider";
 import { apiClient } from "@/lib/api-client";
@@ -116,6 +128,12 @@ export function CommandPalette() {
   // every page, and a closed dialog has no business costing three requests per
   // navigation. The keys are the ones the pages themselves use, so a palette
   // opened after visiting /agents reads the cache instead of the network.
+  const projectSearch = useDebounced(search);
+  const projects = useProjects({
+    search: projectSearch,
+    limit: MAX_ENTITIES,
+    enabled: open && can(Perm.projectsView),
+  });
   const agents = useQuery({
     queryKey: qk.agents.list(),
     queryFn: () => apiClient.get<AgentList>("/agents"),
@@ -139,6 +157,9 @@ export function CommandPalette() {
   const kbItems = can(Perm.collectionsView) ? (kbs.data?.slice(0, MAX_ENTITIES) ?? []) : [];
   const conversationItems = conversations.data?.items ?? [];
   const failedQueries = [
+    ...(can(Perm.projectsView)
+      ? [{ isError: projects.error !== null, refetch: projects.refetch }]
+      : []),
     ...(can(Perm.agentsView) ? [agents] : []),
     ...(can(Perm.collectionsView) ? [kbs] : []),
     conversations,
@@ -269,6 +290,18 @@ export function CommandPalette() {
           );
         })}
 
+        {can(Perm.projectsView) && projects.projects.length > 0 && (
+          <Group heading={t("projects")}>
+            {projects.projects.map((project) => (
+              <PaletteItem
+                key={project.id}
+                icon={FolderKanban}
+                label={project.name}
+                onSelect={() => go(ROUTES.PROJECT_DETAIL(project.id))}
+              />
+            ))}
+          </Group>
+        )}
         {agentItems.length > 0 && (
           <Group heading={t("agents")}>
             {agentItems.map((agent) => (

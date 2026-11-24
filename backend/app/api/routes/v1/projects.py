@@ -10,11 +10,19 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Form, Query, Response, UploadFile, status
 
-from app.api.deps import Auth, ProjectSvc, ProjectTrackingSvc, ProjectTransferSvc, require
+from app.api.deps import (
+    Auth,
+    ProjectResourceSvc,
+    ProjectSvc,
+    ProjectTrackingSvc,
+    ProjectTransferSvc,
+    require,
+)
 from app.api.public_api import PUBLIC
 from app.api.routes.v1._workspace_bytes import file_response
 from app.core.config import settings
 from app.core.permissions import Perm
+from app.db.models.project_resource import ProjectResourceKind
 from app.schemas.conversation import ProjectChatList
 from app.schemas.project import (
     ProjectCreate,
@@ -27,6 +35,12 @@ from app.schemas.project import (
     ProjectUpdate,
     ProjectWorkspaceMoveRead,
     ProjectWorkspaceMoveRequest,
+)
+from app.schemas.project_resource import (
+    ProjectEntrypointUpdate,
+    ProjectResourceList,
+    ProjectResourceRef,
+    ProjectResourcesAdd,
 )
 from app.schemas.project_tracking import (
     ProjectTrackingCreate,
@@ -262,3 +276,42 @@ async def create_project_tracking(
     the same resources. The project's row lock serializes competing installations.
     """
     return await service.create(ctx, project_id, data)
+
+
+@router.get("/{project_id}/resources", response_model=ProjectResourceList)
+async def list_project_resources(
+    project_id: UUID, service: ProjectResourceSvc, ctx: Auth, q: str = Query("", max_length=100)
+) -> Any:
+    """Linked resources the caller may already view; project membership grants no access."""
+    return await service.list_resources(ctx, project_id, search=q)
+
+
+@router.post("/{project_id}/resources", response_model=ProjectResourceList)
+async def add_project_resources(
+    project_id: UUID, data: ProjectResourcesAdd, service: ProjectResourceSvc, ctx: Auth
+) -> Any:
+    """Link existing resources atomically; versions, schedules and grants stay unchanged."""
+    return await service.add(ctx, project_id, data.resources)
+
+
+@router.delete(
+    "/{project_id}/resources/{kind}/{resource_id}",
+    response_model=None,
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def remove_project_resource(
+    project_id: UUID,
+    kind: ProjectResourceKind,
+    resource_id: UUID,
+    service: ProjectResourceSvc,
+    ctx: Auth,
+) -> None:
+    await service.remove(ctx, project_id, ProjectResourceRef(kind=kind, resource_id=resource_id))
+
+
+@router.patch("/{project_id}/entrypoint", response_model=ProjectResourceList)
+async def set_project_entrypoint(
+    project_id: UUID, data: ProjectEntrypointUpdate, service: ProjectResourceSvc, ctx: Auth
+) -> Any:
+    """Mark one linked workflow as the entry point; this does not execute it."""
+    return await service.set_entrypoint(ctx, project_id, data.workflow_id)

@@ -14,7 +14,10 @@ vi.mock("@/hooks", () => ({
   useMembers: () => ({ members: [] }),
 }));
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  vi.mocked(probeMcpSignIn).mockResolvedValue({ sign_in: false, registers_clients: false });
+});
 
 const NOTION = { key: "notion", name: "Notion", auth: "oauth", url: "https://mcp.notion.com/mcp" };
 
@@ -258,4 +261,18 @@ describe("pending connection writes", () => {
     expect(screen.getByLabelText("Name", { exact: true })).toHaveValue("Company workspace");
     expect(screen.getByRole("button", { name: "Close" })).toBeEnabled();
   });
+});
+
+it("lets a member sign in using the organization app without entering its secret", async () => {
+  vi.mocked(probeMcpSignIn).mockResolvedValue({
+    sign_in: true,
+    registers_clients: false,
+    organization_client_available: true,
+  });
+  const onSubmit = open(custom());
+  await typeAddress("https://mcp.example.com/mcp");
+  expect(await screen.findByText(/supports sign-in. Connect opens it/)).toBeInTheDocument();
+  expect(screen.queryByText(/does not register apps itself/)).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: /Connect/ }));
+  expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ auth: "oauth", clientId: "" }));
 });
