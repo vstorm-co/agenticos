@@ -281,7 +281,7 @@ describe("ArtifactViewer", () => {
     // The framed-card look is for a page inside the console; here it is the window.
     expect(frame.className).toContain("border-0");
     expect(screen.getByRole("heading", { name: "Weekly report" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Back to apps" })).toHaveAttribute("href", "/apps");
+    expect(screen.getByRole("link", { name: "Back to pages" })).toHaveAttribute("href", "/apps");
     // Nothing about who reaches it sits beside the page until Share is pressed.
     expect(sharingPanel).not.toHaveBeenCalled();
   });
@@ -289,11 +289,11 @@ describe("ArtifactViewer", () => {
   it("opens floating controls and returns focus when Escape closes them", async () => {
     useArtifactMock.mockReturnValue(state(detail()));
     render(<ArtifactViewer artifactId="a1" initialVersionId={null} />);
-    const toggle = screen.getByRole("button", { name: "App controls" });
+    const toggle = screen.getByRole("button", { name: "Page controls" });
     expect(toggle).toHaveAttribute("aria-expanded", "false");
     await userEvent.click(toggle);
     expect(toggle).toHaveAttribute("aria-expanded", "true");
-    screen.getByRole("button", { name: "Use dark app theme" }).focus();
+    screen.getByRole("button", { name: "Use dark page theme" }).focus();
     await userEvent.keyboard("{Escape}");
     expect(toggle).toHaveAttribute("aria-expanded", "false");
     expect(toggle).toHaveFocus();
@@ -302,7 +302,7 @@ describe("ArtifactViewer", () => {
   it("leaves app controls open for other keys and an already handled Escape", async () => {
     useArtifactMock.mockReturnValue(state(detail()));
     render(<ArtifactViewer artifactId="a1" initialVersionId={null} />);
-    const toggle = screen.getByRole("button", { name: "App controls" });
+    const toggle = screen.getByRole("button", { name: "Page controls" });
     await userEvent.click(toggle);
     fireEvent.keyDown(window, { key: "Enter" });
     expect(toggle).toHaveAttribute("aria-expanded", "true");
@@ -325,12 +325,12 @@ describe("ArtifactViewer", () => {
       render(<ArtifactViewer artifactId="a1" initialVersionId={null} />);
       const frame = screen.getByTitle("Weekly report");
       expect(frame).toHaveStyle({ colorScheme: "light" });
-      await userEvent.click(screen.getByRole("button", { name: "Use dark app theme" }));
+      await userEvent.click(screen.getByRole("button", { name: "Use dark page theme" }));
       expect(screen.getByTitle("Weekly report")).toBe(frame);
       expect(frame).toHaveStyle({ colorScheme: "dark" });
-      expect(screen.queryByRole("button", { name: "Use dark app theme" })).toBeNull();
-      expect(screen.getByRole("button", { name: "Use light app theme" })).toBeInTheDocument();
-      await userEvent.click(screen.getByRole("button", { name: "Use light app theme" }));
+      expect(screen.queryByRole("button", { name: "Use dark page theme" })).toBeNull();
+      expect(screen.getByRole("button", { name: "Use light page theme" })).toBeInTheDocument();
+      await userEvent.click(screen.getByRole("button", { name: "Use light page theme" }));
       expect(frame).toHaveStyle({ colorScheme: "light" });
       expect(document.documentElement).toHaveClass("dark");
       expect(frame).toHaveAttribute("src", "https://api/c/t");
@@ -390,7 +390,7 @@ describe("ArtifactViewer", () => {
 
     expect(screen.queryByRole("button", { name: "More actions" })).toBeNull();
     const dialog = await openShare();
-    expect(within(dialog).getByLabelText("Link to this app")).toHaveValue(
+    expect(within(dialog).getByLabelText("Link to this page")).toHaveValue(
       `${window.location.origin}/apps/a1`,
     );
     expect(within(dialog).queryByRole("button", { name: "Create a public link" })).toBeNull();
@@ -421,7 +421,7 @@ describe("ArtifactViewer", () => {
     render(<ArtifactViewer artifactId="a1" initialVersionId={null} />);
 
     const dialog = await openShare();
-    expect(within(dialog).getByLabelText("Link to this app")).toHaveValue(
+    expect(within(dialog).getByLabelText("Link to this page")).toHaveValue(
       `${window.location.origin}/apps/a1?org=o1`,
     );
   });
@@ -576,10 +576,10 @@ describe("ArtifactViewer", () => {
       state(null, { error: new ApiError(404, "Artifact not found") }),
     );
     render(<ArtifactViewer artifactId="gone" initialVersionId={null} />);
-    expect(screen.getByText("This app is not available")).toBeInTheDocument();
+    expect(screen.getByText("This page is not available")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Retry" })).toBeNull();
     // The way back stays, and nothing that acts on an artifact it could not load.
-    expect(screen.getByRole("link", { name: "Back to apps" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Back to pages" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Share" })).toBeNull();
     // Nowhere else to look for somebody in one organization.
     expect(screen.queryByRole("button", { name: "Switch organization" })).toBeNull();
@@ -658,8 +658,8 @@ describe("ArtifactViewer", () => {
     useArtifactMock.mockReturnValue(hooks);
     render(<ArtifactViewer artifactId="a1" initialVersionId={null} />);
 
-    expect(screen.queryByText("This app is not available")).toBeNull();
-    expect(screen.getByText("This app could not be loaded")).toBeInTheDocument();
+    expect(screen.queryByText("This page is not available")).toBeNull();
+    expect(screen.getByText("This page could not be loaded")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Retry" }));
     expect(hooks.refetch).toHaveBeenCalled();
   });
@@ -758,7 +758,7 @@ describe("ArtifactViewer", () => {
   it("waits for the artifact before drawing anything", () => {
     useArtifactMock.mockReturnValue(state(null, { isLoading: true }));
     render(<ArtifactViewer artifactId="a1" initialVersionId={null} />);
-    expect(screen.queryByText("This app is not available")).toBeNull();
+    expect(screen.queryByText("This page is not available")).toBeNull();
     expect(screen.queryByRole("button", { name: "Share" })).toBeNull();
   });
 });
@@ -1452,7 +1452,7 @@ describe("ArtifactViewer requests", () => {
     const request = within(dialog).getByText("Bea Builder changed the data v3 shows");
     expect(request).toBeVisible();
     expect(
-      request.compareDocumentPosition(within(dialog).getByLabelText("Link to this app")) &
+      request.compareDocumentPosition(within(dialog).getByLabelText("Link to this page")) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
   });

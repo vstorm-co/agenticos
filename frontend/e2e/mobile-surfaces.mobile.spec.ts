@@ -357,7 +357,7 @@ for (const platform of ["ios", "android"] as const) {
       for (const width of [320, 390]) {
         await page.setViewportSize({ width, height: 844 });
         await page.goto(href);
-        const controls = page.getByRole("button", { name: "App controls", exact: true });
+        const controls = page.getByRole("button", { name: "Page controls", exact: true });
         await expectTouchTarget(controls);
         const floating = await controls.boundingBox();
         if (!floating) throw new Error("Expected the floating app controls");
