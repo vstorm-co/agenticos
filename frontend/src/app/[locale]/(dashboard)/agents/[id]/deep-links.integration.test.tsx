@@ -210,6 +210,9 @@ vi.mock("@/components/ui/markdown-editor", () => ({
 vi.mock("@/components/agents/exposures-panel", () => ({ ExposuresPanel: () => null }));
 vi.mock("@/components/agents/embeds-panel", () => ({ EmbedsPanel: () => null }));
 vi.mock("@/components/triggers/triggers-panel", () => ({ TriggersPanel: () => null }));
+vi.mock("@/components/failure-learning/failure-learning-tab", () => ({
+  FailureLearningTab: () => <div data-testid="failure-learning-panel" />,
+}));
 
 async function mount() {
   await mountAndReturn();
@@ -334,6 +337,37 @@ describe("the detail page's Knowledge gaps tab", () => {
       "aria-selected",
       "true",
     );
+  });
+});
+
+describe("the detail page's Failure learning tab", () => {
+  it("opens when a link names it, without any run permission", async () => {
+    allowed = new Set();
+    page.params = "tab=failure-learning";
+    await mount();
+
+    expect(await screen.findByRole("tab", { name: "Failure learning" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(await screen.findByTestId("failure-learning-panel")).toBeVisible();
+  });
+
+  it("opens when clicked, without any run permission", async () => {
+    allowed = new Set();
+    await mount();
+
+    const tab = await screen.findByRole("tab", { name: "Failure learning" });
+    await act(async () => {
+      fireEvent.mouseDown(tab);
+      fireEvent.click(tab);
+    });
+
+    expect(await screen.findByRole("tab", { name: "Failure learning" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(await screen.findByTestId("failure-learning-panel")).toBeVisible();
   });
 });
 

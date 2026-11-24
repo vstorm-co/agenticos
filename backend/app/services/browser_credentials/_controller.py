@@ -399,6 +399,7 @@ class BrowserCredentialController:
     async def wait(self, plan_id: UUID) -> str:
         """Keep native handles alive for human confirmation, then a separate optional submit."""
         notified: set[str] = set()
+        received: BrowserCredentialPlanRead | None = None
         with anyio.move_on_after(
             (4 if self.continue_session is not None else 2) * PLAN_SECONDS + 10
         ):
@@ -443,6 +444,7 @@ class BrowserCredentialController:
                         )
                         notified.add("submit")
                     if submission is not None and submission.state not in ACTIVE_FILL_STATES:
+                        received = submission
                         if (
                             submission.state == BrowserFillState.SUBMITTED
                             and self.continue_session is not None
@@ -466,6 +468,10 @@ class BrowserCredentialController:
                 elif row.state not in ACTIVE_FILL_STATES:
                     return f"Browser credential operation: {row.state.value}. No automatic retry was made."
                 await asyncio.sleep(POLL_SECONDS)
+        if received is not None:
+            return (
+                f"Protected browser submission: {received.state.value}. Page output remains hidden."
+            )
         return "The protected credential session ended. Page output remains hidden; no form was submitted automatically."
 
     async def close(self) -> None:
