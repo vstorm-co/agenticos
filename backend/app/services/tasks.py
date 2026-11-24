@@ -47,6 +47,7 @@ from app.schemas.virtual_table import (
 from app.services.task_access import board_allows, scope_allows
 from app.services.task_columns import STATUSES, from_cells, task_columns, to_cells
 from app.services.virtual_tables import TableViewService, VirtualTableService
+from app.services.virtual_tables.quotas import lock_storage
 
 _SOURCE_FINDING: ContextVar[bool] = ContextVar("task_source_finding", default=False)
 
@@ -355,7 +356,9 @@ class TaskService:
         person = (scope_name or "").strip() or "My"
         ending = " Tasks"
         name = f"{person[: MAX_LABEL - len(ending)].rstrip()}{ending}"
-        # Serialize suffix selection with ordinary table creates and renames.
+        # Serialize suffix selection with ordinary table creates and renames, in
+        # their order: storage before names (see `LockScope`).
+        await lock_storage(self.db, ctx)
         await hold_subject(self.db, LockScope.VIRTUAL_TABLE_NAMES_PER_ORG, ctx.organization_id)
         suffix = 2
         while await virtual_table_repo.get_live_table_by_name(
