@@ -18,8 +18,17 @@ vi.mock("@/hooks/use-suggestions", () => ({
 }));
 vi.mock("@/components/chat", () => ({
   ConversationSidebar: () => <aside>Chats</aside>,
-  ChatContainer: ({ composerDraft }: { composerDraft?: { text: string; consume: () => void } }) => (
+  ChatContainer: ({
+    composerDraft,
+    incomingFiles,
+  }: {
+    composerDraft?: { text: string; consume: () => void };
+    incomingFiles?: { id: number; text?: string } | null;
+  }) => (
     <div>
+      <p data-testid="incoming">
+        {incomingFiles ? `${incomingFiles.id}:${incomingFiles.text}` : ""}
+      </p>
       <output>{composerDraft?.text ?? "No draft"}</output>
       {composerDraft && <button onClick={composerDraft.consume}>Consume draft</button>}
     </div>
@@ -38,6 +47,24 @@ it("uses the full-bleed content layout without compensating margins", () => {
   const page = container.firstElementChild;
   expect(page).toHaveClass("flex", "min-h-0", "flex-1");
   expect(page).not.toHaveClass("-mt-(--page-inset-top)", "-mx-3", "sm:-mx-6");
+});
+
+it("hands a ?prompt= address to the composer as a draft, once, after the new chat starts", () => {
+  window.history.replaceState({}, "", "/chat?new=1&prompt=Draft%20a%20workflow");
+  state.params = new URLSearchParams("new=1&prompt=Draft a workflow");
+  const view = render(<ChatPage />);
+  expect(screen.getByRole("status")).toHaveTextContent("No draft");
+
+  state.params = new URLSearchParams("prompt=Draft a workflow");
+  view.rerender(<ChatPage />);
+  expect(screen.getByRole("status")).toHaveTextContent("Draft a workflow");
+  expect(window.location.search).toContain("prompt=");
+  fireEvent.click(screen.getByRole("button", { name: "Consume draft" }));
+  expect(window.location.search).not.toContain("prompt=");
+
+  state.params = new URLSearchParams();
+  view.rerender(<ChatPage />);
+  expect(screen.getByRole("status")).toHaveTextContent("No draft");
 });
 
 it("reserves the phone toolbar space for both initial content and sent-turn scrolling", () => {

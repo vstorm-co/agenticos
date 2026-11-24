@@ -147,6 +147,38 @@ describe("the workflows list", () => {
     expect(screen.getAllByRole("button", { name: /^Duplicate / })).toHaveLength(WORKFLOWS.length);
   });
 
+  it("offers describing a workflow in chat, pre-prompted to save a draft for review", async () => {
+    render(<WorkflowsPage />, { wrapper });
+    await screen.findByRole("link", { name: "Open Live" });
+
+    const link = screen.getByRole("link", { name: "Describe a workflow" });
+    const url = new URL(link.getAttribute("href") ?? "", "http://console");
+    expect(url.pathname).toBe("/chat");
+    expect(url.searchParams.get("new")).toBe("1");
+    const prompt = url.searchParams.get("prompt") ?? "";
+    expect(prompt).toContain("private draft");
+    expect(prompt).toContain("workflow editor");
+    expect(prompt).toContain("It should do this:");
+  });
+
+  it("keeps the describe entry in the header of the empty state", async () => {
+    serve([]);
+    render(<WorkflowsPage />, { wrapper });
+
+    expect(await screen.findByText("No workflows yet")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Describe a workflow" })).toBeInTheDocument();
+  });
+
+  it("offers no describe entry to a caller who may only view", async () => {
+    perms.can = (permission: string) => permission === "workflows:view";
+    serve([]);
+    render(<WorkflowsPage />, { wrapper });
+
+    expect(await screen.findByText("No workflows yet")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Describe a workflow" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Describe a workflow" })).toBeNull();
+  });
+
   it("opens the import dialog from Import", async () => {
     render(<WorkflowsPage />, { wrapper });
     await screen.findByRole("link", { name: "Open Live" });
@@ -165,6 +197,7 @@ describe("the workflows list", () => {
     expect(screen.queryByRole("button", { name: "New workflow" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Workflow templates" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Import" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Describe a workflow" })).toBeNull();
     expect(screen.queryByRole("button", { name: /^Duplicate / })).toBeNull();
   });
 

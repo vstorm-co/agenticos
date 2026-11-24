@@ -8,6 +8,7 @@ import { ChatContainer, ConversationSidebar } from "@/components/chat";
 import { ChatLayout } from "@/components/chat/chat-layout";
 import { PhoneChatBar } from "@/components/chat/phone-chat-bar";
 import { useMcpOAuthOutcome } from "@/hooks";
+import { useChatPrompt } from "@/hooks/use-chat-prompt";
 import { useSuggestions } from "@/hooks/use-suggestions";
 import { suggestionChatPrompt } from "@/lib/suggestion-chat-prompt";
 import { useChatWith } from "@/hooks/use-chat-with";
@@ -75,6 +76,9 @@ export default function ChatPage() {
   useMcpOAuthOutcome();
   // Desktop New Chat and pinned-agent links explicitly start a fresh conversation.
   useChatWith();
+  // A `?prompt=` address — the workflows list's "Describe a workflow" — seeds
+  // the composer as a draft, never sent on the reader's behalf.
+  const promptDraft = useChatPrompt();
   // The ?id= query param is read by useConversations.fetchConversations on mount;
   // it sets currentConversationId AND loads messages atomically. Pre-setting the
   // id here would short-circuit that loader and leave the chat empty on refresh.
@@ -87,7 +91,7 @@ export default function ChatPage() {
         <PhoneChatBar />
         <ChatLayout>
           <ChatContainer
-            composerDraft={composerDraft}
+            composerDraft={composerDraft ?? promptDraft}
             requestedQuestionRunId={
               questionConversationId === requestedConversationId ? questionRunId : null
             }
