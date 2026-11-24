@@ -163,6 +163,7 @@ def _trigger(**overrides: object) -> MagicMock:
         "event_secret_encrypted": None,
         "secret_key_version": None,
         "prompt": "summarise the day",
+        "prompt_mode": "literal",
         "source_id": None,
         "next_fire_at": datetime(2026, 1, 1, tzinfo=UTC),
         "last_fired_at": None,
@@ -2378,6 +2379,7 @@ class TestPreparingAnEventFire:
             source_policy_id=uuid.UUID(int=42),
             trigger_id=trigger.id,
             event_context="ISSUE #7 opened",
+            event_body={"action": "opened"},
             organization_id=trigger.organization_id,
         )
 
@@ -2407,6 +2409,7 @@ class TestPreparingAnEventFire:
             source_policy_id=uuid.UUID(int=42),
             trigger_id=trigger.id,
             event_context="ISSUE #7",
+            event_body={"action": "opened"},
             organization_id=trigger.organization_id,
         )
         dedupe.claim_event_delivery.assert_awaited_once()
@@ -5670,6 +5673,77 @@ class TestReusableSourceRoutine:
         assert message.endswith("<event_content>\nclipped context\n</event_content>")
         assert runner.return_value.execute.await_args.kwargs["public_origin"] is True
 
+    @pytest.mark.parametrize("result_mode", ["inbox", "report"])
+    async def test_preview_and_live_execution_use_identical_unclipped_message(
+        self, result_mode, monkeypatch
+    ):
+        from app.schemas.agent_trigger import TriggerPromptPreviewCreate
+
+        agent = _agent()
+        service = _service(agent)
+        source_id = uuid.uuid4()
+        use_source = AsyncMock(return_value=SimpleNamespace(is_active=True))
+        monkeypatch.setattr("app.services.event_sources.EventSourceService.require_use", use_source)
+        trigger = _event_trigger(
+            source_id=source_id,
+            agent_id=agent.id,
+            prompt_mode="template",
+            prompt="Review {{issue.title}}",
+            result_mode=result_mode,
+        )
+        body = {"padding": "x" * 4000, "issue": {"title": "y" * 3000}}
+        preview = await service.preview_prompt(
+            _ctx(),
+            agent.id,
+            TriggerPromptPreviewCreate(prompt=trigger.prompt, payload=body, source_id=source_id),
+        )
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.member_repo") as members,
+            patch("app.services.agent_trigger.conversation_repo") as conversations,
+            patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+            patch("app.services.agent_runner.AgentRunnerService") as runner,
+        ):
+            repo.get_by_id = AsyncMock(return_value=trigger)
+            members.get_active = AsyncMock(return_value=MagicMock(role=OrgRoleName.OWNER))
+            conversations.create_conversation = AsyncMock(return_value=MagicMock(id=uuid.uuid4()))
+            runner.return_value.execute = AsyncMock(
+                return_value=("done", MagicMock(id=uuid.uuid4(), status=RunStatus.COMPLETED.value))
+            )
+            await service.fire(
+                trigger.id,
+                event_body=body,
+                event_context="clipped context",
+                event_source_id=source_id,
+            )
+        assert [call.args[1] for call in use_source.await_args_list] == [source_id, source_id]
+        assert runner.return_value.execute.await_args.args[2] == preview.resolved_prompt
+        assert "clipped context" not in preview.resolved_prompt
+        assert "y" * 3000 in preview.resolved_prompt
+        assert runner.return_value.execute.await_args.kwargs["public_origin"] is True
+
+    async def test_missing_template_field_records_a_visible_failure_without_a_run(self):
+        service = _service()
+        trigger = _event_trigger(prompt_mode="template", prompt="Review {{issue.title}}")
+        activation_id = uuid.uuid4()
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.member_repo") as members,
+            patch("app.services.agent_runner.AgentRunnerService") as runner,
+        ):
+            repo.get_by_id = AsyncMock(return_value=trigger)
+            members.get_active = AsyncMock(return_value=MagicMock(role=OrgRoleName.OWNER))
+            await service.fire(trigger.id, event_body={"issue": {}}, activation_id=activation_id)
+        runner.assert_not_called()
+        service._record_attempt.assert_awaited_once_with(
+            trigger,
+            activation_id,
+            stage="preparation",
+            reason="prompt_template_failed",
+            status="failed",
+            error_message="Prompt field is missing: issue.title",
+        )
+
     @pytest.mark.security
     async def test_revoked_source_use_stops_queued_execution(self):
         service = _service()
@@ -5892,10 +5966,10 @@ async def test_shared_routine_throttle_queues_no_agent_run(queued_fires):
 
 
 @pytest.mark.security
-@pytest.mark.parametrize("removed", [False, True])
-async def test_queued_routine_event_cannot_run_after_its_source_was_replaced_or_removed(removed):
-    source_id = uuid.uuid4()
-    trigger = _event_trigger(source_id=None if removed else uuid.uuid4())
+@pytest.mark.parametrize("change", ["replaced", "removed", "new_binding"])
+async def test_queued_routine_event_cannot_run_after_its_source_binding_changes(change):
+    source_id = None if change == "new_binding" else uuid.uuid4()
+    trigger = _event_trigger(source_id=None if change == "removed" else uuid.uuid4())
     service = _service(_agent(agent_id=trigger.agent_id))
     with (
         patch("app.services.agent_trigger.agent_trigger_repo") as repo,
@@ -5910,30 +5984,35 @@ async def test_queued_routine_event_cannot_run_after_its_source_was_replaced_or_
 
 
 @pytest.mark.security
-def test_source_edits_end_another_members_creator_consent():
+@pytest.mark.parametrize("change", [{"prompt_mode": "template"}, {"source_id": uuid.uuid4()}])
+def test_source_and_template_edits_end_another_members_creator_consent(change):
     trigger = _event_trigger(created_by_user_id=uuid.uuid4(), runs_as_creator=True)
-    changes = {"source_id": uuid.uuid4()}
+    changes = dict(change)
     AgentTriggerService._guard_acting_as_creator(_ctx(), trigger, changes)
     assert changes["runs_as_creator"] is False
 
 
 @pytest.mark.security
-def test_source_edits_change_the_action_consent_fingerprint():
+def test_source_and_template_edits_change_the_action_consent_fingerprint():
     from app.services.routine_actions import action_intent
 
     trigger = _event_trigger()
     original = action_intent(trigger)
+    trigger.prompt_mode = "template"
+    assert action_intent(trigger) != original
+    trigger.prompt_mode = "literal"
+    assert action_intent(trigger) == original
     trigger.source_id = uuid.uuid4()
     assert action_intent(trigger) != original
 
 
-@pytest.mark.parametrize("failure", ["paused_source", "lost_source_access"])
-async def test_a_waited_source_refusal_settles_its_activation_before_model_execution(failure):
+@pytest.mark.parametrize("failure", ["missing_field", "paused_source", "lost_source_access"])
+async def test_a_waited_template_failure_settles_its_activation_before_model_execution(failure):
     from app.schemas.local_target import LocalTarget
     from app.services.routine_actions import activation_intent
     from app.services.routine_sources import RoutineSourcesRequired
 
-    source_id = uuid.uuid4()
+    source_id = None if failure == "missing_field" else uuid.uuid4()
     target = LocalTarget(
         folder="/work",
         mode="read_only",
@@ -5943,7 +6022,8 @@ async def test_a_waited_source_refusal_settles_its_activation_before_model_execu
     )
     trigger = _event_trigger(
         source_id=source_id,
-        prompt="Inspect the event",
+        prompt_mode="template",
+        prompt="{{missing}}",
         runs_as_creator=True,
         local_target=target.model_dump(mode="json"),
     )
@@ -5954,7 +6034,8 @@ async def test_a_waited_source_refusal_settles_its_activation_before_model_execu
         user_id=_CALLER,
         status="waiting",
         intent_hash=activation_intent(trigger),
-        event_context="Delivery received",
+        event_context=None,
+        event_body={},
         event_source_id=source_id,
     )
     service = _service(_agent(agent_id=trigger.agent_id))
@@ -5977,12 +6058,14 @@ async def test_a_waited_source_refusal_settles_its_activation_before_model_execu
             service.sources.require_current.side_effect = RoutineSourcesRequired()
         await service.fire(trigger.id, activation_id=activation_id)
     runner.assert_not_called()
-    assert service._record_attempt.await_args.kwargs["reason"] == "source_review_required"
+    assert service._record_attempt.await_args.kwargs["reason"] == (
+        "prompt_template_failed" if failure == "missing_field" else "source_review_required"
+    )
     settle.assert_awaited_once_with(
         service.db,
         activation_id=activation_id,
         status="cancelled",
-        reason="routine_changed",
+        reason="prompt_template_failed" if failure == "missing_field" else "routine_changed",
         **({"trigger_id": trigger.id} if failure == "lost_source_access" else {}),
     )
 

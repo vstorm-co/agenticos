@@ -140,8 +140,9 @@ async def test_rebinding_during_delivery_preserves_the_other_subscriber_and_reti
     assert [FireTrigger.model_validate(job.payload).trigger_id for job in jobs] == [sibling.id]
 
 
+@pytest.mark.parametrize("templated", [False, True])
 async def test_shared_github_push_admits_one_routine_job_with_event_context_across_restart(
-    db: AsyncSession, engine: AsyncEngine, monkeypatch: pytest.MonkeyPatch
+    db: AsyncSession, engine: AsyncEngine, monkeypatch: pytest.MonkeyPatch, templated: bool
 ) -> None:
     ctx, existing, _, _ = await world(db)
     source = await EventSourceService(db).create(
@@ -160,7 +161,8 @@ async def test_shared_github_push_admits_one_routine_job_with_event_context_acro
             trigger_type="event",
             source_id=source.id,
             event_config={"event": "push", "branches": ["main"]},
-            prompt="Review the pushed commits",
+            prompt="Review {{commits[0].message}}",
+            prompt_mode="template" if templated else "literal",
             runs_as_creator=True,
         ),
     )
@@ -243,7 +245,10 @@ async def test_shared_github_push_admits_one_routine_job_with_event_context_acro
     assert payload.event_context is not None
     assert "1 commit(s) pushed to main" in payload.event_context
     assert "abcdef0 Update release notes" in payload.event_context
-    assert "event_body" not in queued[0].payload
+    if templated:
+        assert payload.event_body == body
+    else:
+        assert "event_body" not in queued[0].payload
     assert payload.event_source_id == source_id
     assert payload.source_policy_id == policy_id
     assert payload.activation_id == uuid5(receipt_id, str(routine_id))
@@ -498,6 +503,69 @@ async def test_deleting_a_routine_detaches_it_and_preserves_its_accepted_receipt
     )
 
 
+async def test_dedicated_webhooks_preserve_literal_input_and_validate_template_input(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ctx, existing, _, _ = await world(db)
+    service = AgentTriggerService(db)
+    secret = "integration-routine-secret"
+    literal_data = TriggerCreate(
+        trigger_type="event",
+        event_source="webhook",
+        event_secret=secret,
+        prompt="Review the delivery",
+        runs_as_creator=True,
+    )
+    literal = await service.create(ctx, existing.agent_id, literal_data)
+    template = await service.create(
+        ctx,
+        existing.agent_id,
+        literal_data.model_copy(
+            update={"prompt": "Review {{issue.title}}", "prompt_mode": "template"}
+        ),
+    )
+    monkeypatch.setattr(
+        rate_limit,
+        "trigger_delivery_allowed",
+        AsyncMock(return_value=rate_limit.Decision(allowed=True, retry_after_seconds=0)),
+    )
+
+    escaped_nul = b'{"nested":{"text":"before\\u0000after"}}'
+    structured = {"padding": "x" * 4000, "issue": {"title": "Full payload"}}
+    for trigger, body in (
+        (literal, escaped_nul),
+        (template, escaped_nul),
+        (template, json.dumps(structured).encode()),
+    ):
+        signature = hmac.digest(secret.encode(), body, "sha256").hex()
+        assert await service.queue_event_fire(
+            "webhook",
+            trigger.id,
+            body=body,
+            headers={"x-signature-256": f"sha256={signature}"},
+        )
+
+    jobs = await db.scalars(select(BackgroundJob).where(BackgroundJob.kind == "fire-trigger"))
+    queued = [FireTrigger.model_validate(job.payload) for job in jobs]
+    assert len(queued) == 2
+    by_trigger = {job.trigger_id: job for job in queued}
+    literal_job = by_trigger[literal.id]
+    assert literal_job.event_body is None
+    assert literal_job.event_context is not None
+    assert "before\\u0000after" in literal_job.event_context
+    assert by_trigger[template.id].event_body == structured
+
+    failed = await db.scalar(select(TriggerAttempt).where(TriggerAttempt.trigger_id == template.id))
+    assert failed is not None
+    assert (failed.stage, failed.status, failed.reason) == (
+        "preparation",
+        "failed",
+        "prompt_template_failed",
+    )
+    assert failed.error_message == "The event body cannot be stored for prompt rendering."
+    assert await db.scalar(select(func.count()).select_from(AgentRun)) == 0
+
+
 @pytest.mark.security
 @pytest.mark.parametrize("approval", ["current", "missing", "replaced"])
 async def test_shared_github_filter_keeps_only_the_current_reviews_diagnostic(
@@ -554,3 +622,92 @@ async def test_shared_github_filter_keeps_only_the_current_reviews_diagnostic(
     assert datetime.fromisoformat(routine.last_filtered_event["received_at"]) == received_at
     assert routine.last_filtered_event["reason"] == "author"
     assert routine.last_filtered_event["authors"] == "members"
+
+
+async def test_template_edits_validate_only_opted_in_event_routines(db: AsyncSession) -> None:
+    from sqlalchemy.exc import IntegrityError
+
+    from app.core.exceptions import BadRequestError
+    from app.services.routine_prompt import RoutinePromptError
+
+    ctx, schedule, _, _ = await world(db)
+    service = AgentTriggerService(db)
+    with pytest.raises(BadRequestError, match="Template prompts require an event trigger"):
+        await service.update(
+            ctx, schedule.agent_id, schedule.id, TriggerUpdate(prompt_mode="template")
+        )
+
+    with pytest.raises(IntegrityError, match="ck_trigger_template_event"):
+        async with db.begin_nested():
+            await db.execute(
+                text("UPDATE agent_triggers SET prompt_mode = 'template' WHERE id = :id"),
+                {"id": schedule.id},
+            )
+
+    data = TriggerCreate(
+        trigger_type="event",
+        event_source="webhook",
+        event_secret="integration-example-key",
+        prompt="Broken {{field",
+    )
+    with pytest.raises(RoutinePromptError):
+        await service.create(
+            ctx, schedule.agent_id, data.model_copy(update={"prompt_mode": "template"})
+        )
+    routine = await service.create(ctx, schedule.agent_id, data)
+    assert routine.prompt_mode == "literal"
+    with pytest.raises(RoutinePromptError):
+        await service.update(
+            ctx, schedule.agent_id, routine.id, TriggerUpdate(prompt_mode="template")
+        )
+    updated = await service.update(
+        ctx,
+        schedule.agent_id,
+        routine.id,
+        TriggerUpdate(prompt_mode="template", prompt="Report {{issue.title}}"),
+    )
+    assert updated.prompt_mode == "template"
+    with pytest.raises(RoutinePromptError):
+        await service.update(ctx, schedule.agent_id, routine.id, TriggerUpdate(prompt="{{broken"))
+
+
+@pytest.mark.security
+async def test_existing_template_preview_checks_source_and_does_not_change_consent(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.core.exceptions import NotFoundError
+    from app.schemas.agent_trigger import TriggerPromptPreviewCreate
+
+    ctx, seed, _, _ = await world(db)
+    source = await EventSourceService(db).create(
+        ctx,
+        EventSourceCreate(
+            name="Preview source",
+            auth=SourceAuth(method="api_key", header_name="x-api-key", signature_prefix=""),
+            credentials=SourceCredentials(secret=SecretStr("test-key")),
+        ),
+    )
+    service = AgentTriggerService(db)
+    routine = await service.create(
+        ctx,
+        seed.agent_id,
+        TriggerCreate(
+            trigger_type="event",
+            source_id=source.id,
+            prompt="Literal",
+            review_before_activation=True,
+        ),
+    )
+    preview = TriggerPromptPreviewCreate(
+        trigger_id=routine.id, prompt="{{title}}", payload={"title": "example"}
+    )
+    assert (
+        "<event_content>example</event_content>"
+        in (await service.preview_prompt(ctx, seed.agent_id, preview)).resolved_prompt
+    )
+    assert routine.setup_required and not routine.is_active
+    refused = AsyncMock(side_effect=NotFoundError(message="Source not found"))
+    monkeypatch.setattr(EventSourceService, "require_use", refused)
+    with pytest.raises(NotFoundError):
+        await service.preview_prompt(ctx, seed.agent_id, preview)
+    refused.assert_awaited_once_with(ctx, source.id)

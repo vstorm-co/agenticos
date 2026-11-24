@@ -1,6 +1,7 @@
 "use client";
 
-import { LiveSample } from "@/components/event-sources/live-sample";
+import { RoutinePrompt } from "@/components/event-sources/routine-prompt";
+import { PromptField } from "./prompt-field";
 import { SourceSelector } from "@/components/event-sources/source-selector";
 import { SubscriptionFields } from "@/components/event-sources/subscription-fields";
 import { NativeDisclosure } from "@/components/ui/native-disclosure";
@@ -37,9 +38,6 @@ import {
   FormField,
   Input,
   Label,
-  MarkdownEditor,
-  MarkdownModeToggle,
-  type MarkdownMode,
   Select,
   SelectContent,
   SelectItem,
@@ -257,6 +255,7 @@ export function TriggerFormDialog({
   // Schedules fit one panel; the event flow still has source-specific steps.
   const [step, setStep] = useState<WizardStepId>(type === "event" ? "event" : "configure");
   const [prompt, setPrompt] = useState(trigger?.prompt ?? "");
+  const [promptMode, setPromptMode] = useState(trigger?.prompt_mode ?? "literal");
   const [name, setName] = useState(trigger?.name ?? "");
   const [environmentId, setEnvironmentId] = useState(trigger?.environment_id ?? DEFAULT_ENV);
   const [pinnedVersion, setPinnedVersion] = useState(trigger?.pinned_version_id ?? null);
@@ -590,6 +589,7 @@ export function TriggerFormDialog({
     return {
       ...base,
       event_source: eventSource,
+      ...(promptMode === "template" ? { prompt_mode: promptMode } : {}),
       ...(sourceId ? { source_id: sourceId } : { event_secret: secret }),
       event_config: sourceId
         ? { ...extraConfig, ...eventFilterConfig(eventSource, [filterA, filterB]) }
@@ -677,6 +677,7 @@ export function TriggerFormDialog({
                 : "per_tool";
         if (maxFailures !== (trigger.max_failures === undefined ? 3 : trigger.max_failures))
           patch.max_failures = maxFailures;
+        if (promptMode !== (trigger.prompt_mode ?? "literal")) patch.prompt_mode = promptMode;
         if (prompt !== trigger.prompt) patch.prompt = prompt;
         if (sourceId !== (trigger.source_id ?? null)) {
           patch.source_id = sourceId;
@@ -1023,6 +1024,20 @@ export function TriggerFormDialog({
     />
   );
 
+  const eventPrompt = (
+    <RoutinePrompt
+      key={`${effectiveAgentId}:${sourceId ?? "dedicated"}`}
+      value={prompt}
+      onChange={setPrompt}
+      mode={promptMode}
+      onModeChange={setPromptMode}
+      sourceId={sourceId}
+      agentId={effectiveAgentId}
+      triggerId={trigger?.id}
+      disabled={pending}
+    />
+  );
+
   if (editing) {
     return (
       <Dialog open={open} onOpenChange={changeOpen}>
@@ -1057,8 +1072,11 @@ export function TriggerFormDialog({
                   disabled={pending}
                 />
               )}
-              {sourceId && <LiveSample key={sourceId} sourceId={sourceId} />}
-              <PromptField value={prompt} onChange={setPrompt} disabled={pending} />
+              {type === "event" ? (
+                eventPrompt
+              ) : (
+                <PromptField value={prompt} onChange={setPrompt} disabled={pending} />
+              )}
 
               {scheduleFields}
 
@@ -1275,7 +1293,6 @@ export function TriggerFormDialog({
                 onChange={setExtraConfig}
               />
             )}
-            {sourceId && <LiveSample key={sourceId} sourceId={sourceId} />}
           </div>
         )}
 
@@ -1420,7 +1437,7 @@ export function TriggerFormDialog({
 
             {/* The step is the message's own, so the editor gets the room a
                   long prompt needs. */}
-            <PromptField value={prompt} onChange={setPrompt} rows={8} disabled={pending} />
+            {eventPrompt}
           </div>
         )}
 
@@ -1442,48 +1459,6 @@ function NameField({ value, onChange }: { value: string; onChange: (value: strin
         maxLength={120}
       />
     </FormField>
-  );
-}
-
-function PromptField({
-  value,
-  onChange,
-  rows = 6,
-  disabled = false,
-}: {
-  value: string;
-  disabled?: boolean;
-  onChange: (value: string) => void;
-  /** The wizard's message step passes more - a prompt is often long. */
-  rows?: number;
-}) {
-  const t = useTranslations("triggers");
-  const [mode, setMode] = useState<MarkdownMode>("source");
-  return (
-    <div className="space-y-1.5">
-      <MarkdownEditor
-        id="trigger-prompt"
-        disabled={disabled}
-        toolbar={
-          <>
-            <Label htmlFor="trigger-prompt" className="flex-1">
-              {t("prompt")}
-            </Label>
-            <MarkdownModeToggle mode={mode} onChange={setMode} />
-          </>
-        }
-        label={t("prompt")}
-        value={value}
-        onChange={onChange}
-        placeholder={t("promptPlaceholder")}
-        rows={rows}
-        describedBy="trigger-prompt-desc"
-        mode={mode}
-      />
-      <p id="trigger-prompt-desc" className="text-muted-foreground text-xs leading-relaxed">
-        {t("promptHelp")}
-      </p>
-    </div>
   );
 }
 

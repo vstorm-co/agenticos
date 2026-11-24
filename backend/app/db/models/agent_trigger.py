@@ -341,6 +341,9 @@ class AgentTrigger(Base, TimestampMixin):
     )
 
     prompt: Mapped[str] = mapped_column(Text, nullable=False)
+    prompt_mode: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="literal", server_default="literal"
+    )
     source_id: Mapped[uuid.UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
 
     # When a *schedule* is next due. The heartbeat's claim query is
@@ -485,6 +488,10 @@ class AgentTrigger(Base, TimestampMixin):
             "action_mode IS NULL OR action_mode IN ('agent', 'manual', 'per_tool')",
             name="ck_trigger_action_mode",
         ),
+        CheckConstraint("prompt_mode IN ('literal', 'template')", name="ck_trigger_prompt_mode"),
+        CheckConstraint(
+            "prompt_mode = 'literal' OR trigger_type = 'event'", name="ck_trigger_template_event"
+        ),
         CheckConstraint("result_mode IN ('report', 'inbox')", name="ck_trigger_result_mode"),
         CheckConstraint(
             "max_failures IS NULL OR max_failures BETWEEN 1 AND 20", name="ck_routine_max_failures"
@@ -580,8 +587,8 @@ class AgentTrigger(Base, TimestampMixin):
 class TriggerAttempt(Base):
     """An activation that stopped before producing an agent run.
 
-    Only bounded reason codes are kept: no prompt, provider error, credential or
-    source metadata can leak through routine history.
+    Reason codes and controlled template diagnostics identify refusals without
+    storing payload values, credentials or raw provider exceptions.
     """
 
     __tablename__ = "trigger_attempts"
@@ -598,6 +605,7 @@ class TriggerAttempt(Base):
     status: Mapped[str] = mapped_column(String(16), nullable=False)
     stage: Mapped[str] = mapped_column(String(24), nullable=False)
     reason: Mapped[str] = mapped_column(String(40), nullable=False)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     occurred_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
@@ -610,7 +618,7 @@ class TriggerAttempt(Base):
         ),
         CheckConstraint(
             "reason IN ('platform_identity_required', 'source_review_required', "
-            "'agent_unavailable', 'preparation_failed', 'previous_run_active')",
+            "'agent_unavailable', 'preparation_failed', 'previous_run_active', 'prompt_template_failed')",
             name="ck_trigger_attempt_reason",
         ),
     )

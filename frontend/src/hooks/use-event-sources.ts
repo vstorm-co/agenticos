@@ -75,3 +75,11 @@ export function useSourceListener(id: string, token: string | null) {
   });
   return { listen, capture };
 }
+export function usePromptPreview(agentId: string) {
+  return useMutation({
+    // A resolved preview and its payload only belong to this editor.
+    gcTime: 0,
+    mutationFn: (input: Parameters<typeof eventSourcesApi.preview>[1]) =>
+      eventSourcesApi.preview(agentId, input),
+  });
+}

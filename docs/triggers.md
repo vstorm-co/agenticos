@@ -136,7 +136,22 @@ A shared URL acknowledges durable receipt asynchronously; it cannot return a wor
 
 On the source or in the webhook editor, choose **Listen for event**, then send an authenticated event to the displayed live source URL within two minutes. The listener receives the next event without interrupting dispatch: **active subscribers still execute**. Capture does not start an additional run. A sample is retained for ten minutes and bounded by the existing 64 KB pin limit; capture failure, oversize or expiry does not change live processing.
 
-In a workflow editor, you can paste example JSON instead. Neither a live nor a pasted sample is required to save a routine or publish a workflow. A workflow sample uses its existing `{body, delivery_id}` output shape, pinning, bindings and step tests. Choose the intended Webhook entry when a workflow has several triggers; no payload transformation is added. See [Workflows](workflows.md#reusable-webhook-sources).
+You can paste example JSON instead. Neither a live nor a pasted sample is required to save a routine or publish a workflow. A workflow sample uses its existing `{body, delivery_id}` output shape, pinning, bindings and step tests. Choose the intended Webhook entry when a workflow has several triggers; no payload transformation is added. See [Workflows](workflows.md#reusable-webhook-sources).
+
+### Insert event fields in a routine prompt { #routine-prompt-fields }
+
+Switch the prompt to template mode, then search the sample field tree and insert a field at the prompt cursor, or type a reference yourself:
+
+```text
+Summarize {{issue.title}} and the first item {{items[0].name}}.
+Read the unusual property {{["request.id"]}}.
+```
+
+Paths start at the JSON body root. Dotted properties, array indices and quoted bracket keys are supported; expressions, functions, loops and defaults are not. Single braces are literal. Escape double braces as `\{{example\}}` when you want to show them as text. Substitution runs once: braces inside a received value never become another reference.
+
+**Preview resolved prompt** uses the same backend resolver as live execution and never invokes an agent. Strings are inserted directly; other JSON values use compact JSON. `false`, `0` and `null` are present values. A missing path fails visibly with its name before an agent call, including in activation diagnostics and routine history when no run exists yet.
+
+Saving validates syntax without requiring fields to appear in a sample. Resolution uses the structured event before any legacy context clipping. Template mode sends the authored prompt with selected values marked as external data; it does not append the entire payload. An oversized resolved message fails instead of being truncated. Existing prompts remain literal until you explicitly select template mode; existing dedicated URLs and signature settings continue to work.
 
 ## The mechanism, once
 
@@ -228,7 +243,7 @@ has passed, subject to its signature freshness check. It is counted only once th
 the secret can use it up, and it is what stops a leaked secret or a relay stuck in
 a loop from spending the budget in an afternoon.
 
-**What arrived is data, never instructions.** The run's message is your prompt,
+**What arrived is data, never instructions.** In literal mode the run's message is your prompt,
 then the event inside an `<event_content>` block that tells the model to read it
 as data. An issue, an email or a file name is written by whoever sent it, and a
 sentence in it that sounds like an order is still part of the event.
@@ -692,7 +707,7 @@ reads it - a Gmail or Outlook trigger's filters are matched against the message
 itself, so there is no contract for you to satisfy.
 
 The one that is yours is the catch-all `webhook` source - **API** in the dialogs.
-It has **no filter**: a verified delivery fires, and the whole JSON body is appended
+It has **no filter**: a verified delivery fires, and in literal mode the rendered body is appended
 to the prompt. Use it for anything no portal covers - watching a feed no provider
 exposes an API for (a LinkedIn page, a marketplace listing), or any tool that can
 POST - with whatever relay you write doing the watching.
@@ -711,8 +726,7 @@ source with a documented example.
 { "from": "billing@acme.com", "subject": "Invoice #4021", "body": "…" }
 ```
 
-Nothing filters on those names any more, so the whole body reaches the prompt and
-the agent reads it. If you want the *filtering*, connect the mailbox instead.
+A template can select just the subject with `{{subject}}`; this changes the prompt, not which deliveries fire. If you want the *filtering*, connect the mailbox instead.
 
 ## Signing a delivery yourself
 
@@ -817,7 +831,7 @@ Two ways through it:
   prompt and its budget behave without any provider set up at all. An inactive (paused)
   trigger is respected - *Run now* does nothing to one. Its one gap is that it does not
   exercise the signature path or a real payload, so it will not catch a wrong secret or a
-  mis-named field.
+  mis-named field. A template that references event fields reports them missing instead of running the agent; use preview with an example to test it.
 
 - **Expose the port with a tunnel** when you do want to test the real webhook path. Point
   a tunnel at the API, set `PUBLIC_BASE_URL` to the tunnel's public address, and **create

@@ -1,5 +1,5 @@
 ---
-source_sha: "f281a876b51b"
+source_sha: "fdd41dc218e0"
 ---
 
 # Einen Event-Trigger einrichten { #setting-up-an-event-trigger }
@@ -150,7 +150,22 @@ Eine gemeinsame URL bestätigt den dauerhaften Empfang asynchron und liefert kei
 
 Wählen Sie an der Quelle oder im Webhook-Editor **Auf Ereignis warten** und senden Sie innerhalb von zwei Minuten ein authentifiziertes Ereignis an die angezeigte Live-URL. Das nächste Ereignis wird als Beispiel erfasst, ohne den Versand zu unterbrechen: **aktive Abonnenten werden weiter ausgeführt**. Die Erfassung startet keinen zusätzlichen Lauf. Das Beispiel bleibt zehn Minuten erhalten und unterliegt dem bisherigen 64-KB-Pin-Limit. Fehler, Übergröße oder Ablauf beeinflussen die Live-Verarbeitung nicht.
 
-Im Workflow-Editor können Sie alternativ Beispiel-JSON einfügen. Beispiele sind weder zum Speichern einer Routine noch zum Veröffentlichen eines Workflows erforderlich. Workflow-Beispiele verwenden weiterhin `{body, delivery_id}`, Pins, Bindings und Schritttests. Wählen Sie bei mehreren Triggern den gewünschten Webhook-Einstieg; es gibt keine zusätzliche Payload-Transformation. Siehe [Workflows](workflows.md#reusable-webhook-sources).
+Alternativ können Sie Beispiel-JSON einfügen. Beispiele sind weder zum Speichern einer Routine noch zum Veröffentlichen eines Workflows erforderlich. Workflow-Beispiele verwenden weiterhin `{body, delivery_id}`, Pins, Bindings und Schritttests. Wählen Sie bei mehreren Triggern den gewünschten Webhook-Einstieg; es gibt keine zusätzliche Payload-Transformation. Siehe [Workflows](workflows.md#reusable-webhook-sources).
+
+### Ereignisfelder in den Routine-Prompt einsetzen { #routine-prompt-fields }
+
+Aktivieren Sie den Vorlagenmodus. Suchen Sie im Feldbaum des Beispiels und fügen Sie ein Feld an der Cursorposition ein, oder schreiben Sie die Referenz selbst:
+
+```text
+Fasse {{issue.title}} und das erste Element {{items[0].name}} zusammen.
+Lies die ungewöhnliche Eigenschaft {{["request.id"]}}.
+```
+
+Pfade beginnen an der Wurzel des JSON-Bodys. Punktnotation, Array-Indizes und Schlüssel in Anführungszeichen innerhalb von Klammern sind erlaubt; Ausdrücke, Funktionen, Schleifen und Standardwerte nicht. Einzelne geschweifte Klammern bleiben Text. Schreiben Sie `\{{example\}}`, um doppelte Klammern wörtlich auszugeben. Die Ersetzung erfolgt einmal; Klammern in empfangenen Werten werden nicht erneut ausgewertet.
+
+**Aufgelösten Prompt anzeigen** verwendet denselben Backend-Resolver wie die Live-Ausführung und ruft keinen Agenten auf. Strings werden direkt eingesetzt, andere JSON-Werte als kompaktes JSON. `false`, `0` und `null` gelten als vorhanden. Ein fehlender Pfad führt vor dem Agentenaufruf zu einem sichtbaren Fehler mit seinem Namen, auch in Aktivierungsdiagnose und Routine-Verlauf, wenn noch kein Lauf existiert.
+
+Speichern prüft die Syntax, ohne passende Felder im Beispiel zu verlangen. Die Auflösung verwendet das strukturierte Ereignis vor einer bisherigen Kontextkürzung. Vorlagen senden den verfassten Prompt mit ausgewählten, als externe Daten markierten Werten, ohne die gesamte Payload anzuhängen. Zu große Nachrichten schlagen fehl, statt gekürzt zu werden. Bestehende Prompts bleiben bis zur ausdrücklichen Umstellung wörtlich; dedizierte URLs und Signatureinstellungen bleiben gültig.
 
 ## Die Mechanik, einmal { #the-mechanism-once }
 
@@ -252,8 +267,8 @@ erst, wenn die Signatur stimmt, niemand ohne das Secret kann das Kontingent also
 aufbrauchen - und es ist das, was ein geleaktes Secret oder ein Relay in einer
 Schleife davon abhält, das Budget an einem Nachmittag auszugeben.
 
-**Was ankam, sind Daten, nie Anweisungen.** Die Nachricht des Runs ist Ihr
-Prompt, danach das Ereignis in einem `<event_content>`-Block, der dem Modell sagt,
+**Was ankam, sind Daten, nie Anweisungen.** Im Literalmodus besteht die Nachricht aus Ihrem
+Prompt und dem Ereignis in einem `<event_content>`-Block, der dem Modell sagt,
 es als Daten zu lesen. Ein Issue, eine E-Mail oder ein Dateiname stammt von dem,
 der sie geschickt hat, und ein Satz darin, der wie ein Befehl klingt, ist trotzdem
 Teil des Ereignisses.
@@ -753,8 +768,8 @@ werden gegen die Nachricht selbst abgeglichen, es gibt also keinen Vertrag, den 
 müssten.
 
 Der, der Ihnen gehört, ist die Auffangquelle `webhook` - **API** in den Dialogen.
-Sie hat **keinen Filter**: eine verifizierte Zustellung löst aus, und der gesamte
-JSON-Body wird an den Prompt angehängt. Nutzen Sie sie für alles, was kein Portal
+Sie hat **keinen Filter**: eine verifizierte Zustellung löst aus, und im Literalmodus wird der
+aufbereitete JSON-Body an den Prompt angehängt. Nutzen Sie sie für alles, was kein Portal
 abdeckt - das Beobachten eines Feeds, für den kein Provider eine API anbietet
 (eine LinkedIn-Seite, ein Marktplatz-Inserat), oder irgendein Werkzeug, das POSTen
 kann - wobei das von Ihnen geschriebene Relay das Beobachten übernimmt.
@@ -774,8 +789,7 @@ gespeistes Postfach ist die Quelle API mit einem dokumentierten Beispiel.
 { "from": "billing@acme.com", "subject": "Invoice #4021", "body": "…" }
 ```
 
-Auf diese Namen filtert nichts mehr, der gesamte Body erreicht also den Prompt und
-der Agent liest ihn. Wenn Sie das _Filtern_ wollen, verbinden Sie stattdessen das
+Eine Vorlage kann mit `{{subject}}` nur den Betreff auswählen. Das ändert den Prompt, nicht den Auslöser. Wenn Sie das _Filtern_ wollen, verbinden Sie stattdessen das
 Postfach.
 
 ## Eine Zustellung selbst signieren { #signing-a-delivery-yourself }
@@ -891,7 +905,7 @@ hindurch:
   verhalten, ganz ohne eingerichteten Provider. Ein inaktiver (pausierter) Trigger
   wird respektiert - _Run now_ tut einem solchen nichts. Seine eine Lücke ist, dass
   es weder den Signaturpfad noch eine echte Payload ausübt, es wird also weder ein
-  falsches Secret noch ein falsch benanntes Feld aufdecken.
+  falsches Secret noch ein falsch benanntes Feld aufdecken. Verweist eine Vorlage auf Ereignisfelder, meldet sie diese als fehlend, statt den Agenten zu starten. Testen Sie sie mit einem Beispiel in der Vorschau.
 
 - **Legen Sie den Port über einen Tunnel frei**, wenn Sie doch den echten
   Webhook-Pfad testen wollen. Richten Sie einen Tunnel auf die API, setzen Sie

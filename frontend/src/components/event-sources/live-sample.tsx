@@ -12,10 +12,13 @@ import { MAX_PINNED_BYTES, jsonBytes } from "@/lib/workflows/step-data";
 export function LiveSample({
   sourceId,
   onSample,
+  onPaste = onSample,
 }: {
   sourceId: string;
   /** Editors consume the result. Without an editor, display it here for inspection only. */
   onSample?: (sample: EventSample) => void;
+  /** A local example can remain usable after access to live captures changes. */
+  onPaste?: (sample: EventSample) => void;
 }) {
   const t = useTranslations("eventSources");
   const source = useEventSource(sourceId);
@@ -24,7 +27,9 @@ export function LiveSample({
   const { listen, capture } = useSourceListener(sourceId, usableSource ? token : null);
   const consumed = useRef<string | null>(null);
   const caught =
-    !capture.error && capture.data?.state === "caught" ? capture.data.delivery : undefined;
+    usableSource && !capture.error && capture.data?.state === "caught"
+      ? capture.data.delivery
+      : undefined;
   useEffect(() => {
     if (caught && onSample && token !== consumed.current) {
       consumed.current = token;
@@ -91,7 +96,7 @@ export function LiveSample({
           )}
         </>
       )}
-      {onSample && <PasteSample onSample={onSample} />}
+      {onPaste && <PasteSample onSample={onPaste} />}
     </div>
   );
 }

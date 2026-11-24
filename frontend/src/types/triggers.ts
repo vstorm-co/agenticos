@@ -115,6 +115,7 @@ export interface Trigger {
   /** The per-source filter (which actions, which sender); `{}` on a schedule. */
   event_config: Record<string, unknown>;
   source_id?: string | null;
+  prompt_mode?: RoutinePromptMode;
   prompt: string;
   /** Null on an event trigger, which has no scheduled next fire. */
   next_fire_at: string | null;
@@ -173,6 +174,7 @@ export interface TriggerCreate {
   is_active?: boolean;
   notification_channels?: RoutineNotificationChannel[] | null;
   source_id?: string | null;
+  prompt_mode?: RoutinePromptMode;
   prompt: string;
   /** An optional title; omit to list the trigger by its agent's name. */
   name?: string | null;
@@ -239,6 +241,7 @@ export interface TriggerUpdate {
   max_failures?: number | null;
   notification_channels?: RoutineNotificationChannel[] | null;
   source_id?: string | null;
+  prompt_mode?: RoutinePromptMode;
   prompt?: string;
   name?: string | null;
   schedule_kind?: ScheduleKind;
@@ -272,8 +275,10 @@ export interface TriggerAttempt {
     | "platform_identity_required"
     | "source_review_required"
     | "agent_unavailable"
+    | "prompt_template_failed"
     | "preparation_failed"
     | "previous_run_active";
+  error_message?: string | null;
   occurred_at: string;
 }
 
@@ -306,3 +311,6 @@ export interface TriggerFilteredEventRead {
 
 /** Legacy stored delivery marker; Inbox publication is now an MCP operation. */
 export type RoutineResultMode = "report" | "inbox";
+
+/** Only an opted-in event routine interprets payload fields in its message. */
+export type RoutinePromptMode = "literal" | "template";

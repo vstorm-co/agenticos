@@ -3044,14 +3044,26 @@ def test_routine_chat_mode_migration_maps_destinations_without_changing_authorit
         engine.dispose()
 
 
-def test_event_source_downgrade_preserves_runnable_fire_jobs() -> None:
+@pytest.mark.parametrize(
+    ("field", "previous_revision", "message"),
+    [
+        ("event_source_id", "0362_merge_native_release", "source-bound fire-trigger jobs"),
+        ("event_body", "0363_reusable_event_sources", "structured fire jobs"),
+    ],
+)
+def test_event_source_downgrade_preserves_runnable_fire_jobs(
+    field: str, previous_revision: str, message: str
+) -> None:
     from app.db.models.background_job import BackgroundJob
 
     result = _alembic("upgrade", "head")
     assert result.returncode == 0, result.stderr
     engine = create_engine(_url(MIGRATION_DATABASE))
     legacy = {"trigger_id": str(uuid4()), "event_context": "already rendered"}
-    nullable = {**legacy, "event_source_id": None}
+    if field == "event_body":
+        # #3105 workers still need the receipt's identity after the template-only downgrade.
+        legacy["event_source_id"] = str(uuid4())
+    nullable = {**legacy, field: None}
     try:
         with engine.begin() as connection:
             connection.execute(
@@ -3074,7 +3086,7 @@ def test_event_source_downgrade_preserves_runnable_fire_jobs() -> None:
                     pool="agent",
                     max_attempts=3,
                     status="queued",
-                    payload={**legacy, "event_source_id": str(uuid4())},
+                    payload={**legacy, field: {} if field == "event_body" else str(uuid4())},
                 )
                 .returning(BackgroundJob.id)
             )
@@ -3085,15 +3097,15 @@ def test_event_source_downgrade_preserves_runnable_fire_jobs() -> None:
                     .where(BackgroundJob.id == source_job)
                     .values(status=status)
                 )
-            refused = _alembic("downgrade", "0362_merge_native_release")
-            assert refused.returncode != 0 and "source-bound fire-trigger jobs" in refused.stderr
+            refused = _alembic("downgrade", previous_revision)
+            assert refused.returncode != 0 and message in refused.stderr
         with engine.begin() as connection:
             connection.execute(
                 update(BackgroundJob)
                 .where(BackgroundJob.id == source_job)
                 .values(status="cancelled")
             )
-        result = _alembic("downgrade", "0362_merge_native_release")
+        result = _alembic("downgrade", previous_revision)
         assert result.returncode == 0, result.stderr
         with engine.connect() as connection:
             assert connection.scalars(

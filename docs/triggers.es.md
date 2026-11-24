@@ -1,5 +1,5 @@
 ---
-source_sha: "f281a876b51b"
+source_sha: "fdd41dc218e0"
 ---
 
 # Configurar un trigger de evento { #setting-up-an-event-trigger }
@@ -148,7 +148,22 @@ Una URL compartida confirma la recepción duradera de forma asíncrona y no devu
 
 Desde la fuente o el editor de webhooks, elige **Escuchar evento** y envía un evento autenticado a la URL activa mostrada en un plazo de dos minutos. La escucha recibe el siguiente evento sin interrumpir el envío: **los suscriptores activos siguen ejecutándose**. La captura no inicia otra ejecución. La muestra se conserva durante diez minutos y respeta el límite existente de 64 KB para datos fijados. Un fallo, exceso de tamaño o vencimiento no cambia el procesamiento en vivo.
 
-En el editor de workflows también puedes pegar JSON de ejemplo. Las muestras no son necesarias para guardar una rutina ni publicar un workflow. Una muestra de workflow mantiene `{body, delivery_id}`, los datos fijados, las vinculaciones y las pruebas de pasos. Si hay varios disparadores, selecciona la entrada Webhook adecuada; no se añade ninguna transformación de la carga. Consulta [Workflows](workflows.md#reusable-webhook-sources).
+También puedes pegar JSON de ejemplo. Las muestras no son necesarias para guardar una rutina ni publicar un workflow. Una muestra de workflow mantiene `{body, delivery_id}`, los datos fijados, las vinculaciones y las pruebas de pasos. Si hay varios disparadores, selecciona la entrada Webhook adecuada; no se añade ninguna transformación de la carga. Consulta [Workflows](workflows.md#reusable-webhook-sources).
+
+### Insertar campos del evento en el prompt de una rutina { #routine-prompt-fields }
+
+Activa el modo de plantilla, busca un campo en el árbol de la muestra e insértalo en la posición del cursor, o escribe una referencia:
+
+```text
+Resume {{issue.title}} y el primer elemento {{items[0].name}}.
+Lee la propiedad inusual {{["request.id"]}}.
+```
+
+Las rutas empiezan en la raíz del cuerpo JSON. Se admiten propiedades con puntos, índices de arrays y claves entre comillas dentro de corchetes; no expresiones, funciones, bucles ni valores predeterminados. Las llaves simples son literales. Escribe `\{{example\}}` para mostrar llaves dobles como texto. La sustitución ocurre una sola vez: las llaves de un valor recibido nunca generan otra referencia.
+
+**Vista previa del prompt resuelto** usa el mismo resolver del backend que la ejecución y nunca invoca un agente. Las cadenas se insertan directamente; otros valores usan JSON compacto. `false`, `0` y `null` son valores presentes. Una ruta ausente produce un fallo visible con su nombre antes de llamar al agente, también en el diagnóstico de activación y el historial de la rutina cuando todavía no existe una ejecución.
+
+Guardar valida la sintaxis sin exigir que los campos aparezcan en una muestra. La resolución usa el evento estructurado antes de cualquier recorte anterior del contexto. El modo de plantilla envía el prompt escrito con valores seleccionados marcados como datos externos, sin añadir la carga completa. Un mensaje demasiado grande falla en vez de truncarse. Los prompts existentes siguen siendo literales hasta cambiar el modo explícitamente; las URL dedicadas y sus ajustes de firma siguen funcionando.
 
 ## El mecanismo, una vez { #the-mechanism-once }
 
@@ -244,7 +259,7 @@ reintentarlo tras el minuto, siempre que la firma siga siendo reciente. Solo cue
 correcta, así que nadie sin el secreto puede agotarlo - y es lo que impide que un
 secreto filtrado o un relé en bucle gaste el budget en una tarde.
 
-**Lo que llegó son datos, nunca instrucciones.** El mensaje del run es tu prompt,
+**Lo que llegó son datos, nunca instrucciones.** En modo literal, el mensaje del run es tu prompt,
 y después el evento dentro de un bloque `<event_content>` que le dice al modelo
 que lo lea como datos. Una issue, un correo o un nombre de archivo lo escribe
 quien lo envió, y una frase dentro que suene a orden sigue siendo parte del
@@ -728,7 +743,7 @@ adaptador que la lee - los filtros de un trigger de Gmail o de Outlook se
 contrastan con el propio mensaje, así que no hay contrato que tú tengas que cumplir.
 
 El que sí es tuyo es la fuente comodín `webhook` - **API** en los diálogos. **No
-tiene filtro**: una entrega verificada dispara, y todo el cuerpo JSON se añade al
+tiene filtro**: una entrega verificada dispara, y en modo literal el cuerpo procesado se añade al
 prompt. Úsala para cualquier cosa que ningún portal cubra - vigilar un feed para
 el que ningún provider expone una API (una página de LinkedIn, un anuncio de un
 marketplace), o cualquier herramienta que sepa hacer POST - siendo el relé que tú
@@ -748,8 +763,7 @@ alimentado por un relé es la fuente API con un ejemplo documentado.
 { "from": "billing@acme.com", "subject": "Invoice #4021", "body": "…" }
 ```
 
-Ya nada filtra por esos nombres, así que todo el cuerpo llega al prompt y el
-agent lo lee. Si lo que quieres es el *filtrado*, conecta el buzón en su lugar.
+Una plantilla puede seleccionar solo el asunto con `{{subject}}`. Esto cambia el prompt, no las entregas que lo activan. Si lo que quieres es el *filtrado*, conecta el buzón en su lugar.
 
 ## Firmar una entrega tú mismo { #signing-a-delivery-yourself }
 
@@ -857,7 +871,7 @@ cualquier relé alojado - no pueden ver tu máquina. Dos maneras de salvarlo:
   el agent, su prompt y su budget se comportan sin ningún provider configurado.
   Un trigger inactivo (en pausa) se respeta - *Run now* no le hace nada. Su única
   laguna es que no recorre el camino de la firma ni una carga real, así que no
-  pillará un secreto equivocado ni un campo mal nombrado.
+  pillará un secreto equivocado ni un campo mal nombrado. Si la plantilla usa campos del evento, se indican como ausentes y el agent no se ejecuta. Pruébala con un ejemplo en la vista previa.
 
 - **Expón el puerto con un túnel** cuando sí quieras probar el camino real del
   webhook. Apunta un túnel a la API, pon `PUBLIC_BASE_URL` a la dirección pública

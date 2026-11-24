@@ -1,5 +1,5 @@
 ---
-source_sha: "dcb9a2eda587"
+source_sha: "4de3886f9c87"
 ---
 
 # Workflows { #workflows }
@@ -1091,7 +1091,7 @@ Quien pueda consultar las ejecuciones del workflow puede ver en el historial los
 
 **Escuchar evento** captura el siguiente evento autenticado en la URL activa configurada. La ventana dura dos minutos; las muestras temporales duran diez minutos y respetan el límite de 64 KB para datos fijados. **Los suscriptores activos siguen ejecutándose.** La captura no crea otra ejecución ni cambia las entregas. Pegar JSON de ejemplo es una alternativa; guardar y publicar nunca requieren una muestra.
 
-La muestra del disparador seleccionado sigue siendo `{body, delivery_id}`. Fíjala y usa las vinculaciones de campos y las pruebas de pasos existentes; los nodos siguientes consumen JSON directamente. Con varias entradas, selecciona explícitamente el nodo Webhook adecuado para capturar y fijar.
+La muestra del disparador seleccionado sigue siendo `{body, delivery_id}`. Fíjala y usa las vinculaciones de campos y las pruebas de pasos existentes; los nodos siguientes consumen JSON directamente. Con varias entradas, selecciona explícitamente el nodo Webhook adecuado para capturar y fijar. No se añade transformación de la carga ni interpolación de prompts de rutinas a las vinculaciones del workflow.
 
 Probar una rama manual o usar un ejemplo JSON ya fijado no requiere permiso de uso sobre la fuente del webhook. Publicar un flujo que se suscribe a esa fuente y escuchar eventos en directo sí requieren ese permiso.
 

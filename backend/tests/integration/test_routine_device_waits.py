@@ -6,6 +6,7 @@ from uuid import UUID, uuid4
 
 import pytest
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.spec import AgentSpec
@@ -305,8 +306,9 @@ async def test_wait_representation_never_includes_private_event_context(db: Asyn
     )
 
 
+@pytest.mark.parametrize("templated", [False, True])
 async def test_queue_and_minute_worker_keep_one_activation_until_device_returns(
-    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch, templated: bool
 ) -> None:
     from unittest.mock import AsyncMock
 
@@ -317,6 +319,11 @@ async def test_queue_and_minute_worker_keep_one_activation_until_device_returns(
     from app.services.routine_devices import RoutineDeviceOffline
 
     w = await world(db, event=True)
+    if templated:
+        w.trigger.prompt_mode = "template"
+        w.trigger.prompt = "Review {{issue.title}}"
+        await db.flush()
+    body = {"issue": {"title": "original private event"}}
     service = AgentTriggerService(db)
     monkeypatch.setattr(service, "_creator_context", AsyncMock(return_value=w.ctx))
     monkeypatch.setattr(
@@ -332,11 +339,15 @@ async def test_queue_and_minute_worker_keep_one_activation_until_device_returns(
     execute = AsyncMock()
     monkeypatch.setattr(AgentRunnerService, "execute", execute)
     first_job_id = await service.queue_fire(
-        w.trigger.id, organization_id=w.ctx.organization_id, event_context="original private event"
+        w.trigger.id,
+        organization_id=w.ctx.organization_id,
+        event_context="original private event",
+        event_body=body,
     )
     first_job = await db.get(BackgroundJob, first_job_id)
     activation = UUID(first_job.payload["activation_id"])
     assert first_job.payload["event_context"] is None
+    assert "event_body" not in first_job.payload
     first_job.status = "running"
     await db.flush()
     await service.fire(w.trigger.id, activation_id=activation)
@@ -351,9 +362,11 @@ async def test_queue_and_minute_worker_keep_one_activation_until_device_returns(
     wait = await repo.get(db, activation)
     assert wait.last_job_id != first_job_id
     assert wait.event_context == "original private event"
+    assert wait.event_body == (body if templated else None)
     next_job = await db.get(BackgroundJob, wait.last_job_id)
     assert next_job.payload["activation_id"] == str(activation)
     assert next_job.payload["event_context"] is None
+    assert "event_body" not in next_job.payload
     assert await service.resume_device_waits() == 0
     await admit_activation(db, replace(w.ctx, routine_activation_id=activation))
     await service.fire(w.trigger.id, activation_id=activation)
@@ -819,9 +832,13 @@ async def test_an_event_on_an_ended_session_can_reach_the_rebinding_worker(
     assert w.trigger.is_active
 
 
-async def test_wait_preserves_reusable_source_for_the_resuming_worker(db: AsyncSession) -> None:
+@pytest.mark.parametrize("completion", ["started", "cancelled", "routine_changed", "failed"])
+async def test_structured_event_survives_device_wait_and_is_cleared_when_terminal(
+    db: AsyncSession, completion: str
+) -> None:
     w = await world(db, event=True)
     activation_id, source_id = uuid4(), uuid4()
+    body = {"padding": "x" * 4000, "issue": {"title": "beyond old cutoff"}}
     assert await repo.park(
         db,
         activation_id=activation_id,
@@ -829,17 +846,33 @@ async def test_wait_preserves_reusable_source_for_the_resuming_worker(db: AsyncS
         user_id=w.user.id,
         device_id=w.device.id,
         intent_hash=activation_intent(w.trigger),
-        event_context="rendered event",
+        event_context="rendered event" if completion == "failed" else None,
+        event_body=body,
         event_source_id=source_id,
     )
     wait = await repo.get(db, activation_id)
     assert wait is not None and wait.is_event
-    assert wait.event_context == "rendered event"
-    assert wait.event_source_id == source_id
-    assert RoutineDeviceWaitExport.model_validate(wait).event_source_id == source_id
-    assert not await repo.settle(
-        db, activation_id=activation_id, trigger_id=uuid4(), status="cancelled"
-    )
-    assert await repo.settle(
-        db, activation_id=activation_id, trigger_id=w.trigger.id, status="cancelled"
-    )
+    assert wait.event_body == body and wait.event_source_id == source_id
+    exported = RoutineDeviceWaitExport.model_validate(wait)
+    assert exported.event_body == body and exported.event_source_id == source_id
+    assert await personal_data_repo.routine_device_wait_export_size(db, w.user.id) > 5024
+    if completion == "failed":
+        await repo.fail(db, wait=wait)
+    elif completion == "routine_changed":
+        await repo.cancel_for_trigger(db, trigger_id=w.trigger.id, reason=completion)
+    elif completion == "started":
+        await repo.settle(db, activation_id=activation_id, status="started")
+    else:
+        assert not await repo.settle(
+            db, activation_id=activation_id, trigger_id=uuid4(), status="cancelled"
+        )
+        assert await repo.settle(
+            db, activation_id=activation_id, trigger_id=w.trigger.id, status="cancelled"
+        )
+    wait = await repo.get(db, activation_id)
+    assert wait is not None and wait.event_body is None
+    assert wait.event_context == ("rendered event" if completion == "failed" else None)
+    with pytest.raises(IntegrityError, match="ck_routine_device_wait_redacted"):
+        async with db.begin_nested():
+            wait.event_body = body
+            await db.flush()

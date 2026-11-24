@@ -11,11 +11,13 @@ import {
   makeDefinition,
   node,
 } from "@/components/workflows/validation/fixtures";
+import { qk } from "@/lib/query-keys";
 import { apiClient } from "@/lib/api-client";
 import type { EventSource, SourceUsage } from "@/lib/event-sources-api";
 import { SourceForm } from "./source-form";
 import { SourceManager } from "./source-manager";
 import { SourceSelector } from "./source-selector";
+import { RoutinePrompt } from "./routine-prompt";
 import { LiveSample, PasteSample } from "./live-sample";
 
 vi.mock("@/lib/api-client", async () => ({
@@ -529,4 +531,96 @@ describe("editor samples", () => {
     });
     expect(apiClient.post).not.toHaveBeenCalled();
   });
+});
+
+function RoutineEditor({ sourceId, triggerId }: { sourceId: string | null; triggerId?: string }) {
+  const [value, setValue] = useState("Triage old now");
+  return (
+    <RoutinePrompt
+      value={value}
+      onChange={setValue}
+      mode="template"
+      onModeChange={vi.fn()}
+      sourceId={sourceId}
+      agentId="a1"
+      triggerId={triggerId}
+    />
+  );
+}
+
+it("inserts a field from pasted JSON into the selection and previews without a run", async () => {
+  vi.mocked(apiClient.post).mockResolvedValue({
+    resolved_prompt: "Triage <event_content>Broken</event_content> now",
+  });
+  render(<RoutineEditor sourceId={null} />, { wrapper });
+  fireEvent.change(screen.getByLabelText("Example JSON object"), {
+    target: { value: '{"issues":[{"bug.title":"Broken"}]}' },
+  });
+  await userEvent.click(screen.getByRole("button", { name: "Use example", hidden: true }));
+  const prompt = screen.getByLabelText("Message") as HTMLTextAreaElement;
+  prompt.setSelectionRange(7, 10);
+  await userEvent.type(screen.getByRole("textbox", { name: "Payload fields" }), "bug");
+  await userEvent.click(screen.getByRole("button", { name: /bug.title/ }));
+  expect(prompt).toHaveValue('Triage {{issues[0]["bug.title"]}} now');
+  await userEvent.click(screen.getByRole("button", { name: "Preview resolved prompt" }));
+  expect(await screen.findByText("Triage <event_content>Broken</event_content> now")).toBeVisible();
+  expect(apiClient.post).toHaveBeenCalledExactlyOnceWith("/agents/a1/triggers/preview-prompt", {
+    prompt: prompt.value,
+    payload: { issues: [{ "bug.title": "Broken" }] },
+  });
+  fireEvent.change(prompt, { target: { value: "Now summarize it." } });
+  expect(screen.queryByText("Resolved prompt (no agent run)")).toBeNull();
+});
+
+it("previews captured fields with the existing routine and source, and shows the resolver's diagnostic", async () => {
+  vi.mocked(apiClient.post)
+    .mockResolvedValueOnce({ listener_id: "token" })
+    .mockRejectedValueOnce(new Error("Prompt field is missing: other"));
+  render(<RoutineEditor sourceId="s1" triggerId="t1" />, { wrapper });
+  await userEvent.click(await screen.findByRole("button", { name: "Listen for event" }));
+  await userEvent.click(await screen.findByRole("button", { name: /\{\{issue.title\}\}/ }));
+  fireEvent.change(screen.getByLabelText("Message"), { target: { value: "{{other}}" } });
+  await userEvent.click(screen.getByRole("button", { name: "Preview resolved prompt" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("Prompt field is missing: other");
+  expect(apiClient.post).toHaveBeenLastCalledWith("/agents/a1/triggers/preview-prompt", {
+    prompt: "{{other}}",
+    payload: { issue: { title: "Broken" } },
+    source_id: "s1",
+    trigger_id: "t1",
+  });
+});
+
+it("allows local field selection but not a source-backed preview without source-use access", async () => {
+  vi.mocked(apiClient.get).mockResolvedValue({ ...source, can_use: false });
+  render(<RoutineEditor sourceId="s1" triggerId="t1" />, { wrapper });
+  await screen.findByText(/Source-use permission is required/);
+  fireEvent.change(screen.getByLabelText("Example JSON object"), {
+    target: { value: '{"id":13}' },
+  });
+  await userEvent.click(screen.getByRole("button", { name: "Use example", hidden: true }));
+  expect(screen.getByRole("button", { name: /\{\{id\}\}/ })).toBeVisible();
+  expect(screen.queryByRole("button", { name: "Preview resolved prompt" })).toBeNull();
+  expect(apiClient.post).not.toHaveBeenCalled();
+});
+
+it("removes captured values and their preview if source use is revoked", async () => {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  vi.mocked(apiClient.post)
+    .mockResolvedValueOnce({ listener_id: "token" })
+    .mockResolvedValueOnce({ resolved_prompt: "secret preview" });
+  render(
+    <QueryClientProvider client={client}>
+      <RoutineEditor sourceId="s1" />
+    </QueryClientProvider>,
+  );
+  await userEvent.click(await screen.findByRole("button", { name: "Listen for event" }));
+  await screen.findByRole("button", { name: /\{\{issue.title\}\}/ });
+  await userEvent.click(screen.getByRole("button", { name: "Preview resolved prompt" }));
+  expect(await screen.findByText("secret preview")).toBeVisible();
+  vi.mocked(apiClient.get).mockResolvedValue({ ...source, can_use: false });
+  await client.invalidateQueries({ queryKey: qk.eventSources.detail("s1") });
+  await screen.findByText(/Source-use permission is required/);
+  expect(screen.queryByText("secret preview")).toBeNull();
+  expect(screen.queryByText(/Broken/)).toBeNull();
+  expect(screen.queryByRole("group", { name: "Payload fields" })).toBeNull();
 });

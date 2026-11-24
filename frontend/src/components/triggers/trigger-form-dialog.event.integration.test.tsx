@@ -322,42 +322,79 @@ describe("TriggerFormDialog custom-webhook event form", () => {
     },
   );
 
-  it("saves the literal message without requiring a sample or copying source credentials", async () => {
+  it.each(["literal", "template"] as const)(
+    "saves the %s message without requiring a sample or copying source credentials",
+    async (mode) => {
+      serveSharedSource("webhook");
+      vi.mocked(apiClient.post).mockResolvedValue(
+        trigger({ event_source: "webhook", source_id: "shared-source" }),
+      );
+      const dialog = await openEvent();
+      await userEvent.type(dialog.getByLabelText("Signing secret"), "unused-dedicated-secret");
+      await userEvent.click(await dialog.findByRole("combobox", { name: "Event source" }));
+      await userEvent.click(await screen.findByRole("option", { name: "Shared incoming" }));
+      expect(dialog.queryByLabelText("Signing secret")).toBeNull();
+      await userEvent.click(dialog.getByRole("button", { name: "Continue" }));
+      await userEvent.click(dialog.getByRole("button", { name: "Continue" }));
+      const promptMode = dialog.getByRole("combobox", { name: "Prompt mode" });
+      expect(promptMode).toHaveTextContent("Literal prompt");
+      if (mode === "template") {
+        await userEvent.click(promptMode);
+        await userEvent.click(screen.getByRole("option", { name: "Prompt with payload fields" }));
+      }
+      fireEvent.change(dialog.getByLabelText("Message"), {
+        target: { value: "Triage {{issue.title}}" },
+      });
+      await userEvent.click(dialog.getByRole("button", { name: "Create" }));
+      expect(apiClient.post).toHaveBeenCalledWith(
+        `/agents/${AGENT_ID}/triggers`,
+        expect.objectContaining({
+          source_id: "shared-source",
+          prompt: "Triage {{issue.title}}",
+          source_mode: "follow_agent",
+        }),
+      );
+      const request = vi
+        .mocked(apiClient.post)
+        .mock.calls.find(([path]) => path === `/agents/${AGENT_ID}/triggers`)?.[1];
+      if (mode === "template") expect(request).toHaveProperty("prompt_mode", "template");
+      else expect(request).not.toHaveProperty("prompt_mode");
+      expect(request).not.toHaveProperty("event_secret");
+      expect(request).not.toHaveProperty("review_before_activation");
+      const confirmation = within(await screen.findByRole("dialog", { name: "Trigger created" }));
+      expect(apiClient.patch).not.toHaveBeenCalled();
+      expect(
+        confirmation.getByText(/uses the event source’s existing URL and credentials/),
+      ).toBeVisible();
+      expect(confirmation.queryByLabelText("Signing secret")).toBeNull();
+      expect(confirmation.queryByDisplayValue("unused-dedicated-secret")).toBeNull();
+    },
+  );
+
+  it("switches a saved template back to literal without changing its message or source", async () => {
     serveSharedSource("webhook");
-    vi.mocked(apiClient.post).mockResolvedValue(
-      trigger({ event_source: "webhook", source_id: "shared-source" }),
-    );
-    const dialog = await openEvent();
-    await userEvent.type(dialog.getByLabelText("Signing secret"), "unused-dedicated-secret");
-    await userEvent.click(await dialog.findByRole("combobox", { name: "Event source" }));
-    await userEvent.click(await screen.findByRole("option", { name: "Shared incoming" }));
-    expect(dialog.queryByLabelText("Signing secret")).toBeNull();
-    await userEvent.click(dialog.getByRole("button", { name: "Continue" }));
-    await userEvent.click(dialog.getByRole("button", { name: "Continue" }));
-    fireEvent.change(dialog.getByLabelText("Message"), {
-      target: { value: "Triage {{issue.title}}" },
+    const row = trigger({
+      source_id: "shared-source",
+      event_source: "webhook",
+      prompt_mode: "template",
+      prompt: "Triage {{issue.title}}",
     });
-    await userEvent.click(dialog.getByRole("button", { name: "Create" }));
-    expect(apiClient.post).toHaveBeenCalledWith(
-      `/agents/${AGENT_ID}/triggers`,
-      expect.objectContaining({
-        source_id: "shared-source",
-        prompt: "Triage {{issue.title}}",
-        source_mode: "follow_agent",
-      }),
+    vi.mocked(apiClient.patch).mockResolvedValue({ ...row, prompt_mode: "literal" });
+    render(<TriggerFormDialog agentId={AGENT_ID} open trigger={row} onOpenChange={vi.fn()} />, {
+      wrapper,
+    });
+    const dialog = within(await screen.findByRole("dialog"));
+    const mode = dialog.getByRole("combobox", { name: "Prompt mode" });
+    expect(mode).toHaveTextContent("Prompt with payload fields");
+    await userEvent.click(mode);
+    await userEvent.click(screen.getByRole("option", { name: "Literal prompt" }));
+    await userEvent.click(dialog.getByRole("button", { name: "Save" }));
+    await waitFor(() =>
+      expect(apiClient.patch).toHaveBeenCalledExactlyOnceWith(
+        `/agents/${AGENT_ID}/triggers/${row.id}`,
+        { prompt_mode: "literal" },
+      ),
     );
-    const request = vi
-      .mocked(apiClient.post)
-      .mock.calls.find(([path]) => path === `/agents/${AGENT_ID}/triggers`)?.[1];
-    expect(request).not.toHaveProperty("event_secret");
-    expect(request).not.toHaveProperty("review_before_activation");
-    const confirmation = within(await screen.findByRole("dialog", { name: "Trigger created" }));
-    expect(apiClient.patch).not.toHaveBeenCalled();
-    expect(
-      confirmation.getByText(/uses the event source’s existing URL and credentials/),
-    ).toBeVisible();
-    expect(confirmation.queryByLabelText("Signing secret")).toBeNull();
-    expect(confirmation.queryByDisplayValue("unused-dedicated-secret")).toBeNull();
   });
 
   it("creates a raw-body HMAC trigger and refuses an invalid header", async () => {

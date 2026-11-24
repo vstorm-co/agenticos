@@ -42,7 +42,7 @@ from typing import Any, Literal, cast
 from uuid import UUID, uuid4, uuid5
 
 from fastapi.encoders import jsonable_encoder
-from pydantic import JsonValue
+from pydantic import JsonValue, TypeAdapter
 from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -50,6 +50,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agents.system_agents import refuse_system_agent
 from app.core.audit import current_impersonator, record_audit, set_acting_trigger
 from app.core.background import spawn_after_commit, spawn_after_rollback
+from app.core.config import settings
 from app.core.cron import cron_has_next, cron_next
 from app.core.exceptions import (
     AppException,
@@ -106,6 +107,8 @@ from app.schemas.agent_trigger import (
     TriggerCreate,
     TriggerFilteredEventRead,
     TriggerFireResult,
+    TriggerPromptPreviewCreate,
+    TriggerPromptPreviewRead,
     TriggerRead,
     TriggerUpdate,
     webhook_url,
@@ -146,6 +149,12 @@ from app.services.routine_devices import (
     local_scope,
 )
 from app.services.routine_devices import ready as local_device_ready
+from app.services.routine_prompt import (
+    RoutinePromptError,
+    parse_prompt,
+    prompt_bytes,
+    resolve_prompt,
+)
 from app.services.routine_sources import (
     PlatformRoutineIdentityRequired,
     RoutineSourceService,
@@ -154,8 +163,10 @@ from app.services.routine_sources import (
 )
 from app.services.spend import month_start
 from app.worker.jobs import FIRE_TRIGGER, FireTrigger
+from app.workflows.graph.model import jsonb_value_fits
 
 logger = logging.getLogger(__name__)
+_EVENT_BODY = TypeAdapter(dict[str, JsonValue])
 
 # How often a running fire re-stamps its in-flight marker - a third of
 # `agent_trigger_repo.FIRE_LEASE`, so a renewal has two more chances to land
@@ -242,6 +253,7 @@ class EventFireDecision:
     """The trigger's own organization, which the queued job carries: a job without
     one is deployment-wide, so a fire that kept killing its worker would pause
     `fire-trigger` for every tenant rather than for this one."""
+    event_body: dict[str, JsonValue] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -367,6 +379,7 @@ def _acts_as_themselves(ctx: AuthContext, person: UUID | None) -> bool:
 
 _WHAT_IT_DOES = (
     "prompt",
+    "prompt_mode",
     "source_id",
     "environment_id",
     "pinned_version_id",
@@ -638,6 +651,7 @@ class AgentTriggerService:
         stage: TriggerAttemptStage,
         reason: TriggerAttemptReason,
         status: TriggerAttemptStatus = "blocked",
+        error_message: str | None = None,
     ) -> TriggerAttemptRead:
         attempt = await agent_trigger_repo.record_attempt(
             self.db,
@@ -647,6 +661,7 @@ class AgentTriggerService:
             status=status,
             stage=stage,
             reason=reason,
+            error_message=error_message,
         )
         return TriggerAttemptRead.model_validate(attempt)
 
@@ -950,6 +965,8 @@ class AgentTriggerService:
 
         if run_once_at is not None and data.trigger_type != "schedule":
             raise BadRequestError(message="One-time work requires a schedule")
+        if data.prompt_mode == "template":
+            parse_prompt(data.prompt)
         now = datetime.now(UTC)
         event_source: str | None = None
         event_config: dict[str, Any] = {}
@@ -1070,6 +1087,7 @@ class AgentTriggerService:
             project_id=data.project_id,
             created_by_user_id=ctx.subject_id,
             prompt=data.prompt,
+            prompt_mode=data.prompt_mode,
             source_id=data.source_id,
             name=data.name,
             trigger_type=data.trigger_type,
@@ -1404,6 +1422,10 @@ class AgentTriggerService:
 
         self._guard_acting_as_creator(ctx, trigger, changes)
         self._guard_local_target(ctx, trigger, changes, data.local_target)
+        if changes.get("prompt_mode", trigger.prompt_mode) == "template":
+            if trigger.trigger_type != TriggerType.EVENT.value:
+                raise refused_field("prompt_mode", "Template prompts require an event trigger")
+            parse_prompt(changes.get("prompt", trigger.prompt))
         if "source_id" in changes:
             if trigger.trigger_type != TriggerType.EVENT.value or changes["source_id"] is None:
                 raise refused_field("source_id", "Select an event source for this event trigger")
@@ -1667,6 +1689,29 @@ class AgentTriggerService:
         self, ctx: AuthContext, agent_id: UUID, trigger_id: UUID
     ) -> RoutineSourceReview:
         return await self.sources.options(ctx, await self._owned(ctx, agent_id, trigger_id))
+
+    async def preview_prompt(
+        self, ctx: AuthContext, agent_id: UUID, data: TriggerPromptPreviewCreate
+    ) -> TriggerPromptPreviewRead:
+        """Resolve a supplied example without storing it, running an agent or changing consent."""
+        source_id = data.source_id
+        if data.trigger_id is not None:
+            trigger = await self._owned(ctx, agent_id, data.trigger_id)
+            source_id = source_id or trigger.source_id
+        else:
+            await self.agents.get(ctx, agent_id, perm=Perm.AGENTS_RUN)
+        if source_id is not None:
+            from app.services.event_sources import EventSourceService
+
+            await EventSourceService(self.db).require_use(ctx, source_id)
+        try:
+            jsonb_value_fits(data.payload)
+        except (ValueError, RecursionError) as exc:
+            raise refused_field("payload", "Example JSON must be valid event data") from exc
+        example = json.dumps(data.payload, ensure_ascii=False, separators=(",", ":"))
+        if prompt_bytes(example) > settings.WORKFLOW_RUN_MAX_INPUT_BYTES:
+            raise refused_field("payload", "Example JSON exceeds the input size limit")
+        return TriggerPromptPreviewRead(resolved_prompt=resolve_prompt(data.prompt, data.payload))
 
     async def set_source_consents(
         self, ctx: AuthContext, agent_id: UUID, trigger_id: UUID, data: RoutineSourceConsent
@@ -1950,11 +1995,10 @@ class AgentTriggerService:
         Works for either kind, and is deliberately offered on both. A schedule
         fires one extra time with `next_fire_at` left untouched - running now is an
         extra fire, not a reschedule. An **event trigger** fires too, as a manual
-        test-fire: the agent runs its base prompt with no delivery context
-        (`event_context=None`), so it is the way to confirm the agent, its prompt
-        and its budget behave without standing up a provider, signing a payload or
-        waiting for a real delivery. What it does *not* exercise is the signature
-        path or a real payload's rendered context.
+        test-fire, without a delivery. A literal routine runs its base prompt;
+        a template resolves against an empty object, so a required event field
+        that is missing records a preparation failure rather than an agent run.
+        To test selected fields, use the prompt preview with example JSON.
 
         The caller needs `agents:run` on the agent - the floor for scheduling it
         at all, checked by `_owned`. The fire runs as the trigger's creator, the
@@ -2153,6 +2197,7 @@ class AgentTriggerService:
             trigger_id=trigger.id,
             source_policy_id=read_policy(trigger.approved_sources).id,
             event_context=context,
+            event_body=cast(dict[str, JsonValue], payload),
             organization_id=trigger.organization_id,
         )
 
@@ -2262,6 +2307,7 @@ class AgentTriggerService:
                         EventSource.GITHUB.value, payload=payload
                     ),
                     organization_id=trigger.organization_id,
+                    event_body=cast(dict[str, JsonValue], payload),
                 )
             )
         return decisions
@@ -2430,6 +2476,7 @@ class AgentTriggerService:
                         event_context=trigger_events.render_context(
                             event_source, payload=event.payload
                         ),
+                        event_body=cast(dict[str, JsonValue], event.payload),
                         organization_id=trigger.organization_id,
                     )
                 )
@@ -2615,6 +2662,7 @@ class AgentTriggerService:
         *,
         organization_id: UUID | None,
         event_context: str | None = None,
+        event_body: dict[str, JsonValue] | None = None,
         event_source_id: UUID | None = None,
         claimed_at: datetime | None = None,
         activation_id: UUID | None = None,
@@ -2668,6 +2716,25 @@ class AgentTriggerService:
                     self.db, trigger_id=trigger_id, claimed_at=claimed_at
                 )
             return None
+        # Literal jobs retain only the legacy bounded context, including during rollout.
+        if trigger.prompt_mode != "template":
+            event_body = None
+        elif event_body is not None and event_source_id is None:
+            # Shared deliveries already crossed the receipt's JSONB boundary. Legacy
+            # webhooks and polled events may carry data a PostgreSQL job cannot store.
+            try:
+                _EVENT_BODY.validate_python(event_body, strict=True)
+                jsonb_value_fits(event_body)
+            except ValueError, RecursionError:
+                await self._record_attempt(
+                    trigger,
+                    activation_id,
+                    stage="preparation",
+                    reason="prompt_template_failed",
+                    status="failed",
+                    error_message="The event body cannot be stored for prompt rendering.",
+                )
+                return None
         native: LocalTarget | None = None
         if trigger is not None and trigger.local_target is not None:
             try:
@@ -2703,12 +2770,14 @@ class AgentTriggerService:
                     device_id=native.device_id,
                     intent_hash=activation_intent(trigger),
                     event_context=event_context,
+                    event_body=event_body,
                     event_source_id=event_source_id,
                 )
                 if not inserted:
                     return None  # One offline scheduled/manual activation is already waiting.
             dedupe_key = f"routine-device:{activation_id}"
             event_context = None  # The owner-bound wait, not a second job copy, holds it.
+            event_body = None
             event_source_id = None
         job_id = await enqueue(
             self.db,
@@ -2718,6 +2787,7 @@ class AgentTriggerService:
                 source_policy_id=source_policy.id,
                 activation_id=activation_id,
                 event_context=event_context,
+                event_body=event_body,
                 event_source_id=event_source_id,
                 claimed_at=claimed_at,
             ),
@@ -2750,6 +2820,7 @@ class AgentTriggerService:
             decision.trigger_id,
             organization_id=decision.organization_id,
             event_context=decision.event_context,
+            event_body=decision.event_body,
             source_policy_id=decision.source_policy_id,
         )
         return True
@@ -2809,6 +2880,7 @@ class AgentTriggerService:
             trigger.id,
             organization_id=organization_id,
             event_context=trigger_events.render_context(trigger.event_source, payload=body),
+            event_body=body,
             event_source_id=source_id,
             activation_id=activation_id,
             source_policy_id=source_policy_id,
@@ -2822,6 +2894,7 @@ class AgentTriggerService:
                 decision.trigger_id,
                 organization_id=decision.organization_id,
                 event_context=decision.event_context,
+                event_body=decision.event_body,
                 source_policy_id=decision.source_policy_id,
             )
         return len(decisions)
@@ -2933,6 +3006,7 @@ class AgentTriggerService:
         await self.fire(
             payload.trigger_id,
             event_context=payload.event_context,
+            event_body=payload.event_body,
             event_source_id=payload.event_source_id,
             claimed_at=payload.claimed_at,
             activation_id=activation_id,
@@ -2955,6 +3029,7 @@ class AgentTriggerService:
         trigger_id: UUID,
         *,
         event_context: str | None = None,
+        event_body: dict[str, JsonValue] | None = None,
         event_source_id: UUID | None = None,
         claimed_at: datetime | None = None,
         activation_id: UUID | None = None,
@@ -2962,12 +3037,11 @@ class AgentTriggerService:
     ) -> None:
         """Run the agent this trigger fires, as the member who created it.
 
-        Called by the worker with a bare id (a scheduled fire) or by the webhook's
-        background task with the delivered `event_context` (an event fire), so it
-        re-loads everything and trusts nothing from the caller: a trigger deleted
-        or disabled between claim and fire simply does nothing. An event fire
-        appends its context to the trigger's prompt, so the agent sees which issue
-        or email set it off; a scheduled fire has none and sends the prompt as-is.
+        The worker reloads the trigger; if deleted or disabled since the claim,
+        it does nothing. A literal event prompt appends bounded event context;
+        a template instead inserts only its selected fields from the structured
+        delivery. Both fence event values as external data. Scheduled prompts
+        have no event context and are sent as written.
         The run goes through `AgentRunnerService.execute`,
         so a budget it cannot afford ends the run `BUDGET_EXCEEDED` and returns
         here normally - never raising, so the flow is not retried into spending
@@ -3037,6 +3111,7 @@ class AgentTriggerService:
             await self._fire_loaded(
                 trigger,
                 event_context=event_context,
+                event_body=event_body,
                 event_source_id=event_source_id,
                 activation_id=activation_id or uuid4(),
                 source_policy_id=expected_source_policy,
@@ -3054,6 +3129,7 @@ class AgentTriggerService:
             await self._fire_loaded(
                 trigger,
                 event_context=event_context,
+                event_body=event_body,
                 event_source_id=event_source_id,
                 activation_id=activation_id or uuid4(),
                 source_policy_id=expected_source_policy,
@@ -3137,6 +3213,7 @@ class AgentTriggerService:
         *,
         activation_id: UUID,
         event_context: str | None = None,
+        event_body: dict[str, JsonValue] | None = None,
         event_source_id: UUID | None = None,
         source_policy_id: UUID | None = None,
     ) -> None:
@@ -3232,6 +3309,7 @@ class AgentTriggerService:
                 )
                 return
             event_context = waiting.event_context
+            event_body = waiting.event_body
             event_source_id = waiting.event_source_id
         if unconfirmed_local_access:
             await NotificationService(self.db).routine_blocked(
@@ -3254,6 +3332,7 @@ class AgentTriggerService:
                         trigger.id,
                         organization_id=trigger.organization_id,
                         event_context=event_context,
+                        event_body=event_body,
                         event_source_id=event_source_id,
                     )
                     return
@@ -3293,8 +3372,11 @@ class AgentTriggerService:
         if trigger.source_id is not None or event_source_id is not None:
             from app.services.event_sources import EventSourceService
 
+            received_event = (
+                event_source_id is not None or event_body is not None or event_context is not None
+            )
             source_changed = trigger.source_id is None or (
-                event_source_id is not None and event_source_id != trigger.source_id
+                received_event and event_source_id != trigger.source_id
             )
             try:
                 if not source_changed:
@@ -3316,6 +3398,29 @@ class AgentTriggerService:
                         reason="routine_changed",
                     )
                 return
+        message = trigger.prompt
+        if trigger.prompt_mode == "template":
+            try:
+                message = resolve_prompt(message, event_body or {})
+            except RoutinePromptError as exc:
+                await self._record_attempt(
+                    trigger,
+                    activation_id,
+                    stage="preparation",
+                    reason="prompt_template_failed",
+                    status="failed",
+                    error_message=exc.message,
+                )
+                if waiting is not None:
+                    await device_wait_repo.settle(
+                        self.db,
+                        activation_id=activation_id,
+                        status="cancelled",
+                        reason="prompt_template_failed",
+                    )
+                return
+        elif event_context is not None:
+            message = _with_event(message, event_context)
         ctx = replace(ctx, routine_dispatch_id=activation_id)
         conversation_id = (
             await self._run_chat(trigger, agent_name=agent.name)
@@ -3325,9 +3430,6 @@ class AgentTriggerService:
 
         from app.services.agent_runner import AgentRunnerService
 
-        message = (
-            trigger.prompt if event_context is None else _with_event(trigger.prompt, event_context)
-        )
         # This trigger's tail before the fire opens a run of its own. Every fire ends
         # by stamping `last_run_id` against the run it created, so the run named here
         # is exactly the newest row in the trigger's run-log conversation. It is how
@@ -3364,7 +3466,7 @@ class AgentTriggerService:
                 # email, not by the creator the run executes as, so nobody is
                 # behind it. A schedule and "Run now" fire with no event context
                 # and stay the creator's own.
-                public_origin=event_context is not None,
+                public_origin=event_context is not None or event_body is not None,
                 # The creator's own MCP connections speak for this fire only when
                 # the creator let it act as them; otherwise nobody is speaking.
                 acts_for_sender=ctx.fired_as_creator is not None,

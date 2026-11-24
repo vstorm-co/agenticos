@@ -121,11 +121,15 @@ def test_fire_payload_omits_source_field_for_legacy_workers_and_preserves_source
     trigger_id, source_id = uuid4(), uuid4()
     ordinary = FIRE_TRIGGER.dump(FireTrigger(trigger_id=trigger_id, event_source_id=None))
     assert "event_source_id" not in ordinary
+    assert "event_body" not in ordinary
     assert FIRE_TRIGGER.load(ordinary).event_source_id is None
 
     shared = FIRE_TRIGGER.dump(FireTrigger(trigger_id=trigger_id, event_source_id=source_id))
     assert shared["event_source_id"] == str(source_id)
     assert FIRE_TRIGGER.load(shared).event_source_id == source_id
+    assert "event_body" not in shared
+    template = FIRE_TRIGGER.dump(FireTrigger(trigger_id=trigger_id, event_body={}))
+    assert FIRE_TRIGGER.load(template).event_body == {}
 
 
 async def test_receipt_retains_complete_json_and_no_auth_headers(db, source, repos):

@@ -229,6 +229,9 @@ class FireTrigger(Payload):
     activation_id: UUID | None = None
     event_context: str | None = None
     # Older workers reject unknown keys, even JSON null.
+    event_body: dict[str, JsonValue] | None = Field(
+        default=None, exclude_if=lambda body: body is None
+    )
     event_source_id: UUID | None = Field(
         default=None, exclude_if=lambda source_id: source_id is None
     )
