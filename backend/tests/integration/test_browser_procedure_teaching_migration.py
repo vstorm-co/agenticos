@@ -28,6 +28,16 @@ _MIGRATION = importlib.util.module_from_spec(_SPEC)
 _SPEC.loader.exec_module(_MIGRATION)
 
 
+@pytest.fixture
+async def engine(scratch_engine):
+    """These tests downgrade and re-upgrade the schema, so they run on a database of their own.
+
+    The worker's shared database is what every other test on that worker builds on;
+    one left downgraded by a failed or cancelled migration test broke them (#238).
+    """
+    return scratch_engine
+
+
 def migrate(connection, direction):
     context = MigrationContext.configure(connection, opts={"target_metadata": Base.metadata})
     with context.begin_transaction(), Operations.context(context):
@@ -239,9 +249,27 @@ async def test_unexpected_existing_metadata_column_is_preserved_and_refused(engi
             await step(connection, "upgrade")
 
 
-@pytest.mark.parametrize("times_out", [False, True])
+async def wait_until_building(connection, pid, task):
+    """Return once PostgreSQL reports the index build; surface the build's own failure first.
+
+    The build parks behind the writer's open transaction, so it cannot finish before
+    the test releases that writer. Waiting on the build task itself, rather than on a
+    deadline, means a slow runner delays this loop instead of failing it.
+    """
+    while not task.done():
+        if await connection.scalar(
+            text("SELECT EXISTS (SELECT 1 FROM pg_stat_progress_create_index WHERE pid = :pid)"),
+            {"pid": pid},
+        ):
+            return
+        await asyncio.sleep(0.05)
+    await task
+    pytest.fail("The source-index build finished before the writer released it")
+
+
+@pytest.mark.parametrize("cancelled", [False, True])
 async def test_active_source_index_build_is_preserved_and_exact_failed_build_is_recoverable(
-    engine, times_out
+    engine, cancelled
 ):
     _, proposal = await seed(engine)
     async with engine.connect() as connection:
@@ -260,13 +288,6 @@ async def test_active_source_index_build_is_preserved_and_exact_failed_build_is_
             async def build():
                 async with engine.connect() as raw:
                     builder = await raw.execution_options(isolation_level="AUTOCOMMIT")
-                    await builder.execute(
-                        text(
-                            "SET statement_timeout = '30000ms'"
-                            if times_out
-                            else "SET statement_timeout = '10000ms'"
-                        )
-                    )
                     pid.append(await builder.scalar(text("SELECT pg_backend_pid()")))
                     started.set()
                     await builder.execute(
@@ -279,25 +300,15 @@ async def test_active_source_index_build_is_preserved_and_exact_failed_build_is_
             task = asyncio.create_task(build())
             try:
                 await started.wait()
-                # The full xdist suite can contend for the test database; keep the
-                # deliberately timed-out build alive long enough to observe its progress.
-                async with asyncio.timeout(20):
-                    for _ in range(200):
-                        if await connection.scalar(
-                            text(
-                                "SELECT EXISTS (SELECT 1 FROM pg_stat_progress_create_index WHERE pid = :pid)"
-                            ),
-                            {"pid": pid[0]},
-                        ):
-                            break
-                        await asyncio.sleep(0.1)
-                    else:
-                        pytest.fail(
-                            "The owned source-index build never entered PostgreSQL progress"
-                        )
+                await wait_until_building(connection, pid[0], task)
                 with pytest.raises(RuntimeError, match="being built"):
                     await step(connection, "upgrade")
-                if times_out:
+                if cancelled:
+                    # The server cancels the parked build, which leaves the same invalid
+                    # index a statement timeout does, without waiting out a clock.
+                    assert await connection.scalar(
+                        text("SELECT pg_cancel_backend(:pid)"), {"pid": pid[0]}
+                    )
                     with pytest.raises(DBAPIError):
                         await task
                     assert await connection.scalar(

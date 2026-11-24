@@ -11,7 +11,7 @@ import os
 
 import pytest
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 pytestmark = pytest.mark.anyio
 
@@ -21,3 +21,25 @@ class TestTheDatabaseTheSuiteConnectsTo:
         connected_to = (await db.execute(text("SELECT current_database()"))).scalar_one()
         assert connected_to == os.environ["POSTGRES_DB"]
         assert connected_to.endswith(f"_p{os.getpid()}")
+
+
+class TestTheScratchDatabaseOfADdlTest:
+    async def test_schema_changes_there_never_reach_the_workers_database(
+        self, engine: AsyncEngine, scratch_engine: AsyncEngine
+    ) -> None:
+        """A migration test downgrading the shared database broke every later test (#238)."""
+        async with scratch_engine.begin() as connection:
+            scratch_name = (
+                await connection.execute(text("SELECT current_database()"))
+            ).scalar_one()
+            await connection.execute(
+                text("ALTER TABLE skill_proposals RENAME TO skill_proposals_moved")
+            )
+        async with engine.connect() as connection:
+            shared_name = (await connection.execute(text("SELECT current_database()"))).scalar_one()
+            shared_has_table = await connection.scalar(
+                text("SELECT to_regclass('skill_proposals')")
+            )
+        assert shared_name == os.environ["POSTGRES_DB"] != scratch_name
+        assert scratch_name.startswith(f"{shared_name}_s")
+        assert shared_has_table is not None
