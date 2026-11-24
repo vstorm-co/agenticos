@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "source": {
+    "repository": "t3grp/agenticos",
+    "branch": "t3"
+  },
+  "validation": {
+    "project": "your-build-project",
+    "region": "asia-southeast1",
+    "trigger_id": "replace-with-validator-trigger-id",
+    "repository_resource": "projects/your-build-project/locations/asia-southeast1/connections/github/repositories/agenticos",
+    "service_account": "projects/your-build-project/serviceAccounts/t3os-validator@your-build-project.iam.gserviceaccount.com",
+    "required_steps": ["checked-source", "sync-tests", "platform-checks"]
+  },
+  "github_app": {
+    "app_id": 0,
+    "installation_id": 0,
+    "slug": "replace-with-your-dedicated-updater-app"
+  },
+  "downstreams": [
+    {
+      "repository": "example-org/client-fork",
+      "base_branch": "client",
+      "mirror_branch": "t3",
+      "mode": "merge",
+      "auto_merge": false,
+      "required_checks": []
+    },
+    {
+      "repository": "example-org/client-overlay",
+      "base_branch": "main",
+      "mode": "lock",
+      "auto_merge": false,
+      "required_checks": []
+    }
+  ]
+}

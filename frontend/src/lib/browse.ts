@@ -1,3 +1,4 @@
+import { toolLookupName } from "@/lib/tool-identity";
 import type { BrowseOutcome, BrowserFrame, ToolCall } from "@/types/chat";
 
 /**
@@ -36,6 +37,13 @@ export interface Browse {
   heldBy?: string | null;
   /** The same person by id: names are not unique, so this is what says it is you. */
   heldById?: string | null;
+  takeoverId?: string | null;
+  teachingSessionId?: string | null;
+  teachingStatus?:
+    import("@/types/browser-procedure-teaching").BrowserProcedureTeachingStatus | null;
+  teachingRevision?: number | null;
+  teachingReason?:
+    import("@/types/browser-procedure-teaching").BrowserProcedureTeachingReason | null;
   goal: string;
   maxSteps: number | null;
   url: string | null;
@@ -63,6 +71,10 @@ export interface Browse {
   resumable?: boolean;
   navigable?: boolean;
   controlError?: string | null;
+  /** Once set, page-derived output and generic control never return for this tab. */
+  outputProtected?: boolean;
+  credentialPlanId?: string | null;
+  credentialOperation?: "fill" | "submit" | null;
   outcome: BrowseOutcome | null;
   detail: string | null;
   /** The site a person kept their sign-in to when they handed the browser back (#2129). */
@@ -82,6 +94,11 @@ function opened(frame: BrowserFrame): Browse {
     needs: null,
     heldBy: null,
     heldById: null,
+    takeoverId: null,
+    teachingSessionId: null,
+    teachingStatus: null,
+    teachingRevision: null,
+    teachingReason: null,
     callId: frame.call_id,
     goal: frame.goal ?? "",
     maxSteps: frame.max_steps ?? null,
@@ -100,7 +117,72 @@ function opened(frame: BrowserFrame): Browse {
   };
 }
 
+export interface BrowserProtection {
+  callId: string;
+  runId: string;
+  tabId?: string | null;
+}
+
+/** Erase the retained preview, not only the visible image element. */
+export function protectBrowse(browse: Browse): Browse {
+  return {
+    ...browse,
+    outputProtected: true,
+    goal: "",
+    maxSteps: null,
+    url: null,
+    title: null,
+    image: null,
+    imageStep: -1,
+    steps: [],
+    needs: null,
+    heldBy: null,
+    heldById: null,
+    takeoverId: null,
+    teachingSessionId: null,
+    teachingStatus: null,
+    teachingRevision: null,
+    teachingReason: null,
+    nativeId: null,
+    resumable: false,
+    navigable: false,
+    controlError: null,
+    detail: null,
+    kept: null,
+    pointer: null,
+  };
+}
+
+/** A live view also clears the chat's cache, so reopening cannot use an older picture. */
+export function applyBrowserProtection(current: Browse[], protection: BrowserProtection): Browse[] {
+  const target = current.find(
+    (browse) =>
+      browse.callId === protection.callId && (!browse.runId || browse.runId === protection.runId),
+  );
+  if (!target) return current;
+  const tabId = target.tabId ?? protection.tabId;
+  return current.map((browse) =>
+    browse === target || (tabId && browse.runId === protection.runId && browse.tabId === tabId)
+      ? protectBrowse(browse)
+      : browse,
+  );
+}
+
 function applyTo(browse: Browse, frame: BrowserFrame): Browse {
+  const plan = {
+    credentialPlanId: frame.credential_plan_id ?? browse.credentialPlanId,
+    credentialOperation: frame.credential_operation ?? browse.credentialOperation,
+  };
+  if (browse.outputProtected || frame.output_protected || frame.kind === "browser_protected") {
+    return protectBrowse({
+      ...browse,
+      ...plan,
+      runId: browse.runId ?? frame.run_id,
+      tabId: browse.tabId ?? frame.tab_id,
+      outcome:
+        frame.kind === "browser_finished" ? (frame.outcome ?? browse.outcome) : browse.outcome,
+    });
+  }
   switch (frame.kind) {
     case "browser_opened":
       return { ...browse, ...opened(frame), steps: browse.steps };
@@ -135,16 +217,32 @@ function applyTo(browse: Browse, frame: BrowserFrame): Browse {
     case "browser_control_error":
       return { ...browse, controlError: frame.detail ?? null };
     case "browser_needs_person":
-      return { ...browse, needs: frame.detail ?? null };
+      return { ...browse, ...plan, needs: frame.detail ?? null };
     case "browser_pointer":
       return { ...browse, pointer: { x: frame.x ?? 0, y: frame.y ?? 0, step: frame.step } };
     case "browser_held":
+      if (browse.outcome !== null) return browse;
       return {
         ...browse,
         needs: null,
         heldBy: frame.by ?? null,
         heldById: frame.by_user_id ?? null,
+        takeoverId: frame.takeover_id ?? null,
         pointer: null,
+      };
+    case "browser_procedure_teaching":
+      if (
+        !frame.teaching_session_id ||
+        (frame.teaching_session_id === browse.teachingSessionId &&
+          (frame.teaching_revision ?? 0) < (browse.teachingRevision ?? 0))
+      )
+        return browse;
+      return {
+        ...browse,
+        teachingSessionId: frame.teaching_session_id,
+        teachingStatus: frame.teaching_status ?? null,
+        teachingRevision: frame.teaching_revision ?? null,
+        teachingReason: frame.teaching_reason ?? null,
       };
     case "browser_released":
       // A give-back that kept the sign-in says which site (#2129).
@@ -152,6 +250,7 @@ function applyTo(browse: Browse, frame: BrowserFrame): Browse {
         ...browse,
         heldBy: null,
         heldById: null,
+        takeoverId: null,
         kept: frame.detail ?? browse.kept ?? null,
       };
     case "browser_finished":
@@ -160,6 +259,7 @@ function applyTo(browse: Browse, frame: BrowserFrame): Browse {
         needs: null,
         heldBy: null,
         heldById: null,
+        takeoverId: null,
         pointer: null,
         outcome: frame.outcome ?? null,
         detail: frame.detail ?? null,
@@ -188,12 +288,26 @@ function applyTo(browse: Browse, frame: BrowserFrame): Browse {
  */
 export function applyBrowserFrame(current: Browse[], frame: BrowserFrame): Browse[] {
   const existing = current.find((browse) => browse.callId === frame.call_id);
-  if (!existing) {
-    return frame.kind === "browser_opened" ? [...current, applyTo(opened(frame), frame)] : current;
-  }
-  return current.map((browse) =>
-    browse.callId === frame.call_id ? applyTo(browse, frame) : browse,
-  );
+  if (existing?.runId && frame.run_id && existing.runId !== frame.run_id) return current;
+  if (!existing && frame.kind !== "browser_opened") return current;
+  const next = existing
+    ? current.map((browse) => (browse === existing ? applyTo(browse, frame) : browse))
+    : [...current, applyTo(opened(frame), frame)];
+  const updated = next.find((browse) => browse.callId === frame.call_id)!;
+  const protectedTab =
+    updated.runId &&
+    updated.tabId &&
+    next.some(
+      (browse) =>
+        browse.outputProtected && browse.runId === updated.runId && browse.tabId === updated.tabId,
+    );
+  return (updated.outputProtected || protectedTab) && updated.runId
+    ? applyBrowserProtection(next, {
+        callId: updated.callId,
+        runId: updated.runId,
+        tabId: updated.tabId,
+      })
+    : next;
 }
 
 /** Whether a browse is still going, which is what the panel draws a pulse for. */
@@ -209,7 +323,23 @@ export function browseById(browses: Browse[], callId: string | null): Browse | n
 
 /** Preserve the cached final image while the chat remains authoritative about completion. */
 export function withLivePreview(streamed: Browse, live: Browse | null): Browse {
-  if (!live || live.callId !== streamed.callId) return streamed;
+  if (
+    !live ||
+    live.callId !== streamed.callId ||
+    (streamed.runId && live.runId && streamed.runId !== live.runId)
+  ) {
+    return streamed.outputProtected ? protectBrowse(streamed) : streamed;
+  }
+  if (streamed.outputProtected || live.outputProtected) {
+    return protectBrowse({
+      ...streamed,
+      runId: streamed.runId ?? live.runId,
+      tabId: streamed.tabId ?? live.tabId,
+      credentialPlanId: live.credentialPlanId ?? streamed.credentialPlanId,
+      credentialOperation: live.credentialOperation ?? streamed.credentialOperation,
+      outcome: streamed.outcome ?? live.outcome,
+    });
+  }
   if (isRunning(streamed)) return live;
   return {
     ...streamed,
@@ -222,7 +352,7 @@ export function withLivePreview(streamed: Browse, live: Browse | null): Browse {
 export function latestBrowserTabs(browses: Browse[]): Browse[] {
   const tabs = new Map<string, Browse>();
   for (const browse of browses) {
-    if (!browse.navigable && !browse.nativeId) continue;
+    if (!browse.navigable && !browse.nativeId && !browse.outputProtected) continue;
     const id = browse.tabId ?? browse.callId;
     tabs.delete(id);
     tabs.set(id, browse);
@@ -277,29 +407,31 @@ export interface TurnBrowseVisit {
 export function turnBrowseVisits(calls: ToolCall[], browses: Browse[]): TurnBrowseVisit[] {
   const live = new Map(browses.map((browse) => [browse.callId, browse]));
   const visits = new Map<string, TurnBrowseVisit>();
-  const desktopLive = calls.some((call) => DESKTOP_TOOLS.has(call.name) && live.has(call.id));
+  const desktopLive = calls.some(
+    (call) => DESKTOP_TOOLS.has(toolLookupName(call)) && live.has(call.id),
+  );
   let active = "main";
   for (const call of calls) {
     const browse = live.get(call.id) ?? null;
-    if (DESKTOP_TOOLS.has(call.name)) {
+    if (DESKTOP_TOOLS.has(toolLookupName(call))) {
       if (browse) visits.set(`desktop:${call.id}`, { id: call.id, call, browse });
       else if (!desktopLive && !visits.has("desktop"))
         visits.set("desktop", { id: call.id, call, browse });
       continue;
     }
-    if (!BROWSER_TOOLS.has(call.name)) continue;
-    if (call.name === "browser_tabs" || call.name === "browser_close_tab") {
+    if (!BROWSER_TOOLS.has(toolLookupName(call))) continue;
+    if (toolLookupName(call) === "browser_tabs" || toolLookupName(call) === "browser_close_tab") {
       const selected =
         typeof call.result === "string" ? /^\* (\S+):/m.exec(call.result)?.[1] : null;
       if (selected) active = selected;
       continue;
     }
     const page = recordedBrowserPage(call);
-    if (call.name === "browser_switch_tab") {
+    if (toolLookupName(call) === "browser_switch_tab") {
       if (!browse && !page.url) continue;
       if (typeof call.args.tab_id === "string") active = call.args.tab_id;
     }
-    if (call.name === "browser_new_tab") {
+    if (toolLookupName(call) === "browser_new_tab") {
       const tab = typeof call.result === "string" ? /^TAB: (\S+)/m.exec(call.result)?.[1] : null;
       if (!browse && (!tab || !recordedBrowserPage({ args: {}, result: call.result }).url))
         continue;

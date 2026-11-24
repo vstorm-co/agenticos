@@ -14,6 +14,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.background_job import BackgroundJob
+from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.db.models.organization import Organization
 from app.db.models.sync_log import SyncLog
 from app.db.models.sync_source import SyncSource
@@ -45,6 +46,21 @@ async def _org(db: AsyncSession) -> Organization:
 
 
 async def _source(db: AsyncSession, organization: Organization, **fields: object) -> SyncSource:
+    """A scheduled source on a base of its organization, unless `fields` say otherwise."""
+    if "knowledge_base_id" not in fields:
+        base = KnowledgeBase(
+            id=uuid.uuid4(),
+            name="Docs",
+            scope=KBScope.ORG.value,
+            collection_name="docs",
+            embedding_model="text-embedding-3-small",
+            embedding_dim=1536,
+            organization_id=organization.id,
+            visibility="org",
+        )
+        db.add(base)
+        await db.flush()
+        fields = {"knowledge_base_id": base.id, **fields}
     values: dict[str, object] = {
         "id": uuid.uuid4(),
         "organization_id": organization.id,
@@ -67,6 +83,9 @@ async def test_nothing_scheduled_is_nothing_due(db: AsyncSession) -> None:
     await _source(db, organization, schedule_minutes=None)
     await _source(db, organization, is_active=False)
     await _source(db, organization, collection_name=None)
+    # A collection but no base: detached from a deleted base, or unattributable
+    # by the upgrade - it has nowhere to write (#2551).
+    await _source(db, organization, knowledge_base_id=None)
 
     assert await sync_source_repo.any_due_for_sync(db) is False
     assert await sync_source_repo.get_due_for_sync(db) == []

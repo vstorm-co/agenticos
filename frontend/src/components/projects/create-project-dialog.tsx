@@ -1,6 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
+import { useUnsavedChangesStore } from "@/stores/unsaved-changes-store";
+import { useId, useState } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
@@ -20,6 +22,7 @@ import {
   FormField,
   Input,
   Label,
+  MoreOptions,
   Textarea,
 } from "@/components/ui";
 import { useProjects } from "@/hooks/use-projects";
@@ -58,6 +61,7 @@ export function CreateProjectDialog({
   const shell = useShell();
   const folder = useProjectFolder(null);
   const [localFolder, setLocalFolder] = useState<LocalTarget | null>(null);
+  const [moreOpen, setMoreOpen] = useState(false);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [instructions, setInstructions] = useState("");
@@ -66,7 +70,49 @@ export function CreateProjectDialog({
   const [audience, setAudience] = useState<Audience>(ONLY_ME);
   const [errors, setErrors] = useState<Readonly<Record<string, string>>>({});
 
-  async function handleCreate() {
+  function clearError(field: Field) {
+    if (errors[field]) setErrors(({ [field]: _removed, ...rest }) => rest);
+  }
+
+  const source = useId();
+  function reset() {
+    setMoreOpen(false);
+    setLocalFolder(null);
+    setName("");
+    setDescription("");
+    setInstructions("");
+    setAgentId(null);
+    setSandbox("auto");
+    setAudience(ONLY_ME);
+    setErrors({});
+  }
+  useUnsavedChanges(source, {
+    dirty:
+      open &&
+      (name !== "" ||
+        description !== "" ||
+        instructions !== "" ||
+        agentId !== null ||
+        sandbox !== "auto" ||
+        localFolder !== null ||
+        audience.mode !== "private"),
+    save:
+      name.trim() !== "" && (sandbox !== "computer" || localFolder !== null)
+        ? handleCreate
+        : undefined,
+    discard: () => {
+      reset();
+      onOpenChange(false);
+    },
+  });
+  // This dialog has no trigger: only dismissal asks to change its open state.
+  function close() {
+    if (!create.isPending)
+      useUnsavedChangesStore.getState().leave(() => onOpenChange(false), [source]);
+  }
+
+  async function handleCreate(): Promise<boolean> {
+    if (create.isPending || name.trim() === "") return false;
     try {
       const project = await create.mutateAsync({
         name: name.trim(),
@@ -81,15 +127,9 @@ export function CreateProjectDialog({
         ...audiencePayload(audience),
       });
       if (localFolder) folder.bind(project.id, localFolder);
-      setLocalFolder(null);
-      setName("");
-      setDescription("");
-      setInstructions("");
-      setAgentId(null);
-      setSandbox("auto");
-      setAudience(ONLY_ME);
-      setErrors({});
+      reset();
       onCreated(project);
+      return true;
     } catch (error) {
       const failure = submitFailure(
         error,
@@ -106,83 +146,110 @@ export function CreateProjectDialog({
         tErrors,
       );
       setErrors(failure.fields);
+      if (
+        ["description", "instructions", "default_agent_id"].some((field) => failure.fields[field])
+      )
+        setMoreOpen(true);
       if (failure.toast) toast.error(failure.toast);
+      return false;
     }
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={cn(DIALOG_COLUMN, DIALOG_FORM)}>
+    <Dialog open={open} onOpenChange={close}>
+      <DialogContent dismissible={!create.isPending} className={cn(DIALOG_COLUMN, DIALOG_FORM)}>
         <DialogHeader>
           <DialogTitle>{t("newProject")}</DialogTitle>
           <DialogDescription>{t("newProjectHint")}</DialogDescription>
         </DialogHeader>
 
         <div className="-mx-1.5 flex min-h-0 flex-1 flex-col gap-4 overflow-auto px-1.5 py-1">
-          <FormField label={t("name")} htmlFor="new-project-name" error={errors.name}>
-            <Input
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              placeholder={t("namePlaceholder")}
-              maxLength={120}
+          <fieldset disabled={create.isPending} className="min-w-0 space-y-4">
+            <legend className="sr-only">{t("newProject")}</legend>
+            <FormField label={t("name")} htmlFor="new-project-name" error={errors.name}>
+              <Input
+                value={name}
+                onChange={(event) => {
+                  setName(event.target.value);
+                  clearError("name");
+                }}
+                placeholder={t("namePlaceholder")}
+                maxLength={120}
+              />
+            </FormField>
+            <ProjectSandboxChoice
+              value={sandbox}
+              onChange={(next) => {
+                setSandbox(next);
+                clearError("sandbox_connection_id");
+                if (next !== "computer") setLocalFolder(null);
+              }}
+              computer={
+                isDesktopShell(shell) && folder.available
+                  ? { target: localFolder, onChange: setLocalFolder, disabled: create.isPending }
+                  : undefined
+              }
+              enabled={open}
+              error={errors.sandbox_connection_id}
             />
-          </FormField>
-          <FormField
-            label={t("description")}
-            htmlFor="new-project-description"
-            error={errors.description}
-          >
-            <Input
-              value={description}
-              onChange={(event) => setDescription(event.target.value)}
-              placeholder={t("descriptionPlaceholder")}
-              maxLength={500}
-            />
-          </FormField>
-          <FormField
-            label={t("defaultAgent")}
-            htmlFor="new-project-agent"
-            description={t("defaultAgentHint")}
-            error={errors.default_agent_id}
-          >
-            <DefaultAgentSelect id="new-project-agent" value={agentId} onChange={setAgentId} />
-          </FormField>
-          <FormField
-            label={t("instructions")}
-            htmlFor="new-project-instructions"
-            description={t("instructionsHint")}
-            error={errors.instructions}
-          >
-            <Textarea
-              value={instructions}
-              onChange={(event) => setInstructions(event.target.value)}
-              placeholder={t("instructionsPlaceholder")}
-              rows={5}
-              maxLength={20000}
-            />
-          </FormField>
-          <ProjectSandboxChoice
-            value={sandbox}
-            onChange={(next) => {
-              setSandbox(next);
-              if (next !== "computer") setLocalFolder(null);
-            }}
-            computer={
-              isDesktopShell(shell) && folder.available
-                ? { target: localFolder, onChange: setLocalFolder, disabled: create.isPending }
-                : undefined
-            }
-            enabled={open}
-            error={errors.sandbox_connection_id}
-          />
-          <div className="space-y-1.5">
-            <Label>{t("whoWorksInIt")}</Label>
-            <AudiencePicker value={audience} onChange={setAudience} />
-          </div>
+            <div className="space-y-1.5">
+              <Label>{t("whoWorksInIt")}</Label>
+              <AudiencePicker value={audience} onChange={setAudience} />
+            </div>
+            <MoreOptions label={t("initialSetup")} open={moreOpen} onOpenChange={setMoreOpen}>
+              <FormField
+                label={t("description")}
+                htmlFor="new-project-description"
+                error={errors.description}
+              >
+                <Input
+                  value={description}
+                  onChange={(event) => {
+                    setDescription(event.target.value);
+                    clearError("description");
+                  }}
+                  placeholder={t("descriptionPlaceholder")}
+                  maxLength={500}
+                />
+              </FormField>
+              <FormField
+                label={t("defaultAgent")}
+                htmlFor="new-project-agent"
+                description={t("defaultAgentHint")}
+                error={errors.default_agent_id}
+              >
+                <DefaultAgentSelect
+                  id="new-project-agent"
+                  value={agentId}
+                  onChange={(next) => {
+                    setAgentId(next);
+                    clearError("default_agent_id");
+                  }}
+                />
+              </FormField>
+              <FormField
+                label={t("instructions")}
+                htmlFor="new-project-instructions"
+                description={t("instructionsHint")}
+                error={errors.instructions}
+              >
+                <Textarea
+                  value={instructions}
+                  onChange={(event) => {
+                    setInstructions(event.target.value);
+                    clearError("instructions");
+                  }}
+                  placeholder={t("instructionsPlaceholder")}
+                  rows={5}
+                  maxLength={20000}
+                />
+              </FormField>
+            </MoreOptions>
+          </fieldset>
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" onClick={close} disabled={create.isPending}>
             {t("cancel")}
           </Button>
           <Button

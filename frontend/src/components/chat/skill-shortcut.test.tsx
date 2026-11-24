@@ -37,9 +37,11 @@ describe("SkillShortcut", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Make a skill of this" }));
 
-    const text = useArchitectAskStore.getState().request?.text;
-    expect(text).toContain(REQUEST);
-    expect(text).toContain(ANSWER);
+    const asked = useArchitectAskStore.getState().request;
+    expect(asked?.text).toContain(REQUEST);
+    expect(asked?.text).toContain(ANSWER);
+    // Written for the person to read and send: sending starts a run on the budget.
+    expect(asked?.draft).toBe(true);
   });
 
   it("hands a saved turn's conversation over to be read whole", async () => {

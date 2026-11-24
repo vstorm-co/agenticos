@@ -11,8 +11,16 @@ from typing import Annotated, Any, Literal
 from uuid import UUID
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from pydantic import ConfigDict, Field, StringConstraints, field_validator, model_validator
+from pydantic import (
+    ConfigDict,
+    Field,
+    JsonValue,
+    StringConstraints,
+    field_validator,
+    model_validator,
+)
 
+from app.core.resource_icons import ResourceIconName
 from app.db.models.resource_grant import Visibility
 from app.schemas.base import BaseSchema
 from app.schemas.reply_expectation import ReplyDraftSelection, ReplyMailboxSelection
@@ -115,6 +123,7 @@ class WorkflowRead(BaseSchema):
 
     id: UUID
     slug: str
+    icon: ResourceIconName | None = None
     name: str
     description: str | None = None
     status: str
@@ -186,6 +195,7 @@ WorkflowTag = Annotated[
 class WorkflowCreate(AudienceChoice):
     """Create a named draft and audience, optionally preparing a selected template."""
 
+    icon: ResourceIconName | None = None
     name: str = Field(min_length=1, max_length=128)
     tags: list[WorkflowTag] = Field(default_factory=list, max_length=MAX_TAGS)
     template_id: Literal["publicApi", "markdownNotes", "awaitReply"] | None = None
@@ -218,6 +228,7 @@ class WorkflowUpdate(BaseSchema):
 
     model_config = ConfigDict(extra="forbid")
 
+    icon: ResourceIconName | None = None
     name: str | None = Field(default=None, min_length=1, max_length=128)
     description: str | None = Field(default=None, max_length=2000)
     tags: list[WorkflowTag] | None = Field(default=None, max_length=MAX_TAGS)
@@ -312,6 +323,32 @@ class WorkflowVersionList(BaseSchema):
     next_before: int | None = None
 
 
+class WorkflowEntryInputSchema(BaseSchema):
+    """The input contract of one trigger in a published version."""
+
+    model_config = ConfigDict(str_strip_whitespace=False)
+
+    entry_node_id: UUID
+    trigger: str
+    input_schema: dict[str, JsonValue]
+
+
+class WorkflowInputSchema(BaseSchema):
+    """Version-pinned input discovery, in default-entry order.
+
+    Each entry declares a JSON object using Draft 2020-12. Simple input fields
+    are represented with a `x-agenticos-strict-integer` marker where legacy
+    integer fields additionally require integer tokens; an untyped entry accepts any
+    object. Only triggers that accept caller-defined input are included.
+    """
+
+    model_config = ConfigDict(str_strip_whitespace=False)
+
+    workflow_id: UUID
+    version_id: UUID
+    entries: list[WorkflowEntryInputSchema]
+
+
 class NodeCatalogPort(BaseSchema):
     """One port of a catalog entry, as the editor draws a connection point."""
 
@@ -347,6 +384,9 @@ class NodeCatalogEntry(BaseSchema):
     effect_kind: Literal["pure", "read", "write"]
     retry_guarantee: Literal["none", "idempotent", "at_least_once"]
     scopes: list[str] = Field(default_factory=list)
+    available: bool = Field(
+        default=True, description="Whether new use is enabled on this deployment"
+    )
     loop_body_only: bool = Field(
         default=False, description="Whether the node exists only inside a for-each loop's body"
     )

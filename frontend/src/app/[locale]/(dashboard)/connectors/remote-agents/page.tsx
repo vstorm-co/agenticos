@@ -1,15 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import { Network, Plus } from "lucide-react";
+import { Network, Plus, Lock } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { PageHeader } from "@/components/dashboard/page-header";
 import { RegisterRemoteAgentDialog } from "@/components/remote-agents/register-remote-agent-dialog";
 import { RemoteAgentList } from "@/components/remote-agents/remote-agent-list";
-import { ErrorState } from "@/components/states";
+import { EmptyState, ErrorState } from "@/components/states";
 import { Button, ListCard, ListCardEmpty, Skeleton } from "@/components/ui";
 import { useExternalAgents, usePermissions } from "@/hooks";
+import { getErrorMessage } from "@/lib/api-error";
 import { Perm } from "@/types/permissions";
 
 /**
@@ -21,8 +22,16 @@ import { Perm } from "@/types/permissions";
  */
 export default function RemoteAgentsPage() {
   const t = useTranslations("remoteAgents");
-  const { agents, isLoading, error, register, refresh, remove } = useExternalAgents();
-  const { can } = usePermissions();
+  const common = useTranslations("common");
+  const errors = useTranslations("errors");
+  const {
+    can,
+    isLoading: permissionsLoading,
+    error: permissionsError,
+    refetch: retryPermissions,
+  } = usePermissions();
+  const canRead = can(Perm.agentsView);
+  const { agents, isLoading, error, retry, register, refresh, remove } = useExternalAgents(canRead);
   const canManage = can(Perm.agentsEdit);
   const [registering, setRegistering] = useState(false);
 
@@ -43,6 +52,9 @@ export default function RemoteAgentsPage() {
 
       <ListCard
         fill
+        namedByPage
+        layout={agents.length === 0 ? "grid" : "panel"}
+        empty={!isLoading && error === null && agents.length === 0}
         data-tour="remote-agents-list"
         title={t("listTitle")}
         counted={
@@ -50,14 +62,40 @@ export default function RemoteAgentsPage() {
         }
         contentClassName="p-0"
       >
-        {isLoading ? (
-          <div className="space-y-3 p-5">
-            {[0, 1].map((row) => (
-              <Skeleton key={row} className="h-12 w-full" />
+        {permissionsLoading || isLoading ? (
+          <div
+            role="status"
+            aria-busy="true"
+            aria-label={t("listTitle")}
+            className="divide-border divide-y"
+          >
+            {[0, 1, 2].map((row) => (
+              <div key={row} aria-hidden="true" className="flex items-start gap-3 px-5 py-4">
+                <Skeleton className="mt-0.5 size-8 shrink-0 rounded-lg" />
+                <div className="min-w-0 flex-1 space-y-2">
+                  <Skeleton className="h-5 w-40 max-w-full" />
+                  <Skeleton className="h-4 w-3/4" />
+                  <Skeleton className="h-3 w-1/2" />
+                  <Skeleton className="h-5 w-24 rounded-full" />
+                </div>
+                <Skeleton className="h-8 w-16 shrink-0 rounded-lg" />
+              </div>
             ))}
           </div>
+        ) : permissionsError ? (
+          <ErrorState
+            description={getErrorMessage(permissionsError, errors)}
+            cta={{ label: common("retry"), onClick: () => void retryPermissions() }}
+            className="m-5"
+          />
+        ) : !canRead ? (
+          <EmptyState icon={Lock} title={t("noAccess")} description={t("noAccessBody")} />
         ) : error !== null ? (
-          <ErrorState description={error} className="m-5" />
+          <ErrorState
+            description={error}
+            cta={{ label: common("retry"), onClick: () => void retry() }}
+            className="m-5"
+          />
         ) : agents.length === 0 ? (
           <ListCardEmpty
             icon={Network}
@@ -69,11 +107,13 @@ export default function RemoteAgentsPage() {
         )}
       </ListCard>
 
-      <RegisterRemoteAgentDialog
-        open={registering}
-        onOpenChange={setRegistering}
-        onSubmit={register}
-      />
+      {canManage && (
+        <RegisterRemoteAgentDialog
+          open={registering}
+          onOpenChange={setRegistering}
+          onSubmit={register}
+        />
+      )}
     </div>
   );
 }

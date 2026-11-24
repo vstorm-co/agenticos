@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { CalendarClock } from "lucide-react";
+import { CalendarClock, Search } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { ErrorState, LoadingState } from "@/components/states";
@@ -18,10 +18,16 @@ import { TriggerRow } from "./trigger-row";
 
 type Routine = { kind: "task"; row: Trigger } | { kind: "monitor"; row: Watch };
 
-export function RoutinesList() {
+export function RoutinesList({
+  emptyAction,
+}: {
+  /** The way to start a first routine, for a caller who may; offered inside the empty list. */
+  emptyAction?: { label: string; onClick: () => void };
+} = {}) {
   const t = useTranslations("triggers");
   const tw = useTranslations("watches");
   const tErrors = useTranslations("errors");
+  const tc = useTranslations("common");
   const tasks = useOrgTriggers();
   const monitoring = useWatches();
   const { connections } = useMcpConnections();
@@ -58,18 +64,26 @@ export function RoutinesList() {
         contentClassName="p-0"
         counted={loading || error ? null : t("routineCount", { count: items.length })}
         controls={
-          items.length > 0 && (
-            <SearchInput
-              value={list.query}
-              onChange={list.setQuery}
-              placeholder={t("searchRoutines")}
-              className="sm:w-56"
-            />
-          )
+          <SearchInput
+            value={list.query}
+            onChange={list.setQuery}
+            placeholder={t("searchRoutines")}
+            className="sm:w-56"
+          />
         }
       >
         {error ? (
-          <ErrorState description={getErrorMessage(error, tErrors)} className="m-5" />
+          <ErrorState
+            description={getErrorMessage(error, tErrors)}
+            cta={{
+              label: tc("retry"),
+              onClick: () => {
+                void tasks.refetch();
+                void monitoring.refetch();
+              },
+            }}
+            className="m-5"
+          />
         ) : loading ? (
           <LoadingState variant="skeleton-list" rows={4} />
         ) : items.length === 0 ? (
@@ -77,11 +91,18 @@ export function RoutinesList() {
             icon={CalendarClock}
             title={t("activityEmptyTitle")}
             description={t("activityEmptyDescription")}
+            cta={emptyAction}
           />
         ) : (
           <div className="space-y-3">
             {list.visible.length === 0 ? (
-              <p className="text-muted-foreground text-sm">{t("noRoutineMatches")}</p>
+              <ListCardEmpty
+                onClearFilters={() => list.setQuery("")}
+                icon={Search}
+                title={t("noRoutineMatches")}
+                description={t("noRoutineMatchesHint")}
+                cta={{ label: t("clearSearch"), onClick: () => list.setQuery("") }}
+              />
             ) : (
               <ul className="space-y-3">
                 {list.visible.map((item) =>

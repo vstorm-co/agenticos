@@ -10,12 +10,107 @@ import type { LogQuery, RunHistoryQuery } from "@/lib/workflows/types";
 import type { SharingResourceType } from "@/types/sharing";
 
 export const qk = {
+  consoleExperience: {
+    all: () => ["console-experience"] as const,
+    member: (org: string | null, user: string | null) => ["console-experience", org, user] as const,
+  },
+  personalModelKeys: {
+    all: (scope: string) => ["personal-model-keys", scope] as const,
+    agent: (scope: string, agentId: string | null) =>
+      ["personal-model-keys", scope, agentId] as const,
+  },
+  browserProcedureTeaching: {
+    all: (actor: string | undefined, organization: string | null) =>
+      ["browser-procedure-teaching", actor, organization] as const,
+    detail: (actor: string | undefined, organization: string | null, id: string) =>
+      ["browser-procedure-teaching", actor, organization, "detail", id] as const,
+    policy: (actor: string | undefined, organization: string | null) =>
+      ["browser-procedure-teaching", actor, organization, "policy"] as const,
+    preference: (actor: string | undefined, organization: string | null, id: string) =>
+      ["browser-procedure-teaching", actor, organization, "preference", id] as const,
+    run: (actor: string | undefined, organization: string | null, id: string) =>
+      ["browser-procedure-teaching", actor, organization, "run", id] as const,
+    skills: (actor: string | undefined, organization: string | null) =>
+      ["browser-procedure-teaching", actor, organization, "skills"] as const,
+    list: (actor: string | undefined, organization: string | null) =>
+      ["browser-procedure-teaching", actor, organization, "list"] as const,
+  },
+  browserTeaching: {
+    /** One simple review session, fenced by the reader's organization and identity. */
+    one: (orgId: string, userId: string, id: string) =>
+      ["browser-teaching", orgId, userId, id] as const,
+  },
+  roomRouting: {
+    all: (account: string | undefined, tenant: string | null, conversation: string | null) =>
+      ["room-routing", account, tenant, conversation] as const,
+    policy: (account: string | undefined, tenant: string | null, conversation: string | null) =>
+      ["room-routing", account, tenant, conversation, "policy"] as const,
+    proposals: (
+      account: string | undefined,
+      tenant: string | null,
+      conversation: string | null,
+      thread: string | null,
+    ) => ["room-routing", account, tenant, conversation, "proposals", thread] as const,
+    tasks: (
+      account: string | undefined,
+      tenant: string | null,
+      conversation: string | null,
+      thread: string | null,
+    ) => ["room-routing", account, tenant, conversation, "tasks", thread] as const,
+  },
+  roomThreads: {
+    detail: (
+      account: string | undefined,
+      tenant: string | null,
+      conversation: string | null,
+      root: string | null,
+    ) => ["room-threads", account, tenant, conversation, root] as const,
+  },
+  roomRequests: {
+    list: (account: string | undefined, tenant: string | null, conversation: string | null) =>
+      ["room-requests", account, tenant, conversation] as const,
+  },
+  roomParticipants: {
+    all: (account: string | undefined, tenant: string | null, conversation: string | null) =>
+      ["room-participants", account, tenant, conversation] as const,
+    list: (account: string | undefined, tenant: string | null, conversation: string | null) =>
+      ["room-participants", account, tenant, conversation, "list"] as const,
+    mentionables: (
+      account: string | undefined,
+      tenant: string | null,
+      conversation: string | null,
+    ) => ["room-participants", account, tenant, conversation, "mentionables"] as const,
+  },
+  roomDirectory: {
+    list: (account: string | undefined, tenant: string | null, skip = 0, limit = 50) =>
+      ["room-directory", account, tenant, skip, limit] as const,
+  },
   personalSubscriptions: {
     claude: (scope: string) => ["personal-subscriptions", "claude", scope] as const,
+  },
+  improvements: {
+    all: () => ["improvements"] as const,
+    awaiting: () => ["improvements", "awaiting"] as const,
+    evidence: (agentId: string, sessionId: string | null, datasetId: string | null) =>
+      ["improvements", agentId, "evidence", sessionId, datasetId] as const,
+    agent: (agentId: string) => ["improvements", agentId] as const,
+    detail: (agentId: string, runId: string) => ["improvements", agentId, runId] as const,
+    changes: (agentId: string, runId: string) =>
+      ["improvements", agentId, runId, "changes"] as const,
+    skills: (agentId: string, runId: string) => ["improvements", agentId, runId, "skills"] as const,
+    attemptChanges: (agentId: string, runId: string, attempt: number) =>
+      ["improvements", agentId, runId, "changes", attempt] as const,
+  },
+  onboarding: {
+    preview: (org: string, user: string) => ["onboarding", "preview", org, user] as const,
+    all: () => ["onboarding"] as const,
+    state: (user: string, org: string) => ["onboarding", user, org] as const,
   },
   codingAccounts: {
     all: () => ["coding-accounts"] as const,
     mine: (scope: string) => ["coding-accounts", scope] as const,
+    usage: (scope: string, account: string, generation: string) =>
+      ["coding-accounts", scope, "usage", account, generation] as const,
   },
   durableTasks: {
     root: () => ["durable-tasks"] as const,
@@ -38,8 +133,10 @@ export const qk = {
   },
   auth: {
     me: () => ["auth", "me"] as const,
+    appearance: (owner: string | undefined) => ["auth", "appearance", owner] as const,
   },
   health: () => ["health"] as const,
+  appVersion: (buildId: string | null) => ["app-version", buildId] as const,
   releases: {
     latest: () => ["releases", "latest"] as const,
     current: (version: string) => ["releases", "notes", version] as const,
@@ -48,6 +145,27 @@ export const qk = {
   // redeploy, not while somebody reads it.
   publicApi: {
     openapi: () => ["public-api", "openapi"] as const,
+  },
+  browserContinuations: {
+    receipt: (
+      actor: string | undefined,
+      org: string | null,
+      source: import("@/types/browser-credentials").BrowserCredentialPlan,
+    ) =>
+      [
+        "browser-continuations",
+        actor,
+        org,
+        source.run_id,
+        source.id,
+        source.parent_plan_id,
+        source.authorization_generation,
+        source.secret_id,
+        source.call_id,
+        source.tab_id,
+        source.document_id,
+        source.origin,
+      ] as const,
   },
   browserSignIns: {
     /** The caller's kept browser sign-ins in one organization (#2129). */
@@ -75,9 +193,11 @@ export const qk = {
   organizations: {
     all: () => ["organizations"] as const,
     list: () => ["organizations", "list"] as const,
+    detail: (orgId: string) => ["organizations", orgId, "detail"] as const,
     members: (orgId: string) => ["organizations", orgId, "members"] as const,
     permissions: (orgId: string) => ["organizations", orgId, "permissions"] as const,
     roleCatalog: () => ["organizations", "role-catalog"] as const,
+    roleNavigation: (orgId: string) => ["organizations", orgId, "role-navigation"] as const,
     audit: (orgId: string) => ["organizations", orgId, "audit"] as const,
     retention: (orgId: string) => ["organizations", orgId, "retention"] as const,
     // One group's members sit beneath the list, so invalidating the list after a
@@ -98,6 +218,8 @@ export const qk = {
   },
   agents: {
     all: () => ["agents"] as const,
+    /** Every agent the caller sees, all pages read - the eval start dialog's picker. */
+    every: () => ["agents", "every"] as const,
     // What `@` offers in the composer for one agent - under `agents`, so a
     // republish that changes its servers or knowledge refreshes the menu.
     mentionables: (agentId: string, draft: boolean) =>
@@ -121,12 +243,14 @@ export const qk = {
     // create a trigger anywhere". Its own key, not a list page's, and under
     // "agents" so the same invalidations that move the list refresh the answer.
     anyRunnable: () => ["agents", "any-runnable"] as const,
+    ofKind: (kind: string) => ["agents", "kind", kind] as const,
     // The agent limit and the count against it - its own key, not a list
     // page's, so a filter change cannot unset it; under "agents" so whatever
     // moves the list refreshes it.
     ceiling: () => ["agents", "ceiling"] as const,
     create: () => ["agents", "create"] as const,
     detail: (id: string) => ["agents", id] as const,
+    shippedUpdate: (id: string) => ["agents", id, "shipped-update"] as const,
     templates: () => ["agents", "templates"] as const,
     // The page is part of the key: a history past its page size is several
     // answers, and caching one as another shows the wrong decade of the timeline.
@@ -192,12 +316,35 @@ export const qk = {
     recentLogs: (limit: number) => ["workflows", "recent-logs", limit] as const,
     runLogs: (runId: string) => ["workflows", "run", runId, "logs"] as const,
     run: (runId: string) => ["workflows", "run", runId] as const,
+    runQuestions: (runId: string) => ["workflows", "run", runId, "questions"] as const,
     runNodes: (runId: string) => ["workflows", "run", runId, "nodes"] as const,
     runGraph: (runId: string) => ["workflows", "run", runId, "graph"] as const,
     runFiles: (runId: string) => ["workflows", "run", runId, "files"] as const,
+    runFilePreview: (
+      runId: string,
+      fileId: string,
+      scope: string,
+      contentType: string,
+      byteSize: number,
+      generation: string,
+    ) =>
+      [
+        "workflows",
+        "run",
+        runId,
+        "files",
+        fileId,
+        "preview",
+        scope,
+        contentType,
+        byteSize,
+        generation,
+      ] as const,
     // The decisions workflow steps wait on. Under "workflows" so a decision's
     // invalidation of every run refreshes the queue with them.
     approvals: () => ["workflows", "approvals"] as const,
+    // The requests the reader may decide, under the queue's key so a decision refreshes it.
+    approvalsWaitingOnMe: () => ["workflows", "approvals", "waiting-on-me"] as const,
     // The record of what was decided over a window: its own question, so its own key.
     approvalHistory: (from: string, to: string) =>
       ["workflows", "approvals", "history", from, to] as const,
@@ -206,6 +353,7 @@ export const qk = {
     webhookTest: (id: string, token: string) => ["workflows", id, "webhook-test", token] as const,
   },
   channelBots: {
+    diagnostics: (botId: string) => ["channel-bots", "diagnostics", botId] as const,
     list: () => ["channel-bots"] as const,
     // Under the list's prefix, so every bot mutation refreshes the one a dialog
     // has open too - its "inherit" hint reads the bot's agent.
@@ -248,6 +396,12 @@ export const qk = {
     targets: (agentId: string) => ["exposures", agentId, "targets"] as const,
   },
   triggers: {
+    filteredEvent: (agentId: string, triggerId: string) =>
+      ["triggers", agentId, "filtered-event", triggerId] as const,
+    activation: (agentId: string, triggerId: string, activationId: string, jobId: string | null) =>
+      ["triggers", agentId, "activation", triggerId, activationId, jobId] as const,
+    attempts: (agentId: string, triggerId: string, page: number) =>
+      ["triggers", agentId, "attempts", triggerId, page] as const,
     sources: (agentId: string, triggerId: string) =>
       ["triggers", agentId, "sources", triggerId] as const,
     actionConsents: (agentId: string, triggerId: string) =>
@@ -345,6 +499,7 @@ export const qk = {
         rated?: string;
         statuses?: string[];
         surface?: string;
+        source?: string;
         modality?: string;
         modelLabel?: string;
         userId?: string;
@@ -392,6 +547,8 @@ export const qk = {
     // Keyed on the page, because the queue is server-paged: one key for every
     // page would show page one's rows under page three's pager (#1336).
     approvals: (skip = 0) => ["runs", "approvals", skip] as const,
+    // The calls the console may decide, without those a live voice call is deciding.
+    approvalsWaitingOnMe: () => ["runs", "approvals", "waiting-on-me"] as const,
     // The decided record over a window - a different question from the queue,
     // so a different key: the queue must refresh on a decision, the record on
     // a window change.
@@ -419,6 +576,8 @@ export const qk = {
       ["stats", "usage", "user", scope, from, to, limit, filter ?? null] as const,
     usageByHour: (scope: string, from: string, to: string, filter?: unknown) =>
       ["stats", "usage", "hour", scope, from, to, filter ?? null] as const,
+    attention: (from: string, to: string) => ["stats", "attention", from, to] as const,
+    attentionAll: () => ["stats", "attention"] as const,
   },
   ratings: {
     summary: (scope: string, from: string, to: string) =>
@@ -453,8 +612,28 @@ export const qk = {
     }) => ["skills", "list", query] as const,
     detail: (id: string) => ["skills", id] as const,
     gallery: () => ["skills", "gallery"] as const,
+    galleryPreview: (key: string) => ["skills", "gallery", "preview", key] as const,
     resource: (skillId: string, resourceId: string) =>
       ["skills", skillId, "resources", resourceId] as const,
+    versions: (skillId: string, forkId: string | null, skip: number) =>
+      ["skills", skillId, "versions", forkId ?? "main", skip] as const,
+    version: (skillId: string, versionId: string) =>
+      ["skills", skillId, "version", versionId] as const,
+    forks: (skillId: string) => ["skills", skillId, "forks"] as const,
+    agents: (skillId: string) => ["skills", skillId, "agents"] as const,
+    improvements: (skillId: string, forkId: string | null) =>
+      ["skills", skillId, "improvements", forkId ?? "main"] as const,
+    improvementHistory: (skillId: string, forkId: string | null) =>
+      ["skills", skillId, "improvements", forkId ?? "main", "history"] as const,
+    problems: (skillId: string, sessionId: string) =>
+      ["skills", skillId, "problems", sessionId] as const,
+    awaiting: () => ["skills", "improvements-awaiting"] as const,
+    behindMain: () => ["skills", "behind-main"] as const,
+    /** `at` is where the session stands, so a merge the model filled is read again. */
+    merge: (skillId: string, sessionId: string, at: string) =>
+      ["skills", skillId, "merge", sessionId, at] as const,
+    testSet: (skillId: string) => ["skills", skillId, "test-set"] as const,
+    usage: (skillId: string, days: number) => ["skills", skillId, "usage", days] as const,
   },
   mcpOauth: {
     request: (orgId: string, requestId: string) =>
@@ -463,6 +642,30 @@ export const qk = {
   },
   // The organization's AI Architect: its agent, status and settings (#2063).
   assistant: (orgId: string) => ["assistant", orgId] as const,
+  // The failure-learning loop: mined patterns, the ledger, eval cases, tries
+  // and proposals. Org patterns live under their own prefix - the per-agent
+  // lists are under the agent, so invalidating one agent never refetches
+  // another's ledger.
+  failureLearning: {
+    orgPatterns: () => ["failure-learning", "patterns"] as const,
+    agentPatterns: (agentId: string) =>
+      ["failure-learning", "agents", agentId, "patterns"] as const,
+    ledger: (agentId: string, status?: string) =>
+      status === undefined
+        ? (["failure-learning", "agents", agentId, "ledger"] as const)
+        : (["failure-learning", "agents", agentId, "ledger", "status", status] as const),
+    ledgerEntry: (agentId: string, entryId: string) =>
+      ["failure-learning", "agents", agentId, "ledger", "entry", entryId] as const,
+    cases: (agentId: string) => ["failure-learning", "agents", agentId, "cases"] as const,
+    proposals: (agentId: string, status?: string) =>
+      status === undefined
+        ? (["failure-learning", "agents", agentId, "proposals"] as const)
+        : (["failure-learning", "agents", agentId, "proposals", "status", status] as const),
+    proposal: (agentId: string, proposalId: string) =>
+      ["failure-learning", "agents", agentId, "proposals", "detail", proposalId] as const,
+    try: (agentId: string, tryId: string) =>
+      ["failure-learning", "agents", agentId, "tries", tryId] as const,
+  },
   apiKeys: {
     /** Every key query in one organization, for invalidating after a create or revoke. */
     all: (orgId: string) => ["api-keys", orgId] as const,
@@ -471,6 +674,7 @@ export const qk = {
   },
   // The drawings agents made for the caller (#2171).
   visuals: {
+    preview: (id: string) => ["visuals", "preview", id] as const,
     all: () => ["visuals"] as const,
     recent: (limit: number) => ["visuals", "recent", limit] as const,
   },
@@ -484,10 +688,13 @@ export const qk = {
       limit: number;
       groupId: string;
       projectId?: string;
+      favourites?: boolean;
     }) => ["artifacts", "list", query] as const,
     agents: () => ["artifacts", "agents"] as const,
     detail: (id: string) => ["artifacts", id] as const,
     versions: (id: string) => ["artifacts", id, "versions"] as const,
+    thumbnail: (id: string, version: string | null, org: string | null, user: string | null) =>
+      ["artifacts", id, "thumbnail", version ?? "current", org, user] as const,
     view: (id: string, versionId: string | null, withData = false) =>
       ["artifacts", id, "view", versionId ?? "current", withData ? "data" : "plain"] as const,
     data: (id: string, versionId: string) => ["artifacts", id, "data", versionId] as const,
@@ -503,6 +710,107 @@ export const qk = {
     review: (id: string, versionId: string) => ["artifacts", id, "review", versionId] as const,
     public: (key: string) => ["artifacts", "public", key] as const,
   },
+  datasets: {
+    sourceMessage: (messageId: string) => ["datasets", "source-message", messageId] as const,
+    all: () => ["datasets"] as const,
+    /** Every dataset the caller sees, all pages read - the eval start dialog's picker. */
+    every: () => ["datasets", "every"] as const,
+    /** Whether the caller may run any dataset with a case - one row, read for its total. */
+    runnable: () => ["datasets", "runnable"] as const,
+    lists: () => ["datasets", "list"] as const,
+    list: (query: {
+      search: string;
+      sort: string;
+      skip: number;
+      limit: number;
+      editable: boolean;
+      judge: string;
+      asksRun: string;
+      agent: string;
+    }) => ["datasets", "list", query] as const,
+    detail: (id: string) => ["datasets", id] as const,
+    versions: (id: string) => ["datasets", id, "versions"] as const,
+    cases: (id: string, query: { version: number | null; skip: number; limit: number }) =>
+      ["datasets", id, "cases", query] as const,
+    case: (id: string, caseId: string) => ["datasets", id, "case", caseId] as const,
+    generations: (id: string) => ["datasets", id, "generations"] as const,
+    proposals: (id: string, query: { skip: number; limit: number }) =>
+      ["datasets", id, "proposals", query] as const,
+    allScores: (id: string) => ["datasets", id, "scores"] as const,
+    scores: (
+      id: string,
+      query: {
+        caseId: string | null;
+        pending: boolean;
+        outcome: string | null;
+        agentId: string | null;
+        judgeId: string | null;
+        tag: string | null;
+        skip: number;
+        limit: number;
+      },
+    ) => ["datasets", id, "scores", query] as const,
+    allReviewQueue: () => ["datasets", "review-queue"] as const,
+    judgeAgreement: (judgeId: string) => ["datasets", "judge-agreement", judgeId] as const,
+    judgeTemplate: (id: string) => ["datasets", id, "judge-template"] as const,
+    reviewQueue: (query: { skip: number; limit: number }) =>
+      ["datasets", "review-queue", query] as const,
+  },
+  contextChanges: {
+    all: () => ["context-changes"] as const,
+    list: (status: string) => ["context-changes", status] as const,
+  },
+  authoring: {
+    all: () => ["authoring"] as const,
+    agent: (agentId: string) => ["authoring", "agent", agentId] as const,
+    skill: (skillId: string) => ["authoring", "skill", skillId] as const,
+    contexts: () => ["authoring", "context"] as const,
+    context: (contextId: string) => ["authoring", "context", contextId] as const,
+    waiting: () => ["authoring", "waiting"] as const,
+  },
+  knowledgeGaps: {
+    all: () => ["knowledge-gaps"] as const,
+    /** `scope` is `organization`, `collection:<id>` or `agent:<id>`. */
+    list: (scope: string, query: { status: string; skip: number; limit: number }) =>
+      ["knowledge-gaps", "list", scope, query] as const,
+    detail: (id: string) => ["knowledge-gaps", id] as const,
+    draftEstimate: (id: string) => ["knowledge-gaps", id, "draft-estimate"] as const,
+  },
+  evalRuns: {
+    all: () => ["eval-runs"] as const,
+    forAgent: (agentId: string, query: { skip: number; limit: number }) =>
+      ["eval-runs", "agent", agentId, query] as const,
+    recent: (limit: number, skip = 0) => ["eval-runs", "recent", limit, skip] as const,
+    forDataset: (datasetId: string, query: { skip: number; limit: number }) =>
+      ["eval-runs", "dataset", datasetId, query] as const,
+    forDraft: (agentId: string, draft: "current" | "earlier" = "current", limit = 1) =>
+      ["eval-runs", "draft", agentId, draft, limit] as const,
+    armSpec: (runId: string, armId: string) => ["eval-runs", runId, "arm", armId, "spec"] as const,
+    detail: (id: string) => ["eval-runs", id] as const,
+    cases: (
+      id: string,
+      query: {
+        arm: string | null;
+        outcome: string | null;
+        tag: string | null;
+        caseIds: string[] | null;
+        skip: number;
+        limit: number;
+      },
+    ) => ["eval-runs", id, "cases", query] as const,
+    comparison: (id: string, query: { arm: string | null; baseline: string | null }) =>
+      ["eval-runs", id, "comparison", query] as const,
+  },
+  evalSuites: {
+    all: () => ["eval-suites"] as const,
+    forAgent: (agentId: string) => ["eval-suites", "agent", agentId] as const,
+    visible: () => ["eval-suites", "visible"] as const,
+    results: (agentId: string, suiteId: string, query: { skip: number; limit: number }) =>
+      ["eval-suites", "agent", agentId, suiteId, "results", query] as const,
+    /** Under the suites, so a result settling refreshes the gate it decides. */
+    gate: (agentId: string, environmentId: string, versionId: string) =>
+      ["eval-suites", "gate", agentId, environmentId, versionId] as const,
+  },
   context: {
     all: () => ["context"] as const,
     list: (query: { search: string; sort: string; skip: number; limit: number; groupId: string }) =>
@@ -510,10 +818,13 @@ export const qk = {
     detail: (id: string) => ["context", id] as const,
   },
   invitations: {
+    received: (user: string) => ["invitations", "received", user] as const,
     all: () => ["invitations"] as const,
     list: (orgId: string) => ["invitations", orgId] as const,
   },
   conversations: {
+    search: (term: string) => ["conversations", "search", term] as const,
+    waitingQuestions: () => ["conversations", "waiting-questions"] as const,
     all: () => ["conversations"] as const,
     /**
      * One page of the sidebar, under the filters it was fetched with.
@@ -529,6 +840,21 @@ export const qk = {
      */
     list: (params?: string) =>
       params ? (["conversations", "list", params] as const) : (["conversations", "list"] as const),
+    /** Message snippets are private to the signed-in person and active tenant. */
+    messageSearch: (tenant: string | null, user: string | null, query: string) =>
+      ["conversations", "message-search", tenant, user, query] as const,
+    /** A source owner's bounded child page, private to reader and tenant. */
+    forks: (
+      source: string | null,
+      message: string | null,
+      tenant: string | null,
+      user: string | null,
+      skip: number,
+      limit: number,
+    ) => ["conversations", source, "forks", message, tenant, user, skip, limit] as const,
+    /** Personal pins on one readable transcript; each reader has a separate cache. */
+    messagePins: (tenant: string | null, user: string | null, conversation: string | null) =>
+      ["conversations", "message-pins", tenant, user, conversation] as const,
     /**
      * The newest few, for the dashboard. Its own key because `list()` is owned
      * by the chat sidebar, which caches a different page under a different
@@ -544,8 +870,16 @@ export const qk = {
   conversationShares: {
     all: () => ["conversation-shares"] as const,
     list: (conversationId: string) => ["conversation-shares", conversationId] as const,
-    sharedWithMe: (skip: number, limit: number) =>
-      ["conversation-shares", "shared-with-me", skip, limit] as const,
+    sharedLists: () => ["conversation-shares", "shared-with-me"] as const,
+    sharedWithMe: (
+      skip: number,
+      limit: number,
+      orgId: string | null = null,
+      includeArchived = true,
+    ) => ["conversation-shares", "shared-with-me", skip, limit, orgId, includeArchived] as const,
+    /** What the reader may do in one conversation their own listing does not hold. */
+    access: (conversationId: string, orgId: string | null) =>
+      ["conversation-shares", "access", conversationId, orgId] as const,
   },
   kb: {
     all: () => ["kb"] as const,
@@ -664,6 +998,17 @@ export const qk = {
     list: (userId: string, orgId: string | null) =>
       ["app-connections", userId, orgId, "list"] as const,
   },
+  networkConnections: {
+    all: () => ["network-connections"] as const,
+    list: (userId: string, orgId: string | null, skip?: number, limit?: number) =>
+      skip === undefined
+        ? (["network-connections", userId, orgId, "list"] as const)
+        : (["network-connections", userId, orgId, "list", skip, limit] as const),
+    detail: (userId: string, orgId: string | null, id: string) =>
+      ["network-connections", userId, orgId, "detail", id] as const,
+    peers: (userId: string, orgId: string | null, id: string) =>
+      ["network-connections", userId, orgId, "peers", id] as const,
+  },
   connectedAccounts: {
     all: () => ["connected-accounts"] as const,
     // A person's own, and the organization's: two owners, two lists.
@@ -683,8 +1028,9 @@ export const qk = {
     usable: (workflowId: string) => ["mcp-connections", "usable", workflowId] as const,
     calls: (connectionId: string) => ["mcp-connections", "calls", connectionId] as const,
   },
-  // What one coding-agent task changed: written once, when the task ends, and never again.
+  // A task's recorded changes and the current reader's permission to revert them.
   codingChanges: {
+    all: () => ["coding-changes"] as const,
     detail: (changeId: string) => ["coding-changes", changeId] as const,
   },
   conversationWorkspace: {
@@ -708,6 +1054,14 @@ export const qk = {
     // holds the same file's text - they are two different bodies.
     bytes: (id: string, path: string) => ["sandbox-workspaces", "bytes", id, path] as const,
     file: (id: string, path: string) => ["sandbox-workspaces", "file", id, path] as const,
+  },
+  skillChecks: {
+    all: () => ["skill-checks"] as const,
+    skill: (skillId: string) => ["skill-checks", skillId] as const,
+    detail: (skillId: string, checkId: string) => ["skill-checks", skillId, checkId] as const,
+    line: (skillId: string, forkId: string | null, page = 0) =>
+      ["skill-checks", skillId, "line", forkId ?? "main", page] as const,
+    awaiting: () => ["skill-checks", "awaiting"] as const,
   },
   skillChanges: {
     all: () => ["skill-changes"] as const,
@@ -907,6 +1261,8 @@ export const qk = {
       ["tables", tableId, "records", "count", query] as const,
     // One record, as "reload and reapply" refetches it after a conflict.
     record: (tableId: string, recordId: string) => ["tables", tableId, "record", recordId] as const,
+    recordAccess: (tableId: string, recordId: string) =>
+      ["tables", tableId, "record-access", recordId] as const,
     views: (tableId: string) => ["tables", tableId, "views"] as const,
     // One kind's views, as the picker for that tab reads them; under `views` so
     // one invalidation refreshes every kind.

@@ -41,12 +41,14 @@ from sqlalchemy import (
     LargeBinary,
     String,
     UniqueConstraint,
+    func,
     text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
+from app.core.resource_icons import ResourceIconName
 from app.db.base import Base, TimestampMixin
 from app.db.models.resource_grant import Visibility
 
@@ -76,6 +78,7 @@ class VirtualTable(Base, TimestampMixin):
     )
     name: Mapped[str] = mapped_column(String(64), nullable=False)
     description: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    icon: Mapped[ResourceIconName | None] = mapped_column(String(32), nullable=True)
     default_view_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
         ForeignKey(
@@ -88,6 +91,10 @@ class VirtualTable(Base, TimestampMixin):
         index=True,
     )
     schema_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    # Row-level access, one policy document per table (see `RowPolicy` in
+    # `app/schemas/virtual_table.py`). NULL is no policy: today's behaviour,
+    # every row visible to anyone who may read the table.
+    row_policy: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     # Archiving keeps the rows and the history readable and refuses writes. A
     # ordinary table stays because a workflow or view may still name it. Managed
     # task tables are purged when their owning scope is deleted.
@@ -168,6 +175,12 @@ class VirtualTableRecord(Base, TimestampMixin):
     schema_version: Mapped[int] = mapped_column(Integer, nullable=False)
     values: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
     revision: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    # When the write ran, not when its transaction began, as `created_at` is written: a
+    # batch import compares it with the time it began, and an edit that waited on a lock
+    # until after that moment must read as later.
+    updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), onupdate=func.clock_timestamp(), nullable=True
+    )
     created_by: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
@@ -188,6 +201,9 @@ class VirtualTableRecord(Base, TimestampMixin):
             ["virtual_tables.organization_id", "virtual_tables.id"],
             ondelete="CASCADE",
             name="virtual_table_records_org_table_fkey",
+        ),
+        UniqueConstraint(
+            "organization_id", "table_id", "id", name="uq_virtual_table_record_org_table_id"
         ),
         Index(
             "uq_virtual_table_record_external_id",
@@ -274,6 +290,11 @@ class VirtualTableReceipt(Base):
     that pick the same key, or one caller using it for two operations, never
     meet. `payload_hash` is what makes a reused key with a changed body a
     refusal rather than a silent replay of the old answer.
+
+    `table_id` is set on a `record.batch` receipt only: its outcome holds the
+    refused rows' details, which can carry personal data, and does not name the
+    table, so a table purge finds it by this column. Legacy receipts whose result
+    was erased retain their key without a table until the normal expiry.
     """
 
     __tablename__ = "virtual_table_receipts"
@@ -291,6 +312,7 @@ class VirtualTableReceipt(Base):
     operation_key: Mapped[str] = mapped_column(String(128), nullable=False)
     payload_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     outcome: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
+    table_id: Mapped[uuid.UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=text("now()"), nullable=False
     )
@@ -303,10 +325,14 @@ class VirtualTableReceipt(Base):
             "operation_key",
             name="uq_virtual_table_receipt_key",
         ),
+        CheckConstraint(
+            "operation <> 'record.batch' OR table_id IS NOT NULL OR outcome = '{\"_purged\": true}'::jsonb",
+            name="batch_names_table",
+        ),
         Index("virtual_table_receipts_org_created_idx", "organization_id", "created_at"),
         CheckConstraint(
             "operation IN ('record.create', 'record.update', 'record.delete', 'record.upsert', "
-            "'table.create')",
+            "'record.batch', 'table.create')",
             name="operation",
         ),
     )

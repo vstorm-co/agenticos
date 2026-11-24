@@ -188,12 +188,12 @@ class DirectorySyncService:
                     },
                 )
                 continue
-            await end_membership(self.db, membership)
-            await self._audit(
-                "directory.member_removed",
-                user_id,
-                membership.organization_id,
-                {"role": membership.role, "provider": provider},
+            await end_membership(
+                self.db,
+                membership,
+                actor_user_id=user_id,
+                action="directory.member_removed",
+                details={"role": membership.role, "provider": provider},
             )
 
         for organization_id in await group_repo.organizations_with_directory_groups(

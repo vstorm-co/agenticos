@@ -18,6 +18,7 @@ from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import (
+    DDL,
     Boolean,
     CheckConstraint,
     DateTime,
@@ -27,9 +28,11 @@ from sqlalchemy import (
     Numeric,
     String,
     Text,
+    UniqueConstraint,
+    event,
     text,
 )
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -54,12 +57,21 @@ class RunStatus(enum.StrEnum):
     CANCELLED = "cancelled"
     AWAITING_APPROVAL = "awaiting_approval"
     AWAITING_ANSWER = "awaiting_answer"
-    """Parked on an `ask_user` question the person left without answering (#2064).
+    """Parked on an unanswered `ask_user` question (#2064).
     It resumes when they answer and ends, the agent told so, after a day."""
     BUDGET_EXCEEDED = "budget_exceeded"
     GUARDRAIL_BLOCKED = "guardrail_blocked"
     LOOP_STOPPED = "loop_stopped"
     """Stopped for looping on its tool calls after it was warned (#2086)."""
+    TIMED_OUT = "timed_out"
+    """A model request went past its deadline without answering.
+
+    Not a malfunction in the platform's own code: the deadline is the
+    platform working, like a budget cap. A run that hung forever showed
+    "Working" indefinitely; a timed-out one ends here, visibly, with the
+    deadline in its stored error. It is a plain string column, not a DB
+    enum, so this member needs no alembic migration.
+    """
 
     @classmethod
     def parse_csv(cls, raw: str | None) -> list[str] | None:
@@ -120,10 +132,13 @@ class RunSurface(enum.StrEnum):
     IMESSAGE = "imessage"
 
     DISCORD = "discord"
+    MATRIX = "matrix"
     # A run nobody typed into: the agent-triggers heartbeat fired it on a
     # schedule. The one member here assigned by a machine rather than a surface a
     # person reached the agent through (agenticos#44).
     SCHEDULE = "schedule"
+    # Kept apart so a filter can leave evaluation out of production traffic.
+    EVAL = "eval"
     # A workflow's `agent.run` step: the run a graph asked for, at the version the
     # step pins, as the workflow run's principal (#1789).
     WORKFLOW = "workflow"
@@ -144,6 +159,7 @@ CHANNEL_SURFACES = frozenset(
         RunSurface.MATTERMOST,
         RunSurface.TEAMS,
         RunSurface.DISCORD,
+        RunSurface.MATRIX,
         RunSurface.SMS,
         RunSurface.EMAIL,
         RunSurface.IMESSAGE,
@@ -187,6 +203,21 @@ class RunRating(enum.StrEnum):
     DOWN = "down"
 
 
+class RunSource(enum.StrEnum):
+    """Whose work a run was, as Activity's Source filter asks.
+
+    `CONVERSATION` is every surface a person, a client or a schedule reaches an
+    agent through. `EVALUATION` is one of the organization's agents answering an
+    eval case - an eval run, or Improve measuring a candidate. `SYSTEM` is a
+    platform agent (`AgentKind` other than `AGENT`) at work: the judge, the
+    improver, the knowledge-gap classifier and drafter, the case generator.
+    """
+
+    CONVERSATION = "conversation"
+    EVALUATION = "evaluation"
+    SYSTEM = "system"
+
+
 class AgentRun(Base, TimestampMixin):
     """One execution of one agent version."""
 
@@ -194,6 +225,12 @@ class AgentRun(Base, TimestampMixin):
 
     id: Mapped[uuid.UUID] = mapped_column(
         PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    improvement_run_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("improvement_runs.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
     )
     organization_id: Mapped[uuid.UUID] = mapped_column(
         PG_UUID(as_uuid=True),
@@ -257,7 +294,7 @@ class AgentRun(Base, TimestampMixin):
     routine_policy: Mapped[dict[str, object] | None] = mapped_column(JSONB, nullable=True)
     conversation_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
-        ForeignKey("conversations.id", ondelete="SET NULL"),
+        ForeignKey("conversations.id", ondelete="SET NULL", deferrable=True, initially="DEFERRED"),
         nullable=True,
     )
     # Who asked, when who asked is not a person: the chat account a channel turn
@@ -307,10 +344,25 @@ class AgentRun(Base, TimestampMixin):
     # a test of the draft has no version, and a run parked on an approval has to
     # continue on exactly what it was running.
     test_spec: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    text_to_speech_defaults: Mapped[dict[str, str | bool | None] | None] = mapped_column(
+        JSONB, nullable=True
+    )
+
+    # The skill versions this run served, its inline specialists' included; null for
+    # a run from before skills were versioned.
+    skill_version_ids: Mapped[list[uuid.UUID] | None] = mapped_column(
+        ARRAY(PG_UUID(as_uuid=True)), nullable=True
+    )
 
     # Only a completed run that reached workspace attachment setup closes their window.
     earlier_attachments_checked: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default=text("false")
+    )
+    # Null until a run's finish records the skills it used; false for good once a
+    # segment's write failed, and for every run from before `run_skill_uses`. Only
+    # true says what the run used - the others are unknown, which is not none.
+    skill_uses_recorded: Mapped[bool | None] = mapped_column(
+        Boolean, nullable=True, default=True, server_default=text("true")
     )
 
     # The run this one was delegated from, and the delegation's own id inside it.
@@ -326,6 +378,14 @@ class AgentRun(Base, TimestampMixin):
     # becomes top-level is exactly what should start counting. Cascading would
     # instead delete the record of money that was spent.
     parent_run_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("agent_runs.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    # A retry is a new top-level run, so its cost belongs to its own ledger.
+    # Keep its origin without making it look like a delegation.
+    retry_of_run_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
         ForeignKey("agent_runs.id", ondelete="SET NULL"),
         nullable=True,
@@ -366,6 +426,21 @@ class AgentRun(Base, TimestampMixin):
     # a profile can be repointed at a different provider or key and the run's
     # own history must not change when it is. SET NULL on the key: deleting a
     # credential must not delete the record of what it spent.
+    #
+    # Whether a fallback model served any request of this run, and which model
+    # answered last. Until this change a fallback was invisible in the run
+    # record: the row named the primary profile however the turn was answered,
+    # so a bad answer could not be traced to the model that gave it. These are
+    # the run's own answer to that, derived from the per-request models in its
+    # manifest - never from `model_label`, which is a display name, not a model
+    # id. `fallback_used` is False on rows written before this was tracked;
+    # the console only renders the fallback line when it is True, so those rows
+    # read as they always did. `serving_model` is the serving model's bare id
+    # as the provider reported it, or null when no request succeeded.
+    fallback_used: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
+    serving_model: Mapped[str | None] = mapped_column(String(128), nullable=True)
     provider: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
     secret_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
@@ -421,6 +496,15 @@ class AgentRun(Base, TimestampMixin):
 
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # The transactions committed when the row was inserted, before the run reads any
+    # memory: an erasure missing from it was still running, so what the run read may
+    # predate it. Prefixed with the database boot so restarts and restores invalidate
+    # older visibility evidence. Null only on runs predating this column.
+    memory_snapshot: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+        server_default=text("agenticos_memory_snapshot()"),
+    )
     ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     # Stamped every few seconds by the process executing the run
     # (`app.services.run_heartbeat`), so a run whose process died is told apart
@@ -433,11 +517,27 @@ class AgentRun(Base, TimestampMixin):
     # column rather than a `paused_state` key: `PausedRunState` is
     # `extra="forbid"`, so a key there would make the run unreadable to an older
     # process on a rollback or a rolling deploy.
+    channel_stop_requested_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    """A verified channel sender asked this active run to stop at its next model boundary."""
     chat_notice_sent_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
 
+    # Set when the hourly sweep reminded the chat once that an `ask_user`
+    # question is still unanswered, so the reminder is sent once and not on
+    # every sweep until the question expires. A column rather than a
+    # `paused_state` key for the same reason as `chat_notice_sent_at` above:
+    # `PausedRunState` is `extra="forbid"`, so a key there would make the run
+    # unreadable to an older process on a rollback or a rolling deploy.
+    # Cleared when the run leaves the queue, like the chat notice.
+    question_nudged_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
     __table_args__ = (
+        UniqueConstraint("organization_id", "id", name="uq_agent_runs_org_id"),
         CheckConstraint(
             "routine_kind IN ('trigger', 'watch') AND "
             "(routine_kind != 'watch' OR (routine_origin_id IS NOT NULL AND routine_policy IS NOT NULL))",
@@ -446,6 +546,12 @@ class AgentRun(Base, TimestampMixin):
         # Monthly spend, per organization. Read before *every* model request to
         # check the budget, so it is the most frequently served query here.
         Index("ix_agent_runs_org_started", "organization_id", "started_at"),
+        Index(
+            "ix_agent_runs_routine_activation",
+            "organization_id",
+            text("(routine_policy ->> 'activation_id')"),
+            postgresql_where=text("(routine_policy ->> 'activation_id') IS NOT NULL"),
+        ),
         # The same window broken down by provider - "what did we spend at OpenAI"
         # is the question a bill arrives with.
         Index(
@@ -454,11 +560,47 @@ class AgentRun(Base, TimestampMixin):
             "started_at",
             "provider",
         ),
+        # Failure-learning mining: the live aggregation over real runs groups
+        # by agent and status inside an org window, over top-level runs only
+        # (test runs are the loop's own tries, delegations are already counted
+        # inside their parent). Partial, so it stays small.
+        Index(
+            "ix_agent_runs_mining",
+            "organization_id",
+            "agent_id",
+            "status",
+            "started_at",
+            postgresql_where=text("is_test = false AND parent_run_id IS NULL"),
+        ),
         CheckConstraint("modality IN ('text', 'voice')", name="ck_agent_runs_modality"),
     )
 
     def __repr__(self) -> str:
         return f"<AgentRun(agent={self.agent_id}, status={self.status}, cost=${self.cost_usd})>"
+
+
+# The functions `memory_snapshot`'s default calls, for a schema built from the models;
+# 0336_run_memory_snapshot.py creates the same ones for a migrated database.
+_MEMORY_CLUSTER_FUNCTION = DDL(
+    """
+CREATE OR REPLACE FUNCTION agenticos_memory_cluster() RETURNS text
+LANGUAGE sql STABLE AS $$
+    SELECT 'boot:' || md5(extract(epoch FROM pg_postmaster_start_time())::text
+                         || '/' || oid::text)
+    FROM pg_database WHERE datname = current_database()
+$$
+"""
+)
+_MEMORY_SNAPSHOT_FUNCTION = DDL(
+    """
+CREATE OR REPLACE FUNCTION agenticos_memory_snapshot() RETURNS text
+LANGUAGE sql VOLATILE AS $$
+    SELECT agenticos_memory_cluster() || '/' || pg_current_snapshot()::text
+$$
+"""
+)
+event.listen(AgentRun.__table__, "before_create", _MEMORY_CLUSTER_FUNCTION)
+event.listen(AgentRun.__table__, "before_create", _MEMORY_SNAPSHOT_FUNCTION)
 
 
 class ApprovalStatus(enum.StrEnum):
@@ -589,6 +731,14 @@ class ToolApproval(Base, TimestampMixin):
     decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
     remember_scope: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    always_asks: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
+    """Whether only a person's answer to this call could let it run, so it is never remembered.
+
+    Written when the call is parked rather than looked up from the tool later,
+    because a tool may ask always for some calls and not others.
+    """
 
     # How, not what. A row approved by a click and one granted in advance by a
     # conversation's approval mode are both `approved`, and telling them apart is

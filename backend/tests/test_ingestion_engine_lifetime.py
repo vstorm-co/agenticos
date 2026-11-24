@@ -28,11 +28,21 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from app.db.vector_tables import VectorScope
 from app.services.rag.connectors import RemoteListing
 from app.services.rag.models import IngestionStatus
 from app.worker.tasks import rag_tasks
 
 pytestmark = [pytest.mark.anyio, pytest.mark.usefixtures("sole_source_run")]
+
+# The base the source records (#2551): a sync with none refuses before it lists.
+_BASE = MagicMock(
+    id=uuid.uuid4(),
+    collection_name="docs",
+    ingestion_config={},
+    embedding_model="text-embedding-3-small",
+    vector_scope=VectorScope(tenant=None),
+)
 
 
 class EngineLedger:
@@ -265,7 +275,9 @@ class TestAConnectorSyncsEngine:
             # on every real sync.
             organization_id=uuid.uuid4(),
             secret_id=None,
+            connected_account_id=None,
         )
+        source.knowledge_base_id = _BASE.id
         sources = MagicMock(
             get_source=AsyncMock(return_value=source),
             update_after_sync=AsyncMock(),
@@ -280,9 +292,25 @@ class TestAConnectorSyncsEngine:
         async with _worker(ledger):
             with (
                 patch.object(rag_tasks, "SyncSourceService", return_value=sources),
+                patch.object(
+                    rag_tasks.sync_log_repo,
+                    "get_by_id",
+                    new=AsyncMock(
+                        return_value=MagicMock(
+                            collection_name=source.collection_name,
+                            organization_id=source.organization_id,
+                            knowledge_base_id=_BASE.id,
+                        )
+                    ),
+                ),
                 patch.dict(rag_tasks.CONNECTOR_REGISTRY, {"gdrive": lambda: connector}),
                 patch("app.services.rag_sync.RAGSyncService", return_value=MagicMock()),
-                patch.object(rag_tasks, "_knowledge_base_for", new=AsyncMock(return_value=None)),
+                patch.object(
+                    rag_tasks, "_source_knowledge_base", new=AsyncMock(return_value=_BASE)
+                ),
+                patch.object(
+                    rag_tasks.knowledge_base_repo, "get_by_id", new=AsyncMock(return_value=_BASE)
+                ),
                 patch(
                     "app.services.rag_document.RAGDocumentService",
                     return_value=MagicMock(unlisted_by_source=AsyncMock(return_value=[])),
@@ -306,7 +334,9 @@ class TestAConnectorSyncsEngine:
             # on every real sync.
             organization_id=uuid.uuid4(),
             secret_id=None,
+            connected_account_id=None,
         )
+        source.knowledge_base_id = _BASE.id
         sources = MagicMock(
             get_source=AsyncMock(return_value=source), update_after_sync=AsyncMock()
         )
@@ -319,9 +349,25 @@ class TestAConnectorSyncsEngine:
         async with _worker(ledger):
             with (
                 patch.object(rag_tasks, "SyncSourceService", return_value=sources),
+                patch.object(
+                    rag_tasks.sync_log_repo,
+                    "get_by_id",
+                    new=AsyncMock(
+                        return_value=MagicMock(
+                            collection_name=source.collection_name,
+                            organization_id=source.organization_id,
+                            knowledge_base_id=_BASE.id,
+                        )
+                    ),
+                ),
                 patch.dict(rag_tasks.CONNECTOR_REGISTRY, {"gdrive": lambda: connector}),
                 patch("app.services.rag_sync.RAGSyncService", return_value=MagicMock()),
-                patch.object(rag_tasks, "_knowledge_base_for", new=AsyncMock(return_value=None)),
+                patch.object(
+                    rag_tasks, "_source_knowledge_base", new=AsyncMock(return_value=_BASE)
+                ),
+                patch.object(
+                    rag_tasks.knowledge_base_repo, "get_by_id", new=AsyncMock(return_value=_BASE)
+                ),
             ):
                 answer = await rag_tasks._run_source_sync(
                     str(uuid.uuid4()), sync_log_id=str(uuid.uuid4())

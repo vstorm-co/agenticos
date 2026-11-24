@@ -76,6 +76,174 @@ function mount(overrides: Partial<Agent> = {}, { canEdit = true, busy = false } 
  * the accessible names, which is the only way that stays true.
  */
 describe("AgentCard", () => {
+  it("explains attention on touch without navigating away from the card", async () => {
+    render(
+      <AgentCard
+        agent={agent({})}
+        canEdit={false}
+        attention={{
+          agent_id: "a1",
+          name: "Support",
+          rated_down: 0,
+          failed_runs: 2,
+          failing_suites: 0,
+          can_edit: false,
+        }}
+      />,
+    );
+    const signal = screen.getByRole("button", { name: "Needs attention: 2 failed runs" });
+    expect(signal).toBeVisible();
+    await userEvent.click(signal);
+    expect(screen.getByRole("dialog")).toHaveTextContent("2 failed runs");
+    expect(screen.getByRole("link", { name: "Open Support" })).toHaveAttribute(
+      "href",
+      "/agents/a1?tab=evals",
+    );
+  });
+
+  it("keeps publication readable without another badge frame", () => {
+    mount({ status: "draft" });
+    expect(screen.getByText("draft")).toBeVisible();
+    expect(screen.getByText("draft").closest('[data-slot="badge"]')).toBeNull();
+  });
+
+  it("flags an agent that needs attention, saying why on hover", () => {
+    render(
+      <AgentCard
+        agent={agent({ name: "Refund desk" })}
+        canEdit={false}
+        attention={{
+          agent_id: "a1",
+          name: "Refund desk",
+          rated_down: 5,
+          failed_runs: 0,
+          failing_suites: 1,
+          can_edit: false,
+        }}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: /^Needs attention:/ })).toHaveAttribute(
+      "title",
+      "5 answers rated down · 1 failing suite",
+    );
+  });
+
+  it("opens an agent with attention on its Evals tab, where the attention is", () => {
+    render(
+      <AgentCard
+        agent={agent({ id: "a9", name: "Refund desk" })}
+        canEdit
+        attention={{
+          agent_id: "a9",
+          name: "Refund desk",
+          rated_down: 5,
+          failed_runs: 0,
+          failing_suites: 0,
+          can_edit: true,
+        }}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: /^Needs attention:/ }).closest("a")).toBeNull();
+    expect(screen.getByRole("link", { name: "Open Refund desk" })).toHaveAttribute(
+      "href",
+      "/agents/a9?tab=evals",
+    );
+    expect(screen.queryByRole("link", { name: /Improve/ })).toBeNull();
+  });
+
+  it("opens an agent with nothing waiting, or a system agent, on its builder", () => {
+    const { unmount } = render(<AgentCard agent={agent({ id: "a8", name: "Quiet" })} canEdit />);
+    expect(screen.getByRole("link", { name: "Open Quiet" })).toHaveAttribute("href", "/agents/a8");
+    unmount();
+
+    render(
+      <AgentCard
+        agent={agent({ id: "a7", name: "Setup", kind: "judge" })}
+        canEdit
+        attention={{
+          agent_id: "a7",
+          name: "Setup",
+          rated_down: 1,
+          failed_runs: 0,
+          failing_suites: 0,
+          can_edit: true,
+        }}
+      />,
+    );
+    expect(screen.getByRole("link", { name: "Open Setup" })).toHaveAttribute("href", "/agents/a7");
+  });
+
+  it("only describes the attention to a reader who may not improve the agent", () => {
+    render(
+      <AgentCard
+        agent={agent({ name: "Refund desk" })}
+        canEdit={false}
+        attention={{
+          agent_id: "a1",
+          name: "Refund desk",
+          rated_down: 5,
+          failed_runs: 0,
+          failing_suites: 0,
+          can_edit: false,
+        }}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: /^Needs attention:/ }).closest("a")).toBeNull();
+  });
+
+  it("flags nothing without a reason to", () => {
+    mount({ name: "Refund desk" });
+
+    expect(screen.queryByRole("button", { name: /^Needs attention:/ })).toBeNull();
+  });
+
+  it("marks the judge the platform seeded as the default one", () => {
+    mount({ system_key: "eval_judge", name: "Eval judge", kind: "judge" });
+
+    expect(screen.getByText("Default judge")).toBeInTheDocument();
+  });
+
+  it("names the kind a seeded agent is the default of", () => {
+    mount({ system_key: "case_generator", name: "Case generator", kind: "generator" });
+
+    expect(screen.getByText("Default case generator")).toBeInTheDocument();
+    expect(screen.queryByText("Default judge")).toBeNull();
+  });
+
+  it("names the kind of an organization's own system agent, which is nobody's default", () => {
+    mount({ system_key: null, name: "Refunds judge", kind: "judge" });
+
+    expect(screen.getByText("System agent · Judge")).toHaveAttribute(
+      "title",
+      "The platform runs it for the whole organization; nobody chats with it.",
+    );
+    expect(screen.queryByText("Default judge")).toBeNull();
+  });
+
+  it("lets an editor open a card with no menu, as a judge's has none", () => {
+    render(
+      <AgentCard
+        agent={agent({ name: "Refunds judge", kind: "judge" })}
+        canEdit
+        footer={<p>Used by Refunds</p>}
+      />,
+    );
+
+    expect(screen.getByRole("link", { name: "Edit Refunds judge" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /more actions/i })).toBeNull();
+    expect(screen.getByText("Used by Refunds")).toBeInTheDocument();
+  });
+
+  it("marks nothing on an agent a person made", () => {
+    mount();
+
+    expect(screen.queryByText("Default judge")).toBeNull();
+    expect(screen.queryByText(/System agent/)).toBeNull();
+  });
+
   it("opens the builder from anywhere on the card", () => {
     mount();
 

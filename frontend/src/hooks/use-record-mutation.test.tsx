@@ -175,6 +175,27 @@ function deferred<T>() {
 }
 
 describe("useRecordMutation().commit", () => {
+  it("queues link deltas without replacing other targets and advances the revision", async () => {
+    const first = deferred<RecordRead>();
+    vi.mocked(apiClient.patch)
+      .mockReturnValueOnce(first.promise)
+      .mockResolvedValueOnce(recordAt(3));
+    const { result } = renderHook(() => useRecordMutation("t1"), { wrapper });
+    const added = { items: { add: ["target-a"], remove: [] } };
+    const removed = { items: { add: [], remove: ["target-b"] } };
+
+    const a = result.current.commit(recordAt(1), {}, added);
+    const b = result.current.commit(recordAt(1), {}, removed);
+    await waitFor(() => expect(apiClient.patch).toHaveBeenCalledTimes(1));
+    first.resolve(recordAt(2));
+    await Promise.all([a, b]);
+
+    expect(vi.mocked(apiClient.patch).mock.calls).toEqual([
+      ["/tables/t1/records/r1", { expected_revision: 1, values: {}, link_changes: added }],
+      ["/tables/t1/records/r1", { expected_revision: 2, values: {}, link_changes: removed }],
+    ]);
+  });
+
   it("sends a second write to one record only once the first answered, against its revision", async () => {
     const first = deferred<RecordRead>();
     vi.mocked(apiClient.patch)

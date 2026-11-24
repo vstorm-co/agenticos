@@ -1,5 +1,10 @@
 "use client";
 
+import { NativeDisclosure } from "@/components/ui/native-disclosure";
+
+import { NATIVE_CHOICE } from "@/components/ui/control-styles";
+
+import { NativeSelect } from "@/components/ui/native-select";
 import { MobileConversationNotifications } from "@/components/mobile/notification-preferences";
 import { ConversationNotificationToggle } from "@/components/desktop/notification-settings";
 import { useId } from "react";
@@ -268,7 +273,7 @@ function ComputerWorkOn({ agentEnabled }: { agentEnabled: boolean }) {
   };
 
   return (
-    <details className="group border-foreground/8 border-b py-3">
+    <NativeDisclosure className="group border-foreground/8 border-b py-3">
       <summary className="flex cursor-pointer list-none items-center gap-2 text-[13px] font-medium [&::-webkit-details-marker]:hidden">
         <FolderOpen className="text-muted-foreground size-4" aria-hidden />
         <span>{t("title")}</span>
@@ -432,10 +437,10 @@ function ComputerWorkOn({ agentEnabled }: { agentEnabled: boolean }) {
               <div className="space-y-2 py-2">
                 <label className="block text-xs">
                   {t("model")}
-                  <select
+                  <NativeSelect
                     aria-label={t("model")}
                     value={target.model_service ?? ""}
-                    className="border-input bg-background mt-1 h-10 w-full rounded-md border px-2"
+                    className="mt-1 px-2"
                     onChange={(event) =>
                       setTarget(conversationId, {
                         ...target,
@@ -451,7 +456,7 @@ function ComputerWorkOn({ agentEnabled }: { agentEnabled: boolean }) {
                           {service.name} · {service.model}
                         </option>
                       ))}
-                  </select>
+                  </NativeSelect>
                 </label>
                 {(target.mcp_services?.length ?? 0) >= 8 && (
                   <p className="text-muted-foreground text-xs">{t("mcpLimit")}</p>
@@ -462,6 +467,7 @@ function ComputerWorkOn({ agentEnabled }: { agentEnabled: boolean }) {
                     <label key={service.id} className="flex min-h-10 items-center gap-2 text-xs">
                       <input
                         type="checkbox"
+                        className={NATIVE_CHOICE}
                         checked={(target.mcp_services ?? []).includes(service.id)}
                         disabled={
                           (target.mcp_services?.length ?? 0) >= 8 &&
@@ -487,14 +493,14 @@ function ComputerWorkOn({ agentEnabled }: { agentEnabled: boolean }) {
                   {t("folderAccess")}
                 </span>
                 <span className="relative block">
-                  <select
+                  <NativeSelect
                     value={selectedMode}
                     disabled={modes.length === 0 || pick.isPending}
                     onChange={(event) => {
                       const mode = modes.find((mode) => mode === event.target.value);
                       if (mode && mode !== target?.mode) chooseFolder(mode);
                     }}
-                    className="border-foreground/12 bg-background text-foreground focus-visible:ring-ring h-9 w-full appearance-none rounded-lg border pr-8 pl-3 text-xs focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
+                    className="h-9 appearance-none pr-8 text-xs"
                     aria-describedby={modeHintId}
                   >
                     {modes.map((mode) => (
@@ -502,7 +508,7 @@ function ComputerWorkOn({ agentEnabled }: { agentEnabled: boolean }) {
                         {t(`mode.${mode}`)}
                       </option>
                     ))}
-                  </select>
+                  </NativeSelect>
                   <ChevronDown
                     className="text-muted-foreground pointer-events-none absolute top-1/2 right-3 h-3.5 w-3.5 -translate-y-1/2"
                     aria-hidden
@@ -527,6 +533,6 @@ function ComputerWorkOn({ agentEnabled }: { agentEnabled: boolean }) {
           </div>
         )}
       </div>
-    </details>
+    </NativeDisclosure>
   );
 }

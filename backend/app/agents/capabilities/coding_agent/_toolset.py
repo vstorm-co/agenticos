@@ -25,11 +25,12 @@ from uuid import UUID
 
 import anyio
 from pydantic import ValidationError
+from pydantic_ai.exceptions import UserError
 from pydantic_ai.providers.openai_codex import OpenAICodexCredentials
 from pydantic_ai.tools import RunContext
 from pydantic_ai.toolsets import FunctionToolset
 from pydantic_ai.usage import RequestUsage
-from pydantic_ai.workspaces import WorkspaceError, WorkspaceUnavailableError
+from pydantic_ai.workspaces import Workspace, WorkspaceError, WorkspaceUnavailableError
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.agents.audience import RunAudience
@@ -74,6 +75,9 @@ from app.agents.capabilities.coding_agent._task import (
     run_detached,
     task_files,
 )
+from app.agents.capabilities.sandbox._project import ProjectWorkspacePort
+from app.agents.capabilities.sandbox._recording import RecordingWorkspace
+from app.agents.model_context import check_model_context
 from app.core.exceptions import AppException, BadRequestError
 from app.db.session import get_db_context
 from app.services.coding_task_changes import CodingTaskChangeService
@@ -147,8 +151,8 @@ will ever resume.
 """
 DISCARD_ENV = "AGENTICOS_CODEX_DISCARD"
 READ_AUTH = (
-    f'cat "${HOME_ENV}/auth.json" 2>/dev/null; rm -rf "${HOME_ENV}"'
-    f' ${{{DISCARD_ENV}:+"${DISCARD_ENV}"}}'
+    f'cat "${HOME_ENV}/auth.json" 2>/dev/null; auth_read_status=$?; rm -rf "${HOME_ENV}"'
+    f' ${{{DISCARD_ENV}:+"${DISCARD_ENV}"}} || exit $?; exit "$auth_read_status"'
 )
 
 CODEX_HOMES = "/tmp/agenticos-codex"  # noqa: S108
@@ -205,6 +209,20 @@ def build_coding_toolset(
             )
         return None
 
+    def failed_report(answer: str, harness: Harness) -> str:
+        """A failure as a report, so the transcript marks it failed.
+
+        The tool's contract is JSON with `outcome`; a bare sentence renders as
+        an italic aside and reads to the model as what the harness said - a
+        refusal it then answers from as if it were a result. A run that could
+        not start is not a result: the report says `failed`, with the same
+        words as its `answer`, and the console draws the red badge to match.
+        """
+        report = CodingReport(harness=harness, access=access, outcome="failed", answer=answer)
+        return json.dumps(
+            {"kind": report.kind, **report.model_dump(mode="json", exclude_defaults=True)}
+        )
+
     async def run_coding_agent(
         ctx: RunContext[Any],
         task: str,
@@ -224,16 +242,22 @@ def build_coding_toolset(
         Args:
             task: The task in full: the goal, the files or area it concerns,
                 constraints, and how to check the result. The coding agent sees
-                nothing of this conversation but this text and its own earlier
-                tasks in the same session.
+                this task and the allowed source files. Include the decisions and
+                context it needs; named personal cloud sessions retain earlier work.
             session: Which session to work in, by a short lower-case name such as
                 `main`, `api` or `review`. The same name continues that session's
                 earlier work; a new name opens another. Local sessions run side by side; sandbox tasks queue to keep
-                their workspace snapshots separate. Use distinct names for independent work.
+                their workspace snapshots separate. Named personal cloud sessions retain
+                separate files and histories, and may run in parallel on different accounts.
+                Tasks using the same personal account wait in a bounded queue.
+                Use distinct names for independent work.
             fresh_session: Start this session over instead of continuing it. Leave
                 it off unless its earlier work is unrelated or it went wrong.
+                Personal cloud keeps the named session's files when its history resets.
             harness: `claude_code` or `codex`, to choose the coding agent for this
-                session on the person's computer. Empty uses the configured one.
+                task in personal cloud mode or on this computer. Each uses the person's
+                own account for that harness. Empty uses the configured default.
+                Organization-sandbox mode uses only the configured harness.
             folder: A folder inside the chat's folder for this session to work in,
                 relative or absolute - one project of several. Only on the
                 person's computer. Empty uses the chat's folder.
@@ -249,12 +273,14 @@ def build_coding_toolset(
                 "Name the session in lower case letters, digits, `-` or `_`, up to 40 "
                 "characters, such as `main` or `api`.",
             )
+        chosen = harness or configured
         if runs_on != "this_computer":
-            if harness is not None and harness != configured:
+            if runs_on == "sandbox" and chosen != configured:
                 return steer(
                     ctx,
-                    f"This agent runs {label} here; {LABELS[harness]} runs only on the "
-                    "person's computer. Leave `harness` empty.",
+                    f"This agent's sandbox is configured for {label} only. To choose either "
+                    "harness per task, use personal cloud coding or this computer. "
+                    "Leave `harness` empty here.",
                 )
             if folder is not None:
                 return steer(
@@ -263,12 +289,23 @@ def build_coding_toolset(
                     "its sandbox. Leave it empty and name the folder in the task.",
                 )
         if runs_on == "personal_sandbox":
-            if shared_sandbox or _in_room(ctx.deps):
-                return (
+            if (
+                shared_sandbox
+                or isinstance(ctx.workspace.backend, ProjectWorkspacePort)
+                or _in_room(ctx.deps)
+            ):
+                return failed_report(
                     "Personal coding accounts cannot run on sources from a shared workspace, "
                     "project or group chat. Copying those files into a private container does "
                     "not make their code trusted. Use a private unshared conversation workspace "
-                    "for personal-account work, or the organization's configured coding mode."
+                    "for personal-account work, or the organization's configured coding mode.",
+                    configured,
+                )
+            if chosen == "codex" and access == "read_only":
+                return steer(
+                    ctx,
+                    "Codex cannot run read-only inside a container. Use Claude Code for this "
+                    "read-only task, or ask the agent's author to change its access policy.",
                 )
             if personal_executor is None:
                 return steer(
@@ -277,19 +314,20 @@ def build_coding_toolset(
                 )
             if not task.strip():
                 return steer(ctx, "Describe the coding task first.")
+            await check_model_context()
             await assert_ambient_budget()
             try:
                 async with personal_executor.session(
-                    ctx, harness=configured, timeout_seconds=timeout_seconds
+                    ctx, harness=chosen, timeout_seconds=timeout_seconds, session=session
                 ) as personal:
                     isolated = build_coding_toolset(
-                        harness=configured,
+                        harness=chosen,
                         access=access,
-                        model=model,
+                        model=model if chosen == configured else None,
                         base_url=None,
                         api_key=personal.api_key.get_secret_value() if personal.api_key else None,
                         timeout_seconds=timeout_seconds,
-                        effort=effort,
+                        effort=effort if chosen == configured else None,
                         sign_in=personal.sign_in,
                         shared_sandbox=False,
                         personal_isolated=True,
@@ -306,9 +344,8 @@ def build_coding_toolset(
                         else None
                     )
                     try:
-                        # Every personal task starts in a fresh isolated copy.
                         result: object = await isolated.tools["run_coding_agent"].function(
-                            private_ctx, task, fresh_session=True
+                            private_ctx, task, session=session, fresh_session=fresh_session
                         )
                         if not isinstance(result, str):
                             raise TypeError("The coding tool returned a non-text result")
@@ -333,9 +370,17 @@ def build_coding_toolset(
                         return report.model_copy(
                             update={
                                 "account_label": personal.label,
+                                "account_id": str(personal.account_id),
+                                "selection_reason": personal.selection_reason,
                                 "execution": "isolated_task",
                                 "base_revision": personal.base_revision,
                                 "result_archive": personal.result_archive,
+                                "session_name": session,
+                                "session_resumed": (
+                                    report.session_resumed
+                                    if report.session_resumed is not None
+                                    else personal.resumed and not fresh_session
+                                ),
                             }
                         ).model_dump_json(exclude_defaults=True)
                     finally:
@@ -345,21 +390,24 @@ def build_coding_toolset(
             except AppException as error:
                 return steer(ctx, error.message)
         if runs_on == "this_computer":
-            return await run_local(ctx, task, session, fresh_session, harness or configured, folder)
+            return await run_local(ctx, task, session, fresh_session, chosen, folder)
         if api_key is None and sign_in is None:
             # Unreachable once published - the key is required at publish and at
-            # build. A retry rather than a crash for a preview built without one.
-            return steer(ctx, f"{label} has no API key configured.")
+            # build. A missing key is a run that cannot start, not a prompt to
+            # try again with different arguments: there is nothing to retry.
+            return failed_report(f"{label} has no API key configured.", configured)
         refused = mismatch()
         if refused is not None:
-            return refused
+            return failed_report(refused, configured)
         if not task.strip():
             return steer(ctx, "Describe the task in `task`: what to change or find, and where.")
         if not ctx.workspace.attached:
-            return (
+            return failed_report(
                 f"{label} needs a sandbox with a shell, and this agent has none. "
-                "Say so rather than trying again."
+                "Say so rather than trying again.",
+                configured,
             )
+        await check_model_context()
         await assert_ambient_budget()
         narration = Narration.for_call(ctx.deps, ctx.tool_call_id or uuid.uuid4().hex, configured)
         await narration.started(task)
@@ -374,7 +422,11 @@ def build_coding_toolset(
             raise
         if isinstance(report, str):
             await narration.finished("failed", error=report)
-            return report
+            # A refusal from below - no sign-in, a sandbox that would not run
+            # it, a harness that is not installed - reaches here as a sentence.
+            # It leaves as a report, so the transcript marks it failed rather
+            # than letting the model answer from it as if it were a result.
+            return failed_report(report, configured)
         await narration.finished(
             "completed" if report.outcome == "completed" else "failed",
             error=None if report.outcome == "completed" else report.answer[:500],
@@ -404,14 +456,17 @@ def build_coding_toolset(
             return steer(ctx, "Describe the task in `task`: what to change or find, and where.")
         workspace = ctx.workspace.backend if ctx.workspace.attached else None
         if not isinstance(workspace, DeviceWorkspace):
-            return (
+            return failed_report(
                 f"{name} is set to run on the person's computer, and this chat is not working "
-                "on one. Say that Work on needs to be set to This computer."
+                "on one. Say that Work on needs to be set to This computer.",
+                chosen,
             )
         try:
-            root = workspace.subfolder(folder) if folder else await workspace.working_dir()
+            chat_root = await workspace.working_dir()
+            root = workspace.subfolder(folder) if folder else chat_root
         except WorkspaceUnavailableError as outside:
             return steer(ctx, f"{outside}. Choose a folder inside it, or leave `folder` empty.")
+        await check_model_context()
         await assert_ambient_budget()
         narration = Narration.for_call(ctx.deps, ctx.tool_call_id or uuid.uuid4().hex, chosen)
         await narration.started(task)
@@ -439,6 +494,7 @@ def build_coding_toolset(
             root=root if folder else None,
         )
         try:
+            await check_model_context()
             await pipe.open()
             try:
                 with (
@@ -466,10 +522,10 @@ def build_coding_toolset(
                 _book(Usage())
         except AcpError as failed:
             await narration.finished("failed", error=failed.message[:500])
-            return f"{name} could not run on this computer: {failed.message}"
+            return failed_report(f"{name} could not run on this computer: {failed.message}", chosen)
         except _LOCAL_FAILURES as failed:
             await narration.finished("failed", error=str(failed)[:500])
-            return f"{name} could not run on this computer: {failed}"
+            return failed_report(f"{name} could not run on this computer: {failed}", chosen)
         except BaseException:
             with anyio.CancelScope(shield=True):
                 await narration.finished("cancelled")
@@ -478,6 +534,7 @@ def build_coding_toolset(
             "completed" if report.outcome == "completed" else "failed",
             error=None if report.outcome == "completed" else report.answer[:500],
         )
+        report = _relative_files(report, chat_root)
         return json.dumps(
             {"kind": report.kind, **report.model_dump(mode="json", exclude_defaults=True)}
         )
@@ -500,7 +557,11 @@ def build_coding_toolset(
         # subscription is theirs alone, so it runs only where nobody else does.
         # A group chat is shared the same way whatever the sandbox's scope says:
         # everybody in the room runs in its conversation's container.
-        if shared_sandbox or (_in_room(ctx.deps) and not personal_isolated):
+        if (
+            shared_sandbox
+            or isinstance(ctx.workspace.backend, ProjectWorkspacePort)
+            or (_in_room(ctx.deps) and not personal_isolated)
+        ):
             return (
                 f"{label} runs on a ChatGPT sign-in only in a sandbox nobody else's tasks "
                 "share, and this one is shared - a project's, a group chat's, or the whole "
@@ -547,9 +608,31 @@ def build_coding_toolset(
                 return f"{label} could not run in this sandbox ({type(failed).__name__})."
             return await continued(ctx, task, session, fresh_session, narration, home=home)
         finally:
-            await _keep_rotated(ctx, source, written, env={HOME_ENV: home, **discard})
+            # A personal task can rotate a single-use refresh token just before
+            # Stop. Recover it and remove its auth file before cancellation wins.
+            with anyio.CancelScope(shield=personal_isolated):
+                await _keep_rotated(
+                    ctx, source, written, env={HOME_ENV: home, **discard}, strict=personal_isolated
+                )
 
     async def continued(
+        ctx: RunContext[Any],
+        task: str,
+        session: str,
+        fresh_session: bool,
+        narration: Narration,
+        *,
+        home: str | None,
+    ) -> CodingReport | str:
+        workspace = ctx.workspace
+        async with (
+            workspace.task_snapshot()
+            if isinstance(workspace, RecordingWorkspace)
+            else nullcontext()
+        ):
+            return await captured_task(ctx, task, session, fresh_session, narration, home=home)
+
+    async def captured_task(
         ctx: RunContext[Any],
         task: str,
         session: str,
@@ -574,12 +657,17 @@ def build_coding_toolset(
                     await _changes.discard(ctx, baseline.store)
             raise
         if baseline is None:
-            return report
+            return (
+                await _relative_report(ctx.workspace, report)
+                if isinstance(report, CodingReport)
+                else report
+            )
         if isinstance(report, str):
             await _changes.discard(ctx, baseline.store)
             return report
         # A failed or timed-out task may have changed files too: its diff is kept as well.
-        return await _with_changes(ctx, report, baseline)
+        kept = await _with_changes(ctx, report, baseline)
+        return kept if kept.changes_id is not None else await _relative_report(ctx.workspace, kept)
 
     async def resumed(
         ctx: RunContext[Any],
@@ -592,6 +680,7 @@ def build_coding_toolset(
     ) -> CodingReport | str:
         session_id = None if fresh_session else await remembered_session(ctx, harness, session)
         report = await attempt(ctx, task, session_id, narration, home=home)
+        continued_history = session_id is not None
         if (
             isinstance(report, CodingReport)
             and session_id
@@ -601,6 +690,9 @@ def build_coding_toolset(
             # A session the sandbox no longer holds - a fresh container, a session
             # the harness pruned - fails before any step. Once, from nothing.
             report = await attempt(ctx, task, None, narration, home=home)
+            continued_history = False
+        if personal_isolated and isinstance(report, CodingReport):
+            report = report.model_copy(update={"session_resumed": continued_history})
         if isinstance(report, CodingReport) and report.session_id:
             await remember_session(ctx, harness, report.session_id, session)
         return report
@@ -622,6 +714,8 @@ def build_coding_toolset(
             session_id=session_id,
             base_url=base_url,
         )
+        if personal_isolated:
+            command = replace(command, supervised=True)
         if home is not None:
             # The sign-in is this task's, and the sessions it resumes the conversation's.
             command = replace(command, env={**command.env, HOME_ENV: home})
@@ -705,6 +799,7 @@ async def _keep_rotated(
     written: OpenAICodexCredentials,
     *,
     env: dict[str, str],
+    strict: bool = False,
 ) -> None:
     """Take the sign-in back out of the sandbox, keeping whatever Codex refreshed it to.
 
@@ -717,9 +812,13 @@ async def _keep_rotated(
             READ_AUTH, shell=True, env=env, timeout=60
         )
     except SANDBOX_FAILURES as failed:
+        if strict:
+            raise
         logger.warning("Codex's sign-in could not be read back from the sandbox: %s", failed)
         return
-    rotated = rotated_sign_in(result.stdout, written)
+    if strict and result.exit_code != 0:
+        raise UserError("Codex could not remove its temporary sign-in from the private sandbox")
+    rotated = rotated_sign_in(result.stdout, written, strict=strict)
     if rotated is not None:
         await source.swap(written, rotated)
 
@@ -729,6 +828,33 @@ def _keeps_changes(deps: object) -> bool:
     return isinstance(getattr(deps, "organization_id", None), UUID) and isinstance(
         getattr(deps, "conversation_id", None), UUID
     )
+
+
+async def _relative_report(workspace: Workspace, report: CodingReport) -> CodingReport:
+    """Keep harness-only paths inside the workspace, relative to its actual root."""
+    if not report.files_changed:
+        return report
+    try:
+        root = await workspace.working_dir()
+    except SANDBOX_FAILURES as failed:
+        # A lost workspace costs this optional list, not the completed task's answer.
+        logger.warning(
+            "A coding task's relative file list is unavailable: %s", type(failed).__name__
+        )
+        return report.model_copy(update={"files_changed": []})
+    return _relative_files(report, root)
+
+
+def _relative_files(report: CodingReport, root: str) -> CodingReport:
+    root = root.rstrip("/")
+    paths: list[str] = []
+    for path in report.files_changed:
+        if path.startswith(root + "/"):
+            path = path[len(root) + 1 :]
+        if path.startswith("/") or ".." in path.split("/"):
+            continue
+        paths.append(path.removeprefix("./"))
+    return report.model_copy(update={"files_changed": list(dict.fromkeys(paths))})
 
 
 async def _with_changes(
@@ -756,6 +882,9 @@ async def _with_changes(
                         conversation_id=ctx.deps.conversation_id,
                         tool_call_id=ctx.tool_call_id,
                         harness=report.harness,
+                        workspace_ref=ctx.workspace.ref,
+                        snapshot_isolated=isinstance(ctx.workspace, RecordingWorkspace)
+                        and ctx.workspace.snapshot_isolated,
                     )
             except SQLAlchemyError as failed:
                 return _unrecorded(ctx, report, failed)
@@ -763,7 +892,9 @@ async def _with_changes(
         # The commit, or a connection lost on the way: no parameters in that
         # error, and the same answer - the diff is lost, the report is not.
         return _unrecorded(ctx, report, failed)
-    return report.model_copy(update={"changes_id": str(kept.id)})
+    return report.model_copy(
+        update={"changes_id": str(kept.id), "files_changed": [file.path for file in changes.files]}
+    )
 
 
 def _unrecorded(ctx: RunContext[Any], report: CodingReport, failed: Exception) -> CodingReport:

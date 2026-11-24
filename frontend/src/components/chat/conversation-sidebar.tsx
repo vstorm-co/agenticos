@@ -7,6 +7,7 @@ import { useSearchParams } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import { useAgents, useConversations } from "@/hooks";
 import { ConversationSearchDialog } from "@/components/chat/conversation-search-dialog";
+import type { ConversationMessageSearchTarget } from "@/lib/conversation-message-search-api";
 import { Button, Skeleton } from "@/components/ui";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetClose } from "@/components/ui";
 import { IconButton } from "@/components/ui";
@@ -23,18 +24,28 @@ import { cn, setUrlParam, timeAgo } from "@/lib/utils";
 import {
   useAgentSelectionStore,
   useChatBandsStore,
+  useChatListModeStore,
   useChatSidebarStore,
   useWorkingStore,
+  type ChatListMode,
 } from "@/stores";
 import { DEFAULT_COLLAPSED_BANDS, LONG_LIST } from "@/stores/chat-sidebar-store";
 import { useProjects } from "@/hooks/use-projects";
 import {
+  useLeaveSharedConversation,
+  useSharedConversations,
+} from "@/hooks/use-conversation-shares";
+import {
+  RefreshCw,
   Archive,
   ArchiveRestore,
   Star,
   ChevronLeft,
   ChevronDown,
   ChevronRight,
+  GitBranch,
+  LogOut,
+  Users,
   Loader2,
   MoreVertical,
   Pencil,
@@ -43,9 +54,10 @@ import {
   Share2,
   SquarePen,
   Trash2,
+  DoorOpen,
 } from "lucide-react";
 import { InboxIcon as Inbox, ChatIcon as MessageSquare } from "@/components/icons/product-icons";
-import type { Conversation } from "@/types";
+import type { Conversation, ConversationAgent } from "@/types";
 import {
   ConversationFilters,
   DEFAULT_SORT,
@@ -56,6 +68,9 @@ import {
 import { ShareDialog } from "./share-dialog";
 import { useTurnElapsed } from "./work-fold";
 import { formatElapsed } from "@/lib/elapsed";
+import { ConversationProjectPicker } from "./conversation-project-picker";
+import { RoomDirectoryDialog } from "./room-directory-dialog";
+import { RoomParticipantsDialog } from "./room-participants-dialog";
 
 interface ConversationItemProps {
   conversation: Conversation;
@@ -66,7 +81,12 @@ interface ConversationItemProps {
   onUnarchive: () => void;
   onRename: (title: string) => void;
   onShare: () => void;
+  onMoveProject: () => void;
   onFavourite: (favourite: boolean) => void;
+  /** Somebody else's thread shared with the reader: theirs to rename, share, archive or delete. */
+  shared?: boolean;
+  /** Take a shared thread out of the reader's chats. */
+  onLeave?: () => void;
 }
 
 /** How long a thread left mid-answer keeps its mark when the listing never shows
@@ -82,7 +102,10 @@ function ConversationItem({
   onUnarchive,
   onRename,
   onShare,
+  onMoveProject,
   onFavourite,
+  shared = false,
+  onLeave,
 }: ConversationItemProps) {
   const t = useTranslations("chat");
   const tTime = useTranslations("time");
@@ -150,6 +173,18 @@ function ConversationItem({
       ? serverSince
       : null;
   const runningSince = workingHere ?? listedSince;
+  // The server's word, the same way: a run parked on a question in another tab
+  // or on another device waits here too. This tab's own mark wins while it has
+  // one; a park older than a turn this tab finished is a stale word for a run
+  // that has since gone on, so it reads the same guard the running one does.
+  const serverWaiting =
+    conversation.waiting_status != null &&
+    (!finishedAt ||
+      (conversation.waiting_since != null &&
+        Date.parse(conversation.waiting_since) > Date.parse(finishedAt)))
+      ? conversation.waiting_status
+      : null;
+  const waitingStatus = waiting ?? serverWaiting;
   // A thread this tab left mid-answer keeps its own mark until the listing has
   // the run - then the listing speaks for it, and polls it to its end - or until
   // long enough that a turn the listing never saw has surely finished.
@@ -238,6 +273,22 @@ function ConversationItem({
           {avatar}
           <span className="min-w-0 flex-1">
             <span className="flex min-w-0 items-center gap-1">
+              {/* A fork keeps its source's title and agent, so without this the
+                  two rows differ only in their time. */}
+              {conversation.forked_from && (
+                <span
+                  role="img"
+                  aria-label={t("sidebar.forkOf", {
+                    title: conversation.forked_from.title || t("untitledFork"),
+                  })}
+                  title={t("sidebar.forkOf", {
+                    title: conversation.forked_from.title || t("untitledFork"),
+                  })}
+                  className="text-muted-foreground shrink-0"
+                >
+                  <GitBranch className="h-3 w-3" aria-hidden />
+                </span>
+              )}
               <span
                 id={`${rowId}-title`}
                 className={cn(
@@ -258,8 +309,8 @@ function ConversationItem({
               id={`${rowId}-metadata`}
               className="text-muted-foreground block truncate text-xs leading-4"
             >
-              {waiting ? (
-                tTools("toolState", { status: waiting })
+              {waitingStatus ? (
+                tTools("toolState", { status: waitingStatus })
               ) : runningSince ? (
                 <RunningFor key={runningSince} since={runningSince} />
               ) : (
@@ -299,47 +350,78 @@ function ConversationItem({
             }
           }}
         >
-          <DropdownMenuItem
-            onSelect={() => {
-              renameFromMenu.current = true;
-              setEditTitle(conversation.title || "");
-              setIsEditing(true);
-            }}
-          >
-            <Pencil className="h-4 w-4" />
-            {t("rename")}
-          </DropdownMenuItem>
-          {!conversation.project_id && (
-            <DropdownMenuItem onSelect={onShare}>
-              <Share2 className="h-4 w-4" />
-              {t("share")}
-            </DropdownMenuItem>
-          )}
-          <DropdownMenuItem onSelect={() => onFavourite(conversation.is_favourite !== true)}>
-            <Star
-              className={cn("h-4 w-4", conversation.is_favourite && "text-warning fill-current")}
-            />
-            {conversation.is_favourite ? t("unfavourite") : t("favourite")}
-          </DropdownMenuItem>
-          {conversation.is_archived ? (
-            <DropdownMenuItem onSelect={onUnarchive}>
-              <ArchiveRestore className="h-4 w-4" />
-              {t("restore")}
-            </DropdownMenuItem>
+          {shared ? (
+            <>
+              <DropdownMenuItem onSelect={() => onFavourite(conversation.is_favourite !== true)}>
+                <Star
+                  className={cn(
+                    "h-4 w-4",
+                    conversation.is_favourite && "text-warning fill-current",
+                  )}
+                />
+                {conversation.is_favourite ? t("unfavourite") : t("favourite")}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                className="text-destructive focus:bg-destructive/10 focus:text-destructive data-[highlighted]:bg-destructive/10"
+                onSelect={() => onLeave?.()}
+              >
+                <LogOut className="h-4 w-4" />
+                {t("leaveShared")}
+              </DropdownMenuItem>
+            </>
           ) : (
-            <DropdownMenuItem onSelect={onArchive}>
-              <Archive className="h-4 w-4" />
-              {t("archive")}
-            </DropdownMenuItem>
+            <>
+              <DropdownMenuItem
+                onSelect={() => {
+                  renameFromMenu.current = true;
+                  setEditTitle(conversation.title || "");
+                  setIsEditing(true);
+                }}
+              >
+                <Pencil className="h-4 w-4" />
+                {t("rename")}
+              </DropdownMenuItem>
+              {!conversation.project_id && (
+                <DropdownMenuItem onSelect={onShare}>
+                  <Share2 className="h-4 w-4" />
+                  {t("share")}
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem onSelect={onMoveProject}>
+                <ProjectAvatar name={conversation.project_id ?? t("moveToProject")} />
+                {conversation.project_id ? t("removeFromProject") : t("moveToProject")}
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => onFavourite(conversation.is_favourite !== true)}>
+                <Star
+                  className={cn(
+                    "h-4 w-4",
+                    conversation.is_favourite && "text-warning fill-current",
+                  )}
+                />
+                {conversation.is_favourite ? t("unfavourite") : t("favourite")}
+              </DropdownMenuItem>
+              {conversation.is_archived ? (
+                <DropdownMenuItem onSelect={onUnarchive}>
+                  <ArchiveRestore className="h-4 w-4" />
+                  {t("restore")}
+                </DropdownMenuItem>
+              ) : (
+                <DropdownMenuItem onSelect={onArchive}>
+                  <Archive className="h-4 w-4" />
+                  {t("archive")}
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                className="text-destructive focus:bg-destructive/10 focus:text-destructive data-[highlighted]:bg-destructive/10"
+                onSelect={onDelete}
+              >
+                <Trash2 className="h-4 w-4" />
+                {t("delete")}
+              </DropdownMenuItem>
+            </>
           )}
-          <DropdownMenuSeparator />
-          <DropdownMenuItem
-            className="text-destructive focus:bg-destructive/10 focus:text-destructive data-[highlighted]:bg-destructive/10"
-            onSelect={onDelete}
-          >
-            <Trash2 className="h-4 w-4" />
-            {t("delete")}
-          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
     </div>
@@ -368,6 +450,11 @@ interface ConversationListProps {
   onLoadMore?: () => void;
   /** Whether the list is newest-activity first, so it can be read by day. */
   datedOrder: boolean;
+  /** Other people's threads shared with the reader. */
+  shared?: Conversation[];
+  onLeaveShared?: (id: string) => void;
+  /** Laid out by the chats' bands, or gathered under the agent that answered. */
+  mode: ChatListMode;
 }
 
 /**
@@ -426,7 +513,9 @@ export function byAge(
 interface Band {
   key: string;
   heading: string | null;
-  icon: "star" | "unread" | "project" | null;
+  icon: "star" | "unread" | "shared" | "project" | "agent" | null;
+  /** The agent an agent band is named for; its face heads the band. */
+  agent?: ConversationAgent;
   rows: Conversation[];
 }
 
@@ -463,6 +552,41 @@ export function byProject(
 }
 
 /**
+ * The threads gathered under the agent that answered them, one band per agent,
+ * in the order the list reached them - so the agent with the newest thread
+ * heads the list. A thread that names several agents sits under the first.
+ *
+ * A thread no agent has answered yet, a new chat before its first run, has no
+ * agent to head it: it goes in a last band of its own.
+ */
+export function byAgent(conversations: Conversation[], unnamed: string): Band[] {
+  const bands = new Map<string, Band>();
+  const withoutAgent: Conversation[] = [];
+  for (const conversation of conversations) {
+    const agent = conversation.agents?.[0];
+    if (!agent) {
+      withoutAgent.push(conversation);
+      continue;
+    }
+    const band = bands.get(agent.id) ?? {
+      key: `agent:${agent.id}`,
+      heading: agent.name,
+      icon: "agent",
+      agent,
+      rows: [],
+    };
+    band.rows.push(conversation);
+    bands.set(agent.id, band);
+  }
+  return [
+    ...bands.values(),
+    ...(withoutAgent.length > 0
+      ? [{ key: "agent:none", heading: unnamed, icon: null, rows: withoutAgent }]
+      : []),
+  ];
+}
+
+/**
  * The list, split into the starred run at the top and everything else.
  *
  * A split of what arrived rather than a filter over it: the server has
@@ -483,6 +607,7 @@ function useBands(
   currentConversationId: string | null,
   isArchivedView: boolean,
   datedOrder: boolean,
+  shared: Conversation[] = [],
 ): Band[] {
   const t = useTranslations("chat");
   const ts = useTranslations("chat.sidebar");
@@ -494,31 +619,51 @@ function useBands(
     [projects],
   );
   return useMemo((): Band[] => {
-    // Threads with an answer the reader has not seen lead the list, as an inbox
-    // does, and leave the band they would otherwise sit in. Not the open one,
-    // which is being read, nor in the archive.
+    // Channel participation can also put a direct share in the ordinary list.
+    // Use the shared row once, retaining its reader controls in every band.
+    const sharedRows = isArchivedView ? [] : shared;
+    const sharedIds = new Set(sharedRows.map((conversation) => conversation.id));
+    const listedRows = conversations.filter((conversation) => !sharedIds.has(conversation.id));
     const unread = isArchivedView
       ? []
-      : conversations.filter(
+      : [...listedRows, ...sharedRows].filter(
           (conversation) =>
             conversation.unread === true && conversation.id !== currentConversationId,
         );
-    const remaining = conversations.filter((conversation) => !unread.includes(conversation));
+    const remaining = listedRows.filter((conversation) => !unread.includes(conversation));
+    const sharedRemaining = sharedRows.filter((conversation) => !unread.includes(conversation));
     const firstOther = remaining.findIndex((conversation) => conversation.is_favourite !== true);
-    const starred = isArchivedView
+    const ownStarred = isArchivedView
       ? []
       : remaining.slice(0, firstOther === -1 ? remaining.length : firstOther);
-    // Threads in a project sit under it rather than under their date, the way a
-    // folder holds its files. Not in the archive, which is one flat list.
+    const starred = [
+      ...ownStarred,
+      ...sharedRemaining.filter((conversation) => conversation.is_favourite === true),
+    ];
+    const ordinaryShared = sharedRemaining.filter(
+      (conversation) => conversation.is_favourite !== true,
+    );
     const { inProjects, outside: rest } = isArchivedView
-      ? { inProjects: [], outside: remaining.slice(starred.length) }
-      : byProject(remaining.slice(starred.length), names, ts("unnamedProject"));
+      ? { inProjects: [], outside: remaining.slice(ownStarred.length) }
+      : byProject(remaining.slice(ownStarred.length), names, ts("unnamedProject"));
     return [
       ...(unread.length > 0
         ? [{ key: "unread", heading: ts("unreadHeading"), icon: "unread" as const, rows: unread }]
         : []),
       ...(starred.length > 0
         ? [{ key: "favourites", heading: t("favourites"), icon: "star" as const, rows: starred }]
+        : []),
+      // Remaining direct shares, after unread and favourite rows. The archive
+      // remains the reader's own listing.
+      ...(!isArchivedView && ordinaryShared.length > 0
+        ? [
+            {
+              key: "shared",
+              heading: ts("sharedHeading"),
+              icon: "shared" as const,
+              rows: ordinaryShared,
+            },
+          ]
         : []),
       ...inProjects,
       // Under the date they were last active, the way a chat product's history
@@ -535,7 +680,39 @@ function useBands(
           ? [{ key: "rest", heading: null, icon: null, rows: rest }]
           : []),
     ];
-  }, [conversations, currentConversationId, isArchivedView, datedOrder, names, t, ts]);
+  }, [conversations, currentConversationId, isArchivedView, datedOrder, shared, names, t, ts]);
+}
+
+/**
+ * The list in agents mode: the starred run first, as in the chats list, then one
+ * band per agent. Unread and direct shares have no band here - the dot on a row
+ * still says an answer is waiting.
+ */
+function useAgentBands(
+  conversations: Conversation[],
+  isArchivedView: boolean,
+  shared: Conversation[],
+  enabled: boolean,
+): Band[] {
+  const t = useTranslations("chat");
+  const ts = useTranslations("chat.sidebar");
+  return useMemo((): Band[] => {
+    if (!enabled) return [];
+    const sharedRows = isArchivedView ? [] : shared;
+    const sharedIds = new Set(sharedRows.map((conversation) => conversation.id));
+    const rows = [
+      ...conversations.filter((conversation) => !sharedIds.has(conversation.id)),
+      ...sharedRows,
+    ];
+    const starred = rows.filter((conversation) => conversation.is_favourite === true);
+    const others = rows.filter((conversation) => conversation.is_favourite !== true);
+    return [
+      ...(starred.length > 0
+        ? [{ key: "favourites", heading: t("favourites"), icon: "star" as const, rows: starred }]
+        : []),
+      ...byAgent(others, ts("otherAgents")),
+    ];
+  }, [conversations, isArchivedView, shared, enabled, t, ts]);
 }
 
 /**
@@ -577,10 +754,14 @@ function ConversationList({
   onNavigate,
   onLoadMore,
   datedOrder,
+  shared,
+  onLeaveShared,
+  mode,
 }: ConversationListProps) {
   const t = useTranslations("chat");
   const ts = useTranslations("chat.sidebar");
   const [shareConversationId, setShareConversationId] = useState<string | null>(null);
+  const [projectConversationId, setProjectConversationId] = useState<string | null>(null);
 
   const handleSelect = (id: string) => {
     onSelect(id);
@@ -588,7 +769,15 @@ function ConversationList({
   };
 
   const isArchivedView = view === "archived";
-  const bands = useBands(conversations, currentConversationId, isArchivedView, datedOrder);
+  const chatBands = useBands(
+    conversations,
+    currentConversationId,
+    isArchivedView,
+    datedOrder,
+    shared,
+  );
+  const agentBands = useAgentBands(conversations, isArchivedView, shared ?? [], mode === "agents");
+  const bands = mode === "agents" ? agentBands : chatBands;
   const { isFolded, flip } = useBandFolds(bands, conversations.length);
   const foldedKeys = bands
     .filter((band) => isFolded(band.key))
@@ -663,7 +852,7 @@ function ConversationList({
               <Skeleton key={i} className="h-14 w-full rounded-lg" />
             ))}
           </div>
-        ) : conversations.length === 0 ? (
+        ) : conversations.length === 0 && (shared?.length ?? 0) === 0 ? (
           /* Three sentences, not one. "You have no conversations", "you have
              none archived" and "none of them match this filter" are three
              different situations, and the last one is the only one with an
@@ -711,7 +900,7 @@ function ConversationList({
                 {ts("counted", { count: total })}
               </p>
             )}
-            {bands.map(({ key, heading, icon, rows }) => (
+            {bands.map(({ key, heading, icon, agent, rows }) => (
               <div key={key} className="space-y-0.5">
                 {heading !== null && (
                   // A heading that folds its band away and opens it again; folded,
@@ -724,7 +913,11 @@ function ConversationList({
                   >
                     {icon === "star" && <Star className="h-3.5 w-3.5" aria-hidden />}
                     {icon === "unread" && <Inbox className="h-3.5 w-3.5" aria-hidden />}
+                    {icon === "shared" && <Users className="h-3.5 w-3.5" aria-hidden />}
                     {icon === "project" && <ProjectAvatar name={heading} />}
+                    {icon === "agent" && agent && (
+                      <ConversationAgents agents={[agent]} showName={false} size="sm" unframed />
+                    )}
                     <span className="min-w-0 flex-1 truncate">{heading}</span>
                     {isFolded(key) && (
                       <span className="text-muted-foreground/70 tabular-nums">{rows.length}</span>
@@ -751,6 +944,13 @@ function ConversationList({
                       onFavourite={(favourite) => onFavourite(conversation.id, favourite)}
                       onRename={(title) => onRename(conversation.id, title)}
                       onShare={() => setShareConversationId(conversation.id)}
+                      onMoveProject={() => setProjectConversationId(conversation.id)}
+                      shared={
+                        conversation.share_permission !== undefined
+                          ? conversation.share_permission !== null
+                          : shared?.some((entry) => entry.id === conversation.id) === true
+                      }
+                      onLeave={() => onLeaveShared?.(conversation.id)}
                     />
                   ))}
               </div>
@@ -760,6 +960,7 @@ function ConversationList({
       </div>
       {shareConversationId && (
         <ShareDialog
+          key={shareConversationId}
           conversationId={shareConversationId}
           open={!!shareConversationId}
           onOpenChange={(open) => {
@@ -767,18 +968,78 @@ function ConversationList({
           }}
         />
       )}
+      <ConversationProjectPicker
+        conversationId={projectConversationId}
+        projectId={
+          projectConversationId === null
+            ? null
+            : (conversations.find((conversation) => conversation.id === projectConversationId)
+                ?.project_id ?? null)
+        }
+        open={projectConversationId !== null}
+        onOpenChange={(open) => {
+          if (!open) setProjectConversationId(null);
+        }}
+      />
     </>
   );
 }
 
 interface ConversationSidebarProps {
   className?: string;
+  /** Opens a specific search hit, paging to its message when necessary. */
+  onSelectSearchResult?: (target: ConversationMessageSearchTarget) => void;
 }
 
-export function ConversationSidebar({ className }: ConversationSidebarProps) {
+/** Chats | Agents: how the list is laid out. A segmented control, one of two pressed. */
+function ListModeToggle({
+  mode,
+  onChange,
+}: {
+  mode: ChatListMode;
+  onChange: (mode: ChatListMode) => void;
+}) {
   const ts = useTranslations("chat.sidebar");
+  const options: { value: ChatListMode; label: string }[] = [
+    { value: "chats", label: ts("modeChats") },
+    { value: "agents", label: ts("modeAgents") },
+  ];
+  return (
+    <div
+      role="group"
+      aria-label={ts("modeLabel")}
+      className="bg-muted grid grid-cols-2 gap-0.5 rounded-lg p-0.5"
+    >
+      {options.map((option) => (
+        <button
+          key={option.value}
+          type="button"
+          aria-pressed={mode === option.value}
+          onClick={() => onChange(option.value)}
+          className={cn(
+            "focus-visible:ring-ring min-h-8 rounded-md px-2 text-xs font-medium transition-colors outline-none focus-visible:ring-2",
+            mode === option.value
+              ? "bg-background text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+export function ConversationSidebar({ className, onSelectSearchResult }: ConversationSidebarProps) {
+  const ts = useTranslations("chat.sidebar");
+  const tr = useTranslations("chat.rooms");
+  const mode = useChatListModeStore((state) => state.mode);
+  const setMode = useChatListModeStore((state) => state.setMode);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [roomDirectoryOpen, setRoomDirectoryOpen] = useState(false);
+  const [createdRoom, setCreatedRoom] = useState<Conversation | null>(null);
+  const [createdRoomParticipantsOpen, setCreatedRoomParticipantsOpen] = useState(false);
   const collapse = () => setIsCollapsed(true);
   const { isOpen, close } = useChatSidebarStore();
   // Seeded from the URL and written back to it, so a reload lands on the list
@@ -825,6 +1086,16 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
     void fetchConversations(controller.signal);
     return () => controller.abort();
   }, [fetchConversations]);
+
+  // Only on the plain active list: an agent filter narrows the reader's own
+  // threads, and a shared band beside it would ignore that filter.
+  const sharedState = useSharedConversations(view === "active" && agentId === null);
+  const shared = sharedState.items;
+  const leaveShared = useLeaveSharedConversation();
+  const leave = async (id: string) => {
+    // A thread left while it is open is one the reader can no longer read.
+    if ((await leaveShared(id)) && id === currentConversationId) startNewChat();
+  };
 
   // A link to another thread followed from this page - the inbox's "answered
   // while you were away" - is a same-page navigation: nothing remounts, so the
@@ -881,6 +1152,9 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
     onRename: renameConversation,
     onLoadMore: fetchMoreConversations,
     datedOrder: sort === DEFAULT_SORT,
+    shared,
+    onLeaveShared: (id: string) => void leave(id),
+    mode,
   };
 
   // The list's own controls, in its header beside the title the way a chat
@@ -899,21 +1173,59 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
       onHideApiChange={changeHideApi}
       view={view}
       onViewChange={changeView}
+      compact
       beside={beside}
     />
   );
+  const sharedNotice = sharedState.failed ? (
+    <div role="alert" className="text-muted-foreground space-y-1 px-4 py-2 text-xs">
+      <p>{ts("sharedFailed")}</p>
+      <Button variant="ghost" size="sm" onClick={sharedState.retry}>
+        {ts("retryShared")}
+      </Button>
+    </div>
+  ) : sharedState.isLoading ? (
+    <p role="status" className="text-muted-foreground flex items-center gap-2 px-4 py-2 text-xs">
+      <Loader2 className="size-3 animate-spin motion-reduce:animate-none" aria-hidden />
+      {ts("sharedLoading")}
+    </p>
+  ) : null;
   const toolbar = (afterNewChat?: () => void, column = false) => (
     <div className={cn("flex shrink-0 items-center gap-0.5", column && "flex-col")}>
       <IconButton
         size="icon"
         aria-label={ts("searchLabel")}
+        data-tour="chat-message-search"
         title={ts("searchLabel")}
         onClick={() => setSearchOpen(true)}
         className={HEADER_ICON}
       >
         <Search />
       </IconButton>
+      <IconButton
+        size="icon"
+        aria-label={tr("button")}
+        title={tr("button")}
+        onClick={() => {
+          setRoomDirectoryOpen(true);
+          afterNewChat?.();
+        }}
+        className={HEADER_ICON}
+      >
+        <DoorOpen />
+      </IconButton>
       {column && filters(true)}
+      {column && sharedState.failed && (
+        <IconButton
+          size="icon"
+          aria-label={ts("retryShared")}
+          title={ts("sharedFailed")}
+          onClick={sharedState.retry}
+          className={HEADER_ICON}
+        >
+          <RefreshCw />
+        </IconButton>
+      )}
       <IconButton
         size="icon"
         data-tour="chat-start"
@@ -929,12 +1241,18 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
       </IconButton>
     </div>
   );
+  const listModeToggle = <ListModeToggle mode={mode} onChange={setMode} />;
   const searchDialog = (
     <ConversationSearchDialog
       open={searchOpen}
       onOpenChange={setSearchOpen}
       onSelect={(id) => {
         selectConversation(id);
+        close();
+      }}
+      onSelectResult={(target) => {
+        if (onSelectSearchResult) onSelectSearchResult(target);
+        else selectConversation(target.conversationId);
         close();
       }}
     />
@@ -974,12 +1292,43 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
               <ChevronLeft />
             </IconButton>
           </div>
+          <div className="shrink-0 px-3 pt-2">{listModeToggle}</div>
           <div className="shrink-0 px-3 py-2">{filters()}</div>
+          {sharedNotice}
           <ConversationList {...listProps} />
         </aside>
       )}
 
       {searchDialog}
+
+      {roomDirectoryOpen && (
+        <RoomDirectoryDialog
+          open={roomDirectoryOpen}
+          onOpenChange={setRoomDirectoryOpen}
+          onSelectConversation={(conversation) => {
+            void selectConversation(conversation.id);
+            close();
+          }}
+          onCreated={(conversation) => {
+            void selectConversation(conversation.id);
+            setCreatedRoom(conversation);
+            setCreatedRoomParticipantsOpen(true);
+            close();
+          }}
+        />
+      )}
+      {createdRoomParticipantsOpen && createdRoom && (
+        <RoomParticipantsDialog
+          key={createdRoom.id}
+          conversationId={createdRoom.id}
+          conversation={createdRoom}
+          open={createdRoomParticipantsOpen}
+          onOpenChange={(open) => {
+            setCreatedRoomParticipantsOpen(open);
+            if (!open) setCreatedRoom(null);
+          }}
+        />
+      )}
 
       <Sheet open={isOpen} onOpenChange={close}>
         <SheetContent side="left" className="w-80 p-0">
@@ -989,7 +1338,9 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
             <SheetClose onClick={close} />
           </SheetHeader>
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+            <div className="shrink-0 px-3 pt-2">{listModeToggle}</div>
             <div className="shrink-0 px-3 py-2">{filters()}</div>
+            {sharedNotice}
             <ConversationList {...listProps} onNavigate={close} />
           </div>
         </SheetContent>
@@ -1018,6 +1369,8 @@ function CollapsedSidebar({
   onSelect,
   onLoadMore,
   datedOrder,
+  shared,
+  mode,
   toolbar,
   onExpand,
   className,
@@ -1030,6 +1383,8 @@ function CollapsedSidebar({
   | "onSelect"
   | "onLoadMore"
   | "datedOrder"
+  | "shared"
+  | "mode"
 > & {
   toolbar: ReactNode;
   onExpand: () => void;
@@ -1038,7 +1393,15 @@ function CollapsedSidebar({
   const t = useTranslations("chat");
   const ts = useTranslations("chat.sidebar");
   const isArchivedView = view === "archived";
-  const bands = useBands(conversations, currentConversationId, isArchivedView, datedOrder);
+  const chatBands = useBands(
+    conversations,
+    currentConversationId,
+    isArchivedView,
+    datedOrder,
+    shared,
+  );
+  const agentBands = useAgentBands(conversations, isArchivedView, shared ?? [], mode === "agents");
+  const bands = mode === "agents" ? agentBands : chatBands;
   const { isFolded, flip } = useBandFolds(bands, conversations.length);
 
   return (
@@ -1082,7 +1445,7 @@ function CollapsedSidebar({
             <Archive className="h-3.5 w-3.5" aria-hidden />
           </span>
         )}
-        {bands.map(({ key, heading, icon, rows }, index) => {
+        {bands.map(({ key, heading, icon, agent, rows }, index) => {
           const folded = heading !== null && isFolded(key);
           return (
             <div key={key} className="flex flex-col items-center gap-0.5">
@@ -1102,8 +1465,18 @@ function CollapsedSidebar({
                     <Star className="h-3.5 w-3.5" aria-hidden />
                   ) : icon === "unread" ? (
                     <Inbox className="h-3.5 w-3.5" aria-hidden />
+                  ) : icon === "shared" ? (
+                    <Users className="h-3.5 w-3.5" aria-hidden />
                   ) : icon === "project" ? (
                     <ProjectAvatar name={heading} />
+                  ) : icon === "agent" && agent ? (
+                    <ConversationAgents
+                      agents={[agent]}
+                      showName={false}
+                      size="sm"
+                      unframed
+                      compact
+                    />
                   ) : (
                     <span
                       aria-hidden

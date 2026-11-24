@@ -2,7 +2,15 @@ import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { DEBUG_ECHO, echo, graph } from "@/components/workflows/validation/fixtures";
+import {
+  DEBUG_ECHO,
+  echo,
+  edge,
+  graph,
+  makeDefinition,
+  node,
+  port,
+} from "@/components/workflows/validation/fixtures";
 import { ApiError } from "@/lib/api-error";
 import type {
   NodeDefinition,
@@ -111,6 +119,93 @@ describe("PublishDialog", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   });
 
+  it("lists what is worth a look without stopping the publish, and opens the step", async () => {
+    const approval = makeDefinition({
+      id: "human.approval",
+      name: "Ask for approval",
+      kind: "control",
+      exclusive_branches: true,
+      ports: [
+        port("in", "input", null),
+        { ...port("approved", "output", null), label: "Approved" },
+        { ...port("rejected", "output", null), label: "Rejected" },
+      ],
+    });
+    seed(
+      graph({
+        entry: "a",
+        nodes: [echo("a"), node("ok", "human.approval"), echo("b")],
+        edges: [edge("e1", "a", "out", "ok", "in"), edge("e2", "ok", "approved", "b", "in")],
+      }),
+      1,
+    );
+    // Looking inside a loop when the warning is about a step at the top level.
+    act(() => useWorkflowEditorStore.setState({ scopePath: ["elsewhere"] }));
+    render(
+      <PublishDialog workflow={WORKFLOW} catalog={[DEBUG_ECHO, approval]} publish={vi.fn()} />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: /Publish/ }));
+
+    expect(screen.getByText("Worth a look - these do not stop publishing:")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Publish version" })).toBeEnabled();
+    await userEvent.click(
+      screen.getByRole("button", {
+        name: "Ask for approval: The Rejected outcome leads nowhere, so the run ends here when it is chosen. If that is intended, ignore this.",
+      }),
+    );
+    // The warning opens the step it is about, where it is set up.
+    expect(useWorkflowEditorStore.getState().selection.nodeIds).toEqual(["ok"]);
+    expect(useWorkflowEditorStore.getState().editingNodeId).toBe("ok");
+    expect(useWorkflowEditorStore.getState().scopePath).toEqual([]);
+  });
+
+  it("opens a warned step inside the loop it was moved into since the draft loaded", async () => {
+    const approval = makeDefinition({
+      id: "human.approval",
+      name: "Ask for approval",
+      kind: "control",
+      exclusive_branches: true,
+      ports: [
+        port("in", "input", null),
+        { ...port("approved", "output", null), label: "Approved" },
+        { ...port("rejected", "output", null), label: "Rejected" },
+      ],
+    });
+    const loop = makeDefinition({
+      id: "control.foreach",
+      name: "Loop",
+      kind: "control",
+      ports: [port("in", "input", null), port("done", "output", null)],
+    });
+    // The stored scopes are the loaded ones: they do not know the step is in the loop.
+    seed(
+      graph({
+        entry: "a",
+        nodes: [
+          echo("a"),
+          node("L", "control.foreach"),
+          { ...node("ok", "human.approval"), scope_id: "L" },
+        ],
+        edges: [edge("e1", "a", "out", "L", "in")],
+      }),
+      1,
+    );
+    render(
+      <PublishDialog
+        workflow={WORKFLOW}
+        catalog={[DEBUG_ECHO, approval, loop]}
+        publish={vi.fn()}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: /Publish/ }));
+    await userEvent.click(screen.getAllByRole("button", { name: /^Ask for approval: / })[0]!);
+
+    expect(useWorkflowEditorStore.getState().scopePath).toEqual(["L"]);
+    expect(useWorkflowEditorStore.getState().editingNodeId).toBe("ok");
+  });
+
   it("names the trigger it switches on, and shows a new webhook's secret once", async () => {
     const hook = graph({ entry: "w", nodes: [{ ...echo("w"), definition_id: "trigger.webhook" }] });
     seed(hook, 3);
@@ -187,6 +282,8 @@ describe("PublishDialog", () => {
 
     // The list starts open, each problem under the step it names.
     expect(await screen.findByText("This node lost its resource")).toBeVisible();
+    // A refusal over a table means the editor's copy of it is stale: read again.
+    expect(useWorkflowEditorStore.getState().tablesStale).toBe(1);
 
     await userEvent.click(screen.getByRole("button", { name: /This node lost its resource/ }));
     expect(useWorkflowEditorStore.getState().selection.nodeIds).toEqual(["a"]);

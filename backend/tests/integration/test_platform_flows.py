@@ -566,13 +566,15 @@ async def _rag_document(
     return doc
 
 
-async def _sync_source_row(db, *, tenant: Tenant, collection_name: str) -> SyncSource:
+async def _sync_source_row(db, *, tenant: Tenant, kb: KnowledgeBase) -> SyncSource:
+    """A source on `kb`, which it records as the base it syncs into (#2551)."""
     source = SyncSource(
         id=uuid.uuid4(),
         organization_id=tenant.organization.id,
         name="Drive",
         connector_type="gdrive",
-        collection_name=collection_name,
+        collection_name=kb.collection_name,
+        knowledge_base_id=kb.id,
         config={"folder_id": "abc"},
     )
     db.add(source)
@@ -581,7 +583,12 @@ async def _sync_source_row(db, *, tenant: Tenant, collection_name: str) -> SyncS
 
 
 async def _sync_log_row(
-    db, *, collection_name: str, sync_source_id: uuid.UUID | None = None
+    db,
+    *,
+    collection_name: str,
+    sync_source_id: uuid.UUID | None = None,
+    organization_id: uuid.UUID | None = None,
+    knowledge_base_id: uuid.UUID | None = None,
 ) -> SyncLog:
     log = SyncLog(
         id=uuid.uuid4(),
@@ -590,6 +597,8 @@ async def _sync_log_row(
         mode="full",
         status="running",
         sync_source_id=sync_source_id,
+        organization_id=organization_id,
+        knowledge_base_id=knowledge_base_id,
     )
     db.add(log)
     await db.flush()
@@ -626,14 +635,20 @@ async def rag_estate(db, estate: TwoTenants) -> RagEstate:
             collection_name=other_collection.collection_name,
             filename="theirs.txt",
         ),
-        home_source=await _sync_source_row(
-            db, tenant=home, collection_name=home_collection.collection_name
+        home_source=await _sync_source_row(db, tenant=home, kb=home_collection),
+        other_source=await _sync_source_row(db, tenant=other, kb=other_collection),
+        home_sync=await _sync_log_row(
+            db,
+            collection_name=home_collection.collection_name,
+            organization_id=home.organization.id,
+            knowledge_base_id=home_collection.id,
         ),
-        other_source=await _sync_source_row(
-            db, tenant=other, collection_name=other_collection.collection_name
+        other_sync=await _sync_log_row(
+            db,
+            collection_name=other_collection.collection_name,
+            organization_id=other.organization.id,
+            knowledge_base_id=other_collection.id,
         ),
-        home_sync=await _sync_log_row(db, collection_name=home_collection.collection_name),
-        other_sync=await _sync_log_row(db, collection_name=other_collection.collection_name),
     )
 
 
@@ -951,6 +966,7 @@ class TestTenantIsolation:
         ours_kb = await _kb_row(db, tenant=home, collection_name="shared_name")
         theirs_kb = await _kb_row(db, tenant=other, collection_name="shared_name")
         documents = {}
+        doc_ids = {}
         for tenant, kb in ((home, ours_kb), (other, theirs_kb)):
             doc = RAGDocument(
                 id=uuid.uuid4(),
@@ -966,6 +982,7 @@ class TestTenantIsolation:
             )
             db.add(doc)
             documents[kb.id] = doc.id
+            doc_ids[kb.id] = doc.vector_document_id
         await db.flush()
 
         response = await rag_api(home.ctx).delete(_rag("/collections/shared_name"))
@@ -984,9 +1001,12 @@ class TestTenantIsolation:
         [cleanup] = [CLEANUP_EXTERNAL_STATE.load(job.payload) for job in jobs]
         assert cleanup.storage_paths == [f"rag/shared_name/{ours_kb.id}.txt"]
         assert cleanup.collections == []
-        assert cleanup.base_purges == [
-            BasePurge(collection="shared_name", knowledge_base_id=ours_kb.id)
-        ]
+        [filed, unfiled] = cleanup.base_purges
+        assert filed == BasePurge(collection="shared_name", knowledge_base_id=ours_kb.id)
+        assert unfiled.collection == "shared_name"
+        assert unfiled.knowledge_base_id == ours_kb.id
+        assert unfiled.takes_unfiled and unfiled.tenant == home.organization.id
+        assert unfiled.vector_document_ids == [doc_ids[ours_kb.id]]
 
     async def test_a_search_naming_one_unreachable_collection_is_refused_entirely(
         self, rag_api: RagClient, rag_estate: RagEstate
@@ -1327,9 +1347,7 @@ class TestReadingOneSyncSourcesHistory:
         should have failed. Every other per-resource read on this surface reports a
         row it may not have as missing.
         """
-        elsewhere = await _sync_source_row(
-            db, tenant=rag_estate.home, collection_name=rag_estate.home_private.collection_name
-        )
+        elsewhere = await _sync_source_row(db, tenant=rag_estate.home, kb=rag_estate.home_private)
         await _sync_log_row(
             db,
             collection_name=rag_estate.home_private.collection_name,
@@ -1348,20 +1366,27 @@ class TestReadingOneSyncSourcesHistory:
     ) -> None:
         """`limit` and `total` have to describe the same set of rows.
 
-        This source ran twice against this base and once, before it was moved,
-        against another. Asking for three runs used to answer with two and call it
-        the whole history.
+        Three runs in this base are interleaved with private-base history. Scope
+        filtering must happen before SQL pagination rather than thinning a page.
         """
-        for collection_name in (
-            rag_estate.home_collection.collection_name,
-            rag_estate.home_private.collection_name,
-            rag_estate.home_collection.collection_name,
+        now = datetime.now(UTC)
+        for index, kb in enumerate(
+            (
+                rag_estate.home_collection,
+                rag_estate.home_private,
+                rag_estate.home_collection,
+                rag_estate.home_private,
+                rag_estate.home_collection,
+            )
         ):
-            await _sync_log_row(
+            log = await _sync_log_row(
                 db,
-                collection_name=collection_name,
+                collection_name=kb.collection_name,
+                organization_id=rag_estate.home.organization.id,
+                knowledge_base_id=kb.id,
                 sync_source_id=rag_estate.home_source.id,
             )
+            log.started_at = now + timedelta(seconds=index)
 
         response = await kb_api(rag_estate.home).get(
             f"{settings.API_V1_STR}/kb/{rag_estate.home_collection.id}"
@@ -1421,9 +1446,7 @@ class TestSyncSourcesStayWithTheirAudience:
         `collections:view`; without `connections:manage` it now lists the sources
         of bases the caller reads - not another member's personal base, nor a
         template."""
-        personal = await _sync_source_row(
-            db, tenant=rag_estate.home, collection_name=rag_estate.home_private.collection_name
-        )
+        personal = await _sync_source_row(db, tenant=rag_estate.home, kb=rag_estate.home_private)
         template = SyncSource(
             id=uuid.uuid4(),
             organization_id=rag_estate.home.organization.id,
@@ -1470,9 +1493,7 @@ class TestSyncSourcesStayWithTheirAudience:
         )
         db.add(app_kb)
         await db.flush()
-        theirs = await _sync_source_row(
-            db, tenant=rag_estate.other, collection_name=app_kb.collection_name
-        )
+        theirs = await _sync_source_row(db, tenant=rag_estate.other, kb=app_kb)
         run = await _sync_log_row(
             db, collection_name=app_kb.collection_name, sync_source_id=theirs.id
         )
@@ -1546,7 +1567,7 @@ class TestSyncSourcesStayWithTheirAudience:
         assert removed.status_code == 204
         assert await db.get(SyncSource, rag_estate.home_source.id) is None
 
-    async def test_an_unassigned_template_takes_only_the_organization(
+    async def test_an_unassigned_template_requires_manage_connections(
         self, db, rag_api: RagClient, rag_estate: RagEstate
     ) -> None:
         template = SyncSource(
@@ -1564,6 +1585,12 @@ class TestSyncSourcesStayWithTheirAudience:
             _rag(f"/sync/sources/{template.id}"), json={"name": "Renamed"}
         )
 
+        assert response.status_code == 404
+        await db.refresh(template)
+        assert template.name == "Drive"
+        response = await rag_api(rag_estate.home.ctx).patch(
+            _rag(f"/sync/sources/{template.id}"), json={"name": "Renamed"}
+        )
         assert response.status_code == 200
 
 
@@ -2183,6 +2210,7 @@ class TestWhatACollectionReportsItHolds:
                 db, collection_name="app_and_tenant", filename=f"app-{status}.txt", tenant=who
             )
             doc.knowledge_base_id = app_kb.id if who is not None else None
+            doc.writer_kind = "document" if who is not None else "operator"
             doc.status = status
         await db.flush()
 
@@ -3672,6 +3700,113 @@ class TestAnAgentsOwnMonthlyCap:
         assert refused.value.limit_usd == Decimal("10")
         assert refused.value.spent_usd == Decimal("12")
         assert refused.value.scope is BudgetScope.ORGANIZATION
+
+
+class TestTheCurrentVersionSetsTheAgentsCap:
+    """A pinned version decides how the agent behaves, not what it may spend.
+
+    `docs/governance.md`: a version pin keeps its behaviour while "current
+    access, budgets and approvals still apply". The cap used to come from the
+    version being run, so a routine, an environment or a workflow step pinned to
+    a version published before the limit spent past it.
+    """
+
+    @staticmethod
+    async def _two_versions(
+        db, tenant: Tenant, *, first: AgentSpec, second: AgentSpec, spent: Decimal
+    ) -> tuple[Agent, uuid.UUID]:
+        """An agent whose v1 is `first` and current v2 is `second`, with `spent` booked."""
+        profile = await _keyed_model_profile(db, tenant)
+        agent = await _published_agent(db, tenant, spec=first)
+        assert agent.current_version_id is not None
+        pinned = agent.current_version_id
+        registry = AgentRegistryService(db)
+        await registry.save_draft(
+            tenant.ctx, agent.id, second.model_copy(update={"model_profile_id": profile.id})
+        )
+        await registry.publish(tenant.ctx, agent.id)
+        await db.refresh(agent)
+        assert agent.current_version_id != pinned
+        await _run_row(
+            db,
+            organization_id=tenant.organization.id,
+            agent_id=agent.id,
+            cost=spent,
+            started_at=datetime.now(UTC),
+        )
+        await db.commit()
+        return agent, pinned
+
+    async def test_a_run_pinned_to_an_older_version_is_held_to_the_current_cap(self, db) -> None:
+        tenant = await _tenant(db, name="Pinned")
+        agent, v1 = await self._two_versions(
+            db,
+            tenant,
+            first=AgentSpec(name="Support"),
+            second=AgentSpec(name="Support", budget={"monthly_usd": 5}),
+            spent=Decimal("6"),
+        )
+
+        prepared = await AgentRunnerService(db).prepare(tenant.ctx, agent.id, version_id=v1)
+
+        with pytest.raises(BudgetExceeded) as refused:
+            await _answer(prepared)
+
+        assert refused.value.scope is BudgetScope.AGENT
+        assert refused.value.limit_usd == Decimal("5")
+        assert refused.value.spent_usd == Decimal("6")
+
+    async def test_an_environment_on_an_older_version_is_held_to_the_current_cap(self, db) -> None:
+        tenant = await _tenant(db, name="Staged")
+        agent, v1 = await self._two_versions(
+            db,
+            tenant,
+            first=AgentSpec(name="Support"),
+            second=AgentSpec(name="Support", budget={"monthly_usd": 5}),
+            spent=Decimal("6"),
+        )
+        staging = await AgentEnvironmentService(db).create(
+            tenant.ctx, agent.id, EnvironmentCreate(name="staging", version_id=v1)
+        )
+        await db.commit()
+
+        prepared = await AgentRunnerService(db).prepare(
+            tenant.ctx, agent.id, environment_id=staging.id
+        )
+
+        with pytest.raises(BudgetExceeded) as refused:
+            await _answer(prepared)
+
+        assert refused.value.scope is BudgetScope.AGENT
+        assert refused.value.limit_usd == Decimal("5")
+
+    async def test_a_cap_the_current_version_dropped_no_longer_binds_an_older_one(self, db) -> None:
+        tenant = await _tenant(db, name="Lifted")
+        agent, v1 = await self._two_versions(
+            db,
+            tenant,
+            first=AgentSpec(name="Support", budget={"monthly_usd": 5}),
+            second=AgentSpec(name="Support"),
+            spent=Decimal("6"),
+        )
+
+        prepared = await AgentRunnerService(db).prepare(tenant.ctx, agent.id, version_id=v1)
+
+        assert await _answer(prepared) == "thirty days"
+
+    async def test_a_pinned_run_under_the_current_cap_answers(self, db) -> None:
+        tenant = await _tenant(db, name="Roomy")
+        agent, v1 = await self._two_versions(
+            db,
+            tenant,
+            first=AgentSpec(name="Support", budget={"monthly_usd": 5}),
+            second=AgentSpec(name="Support", budget={"monthly_usd": 50}),
+            spent=Decimal("6"),
+        )
+
+        prepared = await AgentRunnerService(db).prepare(tenant.ctx, agent.id, version_id=v1)
+
+        assert await _answer(prepared) == "thirty days"
 
 
 # -- grants -------------------------------------------------------------------

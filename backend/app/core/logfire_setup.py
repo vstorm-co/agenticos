@@ -28,12 +28,12 @@ def setup_logfire(*, service_name: str | None = None) -> None:
     `_initialize`). That copy goes to the console and the OTLP exporters, so a
     span has to be clean at start, not just by the time it ends.
 
-    Production prints no spans. The console exporter writes one line per SQL and
+    Console spans are opt-in. The console exporter writes one line per SQL and
     Redis call - about forty per request - into a container log that is read by
     `docker compose logs`, where nobody can query them and every real error is
-    buried (#2228). Spans belong in Logfire; `doctor` says when no token sends
-    them anywhere. Elsewhere the console stays on, because a developer watching
-    the server is exactly who those lines are for.
+    buried (#2228, #2771). Spans belong in Logfire; `doctor` says when no token sends
+    them anywhere. A developer can enable `LOGFIRE_CONSOLE` to inspect spans
+    locally, independently of the application logs emitted by `setup_logging`.
     """
     logfire.configure(
         token=settings.LOGFIRE_TOKEN,
@@ -42,7 +42,7 @@ def setup_logfire(*, service_name: str | None = None) -> None:
         service_version=__version__,
         send_to_logfire="if-token-present",
         additional_span_processors=[SecretPathRedactionProcessor()],
-        console=False if settings.ENVIRONMENT == "production" else None,
+        console=None if settings.LOGFIRE_CONSOLE else False,
     )
 
 

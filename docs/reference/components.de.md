@@ -1,5 +1,5 @@
 ---
-source_sha: "767b18fe1f07"
+source_sha: "e5046cc457c6"
 ---
 
 # Das Komponenteninventar { #the-component-inventory }
@@ -109,6 +109,7 @@ nicht gebaut und stehen nicht im SBOM dieses Projekts.
 | Marken- und Provider-Glyphen | `frontend/src/components/brand/`, `backend/app/core/catalog/icons/` | Font Awesome, Simple Icons und selbst gezeichnete Zeichen; die Quellen benennt `NOTICE` |
 | Der MCP-Server-Katalog | `backend/app/core/catalog/` | Eigene Daten dieses Projekts über Drittanbieter-Server, nicht die Server selbst |
 | Voreinstellungen der Modellprofile | `backend/app/core/catalog/` | Eigene Daten dieses Projekts; die Modelle selbst werden nie ausgeliefert |
+| Agent-Vorlagen und Skills von Drittanbietern für Finanzen und Buchhaltung | `backend/app/core/catalog/agent_templates/finance/`, `backend/app/core/catalog/skill_gallery/finance/` | Auf Grundlage von Anthropics `financial-services` und `knowledge-work-plugins` (Apache-2.0) sowie dem Community-Projekt Agency Agents (MIT) angepasst. Jeder angepasste Ordner enthält Verweise auf festgelegte Quellversionen, Änderungshinweise und den vollständigen Lizenztext; `NOTICE` und `licenses/components.toml` verzeichnen die Komponenten |
 
 ## Modelle, Provider und Dienste: die Hälfte des Deployments { #models-providers-and-services-the-deployments-half }
 

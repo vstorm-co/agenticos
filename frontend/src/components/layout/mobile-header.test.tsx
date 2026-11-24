@@ -31,7 +31,7 @@ function mount() {
  */
 describe("MobileHeader", () => {
   it("steps aside on the chat, which floats its own buttons over the transcript", () => {
-    pathname.current = "/pl/chat";
+    pathname.current = "/en/chat";
     const { container } = mount();
 
     expect(container).toBeEmptyDOMElement();

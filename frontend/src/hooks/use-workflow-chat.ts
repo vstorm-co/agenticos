@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef } from "react";
 
 import { usePublicConfig } from "@/components/public-config/public-config-provider";
+import { useTenantGuard, useTenantId } from "@/hooks/use-organizations";
 import { clientId } from "@/lib/ids";
 import { isRunTerminal, type WorkflowRunRead } from "@/lib/workflows/types";
 import { useAuthStore, useChatStore, useConversationStore, useOrgStore } from "@/stores";
@@ -38,6 +39,10 @@ export function useWorkflowChat({
 }: UseWorkflowChatOptions) {
   const { wsUrl } = usePublicConfig();
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
+  const tenantId = useTenantId();
+  const stillSameTenant = useTenantGuard();
+  const conversationApi = useConversationStore.useApi();
+  const chatApi = useChatStore.useApi();
   const sockets = useRef(new Set<WebSocket>());
 
   useEffect(() => {
@@ -50,16 +55,27 @@ export function useWorkflowChat({
 
   const send = useCallback(
     async (workflow: { id: string; name: string }, text: string) => {
-      let conversationId = useConversationStore.getState().currentConversationId;
+      const selected = conversationApi.getState();
+      const accountId = useAuthStore.getState().user?.id ?? null;
+      let conversationId = selected.currentConversationId;
+      let createdHere = false;
       if (conversationId === null) {
         const created = await createConversation(text.slice(0, 80));
-        if (created === null) return;
+        if (
+          created === null ||
+          conversationApi.getState().selectionVersion !== selected.selectionVersion ||
+          (useAuthStore.getState().user?.id ?? null) !== accountId ||
+          useOrgStore.getState().activeOrgId !== activeOrgId ||
+          !stillSameTenant(tenantId)
+        )
+          return;
         conversationId = created.id;
-        useConversationStore.getState().setCurrentConversationId(conversationId);
+        conversationApi.getState().setCurrentConversationId(conversationId);
+        createdHere = true;
         onConversationCreated?.();
       }
 
-      const { addMessage, updateMessage } = useChatStore.getState();
+      const { addMessage, updateMessage } = chatApi.getState();
       addMessage({
         id: clientId(),
         role: "user",
@@ -85,6 +101,18 @@ export function useWorkflowChat({
         conversationId,
         parts: [{ id: partId, type: "workflow_run", workflowRun: card }],
       });
+      if (createdHere) {
+        // Like a first agent turn, this new conversation already has a live
+        // transcript. Publish its identity only after both local rows exist.
+        chatApi.setState({
+          loadedTranscript: {
+            conversationId,
+            selectionVersion: conversationApi.getState().selectionVersion,
+            accountId,
+            tenantId,
+          },
+        });
+      }
       // The card, then the run's words once it has them - the order the stored
       // turn replays in.
       const show = (change: Partial<WorkflowRunPart>, answer?: string, done = false) =>
@@ -152,7 +180,16 @@ export function useWorkflowChat({
         finish();
       };
     },
-    [wsUrl, activeOrgId, createConversation, onConversationCreated],
+    [
+      wsUrl,
+      activeOrgId,
+      createConversation,
+      onConversationCreated,
+      conversationApi,
+      chatApi,
+      tenantId,
+      stillSameTenant,
+    ],
   );
 
   return { send };

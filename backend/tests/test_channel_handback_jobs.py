@@ -22,6 +22,7 @@ def _job(*, notice: bool = False) -> ChannelHandback:
         run_id=uuid4(),
         bot_id=uuid4(),
         platform_chat_id="C1:123",
+        message_id="source-post",
         private_chat=False,
         output="Saved answer",
         notice=notice,
@@ -41,7 +42,10 @@ async def test_each_notice_is_queued_in_the_callers_transaction_with_independent
     db = MagicMock()
     job = _job()
     destination = ChannelDestination(
-        bot_id=job.bot_id, platform_chat_id=job.platform_chat_id, private_chat=False
+        bot_id=job.bot_id,
+        platform_chat_id=job.platform_chat_id,
+        private_chat=False,
+        message_id=job.message_id,
     )
     notices = [
         ChatNotice(job.organization_id, uuid4(), destination, EXPIRED_NOTICE) for _ in range(2)
@@ -66,7 +70,10 @@ async def test_segment_snapshot_includes_inherited_results_and_never_commits_its
     db = MagicMock()
     job = _job()
     destination = ChannelDestination(
-        bot_id=job.bot_id, platform_chat_id=job.platform_chat_id, private_chat=False
+        bot_id=job.bot_id,
+        platform_chat_id=job.platform_chat_id,
+        private_chat=False,
+        message_id=job.message_id,
     )
     run = MagicMock(
         id=job.run_id,
@@ -90,6 +97,7 @@ async def test_segment_snapshot_includes_inherited_results_and_never_commits_its
     assert saved.output == ("This run was stopped from the console." if cancelled else "Sent")
     assert saved.tool_calls[0].result == "OK"
     assert saved.generated_files == job.generated_files
+    assert saved.message_id == "source-post"
     db.commit.assert_not_called()
 
 
@@ -118,3 +126,27 @@ async def test_handler_only_sends_and_propagates_transport_failure_for_retry(not
             assert snapshot.output == job.output
             assert snapshot.tool_calls[0].result == "Sent"
             assert snapshot.generated_files == job.generated_files
+
+
+async def test_recovered_requested_file_is_loaded_in_the_jobs_organization(monkeypatch):
+    from app.worker.jobs import ChannelHandbackFile
+    from app.worker.tasks import channel_tasks
+
+    job = _job().model_copy(
+        update={
+            "attachments": [
+                ChannelHandbackFile(
+                    filename="report.csv", mime_type="text/csv", stored_leaf="receipt.csv"
+                )
+            ]
+        }
+    )
+    load = AsyncMock(return_value=b"a,b")
+    deliver = AsyncMock(return_value=True)
+    monkeypatch.setattr(channel_tasks.generated_media, "load_generated_media", load)
+    monkeypatch.setattr(channel_tasks, "ensure_channel_adapters", lambda: None)
+    monkeypatch.setattr(channel_tasks, "deliver_in_chat", deliver)
+    assert await deliver_handback(job)
+    load.assert_awaited_once_with(job.organization_id, "receipt.csv")
+    file = deliver.await_args.kwargs["said"].outbound[0]
+    assert (file.filename, file.content, file.mime_type) == ("report.csv", b"a,b", "text/csv")

@@ -20,11 +20,15 @@ vi.mock("@/lib/api-client", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api-client")>("@/lib/api-client");
   return { ...actual, apiClient: { get: vi.fn(), post: vi.fn(), delete: vi.fn() } };
 });
-vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: vi.fn() }),
-  usePathname: () => "/apps",
-  useSearchParams: () => params,
-}));
+vi.mock("next/navigation", async () => {
+  const actual = await vi.importActual<typeof import("next/navigation")>("next/navigation");
+  return {
+    ...actual,
+    useRouter: () => ({ push: vi.fn() }),
+    usePathname: () => "/apps",
+    useSearchParams: () => params,
+  };
+});
 let canEdit = true;
 vi.mock("@/hooks", async () => {
   // The real URL state: the archive choice is kept in the address.
@@ -92,6 +96,28 @@ beforeEach(() => {
 });
 
 describe("the artifacts list", () => {
+  it("stars an app from its card and updates the control optimistically", async () => {
+    const app = page({ is_favourite: false });
+    serve([app], [app]);
+    let finishRequest!: () => void;
+    vi.mocked(apiClient.post).mockImplementation(
+      () => new Promise<void>((resolve) => (finishRequest = resolve)),
+    );
+    const user = userEvent.setup();
+    render(<ArtifactsPage />, { wrapper });
+
+    await user.click(
+      await screen.findByRole("button", { name: "Add Weekly report to favourites" }),
+    );
+    await waitFor(() => expect(apiClient.post).toHaveBeenCalledWith("/apps/a1/favourite"));
+    expect(
+      screen.getByRole("button", { name: "Remove Weekly report from favourites" }),
+    ).toHaveAttribute("aria-pressed", "true");
+
+    app.is_favourite = true;
+    finishRequest();
+  });
+
   it("lists archived pages only once asked, marks them, and keeps the choice in the URL", async () => {
     const archived = page({ id: "a2", title: "Old report", archived_at: "2026-10-01T00:00:00Z" });
     serve([page()], [page(), archived]);
@@ -102,7 +128,7 @@ describe("the artifacts list", () => {
     expect(screen.queryByText("Old report")).toBeNull();
     expect(listRequests().every((path) => !path.includes("include_archived"))).toBe(true);
 
-    await user.click(screen.getByRole("combobox", { name: "Which artifacts" }));
+    await user.click(screen.getByRole("combobox", { name: "Which apps" }));
     await user.click(screen.getByRole("option", { name: "Archived included" }));
 
     expect(await screen.findByText("Old report")).toBeInTheDocument();
@@ -110,8 +136,8 @@ describe("the artifacts list", () => {
     expect(listRequests().at(-1)).toContain("include_archived=true");
     expect(window.location.search).toBe("?show=all");
 
-    await user.click(screen.getByRole("combobox", { name: "Which artifacts" }));
-    await user.click(screen.getByRole("option", { name: "Active artifacts" }));
+    await user.click(screen.getByRole("combobox", { name: "Which apps" }));
+    await user.click(screen.getByRole("option", { name: "Active apps" }));
     expect(window.location.search).toBe("");
   });
 
@@ -120,7 +146,7 @@ describe("the artifacts list", () => {
     render(<ArtifactsPage />, { wrapper });
 
     expect(await screen.findByText("Nothing published yet")).toBeInTheDocument();
-    expect(screen.getByRole("combobox", { name: "Which artifacts" })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Which apps" })).toBeInTheDocument();
     expect(screen.queryByPlaceholderText("Search apps…")).toBeNull();
   });
 

@@ -1,20 +1,14 @@
 ---
-source_sha: "a41c7a2c6e87"
+source_sha: "e885d6a41f7e"
 ---
 
 # Auf einem Server deployen { #deploy-to-a-server }
 
-Ein Host, Docker Compose, ein Reverse Proxy davor. Das ist der gesamte
-ausgelieferte Weg, und genau er läuft in den Deployments, in denen dieses
-Projekt eingesetzt wird.
-
-Es gibt keine Kubernetes-Manifeste und keine Ein-Klick-Schnellstarts für die
-Platform-as-a-Service-Anbieter. Das ist keine Bescheidenheit in Bezug auf die
-Skalierung. Der Stack besteht aus sechs Containern, zwei davon halten Zustand,
-einer kann eigene Container starten, und einer ist ein Postgres, das pgvector
-haben muss - was bereits mehr ist, als ein `git push`-Deploy-Ziel abbildet, und
-eine Anleitung, die etwas anderes vorgäbe, würde ein Deployment beschreiben, das
-niemand betrieben hat.
+Ein Host, Docker Compose und ein Reverse Proxy bleiben der ausgelieferte Weg
+für einen einzelnen Server. Für Cluster gibt es das gepflegte
+[Kubernetes-Helm-Chart](kubernetes.md) mit externen Datendiensten und einem
+blockierenden Migrationsjob. Die OpenShift-Konfiguration ist noch nicht validiert.
+Ein-Klick-Schnellstarts für PaaS-Anbieter gibt es nicht.
 
 Über einen Host hinaus - ein verwaltetes Postgres, mehrere API-Hosts, mehrere
 Deployments - führt [Über einen Host hinaus skalieren](scaling.md).
@@ -331,7 +325,7 @@ an und erneuert es. Nichts neu zu laden und keine zweite Konfigurationsdatei, di
 im Gleichschritt bleiben muss.
 
 Ist Traefik noch nicht vorhanden, liefert das Repository einen mit:
-`traefik/traefik.yml` und `docker-compose-traefik.yml`, das ist ein Entrypoint auf
+`docker-compose-traefik.yml`, das ist ein Entrypoint auf
 443 mit einem Let's-Encrypt-Resolver und 80, das dorthin umleitet.
 
 ```bash
@@ -356,9 +350,17 @@ von dort liest `scripts/deploy.sh` es — spätere Deploys behalten also den Pro
 bei, mit dem dieser Host eingerichtet wurde, und nicht den, den ein Skript
 annahm.
 
+Der mitgelieferte Proxy liest alle statischen Einstellungen aus den
+Compose-Befehlsargumenten, einschließlich `ACME_EMAIL` und `TRAEFIK_NETWORK`. Mounten Sie
+keine zusätzliche statische `traefik.yml`: Traefik wählt eine statische Quelle
+und ignoriert diese Argumente, wenn diese Datei vorhanden ist.
+`traefik/dynamic.yml` enthält weiterhin die Routing-Konfiguration des
+Datei-Providers, einschließlich HSTS. WebSocket-Upgrades benötigen keine weitere
+Middleware; Uploads werden ohne Größenlimit im Proxy gestreamt.
+
 !!! info "`exposedByDefault: false` leistet echte Arbeit"
 
-    Es ist die eine Einstellung in `traefik/traefik.yml`, die es sich zu lesen lohnt,
+    Es ist die eine Einstellung in `docker-compose-traefik.yml`, die es sich zu lesen lohnt,
     bevor Sie ihn betreiben. Nur `app` und `frontend` tragen `traefik.enable=true`,
     also sind Postgres, Redis, der Worker und der Sandbox-Daemon von nichts
     außerhalb des Hosts erreichbar — und das ist eine Eigenschaft davon, *nicht
@@ -414,7 +416,7 @@ annahm.
     erhalten.
 
     Traefik kann ein ganzes Feld behalten, verwerfen oder redigieren, aber keinen
-    Teil davon umschreiben, deshalb entfernt `traefik/traefik.yml` `RequestPath`,
+    Teil davon umschreiben, deshalb entfernt `docker-compose-traefik.yml` `RequestPath`,
     das den Query-String enthält, aus dem Access-Log von Traefik. Nginx könnte
     einen Teil eines Werts umschreiben, doch `nginx/nginx.conf` lässt den Pfad,
     den Query-String und den `Referer` auf dieselbe Weise weg, mit dem Log-Format `agenticos_no_path`, das jeder
@@ -446,6 +448,28 @@ Zertifikate zu beschaffen und zu erneuern ist Ihre Sache, und ebenso der Header
 terminiert. Das Access-Log der Vorlage lässt den Request-Pfad, den Query-String
 und den `Referer` weg; *Manche Request-Pfade und Query-Strings sind
 Zugangsdaten* oben erklärt, warum, und was das Error-Log weiterhin schreibt.
+
+Die Vorlage benötigt **Nginx 1.25.1 oder neuer**, da sie `http2 on` verwendet.
+Nginx 1.24 unter Ubuntu 24.04 benötigt ein neueres Paket oder
+`listen 443 ssl http2;` und das IPv6-Gegenstück anstelle der separaten
+`http2 on;`-Direktiven. Installieren Sie die Vorlage im `http`-Kontext,
+beispielsweise als `/etc/nginx/conf.d/agenticos.conf`, und führen Sie vor dem
+Neuladen `nginx -t` aus.
+
+Der API-Host und die aufgeführten Multipart-Upload-Routen der Konsole setzen
+`client_max_body_size 55m;`: den größten Wert aus
+`MAX_UPLOAD_SIZE_MB`, `CHAT_MAX_UPLOAD_SIZE_MB`, `EMBED_MAX_UPLOAD_SIZE_MB` und
+`ML_MAX_UPLOAD_SIZE_MB` plus 5 MiB für den Multipart-Rahmen. Erhöhen Sie **beide**
+Proxy-Grenzen, wenn Sie diesen größten Wert erhöhen. Nginx erlaubt sonst nur
+1 MiB einschließlich Rahmen und lehnt Uploads vor der Anwendung ab.
+Die Konsole leitet Uploads über ihren eigenen Host weiter; gehostete Seiten
+verwenden den API-Host.
+
+Konsolenseiten, Authentifizierung und gewöhnliches JSON
+behalten die Grenze von 1 MiB. Ergänzen Sie neue Upload-Routen der Konsole in
+der Location-Liste der Vorlage. Der API-Proxy leitet WebSocket-Upgrades auf allen Pfaden
+weiter, einschließlich `/api/v1/ws/`, eingebettetem Chat und Sprache sowie
+Telefonmedien. Gewöhnliches HTTP behält `Connection: close`.
 
 !!! warning "`BIND_HOST` ist eine Sicherheitseinstellung, keine Bequemlichkeit"
 
@@ -654,7 +678,7 @@ ssh you@your-host "trap 'rm -f $remote' EXIT; bash $remote <commit-sha>"
 
 `scripts/deploy.sh` holt diesen Commit, wartet auf die Images, die die CI dafür
 veröffentlicht hat (`sha-<short>`, meist schon da), holt sie, startet neu und
-wartet darauf, dass beide Container sich als gesund melden, bevor es mit einem
+wartet darauf, dass API, Hintergrund-Worker und Frontend sich als gesund melden, bevor es mit einem
 Wert ungleich null zurückkehrt oder eben nicht. Es nimmt einen **Commit** statt
 eines Branches entgegen, das Deployte ist also das Geprüfte und nicht das, wohin
 `main` seither gewandert ist - und was läuft, ist Byte für Byte das, was die CI
@@ -676,6 +700,54 @@ gebaut hat, auf einem Host, der die Toolchain nie braucht.
 Es ist nicht ausfallfrei. Compose erstellt die Container neu, deren Image sich
 geändert hat, die Website ist also für die wenigen Sekunden, die das dauert,
 nicht verfügbar.
+
+### Aufbewahrung von Release-Images { #release-image-retention }
+
+Vor dem Herunterladen entfernt das Skript alte, ungenutzte Release-Images nur aus
+`ghcr.io/vstorm-co/agenticos-backend`, `agenticos-frontend` und `agenticos-browser`.
+Es behält je Repository zwei zusätzliche ungenutzte Image-IDs, die neuesten
+zuerst. Mehrere SHA- oder Versions-Tags derselben ID zählen als ein Image.
+Nur `sha-<hex>` und numerische Versions-Tags kommen infrage. Alle Aliasse einer
+entfernbaren ID werden gemeinsam und ohne `--force` entfernt. `--no-prune`
+verhindert auch das implizite Löschen unmarkierter Eltern-Images.
+
+Jeder laufende oder gestoppte Container auf dem Host schützt sein Image, auch in
+anderen Compose-Projekten. Das Ziel-Image, ein veränderlicher oder manueller Tag
+sowie ein Tag oder Digest in einem anderen Repository schützen ebenfalls die
+gesamte ID. Sandbox-/Laufzeit-Images, Images ohne Tags und Anwendungs-Volumes
+bleiben unberührt. Diese Schutzregeln können mehr Images als das Kontingent für
+ungenutzte Images erhalten.
+
+Der Hash des Deployment-Verzeichnisses trennt die Markierungen mehrerer Stacks
+auf einem Host. Lokale Tags `deploy-<stack-hash>-current` und `deploy-<stack-hash>-rollback` erhalten das letzte gesunde
+Image jeder Komponente und dessen Vorgänger nach dem Austausch der Container.
+Beim ersten Einsatz wird `deploy-<stack-hash>-current` aus den gesunden Containern dieses
+Stacks ermittelt, nicht aus dem Checkout; unterschiedliche gesunde IDs derselben
+Komponente verweigern das Deployment. Die Markierungen wechseln erst nach
+erfolgreichen Healthchecks der neuen Dienste. Fehlgeschlagene Deployments behalten
+die gespeicherten Markierungen; ein erneutes Deployment desselben Images ersetzt
+seinen Rollback nicht. Rollbacks erfolgen weiterhin über einen genehmigten
+Commit-SHA: Diese lokalen Tags sind Aufbewahrungsmarkierungen, keine Registry-Releases.
+
+Das Skript verlangt mindestens **5 GiB freien Speicher** im Docker-Dateisystem vor
+jedem Pull und nach der optionalen Vorbereitung von Laufzeitumgebungen. Es prüft
+`DockerRootDir` und, falls vorhanden, den Standardspeicher `/var/lib/containerd`.
+Dies ist ein Mindestwert, keine Reservierung oder Schätzung der Image-Größe;
+benutzerdefinierte containerd-Speicher müssen separat überwacht werden. Backend-
+und Frontend-Images werden heruntergeladen, bevor einer der Dienste neu startet.
+Bei zu wenig Speicher nennt die Ablehnung das Dateisystem und den verfügbaren
+Platz. Speicher außerhalb der Schutzregeln freigeben oder erweitern, dann das
+genehmigte Deployment erneut starten. Diese Richtlinie niemals durch ein globales
+`docker image prune -a` umsetzen.
+
+Bei Docker Desktop liegt das Speicherverzeichnis in der Linux-VM. Das Skript
+misst deren freien Speicher mit einem temporären, schreibgeschützten und vom
+Netz getrennten Container aus einem bereits lokal vorhandenen Backend-Image,
+vorzugsweise dem letzten gesunden. Die Prüfung darf keine Images herunterladen
+und der Container wird automatisch entfernt. Zusätzlich wird das Host-Dateisystem
+des Deployment-Verzeichnisses geprüft; das Host-Dateisystem eines eigenen
+VM-Datenträgers muss separat überwacht werden. Dieses Update-Verfahren benötigt
+ein lokal vorhandenes Backend-Image; zuerst die normale Erstinstallation abschließen.
 
 ### Aus GitHub, mit einer Freigabe { #from-github-with-an-approval }
 
@@ -808,3 +880,18 @@ annehmen.
   selbst.
 - **Sichern Sie `postgres_data` und `backend/.env` zusammen.** Das eine ohne das
   andere ist keine Wiederherstellung.
+
+## Fork-Images und lokale Prüfung { #fork-images-and-local-verification }
+
+Compose und `scripts/deploy.sh` unterstützen `AGENTICOS_IMAGE_PREFIX`, standardmäßig
+`ghcr.io/vstorm-co/agenticos`. Setzen Sie den Image-Präfix des Forks und dessen
+GitHub `owner/repository` in `AGENTICOS_SOURCE_REPOSITORY`. Backend, Frontend und
+Browser nutzen den Präfix; der separat versionierte Sandbox-Daemon bleibt eine
+Upstream-Abhängigkeit. Images verwendet standardmäßig den kleingeschriebenen
+GHCR-Präfix seines eigenen Repositorys. Eine gleichnamige GitHub-Repositoryvariable
+kann ihn ersetzen; Paketberechtigungen müssen dieses Ziel abdecken.
+
+Ein Fork konfiguriert keine SSH-Geheimnisse, Umgebungsprüfer oder Repositoryregeln.
+Prüfen Sie diese vor releasegesteuerten Bereitstellungen. Plugin und isolierte
+lokale Prüfung veröffentlichter Images beschreibt
+[AgenticOS mit einem KI-Client bedienen](howto/operate-with-ai.md).

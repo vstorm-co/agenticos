@@ -24,7 +24,7 @@ import uuid
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Any
+from typing import Any, Literal
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -32,12 +32,20 @@ from pydantic import ValidationError
 from pydantic_ai import Agent
 from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart, ToolCallPart
 from pydantic_ai.models.function import AgentInfo, FunctionModel
+from pydantic_ai.workspaces import Workspace
 
 from app.agents.audience import RunAudience
 from app.agents.capabilities.budget import SpendLedger
 from app.agents.capabilities.sandbox import WORKSPACE_RESOURCE
 from app.agents.capabilities.subagents import SubagentsConfig
+from app.agents.computer_on_use import (
+    ComputerAccessCallback,
+    ComputerAccessRequest,
+    RequestComputerOnUse,
+)
+from app.agents.isolation import RunIsolation
 from app.agents.manifest import RecordedRequest, RunRecorder
+from app.agents.model_resolver import ModelRequestSpec
 from app.agents.spec import (
     AgentSpec,
     CapabilityBindingSpec,
@@ -54,10 +62,14 @@ from app.agents.subagent_runtime import (
     SubagentRuntime,
 )
 from app.agents.voice import VoiceOptions
-from app.core.exceptions import AuthorizationError, BadRequestError
+from app.core.exceptions import AuthorizationError, BadRequestError, SystemAgentRestrictedError
 from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.agent import AgentStatus
+from app.db.models.agent_environment import AgentEnvironmentConnection
 from app.db.models.agent_run import RunStatus, RunSurface
+from app.db.models.credential import ModelProfile
+from app.db.models.personal_model_key import PersonalModelKey
+from app.schemas.local_target import LocalTarget
 from app.services.agent_registry import DELEGATION_CAPABILITY_ID, AgentRegistryService
 from app.services.agent_runner import (
     AdmittedAs,
@@ -66,7 +78,9 @@ from app.services.agent_runner import (
     VoiceRun,
     month_start,
 )
+from app.services.device_hub import DeviceWorkspace
 from app.services.mcp_connection import ResolvedMcpToolsets, UnavailablePersonalService
+from tests.test_agent_runner import _resolved_model
 
 pytestmark = pytest.mark.anyio
 
@@ -89,11 +103,28 @@ RUNNER = "app.services.agent_runner"
 
 
 @pytest.fixture(autouse=True)
+def _no_current_cap(monkeypatch: pytest.MonkeyPatch) -> None:
+    """No current published version sets a cap; `test_agent_runner` covers one."""
+    monkeypatch.setattr(
+        "app.services.agent_runner.agent_repo.published_budget_caps", AsyncMock(return_value={})
+    )
+
+
+@pytest.fixture(autouse=True)
 def _no_registered_architect(monkeypatch: pytest.MonkeyPatch) -> None:
     """These hand-built delegates are ordinary agents, not the organization assistant."""
     monkeypatch.setattr(
         "app.services.agent_registry.organization_assistant_repo.for_agent",
         AsyncMock(return_value=None),
+    )
+
+
+@pytest.fixture(autouse=True)
+def _no_connected_chat_bindings(monkeypatch: pytest.MonkeyPatch) -> None:
+    """These agents have no bot grants; channel_actions tests cover connected audiences."""
+    monkeypatch.setattr(
+        "app.services.channel_actions.agent_exposure_repo.list_for_agent",
+        AsyncMock(return_value=[]),
     )
 
 
@@ -169,7 +200,7 @@ def _agent_row(
     `name` is assigned rather than passed to the constructor, where `MagicMock`
     would take it as the mock's own name and leave the attribute unset.
     """
-    row = MagicMock(id=agent_id, slug=slug, status=status)
+    row = MagicMock(id=agent_id, slug=slug, status=status, system_key=None, kind="agent")
     row.name = slug
     return row
 
@@ -219,12 +250,14 @@ class _Prepared:
         get_version: AsyncMock,
         list_profiles: AsyncMock,
         resolved: AsyncMock,
+        opened: AsyncMock,
     ) -> None:
         self.prepared = prepared
         self.build = build
         self.get_version = get_version
         self.list_profiles = list_profiles
         self.resolved = resolved
+        self.opened = opened
 
     @property
     def resources(self) -> dict[str, Any]:
@@ -286,11 +319,17 @@ async def _prepare(
     agents: dict[uuid.UUID, MagicMock] | None = None,
     collections: dict[uuid.UUID, MagicMock] | None = None,
     workspace: object | None = None,
+    local: LocalTarget | None = None,
     agent_id: uuid.UUID | None = None,
     profiles: list[MagicMock] | None = None,
+    environment_connections: list[AgentEnvironmentConnection] | None = None,
+    isolation: RunIsolation | None = None,
     voice: VoiceRun | None = None,
     surface: RunSurface = RunSurface.API,
+    public_origin: bool = False,
+    memory_room_key: str | None = None,
     acts_for_sender: bool = False,
+    request_computer_access: ComputerAccessCallback | None = None,
 ) -> _Prepared:
     """Prepare a run of `spec` with every database read answered from memory.
 
@@ -302,12 +341,18 @@ async def _prepare(
     `profiles` is the organization's model catalog, read only by an agent that may
     invent specialists. One usable profile by default, because that is the state a
     run is always in: the delegating agent's own model resolved before any of this.
+    A profile whose label is `unusable` is one whose key has gone.
+
+    `environment_connections` runs the agent in a named environment holding
+    those overrides; left out, it runs in none.
     A profile whose label is `unusable` is one whose key has gone, and one labelled
     `refused` is one the caller may not spend.
     """
     ctx = ctx or _ctx()
     service = AgentRunnerService(_db())
-    agent = MagicMock(id=agent_id or uuid.uuid4(), current_version_id=uuid.uuid4())
+    agent = MagicMock(
+        id=agent_id or uuid.uuid4(), current_version_id=uuid.uuid4(), system_key=None, kind="agent"
+    )
     run = MagicMock(
         id=uuid.uuid4(),
         conversation_id=uuid.uuid4(),
@@ -334,20 +379,18 @@ async def _prepare(
     catalog = [_profile("fast")] if profiles is None else profiles
     by_id = {profile.id: profile for profile in catalog}
 
-    async def resolve_model(_ctx: Any, *, profile_id: uuid.UUID | None) -> Any:
+    async def resolve_model(
+        _ctx: AuthContext, *, profile_id: uuid.UUID | None, decision: bool = False
+    ) -> ModelRequestSpec:
+        assert not decision
         profile = by_id.get(profile_id)
         if profile is not None and profile.label == UNUSABLE_PROFILE:
             raise BadRequestError(message="That model has no key configured")
         if profile is not None and profile.label == REFUSED_PROFILE:
             raise AuthorizationError(message="That model runs on somebody's own sign-in")
         label = f"model-{profile_id}" if profile is None else profile.label
-        return MagicMock(
-            profile_id=profile_id,
-            label=label,
-            provider="openai",
-            secret_id=None,
-            params={},
-        )
+        model = _resolved_model(label)
+        return replace(model, profile_id=profile_id or model.profile_id)
 
     with (
         patch.object(
@@ -369,7 +412,7 @@ async def _prepare(
             new=AsyncMock(
                 return_value=None if workspace is None else MagicMock(workspace=workspace)
             ),
-        ),
+        ) as opened,
         patch(f"{RUNNER}.workspace_snapshot", new=AsyncMock(return_value=set())),
         patch(
             f"{RUNNER}.knowledge_base_repo.get_by_ids", new=AsyncMock(side_effect=get_collections)
@@ -379,13 +422,32 @@ async def _prepare(
         ) as fetch_version,
         patch(f"{RUNNER}.agent_repo.get", new=AsyncMock(side_effect=get_agent)),
         patch(f"{RUNNER}.agent_run_repo.create_run", new=AsyncMock(return_value=run)),
+        patch(
+            "app.services.agent_registry.mcp_connection_repo.list_composio_for_user",
+            new=AsyncMock(return_value=[]),
+        ),
+        patch(f"{RUNNER}.agent_environment_repo.get", new=AsyncMock(return_value=None)),
+        patch(
+            f"{RUNNER}.agent_environment_repo.list_connections",
+            new=AsyncMock(return_value=environment_connections or []),
+        ),
         patch(f"{RUNNER}.build_agent") as build,
     ):
         prepared = await service.prepare(
-            ctx, agent.id, voice=voice, surface=surface, acts_for_sender=acts_for_sender
+            ctx,
+            agent.id,
+            environment_id=None if environment_connections is None else uuid.uuid4(),
+            isolation=isolation,
+            voice=voice,
+            surface=surface,
+            public_origin=public_origin,
+            memory_room_key=memory_room_key,
+            acts_for_sender=acts_for_sender,
+            request_computer_access=request_computer_access,
+            local=local,
         )
 
-    return _Prepared(prepared, build, fetch_version, list_profiles, resolved)
+    return _Prepared(prepared, build, fetch_version, list_profiles, resolved, opened)
 
 
 class TestAnAgentThatDoesNotDelegate:
@@ -812,6 +874,19 @@ class TestAPublishedDelegate:
             "slug": "research-bot",
         }
 
+    async def test_a_delegate_that_became_a_judge_is_refused_at_run_time(self):
+        """A judge is never a delegate, even through a pin published before."""
+        delegate_id = uuid.uuid4()
+        pinned = _version(delegate_id, AgentSpec(name="Eval judge"))
+        spec = _delegating(
+            subagents=[SubagentRef(agent_id=delegate_id, agent_version_id=pinned.id)]
+        )
+        judge = _agent_row(delegate_id, slug="eval-judge")
+        judge.kind = "judge"
+
+        with pytest.raises(SystemAgentRestrictedError, match="a delegate"):
+            await _prepare(spec, versions={pinned.id: pinned}, agents={delegate_id: judge})
+
     async def test_a_pin_naming_another_agents_version_is_refused(self):
         """A version id is only meaningful through the agent that owns it - and
         the lookup is tenant-scoped, so the same refusal covers a pin that
@@ -824,7 +899,11 @@ class TestAPublishedDelegate:
         with pytest.raises(BadRequestError, match="no longer exists"):
             await _prepare(spec, versions={pinned.id: pinned})
 
-    async def test_it_gets_its_own_mcp_connections_back(self):
+    @pytest.mark.parametrize("surface", [RunSurface.API, RunSurface.MATTERMOST])
+    @pytest.mark.parametrize("linked", [False, True])
+    async def test_it_gets_its_own_mcp_connections_back(
+        self, surface: RunSurface, linked: bool
+    ) -> None:
         """A delegate is a published agent, and half its tools coming from MCP
         does not make them optional."""
         delegate_id = uuid.uuid4()
@@ -832,7 +911,14 @@ class TestAPublishedDelegate:
         pinned = _version(
             delegate_id,
             AgentSpec(
-                name="Linear Bot", mcp_servers=[OrgMcpServerRef(connection_id=connection_id)]
+                name="Linear Bot",
+                mcp_servers=[
+                    OrgMcpServerRef(
+                        connection_id=connection_id,
+                        approval="none",
+                        tool_approval={"search": "never", "delete": "required"},
+                    )
+                ],
             ),
         )
         spec = _delegating(
@@ -843,13 +929,75 @@ class TestAPublishedDelegate:
             f"{RUNNER}.build_toolsets_for_agent",
             new=AsyncMock(return_value=ResolvedMcpToolsets(["linear-toolset"], [])),
         ) as toolsets:
-            prepared = await _prepare(spec, versions={pinned.id: pinned})
+            prepared = await _prepare(
+                spec, versions={pinned.id: pinned}, surface=surface, acts_for_sender=linked
+            )
             built = prepared.built("linear-bot")
 
         assert toolsets.await_args_list[-1].kwargs["refs"] == [
-            OrgMcpServerRef(connection_id=connection_id)
+            OrgMcpServerRef(
+                connection_id=connection_id,
+                approval="none",
+                tool_approval={"search": "never", "delete": "required"},
+            )
         ]
         assert built["extra_toolsets"] == ["linear-toolset"]
+
+    async def test_it_answers_with_the_environments_test_connections_too(self):
+        """Staging means the sandbox CRM at every level of the tree: a delegate
+        binding the production CRM must not be the way an eval reaches it."""
+        delegate_id = uuid.uuid4()
+        crm, sandbox, live_key, test_key = (uuid.uuid4() for _ in range(4))
+        pinned = _version(
+            delegate_id,
+            AgentSpec(
+                name="Linear Bot",
+                mcp_servers=[OrgMcpServerRef(connection_id=crm)],
+                capabilities=[
+                    {"id": "web_research", "config": {"provider": "tavily"}, "secret_id": live_key}
+                ],
+            ),
+        )
+        spec = _delegating(
+            subagents=[SubagentRef(agent_id=delegate_id, agent_version_id=pinned.id)]
+        )
+
+        with patch(
+            f"{RUNNER}.build_toolsets_for_agent",
+            new=AsyncMock(return_value=ResolvedMcpToolsets([], [])),
+        ) as toolsets:
+            prepared = await _prepare(
+                spec,
+                versions={pinned.id: pinned},
+                environment_connections=[
+                    AgentEnvironmentConnection(
+                        kind="mcp", production_id=crm, test_connection_id=sandbox
+                    ),
+                    AgentEnvironmentConnection(
+                        kind="secret", production_id=live_key, test_secret_id=test_key
+                    ),
+                ],
+            )
+            built = prepared.built("linear-bot")
+
+        assert toolsets.await_args_list[-1].kwargs["test_connections"] == {crm: sandbox}
+        (binding,) = built["spec"].capabilities
+        assert binding.secret_id == test_key
+        assert built["test_bindings"] == frozenset({"web_research"})
+
+    async def test_an_isolated_runs_delegates_are_isolated_too(self):
+        """An eval holding the parent's writes and not its delegate's would send
+        the e-mail one level down."""
+        delegate_id = uuid.uuid4()
+        pinned = _version(delegate_id, AgentSpec(name="Mailer"))
+        spec = _delegating(
+            subagents=[SubagentRef(agent_id=delegate_id, agent_version_id=pinned.id)]
+        )
+        isolation = RunIsolation()
+
+        prepared = await _prepare(spec, versions={pinned.id: pinned}, isolation=isolation)
+
+        assert prepared.built("mailer")["isolation"] is isolation
 
     @pytest.mark.security
     async def test_a_delegates_platform_credential_is_the_runs_own_persons(self):
@@ -2122,6 +2270,7 @@ class TestResumingIntoADelegation:
             output_tokens=0,
             cost_usd=Decimal(0),
             cost_is_partial=False,
+            started_at=datetime.now(UTC),
         )
         spec = _delegating(inline=[_specialist()])
         version = MagicMock(id=run.agent_version_id, agent_id=run.agent_id)
@@ -2136,8 +2285,14 @@ class TestResumingIntoADelegation:
             patch(f"{RUNNER}.agent_run_repo.mark_running", new=AsyncMock()),
             patch(f"{RUNNER}.agent_run_repo.finish_run", new=AsyncMock()),
             patch(f"{RUNNER}.agent_repo.get_version", new=AsyncMock(return_value=version)),
-            patch.object(service.registry, "get", new=AsyncMock(return_value=MagicMock())),
-            patch.object(service.models, "resolve", new=AsyncMock(return_value=MagicMock())),
+            patch.object(
+                service.registry,
+                "get",
+                new=AsyncMock(
+                    return_value=MagicMock(id=run.agent_id, system_key=None, kind="agent")
+                ),
+            ),
+            patch.object(service.models, "resolve", new=AsyncMock(return_value=_resolved_model())),
             patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
             patch.object(service.secrets, "resolve_for_bindings", new=AsyncMock(return_value={})),
             patch.object(service.workspaces, "open", new=AsyncMock(return_value=None)),
@@ -2259,6 +2414,42 @@ class TestADelegateIsBriefedOnWhatItCannotReach:
         assert built["spec"].instructions.startswith("Search Notion.\n\n")
         assert "has not connected their own Notion" in built["spec"].instructions
         assert built["extra_toolsets"] == []
+
+    async def test_a_shared_room_does_not_bind_personal_apps_for_parent_or_delegate(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        delegate_id = uuid.uuid4()
+        delegate = _version(
+            delegate_id,
+            AgentSpec(
+                name="Delegate",
+                mcp_servers=[
+                    PersonalMcpServerRef(account="personal", catalog_key="composio-gmail")
+                ],
+            ),
+        )
+        parent = _delegating(
+            mcp_servers=[PersonalMcpServerRef(account="personal", catalog_key="composio-gmail")],
+            subagents=[SubagentRef(agent_id=delegate_id, agent_version_id=delegate.id)],
+        )
+        monkeypatch.setattr(
+            "app.services.agent_registry.mcp_connection_repo.list_composio_for_user",
+            AsyncMock(return_value=[]),
+        )
+
+        prepared = await _prepare(
+            parent,
+            versions={delegate.id: delegate},
+            surface=RunSurface.SLACK,
+            memory_room_key="room:slack:C1",
+            acts_for_sender=True,
+        )
+        built = prepared.built("delegate")
+
+        assert not any(
+            isinstance(ref, PersonalMcpServerRef) for ref in prepared.prepared.spec.mcp_servers
+        )
+        assert not any(isinstance(ref, PersonalMcpServerRef) for ref in built["spec"].mcp_servers)
 
 
 @pytest.mark.parametrize("unattended", [False, True])
@@ -2411,9 +2602,10 @@ async def test_discovered_delegate_authorization_reloads_membership_and_retains_
 @pytest.mark.parametrize(
     "surface", [RunSurface.SLACK, RunSurface.MATTERMOST, RunSurface.TEAMS, RunSurface.TELEGRAM]
 )
-async def test_inline_mirage_cannot_bypass_an_unlinked_channel_gate(
-    surface: RunSurface, linked: bool
-):
+@pytest.mark.parametrize("approval", ["never", "required"])
+async def test_root_and_inline_mirage_keep_authored_approval_in_channels(
+    surface: RunSurface, linked: bool, approval: Literal["never", "required"]
+) -> None:
     from app.agents.capabilities import get
     from app.agents.capabilities.approval import approval_required_tools
 
@@ -2422,14 +2614,911 @@ async def test_inline_mirage_cannot_bypass_an_unlinked_channel_gate(
         capabilities=[
             {
                 "id": "mirage",
-                "approval": "never",
-                "tool_approval": dict.fromkeys(tools, "never"),
+                "approval": approval,
+                "tool_approval": dict.fromkeys(tools, approval),
                 "config": {"mounts": [{"path": "/data/", "backend": "ram"}]},
             }
         ]
     )
     prepared = await _prepare(
-        _delegating(inline=[specialist]), surface=surface, acts_for_sender=linked
+        _delegating(
+            inline=[specialist],
+            capabilities=[binding.model_dump() for binding in specialist.capabilities],
+        ),
+        surface=surface,
+        acts_for_sender=linked,
     )
     built = prepared.built("summariser")["spec"]
-    assert approval_required_tools(built) == (frozenset() if linked else tools)
+    expected = tools if approval == "required" else frozenset()
+    assert approval_required_tools(built) == expected
+    assert approval_required_tools(prepared.build.call_args_list[0].args[0]) == expected
+
+
+@pytest.mark.parametrize("coding", [False, True])
+async def test_a_local_published_delegate_requests_the_root_runs_computer(coding: bool):
+    child_id = uuid.uuid4()
+    child = AgentSpec(
+        name="Local child",
+        instructions="Work locally",
+        capabilities=[
+            CapabilityBindingSpec(
+                id="coding_agent" if coding else "sandbox",
+                config={"runs_on": "this_computer"} if coding else {"backend": "local"},
+            )
+        ],
+    )
+    version = _version(child_id, child)
+    asked: list[ComputerAccessRequest] = []
+
+    async def consent(request: ComputerAccessRequest) -> bool:
+        asked.append(request)
+        return True
+
+    prepared = await _prepare(
+        _delegating(subagents=[SubagentRef(agent_id=child_id, agent_version_id=version.id)]),
+        versions={version.id: version},
+        request_computer_access=consent,
+    )
+    built = prepared.built("local-child")
+    assert not built["spec"].capabilities
+    [capability] = [
+        cap for cap in built["extra_capabilities"] if isinstance(cap, RequestComputerOnUse)
+    ]
+    await capability._request(MagicMock(), "Read local files")
+    assert asked == [ComputerAccessRequest(reason="Read local files", coding=coding)]
+    assert prepared.runtime.subagents[0].workspace == "none"
+
+
+@pytest.mark.parametrize("coding", [False, True])
+async def test_nested_local_delegates_use_the_approved_root_device_not_the_cloud_parent(
+    coding: bool,
+):
+    child_id, middle_id = uuid.uuid4(), uuid.uuid4()
+    child = AgentSpec(
+        name="Local child",
+        instructions="Work locally",
+        capabilities=[
+            CapabilityBindingSpec(
+                id="coding_agent" if coding else "sandbox",
+                config={"runs_on": "this_computer"} if coding else {"backend": "local"},
+            )
+        ],
+    )
+    version = _version(child_id, child)
+    middle = _version(
+        middle_id,
+        _delegating(
+            name="Cloud middle",
+            subagents=[SubagentRef(agent_id=child_id, agent_version_id=version.id)],
+            max_depth=2,
+        ),
+    )
+    device = MagicMock(spec=Workspace)
+    device.backend = DeviceWorkspace(
+        uuid.uuid4(), uuid.uuid4(), LocalTarget(folder="/approved", mode="full_access")
+    )
+    prepared = await _prepare(
+        _delegating(
+            subagents=[SubagentRef(agent_id=middle_id, agent_version_id=middle.id)], max_depth=2
+        ),
+        versions={version.id: version, middle.id: middle},
+        workspace=device,
+    )
+    middle_built = prepared.built("cloud-middle")
+    assert WORKSPACE_RESOURCE not in middle_built["resources"]
+    assert prepared.runtime.subagents[0].workspace == "none"
+    built = prepared.built("cloud-middle", "local-child")
+    assert built["resources"][WORKSPACE_RESOURCE] is device
+    assert built["spec"].capabilities[0].id == ("coding_agent" if coding else "sandbox")
+    assert not any(isinstance(cap, RequestComputerOnUse) for cap in built["extra_capabilities"])
+    nested = middle_built["resources"][SUBAGENT_RUNTIME_RESOURCE]
+    assert nested.subagents[0].workspace is device
+
+
+@pytest.mark.parametrize("mode", ["read_only", "workspace_write"])
+async def test_a_coding_delegate_can_upgrade_an_existing_restricted_folder(mode):
+    child_id = uuid.uuid4()
+    child = AgentSpec(
+        name="Coder",
+        instructions="Work locally",
+        capabilities=[
+            CapabilityBindingSpec(id="coding_agent", config={"runs_on": "this_computer"})
+        ],
+    )
+    version = _version(child_id, child)
+    device = MagicMock(spec=Workspace)
+    device.backend = DeviceWorkspace(
+        uuid.uuid4(), uuid.uuid4(), LocalTarget(folder="/approved", mode=mode)
+    )
+    consent = AsyncMock(return_value=True)
+    prepared = await _prepare(
+        _delegating(subagents=[SubagentRef(agent_id=child_id, agent_version_id=version.id)]),
+        versions={version.id: version},
+        workspace=device,
+        request_computer_access=consent,
+    )
+    built = prepared.built("coder")
+    assert not built["spec"].capabilities
+    [capability] = [
+        cap for cap in built["extra_capabilities"] if isinstance(cap, RequestComputerOnUse)
+    ]
+    await capability._request(MagicMock(), "Run the coding delegate")
+    consent.assert_awaited_once_with(
+        ComputerAccessRequest(reason="Run the coding delegate", coding=True)
+    )
+    assert prepared.runtime.subagents[0].workspace is device
+
+
+async def test_a_delegate_consent_target_enables_the_sandboxless_root_before_workspace_opening():
+    from app.services.sandbox_workspace import sandbox_config
+
+    child_id = uuid.uuid4()
+    version = _version(
+        child_id,
+        AgentSpec(
+            name="Local child",
+            capabilities=[CapabilityBindingSpec(id="sandbox", config={"backend": "local"})],
+        ),
+    )
+    root = _delegating(subagents=[SubagentRef(agent_id=child_id, agent_version_id=version.id)])
+    assert sandbox_config(root) is None
+    device = MagicMock(spec=Workspace)
+    device.backend = DeviceWorkspace(uuid.uuid4(), uuid.uuid4(), LocalTarget(folder="/approved"))
+    prepared = await _prepare(
+        root,
+        versions={version.id: version},
+        workspace=device,
+        local=LocalTarget(folder="/approved"),
+    )
+    assert sandbox_config(prepared.opened.call_args.args[0]) is not None
+    assert prepared.built("local-child")["resources"][WORKSPACE_RESOURCE] is device
+    assert sandbox_config(root) is None
+
+
+@pytest.mark.parametrize("coding", [False, True])
+async def test_an_unattended_local_delegate_has_no_human_consent_callback(coding: bool):
+    child_id = uuid.uuid4()
+    version = _version(
+        child_id,
+        AgentSpec(
+            name="Local child",
+            capabilities=[
+                CapabilityBindingSpec(
+                    id="coding_agent" if coding else "sandbox",
+                    config={"runs_on": "this_computer"} if coding else {"backend": "local"},
+                )
+            ],
+        ),
+    )
+    prepared = await _prepare(
+        _delegating(subagents=[SubagentRef(agent_id=child_id, agent_version_id=version.id)]),
+        versions={version.id: version},
+    )
+    assert prepared.runtime.subagents[0].workspace == ("none" if coding else "own")
+    built = prepared.built("local-child")
+    assert not any(isinstance(cap, RequestComputerOnUse) for cap in built["extra_capabilities"])
+    assert WORKSPACE_RESOURCE not in built["resources"]
+
+
+@pytest.mark.parametrize("shared", [False, True])
+async def test_delegates_inherit_only_shared_computer_requirements_before_consent(shared: bool):
+    async def consent(request: ComputerAccessRequest) -> bool:
+        return False
+
+    root = _delegating(
+        inline=[_specialist()],
+        share=["sandbox"] if shared else [],
+        capabilities=[{"id": "sandbox", "config": {"backend": "local"}}],
+    )
+    prepared = await _prepare(root, request_computer_access=consent)
+    root_spec = prepared.build.call_args_list[0].args[0]
+    assert not any(binding.id == "sandbox" for binding in root_spec.capabilities)
+    built = prepared.built("summariser")
+    assert not any(binding.id == "sandbox" for binding in built["spec"].capabilities)
+    asking = [cap for cap in built["extra_capabilities"] if isinstance(cap, RequestComputerOnUse)]
+    assert len(asking) == int(shared)
+    assert prepared.runtime.subagents[0].workspace == "none"
+
+
+async def test_nested_delegates_retain_an_inherited_shared_computer_requirement():
+    async def consent(request: ComputerAccessRequest) -> bool:
+        return False
+
+    child_id = uuid.uuid4()
+    version = _version(
+        child_id, _delegating(name="Middle", inline=[_specialist()], share=["sandbox"])
+    )
+    prepared = await _prepare(
+        _delegating(
+            subagents=[SubagentRef(agent_id=child_id, agent_version_id=version.id)],
+            max_depth=2,
+            share=["sandbox"],
+            capabilities=[{"id": "sandbox", "config": {"backend": "local"}}],
+        ),
+        versions={version.id: version},
+        request_computer_access=consent,
+    )
+    built = prepared.built("middle", "summariser")
+    assert not built["spec"].capabilities
+    assert any(isinstance(cap, RequestComputerOnUse) for cap in built["extra_capabilities"])
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("nested", [False, True])
+async def test_personal_mcp_delegation_keeps_the_same_subject_and_call_guard_in_a_delegate(
+    nested: bool,
+):
+    from pydantic_ai.toolsets import FunctionToolset
+
+    from app.agents.mcp import AuthorityChecked
+
+    ctx = replace(
+        _ctx(),
+        api_key_id=uuid.uuid4(),
+        key_scopes=frozenset({Perm.AGENTS_RUN, Perm.MCP_PERSONAL_USE}),
+    )
+    delegate_id = uuid.uuid4()
+    pinned = _version(
+        delegate_id,
+        AgentSpec(
+            name="personal-reader",
+            mcp_servers=[PersonalMcpServerRef(account="personal", catalog_key="notion")],
+        ),
+    )
+    versions = {pinned.id: pinned}
+    if nested:
+        middle_id = uuid.uuid4()
+        middle = _version(
+            middle_id,
+            _delegating(
+                name="Middle",
+                subagents=[SubagentRef(agent_id=delegate_id, agent_version_id=pinned.id)],
+            ),
+        )
+        versions[middle.id] = middle
+        spec = _delegating(
+            max_depth=2, subagents=[SubagentRef(agent_id=middle_id, agent_version_id=middle.id)]
+        )
+    else:
+        spec = _delegating(
+            subagents=[SubagentRef(agent_id=delegate_id, agent_version_id=pinned.id)]
+        )
+    check = AsyncMock()
+    with (
+        patch(f"{RUNNER}._personal_mcp_check", return_value=check),
+        patch(
+            f"{RUNNER}.build_toolsets_for_agent",
+            new=AsyncMock(return_value=ResolvedMcpToolsets([FunctionToolset()], [])),
+        ) as tools,
+        patch.object(AgentRunnerService, "_add_mirage_terminal", new=AsyncMock()) as terminal,
+    ):
+        prepared = await _prepare(spec, ctx=ctx, versions=versions)
+        built = (
+            prepared.built("middle", "personal-reader")
+            if nested
+            else prepared.built("personal-reader")
+        )
+    assert all(call.kwargs["sender_user_id"] == ctx.user_id for call in tools.await_args_list)
+    wrapped = built["extra_toolsets"][0]
+    assert isinstance(wrapped, AuthorityChecked)
+    assert prepared.prepared.admitted_as.personal_mcp_key_id == ctx.api_key_id
+    check.reset_mock()
+    await wrapped.check()
+    check.assert_awaited_once()
+    assert all(call.kwargs["person_id"] is None for call in terminal.await_args_list)
+
+
+@dataclass
+class _PersonalModels:
+    profiles: dict[uuid.UUID, ModelProfile]
+    keys: dict[tuple[uuid.UUID, uuid.UUID, str, str], PersonalModelKey]
+
+    def profile(self, endpoint: str = "https://gateway.example/v1") -> ModelProfile:
+        from app.db.models.credential import ModelProfile
+
+        profile = ModelProfile(
+            id=uuid.uuid4(),
+            label=f"Personal {len(self.profiles)}",
+            provider="openai",
+            model="gpt-4.1",
+            base_url=endpoint,
+            params={},
+            fallback_profile_ids=[],
+            api="chat",
+            region=None,
+            context_length=128000,
+        )
+        self.profiles[profile.id] = profile
+        return profile
+
+    def connect(self, ctx: AuthContext, profile: ModelProfile, value: str) -> None:
+        from app.core.secret_kinds import ApiKeySecret, seal_secret
+        from app.core.vault import VaultScope
+        from app.db.models.personal_model_key import PersonalModelKey
+
+        assert ctx.user_id is not None
+        sealed = seal_secret(ApiKeySecret(api_key=value), scope=VaultScope.user(ctx.user_id))
+        self.keys[(ctx.organization_id, ctx.user_id, profile.provider, profile.base_url or "")] = (
+            PersonalModelKey(
+                id=uuid.uuid4(), sealed_secret=sealed.ciphertext, key_version=sealed.key_version
+            )
+        )
+
+
+@pytest.fixture
+def personal_models(monkeypatch: pytest.MonkeyPatch) -> _PersonalModels:
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    held = _PersonalModels({}, {})
+
+    async def profile_for_organization(
+        organization_id: uuid.UUID, *, profile_id: uuid.UUID | None
+    ) -> ModelProfile:
+        assert profile_id is not None
+        return held.profiles[profile_id]
+
+    async def key(
+        db: AsyncSession,
+        *,
+        organization_id: uuid.UUID,
+        user_id: uuid.UUID,
+        provider: str,
+        endpoint: str,
+    ) -> PersonalModelKey | None:
+        return held.keys.get((organization_id, user_id, provider, endpoint))
+
+    monkeypatch.setattr(
+        "app.services.model_profile.ModelProfileService.profile_for_organization",
+        AsyncMock(side_effect=profile_for_organization),
+    )
+    monkeypatch.setattr("app.services.personal_model_key.key_repo.get", AsyncMock(side_effect=key))
+    return held
+
+
+@pytest.mark.security
+async def test_nested_personal_delegates_use_each_members_own_connection(
+    personal_models: _PersonalModels,
+) -> None:
+    from app.core.secret_kinds import ApiKeySecret
+
+    first = replace(_ctx(), role=OrgRoleName.MEMBER)
+    second = replace(first, user_id=uuid.uuid4())
+    parent_profile = personal_models.profile()
+    child_profile = parent_profile
+    child_id, leaf_id = uuid.uuid4(), uuid.uuid4()
+    leaf = _version(
+        leaf_id,
+        AgentSpec(name="Leaf", model_profile_id=child_profile.id, model_credential_mode="personal"),
+    )
+    middle = _version(
+        child_id,
+        _delegating(
+            name="Middle",
+            model_profile_id=child_profile.id,
+            model_credential_mode="personal",
+            subagents=[SubagentRef(agent_id=leaf_id, agent_version_id=leaf.id)],
+        ),
+    )
+    parent = _delegating(
+        model_profile_id=parent_profile.id,
+        model_credential_mode="personal",
+        max_depth=2,
+        subagents=[SubagentRef(agent_id=child_id, agent_version_id=middle.id)],
+    )
+    for ctx, value in [(first, "first-private-key"), (second, "second-private-key")]:
+        personal_models.connect(ctx, parent_profile, value)
+        prepared = await _prepare(
+            parent, ctx=ctx, surface=RunSurface.WEB, versions={middle.id: middle, leaf.id: leaf}
+        )
+        for path in [("middle",), ("middle", "leaf")]:
+            model = prepared.built(*path)["model"]
+            assert isinstance(model.credential.secret, ApiKeySecret)
+            assert model.credential.secret.api_key.get_secret_value() == value
+            assert model.profile_id == child_profile.id
+            assert model.credential.base_url == child_profile.base_url
+            assert model.fallbacks == []
+        prepared.resolved.assert_not_awaited()
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("personal_parent", [False, True])
+async def test_a_saved_delegate_key_does_not_replace_the_chat_models_consent(
+    personal_models: _PersonalModels,
+    personal_parent: bool,
+) -> None:
+    ctx = _ctx()
+    parent_profile = personal_models.profile()
+    child_profile = personal_models.profile("https://other-gateway.example/v1")
+    personal_models.connect(ctx, parent_profile, "parent-key")
+    personal_models.connect(ctx, child_profile, "unapproved-delegate-key")
+    child_id = uuid.uuid4()
+    child = _version(
+        child_id,
+        AgentSpec(
+            name="Specialist", model_profile_id=child_profile.id, model_credential_mode="personal"
+        ),
+    )
+    parent = _delegating(
+        model_profile_id=parent_profile.id,
+        model_credential_mode="personal" if personal_parent else "organization",
+        subagents=[SubagentRef(agent_id=child_id, agent_version_id=child.id)],
+    )
+    with pytest.raises(BadRequestError) as refused:
+        await _prepare(parent, ctx=ctx, surface=RunSurface.WEB, versions={child.id: child})
+    assert refused.value.code == "PERSONAL_MODEL_CONSENT"
+    assert "unapproved-delegate-key" not in str(refused.value)
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("code", ["PERSONAL_MODEL_KEY_REQUIRED", "PERSONAL_MODEL_PROFILE"])
+async def test_delegate_key_refusals_explain_missing_keys_and_preserve_other_errors(
+    personal_models: _PersonalModels,
+    code: str,
+) -> None:
+    ctx = _ctx()
+    profile = personal_models.profile()
+    personal_models.connect(ctx, profile, "parent-key")
+    child_id = uuid.uuid4()
+    child = _version(
+        child_id,
+        AgentSpec(
+            name="Private reader", model_profile_id=profile.id, model_credential_mode="personal"
+        ),
+    )
+    root = _delegating(
+        model_profile_id=profile.id,
+        model_credential_mode="personal",
+        subagents=[SubagentRef(agent_id=child_id, agent_version_id=child.id)],
+    )
+    from app.services.personal_model_key import PersonalModelKeyService
+
+    original = PersonalModelKeyService.resolve
+    failure = AuthorizationError(
+        message="Personal profile unavailable", code=code, details={"reason": "unavailable"}
+    )
+    calls = 0
+
+    async def resolve(
+        service: PersonalModelKeyService, context: AuthContext, chosen: ModelProfile
+    ) -> ModelRequestSpec:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return await original(service, context, chosen)
+        raise failure
+
+    with (
+        patch.object(PersonalModelKeyService, "resolve", resolve),
+        pytest.raises(AuthorizationError) as refused,
+    ):
+        await _prepare(root, ctx=ctx, surface=RunSurface.WEB, versions={child.id: child})
+    assert refused.value.code == code
+    assert refused.value.details == failure.details
+    if code == "PERSONAL_MODEL_KEY_REQUIRED":
+        assert "Private reader" in refused.value.message
+        assert profile.label in refused.value.message
+        assert "Connect your own model API key" in refused.value.message
+    else:
+        assert refused.value is failure
+    assert "parent-key" not in str(refused.value)
+
+
+async def test_inline_and_dynamic_specialists_keep_the_personal_model_contract(
+    personal_models: _PersonalModels,
+) -> None:
+    from app.core.secret_kinds import ApiKeySecret
+
+    ctx = _ctx()
+    profile = personal_models.profile()
+    personal_models.connect(ctx, profile, "specialists-private")
+    prepared = await _prepare(
+        _delegating(
+            model_profile_id=profile.id,
+            model_credential_mode="personal",
+            inline=[_specialist()],
+            allow_dynamic=True,
+        ),
+        ctx=ctx,
+        surface=RunSurface.WEB,
+    )
+    assert prepared.runtime.dynamic is not None
+    assert prepared.runtime.dynamic.allowed_models == (profile.label,)
+    for built in [prepared.built("summariser"), prepared.invented(model=profile.label)]:
+        assert built["spec"].model_credential_mode == "personal"
+        secret = built["model"].credential.secret
+        assert isinstance(secret, ApiKeySecret)
+        assert secret.api_key.get_secret_value() == "specialists-private"
+        assert built["model"].profile_id == profile.id
+    prepared.resolved.assert_not_awaited()
+    prepared.list_profiles.assert_not_awaited()
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("surface", [RunSurface.API, RunSurface.SLACK, RunSurface.SCHEDULE])
+async def test_organization_parent_cannot_lend_a_personal_delegate_to_another_surface(
+    personal_models: _PersonalModels,
+    surface: RunSurface,
+) -> None:
+    ctx = _ctx()
+    profile = personal_models.profile()
+    personal_models.connect(ctx, profile, "web-only")
+    child_id = uuid.uuid4()
+    child = _version(
+        child_id,
+        AgentSpec(name="Personal", model_profile_id=profile.id, model_credential_mode="personal"),
+    )
+    with pytest.raises(BadRequestError, match="signed-in web chat"):
+        await _prepare(
+            _delegating(subagents=[SubagentRef(agent_id=child_id, agent_version_id=child.id)]),
+            ctx=ctx,
+            surface=surface,
+            versions={child.id: child},
+        )
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("revoked", [False, True])
+async def test_resume_rechecks_the_original_owners_delegate_key_not_the_approvers(
+    personal_models: _PersonalModels,
+    revoked: bool,
+) -> None:
+    from app.core.secret_kinds import ApiKeySecret
+    from tests.test_agent_runner import _parked_run
+
+    owner = _ctx()
+    approver = replace(owner, user_id=uuid.uuid4())
+    profile = personal_models.profile()
+    personal_models.connect(owner, profile, "original-owner-key")
+    personal_models.connect(approver, profile, "never-borrow-approver-key")
+    child_id = uuid.uuid4()
+    child = _version(
+        child_id,
+        AgentSpec(name="Personal", model_profile_id=profile.id, model_credential_mode="personal"),
+    )
+    spec = _delegating(
+        model_credential_mode="personal",
+        model_profile_id=profile.id,
+        subagents=[SubagentRef(agent_id=child_id, agent_version_id=child.id)],
+    )
+    run = _parked_run(
+        organization_id=owner.organization_id,
+        user_id=owner.user_id,
+        initiated_by_publisher_fallback=False,
+        surface=RunSurface.WEB.value,
+        paused_state={
+            "messages": [],
+            "tool_call_ids": {},
+            "admitted_as": {"audience_user_id": str(owner.user_id)},
+        },
+    )
+    version = _version(run.agent_id, spec)
+    if revoked:
+        personal_models.keys.pop(
+            (owner.organization_id, owner.user_id, profile.provider, profile.base_url or "")
+        )
+    service = AgentRunnerService(_db())
+
+    async def get_version(
+        db: object, version_id: uuid.UUID, *, organization_id: uuid.UUID
+    ) -> MagicMock:
+        return child if version_id == child.id else version
+
+    with (
+        patch(f"{RUNNER}.agent_run_repo.claim_parked_run", AsyncMock(return_value=run)),
+        patch(f"{RUNNER}.agent_run_repo.list_approvals_for_run", AsyncMock(return_value=[])),
+        patch(f"{RUNNER}.agent_run_repo.mark_running", AsyncMock()),
+        patch(f"{RUNNER}.agent_run_repo.finish_run", AsyncMock()),
+        patch(f"{RUNNER}.agent_repo.get_version", AsyncMock(side_effect=get_version)),
+        patch(
+            f"{RUNNER}.agent_repo.get",
+            AsyncMock(return_value=_agent_row(child_id, slug="personal")),
+        ),
+        patch.object(
+            service.registry, "get", AsyncMock(return_value=_agent_row(run.agent_id, slug="parent"))
+        ),
+        patch.object(service.models, "resolve", AsyncMock(return_value=_resolved_model())),
+        patch.object(service.skills, "resolve_for_agent", AsyncMock(return_value=[])),
+        patch.object(service.secrets, "resolve_for_bindings", AsyncMock(return_value={})),
+        patch.object(service.workspaces, "open", AsyncMock(return_value=None)),
+        patch(f"{RUNNER}.build_agent") as build,
+    ):
+        build.return_value.agent.run = AsyncMock(return_value=MagicMock(output="continued"))
+        if revoked:
+            with pytest.raises(AuthorizationError) as refused:
+                await service.resume(approver, run.id)
+            assert refused.value.code == "PERSONAL_MODEL_KEY_REQUIRED"
+            build.assert_not_called()
+        else:
+            segment = await service.resume(approver, run.id)
+            assert segment.output == "continued"
+            runtime = build.call_args_list[0].kwargs["resources"][SUBAGENT_RUNTIME_RESOURCE]
+            entry = runtime.named("personal")
+            assert entry is not None
+            entry.build()
+            model = build.call_args.args[1]
+            assert isinstance(model.credential.secret, ApiKeySecret)
+            assert model.credential.secret.api_key.get_secret_value() == "original-owner-key"
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("reason", ["public_input", "impersonation"])
+async def test_a_web_parent_cannot_spend_a_personal_delegates_key_without_its_owner(
+    personal_models: _PersonalModels,
+    reason: str,
+) -> None:
+    from app.agents.audience import acting_impersonated
+
+    ctx = _ctx()
+    profile = personal_models.profile()
+    personal_models.connect(ctx, profile, "do-not-spend")
+    child_id = uuid.uuid4()
+    child = _version(
+        child_id,
+        AgentSpec(name="Personal", model_profile_id=profile.id, model_credential_mode="personal"),
+    )
+    parent = _delegating(subagents=[SubagentRef(agent_id=child_id, agent_version_id=child.id)])
+    with (
+        acting_impersonated(reason == "impersonation"),
+        pytest.raises((AuthorizationError, BadRequestError)) as refused,
+    ):
+        await _prepare(
+            parent,
+            ctx=ctx,
+            surface=RunSurface.WEB,
+            public_origin=reason == "public_input",
+            versions={child.id: child},
+        )
+    assert "do-not-spend" not in str(refused.value)
+    assert refused.value.code != "PERSONAL_MODEL_KEY_REQUIRED"
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("surface", [RunSurface.API, RunSurface.WEB])
+async def test_discovery_skips_personal_models_that_the_root_did_not_authorize(
+    surface: RunSurface,
+) -> None:
+    ctx = _ctx()
+    if surface is RunSurface.API:
+        ctx = replace(
+            ctx,
+            api_key_id=uuid.uuid4(),
+            key_scopes=frozenset({Perm.AGENTS_RUN, Perm.MCP_PERSONAL_USE}),
+        )
+    child_id = uuid.uuid4()
+    child = _version(
+        child_id,
+        AgentSpec(
+            name="Unapproved",
+            model_profile_id=uuid.uuid4(),
+            model_credential_mode="personal",
+        ),
+    )
+    ref = SubagentRef(agent_id=child_id, agent_version_id=child.id)
+    root = _delegating()
+    root.capabilities[0].config["allow_any_agent"] = True
+    with (
+        patch.object(AgentRegistryService, "accessible_delegates", AsyncMock(return_value=[ref])),
+        patch.object(AgentRegistryService, "get", AsyncMock()),
+    ):
+        prepared = await _prepare(
+            root,
+            ctx=ctx,
+            surface=surface,
+            versions={child.id: child},
+        )
+    assert prepared.runtime.named("agent-unapproved") is None
+    assert prepared.resolved.await_count == 1
+
+
+@pytest.mark.security
+async def test_discovery_does_not_hide_other_model_configuration_errors() -> None:
+    child_id = uuid.uuid4()
+    profile = _profile(UNUSABLE_PROFILE)
+    child = _version(child_id, AgentSpec(name="Broken", model_profile_id=profile.id))
+    ref = SubagentRef(agent_id=child_id, agent_version_id=child.id)
+    root = _delegating()
+    root.capabilities[0].config["allow_any_agent"] = True
+    with (
+        patch.object(AgentRegistryService, "accessible_delegates", AsyncMock(return_value=[ref])),
+        patch.object(AgentRegistryService, "get", AsyncMock()),
+        pytest.raises(BadRequestError, match="no key configured"),
+    ):
+        await _prepare(root, versions={child.id: child}, profiles=[profile])
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("owner_access", [True, False])
+async def test_api_resume_does_not_borrow_the_approvers_discovered_delegate_grant(
+    owner_access: bool,
+) -> None:
+    from collections.abc import AsyncIterator
+    from contextlib import asynccontextmanager
+
+    from app.services.agent_runner import ApiKeyService
+    from tests.test_agent_runner import _parked_run
+
+    owner = replace(
+        _ctx(),
+        api_key_id=uuid.uuid4(),
+        key_scopes=frozenset({Perm.AGENTS_RUN, Perm.MCP_PERSONAL_USE}),
+    )
+    approver = replace(_ctx(), organization_id=owner.organization_id)
+    child_id = uuid.uuid4()
+    child = _version(
+        child_id,
+        AgentSpec(
+            name="Private reader",
+            mcp_servers=[PersonalMcpServerRef(account="personal", catalog_key="notion")],
+        ),
+    )
+    spec = AgentSpec(
+        name="Parent",
+        capabilities=[
+            CapabilityBindingSpec(id=DELEGATION_CAPABILITY_ID, config={"allow_any_agent": True})
+        ],
+    )
+    run = _parked_run(
+        organization_id=owner.organization_id,
+        user_id=owner.user_id,
+        initiated_by_publisher_fallback=False,
+        key_scopes=[Perm.AGENTS_RUN.value, Perm.MCP_PERSONAL_USE.value],
+    )
+    run.paused_state = {
+        "messages": [],
+        "tool_call_ids": {},
+        "admitted_as": {"personal_mcp_key_id": str(owner.api_key_id)},
+        "discovered_delegates": {
+            str(run.agent_id): [
+                {
+                    "agent_id": str(child_id),
+                    "agent_version_id": str(child.id),
+                }
+            ]
+        },
+    }
+    version = _version(run.agent_id, spec)
+    service = AgentRunnerService(_db())
+    accesses: list[tuple[uuid.UUID | None, uuid.UUID]] = []
+
+    async def get(context: AuthContext, agent_id: uuid.UUID, *, perm: Perm) -> MagicMock:
+        accesses.append((context.user_id, agent_id))
+        if context.user_id == owner.user_id and agent_id == child_id and not owner_access:
+            raise AuthorizationError(message="Original owner's delegate grant revoked")
+        return _agent_row(agent_id, slug="private-reader" if agent_id == child_id else "parent")
+
+    async def get_version(
+        db: object, version_id: uuid.UUID, *, organization_id: uuid.UUID
+    ) -> MagicMock:
+        return child if version_id == child.id else version
+
+    @asynccontextmanager
+    async def session() -> AsyncIterator[MagicMock]:
+        yield _db()
+
+    with (
+        patch(f"{RUNNER}.get_db_context", session),
+        patch.object(ApiKeyService, "personal_mcp_context", AsyncMock(return_value=owner)),
+        patch.object(AgentRegistryService, "get", AsyncMock(side_effect=get)),
+        patch(f"{RUNNER}.agent_run_repo.claim_parked_run", AsyncMock(return_value=run)),
+        patch(f"{RUNNER}.agent_run_repo.list_approvals_for_run", AsyncMock(return_value=[])),
+        patch(f"{RUNNER}.agent_run_repo.mark_running", AsyncMock()),
+        patch(f"{RUNNER}.agent_run_repo.finish_run", AsyncMock()),
+        patch(f"{RUNNER}.agent_repo.get_version", AsyncMock(side_effect=get_version)),
+        patch(
+            f"{RUNNER}.agent_repo.get",
+            AsyncMock(return_value=_agent_row(child_id, slug="private-reader")),
+        ),
+        patch.object(service.models, "resolve", AsyncMock(return_value=_resolved_model())),
+        patch.object(service.skills, "resolve_for_agent", AsyncMock(return_value=[])),
+        patch.object(service.secrets, "resolve_for_bindings", AsyncMock(return_value={})),
+        patch.object(service.workspaces, "open", AsyncMock(return_value=None)),
+        patch(
+            "app.services.agent_registry.mcp_connection_repo.list_composio_for_user",
+            AsyncMock(return_value=[]),
+        ),
+        patch(
+            f"{RUNNER}.build_toolsets_for_agent",
+            AsyncMock(return_value=ResolvedMcpToolsets([], [])),
+        ) as tools,
+        patch(f"{RUNNER}.build_agent") as build,
+    ):
+        build.return_value.agent.run = AsyncMock(return_value=MagicMock(output="continued"))
+        if owner_access:
+            result = await service.resume(approver, run.id)
+            assert result.output == "continued"
+            assert tools.await_args.kwargs["sender_user_id"] == owner.user_id
+        else:
+            with pytest.raises(AuthorizationError, match="Original owner's delegate grant revoked"):
+                await service.resume(approver, run.id)
+            # The root has no personal tools; the delegate must fail before opening any.
+            assert tools.await_count == 1
+            build.assert_not_called()
+    assert (approver.user_id, child_id) in accesses
+    assert (owner.user_id, child_id) in accesses
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("root_personal", [False, True])
+@pytest.mark.parametrize("nested_rejection", [False, True])
+async def test_skipped_discovery_restores_personal_mcp_authority_for_the_remaining_tree(
+    root_personal: bool,
+    nested_rejection: bool,
+) -> None:
+    from pydantic_ai.toolsets import FunctionToolset
+
+    ctx = replace(
+        _ctx(),
+        api_key_id=uuid.uuid4(),
+        key_scopes=frozenset({Perm.AGENTS_RUN, Perm.MCP_PERSONAL_USE}),
+    )
+    candidate_id, leaf_id = uuid.uuid4(), uuid.uuid4()
+    leaf = _version(
+        leaf_id,
+        AgentSpec(
+            name="Unreachable MCP",
+            mcp_servers=[PersonalMcpServerRef(account="personal", catalog_key="notion")],
+        ),
+    )
+    candidate_spec = _delegating(
+        name="Unapproved", model_credential_mode="personal", model_profile_id=uuid.uuid4()
+    )
+    candidate_spec.capabilities[0].config["allow_any_agent"] = True
+    versions = {leaf.id: leaf}
+    if nested_rejection:
+        middle_id, refused_id = uuid.uuid4(), uuid.uuid4()
+        middle_spec = _delegating(name="Middle")
+        middle_spec.capabilities[0].config["allow_any_agent"] = True
+        middle = _version(middle_id, middle_spec)
+        refused = _version(
+            refused_id,
+            AgentSpec(
+                name="Unapproved leaf",
+                model_credential_mode="personal",
+                model_profile_id=uuid.uuid4(),
+            ),
+        )
+        versions.update({middle.id: middle, refused.id: refused})
+        candidate_spec = _delegating(
+            name="Unapproved",
+            max_depth=2,
+            subagents=[
+                SubagentRef(agent_id=middle_id, agent_version_id=middle.id),
+                SubagentRef(agent_id=refused_id, agent_version_id=refused.id),
+            ],
+        )
+    candidate = _version(candidate_id, candidate_spec)
+    versions[candidate.id] = candidate
+    root = _delegating(max_depth=3)
+    root.capabilities[0].config["allow_any_agent"] = True
+    if root_personal:
+        root.mcp_servers = [PersonalMcpServerRef(account="personal", catalog_key="notion")]
+
+    async def accessible(
+        context: AuthContext, *, exclude: frozenset[uuid.UUID]
+    ) -> list[SubagentRef]:
+        target = leaf if candidate_id in exclude else candidate
+        return [SubagentRef(agent_id=target.agent_id, agent_version_id=target.id)]
+
+    check = AsyncMock()
+    with (
+        patch(f"{RUNNER}._personal_mcp_check", return_value=check),
+        patch.object(
+            AgentRegistryService, "accessible_delegates", AsyncMock(side_effect=accessible)
+        ),
+        patch.object(AgentRegistryService, "get", AsyncMock()),
+        patch(
+            f"{RUNNER}.build_toolsets_for_agent",
+            AsyncMock(return_value=ResolvedMcpToolsets([FunctionToolset()], [])),
+        ),
+    ):
+        prepared = await _prepare(root, ctx=ctx, versions=versions)
+        assert prepared.runtime.named("agent-unapproved") is None
+        assert prepared.prepared.admitted_as.personal_mcp_key_id == (
+            ctx.api_key_id if root_personal else None
+        )
+        check.reset_mock()
+        await prepared.build.call_args_list[0].kwargs["extra_toolsets"][0].check()
+        if root_personal:
+            check.assert_awaited_once_with(delegates=frozenset())
+        else:
+            check.assert_not_awaited()

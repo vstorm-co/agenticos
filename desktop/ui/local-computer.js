@@ -31,7 +31,7 @@ const VIEWS = {
  * @param {HTMLElement} root
  * @param {Invoke} invoke
  * @param {(message: unknown) => void} report
- * @returns {(() => Promise<void>) & { resume: () => Promise<void>, prepare: () => Promise<void> }}
+ * @returns {(() => Promise<void>) & { progress: (payload: unknown) => void, resume: () => Promise<void>, prepare: () => Promise<void> }}
  */
 export function localComputerStep(root, invoke, report) {
   const card = root.querySelector("[data-local-instance]");
@@ -46,6 +46,16 @@ export function localComputerStep(root, invoke, report) {
   const heading = root.querySelector("[data-local-heading]");
   const lead = root.querySelector("[data-local-lead]");
   let instances = [];
+  let updating = false;
+  const updateProgress = root.querySelector("[data-local-update-progress]");
+  const updateStatus = root.querySelector("[data-local-update-status]");
+  /** @param {string} text @returns {HTMLSpanElement} */
+  function label(text) {
+    const span = document.createElement("span");
+    span.dataset.onboardingCopy = "";
+    span.textContent = text;
+    return span;
+  }
   function showOverview() {
     root.dataset.view = "overview";
     overview.hidden = false;
@@ -88,7 +98,14 @@ export function localComputerStep(root, invoke, report) {
             typeof row.name !== "string" ||
             typeof row.url !== "string" ||
             typeof row.installed !== "boolean" ||
-            typeof row.running !== "boolean",
+            typeof row.running !== "boolean" ||
+            (row.version != null && typeof row.version !== "string") ||
+            (row.version_error != null &&
+              typeof row.version_error !== "string") ||
+            (row.target_version !== undefined &&
+              typeof row.target_version !== "string") ||
+            (row.can_update !== undefined &&
+              typeof row.can_update !== "boolean"),
         )
       )
         throw new Error("The app could not read its local instances.");
@@ -113,6 +130,41 @@ export function localComputerStep(root, invoke, report) {
             : "Start and connect";
         button.dataset.instance = instance.id;
         row.append(description, button);
+        if (instance.installed && typeof instance.target_version === "string") {
+          const versions = document.createElement("p");
+          if (instance.version) {
+            versions.append(
+              label("Workspace"),
+              ` ${instance.version} · `,
+              label("Update target"),
+              ` ${instance.target_version}`,
+            );
+          } else {
+            versions.append(
+              label("Workspace version unavailable; target"),
+              ` ${instance.target_version}`,
+            );
+          }
+          description.append(versions);
+          if (typeof instance.version_error === "string") {
+            const error = document.createElement("p");
+            error.className = "error";
+            error.textContent = instance.version_error;
+            description.append(error);
+          }
+          if (instance.can_update === true) {
+            const update = document.createElement("button");
+            update.type = "button";
+            update.className = "secondary";
+            update.dataset.onboardingCopy = "";
+            update.textContent =
+              instance.version === instance.target_version
+                ? "Reapply workspace update"
+                : "Update local workspace";
+            update.dataset.updateInstance = instance.id;
+            row.append(update);
+          }
+        }
         list.append(row);
       }
       list.hidden = instances.length === 0;
@@ -124,12 +176,49 @@ export function localComputerStep(root, invoke, report) {
     }
   }
   list.addEventListener("click", async (event) => {
+    if (!(event.target instanceof Element) || connecting || updating) return;
+    const button = event.target.closest("[data-update-instance]");
+    const instance = instances.find(
+      (item) => item.id === button?.dataset.updateInstance,
+    );
+    if (!instance?.installed || instance.can_update !== true) return;
+    updating = true;
+    instanceError.hidden = true;
+    updateProgress.hidden = false;
+    updateStatus.textContent = "Waiting for update confirmation…";
+    for (const control of root.querySelectorAll("button"))
+      control.disabled = true;
+    try {
+      const updated = await invoke("update_local", { instanceId: instance.id });
+      if (typeof updated !== "boolean")
+        throw new Error("The app could not read the update result.");
+      await refreshInstances(generation);
+      updateStatus.textContent = updated
+        ? "Workspace updated. Connect to continue."
+        : "Workspace update cancelled.";
+    } catch (error) {
+      instanceError.hidden = false;
+      instanceError.textContent = String(error);
+      updateStatus.textContent =
+        "Workspace update failed. Resolve the error and retry.";
+    } finally {
+      updating = false;
+      updateProgress.hidden = true;
+      for (const control of root.querySelectorAll("button"))
+        control.disabled = false;
+      const next =
+        list.querySelector(`[data-update-instance="${instance.id}"]`) ??
+        list.querySelector(`[data-instance="${instance.id}"]`);
+      next?.focus();
+    }
+  });
+  list.addEventListener("click", async (event) => {
     if (!(event.target instanceof Element)) return;
     const button = event.target.closest("[data-instance]");
     const instance = instances.find(
       (item) => item.id === button?.dataset.instance,
     );
-    if (!instance || connecting) return;
+    if (!instance || connecting || updating) return;
     if (!instance.installed) {
       showForm(instance);
       return;
@@ -167,6 +256,7 @@ export function localComputerStep(root, invoke, report) {
     }
   }
   async function refresh() {
+    if (updating) return;
     const request = ++generation;
     showOverview();
     card.dataset.state = "checking";
@@ -265,6 +355,23 @@ export function localComputerStep(root, invoke, report) {
       setBusy(false);
     }
   });
+  refresh.progress = (payload) => {
+    if (!updating) return;
+    const labels = {
+      download: "Downloading workspace images…",
+      backup: "Backing up the database, files and keys…",
+      restart: "Restarting the workspace and checking health…",
+    };
+    if (
+      typeof payload === "object" &&
+      payload !== null &&
+      "step" in payload &&
+      typeof payload.step === "string" &&
+      Object.hasOwn(labels, payload.step) &&
+      updateStatus.textContent !== labels[payload.step]
+    )
+      updateStatus.textContent = labels[payload.step];
+  };
   refresh.prepare = () => prepareRuntime("docker");
   refresh.resume = async () => {
     ++generation;

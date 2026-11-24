@@ -1,0 +1,1431 @@
+/*
+ * AgenticOS page styles, version 4 - served to published artifacts.
+ *
+ * The T3 design language: Inter on a near-white page, white cards with a
+ * hairline border and a soft shadow, a blue accent for what can be acted on,
+ * lime / amber / red / blue for status, and a nine-hue chart palette. Light and
+ * dark follow the viewer's system setting. The values are T3's own design
+ * tokens; the CSS is written here, with no framework.
+ *
+ * Version 4 keeps every class and custom property of version 3 - a page written
+ * for it works unchanged - and restyles them. It adds what a dashboard or report
+ * wants: button variants and sizes, a line tab strip, stat tiles, a table with a
+ * sticky header, chips, tinted progress bars and an initials chip. Colour pairs
+ * are checked at WCAG AA (4.5:1 for text, 3:1 for chart marks and focus rings).
+ * Pages published against agenticos-1 to 3 keep those files; this file is never
+ * edited in a way that changes an existing page - a change like that is
+ * agenticos-5.css.
+ *
+ * Parts of the free BoardUI component set (MIT) informed the component styling;
+ * see the notice in the library README.
+ */
+
+:root {
+  color-scheme: light dark;
+  --ao-bg: oklch(97.1% 0 0);
+  --ao-fg: oklch(14.5% 0 0);
+  --ao-card: oklch(100% 0 0);
+  --ao-muted: oklch(95.5% 0 0);
+  --ao-muted-fg: oklch(47.5% 0 0);
+  --ao-subtle-fg: oklch(55.6% 0 0);
+  --ao-border: oklch(92.2% 0 0);
+  --ao-border-strong: oklch(87% 0 0);
+  --ao-primary: oklch(14.5% 0 0);
+  --ao-primary-fg: oklch(98.5% 0 0);
+  --ao-accent: oklch(54.6% 0.245 262.9);
+  --ao-accent-hover: oklch(48.8% 0.243 264.4);
+  --ao-accent-fg: oklch(100% 0 0);
+  --ao-accent-soft: oklch(93.2% 0.032 255.6);
+  --ao-accent-soft-fg: oklch(48.8% 0.243 264.4);
+  --ao-ring: oklch(54.6% 0.245 262.9);
+  --ao-success: oklch(45.3% 0.124 130.9);
+  --ao-success-soft: oklch(96.7% 0.067 122.3);
+  --ao-warning: oklch(47.6% 0.114 61.9);
+  --ao-warning-soft: oklch(97.3% 0.071 103.2);
+  --ao-danger: oklch(50.5% 0.213 27.5);
+  --ao-danger-soft: oklch(93.6% 0.032 17.7);
+  --ao-info: oklch(48.8% 0.243 264.4);
+  --ao-info-soft: oklch(93.2% 0.032 255.6);
+  --ao-purple: oklch(49.6% 0.265 301.9);
+  --ao-purple-soft: oklch(94.6% 0.033 307.2);
+  /* Series colours for charts: T3's chart ramp, the 600 step in light mode so
+     every mark holds 3:1 against the card. */
+  --ao-series-1: oklch(60% 0.118 184.7);
+  --ao-series-2: oklch(64.8% 0.2 131.7);
+  --ao-series-3: oklch(59.2% 0.249 0.6);
+  --ao-series-4: oklch(58.8% 0.158 241.97);
+  --ao-series-5: oklch(55.8% 0.288 302.3);
+  --ao-series-6: oklch(54.6% 0.245 262.9);
+  --ao-series-7: oklch(59.6% 0.145 163.2);
+  --ao-series-8: oklch(60% 0.14 72);
+  --ao-series-9: oklch(51.1% 0.262 276.97);
+  --ao-radius: 0.75rem;
+  --ao-radius-sm: 0.5rem;
+  --ao-radius-md: 0.625rem;
+  --ao-shadow-card: 0 1px 1px 0 oklch(0% 0 0 / 0.05);
+  --ao-shadow-control: 0 1px 2px 0 oklch(0% 0 0 / 0.06);
+  --ao-font: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --ao-font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ao-bg: oklch(17.9% 0 0);
+    --ao-fg: oklch(98.5% 0 0);
+    --ao-card: oklch(23% 0 0);
+    --ao-muted: oklch(28.5% 0 0);
+    --ao-muted-fg: oklch(76% 0 0);
+    --ao-subtle-fg: oklch(70.8% 0 0);
+    --ao-border: oklch(32% 0 0);
+    --ao-border-strong: oklch(40% 0 0);
+    --ao-primary: oklch(98.5% 0 0);
+    --ao-primary-fg: oklch(14.5% 0 0);
+    --ao-accent: oklch(54.6% 0.245 262.9);
+    --ao-accent-hover: oklch(48.8% 0.243 264.4);
+    --ao-accent-fg: oklch(100% 0 0);
+    --ao-accent-soft: oklch(28.2% 0.091 267.9);
+    --ao-accent-soft-fg: oklch(78% 0.12 254.6);
+    --ao-ring: oklch(70.7% 0.165 254.6);
+    --ao-success: oklch(84.1% 0.238 128.9);
+    --ao-success-soft: oklch(27.4% 0.072 132.1);
+    --ao-warning: oklch(85.2% 0.199 91.9);
+    --ao-warning-soft: oklch(28.6% 0.066 53.8);
+    --ao-danger: oklch(75% 0.17 22.2);
+    --ao-danger-soft: oklch(25.8% 0.092 26);
+    --ao-info: oklch(78% 0.12 254.6);
+    --ao-info-soft: oklch(28.2% 0.091 267.9);
+    --ao-purple: oklch(80% 0.15 305);
+    --ao-purple-soft: oklch(29% 0.1 303);
+    --ao-series-1: oklch(77.7% 0.152 181.9);
+    --ao-series-2: oklch(84.1% 0.238 128.9);
+    --ao-series-3: oklch(71.8% 0.202 349.8);
+    --ao-series-4: oklch(74.6% 0.16 232.7);
+    --ao-series-5: oklch(71.4% 0.203 305.5);
+    --ao-series-6: oklch(70.7% 0.165 254.6);
+    --ao-series-7: oklch(76.5% 0.177 163.2);
+    --ao-series-8: oklch(85.2% 0.199 91.9);
+    --ao-series-9: oklch(67.3% 0.182 276.9);
+    --ao-shadow-card: 0 1px 1px 0 oklch(0% 0 0 / 0.3);
+    --ao-shadow-control: 0 1px 2px 0 oklch(0% 0 0 / 0.3);
+  }
+}
+
+/* Base */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--ao-bg);
+  color: var(--ao-fg);
+  font: 14px/1.55 var(--ao-font);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* A page without a doctype renders in quirks mode, where a table does not
+   inherit the body's text size and reads larger than everything around it. */
+table {
+  font-size: inherit;
+  line-height: inherit;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  margin: 0 0 0.5em;
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+}
+
+h1 {
+  font-size: 1.5rem;
+  line-height: 1.4;
+}
+
+h2 {
+  font-size: 1.0625rem;
+}
+
+h3 {
+  font-size: 0.9375rem;
+}
+
+h4 {
+  font-size: 0.875rem;
+}
+
+p {
+  margin: 0 0 1em;
+}
+
+a,
+.ao-link {
+  color: var(--ao-accent-soft-fg);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, currentColor 35%, transparent);
+  text-underline-offset: 3px;
+}
+
+/* A visible ring for everything the keyboard can reach. */
+:focus-visible {
+  outline: 2px solid var(--ao-ring);
+  outline-offset: 2px;
+}
+
+a:hover,
+.ao-link:hover {
+  text-decoration-color: currentColor;
+}
+
+code,
+pre,
+.ao-mono {
+  font-family: var(--ao-font-mono);
+  font-size: 0.85em;
+}
+
+:not(pre) > code {
+  padding: 0.1em 0.4em;
+  border-radius: 0.3rem;
+  background: var(--ao-muted);
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+
+pre {
+  overflow-x: auto;
+  padding: 0.875rem 1rem;
+  border: 1px solid var(--ao-border);
+  border-radius: var(--ao-radius-sm);
+  background: var(--ao-muted);
+}
+
+hr {
+  margin: 2rem 0;
+  border: 0;
+  border-top: 1px solid var(--ao-border);
+}
+
+/* Lucide draws an <svg class="lucide"> in place of <i data-lucide>. One em, so
+   an icon is the size of the text it sits in. */
+svg.lucide,
+.ao-icon {
+  width: 1em;
+  height: 1em;
+  flex-shrink: 0;
+  stroke-width: 1.75;
+  vertical-align: -0.125em;
+}
+
+/* Layout */
+
+.ao-page {
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: 2.5rem 1.5rem 4rem;
+}
+
+.ao-page-narrow {
+  max-width: 46rem;
+}
+
+/* One column of title parts - eyebrow, title, subtitle, meta - whether they sit
+   in one block or straight in the header, and the actions to its right. */
+.ao-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 0 1rem;
+  margin-bottom: 2rem;
+}
+
+.ao-header > * {
+  grid-column: 1;
+  min-width: 0;
+}
+
+.ao-header > .ao-header-actions,
+.ao-header > :last-child:not(:first-child):is(.ao-tabs, .ao-button, .ao-row) {
+  grid-column: 2;
+  grid-row: 1 / span 8;
+  align-self: end;
+}
+
+.ao-header h1 {
+  margin: 0;
+}
+
+.ao-header > svg.lucide {
+  width: 1.25rem;
+  height: 1.25rem;
+  margin-bottom: 0.5rem;
+  color: var(--ao-muted-fg);
+}
+
+/* An icon beside the title: `.ao-header-title` around `.ao-header-icon` and h1. */
+.ao-header-title {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.ao-header-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: var(--ao-radius-sm);
+  background: var(--ao-muted);
+  color: var(--ao-muted-fg);
+  font-size: 1.125rem;
+}
+
+.ao-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.ao-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.5rem;
+  color: var(--ao-muted-fg);
+  font-size: 0.8125rem;
+  font-weight: 500;
+}
+
+.ao-subtitle {
+  margin: 0.375rem 0 0;
+  color: var(--ao-muted-fg);
+  font-size: 0.9375rem;
+}
+
+.ao-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem 1rem;
+  margin-top: 0.75rem;
+  color: var(--ao-muted-fg);
+  font-size: 0.8125rem;
+}
+
+.ao-meta > * {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.ao-section {
+  margin-top: 2.25rem;
+}
+
+.ao-section-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.875rem;
+}
+
+.ao-section-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  font-size: 1rem;
+}
+
+.ao-section > .ao-section-title {
+  margin-bottom: 0.75rem;
+}
+
+.ao-section-title svg.lucide {
+  color: var(--ao-muted-fg);
+}
+
+.ao-section-desc {
+  margin: 0.25rem 0 0;
+  color: var(--ao-muted-fg);
+  font-size: 0.8125rem;
+}
+
+.ao-grid {
+  display: grid;
+  gap: 0.875rem;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+}
+
+.ao-grid-2,
+.ao-grid-3,
+.ao-grid-4 {
+  display: grid;
+  gap: 0.875rem;
+  grid-template-columns: 1fr;
+}
+
+/* Four stats are four short numbers: two a row on a phone, not a column of four. */
+.ao-grid-4 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+@media (min-width: 640px) {
+  .ao-grid-2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .ao-grid-3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 960px) {
+  .ao-grid-4 {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.ao-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+}
+
+.ao-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.ao-spacer {
+  flex: 1;
+}
+
+/* Surfaces */
+
+.ao-card {
+  min-width: 0;
+  padding: 1.125rem 1.25rem;
+  border: 1px solid var(--ao-border);
+  border-radius: var(--ao-radius);
+  background: var(--ao-card);
+  box-shadow: var(--ao-shadow-card);
+}
+
+.ao-card-flush {
+  padding: 0;
+  overflow: hidden;
+}
+
+.ao-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.875rem;
+}
+
+.ao-card-flush > .ao-card-header {
+  margin: 0;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--ao-border);
+}
+
+.ao-card-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.ao-card-desc {
+  margin: 0.2rem 0 0;
+  color: var(--ao-muted-fg);
+  font-size: 0.8125rem;
+}
+
+/* Numbers */
+
+.ao-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.ao-stat-label,
+.ao-kpi-label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--ao-muted-fg);
+  font-size: 0.8125rem;
+}
+
+.ao-stat-value,
+.ao-kpi-value {
+  font-size: 1.75rem;
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.ao-stat-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--ao-muted-fg);
+  font-size: 0.8125rem;
+}
+
+.ao-delta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  background: var(--ao-muted);
+  color: var(--ao-muted-fg);
+  font-size: 0.75rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.ao-up {
+  color: var(--ao-success);
+}
+
+.ao-down {
+  color: var(--ao-danger);
+}
+
+.ao-delta.ao-up {
+  background: var(--ao-success-soft);
+}
+
+.ao-delta.ao-down {
+  background: var(--ao-danger-soft);
+}
+
+.ao-num,
+.ao-tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Tables */
+
+.ao-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--ao-border);
+  border-radius: var(--ao-radius);
+  background: var(--ao-card);
+  box-shadow: var(--ao-shadow-card);
+}
+
+.ao-card-flush > .ao-table-wrap,
+.ao-card > .ao-table-wrap {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.ao-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.ao-table th,
+.ao-table td {
+  padding: 0.625rem 0.875rem;
+  border-bottom: 1px solid var(--ao-border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.ao-table th {
+  color: var(--ao-muted-fg);
+  font-size: 0.75rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+/* The header row stays in view when the wrap scrolls: give the wrap a height
+   with `.ao-table-scroll`. Its background is solid so rows do not show through. */
+.ao-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: color-mix(in srgb, var(--ao-muted) 70%, var(--ao-card));
+  box-shadow: inset 0 -1px 0 var(--ao-border);
+}
+
+.ao-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.ao-table tbody tr {
+  transition: background-color 0.12s ease;
+}
+
+.ao-table tbody tr:hover {
+  background: color-mix(in srgb, var(--ao-muted) 70%, transparent);
+}
+
+.ao-table td.ao-num,
+.ao-table th.ao-num {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.ao-table .ao-strong {
+  font-weight: 500;
+}
+
+/* A table whose rows were appended straight to it, or parsed into an implied
+   tbody, has no thead: its first row of th is still the header row, and its
+   last row still sits flush on the wrap's border. */
+.ao-table:not(:has(> thead)) > tr:first-child > th,
+.ao-table:not(:has(> thead)) > tbody:first-of-type > tr:first-child > th {
+  background: color-mix(in srgb, var(--ao-muted) 70%, var(--ao-card));
+}
+
+.ao-table > tr:last-child > td {
+  border-bottom: 0;
+}
+
+.ao-table > tr:has(> td):hover {
+  background: color-mix(in srgb, var(--ao-muted) 70%, transparent);
+}
+
+.ao-table caption {
+  padding: 0.625rem 0.875rem;
+  color: var(--ao-muted-fg);
+  font-size: 0.8125rem;
+  text-align: left;
+}
+
+/* Words written straight into a table wrap - "No data", a loading line - instead
+   of a table: padded and quiet, never touching the border. */
+.ao-table-wrap:not(:has(> table, > .ao-empty, > .ao-loading)) {
+  padding: 2.5rem 1rem;
+  color: var(--ao-muted-fg);
+  text-align: center;
+}
+
+/* A line about the list: how many there are, or that it is cut. */
+.ao-caption {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem 1rem;
+  margin: 0 0 0.5rem;
+  color: var(--ao-muted-fg);
+  font-size: 0.8125rem;
+}
+
+.ao-note {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0.5rem 0 0;
+  color: var(--ao-muted-fg);
+  font-size: 0.8125rem;
+}
+
+.ao-table-wrap > .ao-note {
+  margin: 0;
+  padding: 0.625rem 0.875rem;
+  border-top: 1px solid var(--ao-border);
+}
+
+/* Records as rows of a list rather than a table. */
+.ao-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ao-list > li,
+.ao-list-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem 0.75rem;
+  padding: 0.625rem 0;
+  border-bottom: 1px solid var(--ao-border);
+}
+
+.ao-list > li:last-child,
+.ao-list-item:last-child {
+  border-bottom: 0;
+}
+
+.ao-card-flush > .ao-list > li,
+.ao-card-flush > .ao-list > .ao-list-item {
+  padding-right: 1.25rem;
+  padding-left: 1.25rem;
+}
+
+/* Small parts */
+
+.ao-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  background: var(--ao-muted);
+  color: var(--ao-muted-fg);
+  font-size: 0.75rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.ao-badge-outline {
+  border: 1px solid var(--ao-border);
+  background: transparent;
+}
+
+.ao-badge-success {
+  background: var(--ao-success-soft);
+  color: var(--ao-success);
+}
+
+.ao-badge-warning {
+  background: var(--ao-warning-soft);
+  color: var(--ao-warning);
+}
+
+.ao-badge-danger {
+  background: var(--ao-danger-soft);
+  color: var(--ao-danger);
+}
+
+/* Neutral but stronger than the plain badge: a state worth noticing that is
+   neither better nor worse. */
+.ao-badge-info {
+  background: var(--ao-info-soft);
+  color: var(--ao-info);
+}
+
+/* Before the data arrives. `.ao-loading` is a line with a spinner, padded like
+   `.ao-empty`; `.ao-skeleton` is a grey bar standing in for text. */
+.ao-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 2.5rem 1rem;
+  color: var(--ao-muted-fg);
+}
+
+.ao-loading::before {
+  content: "";
+  flex-shrink: 0;
+  width: 0.875rem;
+  height: 0.875rem;
+  border: 2px solid var(--ao-border-strong);
+  border-top-color: var(--ao-muted-fg);
+  border-radius: 50%;
+  animation: ao-spin 0.8s linear infinite;
+}
+
+.ao-skeleton {
+  display: block;
+  height: 0.875rem;
+  border-radius: 0.375rem;
+  background: var(--ao-muted);
+  animation: ao-pulse 1.4s ease-in-out infinite;
+}
+
+/* "Live": the dot that says these records are read as the page is opened. */
+.ao-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.ao-live::before {
+  content: "";
+  flex-shrink: 0;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--ao-success);
+  animation: ao-pulse 2s ease-in-out infinite;
+}
+
+@keyframes ao-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes ao-pulse {
+  50% {
+    opacity: 0.45;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ao-loading::before,
+  .ao-skeleton,
+  .ao-live::before {
+    animation: none;
+  }
+}
+
+.ao-icon-box {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: var(--ao-radius-sm);
+  background: var(--ao-muted);
+  color: var(--ao-muted-fg);
+  font-size: 1rem;
+}
+
+.ao-callout {
+  display: flex;
+  gap: 0.75rem;
+  padding: 0.875rem 1rem;
+  border: 1px solid var(--ao-border);
+  border-radius: var(--ao-radius);
+  background: var(--ao-card);
+  box-shadow: var(--ao-shadow-card);
+  font-size: 0.875rem;
+}
+
+.ao-callout > svg.lucide {
+  margin-top: 0.15rem;
+  color: var(--ao-muted-fg);
+}
+
+.ao-callout-warning {
+  border-color: color-mix(in srgb, var(--ao-warning) 30%, var(--ao-border));
+  background: var(--ao-warning-soft);
+}
+
+.ao-callout-warning > svg.lucide {
+  color: var(--ao-warning);
+}
+
+.ao-callout-danger {
+  border-color: color-mix(in srgb, var(--ao-danger) 30%, var(--ao-border));
+  background: var(--ao-danger-soft);
+}
+
+.ao-callout-danger > svg.lucide {
+  color: var(--ao-danger);
+}
+
+.ao-callout-success {
+  border-color: color-mix(in srgb, var(--ao-success) 30%, var(--ao-border));
+  background: var(--ao-success-soft);
+}
+
+.ao-callout-success > svg.lucide {
+  color: var(--ao-success);
+}
+
+.ao-kv {
+  display: grid;
+  grid-template-columns: minmax(8rem, auto) 1fr;
+  margin: 0;
+}
+
+.ao-kv > dt,
+.ao-kv > dd {
+  margin: 0;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--ao-border);
+}
+
+.ao-kv > dt {
+  padding-right: 1rem;
+  color: var(--ao-muted-fg);
+}
+
+.ao-kv > dt:last-of-type,
+.ao-kv > dd:last-of-type {
+  border-bottom: 0;
+}
+
+.ao-progress {
+  height: 0.5rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--ao-muted);
+}
+
+.ao-progress > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--ao-accent);
+  transition: width 0.3s ease;
+}
+
+.ao-muted {
+  color: var(--ao-muted-fg);
+}
+
+.ao-small {
+  font-size: 0.8125rem;
+}
+
+.ao-truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ao-empty {
+  padding: 2.5rem 1rem;
+  color: var(--ao-muted-fg);
+  text-align: center;
+}
+
+.ao-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem 1rem;
+  margin-top: 3rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--ao-border);
+  color: var(--ao-muted-fg);
+  font-size: 0.8125rem;
+}
+
+.ao-footer > * {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+/* Controls */
+
+.ao-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  height: 2rem;
+  padding: 0 0.75rem;
+  border: 1px solid var(--ao-border-strong);
+  border-radius: var(--ao-radius-md);
+  background: var(--ao-card);
+  box-shadow: var(--ao-shadow-control);
+  color: var(--ao-fg);
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color 0.12s ease, border-color 0.12s ease;
+}
+
+.ao-button:hover {
+  background: var(--ao-muted);
+}
+
+.ao-button:active {
+  background: var(--ao-border);
+}
+
+.ao-button-primary {
+  border-color: var(--ao-accent-hover);
+  background: linear-gradient(180deg, var(--ao-accent) 0%, var(--ao-accent-hover) 100%);
+  color: var(--ao-accent-fg);
+}
+
+.ao-button-primary:hover {
+  background: var(--ao-accent-hover);
+}
+
+.ao-button-primary:active {
+  background: color-mix(in srgb, var(--ao-accent-hover) 85%, black);
+}
+
+.ao-button-ghost {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+  color: var(--ao-accent-soft-fg);
+}
+
+.ao-button-ghost:hover {
+  background: var(--ao-accent-soft);
+}
+
+.ao-button-danger {
+  border-color: transparent;
+  background: var(--ao-danger-soft);
+  box-shadow: none;
+  color: var(--ao-danger);
+}
+
+.ao-button-danger:hover {
+  background: color-mix(in srgb, var(--ao-danger) 16%, var(--ao-danger-soft));
+}
+
+.ao-button-sm {
+  height: 1.625rem;
+  padding: 0 0.5rem;
+  border-radius: var(--ao-radius-sm);
+  font-size: 0.75rem;
+}
+
+.ao-button-lg {
+  height: 2.5rem;
+  padding: 0 1rem;
+  font-size: 0.875rem;
+}
+
+.ao-button-icon {
+  width: 2rem;
+  padding: 0;
+}
+
+.ao-button-icon.ao-button-sm {
+  width: 1.625rem;
+}
+
+.ao-button-icon.ao-button-lg {
+  width: 2.5rem;
+}
+
+.ao-button:disabled,
+.ao-button[aria-disabled="true"] {
+  border-color: var(--ao-border);
+  background: var(--ao-muted);
+  box-shadow: none;
+  color: var(--ao-subtle-fg);
+  cursor: not-allowed;
+}
+
+/* A row of filters and controls above what they act on. */
+.ao-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.875rem;
+}
+
+.ao-input,
+.ao-select {
+  min-width: 0;
+  height: 2rem;
+  padding: 0 0.625rem;
+  border: 1px solid var(--ao-border-strong);
+  border-radius: var(--ao-radius-md);
+  box-shadow: var(--ao-shadow-control);
+  background: var(--ao-card);
+  color: var(--ao-fg);
+  font: inherit;
+  font-size: 0.8125rem;
+}
+
+.ao-input::placeholder {
+  color: var(--ao-subtle-fg);
+}
+
+.ao-input:focus,
+.ao-select:focus,
+.ao-button:focus-visible,
+.ao-tab:focus-visible {
+  outline: 2px solid var(--ao-ring);
+  outline-offset: 2px;
+}
+
+/* A segmented control: `.ao-tabs` around `button.ao-tab`s, the chosen one with
+   aria-selected="true". `AO.tabs()` in agenticos-3.js wires it to panels. */
+.ao-tabs {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.125rem;
+  padding: 0.1875rem;
+  border-radius: var(--ao-radius-md);
+  background: var(--ao-muted);
+}
+
+.ao-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  height: 1.75rem;
+  padding: 0 0.75rem;
+  border: 0;
+  border-radius: var(--ao-radius-sm);
+  background: transparent;
+  color: var(--ao-muted-fg);
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.ao-tab:hover {
+  color: var(--ao-fg);
+}
+
+.ao-tab[aria-selected="true"] {
+  background: var(--ao-card);
+  color: var(--ao-fg);
+  box-shadow: var(--ao-shadow-control);
+}
+
+[data-ao-panel][hidden] {
+  display: none;
+}
+
+/* Charts */
+
+/* A fixed height, so a responsive chart does not grow with its own canvas. */
+.ao-chart {
+  position: relative;
+  height: 18rem;
+}
+
+.ao-chart-sm {
+  height: 12rem;
+}
+
+.ao-chart-lg {
+  height: 24rem;
+}
+
+.ao-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem 1rem;
+  color: var(--ao-muted-fg);
+  font-size: 0.8125rem;
+}
+
+.ao-legend > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.ao-swatch {
+  display: inline-block;
+  width: 0.625rem;
+  height: 0.625rem;
+  border-radius: 0.1875rem;
+  background: var(--ao-series-1);
+}
+
+/* Version 4 additions */
+
+/* Tabs as a line strip: `.ao-tabs.ao-tabs-line` - the same markup and
+   `AO.tabs()` wiring as the segmented control. */
+.ao-tabs-line {
+  display: flex;
+  gap: 1.25rem;
+  padding: 0;
+  border-bottom: 1px solid var(--ao-border);
+  border-radius: 0;
+  background: transparent;
+}
+
+.ao-tabs-line .ao-tab {
+  position: relative;
+  height: 2.25rem;
+  margin-bottom: -1px;
+  padding: 0 0.125rem;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+}
+
+.ao-tabs-line .ao-tab[aria-selected="true"] {
+  border-bottom-color: var(--ao-accent);
+  background: transparent;
+  box-shadow: none;
+  color: var(--ao-fg);
+}
+
+/* A number with an icon, as a tile: `.ao-card.ao-stat-tile` holding an
+   `.ao-stat-icon` and an `.ao-stat`. */
+.ao-stat-tile {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.875rem;
+}
+
+.ao-stat-tile > .ao-stat {
+  flex: 1;
+  min-width: 0;
+}
+
+.ao-stat-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: var(--ao-radius-md);
+  background: var(--ao-accent-soft);
+  color: var(--ao-accent-soft-fg);
+  font-size: 1.125rem;
+}
+
+.ao-stat-icon-success {
+  background: var(--ao-success-soft);
+  color: var(--ao-success);
+}
+
+.ao-stat-icon-warning {
+  background: var(--ao-warning-soft);
+  color: var(--ao-warning);
+}
+
+.ao-stat-icon-danger {
+  background: var(--ao-danger-soft);
+  color: var(--ao-danger);
+}
+
+/* A table in a fixed height, its header row pinned. */
+.ao-table-scroll {
+  max-height: 24rem;
+  overflow: auto;
+}
+
+/* Badges and chips. A badge is a state label; a chip is a tag, which can carry
+   a dot or a remove button and can be picked. */
+.ao-badge-accent {
+  background: var(--ao-accent-soft);
+  color: var(--ao-accent-soft-fg);
+}
+
+.ao-badge-purple {
+  background: var(--ao-purple-soft);
+  color: var(--ao-purple);
+}
+
+.ao-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  height: 1.5rem;
+  padding: 0 0.625rem;
+  border: 1px solid var(--ao-border-strong);
+  border-radius: 999px;
+  background: var(--ao-card);
+  color: var(--ao-fg);
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+button.ao-chip {
+  cursor: pointer;
+}
+
+button.ao-chip:hover {
+  background: var(--ao-muted);
+}
+
+.ao-chip[aria-pressed="true"],
+.ao-chip-accent {
+  border-color: transparent;
+  background: var(--ao-accent-soft);
+  color: var(--ao-accent-soft-fg);
+}
+
+.ao-chip-success {
+  border-color: transparent;
+  background: var(--ao-success-soft);
+  color: var(--ao-success);
+}
+
+.ao-chip-warning {
+  border-color: transparent;
+  background: var(--ao-warning-soft);
+  color: var(--ao-warning);
+}
+
+.ao-chip-danger {
+  border-color: transparent;
+  background: var(--ao-danger-soft);
+  color: var(--ao-danger);
+}
+
+/* A coloured dot before the label. */
+.ao-chip-dot::before {
+  content: "";
+  flex-shrink: 0;
+  width: 0.4375rem;
+  height: 0.4375rem;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+/* Progress bars, tinted by meaning. The label row is `.ao-progress-label`. */
+.ao-progress-success > span {
+  background: var(--ao-success);
+}
+
+.ao-progress-warning > span {
+  background: var(--ao-warning);
+}
+
+.ao-progress-danger > span {
+  background: var(--ao-danger);
+}
+
+.ao-progress-lg {
+  height: 0.75rem;
+}
+
+.ao-progress-label {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.375rem;
+  color: var(--ao-muted-fg);
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Initials in a circle: `<span class="ao-initials">JC</span>`, or fill it with
+   `data-ao-initials="Jane Citizen"`. A tone is `.ao-initials-1` to `-6`, drawn
+   from the chart palette; `AO.initials(name)` picks one by name. */
+.ao-initials {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  background: var(--ao-accent-soft);
+  color: var(--ao-accent-soft-fg);
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  user-select: none;
+}
+
+.ao-initials-sm {
+  width: 1.5rem;
+  height: 1.5rem;
+  font-size: 0.625rem;
+}
+
+.ao-initials-lg {
+  width: 2.5rem;
+  height: 2.5rem;
+  font-size: 0.875rem;
+}
+
+.ao-initials-1 {
+  background: var(--ao-accent-soft);
+  color: var(--ao-accent-soft-fg);
+}
+
+.ao-initials-2 {
+  background: var(--ao-success-soft);
+  color: var(--ao-success);
+}
+
+.ao-initials-3 {
+  background: var(--ao-warning-soft);
+  color: var(--ao-warning);
+}
+
+.ao-initials-4 {
+  background: var(--ao-danger-soft);
+  color: var(--ao-danger);
+}
+
+.ao-initials-5 {
+  background: var(--ao-purple-soft);
+  color: var(--ao-purple);
+}
+
+.ao-initials-6 {
+  background: var(--ao-muted);
+  color: var(--ao-muted-fg);
+}
+
+/* Small screens and paper */
+
+@media (max-width: 639px) {
+  .ao-page {
+    padding: 1.5rem 1rem 3rem;
+  }
+
+  h1 {
+    font-size: 1.375rem;
+  }
+
+  .ao-header {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .ao-header > .ao-header-actions,
+  .ao-header > :last-child:not(:first-child):is(.ao-tabs, .ao-button, .ao-row) {
+    grid-column: 1;
+    grid-row: auto;
+    align-self: start;
+    margin-top: 0.75rem;
+  }
+
+  .ao-stat-value,
+  .ao-kpi-value {
+    font-size: 1.5rem;
+  }
+}
+
+@media print {
+  :root {
+    color-scheme: light;
+  }
+
+  body {
+    background: #fff;
+  }
+
+  .ao-card,
+  .ao-table-wrap {
+    break-inside: avoid;
+  }
+
+  .ao-tabs,
+  .ao-header-actions,
+  .ao-toolbar {
+    display: none;
+  }
+
+  [data-ao-panel][hidden] {
+    display: block;
+  }
+}

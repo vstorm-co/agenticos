@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { Database, Search } from "lucide-react";
@@ -18,7 +18,7 @@ import {
 } from "@/components/ui";
 import { FileIcon } from "@/components/files";
 import { SourceViewer, type CitedFile } from "@/components/kb/source-viewer";
-import { EmptyState, ErrorState } from "@/components/states";
+import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { useChanged } from "@/hooks/use-changed";
 import { ROUTES } from "@/lib/constants";
 import { searchDocuments, type RAGSearchResult } from "@/lib/rag-api";
@@ -34,6 +34,7 @@ interface SearchTabProps {
   /** The knowledge bases the caller can read; the search scope options. */
   kbs: KnowledgeBase[];
   onCreate?: () => void;
+  loading?: boolean;
 }
 
 /**
@@ -44,7 +45,7 @@ interface SearchTabProps {
  * base it came from, its source document, page and score - enough for a human
  * to judge the chunk without opening anything.
  */
-export function SearchTab({ kbs, onCreate }: SearchTabProps) {
+export function SearchTab({ kbs, onCreate, loading = false }: SearchTabProps) {
   const t = useTranslations("rag.search");
   const tKb = useTranslations("pages.kb");
   const orgId = useOrgStore((state) => state.activeOrgId) ?? "";
@@ -74,58 +75,71 @@ export function SearchTab({ kbs, onCreate }: SearchTabProps) {
   const baseFor = (collection: unknown): KnowledgeBase | undefined =>
     kbs.find((kb) => kb.collection_name === collection);
 
-  // Guarded here rather than on each way in, so the button, Enter and whatever
-  // calls it next are all covered. A ref rather than `status`, because two
-  // keydowns can land before a re-render commits - and with only one request
-  // ever in flight, a slow answer to an earlier query cannot paint over a
-  // later one.
-  const searching = useRef(false);
+  // One request per current question. Changing the question or scope cancels
+  // it; identity checks also reject late responses from transports that finish anyway.
+  const searching = useRef<AbortController | null>(null);
+  useEffect(
+    () => () => {
+      searching.current?.abort();
+      searching.current = null;
+    },
+    [orgId],
+  );
+
+  const resetSearch = () => {
+    searching.current?.abort();
+    searching.current = null;
+    setResults([]);
+    setStatus("idle");
+    setOpened(null);
+  };
 
   const runSearch = async () => {
     const trimmed = query.trim();
     const names = collectionNames(scope);
-    if (!trimmed || names.length === 0 || searching.current) return;
+    if (loading || !trimmed || names.length === 0 || searching.current) return;
     const startedIn = orgId;
-    searching.current = true;
+    const controller = new AbortController();
+    searching.current = controller;
     setStatus("searching");
     const startedAt = performance.now();
     try {
-      const data = await searchDocuments({
-        query: trimmed,
-        collection_names: names,
-        limit: RESULT_LIMIT,
-      });
+      const data = await searchDocuments(
+        {
+          query: trimmed,
+          collection_names: names,
+          limit: RESULT_LIMIT,
+        },
+        controller.signal,
+      );
       // An answer that lands after an organization switch describes documents
       // the active tenant does not have.
-      if ((useOrgStore.getState().activeOrgId ?? "") !== startedIn) return;
+      if (
+        searching.current !== controller ||
+        (useOrgStore.getState().activeOrgId ?? "") !== startedIn
+      )
+        return;
       setResults(data.results);
       setTookMs(Math.round(performance.now() - startedAt));
       setStatus("done");
     } catch {
-      if ((useOrgStore.getState().activeOrgId ?? "") !== startedIn) return;
+      if (
+        searching.current !== controller ||
+        (useOrgStore.getState().activeOrgId ?? "") !== startedIn
+      )
+        return;
       setResults([]);
       setStatus("error");
     } finally {
-      // Including the tenant-switch returns above, which would otherwise leave
-      // the flag raised and the search dead for the rest of the session.
-      searching.current = false;
+      if (searching.current === controller) searching.current = null;
     }
   };
 
-  if (kbs.length === 0) {
-    return (
-      <EmptyState
-        icon={Database}
-        title={t("noBasesTitle")}
-        description={t("noBases")}
-        cta={onCreate ? { label: tKb("newKnowledgeBase"), onClick: onCreate } : undefined}
-        className="flex-1"
-      />
-    );
-  }
-
   return (
-    <div className="border-border bg-card flex flex-1 flex-col gap-4 rounded-xl border p-4">
+    <div
+      aria-busy={loading}
+      className="border-border bg-card flex flex-1 flex-col gap-4 rounded-xl border p-4"
+    >
       <form
         onSubmit={(event) => {
           event.preventDefault();
@@ -137,11 +151,23 @@ export function SearchTab({ kbs, onCreate }: SearchTabProps) {
             placeholder={t("placeholder")}
             aria-label={t("queryLabel")}
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => {
+              resetSearch();
+              setQuery(e.target.value);
+            }}
             className="rounded-xl"
           />
           <div className="flex gap-2">
-            <Select value={scope} onValueChange={setScope}>
+            <Select
+              disabled={loading || kbs.length === 0}
+              value={scope}
+              onValueChange={(next) => {
+                if (next !== scope) {
+                  resetSearch();
+                  setScope(next);
+                }
+              }}
+            >
               <SelectTrigger className="w-full rounded-xl sm:w-56" aria-label={t("scopeLabel")}>
                 <SelectValue />
               </SelectTrigger>
@@ -156,7 +182,7 @@ export function SearchTab({ kbs, onCreate }: SearchTabProps) {
             </Select>
             <Button
               type="submit"
-              disabled={status === "searching" || !query.trim()}
+              disabled={loading || kbs.length === 0 || status === "searching" || !query.trim()}
               className="rounded-xl"
             >
               <Search className="mr-2 h-4 w-4" />
@@ -166,7 +192,17 @@ export function SearchTab({ kbs, onCreate }: SearchTabProps) {
         </div>
       </form>
 
-      {status === "idle" && (
+      {loading && <LoadingState variant="pending" />}
+      {!loading && kbs.length === 0 && (
+        <EmptyState
+          icon={Database}
+          title={t("noBasesTitle")}
+          description={t("noBases")}
+          cta={onCreate ? { label: tKb("newKnowledgeBase"), onClick: onCreate } : undefined}
+          className="flex-1 border-0 bg-transparent"
+        />
+      )}
+      {!loading && kbs.length > 0 && status === "idle" && (
         <EmptyState
           icon={Search}
           title={t("idleTitle")}

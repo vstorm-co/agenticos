@@ -3,6 +3,9 @@
 import pytest
 
 from app.services.rag.citation import PAGED_FORMATS, citation_locator, cited_page
+from app.services.rag.models import SearchResult
+from app.workflows.contracts.io import SourceRef
+from app.workflows.nodes.knowledge_search import _handler as search_handler
 
 
 class TestCitedPage:
@@ -53,3 +56,22 @@ class TestCitationLocator:
     @pytest.mark.parametrize("filetype", ["md", "txt", "docx", "html", "xlsx", "png"])
     def test_an_unpaged_hit_names_the_document_alone(self, filetype):
         assert citation_locator({"filetype": filetype, "page_num": 1}) == ""
+
+
+class TestWorkflowSources:
+    """`knowledge.search` hands `agent.run` a typed source, which it cites (#2482).
+
+    The node copied the stored `page_num` into `SourceRef.page`, so a workflow's
+    prompt read "[1] faq.md, page 1" and its run answer showed the same page
+    the agent tool had already stopped claiming.
+    """
+
+    def _source(self, metadata: dict[str, object]) -> SourceRef:
+        result = SearchResult(content="text", score=0.5, metadata=metadata)
+        return search_handler._source(result, "docs")
+
+    def test_a_markdown_source_carries_no_page(self):
+        assert self._source({"filename": "capabilities.pl.md", "page_num": 1}).page is None
+
+    def test_a_pdf_source_keeps_its_page(self):
+        assert self._source({"filename": "policy.pdf", "filetype": "pdf", "page_num": 4}).page == 4

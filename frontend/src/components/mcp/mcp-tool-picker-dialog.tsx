@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState, type Dispatch, type SetStateAction } from "react";
 import { useTranslations } from "next-intl";
 
@@ -12,6 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
   SearchInput,
+  Switch,
 } from "@/components/ui";
 import type { ToolPickerState } from "@/components/mcp/mcp-server-list-types";
 import { DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
@@ -46,6 +48,17 @@ export function McpToolPickerDialog({
 }: McpToolPickerDialogProps) {
   const t = useTranslations("mcp");
   const [query, setQuery] = useState("");
+  const contextKey = toolPicker
+    ? `${toolPicker.scope}:${toolPicker.connection.id}:${toolPicker.appliesTo}`
+    : null;
+  const [previousContext, setPreviousContext] = useState(contextKey);
+  if (previousContext !== contextKey) {
+    setPreviousContext(contextKey);
+    setQuery("");
+  }
+  const setupHref = toolPicker?.connection.catalog_key
+    ? `/mcp-servers?server=${encodeURIComponent(toolPicker.connection.catalog_key)}`
+    : "/mcp-servers";
 
   const tools = toolPicker?.tools ?? [];
   const needle = query.trim().toLowerCase();
@@ -75,7 +88,7 @@ export function McpToolPickerDialog({
       open={toolPicker !== null}
       onOpenChange={(open) => !open && !submitting && setToolPicker(null)}
     >
-      <DialogContent className={cn(DIALOG_FORM, DIALOG_COLUMN)}>
+      <DialogContent dismissible={!submitting} className={cn(DIALOG_FORM, DIALOG_COLUMN)}>
         <DialogHeader>
           <DialogTitle>{t("toolsFrom", { name: toolPicker?.name ?? "" })}</DialogTitle>
         </DialogHeader>
@@ -87,7 +100,9 @@ export function McpToolPickerDialog({
 
         {tools.length > 0 && (
           <div className="flex shrink-0 flex-wrap items-center gap-2">
-            <SearchInput value={query} onChange={setQuery} placeholder={t("searchTools")} />
+            <fieldset disabled={submitting} className="min-w-0">
+              <SearchInput value={query} onChange={setQuery} placeholder={t("searchTools")} />
+            </fieldset>
             <span className="text-muted-foreground text-xs" role="status">
               {t("toolsSelected", { on: toolPicker?.checked.size ?? 0, total: tools.length })}
             </span>
@@ -95,6 +110,7 @@ export function McpToolPickerDialog({
               variant="ghost"
               size="sm"
               className="ml-auto"
+              disabled={submitting || shown.length === 0}
               onClick={() =>
                 setChecked((previous) => {
                   const next = new Set(previous);
@@ -111,13 +127,14 @@ export function McpToolPickerDialog({
           </div>
         )}
 
-        <ul className="border-foreground/10 divide-foreground/8 min-h-0 flex-1 divide-y overflow-y-auto rounded-xl border">
+        <ul className="border-border divide-border min-h-48 flex-1 scrollbar-thin divide-y overflow-y-auto overscroll-contain rounded-xl border">
           {shown.map((tool) => (
             <li key={tool.name}>
               {/* The whole row is the control: twenty-five small targets at the
                   right edge is a lot of travel to switch six things off. */}
-              <label className="hover:bg-foreground/4 flex cursor-pointer items-start gap-3 px-4 py-2.5">
+              <label className="hover:bg-muted touch:min-h-11 flex cursor-pointer items-start gap-3 px-4 py-2.5">
                 <Checkbox
+                  disabled={submitting}
                   checked={toolPicker?.checked.has(tool.name) ?? false}
                   onCheckedChange={(on) =>
                     setChecked((previous) => {
@@ -131,18 +148,25 @@ export function McpToolPickerDialog({
                   aria-label={tool.name}
                 />
                 <span className="min-w-0 flex-1">
-                  <span className="flex items-center gap-2">
-                    <span className="text-foreground font-mono text-xs">{tool.name}</span>
-                    {/* What the `writes` approval policy reads: a tool the server
-                        does not mark read-only waits for a person to approve it. */}
-                    {tool.read_only !== undefined && (
-                      <span className="text-muted-foreground border-foreground/15 rounded border px-1 text-[10px] leading-4">
-                        {tool.read_only ? t("toolReadsOnly") : t("toolWrites")}
-                      </span>
-                    )}
+                  <span className="flex min-w-0 flex-wrap items-center gap-2">
+                    <span className="text-foreground font-mono text-xs [overflow-wrap:anywhere]">
+                      {tool.name}
+                    </span>
+                    <span className="text-muted-foreground border-foreground/15 rounded border px-1 text-[10px] leading-4">
+                      {t(
+                        tool.read_only === true
+                          ? "toolReadsOnly"
+                          : tool.read_only_hint === false
+                            ? "toolWrites"
+                            : "toolUnspecified",
+                      )}
+                    </span>
                   </span>
                   {tool.description && (
-                    <span className="text-muted-foreground mt-0.5 block truncate text-xs">
+                    <span
+                      title={tool.description}
+                      className="text-muted-foreground mt-0.5 line-clamp-2 text-xs [overflow-wrap:anywhere]"
+                    >
                       {tool.description}
                     </span>
                   )}
@@ -161,7 +185,13 @@ export function McpToolPickerDialog({
               {tools.length === 0 ? (
                 <>
                   {t("noToolsProbed")}
-                  <span className="mt-1 block">{t("checkItOnTheServersPage")}</span>
+                  <Link
+                    href={setupHref}
+                    onClick={() => setToolPicker(null)}
+                    className="text-brand mt-2 block underline underline-offset-4"
+                  >
+                    {t("checkItOnTheServersPage")}
+                  </Link>
                 </>
               ) : (
                 t("noToolMatches")
@@ -169,6 +199,30 @@ export function McpToolPickerDialog({
             </li>
           )}
         </ul>
+
+        {toolPicker?.trustReadOnlyHints !== undefined && (
+          <label className="flex shrink-0 cursor-pointer items-start gap-3">
+            <Switch
+              disabled={submitting}
+              checked={toolPicker.trustReadOnlyHints}
+              onCheckedChange={(on) =>
+                setToolPicker((previous) =>
+                  previous === null ? previous : { ...previous, trustReadOnlyHints: on },
+                )
+              }
+              aria-label={t("trustReadOnlyHints")}
+              className="mt-0.5"
+            />
+            <span className="min-w-0 flex-1 text-xs">
+              <span className="text-foreground block">{t("trustReadOnlyHints")}</span>
+              <span className="text-muted-foreground block">
+                {t("trustReadOnlyHintsHint", {
+                  count: tools.filter((tool) => tool.read_only === true).length,
+                })}
+              </span>
+            </span>
+          </label>
+        )}
 
         <DialogFooter className="shrink-0">
           <Button variant="ghost" onClick={() => setToolPicker(null)} disabled={submitting}>

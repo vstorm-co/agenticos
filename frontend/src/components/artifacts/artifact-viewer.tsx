@@ -33,7 +33,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState, ErrorState } from "@/components/states";
 import { Button } from "@/components/ui";
 import { useArtifactRequestActions, useArtifactRequests } from "@/hooks/use-artifact-requests";
-import { useArtifact } from "@/hooks/use-artifacts";
+import { useArtifact, useToggleArtifactFavourite } from "@/hooks/use-artifacts";
 import { ApiError } from "@/lib/api-error";
 import { cn } from "@/lib/utils";
 import { ROUTES } from "@/lib/constants";
@@ -47,6 +47,7 @@ import type { ArtifactShareRequest } from "@/types/artifact";
 const VIEWER = "flex min-h-0 flex-1 flex-col";
 
 interface ArtifactViewerProps {
+  backHref?: string | null;
   artifactId: string;
   /** The version a link asked for; null opens the current one. */
   initialVersionId: string | null;
@@ -68,6 +69,7 @@ export function ArtifactViewer({
   artifactId,
   initialVersionId,
   openRequests = false,
+  backHref = null,
 }: ArtifactViewerProps) {
   const t = useTranslations("artifacts");
   const ts = useTranslations("states");
@@ -107,6 +109,7 @@ export function ArtifactViewer({
     setAutoConsent,
     changeOwner,
   } = useArtifact(artifactId);
+  const favourites = useToggleArtifactFavourite();
   // Whoever may decide requests is told what waits on them, in the strip and under it.
   const decider = artifact !== null && (artifact.can_edit || artifact.may_change_owner);
   const { requests } = useArtifactRequests(
@@ -169,7 +172,7 @@ export function ArtifactViewer({
         : null;
     return (
       <div className={VIEWER}>
-        <ArtifactViewerBar artifact={null} />
+        <ArtifactViewerBar backHref={backHref} artifact={null} />
         <div className={cn("flex min-h-0 flex-1", !isLoading && "items-center justify-center p-6")}>
           {isLoading ? (
             <Skeleton
@@ -206,7 +209,7 @@ export function ArtifactViewer({
       loading={remove.isPending}
       onConfirm={async () => {
         await remove.mutateAsync();
-        router.push(ROUTES.ARTIFACTS);
+        router.push(backHref ?? ROUTES.ARTIFACTS);
       }}
     />
   );
@@ -216,7 +219,11 @@ export function ArtifactViewer({
   if (artifact.archived_at !== null) {
     return (
       <div className={VIEWER}>
-        <ArtifactViewerBar artifact={artifact} onDelete={() => setConfirming(true)} />
+        <ArtifactViewerBar
+          backHref={backHref}
+          artifact={artifact}
+          onDelete={() => setConfirming(true)}
+        />
         <div className="flex flex-1 items-center justify-center p-6">
           <ArchivedArtifactNotice
             archivedAt={artifact.archived_at}
@@ -234,7 +241,7 @@ export function ArtifactViewer({
   if (artifact.current_version === null) {
     return (
       <div className={VIEWER}>
-        <ArtifactViewerBar artifact={null} />
+        <ArtifactViewerBar backHref={backHref} artifact={null} />
         <div className="flex flex-1 items-center justify-center p-6">
           <EmptyState
             icon={FileClock}
@@ -275,6 +282,7 @@ export function ArtifactViewer({
   return (
     <div className={VIEWER}>
       <ArtifactViewerBar
+        backHref={backHref}
         artifact={artifact}
         live={
           live ? (bridge === null ? "steady" : (liveHealth(bridge.status) ?? undefined)) : undefined
@@ -287,6 +295,12 @@ export function ArtifactViewer({
         onChangeOwner={() => setChangingOwner(true)}
         waitingRequests={waiting.length}
         onRequests={() => setSharing(true)}
+        favourite={{
+          on: artifact.is_favourite === true,
+          busy: favourites.isPending,
+          onToggle: () =>
+            favourites.mutate({ id: artifact.id, favourite: artifact.is_favourite !== true }),
+        }}
       >
         <ArtifactThemeToggle theme={theme} onChange={setTheme} />
         {live && bridge !== null && (
@@ -403,6 +417,7 @@ export function ArtifactViewer({
       </div>
       <ArtifactShareDialog
         artifact={artifact}
+        hasPendingRequests={waiting.length > 0}
         open={sharing}
         onOpenChange={setSharing}
         versions={versions}

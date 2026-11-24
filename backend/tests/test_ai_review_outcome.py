@@ -29,7 +29,7 @@ from typing import Any
 import pytest
 import yaml
 
-WORKFLOW = Path(__file__).resolve().parents[2] / ".github" / "workflows" / "ai-review.yml"
+WORKFLOW = Path(__file__).resolve().parents[2] / ".github" / "workflows-disabled" / "ai-review.yml"
 NORMALIZE_STEP = "Normalize the result"
 FAIL_STEP = "Fail when the reviewer did not review"
 PUBLISH_STEP = "Post the findings"

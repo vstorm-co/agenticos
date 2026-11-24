@@ -4,7 +4,8 @@ from datetime import datetime
 from typing import Any, Literal, NamedTuple
 from uuid import UUID
 
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import and_, cast, func, null, or_, select, update
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.agent import Agent
@@ -331,8 +332,10 @@ async def list_member_ids_by_role(
     *,
     organization_id: UUID,
     roles: list[str],
+    with_app_admins: bool = False,
 ) -> list[UUID]:
-    """User ids of the members holding one of `roles`.
+    """User ids of the members holding one of `roles`, and the app admins among
+    the members when `with_app_admins` asks for them.
 
     Identity only, no preference filter (#1598): a notification write happens
     once per resolved *person*, and a channel's preference is applied
@@ -343,7 +346,9 @@ async def list_member_ids_by_role(
         .join(OrganizationMember, OrganizationMember.user_id == User.id)
         .where(
             OrganizationMember.organization_id == organization_id,
-            OrganizationMember.role.in_(roles),
+            or_(OrganizationMember.role.in_(roles), User.is_app_admin.is_(True))
+            if with_app_admins
+            else OrganizationMember.role.in_(roles),
             User.is_active.is_(True),
         )
     )
@@ -565,6 +570,26 @@ async def delete(db: AsyncSession, member: OrganizationMember) -> None:
     await db.flush()
 
 
+async def get_names_for_users(
+    db: AsyncSession, *, organization_id: UUID, user_ids: list[UUID]
+) -> dict[UUID, str]:
+    """Resolve reviewer display names only while they remain members of this tenant."""
+    if not user_ids:
+        return {}
+    rows = await db.execute(
+        select(
+            OrganizationMember.user_id,
+            func.coalesce(func.nullif(func.trim(User.full_name), ""), User.email),
+        )
+        .join(User, User.id == OrganizationMember.user_id)
+        .where(
+            OrganizationMember.organization_id == organization_id,
+            OrganizationMember.user_id.in_(user_ids),
+        )
+    )
+    return dict(rows.all())
+
+
 async def find_active(
     db: AsyncSession, *, organization_id: UUID, term: str
 ) -> list[tuple[UUID, str, str | None]]:
@@ -582,3 +607,65 @@ async def find_active(
         .order_by(User.email)
     )
     return [(row[0], row[1], row[2]) for row in result.all()]
+
+
+async def set_console_preferences(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    user_id: UUID,
+    changes: dict[str, bool | None] | None,
+) -> OrganizationMember:
+    """Atomically patch one membership; null clears inheritance overrides."""
+    value = (
+        null()
+        if changes is None
+        else func.jsonb_strip_nulls(
+            func.coalesce(OrganizationMember.chat_home_preferences, cast({}, JSONB)).op("||")(
+                cast(changes, JSONB)
+            )
+        )
+    )
+    result = await db.execute(
+        update(OrganizationMember)
+        .where(
+            OrganizationMember.organization_id == organization_id,
+            OrganizationMember.user_id == user_id,
+        )
+        .values(chat_home_preferences=value)
+        .returning(OrganizationMember)
+        .execution_options(populate_existing=True)
+    )
+    await db.flush()
+    return result.scalar_one()
+
+
+async def set_onboarding_reminders(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    user_id: UUID,
+    changes: dict[str, bool | int | None] | None,
+) -> OrganizationMember:
+    """Atomically patch one membership; null clears inheritance overrides."""
+    value = (
+        null()
+        if changes is None
+        else func.jsonb_strip_nulls(
+            func.coalesce(OrganizationMember.onboarding_reminders, cast({}, JSONB)).op("||")(
+                cast(changes, JSONB)
+            )
+        )
+    )
+    result = await db.execute(
+        update(OrganizationMember)
+        .where(
+            OrganizationMember.organization_id == organization_id,
+            OrganizationMember.user_id == user_id,
+        )
+        .values(onboarding_reminders=value)
+        .returning(OrganizationMember)
+        .execution_options(populate_existing=True)
+    )
+    await db.flush()
+    return result.scalar_one()

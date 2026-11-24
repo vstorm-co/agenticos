@@ -17,9 +17,10 @@ from datetime import datetime
 from typing import Any, NamedTuple
 from uuid import UUID
 
-from sqlalchemy import ColumnElement, and_, func, or_, select
+from sqlalchemy import ColumnElement, and_, case, func, or_, select
 from sqlalchemy.dialects.postgresql import distinct_on
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
 from app.db.models.channel_identity import ChannelIdentity
 from app.db.models.conversation import Conversation, Message
@@ -57,7 +58,9 @@ def readable_by(
 
     A project's chat is read through its project alone - `project_ids`, the ones
     this person may see - and never by having started it or been shared it: a
-    person who lost the project must not find its later turns here.
+    person who lost the project must not find its later turns here. Internal
+    workflow threads remain excluded even inside a readable project, matching
+    `ConversationService._may_read`.
     """
     outside_projects = Conversation.project_id.is_(None)
     ways_in: list[ColumnElement[bool]] = [
@@ -76,7 +79,7 @@ def readable_by(
         ways_in.append(Conversation.id.in_(participant_ids))
     if project_ids:
         ways_in.append(Conversation.project_id.in_(project_ids))
-    return or_(*ways_in)
+    return and_(Conversation.origin.is_distinct_from("workflow"), or_(*ways_in))
 
 
 _LENGTH_NORMALISATION = 1
@@ -100,16 +103,30 @@ def _rank(tsquery: Any) -> Any:
     return func.ts_rank_cd(Message.search_vector, tsquery, _LENGTH_NORMALISATION)
 
 
-def _tsquery(query: str) -> Any:
-    """The query the model wrote, parsed.
+def _tsquery(query: str, *, literal: bool) -> Any:
+    """Parse either a literal console query or the search tool's operators.
 
-    `websearch_to_tsquery` rather than `plainto_tsquery` because quoted phrases,
-    `or` and a leading `-` all mean what somebody typing into a search box expects
-    - and rather than `to_tsquery` because nothing the model can write raises a
-    syntax error out of it. A query of nothing but stopwords parses to an empty
-    tsquery, which matches nothing rather than everything.
+    The console treats every token as search text; punctuation such as a leading
+    minus must not turn into a negation. The agent tool keeps web-search syntax,
+    including quoted phrases, `or` and a leading `-`. Neither path uses
+    `to_tsquery`, so user or model text cannot produce a syntax error. A query of
+    nothing but stopwords matches nothing rather than everything.
     """
+    if literal:
+        return func.plainto_tsquery(SEARCH_CONFIG, query)
     return func.websearch_to_tsquery(SEARCH_CONFIG, query)
+
+
+def _model_title() -> ColumnElement[str | None]:
+    """Do not let a stored title repeat a refused turn, including titles written before #2767."""
+    refused = aliased(Message)
+    has_refusal = (
+        select(refused.id)
+        .where(refused.conversation_id == Conversation.id, refused.guardrail_refused.is_(True))
+        .correlate(Conversation)
+        .exists()
+    )
+    return case((has_refusal, None), else_=Conversation.title).label("title")
 
 
 class ConversationHit(NamedTuple):
@@ -122,6 +139,9 @@ class ConversationHit(NamedTuple):
     snippet: str
     speaker_role: str
     speaker_name: str | None
+    message_id: UUID
+    thread_root_message_id: UUID | None
+    matched_at: datetime
 
 
 async def search(
@@ -131,6 +151,7 @@ async def search(
     organization_id: UUID,
     readable: ColumnElement[bool],
     limit: int,
+    literal: bool = False,
 ) -> list[ConversationHit]:
     """The best-matching conversations, one row each, strongest first.
 
@@ -149,9 +170,10 @@ async def search(
     week" is a better guess than whichever order the planner returned. Without a
     total order the same search returns a different page each time it is run.
     """
-    tsquery = _tsquery(query)
+    tsquery = _tsquery(query, literal=literal)
     matches = (
         Message.search_vector.op("@@")(tsquery),
+        Message.guardrail_refused.is_(False),
         Conversation.organization_id == organization_id,
         readable,
     )
@@ -186,11 +208,14 @@ async def search(
     snippets = (
         select(
             Message.conversation_id,
+            Message.id.label("message_id"),
+            Message.thread_root_message_id,
+            Message.created_at.label("matched_at"),
             Message.role,
             func.ts_headline(SEARCH_CONFIG, Message.content, tsquery, _HEADLINE_OPTIONS).label(
                 "snippet"
             ),
-            Conversation.title,
+            _model_title(),
             func.coalesce(Conversation.updated_at, Conversation.created_at).label("updated_at"),
             ChannelIdentity.platform_display_name,
             ChannelIdentity.platform_username,
@@ -219,10 +244,20 @@ async def search(
             speaker_name=(
                 row.platform_display_name or row.platform_username or row.full_name or row.email
             ),
+            message_id=row.message_id,
+            thread_root_message_id=row.thread_root_message_id,
+            matched_at=row.matched_at,
         )
         for row in (await db.execute(snippets)).all()
     ]
     return sorted(found, key=lambda hit: order[hit.conversation_id])
+
+
+class ReadableConversation(NamedTuple):
+    id: UUID
+    user_id: UUID | None
+    project_id: UUID | None
+    title: str | None
 
 
 async def readable_conversation(
@@ -231,7 +266,7 @@ async def readable_conversation(
     conversation_id: UUID,
     organization_id: UUID,
     readable: ColumnElement[bool],
-) -> Conversation | None:
+) -> ReadableConversation | None:
     """One conversation, only if this reader may have it.
 
     The access predicate is in the query rather than applied to what it returns,
@@ -240,13 +275,20 @@ async def readable_conversation(
     a row somebody then has to remember to check.
     """
     result = await db.execute(
-        select(Conversation).where(
+        select(
+            Conversation.id, Conversation.user_id, Conversation.project_id, _model_title()
+        ).where(
             Conversation.id == conversation_id,
             Conversation.organization_id == organization_id,
             readable,
         )
     )
-    return result.scalar_one_or_none()
+    row = result.one_or_none()
+    return (
+        None
+        if row is None
+        else ReadableConversation(row.id, row.user_id, row.project_id, row.title)
+    )
 
 
 class Turn(NamedTuple):
@@ -273,7 +315,9 @@ async def turns(
     "USER" would be unreadable.
     """
     total = await db.scalar(
-        select(func.count()).select_from(Message).where(Message.conversation_id == conversation_id)
+        select(func.count())
+        .select_from(Message)
+        .where(Message.conversation_id == conversation_id, Message.guardrail_refused.is_(False))
     )
     rows = await db.execute(
         select(
@@ -289,7 +333,7 @@ async def turns(
         .outerjoin(ChannelIdentity, ChannelIdentity.id == Message.channel_identity_id)
         # Who typed a console turn - in a project's chat, one of several people.
         .outerjoin(User, User.id == Message.author_user_id)
-        .where(Message.conversation_id == conversation_id)
+        .where(Message.conversation_id == conversation_id, Message.guardrail_refused.is_(False))
         .order_by(Message.ordinal)
         .offset(skip)
         .limit(limit)

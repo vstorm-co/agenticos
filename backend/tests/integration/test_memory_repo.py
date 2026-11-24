@@ -16,8 +16,9 @@ import uuid
 from datetime import UTC, datetime
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import inspect, select
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.memory_keys import person_owner_key, room_owner_key
 from app.db.models.agent import Agent
@@ -86,6 +87,26 @@ async def _create(db, *, agent, owner_key, name, content="body", kind="note"):
 
 async def _fresh_agent(db) -> Agent:
     return await _agent(db, org=await _org(db, owner=await _user(db)))
+
+
+async def test_summary_listing_defers_bodies_without_losing_owner_scope(db: AsyncSession) -> None:
+    agent = await _fresh_agent(db)
+    own = await _create(db, agent=agent, owner_key=ANNA, name="own", content="Private body")
+    await _create(db, agent=agent, owner_key=BEN, name="other", content="Other body")
+    own_id = own.id
+    organization_id, agent_id = agent.organization_id, agent.id
+    db.expunge_all()
+    notes = await memory_repo.list_for_owner(
+        db,
+        organization_id=organization_id,
+        agent_id=agent_id,
+        owner_key=ANNA,
+        include_content=False,
+    )
+    assert [note.id for note in notes] == [own_id]
+    assert "content" in inspect(notes[0]).unloaded
+    await db.refresh(notes[0], ["content"])
+    assert notes[0].content == "Private body"
 
 
 class TestUniqueness:
@@ -317,3 +338,46 @@ class TestDeleting:
             db, organization_id=agent.organization_id, agent_id=agent.id, owner_key=ANNA
         )
         assert [row.name for row in rows] == ["MEMORY.md"]
+
+
+@pytest.mark.security
+async def test_personal_correction_is_scoped_revision_checked_and_preserves_suppression(db):
+    from app.core.exceptions import AlreadyExistsError, NotFoundError
+    from app.core.permissions import AuthContext, OrgRoleName
+    from app.schemas.memory import MemoryNoteEdit
+    from app.services.memory import MemoryService
+
+    user = await _user(db)
+    other = await _user(db)
+    org = await _org(db, owner=user)
+    agent = await _agent(db, org=org)
+    note = await _create(db, agent=agent, owner_key=person_owner_key(user.id), name="preference")
+    note.deactivated_at = datetime(2026, 1, 1, tzinfo=UTC)
+    await db.flush()
+    await db.refresh(note)
+    revision = note.updated_at
+    written = note.written_at
+    ctx = AuthContext(user_id=user.id, organization_id=org.id, role=OrgRoleName.OWNER)
+    service = MemoryService(db)
+    updated = await service.edit_note(
+        ctx,
+        note.id,
+        MemoryNoteEdit(content="My corrected preference", expected_updated_at=revision),
+    )
+    assert updated.content == "My corrected preference"
+    assert updated.written_at == written
+    assert updated.deactivated_at == datetime(2026, 1, 1, tzinfo=UTC)
+    with pytest.raises(AlreadyExistsError):
+        await service.edit_note(
+            ctx, note.id, MemoryNoteEdit(content="Stale", expected_updated_at=None)
+        )
+    for caller in (
+        AuthContext(user_id=other.id, organization_id=org.id, role=OrgRoleName.OWNER),
+        AuthContext(user_id=user.id, organization_id=uuid.uuid4(), role=OrgRoleName.OWNER),
+    ):
+        with pytest.raises(NotFoundError):
+            await service.edit_note(
+                caller,
+                note.id,
+                MemoryNoteEdit(content="Not mine", expected_updated_at=updated.updated_at),
+            )

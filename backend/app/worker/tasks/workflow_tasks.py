@@ -162,6 +162,8 @@ async def reconcile() -> dict[str, int]:
     async with get_worker_db_context() as db:
         resolved = await WorkflowReconcilerService(db).resolve_orphaned_attempts()
     async with get_worker_db_context() as db:
+        booked_media = await WorkflowReconcilerService(db).book_pending_media_costs()
+    async with get_worker_db_context() as db:
         woken = await WorkflowReconcilerService(db).wake_stale_approval_decisions()
     async with get_worker_db_context() as db:
         woken_steps = await WorkflowReconcilerService(db).wake_stale_step_approvals()
@@ -169,6 +171,7 @@ async def reconcile() -> dict[str, int]:
     result = {
         "reclaimed_claims": reclaimed,
         "resolved_attempts": resolved,
+        "booked_media_nodes": booked_media,
         "woken_approvals": woken,
         "woken_step_approvals": woken_steps,
     }
@@ -200,13 +203,22 @@ async def consume_table_triggers() -> int:
     Each claimed event's admissions, their first dispatch jobs and its delivered
     stamp commit together, so an event is judged in full or not at all.
     """
+    from app.core.permissions import AuthContext
+    from app.repositories import organization_repo
     from app.services.virtual_tables.triggers import TableTriggerConsumer
 
     async with get_worker_db_context() as db:
-        admitted = await TableTriggerConsumer(db).consume()
+        organizations = await organization_repo.list_all(db)
+    admitted = 0
+    for organization in organizations:
+        # Discovery uses the organization catalog, never an unbound RLS outbox
+        # scan. Each organization owns its claim, savepoints and commit.
+        ctx = AuthContext(user_id=None, organization_id=organization.id, role="")
+        async with get_worker_db_context() as db:
+            admitted += len(await TableTriggerConsumer(db).consume(ctx))
     if admitted:
-        logger.info("workflow_table_triggers: admitted %d run(s)", len(admitted))
-    return len(admitted)
+        logger.info("workflow_table_triggers: admitted %d run(s)", admitted)
+    return admitted
 
 
 async def check_workflow_log_alerts() -> int:

@@ -2,15 +2,16 @@
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState, type ReactNode } from "react";
-import { Toaster } from "sonner";
+import { ConsoleToaster } from "@/components/ui/console-toaster";
 import { MotionProvider, ThemeProvider } from "@/components/theme";
 import { TooltipProvider } from "@/components/ui";
 
 interface ProvidersProps {
   children: ReactNode;
+  toastCloseLabel: string;
 }
 
-export function Providers({ children }: ProvidersProps) {
+export function Providers({ children, toastCloseLabel }: ProvidersProps) {
   const [queryClient] = useState(
     () =>
       new QueryClient({
@@ -37,32 +38,7 @@ export function Providers({ children }: ProvidersProps) {
       <ThemeProvider>
         <MotionProvider>
           <TooltipProvider>{children}</TooltipProvider>
-          <Toaster
-            className="console-toasts"
-            position="top-right"
-            gap={8}
-            offset={{
-              top: "calc(var(--shell-inset-top, 0px) + 1rem)",
-              right: "1rem",
-              bottom: "5rem",
-            }}
-            mobileOffset={{
-              top: "calc(var(--shell-inset-top, 0px) + 1rem)",
-              left: "1rem",
-              right: "1rem",
-              bottom: "5rem",
-            }}
-            toastOptions={{
-              style: {
-                borderRadius: "0.875rem",
-              },
-              classNames: {
-                success: "[&_[data-icon]]:text-success",
-                error: "[&_[data-icon]]:text-destructive",
-                warning: "[&_[data-icon]]:text-warning",
-              },
-            }}
-          />
+          <ConsoleToaster closeLabel={toastCloseLabel} />
         </MotionProvider>
       </ThemeProvider>
     </QueryClientProvider>

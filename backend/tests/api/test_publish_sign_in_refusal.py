@@ -46,16 +46,24 @@ def client(
     profile = MagicMock(id=uuid.uuid4(), secret_id=sign_in.id, fallback_profile_ids=[])
     profile.label = "Ada's Codex"
     agent = MagicMock(
-        id=_AGENT, draft_spec={"name": "Helpdesk", "model_profile_id": str(profile.id)}
+        id=_AGENT,
+        kind="agent",
+        draft_spec={"name": "Helpdesk", "model_profile_id": str(profile.id)},
     )
 
     monkeypatch.setattr(AgentRegistryService, "get", AsyncMock(return_value=agent))
+    monkeypatch.setattr(agent_registry.agent_repo, "get", AsyncMock(return_value=agent))
     # The profile is a chat model with a key; that half of publish is not the subject.
     monkeypatch.setattr(AgentRegistryService, "model_profile_problems", AsyncMock(return_value=[]))
     monkeypatch.setattr(
         agent_registry.credential_repo,
         "get_profiles_by_ids",
         AsyncMock(return_value={profile.id: profile}),
+    )
+    monkeypatch.setattr(
+        agent_registry.credential_repo,
+        "get_profile",
+        AsyncMock(return_value=profile),
     )
     monkeypatch.setattr(
         agent_registry.organization_secret_repo,

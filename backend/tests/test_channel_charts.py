@@ -533,3 +533,24 @@ async def test_a_delivery_notice_reaches_the_reply_without_a_file_limit_explanat
     assert notice in reply
     assert "stayed in the workspace" not in reply
     assert "too large" not in reply
+
+
+@pytest.mark.anyio
+@pytest.mark.security
+async def test_channel_visuals_pass_stable_ids_to_the_renderer_and_ignore_external_names() -> None:
+    from unittest.mock import AsyncMock, patch
+
+    from app.services.channels.mentions import drawn_picture
+
+    called = [
+        RecordedToolCall("base", "sketch", {}, "Drew Flow.", tool_id="draw"),
+        RecordedToolCall("revision", "adjust", {}, "Drew Flow.", tool_id="revise_visual"),
+        RecordedToolCall("external", "draw", {}, "Drew Flow.", presentation_kind="generic"),
+    ]
+    renderer = AsyncMock(return_value=b"picture")
+    with patch("app.services.channels.mentions.visual_render.picture_of_turn", new=renderer):
+        picture = await drawn_picture(
+            called, organization_id=uuid.uuid4(), conversation_id=uuid.uuid4()
+        )
+    assert picture == b"picture"
+    assert [call[1] for call in renderer.await_args.args[0]] == ["draw", "revise_visual", ""]

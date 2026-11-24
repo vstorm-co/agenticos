@@ -97,12 +97,14 @@ export function InstructionsEditor({
   return (
     <div className="relative">
       <MarkdownEditor
+        compactToolbar
         textareaRef={box}
         label={label}
         value={value}
         onChange={change}
         onKeyDown={onKeyDown}
         rows={10}
+        editorHeight="clamp(10rem, 26dvh, 16.625rem)"
         disabled={disabled}
         placeholder={placeholder}
         mode={mode}

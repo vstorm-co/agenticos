@@ -9,8 +9,9 @@ from unittest.mock import AsyncMock
 import pytest
 from sqlalchemy.exc import IntegrityError
 
-from app.core.exceptions import AlreadyExistsError, NotFoundError
+from app.core.exceptions import AlreadyExistsError, AuthorizationError, NotFoundError
 from app.core.permissions import AuthContext
+from app.db.models.organization import OrganizationMember
 from app.db.models.resource_grant import GrantLevel
 from app.repositories import resource_grant_repo, table_view_repo
 from app.schemas.table_view import TableDisplay, TableViewConfig, TableViewCreate, TableViewUpdate
@@ -174,6 +175,8 @@ async def test_creating_a_view_needs_table_edit_not_merely_view(db):
     views, _tables, _ctx, _owner, org, table = await _setup(db)
     colleague = await make_user(db)
     viewer_ctx = ctx_for(colleague, org, "viewer")
+    db.add(OrganizationMember(organization_id=org.id, user_id=colleague.id, role="viewer"))
+    await db.flush()
     await resource_grant_repo.upsert(
         db,
         organization_id=org.id,
@@ -191,6 +194,8 @@ async def test_a_private_view_is_invisible_to_a_colleague_and_a_shared_one_is_no
     views, _tables, ctx, owner, org, table = await _setup(db)
     colleague = await make_user(db)
     colleague_ctx = ctx_for(colleague, org, "member")
+    db.add(OrganizationMember(organization_id=org.id, user_id=colleague.id, role="member"))
+    await db.flush()
     await resource_grant_repo.upsert(
         db,
         organization_id=org.id,
@@ -218,6 +223,8 @@ async def test_only_the_owner_or_an_all_scope_caller_may_change_or_delete_a_view
     views, _tables, ctx, owner, org, table = await _setup(db)
     colleague = await make_user(db)
     colleague_ctx = ctx_for(colleague, org, "member")
+    db.add(OrganizationMember(organization_id=org.id, user_id=colleague.id, role="member"))
+    await db.flush()
     await resource_grant_repo.upsert(
         db,
         organization_id=org.id,
@@ -251,7 +258,8 @@ async def test_only_the_owner_or_an_all_scope_caller_may_change_or_delete_a_view
         await views.get_view(ctx, table.id, shared_view.id)
 
 
-async def test_an_all_scope_caller_can_delete_a_colleagues_private_view(db):
+@pytest.mark.security
+async def test_an_all_scope_caller_can_delete_a_colleagues_private_view_but_never_change_it(db):
     # `_manageable_view` must not route through `_visible_view`: that hides a
     # private view from anyone but its owner, which would also hide it from an
     # admin `_may_manage` already says may manage it - leaving no one able to
@@ -264,13 +272,45 @@ async def test_an_all_scope_caller_can_delete_a_colleagues_private_view(db):
 
     admin = await make_user(db)
     admin_ctx = ctx_for(admin, org, "admin")
-    renamed = await views.update_view(
-        admin_ctx, table.id, private_view.id, TableViewUpdate(name="Reclaimed")
-    )
-    assert renamed.name == "Reclaimed"
+    for change in (
+        TableViewUpdate(name="Reclaimed"),
+        TableViewUpdate(visibility="shared"),
+        TableViewUpdate(),
+    ):
+        with pytest.raises(NotFoundError) as refused:
+            await views.update_view(admin_ctx, table.id, private_view.id, change)
+        assert "config" not in str(refused.value.details)
+    untouched = await views.get_view(ctx, table.id, private_view.id)
+    assert (untouched.name, untouched.visibility) == ("Mine", "private")
+
     await views.delete_view(admin_ctx, table.id, private_view.id)
     with pytest.raises(NotFoundError):
         await views.get_view(ctx, table.id, private_view.id)
+
+
+@pytest.mark.security
+async def test_only_the_owner_shares_a_view_or_makes_it_private(db):
+    views, _tables, ctx, _owner, org, table = await _setup(db)
+    view = await views.create_view(
+        ctx, table.id, TableViewCreate(name="Mine", kind="table", visibility="private")
+    )
+    shared = await views.update_view(ctx, table.id, view.id, TableViewUpdate(visibility="shared"))
+    assert shared.visibility == "shared"
+
+    admin_ctx = ctx_for(await make_user(db), org, "admin")
+    with pytest.raises(AuthorizationError) as refused:
+        await views.update_view(
+            admin_ctx, table.id, view.id, TableViewUpdate(visibility="private", name="Hidden")
+        )
+    assert refused.value.details["fields"][0]["field"] == "visibility"
+    after = await views.get_view(ctx, table.id, view.id)
+    assert (after.name, after.visibility) == ("Mine", "shared")
+
+    # Restating the visibility it already has is not a change of it.
+    renamed = await views.update_view(
+        admin_ctx, table.id, view.id, TableViewUpdate(visibility="shared", name="Team")
+    )
+    assert (renamed.name, renamed.visibility) == ("Team", "shared")
 
 
 async def test_renaming_to_a_taken_name_is_refused_and_a_no_op_rename_is_not(db):
@@ -433,6 +473,13 @@ async def _builders_table_and_an_editing_member(db):
     builder_ctx = ctx_for(builder, org, "builder")
     table = await orders_table(tables, builder_ctx)
     member = await make_user(db)
+    db.add_all(
+        [
+            OrganizationMember(organization_id=org.id, user_id=builder.id, role="builder"),
+            OrganizationMember(organization_id=org.id, user_id=member.id, role="member"),
+        ]
+    )
+    await db.flush()
     await resource_grant_repo.upsert(
         db,
         organization_id=org.id,
@@ -625,6 +672,8 @@ async def test_listing_views_pages_them_and_counts_them_all(db):
 async def _a_colleague_with(db, org, table):
     """A member holding an edit grant on `table`."""
     colleague = await make_user(db)
+    db.add(OrganizationMember(organization_id=org.id, user_id=colleague.id, role="member"))
+    await db.flush()
     await resource_grant_repo.upsert(
         db,
         organization_id=org.id,

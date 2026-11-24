@@ -10,7 +10,7 @@ from dataclasses import replace
 
 import pytest
 
-from app.agents.model_resolver import PROVIDERS
+from app.core import secret_purposes
 from app.core.secret_kinds import SecretKind
 from app.services import speech_to_text
 
@@ -18,13 +18,14 @@ from app.services import speech_to_text
 class TestWhatTheCatalogOffers:
     def test_every_offered_provider_is_one_the_platform_knows(self):
         for entry in speech_to_text.providers():
-            assert entry.provider in PROVIDERS
+            assert secret_purposes.get(entry.provider) is not None
 
     def test_every_offered_provider_takes_a_plain_api_key(self):
         """The client sends one `Authorization: Bearer`, so a provider wanting a
         service account or an AWS pair would fail on its first call."""
         for entry in speech_to_text.providers():
-            assert PROVIDERS[entry.provider].secret_kind is SecretKind.API_KEY
+            purpose = secret_purposes.get(entry.provider)
+            assert purpose is not None and purpose.kind is SecretKind.API_KEY
 
     def test_every_offered_provider_has_an_address_and_a_model(self):
         for entry in speech_to_text.providers():
@@ -108,7 +109,7 @@ class TestChoosingOne:
         assert speech_to_text.by_provider("anthropic") is None
 
 
-@pytest.mark.parametrize("provider", ["openai", "groq", "mistral"])
+@pytest.mark.parametrize("provider", ["openai", "groq", "mistral", "elevenlabs"])
 def test_the_providers_this_shipped_with_stay_offered(provider: str):
     """A regression guard on the file, not a restatement of it: these three are
     what the feature was built and documented against, so losing one to a typo or
@@ -158,3 +159,13 @@ def test_the_recording_format_is_the_catalogs_to_say(provider: str | None, recor
     Mistral documents WAV and never WebM or Opus. A provider that does not resolve
     gets a format a browser can make - its recording is refused anyway."""
     assert speech_to_text.recording_format(provider) == recorded_as
+
+
+def test_elevenlabs_is_a_voice_service_without_becoming_a_chat_provider():
+    from app.agents.model_resolver import PROVIDERS
+
+    offered = speech_to_text.by_provider("elevenlabs")
+    assert offered is not None
+    assert offered.api == "elevenlabs"
+    assert {model.id for model in offered.models} == {"scribe_v3", "scribe_v2", "scribe_v2_medical"}
+    assert "elevenlabs" not in PROVIDERS

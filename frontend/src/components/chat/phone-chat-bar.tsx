@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 import { useChatSidebarStore, useSidebarStore } from "@/stores";
 
 const ROUND =
-  "bg-background/80 text-foreground pointer-events-auto inline-flex size-11 items-center justify-center rounded-full border border-foreground/[0.06] shadow-sm backdrop-blur-md active:scale-95 transition-transform [&_svg]:size-5";
+  "bg-background/80 text-foreground pointer-events-auto inline-flex size-11 items-center justify-center rounded-full border border-foreground/[0.06] shadow-sm backdrop-blur-md [&_svg]:size-5";
 
 /**
  * The chat's top on a phone: no bar, a few buttons floating over the

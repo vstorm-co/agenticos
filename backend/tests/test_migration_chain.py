@@ -153,6 +153,152 @@ def test_deployed_personal_and_app_revisions_keep_their_original_parents() -> No
     }
 
 
+_CORE_UPGRADES = {
+    "0327_virtual_table_relations",
+    "0328_tables_tenant_rls",
+    "0329_user_appearance",
+    "0330_role_navigation",
+    "0331_merge_core_accounts",
+}
+
+
+@pytest.mark.parametrize(
+    ("current", "remaining"),
+    [
+        ("0331_merge_core_accounts", set()),
+        ("0333_room_threads", _CORE_UPGRADES),
+        ("0332_merge_t3_pools_v1761", _CORE_UPGRADES | {"0333_room_threads"}),
+        (
+            "0331_merge_t3_rooms_and_v1761",
+            _CORE_UPGRADES
+            | {
+                "0326_provider_account_pools",
+                "0332_merge_t3_pools_v1761",
+                "0333_room_threads",
+            },
+        ),
+        (
+            ("0331_merge_t3_rooms_and_v1761", "0326_provider_account_pools"),
+            _CORE_UPGRADES | {"0332_merge_t3_pools_v1761", "0333_room_threads"},
+        ),
+    ],
+)
+def test_core_and_published_threads_apply_only_missing_revisions(
+    current: str | tuple[str, ...], remaining: set[str]
+) -> None:
+    pending = list(_chain().iterate_revisions("0336_merge_core_v1761", current, implicit_base=True))
+    ordered = [revision.revision for revision in reversed(pending)]
+    assert set(ordered) == remaining | {"0336_merge_core_v1761"}
+    assert len(ordered) == len(remaining) + 1
+    assert ordered[-1] == "0336_merge_core_v1761"
+    assert "0326_room_threads" not in ordered
+    assert ordered.count("0333_room_threads") <= 1
+
+
+def test_published_v1761_and_thread_revisions_keep_their_original_parents() -> None:
+    chain = _chain()
+    expected = {
+        "0326_provider_account_pools": "0325_merge_t3_rooms_v173",
+        "0331_merge_t3_rooms_and_v1761": (
+            "0330_linear_trigger",
+            "0325_merge_t3_rooms_v173",
+        ),
+        "0332_merge_t3_pools_v1761": (
+            "0331_merge_t3_rooms_and_v1761",
+            "0326_provider_account_pools",
+        ),
+        "0333_room_threads": "0332_merge_t3_pools_v1761",
+    }
+    for revision, parents in expected.items():
+        script = chain.get_revision(revision)
+        assert script is not None
+        assert script.down_revision == parents
+
+
+def test_unreleased_core_follows_published_threads_without_duplicate_ddl() -> None:
+    chain = _chain()
+    assert "0326_room_threads" not in {revision.revision for revision in chain.walk_revisions()}
+    expected = {
+        "0327_virtual_table_relations": "0333_room_threads",
+        "0331_merge_core_accounts": "0330_role_navigation",
+        "0336_merge_core_v1761": "0331_merge_core_accounts",
+    }
+    for revision, parent in expected.items():
+        script = chain.get_revision(revision)
+        assert script is not None
+        assert script.down_revision == parent
+
+
+_T3_TEACHING_REVISIONS = {
+    "0339_browser_teaching_capture",
+    "0340_browser_teaching_review",
+}
+_OPENBOT_UPGRADES = {
+    "0341_room_task_handoffs",
+    "0342_browser_credential_plans",
+    "0343_workflow_media_operations",
+    "0344_browser_procedure_teaching",
+    "0345_credential_continuations",
+}
+
+
+@pytest.mark.parametrize(
+    ("current", "remaining"),
+    [
+        ("0338_message_reply_excerpt", _T3_TEACHING_REVISIONS | _OPENBOT_UPGRADES),
+        ("0339_browser_teaching_capture", {"0340_browser_teaching_review"} | _OPENBOT_UPGRADES),
+        ("0340_browser_teaching_review", _OPENBOT_UPGRADES),
+    ],
+)
+def test_openbot_features_apply_after_the_published_t3_teaching_chain(
+    current: str, remaining: set[str]
+) -> None:
+    chain = _chain()
+    pending = list(chain.iterate_revisions("0345_credential_continuations", current))
+    ordered = [revision.revision for revision in reversed(pending)]
+    assert set(ordered) == remaining
+    assert len(ordered) == len(remaining)
+    assert ordered[-1] == "0345_credential_continuations"
+    positions = {revision: position for position, revision in enumerate(ordered)}
+    for revision in pending:
+        parents = revision.down_revision
+        for parent in (parents,) if isinstance(parents, str) else parents or ():
+            if parent in positions:
+                assert positions[parent] < positions[revision.revision]
+
+
+def test_openbot_features_extend_the_published_chain_without_rewriting_it() -> None:
+    chain = _chain()
+    assert chain.get_heads() == ["0349_personal_work_context"]
+    expected = {
+        "0339_browser_teaching_capture": "0338_message_reply_excerpt",
+        "0340_browser_teaching_review": "0339_browser_teaching_capture",
+        "0341_room_task_handoffs": "0340_browser_teaching_review",
+        "0342_browser_credential_plans": "0341_room_task_handoffs",
+        "0343_workflow_media_operations": "0342_browser_credential_plans",
+        "0344_browser_procedure_teaching": "0343_workflow_media_operations",
+        "0345_credential_continuations": "0344_browser_procedure_teaching",
+    }
+    for revision, parent in expected.items():
+        script = chain.get_revision(revision)
+        assert script is not None and script.down_revision == parent
+
+
+def test_personal_work_context_chains_after_the_deployed_t3_head() -> None:
+    # Upstream numbered this 0349 on its own line; T3 already shipped
+    # 0349_room_participants, so it sits after T3's 0354 head, which stays put.
+    chain = _chain()
+    personal = chain.get_revision("0349_personal_work_context")
+    assert personal is not None
+    assert personal.down_revision == "0354_drop_user_theme_look"
+    for revision, parent in {
+        "0349_room_participants": "0348_approval_expired_notice",
+        "0354_drop_user_theme_look": "0348_architect_generated_avatar",
+    }.items():
+        script = chain.get_revision(revision)
+        assert script is not None and script.down_revision == parent
+
+
 # `alembic_version.version_num` is `VARCHAR(32)`, which alembic creates and never
 # widens. A longer id is not refused when the file is written or when the chain is
 # read - it is refused by the *database*, after the migration's DDL has run, on the

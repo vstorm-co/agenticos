@@ -31,14 +31,26 @@ it("refreshes a rejected review before a person can submit another consent", asy
   await waitFor(() => expect(result.current.data?.review_token).toBe("old"));
   await act(async () => {
     await expect(
-      result.current.replace.mutateAsync(result.current.data!.review_token),
+      result.current.replace.mutateAsync({
+        review_token: result.current.data!.review_token,
+        mode: "follow_agent",
+      }),
     ).rejects.toBe(stale);
   });
   await waitFor(() => expect(result.current.data?.review_token).toBe("new"));
   await act(async () => {
-    await result.current.replace.mutateAsync(result.current.data!.review_token);
+    await result.current.replace.mutateAsync({
+      review_token: result.current.data!.review_token,
+      mode: "follow_agent",
+    });
   });
-  expect(api.replace).toHaveBeenNthCalledWith(1, "agent", "routine", "old");
-  expect(api.replace).toHaveBeenNthCalledWith(2, "agent", "routine", "new");
+  expect(api.replace).toHaveBeenNthCalledWith(1, "agent", "routine", {
+    review_token: "old",
+    mode: "follow_agent",
+  });
+  expect(api.replace).toHaveBeenNthCalledWith(2, "agent", "routine", {
+    review_token: "new",
+    mode: "follow_agent",
+  });
   expect(api.get).toHaveBeenCalledTimes(3);
 });

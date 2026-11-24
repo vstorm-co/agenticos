@@ -1,8 +1,8 @@
 """Memory routes: what a person may see of their own, and what erasure removes.
 
-An agent's notes are written by the agent, so there is still no authoring surface
-here - anything a person wants an agent to *know* belongs in `context` (#1470).
-What #1594 added is the reading half, and who may do it:
+People may inspect and correct their own memory notes. Shared standing knowledge
+still belongs in `context`; editing an agent does not expose another person's notes.
+The self-service and inspection surfaces preserve distinct authority:
 
 - **Your own store, always.** No permission to ask for: the answer is the same
   for a Viewer and an Owner, because it is the caller's own. They may suppress a
@@ -26,13 +26,15 @@ from uuid import UUID
 from fastapi import APIRouter, Query, status
 
 from app.api.deps import Auth, MemorySvc
-from app.schemas.decision_episode import ImproveCaseReview, ImproveDecisionCase
+from app.schemas.dataset import DatasetCaseRead
+from app.schemas.decision_episode import ImproveCaseReview
 from app.schemas.memory import (
     MemoryClaimCorrect,
     MemoryClaimDetail,
     MemoryClaimList,
     MemoryClaimRead,
     MemoryErasureResult,
+    MemoryNoteEdit,
     MemoryNoteList,
     MemoryNoteRead,
     MemoryNoteUpdate,
@@ -73,6 +75,12 @@ async def set_my_note_active(
     living with a note and erasing everything.
     """
     return await service.set_active(ctx, file_id, active=data.active)
+
+
+@router.patch("/mine/{file_id}/content", response_model=MemoryNoteRead)
+async def edit_my_note(file_id: UUID, data: MemoryNoteEdit, service: MemorySvc, ctx: Auth) -> Any:
+    """Correct a personal note without changing suppression or agent provenance."""
+    return await service.edit_note(ctx, file_id, data)
 
 
 @router.delete("/mine/{file_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
@@ -118,11 +126,15 @@ async def my_claim(claim_id: UUID, service: MemorySvc, ctx: Auth) -> Any:
     return await service.claim_detail(ctx, claim_id)
 
 
-@router.post("/claims/mine/{claim_id}/improve-case", response_model=ImproveDecisionCase)
+@router.post(
+    "/claims/mine/{claim_id}/improve-case",
+    response_model=DatasetCaseRead,
+    status_code=status.HTTP_201_CREATED,
+)
 async def reviewed_improve_case(
     claim_id: UUID, data: ImproveCaseReview, service: MemorySvc, ctx: Auth
 ) -> Any:
-    """Prepare a personally reviewed decision episode for Improve's JSONL import."""
+    """Add a personally reviewed decision episode to a dataset the caller may edit."""
     return await service.improve_case(ctx, claim_id, data)
 
 

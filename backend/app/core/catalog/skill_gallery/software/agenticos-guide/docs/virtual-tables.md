@@ -1,5 +1,7 @@
 # Virtual Tables
 
+Choose a table’s icon beside its name in the detail view. Its catalog card and dashboard row use the same mark. **Use default icon** resets it; the choice does not change columns, records or schema versions. The control follows the table’s management access, including task-board restrictions.
+
 A **virtual table** is a typed table of records that an organization keeps for its
 agents, [workflows](workflows.md) and integrations: orders to reconcile, files to
 process, leads to follow up.
@@ -47,6 +49,24 @@ the response. `null` keeps the full record; `[]` returns metadata only. Computed
 columns are evaluated before projection, so their dependencies need not be selected.
 The same records immediately appear in the console; table-trigger dispatch is
 asynchronous and never delays the CRUD response.
+
+## Database tenant isolation { #database-tenant-isolation }
+
+Logical tables remain in the deployment's PostgreSQL database. The tenant RLS
+migration installs policies without enabling them; the operator activates them
+after upgrading and draining all API and worker processes. Once activated, normal
+table operations bind the authenticated organization's ID to the current
+transaction. Missing context exposes no Tables rows, and a transaction cannot
+switch organizations. The boundary includes schemas, records, history, media,
+views, receipts, triggers, normalized links and Tables grants.
+
+Table and row Read/Write permissions still apply in the service. Global account
+export and deletion use a separately configured maintenance connection after
+authentication and a fresh authority check. Removing an organization membership
+cascades that person's Tables grants in the same transaction, including directory
+updates spanning organizations. Other resource grant families keep their existing
+authorization rules. See the [operator cutover procedure](https://github.com/t3grp/agenticos/blob/t3/docs/plans/table-tenant-cutover.md)
+for credential separation, preflight, activation and rollback.
 
 ## How a table is built { #how-a-table-is-built }
 
@@ -130,11 +150,89 @@ or `max` of a column of numbers - `min` and `max` also of dates. Both are worked
 out when a record is read and never stored, written, filtered or sorted by.
 
 What a lookup shows goes no further than its reader may: a linked table the
-reader cannot see leaves the links unnamed and every lookup and rollup through
-them empty. A link keeps its table for life. A lookup reads a column holding
+reader cannot see leaves the links and every lookup and rollup through them
+empty. The destination's row policy also applies: both raw link IDs in `values`
+and labels in `links` contain only readable records. Archived link fields are
+omitted from returned values.
+
+A link keeps its table for life. A lookup reads a column holding
 values, not another link or lookup, and archiving a link column is refused
 while a lookup or rollup still reads through it. An export writes a link by the
 names of its records, and a lookup by what it read.
+
+Link filters use the same readable destinations. `contains` never matches an
+unreadable or deleted destination; `is_null: true` means no readable destination,
+including when hidden links remain stored. Lists, counts, exports and page queries
+apply this condition before pagination. Treat a returned link array as the
+caller's visible subset. Replacing that array through an older client preserves
+existing links the caller cannot read; unrelated field edits preserve all links.
+
+Every explicitly submitted link ID must be readable, including an ID that is
+already linked or would leave the row unchanged. A hidden ID is refused just like
+an unknown ID. Only omitted hidden links are preserved on the caller's behalf.
+
+An invalid stored row policy blocks record reads and writes with
+`ROW_POLICY_INVALID` (409). It never disables the policy. Authorized users can
+still read table metadata, which reports `row_policy_valid: false`, and an
+authorized table editor can repair it through `PUT /tables/{id}/row-policy`.
+A destination with an invalid policy supplies no linked records or inherited
+project access until repaired.
+
+### Relationship limits and backlinks { #relationship-limits-and-backlinks }
+
+A link field accepts `link_limit` from 1 to 100. Omitting it keeps an existing
+field's limit, or uses 100 for a new field. The limit counts every valid stored
+destination, including those hidden from the writer. Reducing it is refused
+until existing rows fit. A limit of 1 allows one destination per source row;
+several source rows can still point to the same destination.
+
+Connections keep their order and bind both endpoints to the declared tables in
+the same organization. Current reads, filters and inherited project access use
+these canonical connections. Invalid legacy values remain as repair evidence and
+do not grant access. Archiving a field retains its connections, and restoring the
+same field restores them. Deleting a destination removes incoming connections
+without changing source revisions; historical snapshots keep their original data.
+
+`GET /tables/{table_id}/records/{record_id}/backlinks` reads incoming connections
+from the required `source_table_id` and `column_id`. It accepts `skip` from 0 to
+10,000 and `limit` from 1 to 100, defaulting to 50. The destination, source table
+and each source row must be readable; these checks happen before pagination.
+An archived link field cannot be traversed. The result contains ordinary source
+records, with no hidden total or additional permission to edit either endpoint.
+
+### Atomic link changes { #atomic-link-changes }
+
+Use `link_changes` on `PATCH /tables/{id}/records/{record_id}` to add or remove
+specific targets. Keys are immutable link-column UUIDs, and `add` and `remove`
+contain target-record UUIDs. `values` is optional and can update other cells in
+the same request:
+
+```json
+{
+  "expected_revision": 7,
+  "link_changes": {
+    "00000000-0000-4000-8000-000000000001": {
+      "add": ["00000000-0000-4000-8000-000000000002"],
+      "remove": ["00000000-0000-4000-8000-000000000003"]
+    }
+  }
+}
+```
+
+The source record must be writable, and every explicitly added or removed target
+must currently be readable in the linked table and organization. Hidden, missing
+and wrong-table targets are refused without distinguishing them. Unnamed existing
+links stay stored, including links hidden from the editor; the final stored cell,
+including hidden links, must still fit the 100-target limit.
+
+A column cannot appear in both `values` and `link_changes`. Duplicate targets,
+add/remove overlap, unknown or archived columns, and changes to a non-link column
+are refused. All cells change in the existing transaction with one revision,
+history entry, trigger event when applicable, and idempotency receipt. A stale
+revision fails even for a no-op; an authorized no-op creates no history or receipt.
+The grid and record panel send these explicit changes. After a conflict, **Reload
+and reapply** retries the same choices against the fresh revision, preserving
+unrelated links added meanwhile.
 
 ## Formulas { #formulas }
 
@@ -153,6 +251,19 @@ it. A value it cannot work out - a division by zero, text in a sum, an empty
 cell - leaves that record's cell empty. A formula is worked out when the record
 is read, like a lookup, and is never stored, written, filtered or sorted by.
 
+Decimals are written with a dot, `{Price} * 1.23`, in every language: a comma
+separates a function's arguments, so `{Price} * 1,23` is refused with that hint
+rather than read as a number, and so is a call it gives one value too many, as in
+`IF({Price} > 0,5, "yes", "no")`.
+
+A call's count of values is checked when its formula is saved:
+one saved before that check keeps working, and the table's other columns can still be
+changed, until someone edits that formula. A refusal names a stable `details.formula.reason`,
+such as `decimal_comma` or `not_a_column`, which the console uses to say it in
+the reader's language. The console shows numbers, a formula's included, with the
+reader's decimal separator - `12,177` in Polish - and leaves a four-digit number
+ungrouped.
+
 ## Changing a schema { #changing-a-schema }
 
 `PUT /tables/{id}/schema` takes the full list of columns the table should have, and
@@ -167,8 +278,11 @@ current columns:
   becomes a date and time; one choice becomes several and back when there is one.
   Any other change is refused, and so is one some value does not survive, naming
   how many and one example - nothing is written. Something that uses the column
-  refuses it as an archive does. A record's revision moves on, so an edit against
-  its old value is a conflict.
+  refuses it as an archive does. A record whose value reads differently in the new
+  type moves to a new revision, so an edit against its old value is a conflict, and its
+  history records the change under the person who made it; a value the change leaves
+  as it was keeps its record's revision. A type change fires no
+  [trigger](#triggers): one schema edit does not start a workflow per record.
 - Text becomes an `email`, `url`, `phone` or `rating` column when every value reads
   as one, and a number becomes a rating when it is a whole number from 1 to 5. Each
   of them becomes text again, and a rating a number.
@@ -187,13 +301,13 @@ current columns:
   options, changes nothing: no version is appended and the current table is returned. A
   reorder or a changed label is a change.
 
-Records are not rewritten. A record written under version 1 stays readable and
+Apart from a type change, records are not rewritten. A record written under version 1 stays readable and
 editable under version 4; a required column it never held takes its default the
 next time the record is edited.
 
 Each column carries a read-only **`revision`**, which is `0` for a new column and for
 every column that existed before it was added. It counts the changes to what the
-column's values *mean*, so a published [page](artifacts.md#live-data) can tell that
+column's values *mean*, so a published [page](https://vstorm-co.github.io/agenticos/artifacts/#live-data) can tell that
 the column it was published against is no longer that one. It goes up by one on:
 
 - a type conversion;
@@ -273,6 +387,12 @@ An update or delete that names an old revision is refused with `REVISION_CONFLIC
 and retry. An upsert that finds an existing record and no `expected_revision` gets
 `REVISION_REQUIRED` (428), again with the revision to send.
 
+Current Write access is checked before disclosing a stored revision. An upsert
+for a hidden existing external ID and one for a new ID the caller cannot create
+both return `NOT_FOUND` (404), with the same message and table ID. Creating a row
+also requires table Edit and a row policy that lets its creator read that row;
+a row Write grant alone does not grant creation rights.
+
 An external id is 1 to 255 characters and may contain `/`, as in `2026/ORD-1`. It cannot
 contain NUL or a line break. The service checks this as well as the routes. Over HTTP the route refuses it first,
 with `VALIDATION_ERROR`; a caller that uses the service directly gets `INVALID_RECORD`.
@@ -312,7 +432,9 @@ in instead, so nothing is written until every required value is there.
 
 Each edit is one `PATCH` against the revision on screen, so an edit that loses to a
 newer change is refused rather than written over it. The record then opens with the
-refused value kept beside **Reload and reapply**. Ticking rows offers **Delete** for
+refused value kept beside **Reload and reapply**, and the record read again: the field
+says what it holds now, who changed the record last and when, and the panel's title
+follows. Ticking rows offers **Delete** for
 all of them, each against its own revision: a record someone changed meanwhile is
 kept, and the console says how many were. The record panel deletes one record the same
 way.
@@ -333,7 +455,11 @@ In **Columns**, **Required** makes a column need a
 value, and an archived column moves under **Archived columns**, where **Restore** brings
 it back with its values.
 
+Reading the comparison keeps unsaved edits in other fields and their original revision. A later conflict reads a new comparison; a response for a record you closed cannot close another record. Long values show a shortened preview.
+
 ### Import and export { #import-and-export }
+
+Map each table column, including **External id**, only once during CSV import. Duplicate targets are marked and block import until you choose another target or skip one of the file columns.
 
 Exports read at most 4 MiB of decoded record JSON per page (or one record),
 with at most 500 records per page. An organization can stream one export at a
@@ -364,14 +490,22 @@ bring the table up to date: a row whose external id the table holds changes that
 record's cells it names, rather than being refused as taken (`update_existing` on the
 batch), and the import counts what it added and what it updated.
 
-**New table** starts with a **Name** column. Name the table and add its columns first; description and visibility are under **More options**, with private visibility as the default. It can start from a file instead: **Start
+A record someone changed after the import began is left as it is and listed as
+`REVISION_CONFLICT`: the first batch answers `as_of`, the time it began by the server's
+clock, and the rest send it back. A row repeating an external id the file already named
+is listed rather than sent, and the batch refuses one repeating an id it already holds
+with `INVALID_RECORD`.
+
+**New table** starts with a **Name** column. Name the table, choose who can see it and add its columns; the description is under **More options**. A table starts as **Only me**; **Everyone** opens it to the organization, and **Some people** shares it with the groups and members you pick, each at `read`, in the same request (`group_ids` and `user_ids` on `POST /tables`). It can start from a file instead: **Start
 from a CSV file** turns
 the header into columns and gives each the narrowest type all its values read as -
 integer, number, yes/no, date, an ISO date and time, an email address or a link - and otherwise text, or long
 text once a value has a line break or runs past 1,000 characters. The name comes from
 the file, and both can be changed before creating, which costs less than a type change later.
 Once the table exists the import opens with every column already mapped, and the
-table opens after it.
+table opens after it. Each row must have the same number of cells as the header: a
+row with fewer or more cells is listed as a failure and skipped, and none of its
+values are imported.
 
 ## Safe retries { #safe-retries }
 
@@ -380,22 +514,33 @@ retry with the same key and the same body returns the first answer, with
 `Idempotent-Replayed: true`, and writes nothing, even if the record has changed
 since. The same key with a different body is refused with `IDEMPOTENCY_KEY_REUSED`.
 
-The header marks a replayed create, update or upsert. A replayed delete answers 204 as the
-first one did and is not marked.
+The header marks a replayed create, update, upsert or batch. A replayed delete answers 204
+as the first one did and is not marked.
 
 A key belongs to the caller and to the kind of write, so two callers can use the
 same string and one caller can use it for a create and an upsert. Only successes are
 stored: a refused write leaves no receipt, so you correct it and retry with the
 same key.
 
-A replay is answered only to a caller who can still edit the table. Once access is
-revoked, the same retry is a 404.
+A replay checks the caller's current table access, API-key scopes and row Write
+permission. Revocation makes the retry a 404 without disclosing a hidden row's ID or
+revision. Archiving a table permits an already authorized receipt to be read, with
+read-only record flags; it does not permit a fresh write. Batch imports still require
+table Edit because they can create records. Their retries preserve the original counts
+and `as_of`, but recheck rows named by external IDs or cached error details before
+returning the report.
 
 A receipt lasts 24 hours. After that the key is forgotten, and the same key with the same
 body is a new write: it executes again instead of returning the first answer. Retry within
 the window, and treat a longer gap as a fresh request. The lifetime is enforced when the key
 is used, so it holds to the hour; the daily sweep only reclaims the space of receipts nobody
 retried.
+
+Removing a group, project or account purges its task board's associated receipts,
+including batch results. During the upgrade, older batch results without a table id
+are erased because their table cannot be recovered. Their keys remain until expiry:
+a matching retry returns `IDEMPOTENCY_RESULT_PURGED` (409) and writes nothing.
+Check the table before starting a new write. Other receipt kinds are unchanged.
 
 ## Listing and filtering { #listing-and-filtering }
 
@@ -447,6 +592,8 @@ The view's owner switches it between **Private** and **Shared** with the button 
 **Rename**. Someone who manages another member's view, such as an admin, does not
 get the switch: sharing a person's own filters is theirs to choose.
 
+On phones, a saved view’s **Views** menu holds creating another view, renaming, sharing and deleting, according to the same permissions as the desktop controls.
+
 `GET/POST /tables/{id}/views` and `GET/PATCH/DELETE /tables/{id}/views/{view_id}`
 list, create, read, update and delete them. The list is paged with `skip` and
 `limit` (at most 100), the caller's own views first, then the shared ones, each by
@@ -462,7 +609,7 @@ presentation. An explicitly empty `visible_columns: []` hides all custom columns
 |---|---|
 | `kind` | `table`, `kanban` or `list` - a view is saved *for* one kind |
 | `visibility` | `private` (only its owner) or `shared` (anyone who can see the table) |
-| `can_manage` | Whether this caller may rename, reconfigure or reshare it |
+| `can_manage` | Whether this caller may rename or reconfigure it; only its owner reshares it |
 | `can_delete` | Whether this caller may delete it |
 
 Listing, reading and deleting resolve against the table (`tables:view`); creating
@@ -470,11 +617,17 @@ or changing one needs `tables:edit` on the table, so an owner whose edit access 
 taken away can still delete their views but no longer reshape or share them.
 
 Changing or deleting a view is narrower still: only its owner, or a caller whose
-`tables:edit` [scope](permissions.md) is `ALL` - not "anyone who can edit the
+`tables:edit` [scope](https://vstorm-co.github.io/agenticos/permissions/) is `ALL` - not "anyone who can edit the
 table" - so a shared editor cannot silently repoint another member's saved filter. Refused
 the same way every other per-resource write here is: `NOT_FOUND` (404), never a 403
 that would disclose a view's existence to a caller it refuses. `can_manage` and
 `can_delete` say which of the two this caller may do.
+
+Another member's private view is narrower again: even an `ALL`-scope caller may
+only delete it, never change it or read it back, so a `PATCH` answers `NOT_FOUND`
+as it would for a view that does not exist. And only a view's owner changes its
+`visibility`: anyone else sending a different one is refused with
+`AUTHORIZATION_ERROR` (403), since the view is already in front of them.
 
 Archiving a column is refused with `SCHEMA_DEPENDENCY`, naming the view, when a
 view the caller can both see and change filters, sorts or groups by it: one of their
@@ -490,7 +643,7 @@ of its chosen columns shows every live one. The stored config is not rewritten.
 
 ### Pages and views { #views-for-pages }
 
-A published [artifact](artifacts.md#live-data) does not read through a view. Its
+A published [artifact](https://vstorm-co.github.io/agenticos/artifacts/#live-data) does not read through a view. Its
 bindings are **page queries**: a table, filters, a sort, a limit and the fields the
 page reads, which the platform stores on the version of the page when it is published.
 A binding may start from a saved view - an agent finds one with `list_views`, which
@@ -507,7 +660,7 @@ Who may read the page's records is not decided by the view. They are read with t
 of the page's owner, once the owner has consented, and a table's access is all or nothing:
 `read` gives every row and every live column. A page query is how a table's rows reach people
 who could not open it, and the owner is asked first. See
-[Artifacts](artifacts.md#consent-the-owner-decides-who-reads-the-data).
+[Artifacts](https://vstorm-co.github.io/agenticos/artifacts/#consent-the-owner-decides-who-reads-the-data).
 
 A page query records the `revision` of every column it reaches: its fields, its filter
 and sort columns, a formula's inputs, a lookup's or rollup's link and target, and the column
@@ -544,6 +697,11 @@ values as `fields` by label and `author_id`, and for a change or a deletion `bef
 and the `changed` columns by label. **Triggers** on the table's page lists the
 workflows that start from it, pauses and resumes each, and opens its history.
 
+Pausing one there needs `tables:edit` on the table. Resuming one starts the workflow
+as its publisher again, so it also needs `workflows:edit` and `workflows:run` on that
+workflow, as the workflow's own **Active** switch does; a member who can edit the
+table but not the workflow is told the workflow was not found.
+
 A trigger starts only for records added while it is on. Switching it on - a publish,
 or resuming it - takes the table's schema lock, the one every record write waits on, so no record
 committed before that moment ever starts it, and nothing added while it was off is
@@ -573,14 +731,14 @@ starts from cannot be archived until that workflow starts another way.
 A record write, its history row, its idempotency receipt and, for a create, a
 `table.record.created` outbox row are written in one transaction and commit or roll
 back together. A failure at any step leaves none of them. Table and schema changes
-are recorded in the [audit log](governance.md); record changes are recorded in the
+are recorded in the [audit log](https://vstorm-co.github.io/agenticos/governance/); record changes are recorded in the
 per-record history, which keeps the cells each change touched.
 
 Two of these stores hold copies of what was written. A receipt holds the whole record as
 the write returned it, and history holds what changed, so a record delete removes the
 current row and leaves both behind until their retention removes them. Outbox rows hold
 ids. Treat all three as personal data if the cells are; see
-[data protection](data-protection.md#the-database) and
+[data protection](https://vstorm-co.github.io/agenticos/data-protection/#the-database) and
 [limits and retention](#limits-and-retention).
 
 The outbox row is the hand-off to whatever reacts to a new record: today, the
@@ -601,16 +759,18 @@ against another's, and is refused with `QUOTA_EXCEEDED` (402) when a write would
 | `TABLES_MAX_PER_ORGANIZATION` | 200 | Tables an organization has. Archived ones count, because a table is never deleted |
 | `TABLES_MAX_RECORDS_PER_TABLE` | 100,000 | Records in one table. Updating a record in a full table is allowed |
 | `TABLES_MAX_RECORD_BYTES` | 1,000,000 | The serialized values of one record, in bytes |
-| `TABLES_MAX_STORAGE_BYTES_PER_ORGANIZATION` | 1,073,741,824 | Stored PostgreSQL JSONB payload bytes per organization across records, history, receipts and outbox; physical table/index overhead is separate |
+| `TABLES_MAX_STORAGE_BYTES_PER_ORGANIZATION` | 1,073,741,824 | Stored record, history, receipt and outbox JSONB bytes, image bytes, and relationship definition, edge and evidence rows per organization; indexes and other physical overhead are separate |
 
 The aggregate ceiling is checked inside the mutation savepoint, under an organization lock, before commit. An over-limit write rolls back its record and every retained copy, including a batch row; remaining batch rows are reported as refused. Receipt replay, unchanged writes, reads and deletion remain available after a limit is lowered. Retention releases the bytes it removes.
 
+Table creation and schema changes use the same storage ceiling. A refusal rolls back the new table or schema version, relationship definitions, rewritten values and their history, and any new creation receipt together. The ordinary table audit is recorded only after storage admission; the separate quota-refusal audit survives the rollback.
+
 The refusal names the quota and its ceiling in `details` (`{"quota": "records", "limit":
 100000}`), never the content, and writes a `table.quota_refused` entry to the
-[audit log](governance.md) with the same two fields. Nothing is written by the refused
+[audit log](https://vstorm-co.github.io/agenticos/governance/) with the same two fields. Nothing is written by the refused
 request. Writes are also limited to `RATE_LIMIT_TABLE_WRITES_PER_MINUTE` (300) per member
 and organization, in the console as much as over the API; a member over it gets a 429 with
-`Retry-After`. See [configuration](configuration.md#rate-limiting).
+`Retry-After`. See [configuration](https://vstorm-co.github.io/agenticos/configuration/#rate-limiting).
 
 **What history keeps.** A create keeps the whole record in `after`, and a delete keeps the
 whole record in `before`; the record limit bounds both. A record that predates the limit,
@@ -621,7 +781,7 @@ instead of the values, and still succeeds. An update keeps only the cells that c
 one side was empty there. Editing one cell of a large record therefore costs one cell,
 however often it is repeated.
 
-**Retention.** The daily [retention sweep](governance.md#retention) also removes table
+**Retention.** The daily [retention sweep](https://vstorm-co.github.io/agenticos/governance/#retention) also removes table
 data, hard-deleting in batches, for every organization:
 
 | What | Removed when | Setting |
@@ -640,7 +800,7 @@ each of the three classes scales with both it and the organization's own active 
 count, with headroom so a pre-existing backlog is worked down rather than merely held level
 - every member writing flat out at once never outpaces the sweep, up to a generous cap on
 how many members one organization's own pass sizes itself for. See
-[configuration](configuration.md#virtual-tables-limits-and-retention) for the numbers. A
+[configuration](https://vstorm-co.github.io/agenticos/configuration/#virtual-tables-limits-and-retention) for the numbers. A
 backlog beyond that is worked off over several passes, the same as any other class.
 
 ## Who can do what { #who-can-do-what }
@@ -651,7 +811,7 @@ backlog beyond that is worked off over several passes, the same as any other cla
 | `tables:edit` | Owner and admin edit all; a builder edits their own and shared; a member edits their own |
 | `tables:create` | Owner, admin, builder, member |
 
-`tables:view` and `tables:edit` are resource permissions, so a [grant](permissions.md)
+`tables:view` and `tables:edit` are resource permissions, so a [grant](https://vstorm-co.github.io/agenticos/permissions/)
 on one table widens a role for that table only: a viewer given `edit` on one table
 edits that table and nothing else. Sharing uses the same `/tables/{id}/sharing`
 routes as the other shared resources. Records inherit their table's access, and the schema enforces it: a record, history or
@@ -667,6 +827,69 @@ idea, one level down (see [Saved views](#saved-views)).
 
 Another organization's table, and one the caller may not reach, are both a 404. A
 context with no signed-in subject reaches nothing.
+
+### Read and Write on individual rows { #row-read-write }
+
+Row access has two levels. **Read** shows the row and its visible linked records.
+**Write** includes Read and changes to ordinary cells. Write alone does not allow
+deleting a row, sharing it, changing its access fields, creating records, or changing
+the table schema. Existing table administrators retain their existing rights.
+A person still needs access to the parent table; a row grant never opens another
+table or a linked record on its own.
+
+In the table's sharing dialog, **Row access rules** chooses the default:
+
+| Rule | Read access | Write access |
+|---|---|---|
+| `none` | Everyone who can read the table | Existing table editors, plus row Write grants |
+| `grants` | A live Read or Write grant on the row | A live Write grant on the row |
+| `assignee` | The Read field, Write field, optional project membership, or a row grant | The Write field or a row Write grant |
+
+The table owner, organization Owner/Admin roles and deployment administrator retain
+their policy bypass. They must still pass table access and API-key ceilings. In
+`grants` mode, configure grants before switching existing users over.
+
+Creating a new row still requires table administration. In `grants` mode, a direct
+create that would hide the row from its table editor returns 403:
+`You do not have permission to write this row`. Batch creation reports
+`AUTHORIZATION_ERROR` for that row. Upsert returns the same 404 for a hidden existing
+external ID and unavailable creation, so the refusal does not reveal whether that ID exists.
+
+Managed task boards keep their board-specific access rules and do not offer these
+row-sharing controls.
+
+Open a row and choose **Row access** to add a member or group, select Read or Write,
+set an optional expiry, change a level, or revoke access. Member grants may be permanent;
+group grants default to 90 days. Effective access uses current organization and group
+membership and unexpired grants. The strongest live grant wins. Revoking one grant
+does not remove access provided by another grant or a table rule.
+
+The REST endpoints live under `/tables/{table_id}/records/{record_id}/access`:
+
+- `GET` lists explicit grants for a table administrator who can read the row.
+- `PUT /grants` upserts one `subject_user_id` or `subject_group_id`, a
+  `level` of `read` or `write`, and optional `expires_at`.
+- `DELETE /grants/{subject_user_id}` and
+  `DELETE /group-grants/{subject_group_id}` revoke the named grant.
+
+The same service protects console, API, agent and workflow writes. Row grants are stored
+in the existing `resource_grants` table under `table_record`; only there, API `write`
+maps to stored `edit`. They never become table administration grants. API keys need the
+`tables:view` scope to read and `tables:edit` to write; a grant cannot widen a key.
+Deleting a record removes its grants in the same transaction.
+
+Every returned record carries `access`, `can_delete`, `can_manage_access` and
+`read_only_column_ids`. The last list includes policy-driving fields and project
+membership fields used by another table. Grid cells, the record sheet and kanban moves
+use these answers. Record lists, catalog counts, exports and linked labels use the same
+read rule. An idempotent write replay checks current authority again, so a saved receipt
+cannot retain a revoked Write permission.
+
+Workflow triggers recheck the publisher's current Read permission on the source row.
+Their filters and run inputs use only readable linked records, including both the
+current and previous values. An update that changes only hidden links does not start
+a workflow. Invalid destination policies expose no linked IDs; an invalid source
+policy filters the event. The original stored event and history remain unchanged.
 
 ## Errors { #errors }
 
@@ -687,6 +910,7 @@ what a client branches on.
 | `INVALID_QUERY` | 422 | A filter or sort the table cannot answer |
 | `INVALID_SCHEMA` | 422 | An inconsistent schema change |
 | `IDEMPOTENCY_KEY_REUSED` | 422 | The key was used for a different request |
+| `IDEMPOTENCY_RESULT_PURGED` | 409 | A legacy batch result was erased during an upgrade; its key still prevents another write until expiry |
 | `QUOTA_EXCEEDED` | 402 | The write would pass a storage limit; `details` names the quota (`tables`, `records`, `record_bytes`, `storage_bytes`) and its ceiling |
 | `RATE_LIMIT_EXCEEDED` | 429 | Too many table writes in the last minute; see `Retry-After` |
 | `VALIDATION_ERROR` | 422 | The request itself is malformed: a wrong type, an unknown field, a limit, or NUL, a line break or a lone surrogate in an id, key or name. Refused by the route before the service runs |
@@ -751,10 +975,12 @@ When creating an empty table, required columns do not need defaults: every new r
 
 ## Durable tasks {#durable-tasks}
 
+An **agent** can also have a shared task board. Its audience follows current agent access; editing tasks additionally requires table edit access and permission to run that agent. The agent owner or an agent editor can manage the board. An agent assigned to a private task does not make that task shared. Through AgenticOS MCP, use `create_task` or `ensure_task_board`: the scope’s existing table is reused and a missing board is created on first use. Choose private for personal follow-ups, project for project deliverables, and agent for an explicitly requested agent backlog. Ask when scope is ambiguous; do not share personal content implicitly.
+
 You can create a project task from a private conversation outside that project. Leave the working conversation unspecified: the task opens its own conversation in the project, without linking your private transcript. Explicitly linking a conversation from another project is refused.
 
-**Background work** (`/work`) shows durable commitments beside running background
-chats. A task is a Virtual Table record, with a working-chat link and one Inbox
+**Tables** (`/tables`) is the task management destination. **Background work**
+(`/work`) shows running background conversations and their history. A task is a Virtual Table record, with a working-chat link and one Inbox
 case when attention is needed. Table and Kanban edits use the same revision as
 the task API; there is no separately synchronized TODO list.
 
@@ -798,11 +1024,19 @@ checklist stays internal to a run and does not create scheduled commitments.
 
 Group membership permits reading the group’s task board; writes additionally require table-edit permission or an explicit edit grant. If a reminder’s assigned reviewer loses access, the task becomes blocked and its creator receives an Inbox case to arrange a handoff. New working conversations for project tasks stay in that project. A table quota can prevent the optional task projection of a routine finding, but its working chat, Inbox case and notification are still delivered.
 
-Project task-board writes require project access and table-edit permission or an explicit table Edit grant. Removing a project, group or private owner cancels queued task work, resolves task cases and purges that scope’s managed table, records, history and media in the same transaction. Other scopes remain intact. The tasks panel falls back to an accessible private board if the selected board disappears.
+Project task-board writes require project access and table-edit permission or an explicit table Edit grant. Removing a project, group or private owner cancels queued task work, resolves task cases and purges that scope’s managed table, records, history and media in the same transaction. Other scopes remain intact.
+
+Changing a task board itself is narrower than working on it. Renaming the board, changing
+its columns or default view, and archiving or restoring it need `tables:edit` at the `ALL`
+scope (an owner or admin) or the leader of the board's scope: the group's lead, the
+project's owner, the person a private board belongs to. Anyone else in the board's
+audience still adds and edits tasks; the table's `can_manage` says which of the two a
+caller may do, and the console shows the board's own controls only when it is true. An
+attempt without it is refused with `AUTHORIZATION_ERROR` (403).
 
 ## Default view {#default-view}
 
-An editor can choose **Set as default** in the table toolbar. The current layout,
+An editor can choose **Set as default** inside **View settings**. The current layout,
 filters and grouping are saved as a shared view, then opened whenever someone
 visits the table without an explicit `view` or `viewId` URL override. New task
 boards start in Kanban. A table's default must belong to that table and be shared;
@@ -812,8 +1046,13 @@ the table to its plain layout. The API uses `PATCH /tables/{id}` with
 same rich-text editor and preview as other document cells.
 
 
-**Group by** saves automatically when an editor chooses a column. It updates a manageable saved Kanban view; without one, it creates a private view and selects it. A refused save keeps the previous grouping. Readers can change the grouping temporarily. **Set as default** in the toolbar saves the current format for everyone; ordinary tables start in Table until an editor chooses another default.
+**Group by** saves automatically when an editor chooses a column. It updates a manageable saved Kanban view; without one, it creates a private view and selects it. A refused save keeps the previous grouping. Readers can change the grouping temporarily. **Set as default** inside **View settings** saves the current format for everyone; ordinary tables start in Table until an editor chooses another default.
 
 An agent cannot be deleted while a managed task still depends on its scheduled execution. Reassign, complete or cancel those tasks first; deleting an agent must not silently discard its task work.
 
-Restoring an archived managed task board requeues its planned human reminders, including reminders whose time passed while the board was archived. Delivery still rechecks the original creator and recipient’s current access; restoring a board does not authorize new agent work.
+Restoring an archived managed task board requeues its planned human reminders, including reminders whose time passed while the board was archived. Delivery still rechecks the original creator and recipient’s current access; restoring a board does not authorize new agent work. An archived board takes no writes from its tasks either: a case settled in the Inbox meanwhile leaves its task as it was, and restoring the board moves the task to done or cancelled then. Reopening a case whose task's board is archived is refused with `TABLE_ARCHIVED`.
+
+
+A member with table-creation permission gets their missing private task table on the first visit to **Tables**. Existing tables are reused; opening the page does not create an organization or agent backlog. Projects offer **Task table** to create or open theirs. Without creation permission, existing accessible tables remain available and the application does not attempt a refused creation.
+
+Inbox surfaces a task when a person needs to act or review its result; it is not a second task store. Watches, mail triggers and routines may produce Inbox cases without creating task records. Create a task for a concrete commitment that needs follow-through, not for every incoming event. An agreed table convention can be remembered with its verified table id; live task state remains in the table.

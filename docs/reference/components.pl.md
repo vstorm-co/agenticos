@@ -1,5 +1,5 @@
 ---
-source_sha: "767b18fe1f07"
+source_sha: "e5046cc457c6"
 ---
 
 # Inwentarz komponentów { #the-component-inventory }
@@ -107,6 +107,7 @@ projektu.
 | Glify marek i providerów | `frontend/src/components/brand/`, `backend/app/core/catalog/icons/` | Font Awesome, Simple Icons i znaki rysowane ręcznie; źródła nazywa `NOTICE` |
 | Katalog serwerów MCP | `backend/app/core/catalog/` | Własne dane tego projektu o serwerach firm trzecich, nie same serwery |
 | Domyślne profile modeli | `backend/app/core/catalog/` | Własne dane tego projektu; same modele nigdy nie są dostarczane |
+| Szablony agentów i skille firm trzecich do finansów i księgowości | `backend/app/core/catalog/agent_templates/finance/`, `backend/app/core/catalog/skill_gallery/finance/` | Na podstawie `financial-services` i `knowledge-work-plugins` firmy Anthropic (Apache-2.0) oraz społecznościowego projektu Agency Agents (MIT). Każdy dostosowany katalog zawiera odwołania do konkretnych wersji źródeł, opis zmian i pełną licencję; `NOTICE` i `licenses/components.toml` wymieniają te komponenty |
 
 ## Modele, providerzy i usługi: połowa należąca do wdrożenia { #models-providers-and-services-the-deployments-half }
 

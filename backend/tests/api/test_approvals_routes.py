@@ -12,7 +12,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -131,3 +131,83 @@ async def test_approval_remember_scope_is_validated_before_any_decision(scope: s
             f"/api/v1/approvals/{uuid4()}", json={"approved": True, "remember_scope": scope}
         )
     assert response.status_code == 422
+
+
+class TestDecidingAfterLosingStanding:
+    """`POST /approvals/{id}` builds the caller's context from the membership they hold *now*.
+
+    The run's starter is the only person this route lets a member decide for, so
+    what they hold at the moment of the request is the whole question: demoted to
+    viewer, or removed from the organization, the decision is refused and nothing
+    is recorded.
+    """
+
+    @asynccontextmanager
+    async def _http(self, membership_role: str | None, run_user_id: UUID):
+        from contextlib import ExitStack
+        from unittest.mock import patch
+
+        from app.db.models.agent_run import AgentRun, RunSurface
+        from app.db.models.organization import Organization, OrganizationMember
+        from app.db.models.user import User
+        from app.db.session import get_db_session
+        from app.services.approvals import ApprovalService
+        from app.services.parked_runs import ParkedRunService
+
+        org = Organization(id=uuid4(), name="Acme", slug="acme")
+        user = User(id=run_user_id, email="starter@example.test", is_app_admin=False)
+        membership = (
+            None
+            if membership_role is None
+            else OrganizationMember(organization_id=org.id, user_id=user.id, role=membership_role)
+        )
+        run = AgentRun(
+            id=uuid4(),
+            organization_id=org.id,
+            user_id=run_user_id,
+            surface=RunSurface.WEB.value,
+            initiated_by_publisher_fallback=False,
+        )
+        approval = MagicMock(run_id=run.id, status="pending", always_asks=False)
+        db = MagicMock(flush=AsyncMock(), refresh=AsyncMock(), add=MagicMock())
+        approvals = ApprovalService(db)
+        decided = AsyncMock()
+        app.dependency_overrides[deps.get_current_user] = lambda: user
+        app.dependency_overrides[deps.get_active_organization] = lambda: org
+        app.dependency_overrides[get_db_session] = lambda: db
+        app.dependency_overrides[deps.get_parked_run_service] = lambda: ParkedRunService(
+            db, runner=MagicMock(), approvals=approvals
+        )
+        try:
+            with ExitStack() as stack:
+                for target, value in {
+                    "app.api.deps._member_repo.get": AsyncMock(return_value=membership),
+                    "app.api.deps.bind_table_access": AsyncMock(),
+                    "app.repositories.agent_run.get_approval": AsyncMock(return_value=approval),
+                    "app.repositories.agent_run.get_run": AsyncMock(return_value=run),
+                    "app.repositories.agent_run.decide_approval": decided,
+                }.items():
+                    stack.enter_context(patch(target, new=value))
+                async with AsyncClient(
+                    transport=ASGITransport(app=app), base_url="http://test"
+                ) as client:
+                    yield client, approval, decided
+        finally:
+            app.dependency_overrides.clear()
+
+    async def test_a_starter_demoted_to_viewer_is_refused(self):
+        starter = uuid4()
+        async with self._http("viewer", starter) as (client, approval, decided):
+            response = await client.post(f"/api/v1/approvals/{uuid4()}", json={"approved": True})
+
+        assert response.status_code == 403, response.text
+        assert "started this run" in response.text
+        decided.assert_not_awaited()
+
+    async def test_a_starter_removed_from_the_organization_is_refused(self):
+        starter = uuid4()
+        async with self._http(None, starter) as (client, approval, decided):
+            response = await client.post(f"/api/v1/approvals/{uuid4()}", json={"approved": True})
+
+        assert response.status_code == 404, response.text
+        decided.assert_not_awaited()

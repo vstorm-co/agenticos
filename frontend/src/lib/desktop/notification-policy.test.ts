@@ -29,7 +29,7 @@ it("muting one conversation does not mute others or the inbox", () => {
   const preferences = { ...input.preferences, muted_conversations: ["one"] };
   expect(shouldNotify({ ...input, preferences })).toBe(false);
   expect(shouldNotify({ ...input, preferences, path: "/chat?id=two" })).toBe(true);
-  expect(notificationConversation("/pl/chat?id=one")).toBe("one");
+  expect(notificationConversation("/en/chat?id=one")).toBe("one");
   expect(notificationConversation(null)).toBeNull();
   expect(notificationConversation("http://[")).toBeNull();
 });

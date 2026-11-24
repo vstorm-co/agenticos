@@ -30,6 +30,7 @@ def create_access_token(
     *,
     act: str | None = None,
     sid: str | None = None,
+    auth_time: int | None = None,
 ) -> str:
     """Create a JWT access token.
 
@@ -39,8 +40,9 @@ def create_access_token(
     only to the account they are acting as (#943). `sid` names the session row the
     token belongs to: on an impersonation so the token can be refused once the row
     has been ended (#1044), and on an ordinary login so a password change can spare
-    the session that made it while revoking the account's others (#1439). Each is
-    omitted when unset, so a token minted without one is byte-for-byte what it was.
+    the session that made it while revoking the account's others (#1439).
+    `auth_time` records a successful fresh authentication for sensitive settings.
+    Optional claims are omitted when unset.
     """
     if expires_delta:
         expire = datetime.now(UTC) + expires_delta
@@ -52,6 +54,8 @@ def create_access_token(
         to_encode["act"] = str(act)
     if sid is not None:
         to_encode["sid"] = str(sid)
+    if auth_time is not None:
+        to_encode["auth_time"] = auth_time
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 
@@ -146,9 +150,51 @@ def read_uuid_claim(payload: dict[str, Any], name: str) -> UUID | None:
         return None
 
 
+def create_mfa_token(
+    subject: str | Any,
+    credential_version: int,
+    expires_delta: timedelta | None = None,
+    *,
+    return_to: str | None = None,
+    mailbox_proved: bool = False,
+    jti: str | None = None,
+) -> str:
+    """The short-lived proof a password check passed, awaiting the second factor.
+
+    Five minutes by default: long enough to open the authenticator and type
+    six digits, short enough that a token left in a log or a history entry is
+    dead before anybody finds it. The `type` claim is what stops it being
+    spent as an access token, and `cv` is what stops it surviving a password
+    change - the same claim the refresh gate uses, for the same reason: a
+    credential change since the challenge was minted invalidates it.
+
+    `return_to` rides along only when the challenge came from a magic link:
+    the link's destination was validated at mint, and the second step must
+    not be what drops it.
+
+    `mailbox_proved` preserves the signed link's proof through the second factor
+    without putting the email address itself in the challenge.
+    """
+    expire = datetime.now(UTC) + (expires_delta or timedelta(minutes=5))
+    to_encode: dict[str, Any] = {
+        "exp": expire,
+        "sub": str(subject),
+        "type": "mfa",
+        "cv": credential_version,
+        "jti": jti or uuid4().hex,
+    }
+    if return_to is not None:
+        to_encode["rt"] = return_to
+    if mailbox_proved:
+        to_encode["mbp"] = True
+    return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+
+
 def create_password_reset_token(
     subject: str | Any,
     expires_delta: timedelta | None = None,
+    *,
+    credential_version: int = 0,
 ) -> str:
     """Single-use JWT for password reset.
 
@@ -157,7 +203,13 @@ def create_password_reset_token(
     access token.
     """
     expire = datetime.now(UTC) + (expires_delta or timedelta(hours=1))
-    to_encode = {"exp": expire, "sub": str(subject), "type": "password_reset"}
+    to_encode = {
+        "exp": expire,
+        "sub": str(subject),
+        "type": "password_reset",
+        "cv": credential_version,
+        "jti": str(uuid4()),
+    }
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 
@@ -198,8 +250,12 @@ def create_magic_link_token(
     subject: str | Any,
     expires_delta: timedelta | None = None,
     return_to: str | None = None,
+    email: str | None = None,
 ) -> str:
     """Sign-in-by-email JWT. Short-lived (15 min default).
+
+    `email` binds mailbox proof to the address this link was actually sent to.
+    Legacy links without it can still sign in, but cannot prove a current address.
 
     `return_to` rides in the token because a magic link is followed from an
     email - a different tab, often a different application, sometimes a
@@ -210,6 +266,8 @@ def create_magic_link_token(
     """
     expire = datetime.now(UTC) + (expires_delta or timedelta(minutes=15))
     to_encode: dict[str, Any] = {"exp": expire, "sub": str(subject), "type": "magic_link"}
+    if email is not None:
+        to_encode["email"] = email
     if return_to is not None:
         to_encode["rt"] = return_to
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)

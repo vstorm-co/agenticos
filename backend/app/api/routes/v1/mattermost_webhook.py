@@ -28,7 +28,6 @@ from app.services.channels.base import read_feedback
 from app.services.channels.feedback import FeedbackOutcome
 from app.services.channels.mattermost import MattermostAdapter, decode_webhook_body
 from app.worker.background.channel import (
-    process_channel_event,
     process_channel_press,
     process_feedback_comment,
 )
@@ -74,7 +73,7 @@ async def mattermost_webhook(
     if incoming is None:
         return Response(status_code=200)
 
-    spawn(process_channel_event(incoming), name=f"mattermost_event:{bot_id}")
+    await bot_service.queue_message(bot, incoming)
     return Response(status_code=200)
 
 
@@ -148,7 +147,7 @@ async def mattermost_command(
     incoming = MattermostAdapter.parse_command(form, str(bot_id))
     if incoming is None:
         return {"response_type": "ephemeral", "text": "Ask a question after `/agent`."}
-    spawn(process_channel_event(incoming), name=f"mattermost_command:{bot_id}")
+    await bot_service.queue_message(bot, incoming)
     return {}
 
 

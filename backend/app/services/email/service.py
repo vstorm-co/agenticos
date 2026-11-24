@@ -27,6 +27,7 @@ class EmailKey(enum.StrEnum):
     APPROVAL_REQUESTED = "approval_requested"
     APPROVAL_PENDING = "approval_pending"
     USAGE_REPORT = "usage_report"
+    FAILURE_LEARNING_DIGEST = "failure_learning_digest"
     IMPERSONATION_NOTICE = "impersonation_notice"
     # The notification center's fallback (#1598): every event type without a
     # bespoke template renders through this one, off `summary`/`context_url`
@@ -59,6 +60,7 @@ _CATEGORIES: dict[EmailKey, EmailCategory] = {
     EmailKey.APPROVAL_REQUESTED: EmailCategory.LIFECYCLE,
     EmailKey.APPROVAL_PENDING: EmailCategory.LIFECYCLE,
     EmailKey.USAGE_REPORT: EmailCategory.LIFECYCLE,
+    EmailKey.FAILURE_LEARNING_DIGEST: EmailCategory.LIFECYCLE,
     EmailKey.NOTIFICATION: EmailCategory.LIFECYCLE,
     # Transactional, not lifecycle: whether it is sent at all is the deployment's
     # `notify_impersonated_users` policy, not a preference of the recipient - a

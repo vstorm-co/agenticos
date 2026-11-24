@@ -2,7 +2,6 @@
 
 import ast
 import inspect
-import os
 import textwrap
 from pathlib import Path
 
@@ -94,9 +93,9 @@ async def test_a_filesystem_root_as_the_storage_root_still_reaches_its_files(tmp
     """`/` already ends in the separator, and `//` is a prefix no descendant of it has."""
     target = (tmp_path / "note.txt").resolve()
     target.write_bytes(b"month,total")
-    rooted = LocalFileStorage(base_dir=os.sep)
+    rooted = LocalFileStorage(base_dir=target.anchor)
 
-    stored = str(target.relative_to(os.sep))
+    stored = str(target.relative_to(target.anchor))
 
     assert await rooted.load(stored) == b"month,total"
     assert rooted.get_full_path(stored) == target

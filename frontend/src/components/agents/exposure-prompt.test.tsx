@@ -78,7 +78,7 @@ describe("a binding's extra instructions", () => {
     // Every binding renders one of these, and they are identical otherwise.
     mount();
 
-    expect(screen.getByLabelText("Extra instructions on Acme Support")).toBeVisible();
+    expect(screen.getByLabelText("Channel instructions on Acme Support")).toBeVisible();
   });
 });
 
@@ -91,8 +91,8 @@ describe("the placeholders a prompt may carry", () => {
   it("offers only what this platform can fill in", () => {
     mount(null, false, variables);
 
-    expect(screen.getByRole("button", { name: "{channel_name}" })).toBeVisible();
-    expect(screen.getByRole("button", { name: "{member_list}" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "{{channel_name}}" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "{{member_list}}" })).toBeVisible();
   });
 
   it("says nothing at all where the platform fills in nothing", () => {
@@ -109,9 +109,76 @@ describe("the placeholders a prompt may carry", () => {
     const box = screen.getByRole("textbox") as HTMLTextAreaElement;
     box.setSelectionRange(7, 7);
 
-    await userEvent.click(screen.getByRole("button", { name: "{channel_name}" }));
+    await userEvent.click(screen.getByRole("button", { name: "{{channel_name}}" }));
     await userEvent.click(screen.getByRole("button", { name: "Save" }));
 
-    expect(onSave).toHaveBeenCalledWith("Answer {channel_name}here.");
+    expect(onSave).toHaveBeenCalledWith("Answer {{channel_name}}here.");
   });
+});
+
+it("shows the effective defaults without saving a duplicate copy as custom instructions", () => {
+  const onSave = vi.fn();
+  render(
+    <ExposurePrompt
+      botName="Local bot"
+      value={null}
+      defaultPrompt="Channel: {{channel_name}}. This is a local test deployment."
+      variables={[]}
+      disabled={false}
+      onSave={onSave}
+    />,
+  );
+  expect(screen.getByRole("textbox")).toHaveValue(
+    "Channel: {{channel_name}}. This is a local test deployment.",
+  );
+  expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+  expect(onSave).not.toHaveBeenCalled();
+});
+
+it("preserves legacy additions in the complete editable prompt", () => {
+  render(
+    <ExposurePrompt
+      botName="Bot"
+      value="Be brief."
+      defaultPrompt="Answer on this channel."
+      variables={[]}
+      disabled={false}
+      onSave={vi.fn()}
+    />,
+  );
+  expect(screen.getByRole("textbox")).toHaveValue("Answer on this channel.\n\nBe brief.");
+});
+
+it("does not append defaults again to a saved replacement", () => {
+  render(
+    <ExposurePrompt
+      botName="Bot"
+      value="My complete prompt."
+      defaultPrompt="Default."
+      replacesDefaults
+      variables={[]}
+      disabled={false}
+      onSave={vi.fn()}
+    />,
+  );
+  expect(screen.getByRole("textbox")).toHaveValue("My complete prompt.");
+});
+
+it("clearing the edited prompt restores live defaults instead of saving a stale snapshot", async () => {
+  const onSave = vi.fn();
+  render(
+    <ExposurePrompt
+      botName="Bot"
+      value="Custom."
+      defaultPrompt="Default."
+      replacesDefaults
+      variables={[]}
+      disabled={false}
+      onSave={onSave}
+    />,
+  );
+  await userEvent.clear(screen.getByRole("textbox"));
+  await userEvent.type(screen.getByRole("textbox"), "Default.");
+  await userEvent.click(screen.getByRole("button", { name: "Save" }));
+  expect(onSave).toHaveBeenCalledWith(null);
 });

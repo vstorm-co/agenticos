@@ -194,6 +194,7 @@ export function QuickAsk({
     clearMessages,
     stopGeneration,
     browses,
+    protectBrowser,
     reportVisual,
     pendingApproval,
     sendResumeDecisions,
@@ -201,6 +202,8 @@ export function QuickAsk({
     sendAskUserResponses,
     pendingConnection,
     sendConnectionResponse,
+    pendingComputerAccess,
+    sendComputerAccessResponse,
     queuedMessages,
     cancelQueued,
     retryQueued,
@@ -209,6 +212,14 @@ export function QuickAsk({
     conversationId,
     onConversationCreated: setConversationId,
   });
+  // Native folder consent belongs to the main console. Release this turn
+  // instead of leaving Quick Ask waiting on a dialog it cannot present.
+  useEffect(() => {
+    if (pendingComputerAccess) sendComputerAccessResponse(false);
+  }, [pendingComputerAccess, sendComputerAccessResponse]);
+  // Remembered past the release, so the person still reads why access was refused.
+  const [accessRefused, setAccessRefused] = useState(false);
+  if (pendingComputerAccess && !accessRefused) setAccessRefused(true);
   const asked = messages.some((message) => message.role === "user");
   const signedOut = !isLoading && !isAuthenticated;
   useEffect(() => {
@@ -552,6 +563,7 @@ export function QuickAsk({
     clearMessages();
     scrolledUp.current = false;
     setConversationId(null);
+    setAccessRefused(false);
     setQuestion("");
     input.current?.focus();
   };
@@ -704,7 +716,7 @@ export function QuickAsk({
         className="border-border min-h-0 flex-1 overflow-y-auto overscroll-contain border-t px-4 py-3 text-sm"
       >
         {historyControl}
-        <LiveBrowsesProvider value={{ browses }}>
+        <LiveBrowsesProvider value={{ browses, onProtected: protectBrowser }}>
           <ConversationVisualsProvider
             messages={messages}
             conversationId={conversationId}
@@ -939,6 +951,11 @@ export function QuickAsk({
           {noDictation ? t("noDictation") : listening ? t("listening") : t("transcribing")}
         </p>
       ) : null}
+      {accessRefused ? (
+        <p role="status" className="border-border text-muted-foreground border-t px-4 py-2 text-xs">
+          {t("computerAccessInConsole")}
+        </p>
+      ) : null}
       {signedOut ? (
         <div className="border-border border-t px-4 py-3">
           <button
@@ -961,7 +978,7 @@ export function QuickAsk({
         <>
           <FilePreviewDialog />
           <SourcesPanel contained />
-          <BrowserPanel browses={browses} />
+          <BrowserPanel browses={browses} onProtected={protectBrowser} />
         </>
       )}
     </div>

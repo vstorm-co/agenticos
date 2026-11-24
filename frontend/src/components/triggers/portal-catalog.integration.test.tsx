@@ -8,6 +8,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { PortalCatalog } from "./portal-catalog";
 import { apiClient } from "@/lib/api-client";
 import { startGithubOrgOAuth, startMcpOAuth } from "@/lib/mcp-connections-api";
+import { Perm, type MyPermissions } from "@/types/permissions";
 import type { OrgMcpConnectionRecord } from "@/lib/org-mcp-connections-api";
 
 vi.mock("@/lib/api-client", async () => {
@@ -24,6 +25,14 @@ vi.mock("@/lib/mcp-connections-api", async () => {
   return { ...actual, startMcpOAuth: vi.fn(), startGithubOrgOAuth: vi.fn() };
 });
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+
+const PERMISSIONS: MyPermissions = {
+  organization_id: "org-1",
+  user_id: "user-1",
+  role: "admin",
+  is_app_admin: false,
+  permissions: [{ permission: Perm.mcpManage, scope: "all" }],
+};
 
 function wrapper({ children }: { children: ReactNode }) {
   const client = new QueryClient({
@@ -248,6 +257,7 @@ function orgConnection(overrides: Partial<OrgMcpConnectionRecord> = {}): OrgMcpC
     visibility: "org",
     catalog_key: "github",
     is_default: false,
+    trust_read_only_hints: false,
     label: null,
     last_tools: null,
     granted_scopes: ["repo", "admin:repo_hook"],
@@ -263,6 +273,7 @@ function serve(
   polled: BlockedBy | undefined = undefined,
 ) {
   vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
+    if (path === "/me/permissions") return PERMISSIONS;
     if (path === "/trigger-portals") {
       const catalog = portalsFor(org, blockedBy);
       if (polled === undefined) return catalog;
@@ -297,6 +308,23 @@ const emailRow = () => within(screen.getByRole("group", { name: "Email" }));
 const trackerRow = () => within(screen.getByRole("group", { name: "Tracker" }));
 
 describe("PortalCatalog", () => {
+  it("keeps compact service choices short until expanded, with their connection actions intact", async () => {
+    serve([], "oauth_app_secret");
+    render(<PortalCatalog compact canRun canManageConnections />, { wrapper });
+    const entry = await screen.findByRole("group", { name: "GitHub" });
+    expect(
+      within(entry).queryByRole("button", { name: "Add credentials" }),
+    ).not.toBeInTheDocument();
+    await userEvent.click(within(entry).getByText("GitHub", { exact: true }));
+    expect(screen.queryByRole("group", { name: "Email" })).not.toBeInTheDocument();
+    expect(within(entry).getByRole("button", { name: "Add credentials" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Back to services" }));
+    expect(screen.getByRole("group", { name: "Email" })).toBeInTheDocument();
+    await waitFor(() =>
+      expect(within(entry).getByRole("button", { name: /GitHub/ })).toHaveFocus(),
+    );
+  });
+
   beforeEach(() => vi.clearAllMocks());
 
   it("draws a card per portal with its own brand mark", async () => {
@@ -327,9 +355,19 @@ describe("PortalCatalog", () => {
     // others rather than as a ghost button in the filter row (#1071).
     await mount();
 
-    const card = within(screen.getByRole("group", { name: "API trigger" }));
+    const card = within(screen.getByRole("group", { name: "Webhook or API trigger" }));
 
     expect(card.getByRole("button", { name: "Create trigger" })).toBeInTheDocument();
+  });
+
+  it("names the provider webhooks available from the API card in the compact routine picker", async () => {
+    serve([]);
+    render(<PortalCatalog compact canRun canManageConnections />, { wrapper });
+
+    const card = within(await screen.findByRole("group", { name: "Webhook or API trigger" }));
+    expect(card.getByText("Signed webhooks")).toBeVisible();
+    expect(card.getByText(/Linear, HubSpot and Zendesk webhooks/)).toBeVisible();
+    expect(card.getByRole("button", { name: "Create trigger" })).toBeEnabled();
   });
 
   it("keeps the API trigger reachable when a search matches no portal", async () => {
@@ -343,13 +381,13 @@ describe("PortalCatalog", () => {
     );
 
     expect(await screen.findByText("No portals match")).toBeInTheDocument();
-    expect(screen.getByRole("group", { name: "API trigger" })).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Webhook or API trigger" })).toBeInTheDocument();
   });
 
   it("hides the API trigger from a caller who may not run an agent", async () => {
     await mount({ canRun: false });
 
-    expect(screen.queryByRole("group", { name: "API trigger" })).toBeNull();
+    expect(screen.queryByRole("group", { name: "Webhook or API trigger" })).toBeNull();
   });
 
   it("does not offer Connect at all when it could only fail", async () => {
@@ -389,7 +427,10 @@ describe("PortalCatalog", () => {
     const card = within(screen.getByRole("group", { name: "GitHub" }));
 
     expect(card.queryByRole("button", { name: /Add credentials/ })).toBeNull();
-    expect(card.getByRole("link", { name: "Open the vault" })).toHaveAttribute("href", "/vault");
+    expect(card.getByRole("link", { name: "Open the vault" })).toHaveAttribute(
+      "href",
+      "/connectors/vault",
+    );
   });
 
   it("names the missing OAuth App on the card instead of after the click", async () => {
@@ -609,6 +650,7 @@ describe("PortalCatalog", () => {
 
   it("says nothing yet rather than drawing an empty grid when the catalog is empty", async () => {
     vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
+      if (path === "/me/permissions") return PERMISSIONS;
       if (path === "/trigger-portals") return { items: [], total: 0 };
       if (path === "/agents/mcp-catalog") return MCP_CATALOG;
       if (path === "/mcp-connections") return { items: [], total: 0 };
@@ -622,6 +664,7 @@ describe("PortalCatalog", () => {
 
   it("says a failed catalog out loud instead of as an empty grid", async () => {
     vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
+      if (path === "/me/permissions") return PERMISSIONS;
       if (path === "/trigger-portals") throw new Error("boom");
       if (path === "/agents/mcp-catalog") return MCP_CATALOG;
       if (path === "/mcp-connections") return { items: [], total: 0 };
@@ -647,9 +690,10 @@ describe("GitHub App installation", () => {
         oauth_app_kind: "github_app",
       };
       vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
-      vi.mocked(apiClient.get).mockImplementation(async (path: string) =>
-        path === "/trigger-portals" ? { items: [entry], total: 1 } : { items: [], total: 0 },
-      );
+      vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
+        if (path === "/me/permissions") return PERMISSIONS;
+        return path === "/trigger-portals" ? { items: [entry], total: 1 } : { items: [], total: 0 };
+      });
       if (fails) vi.mocked(apiClient.post).mockRejectedValue(new Error("Installation denied"));
       else vi.mocked(apiClient.post).mockResolvedValue({ id: "installation-grant" });
       render(<PortalCatalog canRun canManageConnections />, { wrapper });

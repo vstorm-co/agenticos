@@ -8,7 +8,23 @@
 # cannot do without is an image nobody else can pull (#1545). `.dockerignore` at
 # the root says what of the tree reaches the daemon.
 
-# Build stage
+# The optional Tailscale runtime is a userspace child process, with no host TUN
+# device or privileged container. Its version is pinned by go.mod/go.sum.
+FROM golang:1.27.4-bookworm AS tailscale-broker
+ARG TARGETOS
+ARG TARGETARCH
+ENV CGO_ENABLED=0
+WORKDIR /src
+COPY integrations/tailscale-broker/go.mod integrations/tailscale-broker/go.sum ./
+RUN --mount=type=cache,target=/go/pkg/mod go mod download
+COPY integrations/tailscale-broker/ ./
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    mkdir -p /out && \
+    GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -p 2 -tags=ts_omit_webclient -trimpath -ldflags="-s -w" -o /out/t3os-tailscale-broker . && \
+    go run ./tools/... -goos ${TARGETOS} -goarch ${TARGETARCH} -tags ts_omit_webclient -output /out/licenses
+
+# Python build stage
 FROM python:3.15-slim AS builder
 
 ENV PYTHONUNBUFFERED=1
@@ -96,7 +112,7 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libreoffice-core libreoffice-writer libreoffice-calc libreoffice-impress \
     tesseract-ocr tesseract-ocr-eng tesseract-ocr-pol \
-    git ca-certificates \
+    git ca-certificates ffmpeg \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # What `gssapi` loads at run time, for an image built with the `kerberos` extra.
@@ -109,6 +125,8 @@ RUN if echo "${EXTRAS}" | grep -q kerberos; then \
 
 # Application and its virtual environment, from the builder
 COPY --from=builder /app /app
+COPY --from=tailscale-broker /out/t3os-tailscale-broker /app/bin/t3os-tailscale-broker
+COPY --from=tailscale-broker /out/licenses /app/licenses/tailscale-broker
 
 # The licence, the notice and the generated index of every third-party component
 # in this image (docs/licenses.md). The wheels' own licence files are already in

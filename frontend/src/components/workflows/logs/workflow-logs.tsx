@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { ListFilters } from "@/components/ui/list-filters";
-import { useRouter } from "next/navigation";
+import { useConsoleRouter as useRouter } from "@/hooks/use-console-router";
 import { ListFilter, X } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
@@ -38,6 +38,7 @@ import { ROUTES } from "@/lib/constants";
 import { formatDateTimeSeconds } from "@/lib/utils";
 import { LogAlerts } from "./log-alerts";
 import { outcomeLabels } from "./outcome-labels";
+import { logStepName } from "@/lib/workflows/node-copy";
 import { LOG_PAGE } from "@/lib/workflows/logs-api";
 import { effectiveDefinition, ERROR_PORT } from "@/lib/workflows/ports";
 import {
@@ -83,6 +84,7 @@ function loggedOutcomes(node: NodeInstance, definition: NodeDefinition | undefin
 
 export function WorkflowLogs({ workflowId }: { workflowId: string }) {
   const t = useTranslations("pages.workflows");
+  const tNode = useTranslations("workflowNodes");
   const locale = useLocale();
   const router = useRouter();
   const { workflow } = useWorkflow(workflowId);
@@ -181,13 +183,11 @@ export function WorkflowLogs({ workflowId }: { workflowId: string }) {
   }, [workflow, version, catalog, catalogLoading]);
   // A value the address carries stays an option when no graph has it any more, so
   // the select never reads blank: named by a line that step wrote, else as it is.
+  const selectedEntry = entries.find((entry) => entry.node_instance_id === step);
   const stepOptions: [string, string][] =
     step === null || steps.some(([id]) => id === step)
       ? steps
-      : [
-          ...steps,
-          [step, entries.find((entry) => entry.node_instance_id === step)?.step_label ?? step],
-        ];
+      : [...steps, [step, selectedEntry ? logStepName(selectedEntry, tNode) : step]];
   // Values the address carries stay options when no graph has them. Several at once
   // (an alert's link) read as one option naming them all, until another is chosen.
   const single = outcomes.length === 1 ? (outcomes[0] as string) : null;
@@ -225,7 +225,7 @@ export function WorkflowLogs({ workflowId }: { workflowId: string }) {
     {
       key: "step",
       header: t("logColumns.step"),
-      cell: (entry) => entry.step_label,
+      cell: (entry) => logStepName(entry, tNode),
     },
     {
       key: "outcome",
@@ -269,8 +269,9 @@ export function WorkflowLogs({ workflowId }: { workflowId: string }) {
     test === "1" ||
     searched !== "";
   return (
-    <div className="space-y-4">
+    <div className="flex min-h-0 flex-1 flex-col gap-4">
       <ListCard
+        fill
         namedByPage
         title={t("logsTitle")}
         // Nothing to count while the read is failing: a number there would be a claim.
@@ -355,6 +356,7 @@ export function WorkflowLogs({ workflowId }: { workflowId: string }) {
         ) : (
           <>
             <DataTable
+              fillHeight
               columns={columns}
               rows={entries}
               getRowKey={(entry) => entry.id}
@@ -370,13 +372,16 @@ export function WorkflowLogs({ workflowId }: { workflowId: string }) {
                 )
               }
             />
-            <PaginationBar
-              page={page}
-              pageSize={LOG_PAGE}
-              total={total}
-              isLoading={isLoading}
-              onPage={(next) => setPage(next === 0 ? null : String(next))}
-            />
+            <div className="mt-auto shrink-0 pt-4">
+              <PaginationBar
+                showSinglePage
+                page={page}
+                pageSize={LOG_PAGE}
+                total={total}
+                isLoading={isLoading}
+                onPage={(next) => setPage(next === 0 ? null : String(next))}
+              />
+            </div>
           </>
         )}
       </ListCard>

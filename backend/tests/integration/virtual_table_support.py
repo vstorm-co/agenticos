@@ -13,6 +13,7 @@ from app.core.permissions import AuthContext
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.user import User
 from app.db.models.virtual_table import VirtualTable, VirtualTableRecord
+from app.repositories import virtual_table_relation as relation_repo
 from app.schemas.table_view import TableViewConfig, TableViewCreate, ViewVisibility
 from app.schemas.virtual_table import (
     ColumnDef,
@@ -139,6 +140,10 @@ async def insert_rows(
             for index, (record_id, values) in enumerate(zip(ids, rows, strict=True))
         ],
     )
+    if any(item.type == "link" for item in table.columns):
+        records = await db.scalars(select(VirtualTableRecord).where(VirtualTableRecord.id.in_(ids)))
+        for record in records:
+            await relation_repo.sync_record(db, record=record)
     return ids
 
 

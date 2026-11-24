@@ -9,6 +9,7 @@ import { SectionCard } from "@/components/settings/settings-section";
 import { useShell } from "@/hooks/use-shell";
 import { isMobileShell } from "@/lib/desktop/shell";
 import { chooseMobileServer, mobileSettings, setMobileLock } from "@/lib/mobile/settings";
+import { Label } from "@/components/ui/label";
 
 export function MobileSettingsPanel() {
   const shell = useShell();
@@ -45,9 +46,9 @@ function Settings({ platform }: { platform: string }) {
             <div className="flex items-center gap-3">
               <ShieldCheck className="text-muted-foreground size-5 shrink-0" aria-hidden />
               <div className="flex-1">
-                <label htmlFor="mobile-lock" className="text-sm font-medium">
+                <Label htmlFor="mobile-lock" className="text-sm font-medium">
                   {t("lock")}
-                </label>
+                </Label>
                 <p className="text-muted-foreground text-xs">
                   {t(
                     settings.data.biometric_managed

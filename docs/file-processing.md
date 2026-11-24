@@ -121,6 +121,8 @@ gets the file instead of the text:
 | tiff | PNG page(s) as `BinaryContent`, page cap noted | original `.tiff` written; PNG page(s) shown, page cap noted |
 | archive (`.zip`, `.tar.gz`) | refused: the model is told the agent has no workspace to unpack it into, and nothing of it is pasted | unpacked into `uploads/<id>-<name>/`; reference names the folder and lists the top of the tree |
 
+If the workspace is unavailable when an image is attached, the model still receives the image directly within the per-image and per-turn byte limits. The prompt explains that the workspace is unavailable.
+
 ### Archives { #archives }
 
 A `.zip` or `.tar.gz` is how a repository, or any folder of files, is given to an
@@ -355,6 +357,13 @@ media/
 SSE-S3 by default, SSE-KMS with a key the deployment names. See
 [configuration](configuration.md#uploaded-files-at-rest) for the settings.
 
+Knowledge-base ingestion with local storage still needs the API and worker to
+share `MEDIA_DIR/_rag_tmp`. With S3, each worker execution downloads its own
+stored object and removes the temporary copy on completion, parser failure or
+cancellation. No API scratch volume is shared between pods; see
+[Kubernetes deployment](kubernetes.md). A killed child can leave a temporary copy
+until the pod is replaced.
+
 !!! info "Which backend to run, and what each one asks of you"
 
     Local is the honest answer for a single host: encrypt the volume, and the
@@ -444,6 +453,10 @@ flowchart TD
     The `RAGDocument` row is written **first** and the middle four steps run in a
     background task with a session of their own - which is why an upload answers
     `202 {"status": "processing"}` rather than waiting.
+
+Concurrent first writes to the same collection wait for its table and indexes
+to be created in one transaction. If creation fails, that transaction rolls
+back and a waiting write can create the table.
 
 There are two addresses an upload can arrive at —
 `POST /rag/collections/{name}/ingest` and `POST /kb/{kb_id}/documents` — and both
@@ -657,15 +670,25 @@ The fallback is an app-scoped base only: a personal base outside any
 organization has no organization either, but it is one person's
 ([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
 
-A sync source records an organization and a collection name, not a knowledge
-base, so its sync writes into the base that resolution picks - the organization's
-oldest base by the name - and only that base lists and runs it. Every API route
-that points a source at a collection checks write access to that base, and adding
-one to another base of the same name is refused with 400.
+A sync source records the knowledge base it syncs into (`knowledge_base_id`), not
+only a collection name, and only that base lists, runs and shows the history of it.
+A source added from a base's **Sync** tab records that base, so two bases sharing a
+name each keep their own sources. A route that points a source at a collection by
+name records the base the name resolves to for the caller's organization, the
+resolution above, and checks write access to that base.
 
-When a member's personal base is older than the organization's base of the same
-name, the organization's syncs by that name therefore land in the personal base, and
-the organization's base takes no source: create it under a name of its own.
+`rag-source-add` records the organization base it checked, and `--knowledge-base`
+names one when several of the organization's bases hold the name
+([#2551](https://github.com/vstorm-co/agenticos/issues/2551)).
+
+A source with no knowledge base does not sync. The upgrade that added the column
+gave each existing source the base its sync wrote into before, and deactivated a
+source whose collection no base of its organization or of the deployment holds,
+logging its id: point it at a knowledge base and set `is_active` back to true to
+sync it again. It also logged each
+source it left on a member's personal base while the organization has an org base
+of the same name, which is where such a source synced before: move it if it
+belongs to the organization's base.
 
 !!! warning "One collection name is one embedding space"
 
@@ -894,11 +917,12 @@ can be ingested into it — delete it and create one under another name. Nothing
 lost in doing so: an ingest into that collection has never succeeded, because
 building the vector index on a table with no `embedding` column fails.
 
-Deleting a base detaches and deactivates the sync sources whose resolved target was that base.
-They keep their connector configuration, but require an explicit reassignment before syncing
-again; another base with the same name does not inherit them. Clearing a default base keeps
-its sources because its target row remains. CLI ingestion refuses a name reserved for a
-queued drop until cleanup releases it.
+Deleting a base detaches and deactivates exactly the sync sources that record it, whoever
+else holds the name. They keep their connector configuration, but require an explicit
+reassignment and reactivation before syncing again; another base with the same name does
+not inherit them. Clearing a default base detaches and deactivates its sources too: its
+row stays, but a source left on it would sync the dropped content back. CLI ingestion
+refuses a name reserved for a queued drop until cleanup releases it.
 
 ### Who may reach a collection
 
@@ -1031,9 +1055,36 @@ connection and enough of them refuse every other request. A delete waits for the
 write to finish.
 
 A personal base outside an organization takes no unfiled chunk, though a chunk its own
-rows name goes with it. A legacy chunk with no base, no organization and no row cannot
-be told from an operator's: it keeps the table too, stays until `rag-drop <name>`, and
-is the app scope's, so an app-scoped base on the name reads it.
+rows name goes with it. A legacy chunk with no base, no organization and no tracking
+row has unknown ownership. It keeps the table but is **not readable through an
+app-scoped base**, even after an app admin claims the name ([#2773](https://github.com/vstorm-co/agenticos/issues/2773)).
+
+An app-scoped base takes global unfiled chunks and tracking rows only when their
+`writer_kind` is `operator`. New `rag-ingest` and CLI sync writes record that origin;
+platform ingestions record `document`, which survives deletion of a user or base.
+Migration `0300_unfiled_writer_provenance.py` treats old origin tags as untrusted,
+retains certain document ownership and quarantines everything ambiguous as
+`legacy_unknown`. Organization-scoped unfiled reads retain their tenant restriction.
+
+**Upgrade action:** audit a retained collection from the server shell. The command
+uses the database only and prints aggregate counts, never document content:
+
+```bash
+uv run agenticos cmd rag-unfiled-provenance <name>
+```
+
+Only after inspecting the source and confirming that its unknown global unfiled data
+is an operator import intended for every organization, run:
+
+```bash
+uv run agenticos cmd rag-unfiled-provenance <name> --confirm-operator
+```
+
+This requires an interactive confirmation (`--yes` supplies it for automation).
+The update is atomic and repeatable, and skips chunks or rows with known document
+ownership. Keep uncertain data quarantined; re-ingest it into its authorized base,
+or use the existing operator `rag-drop <name>` procedure when it should be removed.
+Claiming the name in the console never confirms its data's origin.
 
 Otherwise, and always for `rag-drop`, the cleanup job drops the table. Another
 tenant's unfiled rows under the name stay, with their files, because the caller has no
@@ -1358,14 +1409,17 @@ used to leave the collection holding neither document — permanently, because a
 failed ingest is returned rather than raised and nothing retries it. Both for the
 length of an insert is a state a search survives; neither is not.
 
-One source's own history is `GET /kb/{kb_id}/sync-sources/{source_id}/logs`. The
-source is resolved against that knowledge base first, so a source belonging to
-another base answers **404** rather than an empty list — the two render the same
-screen otherwise, and one of them is a request that should have failed. Its runs
-are then read by source id, which is what keeps `limit` and `total` describing the
-same set of rows: a source repointed at another base keeps its earlier runs under
-the collection name it had then, and those used to be dropped from the page after
-`limit` had already cut it.
+One source's history is `GET /kb/{kb_id}/sync-sources/{source_id}/logs`.
+The source must belong to that base, otherwise the route returns **404**.
+Each recorded run keeps its original base and organization as its access boundary:
+reassigning a source does not grant the new base access to earlier private runs.
+Filtering happens before the page limit. Legacy runs without a recorded base
+remain attributable through their source.
+Deleting a recorded base archives the historical source link before the base ID is cleared, so that history cannot become visible through a reassigned source.
+
+Reconciliation, unchanged-document claims and vector tracking use the target
+base's document scope. Reassigning a source clears its cached sync state and last
+status; completion of a run admitted for the old target cannot restore them.
 
 ### What a sync source is not allowed to decide
 

@@ -50,8 +50,11 @@ export interface RAGSearchResponse {
   results: RAGSearchResult[];
 }
 
-export async function searchDocuments(request: RAGSearchRequest): Promise<RAGSearchResponse> {
-  return apiClient.post<RAGSearchResponse>("/rag/search", request);
+export async function searchDocuments(
+  request: RAGSearchRequest,
+  signal?: AbortSignal,
+): Promise<RAGSearchResponse> {
+  return apiClient.post<RAGSearchResponse>("/rag/search", request, { signal });
 }
 
 /**
@@ -156,6 +159,7 @@ export interface SyncSourceRead {
   connector_type: string;
   /** null = org-level integration, not yet assigned to a KB */
   collection_name: string | null;
+  knowledge_base_id: string | null;
   /** Unmasked, because the credential is not in here - it is `secret_id` (#937). */
   config: Record<string, unknown>;
   secret_id: string | null;

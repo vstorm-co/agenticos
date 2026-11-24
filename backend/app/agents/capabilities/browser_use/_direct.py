@@ -134,6 +134,7 @@ async def act_directly(view: DirectView, session: BrowseSession, action: Action)
                 call_id=view.call_id,
                 by=waiting.by,
                 by_user_id=waiting.by_user_id,
+                connection_id=waiting.control_connection_id,
                 remember=view.remember,
             )
             # The person may have left the page anywhere; numbers read before

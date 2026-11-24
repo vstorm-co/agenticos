@@ -1,10 +1,29 @@
 """Tests for repository layer."""
 
 from unittest.mock import AsyncMock, MagicMock
+from uuid import uuid4
 
 import pytest
+from sqlalchemy.dialects import postgresql
 
+from app.repositories import coding_account as coding_account_repo
 from app.repositories import user as user_repo
+
+
+@pytest.mark.anyio
+async def test_get_default_coding_account_filters_out_non_default_accounts() -> None:
+    session = MagicMock()
+    account = MagicMock()
+    session.execute = AsyncMock(return_value=MagicMock(scalar_one_or_none=lambda: account))
+
+    result = await coding_account_repo.get(
+        session, organization_id=uuid4(), user_id=uuid4(), default_only=True
+    )
+
+    statement = session.execute.call_args.args[0]
+    sql = str(statement.compile(dialect=postgresql.dialect()))
+    assert "coding_accounts.is_default IS true" in sql
+    assert result is account
 
 
 class TestUserRepository:
@@ -264,7 +283,29 @@ class TestPublishedStarters:
         session.execute = AsyncMock()
 
         assert await agent_repo.published_starters(session, version_ids=[]) == {}
+        assert await agent_repo.published_hidden_starters(session, version_ids=[]) == set()
         session.execute.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_only_published_opt_outs_hide_starters(self):
+        from uuid import uuid4
+
+        from sqlalchemy.dialects import postgresql
+
+        from app.repositories import agent as agent_repo
+
+        visible, hidden = uuid4(), uuid4()
+        session = MagicMock()
+        session.execute = AsyncMock(return_value=MagicMock())
+        session.execute.return_value.scalars.return_value.all.return_value = [hidden]
+        found = await agent_repo.published_hidden_starters(session, version_ids=[visible, hidden])
+
+        assert found == {hidden}
+        query = session.execute.call_args.args[0].compile(dialect=postgresql.dialect())
+        assert {item for item in query.params.values() if isinstance(item, str)} == {
+            "show_starters",
+            "false",
+        }
 
     @pytest.mark.anyio
     async def test_icons_are_validated_from_the_published_version(self) -> None:
@@ -331,3 +372,199 @@ class TestOrganizationSecretRepository:
         assert "UPDATE organization_secrets SET visibility" in sql
         assert "owner_user_id" in sql
         assert "visibility =" in sql  # the WHERE narrows to private rows only
+
+
+class TestSecretRequestRepository:
+    """The rows a parked run's `request_secret` calls leave behind (#13).
+
+    The value is never a column here: `create` takes a name, a kind and
+    what it is for, and nothing in the row can carry the secret itself.
+    """
+
+    @pytest.fixture
+    def mock_session(self):
+        session = MagicMock()
+        session.execute = AsyncMock()
+        session.flush = AsyncMock()
+        session.refresh = AsyncMock()
+        return session
+
+    @pytest.mark.anyio
+    async def test_create_records_the_ask_without_a_value(self, mock_session):
+        from uuid import uuid4
+
+        from app.db.models.secret_request import SecretRequestStatus
+        from app.repositories import secret_request as secret_request_repo
+
+        organization_id, run_id, agent_id, by = uuid4(), uuid4(), uuid4(), uuid4()
+        created = await secret_request_repo.create(
+            mock_session,
+            organization_id=organization_id,
+            run_id=run_id,
+            agent_id=agent_id,
+            tool_call_id="call-1",
+            secret_name="acme_api_key",
+            kind="api_key",
+            what_for="Acme CRM, to list contacts",
+            requested_by_user_id=by,
+        )
+
+        assert created.secret_name == "acme_api_key"
+        assert created.kind == "api_key"
+        assert created.what_for == "Acme CRM, to list contacts"
+        assert created.status == SecretRequestStatus.PENDING
+        assert not hasattr(created, "value")
+        mock_session.add.assert_called_once_with(created)
+        mock_session.flush.assert_awaited_once()
+        mock_session.refresh.assert_awaited_once_with(created)
+
+    @pytest.mark.anyio
+    async def test_list_for_run_reads_oldest_first(self, mock_session):
+        from uuid import uuid4
+
+        from sqlalchemy.dialects import postgresql
+
+        from app.repositories import secret_request as secret_request_repo
+
+        rows = [MagicMock(), MagicMock()]
+        mock_session.execute.return_value = MagicMock(
+            scalars=MagicMock(return_value=MagicMock(all=MagicMock(return_value=rows)))
+        )
+
+        found = await secret_request_repo.list_for_run(
+            mock_session, run_id=uuid4(), organization_id=uuid4()
+        )
+
+        assert found == rows
+        sql = str(mock_session.execute.call_args.args[0].compile(dialect=postgresql.dialect()))
+        assert "FROM secret_requests" in sql
+        assert "ORDER BY secret_requests.created_at" in sql
+
+    @pytest.mark.anyio
+    async def test_claim_locks_the_row(self, mock_session):
+        from uuid import uuid4
+
+        from sqlalchemy.dialects import postgresql
+
+        from app.repositories import secret_request as secret_request_repo
+
+        row = MagicMock()
+        mock_session.execute.return_value = MagicMock(
+            scalars=MagicMock(return_value=MagicMock(first=MagicMock(return_value=row)))
+        )
+
+        assert (
+            await secret_request_repo.claim(
+                mock_session, request_id=uuid4(), organization_id=uuid4()
+            )
+            is row
+        )
+        sql = str(mock_session.execute.call_args.args[0].compile(dialect=postgresql.dialect()))
+        assert "FOR UPDATE" in sql
+
+    @pytest.mark.anyio
+    async def test_claim_returns_none_when_the_row_is_gone(self, mock_session):
+        from uuid import uuid4
+
+        from app.repositories import secret_request as secret_request_repo
+
+        mock_session.execute.return_value = MagicMock(
+            scalars=MagicMock(return_value=MagicMock(first=MagicMock(return_value=None)))
+        )
+
+        assert (
+            await secret_request_repo.claim(
+                mock_session, request_id=uuid4(), organization_id=uuid4()
+            )
+            is None
+        )
+
+    @pytest.mark.anyio
+    async def test_mark_decided_records_only_id_and_hint(self, mock_session):
+        from uuid import uuid4
+
+        from app.db.models.secret_request import SecretRequest, SecretRequestStatus
+        from app.repositories import secret_request as secret_request_repo
+
+        request = SecretRequest(
+            organization_id=uuid4(),
+            run_id=uuid4(),
+            agent_id=uuid4(),
+            tool_call_id="call-1",
+            secret_name="acme_api_key",
+            kind="api_key",
+            what_for="Acme CRM, to list contacts",
+            status=SecretRequestStatus.PENDING,
+        )
+        secret_id = uuid4()
+
+        decided = await secret_request_repo.mark_decided(
+            mock_session,
+            request=request,
+            status=SecretRequestStatus.FULFILLED,
+            decided_by_user_id=uuid4(),
+            fulfilled_secret_id=secret_id,
+            fulfilled_hint="9c2f",
+        )
+
+        assert decided.status == SecretRequestStatus.FULFILLED
+        assert decided.fulfilled_secret_id == secret_id
+        assert decided.fulfilled_hint == "9c2f"
+        assert decided.decided_at is not None
+        assert not hasattr(decided, "value")
+        mock_session.flush.assert_awaited_once()
+        mock_session.refresh.assert_awaited_once_with(request)
+
+    @pytest.mark.security
+    @pytest.mark.anyio
+    async def test_mark_decided_without_a_secret_leaves_the_link_empty(self, mock_session):
+        from uuid import uuid4
+
+        from app.db.models.secret_request import SecretRequest, SecretRequestStatus
+        from app.repositories import secret_request as secret_request_repo
+
+        request = SecretRequest(
+            organization_id=uuid4(),
+            run_id=uuid4(),
+            agent_id=uuid4(),
+            tool_call_id="call-1",
+            secret_name="acme_api_key",
+            kind="api_key",
+            what_for="Acme CRM, to list contacts",
+            status=SecretRequestStatus.PENDING,
+        )
+
+        decided = await secret_request_repo.mark_decided(
+            mock_session,
+            request=request,
+            status=SecretRequestStatus.DECLINED,
+            decided_by_user_id=uuid4(),
+        )
+
+        assert decided.status == SecretRequestStatus.DECLINED
+        assert decided.fulfilled_secret_id is None
+        assert decided.fulfilled_hint is None
+
+    @pytest.mark.anyio
+    async def test_mark_expired_settles_without_a_decider(self, mock_session):
+        from uuid import uuid4
+
+        from app.db.models.secret_request import SecretRequest, SecretRequestStatus
+        from app.repositories import secret_request as secret_request_repo
+
+        request = SecretRequest(
+            organization_id=uuid4(),
+            run_id=uuid4(),
+            agent_id=uuid4(),
+            tool_call_id="call-1",
+            secret_name="acme_api_key",
+            kind="api_key",
+            what_for="Acme CRM, to list contacts",
+            status=SecretRequestStatus.PENDING,
+        )
+
+        expired = await secret_request_repo.mark_expired(mock_session, request=request)
+
+        assert expired.status == SecretRequestStatus.EXPIRED
+        assert expired.decided_at is not None
+        assert expired.decided_by_user_id is None

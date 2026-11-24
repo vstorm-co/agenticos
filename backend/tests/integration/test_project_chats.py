@@ -426,6 +426,9 @@ class TestReplyingInAProjectChat:
         # tool calls or files outside the session, which the POST route hit.
         written = MessageRead.model_validate(reply)
         assert (written.tool_calls, written.files) == ([], [])
+        await conversation_repo.get_messages_after(db, chat.id, ordinal=answer.ordinal, limit=20)
+        after_summary = MessageRead.model_validate(reply)
+        assert (after_summary.tool_calls, after_summary.files) == ([], [])
 
     async def test_a_reply_to_a_person_names_them_and_one_outside_a_project_names_nobody(
         self, db

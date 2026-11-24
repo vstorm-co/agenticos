@@ -35,10 +35,12 @@ from app.db.models.mcp_connection import McpConnection
 from app.db.models.resource_grant import Visibility
 from app.db.models.workflow import Workflow, WorkflowStatus
 from app.db.models.workflow_run import WorkflowRun
+from app.db.table_rls import bind_table_access
 from app.db.updates import writable
 from app.repositories import resource_grant_repo, virtual_table_repo
 from app.repositories import workflow as workflow_repo
 from app.repositories import workflow_file as workflow_file_repo
+from app.repositories import workflow_media_operation as media_repo
 from app.repositories import workflow_run as workflow_run_repo
 from app.schemas.reply_expectation import ReplyDraftSelection, ReplyMailboxSelection
 from app.schemas.resource_grant import as_visibility
@@ -52,6 +54,8 @@ from app.schemas.workflow import (
     WorkflowDetail,
     WorkflowDraftCheck,
     WorkflowDraftUpdate,
+    WorkflowEntryInputSchema,
+    WorkflowInputSchema,
     WorkflowLastRun,
     WorkflowList,
     WorkflowPreparationCreate,
@@ -92,7 +96,14 @@ from app.workflows.graph.model import (
     jsonb_value_fits,
 )
 from app.workflows.graph.validate import derive_scopes, graph_size_problems, validate_graph
-from app.workflows.triggers import UNATTENDED, WORKFLOW_FAILED, entry_nodes
+from app.workflows.nodes.core_input._handler import TriggerInputConfig, effective_input_schema
+from app.workflows.triggers import (
+    DECLARES_FIELDS,
+    UNATTENDED,
+    WORKFLOW_CALL,
+    WORKFLOW_FAILED,
+    entry_nodes,
+)
 
 _SLUG_ALLOWED = re.compile(r"[^a-z0-9]+")
 _SLUG_TRIM = re.compile(r"-{2,}")
@@ -204,6 +215,7 @@ def _read(
         slug=workflow.slug,
         name=workflow.name,
         description=workflow.description,
+        icon=workflow.icon,
         status=workflow.status,
         visibility=workflow.visibility,
         owner_user_id=workflow.owner_user_id,
@@ -418,6 +430,7 @@ class WorkflowRegistryService:
                 effect_kind=definition.effect_kind,
                 retry_guarantee=definition.retry_guarantee,
                 scopes=sorted(definition.scopes),
+                available=definition.available() if definition.available else True,
                 loop_body_only=definition.loop_body_only,
                 exclusive_branches=definition.exclusive_branches,
             )
@@ -455,6 +468,7 @@ class WorkflowRegistryService:
             slug=slug,
             name=name,
             description=data.description,
+            icon=data.icon,
             tags=data.tags,
             owner_user_id=ctx.subject_id,
             created_by_user_id=ctx.subject_id,
@@ -494,12 +508,16 @@ class WorkflowRegistryService:
         """Create reviewed resources atomically; no execution or publication."""
         if not ctx.has(Perm.WORKFLOWS_EDIT):
             raise AuthorizationError(message="Preparing a workflow requires workflows:edit")
+        await bind_table_access(self.db, ctx)
         async with self.db.begin_nested():
             table = None
             graph = data.graph
             if data.table is not None:
                 table = await VirtualTableService(self.db).create_table(
-                    ctx, data.table.model_copy(update={"visibility": Visibility.PRIVATE})
+                    ctx,
+                    data.table.model_copy(
+                        update={"visibility": Visibility.PRIVATE, "group_ids": [], "user_ids": []}
+                    ),
                 )
                 ref = TableIORef(table_id=table.id, schema_version=table.schema_version)
                 nodes = []
@@ -577,6 +595,21 @@ class WorkflowRegistryService:
             step_types=types,
         )
 
+    async def _free_table_name(self, ctx: AuthContext, base: str) -> str:
+        """`base`, or `base (2)`, `base (3)`… - the first no live table in the organization holds.
+
+        Chosen under the lock `create_table` claims a name under, held to the end of
+        this transaction, so nobody takes the chosen name before it is created.
+        """
+        await hold_subject(self.db, LockScope.VIRTUAL_TABLE_NAMES_PER_ORG, ctx.organization_id)
+        name, copy = base, 1
+        while await virtual_table_repo.get_live_table_by_name(
+            self.db, name, organization_id=ctx.organization_id
+        ):
+            copy += 1
+            name = f"{base} ({copy})"
+        return name
+
     async def _ready_template(
         self,
         ctx: AuthContext,
@@ -594,7 +627,7 @@ class WorkflowRegistryService:
         table = await VirtualTableService(self.db).create_table(
             ctx,
             TableCreate(
-                name=f"{workflow.name[:40]} {workflow.id.hex[:8]}",
+                name=await self._free_table_name(ctx, workflow.name[:40]),
                 visibility=as_visibility(workflow.visibility),
                 columns=[
                     ColumnInput(label="Title", type="text"),
@@ -1212,6 +1245,13 @@ class WorkflowRegistryService:
                 message="Runs of another workflow depend on this workflow. Archive it instead.",
                 details={"workflow_id": str(workflow.id)},
             )
+        if await media_repo.workflow_has_unresolved(
+            self.db, organization_id=ctx.organization_id, workflow_id=workflow.id
+        ):
+            raise WorkflowInUseError(
+                message="This workflow retains unresolved media operations or costs. Keep their evidence and archive it instead.",
+                details={"workflow_id": str(workflow.id)},
+            )
         if await workflow_file_repo.files_are_referenced(
             self.db, organization_id=ctx.organization_id, workflow_id=workflow.id
         ):
@@ -1293,6 +1333,56 @@ class WorkflowRegistryService:
                     created_at=version.created_at,
                 )
                 for version in versions[:limit]
+            ],
+        )
+
+    async def input_schema(
+        self, ctx: AuthContext, workflow_id: UUID, *, version_id: UUID | None = None
+    ) -> WorkflowInputSchema:
+        """Discover the current or selected published version's input contracts.
+
+        Reads the frozen version rather than the mutable draft, using the same
+        trigger config as run admission. Authorization and version ownership
+        match version discovery; inaccessible or unpublished workflows return 404.
+        Only the first Call entry is discoverable, matching child-run admission's
+        default-first ordering; workflow-call steps cannot select another entry.
+        """
+        workflow = await self._load(ctx, workflow_id, Perm.WORKFLOWS_VIEW)
+        selected = version_id if version_id is not None else workflow.current_version_id
+        if selected is None:
+            raise NotFoundError(message="This workflow has no published version")
+        version = await workflow_repo.get_version(
+            self.db, selected, organization_id=ctx.organization_id
+        )
+        if version is None or version.workflow_id != workflow.id:
+            raise NotFoundError(
+                message="Workflow version not found", details={"version_id": selected}
+            )
+        graph = WorkflowGraph.model_validate(version.graph)
+        entries = entry_nodes(graph)
+        call_entry = next(
+            (entry.id for entry in entries if entry.definition_id == WORKFLOW_CALL), None
+        )
+        return WorkflowInputSchema(
+            workflow_id=workflow.id,
+            version_id=version.id,
+            entries=[
+                WorkflowEntryInputSchema(
+                    entry_node_id=entry.id,
+                    trigger=entry.definition_id,
+                    input_schema=effective_input_schema(
+                        TriggerInputConfig.model_validate(
+                            {
+                                key: entry.config[key]
+                                for key in ("fields", "input_schema")
+                                if key in entry.config
+                            }
+                        )
+                    ),
+                )
+                for entry in entries
+                if entry.definition_id in DECLARES_FIELDS
+                and (entry.definition_id != WORKFLOW_CALL or entry.id == call_entry)
             ],
         )
 
@@ -1510,6 +1600,7 @@ class WorkflowRegistryService:
         both a 404: whether a private workflow exists is itself something the
         caller may not learn.
         """
+        await bind_table_access(self.db, ctx)
         if lock:
             await hold_subject(self.db, LockScope.WORKFLOW_FILE_BYTES, ctx.organization_id)
         workflow = (

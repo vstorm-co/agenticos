@@ -1,4 +1,4 @@
-<!-- source_sha: fef9b3dae3d0 -->
+<!-- source_sha: 5717f0be4e64 -->
 
 <div align="center">
 
@@ -35,6 +35,10 @@
   <a href="https://github.com/vstorm-co/agenticos/releases"><img src="https://img.shields.io/github/v/release/vstorm-co/agenticos?label=release&color=blue" alt="Versión"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/licence-Apache--2.0-blue" alt="Apache-2.0"></a>
   <a href="https://ai.pydantic.dev"><img src="https://img.shields.io/badge/Powered%20by-Pydantic%20AI-E92063?logo=pydantic&logoColor=white" alt="Construido con Pydantic AI"></a>
+</p>
+
+<p>
+  <a href="https://trendshift.io/repositories/220030?utm_source=repository-badge&amp;utm_medium=badge&amp;utm_campaign=badge-repository-220030" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/repositories/220030" alt="vstorm-co/agenticos | Trendshift" width="250" height="55"></a>
 </p>
 
 <p>
@@ -228,6 +232,7 @@ Funciona en tu propia infraestructura con Docker Compose y es compatible con 28 
 |---|---|
 | Tu empresa ya utiliza AgenticOS | Pide la URL del workspace y entra desde el navegador o [instala la aplicación](#instalar-la-aplicación-de-escritorio). |
 | Tu empresa necesita un workspace | Pide a TI que [despliegue un servidor](#desplegar-un-servidor-de-empresa) o [habla con Vstorm](https://vstorm.co/contact-us/). |
+| Quieres probarlo en tu equipo sin usar la terminal | [Instala la aplicación de escritorio](#instalar-la-aplicación-de-escritorio), elige **En este equipo** y sigue la configuración. Revisa antes los [requisitos](https://vstorm-co.github.io/agenticos/es/desktop/#running-it); la IA necesita un modelo configurado, pero los ejemplos grabados no. |
 | Eres desarrollador y quieres probar en local | [Ejecuta el quickstart con Docker](#pruébalo-en-local). |
 
 ### Pruébalo en local
@@ -259,6 +264,13 @@ La [guía de instalación](https://vstorm-co.github.io/agenticos/es/install/) ex
 </details>
 
 </details>
+
+## ☁️ Desplegar con un clic
+
+<a href="https://repocloud.io/details/Agenticos/"><img src="https://d16t0pc4846x52.cloudfront.net/deploylobe.svg" alt="Desplegar en RepoCloud" height="42"></a>
+<a href="https://railway.com/deploy/agenticos"><img src="https://railway.com/button.svg" alt="Desplegar en Railway" height="42"></a>
+
+Antes de desplegar, revisa las instrucciones del proveedor, las versiones de las imágenes y los servicios incluidos. Estas plantillas de alojamiento se mantienen por separado de este repositorio. La plantilla de Railway utiliza actualmente una versión anterior de AgenticOS y no incluye el sandbox local para ejecutar código.
 
 ## En tu servidor. En cualquier dispositivo.
 
@@ -415,7 +427,7 @@ Usa las cuentas existentes de la empresa mediante **inicio de sesión único con
 
 ## 🧭 Encuentra tu camino
 
-¿Vas a construir sobre él? Ve a [Para desarrolladores y operadores](#-para-desarrolladores-y-operadores).
+¿Vas a construir sobre él? Ve a [Para desarrolladores y operadores](#para-desarrolladores-y-operadores).
 
 <details>
 <summary><b>Si estás decidiendo si adoptarlo</b>: el problema que resuelve, qué requiere, cómo empezar</summary>
@@ -534,7 +546,7 @@ Los permisos del sistema de origen no se reflejan automáticamente; un agente pu
 
 Hay dos configuraciones habituales. **Autoalojado, con modelos alojados:** AgenticOS, los documentos, los vectores y los registros se ejecutan en tus servidores, y los modelos llegan de un provider con tu propio contrato y tus claves. **Totalmente local:** la misma capa con modelos abiertos mediante Ollama o vLLM en tu hardware, además de parsers y herramientas locales. Autoalojar la consola no hace que todos los modelos, parsers o herramientas sean locales, así que revisa cada destino que configures. [Configura los modelos](https://vstorm-co.github.io/agenticos/es/models/) · [Seguridad y flujos de datos](https://vstorm-co.github.io/agenticos/es/security/)
 
-## 🛠️ Para desarrolladores y operadores
+## Para desarrolladores y operadores
 
 AgenticOS está construido con FastAPI, Pydantic AI, PostgreSQL con pgvector, Redis y Next.js. Los ingenieros añaden capabilities, conectores de sincronización y entradas del catálogo MCP en Python tipado; los equipos componen agentes con las capabilities registradas en la consola.
 
@@ -619,3 +631,13 @@ Construido con esmero por [**Vstorm**](https://vstorm.co) · [Vstorm on GitHub](
 Todas las personas que han ayudado a construir AgenticOS:
 
 <a href="https://github.com/vstorm-co/agenticos/graphs/contributors"><img src="https://contrib.rocks/image?repo=vstorm-co/agenticos" alt="Avatares de todas las personas que han contribuido a AgenticOS"></a>
+
+## Historial de estrellas
+
+<a href="https://www.star-history.com/?repos=vstorm-co%2Fagenticos&type=date&legend=bottom-right">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=vstorm-co/agenticos&type=date&theme=dark&legend=bottom-right" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=vstorm-co/agenticos&type=date&legend=bottom-right" />
+   <img alt="Gráfico del historial de estrellas" src="https://api.star-history.com/chart?repos=vstorm-co/agenticos&type=date&legend=bottom-right" />
+ </picture>
+</a>

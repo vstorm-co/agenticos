@@ -15,6 +15,7 @@ import shlex
 from collections.abc import Mapping
 from types import SimpleNamespace
 from typing import Any
+from unittest.mock import MagicMock
 from uuid import UUID, uuid4
 
 import anyio
@@ -755,8 +756,12 @@ class TestSpendOfATaskThatDidNotFinish:
         shell = _LostAfterAStep(events=_lines(_SPENDING), hangs=True)
         ledger = SpendLedger()
         with metered_by(ledger):
-            answer = await _call(shell)
-        assert answer == "Claude Code could not run in this sandbox (WorkspaceUnavailableError)."
+            report = CodingReport.model_validate_json(await _call(shell))
+        assert report.outcome == "failed"
+        assert (
+            report.answer
+            == "Claude Code could not run in this sandbox (WorkspaceUnavailableError)."
+        )
         assert ledger.input_tokens == 105
 
 
@@ -956,25 +961,33 @@ class TestRunningATask:
         assert report.outcome == "completed"
 
     async def test_a_runtime_without_the_harness_is_named(self) -> None:
-        answer = await _call(_Shell(exit_code=127), harness="codex")
-        assert "Codex is not installed" in answer
+        report = CodingReport.model_validate_json(
+            await _call(_Shell(exit_code=127), harness="codex")
+        )
+        assert report.outcome == "failed"
+        assert "Codex is not installed" in report.answer
 
-    async def test_a_sandbox_that_cannot_run_it_is_an_answer(self) -> None:
+    async def test_a_sandbox_that_cannot_run_it_is_a_failed_report(self) -> None:
         frames: list[SubagentEvent] = []
         shell = _Shell(raises=WorkspaceUnavailableError("gone"))
-        answer = await _call(shell, frames=frames)
-        assert answer == "Claude Code could not run in this sandbox (WorkspaceUnavailableError)."
+        report = CodingReport.model_validate_json(await _call(shell, frames=frames))
+        assert report.outcome == "failed"
+        assert (
+            report.answer
+            == "Claude Code could not run in this sandbox (WorkspaceUnavailableError)."
+        )
         assert frames[-1].kind == "subagent_complete" and frames[-1].status == "failed"
 
-    async def test_a_sandbox_the_service_will_not_open_is_an_answer(self) -> None:
+    async def test_a_sandbox_the_service_will_not_open_is_a_failed_report(self) -> None:
         """A runtime still building answers 409, which the sandboxd client raises unmapped."""
         refused = httpx.HTTPStatusError(
             "409 Conflict",
             request=httpx.Request("POST", "http://sandboxd/sessions"),
             response=httpx.Response(409),
         )
-        answer = await _call(_Shell(raises=refused))
-        assert answer == "Claude Code could not run in this sandbox (HTTPStatusError)."
+        report = CodingReport.model_validate_json(await _call(_Shell(raises=refused)))
+        assert report.outcome == "failed"
+        assert report.answer == "Claude Code could not run in this sandbox (HTTPStatusError)."
 
     async def test_a_poll_that_comes_back_garbled_reads_as_nothing_yet(self) -> None:
         class _Garbled(_Shell):
@@ -1005,14 +1018,21 @@ class TestRunningATask:
         ]
 
     async def test_an_agent_with_no_sandbox_is_told_to_say_so(self) -> None:
-        answer = await _call(None)
-        assert "needs a sandbox with a shell" in answer
+        report = CodingReport.model_validate_json(await _call(None))
+        assert report.outcome == "failed"
+        assert "needs a sandbox with a shell" in report.answer
 
-    async def test_an_empty_task_or_a_missing_key_asks_again(self) -> None:
+    async def test_an_empty_task_asks_again(self) -> None:
         with pytest.raises(ModelRetry, match="Describe the task"):
             await _call(_Shell(), task="  ")
-        with pytest.raises(ModelRetry, match="no API key"):
-            await _call(_Shell(), api_key=None)
+
+    async def test_a_missing_key_is_a_failed_report_not_a_retry(self) -> None:
+        """No argument fixes a missing key, so there is nothing to retry: the
+        run fails, and the failure is a report rather than a sentence the model
+        answers from."""
+        report = CodingReport.model_validate_json(await _call(_Shell(), api_key=None))
+        assert report.outcome == "failed"
+        assert "no API key" in report.answer
 
 
 TREE = "a" * 40
@@ -1029,7 +1049,8 @@ _PATCH = (
 # What `FINISH` prints: the sizes, the file count, both lists, the patch.
 _TWO_FILES = (
     f"{len(_RAW)}\n{len(_COUNTS)}\n{len(_PATCH.encode())}\n2\n"
-    f"{base64.b64encode(_RAW).decode()}\n{base64.b64encode(_COUNTS).decode()}\n{_PATCH}"
+    f"{base64.b64encode(_RAW).decode()}\n{base64.b64encode(_COUNTS).decode()}\n"
+    f"{base64.b64encode(_PATCH.encode()).decode()}"
 )
 
 
@@ -1101,6 +1122,25 @@ def recorder(monkeypatch: pytest.MonkeyPatch) -> _Recorder:
 class TestWhatATaskChanged:
     """#2480: the workspace is snapshotted around a task and the diff kept for its panel."""
 
+    @pytest.mark.parametrize("isolated", [True, False])
+    async def test_only_a_guarded_conversation_turn_records_proof_of_isolation(
+        self, recorder: _Recorder, isolated: bool
+    ) -> None:
+        from app.agents.capabilities.sandbox._recording import RecordingWorkspace
+
+        shell = _Snapshotting(events=_lines(_claude_stream(result=_CLAUDE_DONE)))
+        workspace = RecordingWorkspace(
+            shell,
+            db=MagicMock(),
+            organization_id=uuid4(),
+            session_key="conversation",
+            agent_id=None,
+            isolated_turn=isolated,
+        )
+        report = CodingReport.model_validate_json(await _call(workspace))
+        assert report.changes_id == str(recorder.id)
+        assert recorder.recorded[0][1]["snapshot_isolated"] is isolated
+
     async def test_a_task_that_edits_two_files_names_its_change_set(
         self, recorder: _Recorder
     ) -> None:
@@ -1109,6 +1149,7 @@ class TestWhatATaskChanged:
         report = CodingReport.model_validate_json(await _call(shell))
 
         assert report.changes_id == str(recorder.id)
+        assert report.files_changed == ["src/app.py", "README.md"]
         ((changes, where),) = recorder.recorded
         assert [entry.path for entry in changes.files] == ["src/app.py", "README.md"]
         assert where["conversation_id"] == THREAD and where["tool_call_id"] == "call-1"
@@ -1142,8 +1183,9 @@ class TestWhatATaskChanged:
 
     async def test_a_task_that_could_not_run_drops_its_snapshot(self, recorder: _Recorder) -> None:
         shell = _Snapshotting(raises=WorkspaceUnavailableError("gone"))
-        answer = await _call(shell)
-        assert answer.startswith("Claude Code could not run")
+        report = CodingReport.model_validate_json(await _call(shell))
+        assert report.outcome == "failed"
+        assert report.answer.startswith("Claude Code could not run")
         assert shell.snapshots == ["begin", "discard"] and recorder.recorded == []
 
     async def test_a_stopped_task_drops_its_snapshot(self, recorder: _Recorder) -> None:
@@ -1651,14 +1693,16 @@ class TestCodexOnASignIn:
         assert "only in a sandbox nobody else's tasks share" in answer
         assert store.asked_for == []
 
-    async def test_a_sign_in_removed_from_the_vault_is_an_answer(self) -> None:
-        answer = await self._run(_Shell(), _Store(gone=True))
-        assert "no longer in the vault" in answer
+    async def test_a_sign_in_removed_from_the_vault_is_a_failed_report(self) -> None:
+        report = CodingReport.model_validate_json(await self._run(_Shell(), _Store(gone=True)))
+        assert report.outcome == "failed"
+        assert "no longer in the vault" in report.answer
 
-    async def test_a_sandbox_that_cannot_take_the_sign_in_is_an_answer(self) -> None:
+    async def test_a_sandbox_that_cannot_take_the_sign_in_is_a_failed_report(self) -> None:
         shell = _Shell(auth_raises=WorkspaceUnavailableError("gone"))
-        answer = await self._run(shell, _Store())
-        assert answer == "Codex could not run in this sandbox (WorkspaceUnavailableError)."
+        report = CodingReport.model_validate_json(await self._run(shell, _Store()))
+        assert report.outcome == "failed"
+        assert report.answer == "Codex could not run in this sandbox (WorkspaceUnavailableError)."
         # The write may have landed before the failure came back, so its home is
         # still taken back out.
         assert [command for command, _, _ in shell.commands] == [WRITE_AUTH, READ_AUTH]
@@ -1707,10 +1751,11 @@ class TestCredentialsThatDoNotFit:
         self, harness: Any, overrides: dict[str, Any], says: str
     ) -> None:
         shell = _Shell()
-        answer = await _tools(harness, **overrides)["run_coding_agent"].function(
-            _ctx(shell), task="x"
+        report = CodingReport.model_validate_json(
+            await _tools(harness, **overrides)["run_coding_agent"].function(_ctx(shell), task="x")
         )
-        assert says in answer
+        assert report.outcome == "failed"
+        assert says in report.answer
         assert shell.commands == []
 
 
@@ -1917,4 +1962,62 @@ def test_coding_instructions_distinguish_parallel_local_work_from_sandbox_snapsh
     assert "queue" in sandbox and "not separate files" in sandbox
     assert "can work at once" not in sandbox
     private = CodingAgent(runs_on="personal_sandbox").get_instructions()
-    assert "isolated copy" in private and "queue" not in private
+    assert "own files and native CLI history" in private and "bounded queue" in private
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("harness", ["claude_code", "codex"])
+@pytest.mark.parametrize("late", [False, True])
+async def test_a_refused_source_never_launches_a_sandbox_harness(harness, late):
+    from app.agents.capabilities.guardrails import GuardrailBlocked
+    from app.agents.model_context import checking_model_context
+
+    checks = 0
+
+    async def check():
+        nonlocal checks
+        checks += 1
+        if not late or checks > 1:
+            raise GuardrailBlocked(edge="input", message="Source refused")
+
+    shell = _Shell()
+    with checking_model_context(check), pytest.raises(GuardrailBlocked):
+        await _call(shell, harness=harness)
+    assert shell.started == []
+    assert checks == (2 if late else 1)
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("personal", [True, False])
+async def test_run_selected_project_never_receives_personal_coding_credentials(personal: bool):
+    from dataclasses import replace
+    from unittest.mock import MagicMock
+
+    from app.core.permissions import AuthContext
+    from app.services.run_project_workspace import RunProjectWorkspace
+
+    shell = _Shell()
+    ctx = _ctx(shell)
+    selector = RunProjectWorkspace(
+        ctx.workspace, AuthContext(user_id=RUNNER, organization_id=uuid4(), role="member")
+    )
+    selector.project_id = uuid4()
+    ctx = replace(ctx, workspace=selector.workspace)
+    executor = MagicMock()
+    store = _Store()
+    tool = _tools(
+        "codex",
+        api_key=None,
+        sign_in=lambda _org: store,
+        runs_on="personal_sandbox" if personal else "sandbox",
+        personal_executor=executor,
+    )["run_coding_agent"]
+    answer = await tool.function(ctx, task="Review the selected project")
+    assert (
+        "shared workspace" in answer
+        if personal
+        else "only in a sandbox nobody else's tasks share" in answer
+    )
+    executor.session.assert_not_called()
+    assert store.asked_for == []
+    assert shell.commands == []

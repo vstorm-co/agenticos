@@ -37,12 +37,14 @@ from app.agents.mcp import (
     ANSWERED_FOR,
     CONNECT_TIMEOUT_SECS,
     MAX_INPUT_SCHEMA_BYTES,
+    MCP_ISOLATION,
     TOOL_NAME_LIMIT,
-    AnsweredRecently,
     FittedNames,
+    LeftOutOnClash,
     McpProbeError,
     McpServerSpec,
     McpToolInfo,
+    ResilientMcpToolset,
     ToolOrigins,
     _answered,
     _make_toolset,
@@ -63,9 +65,9 @@ from app.core.exceptions import (
     BadRequestError,
     NotFoundError,
 )
-from app.core.permissions import AuthContext, OrgRoleName
+from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.core.pinned_http import PinnedAsyncClient
-from app.core.secret_kinds import GithubOAuthAppSecret, SecretKind
+from app.core.secret_kinds import GithubOAuthAppSecret, GoogleOAuthAppSecret, SecretKind
 from app.core.vault import VaultScope, seal, unseal
 from app.db.models.mcp_connection import AUTHORIZATION_EXPIRED, McpConnection
 from app.schemas.mcp_connection import (
@@ -173,6 +175,7 @@ def _connection(**overrides) -> McpConnection:
         "secret_key_version": 1,
         "allowed_tools": None,
         "is_enabled": True,
+        "trust_read_only_hints": False,
         "include_instructions": False,
         "auth_type": "bearer",
         "purpose": "mcp",
@@ -414,7 +417,7 @@ class TestMakeToolset:
         spec = McpServerSpec(name="github-work", url="https://example.com/mcp")
         fitted = _make_toolset(spec).wrapped
         assert isinstance(fitted, FittedNames)
-        toolset = fitted.wrapped
+        toolset = fitted.wrapped.wrapped
         assert isinstance(toolset, PrefixedToolset)
         assert toolset.prefix == "github_work"
         assert isinstance(toolset.wrapped, MCPToolset)
@@ -425,9 +428,14 @@ class TestMakeToolset:
             name="notion", url="https://example.com/mcp", include_instructions=include
         )
 
-        assert _make_toolset(spec).wrapped.wrapped.wrapped.include_instructions is include
+        assert _make_toolset(spec).wrapped.wrapped.wrapped.wrapped.include_instructions is include
 
-    def test_a_run_connects_on_the_short_timeout(self, monkeypatch):
+    @pytest.mark.parametrize("in_process", [False, True])
+    def test_initialization_deadline_distinguishes_local_platform_from_remote_servers(
+        self,
+        monkeypatch,
+        in_process: bool,
+    ):
         """A server that answered a probe recently is entered with no probe, so
         a run's own connect-and-initialize is what notices it went down - in
         seconds, not in the probe's whole-session budget."""
@@ -436,9 +444,14 @@ class TestMakeToolset:
         made = MagicMock(wraps=MCPToolset)
         monkeypatch.setattr("app.agents.mcp.MCPToolset", made)
 
-        _make_toolset(McpServerSpec(name="slow", url="https://example.com/mcp"))
+        monkeypatch.setattr("app.agents.mcp._in_process_client", lambda _: None)
+        _make_toolset(
+            McpServerSpec(name="slow", url="https://example.com/mcp", in_process=in_process)
+        )
 
-        assert made.call_args.kwargs["init_timeout"] == CONNECT_TIMEOUT_SECS
+        assert made.call_args.kwargs["init_timeout"] == (
+            15.0 if in_process else CONNECT_TIMEOUT_SECS
+        )
 
     def test_a_tool_error_is_shown_to_the_model_not_spent_as_a_retry(self):
         """A retry spends the tool's single attempt, and the error after it ends
@@ -447,7 +460,23 @@ class TestMakeToolset:
         refusal as the call's result instead."""
         spec = McpServerSpec(name="notion", url="https://example.com/mcp")
 
-        assert _make_toolset(spec).wrapped.wrapped.wrapped.tool_error_behavior == "failed"
+        assert _make_toolset(spec).wrapped.wrapped.wrapped.wrapped.tool_error_behavior == "failed"
+
+    @pytest.mark.parametrize(("test", "trusted"), [(False, False), (True, False), (False, True)])
+    def test_every_tool_says_which_side_of_an_override_it_came_from(self, test, trusted):
+        """The isolation guard lets a test connection's tools write, and believes
+        `readOnlyHint` only where the connection trusts it; the stamp is ours, set
+        after the server answered."""
+        from pydantic_ai.toolsets import SetMetadataToolset
+
+        toolset = _make_toolset(
+            McpServerSpec(
+                name="crm", url="https://e.com/mcp", test=test, trust_read_only_hints=trusted
+            )
+        ).wrapped.wrapped
+
+        assert isinstance(toolset, SetMetadataToolset)
+        assert toolset.metadata == {MCP_ISOLATION: {"test": test, "trust_read_only_hints": trusted}}
 
     def test_with_allowlist_filters_before_prefixing(self):
         from pydantic_ai.toolsets import FilteredToolset, PrefixedToolset
@@ -457,7 +486,7 @@ class TestMakeToolset:
             url="https://example.com/mcp",
             allowed_tools=["search_issues"],
         )
-        toolset = _make_toolset(spec).wrapped.wrapped
+        toolset = _make_toolset(spec).wrapped.wrapped.wrapped
         assert isinstance(toolset, PrefixedToolset)
         filtered = toolset.wrapped
         assert isinstance(filtered, FilteredToolset)
@@ -576,10 +605,172 @@ class TestApprovalMarks:
 
         platform = platform_spec("aos_key", allowed_tools=None, approval="writes")
         assert platform.ungated == PLATFORM_UNGATED_TOOLS
+        assert platform.trust_read_only_hints is True
+        assert not McpServerSpec(
+            name="notion", url="https://mcp.notion.com/mcp"
+        ).trust_read_only_hints
+        assert platform.tool_approval == {}
         assert McpServerSpec(name="notion", url="https://mcp.notion.com/mcp").ungated == frozenset()
         assert _make_toolset(platform).ungated == frozenset(
             f"agenticos_{name}" for name in PLATFORM_UNGATED_TOOLS
         )
+
+    @pytest.mark.anyio
+    @pytest.mark.security
+    async def test_a_tool_that_always_asks_is_marked_so_whatever_its_binding_says(self):
+        """Only the platform's own server names any, and the mark survives a `never`."""
+        from pydantic_ai.toolsets.abstract import ToolsetTool
+
+        from app.agents.mcp import (
+            ALWAYS_ASKS,
+            NEEDS_APPROVAL,
+            PLATFORM_ALWAYS_ASK_TOOLS,
+            ApprovalMarked,
+            McpServerSpec,
+            _make_toolset,
+            platform_spec,
+        )
+
+        platform = platform_spec("aos_key", allowed_tools=None, approval="writes")
+        assert platform.always_asks == PLATFORM_ALWAYS_ASK_TOOLS
+        assert (
+            McpServerSpec(name="notion", url="https://mcp.notion.com/mcp").always_asks
+            == frozenset()
+        )
+        assert _make_toolset(platform).always_asks == frozenset(
+            f"agenticos_{name}" for name in PLATFORM_ALWAYS_ASK_TOOLS
+        )
+
+        inner = MagicMock()
+        inner.get_tools = AsyncMock(
+            return_value={
+                name: ToolsetTool(
+                    toolset=inner,
+                    tool_def=_mcp_tool(name, False),
+                    max_retries=1,
+                    args_validator=MagicMock(),
+                )
+                for name in ("agenticos_invite_member", "agenticos_add_virtual_table_record")
+            }
+        )
+        # A server-supplied mark cannot make an ordinary tool claim platform authority.
+        for tool in inner.get_tools.return_value.values():
+            tool.tool_def.metadata = {ALWAYS_ASKS: True}
+        marked = await ApprovalMarked(
+            inner,
+            policy="writes",
+            tool_approval={
+                "agenticos_invite_member": "never",
+                "agenticos_add_virtual_table_record": "never",
+            },
+            always_asks=frozenset({"agenticos_invite_member"}),
+        ).get_tools(MagicMock())
+
+        invite = marked["agenticos_invite_member"].tool_def.metadata
+        assert invite[ALWAYS_ASKS] is True and invite[NEEDS_APPROVAL] is True
+        record = marked["agenticos_add_virtual_table_record"].tool_def.metadata
+        assert record[ALWAYS_ASKS] is False and record[NEEDS_APPROVAL] is False
+
+    @pytest.mark.security
+    def test_a_platform_tool_s_own_approval_is_read_by_the_name_the_model_calls(self):
+        from app.agents.mcp import _make_toolset, platform_spec
+
+        platform = platform_spec(
+            "aos_key",
+            allowed_tools=None,
+            approval="writes",
+            tool_approval={"add_virtual_table_record": "never", "query_virtual_table": "required"},
+        )
+
+        assert _make_toolset(platform).tool_approval == {
+            "agenticos_add_virtual_table_record": "never",
+            "agenticos_query_virtual_table": "required",
+        }
+
+    @pytest.mark.security
+    def test_a_stored_never_cannot_release_a_tool_that_always_asks(self):
+        """Publishing refuses one; a spec that reached the store another way asks anyway."""
+        from app.agents.mcp import platform_spec
+
+        platform = platform_spec(
+            "aos_key",
+            allowed_tools=None,
+            approval="writes",
+            tool_approval={
+                "invite_member": "never",
+                "update_proactivity_settings": "required",
+                "add_virtual_table_record": "never",
+            },
+        )
+
+        assert platform.tool_approval == {
+            "update_proactivity_settings": "required",
+            "add_virtual_table_record": "never",
+        }
+
+    @pytest.mark.security
+    @pytest.mark.parametrize(
+        ("policy", "read_only", "own", "expected"),
+        [
+            # A server that marks nothing: its reads run, and the rest ask (#2884).
+            ("writes", None, "never", False),
+            ("writes", None, "default", True),
+            # One write a server marks correctly runs, without `none` for the others.
+            ("writes", False, "never", False),
+            ("none", False, "required", True),
+            ("all", True, "never", False),
+            ("none", True, "required", True),
+        ],
+    )
+    def test_a_tool_s_own_approval_wins_over_the_policy_and_the_hint(
+        self, policy, read_only, own, expected
+    ):
+        from app.agents.mcp import needs_approval
+
+        assert needs_approval(_mcp_tool("t", read_only), policy, own) is expected
+
+    @pytest.mark.anyio
+    @pytest.mark.security
+    async def test_a_tool_s_own_approval_is_found_by_the_name_the_model_calls(self):
+        """Keyed by the server's name in the spec, read by the prefixed and fitted
+        one at run time: a name too long for a provider must not lose its gate."""
+        from app.agents.mcp import NEEDS_APPROVAL, ApprovalMarked
+
+        long_name = "query_database_" + "x" * 60
+        spec = McpServerSpec(
+            name="notion",
+            url="https://mcp.notion.com/mcp",
+            approval="writes",
+            tool_approval={"search": "never", long_name: "required"},
+        )
+        inner = MagicMock()
+        inner.get_tools = AsyncMock(
+            return_value={
+                name: ToolsetTool(
+                    toolset=inner,
+                    tool_def=_mcp_tool(name, read_only),
+                    max_retries=1,
+                    args_validator=MagicMock(),
+                )
+                for name, read_only in (
+                    ("notion_search", None),
+                    ("notion_fetch", None),
+                    (f"notion_{long_name}", True),
+                )
+            }
+        )
+
+        marked = await ApprovalMarked(
+            FittedNames(inner), policy="writes", tool_approval=_make_toolset(spec).tool_approval
+        ).get_tools(MagicMock())
+
+        fitted = fitted_tool_name(f"notion_{long_name}")
+        assert fitted != f"notion_{long_name}"
+        assert {name: tool.tool_def.metadata[NEEDS_APPROVAL] for name, tool in marked.items()} == {
+            "notion_search": False,
+            "notion_fetch": True,
+            fitted: True,
+        }
 
 
 class TestToolOrigins:
@@ -672,7 +863,7 @@ class TestRecentAnswers:
         toolsets = await build_mcp_toolsets([spec])
 
         assert calls == ["https://example.com/mcp"]
-        assert isinstance(toolsets[0], AnsweredRecently)
+        assert isinstance(toolsets[0], ResilientMcpToolset)
 
     @pytest.mark.anyio
     async def test_the_answer_goes_stale(self, monkeypatch):
@@ -754,7 +945,7 @@ class TestRecentAnswers:
 
     @pytest.mark.anyio
     async def test_an_answering_server_keeps_its_own_instructions(self):
-        toolset = AnsweredRecently(
+        toolset = ResilientMcpToolset(
             FunctionToolset(instructions="Use search first."), name="live", key="k"
         )
         seen: list[str | None] = []
@@ -828,7 +1019,9 @@ class TestRecentAnswers:
         await toolset.__aenter__()
         await toolset.__aenter__()
 
-        refuse.assert_awaited_once()
+        assert refuse.await_count == 2
+        await toolset.__aexit__(None, None, None)
+        await toolset.__aexit__(None, None, None)
 
 
 class TestProbeSuccess:
@@ -859,11 +1052,43 @@ class TestProbeSuccess:
         # is a write, the same reading the approval policy gives it.
         assert tools == [
             McpToolInfo(
-                name="search", description="Search issues", input_schema=schema, read_only=True
+                name="search",
+                description="Search issues",
+                input_schema=schema,
+                read_only=True,
+                read_only_hint=True,
             ),
             McpToolInfo(name="create_issue", description="", input_schema=None),
         ]
         session.initialize.assert_awaited_once()
+
+    @pytest.mark.anyio
+    async def test_a_tool_the_server_marks_read_only_is_recorded_as_claiming_it(self, monkeypatch):
+        """Kept so the person deciding whether to believe the server can see how
+        many tools that belief covers."""
+        from mcp.types import ToolAnnotations
+
+        claims = MagicMock(description="", annotations=ToolAnnotations(readOnlyHint=True))
+        claims.name = "find"
+        denies = MagicMock(description="", annotations=ToolAnnotations(readOnlyHint=False))
+        denies.name = "purge"
+        silent = MagicMock(description="", annotations=None)
+        silent.name = "create"
+        session = AsyncMock()
+        session.list_tools = AsyncMock(return_value=MagicMock(tools=[claims, denies, silent]))
+        monkeypatch.setattr(
+            "app.agents.mcp._mcp_transport",
+            lambda url, headers, *, timeout: _acm((MagicMock(), MagicMock())),
+        )
+        monkeypatch.setattr("mcp.ClientSession", lambda read, write: _acm(session))
+
+        tools = await probe_mcp_server("https://example.com/mcp")
+
+        assert [(tool.name, tool.read_only, tool.read_only_hint) for tool in tools] == [
+            ("find", True, True),
+            ("purge", False, False),
+            ("create", False, None),
+        ]
 
 
 class TestProbeErrors:
@@ -1017,6 +1242,70 @@ class TestToolsetsForAgent:
         assert [spec.include_instructions for spec in seen[0]] == [include]
 
     @pytest.mark.anyio
+    @pytest.mark.security
+    @pytest.mark.parametrize("environment", [False, True])
+    async def test_each_tool_s_own_approval_reaches_the_server_that_answers(
+        self, monkeypatch, environment
+    ):
+        """The production connection's, and a test connection's standing in for it (#2884)."""
+        seen = self._capture(monkeypatch)
+        production = _connection(name="crm")
+        sandbox = _connection(name="crm-sandbox")
+        monkeypatch.setattr(
+            mcp_connection_service.mcp_connection_repo,
+            "get_org_scoped_by_ids",
+            AsyncMock(return_value={production.id: production, sandbox.id: sandbox}),
+        )
+
+        await mcp_connection_service.build_toolsets_for_agent(
+            AsyncMock(),
+            organization_id=uuid4(),
+            refs=[
+                OrgMcpServerRef(
+                    connection_id=production.id,
+                    approval="writes",
+                    tool_approval={"find": "never", "purge": "required"},
+                )
+            ],
+            test_connections={production.id: sandbox.id} if environment else None,
+        )
+
+        (spec,) = seen[0]
+        assert spec.test is environment
+        assert (spec.approval, spec.tool_approval) == (
+            "writes",
+            {"find": "never", "purge": "required"},
+        )
+
+    @pytest.mark.anyio
+    async def test_every_server_is_attached_inside_the_name_guard(self, monkeypatch):
+        """A prefix keeps one server's tools apart from another's, not from the
+        agent's capabilities' or the platform's own (#2890): each server is left
+        out of a step where one of its tool names is already taken."""
+        self._capture(monkeypatch)
+        bound = _connection(name="request", url="https://r.example/mcp")
+        monkeypatch.setattr(
+            mcp_connection_service.mcp_connection_repo, "get_org_scoped_by_ids", _batch(bound)
+        )
+        taken = {"request_capability": "this platform"}
+
+        resolved = await mcp_connection_service.build_toolsets_for_agent(
+            AsyncMock(),
+            organization_id=uuid4(),
+            refs=[OrgMcpServerRef(connection_id=bound.id)],
+            taken_names=taken,
+        )
+
+        (guarded,) = _attached(resolved)
+        assert isinstance(guarded, LeftOutOnClash)
+        assert (guarded.wrapped, guarded.server, guarded.binding, guarded.taken) == (
+            "request",
+            "request",
+            "the connection 'request'",
+            taken,
+        )
+
+    @pytest.mark.anyio
     async def test_a_prefix_collision_drops_the_loser_and_reports_it(self, monkeypatch):
         """The run-time half of the publish check (#1442). Two servers whose names
         reduce to one prefix would make pydantic-ai raise on the duplicate tool
@@ -1072,6 +1361,36 @@ class TestToolsetsForAgent:
 
         assert not any(seen)
         assert resolved.unavailable == [UnavailablePlatformServer()]
+
+    @pytest.mark.anyio
+    @pytest.mark.security
+    async def test_the_platform_keeps_its_floor_and_carries_each_tools_own_approval(
+        self, monkeypatch
+    ):
+        """`none` is still held to `writes`; only a tool the spec names runs unasked."""
+        seen = self._capture(monkeypatch)
+        monkeypatch.setattr(
+            mcp_connection_service.mcp_connection_repo,
+            "get_org_scoped_by_ids",
+            AsyncMock(return_value={}),
+        )
+
+        await mcp_connection_service.build_toolsets_for_agent(
+            AsyncMock(),
+            organization_id=uuid4(),
+            refs=[
+                PlatformMcpServerRef(
+                    account="platform",
+                    approval="none",
+                    tool_approval={"add_virtual_table_record": "never"},
+                )
+            ],
+            platform_credential="aos_key",
+        )
+
+        (platform,) = seen[0]
+        assert platform.approval == "writes"
+        assert platform.tool_approval == {"add_virtual_table_record": "never"}
 
     @pytest.mark.anyio
     async def test_a_server_that_did_not_answer_is_briefed_not_silent(self, monkeypatch):
@@ -1218,6 +1537,118 @@ class TestToolsetsForAgent:
         assert [spec.name for spec in seen[0]] == ["github", "github"]
         assert _attached(resolved) == ["github"]
         assert resolved.unavailable == []
+
+    @pytest.mark.anyio
+    async def test_an_environments_test_connection_answers_under_the_production_name(
+        self, monkeypatch
+    ):
+        """Same tool names in staging as in production, and the production URL
+        and credentials never reached."""
+        seen = self._capture(monkeypatch)
+        production = _connection(
+            name="crm", url="https://crm.example/mcp", allowed_tools=["find", "create"]
+        )
+        sandbox = _connection(
+            name="crm-sandbox",
+            url="https://sandbox.example/mcp",
+            allowed_tools=["find", "create", "purge"],
+        )
+        monkeypatch.setattr(
+            mcp_connection_service.mcp_connection_repo,
+            "get_org_scoped_by_ids",
+            AsyncMock(return_value={production.id: production, sandbox.id: sandbox}),
+        )
+
+        await mcp_connection_service.build_toolsets_for_agent(
+            AsyncMock(),
+            organization_id=uuid4(),
+            refs=[OrgMcpServerRef(connection_id=production.id, allowed_tools=["find", "purge"])],
+            test_connections={production.id: sandbox.id},
+        )
+
+        (spec,) = seen[0]
+        assert (spec.name, spec.url, spec.test) == ("crm", "https://sandbox.example/mcp", True)
+        # Every allowlist narrows: production's ceiling, the binding's, the sandbox's.
+        assert spec.allowed_tools == ["find"]
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("override", [False, True])
+    async def test_whether_hints_are_believed_is_the_connection_that_answers(
+        self, monkeypatch, override
+    ):
+        """A sandbox answering for production is believed or not on its own say-so,
+        never on production's."""
+        seen = self._capture(monkeypatch)
+        production = _connection(name="crm", trust_read_only_hints=True)
+        sandbox = _connection(name="crm-sandbox", trust_read_only_hints=False)
+        monkeypatch.setattr(
+            mcp_connection_service.mcp_connection_repo,
+            "get_org_scoped_by_ids",
+            AsyncMock(return_value={production.id: production, sandbox.id: sandbox}),
+        )
+
+        await mcp_connection_service.build_toolsets_for_agent(
+            AsyncMock(),
+            organization_id=uuid4(),
+            refs=[OrgMcpServerRef(connection_id=production.id)],
+            test_connections={production.id: sandbox.id} if override else None,
+        )
+
+        (spec,) = seen[0]
+        assert spec.trust_read_only_hints is not override
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("state", ["deleted", "disabled", "no_credentials"])
+    async def test_a_test_side_that_cannot_answer_switches_the_binding_off(
+        self, monkeypatch, state
+    ):
+        """Never a fall back to production: that is the system staging exists to
+        keep away from."""
+        seen = self._capture(monkeypatch)
+        production = _connection(name="crm", url="https://crm.example/mcp")
+        sandbox = _connection(name="crm-sandbox", is_enabled=state != "disabled")
+        monkeypatch.setattr(
+            mcp_connection_service.mcp_connection_repo,
+            "get_org_scoped_by_ids",
+            AsyncMock(return_value={production.id: production, sandbox.id: sandbox}),
+        )
+        monkeypatch.setattr(
+            mcp_connection_service,
+            "resolve_auth_headers",
+            AsyncMock(return_value=None if state == "no_credentials" else {}),
+        )
+
+        resolved = await mcp_connection_service.build_toolsets_for_agent(
+            AsyncMock(),
+            organization_id=uuid4(),
+            refs=[OrgMcpServerRef(connection_id=production.id)],
+            test_connections={production.id: None if state == "deleted" else sandbox.id},
+        )
+
+        assert seen == [[]]
+        assert resolved.toolsets == []
+
+    @pytest.mark.anyio
+    async def test_a_test_connection_for_a_deleted_production_one_keeps_its_own_name(
+        self, monkeypatch
+    ):
+        seen = self._capture(monkeypatch)
+        sandbox = _connection(name="crm-sandbox", allowed_tools=["find"])
+        monkeypatch.setattr(
+            mcp_connection_service.mcp_connection_repo,
+            "get_org_scoped_by_ids",
+            AsyncMock(return_value={sandbox.id: sandbox}),
+        )
+        production_id = uuid4()
+
+        await mcp_connection_service.build_toolsets_for_agent(
+            AsyncMock(),
+            organization_id=uuid4(),
+            refs=[OrgMcpServerRef(connection_id=production_id)],
+            test_connections={production_id: sandbox.id},
+        )
+
+        assert [(spec.name, spec.allowed_tools) for spec in seen[0]] == [("crm-sandbox", ["find"])]
 
     @pytest.mark.anyio
     async def test_every_id_is_resolved_inside_the_agents_own_organization(self, monkeypatch):
@@ -1450,6 +1881,27 @@ class TestEachPersonsOwnAccount:
         assert seen[0][0].allowed_tools == ["search"]
         assert _attached(resolved) == ["notion"]
         assert resolved.unavailable == []
+
+    @pytest.mark.anyio
+    @pytest.mark.security
+    async def test_each_tool_s_own_approval_holds_on_every_account_that_answers(self, monkeypatch):
+        seen = self._capture(monkeypatch)
+        self._owns(
+            monkeypatch,
+            [
+                _connection(name="work", catalog_key="notion", is_default=True),
+                _connection(name="home", catalog_key="notion", label="home"),
+            ],
+        )
+
+        await mcp_connection_service.build_toolsets_for_agent(
+            AsyncMock(),
+            organization_id=uuid4(),
+            refs=[self._personal(approval="writes", tool_approval={"search": "never"})],
+            sender_user_id=uuid4(),
+        )
+
+        assert [spec.tool_approval for spec in seen[0]] == [{"search": "never"}] * 2
 
     @pytest.mark.anyio
     async def test_a_collision_between_same_named_bindings_names_the_binding(self, monkeypatch):
@@ -1858,6 +2310,30 @@ class TestConnectingOneMidRun:
             ("notion", "https://mine.example.com/mcp")
         ]
         lookup.assert_awaited_once_with(db, user_id=person, catalog_key="notion")
+
+    @pytest.mark.anyio
+    async def test_the_account_connected_mid_run_keeps_off_the_names_the_run_holds(
+        self, monkeypatch
+    ):
+        """Attached after the turn began, and guarded as the servers attached with it
+        are (#2890)."""
+        self._session(monkeypatch)
+        self._owns(monkeypatch, [_connection(catalog_key="notion")])
+        self._probe(monkeypatch, answers=True)
+        taken = {"notion_search": "the knowledge capability"}
+
+        outcome = await mcp_connection_service.connect_personal_toolset(
+            PersonalMcpServerRef(account="personal", catalog_key="notion"),
+            user_id=uuid4(),
+            taken_names=taken,
+        )
+
+        assert isinstance(outcome, LeftOutOnClash)
+        assert (outcome.wrapped, outcome.binding, outcome.taken) == (
+            "notion",
+            "each person's own notion",
+            taken,
+        )
 
     @pytest.mark.anyio
     async def test_a_persons_own_account_brings_its_instructions_when_it_opted_in(
@@ -3610,7 +4086,7 @@ class TestMcpConnectionService:
 
     @pytest.mark.anyio
     async def test_oauth_start_refuses_a_client_the_server_will_not_authenticate(
-        self, service, monkeypatch
+        self, service, repo, monkeypatch
     ):
         """`exchange_code` and `refresh_tokens` only put the secret in the form
         body. A server that does not allow that is refused at start, not after
@@ -3640,6 +4116,9 @@ class TestMcpConnectionService:
                 client_secret=SecretStr("operators-secret"),
             )
         assert "client_secret_basic" in str(excinfo.value)
+        repo.get_by_name.assert_awaited_once()
+        repo.create.assert_not_awaited()
+        repo.update.assert_not_awaited()
 
     @pytest.mark.anyio
     async def test_a_server_that_names_no_auth_method_takes_the_static_client(
@@ -4020,6 +4499,66 @@ class TestMcpConnectionService:
         await service.oauth_callback(state="state-google", code="the-code")
 
         assert repo.update.call_args.kwargs["update_data"]["poll_cursor"] is None
+
+    @pytest.mark.anyio
+    @pytest.mark.security
+    @pytest.mark.parametrize("changed", ["removed", "replaced"])
+    async def test_an_authorized_org_callback_refuses_a_changed_google_client_before_exchange(
+        self, service, repo, monkeypatch, changed
+    ):
+        from app.services.portals import google_oauth
+
+        authority = AuthContext(user_id=uuid4(), organization_id=uuid4(), role=OrgRoleName.OWNER)
+        assert authority.has(Perm.MCP_MANAGE)
+        pending = _connection(
+            scope="org",
+            user_id=None,
+            organization_id=authority.organization_id,
+            created_by_user_id=authority.subject_id,
+            auth_type="oauth",
+            url="https://calendarmcp.googleapis.com/mcp/v1",
+            oauth_state="state-org-google",
+        )
+        pending.oauth_pending_payload = _seal_into(
+            pending,
+            _base_payload(
+                provider="google",
+                initiator_id=authority.subject_id,
+                client_org_id=authority.organization_id,
+                client_id="original-client",
+                client_secret=None,
+                authorization_endpoint=google_oauth.AUTHORIZE_ENDPOINT,
+                token_endpoint=google_oauth.TOKEN_ENDPOINT,
+            ).model_dump_json(),
+        )
+        repo.get_by_oauth_state = AsyncMock(return_value=pending)
+        decide = AsyncMock(return_value=authority)
+        monkeypatch.setattr(mcp_connection_service, "decider_context", decide)
+        identity = AsyncMock(
+            side_effect=NotFoundError() if changed == "removed" else None,
+            return_value=(
+                GoogleOAuthAppSecret(client_id="replacement-client", client_secret="org-secret"),
+                uuid4(),
+                uuid4(),
+            ),
+        )
+        monkeypatch.setattr(OrganizationSecretService, "oauth_app_identity_for_org", identity)
+        exchange = AsyncMock()
+        monkeypatch.setattr(google_oauth, "exchange_code", exchange)
+
+        with pytest.raises(mcp_oauth.OAuthError, match="organization's Google app changed"):
+            await service.oauth_callback(state="state-org-google", code="not-exchanged")
+
+        decide.assert_awaited_once_with(
+            service.db,
+            organization_id=authority.organization_id,
+            user_id=authority.subject_id,
+        )
+        identity.assert_awaited_once_with(
+            authority.organization_id, kind=SecretKind.GOOGLE_OAUTH_APP
+        )
+        exchange.assert_not_awaited()
+        repo.update.assert_not_awaited()
 
     @pytest.mark.anyio
     async def test_oauth_callback_exchanges_and_clears_state(self, service, repo, monkeypatch):
@@ -4440,7 +4979,7 @@ class TestOrganizationConnections:
     async def test_authorizing_the_organizations_second_account_again_needs_no_label(
         self, service, ctx, repo, monkeypatch
     ):
-        existing = _connection(name="github-oss", catalog_key="github", scope="org")
+        existing = self._org_connection(ctx, name="github-oss", catalog_key="github")
         repo.get_org_scoped_by_name = AsyncMock(return_value=existing)
         repo.get_org_scoped_by_catalog_key = AsyncMock(
             return_value=_connection(name="github", catalog_key="github", scope="org")
@@ -4753,6 +5292,47 @@ class TestOrganizationConnections:
         assert recorded["target_id"] == str(conn.id)
         assert recorded["details"] == {"fields": ["auth_token"]}
         assert "ghp-rotated-4321" not in str(recorded)
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize(
+        ("last_tools", "count"),
+        [
+            (
+                [
+                    {"name": "find", "description": "", "read_only": True},
+                    {"name": "purge", "description": "", "read_only": False},
+                    {"name": "list", "description": ""},
+                ],
+                1,
+            ),
+            (None, None),
+        ],
+    )
+    async def test_trusting_a_servers_hints_records_how_many_tools_that_covers(
+        self, service, ctx, repo, audit, last_tools, count
+    ):
+        """The decision lets an eval call those tools live, so the trail says how
+        many there were when it was made - or that nothing had probed it yet."""
+        conn = self._org_connection(ctx, last_tools=last_tools)
+        repo.get_org_scoped_by_id.return_value = conn
+
+        async def write(db, *, db_connection, update_data):
+            for key, value in update_data.items():
+                setattr(db_connection, key, value)
+            return db_connection
+
+        repo.update.side_effect = write
+
+        await service.update_for_org(
+            ctx, connection_id=conn.id, data=OrgMcpConnectionUpdate(trust_read_only_hints=True)
+        )
+
+        assert repo.update.call_args.kwargs["update_data"] == {"trust_read_only_hints": True}
+        assert audit.call_args.kwargs["details"] == {
+            "fields": ["trust_read_only_hints"],
+            "trust_read_only_hints": True,
+            "read_only_hint_tools": count,
+        }
 
     @pytest.mark.anyio
     async def test_a_no_op_update_writes_no_audit(self, service, ctx, repo, audit):
@@ -6683,6 +7263,10 @@ async def test_account_source_is_stamped_before_prefixing_and_name_fitting() -> 
     named, served = next(iter(tools.items()))
     assert len(named) <= TOOL_NAME_LIMIT
     origin = tool_origin(served.tool_def)
+    assert (served.tool_def.metadata or {})[MCP_ISOLATION] == {
+        "test": False,
+        "trust_read_only_hints": False,
+    }
     assert origin is not None and origin.tool_id == "write"
     assert origin.connection_id == connection_id
     assert origin.identity == McpSourceIdentity(
@@ -6886,3 +7470,57 @@ class TestGoogleMcpUsesTheOrganizationsGoogleApp:
 
         assert "client_id=typed-client" in url
         org_app.assert_not_called()
+
+
+@pytest.mark.anyio
+@pytest.mark.security
+@pytest.mark.parametrize("in_process", [False, True])
+async def test_only_the_owned_in_process_transport_can_stamp_platform_tool_provenance(
+    in_process: bool,
+) -> None:
+    from pydantic_ai.toolsets.abstract import ToolsetTool
+
+    from app.agents.mcp import PLATFORM_TOOL, ApprovalMarked
+
+    inner = MagicMock()
+    definition = _mcp_tool("agenticos_create_project", True)
+    definition.metadata[PLATFORM_TOOL] = True
+    inner.get_tools = AsyncMock(
+        return_value={
+            definition.name: ToolsetTool(
+                toolset=inner, tool_def=definition, max_retries=1, args_validator=MagicMock()
+            )
+        }
+    )
+    tools = await ApprovalMarked(inner, in_process=in_process).get_tools(MagicMock())
+    assert tools[definition.name].tool_def.metadata[PLATFORM_TOOL] is in_process
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("internal", [False, True])
+@pytest.mark.parametrize("allowlist", [None, ["change_deployment", "change_organization"]])
+async def test_deployment_mutation_is_external_only_even_when_allowlisted(
+    internal: bool,
+    allowlist: list[str] | None,
+) -> None:
+    from pydantic_ai import RunContext
+    from pydantic_ai.models.test import TestModel
+    from pydantic_ai.toolsets import FunctionToolset
+    from pydantic_ai.usage import RunUsage
+
+    def change_deployment() -> str:
+        return "deployment"
+
+    def change_organization() -> str:
+        return "organization"
+
+    inner = FunctionToolset([change_deployment, change_organization])
+    spec = McpServerSpec(
+        name="agenticos", url="http://agenticos/mcp", in_process=internal, allowed_tools=allowlist
+    )
+    with patch("app.agents.mcp.MCPToolset", return_value=inner):
+        named = await _make_toolset(spec).get_tools(
+            RunContext(deps=object(), model=TestModel(), usage=RunUsage())
+        )
+    assert "agenticos_change_organization" in named
+    assert ("agenticos_change_deployment" in named) is not internal

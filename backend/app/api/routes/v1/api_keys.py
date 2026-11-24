@@ -47,3 +47,13 @@ async def create_api_key(data: ApiKeyCreate, service: ApiKeySvc, ctx: Auth) -> A
 async def revoke_api_key(api_key_id: UUID, service: ApiKeySvc, ctx: Auth) -> None:
     """Stop a key working, at once. Your own, or anybody's with `api_keys:manage`."""
     await service.revoke(ctx, api_key_id)
+
+
+@router.post(
+    "/{api_key_id}/rotate",
+    response_model=ApiKeyCreated,
+    status_code=status.HTTP_201_CREATED,
+)
+async def rotate_api_key(api_key_id: UUID, service: ApiKeySvc, ctx: Auth) -> Any:
+    """Replace a key's secret. The old key stops working at once; the response holds the new one, once."""
+    return await service.rotate(ctx, api_key_id)

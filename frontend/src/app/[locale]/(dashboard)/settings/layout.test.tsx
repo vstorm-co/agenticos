@@ -24,7 +24,7 @@ it("returns to the settings heading when the section changes, preserving the mem
       </SettingsLayout>,
     );
     expect(screen.getByRole("heading", { name: "Settings" })).toBeVisible();
-    expect(scroll).toHaveBeenCalledWith(expect.any(HTMLElement), "start", "smooth");
+    expect(scroll).not.toHaveBeenCalled();
     scroll.mockClear();
     pathname = "/settings/memory";
     rerender(
@@ -33,7 +33,7 @@ it("returns to the settings heading when the section changes, preserving the mem
       </SettingsLayout>,
     );
     expect(screen.getByRole("heading", { name: "Your memory" })).toBeVisible();
-    expect(scroll).toHaveBeenCalledTimes(1);
+    expect(scroll).toHaveBeenCalledExactlyOnceWith(expect.any(HTMLElement), "start", "smooth");
   } finally {
     HTMLElement.prototype.scrollIntoView = previous;
     pathname = "/settings/account";

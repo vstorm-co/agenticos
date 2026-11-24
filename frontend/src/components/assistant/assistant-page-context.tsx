@@ -31,7 +31,11 @@ export function AssistantPageContextBar({
           onClick={() => onEnabledChange(!enabled)}
           className="text-muted-foreground hover:text-foreground flex min-w-0 flex-1 items-center gap-2 rounded-md py-1 text-left text-xs"
         >
-          {enabled ? <Eye className="size-3.5 shrink-0" /> : <EyeOff className="size-3.5 shrink-0" />}
+          {enabled ? (
+            <Eye className="size-3.5 shrink-0" />
+          ) : (
+            <EyeOff className="size-3.5 shrink-0" />
+          )}
           <span className="min-w-0 truncate">
             {enabled
               ? t("using", { page: page.resource?.title || page.title || page.path })

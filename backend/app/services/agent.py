@@ -211,6 +211,7 @@ async def persist_user_turn(
     organization_id: UUID,
     project_id: str | None = None,
     reply_to: str | None = None,
+    reply_to_excerpt: str | None = None,
     mentions: Sequence[Mentionable] = (),
     client_message_id: str | None = None,
 ) -> PersistedPrompt:
@@ -314,6 +315,7 @@ async def persist_user_turn(
                     content=content,
                     client_message_id=client_message_id,
                     reply_to_message_id=replied,
+                    reply_to_excerpt=reply_to_excerpt,
                     parts=[
                         MessagePart(
                             type="mention",
@@ -393,6 +395,7 @@ async def persist_assistant_turn(
     usage: UsageReport | None = None,
     run_id: UUID | None = None,
     parked_tool_call_ids: Collection[str] = (),
+    question_tool_call_ids: Collection[str] = (),
     mcp_origins: Mapping[str, UUID] | None = None,
     draft_tools: Collection[str] = (),
 ) -> str | None:
@@ -438,13 +441,16 @@ async def persist_assistant_turn(
     ran (#601). The resume settles the row through the transcript service, and an
     expiry settles it with the timeout notice.
 
+    `question_tool_call_ids` identifies those parked calls awaiting an answer,
+    including tools renamed by the agent's spec.
+
     `mcp_origins` stores each call to an organization MCP connection against it,
     as the transcript service does for every other surface (#2072).
     """
     try:
         async with get_db_context() as db:
             stopped = False
-            if run_id is not None and parked_tool_call_ids:
+            if run_id is not None and (parked_tool_call_ids or question_tool_call_ids):
                 # Hold the same lock as Stop until these call rows commit. If
                 # Stop won, persist their settled outcome instead of stale cards.
                 run = await agent_run_repo.claim_parked_run(
@@ -520,12 +526,23 @@ async def persist_assistant_turn(
                             args=normalize_tool_args(tc.get("args")),
                             started_at=datetime.now(UTC),
                         ),
-                        parked=tc["tool_call_id"] in parked_tool_call_ids and not stopped,
+                        parked=(
+                            tc["tool_call_id"] in parked_tool_call_ids
+                            or tc["tool_call_id"] in question_tool_call_ids
+                        )
+                        and not stopped,
+                        awaiting_answer=tc["tool_call_id"] in question_tool_call_ids
+                        and not stopped,
                         mcp_connection_id=(mcp_origins or {}).get(tc["tool_name"]),
-                        presentation_kind="draft" if tc["tool_name"] in draft_tools else None,
+                        tool_id=tc.get("tool_id"),
+                        presentation_kind=tc.get("presentation_kind")
+                        or ("draft" if tc["tool_name"] in draft_tools else None),
                     )
                     result = tc.get("result")
-                    if stopped and tc["tool_call_id"] in parked_tool_call_ids:
+                    if stopped and (
+                        tc["tool_call_id"] in parked_tool_call_ids
+                        or tc["tool_call_id"] in question_tool_call_ids
+                    ):
                         result = STOPPED_TOOL_RESULT
                     if result:
                         await conv_service.complete_tool_call(

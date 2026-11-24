@@ -5,6 +5,13 @@ Gives an agent the published workflows its binding names as tools:
 `run_workflow` starts one and waits for its answer, and `get_workflow_run` reads
 a run that was still going when the wait ended.
 
+Discovery includes the published `version_id` and effective Draft 2020-12
+`input_schema`, alongside the existing simple `input` fields. Nested schemas
+retain their local references, so callers inspect the contract admission uses.
+The encoded discovery response is limited to 32 KiB even without optional tool
+output limits. Larger responses are refused in full; narrow the binding or use
+the HTTP input-schema endpoint outside the agent context.
+
 A workflow is a reviewed, versioned process - a refund, a lead's follow-up, a
 report - and this is how an agent hands one off instead of improvising the
 steps. The agent decides when and with what; what happens is the graph.

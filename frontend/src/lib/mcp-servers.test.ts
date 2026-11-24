@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import type { McpConnectionRecord } from "./mcp-connections-api";
 import type { OrgMcpConnectionRecord } from "./org-mcp-connections-api";
 import {
+  applyMcpToolSelection,
+  bindingKey,
   ownAccountStatus,
   CUSTOM_CATEGORY,
   connectionState,
@@ -11,6 +13,7 @@ import {
   mergeServers,
   narrowedSelection,
   rowsForEntries,
+  restoreMcpBindings,
   slugForPrefix,
 } from "./mcp-servers";
 import type { McpServerRef } from "@/types/agents";
@@ -59,6 +62,7 @@ function personal(overrides: Partial<McpConnectionRecord> = {}): McpConnectionRe
     visibility: "org",
     catalog_key: null,
     is_default: false,
+    trust_read_only_hints: false,
     label: null,
     last_tools: null,
     created_at: "2026-07-01T00:00:00Z",
@@ -333,23 +337,74 @@ describe("several accounts on one server", () => {
 describe("narrowedSelection", () => {
   const tools = [{ name: "read" }, { name: "write" }];
 
-  it("is unrestricted when a probed catalogue is fully checked", () => {
-    expect(narrowedSelection(new Set(["read", "write"]), tools, true)).toBeNull();
+  it("keeps an unchanged unrestricted binding unrestricted", () => {
+    expect(narrowedSelection(new Set(["read", "write"]), tools, null)).toBeNull();
   });
 
-  it("is a list when a probed catalogue is partly checked", () => {
-    expect(narrowedSelection(new Set(["read"]), tools, true)).toEqual(["read"]);
+  it("keeps a pinned list even if it covers every current tool", () => {
+    const pinned = ["write", "read"];
+    expect(narrowedSelection(new Set(["read", "write"]), tools, pinned)).toBe(pinned);
+    expect(narrowedSelection(new Set(["read", "write"]), tools, ["read"])).toEqual([
+      "read",
+      "write",
+    ]);
   });
 
-  it("keeps the list when nothing has been probed, however complete it looks", () => {
-    // The bug this exists for: with no probe the picker displays the binding's
-    // own names, so all-checked is true by construction and saving without a
-    // change rewrote a reviewed subset to every tool the connection permits.
-    expect(narrowedSelection(new Set(["read"]), [{ name: "read" }], false)).toEqual(["read"]);
+  it("preserves checked tools missing from the latest catalog", () => {
+    expect(
+      narrowedSelection(new Set(["read", "unlisted"]), tools, ["write", "unlisted", "read"]),
+    ).toEqual(["unlisted", "read"]);
   });
 
-  it("keeps an empty list rather than reading it as unrestricted", () => {
-    expect(narrowedSelection(new Set(), tools, true)).toEqual([]);
+  it("narrows an unrestricted binding when the user unchecks tools", () => {
+    expect(narrowedSelection(new Set(["read"]), tools, null)).toEqual(["read"]);
+    expect(narrowedSelection(new Set(), tools, null)).toEqual([]);
+  });
+});
+
+describe("agent MCP binding edits", () => {
+  const primary: McpServerRef = {
+    account: "organization",
+    connection_id: "main",
+    allowed_tools: ["write", "read"],
+    approval: "all",
+    tool_approval: { read: "never" },
+  };
+  const other: McpServerRef = {
+    account: "organization",
+    connection_id: "secondary",
+    allowed_tools: ["read"],
+    approval: "writes",
+  };
+  const platform: McpServerRef = { account: "platform", allowed_tools: [], approval: "all" };
+
+  it("saves only the selected account, and treats a pinned all-checked list as unchanged", () => {
+    const current = [primary, platform, other];
+    const tools = [{ name: "read" }, { name: "write" }];
+    const key = bindingKey(primary);
+    expect(applyMcpToolSelection(current, key, new Set(["read", "write"]), tools)).toBe(current);
+    expect(applyMcpToolSelection(current, key, new Set(["write"]), tools)).toEqual([
+      { ...primary, allowed_tools: ["write"] },
+      platform,
+      other,
+    ]);
+    expect(applyMcpToolSelection(current, null, new Set(), tools)).toBe(current);
+  });
+
+  it("restores exact accounts, restrictions and original slots without replacing another edit", () => {
+    expect(
+      restoreMcpBindings(
+        [platform],
+        [
+          { index: 0, binding: primary },
+          { index: 2, binding: other },
+        ],
+      ),
+    ).toEqual([primary, platform, other]);
+
+    const edited = { ...primary, allowed_tools: [], approval: "writes" } as const;
+    const current: McpServerRef[] = [{ ...edited, allowed_tools: [] }, platform];
+    expect(restoreMcpBindings(current, [{ index: 0, binding: primary }])).toEqual(current);
   });
 });
 
@@ -376,6 +431,7 @@ describe("ownAccountStatus", () => {
       visibility: "org",
       catalog_key: "notion",
       is_default: false,
+      trust_read_only_hints: false,
       label: null,
       last_tools: null,
       created_at: "2026-07-01T00:00:00Z",
@@ -446,6 +502,7 @@ describe("ownAccountStatus and a failed health check", () => {
       visibility: "org",
       catalog_key: "github",
       is_default: false,
+      trust_read_only_hints: false,
       label: null,
       last_tools: null,
       created_at: "2026-07-01T00:00:00Z",

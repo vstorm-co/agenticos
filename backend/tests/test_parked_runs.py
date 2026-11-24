@@ -8,19 +8,41 @@ exactly what it was.
 """
 
 import uuid
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from pydantic import SecretStr
 
 from app.agents.capabilities.channel_tools._directory import ChannelDestination
-from app.core.exceptions import BadRequestError, NotFoundError, RunExecutionError
-from app.core.permissions import AuthContext, OrgRoleName
-from app.db.models.agent_run import ApprovalStatus
+from app.core.exceptions import (
+    AlreadyExistsError,
+    AuthorizationError,
+    BadRequestError,
+    NotFoundError,
+    RunExecutionError,
+)
+from app.core.permissions import AuthContext, OrgRoleName, Perm
+from app.db.models.agent_run import ApprovalStatus, RunSurface
+from app.services.agent_runner import RunSegment
 from app.services.approvals import ApprovalService
 from app.services.parked_runs import Continued, DecidedApproval, ParkedRunService
 
 pytestmark = pytest.mark.anyio
+
+
+@pytest.fixture(autouse=True)
+def ordinary_runs_have_no_room_request():
+    with (
+        patch("app.repositories.room_submission.for_run", new=AsyncMock(return_value=None)),
+        patch(
+            "app.repositories.conversation_task.legacy_room_pause", new=AsyncMock(return_value=None)
+        ),
+    ):
+        yield
+
 
 _MODULE = "app.services.parked_runs"
 ORG = uuid.uuid4()
@@ -31,9 +53,16 @@ BOT = uuid.uuid4()
 DESTINATION = ChannelDestination(bot_id=BOT, platform_chat_id="C1:1.0", private_chat=False)
 
 
-def _run(surface: str = "slack", *, destination: ChannelDestination | None = DESTINATION) -> Any:
+def _run(
+    surface: str = "slack",
+    *,
+    destination: ChannelDestination | None = DESTINATION,
+    user_id: uuid.UUID | None = None,
+) -> Any:
     return MagicMock(
         id=RUN,
+        user_id=user_id,
+        initiated_by_publisher_fallback=False,
         organization_id=ORG,
         surface=surface,
         conversation_id=uuid.uuid4(),
@@ -52,9 +81,18 @@ def _person() -> AuthContext:
 
 
 def _key() -> AuthContext:
+    """An owner's key scoped to deciding approvals: privileged, but never the own-run exception."""
     return AuthContext(
-        user_id=None, organization_id=ORG, role=OrgRoleName.OWNER, api_key_id=uuid.uuid4()
+        user_id=USER,
+        organization_id=ORG,
+        role=OrgRoleName.OWNER,
+        api_key_id=uuid.uuid4(),
+        key_scopes=frozenset({Perm.APPROVALS_DECIDE}),
     )
+
+
+def _member() -> AuthContext:
+    return AuthContext(user_id=USER, organization_id=ORG, role=OrgRoleName.MEMBER)
 
 
 def _close(coro: Any) -> None:
@@ -82,6 +120,7 @@ class _Patched:
             return self.decided
 
         self.approvals.decide = AsyncMock(side_effect=decide)
+        self.approvals.hidden_fields = AsyncMock(return_value=frozenset())
 
         async def claim(*args: Any, **kwargs: Any) -> Any:
             self.events.append("claim run")
@@ -282,6 +321,55 @@ class TestDeciding:
 
 
 class TestResuming:
+    @pytest.mark.parametrize("entrypoint", ["resume", "answer"])
+    @pytest.mark.parametrize("refused", [False, True])
+    async def test_a_legacy_room_resume_holds_its_exact_turn_before_the_runner(
+        self, entrypoint: str, refused: bool
+    ) -> None:
+        events: list[str] = []
+
+        @asynccontextmanager
+        async def admitted(
+            conversation_id: uuid.UUID, *, background: bool, resume_run_id: uuid.UUID
+        ) -> AsyncIterator[bool]:
+            assert conversation_id == p.run.conversation_id
+            assert background is False
+            assert resume_run_id == RUN
+            events.append("claim")
+            if refused:
+                raise AlreadyExistsError(message="A room turn is still active")
+            yield True
+            events.append("release")
+
+        async def continued(*args: Any, **kwargs: Any) -> Any:
+            assert events == ["claim"]
+            events.append("runner")
+            return MagicMock(name="segment", settled={})
+
+        with (
+            _Patched(_run("web")) as p,
+            patch(f"{_MODULE}.turn_repo.legacy_room_pause", AsyncMock(return_value=RUN)) as legacy,
+            patch(f"{_MODULE}.claim", admitted),
+        ):
+            p.runner.resume.side_effect = continued
+            p.runner.answer.side_effect = continued
+            operation = (
+                p.service.resume(_person(), RUN)
+                if entrypoint == "resume"
+                else p.service.answer(_person(), RUN, {})
+            )
+            if refused:
+                with pytest.raises(AlreadyExistsError, match="still active"):
+                    await operation
+            else:
+                await operation
+
+        legacy.assert_awaited_once_with(p.db, p.run.conversation_id, run_id=RUN)
+        assert events == (["claim"] if refused else ["claim", "runner", "release"])
+        if refused:
+            p.runner.resume.assert_not_awaited()
+            p.runner.answer.assert_not_awaited()
+
     async def test_a_manual_resume_queues_handback_in_the_segment_transaction(self) -> None:
         callback = AsyncMock()
         with _Patched() as p, patch(f"{_MODULE}.queue_segment", return_value=callback) as queue:
@@ -302,6 +390,39 @@ class TestResuming:
         p.settle_open.assert_not_awaited()
         assert result.continues_in_chat is False
         p.runner.resume.assert_awaited_once_with(_person(), RUN, on_segment=None)
+
+    async def test_a_member_resumes_their_own_run(self) -> None:
+        member = _member()
+        with _Patched(_run("web", user_id=USER)) as p:
+            result = await p.service.resume(member, RUN)
+        assert result.continues_in_chat is False
+        p.runner.resume.assert_awaited_once_with(member, RUN, on_segment=None)
+
+    async def test_a_member_cannot_resume_somebody_elses_run(self) -> None:
+        with _Patched(_run("web", user_id=uuid.uuid4())) as p, pytest.raises(AuthorizationError):
+            await p.service.resume(_member(), RUN)
+        p.runner.resume.assert_not_awaited()
+
+    async def test_a_publisher_cannot_resume_a_strangers_fallback_run(self) -> None:
+        run = _run("slack", user_id=USER)
+        run.initiated_by_publisher_fallback = True
+        member = AuthContext(user_id=USER, organization_id=ORG, role=OrgRoleName.BUILDER)
+        with _Patched(run) as p, pytest.raises(AuthorizationError):
+            await p.service.resume(member, RUN)
+        p.runner.resume.assert_not_awaited()
+
+    async def test_a_members_key_cannot_resume_even_their_own_run(self) -> None:
+        """The key's scope was narrowed to nothing the own-run exception reaches."""
+        member_key = AuthContext(
+            user_id=USER,
+            organization_id=ORG,
+            role=OrgRoleName.MEMBER,
+            api_key_id=uuid.uuid4(),
+            key_scopes=frozenset({Perm.APPROVALS_DECIDE}),
+        )
+        with _Patched(_run("web", user_id=USER)) as p, pytest.raises(AuthorizationError):
+            await p.service.resume(member_key, RUN)
+        p.runner.resume.assert_not_awaited()
 
     async def test_a_key_resumes_a_run_a_key_started_as_before(self) -> None:
         key = _key()
@@ -332,6 +453,43 @@ class TestResuming:
 
 
 class TestAnswering:
+    async def test_a_workflow_answer_queues_its_owner_instead_of_executing_inline(self) -> None:
+        with (
+            _Patched(_run(RunSurface.WORKFLOW.value)) as p,
+            patch("app.services.workflow_execution.WorkflowExecutionService") as workflows,
+        ):
+            workflows.return_value.answer_agent_questions = AsyncMock(return_value=MagicMock())
+            result = await p.service.answer(_person(), RUN, {"q": [{"answer": "yes"}]})
+
+        workflows.return_value.answer_agent_questions.assert_awaited_once_with(
+            _person(), RUN, {"q": [{"answer": "yes"}]}
+        )
+        p.runner.answer.assert_not_awaited()
+        p.runner.resume.assert_not_awaited()
+        assert result.segment.run.id == RUN
+        assert result.segment.output == ""
+        assert result.continues_in_chat is False
+
+    async def test_a_workflow_run_without_an_owner_is_not_resumed_inline(self) -> None:
+        with (
+            _Patched(_run(RunSurface.WORKFLOW.value)) as p,
+            patch("app.services.workflow_execution.WorkflowExecutionService") as workflows,
+        ):
+            workflows.return_value.answer_agent_questions = AsyncMock(return_value=None)
+            with pytest.raises(BadRequestError, match="no longer waiting"):
+                await p.service.answer(_person(), RUN, {})
+
+        p.runner.answer.assert_not_awaited()
+
+    async def test_the_generic_resume_route_cannot_bypass_a_workflow(self) -> None:
+        with (
+            _Patched(_run(RunSurface.WORKFLOW.value)) as p,
+            pytest.raises(BadRequestError, match="continued by its workflow"),
+        ):
+            await p.service.resume(_person(), RUN)
+
+        p.runner.resume.assert_not_awaited()
+
     async def test_an_answer_settles_buttons_and_installs_transactional_handback(self) -> None:
         callback = AsyncMock()
         with _Patched() as p, patch(f"{_MODULE}.queue_segment", return_value=callback):
@@ -358,4 +516,98 @@ class TestAnswering:
             with pytest.raises(RunExecutionError):
                 await p.service.answer(_person(), RUN, {})
         assert p.runner.answer.await_args.kwargs["on_segment"] is callback
+        assert p.spawned == []
+
+
+class TestSecretRequests:
+    @pytest.mark.security
+    async def test_a_secret_cannot_resume_a_workflow_outside_its_owner(self) -> None:
+        with _Patched(_run(RunSurface.WORKFLOW.value)) as p:
+            p.service.secrets.fulfil = AsyncMock()
+            with pytest.raises(BadRequestError, match="continued by its workflow"):
+                await p.service.fulfil_secret_request(
+                    _person(), RUN, uuid.uuid4(), value=SecretStr("test-credential")
+                )
+
+        p.service.secrets.fulfil.assert_not_awaited()
+        p.claim.assert_not_awaited()
+        p.runner.resume.assert_not_awaited()
+        assert p.spawned == []
+
+    @pytest.mark.security
+    async def test_a_remaining_secret_keeps_the_refreshed_run_parked_without_an_agent_step(
+        self,
+    ) -> None:
+        request_id = uuid.uuid4()
+        value = SecretStr("test-credential")
+        with _Patched(_run("web")) as p:
+            refreshed = _run("web")
+            refreshed.status = "waiting"
+            p.runner.get_run.side_effect = [p.run, p.run, refreshed]
+            p.service.secrets.fulfil = AsyncMock(return_value=None)
+
+            result = await p.service.fulfil_secret_request(_person(), RUN, request_id, value=value)
+
+        assert result.segment.run is refreshed
+        assert result.segment.run.status == "waiting"
+        assert result.segment.output == ""
+        assert result.segment.tool_calls == []
+        assert result.segment.settled == {}
+        assert result.continues_in_chat is False
+        p.service.secrets.fulfil.assert_awaited_once_with(
+            _person(), RUN, request_id, value=value, on_segment=None
+        )
+        p.runner.resume.assert_not_awaited()
+        p.runner.answer.assert_not_awaited()
+        assert p.spawned == []
+
+    @pytest.mark.security
+    @pytest.mark.parametrize("surface", ["web", "slack"])
+    async def test_the_last_secret_returns_its_segment_and_retains_the_channel_handback(
+        self, surface: str
+    ) -> None:
+        request_id = uuid.uuid4()
+        value = SecretStr("test-credential")
+        callback = AsyncMock()
+        with (
+            _Patched(_run(surface)) as p,
+            patch(f"{_MODULE}.queue_segment", return_value=callback) as queue,
+        ):
+            segment = RunSegment(output="Connection ready", run=p.run, tool_calls=[], settled={})
+            p.service.secrets.fulfil = AsyncMock(return_value=segment)
+
+            result = await p.service.fulfil_secret_request(_person(), RUN, request_id, value=value)
+
+        assert result.segment is segment
+        assert result.segment.output == "Connection ready"
+        assert result.continues_in_chat is (surface == "slack")
+        p.service.secrets.fulfil.assert_awaited_once_with(
+            _person(),
+            RUN,
+            request_id,
+            value=value,
+            on_segment=callback if surface == "slack" else None,
+        )
+        if surface == "slack":
+            assert p.settle_open.await_args.kwargs == {"run_id": RUN, "by": "answered"}
+            assert queue.call_args.args[:2] == (p.db, DESTINATION)
+        else:
+            queue.assert_not_called()
+            p.settle_open.assert_not_awaited()
+        assert p.spawned == []
+
+    @pytest.mark.security
+    async def test_declining_a_secret_returns_the_recorded_decision_without_resuming(self) -> None:
+        request_id = uuid.uuid4()
+        with _Patched(_run("web")) as p:
+            declined = MagicMock(id=request_id, status="declined")
+            p.service.secrets.decline = AsyncMock(return_value=declined)
+
+            result = await p.service.decline_secret_request(_person(), RUN, request_id)
+
+        assert result is declined
+        assert result.id == request_id and result.status == "declined"
+        p.service.secrets.decline.assert_awaited_once_with(_person(), RUN, request_id)
+        p.runner.resume.assert_not_awaited()
+        p.runner.answer.assert_not_awaited()
         assert p.spawned == []

@@ -65,10 +65,19 @@ class TestGating:
 
     @pytest.mark.security
     async def test_approvals_export_refuses_a_caller_without_approvals_decide(self):
-        # Member holds neither runs:view nor approvals:decide.
-        async with _client(OrgRoleName.MEMBER.value, _service()) as client:
+        # Viewer holds neither runs:view nor approvals:decide.
+        async with _client(OrgRoleName.VIEWER.value, _service()) as client:
             response = await client.get(f"/api/v1/approvals/export?{_APPROVAL_RANGE}")
         assert response.status_code == 403
+
+    @pytest.mark.security
+    async def test_a_member_reaches_the_approvals_export_only_for_their_own_rows(self):
+        """Member holds `approvals:decide` at OWN: the route admits them, the service narrows the rows."""
+        service = _service()
+        async with _client(OrgRoleName.MEMBER.value, service) as client:
+            response = await client.get(f"/api/v1/approvals/export?{_APPROVAL_RANGE}")
+        assert response.status_code == 200
+        assert service.export_approvals.await_count == 1
 
     @pytest.mark.security
     async def test_operator_may_export_the_approvals_record(self):
@@ -126,10 +135,11 @@ class TestTheFiltersReachTheService:
             response = await client.get(
                 f"/api/v1/runs/export?{_RANGE}&agent_id={agent_id}"
                 f"&surface=slack&include_delegations=true&agent_version_id={version_id}"
-                "&status=failed,budget_exceeded"
+                "&status=failed,budget_exceeded&source=evaluation"
             )
         assert response.status_code == 200
         kwargs = service.export_runs.await_args.kwargs
+        assert kwargs["filters"].source == "evaluation"
         assert kwargs["agent_id"] == agent_id
         assert kwargs["include_delegations"] is True
         assert kwargs["filters"].statuses == ["failed", "budget_exceeded"]

@@ -1,16 +1,26 @@
 "use client";
 
+import { ModelLabel } from "@/components/icons/model-icon";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { NativeSelect } from "@/components/ui/native-select";
 import { useId } from "react";
 import { useTranslations } from "next-intl";
 import { useLocalCodingOptions } from "@/hooks/use-desktop";
+import type { LocalAgent } from "@/lib/desktop/commands";
 import { useWorkOnStore, type CodingPreferences } from "@/stores/work-on-store";
 import { useConversationStore } from "@/stores";
-import type { CodingHarness } from "@/types/chat";
 import { getErrorMessage } from "@/lib/api-error";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
 
 /** Choices come from the installed harness; leaving either unset retains its settings. */
-export function LocalCodingSettings({ harness }: { harness: CodingHarness }) {
+export function LocalCodingSettings({ harness }: { harness: LocalAgent["id"] }) {
   const t = useTranslations("chat.controls.workOn.coding");
   const tReasoning = useTranslations("chat.reasoning");
   const tErrors = useTranslations("errors");
@@ -44,6 +54,7 @@ export function LocalCodingSettings({ harness }: { harness: CodingHarness }) {
       </div>
     );
   const data = state.data;
+  const maker = harness === "codex" ? "openai" : "anthropic";
   const { models } = data;
   const selected = models.find(
     (model) => model.value === (preferences.model ?? data.current_model),
@@ -59,15 +70,13 @@ export function LocalCodingSettings({ harness }: { harness: CodingHarness }) {
       data-tour="chat-coding-settings"
     >
       <div className="min-w-0 space-y-1">
-        <label htmlFor={`${id}-model`} className="text-muted-foreground text-xs">
+        <Label htmlFor={`${id}-model`} className="text-muted-foreground text-xs">
           {t("model")}
-        </label>
-        <select
-          id={`${id}-model`}
-          value={preferences.model ?? ""}
-          className="bg-background border-input h-8 w-full rounded-md border px-2 text-xs"
-          onChange={(event) => {
-            const model = event.target.value || null;
+        </Label>
+        <Select
+          value={preferences.model === null ? "inherit" : `model:${preferences.model}`}
+          onValueChange={(value) => {
+            const model = value === "inherit" ? null : value.slice("model:".length);
             const next = models.find((entry) => entry.value === (model ?? data.current_model));
             save({
               model,
@@ -77,28 +86,42 @@ export function LocalCodingSettings({ harness }: { harness: CodingHarness }) {
             });
           }}
         >
-          <option value="">{t("ownModel")}</option>
-          {missingModel && (
-            <option value={preferences.model ?? ""}>
-              {t("unavailableOption", { value: preferences.model ?? "" })}
-            </option>
-          )}
-          {models.map((model) => (
-            <option key={model.value} value={model.value}>
-              {model.name}
-            </option>
-          ))}
-        </select>
+          <SelectTrigger id={`${id}-model`} className="h-8 px-2 py-0 text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="inherit" textValue={t("ownModel")}>
+              <ModelLabel model="" provider={maker} label={t("ownModel")} />
+            </SelectItem>
+            {missingModel && (
+              <SelectItem
+                value={`model:${preferences.model}`}
+                textValue={t("unavailableOption", { value: preferences.model ?? "" })}
+              >
+                <ModelLabel
+                  model={preferences.model ?? ""}
+                  provider={maker}
+                  label={t("unavailableOption", { value: preferences.model ?? "" })}
+                />
+              </SelectItem>
+            )}
+            {models.map((model) => (
+              <SelectItem key={model.value} value={`model:${model.value}`} textValue={model.name}>
+                <ModelLabel model={model.value} provider={maker} label={model.name} />
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
       <div className="min-w-0 space-y-1">
-        <label htmlFor={`${id}-effort`} className="text-muted-foreground text-xs">
+        <Label htmlFor={`${id}-effort`} className="text-muted-foreground text-xs">
           {t("effort")}
-        </label>
-        <select
+        </Label>
+        <NativeSelect
           id={`${id}-effort`}
           value={preferences.effort ?? ""}
           disabled={efforts.length === 0 && preferences.effort === null}
-          className="bg-background border-input h-8 w-full rounded-md border px-2 text-xs disabled:opacity-50"
+          className="h-8 px-2 text-xs"
           onChange={(event) => save({ ...preferences, effort: event.target.value || null })}
         >
           <option value="">{efforts.length === 0 ? t("effortUnsupported") : t("ownEffort")}</option>
@@ -114,7 +137,7 @@ export function LocalCodingSettings({ harness }: { harness: CodingHarness }) {
                 : effort.name}
             </option>
           ))}
-        </select>
+        </NativeSelect>
       </div>
       <div className="col-span-full">
         {state.error && (

@@ -15,6 +15,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
+from ddgs.exceptions import DDGSException
 from pydantic_ai import RunContext
 from pydantic_ai.models.test import TestModel
 from pydantic_ai.usage import RunUsage
@@ -171,6 +172,23 @@ class TestProviderNormalisation:
             results = await search("q", provider="duckduckgo", api_key=None, max_results=5)
 
         assert results.results[0].url == "https://d.dev"
+
+    @pytest.mark.anyio
+    async def test_duckduckgo_empty_results_and_provider_failure_are_distinct(self, caplog):
+        client = MagicMock()
+        client.__enter__.return_value = client
+        client.text.side_effect = [
+            DDGSException("No results found."),
+            DDGSException("Upstream timed out"),
+        ]
+        with patch("ddgs.DDGS", return_value=client):
+            empty = await search("q", provider="duckduckgo", api_key=None, max_results=5)
+            assert empty.results == []
+            assert not caplog.records
+            with pytest.raises(SearchUnavailable, match="DuckDuckGo search is unavailable"):
+                await search("q", provider="duckduckgo", api_key=None, max_results=5)
+
+        assert "DuckDuckGo search failed" in caplog.text
 
     @pytest.mark.anyio
     async def test_a_provider_that_needs_a_key_refuses_before_the_request(self):

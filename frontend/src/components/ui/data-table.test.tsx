@@ -33,6 +33,25 @@ function renderTable(props: Partial<Parameters<typeof DataTable<Row>>[0]> = {}) 
 }
 
 describe("DataTable", () => {
+  it("keeps table relationships and cell labels when stacked in a narrow container", () => {
+    renderTable({ stackOnNarrow: true, rows: [{ id: "one", name: "Existing member" }] });
+    expect(screen.getByRole("table")).toHaveAttribute("role", "table");
+    expect(screen.getByRole("columnheader")).toHaveTextContent("Name");
+    const cell = screen.getByRole("cell");
+    expect(cell).toHaveTextContent("Name");
+    expect(cell).toHaveTextContent("Existing member");
+  });
+
+  it("keeps stacked labels and an intrinsic placeholder width while loading", () => {
+    renderTable({ stackOnNarrow: true, loading: true, skeletonRows: 2 });
+    const cells = screen.getAllByRole("cell");
+    expect(cells).toHaveLength(2);
+    for (const cell of cells) {
+      expect(cell).toHaveTextContent("Name");
+      expect(cell.querySelector(".animate-pulse")).toHaveClass("w-24", "max-w-full");
+    }
+  });
+
   it("keeps an add action immediately after the rows in the same table body", () => {
     renderTable({
       rows: [{ id: "one", name: "Existing row" }],
@@ -364,4 +383,62 @@ it("keeps an empty or failed full-height table inside its row scrollport", () =>
   expect(failed.container.querySelector(".overflow-y-auto")).toContainElement(
     screen.getByRole("alert"),
   );
+});
+
+describe("DataTable client pagination", () => {
+  const rows = Array.from({ length: 53 }, (_, index) => ({
+    id: String(index),
+    name: `Record ${String(index).padStart(2, "0")}`,
+  }));
+  it("pages the complete sorted collection and keeps both bounds disabled", async () => {
+    const user = userEvent.setup();
+    renderTable({
+      clientPagination: true,
+      fillHeight: true,
+      rows,
+      columns: [
+        {
+          key: "name",
+          header: "Name",
+          cell: (row) => row.name,
+          sortable: true,
+          sortValue: (row) => row.name,
+        },
+      ],
+    });
+    expect(screen.getByText("Record 00")).toBeInTheDocument();
+    expect(screen.queryByText("Record 52")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: messages.ui.nextPage }));
+    expect(screen.getByText("Record 52")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: messages.ui.nextPage })).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: /Name/ }));
+    expect(screen.getByText("1 / 2")).toBeInTheDocument();
+    expect(screen.getByText("Record 52")).toBeInTheDocument();
+    expect(screen.queryByText("Record 00")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: messages.ui.previousPage })).toBeDisabled();
+  });
+  it("clamps synchronously when filtering removes later pages and keeps an empty footer", async () => {
+    const user = userEvent.setup();
+    const view = renderTable({ clientPagination: true, rows });
+    await user.click(screen.getByRole("button", { name: messages.ui.nextPage }));
+    view.rerender(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <DataTable
+          columns={[{ key: "name", header: "Name", cell: (row: Row) => row.name }]}
+          rows={[]}
+          clientPagination
+          getRowKey={(row) => row.id}
+        />
+      </NextIntlClientProvider>,
+    );
+    expect(screen.getByText("1 / 1")).toBeInTheDocument();
+    expect(screen.getByText("0–0 of 0")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: messages.ui.nextPage })).toBeDisabled();
+    expect(screen.getByRole("button", { name: messages.ui.previousPage })).toBeDisabled();
+  });
+  it("does not slice embedded or server-paged tables by default", () => {
+    renderTable({ rows });
+    expect(screen.getByText("Record 52")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: messages.ui.nextPage })).not.toBeInTheDocument();
+  });
 });

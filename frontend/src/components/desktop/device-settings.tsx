@@ -10,8 +10,22 @@ import { useTranslations } from "next-intl";
 
 import { DesktopOnly } from "@/components/desktop/desktop-only";
 import { SectionCard } from "@/components/settings/settings-section";
-import { Badge, Button } from "@/components/ui";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+  Badge,
+  Button,
+} from "@/components/ui";
 import { useDeviceLink, useDeviceStatus } from "@/hooks/use-desktop";
+import { DIALOG_CONFIRM, DIALOG_SCROLL } from "@/lib/dialog-sizes";
+import { cn } from "@/lib/utils";
 
 /**
  * This computer as a place the person's own agents can work (#2305): linked once,
@@ -40,15 +54,7 @@ export function DeviceSettings() {
                 )}
               </span>
               {status?.linked ? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={unlink.isPending}
-                  onClick={() => unlink.mutate()}
-                >
-                  <Unlink className="h-4 w-4" />
-                  {t("unlink")}
-                </Button>
+                <UnlinkButton pending={unlink.isPending} onConfirm={() => unlink.mutate()} />
               ) : (
                 <Button size="sm" disabled={link.isPending} onClick={() => link.mutate()}>
                   <Link2 className="h-4 w-4" />
@@ -64,5 +70,37 @@ export function DeviceSettings() {
         </>
       )}
     </DesktopOnly>
+  );
+}
+
+const CLEARED = ["folders", "services", "consents", "routines", "sessions"] as const;
+
+/** Unlinking forgets everything this computer was allowed, so it asks first and says what. */
+function UnlinkButton({ pending, onConfirm }: { pending: boolean; onConfirm: () => void }) {
+  const t = useTranslations("desktop.settings.device");
+  return (
+    <AlertDialog>
+      <AlertDialogTrigger asChild>
+        <Button variant="outline" size="sm" disabled={pending}>
+          <Unlink className="h-4 w-4" />
+          {t("unlink")}
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent className={cn(DIALOG_CONFIRM, DIALOG_SCROLL)}>
+        <AlertDialogHeader>
+          <AlertDialogTitle>{t("unlinkTitle")}</AlertDialogTitle>
+          <AlertDialogDescription>{t("unlinkBody")}</AlertDialogDescription>
+        </AlertDialogHeader>
+        <ul className="text-muted-foreground list-disc space-y-1 pl-5 text-sm">
+          {CLEARED.map((key) => (
+            <li key={key}>{t(`unlinkClears.${key}`)}</li>
+          ))}
+        </ul>
+        <AlertDialogFooter>
+          <AlertDialogCancel>{t("unlinkCancel")}</AlertDialogCancel>
+          <AlertDialogAction onClick={onConfirm}>{t("unlinkConfirm")}</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }

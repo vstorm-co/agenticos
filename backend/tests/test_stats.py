@@ -16,7 +16,7 @@ from uuid import uuid4
 import pytest
 
 from app.core.exceptions import AuthorizationError, ValidationError
-from app.core.permissions import AuthContext, OrgRoleName
+from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.repositories.agent_run import WindowAggregates, WindowBreakdown
 from app.services.stats import StatsService, plan_timeline, resolve_window
 
@@ -79,6 +79,8 @@ def repos(monkeypatch: pytest.MonkeyPatch) -> dict[str, AsyncMock]:
             distinct_users=distinct,
             p50_ms=p50,
             p95_ms=p95,
+            eval_cost_usd=await mocks["eval_cost_window"](db, **kwargs),
+            authoring_cost_usd=await mocks["authoring_cost_window"](db, **kwargs),
             first_started_at=await mocks["first_started_at"](db, **kwargs),
         )
 
@@ -88,8 +90,20 @@ def repos(monkeypatch: pytest.MonkeyPatch) -> dict[str, AsyncMock]:
 
     # The previous window takes the lighter count+cost aggregate; delegate it to the
     # same two mocks so a test still drives it through `count_runs`/`sum_cost_window`.
-    async def _window_totals(db: object = None, **kwargs: object) -> tuple[int, Decimal]:
-        return await mocks["count_runs"](db, **kwargs), await mocks["sum_cost_window"](db, **kwargs)
+    # The eval traffic's cost rides on the same scans with a mock of its own, so
+    # the production figures above stay what a test set.
+    mocks["eval_cost_window"] = AsyncMock(return_value=Decimal(0))
+    mocks["authoring_cost_window"] = AsyncMock(return_value=Decimal(0))
+
+    async def _window_totals(
+        db: object = None, **kwargs: object
+    ) -> tuple[int, Decimal, Decimal, Decimal]:
+        return (
+            await mocks["count_runs"](db, **kwargs),
+            await mocks["sum_cost_window"](db, **kwargs),
+            await mocks["eval_cost_window"](db, **kwargs),
+            await mocks["authoring_cost_window"](db, **kwargs),
+        )
 
     window_totals = AsyncMock(side_effect=_window_totals)
     monkeypatch.setattr("app.services.stats.agent_run_repo.window_totals", window_totals)
@@ -249,17 +263,34 @@ class TestTheComposedAnswer:
         # month-to-date line beside it was the whole bill, and nothing on the
         # card said they were different questions.
         repos["sum_cost_window"].side_effect = [Decimal("2.00"), Decimal("1.00")]
+        repos["eval_cost_window"].side_effect = [Decimal("0.30"), Decimal("0.10")]
         repos["ingestion_sum_cost_window"].side_effect = [Decimal("0.50"), Decimal("0.25")]
 
         result = await StatsService(MagicMock()).usage(_ctx())
 
         assert result.cost is not None
         assert result.cost.model_usd == Decimal("2.00")
+        # Evals are money spent, so inside the bill - but beside production, not in it.
+        assert result.cost.eval_usd == Decimal("0.30")
         assert result.cost.ingestion_usd == Decimal("0.50")
-        assert result.cost.period_usd == Decimal("2.50")
+        assert result.cost.period_usd == Decimal("2.80")
         # The previous window is the whole bill too, or the change compares a
         # bill against half of one.
-        assert result.cost.previous_period_usd == Decimal("1.25")
+        assert result.cost.previous_period_usd == Decimal("1.35")
+
+    async def test_the_authoring_assistant_is_billed_apart_from_evals(self, repos) -> None:
+        repos["sum_cost_window"].side_effect = [Decimal("2.00"), Decimal("1.00")]
+        repos["eval_cost_window"].side_effect = [Decimal("0.30"), Decimal("0.10")]
+        repos["authoring_cost_window"].side_effect = [Decimal("0.05"), Decimal("0.02")]
+        repos["ingestion_sum_cost_window"].side_effect = [Decimal(0), Decimal(0)]
+
+        result = await StatsService(MagicMock()).usage(_ctx())
+
+        assert result.cost is not None
+        assert result.cost.eval_usd == Decimal("0.30")
+        assert result.cost.authoring_usd == Decimal("0.05")
+        assert result.cost.period_usd == Decimal("2.35")
+        assert result.cost.previous_period_usd == Decimal("1.12")
 
     async def test_own_scope_is_not_billed_for_the_organizations_indexing(self, repos) -> None:
         # `ingestion_spend` records no user - a document is indexed by a worker -
@@ -691,3 +722,82 @@ class TestTheTimeline:
         assert result.timeline.step_seconds == int(
             (buckets[1].start - buckets[0].start).total_seconds()
         )
+
+
+class TestWhoNeedsAttention:
+    @pytest.fixture
+    def signals(self, monkeypatch: pytest.MonkeyPatch) -> dict[str, object]:
+        """Three agents' signals, and a visibility rule the test can narrow."""
+        refunds, clerk, hidden = uuid4(), uuid4(), uuid4()
+        failing, passing, erroring, paused = (
+            MagicMock(id=uuid4(), agent_id=clerk, is_active=True),
+            MagicMock(id=uuid4(), agent_id=refunds, is_active=True),
+            MagicMock(id=uuid4(), agent_id=refunds, is_active=True),
+            MagicMock(id=uuid4(), agent_id=hidden, is_active=False),
+        )
+        agents = {
+            refunds: MagicMock(id=refunds),
+            clerk: MagicMock(id=clerk),
+            hidden: MagicMock(id=hidden),
+        }
+        for agent, name in ((refunds, "Refund desk"), (clerk, "Clerk"), (hidden, "Hidden")):
+            agents[agent].name = name
+        visible = {refunds, clerk}
+        monkeypatch.setattr(
+            "app.services.stats.message_rating_repo.down_rated_by_agent",
+            AsyncMock(return_value={refunds: 5, hidden: 9}),
+        )
+        monkeypatch.setattr(
+            "app.services.stats.agent_run_repo.failed_by_agent",
+            AsyncMock(return_value={clerk: 1}),
+        )
+        monkeypatch.setattr(
+            "app.services.stats.eval_suite_repo.list_for_organization",
+            AsyncMock(return_value=[failing, passing, erroring, paused]),
+        )
+        latest = AsyncMock(
+            return_value={
+                failing.id: MagicMock(status="failed"),
+                passing.id: MagicMock(status="passed"),
+                erroring.id: MagicMock(status="error"),
+            }
+        )
+        monkeypatch.setattr("app.services.stats.eval_suite_repo.latest_results", latest)
+        monkeypatch.setattr(
+            "app.services.stats.agent_repo.get_many", AsyncMock(return_value=agents)
+        )
+        # Everything visible may be viewed; only the clerk may be edited.
+        monkeypatch.setattr(
+            "app.services.stats.accessible_ids",
+            AsyncMock(
+                side_effect=lambda _db, _ctx, _rows, perm, **_k: (
+                    visible if perm is Perm.AGENTS_VIEW else {clerk}
+                )
+            ),
+        )
+        return {"refunds": refunds, "clerk": clerk, "latest": latest}
+
+    async def test_it_counts_each_signal_by_agent_the_most_first(self, signals) -> None:
+        result = await StatsService(MagicMock()).attention(
+            _ctx(), from_date=date(2026, 9, 1), to_date=date(2026, 9, 30)
+        )
+
+        # An errored result alerts as a failed one does; Improve goes where the reader may edit.
+        assert [
+            (item.name, item.rated_down, item.failed_runs, item.failing_suites, item.can_edit)
+            for item in result.items
+        ] == [("Refund desk", 5, 0, 1, False), ("Clerk", 0, 1, 1, True)]
+        assert (result.from_date, result.to_date) == (date(2026, 9, 1), date(2026, 9, 30))
+
+    async def test_a_paused_suite_is_not_read_and_an_unseen_agent_is_left_out(
+        self, signals
+    ) -> None:
+        result = await StatsService(MagicMock()).attention(_ctx())
+
+        asked = signals["latest"].await_args.args[1]
+        assert len(asked) == 3
+        assert "Hidden" not in [item.name for item in result.items]
+
+    async def test_it_is_refused_without_runs_view(self, signals) -> None:
+        with pytest.raises(AuthorizationError):
+            await StatsService(MagicMock()).attention(_ctx(OrgRoleName.MEMBER.value))

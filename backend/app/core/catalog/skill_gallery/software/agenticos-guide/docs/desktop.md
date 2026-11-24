@@ -2,7 +2,9 @@
 
 Native OAuth uses S256 PKCE. The app retains a private verifier; the callback carries only its public challenge. The verifier is sent in the exchange request body, never a URL. Signing out clears native phone notification previews.
 
-Unlinking, signing out, relinking or changing servers clears approved folders, local services, whole-computer and screen consents. Pairing previews the account before consuming the single-use code. Cancelling or timing out a command terminates its descendant processes too.
+Unlinking, signing out or changing servers clears approved folders, local services, whole-computer and screen consents. Pairing previews the account before consuming the single-use code. Shared routine folder permissions survive session expiry and re-pairing to the same verified account and server. They remain inactive until that identity is verified again; explicit unlinking, sign-out or changing server/account removes them.
+
+A published delegate that needs this computer can ask through the same chat, even when its main agent runs in the cloud. Consent belongs to the main agent starting the run. Local coding delegates request full access; nested delegates use that approved device workspace without sharing it with unrelated cloud delegates. Cancelling or timing out a command terminates its descendant processes too.
 
 AgenticOS runs in a browser, and that is how most people use it. The desktop app is
 for whoever wants more of it on their own computer: the console in a window of its
@@ -47,7 +49,7 @@ Download the package for your computer from the [GitHub release](https://github.
 
 The first launch guides you through connecting to a server or creating a local instance. Docker is needed only for a local instance; the wizard detects it and offers a download when missing. Installation does not grant screen or microphone access.
 
-[Why macOS shows this warning](howto/macos-warning.md).
+[Why macOS shows this warning](https://vstorm-co.github.io/agenticos/howto/macos-warning/).
 
 ### Desktop widgets on macOS
 
@@ -59,13 +61,33 @@ After an ad-hoc update, macOS may request microphone, Screen Recording, Accessib
 
 When the release workflow has a stable self-signed certificate (`scripts/create_macos_signing_cert.sh` makes one), macOS keeps the Screen Recording and Microphone grants across updates, because they are bound to the signing identity. Create it once and never replace it: a new certificate asks every user again. Self-signing does not remove the Gatekeeper warning; only Developer ID signing and notarization do.
 
+## Native Arch Linux package
+
+Download `agenticos-VERSION-1-x86_64.pkg.tar.zst` from the GitHub release and install it with `sudo pacman -U ./agenticos-VERSION-1-x86_64.pkg.tar.zst`. Replace `VERSION` with the release number. Pacman resolves the declared system dependencies, including WebKitGTK 4.1. This package does not bundle WebKitGTK or the Wayland client library.
+
+Download `SHA256SUMS.arch` beside the package and verify it with `sha256sum -c SHA256SUMS.arch` before installation. These release packages are not signed by the Arch Linux keyring.
+
+Upgrade by downloading the newer package and running the same `pacman -U` command. Remove it with `sudo pacman -R agenticos`; personal settings remain in your home directory. **Check for Updates…** explains this package-manager policy instead of downloading an AppImage. There is no automatic pacman repository or official AUR publication.
+
+The maintained recipe is `packaging/arch/PKGBUILD.in`. `scripts/build_arch_package.sh OUTPUT_DIRECTORY` generates a versioned recipe and checksummed archive from the current Git commit, then runs makepkg as an ordinary user. Build inside an updated Arch x86_64 environment with the recipe's build and runtime dependencies installed. The release workflow repeats this build for each platform release; rolling system dependencies are resolved at build time.
+
+The native Arch CI job installs the package, upgrades its package revision, checks ownership and removal, and runs the installed executable's isolated WebKit rendering check under Xvfb/X11 and headless Weston/Wayland. Its `arch-native` artifact records library paths, package versions and rendering logs. These software-rendered checks do not establish compatibility with every physical GPU, Mesa version, compositor or CachyOS installation.
+
 ## Running it
 
-Before choosing a local installation or connecting to a server, the first-run wizard
-offers optional Screen Recording, Accessibility and Microphone permissions on macOS. Each button
-opens the relevant system settings; setup never captures the screen or controls the
-computer. Continue works without either permission. Returning from System Settings
-refreshes their status; macOS may require an app restart. Folder access remains requested when it is used. The Microphone prompt is a normal macOS one; the other two open System Settings. The first window opens at 80% of the screen, centred, and afterwards remembers its size and place.
+The first-run wizard starts with a language choice and whether to create a local
+workspace or connect to your organization's server. Screen Recording,
+Accessibility and Microphone are optional features offered through App readiness
+or when used, rather than a required step before choosing a connection.
+
+When connecting the desktop app, you can paste the original invitation link instead of only a server address. The app connects to that link’s server and opens the invitation, preserving its destination through sign-in. It does not accept the invitation automatically or store its token in native settings. Optional connection review waits until the invitation is finished.
+
+The native start and console support English, Polish, German and Turkish. Your
+native choice is carried to the console; an existing account's saved language
+still takes precedence. Local setup asks for one workspace name; a separate
+organization name is an advanced option. After connection review, **Get started**
+opens the common first-task flow. A local workspace can still send material to
+a remote AI provider; local installation alone does not mean offline AI.
 
 Rust from [rustup](https://rustup.rs) and the platform's webview - WebKit on macOS,
 WebView2 on Windows, WebKitGTK on Linux - are the prerequisites; Tauri's own
@@ -136,7 +158,7 @@ checks, not workload sizing guarantees. Image downloads show progress and have a
 Git, Python, uv and Node.js are not required on the host for ordinary app use.
 
 New instances pin the platform version shipped with the app. Updating the desktop
-app does not silently replace a running instance's version. **Update** downloads
+app does not silently replace a running instance's version. **Update local workspace** downloads
 the matching platform images, pauses writers and backs up the database, media and
 deployment keys under the instance's private `backups/` directory before applying
 the update. A failed backup blocks the update. Backups contain personal data and
@@ -163,7 +185,7 @@ setup refuses an older image before creating the owner or opening a session.
 The local screen lists saved instances, their addresses and whether they are
 running. **Start and connect** starts the selected instance; **Finish setup**
 retries an interrupted installation using its existing files and keys. The menu
-bar's Start, Stop and Update act on the connected managed instance. Connecting
+bar's Start and Stop act on the connected managed instance. **Update local workspace…** opens the local instance picker. Connecting
 to an externally started development stack does not make it managed by the app.
 
 A local instance runs the API, the worker, the console, the database and Redis,
@@ -180,6 +202,21 @@ these files or putting them on the Docker command line. Deployment keys stay
 in the instance's private `.env`; provider keys are stored by the server's vault.
 The native setup controls use a neutral keyboard focus indicator and do not
 focus choice buttons automatically.
+
+The desktop app and workspace update separately. In the main macOS menu, choose
+**AgenticOS → Update local workspace…**; on Windows and Linux, use the tray menu.
+The same action is available beside each installed instance in **Change server… →
+On this computer**. The picker shows the desktop app version, each workspace's
+configured version and the update target bundled with the app. An older unpinned
+workspace shows its version as unavailable; the updater still checks it before
+changing anything. A newer workspace cannot be downgraded. A current workspace offers **Reapply workspace update** to recover from an interrupted restart or migration.
+
+Choose **Update local workspace**, then confirm the native backup and restart
+notice. The picker reports image download, backup and restart progress, then
+lets you connect again. On failure it shows the error and permits retry; cancelling
+leaves the workspace unchanged. **Check for Updates…** updates only the desktop
+app and points you to the separate workspace action, including when the app is
+already current. This path works even when the connected console is older.
 
 ## Connection setup and app readiness
 
@@ -317,11 +354,12 @@ and shell tools - list, read, write, edit, run - reach that folder through the a
 
 **Link the computer once.** In the chat settings, choose **Work on → This computer**
 to link it directly. Confirm in the native dialog, then choose a folder and its
-access mode in the same panel. **Settings → Desktop app → This computer → Let
-agents work here** offers the same linking action. The app gets its own session
+access mode in the same panel. **Settings → Desktop app → This computer → Link
+this computer** offers the same linking action. The app gets its own session
 for this computer and keeps its refresh token in the system keychain. It holds one
 outbound WebSocket to the server's device hub (`/api/v1/ws/device`); nothing listens
-on the computer. **Unlink** ends that session.
+on the computer. **Unlink** ends that session; it asks first and lists what it
+clears.
 
 **Choose it per chat.** In the desktop app the chat's settings offer **Work on:
 Cloud / This computer**. Choosing this computer asks for a folder in the native
@@ -345,7 +383,9 @@ and writes are limited to 10 MiB so oversized transfers cannot disconnect the de
 Larger writes are refused before encoding or sending any file bytes.
 
 Windows offers read only and full access. Linux offers writing in the folder only
-when `bwrap` is installed.
+when `bwrap` with `--bind-fd` support is installed. The app holds a no-follow directory handle through sandbox startup, so renaming a folder or replacing it with a symbolic link cannot change the approved directory. On Linux, task environment variables are applied inside the sandbox rather than to its launcher; their values are passed through a private descriptor.
+
+Routine folder roots must not contain symbolic links or junctions. Choose the actual folder in the picker; background admission never resolves links in the root path.
 
 **The computer decides, not the server.** The folders you picked, with their modes,
 are kept in the app's settings, and every operation names a folder and a mode that
@@ -358,7 +398,7 @@ given to an agent holds for that agent (see **Whole computer**).
 
 **Only your own runs.** A chat reaches your computer only when it is your own -
 never an API key, a widget visitor or someone else's chat - and a
-[trigger](triggers.md) only when it acts as its creator, who points it at a folder
+[trigger](https://vstorm-co.github.io/agenticos/triggers/) only when it acts as its creator, who points it at a folder
 of their computer under the trigger's **Work on**.
 
 **When the computer is away.** An interactive chat run that asked for this computer and finds the app
@@ -371,10 +411,15 @@ The server checks the sign-in before forwarding each local operation. Revoked or
 
 In the Builder, **Sandbox → Computer** stores `backend: local` with no path or
 native consent. Each person approves their own target in desktop chat. Such an
-agent has no cloud workspace, so **Work on** offers no Cloud for it. Its first
-message asks once where it may work - **Whole computer** or a folder - and the
-answer is remembered for that agent on this computer, so its later chats start
-there without asking. When creating a
+agent has no cloud workspace, so **Work on** offers no Cloud for it.
+
+You can write to
+it before granting anything: it answers what needs no files, and only when a
+request needs your files does it ask where it may work - **Whole computer** or a
+folder. The run waits for your choice, then the chat continues with the files on
+its own. The answer is remembered for that agent on this computer, so its later
+chats start there without asking. In the web console, where there is no computer
+to grant, it says it cannot reach your files. When creating a
 project, **Project sandbox → Computer · your files** opens the personal folder
 selector; other members keep the project’s shared workspace.
 
@@ -398,7 +443,7 @@ agent. Internal attachment snapshots use file listings rather than running a she
 
 ## The screen
 
-[Computer use](reference/capabilities.md) can drive this computer's own screen. In
+[Computer use](https://vstorm-co.github.io/agenticos/reference/capabilities/) can drive this computer's own screen. In
 a chat working on this computer, its `auto` desktop - the default - is this screen;
 `local` asks for nothing else.
 
@@ -465,9 +510,12 @@ and about its own public address.
 ## What it deliberately does not do
 
 - **No navigation guard.** A link that leaves the server's origin opens inside the
-  window, because an OAuth flow - connecting an MCP server - has to come back to
-  the same webview for its cookie to land. The window's title names any other host
-  it shows.
+  window, because some OAuth flows - connecting an account for a terminal - have to
+  come back to the same webview for their cookie to land. The window's title names
+  any other host it shows. Connecting an MCP server is not one of them: its consent
+  opens in your own browser, where your sign-ins and passkeys are, because the
+  callback is authenticated by its `state` alone. Finish there and come back; the
+  server appears in the app once it is authorised.
 
 - **No standing access.** Linking the computer grants nothing on its own: a run
   reaches only approved folders or a separately approved whole-computer conversation, and the screen only
@@ -595,6 +643,10 @@ one-way notification that the person took control. A binding with
 
 The Apps workflow also builds development installers and tests installation without UI automation: copying the Mac app from its DMG, silent installation and removal on Windows, Debian installation and removal, and portable AppImage extraction. It verifies the embedded macOS widget and signatures, persistent session isolation, and rejection of tampered updater downloads. These checks use ad-hoc or unsigned builds and do not establish public notarization or store approval.
 
+Installer CI and Linux release builds also inspect the extracted AppImage and reject a bundled Wayland client library (`libwayland-client.so*`), which can conflict with the host Mesa driver and crash WebKitGTK. Release validation runs before installers and updater signatures are uploaded. This library check does not establish rendering compatibility on every Wayland compositor or GPU.
+
+When manually dispatching an older tag without `scripts/build_linux_desktop_release.sh`, the Linux job builds directly with Tauri and logs a warning that pre-upload AppImage validation is unavailable. Tags containing the wrapper keep that validation; a build or validation failure still prevents updater publication.
+
 The **Apps** GitHub Actions workflow checks native crates on macOS, Windows and
 Linux and builds Android debug APKs and an iOS simulator app. Full native checks
 run in CI. Local `make desktop-check` remains available for a focused change.
@@ -662,9 +714,17 @@ Quick Ask has a microphone button for click-to-start dictation as well as hold-t
 
 ## Local routines { #local-routines }
 
-Create a local routine with **Run as me**, choose its folder and select read, write and command access separately. Commands require write access. Saving first creates a paused routine, then the desktop app asks native confirmation for that routine's ID, organization, server, folder and operations. Cancelling keeps the same routine paused; retrying completes its setup without creating another routine. A general chat folder grant never authorizes a routine.
+A refusal from a replacement computer does not prove that the approved computer lost its permission: it may simply be offline. The owner gets a deduplicated notice to reconnect or review access, while the routine and its event payloads keep waiting. A refusal from the originally selected active session still stops the routine for review.
 
-**Settings → Desktop → Routine permissions** lists the current account and organization's grants on this computer. Revoke one there to stop future operations. Re-pairing, unlinking, signing out or changing server clears these grants. Changing a folder or increasing operations needs fresh native confirmation. Browser, screen, local models, local MCP services and whole-computer access are outside a routine folder grant. The published agent must already enable Sandbox; choosing a local target does not enable capabilities.
+On Linux the app checks that the installed bubblewrap advertises `--bind-fd` before offering folder writes or starting a sandboxed command. Missing, unsupported or unresponsive builds are refused; upgrade bubblewrap to enable this mode.
+
+Routine permission JSON is verified against its current SHA-256 fingerprint in the operating system keychain. Editing it or restoring a copy made before revocation cannot grant access. An unavailable keychain or a mismatch blocks routine access. **Upgrade:** older routine grants have no fingerprint and require fresh approval: explicitly unlink the computer, link it again and review its routines. The same reset recovers an interrupted permission write; the app never trusts an unverified store automatically.
+
+Create a local routine with **Run as me**, choose its folder and select read, write and command access separately. Commands require write access. Saving first creates a paused routine. The first time, the desktop app asks once, natively, to let **all your routines** in this organization work in that folder and the folders inside it, with those operations; choose your home folder for the whole computer.
+
+Every later routine in that folder, now or later, is saved without asking, and the permission holds after the app updates and after you sign in again. Cancelling keeps the same routine paused; retrying completes its setup without creating another routine. A general chat folder grant never authorizes a routine.
+
+**Settings → Desktop → Routine permissions** lists the current account and organization's grants on this computer. Revoke one there to stop future operations. Changing server or account clears them; a permission for one routine, granted by an older app, also ends with its session. Changing a folder or increasing operations needs fresh native confirmation. Browser, screen, local models, local MCP services and whole-computer access are outside a routine folder grant. The published agent must already enable Sandbox; choosing a local target does not enable capabilities.
 
 When the exact approved computer is offline before execution, a durable activation waits in PostgreSQL. The routine row shows the pending count. Scheduled/manual occurrences coalesce while waiting; distinct incoming events retain their own context and activation ID. The existing minute worker checks for reconnection. Offline readiness checks make no model call and do not consume dispatch failure attempts. Start admission commits with the run before its first model call. A started activation is never automatically replayed after a worker crash; an uncertain file or shell operation is never turned into a new run.
 

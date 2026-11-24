@@ -45,6 +45,14 @@ describe("RunStatusBadge", () => {
     expect(container.querySelector('[class*="destructive"]')).toBeNull();
   });
 
+  it("does not present a timeout as a failure either", () => {
+    // A deadline is the platform working as designed, like a budget stop -
+    // a warning tone, never the destructive one an operator reads as a crash.
+    const { container } = render(<RunStatusBadge status="timed_out" />);
+    expect(screen.getByText("Timed out")).toBeInTheDocument();
+    expect(container.querySelector('[class*="destructive"]')).toBeNull();
+  });
+
   it.each([
     ["completed", "Completed"],
     ["running", "Running"],

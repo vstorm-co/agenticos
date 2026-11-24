@@ -28,11 +28,7 @@ function text(value: unknown, limit: number): string | undefined {
 /** Keep the route only. Origins, query values and fragments never accompany it. */
 export function assistantPagePath(pathname: string): string {
   const path = pageOf(pathname.split(/[?#]/, 1)[0] ?? "/");
-  if (
-    !path.startsWith("/") ||
-    path.startsWith("//") ||
-    /[\\\\\u0000-\u001f\u007f]/.test(path)
-  )
+  if (!path.startsWith("/") || path.startsWith("//") || /[\\\\\u0000-\u001f\u007f]/.test(path))
     return "/";
   return path.slice(0, 2048);
 }

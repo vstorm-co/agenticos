@@ -1,12 +1,14 @@
 ---
-source_sha: "700737c6ce4e"
+source_sha: "5eb8b938b5d7"
 ---
 
 # La app de escritorio { #the-desktop-app }
 
 El inicio de sesión OAuth nativo utiliza PKCE S256. La aplicación conserva un verificador privado; el callback solo contiene su desafío público. El verificador se envía en el cuerpo de la solicitud de intercambio, nunca en una URL. Cerrar sesión elimina las vistas previas nativas de las notificaciones del teléfono.
 
-Al desconectar, cerrar sesión, volver a vincular o cambiar de servidor se eliminan los permisos de carpetas, servicios locales, todo el equipo y pantalla. La vinculación muestra la cuenta antes de consumir el código de un solo uso. Cancelar un comando o superar su tiempo límite también termina sus procesos secundarios.
+Al desconectar, cerrar sesión o cambiar de servidor se eliminan los permisos de carpetas, servicios locales, todo el equipo y pantalla. La vinculación muestra la cuenta antes de consumir el código de un solo uso. Los permisos compartidos de carpetas para rutinas sobreviven al vencimiento de la sesión y a una nueva vinculación con la misma cuenta y servidor verificados. Permanecen inactivos hasta verificar otra vez esa identidad; la desconexión explícita, cerrar sesión o cambiar de servidor o cuenta los elimina.
+
+Un delegado publicado que necesite este equipo puede pedir permiso en el mismo chat, aunque el agente principal se ejecute en la nube. El consentimiento pertenece al agente principal que inicia la ejecución. Los delegados de programación locales piden acceso completo; los delegados anidados usan ese espacio aprobado del dispositivo sin compartirlo con otros delegados en la nube. Cancelar un comando o superar su tiempo límite también termina sus procesos secundarios.
 
 AgenticOS funciona en el navegador, y así lo usa la mayoría. La app de escritorio
 es para quien quiere más en su propio ordenador: la consola en una ventana propia,
@@ -64,13 +66,33 @@ Tras una actualización con firma ad-hoc, macOS puede volver a solicitar acceso 
 
 Cuando el workflow de versiones tiene un certificado autofirmado estable (`scripts/create_macos_signing_cert.sh` crea uno), macOS conserva los permisos de grabación de pantalla y micrófono entre actualizaciones, porque están ligados a la identidad de firma. Créalo una vez y no lo sustituyas nunca: un certificado nuevo vuelve a preguntar a todos. Autofirmar no elimina la advertencia de Gatekeeper; solo lo hacen la firma Developer ID y la notarización.
 
+## Paquete nativo de Arch Linux { #native-arch-linux-package }
+
+Descarga `agenticos-VERSION-1-x86_64.pkg.tar.zst` de la versión de GitHub e instálalo con `sudo pacman -U ./agenticos-VERSION-1-x86_64.pkg.tar.zst`. Sustituye `VERSION` por el número de versión. Pacman resuelve las dependencias del sistema declaradas, incluido WebKitGTK 4.1. El paquete no incluye su propio WebKitGTK ni la biblioteca cliente de Wayland.
+
+Antes de instalar, descarga también `SHA256SUMS.arch` y compruébalo con `sha256sum -c SHA256SUMS.arch`. Estos paquetes no están firmados por el llavero de Arch Linux.
+
+Para actualizar, descarga el paquete más reciente y vuelve a ejecutar `pacman -U`. Elimínalo con `sudo pacman -R agenticos`; los ajustes personales permanecen en tu directorio de usuario. **Check for Updates…** explica esta política del gestor de paquetes en lugar de descargar un AppImage. No hay un repositorio automático de pacman ni una publicación oficial en AUR.
+
+La receta mantenida está en `packaging/arch/PKGBUILD.in`. `scripts/build_arch_package.sh OUTPUT_DIRECTORY` genera una receta con versión y un archivo con suma de comprobación desde el commit actual de Git y ejecuta makepkg como usuario normal. Compila en un entorno Arch x86_64 actualizado con las dependencias indicadas en la receta. El workflow de publicación repite la compilación para cada versión de la plataforma; las dependencias de la distribución continua se resuelven al compilar.
+
+El trabajo CI nativo de Arch instala el paquete, actualiza su revisión, comprueba la propiedad y eliminación de archivos y ejecuta la prueba aislada de renderizado WebKit del programa instalado bajo Xvfb/X11 y Weston/Wayland sin pantalla. El artefacto `arch-native` registra rutas de bibliotecas, versiones de paquetes y logs de renderizado. Estas pruebas con renderizado por software no demuestran compatibilidad con todas las GPU físicas, versiones de Mesa, compositores ni instalaciones de CachyOS.
+
 ## Ejecutarla { #running-it }
 
-Antes de elegir una instalación local o conectar con un servidor, el asistente inicial
-ofrece permisos opcionales de grabación de pantalla, accesibilidad y micrófono en macOS. Cada botón
-abre los ajustes del sistema correspondientes; la configuración no captura la pantalla
-ni controla el equipo. Se puede continuar sin ninguno. Al volver de Ajustes se
-actualiza su estado; macOS puede requerir reiniciar la aplicación. El acceso a las carpetas se solicita al usarlo. El micrófono lo pide macOS con el aviso habitual; los otros dos abren los ajustes del sistema. La primera ventana se abre al 80 % de la pantalla, centrada, y después recuerda su tamaño y posición.
+El asistente empieza con el idioma y la elección entre espacio local y
+servidor de la organización. Grabación de pantalla, accesibilidad y micrófono
+son funciones opcionales disponibles en App readiness o al utilizarlas;
+no son un requisito para elegir la conexión.
+
+Al conectar la aplicación de escritorio, puedes pegar el enlace original de invitación en lugar de solo la dirección del servidor. La aplicación se conecta al servidor del enlace y abre la invitación, conservando el destino durante el inicio de sesión. No acepta la invitación automáticamente ni guarda su token en los ajustes nativos. La revisión opcional de conexión espera a que termine la invitación.
+
+El inicio nativo y la consola admiten inglés, polaco, alemán y turco. La elección
+se pasa a la consola; el idioma guardado en una cuenta existente sigue teniendo
+prioridad. La instalación local pide un nombre de espacio; un nombre de organización
+separado es una opción avanzada. Tras revisar la conexión, **Get started** abre
+el inicio común de tareas. Un espacio local puede enviar contenido a un proveedor
+de IA remoto; instalar localmente no implica IA sin conexión.
 
 Hacen falta Rust de [rustup](https://rustup.rs) y el webview de la plataforma -
 WebKit en macOS, WebView2 en Windows, WebKitGTK en Linux; la
@@ -147,7 +169,7 @@ la app no requiere Git, Python, uv ni Node.js en el equipo.
 
 Las instancias nuevas fijan la versión de plataforma incluida con la app.
 Actualizar la app de escritorio no cambia automáticamente una instancia en uso.
-**Update** descarga las imágenes correspondientes, pausa las escrituras y guarda
+**Update local workspace** descarga las imágenes correspondientes, pausa las escrituras y guarda
 una copia de la base de datos, los archivos multimedia y las claves de despliegue
 en el directorio privado `backups/` antes de actualizar. Si falla la copia, se
 bloquea la actualización. Las copias contienen datos personales y requieren
@@ -176,8 +198,7 @@ o abrir una sesión.
 
 La pantalla local muestra las instancias guardadas, sus direcciones y estado.
 **Start and connect** inicia la elegida; **Finish setup** reintenta una instalación
-interrumpida conservando archivos y claves. Start, Stop y Update del menú actúan
-sobre la instancia administrada conectada. Conectarse a un entorno de desarrollo
+interrumpida conservando archivos y claves. Start y Stop del menú actúan sobre la instancia administrada conectada. **Update local workspace…** abre la lista de instancias locales. Conectarse a un entorno de desarrollo
 iniciado externamente no lo convierte en una instancia administrada.
 
 Una instancia local ejecuta la API, el worker, la consola, la base de datos y
@@ -194,6 +215,23 @@ estos archivos ni en argumentos de Docker. Las claves del despliegue permanecen
 en su `.env` privado; las de proveedores se guardan en la bóveda del servidor.
 El asistente nativo usa un foco de teclado neutro y no enfoca automáticamente
 los botones de selección.
+
+La aplicación de escritorio y el espacio de trabajo se actualizan por separado.
+En el menú principal de macOS, elige **AgenticOS → Update local workspace…**; en
+Windows y Linux, usa el menú de la bandeja. La acción también aparece junto a cada
+instancia instalada en **Change server… → On this computer**. La lista muestra la
+versión de la aplicación, la versión configurada del espacio y la versión de destino
+incluida con la aplicación.
+
+En un espacio antiguo sin versión fija, esta figura
+como desconocida; el actualizador la comprueba antes de cambiar nada. No se permite volver a una versión anterior. Si el espacio ya está actualizado, **Reapply workspace update** permite recuperarlo tras un reinicio o una migración interrumpidos.
+
+Elige **Update local workspace** y confirma el aviso nativo de copia de seguridad
+y reinicio. La lista muestra la descarga de imágenes, la copia y el reinicio, y
+luego permite volver a conectarse. Si falla, muestra el error y permite reintentar;
+cancelar deja el espacio sin cambios. **Check for Updates…** solo actualiza la
+aplicación de escritorio e indica la acción separada del espacio, incluso cuando
+la aplicación está al día. Esta ruta funciona también con una consola anterior.
 
 ## Configuración de conexión y estado de la aplicación { #connection-setup-and-app-readiness }
 
@@ -340,11 +378,12 @@ ejecutar - llegan a esa carpeta a través de la app.
 **Vincula el ordenador una vez.** En los ajustes del chat, elige
 **Trabajar en → Este ordenador** para vincularlo directamente. Confirma en el
 diálogo nativo y luego elige una carpeta y su modo de acceso en el mismo panel.
-**Ajustes → App de escritorio → Este ordenador → Dejar que los agents trabajen
-aquí** ofrece la misma acción. La app obtiene una sesión propia para este
+**Ajustes → App de escritorio → Este ordenador → Vincular este
+ordenador** ofrece la misma acción. La app obtiene una sesión propia para este
 ordenador y guarda su refresh token en el llavero del sistema. Mantiene una
 conexión WebSocket saliente al device hub del servidor (`/api/v1/ws/device`);
-nada escucha en el ordenador. **Desvincular** termina esa sesión.
+nada escucha en el ordenador. **Desvincular** termina esa sesión; antes pregunta y
+enumera lo que borra.
 
 **Elígelo por chat.** En la app de escritorio los ajustes del chat ofrecen
 **Trabajar en (Work on): Nube / Este ordenador**. Elegir este ordenador pide una
@@ -370,7 +409,9 @@ todo el ordenador. Las lecturas y escrituras directas de archivos locales tienen
 escrituras mayores se rechazan antes de codificar o enviar los datos del archivo.
 
 Windows ofrece solo lectura y acceso completo. Linux ofrece escribir en la carpeta
-solo cuando `bwrap` está instalado.
+solo cuando está instalado `bwrap` con soporte para `--bind-fd`. La app mantiene abierto un descriptor de directorio sin seguir enlaces hasta el inicio del sandbox. Renombrar la carpeta o sustituirla por un enlace simbólico no puede cambiar el directorio aprobado. En Linux, las variables de entorno de la tarea se aplican dentro del sandbox, no a su proceso de lanzamiento; sus valores se pasan mediante un descriptor privado.
+
+La ruta raíz de una carpeta de rutina no puede contener enlaces simbólicos ni junctions. Selecciona la carpeta real en el selector; la admisión en segundo plano nunca resuelve enlaces en la ruta raíz.
 
 **Decide el ordenador, no el servidor.** Las carpetas elegidas, con sus modos, se
 guardan en los ajustes de la app, y cada operación nombra una carpeta y un modo que
@@ -398,9 +439,15 @@ El servidor comprueba la sesión antes de reenviar cada operación local. Las se
 En el Builder, **Sandbox → Computer** guarda `backend: local` sin rutas ni
 consentimiento nativo. Cada persona autoriza su propio destino en el chat de
 escritorio. Ese agente no tiene espacio en la nube, así que **Work on** no le
-ofrece la nube. Su primer mensaje pregunta una vez dónde puede trabajar - **Todo el
-equipo** o una carpeta - y la respuesta se recuerda para ese agente en este equipo,
-de modo que sus chats posteriores empiezan allí sin preguntar. Al crear un proyecto, **Project sandbox → Computer · your files** abre
+ofrece la nube.
+
+Puedes escribirle
+antes de conceder nada: responde lo que no necesita archivos y solo cuando una
+petición necesita tus archivos pregunta dónde puede trabajar - **Todo el equipo** o
+una carpeta. La ejecución espera tu elección y luego el chat continúa solo con los
+archivos. La respuesta se recuerda para ese agente en este equipo, de modo que sus
+chats posteriores empiezan allí sin preguntar. En la consola web, donde no hay
+equipo que conceder, dice que no puede acceder a tus archivos. Al crear un proyecto, **Project sandbox → Computer · your files** abre
 el selector de carpeta personal; los demás miembros conservan el espacio compartido.
 
 **Todo el equipo.** El chat de escritorio ofrece **Todo el equipo** sin
@@ -495,9 +542,12 @@ despliegue tiene que coincidir en el esquema - `DESKTOP_DEEP_LINK_SCHEME`,
 ## Lo que no hace a propósito { #what-it-deliberately-does-not-do }
 
 - **Sin guardia de navegación.** Un enlace que sale del origen del servidor se abre
-  en la ventana, porque un flujo OAuth - conectar un servidor MCP - tiene que volver
-  al mismo webview para que su cookie llegue. El título de la ventana nombra
-  cualquier otro host que muestre.
+  en la ventana, porque algunos flujos OAuth - conectar una cuenta para un terminal -
+  tienen que volver al mismo webview para que su cookie llegue. El título de la
+  ventana nombra cualquier otro host que muestre. Conectar un servidor MCP no es uno
+  de ellos: su consentimiento se abre en tu propio navegador, donde están tus
+  sesiones y passkeys, porque el callback se autentica solo con su `state`. Termina
+  allí y vuelve; el servidor aparece en la app cuando queda autorizado.
 
 - **Sin acceso permanente.** Vincular el ordenador no concede nada por sí solo: un
   run llega solo a las carpetas que elegiste, en los modos que elegiste, y a la
@@ -634,6 +684,10 @@ permisos de consola ni archivos; solo pueden notificar una toma de control.
 
 El workflow Apps también genera instaladores de desarrollo y comprueba la instalación sin automatizar la interfaz: copia de la app Mac desde el DMG, instalación y desinstalación silenciosas en Windows, instalación y eliminación de Debian y extracción del AppImage portátil. Verifica el widget integrado de macOS y las firmas, el aislamiento de la sesión persistente y el rechazo de descargas de actualización modificadas. Usa compilaciones ad-hoc o sin firma y no acredita notarización pública ni aprobación de tiendas.
 
+La CI de instaladores y las compilaciones de versiones para Linux también inspeccionan el AppImage extraído y rechazan la biblioteca cliente de Wayland incluida (`libwayland-client.so*`), que puede entrar en conflicto con el controlador Mesa del sistema y provocar un fallo de WebKitGTK. La validación se ejecuta antes de subir los instaladores y las firmas de actualización. Esta comprobación de bibliotecas no confirma la compatibilidad de renderizado con todos los compositores Wayland o GPU.
+
+Al ejecutar manualmente un tag antiguo sin `scripts/build_linux_desktop_release.sh`, el trabajo de Linux compila directamente con Tauri y registra una advertencia de que la validación de AppImage previa a la subida no está disponible. Los tags que contienen el wrapper conservan esa validación; un fallo de compilación o validación sigue impidiendo la publicación del manifiesto de actualización.
+
 El workflow **Apps** de GitHub Actions comprueba los crates nativos en macOS,
 Windows y Linux y construye APK de depuración Android y la aplicación del
 simulador iOS. Las comprobaciones completas se ejecutan en CI; `make desktop-check`
@@ -699,9 +753,17 @@ Quick Ask tiene un botón de micrófono para iniciar el dictado con un clic, ade
 
 ## Rutinas locales { #local-routines }
 
-Crea una rutina local con **Ejecutar como yo**, elige una carpeta y selecciona por separado lectura, escritura y ejecución de comandos. Los comandos requieren escritura. Al guardar se crea primero una rutina pausada; después la aplicación de escritorio pide confirmación nativa para su ID, organización, servidor, carpeta y operaciones. Cancelar mantiene la misma rutina pausada; reintentar completa su configuración sin duplicarla. Un permiso general de carpeta del chat no autoriza una rutina.
+El rechazo de un equipo sustituto no demuestra que el equipo autorizado haya perdido su permiso: puede estar desconectado. El propietario recibe un aviso sin duplicados para reconectarlo o revisar el acceso; la rutina y sus eventos siguen esperando. Un rechazo de la sesión activa originalmente seleccionada sigue deteniendo la rutina para revisión.
 
-**Ajustes → Escritorio → Permisos de rutinas** muestra los permisos de la cuenta y organización actuales en este ordenador. Revocar uno detiene operaciones posteriores. Volver a vincular, desvincular, cerrar sesión o cambiar de servidor elimina estos permisos. Cambiar de carpeta o ampliar operaciones requiere nueva confirmación nativa. Quedan fuera navegador, pantalla, modelos locales, servicios MCP locales y acceso a todo el ordenador. El agente publicado ya debe tener Sandbox habilitado; un destino local no habilita capacidades.
+En Linux la app comprueba que bubblewrap anuncie `--bind-fd` antes de ofrecer escritura en carpetas o iniciar un comando aislado. Rechaza versiones ausentes, incompatibles o que no respondan; actualiza bubblewrap para habilitar este modo.
+
+El JSON de permisos de rutinas se verifica con su huella SHA-256 actual en el llavero del sistema operativo. Editarlo o restaurar una copia anterior a una revocación no concede acceso. Un llavero no disponible o una discrepancia bloquea las rutinas. **Actualización:** los permisos antiguos no tienen huella y necesitan nueva aprobación: desconecta explícitamente el equipo, vuelve a vincularlo y revisa sus rutinas. El mismo reinicio recupera una escritura interrumpida; la app nunca confía automáticamente en un archivo sin verificar.
+
+Crea una rutina local con **Ejecutar como yo**, elige una carpeta y selecciona por separado lectura, escritura y ejecución de comandos. Los comandos requieren escritura. Al guardar se crea primero una rutina pausada. La primera vez, la aplicación de escritorio pregunta una vez, de forma nativa, si **todas tus rutinas** de esta organización pueden trabajar en esa carpeta y sus subcarpetas con esas operaciones; elige tu carpeta personal para todo el ordenador.
+
+Cada rutina posterior en esa carpeta se guarda sin preguntar, y el permiso se mantiene tras actualizar la aplicación y volver a iniciar sesión. Cancelar mantiene la misma rutina pausada; reintentar completa su configuración sin duplicarla. Un permiso general de carpeta del chat no autoriza una rutina.
+
+**Ajustes → Escritorio → Permisos de rutinas** muestra los permisos de la cuenta y organización actuales en este ordenador. Revocar uno detiene operaciones posteriores. Cambiar de servidor o de cuenta elimina estos permisos; un permiso para una sola rutina, concedido por una aplicación anterior, también termina con su sesión. Cambiar de carpeta o ampliar operaciones requiere nueva confirmación nativa. Quedan fuera navegador, pantalla, modelos locales, servicios MCP locales y acceso a todo el ordenador. El agente publicado ya debe tener Sandbox habilitado; un destino local no habilita capacidades.
 
 Si el ordenador concreto autorizado está desconectado antes de ejecutar, una activación duradera espera en PostgreSQL. La fila de la rutina muestra cuántas esperan. Las activaciones programadas y manuales se agrupan mientras esperan; los eventos entrantes distintos conservan su contexto e ID de activación. El worker existente comprueba la reconexión cada minuto. Las comprobaciones de disponibilidad no llaman al modelo ni consumen intentos de inicio fallidos. La admisión se confirma con la ejecución antes de la primera llamada al modelo. Una activación iniciada no se repite automáticamente tras una caída del worker; una operación de archivo o comando incierta no genera otra ejecución.
 

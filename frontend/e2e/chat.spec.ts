@@ -8,6 +8,7 @@ import {
   SEEDED_AGENT_HANDLE,
   SEEDED_AGENT_NAME,
   agentCard,
+  nowListed,
 } from "./helpers";
 
 test.use({ storageState: AUTH_STATE });
@@ -27,6 +28,9 @@ test.use({ storageState: AUTH_STATE });
  * `journey.spec.ts`.
  */
 
+/** What the conversation sidebar reads, newest first. */
+const CONVERSATIONS = "/api/conversations?limit=30&sort_by=updated_at&sort_dir=desc&hide_api=true";
+
 /** The composer, once the socket is up. Disabled means "not connected". */
 async function readyComposer(page: Page) {
   await page.goto("/chat");
@@ -40,15 +44,36 @@ async function readyComposer(page: Page) {
 test.describe("Chat", () => {
   test("the composer is live, not merely rendered", async ({ page }) => {
     const input = await readyComposer(page);
+    await expect(
+      page.getByRole("button", { name: `Agent: ${SEEDED_AGENT_NAME}`, exact: true }),
+    ).toBeVisible();
+    // A confirmed empty Inbox keeps its space without exposing an empty region.
+    const briefing = page.locator(".chat-home-inbox");
+    await expect(briefing).toBeVisible();
+    await expect(briefing).not.toHaveAttribute("aria-busy", "true");
+    const hint = page.getByTestId("composer-hints");
+    await expect(hint).toBeVisible();
+    await input.focus();
+    await expect(hint).toBeVisible();
+    const composer = page.locator(".composer-box");
+    const before = await composer.boundingBox();
+    if (!before) throw new Error("Expected the live composer on screen");
 
-    // Nothing to send yet, so the call stands where Send is - an empty message
-    // would open a conversation with nothing in it (#2301).
-    await expect(page.getByRole("button", { name: "Start a voice call" })).toBeVisible();
+    // Dictation stays available before a first message; Send appears for a draft.
+    await expect(page.getByRole("button", { name: "Voice input" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Send message" })).toHaveCount(0);
 
     await input.fill("Hello, AI assistant!");
     await expect(input).toHaveText("Hello, AI assistant!");
     await expect(page.getByRole("button", { name: "Send message" })).toBeEnabled();
+    await expect(hint).toHaveCount(0);
+    await expect(page.locator("[data-chat-welcome-hints]")).toBeHidden();
+    expect((await composer.boundingBox())?.y).toBeCloseTo(before.y, 0);
+    await input.press("ControlOrMeta+A");
+    await input.press("Backspace");
+    await expect(hint).toBeVisible();
+    await expect(page.locator("[data-chat-welcome-hints]")).toBeVisible();
+    expect((await composer.boundingBox())?.y).toBeCloseTo(before.y, 0);
   });
 
   test("a file picked through the paperclip is attached, not silently dropped", async ({
@@ -88,19 +113,19 @@ test.describe("Chat", () => {
     await expect(input).toHaveText("");
     await expect(page.getByText(message)).toBeVisible();
 
-    // The sidebar is fed by the conversations API, and the title is derived
-    // server-side from the first message. Its appearance is the proof that the
-    // message reached the backend rather than only the DOM.
+    // The title is derived server-side from the first message, so a conversation
+    // listed under it is the proof that the message reached the backend rather
+    // than only the DOM. The API is asked first: the sidebar's refetch right
+    // after the write is sometimes answered with the list from before it.
+    await nowListed(page.request, CONVERSATIONS, "title", message);
+
+    // Then a fresh page load draws it, which no client-side state could fake.
     // Inside `main`: the layout's navigation is a `complementary` landmark too,
     // and it is the one that comes first in the DOM.
+    await page.reload();
     const conversations = page.getByRole("main").getByRole("complementary");
     await expect(conversations.getByText(message)).toBeVisible();
-
-    // And it is still there on a fresh page load, which no client-side state
-    // could fake.
-    await page.reload();
-    await expect(conversations.getByText(message)).toBeVisible();
-    await conversations.getByText(message).click();
+    await conversations.getByRole("button", { name: message, exact: true }).click();
     await expect(page.getByRole("main").getByText(message).first()).toBeVisible();
   });
 
@@ -118,9 +143,7 @@ test.describe("Chat", () => {
     await input.fill(message);
     await input.press("Enter");
     await expect(input).toHaveText("");
-    await expect(
-      page.getByRole("main").getByRole("complementary").getByText(message),
-    ).toBeVisible();
+    await nowListed(page.request, CONVERSATIONS, "title", message);
   });
 });
 

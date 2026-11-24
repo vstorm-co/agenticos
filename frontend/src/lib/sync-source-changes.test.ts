@@ -9,6 +9,7 @@ const SOURCE: SyncSourceRead = {
   name: "Engineering docs",
   connector_type: "gdrive",
   collection_name: "handbook",
+  knowledge_base_id: "kb-1",
   config: { folder_id: "1AbC", recursive: true },
   secret_id: "sec-1",
   connected_account_id: null,

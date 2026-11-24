@@ -10,20 +10,22 @@ role scope *and* the grant and reports refusals as "not found".
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, status
+from fastapi import APIRouter, Query, status
 
-from app.api.deps import AgentEnvironmentSvc, Auth
+from app.api.deps import AgentEnvironmentSvc, Auth, PromotionGateSvc
+from app.api.public_api import ASSISTANT
 from app.schemas.agent_environment import (
     EnvironmentCreate,
     EnvironmentList,
     EnvironmentRead,
     EnvironmentUpdate,
 )
+from app.schemas.promotion_gate import PromotionGateRead, PromotionGateRun, PromotionGateRunRead
 
 router = APIRouter()
 
 
-@router.get("/{agent_id}/environments", response_model=EnvironmentList)
+@router.get("/{agent_id}/environments", dependencies=[ASSISTANT], response_model=EnvironmentList)
 async def list_environments(agent_id: UUID, ctx: Auth, service: AgentEnvironmentSvc) -> Any:
     """Every named environment of this agent, default first."""
     items = await service.list_for_agent(ctx, agent_id)
@@ -32,6 +34,7 @@ async def list_environments(agent_id: UUID, ctx: Auth, service: AgentEnvironment
 
 @router.post(
     "/{agent_id}/environments",
+    dependencies=[ASSISTANT],
     response_model=EnvironmentRead,
     status_code=status.HTTP_201_CREATED,
 )
@@ -46,7 +49,11 @@ async def create_environment(
     return next(item for item in items if item.name == data.name)
 
 
-@router.patch("/{agent_id}/environments/{environment_id}", response_model=EnvironmentRead)
+@router.patch(
+    "/{agent_id}/environments/{environment_id}",
+    dependencies=[ASSISTANT],
+    response_model=EnvironmentRead,
+)
 async def update_environment(
     agent_id: UUID,
     environment_id: UUID,
@@ -70,3 +77,35 @@ async def delete_environment(
 ) -> None:
     """Remove a named environment; exposures on it fall back to the default."""
     await service.delete(ctx, agent_id, environment_id)
+
+
+@router.get(
+    "/{agent_id}/environments/{environment_id}/gate",
+    dependencies=[ASSISTANT],
+    response_model=PromotionGateRead,
+)
+async def read_promotion_gate(
+    agent_id: UUID,
+    environment_id: UUID,
+    ctx: Auth,
+    service: PromotionGateSvc,
+    version_id: UUID = Query(description="The version that would be promoted"),
+) -> Any:
+    """Whether the version may be promoted onto the environment, guard by guard."""
+    return await service.read(ctx, agent_id, environment_id, version_id)
+
+
+@router.post(
+    "/{agent_id}/environments/{environment_id}/gate/run",
+    dependencies=[ASSISTANT],
+    response_model=PromotionGateRunRead,
+)
+async def run_promotion_gate(
+    agent_id: UUID,
+    environment_id: UUID,
+    data: PromotionGateRun,
+    ctx: Auth,
+    service: PromotionGateSvc,
+) -> Any:
+    """Run the environment's guards that have not passed on the version, as the caller."""
+    return await service.run(ctx, agent_id, environment_id, data)

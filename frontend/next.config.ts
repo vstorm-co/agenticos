@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { NextConfig } from "next";
 import createNextIntlPlugin from "next-intl/plugin";
 
@@ -14,6 +15,12 @@ import { staticSecurityHeaders } from "./src/lib/security-headers";
 import { locales } from "./src/lib/locales";
 
 const withNextIntl = createNextIntlPlugin("./src/i18n.ts");
+
+// Freeze one identity into the browser and version endpoint, even when the
+// package version is unchanged. Inherit it when Next reloads this config in a
+// build worker; all replicas should run the same built image.
+const appBuildId = process.env.NEXT_PUBLIC_APP_BUILD_ID || randomUUID();
+process.env.NEXT_PUBLIC_APP_BUILD_ID = appBuildId;
 
 /**
  * Pages that have moved, and the URL that still has to work.
@@ -69,6 +76,7 @@ const MOVED_ROUTES: readonly { from: string; to: string }[] = [
 
 export const nextConfig: NextConfig = {
   output: "standalone",
+  generateBuildId: () => appBuildId,
   allowedDevOrigins: process.env.PUBLIC_SITE_URL
     ? [new URL(process.env.PUBLIC_SITE_URL).hostname]
     : undefined,
