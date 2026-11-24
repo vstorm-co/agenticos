@@ -228,7 +228,10 @@ class FireTrigger(Payload):
     source_policy_id: UUID | None = None
     activation_id: UUID | None = None
     event_context: str | None = None
-    event_source_id: UUID | None = None
+    # Older workers reject unknown keys, even JSON null.
+    event_source_id: UUID | None = Field(
+        default=None, exclude_if=lambda source_id: source_id is None
+    )
     claimed_at: datetime | None = None
     """The `fire_in_flight_since` the scheduled claim stamped - its claim ticket."""
 

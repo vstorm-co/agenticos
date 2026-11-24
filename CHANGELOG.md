@@ -25,7 +25,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Upgrading
 
-- Apply `0363_reusable_event_sources.py` before starting the updated API and worker. It adds source, subscription, delivery and dispatch tables. Existing webhook URLs and credentials stay valid. Before downgrading, detach source subscribers and finish pending deliveries and device waits for source events. Let running source jobs finish. For routine jobs that still reference a reusable source, drain or cancel queued work and retry or expire dead jobs before downgrading.
+- Apply `0363_reusable_event_sources.py` first. Drain and stop old workers before starting upgraded workers or schedulers, then roll out the API. This keeps old workers from claiming source dispatch and retention jobs they cannot execute. Existing webhook URLs and credentials stay valid. Before downgrading, detach source subscribers and finish pending deliveries and device waits for source events. Let running source jobs finish. For routine jobs that still reference a reusable source, drain or cancel queued work and retry or expire dead jobs before downgrading.
 
 ## [1.92.0] - 2026-11-23
 

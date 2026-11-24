@@ -26,6 +26,7 @@ from app.services import event_sources as module
 from app.services.event_sources import EventSourceService, credential_json
 from app.services.routine_sources import source_scope
 from app.services.workflow_execution.exceptions import WorkflowAdmissionQuotaError
+from app.worker.jobs import FIRE_TRIGGER, FireTrigger
 
 pytestmark = pytest.mark.anyio
 
@@ -114,6 +115,17 @@ def test_consent_fingerprint_distinguishes_reusable_sources_and_preserves_dedica
     first_source = source_scope(trigger)
     trigger.source_id = UUID(int=5)
     assert source_scope(trigger) != first_source
+
+
+def test_fire_payload_omits_source_field_for_legacy_workers_and_preserves_source_identity():
+    trigger_id, source_id = uuid4(), uuid4()
+    ordinary = FIRE_TRIGGER.dump(FireTrigger(trigger_id=trigger_id, event_source_id=None))
+    assert "event_source_id" not in ordinary
+    assert FIRE_TRIGGER.load(ordinary).event_source_id is None
+
+    shared = FIRE_TRIGGER.dump(FireTrigger(trigger_id=trigger_id, event_source_id=source_id))
+    assert shared["event_source_id"] == str(source_id)
+    assert FIRE_TRIGGER.load(shared).event_source_id == source_id
 
 
 async def test_receipt_retains_complete_json_and_no_auth_headers(db, source, repos):
