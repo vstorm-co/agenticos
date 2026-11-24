@@ -4890,7 +4890,7 @@
       },
       "first-improvement": {
         "title": "Verbeteren",
-        "body": "We lezen wat er misging en stoppen dan zodat jij kunt kijken. Wijzigingen schrijven en ze testen wachten elk tot je op Volgende stap drukt, en elk krijgt eerst een prijs. Niets gaat live tot je het accepteert en publiceert."
+        "body": "We lezen wat er misging en stoppen dan zodat jij kunt kijken. Wijzigingen schrijven en ze testen wachten elk tot je op Volgende stap drukt, en voor elk krijg je eerst een prijsschatting. Niets gaat live tot je het accepteert en publiceert."
       },
       "improvement-session": {
         "title": "Deze sessie doorlopen",
@@ -5500,7 +5500,7 @@
       },
       "flow-dataset-case-tools": {
         "title": "De tools die hij moet aanroepen",
-        "body": "Som de tools op die de agent moet aanroepen, met de argumenten die moeten overeenkomen. Kies hoe ze worden vergeleken: in willekeurige volgorde, in deze volgorde met andere ertussen toegestaan, of precies deze en niets anders."
+        "body": "Som de tools op die de agent moet aanroepen, met de argumenten die moeten overeenkomen. Kies hoe ze worden vergeleken: ongeacht de volgorde, in deze volgorde met andere ertussen toegestaan, of precies deze en niets anders."
       },
       "flow-dataset-case-checks": {
         "title": "Regels over het antwoord",
@@ -5813,7 +5813,7 @@
       },
       "improvement-start": {
         "title": "Verbeteren",
-        "body": "We lezen wat er misging en stoppen zodat jij kunt kijken. Je drukt op Volgende stap om wijzigingen te schrijven, en nog eens om ze te testen; elke stap krijgt een prijs voordat je drukt. Niets gaat live tot je het accepteert."
+        "body": "We lezen wat er misging en stoppen zodat jij kunt kijken. Je drukt op Volgende stap om wijzigingen te schrijven, en nog eens om ze te testen; voor elke stap krijg je een prijsschatting voordat je drukt. Niets gaat live tot je het accepteert."
       },
       "improvement-questions": {
         "title": "Testvragen",
@@ -5845,7 +5845,7 @@
       },
       "flow-improvement-start": {
         "title": "Verbeteren",
-        "body": "We lezen wat er misging en stoppen zodat jij kunt kijken. Je drukt op Volgende stap om wijzigingen te schrijven, en nog eens om ze te testen; elke stap krijgt een prijs voordat je drukt. Niets gaat live tot je het accepteert."
+        "body": "We lezen wat er misging en stoppen zodat jij kunt kijken. Je drukt op Volgende stap om wijzigingen te schrijven, en nog eens om ze te testen; voor elke stap krijg je een prijsschatting voordat je drukt. Niets gaat live tot je het accepteert."
       },
       "flow-improvement-questions": {
         "title": "Testvragen",
@@ -6077,7 +6077,7 @@
       },
       "skill-improvement-start": {
         "title": "Bij wie hij wordt gecontroleerd",
-        "body": "Elke agent van de lijn wordt genoemd voordat er iets wordt uitgegeven, de agents die niet kunnen worden gecontroleerd met de reden, en de prijs komt met een limiet die jij instelt."
+        "body": "Elke agent van de lijn wordt genoemd voordat er iets wordt uitgegeven, de agents die niet kunnen worden gecontroleerd met de reden, en de prijsschatting komt met een limiet die jij instelt."
       },
       "skill-improvement-steps": {
         "title": "Dezelfde vijf stappen",
@@ -6113,7 +6113,7 @@
       },
       "skill-merge-start": {
         "title": "Een fork samenvoegen met main",
-        "body": "Toont hoeveel delen beide kanten veranderden en wat het voorstellen van hun teksten kost. De controle krijgt later een prijs, bij Wijzigingen."
+        "body": "Toont hoeveel delen beide kanten veranderden en wat het voorstellen van hun teksten kost. Voor de controle krijg je later een prijsschatting, bij Wijzigingen."
       },
       "skill-merge-changes": {
         "title": "De samenvoeging afhandelen",
@@ -6121,11 +6121,11 @@
       },
       "flow-skill-improvement-start": {
         "title": "Bij wie hij wordt gecontroleerd",
-        "body": "Elke agent van de lijn wordt genoemd voordat er iets wordt uitgegeven, de agents die niet kunnen worden gecontroleerd met de reden, en de prijs komt met een limiet die jij instelt."
+        "body": "Elke agent van de lijn wordt genoemd voordat er iets wordt uitgegeven, de agents die niet kunnen worden gecontroleerd met de reden, en de prijsschatting komt met een limiet die jij instelt."
       },
       "flow-skill-merge-start": {
         "title": "Een fork samenvoegen met main",
-        "body": "Toont hoeveel delen beide kanten veranderden en wat het voorstellen van hun teksten kost. De controle krijgt later een prijs, bij Wijzigingen."
+        "body": "Toont hoeveel delen beide kanten veranderden en wat het voorstellen van hun teksten kost. Voor de controle krijg je later een prijsschatting, bij Wijzigingen."
       },
       "flow-skill-improvement-steps": {
         "title": "Dezelfde vijf stappen",
@@ -15277,7 +15277,7 @@
       "answerGone": "Het antwoord wordt niet bewaard.",
       "showAll": "Alles tonen",
       "showLess": "Minder tonen",
-      "expectedCallsIn": "{order, select, in_order {Verwachte toolaanroepen, in deze volgorde} exact {Verwachte toolaanroepen, precies deze} other {Verwachte toolaanroepen, in willekeurige volgorde}}",
+      "expectedCallsIn": "{order, select, in_order {Verwachte toolaanroepen, in deze volgorde} exact {Verwachte toolaanroepen, precies deze} other {Verwachte toolaanroepen, volgorde maakt niet uit}}",
       "unverified": "Geciteerd, maar niet in het antwoord: {quotes}",
       "decision": "Reviewbeslissing",
       "noCaseAsks": "Geen testgeval van deze dataset stelt de vraag van deze run.",
@@ -15477,7 +15477,7 @@
       "synthetic": "Gegenereerd"
     },
     "orderMode": {
-      "any": "Willekeurige volgorde",
+      "any": "Volgorde maakt niet uit",
       "anyHint": "Elke verwachte aanroep moet gebeuren; volgorde en andere aanroepen maken niet uit.",
       "in_order": "In deze volgorde",
       "in_orderHint": "De verwachte aanroepen moeten in de opgegeven volgorde gebeuren; er mogen andere aanroepen tussen zitten.",
@@ -15937,11 +15937,11 @@
       "basis": {
         "fallback": "geen geschiedenis op dit model, een ruwe schatting",
         "cached": "hergebruikt uit een recente run",
-        "cachedAt": "antwoorden uit de run van {date}, hetzelfde model - een testgeval dat verandert, wordt opnieuw aan beide kanten voorgelegd"
+        "cachedAt": "antwoorden uit de run van {date}, hetzelfde model - een testgeval waarvan de uitkomst verandert, wordt opnieuw aan beide kanten voorgelegd"
       },
       "judge": "Eval-beoordelaar",
       "total": "{count, plural, =1 {1 testgeval} other {# testgevallen}}, hoogstwaarschijnlijk",
-      "reruns": "Dit houdt rekening met de testgevallen die gewoonlijk omslaan en ter bevestiging opnieuw worden voorgelegd. Als elk testgeval omsloeg, zou de run hoogstens {amount} kosten.",
+      "reruns": "Dit houdt rekening met de testgevallen waarvan de uitkomst gewoonlijk omslaat en die ter bevestiging opnieuw worden voorgelegd. Als de uitkomst van elk testgeval omsloeg, zou de run hoogstens {amount} kosten.",
       "budgetAgentAfter": "Budget van de agent na deze run",
       "budgetOrgAfter": "Budget van de organisatie na deze run",
       "overBudget": "{amount} te veel",
@@ -16011,7 +16011,7 @@
         "draft": "Het concept"
       },
       "targetHint": {
-        "compare": "Beide kanten beantwoorden dezelfde testgevallen op hetzelfde model. Antwoorden die v{version} vandaag gaf, kunnen worden hergebruikt; een testgeval dat verandert, wordt opnieuw aan beide kanten voorgelegd, zodat een verandering door het concept komt en niet door de provider.",
+        "compare": "Beide kanten beantwoorden dezelfde testgevallen op hetzelfde model. Antwoorden die v{version} vandaag gaf, kunnen worden hergebruikt; een testgeval waarvan de uitkomst verandert, wordt opnieuw aan beide kanten voorgelegd, zodat een verschil door het concept komt en niet door de provider.",
         "version": "Hoe de versie waarmee mensen praten het doet op de dataset.",
         "draft": "Er is nog niets gepubliceerd, dus dit is het eerste resultaat. Latere versies worden ermee vergeleken."
       },
@@ -16152,10 +16152,10 @@
         "checks": "Controles:",
         "openDataset": "Dit testgeval openen in zijn dataset",
         "check": {
-          "contains": "{exact, select, true {Vermeldt “{value}” (exacte hoofdletters)} other {Vermeldt “{value}” (hoofdletters maken niet uit)}}",
-          "not_contains": "{exact, select, true {Vermeldt “{value}” niet (exacte hoofdletters)} other {Vermeldt “{value}” niet (hoofdletters maken niet uit)}}",
-          "equals": "{exact, select, true {Is precies “{value}” (exacte hoofdletters)} other {Is precies “{value}” (hoofdletters maken niet uit)}}",
-          "pattern": "{exact, select, true {Komt overeen met het patroon “{value}” (exacte hoofdletters)} other {Komt overeen met het patroon “{value}” (hoofdletters maken niet uit)}}",
+          "contains": "{exact, select, true {Vermeldt “{value}” (hoofdlettergevoelig)} other {Vermeldt “{value}” (niet hoofdlettergevoelig)}}",
+          "not_contains": "{exact, select, true {Vermeldt “{value}” niet (hoofdlettergevoelig)} other {Vermeldt “{value}” niet (niet hoofdlettergevoelig)}}",
+          "equals": "{exact, select, true {Is precies “{value}” (hoofdlettergevoelig)} other {Is precies “{value}” (niet hoofdlettergevoelig)}}",
+          "pattern": "{exact, select, true {Komt overeen met het patroon “{value}” (hoofdlettergevoelig)} other {Komt overeen met het patroon “{value}” (niet hoofdlettergevoelig)}}",
           "atPath": "In {path}: {rule}",
           "maxCost": "Kost hoogstens {amount}",
           "maxLatency": "Antwoordt binnen {duration}",
@@ -16178,7 +16178,7 @@
       "worse": "{candidate} verslechtert {broke, plural, =1 {1 testgeval dat slaagde} other {# testgevallen die slaagden}} op {baseline}, elke keer dat het werd gevraagd: “{question}” ({held} van {tries}){others, plural, =0 {} other { en nog #}}.",
       "better": "{candidate} herstelt {fixed, plural, =1 {1 testgeval dat mislukte} other {# testgevallen die mislukten}} op {baseline}, elke keer dat het werd gevraagd: “{question}” ({held} van {tries}){others, plural, =0 {} other { en nog #}}.",
       "no_difference": "Geen verandering hield stand: {changes, plural, =0 {{candidate} doet het even goed als {baseline} op {dataset}.} =1 {1 testgeval veranderde één keer en viel anders uit toen het opnieuw werd gevraagd, dus elk verschil in slagingspercentage tussen {candidate} en {baseline} op {dataset} is geen reproduceerbare verandering.} other {# testgevallen veranderden één keer en vielen anders uit toen ze opnieuw werden gevraagd, dus elk verschil in slagingspercentage tussen {candidate} en {baseline} op {dataset} is geen reproduceerbare verandering.}}",
-      "invalid": "{candidate} en {baseline} kunnen niet worden vergeleken: de twee kanten werden beoordeeld door een andere beoordelaar of beoordelingsschaal.",
+      "invalid": "{candidate} en {baseline} zijn niet vergelijkbaar: de twee kanten zijn beoordeeld door een andere beoordelaar of met andere beoordelingscriteria.",
       "mixed": "Gemengd: {candidate} verslechtert {broke, plural, =1 {1 testgeval} other {# testgevallen}} en herstelt er {fixed, plural, =1 {1} other {#}} tegenover {baseline}, elke keer dat ze werden gevraagd. Het verslechtert: “{question}” ({held} van {tries}){others, plural, =0 {} other { en nog #}}.",
       "overall": "{overall, select, worse {Over het geheel slechter: alle bevestigde veranderingen samen genomen doet {candidate} het slechter dan {baseline}.} other {Over het geheel beter: alle bevestigde veranderingen samen genomen doet {candidate} het beter dan {baseline}.}}",
       "passRate": "Slagingspercentage {from} → {to}, elk testgeval geteld volgens de uitkomst van de meeste pogingen{undecided, plural, =0 {} other { · # van {cases} testgevallen onbeslist}}",
@@ -16390,7 +16390,7 @@
       "form": {
         "newTitle": "Nieuwe suite",
         "editTitle": "Suite bewerken",
-        "intro": "Een suite laat een dataset vanzelf tegen deze agent draaien en houdt elk resultaat aan een drempel. Ze draait namens jou: door op te slaan ga je akkoord met de kosten die hieronder staan.",
+        "intro": "Een suite test deze agent automatisch op een dataset en toetst elk resultaat aan de ingestelde drempel. De suite draait namens jou. Door op te slaan ga je akkoord met de onderstaande kosten.",
         "name": "Naam",
         "namePlaceholder": "Nachtelijke regressie",
         "dataset": "Dataset",
@@ -16988,7 +16988,7 @@
     "editQuestions": "De vragenset openen",
     "title": "{name} verbeteren",
     "heading": "Verbeteren",
-    "intro": "We lezen wat er misging en stoppen dan zodat jij kunt kijken. Wijzigingen schrijven en ze testen wachten elk tot je op Volgende stap drukt, en voor elk zie je eerst de prijs. Niets gaat live tot je het accepteert en publiceert.",
+    "intro": "We lezen wat er misging en stoppen dan zodat jij kunt kijken. Wijzigingen schrijven en ze testen wachten elk tot je op Volgende stap drukt, en voor elk krijg je eerst een prijsschatting. Niets gaat live tot je het accepteert en publiceert.",
     "chooseQuestions": "Een dataset kiezen",
     "writeQuestions": "Schrijf testvragen voor mij",
     "reviewQuestions": "De vragen reviewen",
@@ -17093,7 +17093,7 @@
       "movedBoth": "+{fixed} hersteld · {broken} verslechterd",
       "movedNone": "Geen",
       "skill": "Toegeschreven aan de skill “{skill}”",
-      "betterBeside": "Naast de vragen die verslechterden, maakte poging {number} {agent} beter op {count, plural, one {# criterium} other {# criteria}}: {list}. Behoud het deel dat hielp door het opnieuw te proberen met een notitie.",
+      "betterBeside": "Poging {number} scoorde slechter op sommige vragen, maar maakte {agent} beter op {count, plural, one {# criterium} other {# criteria}}: {list}. Behoud het deel dat hielp door het opnieuw te proberen met een notitie.",
       "skillWorse": "{agent} volgt de skill nu nauwer en mislukt vaker op {count, plural, one {# criterium} other {# criteria}} die de skill fout heeft: {list}. Herstel de skill in plaats van de agent."
     },
     "noise": {
@@ -17288,7 +17288,7 @@
     "noKnowledgeDocuments": "Er ontbreekt niets in de kennisbank.",
     "reviewAndAdd": "Reviewen en toevoegen",
     "notNow": "Niet nu",
-    "acceptAgent": "In de agent: {version, plural, =0 {de nieuwe versie} other {versie #}} zal {fixed, plural, one {# vraag} other {# vragen}} herstellen en {broken} verslechteren{costKnown, select, yes {, voor {cost} per antwoord} other {}}. Getest op {total, plural, one {# vraag} other {# vragen}}, waarvan {heldOut} niet gebruikt zijn om de wijzigingen te schrijven.",
+    "acceptAgent": "In de agent: {version, plural, =0 {de nieuwe versie} other {versie #}} herstelt {fixed, plural, one {het antwoord op # vraag} other {de antwoorden op # vragen}} en verslechtert er {broken}{costKnown, select, yes {, tegen {cost} per antwoord} other {}}. Getest op {total, plural, one {# vraag} other {# vragen}}, waarvan {heldOut} apart zijn gehouden bij het schrijven van de wijzigingen.",
     "guardedSwitch": "{environment} schakelt over naar versie {version} zodra de automatische controle slaagt, meestal binnen enkele minuten.",
     "noChangesFound": "We vonden geen wijziging die bij de huidige instructies past. Dit hebben we geprobeerd:",
     "triedAttempt": "Poging {number}: {verdict, select, better {de wijzigingen maakten het beter} criteria_better {de wijzigingen maakten het beter op enkele criteria, er sloeg nog geen vraag om} regression {de wijzigingen verslechterden vragen die werkten} criteria_worse {de wijzigingen maakten enkele criteria slechter} no_change {geen meetbare verandering} inconclusive {het resultaat kon niet worden gemeten} unmeasured {wijzigingen voorgesteld, nog niet getest} other {er werd geen wijziging voorgesteld}}{dropped, plural, =0 {} one {; # wijziging paste niet bij de huidige instructies} other {; # wijzigingen pasten niet bij de huidige instructies}}.",
@@ -17464,13 +17464,13 @@
     "nextUp": {
       "label": "Volgende stap",
       "hint": {
-        "understand": "Lees wat er misging. Je ziet de prijs van de volgende stap voordat je drukt.",
-        "changes": "Vink de wijzigingen aan die je wilt testen en verbeter de formulering waar nodig. Je ziet de prijs van de volgende stap voordat je drukt."
+        "understand": "Lees wat er misging. Voordat je drukt, zie je wat de volgende stap naar schatting kost.",
+        "changes": "Vink de wijzigingen aan die je wilt testen en verbeter de formulering waar nodig. Voordat je drukt, zie je wat de volgende stap naar schatting kost."
       },
-      "pricing": "Prijs van de volgende stap berekenen…",
-      "priceMoved": "De prijs is veranderd: nu tot {cost}. Druk opnieuw om door te gaan.",
+      "pricing": "Kosten van de volgende stap schatten…",
+      "priceMoved": "De schatting is veranderd: nu tot {cost}. Druk opnieuw om door te gaan.",
       "overLimit": "De volgende stap kost meer dan wat deze sessie nog over heeft. Verhoog de limiet om door te gaan.",
-      "raise": "Prijs opnieuw berekenen",
+      "raise": "Opnieuw schatten",
       "go": {
         "understand": "Volgende stap: de wijzigingen schrijven · tot {cost}",
         "changes": "Volgende stap: de geselecteerde wijzigingen testen · tot {cost}"
@@ -17479,11 +17479,11 @@
         "understand": "Volgende stap: de wijzigingen schrijven",
         "changes": "Volgende stap: de geselecteerde wijzigingen testen"
       },
-      "hintSingle": "Verbeter de formulering indien nodig. Je ziet de prijs van de volgende stap voordat je drukt.",
+      "hintSingle": "Verbeter de formulering indien nodig. Voordat je drukt, zie je wat de volgende stap naar schatting kost.",
       "saveWordingFirst": "Sla de formulering eerst op of verwerp ze.",
       "unmeasurable": "Deze poging kan niet worden getest: er {count, plural, one {zou nog # apart gehouden vraag} other {zouden nog # apart gehouden vragen}} nodig zijn zodra de vragen waar haar voorbeelden vandaan komen, worden weggelaten. Deze sessie behoudt de vragen waarmee ze startte, dus er nu toevoegen helpt niet: beëindig de sessie, voeg vragen toe en start een nieuwe sessie.",
       "likely": "Hoogstwaarschijnlijk ongeveer {cost}: het hogere bedrag geldt alleen als antwoorden opnieuw moeten worden gesteld.",
-      "lineMoved": "De lijn van de skill kreeg intussen een nieuwere versie, dus de prijs van de stap werd opnieuw berekend: tot {cost}. Druk opnieuw om door te gaan."
+      "lineMoved": "De lijn van de skill kreeg intussen een nieuwere versie, dus de kosten van de stap zijn opnieuw geschat: tot {cost}. Druk opnieuw om door te gaan."
     },
     "waitingFor": {
       "understand": "Wacht op jou: bekijk wat er misging",
@@ -18584,8 +18584,8 @@
     },
     "checkAgain": {
       "why": "De lijn of haar agents zijn veranderd sinds dit resultaat werd gecontroleerd, dus het klopt misschien niet meer. Controleer dezelfde wijzigingen opnieuw op de lijn zoals ze nu is voordat je beslist.",
-      "pricing": "Prijs van de controle berekenen…",
-      "priceMoved": "De prijs is veranderd: nu tot {cost}. Druk opnieuw om te controleren.",
+      "pricing": "Kosten van de controle schatten…",
+      "priceMoved": "De schatting is veranderd: nu tot {cost}. Druk opnieuw om te controleren.",
       "overLimit": "De controle kost meer dan wat deze sessie nog over heeft. Verhoog de limiet voor deze controle om door te gaan.",
       "go": "Opnieuw controleren · tot {cost}",
       "goUnpriced": "Opnieuw controleren",
@@ -18669,9 +18669,9 @@
       "conflicts": "{count, plural, =0 {Niets botst: elk deel neemt de kant die het wijzigde.} =1 {1 deel werd aan beide kanten gewijzigd. De assistent stelt er een tekst voor, en jij kunt die wijzigen.} other {# delen werden aan beide kanten gewijzigd. De assistent stelt voor elk een tekst voor, en jij kunt die wijzigen.}}",
       "agents": "{count, plural, =0 {Geen agent die je kunt zien, leest deze lijn.} =1 {1 agent controleert het resultaat.} other {# agents controleren het resultaat.}}",
       "hidden": "{count, plural, =1 {Nog 1 agent die je niet kunt zien, leest deze lijn.} other {Nog # agents die je niet kunt zien, lezen deze lijn.}}",
-      "price": "De teksten voor de conflicten voorstellen kost ongeveer {cost}. De prijs van de controle zie je bij Wijzigingen.",
+      "price": "De teksten voor de conflicten voorstellen kost ongeveer {cost}. De prijsschatting voor de controle zie je bij Wijzigingen.",
       "limit": "Uitgavenlimiet voor de sessie (USD)",
-      "limitHint": "Je kunt de limiet verhogen bij Wijzigingen, wanneer je de prijs van de controle ziet.",
+      "limitHint": "Je kunt de limiet verhogen bij Wijzigingen, wanneer je de prijsschatting voor de controle ziet.",
       "unaffordable": "Het budget van de organisatie dekt dit niet.",
       "start": {
         "catch_up": "Het bijwerken starten",
@@ -18912,7 +18912,7 @@
         "description": "Stuur de run tegelijk via meerdere takken."
       },
       "logic_switch": {
-        "name": "Schakelaar",
+        "name": "Tak kiezen",
         "description": "Ga verder via de eerste van meerdere takken waarvan de regel geldt."
       },
       "loop_item": {
@@ -19056,7 +19056,7 @@
         "description": "Maak van een lijst binnen elk item afzonderlijke items."
       },
       "transform_summarize": {
-        "name": "Samenvatten",
+        "name": "Statistieken per groep",
         "description": "Bereken per groep het aantal, de som of het gemiddelde van de items."
       },
       "trigger_channel_message": {
@@ -21211,7 +21211,7 @@
             "title": "Groeperen op"
           },
           "summaries": {
-            "title": "Samenvattingen"
+            "title": "Berekeningen"
           },
           "summaries__items__operation": {
             "title": "Bewerking"
