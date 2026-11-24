@@ -108,3 +108,12 @@ export const DOCS = {
   API_KEYS: `${DOCS_URL}/api/#organization-api-keys`,
   MCP_SERVER: `${DOCS_URL}/mcp/#agenticos-as-an-mcp-server`,
 } as const;
+
+/**
+ * The fork's operator guide for the Composio app-connection service. A GitHub
+ * URL rather than a page on the published docs site, because the setup it
+ * describes (project key, auth configs, callback identity verification) is
+ * fork-specific - `docs/mcp.md` cites the same link.
+ */
+export const COMPOSIO_SETUP_URL =
+  "https://github.com/t3grp/agenticos/blob/t3/integrations/composio/README.md";

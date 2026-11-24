@@ -38,7 +38,6 @@
     "loadMore": "Weitere Apps laden",
     "noSearchResults": "Keine Apps entsprechen dieser Suche. Versuche einen anderen Namen.",
     "catalogUnavailable": "Der vollständige App-Katalog ist vorübergehend nicht verfügbar. Deine bestehenden Konten und eingerichteten Apps bleiben zugänglich.",
-    "setupRequiredHint": "Ein Administrator muss diese App einrichten, bevor du sie verbinden kannst.",
     "approvalRequired": "Jede Aktion braucht deine Freigabe",
     "approvalRequiredHint": "Diese App kann Daten lesen und Änderungen vornehmen. T3OS fragt vor jeder Aktion nach deiner Freigabe.",
     "exploreApp": "Diese App mit meinem Assistenten erkunden",

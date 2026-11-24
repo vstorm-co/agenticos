@@ -38,7 +38,6 @@
     "loadMore": "Daha fazla uygulama yükle",
     "noSearchResults": "Bu aramayla eşleşen uygulama yok. Başka bir ad deneyin.",
     "catalogUnavailable": "Tam uygulama kataloğu geçici olarak kullanılamıyor. Mevcut hesaplarınıza ve yapılandırılmış uygulamalara erişebilirsiniz.",
-    "setupRequiredHint": "Bu uygulamayı bağlayabilmeniz için bir yöneticinin yapılandırması gerekir.",
     "approvalRequired": "Her işlem için onayınız gerekir",
     "approvalRequiredHint": "Bu uygulama okuma ve değişiklik yapma özelliklerini destekleyebilir. T3OS her işlemden önce onayınızı ister.",
     "exploreApp": "Bu uygulamayı asistanımla keşfet",

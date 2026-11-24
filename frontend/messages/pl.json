@@ -38,7 +38,6 @@
     "loadMore": "Wczytaj więcej aplikacji",
     "noSearchResults": "Brak aplikacji pasujących do wyszukiwania. Spróbuj wpisać inną nazwę.",
     "catalogUnavailable": "Pełny katalog aplikacji jest chwilowo niedostępny. Twoje istniejące konta i skonfigurowane aplikacje są nadal dostępne.",
-    "setupRequiredHint": "Administrator musi skonfigurować tę aplikację, zanim będzie można ją połączyć.",
     "approvalRequired": "Każde działanie wymaga Twojej zgody",
     "approvalRequiredHint": "Ta aplikacja może odczytywać dane i wprowadzać zmiany. T3OS poprosi Cię o zgodę przed każdym działaniem.",
     "exploreApp": "Poznaj tę aplikację z moim asystentem",
