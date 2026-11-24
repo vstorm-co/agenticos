@@ -278,6 +278,28 @@ async def test_a_refusal_whose_hold_cannot_be_proven_releasable_keeps_the_hold(m
     journal.interrupted.assert_awaited_once()
 
 
+async def test_a_refusal_without_a_journal_still_fails_the_node_with_nothing_to_release():
+    result = await _execution._provider_refused(
+        None, ModelHTTPError(429, "synthetic-model", {"error": "private provider body"})
+    )
+    assert isinstance(result, Failed)
+    assert result.error.code == "MEDIA_PROVIDER_REFUSED"
+    assert "429" in result.error.message and result.error.retryable is False
+    assert "private provider body" not in result.model_dump_json()
+
+
+async def test_a_refusal_whose_release_fails_is_interrupted_with_its_receipt_and_costs_kept():
+    journal = provider_journal()
+    journal.refuse = AsyncMock(side_effect=RuntimeError("private database detail"))
+    result = await _execution._provider_refused(
+        journal, ModelHTTPError(429, "synthetic-model", None)
+    )
+    assert isinstance(result, Uncertain)
+    assert "retained its receipt and unresolved costs" in result.detail
+    assert "private database detail" not in result.model_dump_json()
+    journal.interrupted.assert_awaited_once_with(reason="MEDIA_PROVIDER_REFUSED")
+
+
 @pytest.mark.parametrize("journal_failure", [False, True])
 async def test_cancellation_is_propagated_after_attempting_to_preserve_the_journal(
     monkeypatch, journal_failure
