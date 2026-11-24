@@ -340,6 +340,8 @@ class OutgoingMessage:
     reply_to_message_id: str | None = None
     image_png: bytes | None = None
     image_filename: str = "chart.png"
+    final: bool = False
+    """The last edit of a reply written in place: the answer is whole and may be formatted."""
     attachments: list[OutgoingAttachment] = field(default_factory=list)
     """Files to post with the reply.
 

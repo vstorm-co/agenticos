@@ -266,22 +266,33 @@ class TelegramAdapter(ChannelAdapter):
     async def update_reply(self, bot_token: str, msg: OutgoingMessage, handle: str) -> None:
         """Rewrite a message already in the chat.
 
-        No parse mode: half-written Markdown is the normal state of a message
-        being streamed, and Telegram rejects an unclosed `**` with a 400. The
-        final send formats it, once the text is whole. An edit to text the
-        message already holds counts as done: Telegram refuses it with a 400,
-        and treating that as a failure would post the answer a second time.
+        Mid-stream edits carry no parse mode: half-written Markdown is the normal
+        state of a message being streamed, and Telegram rejects an unclosed `**`
+        with a 400. The final edit (`msg.final`) holds the whole answer, so it is
+        sent as HTML the way `send_message` sends it, and as plain text if
+        Telegram refuses the HTML. An edit to text the message already holds
+        counts as done: Telegram refuses it with a 400, and treating that as a
+        failure would post the answer a second time.
         """
+        chat_id = _where(msg.platform_chat_id)["chat_id"]
         async with self._bot(bot_token) as bot:
+
+            async def edit(text: str, parse_mode: str | None) -> None:
+                try:
+                    await bot.edit_message_text(
+                        chat_id=chat_id, message_id=int(handle), text=text, parse_mode=parse_mode
+                    )
+                except TelegramBadRequest as exc:
+                    if "message is not modified" not in exc.message.casefold():
+                        raise
+
+            if not msg.final:
+                await edit(msg.text, None)
+                return
             try:
-                await bot.edit_message_text(
-                    chat_id=_where(msg.platform_chat_id)["chat_id"],
-                    message_id=int(handle),
-                    text=msg.text,
-                )
-            except TelegramBadRequest as exc:
-                if "message is not modified" not in exc.message.casefold():
-                    raise
+                await edit(to_telegram_html(msg.text), ParseMode.HTML)
+            except TelegramBadRequest:
+                await edit(msg.text, None)
 
     async def send_message(self, bot_token: str, msg: OutgoingMessage) -> None:
         """Send a reply back to Telegram.

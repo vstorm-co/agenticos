@@ -310,6 +310,29 @@ class TestTheFinalEditNeverLosesTheAnswer:
 
         send_reply.assert_not_awaited()
 
+    async def test_only_the_final_edit_is_marked_final(self):
+        """The final edit carries the whole answer and may be formatted; an edit
+        mid-stream holds half-written Markdown and must not be."""
+        router, _ = self._router()
+        adapter = MagicMock(
+            begin_reply=AsyncMock(return_value="h1"), update_reply=AsyncMock(), typing=AsyncMock()
+        )
+        bot = MagicMock(api_base_url=None)
+        incoming = MagicMock(platform="telegram", platform_chat_id="42")
+
+        with (
+            patch("app.services.channels.router.get_adapter", return_value=adapter),
+            patch("app.services.channels.router.unseal_bot_token", return_value="tok"),
+        ):
+            live, handle = await router._open_reply(bot, incoming)
+            assert live is not None and handle is not None
+            await live.add("**half")
+            await router._deliver(bot, incoming, "**whole**", self._answered(), handle)
+            await router._post_failure(bot, incoming, handle, "Sorry, that failed.")
+
+        finals = [call.args[1].final for call in adapter.update_reply.await_args_list]
+        assert finals == [False, True, True]
+
 
 class TestTheMentionPlaceholderOpensOnlyIfSomethingIsSaid:
     """A handle that names a colleague, not an agent of ours, raises before a

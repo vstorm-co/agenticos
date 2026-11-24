@@ -890,7 +890,9 @@ class ChannelMessageRouter:
             adapter = get_adapter(incoming.platform)
             token = unseal_bot_token(bot)
             try:
-                await adapter.update_reply(token, self._message(bot, incoming, text), handle)
+                await adapter.update_reply(
+                    token, self._message(bot, incoming, text, final=True), handle
+                )
             except Exception:
                 # The edit failed - a rate-limit on the last one, or the
                 # placeholder was deleted so the PATCH 404s. Fall through to
@@ -1184,7 +1186,7 @@ class ChannelMessageRouter:
             adapter = get_adapter(incoming.platform)
             try:
                 await adapter.update_reply(
-                    unseal_bot_token(bot), self._message(bot, incoming, message), handle
+                    unseal_bot_token(bot), self._message(bot, incoming, message, final=True), handle
                 )
             except Exception:
                 logger.warning(
@@ -1234,7 +1236,12 @@ class ChannelMessageRouter:
 
     @staticmethod
     def _message(
-        bot: ChannelBot, incoming: IncomingMessage, text: str, *, in_reply: bool = False
+        bot: ChannelBot,
+        incoming: IncomingMessage,
+        text: str,
+        *,
+        in_reply: bool = False,
+        final: bool = False,
     ) -> OutgoingMessage:
         """One outgoing message for the chat this one arrived in.
 
@@ -1248,6 +1255,7 @@ class ChannelMessageRouter:
             text=text,
             reply_to_message_id=incoming.message_id if in_reply else None,
             api_base_url=getattr(bot, "api_base_url", None),
+            final=final,
         )
 
     async def _post_placeholder(

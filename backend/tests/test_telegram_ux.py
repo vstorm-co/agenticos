@@ -263,6 +263,61 @@ class TestAnEditThatChangesNothing:
             )
 
 
+class TestTheFinalEditIsFormatted:
+    """The last edit carries the whole answer, so it is sent as HTML like a fresh post."""
+
+    async def test_the_final_edit_is_sent_as_html(self, monkeypatch):
+        bot = _telegram(monkeypatch)
+
+        await TelegramAdapter().update_reply(
+            "t", OutgoingMessage(platform_chat_id="42", text="**Done**", final=True), "5"
+        )
+
+        bot.edit_message_text.assert_awaited_once()
+        sent = bot.edit_message_text.await_args.kwargs
+        assert sent["text"] == "<b>Done</b>"
+        assert sent["parse_mode"] == "HTML"
+
+    async def test_html_telegram_refuses_falls_back_to_plain_text(self, monkeypatch):
+        bot = _telegram(monkeypatch)
+        bot.edit_message_text.side_effect = [
+            TelegramBadRequest(MagicMock(), "Bad Request: can't parse entities"),
+            MagicMock(),
+        ]
+
+        await TelegramAdapter().update_reply(
+            "t", OutgoingMessage(platform_chat_id="42", text="**Done**", final=True), "5"
+        )
+
+        plain = bot.edit_message_text.await_args_list[-1].kwargs
+        assert plain["text"] == "**Done**"
+        assert plain["parse_mode"] is None
+
+    async def test_an_unmodified_final_edit_is_not_retried_as_plain_text(self, monkeypatch):
+        bot = _telegram(monkeypatch)
+        bot.edit_message_text.side_effect = TelegramBadRequest(
+            MagicMock(), "Bad Request: message is not modified: specified new message content"
+        )
+
+        await TelegramAdapter().update_reply(
+            "t", OutgoingMessage(platform_chat_id="42", text="**Done**", final=True), "5"
+        )
+
+        bot.edit_message_text.assert_awaited_once()
+
+    async def test_an_edit_mid_stream_stays_plain(self, monkeypatch):
+        """Half-written Markdown is normal mid-stream, and Telegram rejects an unclosed `**`."""
+        bot = _telegram(monkeypatch)
+
+        await TelegramAdapter().update_reply(
+            "t", OutgoingMessage(platform_chat_id="42", text="**Do"), "5"
+        )
+
+        sent = bot.edit_message_text.await_args.kwargs
+        assert sent["text"] == "**Do"
+        assert sent["parse_mode"] is None
+
+
 class TestMembersOfAPrivateChat:
     """A private chat is this person and the bot: there is no list to ask Telegram for."""
 
