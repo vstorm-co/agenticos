@@ -13,6 +13,7 @@ from app.services import generated_media
 from app.services.channels.base import IncomingMessage, OutgoingAttachment
 from app.services.channels.continuation import ChatDelivery, deliver_in_chat
 from app.services.channels.discord_roles import sweep_discord_roles
+from app.services.channels.exceptions import PartlyDelivered
 from app.services.channels.handback import ChatNotice, ensure_channel_adapters, send_notice
 from app.services.channels.routine_answer import (
     send_routine_answer,
@@ -41,7 +42,11 @@ async def deliver_handback(job: ChannelHandback) -> bool:
         message_id=job.message_id,
     )
     if job.notice:
-        await send_notice(ChatNotice(job.organization_id, job.run_id, destination, job.output))
+        try:
+            await send_notice(ChatNotice(job.organization_id, job.run_id, destination, job.output))
+        except PartlyDelivered:
+            # A retry would post the pieces already in the chat a second time.
+            logger.warning("channel_handback_partly_delivered", extra={"run_id": str(job.run_id)})
     else:
         return await deliver_in_chat(
             organization_id=job.organization_id,

@@ -310,6 +310,49 @@ class TestTheFinalEditNeverLosesTheAnswer:
 
         send_reply.assert_not_awaited()
 
+    async def test_an_answer_partly_delivered_by_the_final_edit_is_not_posted_again(self):
+        from app.services.channels.exceptions import PartlyDelivered
+
+        router, send_reply = self._router()
+        partly = PartlyDelivered(
+            message="x", details={"platform": "telegram", "delivered": 2, "pieces": 3}
+        )
+        adapter = MagicMock(update_reply=AsyncMock(side_effect=partly))
+        incoming = MagicMock(platform="telegram", platform_chat_id="42")
+
+        with (
+            patch("app.services.channels.router.get_adapter", return_value=adapter),
+            patch("app.services.channels.router.unseal_bot_token", return_value="tok"),
+        ):
+            await router._deliver(
+                MagicMock(api_base_url=None), incoming, "long answer", self._answered(), "h1"
+            )
+            await router._post_failure(MagicMock(api_base_url=None), incoming, "h1", "Sorry")
+
+        send_reply.assert_not_awaited()
+
+    async def test_the_thumbs_go_under_the_message_that_ends_a_split_answer(self):
+        router, _ = self._router()
+        adapter = MagicMock(update_reply=AsyncMock(return_value="h9"), offer_feedback=AsyncMock())
+        incoming = MagicMock(platform="telegram", platform_chat_id="42")
+        answered = self._answered()
+        answered.run_id = "run-1"
+        answered.status = "completed"
+
+        with (
+            patch("app.services.channels.router.get_adapter", return_value=adapter),
+            patch("app.services.channels.router.unseal_bot_token", return_value="tok"),
+        ):
+            await router._deliver(
+                MagicMock(api_base_url=None, rate_answers=True),
+                incoming,
+                "long answer",
+                answered,
+                "h1",
+            )
+
+        assert adapter.offer_feedback.await_args.args[2] == "h9"
+
     async def test_only_the_final_edit_is_marked_final(self):
         """The final edit carries the whole answer and may be formatted; an edit
         mid-stream holds half-written Markdown and must not be."""

@@ -20,6 +20,7 @@ from aiogram.enums import ParseMode
 from aiogram.exceptions import (
     TelegramBadRequest,
     TelegramConflictError,
+    TelegramRetryAfter,
     TelegramUnauthorizedError,
 )
 from aiogram.methods import GetUpdates, TelegramMethod
@@ -56,7 +57,7 @@ from app.services.channels.base import (
     split_thread,
     supervise_stream,
 )
-from app.services.channels.exceptions import ChannelNotConfigured
+from app.services.channels.exceptions import ChannelNotConfigured, PartlyDelivered
 from app.services.channels.telegram_format import (
     TELEGRAM_TEXT_LIMIT,
     telegram_pieces,
@@ -189,6 +190,34 @@ def _is_private_chat(channel_id: str) -> bool:
     return re.fullmatch(r"[1-9][0-9]*", split_thread(channel_id)[0]) is not None
 
 
+_RATE_LIMIT_WAIT = 30
+"""The longest a reply waits on a Telegram rate limit before giving up on a piece."""
+
+
+async def _send_piece(bot: Bot, piece: str, where: dict[str, Any], reply: int | None) -> str:
+    """One piece, as HTML or plain text, waiting once if Telegram rate-limits it."""
+    try:
+        return await _send_formatted(bot, piece, where, reply)
+    except TelegramRetryAfter as exc:
+        await asyncio.sleep(min(exc.retry_after, _RATE_LIMIT_WAIT))
+        return await _send_formatted(bot, piece, where, reply)
+
+
+async def _send_formatted(bot: Bot, piece: str, where: dict[str, Any], reply: int | None) -> str:
+    try:
+        sent = await bot.send_message(
+            text=to_telegram_html(piece),
+            parse_mode=ParseMode.HTML,
+            reply_to_message_id=reply,
+            **where,
+        )
+    except TelegramBadRequest:
+        sent = await bot.send_message(
+            text=piece, parse_mode=None, reply_to_message_id=reply, **where
+        )
+    return str(sent.message_id)
+
+
 class TelegramAdapter(ChannelAdapter):
     """Concrete Telegram adapter using aiogram v3."""
 
@@ -267,7 +296,7 @@ class TelegramAdapter(ChannelAdapter):
             )
         return str(sent.message_id)
 
-    async def update_reply(self, bot_token: str, msg: OutgoingMessage, handle: str) -> None:
+    async def update_reply(self, bot_token: str, msg: OutgoingMessage, handle: str) -> str | None:
         """Rewrite a message already in the chat.
 
         Mid-stream edits carry no parse mode: half-written Markdown is the normal
@@ -276,7 +305,10 @@ class TelegramAdapter(ChannelAdapter):
         The final edit (`msg.final`) holds the whole answer, so it is sent as
         HTML the way `send_message` sends it, and as plain text if Telegram
         refuses the HTML. An answer too long for one message keeps its first
-        piece here and sends the rest as new messages. An edit to text the
+        piece here and sends the rest as new messages, and the id of the last
+        one is returned, since that message now ends the answer; `None` when the
+        edited message does. A continuation that fails raises `PartlyDelivered`,
+        because the edited piece is already in the chat. An edit to text the
         message already holds counts as done: Telegram refuses it with a 400,
         and treating that as a failure would post the answer a second time.
         """
@@ -294,13 +326,15 @@ class TelegramAdapter(ChannelAdapter):
 
             if not msg.final:
                 await edit(msg.text[:TELEGRAM_TEXT_LIMIT], None)
-                return
+                return None
             first, *rest = telegram_pieces(msg.text) or [msg.text]
             try:
                 await edit(to_telegram_html(first), ParseMode.HTML)
             except TelegramBadRequest:
                 await edit(first, None)
-            await self._send_pieces(bot, rest, _where(msg.platform_chat_id), None)
+            return await self._send_pieces(
+                bot, rest, _where(msg.platform_chat_id), None, delivered=1
+            )
 
     async def send_message(self, bot_token: str, msg: OutgoingMessage) -> None:
         """Send a reply back to Telegram.
@@ -332,25 +366,43 @@ class TelegramAdapter(ChannelAdapter):
 
     @staticmethod
     async def _send_pieces(
-        bot: Bot, pieces: list[str], where: dict[str, Any], reply_to: int | None
-    ) -> None:
-        """Send each piece as HTML, or as plain text where Telegram refuses the HTML.
+        bot: Bot,
+        pieces: list[str],
+        where: dict[str, Any],
+        reply_to: int | None,
+        *,
+        delivered: int = 0,
+    ) -> str | None:
+        """Send each piece in order and return the last one's message id.
 
-        Only the first piece replies to `reply_to`: the rest continue it.
+        Each goes as HTML, or as plain text where Telegram refuses the HTML. Only
+        the first replies to `reply_to`: the rest continue it. A piece Telegram
+        rate-limits is sent again after the wait it names, up to
+        `_RATE_LIMIT_WAIT` seconds. `delivered` counts pieces already in the
+        chat; once any piece is, a failure raises `PartlyDelivered` instead,
+        because sending the reply again would post those pieces twice.
         """
+        last: str | None = None
         for index, piece in enumerate(pieces):
             reply = reply_to if index == 0 else None
             try:
-                await bot.send_message(
-                    text=to_telegram_html(piece),
-                    parse_mode=ParseMode.HTML,
-                    reply_to_message_id=reply,
-                    **where,
+                last = await _send_piece(bot, piece, where, reply)
+            except Exception as exc:
+                if delivered + index == 0:
+                    raise
+                logger.warning(
+                    "telegram_reply_partly_delivered",
+                    extra={"delivered": delivered + index, "pieces": delivered + len(pieces)},
+                    exc_info=True,
                 )
-            except TelegramBadRequest:
-                await bot.send_message(
-                    text=piece, parse_mode=None, reply_to_message_id=reply, **where
-                )
+                raise PartlyDelivered(
+                    details={
+                        "platform": "telegram",
+                        "delivered": delivered + index,
+                        "pieces": delivered + len(pieces),
+                    }
+                ) from exc
+        return last
 
     @staticmethod
     async def _send_documents(bot: Bot, msg: OutgoingMessage, reply_to: int | None) -> None:

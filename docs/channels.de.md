@@ -1,5 +1,5 @@
 ---
-source_sha: "de2ba02566cc"
+source_sha: "dd51ad4f9078"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -1552,8 +1552,10 @@ Der Bot setzt sein Befehlsmenü — `/agents` sagt, welcher Agent antwortet und 
 er tut, neben `/new`, `/link` und `/help` —, zeigt *schreibt…*, während er
 arbeitet, und nennt den Schritt, an dem er ist, sendet Antworten als Telegram-HTML,
 umgewandelt aus dem Markdown des Agents, damit Codeblöcke und Links erhalten
-bleiben, und antwortet im Thema einer Forengruppe in diesem Thema. Eine
-gestreamte Antwort wird genauso formatiert, sobald sie fertig ist. Eine Antwort,
+bleiben, und antwortet im Thema einer Forengruppe in diesem Thema.
+
+Eine gestreamte Antwort wird genauso formatiert, sobald sie fertig ist.
+Listenpunkte beginnen mit `•`, und eine Aufgabenliste zeigt ☐ und ☒. Eine Antwort,
 die länger ist als die 4096 Zeichen von Telegram, kommt als mehrere Nachrichten
 an, und ein Codeblock, der zwischen zwei davon geteilt wird, wird geschlossen und
 wieder geöffnet.

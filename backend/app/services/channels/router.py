@@ -62,7 +62,7 @@ from app.services.channels.dedupe import claim_delivery, release_delivery, remem
 from app.services.channels.directory import BoundChannelDirectory
 from app.services.channels.discord_roles import PLATFORM as DISCORD_PLATFORM
 from app.services.channels.discord_roles import DiscordRoleSync
-from app.services.channels.exceptions import ChannelNotConfigured
+from app.services.channels.exceptions import ChannelNotConfigured, PartlyDelivered
 from app.services.channels.formatting import LINK_ACCOUNT_INSTRUCTION, PICTURE_DELIVERY_UNCONFIRMED
 from app.services.channels.identity_scope import identity_scope
 from app.services.channels.live_reply import (
@@ -890,9 +890,17 @@ class ChannelMessageRouter:
             adapter = get_adapter(incoming.platform)
             token = unseal_bot_token(bot)
             try:
-                await adapter.update_reply(
+                ends_at = await adapter.update_reply(
                     token, self._message(bot, incoming, text, final=True), handle
                 )
+            except PartlyDelivered:
+                # The edit landed and some of the continuation did: posting the
+                # answer whole would repeat what is already there. Unrated, as
+                # the answer on screen is not the whole of it.
+                logger.warning("live reply final edit partly delivered", exc_info=True)
+                if answered.image_png is None and not answered.attachments:
+                    return True
+                text = ""
             except Exception:
                 # The edit failed - a rate-limit on the last one, or the
                 # placeholder was deleted so the PATCH 404s. Fall through to
@@ -904,7 +912,7 @@ class ChannelMessageRouter:
                 )
             else:
                 if rated is not None:
-                    await self._offer_feedback(bot, incoming, text, handle, rated)
+                    await self._offer_feedback(bot, incoming, text, ends_at or handle, rated)
                 if answered.image_png is None and not answered.attachments:
                     return True
                 text = ""
@@ -1188,6 +1196,8 @@ class ChannelMessageRouter:
                 await adapter.update_reply(
                     unseal_bot_token(bot), self._message(bot, incoming, message, final=True), handle
                 )
+            except PartlyDelivered:
+                logger.warning("live reply failure edit partly delivered", exc_info=True)
             except Exception:
                 logger.warning(
                     "live reply failure edit failed; posting the message whole", exc_info=True

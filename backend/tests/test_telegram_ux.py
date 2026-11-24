@@ -1,15 +1,18 @@
 """Telegram that feels native: formatting, topics, typing and the command menu (#2068)."""
 
 import contextlib
+import html
+import re
 import uuid
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from aiogram.exceptions import TelegramBadRequest
+from aiogram.exceptions import TelegramBadRequest, TelegramNetworkError, TelegramRetryAfter
 
 from app.agents.capabilities.channel_tools import ChannelDirectoryUnsupported
 from app.services.channels.base import CHANNEL_COMMANDS, OutgoingAttachment, OutgoingMessage
+from app.services.channels.exceptions import PartlyDelivered
 from app.services.channels.router import ChannelMessageRouter
 from app.services.channels.telegram import TelegramAdapter
 from app.services.channels.telegram_format import (
@@ -41,12 +44,40 @@ class TestFormatting:
             "set max_retry_count * 2 &amp; go"
         )
 
+    def test_list_markers_become_bullets(self):
+        assert to_telegram_html("Steps:\n- **one**\n* two\n  + nested") == (
+            "Steps:\n• <b>one</b>\n• two\n  • nested"
+        )
+
+    def test_a_task_list_shows_its_boxes(self):
+        assert to_telegram_html("- [ ] Buy milk\n- [x] Send email\n  * [X] nested") == (
+            "☐ Buy milk\n☒ Send email\n  ☒ nested"
+        )
+
+    def test_a_dash_that_is_not_a_list_marker_stays(self):
+        markdown = "a - b, -5, `- x`\n---\n```\n- in code\n```"
+
+        assert to_telegram_html(markdown) == (
+            "a - b, -5, <code>- x</code>\n---\n<pre>- in code</pre>"
+        )
+
     def test_a_quote_in_a_url_cannot_end_the_attribute(self):
         assert "&quot;" in to_telegram_html('[x](https://x.io/"onmouseover)')
 
 
 def _words(text: str) -> str:
     return "".join(text.split())
+
+
+def _shown(sent_html: str) -> int:
+    """A sent message's length as Telegram counts it: text after parsing, UTF-16 units."""
+    shown = html.unescape(re.sub(r"<[^>]+>", "", sent_html))
+    return len(shown.encode("utf-16-le")) // 2
+
+
+def _visible(piece: str) -> int:
+    """What Telegram counts: the converted text without its tags, in UTF-16 units."""
+    return _shown(to_telegram_html(piece))
 
 
 class TestSplittingALongAnswer:
@@ -61,19 +92,9 @@ class TestSplittingALongAnswer:
         pieces = telegram_pieces(markdown)
 
         assert len(pieces) > 1
-        assert all(len(to_telegram_html(piece)) <= TELEGRAM_TEXT_LIMIT for piece in pieces)
+        assert all(_visible(piece) <= TELEGRAM_TEXT_LIMIT for piece in pieces)
         assert all(len(piece) <= TELEGRAM_TEXT_LIMIT for piece in pieces)
         assert _words("".join(pieces)) == _words(markdown)
-
-    def test_escaping_that_lengthens_the_text_is_counted(self):
-        """Each `&` becomes `&amp;`: text that fits as written does not once converted."""
-        markdown = "a & b " * 600
-
-        pieces = telegram_pieces(markdown)
-
-        assert len(markdown) <= TELEGRAM_TEXT_LIMIT
-        assert len(pieces) > 1
-        assert all(len(to_telegram_html(piece)) <= TELEGRAM_TEXT_LIMIT for piece in pieces)
 
     def test_a_cut_inside_a_code_fence_closes_and_reopens_it(self):
         code = "\n".join(f"print({i})  # line {i}" for i in range(600))
@@ -84,7 +105,7 @@ class TestSplittingALongAnswer:
         assert len(pieces) > 1
         for piece in pieces:
             rendered = to_telegram_html(piece)
-            assert len(rendered) <= TELEGRAM_TEXT_LIMIT
+            assert _visible(piece) <= TELEGRAM_TEXT_LIMIT
             assert rendered.count("<pre>") == rendered.count("</pre>") >= 1
             assert "```" not in rendered
         assert all(piece.lstrip().startswith("```python") for piece in pieces[1:])
@@ -100,6 +121,27 @@ class TestSplittingALongAnswer:
     def test_whitespace_after_the_last_cut_is_not_a_piece(self):
         assert telegram_pieces("") == []
         assert telegram_pieces("x" * 4096 + "\n" + " " * 10) == ["x" * 4096]
+
+    def test_markup_does_not_count_against_the_limit(self):
+        """Telegram counts the text after parsing, so `&amp;` is one character."""
+        pieces = telegram_pieces("&" * 10_000)
+
+        assert [len(piece) for piece in pieces] == [4096, 4096, 1808]
+
+    def test_a_character_outside_the_basic_plane_counts_twice(self):
+        """Telegram measures text in UTF-16 units; an emoji is two of them."""
+        pieces = telegram_pieces("😀" * 3000)
+
+        assert [len(piece) for piece in pieces] == [2048, 952]
+
+    def test_a_fence_opening_line_too_long_to_reopen_is_cut_as_text(self):
+        markdown = "```pythonlongname\nab\ncd\n```"
+
+        pieces = telegram_pieces(markdown, limit=20)
+
+        assert all(len(piece) <= 20 for piece in pieces)
+        assert not any(piece.endswith("nam\n```") for piece in pieces)
+        assert _words("".join(pieces)) == _words(markdown)
 
     def test_a_word_longer_than_a_message_is_cut_where_it_must_be(self):
         pieces = telegram_pieces("x" * 10_000)
@@ -403,7 +445,7 @@ class TestALongAnswerArrivesInPieces:
 
         sent = [call.kwargs for call in bot.send_message.await_args_list]
         assert len(sent) > 1
-        assert all(len(each["text"]) <= TELEGRAM_TEXT_LIMIT for each in sent)
+        assert all(_shown(each["text"]) <= TELEGRAM_TEXT_LIMIT for each in sent)
         assert all(each["parse_mode"] == "HTML" for each in sent)
         assert [each["reply_to_message_id"] for each in sent] == [9] + [None] * (len(sent) - 1)
 
@@ -444,6 +486,94 @@ class TestALongAnswerArrivesInPieces:
         assert [each["text"] for each in followed] == [to_telegram_html(p) for p in pieces[1:]]
         assert all(each["reply_to_message_id"] is None for each in followed)
 
+    async def test_a_rate_limited_piece_waits_and_is_sent_again(self, monkeypatch):
+        bot = _telegram(monkeypatch)
+        slept = AsyncMock()
+        monkeypatch.setattr("app.services.channels.telegram.asyncio.sleep", slept)
+        limited = TelegramRetryAfter(MagicMock(), "Too Many Requests", retry_after=3)
+        calls = iter(range(100))
+
+        def second_limited(**_: Any) -> MagicMock:
+            if next(calls) == 1:
+                raise limited
+            return MagicMock(message_id=5)
+
+        bot.send_message.side_effect = second_limited
+
+        await TelegramAdapter().send_message(
+            "t", OutgoingMessage(platform_chat_id="42", text=self.LONG)
+        )
+
+        slept.assert_awaited_once_with(3)
+        assert bot.send_message.await_count == len(telegram_pieces(self.LONG)) + 1
+
+    async def test_a_long_rate_limit_wait_is_capped(self, monkeypatch):
+        bot = _telegram(monkeypatch)
+        slept = AsyncMock()
+        monkeypatch.setattr("app.services.channels.telegram.asyncio.sleep", slept)
+        bot.send_message.side_effect = [
+            TelegramRetryAfter(MagicMock(), "Too Many Requests", retry_after=600),
+            MagicMock(message_id=5),
+        ]
+
+        await TelegramAdapter().send_message("t", OutgoingMessage(platform_chat_id="42", text="hi"))
+
+        slept.assert_awaited_once_with(30)
+
+    async def test_a_piece_failing_after_the_first_is_reported_as_partly_delivered(
+        self, monkeypatch
+    ):
+        """Retrying the whole send would post the pieces already in the chat again."""
+        bot = _telegram(monkeypatch)
+        bot.send_message.side_effect = [
+            MagicMock(message_id=5),
+            TelegramNetworkError(MagicMock(), "down"),
+        ]
+
+        with pytest.raises(PartlyDelivered) as raised:
+            await TelegramAdapter().send_message(
+                "t", OutgoingMessage(platform_chat_id="42", text=self.LONG)
+            )
+
+        assert raised.value.details["delivered"] == 1
+        assert raised.value.details["pieces"] == len(telegram_pieces(self.LONG))
+
+    async def test_the_first_piece_failing_is_an_ordinary_failure(self, monkeypatch):
+        bot = _telegram(monkeypatch)
+        bot.send_message.side_effect = TelegramNetworkError(MagicMock(), "down")
+
+        with pytest.raises(TelegramNetworkError):
+            await TelegramAdapter().send_message(
+                "t", OutgoingMessage(platform_chat_id="42", text=self.LONG)
+            )
+
+    async def test_a_continuation_failing_after_the_final_edit_is_partly_delivered(
+        self, monkeypatch
+    ):
+        bot = _telegram(monkeypatch)
+        bot.send_message.side_effect = TelegramNetworkError(MagicMock(), "down")
+
+        with pytest.raises(PartlyDelivered) as raised:
+            await TelegramAdapter().update_reply(
+                "t", OutgoingMessage(platform_chat_id="42", text=self.LONG, final=True), "5"
+            )
+
+        assert raised.value.details["delivered"] == 1
+
+    async def test_the_final_edit_names_the_message_that_ends_the_answer(self, monkeypatch):
+        bot = _telegram(monkeypatch)
+        bot.send_message.return_value = MagicMock(message_id=77)
+
+        last = await TelegramAdapter().update_reply(
+            "t", OutgoingMessage(platform_chat_id="42", text=self.LONG, final=True), "5"
+        )
+        alone = await TelegramAdapter().update_reply(
+            "t", OutgoingMessage(platform_chat_id="42", text="short", final=True), "5"
+        )
+
+        assert last == "77"
+        assert alone is None
+
     async def test_an_edit_mid_stream_shows_what_fits(self, monkeypatch):
         bot = _telegram(monkeypatch)
 
@@ -476,7 +606,7 @@ class TestALongAnswerArrivesInPieces:
         assert order[-1] == "file"
         assert order.count("text") > 1
         assert all(
-            len(call.kwargs["text"]) <= TELEGRAM_TEXT_LIMIT
+            _shown(call.kwargs["text"]) <= TELEGRAM_TEXT_LIMIT
             for call in bot.send_message.await_args_list
         )
 

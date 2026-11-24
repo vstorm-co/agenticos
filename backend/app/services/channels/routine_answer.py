@@ -34,6 +34,7 @@ from app.repositories import channel_bot as channel_bot_repo
 from app.services.channel_bot import unseal_bot_token
 from app.services.channels import get_adapter
 from app.services.channels.base import IncomingMessage, OutgoingMessage
+from app.services.channels.exceptions import PartlyDelivered
 from app.worker.jobs import RoutineChatAnswer
 
 logger = logging.getLogger(__name__)
@@ -63,9 +64,9 @@ def _awaiting(trigger: AgentTrigger, job: RoutineChatAnswer) -> bool:
 async def send_routine_answer(job: RoutineChatAnswer) -> None:
     """Post the stored answer, then read the routine's delivery as `delivered`.
 
-    A definite refusal settles the delivery `unavailable` and returns. A platform
-    failure raises for the worker's bounded retries; the settler closes the
-    delivery if they run out. A job for a fire that is no longer the routine's
+    A definite refusal, or an answer the platform took only part of, settles the
+    delivery `unavailable` and returns. A platform failure raises for the
+    worker's bounded retries; the settler closes the delivery if they run out. A job for a fire that is no longer the routine's
     latest still posts its answer but never writes a status over the newer one.
     """
     from app.services.channels.router import ChannelMessageRouter, ChatTurn
@@ -153,6 +154,16 @@ async def send_routine_answer(job: RoutineChatAnswer) -> None:
         )
     try:
         await adapter.send_message(post.token, post.message)
+    except PartlyDelivered:
+        # A retry would post the pieces already in the chat again; the whole
+        # answer stays in the console.
+        logger.warning(
+            "routine_chat_answer_partly_delivered",
+            extra={"trigger_id": str(job.trigger_id), "run_id": str(job.run_id)},
+        )
+        async with get_db_context() as db:
+            await _settle_unavailable(db, job)
+        return
     except Exception:
         logger.exception(
             "routine_chat_answer_failed",

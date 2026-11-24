@@ -483,3 +483,17 @@ async def test_a_routine_answer_longer_than_a_telegram_message_is_delivered_in_p
 
     assert len(sent) > 1
     assert world.trigger.last_delivery_status == "delivered"
+
+
+async def test_an_answer_that_arrived_in_part_is_not_sent_again(world: _World) -> None:
+    """A retry would post the pieces already in the chat a second time."""
+    from app.services.channels.exceptions import PartlyDelivered
+
+    world.adapter.send_message.side_effect = PartlyDelivered(
+        message="x", details={"platform": "telegram", "delivered": 1, "pieces": 3}
+    )
+
+    await send_routine_answer(world.job)
+
+    assert world.trigger.last_delivery_status == "unavailable"
+    world.blocked.assert_awaited_once()

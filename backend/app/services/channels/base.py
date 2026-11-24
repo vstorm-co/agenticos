@@ -590,11 +590,13 @@ class ChannelAdapter(ABC):
         """
         return None
 
-    async def update_reply(self, bot_token: str, msg: OutgoingMessage, handle: str) -> None:
+    async def update_reply(self, bot_token: str, msg: OutgoingMessage, handle: str) -> str | None:
         """Rewrite the message `handle` names.
 
         Only ever called with a handle this adapter returned, so an adapter that
-        cannot stream never reaches it.
+        cannot stream never reaches it. Returns the id of the message that now
+        ends the reply when that is not `handle` - a final edit too long for one
+        message continues in new ones - and `None` otherwise.
         """
         raise NotImplementedError(f"{self.platform} cannot edit a message it has sent")
 

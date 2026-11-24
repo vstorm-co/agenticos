@@ -1415,9 +1415,12 @@ The bot sets its command menu - `/agents` says which agent answers and what it
 does, beside `/new`, `/link` and `/help` - shows *typing…* while it works and
 names the step it is on, sends answers as Telegram HTML converted from the
 agent's Markdown so code blocks and links survive, and answers a forum group's
-topic in that topic. A streamed answer is formatted the same way once it is
-finished. An answer longer than Telegram's 4096 characters arrives as several
-messages, and a code block cut between two of them is closed and opened again.
+topic in that topic.
+
+A streamed answer is formatted the same way once it is
+finished. List items start with `•`, and a task list shows ☐ and ☒. An answer
+longer than Telegram's 4096 characters arrives as several messages, and a code
+block cut between two of them is closed and opened again.
 
 ## Mattermost
 
