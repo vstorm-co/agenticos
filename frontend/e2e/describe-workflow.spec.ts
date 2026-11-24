@@ -24,15 +24,21 @@ function watchSentFrames(page: Page): string[] {
  * prompt reached neither the transcript nor a socket: it was written, not sent.
  */
 async function expectDrafted(page: Page, prompt: string, sent: string[]) {
+  const firstLine = (prompt.split("\n")[0] ?? "").trim();
   const composer = page.getByRole("textbox", { name: "Type a message..." });
   await expect(composer).toBeEnabled();
   await expect(composer).toHaveText(prompt);
   await expect(page).not.toHaveURL(/[?&]prompt=/);
-  await expect(page.locator("[data-transcript]").getByText(prompt)).toHaveCount(0);
+  await expect(page.locator("[data-transcript]").getByText(firstLine)).toHaveCount(0);
   // Written text is the composer's only copy; a second, delayed write would
   // double it, and a send would put it in a frame and the transcript.
   await expect(composer).toHaveText(prompt);
-  expect(sent.filter((frame) => frame.includes(prompt))).toEqual([]);
+  // A multiline prompt travels JSON-escaped (each newline becomes a backslash and
+  // an n), so the whole text never matches a frame. Its first line has no newline
+  // to escape, and for a one-line prompt it is the whole prompt.
+  expect(firstLine).not.toBe("");
+  expect(sent.filter((frame) => frame.includes(firstLine))).toEqual([]);
+  expect(sent.filter((frame) => frame.includes(JSON.stringify(prompt).slice(1, -1)))).toEqual([]);
 }
 
 async function attachLayout(page: Page, testInfo: TestInfo, name: string) {
