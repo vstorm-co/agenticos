@@ -66,6 +66,7 @@ export { useReusableIntegrations } from "./use-reusable-integrations";
 export { useLocalServices } from "./use-local-services";
 export { useExternalAgents } from "./use-external-agents";
 export { useMcpConnections } from "./use-mcp-connections";
+export { useConnectionHealth } from "./use-connection-health";
 export { useAppConnections } from "./use-app-connections";
 export {
   useNetworkConnections,
