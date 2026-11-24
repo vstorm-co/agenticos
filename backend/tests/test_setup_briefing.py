@@ -77,6 +77,7 @@ class TestWhatItSays:
 
     def test_knowledge_and_connected_services_are_counted(self) -> None:
         spec = _spec(
+            "knowledge",
             collection_ids=[uuid.uuid4(), uuid.uuid4()],
             mcp_servers=[{"account": "platform"}],
         )
@@ -86,6 +87,24 @@ class TestWhatItSays:
         assert "- **Knowledge**: 2 knowledge base(s) to answer from." in text
         assert "- **Connected services**:" in text
         assert "**Knowledge**" not in setup_briefing(_spec(), agent_id=None)
+
+    def test_collections_kept_while_knowledge_is_off_are_not_counted(self) -> None:
+        """The Builder keeps them; nothing searches them, so none is offered."""
+        spec = AgentSpec(
+            name="Helper",
+            capabilities=[{"id": "knowledge", "enabled": False}],
+            collection_ids=[uuid.uuid4()],
+        )
+
+        assert "knowledge base(s) to answer from" not in setup_briefing(spec, agent_id=None)
+
+    def test_an_agent_with_nothing_switched_on_says_so(self) -> None:
+        """No heading left hanging over an empty list."""
+        text = setup_briefing(_spec(), agent_id=None)
+
+        assert "Nothing is switched on." in text
+        assert "Switched on:" not in text
+        assert "Switched on:" in setup_briefing(_spec("web_research"), agent_id=None)
 
     def test_an_agent_that_knows_its_id_offers_the_card(self) -> None:
         linked = setup_briefing(_spec(), agent_id=uuid.uuid4())
@@ -114,7 +133,13 @@ class TestWhatItSays:
             skill_ids=[uuid.uuid4()],
         )
 
-        assert "## Your skills" not in setup_briefing(spec, agent_id=uuid.uuid4())
+        text = setup_briefing(spec, agent_id=uuid.uuid4())
+
+        # `read_skill` exists only while `skills` is on; promising it here names a
+        # tool the agent does not have.
+        assert "## Your skills" not in text
+        assert "read_skill" not in text
+        assert "- **Skills** (`skills`):" in _halves(text)[1]
 
     def test_the_capability_hands_the_text_over_unchanged(self) -> None:
         assert SetupBriefing("# Your setup").get_instructions() == "# Your setup"
