@@ -125,6 +125,7 @@ class TestListing:
             "entra_app",
             "http_credential",
             "microsoft_oauth_app",
+            "mcp_oauth_client",
             "openai_codex",
             "openai_chatgpt",
             "smtp_account",
