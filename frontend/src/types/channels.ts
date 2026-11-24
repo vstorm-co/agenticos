@@ -128,7 +128,7 @@ export interface ChannelBot extends AnswerStyle {
    */
   inherited_speech_to_text?: InheritedSpeechToText | null;
   /**
-   * Who answers here, from the active bindings.
+   * The agents bound here, paused bindings included and marked `is_active`.
    *
    * A bot with none is registered and silent, which is the state somebody opens
    * the channels page to explain - and a listing that named only the bot could
@@ -160,8 +160,12 @@ export interface ChannelConnection {
   reason: string | null;
 }
 
-/** An agent that answers on one bot. */
+/** An agent bound to one bot, with the binding's own id and pause state. */
 export interface BotAgent {
+  /** The binding's id: what unbinding addresses. */
+  exposure_id: string;
+  /** False while the binding is paused; the bot then answers nothing as this agent. */
+  is_active: boolean;
   id: string;
   name: string;
   slug: string;

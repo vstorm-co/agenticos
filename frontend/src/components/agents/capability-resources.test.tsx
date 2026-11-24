@@ -1,8 +1,9 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { CapabilityResources, resourceTabKey, type AgentResources } from "./capability-resources";
+import { useOrgStore } from "@/stores/org-store";
 import type { KnowledgeBase } from "@/types";
 import type { SystemAgentKind } from "@/types/agents";
 import type { ContextFileSummary, SkillSummary } from "@/types/providers";
@@ -32,6 +33,7 @@ const FILE = {
 
 const COLLECTION = {
   id: "k1",
+  organization_id: "org-1",
   name: "Handbook",
   description: "Everything HR has written down.",
   document_count: 4,
@@ -69,6 +71,9 @@ function mount(capabilityId: string, overrides: Partial<AgentResources> = {}, en
   );
   return resources;
 }
+
+beforeEach(() => useOrgStore.setState({ activeOrgId: "org-1" }));
+afterEach(() => useOrgStore.setState({ activeOrgId: null }));
 
 describe("the tab a capability's resources get", () => {
   it.each([

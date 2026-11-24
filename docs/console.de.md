@@ -1,5 +1,5 @@
 ---
-source_sha: "8e450f21611e"
+source_sha: "9f7bdb001aef"
 ---
 
 **Refresh models** im Anbieterkatalog lädt die Liste erneut und behält Suche und Auswahl bei. Bei gespeicherten Organisationsmodellen werden stattdessen die gespeicherten Profile neu geladen. Aktualisieren speichert kein Modell und startet keinen Agenten. Endpoint, Vault-Schlüssel, API-Typ und Region erscheinen entsprechend den Fähigkeiten des Anbieters; persönliche Abonnements verwenden die Einstellungen ihres verbundenen Kontos.
@@ -33,7 +33,7 @@ Ein Schritt vor der Auswahl einer Organisation oder dem Beitritt wird nicht als 
 
 Der Posteingang verwendet in Alle, Dringend, Routinen-Ergebnisse, Vorschläge und Erledigt denselben Listenrahmen, Zeilenabstand, dieselben Quellenmarkierungen, Titel- und Beschreibungsschriften sowie dieselbe responsive Anordnung der Aktionen. Erledigte Einträge behalten ihren Entscheidungsstatus und die Wiederherstellung abgelehnter Einträge; Quelle und Zeit bleiben auch auf dem Telefon sichtbar. Freigabeformulare verwenden denselben äußeren Abstand und behalten ihre Pflichtfelder und Berechtigungsprüfungen.
 
-Dateien und Quellen verwenden dasselbe kompakte Seitenpanel: anfangs 400px, verstellbar von 360 bis 420px und auf 38% der angedockten Chatbreite begrenzt. Auf schmalen Desktopfenstern können sie die Gesprächsliste vorübergehend einklappen. Beim Schließen wird die frühere Auswahl wiederhergestellt, sofern Sie sie nicht manuell geändert haben. Der Browser behält mehr Arbeitsfläche: anfangs 55%, verstellbar von 35% bis 65%. Ein Zitat scrollt nur die Quellenliste und lässt den Gesprächsverlauf an seiner Position.
+Dateien und Quellen verwenden dasselbe kompakte Seitenpanel: anfangs 400px, verstellbar von 360 bis 420px und auf 38% der angedockten Chatbreite begrenzt. Wenn der angedockte Chat zu schmal ist, um die Panelbreite zu ändern, wählen Sie in der Kopfzeile des Panels **Maximieren (Maximize)**. Auf schmalen Desktopfenstern können sie die Gesprächsliste vorübergehend einklappen. Beim Schließen wird die frühere Auswahl wiederhergestellt, sofern Sie sie nicht manuell geändert haben. Der Browser behält mehr Arbeitsfläche: anfangs 55%, verstellbar von 35% bis 65%. Ein Zitat scrollt nur die Quellenliste und lässt den Gesprächsverlauf an seiner Position.
 
 Meldet Dateien einen noch nicht erstellten oder nicht mehr aufbewahrten Arbeitsbereich, ist das von einem Verbindungsfehler getrennt und beweist nicht, dass dort nie Dateien lagen. Gesprächsanhänge bleiben verfügbar. Hängen Sie eine Datei im Eingabefeld an und senden Sie sie, oder bitten Sie den Agenten, eine Datei zu erstellen. Echte Verbindungs- und Archivfehler bleiben ausdrücklich sichtbar. Im Chat öffnet ein Dateilink mit passendem erfolgreichem Werkzeugbeleg die Arbeitsbereichsvorschau. Unbestätigte Pfade bleiben gewöhnliche Links; ein nicht verfügbarer privater Dateiursprung wird nicht verlinkt.
 
@@ -1172,8 +1172,9 @@ Gespeicherte Browser-Anmeldungen stehen in einem kompakten Einstellungsbereich �
 
 ## Sprachen { #languages }
 
-Die Konsole spricht Englisch, Polnisch, Deutsch und Türkisch. Die erste Karte des
-Rundgangs bietet die vier an, und das Kontomenü wechselt die Sprache jederzeit;
+Die Konsole spricht Englisch, Polnisch, Deutsch, Türkisch, Französisch, Niederländisch und
+brasilianisches Portugiesisch. Die erste Karte des Rundgangs bietet alle sieben an, und das
+Kontomenü wechselt die Sprache jederzeit;
 die Wahl wird in Ihrem
 Konto gespeichert, sodass die Konsole auf jedem Gerät, auf dem Sie sich anmelden,
 in ihr öffnet. Sie können auch einen Agent bitten - "auf Englisch umstellen" -, und

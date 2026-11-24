@@ -1434,6 +1434,17 @@ function ChatUI({
     !compact && messages.length === 0 && voice.call.phase === "idle" && !isLoadingConversation;
   const showDailyBriefing = showWorkspaceHome && mainChat && !emptyState && !conversationId;
   const composeSuggestion = (text: string) => setIncoming({ id: Date.now(), files: [], text });
+  const workspaceFiles = (
+    <WorkspaceFiles
+      key={conversationId ?? "new"}
+      beforeFirstMessage={mainChat && messages.length === 0}
+      conversationId={conversationId}
+      revision={turns}
+      attachments={attachments}
+      buttonSlot={filesSlot}
+      overlay={compact}
+    />
+  );
   return (
     <div className="chat-surface @container/sources-layout relative flex h-full min-h-0 w-full overflow-hidden">
       <div className="@container/browser-layout relative flex h-full min-h-0 min-w-0 flex-1">
@@ -1676,6 +1687,7 @@ function ChatUI({
                 >
                   <div className="chat-composer-width">
                     <ToolApprovalDialog
+                      savedDecisions={pendingApproval.savedDecisions}
                       actionRequests={pendingApproval.actionRequests}
                       reviewConfigs={pendingApproval.reviewConfigs}
                       onDecisions={onResumeDecisions}
@@ -2057,27 +2069,14 @@ function ChatUI({
           onResume={() => sendMessage(t("browserResumePrompt"))}
         />
       </div>
-      {/* Beside the transcript rather than under it: what the agent is holding is
-          something you glance at while reading, and a list that pushed the input
-          down would move the box you are typing in. Closed by default - it is a
-          button among the composer's controls until somebody opens it, because a
-          permanent third column took space from every conversation including the
-          ones where the agent keeps nothing. Hidden on a narrow screen, where there
-          is no room for it. */}
+      {/* Docked panels must be direct children of the chat row: both the percentage
+          width and pointer resize measure that parent. Embedded Files stays contained. */}
       <SourcesPanel contained={compact} conversationId={conversationId} />
-      <div
-        className={mainChat ? "h-full min-h-0 shrink-0" : "hidden h-full min-h-0 shrink-0 lg:block"}
-      >
-        <WorkspaceFiles
-          key={conversationId ?? "new"}
-          beforeFirstMessage={mainChat && messages.length === 0}
-          conversationId={conversationId}
-          revision={turns}
-          attachments={attachments}
-          buttonSlot={filesSlot}
-          overlay={compact}
-        />
-      </div>
+      {mainChat ? (
+        workspaceFiles
+      ) : (
+        <div className="hidden h-full min-h-0 shrink-0 lg:block">{workspaceFiles}</div>
+      )}
     </div>
   );
 }

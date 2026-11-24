@@ -1,5 +1,5 @@
 ---
-source_sha: "b5a555f17ceb"
+source_sha: "c74fb3dc560a"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -670,6 +670,12 @@ typowane źródła, od najlepszego. Pusty wynik to udane wyszukiwanie. Kolekcja,
 której już nie ma albo której principal runa nie może już czytać, kończy krok
 błędem `COLLECTION_NOT_ACCESSIBLE`. Krok nigdy nie przeszukuje mniej kolekcji,
 niż wskazuje graf.
+
+Kolekcje o tej samej nazwie kolekcji są przeszukiwane razem, każda w obrębie
+własnej bazy. Kolekcji, która dzieli nazwę z inną o innym zakresie - kolekcją
+całego wdrożenia i kolekcją organizacji - nie da się tak przeszukać, więc
+publikacja odrzuca krok, a run kończy go błędem `COLLECTIONS_SHARE_STORAGE`.
+Przeszukaj je w osobnych krokach.
 
 ::: app.workflows.nodes.knowledge_search._handler.KnowledgeSearchConfig
 

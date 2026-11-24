@@ -56,13 +56,14 @@ from app.services.channels.base import (
     channel_key,
     is_run_control,
     memory_room_key,
+    platform_name,
     split_thread,
 )
 from app.services.channels.dedupe import claim_delivery, release_delivery, remember_unaddressed
 from app.services.channels.directory import BoundChannelDirectory
 from app.services.channels.discord_roles import PLATFORM as DISCORD_PLATFORM
 from app.services.channels.discord_roles import DiscordRoleSync
-from app.services.channels.exceptions import ChannelNotConfigured
+from app.services.channels.exceptions import ChannelNotConfigured, PartlyDelivered
 from app.services.channels.formatting import LINK_ACCOUNT_INSTRUCTION, PICTURE_DELIVERY_UNCONFIRMED
 from app.services.channels.identity_scope import identity_scope
 from app.services.channels.live_reply import (
@@ -293,6 +294,22 @@ class Admission:
 
 
 @dataclass(frozen=True)
+class ChatTurn:
+    """What `admission` reads of a turn that has no run: a routine's chat post.
+
+    Exactly the attributes of an `AgentRun` the standing checks consult.
+    """
+
+    organization_id: UUID
+    surface: str
+    conversation_id: UUID | None
+    channel_identity_id: UUID | None
+    agent_id: UUID
+    initiated_by_publisher_fallback: bool
+    user_id: UUID | None
+
+
+@dataclass(frozen=True)
 class _Passed:
     """What `ChannelMessageRouter._standing` returns for a sender nothing refuses."""
 
@@ -323,7 +340,7 @@ class ChannelMessageRouter:
         )
 
     async def admission(
-        self, db: AsyncSession, run: AgentRun, incoming: IncomingMessage
+        self, db: AsyncSession, run: AgentRun | ChatTurn, incoming: IncomingMessage
     ) -> Admission:
         """Whether the chat a run came from still admits the person it was asked of.
 
@@ -367,7 +384,7 @@ class ChannelMessageRouter:
         return Admission("admitted", "member")
 
     async def _standing(
-        self, db: AsyncSession, run: AgentRun, incoming: IncomingMessage, *, strict: bool
+        self, db: AsyncSession, run: AgentRun | ChatTurn, incoming: IncomingMessage, *, strict: bool
     ) -> str | _Passed:
         """The bot, the chat and the sender's standing, short of the platform's membership answer.
 
@@ -874,7 +891,17 @@ class ChannelMessageRouter:
             adapter = get_adapter(incoming.platform)
             token = unseal_bot_token(bot)
             try:
-                await adapter.update_reply(token, self._message(bot, incoming, text), handle)
+                ends_at = await adapter.update_reply(
+                    token, self._message(bot, incoming, text, final=True), handle
+                )
+            except PartlyDelivered:
+                # The edit landed and some of the continuation did: posting the
+                # answer whole would repeat what is already there. Unrated, as
+                # the answer on screen is not the whole of it.
+                logger.warning("live reply final edit partly delivered", exc_info=True)
+                if answered.image_png is None and not answered.attachments:
+                    return True
+                text = ""
             except Exception:
                 # The edit failed - a rate-limit on the last one, or the
                 # placeholder was deleted so the PATCH 404s. Fall through to
@@ -886,7 +913,7 @@ class ChannelMessageRouter:
                 )
             else:
                 if rated is not None:
-                    await self._offer_feedback(bot, incoming, text, handle, rated)
+                    await self._offer_feedback(bot, incoming, text, ends_at or handle, rated)
                 if answered.image_png is None and not answered.attachments:
                     return True
                 text = ""
@@ -1168,8 +1195,10 @@ class ChannelMessageRouter:
             adapter = get_adapter(incoming.platform)
             try:
                 await adapter.update_reply(
-                    unseal_bot_token(bot), self._message(bot, incoming, message), handle
+                    unseal_bot_token(bot), self._message(bot, incoming, message, final=True), handle
                 )
+            except PartlyDelivered:
+                logger.warning("live reply failure edit partly delivered", exc_info=True)
             except Exception:
                 logger.warning(
                     "live reply failure edit failed; posting the message whole", exc_info=True
@@ -1218,7 +1247,12 @@ class ChannelMessageRouter:
 
     @staticmethod
     def _message(
-        bot: ChannelBot, incoming: IncomingMessage, text: str, *, in_reply: bool = False
+        bot: ChannelBot,
+        incoming: IncomingMessage,
+        text: str,
+        *,
+        in_reply: bool = False,
+        final: bool = False,
     ) -> OutgoingMessage:
         """One outgoing message for the chat this one arrived in.
 
@@ -1232,6 +1266,7 @@ class ChannelMessageRouter:
             text=text,
             reply_to_message_id=incoming.message_id if in_reply else None,
             api_base_url=getattr(bot, "api_base_url", None),
+            final=final,
         )
 
     async def _post_placeholder(
@@ -1880,7 +1915,7 @@ class ChannelMessageRouter:
                 # them a room that participant management can then never reach.
                 new_conv = await conversation_repo.create_conversation(
                     db,
-                    title=f"{incoming.platform.capitalize()} Chat",
+                    title=f"{platform_name(incoming.platform)} Chat",
                     user_id=issuer,
                     organization_id=bot.organization_id,
                 )
@@ -2093,7 +2128,7 @@ class ChannelMessageRouter:
         Linking a platform identity authenticates the sender; it does not authorize
         a bot or bridge to receive the person's pre-existing console history.
         """
-        title = f"{incoming.platform.capitalize()} Chat"
+        title = f"{platform_name(incoming.platform)} Chat"
         conv = await conversation_repo.create_conversation(
             db, title=title, user_id=identity.user_id, organization_id=bot.organization_id
         )

@@ -1,5 +1,5 @@
 ---
-source_sha: "e679e735c63f"
+source_sha: "ae26ea67fe6f"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -401,12 +401,14 @@ Trzy tryby — i to jedyne, co naprawdę różni serwery między sobą.
 
     1. **Wykrycie** — odpytaj serwer, ustal jego authorization server, pobierz
        metadane RFC 8414.
-    2. **Rejestracja** — dynamiczna rejestracja klienta wg RFC 7591. Serwer,
-       który nie publikuje endpointu rejestracji — tak jest u HubSpota — odmawia
+    2. **Rejestracja** — dynamiczna rejestracja klienta wg RFC 7591. AgenticOS
+       rejestruje publicznego klienta z PKCE, jeśli serwer autoryzacji ogłasza
+       obsługę `none` i nie obsługuje `client_secret_post`. Serwer bez endpointu
+       rejestracji — tak jest u HubSpota — odmawia
        w tym miejscu i jedyna droga dalej to klient zarejestrowany u providera
-       ręcznie: dialog podłączania przyjmuje jego client ID i secret w sekcji
-       *Własny klient* i pokazuje redirect URL, który provider musi mieć wpisany
-       dokładnie w tej postaci.
+       ręcznie: dialog podłączania przyjmuje jego client ID i, jeśli jest
+       wymagany, secret w sekcji *Własny klient*. Zarejestruj u providera redirect
+       URL dokładnie w pokazanej postaci.
     3. **Zgoda** — URL autoryzacji z PKCE, ze `state` i wskaźnikiem zasobu wg
        RFC 8707; przeglądarka idzie pod ten adres.
     4. **Wymiana** — callback wymienia kod na tokeny, po czym przekierowuje
@@ -1271,7 +1273,7 @@ Sprawdzenie połączenia aktualizuje wykryte narzędzia i status. Dlatego `test_
 | `discard_agent_draft` | `agents:edit`, dla twojego draftu, który nigdy nie był opublikowany |
 | `run_agent` | `agents:run` |
 | `list_routines` | `agents:view` |
-| `create_routine`, `run_routine_now` | `agents:run` na agencie |
+| `create_routine`, `run_routine_now` | `agents:run` na agencie; w przebiegu samego agenta `create_routine` może pominąć `agent_id`, co oznacza tego agenta |
 | `update_routine`, `delete_routine` | twórca rutyny albo `agents:edit` na jej agencie |
 | `list_runs`, `get_run`, `read_run_transcript`, `read_run_tool_call`, `read_conversation`, `read_conversation_tool_call`, `list_conversations`, `get_spend` | `runs:view` |
 | `create_conversation` | `agents:run` |
@@ -1399,6 +1401,11 @@ nazwana jak to wdrożenie; jej włączenie wiąże go jako
 Szablon **AgenticOS** wiąże go właśnie tak, podobnie jak każdy agent tworzony od
 zera, więc agent od razu sięga do platformy - i ustawia rutynę albo przełącza język
 konsoli, gdy się go o to poprosi.
+
+W przebiegu samego agenta `whoami` zwraca też `run_agent_id`, czyli agenta, do którego
+przebieg należy, a `create_routine` bez `agent_id` planuje właśnie jego. Klucz API
+ani klient MCP nie mają takiego agenta i podają go jawnie. Delegat, który go pomija,
+planuje agenta, dla którego wydano jego poświadczenie, czyli ten, który rozpoczął przebieg.
 
 ### Desktop, mobile i lokalne środowiska { #desktop-mobile-and-local-environments }
 

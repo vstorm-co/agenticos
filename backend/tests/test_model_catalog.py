@@ -196,6 +196,14 @@ class TestCaching:
         assert client.get.await_count == 2
         assert len(model_catalog._cache) == 2
         assert all("secret-token" not in key for key in model_catalog._cache)
+        # A leaked partition key must not be a stable verifier for guessed keys.
+        import hashlib
+
+        assert all(
+            hashlib.sha256(secret.encode()).hexdigest() not in key
+            for secret in ("first-secret-token", "second-secret-token")
+            for key in model_catalog._cache
+        )
 
 
 class TestTheCuratedList:

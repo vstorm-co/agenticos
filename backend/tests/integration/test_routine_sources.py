@@ -8,7 +8,7 @@ from uuid import UUID, uuid4
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agents.spec import AgentSpec, PlatformMcpServerRef, SubagentRef
+from app.agents.spec import AgentSpec, CapabilityBindingSpec, PlatformMcpServerRef, SubagentRef
 from app.core.exceptions import AuthorizationError, ConflictError
 from app.core.permissions import AuthContext
 from app.db.models.agent import Agent, AgentVersion
@@ -18,6 +18,7 @@ from app.schemas.routine_sources import RoutineSourceConsent, RoutineSourceItem
 from app.services.agent_trigger import AgentTriggerService
 from app.services.routine_authority import RoutineAuthority
 from app.services.routine_sources import (
+    PLATFORM_NEEDS_CREATOR,
     RoutineSourceService,
     RoutineSourcesRequired,
     read_policy,
@@ -27,6 +28,20 @@ from app.worker.jobs import FireTrigger
 from tests.integration.workflow_run_support import seed_member
 
 pytestmark = pytest.mark.anyio
+
+
+def delegating(spec: AgentSpec, **update: object) -> AgentSpec:
+    """`spec` with `update`, able to delegate.
+
+    A pinned delegate or a remote agent is reached only through `subagents`;
+    bound while it is off, neither is a source a run can reach.
+    """
+    return spec.model_copy(
+        update={
+            **update,
+            "capabilities": [*spec.capabilities, CapabilityBindingSpec(id="subagents")],
+        }
+    )
 
 
 async def world(
@@ -404,8 +419,8 @@ async def test_remote_agent_card_and_endpoint_cannot_retarget_a_routine(db: Asyn
     await db.flush()
     version = await db.get(AgentVersion, trigger.pinned_version_id)
     assert version is not None
-    version.spec = spec.model_copy(
-        update={"external_agents": [ExternalAgentRef(external_agent_id=remote.id)]}
+    version.spec = delegating(
+        spec, external_agents=[ExternalAgentRef(external_agent_id=remote.id)]
     ).model_dump(mode="json")
     await db.flush()
     service = RoutineSourceService(db)
@@ -513,11 +528,10 @@ async def test_review_follows_published_delegate_authority_without_a_new_direct_
     child.current_version_id = child_version.id
     root_version = await db.get(AgentVersion, trigger.pinned_version_id)
     assert root_version is not None
-    root_version.spec = spec.model_copy(
-        update={
-            "mcp_servers": [],
-            "subagents": [SubagentRef(agent_id=child.id, agent_version_id=child_version.id)],
-        }
+    root_version.spec = delegating(
+        spec,
+        mcp_servers=[],
+        subagents=[SubagentRef(agent_id=child.id, agent_version_id=child_version.id)],
     ).model_dump(mode="json")
     db.add(
         ResourceGrant(
@@ -546,8 +560,8 @@ async def test_review_refuses_a_withdrawn_pinned_delegate(db: AsyncSession):
     ctx, trigger, spec, _ = await world(db)
     version = await db.get(AgentVersion, trigger.pinned_version_id)
     assert version is not None
-    version.spec = spec.model_copy(
-        update={"subagents": [SubagentRef(agent_id=uuid4(), agent_version_id=uuid4())]}
+    version.spec = delegating(
+        spec, subagents=[SubagentRef(agent_id=uuid4(), agent_version_id=uuid4())]
     ).model_dump(mode="json")
     await db.flush()
     with pytest.raises(RoutineSourcesRequired):
@@ -623,12 +637,9 @@ async def test_source_review_is_bounded_before_provider_io(db: AsyncSession, kin
         ]
         db.add_all(remotes)
         await db.flush()
-        updated = spec.model_copy(
-            update={
-                "external_agents": [
-                    ExternalAgentRef(external_agent_id=remote.id) for remote in remotes
-                ]
-            }
+        updated = delegating(
+            spec,
+            external_agents=[ExternalAgentRef(external_agent_id=remote.id) for remote in remotes],
         )
     else:
         children = [
@@ -654,13 +665,12 @@ async def test_source_review_is_bounded_before_provider_io(db: AsyncSession, kin
         ]
         db.add_all(versions)
         await db.flush()
-        updated = spec.model_copy(
-            update={
-                "subagents": [
-                    SubagentRef(agent_id=child.id, agent_version_id=child_version.id)
-                    for child, child_version in zip(children, versions, strict=True)
-                ]
-            }
+        updated = delegating(
+            spec,
+            subagents=[
+                SubagentRef(agent_id=child.id, agent_version_id=child_version.id)
+                for child, child_version in zip(children, versions, strict=True)
+            ],
         )
     version.spec = updated.model_dump(mode="json")
     await db.flush()
@@ -693,10 +703,10 @@ async def test_shared_delegate_sources_are_unioned_and_cycles_do_not_expand_revi
     db.add(child_version)
     await db.flush()
     reference = SubagentRef(agent_id=child.id, agent_version_id=child_version.id)
-    child_version.spec = spec.model_copy(update={"subagents": [reference]}).model_dump(mode="json")
+    child_version.spec = delegating(spec, subagents=[reference]).model_dump(mode="json")
     root_version = await db.get(AgentVersion, trigger.pinned_version_id)
     assert root_version is not None
-    root_version.spec = spec.model_copy(update={"subagents": [reference]}).model_dump(mode="json")
+    root_version.spec = delegating(spec, subagents=[reference]).model_dump(mode="json")
     await db.flush()
     policy = await RoutineSourceService(db).initial(ctx, trigger)
     assert policy.mcp_sources[account.id].tool_ids == ("read",)
@@ -791,8 +801,8 @@ async def test_remote_source_review_fences_credential_rotation_but_not_label_cha
     await db.flush()
     version = await db.get(AgentVersion, trigger.pinned_version_id)
     assert version is not None
-    version.spec = spec.model_copy(
-        update={"external_agents": [ExternalAgentRef(external_agent_id=remote.id)]}
+    version.spec = delegating(
+        spec, external_agents=[ExternalAgentRef(external_agent_id=remote.id)]
     ).model_dump(mode="json")
     await db.flush()
     policy = await RoutineSourceService(db).initial(ctx, trigger)
@@ -1021,9 +1031,7 @@ async def test_source_review_bounds_provider_inventory_without_connecting(db, mo
             db.add(child_version)
             await db.flush()
             refs.append({"agent_id": child.id, "agent_version_id": child_version.id})
-        spec = mounted().model_copy(
-            update={"subagents": [SubagentRef.model_validate(ref) for ref in refs]}
-        )
+        spec = delegating(mounted(), subagents=[SubagentRef.model_validate(ref) for ref in refs])
         monkeypatch.setattr(
             organization_secret_repo, "authorization_generation", AsyncMock(return_value=uuid4())
         )
@@ -1083,7 +1091,9 @@ async def test_source_review_bounds_provider_inventory_without_connecting(db, mo
             "app.services.telephony.policy.endpoint_fingerprint", lambda *args: "reviewed"
         )
     else:
-        spec = AgentSpec(name="Worker", external_agents=[{"external_agent_id": str(uuid4())}])
+        spec = delegating(
+            AgentSpec(name="Worker"), external_agents=[{"external_agent_id": str(uuid4())}]
+        )
         monkeypatch.setattr(routine_sources.external_repo, "get", AsyncMock(return_value=None))
     version.spec = spec.model_dump(mode="json")
     await db.flush()
@@ -1126,10 +1136,8 @@ async def test_platform_mcp_requires_an_explicit_creator_identity(
         db.add(child_version)
         await db.flush()
         child.current_version_id = child_version.id
-        version.spec = spec.model_copy(
-            update={
-                "subagents": [SubagentRef(agent_id=child.id, agent_version_id=child_version.id)]
-            }
+        version.spec = delegating(
+            spec, subagents=[SubagentRef(agent_id=child.id, agent_version_id=child_version.id)]
         ).model_dump(mode="json")
     else:
         version.spec = platform_spec.model_dump(mode="json")
@@ -1144,7 +1152,9 @@ async def test_platform_mcp_requires_an_explicit_creator_identity(
     else:
         options = await service.options(ctx, trigger)
         assert not options.current
-        assert any("Act as creator" in source for source in options.unavailable_sources)
+        assert PLATFORM_NEEDS_CREATOR in options.required_unavailable_sources
+        # A source is a name the console puts inside its own sentence.
+        assert not any(source.endswith(".") for source in options.unavailable_sources)
         with pytest.raises(RoutineSourcesRequired) as refused:
             await service.initial(ctx, trigger)
         assert refused.value.details == {"unavailable_sources": options.unavailable_sources}
@@ -1296,7 +1306,7 @@ async def test_the_review_names_each_source_and_never_another_organizations(db: 
             **spec.model_dump(mode="json"),
             "skill_ids": [str(skill.id), str(gone)],
             "collection_ids": [str(mine.id), str(foreign.id)],
-            "capabilities": [{"id": "thinking"}],
+            "capabilities": [{"id": "thinking"}, {"id": "skills"}, {"id": "knowledge"}],
             "table_bindings": [{"table_id": str(table), "operations": ["read", "create"]}],
         }
     ).model_dump(mode="json")
@@ -1322,6 +1332,112 @@ async def test_the_review_names_each_source_and_never_another_organizations(db: 
 
 
 @pytest.mark.security
+async def test_switched_off_delegation_context_and_knowledge_are_not_sources(
+    db: AsyncSession,
+) -> None:
+    """A delegate, a remote agent, a context file or a collection kept while its
+    capability is off is reached by no run, so it is neither listed nor - gone -
+    a reason to refuse the routine. Switching delegation on makes the missing
+    delegate a refusal again."""
+    from app.agents.spec import ExternalAgentRef
+
+    ctx, trigger, spec, _ = await world(db)
+    version = await db.get(AgentVersion, trigger.pinned_version_id)
+    assert version is not None
+    off = spec.model_copy(
+        update={
+            "subagents": [SubagentRef(agent_id=uuid4(), agent_version_id=uuid4())],
+            "external_agents": [ExternalAgentRef(external_agent_id=uuid4())],
+            "context_ids": [uuid4()],
+            "collection_ids": [uuid4()],
+            "capabilities": [
+                CapabilityBindingSpec(id=identifier, enabled=False)
+                for identifier in ("subagents", "context", "knowledge")
+            ],
+        }
+    )
+    version.spec = off.model_dump(mode="json")
+    await db.flush()
+    service = RoutineSourceService(db)
+
+    review = await service.options(ctx, trigger)
+    assert review.items == []
+    assert review.resources == []
+    assert review.unavailable_sources == []
+    await service.initial(ctx, trigger)
+
+    version.spec = off.model_copy(
+        update={
+            "capabilities": [
+                binding.model_copy(update={"enabled": binding.id == "subagents"})
+                for binding in off.capabilities
+            ]
+        }
+    ).model_dump(mode="json")
+    await db.flush()
+    with pytest.raises(RoutineSourcesRequired):
+        await service.initial(ctx, trigger)
+
+
+@pytest.mark.security
+async def test_the_review_lists_only_what_a_run_can_reach_and_switching_skills_on_asks_again(
+    db: AsyncSession,
+) -> None:
+    """Skills bound while `skills` is off, and switched-off capabilities, are not
+    sources - a run serves none of them - so the owner is not asked about them.
+    Switching the capability back on is a new source and is reviewed again."""
+    from app.db.models.skill import Skill
+
+    ctx, trigger, spec, _ = await world(db)
+    skill = Skill(
+        organization_id=ctx.organization_id,
+        name="visual-design",
+        description="Draw",
+        content="# Draw",
+        visibility="org",
+    )
+    db.add(skill)
+    await db.flush()
+    version = await db.get(AgentVersion, trigger.pinned_version_id)
+    assert version is not None
+    off = spec.model_copy(
+        update={
+            "skill_ids": [skill.id],
+            "capabilities": [
+                CapabilityBindingSpec(id="skills", enabled=False),
+                CapabilityBindingSpec(id="clock", enabled=False),
+            ],
+        }
+    )
+    version.spec = off.model_dump(mode="json")
+    await db.flush()
+    service = RoutineSourceService(db)
+
+    review = await service.options(ctx, trigger)
+    assert [item for item in review.items if item.kind in {"skill", "capability"}] == []
+    assert not [name for name in review.resources if name.startswith(("Skill", "Capability"))]
+    await service.replace(
+        ctx, trigger, RoutineSourceConsent(review_token=review.review_token, mode="follow_agent")
+    )
+    policy = read_policy(trigger.approved_sources)
+    assert policy.behavior is not None
+    assert not [key for key in policy.behavior if ":skill:" in key]
+    assert (await service.require_current(ctx, trigger, expected_id=policy.id)).id == policy.id
+
+    version.spec = off.model_copy(
+        update={"capabilities": [CapabilityBindingSpec(id="skills")]}
+    ).model_dump(mode="json")
+    await db.flush()
+    with pytest.raises(RoutineSourcesRequired):
+        await service.require_current(ctx, trigger, expected_id=policy.id)
+    named = {
+        (item.kind, item.id): item.name for item in (await service.options(ctx, trigger)).items
+    }
+    assert named[("skill", str(skill.id))] == "visual-design"
+    assert named[("capability", "skills")] is not None
+
+
+@pytest.mark.security
 async def test_the_review_does_not_name_a_source_its_reader_may_not_view(db: AsyncSession) -> None:
     """Running a shared agent does not reveal the name of a private skill it uses."""
     from app.db.models.skill import Skill
@@ -1341,7 +1457,12 @@ async def test_the_review_does_not_name_a_source_its_reader_may_not_view(db: Asy
     shared, private = skill("deck-review", "org"), skill("salary-bands", "private")
     db.add_all([shared, private])
     await db.flush()
-    spec = spec.model_copy(update={"skill_ids": [shared.id, private.id]})
+    spec = spec.model_copy(
+        update={
+            "skill_ids": [shared.id, private.id],
+            "capabilities": [CapabilityBindingSpec(id="skills")],
+        }
+    )
     service = RoutineSourceService(db)
 
     def names(items: list[RoutineSourceItem]) -> dict[str, str | None]:
@@ -1401,6 +1522,10 @@ async def test_review_names_follow_view_grants_for_every_resource_kind(db: Async
     spec = spec.model_copy(
         update={
             "skill_ids": [skill.id],
+            "capabilities": [
+                CapabilityBindingSpec(id=identifier)
+                for identifier in ("skills", "context", "knowledge")
+            ],
             "context_ids": [context.id],
             "collection_ids": [knowledge.id],
         }
@@ -1414,6 +1539,7 @@ async def test_review_names_follow_view_grants_for_every_resource_kind(db: Async
     service = RoutineSourceService(db)
 
     async def names(ctx: AuthContext) -> dict[str, str | None]:
+        # A capability is named from the registry, not from a row with grants.
         return {
             item.kind: item.name
             for item in await service._named(
@@ -1422,6 +1548,7 @@ async def test_review_names_follow_view_grants_for_every_resource_kind(db: Async
                 delegates=[delegate.id],
                 credentials=[secret.id],
             )
+            if item.kind != "capability"
         }
 
     expected = {
@@ -1508,7 +1635,12 @@ async def test_many_collection_labels_use_one_grant_lookup_and_preserve_scope_ru
         )
     )
     await db.flush()
-    spec = spec.model_copy(update={"collection_ids": [row.id for row in rows]})
+    spec = spec.model_copy(
+        update={
+            "collection_ids": [row.id for row in rows],
+            "capabilities": [CapabilityBindingSpec(id="knowledge")],
+        }
+    )
     with patch(
         "app.services.access.resource_grant_repo.list_shared_ids",
         wraps=resource_grant_repo.list_shared_ids,
@@ -1968,6 +2100,7 @@ async def test_follow_agent_requires_review_for_changed_materialized_instruction
     assert version is not None
     resource_spec = spec.model_copy(
         update={"skill_ids" if kind == "skill" else "context_ids": [resource.id]}
+        | {"capabilities": [CapabilityBindingSpec(id="skills" if kind == "skill" else "context")]}
     )
     namespace = "root"
     if topology == "published_delegate":
@@ -1991,10 +2124,8 @@ async def test_follow_agent_requires_review_for_changed_materialized_instruction
         await db.flush()
         child.current_version_id = child_version.id
         namespace = f"delegate:{child_version.id}"
-        version.spec = spec.model_copy(
-            update={
-                "subagents": [SubagentRef(agent_id=child.id, agent_version_id=child_version.id)]
-            }
+        version.spec = delegating(
+            spec, subagents=[SubagentRef(agent_id=child.id, agent_version_id=child_version.id)]
         ).model_dump(mode="json")
     elif topology == "inline":
         namespace = "root:inline:helper"
@@ -2012,6 +2143,9 @@ async def test_follow_agent_requires_review_for_changed_materialized_instruction
                                     "instructions": "Use the approved policy",
                                     "skill_ids" if kind == "skill" else "context_ids": [
                                         str(resource.id)
+                                    ],
+                                    "capabilities": [
+                                        {"id": "skills" if kind == "skill" else "context"}
                                     ],
                                 }
                             ]

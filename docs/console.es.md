@@ -1,5 +1,5 @@
 ---
-source_sha: "8e450f21611e"
+source_sha: "9f7bdb001aef"
 ---
 
 **Refresh models** en el catálogo del proveedor vuelve a obtener la lista y conserva la búsqueda y la selección. Junto a los modelos guardados de la organización, vuelve a cargar los perfiles guardados. Actualizar no guarda un modelo ni inicia un agente. Endpoint, clave de Vault, tipo de API y región aparecen según las capacidades del proveedor; las suscripciones personales utilizan los ajustes de su cuenta conectada.
@@ -33,7 +33,7 @@ Un paso mostrado antes de elegir una organización o unirte a ella no se registr
 
 Inbox mantiene el mismo marco de lista, espaciado de filas, marcas de origen, tipografía de títulos y detalles y alineación adaptable de acciones en Todas, Urgentes, Resultados de rutinas, Sugerencias y Terminadas. Las terminadas conservan el estado de la decisión y la acción de recuperar elementos descartados; origen y hora también se ven en el teléfono. Los formularios de aprobación mantienen el mismo margen exterior, sus campos obligatorios y controles de permisos.
 
-Archivos y Fuentes usan el mismo panel lateral compacto: inicialmente 400px, ajustable entre 360 y 420px y limitado al 38% del ancho del chat acoplado. En un escritorio estrecho pueden contraer temporalmente la lista de conversaciones; al cerrarlo se recupera la elección anterior, salvo cambios manuales. El navegador conserva más espacio de trabajo: inicialmente el 55%, ajustable del 35% al 65%. Una cita desplaza solo la lista de Fuentes y conserva la posición de la conversación.
+Archivos y Fuentes usan el mismo panel lateral compacto: inicialmente 400px, ajustable entre 360 y 420px y limitado al 38% del ancho del chat acoplado. Si el chat acoplado es demasiado estrecho para cambiar el ancho del panel, elige **Maximize** en su encabezado. En un escritorio estrecho pueden contraer temporalmente la lista de conversaciones; al cerrarlo se recupera la elección anterior, salvo cambios manuales. El navegador conserva más espacio de trabajo: inicialmente el 55%, ajustable del 35% al 65%. Una cita desplaza solo la lista de Fuentes y conserva la posición de la conversación.
 
 Si Archivos indica que el espacio de trabajo aún no se ha creado o ya no se conserva, lo distingue de un fallo de conexión y no demuestra que nunca hubiera archivos. Los adjuntos de la conversación siguen disponibles. Adjunte y envíe un archivo desde el cuadro de mensaje, o pida al agente que cree uno, para usar el espacio de trabajo; los fallos reales de conexión y archivo siguen siendo explícitos. En el chat, un enlace de archivo con un resultado satisfactorio coincidente de la herramienta abre el visor del espacio de trabajo. Las rutas no verificadas siguen como enlaces normales; un origen privado no disponible no se convierte en enlace.
 
@@ -1127,8 +1127,8 @@ Los accesos guardados del navegador usan un panel compacto de ancho completo, si
 
 ## Idiomas { #languages }
 
-La consola habla inglés, polaco, alemán y turco. La primera tarjeta del recorrido
-ofrece los cuatro, y
+La consola habla inglés, polaco, alemán, turco, francés, neerlandés y portugués de Brasil. La primera
+tarjeta del recorrido ofrece los siete, y
 el menú de la cuenta cambia el idioma en cualquier momento; la elección se guarda
 en tu cuenta, así que la consola se abre en él en cada dispositivo en el que
 inicias sesión. También puedes pedírselo a un agent - "cambia a inglés" - y la

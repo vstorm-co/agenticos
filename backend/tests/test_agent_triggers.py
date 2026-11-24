@@ -968,6 +968,18 @@ def queued_fires(monkeypatch: pytest.MonkeyPatch) -> list[FireTrigger]:
     return fires
 
 
+@pytest.fixture(autouse=True)
+def no_private_chat_behind_a_delivery(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A delivery conversation belongs to no chat session unless a test says so.
+
+    The mocked session cannot answer the session lookup a stored answer makes.
+    """
+    monkeypatch.setattr(
+        "app.services.agent_trigger.channel_session_repo.get_for_conversation",
+        AsyncMock(return_value=None),
+    )
+
+
 @pytest.fixture
 def fired(queued_fires: list[FireTrigger]) -> list[FireTrigger]:
     return queued_fires

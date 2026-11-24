@@ -3085,7 +3085,7 @@ def test_event_source_downgrade_preserves_runnable_fire_jobs() -> None:
                     .where(BackgroundJob.id == source_job)
                     .values(status=status)
                 )
-            refused = _alembic("downgrade", "0362_merge_native_release")
+            refused = _alembic("downgrade", "0364_merge_routine_and_kb")
             assert refused.returncode != 0 and "source-bound fire-trigger jobs" in refused.stderr
         with engine.begin() as connection:
             connection.execute(
@@ -3093,7 +3093,7 @@ def test_event_source_downgrade_preserves_runnable_fire_jobs() -> None:
                 .where(BackgroundJob.id == source_job)
                 .values(status="cancelled")
             )
-        result = _alembic("downgrade", "0362_merge_native_release")
+        result = _alembic("downgrade", "0364_merge_routine_and_kb")
         assert result.returncode == 0, result.stderr
         with engine.connect() as connection:
             assert connection.scalars(
@@ -3189,7 +3189,7 @@ def test_event_source_downgrade_retires_only_obsolete_queue_work() -> None:
                 )
             )
             conn.execute(insert(BackgroundTaskKind).values(kind=retention))
-        blocked = _alembic("downgrade", "0362_merge_native_release")
+        blocked = _alembic("downgrade", "0364_merge_routine_and_kb")
         assert blocked.returncode != 0 and "settle pending source work" in blocked.stderr
         with engine.begin() as conn:
             # A refused downgrade must leave the accepted input and job intact.
@@ -3204,7 +3204,7 @@ def test_event_source_downgrade_retires_only_obsolete_queue_work() -> None:
                 .where(EventDispatch.id == dispatch)
                 .values(status="skipped", completed_at=datetime.now(UTC))
             )
-        blocked = _alembic("downgrade", "0362_merge_native_release")
+        blocked = _alembic("downgrade", "0364_merge_routine_and_kb")
         assert blocked.returncode != 0 and "running event source jobs" in blocked.stderr
         with engine.begin() as conn:
             conn.execute(
@@ -3212,7 +3212,7 @@ def test_event_source_downgrade_retires_only_obsolete_queue_work() -> None:
                 .where(BackgroundJob.id == sweep)
                 .values(status="dead", last_error="original failure")
             )
-        result = _alembic("downgrade", "0362_merge_native_release")
+        result = _alembic("downgrade", "0364_merge_routine_and_kb")
         assert result.returncode == 0, result.stderr
         with DatabaseSession(engine) as db:
             for retired in (job, sweep):

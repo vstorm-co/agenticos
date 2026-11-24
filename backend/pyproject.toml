@@ -1,6 +1,6 @@
 [project]
 name = "agenticos"
-version = "1.92.0"
+version = "1.93.0"
 description = "OS for your agents."
 requires-python = ">=3.15"
 license = { text = "Apache-2.0" }
@@ -804,6 +804,7 @@ include = [
     "app/services/channels/notification_send.py",
 
     "app/services/channels/handback.py",
+    "app/services/channels/routine_answer.py",
     "app/services/channels/continuation.py",
     "app/services/parked_runs.py",
     "app/services/channels/slack_answer.py",
@@ -1190,6 +1191,8 @@ include = [
     "app/schemas/routine_sources.py",
     "app/services/routine_actions.py",
     "app/schemas/routine_actions.py",
+    "app/services/routine_readiness.py",
+    "app/schemas/routine_readiness.py",
     "app/services/routine_delivery.py",
     "app/repositories/routine_delivery.py",
     "app/api/routes/v1/memory.py",
@@ -1519,6 +1522,10 @@ include = [
     "app/services/watch_presets.py",
     "app/repositories/watch.py",
     "app/api/routes/v1/me_watches.py",
+    # How much of a run's input is tool output sent again.
+    "app/repositories/tool_output_report.py",
+    "app/services/tool_output_report.py",
+    "app/commands/tool_output_report.py",
 ]
 # Mirrors `[tool.coverage.run] omit` - one definition of "ours", asserted equal
 # by tests/test_coverage_gate.py.
@@ -1746,6 +1753,7 @@ include = [
     "app/services/channels/notification_send.py",
 
     "app/services/channels/handback.py",
+    "app/services/channels/routine_answer.py",
     "app/services/channels/continuation.py",
     "app/services/parked_runs.py",
     "app/services/channels/slack_answer.py",
@@ -2162,6 +2170,8 @@ include = [
     "app/schemas/routine_sources.py",
     "app/services/routine_actions.py",
     "app/schemas/routine_actions.py",
+    "app/services/routine_readiness.py",
+    "app/schemas/routine_readiness.py",
     "app/services/routine_delivery.py",
     "app/repositories/routine_delivery.py",
     "app/api/routes/v1/memory.py",
@@ -2491,6 +2501,10 @@ include = [
     "app/services/watch_presets.py",
     "app/repositories/watch.py",
     "app/api/routes/v1/me_watches.py",
+    # How much of a run's input is tool output sent again.
+    "app/repositories/tool_output_report.py",
+    "app/services/tool_output_report.py",
+    "app/commands/tool_output_report.py",
 ]
 branch = true
 omit = [

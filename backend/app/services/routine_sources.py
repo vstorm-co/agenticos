@@ -243,10 +243,17 @@ class RoutineSourcesRequired(AuthorizationError):
 
 class PlatformRoutineIdentityRequired(RoutineSourcesRequired):
     message = (
-        "The AgenticOS platform MCP server requires Act as creator. Enable it or remove "
+        "The AgenticOS platform MCP server requires Run as me. Turn it on or remove "
         "the platform binding from this agent and its delegates."
     )
     code = "ROUTINE_PLATFORM_IDENTITY_REQUIRED"
+
+
+PLATFORM_NEEDS_CREATOR = "AgenticOS platform MCP (needs Run as me)"
+"""How the platform binding is named in a source list while the routine does not run as its creator.
+
+A name, not a sentence: the console puts it inside its own sentence.
+"""
 
 
 def read_policy(value: object) -> RoutineSourcePolicy:
@@ -482,15 +489,19 @@ class RoutineSourceService:
         delegates: list[UUID] = []
         credentials: set[UUID] = set()
         for current in specs:
-            resources.update(f"Knowledge · {identifier}" for identifier in current.collection_ids)
-            resources.update(f"Context · {identifier}" for identifier in current.context_ids)
-            resources.update(f"Skill · {identifier}" for identifier in current.skill_ids)
-            resources.update(f"Capability · {binding.id}" for binding in current.capabilities)
+            resources.update(
+                f"Knowledge · {identifier}" for identifier in current.served_collection_ids
+            )
+            resources.update(f"Context · {identifier}" for identifier in current.served_context_ids)
+            resources.update(f"Skill · {identifier}" for identifier in current.served_skill_ids)
+            resources.update(
+                f"Capability · {binding.id}" for binding in current.capabilities if binding.enabled
+            )
             resources.update(
                 f"Table · {grant.table_id} · {'/'.join(operation.value for operation in grant.operations)}"
                 for grant in current.table_bindings
             )
-            for delegate in current.subagents:
+            for delegate in current.served_subagents:
                 if delegate.agent_version_id in seen:
                     continue
                 if len(seen) >= 64:
@@ -621,7 +632,7 @@ class RoutineSourceService:
                 else:
                     phone_sources[endpoint.id] = endpoint_fingerprint(endpoint, bot)
         external_sources: dict[UUID, str] = {}
-        for ref in (ref for current in specs for ref in current.external_agents):
+        for ref in (ref for current in specs for ref in current.served_external_agents):
             remote = await external_repo.get(
                 self.db, ref.external_agent_id, organization_id=ctx.organization_id
             )
@@ -642,8 +653,8 @@ class RoutineSourceService:
                 items.append(RoutineSourceItem(kind="platform"))
                 if not trigger.runs_as_creator:
                     requires_creator_identity = True
-                    unavailable.add(PlatformRoutineIdentityRequired.message)
-                    required_unavailable.add(PlatformRoutineIdentityRequired.message)
+                    unavailable.add(PLATFORM_NEEDS_CREATOR)
+                    required_unavailable.add(PLATFORM_NEEDS_CREATOR)
                 continue
             if isinstance(ref, OrgMcpServerRef):
                 connection = await mcp_connection_repo.get_org_scoped_by_id(
@@ -848,6 +859,16 @@ class RoutineSourceService:
                     {**material, "show_starters": False},
                 )
             )
+            dumped = spec.model_dump(mode="json")
+            # What a switched-off capability would reach is not behavior a run has.
+            served = spec.model_copy(
+                update={
+                    "collection_ids": spec.served_collection_ids,
+                    "subagents": spec.served_subagents,
+                    "external_agents": spec.served_external_agents,
+                }
+            ).model_dump(mode="json", include={"collection_ids", "subagents", "external_agents"})
+            dumped.update(served)
             for name in (
                 "capabilities",
                 "mcp_servers",
@@ -856,7 +877,7 @@ class RoutineSourceService:
                 "subagents",
                 "external_agents",
             ):
-                for value in spec.model_dump(mode="json")[name]:
+                for value in dumped[name]:
                     if name == "capabilities" and value.get("enabled") is False:
                         continue
                     if name == "mcp_servers" and value.get("allowed_tools") == []:
@@ -875,11 +896,11 @@ class RoutineSourceService:
                     )
             for resource_namespace, resource_spec in resource_specs:
                 skills = await SkillService(self.db).resolve_for_agent(
-                    ctx, resource_spec.skill_ids, bindings=resource_spec.skill_bindings
+                    ctx, resource_spec.served_skill_ids, bindings=resource_spec.skill_bindings
                 )
                 contexts = await ContextService(self.db).resolve_for_agent(
                     ctx,
-                    resource_spec.context_ids,
+                    resource_spec.served_context_ids,
                     config=context_config(resource_spec.capabilities),
                 )
                 result.update(materialized_behavior(skills, contexts, namespace=resource_namespace))
@@ -919,10 +940,12 @@ class RoutineSourceService:
         another organization's.
         """
         organization_id = ctx.organization_id
-        skill_ids = sorted({identifier for spec in specs for identifier in spec.skill_ids})
-        context_ids = sorted({identifier for spec in specs for identifier in spec.context_ids})
+        skill_ids = sorted({identifier for spec in specs for identifier in spec.served_skill_ids})
+        context_ids = sorted(
+            {identifier for spec in specs for identifier in spec.served_context_ids}
+        )
         collection_ids = sorted(
-            {identifier for spec in specs for identifier in spec.collection_ids}
+            {identifier for spec in specs for identifier in spec.served_collection_ids}
         )
         table_ids = sorted({grant.table_id for spec in specs for grant in spec.table_bindings})
         skills = await self._viewable(
@@ -973,6 +996,7 @@ class RoutineSourceService:
             named.extend(
                 RoutineSourceItem(kind="capability", id=binding.id, name=labels.get(binding.id))
                 for binding in spec.capabilities
+                if binding.enabled
             )
             for grant in spec.table_bindings:
                 table = tables.get(grant.table_id)
@@ -1132,17 +1156,26 @@ class RoutineSourceService:
         return await self.options(ctx, current)
 
     async def require_current(
-        self,
-        ctx: AuthContext,
-        trigger: AgentTrigger,
-        *,
-        expected_id: UUID | None,
-        persist_refresh: bool = True,
+        self, ctx: AuthContext, trigger: AgentTrigger, *, expected_id: UUID | None
     ) -> RoutineSourcePolicy:
-        """Validate the review, optionally persisting compatible changes at admission.
+        """Check metadata before opening a provider, preserving the admitted review."""
+        policy, refreshed = await self.current(ctx, trigger, expected_id=expected_id)
+        if refreshed:
+            trigger.approved_sources = policy.model_dump(mode="json")
+            await self.db.flush()
+        return policy
 
-        A receipt holds the source lock, not the routine lock. It needs the
-        review ID only and must not overwrite a concurrent change to consent.
+    async def current(
+        self, ctx: AuthContext, trigger: AgentTrigger, *, expected_id: UUID | None
+    ) -> tuple[RoutineSourcePolicy, bool]:
+        """The admitted review as a fire would use it, and whether it was refreshed.
+
+        Writes nothing, so a read can ask whether the next fire would be admitted.
+        A following review whose accounts were reconnected or rotated within its
+        approved ceiling comes back refreshed; `require_current` stores that.
+
+        Raises:
+            RoutineSourcesRequired: The review is missing, stale or exceeded.
         """
         policy = read_policy(trigger.approved_sources)
         if (
@@ -1167,17 +1200,12 @@ class RoutineSourceService:
             # snapshot, so reconnecting or rotating an account cannot retarget it.
             excluded = {"id", "reviewed_at", "version_id", "approved_ceiling"}
             if policy.model_dump(exclude=excluded) == review.policy.model_dump(exclude=excluded):
-                return policy
-            current = review.policy.model_copy(
+                return policy, False
+            return review.policy.model_copy(
                 update={"id": policy.id, "approved_ceiling": policy.approved_ceiling}
-            )
-        else:
-            if not review.matches_restricted(policy):
-                raise RoutineSourcesRequired()
-            if policy.spec_hash == review.policy.spec_hash:
-                return policy
-            current = policy.model_copy(update={"spec_hash": review.policy.spec_hash})
-        if persist_refresh:
-            trigger.approved_sources = current.model_dump(mode="json")
-            await self.db.flush()
-        return current
+            ), True
+        if not review.matches_restricted(policy):
+            raise RoutineSourcesRequired()
+        if policy.spec_hash != review.policy.spec_hash:
+            return policy.model_copy(update={"spec_hash": review.policy.spec_hash}), True
+        return policy, False

@@ -40,12 +40,14 @@ export function useDecideWorkflowApproval() {
       approved,
       final,
       choice,
+      note,
     }: {
       id: string;
       approved: boolean;
       final?: string;
       choice?: string;
-    }) => decideWorkflowApproval(id, approved, final, choice),
+      note?: string;
+    }) => decideWorkflowApproval(id, approved, final, choice, note),
     onSuccess: async (approval) => {
       await queryClient.invalidateQueries({ queryKey: qk.workflows.all() });
       toast.success(approval.status === "approved" ? t("decisionApproved") : t("decisionRejected"));

@@ -201,13 +201,16 @@ vi.mock("@/components/workflows/pickers", () => ({
   CollectionPicker: ({
     selectedIds,
     onToggle,
+    excludeAppScoped,
   }: {
     selectedIds: string[];
     onToggle: (id: string) => void;
+    excludeAppScoped?: boolean;
   }) => (
     <div>
       <button type="button" aria-label="toggle-kb-a" onClick={() => onToggle("kb-a")} />
       <span>{`collections:${selectedIds.join(",") || "none"}`}</span>
+      <span>{`app-scoped:${excludeAppScoped ? "left out" : "offered"}`}</span>
     </div>
   ),
 }));
@@ -904,6 +907,11 @@ describe("config leaves", () => {
     expect(screen.getByText("collections:kb-b")).toBeVisible();
     await userEvent.click(screen.getByLabelText("toggle-kb-a"));
     expect(updateNodeConfig).toHaveBeenLastCalledWith("N", { collections: ["kb-b", "kb-a"] });
+  });
+
+  it("offers a step app-scoped collections, which it reads though an agent cannot bind them", () => {
+    renderForm({ config: { collections: [] } });
+    expect(screen.getByText("app-scoped:offered")).toBeVisible();
   });
 
   it("removes a collection already chosen, and ignores what is not an id", async () => {

@@ -1,9 +1,10 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { CollectionPicker } from "./collection-picker";
 import { DEFAULT_INGESTION_CONFIG } from "@/lib/ingestion-config";
+import { useOrgStore } from "@/stores/org-store";
 import type { KnowledgeBase } from "@/types/knowledge-base";
 
 function collection(overrides: Partial<KnowledgeBase> = {}): KnowledgeBase {
@@ -45,6 +46,9 @@ function mount(collections: KnowledgeBase[], selectedIds: string[] = [], disable
 }
 
 describe("the collection picker", () => {
+  beforeEach(() => useOrgStore.setState({ activeOrgId: "org-1" }));
+  afterEach(() => useOrgStore.setState({ activeOrgId: null }));
+
   it("says an empty collection is empty", () => {
     // Attaching one produces an agent that searches, finds nothing and says so,
     // which reads as a broken agent rather than an empty collection. A name
@@ -201,5 +205,137 @@ describe("the collection picker", () => {
 
     expect(container.querySelector(".animate-spin, .lucide-loader-circle")).not.toBeNull();
     expect(screen.getByText("3 not indexed")).toBeInTheDocument();
+  });
+
+  describe("for an agent, which cannot bind an app-scoped collection", () => {
+    const appWide = collection({
+      id: "kb-app",
+      name: "Product manual",
+      scope: "app",
+      organization_id: null,
+    });
+    const mountFor = (selectedIds: string[], agentBindableOnly = true) => {
+      const onToggle = vi.fn();
+      render(
+        <CollectionPicker
+          collections={[collection(), appWide]}
+          selectedIds={selectedIds}
+          onToggle={onToggle}
+          agentBindableOnly={agentBindableOnly}
+        />,
+      );
+      return { onToggle };
+    };
+
+    it("leaves the app-scoped collection out of the offer", () => {
+      mountFor([]);
+
+      expect(screen.getByRole("checkbox", { name: "Handbook" })).toBeInTheDocument();
+      expect(screen.queryByRole("checkbox", { name: "Product manual" })).toBeNull();
+    });
+
+    it("keeps one the spec already holds, says agents cannot use it, and lets it be removed", async () => {
+      const { onToggle } = mountFor(["kb-app"]);
+
+      const row = screen.getByRole("checkbox", { name: "Product manual" });
+      expect(row).toHaveAttribute("aria-checked", "true");
+      expect(row).toHaveAccessibleDescription(
+        "App-wide knowledge bases can't be used by agents. Untick it to remove it.",
+      );
+      expect(screen.getByText("App-wide")).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          "App-wide knowledge bases can't be used by agents. Untick it to remove it.",
+        ),
+      ).toBeInTheDocument();
+      expect(screen.queryByText(/no longer has/)).toBeNull();
+      await userEvent.click(row);
+      expect(onToggle).toHaveBeenCalledWith("kb-app");
+    });
+
+    it("says there is nothing to attach when only app-scoped collections exist", () => {
+      render(
+        <CollectionPicker
+          collections={[appWide]}
+          selectedIds={[]}
+          onToggle={vi.fn()}
+          agentBindableOnly
+        />,
+      );
+
+      expect(
+        screen.getByText(
+          "This organization has no collections yet. An agent with none searches nothing.",
+        ),
+      ).toBeInTheDocument();
+    });
+
+    it("still offers it to a workflow step, which reads it", () => {
+      mountFor([], false);
+
+      expect(screen.getByRole("checkbox", { name: "Product manual" })).toBeInTheDocument();
+      expect(screen.queryByText("App-wide")).toBeNull();
+    });
+  });
+  describe("for an agent, which cannot bind a personal collection from another organization", () => {
+    const elsewhere = collection({
+      id: "kb-elsewhere",
+      name: "My notes",
+      scope: "personal",
+      organization_id: "org-2",
+    });
+    const mountFor = (selectedIds: string[], agentBindableOnly = true) => {
+      const onToggle = vi.fn();
+      render(
+        <CollectionPicker
+          collections={[collection({ scope: "personal" }), elsewhere]}
+          selectedIds={selectedIds}
+          onToggle={onToggle}
+          agentBindableOnly={agentBindableOnly}
+        />,
+      );
+      return { onToggle };
+    };
+
+    it("offers the personal collection made here and leaves out the one made elsewhere", () => {
+      mountFor([]);
+
+      expect(screen.getByRole("checkbox", { name: "Handbook" })).toBeInTheDocument();
+      expect(screen.queryByRole("checkbox", { name: "My notes" })).toBeNull();
+    });
+
+    it("keeps one the spec already holds, says why agents cannot use it, and lets it be removed", async () => {
+      const { onToggle } = mountFor(["kb-elsewhere"]);
+
+      const row = screen.getByRole("checkbox", { name: "My notes" });
+      expect(row).toHaveAttribute("aria-checked", "true");
+      expect(row).toHaveAccessibleDescription(
+        "This knowledge base belongs to another organization, so agents here can't use it. Untick it to remove it.",
+      );
+      expect(screen.getByText("Another organization")).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          "This knowledge base belongs to another organization, so agents here can't use it. Untick it to remove it.",
+        ),
+      ).toBeInTheDocument();
+      expect(screen.queryByText("App-wide")).toBeNull();
+      await userEvent.click(row);
+      expect(onToggle).toHaveBeenCalledWith("kb-elsewhere");
+    });
+
+    it("still offers it to a workflow step, which reads it", () => {
+      mountFor([], false);
+
+      expect(screen.getByRole("checkbox", { name: "My notes" })).toBeInTheDocument();
+      expect(screen.queryByText("Another organization")).toBeNull();
+    });
+
+    it("offers nothing until it knows which organization the agent is in", () => {
+      useOrgStore.setState({ activeOrgId: null });
+      mountFor(["kb-elsewhere"]);
+
+      expect(screen.queryByRole("checkbox")).toBeNull();
+      expect(screen.getByRole("status")).toHaveAttribute("aria-busy", "true");
+    });
   });
 });

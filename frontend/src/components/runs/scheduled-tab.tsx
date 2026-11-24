@@ -7,6 +7,7 @@ import { TriggerRow } from "@/components/triggers/trigger-row";
 import { ErrorState, LoadingState } from "@/components/states";
 import { ListCard, ListCardEmpty, Pager, SearchInput, useListControls } from "@/components/ui";
 import { useOrgTriggers } from "@/hooks/use-org-triggers";
+import { useRoutinesReadiness } from "@/hooks/use-routine-readiness";
 import { getErrorMessage } from "@/lib/api-error";
 
 /**
@@ -48,6 +49,7 @@ export function ScheduledTab() {
         (field ?? "").toLowerCase().includes(query),
       ),
   });
+  const readiness = useRoutinesReadiness(list.visible);
 
   return (
     <ListCard
@@ -83,7 +85,12 @@ export function ScheduledTab() {
             <p className="text-muted-foreground text-sm">{t("noRoutineMatches")}</p>
           ) : (
             list.visible.map((trigger) => (
-              <TriggerRow key={trigger.id} trigger={trigger} showAgent />
+              <TriggerRow
+                key={trigger.id}
+                trigger={trigger}
+                showAgent
+                blockers={readiness(trigger)}
+              />
             ))
           )}
           <Pager

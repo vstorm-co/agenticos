@@ -58,12 +58,12 @@ function mount(onContinue = vi.fn()) {
   );
   return onContinue;
 }
-it("offers all five native language names without changing stored preferences on mount", async () => {
+it("offers all seven native language names without changing stored preferences on mount", async () => {
   mount();
   await waitFor(() => expect(api.read).toHaveBeenCalled());
-  expect(screen.getAllByRole("radio")).toHaveLength(5);
+  expect(screen.getAllByRole("radio")).toHaveLength(7);
   expect(screen.getByRole("radio", { name: "English" })).toBeChecked();
-  for (const name of ["Polski", "Deutsch", "Türkçe", "Français"])
+  for (const name of ["Polski", "Deutsch", "Türkçe", "Français", "Nederlands", "Português"])
     expect(screen.getByRole("radio", { name })).not.toBeChecked();
   expect(screen.getByRole("button", { name: "Back" })).toBeDisabled();
   expect(screen.getByRole("link", { name: "Open the app" })).toHaveAttribute("href", "/chat");

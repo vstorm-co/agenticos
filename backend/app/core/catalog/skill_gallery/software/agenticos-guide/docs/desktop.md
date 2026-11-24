@@ -82,7 +82,8 @@ or when used, rather than a required step before choosing a connection.
 
 When connecting the desktop app, you can paste the original invitation link instead of only a server address. The app connects to that link’s server and opens the invitation, preserving its destination through sign-in. It does not accept the invitation automatically or store its token in native settings. Optional connection review waits until the invitation is finished.
 
-The native start and console support English, Polish, German and Turkish. Your
+The native start supports English, Polish, German, Turkish and Brazilian Portuguese; the console adds
+French and Dutch. Your
 native choice is carried to the console; an existing account's saved language
 still takes precedence. Local setup asks for one workspace name; a separate
 organization name is an advanced option. After connection review, **Get started**
@@ -263,6 +264,8 @@ Use arrow keys and Enter or Tab to select; Escape dismisses the suggestions firs
 Deleting a mention removes its resource binding from the next message.
 
 ## An application, not a tab
+
+On macOS, links that request a new window, including **Open in a New Window**, open in the default browser. Only HTTP(S) addresses without embedded credentials are forwarded; embedded popup windows are not created. The browser has its own sign-in session, so a private console link may ask you to sign in again.
 
 On macOS the console's sidebar holds the traffic lights and drags the window, the
 window remembers its size and place, and closing it keeps the app in the menu bar.

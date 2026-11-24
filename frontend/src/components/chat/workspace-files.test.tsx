@@ -253,6 +253,7 @@ describe("the workspace panel", () => {
     await openPanel();
 
     expect(screen.getByText(/keeps no files/)).toBeVisible();
+    expect(screen.queryByText(/Nothing yet/)).toBeNull();
   });
 
   it("draws the button while the listing is still in flight, and never takes it away", async () => {
@@ -349,6 +350,90 @@ describe("the workspace panel", () => {
     await openPanel();
 
     await waitFor(() => expect(screen.getByText(/Nothing yet/)).toBeVisible());
+  });
+
+  it("does not call a workspace that holds only folders empty, and counts no files on its button", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue(
+      workspace({
+        items: [
+          { path: "/workspace", size: null, is_dir: true, modified_at: null },
+          { path: "/workspace/drafts", size: null, is_dir: true, modified_at: null },
+        ],
+        total: 2,
+        bytes_total: 137_216,
+      }),
+    );
+
+    draw(
+      <WorkspaceFiles
+        buttonSlot={document.body}
+        conversationId="c1"
+        attachments={[]}
+        revision={0}
+      />,
+    );
+    expect(await screen.findByRole("button", { name: "Show the files" })).toBeVisible();
+    await openPanel();
+
+    expect(await screen.findByRole("button", { name: "drafts" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "workspace" })).toBeVisible();
+    expect(screen.queryByText(/Nothing yet/)).toBeNull();
+  });
+
+  it.each(["/", "."])(
+    "calls a listing of only its own root %s empty, since the tree draws nothing for it",
+    async (root) => {
+      vi.mocked(apiClient.get).mockResolvedValue(
+        workspace({
+          items: [{ path: root, size: null, is_dir: true, modified_at: null }],
+          total: 1,
+          bytes_total: 0,
+        }),
+      );
+
+      draw(
+        <WorkspaceFiles
+          buttonSlot={document.body}
+          conversationId="c1"
+          attachments={[]}
+          revision={0}
+        />,
+      );
+      await openPanel();
+
+      await waitFor(() => expect(screen.getByText(/Nothing yet/)).toBeVisible());
+      expect(screen.queryByRole("tree")).toBeNull();
+    },
+  );
+
+  it("names a folder in full on hover when the narrow panel cuts it", async () => {
+    const long = "/workspace-of-the-quarterly-revenue-reconciliation";
+    vi.mocked(apiClient.get).mockResolvedValue(
+      workspace({
+        items: [
+          { path: long, size: null, is_dir: true, modified_at: null },
+          { path: `${long}/q3.csv`, size: 10, is_dir: false, modified_at: null },
+        ],
+        total: 2,
+      }),
+    );
+
+    draw(
+      <WorkspaceFiles
+        buttonSlot={document.body}
+        conversationId="c1"
+        attachments={[]}
+        revision={0}
+      />,
+    );
+    await openPanel();
+
+    const folder = await screen.findByRole("button", { name: long.slice(1) });
+    expect(folder).toHaveAttribute("title", long.slice(1));
+    expect(screen.getByRole("button", { name: /q3\.csv/ })).toHaveAttribute(
+      "title",
+      `${long}/q3.csv`,
+    );
   });
 
   it("reports a workspace it could not read", async () => {
@@ -951,6 +1036,8 @@ describe("the workspace panel", () => {
 
       expect(screen.getByText("Attached to the chat")).toBeVisible();
       expect(screen.getByText("invoice.pdf")).toBeVisible();
+      expect(screen.queryByText(/keeps no files/)).toBeNull();
+      expect(screen.queryByText(/Nothing yet/)).toBeNull();
     });
 
     it("draws a thumbnail for a render-safe image but not for a TIFF", async () => {

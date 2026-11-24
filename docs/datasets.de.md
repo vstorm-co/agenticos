@@ -1,5 +1,5 @@
 ---
-source_sha: "cf07a5b19ce8"
+source_sha: "2971c06097fa"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -761,6 +761,11 @@ zusammenwirken, steht unter [Berechtigungen](permissions.md).
 Den Text eines aus einer Unterhaltung kopierten Falls sehen nur Leser mit `runs:view` oder Zugriff auf die Quellunterhaltung. Andere sehen Metadaten und einen Platzhalter, sowohl in aktuellen und historischen Versionen als auch in CSV/JSONL-Exporten. Eine fehlende Quelle gibt den Text nicht frei. Verborgener Text kann nicht bearbeitet und durch Metadatenänderungen nicht offengelegt werden. Evals führen weiterhin die vollständige gespeicherte Revision aus.
 
 Antworten, Prüfungsnotizen und Bewertungsbelege benötigen `runs:view` und Zugriff auf den antwortenden Agenten. Fehlt eines davon, bleiben Ergebnis und Status sichtbar, aber Antworttext, Begründungen, Regeln und Zitate werden entfernt. Vor dem Kopieren einer fremden privaten Unterhaltung nennt der Dialog deren Eigentümer und warnt, dass Dataset-Leser mit Leserecht für Runs den Text sehen werden.
+
+Datasets werden nicht nach Abteilung gruppiert - die Liste hat keinen
+Gruppenfilter und keine Abteilungsplaketten -, daher erreicht eine Abteilung ein
+Dataset über einen Grant darauf, wie bei jeder anderen Ressource. Siehe
+[Abteilungen](departments.md#grouping-a-list-by-department).
 
 ## Personenbezogene Daten { #personal-data }
 

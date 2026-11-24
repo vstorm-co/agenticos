@@ -1,7 +1,8 @@
 import type { ReactElement } from "react";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui";
+import { Tooltip, TooltipContent, TooltipTrigger } from "./tooltip";
 
-export function RoutineActionTooltip({
+/** Names an icon-only action on hover; a disabled button is wrapped so it still gets hover. */
+export function ActionTooltip({
   label,
   children,
   disabled = false,
