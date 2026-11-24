@@ -55,8 +55,12 @@ export type NavItem = {
   tabbed?: boolean;
   /** Lit on its own page only - a project's page lights the project's own row instead. */
   exact?: boolean;
-  /** A count beside the label: how much waits there. Only the inbox has one. */
-  count?: "inbox";
+  /**
+   * A count beside the label: how much waits there. The inbox counts its open
+   * items; Connections counts the connections needing attention - expired or
+   * needing re-auth - so a broken one is visible before a run fails on it.
+   */
+  count?: "inbox" | "connectionHealth";
 };
 
 /** The section hue a group carries - see "Section hues" in `globals.css`. */
@@ -208,6 +212,7 @@ export const NAV_GROUPS: NavGroup[] = [
         // Each area of the page keeps its own gate; the entry shows to anyone
         // who can reach one of them.
         permissions: [Perm.agentsView, Perm.secretsView, Perm.connectionsView],
+        count: "connectionHealth",
       },
     ],
   },

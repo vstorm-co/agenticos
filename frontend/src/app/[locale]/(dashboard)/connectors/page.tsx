@@ -14,7 +14,7 @@ import { useTranslations } from "next-intl";
 
 import { PageHeader } from "@/components/dashboard/page-header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui";
-import { useMcpOAuthOutcome, usePermissions, useUrlState } from "@/hooks";
+import { useConnectionHealth, useMcpOAuthOutcome, usePermissions, useUrlState } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
 import type { Permission } from "@/types/permissions";
 import { Perm } from "@/types/permissions";
@@ -79,6 +79,10 @@ export default function ConnectorsPage() {
   const t = useTranslations("pages.connectors");
   const tNav = useTranslations("nav");
   const { can } = usePermissions();
+  // The same counts as the sidebar badge: a broken connection on the tab
+  // somebody is not looking at is the one they will not find until a run
+  // fails, so each tab carries its own count.
+  const { apps: appsNeedingAttention, mcp: mcpNeedingAttention } = useConnectionHealth();
   useMcpOAuthOutcome();
   const [tabParam, setTab] = useUrlState("tab");
   const search = useSearchParams();
@@ -103,9 +107,19 @@ export default function ConnectorsPage() {
         <TabsList>
           <TabsTrigger value="apps" data-tour="connectors-apps">
             {t("apps")}
+            {appsNeedingAttention > 0 && (
+              <span className="text-destructive text-xs font-medium tabular-nums">
+                {appsNeedingAttention}
+              </span>
+            )}
           </TabsTrigger>
           <TabsTrigger value="mcp" data-tour="connectors-advanced">
             {t("mcp")}
+            {mcpNeedingAttention > 0 && (
+              <span className="text-destructive text-xs font-medium tabular-nums">
+                {mcpNeedingAttention}
+              </span>
+            )}
           </TabsTrigger>
           <TabsTrigger value="more" data-tour="connectors-more">
             {t("more")}

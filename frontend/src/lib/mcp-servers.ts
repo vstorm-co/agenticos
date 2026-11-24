@@ -114,7 +114,9 @@ export function entryForConnection(
  * connection that was never authorized has no credentials at all, so reporting
  * it as "disabled" or as a stale error would send someone to the wrong control.
  */
-export function connectionState(connection: McpConnectionRecord | null): McpConnectionState {
+export function connectionState(
+  connection: Pick<McpConnectionRecord, "authorized" | "is_enabled" | "last_status"> | null,
+): McpConnectionState {
   if (!connection) return "not-connected";
   // The server's own answer to whether the credential can be used, so every
   // surface that renders a connection agrees with `ownAccountStatus` and the run

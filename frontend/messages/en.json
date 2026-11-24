@@ -4495,6 +4495,7 @@
     "inbox": "Inbox",
     "agentMessages": "Agent messages",
     "inboxCount": "{count, plural, =1 {1 waiting} other {# waiting}}",
+    "connectionHealthCount": "{count, plural, =1 {1 connection needs attention} other {# connections need attention}}",
     "blobby": "Blobby",
     "desktopApp": "Desktop app",
     "shortcuts": "Shortcuts",

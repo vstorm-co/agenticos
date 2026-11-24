@@ -33,6 +33,7 @@ import { BrandLink } from "@/components/layout/brand-link";
 import { stripLocale } from "@/lib/active-route";
 import { SidebarShell } from "@/components/layout/sidebar-shell";
 import { useMounted } from "@/hooks/use-mounted";
+import { useConnectionHealth } from "@/hooks/use-connection-health";
 import { useSuggestions } from "@/hooks/use-suggestions";
 import { usePermissions } from "@/hooks/use-permissions";
 import { cn, isAppAdmin } from "@/lib/utils";
@@ -88,6 +89,7 @@ function NavLink({
       <NavIcon icon={item.icon} />
       {collapsed ? null : <span className="truncate">{label}</span>}
       {item.count === "inbox" && <InboxCount collapsed={collapsed} />}
+      {item.count === "connectionHealth" && <ConnectionHealthCount collapsed={collapsed} />}
     </Link>
   );
 }
@@ -109,6 +111,29 @@ function InboxCount({ collapsed }: { collapsed: boolean }) {
       aria-label={label}
     >
       {suggestions.length}
+    </span>
+  );
+}
+
+/** How many connections need attention: a number in the column, a dot on the rail. */
+function ConnectionHealthCount({ collapsed }: { collapsed: boolean }) {
+  const t = useTranslations("nav");
+  const { total } = useConnectionHealth();
+  if (total === 0) return null;
+  // Destructive, not muted like the inbox count: this is not something
+  // waiting, it is something broken, and the column should say so at a glance.
+  const label = t("connectionHealthCount", { count: total });
+  return collapsed ? (
+    <span
+      className="bg-destructive absolute top-1 right-1 h-1.5 w-1.5 rounded-full"
+      aria-label={label}
+    />
+  ) : (
+    <span
+      className="text-destructive ml-auto px-1 text-xs font-medium tabular-nums"
+      aria-label={label}
+    >
+      {total}
     </span>
   );
 }
@@ -194,6 +219,12 @@ function NavGroupBlock({
     !folds ||
     holdsActive ||
     (mounted && (openGroups.includes(key) || (key === "knowledge" && !closedGroups.includes(key))));
+  // The health badge lives on the Connections entry, and that entry is hidden
+  // while its group is folded - which is the default. A folded group carrying
+  // a broken connection says so on its heading instead, so the badge is
+  // visible before anybody opens the group; once open, the entry carries it.
+  const holdsConnectionHealth = group.items.some((item) => item.count === "connectionHealth");
+  const showHeadingHealth = holdsConnectionHealth && !open;
 
   return (
     <div className={cn("flex flex-col gap-0.5", collapsed && "w-full items-center")}>
@@ -212,13 +243,14 @@ function NavGroupBlock({
               aria-expanded={open}
               aria-label={t(group.labelKey)}
               title={t(group.labelKey)}
-              className="text-muted-foreground hover:text-foreground touch:min-h-11 touch:min-w-11 flex h-6 w-8 items-center justify-center gap-0.5 rounded-md disabled:cursor-default"
+              className="text-muted-foreground hover:text-foreground touch:min-h-11 touch:min-w-11 relative flex h-6 w-8 items-center justify-center gap-0.5 rounded-md disabled:cursor-default"
             >
               <span aria-hidden className="bg-border h-px w-3" />
               <ChevronRight
                 className={cn("size-3 transition-transform", open && "rotate-90")}
                 aria-hidden
               />
+              {showHeadingHealth && <ConnectionHealthCount collapsed={collapsed} />}
             </button>
           ) : (
             <div aria-hidden className="flex h-6 items-center">
@@ -234,6 +266,7 @@ function NavGroupBlock({
             className="text-muted-foreground hover:text-foreground disabled:hover:text-muted-foreground touch:min-h-11 flex h-7 items-center gap-1 rounded-md px-2.5 text-left text-xs font-medium transition-colors disabled:cursor-default"
           >
             <span className="flex-1">{t(group.labelKey)}</span>
+            {showHeadingHealth && <ConnectionHealthCount collapsed={collapsed} />}
             <ChevronRight
               className={cn("size-3.5 transition-transform", open && "rotate-90")}
               aria-hidden

@@ -24,7 +24,8 @@ vi.mock("@/hooks/use-projects", () => ({
   useProjects: () => ({ projects: recentProjects() }),
 }));
 const apps = vi.fn<() => { id: string; title: string; name: string }[]>(() => []);
-const appsQuery = vi.fn<(query: { limit?: number; mineOrShared?: boolean; enabled?: boolean }) => void>();
+const appsQuery =
+  vi.fn<(query: { limit?: number; mineOrShared?: boolean; enabled?: boolean }) => void>();
 vi.mock("@/hooks/use-artifacts", () => ({
   useArtifacts: (query: { limit?: number; enabled?: boolean }) => {
     appsQuery(query);
@@ -33,6 +34,10 @@ vi.mock("@/hooks/use-artifacts", () => ({
 }));
 const waiting = vi.fn<() => { id: string }[]>(() => []);
 vi.mock("@/hooks/use-suggestions", () => ({ useSuggestions: () => ({ suggestions: waiting() }) }));
+const connectionHealth = vi.fn<() => { total: number }>(() => ({ total: 0 }));
+vi.mock("@/hooks/use-connection-health", () => ({
+  useConnectionHealth: () => connectionHealth(),
+}));
 const sidebar = {
   openGroups: [] as string[],
   closedGroups: [] as string[],
@@ -389,6 +394,47 @@ describe("the inbox count (#2301)", () => {
   });
 });
 
+describe("the connection-health badge", () => {
+  it("says how many connections need attention, as a number in the column and a dot on the rail", () => {
+    can.mockReturnValue(true);
+    sidebar.openGroups = ["connections"];
+    connectionHealth.mockReturnValue({ total: 2 });
+    const { unmount } = render(<SidebarNav />);
+    expect(screen.getByLabelText("connectionHealthCount")).toHaveTextContent("2");
+    unmount();
+
+    render(<SidebarNav collapsed />);
+    expect(screen.getByLabelText("connectionHealthCount")).toBeEmptyDOMElement();
+  });
+
+  it("shows nothing when every connection is healthy", () => {
+    can.mockReturnValue(true);
+    sidebar.openGroups = ["connections"];
+    connectionHealth.mockReturnValue({ total: 0 });
+    render(<SidebarNav />);
+    expect(screen.queryByLabelText("connectionHealthCount")).toBeNull();
+  });
+
+  it("says so on the folded group's heading, where the entry itself is hidden", () => {
+    // The connections group is folded by default, so a badge on the entry
+    // alone would be invisible until somebody opens the group - which is
+    // the discovery failure this badge exists to close.
+    can.mockReturnValue(true);
+    sidebar.openGroups = [];
+    connectionHealth.mockReturnValue({ total: 1 });
+    render(<SidebarNav />);
+    expect(screen.getByLabelText("connectionHealthCount")).toHaveTextContent("1");
+  });
+
+  it("does not repeat the count on the heading once the group is open", () => {
+    can.mockReturnValue(true);
+    sidebar.openGroups = ["connections"];
+    connectionHealth.mockReturnValue({ total: 1 });
+    render(<SidebarNav />);
+    expect(screen.getAllByLabelText("connectionHealthCount")).toHaveLength(1);
+  });
+});
+
 describe("daily-work navigation", () => {
   it("keeps the overview first and automation directly below agents", () => {
     can.mockReturnValue(true);
@@ -473,7 +519,9 @@ describe("the Apps section", () => {
     expect(listed).toHaveLength(8);
     expect(listed[0]).toHaveAttribute("href", "/apps/app-1");
     expect(screen.getByRole("link", { name: "allApps" })).toHaveAttribute("href", "/apps");
-    expect(appsQuery).toHaveBeenLastCalledWith(expect.objectContaining({ limit: 8, mineOrShared: true, enabled: true }));
+    expect(appsQuery).toHaveBeenLastCalledWith(
+      expect.objectContaining({ limit: 8, mineOrShared: true, enabled: true }),
+    );
   });
 
   it("sits right after the main group and before Build", () => {
