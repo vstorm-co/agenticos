@@ -423,6 +423,8 @@
     "orphanedContext": "This agent also references {count, plural, =1 {1 context file} other {# context files}} this organization no longer has. Publishing is refused until they are cleared:",
     "orphanedServers": "This agent also references {count, plural, =1 {1 server} other {# servers}} this organization does not offer - removed since, or carried in from an imported spec. Publishing is refused until they are cleared:",
     "orphanedSkills": "This agent also references {count, plural, =1 {1 skill} other {# skills}} this organization no longer has. Publishing is refused until they are cleared:",
+    "otherOrganization": "Another organization",
+    "otherOrganizationNotForAgents": "This knowledge base belongs to another organization, so agents here can't use it. Untick it to remove it.",
     "staleReferences": "This draft still references {list} this organization no longer has. Publishing is refused until they are cleared.",
     "staleCollections": "{count, plural, =1 {1 knowledge collection} other {# knowledge collections}}",
     "staleContext": "{count, plural, =1 {1 context file} other {# context files}}",

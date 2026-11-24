@@ -1,5 +1,5 @@
 ---
-source_sha: "5a5870477833"
+source_sha: "4fd0f3a65b54"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -1187,10 +1187,13 @@ Agent przeszukuje bazy wiedzy, do których jest przypięty, w ich własnych zakr
 a nie przez ponowne rozwiązywanie ich nazw. Agent przypięty do dwóch baz o tej samej
 nazwie przeszukuje ich połączony zakres, pomijając inne bazy o tej samej nazwie.
 
-Agent przypina tylko bazy osobiste i bazy organizacji. Wybór kolekcji agenta i
-specjalisty nie oferuje bazy dla całej aplikacji, a publikacja ją odrzuca. Taka
-baza, którą agent już ma, zostaje zaznaczona i oznaczona, żeby dało się ją usunąć.
-Krok Knowledge search w workflow czyta bazy dla całej aplikacji i nadal je oferuje.
+Agent przypina tylko bazy własnej organizacji: bazy organizacji i bazy osobiste
+utworzone w niej. Publikacja odrzuca bazę dla całej aplikacji oraz bazę osobistą,
+którą właściciel utworzył w innej organizacji. Lista baz wiedzy nadal pokazuje je
+właścicielowi, bo może je czytać. Wybór kolekcji agenta i specjalisty ich nie
+oferuje. Taka baza, którą agent już ma, zostaje zaznaczona i oznaczona, żeby dało
+się ją usunąć. Krok Knowledge search w workflow czyta każdą bazę, którą wolno
+czytać wywołującemu, i nadal oferuje je wszystkie.
 
 **`GET /rag/collections/{name}/filter-values`** odpowiada wartościami
 `organizational_unit` faktycznie obecnymi w kolekcji, w tym samym zakresie. Istnieje,

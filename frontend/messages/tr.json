@@ -6535,6 +6535,8 @@
     "orphanedContext": "Bu Agent ayrıca kuruluşta artık bulunmayan {count, plural, =1 {1 context dosyasına} other {# context dosyasına}} başvuruyor. Yayınlamak için önce bunları temizleyin:",
     "orphanedServers": "Bu Agent ayrıca kuruluşta sunulmayan {count, plural, =1 {1 server'a} other {# server'a}} başvuruyor - kaldırılmış veya içe aktarılan bir spec'ten taşınmış olabilir. Yayınlamak için önce bunları temizleyin:",
     "orphanedSkills": "Bu Agent ayrıca kuruluşta artık bulunmayan {count, plural, =1 {1 skill'e} other {# skill'e}} başvuruyor. Yayınlamak için önce bunları temizleyin:",
+    "otherOrganization": "Başka bir organizasyon",
+    "otherOrganizationNotForAgents": "Bu koleksiyon başka bir organizasyona ait, bu yüzden buradaki agent'lar onu kullanamaz. Kaldırmak için işaretini kaldırın.",
     "staleReferences": "Bu taslak, kuruluşta artık bulunmayan şu öğelere başvuruyor: {list}. Yayınlamak için önce bunları temizleyin.",
     "staleCollections": "{count, plural, =1 {1 bilgi koleksiyonu} other {# bilgi koleksiyonu}}",
     "staleContext": "{count, plural, =1 {1 context dosyası} other {# context dosyası}}",

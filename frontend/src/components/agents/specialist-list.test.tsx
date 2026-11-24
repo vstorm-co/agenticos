@@ -1,10 +1,11 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 
 import { SpecialistList } from "./specialist-list";
 import { newSpecialist } from "@/lib/agent-spec";
+import { useOrgStore } from "@/stores/org-store";
 import type { KnowledgeBase } from "@/types/knowledge-base";
 import type { ModelProfile, SkillSummary } from "@/types/providers";
 import type { CapabilityBindingSpec, CapabilityCatalogEntry, SpecialistSpec } from "@/types/agents";
@@ -114,7 +115,10 @@ function mount({
   return onChange;
 }
 
+afterEach(() => useOrgStore.setState({ activeOrgId: null }));
+
 beforeEach(() => {
+  useOrgStore.setState({ activeOrgId: "org-1" });
   state.profiles = [
     {
       id: "m1",
@@ -324,6 +328,7 @@ describe("what a specialist can do", () => {
     state.collections = [
       {
         id: "kb1",
+        organization_id: "org-1",
         name: "Policies",
         description: null,
         embedding_model: "text-embedding-3-small",
@@ -368,6 +373,7 @@ describe("what a specialist can do", () => {
     state.collections = [
       {
         id: "kb1",
+        organization_id: "org-1",
         name: "Policies",
         description: null,
         embedding_model: "text-embedding-3-small",
@@ -389,6 +395,7 @@ describe("what a specialist can do", () => {
 
   it("offers a specialist no app-scoped collection, which it could not bind", () => {
     const base = {
+      organization_id: "org-1",
       description: null,
       embedding_model: "text-embedding-3-small",
       embedding_provider: "openrouter",
@@ -407,6 +414,29 @@ describe("what a specialist can do", () => {
 
     expect(screen.getByRole("checkbox", { name: "Policies" })).toBeInTheDocument();
     expect(screen.queryByRole("checkbox", { name: "Product manual" })).toBeNull();
+  });
+
+  it("offers a specialist no personal collection made in another organization", () => {
+    const base = {
+      description: null,
+      embedding_model: "text-embedding-3-small",
+      embedding_provider: "openrouter",
+      embedding_secret_id: null,
+      embedding_endpoint_id: null,
+      document_count: 2,
+      indexed_count: 2,
+      chunk_count: 10,
+      is_default: false,
+      scope: "personal",
+    };
+    state.collections = [
+      { ...base, id: "kb1", name: "Policies", organization_id: "org-1" } as KnowledgeBase,
+      { ...base, id: "kb-b", name: "My notes", organization_id: "org-2" } as KnowledgeBase,
+    ];
+    mount({ specialists: [specialist()] });
+
+    expect(screen.getByRole("checkbox", { name: "Policies" })).toBeInTheDocument();
+    expect(screen.queryByRole("checkbox", { name: "My notes" })).toBeNull();
   });
 });
 

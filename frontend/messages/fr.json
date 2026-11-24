@@ -423,6 +423,8 @@
     "orphanedContext": "Cet agent référence aussi {count, plural, =1 {1 fichier de contexte} other {# fichiers de contexte}} que cette organisation n’a plus. La publication est refusée tant qu’ils ne sont pas retirés :",
     "orphanedServers": "Cet agent référence aussi {count, plural, =1 {1 serveur} other {# serveurs}} que cette organisation ne propose pas - retiré depuis, ou importé avec un spec. La publication est refusée tant qu’ils ne sont pas retirés :",
     "orphanedSkills": "Cet agent référence aussi {count, plural, =1 {1 skill} other {# skills}} que cette organisation n’a plus. La publication est refusée tant qu’ils ne sont pas retirés :",
+    "otherOrganization": "Autre organisation",
+    "otherOrganizationNotForAgents": "Cette collection appartient à une autre organisation, les agents d’ici ne peuvent donc pas l’utiliser. Décochez-la pour la retirer.",
     "staleReferences": "Ce brouillon référence encore {list} que cette organisation n’a plus. La publication est refusée tant qu’ils ne sont pas retirés.",
     "staleCollections": "{count, plural, =1 {1 collection de connaissances} other {# collections de connaissances}}",
     "staleContext": "{count, plural, =1 {1 fichier de contexte} other {# fichiers de contexte}}",

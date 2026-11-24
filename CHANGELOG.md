@@ -22,6 +22,7 @@ Two things are versioned separately from this file and worth knowing about:
 ### Fixed
 
 - Stop offering app-scoped knowledge bases where an agent's collections are chosen. Publish refuses one, yet the agent's and a specialist's collection pickers listed every app-scoped base, and so did the improver's list of collections it may add. An app-scoped base an agent already lists stays ticked, marked as one agents cannot use, so it can be removed. The workflow Knowledge search step still offers app-scoped bases, which it reads.
+- Stop offering an agent a personal knowledge base made in another organization. The knowledge base list shows a person their own bases from every organization they belong to, and the agent's and a specialist's collection pickers offered all of them, though publish refuses one made elsewhere. The pickers now offer only bases of the organization the agent is in; one an agent already lists from another organization stays ticked, marked "Another organization", so it can be removed.
 
 ## [1.92.0] - 2026-11-23
 

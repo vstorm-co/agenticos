@@ -423,6 +423,8 @@
     "orphanedContext": "Dieser Agent verweist außerdem auf {count, plural, =1 {1 Kontextdatei} other {# Kontextdateien}}, die diese Organisation nicht mehr hat. Das Veröffentlichen wird abgelehnt, bis sie entfernt sind:",
     "orphanedServers": "Dieser Agent verweist außerdem auf {count, plural, =1 {1 Server} other {# Server}}, die diese Organisation nicht anbietet – seither entfernt oder aus einem importierten Spec übernommen. Das Veröffentlichen wird abgelehnt, bis sie entfernt sind:",
     "orphanedSkills": "Dieser Agent verweist außerdem auf {count, plural, =1 {1 Skill} other {# Skills}}, die diese Organisation nicht mehr hat. Das Veröffentlichen wird abgelehnt, bis sie entfernt sind:",
+    "otherOrganization": "Andere Organisation",
+    "otherOrganizationNotForAgents": "Diese Collection gehört zu einer anderen Organisation, daher können Agents hier sie nicht nutzen. Wählen Sie sie ab, um sie zu entfernen.",
     "staleReferences": "Dieser Entwurf verweist noch auf {list}, die diese Organisation nicht mehr hat. Das Veröffentlichen wird abgelehnt, bis sie entfernt sind.",
     "staleCollections": "{count, plural, =1 {1 Wissens-Collection} other {# Wissens-Collections}}",
     "staleContext": "{count, plural, =1 {1 Kontextdatei} other {# Kontextdateien}}",

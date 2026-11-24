@@ -1,5 +1,5 @@
 ---
-source_sha: "5a5870477833"
+source_sha: "4fd0f3a65b54"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -1213,11 +1213,14 @@ Un agente busca en las bases de conocimiento a las que está vinculado con su pr
 ámbito, sin volver a resolver sus nombres. Un agente vinculado a dos bases con el
 mismo nombre busca en su ámbito combinado, excluyendo otras bases del mismo nombre.
 
-Un agente solo vincula bases personales y de la organización. El selector de
-colecciones de un agente y el de un especialista no ofrecen una base de toda la
-aplicación, y la publicación la rechaza. Una que un agente ya tiene sigue marcada
-y señalada para que se pueda quitar. El paso Knowledge search de un workflow lee
-bases de toda la aplicación y las sigue ofreciendo.
+Un agente solo vincula bases de su propia organización: las bases de la
+organización y las bases personales creadas en ella. La publicación rechaza una
+base de toda la aplicación y una base personal que su propietario creó en otra
+organización. La lista de bases de conocimiento se las sigue mostrando al
+propietario, porque puede leerlas. El selector de colecciones de un agente y el
+de un especialista no las ofrecen. Una que un agente ya tiene sigue marcada y
+señalada para que se pueda quitar. El paso Knowledge search de un workflow lee
+toda base que quien llama puede leer y las sigue ofreciendo todas.
 
 **`GET /rag/collections/{name}/filter-values`** responde con los valores de
 `organizational_unit` realmente presentes en la colección, bajo ese mismo ámbito.
