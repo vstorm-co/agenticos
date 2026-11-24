@@ -4,12 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 
-import {
-  useAgentSelectionStore,
-  useComposerIntentStore,
-  useConversationStore,
-  useChatStore,
-} from "@/stores";
+import { useAgentSelectionStore, useConversationStore, useChatStore } from "@/stores";
 import { useChatWith } from "./use-chat-with";
 
 const params = vi.hoisted(() => ({ value: new URLSearchParams() }));
@@ -30,7 +25,6 @@ beforeEach(() => {
     messages: [{ id: "m-old", role: "user", content: "old question", timestamp: new Date() }],
   });
   useConversationStore.getState().setCurrentConversationId("c-old");
-  useComposerIntentStore.setState({ shared: null, intent: null });
 });
 
 describe("useChatWith", () => {
@@ -52,43 +46,6 @@ describe("useChatWith", () => {
 
     expect(useAgentSelectionStore.getState().selectedAgentId).toBe("a-old");
     expect(useConversationStore.getState().currentConversationId).toBe("c-old");
-  });
-
-  it("hands a prompt to the composer and takes it off the address, without starting a new chat", () => {
-    window.history.replaceState({}, "", "/chat?prompt=Build%20me%20a%20page%20that%E2%80%A6");
-    params.value = new URLSearchParams("prompt=Build me a page that…");
-
-    renderHook(() => useChatWith(), { wrapper });
-
-    const shared = useComposerIntentStore.getState().shared;
-    expect(shared?.text).toBe("Build me a page that…");
-    expect(shared?.files).toEqual([]);
-    expect(useConversationStore.getState().currentConversationId).toBe("c-old");
-    expect(window.location.search).toBe("");
-  });
-
-  it("starts a fresh chat and hands it the prompt together", () => {
-    window.history.replaceState({}, "", "/chat?new=1&prompt=Build%20me%20a%20page%20that%E2%80%A6");
-    params.value = new URLSearchParams("new=1&prompt=Build me a page that…");
-
-    renderHook(() => useChatWith(), { wrapper });
-
-    expect(useConversationStore.getState().currentConversationId).toBeNull();
-    expect(useComposerIntentStore.getState().shared?.text).toBe("Build me a page that…");
-    expect(window.location.search).toBe("");
-  });
-
-  it("does not hand the same prompt to the composer twice", () => {
-    params.value = new URLSearchParams("prompt=Build me a page that…");
-    const { rerender } = renderHook(() => useChatWith(), { wrapper });
-    expect(useComposerIntentStore.getState().shared?.text).toBe("Build me a page that…");
-
-    // Another query field changes while the prompt stays: the composer keeps
-    // what it was handed, rather than getting a second copy appended.
-    act(() => useComposerIntentStore.getState().clearShared());
-    params.value = new URLSearchParams("prompt=Build me a page that…&view=archived");
-    rerender();
-    expect(useComposerIntentStore.getState().shared).toBeNull();
   });
   it("starts a blank chat through the normal action and consumes the desktop request", () => {
     window.history.replaceState({}, "", "/chat?new=first");
