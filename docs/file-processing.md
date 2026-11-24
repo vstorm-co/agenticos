@@ -1120,6 +1120,11 @@ An agent searches the knowledge bases it is bound to under their own scopes, not
 resolving their names again. An agent bound to two bases that share a name
 searches their combined scope, excluding other same-named bases.
 
+An agent binds personal and organization bases only. Its collection picker,
+and a specialist's, do not offer an app-scoped base, and publish refuses one.
+One an agent already lists stays ticked and marked so it can be removed. A
+workflow's Knowledge search step reads app-scoped bases and still offers them.
+
 **`GET /rag/collections/{name}/filter-values`** answers with the `organizational_unit`
 values actually present in the collection, under that same scope. It exists because
 that dimension is whatever the authors wrote: guessing a value returns silently empty,

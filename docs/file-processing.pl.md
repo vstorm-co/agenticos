@@ -1,5 +1,5 @@
 ---
-source_sha: "8e0da94ccb26"
+source_sha: "5a5870477833"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -1186,6 +1186,11 @@ kończy się błędem i niczego nie zapisuje
 Agent przeszukuje bazy wiedzy, do których jest przypięty, w ich własnych zakresach,
 a nie przez ponowne rozwiązywanie ich nazw. Agent przypięty do dwóch baz o tej samej
 nazwie przeszukuje ich połączony zakres, pomijając inne bazy o tej samej nazwie.
+
+Agent przypina tylko bazy osobiste i bazy organizacji. Wybór kolekcji agenta i
+specjalisty nie oferuje bazy dla całej aplikacji, a publikacja ją odrzuca. Taka
+baza, którą agent już ma, zostaje zaznaczona i oznaczona, żeby dało się ją usunąć.
+Krok Knowledge search w workflow czyta bazy dla całej aplikacji i nadal je oferuje.
 
 **`GET /rag/collections/{name}/filter-values`** odpowiada wartościami
 `organizational_unit` faktycznie obecnymi w kolekcji, w tym samym zakresie. Istnieje,

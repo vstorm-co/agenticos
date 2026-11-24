@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- Stop offering app-scoped knowledge bases where an agent's collections are chosen. Publish refuses one, yet the agent's and a specialist's collection pickers listed every app-scoped base, and so did the improver's list of collections it may add. An app-scoped base an agent already lists stays ticked, marked as one agents cannot use, so it can be removed. The workflow Knowledge search step still offers app-scoped bases, which it reads.
+
 ## [1.92.0] - 2026-11-23
 
 ### Added
