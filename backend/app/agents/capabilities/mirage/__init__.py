@@ -78,6 +78,7 @@ class OrganizationAccount(BaseModel):
     connection_id: UUID = Field(
         title="Account",
         description="Which of the organization's connected accounts the folder reads.",
+        json_schema_extra={"x-resource": "mcp_connection"},
     )
 
 
@@ -121,6 +122,7 @@ class MirageMount(BaseModel):
     secrets: dict[str, UUID] = Field(
         default_factory=dict,
         title="Credentials",
+        json_schema_extra={"x-resource": "secret"},
         description="A vault secret for each credential the service needs, by field.",
     )
     account: MountAccount | None = Field(

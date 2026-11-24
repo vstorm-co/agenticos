@@ -106,6 +106,7 @@ class SandboxConfig(BaseModel):
             "is a reference. The connection decides whether that is a container on "
             "a host you run or a sandbox on a cloud provider or OpenSandbox server."
         ),
+        json_schema_extra={"x-resource": "sandbox_connection"},
     )
     # The default on every surface; a binding on one exposure may say otherwise. A
     # Slack thread is a conversation, a direct message keeps its own workspace, and a

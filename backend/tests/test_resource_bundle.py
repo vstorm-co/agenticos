@@ -383,3 +383,139 @@ def test_skipping_a_nested_optional_pin_keeps_the_other_configuration() -> None:
     )
     result = rebind_definition(resource, {"model_profile/one": None})
     assert result.definition == {"settings": {"enabled": True}}
+
+
+@pytest.mark.parametrize("nested", [False, True])
+def test_dictionary_key_rebinding_rejects_destination_collisions(nested: bool) -> None:
+    from app.services.portability.mapping import rebind_definition
+
+    first, second, destination = uuid4(), uuid4(), uuid4()
+    prefix = ("settings",) if nested else ()
+    values = {str(first): {"mode": "inject"}, str(second): {"mode": "link"}}
+    resource = BundleResource(
+        key="agent/one",
+        kind=BundleResourceKind.AGENT,
+        name="Researcher",
+        included=frozenset({BundleContentLayer.DEFINITION}),
+        definition={"settings": values} if nested else values,
+        references=tuple(
+            BundleReference(path=(*prefix, str(value)), target=f"context/{i}", is_key=True)
+            for i, value in enumerate([first, second])
+        ),
+    )
+    with pytest.raises(BadRequestError, match="same destination configuration key"):
+        rebind_definition(resource, {"context/0": destination, "context/1": destination})
+
+
+def test_dictionary_keys_and_values_can_both_be_resource_references() -> None:
+    from app.services.portability.mapping import rebind_definition
+
+    context, skill, target_context, target_skill = [uuid4() for _ in range(4)]
+    path = ("settings", str(context))
+    resource = BundleResource(
+        key="agent/one",
+        kind=BundleResourceKind.AGENT,
+        name="Researcher",
+        included=frozenset({BundleContentLayer.DEFINITION}),
+        definition={"settings": {str(context): str(skill)}},
+        references=(
+            BundleReference(path=path, target="context/one", is_key=True),
+            BundleReference(path=path, target="skill/one"),
+        ),
+    )
+    result = rebind_definition(resource, {"context/one": target_context, "skill/one": target_skill})
+    assert result.definition == {"settings": {str(target_context): str(target_skill)}}
+
+
+@pytest.mark.parametrize("path", [("values", 0), ("settings", "absent")])
+def test_dictionary_reference_must_name_an_actual_object_key(path: tuple[str | int, ...]) -> None:
+    from app.services.portability.mapping import rebind_definition
+
+    resource = BundleResource(
+        key="agent/one",
+        kind=BundleResourceKind.AGENT,
+        name="Researcher",
+        included=frozenset({BundleContentLayer.DEFINITION}),
+        definition={"settings": {}, "values": ["source"]},
+        references=(BundleReference(path=path, target="context/one", is_key=True),),
+    )
+    with pytest.raises(BadRequestError, match="dictionary reference"):
+        rebind_definition(resource, {"context/one": uuid4()})
+
+
+def test_numbered_skill_pins_are_remapped_to_the_imported_history_not_the_old_number() -> None:
+    from app.schemas.resource_bundle import BundleDestination
+    from app.services.portability.mapping import rebind_definition
+
+    resource = BundleResource(
+        key="agent/one",
+        kind=BundleResourceKind.AGENT,
+        name="Researcher",
+        included=frozenset({BundleContentLayer.DEFINITION}),
+        definition={"skill_bindings": [{"skill_id": "source", "version": 3}]},
+        references=(
+            BundleReference(path=("skill_bindings", 0, "skill_id"), target="skill/one"),
+            BundleReference(
+                path=("skill_bindings", 0, "version"),
+                target="skill_version/one",
+                destination_field="version_number",
+            ),
+        ),
+    )
+    skill = uuid4()
+    result = rebind_definition(
+        resource,
+        {
+            "skill/one": BundleDestination(id=skill),
+            "skill_version/one": BundleDestination(id=uuid4(), parent_id=skill, version_number=1),
+        },
+    )
+    assert result.definition == {"skill_bindings": [{"skill_id": str(skill), "version": 1}]}
+
+
+@pytest.mark.parametrize("case", ["not_number", "identity_only", "no_number"])
+def test_numbered_references_require_a_resolved_destination_version(case: str) -> None:
+    from app.schemas.resource_bundle import BundleDestination
+    from app.services.portability.mapping import rebind_definition
+
+    resource = BundleResource(
+        key="agent/one",
+        kind=BundleResourceKind.AGENT,
+        name="Researcher",
+        included=frozenset({BundleContentLayer.DEFINITION}),
+        definition={"version": "3" if case == "not_number" else 3},
+        references=(
+            BundleReference(
+                path=("version",), target="skill_version/one", destination_field="version_number"
+            ),
+        ),
+    )
+    destination = uuid4() if case == "identity_only" else BundleDestination(id=uuid4())
+    with pytest.raises(BadRequestError, match="version"):
+        rebind_definition(resource, {"skill_version/one": destination})
+
+
+def test_version_numbers_cannot_be_used_to_rename_dictionary_keys() -> None:
+    with pytest.raises(ValidationError, match="resource identity"):
+        BundleReference(
+            path=("settings", "source"),
+            target="skill_version/one",
+            is_key=True,
+            destination_field="version_number",
+        )
+
+
+def test_manifest_round_trip_never_trims_instruction_text_or_nested_application_data() -> None:
+    body = " \n  keep this indentation and trailing space \n "
+    resource = BundleResource(
+        key="agent/one",
+        kind=BundleResourceKind.AGENT,
+        name=" Researcher ",
+        included=frozenset({BundleContentLayer.DEFINITION}),
+        definition={"instructions": body, "data": ["  keep  ", {" value ": "  exact  "}]},
+    )
+    manifest = ResourceBundle(roots=(resource.key,), resources=(resource,))
+    restored = ResourceBundle.model_validate_json(manifest.model_dump_json())
+    assert restored.resources[0].definition == resource.definition
+    assert restored.resources[0].definition["instructions"] == body
+    assert restored.resources[0].name == " Researcher "

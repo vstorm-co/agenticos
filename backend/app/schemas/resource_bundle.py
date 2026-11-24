@@ -44,6 +44,12 @@ class BundleResourceKind(StrEnum):
     EXTERNAL_AGENT = "external_agent"
     CHANNEL_BOT = "channel_bot"
     ROUTINE = "routine"
+    AGENT_VERSION = "agent_version"
+    SKILL_FORK = "skill_fork"
+    SKILL_VERSION = "skill_version"
+    MEMBER = "member"
+    GROUP = "group"
+    TELEPHONY_ENDPOINT = "telephony_endpoint"
 
 
 class BundleContentLayer(StrEnum):
@@ -61,10 +67,18 @@ class BundleContentLayer(StrEnum):
 class BundleReference(BaseSchema):
     """One schema-declared reference; UUID-shaped application text is not a pin."""
 
-    model_config = ConfigDict(extra="forbid", frozen=True)
+    model_config = ConfigDict(extra="forbid", frozen=True, str_strip_whitespace=False)
 
     path: BundlePath = Field(min_length=1, max_length=32)
     target: BundleKey
+    is_key: bool = False
+    destination_field: Literal["id", "version_number"] = "id"
+
+    @model_validator(mode="after")
+    def key_identity(self) -> Self:
+        if self.is_key and self.destination_field != "id":
+            raise ValueError("A dictionary key must reference a resource identity")
+        return self
 
     @field_validator("path")
     @classmethod
@@ -76,10 +90,20 @@ class BundleReference(BaseSchema):
         return value
 
 
+class BundleDestination(BaseSchema):
+    """Server-resolved identity and version after destination access checks."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True, str_strip_whitespace=False)
+
+    id: UUID
+    parent_id: UUID | None = None
+    version_number: int | None = Field(default=None, ge=1, strict=True)
+
+
 class BundleAsset(BaseSchema):
     """A content-addressed archive member and its logical resource filename."""
 
-    model_config = ConfigDict(extra="forbid", frozen=True)
+    model_config = ConfigDict(extra="forbid", frozen=True, str_strip_whitespace=False)
 
     resource: BundleKey
     layer: BundleContentLayer
@@ -110,12 +134,13 @@ class BundleAsset(BaseSchema):
 class BundleResource(BaseSchema):
     """A reference-only entry or a selected definition, independent of activation."""
 
-    model_config = ConfigDict(extra="forbid", frozen=True)
+    model_config = ConfigDict(extra="forbid", frozen=True, str_strip_whitespace=False)
 
     key: BundleKey
     kind: BundleResourceKind
     name: str = Field(min_length=1, max_length=512)
     source_id: UUID | None = None
+    source_parent_id: UUID | None = None
     source_version: str | None = Field(default=None, max_length=256)
     definition: dict[str, JsonValue] | None = None
     references: tuple[BundleReference, ...] = Field(default=(), max_length=10_000)
@@ -127,7 +152,7 @@ class BundleResource(BaseSchema):
             raise ValueError("Resource key must use its declared kind")
         if (self.definition is not None) != (BundleContentLayer.DEFINITION in self.included):
             raise ValueError("Definition content must match its inclusion selection")
-        paths = [reference.path for reference in self.references]
+        paths = [(reference.path, reference.is_key) for reference in self.references]
         if len(paths) != len(set(paths)):
             raise ValueError("Resource reference paths must be unique")
         if self.references and self.definition is None:
@@ -138,7 +163,7 @@ class BundleResource(BaseSchema):
 class ResourceBundle(BaseSchema):
     """The manifest of an AgenticOS bundle; cycles are legal, dangling pins are not."""
 
-    model_config = ConfigDict(extra="forbid", frozen=True)
+    model_config = ConfigDict(extra="forbid", frozen=True, str_strip_whitespace=False)
 
     format: Literal["agenticos.bundle"] = "agenticos.bundle"
     format_version: Literal[1] = 1

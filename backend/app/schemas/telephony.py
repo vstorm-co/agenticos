@@ -150,5 +150,6 @@ class PhoneCallsConfig(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
     endpoint_id: UUID = Field(
         title="Telephone endpoint",
+        json_schema_extra={"x-resource": "telephony_endpoint"},
         description="The configured Twilio telephone endpoint from Channels. Only explicit member consent and current limits authorize a call.",
     )

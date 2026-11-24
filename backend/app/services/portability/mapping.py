@@ -7,7 +7,7 @@ from uuid import UUID
 from pydantic import JsonValue
 
 from app.core.exceptions import BadRequestError
-from app.schemas.resource_bundle import BundlePath, BundleResource
+from app.schemas.resource_bundle import BundleDestination, BundlePath, BundleResource
 
 
 class _Removed:
@@ -42,7 +42,7 @@ def _at(definition: dict[str, JsonValue], path: BundlePath) -> JsonValue:
 
 def rebind_definition(
     resource: BundleResource,
-    destinations: Mapping[str, UUID | None],
+    destinations: Mapping[str, UUID | BundleDestination | None],
     *,
     omit: Mapping[BundlePath, BundlePath] | None = None,
 ) -> ReboundDefinition:
@@ -55,7 +55,8 @@ def rebind_definition(
     """
     if resource.definition is None:
         raise _refuse("A reference-only resource has no definition to import")
-    replacements: dict[BundlePath, str] = {}
+    replacements: dict[BundlePath, str | int] = {}
+    key_replacements: dict[BundlePath, str] = {}
     removals: set[BundlePath] = set()
     skipped: list[BundlePath] = []
     containers = {} if omit is None else omit
@@ -65,11 +66,37 @@ def rebind_definition(
     for reference in resource.references:
         if reference.target not in destinations:
             raise _refuse("Choose a destination or explicitly skip every referenced resource")
-        if not isinstance(_at(resource.definition, reference.path), str):
+        current = (
+            _at(resource.definition, reference.path[:-1])
+            if reference.is_key
+            else _at(resource.definition, reference.path)
+        )
+        if reference.is_key:
+            name = reference.path[-1]
+            if not isinstance(current, dict) or not isinstance(name, str) or name not in current:
+                raise _refuse("A dictionary reference must name an existing object key")
+        elif reference.destination_field == "version_number":
+            if type(current) is not int:
+                raise _refuse("A version reference must contain a version number")
+        elif not isinstance(current, str):
             raise _refuse("A resource reference must identify one resource")
         destination = destinations[reference.target]
         if destination is not None:
-            replacements[reference.path] = str(destination)
+            if reference.destination_field == "version_number":
+                if (
+                    not isinstance(destination, BundleDestination)
+                    or destination.version_number is None
+                ):
+                    raise _refuse("Resolve the destination version before importing this binding")
+                replacements[reference.path] = destination.version_number
+            else:
+                identity = (
+                    destination.id if isinstance(destination, BundleDestination) else destination
+                )
+                if reference.is_key:
+                    key_replacements[reference.path] = str(identity)
+                else:
+                    replacements[reference.path] = str(identity)
             continue
         container = containers.get(reference.path, reference.path)
         if not container or reference.path[: len(container)] != container:
@@ -87,7 +114,12 @@ def rebind_definition(
             for key, item in value.items():
                 rewritten = rewrite(item, (*path, key))
                 if not isinstance(rewritten, _Removed):
-                    result[key] = rewritten
+                    destination_key = key_replacements.get((*path, key), key)
+                    if destination_key in result:
+                        raise _refuse(
+                            "Two references cannot overwrite the same destination configuration key"
+                        )
+                    result[destination_key] = rewritten
             return result
         if isinstance(value, list):
             items: list[JsonValue] = []
@@ -102,5 +134,10 @@ def rebind_definition(
     for key, item in resource.definition.items():
         rewritten = rewrite(item, (key,))
         if not isinstance(rewritten, _Removed):
-            definition[key] = rewritten
+            destination_key = key_replacements.get((key,), key)
+            if destination_key in definition:
+                raise _refuse(
+                    "Two references cannot overwrite the same destination configuration key"
+                )
+            definition[destination_key] = rewritten
     return ReboundDefinition(definition=definition, skipped=tuple(skipped))

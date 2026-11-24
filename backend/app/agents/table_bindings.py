@@ -19,5 +19,5 @@ class TableGrant(BaseModel):
     """Operations an app published by an agent may bind to one table."""
 
     model_config = ConfigDict(frozen=True, extra="forbid")
-    table_id: UUID
+    table_id: UUID = Field(json_schema_extra={"x-resource": "table"})
     operations: tuple[TableOperation, ...] = Field(default=(TableOperation.READ,), min_length=1)

@@ -34,7 +34,7 @@ class FollowUpsConfig(BaseModel):
             "the answer is saved. It never delays the answer or the next message. "
             "A small, cheap model is enough. Empty disables next-step suggestions."
         ),
-        json_schema_extra={"x-widget": "model-profile"},
+        json_schema_extra={"x-widget": "model-profile", "x-resource": "model_profile"},
     )
 
 
