@@ -692,7 +692,6 @@ export const qk = {
       limit: number;
       groupId: string;
       projectId?: string;
-      favourites?: boolean;
     }) => ["artifacts", "list", query] as const,
     agents: () => ["artifacts", "agents"] as const,
     detail: (id: string) => ["artifacts", id] as const,

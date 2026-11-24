@@ -25,6 +25,9 @@ interface UseNavPinsResult {
 const confirmed = new Map<string, string[]>();
 const latestClick = new Map<string, number>();
 let clicks = 0;
+/** Saves not yet settled, and how many have settled, per organization key. */
+const saving = new Map<string, number>();
+const settled = new Map<string, number>();
 
 interface SaveRequest {
   key: ReturnType<typeof qk.nav.pins>;
@@ -51,8 +54,22 @@ export function useNavPins(): UseNavPinsResult {
 
   const { data } = useQuery({
     queryKey,
-    queryFn: async () => {
-      const read = await getNavPins();
+    queryFn: async ({ signal }) => {
+      const startedSaving = saving.get(scopeId) ?? 0;
+      const startedSettled = settled.get(scopeId) ?? 0;
+      const read = await getNavPins(signal);
+      // A read that began while a save ran, or before the latest save finished,
+      // describes a server the save has since changed: keep what we have.
+      const current = queryClient.getQueryData<NavPins>(queryKey);
+      if (
+        current &&
+        (signal.aborted ||
+          startedSaving > 0 ||
+          (saving.get(scopeId) ?? 0) > 0 ||
+          startedSettled !== (settled.get(scopeId) ?? 0))
+      ) {
+        return current;
+      }
       confirmed.set(scopeId, read.item_ids);
       return read;
     },
@@ -70,6 +87,11 @@ export function useNavPins(): UseNavPinsResult {
       const shown = queryClient.getQueryData<NavPins>(key)?.item_ids ?? [];
       queryClient.setQueryData<NavPins>(key, { item_ids: toggledPins(shown, id) });
     },
+    onSettled: (_data, _error, { key }) => {
+      const id = key.join(":");
+      saving.set(id, Math.max(0, (saving.get(id) ?? 1) - 1));
+      settled.set(id, (settled.get(id) ?? 0) + 1);
+    },
     onError: (_error, { key, click }) => {
       if (latestClick.get(key.join(":")) !== click) return;
       queryClient.setQueryData<NavPins>(key, { item_ids: confirmed.get(key.join(":")) ?? [] });
@@ -86,6 +108,7 @@ export function useNavPins(): UseNavPinsResult {
       if (!ready) return;
       clicks += 1;
       latestClick.set(scopeId, clicks);
+      saving.set(scopeId, (saving.get(scopeId) ?? 0) + 1);
       save.mutate({ key: queryKey, id, click: clicks });
     },
     [ready, save, scopeId, queryKey],

@@ -102,17 +102,6 @@ describe("useArtifacts", () => {
     expect(result.current.total).toBe(7);
   });
 
-  it("asks for the caller's own and shared pages, or only their starred ones, when told to", async () => {
-    vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
-    const { result } = renderHook(() => useArtifacts({ mineOrShared: true, favourites: true }), {
-      wrapper,
-    });
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
-    expect(apiClient.get).toHaveBeenCalledWith(
-      "/apps?skip=0&limit=50&mine_or_shared=true&favourites=true",
-    );
-  });
-
   it("answers an empty page before the first response", () => {
     vi.mocked(apiClient.get).mockReturnValue(new Promise(() => {}));
     const { result } = renderHook(() => useArtifacts(), { wrapper });

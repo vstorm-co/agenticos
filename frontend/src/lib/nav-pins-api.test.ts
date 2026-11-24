@@ -15,8 +15,9 @@ beforeEach(() => {
 describe("the nav pins client", () => {
   it("reads the caller's pins", async () => {
     vi.mocked(apiClient.get).mockResolvedValue({ item_ids: ["agents"] });
-    await expect(getNavPins()).resolves.toEqual({ item_ids: ["agents"] });
-    expect(apiClient.get).toHaveBeenCalledWith("/me/nav-pins");
+    const signal = new AbortController().signal;
+    await expect(getNavPins(signal)).resolves.toEqual({ item_ids: ["agents"] });
+    expect(apiClient.get).toHaveBeenCalledWith("/me/nav-pins", { signal });
   });
 
   it("replaces the pins under an item_ids envelope", async () => {

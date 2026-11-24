@@ -13,8 +13,8 @@ export interface NavPins {
 
 const ROOT = "/me/nav-pins";
 
-export async function getNavPins(): Promise<NavPins> {
-  return apiClient.get<NavPins>(ROOT);
+export async function getNavPins(signal?: AbortSignal): Promise<NavPins> {
+  return apiClient.get<NavPins>(ROOT, { signal });
 }
 
 export async function putNavPins(itemIds: string[]): Promise<NavPins> {

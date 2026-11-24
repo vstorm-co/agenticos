@@ -186,6 +186,52 @@ describe("useNavPins", () => {
       await waitFor(() => expect(result.current.pinnedIds).toEqual(["agents"]));
     });
 
+    it("keeps both pins when a read in flight answers late after two clicks", async () => {
+      const late = deferred<api.NavPins>();
+      vi.mocked(api.putNavPins)
+        .mockResolvedValueOnce({ item_ids: ["agents"] })
+        .mockResolvedValueOnce({ item_ids: ["agents", "skills"] });
+      const result = await hook([]);
+      vi.mocked(api.getNavPins).mockReturnValueOnce(late.promise);
+      void client.refetchQueries({ queryKey: qk.nav.pins("org1") });
+
+      act(() => result.current.toggle("agents"));
+      act(() => result.current.toggle("skills"));
+      await act(async () => late.resolve({ item_ids: [] }));
+
+      await waitFor(() => expect(api.putNavPins).toHaveBeenCalledTimes(2));
+      expect(api.putNavPins).toHaveBeenLastCalledWith(["agents", "skills"]);
+      await waitFor(() => expect(result.current.pinnedIds).toEqual(["agents", "skills"]));
+    });
+
+    it("keeps both pins when a read that started during a save answers with the old list", async () => {
+      const first = deferred<api.NavPins>();
+      const read = deferred<api.NavPins>();
+      vi.mocked(api.putNavPins)
+        .mockReturnValueOnce(first.promise)
+        .mockResolvedValueOnce({ item_ids: ["agents", "skills"] });
+      const result = await hook([]);
+
+      act(() => result.current.toggle("agents"));
+      act(() => result.current.toggle("skills"));
+      await waitFor(() => expect(result.current.pinnedIds).toEqual(["agents", "skills"]));
+      vi.mocked(api.getNavPins).mockReturnValueOnce(read.promise);
+      void client.refetchQueries({ queryKey: qk.nav.pins("org1") });
+      await waitFor(() => expect(api.getNavPins).toHaveBeenCalledTimes(2));
+
+      await act(async () => read.resolve({ item_ids: [] }));
+      expect(result.current.pinnedIds).toEqual(["agents", "skills"]);
+      await act(async () => first.resolve({ item_ids: ["agents"] }));
+
+      await waitFor(() => expect(api.putNavPins).toHaveBeenLastCalledWith(["agents", "skills"]));
+      await waitFor(() => expect(result.current.pinnedIds).toEqual(["agents", "skills"]));
+    });
+
+    it("passes the read's abort signal to the request", async () => {
+      await hook([]);
+      expect(vi.mocked(api.getNavPins).mock.calls[0]?.[0]).toBeInstanceOf(AbortSignal);
+    });
+
     it("keeps a click when a read that was in flight answers late with the old list", async () => {
       const late = deferred<api.NavPins>();
       vi.mocked(api.putNavPins).mockResolvedValue({ item_ids: ["skills"] });

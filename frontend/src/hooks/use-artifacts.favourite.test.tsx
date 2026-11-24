@@ -43,15 +43,10 @@ function artifact(overrides: Partial<Artifact> = {}): ArtifactDetail {
   } as ArtifactDetail;
 }
 
-const FAVOURITES = ["artifacts", "list", { favourites: true }] as const;
-const ALL = ["artifacts", "list", { favourites: false }] as const;
+const ALL = ["artifacts", "list", { search: "" }] as const;
 
 function setup() {
   const client = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
-  client.setQueryData<ArtifactList>(FAVOURITES, {
-    items: [artifact({ is_favourite: true })],
-    total: 1,
-  });
   client.setQueryData<ArtifactList>(ALL, { items: [artifact()], total: 1 });
   client.setQueryData(qk.artifacts.detail("a1"), artifact());
   const wrapper = ({ children }: { children: ReactNode }) => (
@@ -79,9 +74,10 @@ describe("useToggleArtifactFavourite", () => {
     expect(client.getQueryData<ArtifactDetail>(qk.artifacts.detail("a1"))?.is_favourite).toBe(true);
   });
 
-  it("unstars with DELETE and drops the app from the favourites list", async () => {
+  it("unstars with DELETE and clears the star in the list", async () => {
     vi.mocked(apiClient.delete).mockResolvedValue(undefined);
     const { result, client } = setup();
+    client.setQueryData<ArtifactList>(ALL, { items: [artifact({ is_favourite: true })], total: 1 });
 
     await act(async () => {
       await result.current.mutateAsync({ id: "a1", favourite: false });
@@ -89,8 +85,7 @@ describe("useToggleArtifactFavourite", () => {
 
     expect(apiClient.delete).toHaveBeenCalledWith("/apps/a1/favourite");
     expect(apiClient.post).not.toHaveBeenCalled();
-    expect(client.getQueryData<ArtifactList>(FAVOURITES)?.items).toEqual([]);
-    expect(client.getQueryData<ArtifactList>(FAVOURITES)?.total).toBe(0);
+    expect(client.getQueryData<ArtifactList>(ALL)?.items[0]?.is_favourite).toBe(false);
   });
 
   it("puts the lists back and says why when the server refuses", async () => {
@@ -103,7 +98,6 @@ describe("useToggleArtifactFavourite", () => {
 
     await waitFor(() => expect(toastError).toHaveBeenCalled());
     expect(client.getQueryData<ArtifactList>(ALL)?.items[0]?.is_favourite).toBe(false);
-    expect(client.getQueryData<ArtifactList>(FAVOURITES)?.items[0]?.id).toBe("a1");
   });
 
   it("says why and sends nothing when the cache cannot be prepared for the star", async () => {
