@@ -25,6 +25,8 @@ vi.mock("@/stores", () => {
     useAuthStore: Object.assign((selector: (value: typeof state) => unknown) => selector(state), {
       getState: () => state,
     }),
+    useOrgStore: (selector: (value: { activeOrgId: string }) => unknown) =>
+      selector({ activeOrgId: "org-1" }),
   };
 });
 vi.mock("@/hooks/use-shell", () => ({ useShell: () => null }));

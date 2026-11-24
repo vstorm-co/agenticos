@@ -260,7 +260,7 @@ describe("ChatEmptyState", () => {
     render(<ChatEmptyState onPick={vi.fn()} />);
     await userEvent.click(screen.getByRole("button", { name: "What can this agent do" }));
 
-    expect(screen.getByText(/This agent has no tools or connected apps yet\./)).toBeInTheDocument();
+    expect(screen.getByText(/This agent has no tools or apps yet\./)).toBeInTheDocument();
   });
 });
 
