@@ -655,7 +655,7 @@ describe("ProjectApps", () => {
 
     artifacts.mockReturnValue({ artifacts: [], isLoading: false, error: null });
     wrap(<ProjectApps project={aProject()} />);
-    expect(screen.getByText("No apps made in this project yet")).toBeInTheDocument();
+    expect(screen.getByText("No pages made in this project yet")).toBeInTheDocument();
   });
 
   it("pages a project with more apps than one page holds", async () => {
