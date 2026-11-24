@@ -33,7 +33,6 @@ from app.agents.model_resolver import (
     get_provider,
     lacks_key,
 )
-from app.core.claude_subscription import CLAUDE_SUBSCRIPTION_PROVIDER, ClaudeSubscriptionOwner
 from app.core.exceptions import (
     AlreadyExistsError,
     AuthorizationError,
@@ -399,13 +398,6 @@ class TestProviderCatalog:
         # OpenRouter is the one provider that rejects a bare model id, and does
         # so in the constructor rather than at request time.
         model = "openai/gpt-4.1" if provider_id == "openrouter" else "some-model"
-        owner = (
-            ClaudeSubscriptionOwner(organization_id=uuid.uuid4(), user_id=uuid.uuid4())
-            if provider_id == CLAUDE_SUBSCRIPTION_PROVIDER
-            else None
-        )
-        if owner is not None:
-            model = "sonnet"
         # A subscription-accounts credential reaches a client only once bound
         # to a person's gateway scope, as a key and an endpoint.
         credential = ResolvedCredential(
@@ -416,8 +408,6 @@ class TestProviderCatalog:
             base_url="https://gateway.example.com"
             if spec.supports_base_url or spec.personal_gateway
             else None,
-            personal_owner_user_id=owner.user_id if owner is not None else None,
-            claude_subscription_owner=owner,
             credential_source=VaultCodexCredentials(
                 organization_id=uuid.uuid4(), secret_id=uuid.uuid4()
             ),

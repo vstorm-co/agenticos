@@ -16,7 +16,6 @@ from uuid import UUID
 from pydantic import Field, computed_field
 
 from app.agents.model_resolver import ModelApi, ModelRegion, is_decision_api, lacks_key
-from app.core.claude_subscription import CLAUDE_SUBSCRIPTION_PROVIDER
 from app.core.image_workflow_catalog import ImageWorkflowSupport
 from app.core.secret_kinds import SecretKind
 from app.core.video_workflow_catalog import VideoWorkflowSupport
@@ -207,8 +206,6 @@ class ModelProfileRead(BaseSchema, TimestampSchema):
     )
     label: str
     provider: str
-    # Read-time state only, never an account identifier and never persisted.
-    native_connected: bool | None = Field(default=None, exclude=True)
     # Nullable on read though required on write: rows written before the vault
     # became the only key store have none, and a read schema describes what is
     # in the database rather than what a new row must contain. The Builder shows
@@ -288,8 +285,6 @@ class ModelProfileRead(BaseSchema, TimestampSchema):
         network - is false. Agent and chat model pickers leave such a profile out
         and mark it "no key"; publish refuses it until it gets a key.
         """
-        if self.provider == CLAUDE_SUBSCRIPTION_PROVIDER:
-            return self.native_connected is not True
         return lacks_key(
             self.provider,
             secret_id=self.secret_id,

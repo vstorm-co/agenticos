@@ -63,11 +63,6 @@ from pydantic_ai.providers import Provider, infer_provider_class
 from pydantic_ai.providers.openai import OpenAIProvider
 from pydantic_ai.providers.openrouter import OpenRouterProvider
 
-from app.core.claude_subscription import (
-    CLAUDE_SUBSCRIPTION_MODELS,
-    CLAUDE_SUBSCRIPTION_PROVIDER,
-    ClaudeSubscriptionOwner,
-)
 from app.core.exceptions import BadRequestError
 from app.core.secret_kinds import (
     ApiKeySecret,
@@ -351,11 +346,6 @@ PROVIDERS: dict[str, ProviderSpec] = {
             native_api="responses",
         ),
         _api_key("anthropic", "Anthropic", base_url_param="base_url"),
-        ProviderSpec(
-            id=CLAUDE_SUBSCRIPTION_PROVIDER,
-            name="Claude (subscription)",
-            secret_kind=SecretKind.NONE,
-        ),
         _api_key("google", "Google Gemini", base_url_param="base_url"),
         _api_key("typesafe", "TypeSafe (Jev)", base_url_param="base_url"),
         _api_key(
@@ -574,10 +564,6 @@ def lacks_key(
     One rule for every reader: the profile listing's `missing_key`, publish, and
     the resolver that refuses the run.
     """
-    if provider == CLAUDE_SUBSCRIPTION_PROVIDER:
-        # This provider authenticates in its isolated native runtime, not with a
-        # vault key or a tenant-selected endpoint. The read view adds live state.
-        return secret_id is not None or base_url is not None
     if secret_id is not None:
         return False
     spec = PROVIDERS.get(provider)
@@ -609,7 +595,6 @@ class ResolvedCredential:
     # Present only after resolving an explicitly personal API connection for its
     # direct signed-in owner. Fallback filtering keeps that authority attached.
     personal_owner_user_id: UUID | None = None
-    claude_subscription_owner: ClaudeSubscriptionOwner | None = None
     chatgpt_source: VaultChatGPTCredentials | None = None
     # The profile's, like `api`: where the requests may run, for a provider that
     # takes a region. `None` for every provider that does not.
@@ -832,21 +817,6 @@ def build_model(credential: ResolvedCredential, model: str) -> Model:
 
 
 def _build_model(credential: ResolvedCredential, model: str) -> Model:
-    if credential.provider == CLAUDE_SUBSCRIPTION_PROVIDER:
-        from app.agents.claude_subscription import ClaudeSubscriptionModelClient
-
-        owner = credential.claude_subscription_owner
-        if owner is None or credential.personal_owner_user_id != owner.user_id:
-            raise BadRequestError(
-                message="A Claude subscription model requires its signed-in owner"
-            )
-        if not isinstance(credential.secret, NoSecret) or any(
-            value is not None for value in (credential.base_url, credential.api, credential.region)
-        ):
-            raise BadRequestError(message="Claude subscriptions do not take an API key or endpoint")
-        if model not in CLAUDE_SUBSCRIPTION_MODELS:
-            raise BadRequestError(message="Choose a supported Claude subscription model")
-        return ClaudeSubscriptionModelClient(model, owner=owner)
     spec = get_provider(credential.provider)
     if is_decision_api(credential.provider, credential.api):
         return _build_decision_model(credential, model)

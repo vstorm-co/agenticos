@@ -333,26 +333,6 @@ class ProviderExecuted(BaseModel):
         return frozenset(self.tools)
 
 
-class NativeOnly(BaseModel):
-    """The configurations that work only through a provider-native tool.
-
-    Not :class:`ProviderExecuted`: that one also lists a value such as
-    `web_fetch`'s `auto`, which the provider *may* run and this deployment runs
-    on every model that cannot. These are the values with no local tool behind
-    them, so a model that supports no native tool cannot run the binding at all,
-    and publish says so instead of the first turn failing (#166).
-    """
-
-    model_config = ConfigDict(frozen=True)
-
-    field: str = Field(description="Which config field decides")
-    equals: tuple[str, ...] = Field(description="Values of that field with no local tool")
-
-    def is_met(self, config: BaseModel | None) -> bool:
-        """Whether this configuration needs a provider-native tool."""
-        return config is not None and str(getattr(config, self.field, None)) in self.equals
-
-
 VoiceSupport = Literal["live", "hand_off", "never"]
 """How a capability takes part in a voice call: see `CapabilityDef.voice`."""
 
@@ -413,7 +393,6 @@ class CapabilityDef:
     # instance. Code says "I need an API key"; configuration says which one.
     secret: SecretRequirement | None = None
     provider_executed: ProviderExecuted | None = None
-    native_only: NativeOnly | None = None
     read_only: bool = False
     """Whether this capability's tools change nothing outside the run.
 
@@ -563,7 +542,6 @@ def register(
     scopes: Iterable[str] = (),
     secret: SecretRequirement | None = None,
     provider_executed: ProviderExecuted | None = None,
-    native_only: NativeOnly | None = None,
     read_only: bool = False,
     tunable: bool = False,
     protective: bool = False,
@@ -595,10 +573,6 @@ def register(
     only hold a call this deployment executes, so a binding that gates one of
     those is refused at publish rather than given a gate that never fires; see
     :class:`ProviderExecuted` for why the capability owns that statement.
-
-    `native_only` declares the configurations with no local tool behind the
-    provider's, which publish refuses on a model that supports no native tool;
-    see :class:`NativeOnly`.
 
     `read_only` declares that the tools change nothing outside the run, which is
     what lets them execute in an eval; see :attr:`CapabilityDef.read_only`. A
@@ -654,7 +628,6 @@ def register(
             scopes=frozenset(scopes),
             secret=secret,
             provider_executed=provider_executed,
-            native_only=native_only,
             read_only=read_only,
             tunable=tunable,
             protective=protective,

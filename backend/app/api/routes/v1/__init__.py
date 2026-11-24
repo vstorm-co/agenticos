@@ -48,7 +48,6 @@ from app.api.routes.v1 import agent_environments, agent_exposures, agent_trigger
 from app.api.routes.v1 import trigger_webhooks
 from app.api.routes.v1 import agents as agent_registry
 from app.api.routes.v1 import model_providers
-from app.api.routes.v1 import personal_subscriptions
 from app.api.routes.v1 import secrets
 from app.api.routes.v1 import runs as agent_runs
 from app.api.routes.v1 import stats
@@ -140,9 +139,6 @@ v1_router.include_router(
 )
 v1_router.include_router(run_requests.router, tags=["agents"])
 v1_router.include_router(model_providers.router, prefix="/providers", tags=["providers"])
-v1_router.include_router(
-    personal_subscriptions.router, prefix="/personal-subscriptions", tags=["personal-subscriptions"]
-)
 v1_router.include_router(catalog_icons.router, prefix="/catalog", tags=["catalog"])
 v1_router.include_router(secrets.router, prefix="/secrets", tags=["secrets"])
 v1_router.include_router(ml_services.router, prefix="/ml", tags=["ml-services"])

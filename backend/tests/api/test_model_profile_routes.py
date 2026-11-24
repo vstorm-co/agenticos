@@ -120,7 +120,6 @@ def _stored(model: str) -> MagicMock:
         runs_without_key=False,
         personal_owner_user_id=None,
         usage_scope="organization",
-        native_connected=None,
         created_at=datetime(2026, 10, 26, tzinfo=UTC),
         updated_at=None,
     )

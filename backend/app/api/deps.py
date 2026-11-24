@@ -925,18 +925,6 @@ def get_model_profile_service(db: DBSession) -> ModelProfileService:
 
 ModelProfileSvc = Annotated[ModelProfileService, Depends(get_model_profile_service)]
 
-from app.services.claude_subscription import ClaudeSubscriptionService
-
-
-def get_claude_subscription_service() -> ClaudeSubscriptionService:
-    """Create the server-only native connection service."""
-    return ClaudeSubscriptionService()
-
-
-ClaudeSubscriptionSvc = Annotated[
-    ClaudeSubscriptionService, Depends(get_claude_subscription_service)
-]
-
 from app.services.agent_registry import AgentRegistryService
 
 

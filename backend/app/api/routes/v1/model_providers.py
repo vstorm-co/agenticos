@@ -25,7 +25,6 @@ from app.api.deps import (
 )
 from app.api.public_api import ASSISTANT, PUBLIC
 from app.clients.subscription_gateway import configured_gateway
-from app.core.claude_subscription import CLAUDE_SUBSCRIPTION_PROVIDER
 from app.core.exceptions import AuthorizationError, BadRequestError
 from app.core.field_errors import refused_field
 from app.core.permissions import Perm
@@ -495,13 +494,7 @@ async def list_provider_models(
         # carries it is trimmed: the listing is asked for where the requests go.
         if (spec := PROVIDERS.get(provider)) is not None:
             base_url = spec.endpoint(base_url)
-    if provider == CLAUDE_SUBSCRIPTION_PROVIDER and secret_id is not None:
-        raise refused_field(
-            "secret_id", "Claude subscriptions use the signed-in user's native connection"
-        )
-    sends_key = provider != CLAUDE_SUBSCRIPTION_PROVIDER and (
-        base_url is None or CUSTOM_LISTINGS[provider]
-    )
+    sends_key = base_url is None or CUSTOM_LISTINGS[provider]
     if base_url is not None and sends_key and secret_id is None:
         raise refused_field("secret_id", "Choose a vault key before listing this endpoint")
     api_key = (

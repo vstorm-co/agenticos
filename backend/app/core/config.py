@@ -109,30 +109,6 @@ class Settings(BaseSettings):
     API_V1_STR: str = "/api/v1"
     UPDATE_AGENT_SOCKET: Path | None = None
     UPDATE_PIPELINE_URL: str | None = None
-    CLAUDE_SUBSCRIPTION_URL: str | None = None
-    CLAUDE_SUBSCRIPTION_SERVICE_KEY: SecretStr | None = Field(
-        default=None, min_length=32, repr=False
-    )
-
-    @field_validator("CLAUDE_SUBSCRIPTION_URL")
-    @classmethod
-    def claude_subscription_origin(cls, value: str | None) -> str | None:
-        if value is None:
-            return None
-        url = urlsplit(value)
-        if (
-            url.scheme not in {"http", "https"}
-            or not url.hostname
-            or url.username is not None
-            or url.password is not None
-            or url.path not in {"", "/"}
-            or url.query
-            or url.fragment
-        ):
-            raise ValueError(
-                "Claude subscription runtime must be an HTTP(S) origin without credentials or a path"
-            )
-        return value.rstrip("/")
 
     @field_validator("UPDATE_PIPELINE_URL")
     @classmethod

@@ -3,7 +3,7 @@
 from pydantic import BaseModel, Field
 from pydantic_ai.capabilities import ToolSearch
 
-from app.agents.capabilities._registry import CapabilityBuildContext, NativeOnly, register
+from app.agents.capabilities._registry import CapabilityBuildContext, register
 from app.agents.capabilities.tool_search._capability import (
     ConfiguredToolSearch,
     Strategy,
@@ -94,8 +94,6 @@ class ToolSearchConfig(BaseModel):
     # and `factory._defer_for_tool_search`.
     tools=(),
     config_schema=ToolSearchConfig,
-    # The Anthropic-native algorithms have no local implementation.
-    native_only=NativeOnly(field="strategy", equals=("bm25", "regex")),
     tunable=True,
 )
 def _build(ctx: CapabilityBuildContext) -> ToolSearch[object]:

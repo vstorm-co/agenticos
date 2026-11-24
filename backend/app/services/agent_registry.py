@@ -81,7 +81,6 @@ from app.agents.system_agents import (
 )
 from app.agents.tool_names import PLATFORM_TOOL_NAMES, taken_tool_names
 from app.core.audit import current_impersonator, record_audit
-from app.core.claude_subscription import CLAUDE_SUBSCRIPTION_PROVIDER
 from app.core.config import settings
 from app.core.exceptions import (
     AlreadyExistsError,
@@ -2538,7 +2537,6 @@ class AgentRegistryService:
                     personal=spec.model_credential_mode == "personal",
                 )
             )
-            problems.merge(await self._native_only_problems(ctx, spec, spec.model_profile_id))
         # And each reviewer's, refused here rather than when a run first reaches
         # its cadence and finds nothing to review with.
         for reviewer in spec.reviewers:
@@ -2654,38 +2652,6 @@ class AgentRegistryService:
         if pattern == "mcp_servers/{server}/allowed_tools":
             return await self._mcp_problems(ctx, spec.mcp_servers, taken=taken_tool_names(spec))
         return []
-
-    async def _native_only_problems(
-        self, ctx: AuthContext, spec: AgentSpec, profile_id: UUID
-    ) -> _SpecProblems:
-        """Bindings set to a provider-native tool on a model that supports none (#166).
-
-        A Claude subscription model runs application tools only. A binding with a
-        local tool behind the native one uses it there; one configured to the native
-        tool alone would fail on the first turn, so it is refused here, on the input.
-        """
-        problems = _SpecProblems()
-        profile = await credential_repo.get_profile(
-            self.db, profile_id, organization_id=ctx.organization_id
-        )
-        if profile is None or profile.provider != CLAUDE_SUBSCRIPTION_PROVIDER:
-            return problems
-        for binding in spec.capabilities:
-            try:
-                definition = get_capability(binding.id)
-                config = definition.validate_config(binding.config)
-            except BadRequestError:
-                continue  # `_binding_problems` reports an unknown id or a bad config.
-            if definition.native_only is None or not definition.native_only.is_met(config):
-                continue
-            field = definition.native_only.field
-            problems.refuse(
-                f"capabilities.{binding.id}.{field}",
-                f"Capability '{binding.id}': {field} "
-                f"'{getattr(config, field)}' needs a provider-native tool, and Claude "
-                "subscription models support none. Choose another option.",
-            )
-        return problems
 
     async def _binding_problems(
         self, ctx: AuthContext, binding: CapabilityBindingSpec, *, agent_id: UUID | None = None
@@ -2864,9 +2830,7 @@ class AgentRegistryService:
         )
         if profile is None:
             return ["The selected model profile no longer exists"]
-        if (
-            profile.usage_scope == "personal" or profile.provider == CLAUDE_SUBSCRIPTION_PROVIDER
-        ) and (
+        if (profile.usage_scope == "personal") and (
             ctx.personal_user_id is None or profile.personal_owner_user_id != ctx.personal_user_id
         ):
             return ["Choose one of your own personal model connections"]
@@ -2901,10 +2865,7 @@ class AgentRegistryService:
         # In the chain's order. One that no longer exists is skipped at run
         # time, not refused here.
         for fallback in (fallbacks[pid] for pid in fallback_ids if pid in fallbacks):
-            personal_fallback_unavailable = (
-                fallback.usage_scope == "personal"
-                or fallback.provider == CLAUDE_SUBSCRIPTION_PROVIDER
-            ) and (
+            personal_fallback_unavailable = (fallback.usage_scope == "personal") and (
                 ctx.personal_user_id is None
                 or fallback.personal_owner_user_id != ctx.personal_user_id
             )
@@ -2999,10 +2960,7 @@ class AgentRegistryService:
         personal_out_of_reach = {
             profile.id
             for profile in profiles.values()
-            if (
-                profile.usage_scope == "personal"
-                or profile.provider == CLAUDE_SUBSCRIPTION_PROVIDER
-            )
+            if (profile.usage_scope == "personal")
             and (
                 ctx.personal_user_id is None
                 or profile.personal_owner_user_id != ctx.personal_user_id
