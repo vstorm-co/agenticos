@@ -14,7 +14,7 @@ just another client" true rather than aspirational.
 import json
 import logging
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from decimal import Decimal
 from functools import partial
 from typing import Any
@@ -26,11 +26,12 @@ from pydantic_ai import ModelRetry, StructuredDict, ToolOutput
 from pydantic_ai.capabilities import (
     AbstractCapability,
     HandleDeferredToolCalls,
+    PrepareTools,
     ReinjectSystemPrompt,
 )
 from pydantic_ai.output import OutputSpec
 from pydantic_ai.settings import ModelSettings
-from pydantic_ai.tools import DeferredToolRequests
+from pydantic_ai.tools import DeferredToolRequests, RunContext, ToolDefinition
 from pydantic_ai.toolsets import AbstractToolset
 from pydantic_ai.usage import UsageLimits
 from pydantic_ai_harness.guardrails import GuardrailResult
@@ -693,6 +694,7 @@ def build_agent(
         # Every agent: a provider that numbers its calls afresh on each response
         # would otherwise give a later drawing or approval an earlier one's id.
         UniqueToolCallIds(),
+        PrepareTools(_tool_strictness),
     ]
 
     # Profile settings first, agent overrides second - the agent is the more
@@ -923,6 +925,24 @@ def _output_type(schema: dict[str, Any] | None) -> OutputSpec[AgentOutput]:
             strict=None if _grammar_expresses(schema) else False,
         ),
         DeferredToolRequests,
+    ]
+
+
+async def _tool_strictness(
+    _ctx: RunContext[AgentDeps] | None, tool_defs: list[ToolDefinition]
+) -> list[ToolDefinition]:
+    """Send a tool whose schema a strict grammar cannot express non-strict.
+
+    Same rule as `_output_type`. A tool left at `strict=None` is sent strict by
+    OpenAI-style models, and Anthropic behind such a gateway rejects the whole
+    request over a node like `maxItems` (#259). A tool that states its own
+    strictness, or whose schema the grammar expresses, keeps what it has.
+    """
+    return [
+        tool
+        if tool.strict is not None or _grammar_expresses(tool.parameters_json_schema)
+        else replace(tool, strict=False)
+        for tool in tool_defs
     ]
 
 
