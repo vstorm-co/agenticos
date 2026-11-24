@@ -1,5 +1,5 @@
 ---
-source_sha: "7abf020febb5"
+source_sha: "1e1c6b843a3d"
 ---
 
 # Spec agenta { #the-agent-spec }
@@ -21,7 +21,7 @@ systemową, którą zna platforma (data i godzina, zalogowana osoba i jej
 który zegar czyta `{{current_time}}`. Publikacja odrzuca nazwę, która nie jest
 żadną z nich.
 
-`{{language}}` to zapisany język konta osoby, w imieniu której działa run, podany jako nazwa języka (English, Polish, German lub Turkish). Gdy run nie ma osoby albo obsługiwanej preferencji, wartością jest English; runy bez nadzoru nie przejmują języka autora publikacji. Agenci otrzymują tę preferencję także w briefingu osoby: krótkie lub niejednoznaczne powitania jej nie zmieniają, a jawna prośba o inny język ma pierwszeństwo.
+`{{language}}` to zapisany język konta osoby, w imieniu której działa run, podany jako nazwa języka (English, Polish, German, Turkish, French lub Dutch). Gdy run nie ma osoby albo obsługiwanej preferencji, wartością jest English; runy bez nadzoru nie przejmują języka autora publikacji. Agenci otrzymują tę preferencję także w briefingu osoby: krótkie lub niejednoznaczne powitania jej nie zmieniają, a jawna prośba o inny język ma pierwszeństwo.
 
 ::: app.agents.spec.PromptVariableSpec
 

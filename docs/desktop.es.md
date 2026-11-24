@@ -1,5 +1,5 @@
 ---
-source_sha: "e2a19cf6c8da"
+source_sha: "a33c169ff0a3"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -87,7 +87,8 @@ no son un requisito para elegir la conexión.
 
 Al conectar la aplicación de escritorio, puedes pegar el enlace original de invitación en lugar de solo la dirección del servidor. La aplicación se conecta al servidor del enlace y abre la invitación, conservando el destino durante el inicio de sesión. No acepta la invitación automáticamente ni guarda su token en los ajustes nativos. La revisión opcional de conexión espera a que termine la invitación.
 
-El inicio nativo y la consola admiten inglés, polaco, alemán y turco. La elección
+El inicio nativo admite inglés, polaco, alemán y turco; la consola admite además
+francés y neerlandés. La elección
 se pasa a la consola; el idioma guardado en una cuenta existente sigue teniendo
 prioridad. La instalación local pide un nombre de espacio; un nombre de organización
 separado es una opción avanzada. Tras revisar la conexión, **Get started** abre

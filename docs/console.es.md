@@ -1,5 +1,5 @@
 ---
-source_sha: "8e450f21611e"
+source_sha: "0ba99825dcfc"
 ---
 
 **Refresh models** en el catálogo del proveedor vuelve a obtener la lista y conserva la búsqueda y la selección. Junto a los modelos guardados de la organización, vuelve a cargar los perfiles guardados. Actualizar no guarda un modelo ni inicia un agente. Endpoint, clave de Vault, tipo de API y región aparecen según las capacidades del proveedor; las suscripciones personales utilizan los ajustes de su cuenta conectada.
@@ -1127,8 +1127,8 @@ Los accesos guardados del navegador usan un panel compacto de ancho completo, si
 
 ## Idiomas { #languages }
 
-La consola habla inglés, polaco, alemán y turco. La primera tarjeta del recorrido
-ofrece los cuatro, y
+La consola habla inglés, polaco, alemán, turco, francés y neerlandés. La primera
+tarjeta del recorrido ofrece los seis, y
 el menú de la cuenta cambia el idioma en cualquier momento; la elección se guarda
 en tu cuenta, así que la consola se abre en él en cada dispositivo en el que
 inicias sesión. También puedes pedírselo a un agent - "cambia a inglés" - y la

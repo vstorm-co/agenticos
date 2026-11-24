@@ -82,7 +82,8 @@ or when used, rather than a required step before choosing a connection.
 
 When connecting the desktop app, you can paste the original invitation link instead of only a server address. The app connects to that link’s server and opens the invitation, preserving its destination through sign-in. It does not accept the invitation automatically or store its token in native settings. Optional connection review waits until the invitation is finished.
 
-The native start and console support English, Polish, German and Turkish. Your
+The native start supports English, Polish, German and Turkish; the console adds
+French and Dutch. Your
 native choice is carried to the console; an existing account's saved language
 still takes precedence. Local setup asks for one workspace name; a separate
 organization name is an advanced option. After connection review, **Get started**

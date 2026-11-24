@@ -1,5 +1,5 @@
 ---
-source_sha: "e2a19cf6c8da"
+source_sha: "a33c169ff0a3"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -86,7 +86,8 @@ App readiness lub przy użyciu, a nie wymagany krok przed wyborem połączenia.
 
 Przy łączeniu aplikacji desktopowej możesz wkleić oryginalny link zaproszenia zamiast samego adresu serwera. Aplikacja połączy się z serwerem z tego linku i otworzy zaproszenie, zachowując cel podczas logowania. Nie zaakceptuje go automatycznie ani nie zapisze tokenu w ustawieniach natywnych. Opcjonalny przegląd połączenia poczeka na zakończenie zaproszenia.
 
-Natywny start i konsola obsługują angielski, polski, niemiecki i turecki. Wybór
+Natywny start obsługuje angielski, polski, niemiecki i turecki, a konsola
+dodatkowo francuski i niderlandzki. Wybór
 z instalatora trafia do konsoli; zapisany język istniejącego konta nadal ma
 pierwszeństwo. Konfiguracja lokalna pyta o jedną nazwę przestrzeni; oddzielna
 nazwa organizacji to opcja zaawansowana. Po przeglądzie połączenia **Pierwsze kroki**
