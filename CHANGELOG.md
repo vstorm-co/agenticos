@@ -169,6 +169,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- The member who added an organization API key now sees Delete for it in the vault; the key listing carries a `can_delete` flag, and rotate and share stay limited to those who can edit it.
 - Manual chat compaction resolves the published model's defaults, agent settings and Thinking capability before requesting a summary. It uses the already prepared model and refuses incomplete model preparation.
 - The first-run start offer can now appear: it no longer requires zero agents, which bootstrap made impossible by always publishing the Architect and AgenticOS starter agents. It is offered until the user has any activity or a real completed run, completes onboarding, or dismisses it — so the dashboard checklist and the chat start offer reach the guided start on a fresh install.
 - `docs/first-agent.md` no longer claims a walkthrough opens on first sign-in: nothing opens on its own, and the walkthrough is offered from the dashboard's first-run checklist and the guided start, or replayed with the header **?**. The German, Spanish and Polish translations carry the same correction.

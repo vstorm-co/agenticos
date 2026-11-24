@@ -248,6 +248,10 @@ class SecretSummary(SecretRead):
     can_edit: bool = Field(
         default=False, description="Whether this caller may rotate, delete or share this secret"
     )
+    can_delete: bool = Field(
+        default=False,
+        description="Whether this caller may delete this secret: whoever can edit it, or the member who added it",
+    )
 
 
 class SecretList(BaseSchema):

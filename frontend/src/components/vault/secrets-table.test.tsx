@@ -129,3 +129,21 @@ it("shows actions only on individually editable keys while retaining read-only m
   await userEvent.click(screen.getByRole("button", { name: /access.*Granted key/i }));
   expect(onShare).toHaveBeenCalledWith(edit);
 });
+
+it("offers a creator Delete alone, without rotate or share", async () => {
+  const mine = secret({ name: "Created key", can_edit: false, can_delete: true });
+  const onDelete = vi.fn();
+  render(
+    <SecretsTable
+      secrets={[mine]}
+      purposes={PURPOSES}
+      onShare={noop}
+      onRotate={noop}
+      onDelete={onDelete}
+    />,
+  );
+  expect(screen.queryByRole("button", { name: "Rotate Created key" })).toBeNull();
+  expect(screen.queryByRole("button", { name: /access.*Created key/i })).toBeNull();
+  await userEvent.click(screen.getByRole("button", { name: "Delete Created key" }));
+  expect(onDelete).toHaveBeenCalledWith(mine);
+});

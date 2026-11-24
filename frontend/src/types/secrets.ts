@@ -214,6 +214,8 @@ export interface BrowserSecretMetadata {
 export interface Secret {
   /** Effective edit access in listings; absent on older deployments or write responses. */
   can_edit?: boolean;
+  /** Delete access in listings: whoever can edit, or the member who added the key. */
+  can_delete?: boolean;
   id: string;
   name: string;
   description: string | null;

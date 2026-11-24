@@ -7,6 +7,7 @@ delete it; nobody else gains anything.
 """
 
 import uuid
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -122,3 +123,75 @@ async def test_an_owner_still_deletes_a_key_somebody_else_created() -> None:
     delete = await _delete(_as(OrgRoleName.OWNER, org_id), row)
 
     assert delete.await_count == 1
+
+
+async def _listed(ctx: AuthContext, row):
+    with (
+        patch(
+            "app.services.organization_secret.visible_resource_ids",
+            new=AsyncMock(return_value=None),
+        ),
+        patch(
+            "app.services.organization_secret.organization_secret_repo.list_secrets",
+            new=AsyncMock(return_value=[row]),
+        ),
+        patch(
+            "app.services.organization_secret.member_repo.get_identities_for_users",
+            new=AsyncMock(return_value={}),
+        ),
+        patch(
+            "app.services.organization_secret.resource_grant_repo.count_for_resources",
+            new=AsyncMock(return_value={}),
+        ),
+        patch(
+            "app.services.organization_secret.organization_secret_repo.agents_using_for_secrets",
+            new=AsyncMock(return_value={}),
+        ),
+        patch(
+            "app.services.access.resource_grant_repo.get_level", new=AsyncMock(return_value=None)
+        ),
+    ):
+        rows = await OrganizationSecretService(_db()).list_secrets(ctx)
+    return rows[0]
+
+
+def _listable(row) -> None:
+    row.description = None
+    row.purpose = "custom"
+    row.created_at = datetime.now(UTC)
+    row.updated_at = None
+
+
+@pytest.mark.anyio
+async def test_the_listing_offers_the_creator_delete_but_not_edit() -> None:
+    ctx = _as(OrgRoleName.BUILDER, uuid.uuid4())
+    row = _org_key(ctx, created_by=ctx.user_id)
+    _listable(row)
+
+    summary = await _listed(ctx, row)
+
+    assert (summary.can_delete, summary.can_edit) == (True, False)
+
+
+@pytest.mark.anyio
+async def test_the_listing_offers_another_builder_neither() -> None:
+    org_id = uuid.uuid4()
+    creator = _as(OrgRoleName.BUILDER, org_id)
+    row = _org_key(creator, created_by=creator.user_id)
+    _listable(row)
+
+    summary = await _listed(_as(OrgRoleName.BUILDER, org_id), row)
+
+    assert (summary.can_delete, summary.can_edit) == (False, False)
+
+
+@pytest.mark.anyio
+async def test_the_listing_offers_an_owner_both() -> None:
+    org_id = uuid.uuid4()
+    creator = _as(OrgRoleName.BUILDER, org_id)
+    row = _org_key(creator, created_by=creator.user_id)
+    _listable(row)
+
+    summary = await _listed(_as(OrgRoleName.OWNER, org_id), row)
+
+    assert (summary.can_delete, summary.can_edit) == (True, True)

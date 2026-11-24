@@ -215,6 +215,7 @@ class OrganizationSecretService:
                 SecretSummary(
                     id=secret.id,
                     can_edit=secret.id in editable,
+                    can_delete=secret.id in editable or self._is_creator_of_org_key(ctx, secret),
                     name=secret.name,
                     description=secret.description,
                     kind=SecretKind(secret.kind),
