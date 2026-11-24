@@ -421,8 +421,36 @@ async def test_wait_returns_terminal_receipt_without_retry(harness: Harness, sta
 
 
 async def test_wait_ends_when_owner_is_not_alive(harness: Harness) -> None:
-    assert "ended" in await harness.writer.wait(harness.plan_id)
+    result = await harness.writer.wait(harness.plan_id)
+    assert result == (
+        "The protected credential session ended. Page output remains hidden; "
+        "no form was submitted automatically."
+    )
     harness.service.get.assert_not_awaited()
+
+
+async def test_wait_names_the_submission_receipt_when_the_session_ends_before_continuation(
+    harness: Harness, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A confirmed submit must not be reported to the agent as "no form was submitted"."""
+    h = harness
+    h.hold_alive()
+    h.writer.continue_session = AsyncMock()
+    h.service.get.return_value = h.read(BrowserFillState.FILLED)
+    h.service.submitted.return_value = h.read(
+        BrowserFillState.SUBMITTED, operation=BrowserFillOperation.SUBMIT
+    )
+
+    async def no_continuation_yet(*args, **kwargs) -> None:
+        h.writer._closed = True
+
+    monkeypatch.setattr(
+        controller,
+        "BrowserCredentialContinuationService",
+        lambda db, redis: SimpleNamespace(get=AsyncMock(side_effect=no_continuation_yet)),
+    )
+    result = await h.writer.wait(h.plan_id)
+    assert result == "Protected browser submission: submitted. Page output remains hidden."
 
 
 def admitted_deps(h: Harness):
