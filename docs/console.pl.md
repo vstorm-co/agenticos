@@ -1,5 +1,5 @@
 ---
-source_sha: "7a80ef05999f"
+source_sha: "9f7bdb001aef"
 ---
 
 Selektor modeli utrzymuje nagłówek, karty dostawcy i wyszukiwarkę na miejscu, a listy modeli i dostawców przewijają się niezależnie. Zmiana karty dashboardu zachowuje krótkie przejście; wejście na dashboard ani przywrócenie historii przeglądarki nie animuje całego panelu. Karuzela avatarów w onboardingu pozostaje dostępna także obok wgranego zdjęcia, z wyjaśnieniem, że wybór koloru dotyczy avatara pokazywanego, gdy zdjęcie jest niedostępne.
@@ -1097,9 +1097,9 @@ Zapisane logowania do stron mają zwarty panel ustawień na pełną szerokość,
 
 ## Języki { #languages }
 
-Konsola mówi po angielsku, polsku, niemiecku i turecku. Pierwsza karta
-przewodnika proponuje te cztery
-języki, a menu konta zmienia język w każdej chwili; wybór jest zapisywany na twoim
+Konsola mówi po angielsku, polsku, niemiecku, turecku, francusku,
+niderlandzku i po portugalsku w odmianie brazylijskiej. Pierwsza karta przewodnika proponuje je wszystkie, a menu konta
+zmienia język w każdej chwili; wybór jest zapisywany na twoim
 koncie, więc konsola otwiera się w nim na każdym urządzeniu, na którym się
 logujesz. Możesz też poprosić agenta - "przełącz na angielski" - a strona zmieni
 się, gdy odpowie, bez przeładowania. Każdy agent odpowiada w nim, chyba że

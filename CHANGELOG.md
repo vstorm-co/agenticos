@@ -21,11 +21,16 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Choose Nederlands or Brazilian Portuguese in the console, with complete message catalogs, localized agent language instructions, voice previews and channel greetings. Desktop connection setup also offers Portuguese.
+
 - Clarify that datasets use resource sharing rather than department list filters.
 - Show why a routine cannot run, with source/access review actions, parked-run links and the same diagnostics on the dashboard.
 - Reject tool calls and workflow approvals with feedback in chat, Activity and Inbox. Preserve already saved decisions when retrying a partially failed batch.
 
 ### Fixed
+
+- Search every explicitly selected knowledge base when several share a collection name, without including their unselected siblings. Reject incompatible tenant scopes when publishing a workflow.
+- Show folders in the chat Files panel without also showing the empty-files message.
 
 - Open chat links that request a new window in the default browser on macOS.
 - Restore the chat Files panel width, dragging and maximization without leaving a dark gap.

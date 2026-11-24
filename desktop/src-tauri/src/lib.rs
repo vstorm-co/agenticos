@@ -466,7 +466,7 @@ fn oauth_verifier(app: AppHandle, code: String) -> Result<String, String> {
 
 fn connection_setup_path(language: Option<&str>) -> String {
     language
-        .filter(|language| ["en", "pl", "de", "tr"].contains(language))
+        .filter(|language| ["en", "pl", "de", "tr", "pt"].contains(language))
         .map(|language| format!("{language}/{CONNECTION_SETUP}"))
         .unwrap_or_else(|| CONNECTION_SETUP.to_string())
 }
@@ -482,7 +482,7 @@ fn connection_target(typed: &str) -> Result<(Url, Option<String>), String> {
     let segments: Vec<_> = server.path().trim_matches('/').split('/').collect();
     let invitation = match segments.as_slice() {
         ["invitations", token] => Some(*token),
-        [locale, "invitations", token] if ["en", "pl", "de", "tr", "fr"].contains(locale) => Some(*token),
+        [locale, "invitations", token] if ["en", "pl", "de", "tr", "fr", "nl", "pt"].contains(locale) => Some(*token),
         _ => None,
     };
     if let Some(token) = invitation {
@@ -518,6 +518,10 @@ mod onboarding_language_tests {
         assert_eq!(destination.as_deref(), Some("pl/invitations/abc_DEF-123"));
         let (_, destination) = connection_target("https://team.example/fr/invitations/abc_DEF-123").unwrap();
         assert_eq!(destination.as_deref(), Some("fr/invitations/abc_DEF-123"));
+        let (_, destination) = connection_target("https://team.example/nl/invitations/abc_DEF-123").unwrap();
+        assert_eq!(destination.as_deref(), Some("nl/invitations/abc_DEF-123"));
+        let (_, destination) = connection_target("https://team.example/pt/invitations/abc_DEF-123").unwrap();
+        assert_eq!(destination.as_deref(), Some("pt/invitations/abc_DEF-123"));
         assert_eq!(connection_target("team.example").unwrap().1, None);
         assert!(connection_target("https://team.example/invitations/pending?flow=secret").is_err());
         assert!(connection_target("https://team.example/invitations/%2F%2Fevil.example").is_err());
@@ -532,6 +536,7 @@ mod onboarding_language_tests {
     #[test]
     fn supported_language_follows_the_connection_without_changing_its_origin() {
         assert_eq!(connection_setup_path(Some("pl")), format!("pl/{CONNECTION_SETUP}"));
+        assert_eq!(connection_setup_path(Some("pt")), format!("pt/{CONNECTION_SETUP}"));
         assert_eq!(connection_setup_path(None), CONNECTION_SETUP);
         assert_eq!(connection_setup_path(Some("https://example.com")), CONNECTION_SETUP);
         assert_eq!(connection_setup_path(Some("../other")), CONNECTION_SETUP);
@@ -540,7 +545,7 @@ mod onboarding_language_tests {
 
 #[tauri::command]
 fn set_onboarding_language(app: AppHandle, language: String) -> Result<(), String> {
-    if !["en", "pl", "de", "tr"].contains(&language.as_str()) {
+    if !["en", "pl", "de", "tr", "pt"].contains(&language.as_str()) {
         return Err("Unsupported language".into());
     }
     settings::update(&app, |settings| settings.onboarding_language = Some(language))?;

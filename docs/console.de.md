@@ -1,5 +1,5 @@
 ---
-source_sha: "7a80ef05999f"
+source_sha: "9f7bdb001aef"
 ---
 
 **Refresh models** im Anbieterkatalog lädt die Liste erneut und behält Suche und Auswahl bei. Bei gespeicherten Organisationsmodellen werden stattdessen die gespeicherten Profile neu geladen. Aktualisieren speichert kein Modell und startet keinen Agenten. Endpoint, Vault-Schlüssel, API-Typ und Region erscheinen entsprechend den Fähigkeiten des Anbieters; persönliche Abonnements verwenden die Einstellungen ihres verbundenen Kontos.
@@ -1172,8 +1172,9 @@ Gespeicherte Browser-Anmeldungen stehen in einem kompakten Einstellungsbereich �
 
 ## Sprachen { #languages }
 
-Die Konsole spricht Englisch, Polnisch, Deutsch und Türkisch. Die erste Karte des
-Rundgangs bietet die vier an, und das Kontomenü wechselt die Sprache jederzeit;
+Die Konsole spricht Englisch, Polnisch, Deutsch, Türkisch, Französisch, Niederländisch und
+brasilianisches Portugiesisch. Die erste Karte des Rundgangs bietet alle sieben an, und das
+Kontomenü wechselt die Sprache jederzeit;
 die Wahl wird in Ihrem
 Konto gespeichert, sodass die Konsole auf jedem Gerät, auf dem Sie sich anmelden,
 in ihr öffnet. Sie können auch einen Agent bitten - "auf Englisch umstellen" -, und
