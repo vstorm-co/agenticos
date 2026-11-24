@@ -568,6 +568,15 @@ class BaseFileStorage(ABC):
         """Save file and return storage path/key."""
 
     @abstractmethod
+    async def save_stream(self, user_id: str, filename: str, source: BinaryIO) -> str:
+        """Save a seekable stream without loading the complete object into memory.
+
+        Reads from the current position. The caller keeps ownership of `source`
+        and must keep it open until this method completes, including cancellation
+        cleanup. Returns the same opaque storage path as `save`.
+        """
+
+    @abstractmethod
     async def load(self, storage_path: str) -> bytes:
         """Load file bytes by storage path."""
 
@@ -751,6 +760,31 @@ class LocalFileStorage(BaseFileStorage):
         await write_bytes_cancel_safe(file_path, data)
         return f"{safe_user}/{storage_name}"
 
+    async def save_stream(self, user_id: str, filename: str, source: BinaryIO) -> str:
+        safe_owner = _sanitize_filename(user_id)
+        path = f"{safe_owner}/{make_storage_filename(filename)}"
+        destination = self._resolve_safe_path(path)
+        await create_cancel_safe(
+            self._copy_stream_blocking,
+            partial(destination.unlink, missing_ok=True),
+            destination,
+            source,
+        )
+        return path
+
+    @staticmethod
+    def _copy_stream_blocking(destination: Path, source: BinaryIO) -> None:
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        created = False
+        try:
+            with destination.open("xb") as target:
+                created = True
+                shutil.copyfileobj(source, target, length=STREAM_CHUNK_BYTES)
+        except BaseException:
+            if created:
+                destination.unlink(missing_ok=True)
+            raise
+
     async def save_at(self, storage_path: str, data: bytes) -> None:
         file_path = self._resolve_safe_path(storage_path)
         await run_blocking(self._write_at_blocking, file_path, data)
@@ -842,6 +876,28 @@ class LocalFileStorage(BaseFileStorage):
         return file_path if file_path.exists() else None
 
 
+class _BorrowedUploadStream:
+    """The S3 transfer may close its handle, while the caller owns the source."""
+
+    def __init__(self, source: BinaryIO) -> None:
+        self.source = source
+
+    def read(self, size: int = -1) -> bytes:
+        return self.source.read(size)
+
+    def seek(self, offset: int, whence: int = 0) -> int:
+        return self.source.seek(offset, whence)
+
+    def tell(self) -> int:
+        return self.source.tell()
+
+    def seekable(self) -> bool:
+        return self.source.seekable()
+
+    def close(self) -> None:
+        """Release only the borrowed handle; the original stream remains owned."""
+
+
 class S3FileStorage(BaseFileStorage):
     """Store files in an S3-compatible object store, encrypted by the store.
 
@@ -923,6 +979,27 @@ class S3FileStorage(BaseFileStorage):
         # somebody goes looking (#1108's failure in a bucket).
         await create_cancel_safe(self._put_blocking, partial(self._delete_blocking, key), key, data)
         return storage_path
+
+    async def save_stream(self, user_id: str, filename: str, source: BinaryIO) -> str:
+        path = f"{_sanitize_filename(user_id)}/{make_storage_filename(filename)}"
+        key = self._key(path)
+        await create_cancel_safe(
+            self._upload_stream_blocking, partial(self._delete_blocking, key), key, source
+        )
+        return path
+
+    def _upload_stream_blocking(self, key: str, source: BinaryIO) -> None:
+        from boto3.s3.transfer import TransferConfig
+
+        # s3transfer owns/closes its input wrapper. It must not take ownership
+        # of the caller's temporary archive, which is reused for verification.
+        self.client.upload_fileobj(
+            _BorrowedUploadStream(source),
+            self.bucket,
+            key,
+            ExtraArgs=self._encryption(),
+            Config=TransferConfig(use_threads=False, multipart_chunksize=8 * 1024 * 1024),
+        )
 
     def _put_blocking(self, key: str, data: bytes) -> None:
         self.client.put_object(Bucket=self.bucket, Key=key, Body=data, **self._encryption())

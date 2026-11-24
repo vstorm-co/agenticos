@@ -23,6 +23,15 @@ references, creates a new draft and removes deployment bindings. Neither is a
 complete, selectable dependency bundle. Workflow portability currently removes
 required-ID objects, which can also remove an embedded agent's MCP policies.
 
+## Implementation status
+
+The versioned manifest, bounded archive reader, exact reference mapper and
+schema-owned agent reference inventory are implemented as internal contracts.
+They have focused regression coverage. Storage now supports seekable streamed
+uploads on local files and S3, including a real MinIO multipart round trip.
+The complete selection/import UI, resource adapters, durable transfer operations
+and runtime separation below are still implementation work, not shipped behavior.
+
 ## Invariants
 
 1. Project files have one authoritative, versioned store independent of any
@@ -73,6 +82,33 @@ consume narrow file/execution contracts, not provider clients.
 - Coding agents, Apps and background tasks receive the selected file namespace
   and command target explicitly; they must not infer both from one workspace.
 
+### Canonical file boundary
+
+Use project file metadata and immutable content objects through the existing
+file-storage service. A project file row owns its normalized path, generation,
+revision, media type, length and digest; the storage object is not a runtime path.
+List directories with bounded queries rather than loading an entire StateBackend
+JSON document. File revisions are activated transactionally after content is
+written and verified; cancelled/failed writes own cleanup of staging objects.
+
+Keep logical paths separate from storage keys and execution paths. The existing
+project path rules and reserved platform namespace remain enforced at the service
+boundary. A binary checkout copies exact bytes. Text preview is bounded and must
+not silently start paid OCR or model calls for an unsupported source document.
+
+### Tool ownership
+
+Expose project discovery, selection and file operations independently of shell
+availability through an explicit project capability. Built-in agents enable it;
+custom agents retain author control. Platform MCP and console operations call
+the same project services. Conversation-associated project context still follows
+its existing access contract; adding a capability grants no additional resources.
+
+Project instructions and linked-resource summaries are separate from the agent's
+own immutable spec. A resource linked to a project still requires its own access
+check. Selecting a project does not lend the default agent's private KBs, switch
+the acting agent or turn every linked workflow into an executable tool.
+
 ### Working copies and concurrent edits
 
 A checkout records project generation, file revisions and content digests. Only
@@ -84,6 +120,14 @@ Conflicts return the changed paths and retain the working copy; they do not
 silently overwrite newer files. A build can publish artifacts without returning
 its dependency directory. Transfer/revocation invalidates stale checkout handles.
 No background bidirectional directory synchronization is implied.
+
+A checkout also checks the runtime's audience. An agent-scoped sandbox shared
+by unrelated users cannot receive a private project's files merely because the
+current sender can read them. Use an appropriately isolated runtime with the
+agent's configured toolchain, or refuse the transfer with a clear target choice;
+a directory prefix inside a shared sandbox is not isolation. Recheck managed
+checkout authority before subsequent transfer/publish operations and clean up
+platform-owned working copies when they are retired.
 
 Commands may modify their sandbox. Checkout/upload success and command exit
 status are separate outcomes. A timed-out command is not automatically replayed.
@@ -106,6 +150,11 @@ unrelated work in the agents' own runtimes.
 Project selection must work even without an initially opened agent sandbox:
 selection/file access is a project operation, not a side effect of constructing
 an executable workspace. This closes the current coupling in runner setup.
+
+Project selection and command-target selection are separate, structured tool
+calls. Do not parse project names or execution targets out of user prose with
+regular expressions; the model selects a returned project ID and the application
+validates it. Missing capability/access/runtime is an explicit result.
 
 The acting principal is the linked sender, not the bot owner or the previous
 sender. Persist context in the run/checkpoint for approval continuation. A fresh
@@ -244,6 +293,13 @@ operation-owned resource set. Replays reuse that operation's map. Shared/reused
 resources are never removed by rollback. Large file imports expose staging,
 creating, failed/partial and ready states; partial content is never reported as
 complete. Activation/publication remains a separate action after review.
+
+Pinned delegate versions need a staged activation map: an imported delegate
+starts as a draft, so it has no newly published version to substitute. Preserve
+the pending binding and its policy until the user reviews/publishes that delegate
+and selects the resulting version. Never invent a version UUID or silently
+retarget the pin to a different live version. Skill main/fork snapshots likewise
+record the exact effective source content and their destination version map.
 
 The result lists reused, created, skipped, blocked and failed resources, plus
 reconnection/re-indexing steps. Audit records use IDs, counts and digests, not

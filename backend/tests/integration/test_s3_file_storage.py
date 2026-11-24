@@ -23,6 +23,7 @@ held by `tests/test_file_storage_s3.py::TestEveryWriteAsksForEncryption`.
 import os
 import uuid
 from collections.abc import Iterator
+from io import BytesIO
 
 import pytest
 
@@ -152,3 +153,18 @@ async def test_the_object_lands_under_the_configured_prefix(
         for item in _client().list_objects_v2(Bucket=bucket).get("Contents", [])  # type: ignore[attr-defined]
     ]
     assert f"deployment/{stored}" in keys
+
+
+@pytest.mark.parametrize("size", [31, 9 * 1024 * 1024])
+async def test_seekable_bundle_upload_works_for_single_and_multipart_objects(
+    storage: S3FileStorage, size: int
+) -> None:
+    data = b"x" * size
+    source = BytesIO(b"skip" + data)
+    source.seek(4)
+    path = await storage.save_stream("bundle-owner", "resources.zip", source)
+    assert not source.closed
+    assert await storage.size(path) == size
+    assert await storage.load(path) == data
+    await storage.delete(path)
+    assert not await storage.exists(path)
