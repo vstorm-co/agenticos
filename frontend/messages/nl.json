@@ -8936,7 +8936,7 @@
       "address": "Adres",
       "agentsNameNoConnection": "Agents die geen koppeling noemen, draaien hier. Er kan er maar één deze rol hebben.",
       "cancel": "Annuleren",
-      "credential": "Referentie",
+      "credential": "Inloggegevens",
       "daytonaKeyHint": "Je Daytona-API-sleutel. Sandboxes worden gefactureerd aan het account waartoe hij behoort.",
       "daytonaSnapshotImageWhat": "Een Daytona-snapshot of -image. Wat die toestaat, is een accountinstelling aan hun kant, dus er is geen lijst om aan te bieden.",
       "defaultRuntime": "Standaardruntime",
@@ -8955,15 +8955,15 @@
       "secretNameDocker": "Token van de sandboxservice",
       "serviceSOwn": "die van de service zelf",
       "switchedOn": "Ingeschakeld",
-      "turningOffRefusesNew": "Uitschakelen weigert hier nieuwe sandboxes zonder het verslag te verwijderen van wat agents erop deden.",
+      "turningOffRefusesNew": "Als je dit uitschakelt, worden hier geen nieuwe sandboxes meer gestart, zonder het verslag te verwijderen van wat agents erop deden.",
       "useByDefault": "Standaard gebruiken",
       "whatAgentAuthorsWill": "Wat auteurs van agents zien wanneer ze een host kiezen.",
       "whereOrganizationAposS": "Waar de agents van deze organisatie shellcommando's uitvoeren en bestanden bewaren.",
       "whereSandboxServiceAnswers": "Hij beheert de Docker-socket, dus hij mag niet bereikbaar zijn van buiten je netwerk.",
-      "willUseDeploymentToken": "Leeg gelaten wordt het token waarmee de eigen sandboxservice van deze installatie werd gestart, in de vault opgeslagen en gebruikt.",
+      "willUseDeploymentToken": "Als je dit leeg laat, wordt het token waarmee de eigen sandboxservice van deze installatie werd gestart, in de vault opgeslagen en gebruikt.",
       "kindE2b": "E2B-cloud",
       "e2bKeyHint": "Een API-sleutel uit je E2B-dashboard. Sandboxes draaien op dat account en worden erop gefactureerd.",
-      "e2bTemplateWhat": "De naam van een E2B-template; leeg neemt de standaard van E2B. Gebruik desktop voor computergebruik.",
+      "e2bTemplateWhat": "De naam van een E2B-template; laat leeg voor de standaard van E2B. Gebruik desktop voor computergebruik.",
       "kindOpenSandbox": "OpenSandbox",
       "secretNameOpenSandbox": "OpenSandbox-API-sleutel",
       "openSandboxAddressHint": "De API-server die vanaf de backend bereikbaar is. Verzoeken gebruiken de geauthenticeerde serverproxy ervan.",
@@ -8988,7 +8988,7 @@
     "noAgentHoldingFile": "Nog geen enkele agent bewaart een bestand.",
     "noAgentHoldingFileWhy": "Een agent met de Sandbox-capability bewaart hier de bestanden die hij schrijft, zolang het gesprek bestaat waartoe ze horen.",
     "openAgents": "Je agents openen",
-    "noFileMatches": "Geen bestand komt overeen met die zoekopdracht.",
+    "noFileMatches": "Geen bestanden gevonden voor die zoekopdracht.",
     "nothingRecordedYet": "Nog niets vastgelegd voor <id>{session}</id>.",
     "nothingRunningSandboxOpens": "Er draait niets. Een sandbox opent bij de eerste bestands- of shellaanroep van een agent, dus een agent die er een heeft en hem nooit gebruikt, kost hier niets.",
     "open": "Openen",
@@ -9005,7 +9005,7 @@
       "network": "Netwerk",
       "notKept": "Verwijderd",
       "perOrganization": "Sandboxes per organisatie",
-      "readFromServiceItself": "Gelezen van de service en alleen daar te wijzigen - in zijn eigen omgeving, waar je compose-bestand hem start. Er is bewust geen endpoint om deze te schrijven: een applicatie die het proces met de Docker-socket kan herconfigureren, zou de host bezitten.",
+      "readFromServiceItself": "Gelezen van de service en alleen daar te wijzigen - in zijn eigen omgeving, waar je compose-bestand hem start. Er is bewust geen endpoint om deze te schrijven: een applicatie die het proces met de Docker-socket kan herconfigureren, zou de host in handen hebben.",
       "runtimesHeading": "Runtimes waarom een agent mag vragen",
       "sandboxdIdleTimeout": "SANDBOXD_IDLE_TIMEOUT",
       "sandboxdMaxSessionsPer": "SANDBOXD_MAX_SESSIONS_PER_TENANT",
@@ -9057,9 +9057,9 @@
       "idle": "Inactief",
       "memory": "Geheugen",
       "noContainerConnection": "Geen containerkoppeling geregistreerd",
-      "noContainerConnectionHint": "Wat er draait, kan alleen vanuit een containerservice worden opgesomd. Registreer er een onder Koppelingen; Daytona-sandboxes worden beheerd op het Daytona-account waaraan ze worden gefactureerd.",
-      "noOperationMatches": "Geen bewerking komt daarmee overeen.",
-      "noSessionMatches": "Geen actieve sandbox komt daarmee overeen.",
+      "noContainerConnectionHint": "Wat er draait, kan alleen vanuit een containerservice worden weergegeven. Registreer er een onder Koppelingen; Daytona-sandboxes worden beheerd op het Daytona-account waaraan ze worden gefactureerd.",
+      "noOperationMatches": "Geen bewerkingen gevonden.",
+      "noSessionMatches": "Geen actieve sandboxes gevonden.",
       "nothingRunningSandboxOpens": "Geen actieve sandboxes",
       "ok": "Geslaagd",
       "operation": "Bewerking",
@@ -9082,13 +9082,13 @@
       "show": "Tonen",
       "state": "Toestand",
       "stateHibernatedMeans": "Gestopt om een plek vrij te maken. De bestanden en het log zijn er nog, en het volgende verzoek wekt hem.",
-      "stateRunningMeans": "De container bestaat en is resident.",
+      "stateRunningMeans": "De container bestaat en staat in het geheugen.",
       "target": "Doel",
-      "whatIsRecorded": "Elke bewerking die deze sandbox moest uitvoeren - het commando, het pad, welke agent het vroeg, of het werkte en hoe lang het duurde. 30 dagen bewaard, dus het antwoordt nog nadat de sandbox weg is. Nooit de inhoud van een bestand en nooit de uitvoer van een commando, en daardoor is dit een audit en geen manier om het werk van een agent te lezen.",
+      "whatIsRecorded": "Elke bewerking die deze sandbox moest uitvoeren - het commando, het pad, welke agent het vroeg, of het werkte en hoe lang het duurde. 30 dagen bewaard, dus het is nog te raadplegen nadat de sandbox weg is. Nooit de inhoud van een bestand en nooit de uitvoer van een commando, en daardoor is dit een audit en geen manier om het werk van een agent te lezen.",
       "whatSessionsAre": "Eén rij is één workspace op één host. Een sessie opent bij de eerste toolaanroep van een agent, niet wanneer een chat start, en wordt opgeruimd zodra ze lang genoeg inactief is. Wordt elke 10 seconden vernieuwd.",
       "when": "Wanneer"
     },
-    "someUnreadable": "{count} konden niet worden gelezen; hun host is misschien down.",
+    "someUnreadable": "{count} konden niet worden gelezen; hun host is misschien offline.",
     "sortByAgent": "Op agent",
     "sortByModified": "Op wijzigingsdatum",
     "sortByName": "Op naam",
@@ -9098,7 +9098,7 @@
       "actions": "Acties",
       "address": "Adres",
       "containerService": "Containerservice",
-      "credential": "Referentie",
+      "credential": "Inloggegevens",
       "daytonaCloud": "Daytona-cloud",
       "default": "Standaard",
       "defaultRuntime": "Standaardruntime",
@@ -9112,7 +9112,7 @@
       "whatNamedAllows": "Wat {name} toestaat",
       "e2bCloud": "E2B-cloud"
     },
-    "turningOffRefusesNew": "Uitschakelen weigert hier nieuwe sandboxes zonder het verslag te verwijderen van wat agents erop deden.",
+    "turningOffRefusesNew": "Als je dit uitschakelt, worden hier geen nieuwe sandboxes meer gestart, zonder het verslag te verwijderen van wat agents erop deden.",
     "whatAgentAuthorsWill": "Wat auteurs van agents zien wanneer ze een host kiezen.",
     "whatAllows": "Wat hij toestaat",
     "whereOrganizationAposS": "Waar de agents van deze organisatie shellcommando's uitvoeren en bestanden bewaren. Het token wordt in de vault opgeslagen en nooit meer getoond.",
@@ -9133,8 +9133,8 @@
       "host": "op de host",
       "lastUsed": "Laatst gebruikt",
       "listingTruncated": "Dit zijn niet alle bestanden. Een host lezen kost één rondgang per map, dus de lijst stopt op zes niveaus diep en 2.000 vermeldingen.",
-      "noMatches": "Niets in deze workspace komt overeen met “{query}”.",
-      "nothingListed": "Hier kon niets worden opgesomd.",
+      "noMatches": "Niets gevonden in deze workspace voor “{query}”.",
+      "nothingListed": "Hier kon niets worden weergegeven.",
       "open": "Openen",
       "owner": "Eigenaar",
       "pickAFile": "Kies een bestand om het hier te lezen.",
@@ -13529,10 +13529,10 @@
   "capabilityGuide": {
     "artifacts": {
       "name": "Apps",
-      "does": "Laat de agent een afgewerkte app publiceren - een rapport, een klein dashboard - onder een link die mensen in een browser openen.",
+      "does": "Laat de agent een afgeronde app publiceren - een rapport, een klein dashboard - onder een link die mensen in een browser openen.",
       "example1": "Een pagina met een wekelijkse verkoopsamenvatting",
       "example2": "Een projectbriefing van één pagina om met een klant te delen",
-      "needs": "Niets extra.",
+      "needs": "Verder niets nodig.",
       "never": "Deelt nooit zelf een app: die blijft privé voor de persoon tot die hem deelt."
     },
     "ask_user": {
@@ -13540,7 +13540,7 @@
       "does": "Laat de agent een paar meerkeuzevragen stellen in plaats van te gokken.",
       "example1": "Formele of informele toon?",
       "example2": "Welk van deze drie bestanden moet ik gebruiken?",
-      "needs": "Niets extra.",
+      "needs": "Verder niets nodig.",
       "never": "Antwoordt nooit in de plaats van de persoon. In Slack of Telegram wacht hij op hun antwoord."
     },
     "browser_use": {
@@ -13556,7 +13556,7 @@
       "does": "Laat de agent in Slack, Telegram of Mattermost zien wie er in het kanaal zit, waarvoor het dient en wat er eerder werd gezegd.",
       "example1": "Een thread bijlezen voordat hij antwoordt",
       "example2": "De juiste persoon vermelden in een antwoord",
-      "needs": "Een bot in dat kanaal. Het wordt per bot ingeschakeld, onder waar de agent beschikbaar is.",
+      "needs": "Een bot in dat kanaal. Dit wordt per bot ingeschakeld, bij de plekken waar de agent beschikbaar is.",
       "never": "Leest nooit een kanaal waaraan zijn bot niet is toegevoegd."
     },
     "charts": {
@@ -13564,7 +13564,7 @@
       "does": "Tekent een grafiek in het gesprek, zodat mensen de cijfers zien in plaats van ze te lezen.",
       "example1": "Verkoop deze maand per regio, als staven",
       "example2": "Supporttickets per week, als lijn",
-      "needs": "Niets extra.",
+      "needs": "Verder niets nodig.",
       "never": "Wijzigt nooit de gegevens die hij tekent."
     },
     "clock": {
@@ -13572,7 +13572,7 @@
       "does": "Vertelt de agent de datum en tijd van vandaag, zodat hij niet gokt.",
       "example1": "Wat moet deze week klaar zijn?",
       "example2": "Hoeveel dagen nog tot de deadline?",
-      "needs": "Niets extra.",
+      "needs": "Verder niets nodig.",
       "never": "Voegt geen tools toe; vertelt de agent alleen hoe laat het is."
     },
     "code_execution": {
@@ -13580,7 +13580,7 @@
       "does": "Laat de agent getallen uitrekenen met een kort Python-programma in plaats van ze te schatten.",
       "example1": "Een kolom cijfers optellen die iemand plakte",
       "example2": "Twee leningsaanbiedingen maand per maand vergelijken",
-      "needs": "Niets extra.",
+      "needs": "Verder niets nodig.",
       "never": "Bewaart niets tussen berichten en kan het internet niet bereiken. Gebruik de Sandbox voor bestanden die blijven."
     },
     "coding_agent": {
@@ -13589,13 +13589,13 @@
       "example1": "Een falende test herstellen in een repository die de agent heeft gekloond",
       "example2": "Uitleggen hoe een module werkt, alleen lezen",
       "needs": "Voor een sandbox: de Sandbox-capability, een koppeling en een providersleutel of login in de vault. Op deze computer: de desktop-app, een ingelogde coding-agent en een goedgekeurde map met volledige toegang.",
-      "never": "Lokale taken vereisen toegang tot een map met volledige toegang en bevestiging van het systeem bij het starten. Zet Menselijke goedkeuring op Altijd vragen om ook elke taak in de chat goed te keuren."
+      "never": "Lokale taken vereisen een map met volledige toegang en bevestiging van het systeem bij het starten. Zet Menselijke goedkeuring op Altijd vragen om ook elke taak in de chat goed te keuren."
     },
     "compaction": {
       "name": "Lange gesprekken",
       "does": "Kort het oudste deel van een lang gesprek in zodat de agent kan doorgaan in plaats van tegen de limiet van het model te lopen.",
       "example1": "Een werksessie die de hele dag duurt in één chat",
-      "needs": "Niets extra.",
+      "needs": "Verder niets nodig.",
       "never": "Verwijdert het gesprek nooit: mensen zien nog steeds alles."
     },
     "context": {
@@ -13611,14 +13611,14 @@
       "does": "Laat de agent opzoeken wat er in eerdere gesprekken met dezelfde persoon werd gezegd.",
       "example1": "Wat hebben we vorige week besloten over de lanceringsdatum?",
       "example2": "Een taak oppakken waar de vorige chat ophield",
-      "needs": "Niets extra.",
+      "needs": "Verder niets nodig.",
       "never": "Leest nooit de gesprekken van iemand anders, en staat uit in groepschats."
     },
     "guardrails": {
       "name": "Guardrails",
       "does": "Verbergt wachtwoorden of persoonsgegevens, of stopt een run, wanneer een bericht of een antwoord overeenkomt met een regel die je instelt.",
       "example1": "Kaartnummers verwijderen voordat ze het model bereiken",
-      "example2": "De agent laten stoppen met praten over salarissen",
+      "example2": "Voorkomen dat de agent over salarissen praat",
       "needs": "Regels, ingesteld in dit paneel.",
       "never": "Wijzigt nooit iets waarmee geen regel overeenkomt."
     },
@@ -13639,10 +13639,10 @@
       "never": "Doorzoekt nooit een kennisbank waaraan deze agent niet is gekoppeld."
     },
     "media": {
-      "name": "Media uitbesteden",
+      "name": "Media apart opslaan",
       "does": "Haalt afbeeldingen uit de geschiedenis van een lang gesprek, zodat die klein blijft en goedkoper om te versturen.",
       "example1": "Lange chats met veel screenshots",
-      "needs": "Niets extra.",
+      "needs": "Verder niets nodig.",
       "never": "Verwijdert nooit een afbeelding."
     },
     "memory_files": {
@@ -13650,14 +13650,14 @@
       "does": "Laat de agent notities bijhouden van het ene gesprek naar het volgende, zodat hij niet bij nul begint.",
       "example1": "Onthouden in welk team iemand zit en waaraan die werkt",
       "example2": "Een lopende lijst met open vragen bijhouden",
-      "needs": "Niets extra.",
+      "needs": "Verder niets nodig.",
       "never": "Toont nooit de notities van de ene persoon aan een andere. In een groepschat horen de notities bij de chat."
     },
     "planning": {
       "name": "Planning",
       "does": "Laat de agent een checklist schrijven voor een grotere taak en elke stap afvinken, zodat de persoon de voortgang ziet.",
       "example1": "Een maandrapport voorbereiden in vijf zichtbare stappen",
-      "needs": "Niets extra.",
+      "needs": "Verder niets nodig.",
       "never": "Geeft de agent nooit het recht om iets te doen; een plan is alleen een lijst."
     },
     "background_tools": {
@@ -13687,7 +13687,7 @@
     "subagents": {
       "name": "Subagents",
       "does": "Laat de agent een deel van een taak aan een andere agent geven en diens antwoord gebruiken.",
-      "example1": "Een onthaalagent die juridische vragen doorgeeft aan de juridische agent",
+      "example1": "Een eerstelijnsagent die juridische vragen doorgeeft aan de juridische agent",
       "example2": "Meerdere onderwerpen naast elkaar onderzoeken",
       "needs": "Andere agents, of specialisten gedefinieerd in dit paneel. Elke overdracht kost wat de run van die agent kost.",
       "never": "Geeft een andere agent nooit meer toegang dan die al heeft."
@@ -13696,7 +13696,7 @@
       "name": "Herinneringen aan instructies",
       "does": "Herhaalt de belangrijkste instructies van de agent tijdens een lange taak, zodat hij er niet van afdwaalt.",
       "example1": "Een lange onderzoekstaak die het gevraagde formaat moet aanhouden",
-      "needs": "Niets extra.",
+      "needs": "Verder niets nodig.",
       "never": "Voegt geen tools toe; herhaalt alleen de instructies."
     },
     "thinking": {
@@ -13711,14 +13711,14 @@
       "name": "Limieten voor tooluitvoer",
       "does": "Kort een heel groot toolresultaat in, zodat het niet bij elk bericht opnieuw naar het model wordt gestuurd.",
       "example1": "Een zoekopdracht die een enorm spreadsheet teruggeeft",
-      "needs": "Niets extra.",
+      "needs": "Verder niets nodig.",
       "never": "Wijzigt de gegevens zelf nooit, alleen hoeveel ervan het model in één keer leest."
     },
     "tool_search": {
-      "name": "Tool search",
+      "name": "Tools zoeken",
       "does": "Laat een agent met veel tools de juiste vinden wanneer hij die nodig heeft, in plaats van ze elke keer allemaal te lezen.",
       "example1": "Een agent met veel ingeschakelde capabilities en gekoppelde MCP-servers",
-      "needs": "Niets extra.",
+      "needs": "Verder niets nodig.",
       "never": "Voegt nooit een tool toe; verbergt alleen tools tot de agent er een zoekt."
     },
     "web_fetch": {
@@ -13726,7 +13726,7 @@
       "does": "Laat de agent een link openen en de pagina lezen.",
       "example1": "Een artikel samenvatten dat iemand plakte",
       "example2": "De prijspagina van een provider lezen",
-      "needs": "Niets extra.",
+      "needs": "Verder niets nodig.",
       "never": "Logt nooit in en vult nooit een formulier in; leest alleen."
     },
     "web_research": {
@@ -13742,7 +13742,7 @@
       "does": "Tekent in het gesprek - een diagram, een architectuurkaart, een uitleg met schuifregelaars, een 3D-scène - live terwijl de agent het schrijft. Een tekening kan als app worden opgeslagen.",
       "example1": "Onze bestelstroom als diagram",
       "example2": "Een 3D-model van het magazijn dat je kunt draaien",
-      "needs": "Niets extra. De skill visual-design zorgt dat de tekeningen er ontworpen uitzien.",
+      "needs": "Verder niets nodig. De skill visual-design zorgt dat de tekeningen er ontworpen uitzien.",
       "never": "Bereikt nooit het netwerk - een tekening draait afgeschermd, net als de pagina van een app."
     },
     "workflows": {
@@ -13770,11 +13770,11 @@
       "never": "Plaatst nooit ergens een video; die verschijnt in het gesprek."
     },
     "follow_ups": {
-      "name": "Opvolgingen",
+      "name": "Follow-ups",
       "does": "Biedt tot drie volgende stappen aan als knoppen onder een antwoord, zodat wat je hierna vraagt één klik verwijderd is.",
       "example1": "Maak hier een tabel van",
       "example2": "Doe dit elke maandag om 9:00",
-      "needs": "Niets extra. De knoppen verschijnen in de webchat, de widget en de gehoste pagina.",
+      "needs": "Verder niets nodig. De knoppen verschijnen in de webchat, de widget en de gehoste pagina.",
       "never": "Verstuurt nooit uit zichzelf iets - een stap gaat pas uit als iemand erop klikt."
     },
     "computer_use": {
@@ -13783,11 +13783,11 @@
       "example1": "Een formulier invullen in een desktopapplicatie",
       "example2": "Een rapport exporteren uit een verouderde tool zonder API",
       "needs": "Een desktop in de eigen sandbox van de agent (de Sandbox-capability op de runtime 'desktop'), of een desktop die een beheerder met computerd draait op een Linux-desktop of een Mac, met het token ervan in de vault van de organisatie. Elke stap is één modelverzoek met een screenshot.",
-      "never": "Handelt nooit zonder goedkeuring tenzij dat is uitgeschakeld, volgt nooit instructies die op het scherm staan, en stopt om te vragen voor wachtwoorden of betalingen."
+      "never": "Handelt nooit zonder goedkeuring tenzij dat is uitgeschakeld, volgt nooit instructies die op het scherm staan, en stopt om te vragen vóór wachtwoorden of betalingen."
     },
     "phone_calls": {
       "name": "Telefoongesprekken",
-      "does": "Belt je geverifieerde nummer dat zich heeft aangemeld, leest een gesproken rapport voor, of verbindt dit live gesprek door naar een toegestaan contact.",
+      "does": "Belt je geverifieerde nummer als je daarvoor hebt gekozen, leest een gesproken rapport voor, of verbindt dit live gesprek door naar een toegestaan contact.",
       "example1": "Lees mijn ochtendrapport voor via de telefoon",
       "example2": "Een openbaar supportgesprek doorgeven aan een collega die zich heeft aangemeld",
       "needs": "Een ingesteld Twilio-telefoonendpoint; aparte toestemming van het contact, beschikbaar budget en een tijdstip buiten de stille uren.",
@@ -13795,11 +13795,11 @@
     },
     "monitor": {
       "name": "Een commando volgen",
-      "does": "Start een langlopend commando - een testwatcher, een log tail, een CI-poll - en vertelt de agent over nieuwe uitvoer zodra die verschijnt, zodat hij niet hoeft te pollen.",
+      "does": "Start een langlopend commando - een testwatcher, het volgen van een log, een CI-poll - en vertelt de agent over nieuwe uitvoer zodra die verschijnt, zodat hij niet hoeft te pollen.",
       "example1": "De testwatcher draaien en elke fout herstellen zodra die verschijnt",
       "example2": "Een deploylog volgen en de eerste fout melden",
       "needs": "Een workspace met een shell, zoals de Sandbox-capability of een map op je computer.",
-      "never": "Houdt nooit een commando draaiend nadat de beurt eindigt: elke bewaking stopt met de run."
+      "never": "Houdt nooit een commando draaiend nadat de beurt eindigt: elk gevolgd commando stopt met de run."
     },
     "background_tasks": {
       "name": "Achtergrondonderwerpen",
@@ -13813,17 +13813,17 @@
       "does": "Toont tekst die de agent voor jou schrijft om te versturen - een e-mail, een chatantwoord, een bericht - als een kaart met een kopieerknop bij elk deel.",
       "example1": "Antwoord aan Marta over de Q4-presentatie",
       "example2": "Twee versies van een aankondiging in Slack",
-      "needs": "Niets extra. De kaart verschijnt in de webchat.",
+      "needs": "Verder niets nodig. De kaart verschijnt in de webchat.",
       "never": "Verstuurt nooit iets - jij kopieert de tekst en verstuurt hem zelf."
     },
     "mirage": {
       "name": "Mirage (virtuele terminal)",
-      "does": "Koppelt de services die je kiest - een Drive, een GitHub-repository, Notion, een database, een SSH-server - als mappen, zodat de agent ze met een shell opsomt, doorzoekt en leest, en schrijft waar je het toestaat.",
+      "does": "Koppelt de services die je kiest - een Drive, een GitHub-repository, Notion, een database, een SSH-server - als mappen, zodat de agent er met een shell de inhoud van bekijkt, ze doorzoekt en leest, en schrijft waar je het toestaat.",
       "example1": "Elk contract in een Drive-map vinden dat een klant vermeldt",
       "example2": "Een repository en een Notion-workspace in één keer doorzoeken",
       "example3": "Een tabel uit je database lezen en samenvatten",
       "needs": "De inloggegevens van de services in de vault, of een gekoppeld Google-account. Een installatie installeert de terminal met de extra mirage, en een operator staat de hosts toe van elke server die je typt.",
-      "never": "Schrijft nooit naar een map die je alleen-lezen hebt gekoppeld, en vraagt een persoon voor elke schrijfactie waar je dat hebt aangegeven."
+      "never": "Schrijft nooit naar een map die je alleen-lezen hebt gekoppeld, en vraagt een persoon vóór elke schrijfactie waar je dat hebt aangegeven."
     },
     "channel_actions": {
       "name": "Gekoppelde chat-apps",
@@ -16563,7 +16563,7 @@
   "authoring": {
     "strip": {
       "title": "Suggesties",
-      "chip": "{count, plural, =1 {1 suggestie} other {# suggesties}} · op basis van {ratedDown, plural, =1 {1 negatief beoordeeld antwoord} other {# negatief beoordeelde antwoorden}} over {runs, plural, =1 {1 run} other {# runs}}",
+      "chip": "{count, plural, =1 {1 suggestie} other {# suggesties}} · op basis van {ratedDown, plural, =1 {1 negatief beoordeeld antwoord} other {# negatief beoordeelde antwoorden}} in {runs, plural, =1 {1 run} other {# runs}}",
       "check": "Controleren met evals",
       "dismissAll": "Alles verwerpen",
       "verifyReport": "Wat de assistent van je bewerkingen vond",
@@ -16615,8 +16615,8 @@
       "unset": "Niet ingesteld",
       "adds": "Voegt toe",
       "removes": "Verwijdert",
-      "cost": "Een run kost nu ongeveer ${before} en ${after} op het voorgestelde model, geprijsd op basis van {runs, plural, =1 {1 recente run} other {# recente runs}}.",
-      "unpriced": "Wat een run zou kosten, kan voor een van deze modellen niet worden geprijsd.",
+      "cost": "Een run kost nu ongeveer ${before} en ${after} op het voorgestelde model, geschat op basis van {runs, plural, =1 {1 recente run} other {# recente runs}}.",
+      "unpriced": "Voor een van deze modellen kan niet worden bepaald wat een run zou kosten.",
       "rough": "Een ruwe schatting, op basis van {runs, plural, =0 {geen runs} =1 {1 run} other {# runs}}.",
       "writes": "Bereikt tools die dingen wijzigen: {tools}. Een eval houdt ze tegen, dus een controle meet niet wat ze doen.",
       "expects": "Verwacht: {effect}",
@@ -16633,7 +16633,7 @@
         "collection": "kennisbank “{name}”",
         "context": "contextbestand “{name}”",
         "mcpTools": "{count, plural, =0 {elke tool van {server}} =1 {tool {tools} van {server}} other {tools {tools} van {server}}}, met goedkeuring waar ze schrijven",
-        "keeps": "Waar de server om niets vroeg, laat accepteren elke tool ervan die schrijft om goedkeuring vragen - niet alleen de toegevoegde. Ongedaan maken zet de tools terug en laat ze om goedkeuring blijven vragen."
+        "keeps": "Als de server nergens om goedkeuring vroeg, vraagt na het accepteren elke tool van die server die schrijft om goedkeuring - niet alleen de toegevoegde. Ongedaan maken zet de tools terug en laat ze om goedkeuring blijven vragen."
       },
       "skillBody": "Instructies van de skill",
       "skillDescription": "Beschrijving van de skill",
@@ -16657,7 +16657,7 @@
     },
     "checkResult": {
       "running": "Controleren op {name}…",
-      "ended": "De controle op {name} {status, select, cancelled {werd gestopt} budget_exceeded {kwam zonder budget} other {mislukte}} voordat er een oordeel was.",
+      "ended": "De controle op {name} {status, select, cancelled {werd gestopt} budget_exceeded {overschreed het budget} other {mislukte}} voordat er een oordeel was.",
       "unread": "Kon deze controle niet lezen.",
       "unreadFindings": "Kon niet lezen wat de controle op {name} vond. Open de run, of probeer het opnieuw.",
       "suite": "{name} {status, select, passed {zou slagen} failed {zou mislukken} other {zou onbeslist zijn}}: {findings}",
@@ -16686,7 +16686,7 @@
         "title": "Je bewerkingen verifiëren",
         "body": "De assistent vergelijkt je concept met de gepubliceerde versie aan de hand van hetzelfde bewijs: wat de bewerkingen verbeteren, riskeren of weghalen."
       },
-      "quote": "Hij leest {runs, plural, =1 {1 run} other {# runs}}, waarvan {ratedDown} negatief beoordeeld, in {calls, plural, =1 {1 aanroep} other {# aanroepen}}, voor ongeveer {cost}.",
+      "quote": "De assistent leest {runs, plural, =1 {1 run} other {# runs}}, waarvan {ratedDown} negatief beoordeeld, in {calls, plural, =1 {1 aanroep} other {# aanroepen}}, voor ongeveer {cost}.",
       "reason": {
         "no_evidence": "Nog niets om van te leren: geen enkele run in de afgelopen 30 dagen is beoordeeld of mislukt.",
         "no_draft_change": "Het concept is gelijk aan de gepubliceerde versie, dus er valt niets te verifiëren."
@@ -16727,7 +16727,7 @@
     },
     "contextChanges": {
       "title": "Wijzigingen die de assistent voorstelde",
-      "waiting": "{count, plural, =1 {1 wijziging wacht} other {# wijzigingen wachten}}. Er een toepassen gaat meteen live voor elke agent die het bestand leest.",
+      "waiting": "{count, plural, =1 {1 wijziging wacht} other {# wijzigingen wachten}}. Een wijziging toepassen gaat meteen live voor elke agent die het bestand leest.",
       "stale": "Bestand sindsdien gewijzigd",
       "staleHint": "Iemand heeft dit bestand bewerkt nadat de wijziging werd voorgesteld. Vergelijk de twee en bewerk het bestand met de hand, of vraag het de assistent opnieuw.",
       "usedBy": "Gekoppeld aan {agents}",
@@ -16779,7 +16779,7 @@
         "unsupported": "Zei dat de bewerking ondersteund is, zonder bewijs dat kon worden gecontroleerd",
         "edit_not_in_diff": "De regel die het noemt, maakt geen deel uit van de bewerking",
         "superseded": "Een later gestart verzoek had de suggesties al vervangen",
-        "insufficient_evidence": "Minder dan drie verschillende antwoorden vroegen hierom, dus het is niet op zichzelf toegevoegd.",
+        "insufficient_evidence": "Minder dan drie verschillende antwoorden wezen hierop, dus het is niet op zichzelf toegevoegd.",
         "copies_skill": "Het kopieert een van de skills van de agent, die de agent al leest",
         "duplicates_skill": "De agent heeft al een skill met deze naam of tekst",
         "unknown_skill": "De agent heeft zo'n skill niet",
@@ -16837,14 +16837,14 @@
       "problems": "{count, plural, one {# probleemantwoord gevonden in het bronbewijs} other {# probleemantwoorden gevonden in het bronbewijs}}"
     },
     "newSkill": {
-      "title": "Het waard om een skill te maken",
+      "title": "Een skill maken is de moeite waard",
       "binding": "Accepteren maakt deze skill aan en koppelt hem aan het concept. Hij bevat uitgeschreven knowhow en geeft geen tools. Er wordt niets gepubliceerd.",
       "permission": "Je kunt dit voorstel reviewen en testen. De skill aanmaken vereist skills:edit."
     },
     "diff": {
       "added": "Toegevoegd:",
       "removed": "Verwijderd:",
-      "view": "Hoe de wijziging tonen",
+      "view": "Weergave van de wijziging",
       "unified": "Samengevoegd",
       "split": "Naast elkaar",
       "showUnchanged": "{count, plural, one {# ongewijzigde regel tonen} other {# ongewijzigde regels tonen}}"
@@ -18441,7 +18441,7 @@
     "checkWaiting": "De controle op de agents van de lijn is nog niet gestart.",
     "checkTitle": "Elke agent controleren",
     "resultTitle": "Hoe elke agent het deed",
-    "toAccept": "Beslissen wat te doen",
+    "toAccept": "Beslissen wat je doet",
     "acceptClosed": "Deze sessie is gesloten. Het resultaat blijft hier om te lezen.",
     "agents": {
       "hidden": "{count, plural, =0 {} =1 {Nog 1 agent die je niet kunt zien, werd gecontroleerd.} other {Nog # agents die je niet kunt zien, werden gecontroleerd.}}{unknown, plural, =0 {} =1 { Bij 1 ervan lukte dat niet.} other { Bij # ervan lukte dat niet.}}",
@@ -18458,7 +18458,7 @@
         "unknown": "Niet geverifieerd"
       },
       "fixedBroken": "{fixed, plural, =1 {Herstelt 1 vraag} other {Herstelt # vragen}}, {broken, plural, =1 {verslechtert 1} other {verslechtert #}}.",
-      "fixedBrokenUnconfirmed": "{fixed, plural, =1 {1 vraag leek hersteld} other {# vragen leken hersteld}} en {broken, plural, =1 {1 leek verslechterd} other {# leken verslechterd}}, maar opnieuw vragen bevestigde dat niet, dus de agent telt als geen verandering.",
+      "fixedBrokenUnconfirmed": "{fixed, plural, =1 {1 vraag leek hersteld} other {# vragen leken hersteld}} en {broken, plural, =1 {1 leek verslechterd} other {# leken verslechterd}}, maar toen ze opnieuw werden gesteld, werd dat niet bevestigd, dus de agent telt als geen verandering.",
       "unknown": {
         "no_questions": "Niet gecontroleerd: hij heeft geen testvragen waar hij de skill laadde, en de skill heeft er zelf geen.",
         "no_access": "Niet gecontroleerd: je mag deze agent niet uitvoeren.",
@@ -18498,7 +18498,7 @@
       "nothingLeft": "Niets slechters of onbekends om te bekijken",
       "onlyUnseen": "Alleen de nog niet bekeken",
       "search": "Een agent zoeken",
-      "noMatch": "Geen agent komt overeen.",
+      "noMatch": "Geen agents gevonden.",
       "group": {
         "worse": "Slechter ({count})",
         "unknown": "Onbekend ({count})",
@@ -18526,10 +18526,10 @@
       "warning": {
         "within_noise": "Sommige agents veranderden binnen de ruis van de test: het verschil kan toeval zijn."
       },
-      "forkLineOnly": "Op een fork kunnen de agents die slechter werden niet worden vastgezet of opnieuw geforkt: verbeter het verder of verwerp het.",
+      "forkLineOnly": "Op een fork kunnen de agents die slechter werden niet worden vastgezet of opnieuw geforkt: verbeter de wijziging verder of verwerp ze.",
       "acknowledge": "{count, plural, =1 {Ik weet dat 1 agent niet kon worden gecontroleerd{named, select, yes { ({names})} other {}}, en hij krijgt de wijziging toch.} other {Ik weet dat # agents niet konden worden gecontroleerd{named, select, yes { ({names})} other {}}, en ze krijgen de wijziging toch.}}",
       "apply": "Toepassen als de volgende versie van {line}",
-      "applyAndPin": "Toepassen, en {names} op hun huidige versie houden",
+      "applyAndPin": "Toepassen, en {names} op de huidige versie houden",
       "forkName": "Naam van de nieuwe fork",
       "fork": {
         "open": "Opslaan als fork…",
@@ -18558,11 +18558,11 @@
       "hidden": "{count, plural, =1 {Nog 1 agent die je niet kunt zien, gebruikt deze lijn.} other {Nog # agents die je niet kunt zien, gebruiken deze lijn.}}",
       "price": "Tot {cost} (schatting) tot het eerste voorstel; elke poging daarna ongeveer {perRound}, tot {rounds, plural, =1 {1 poging} other {# pogingen}}. De limiet van {limit} begrenst de hele sessie.",
       "limit": "Uitgavenlimiet voor de hele sessie (USD)",
-      "limitHint": "Ingevuld voor het eerste voorstel en elke poging die het kan doen. Verlaag ze om eerder te stoppen; de sessie stopt vóór een stap die erover zou gaan.",
+      "limitHint": "Vooraf ingevuld voor het eerste voorstel en elke poging die het kan doen. Verlaag de limiet om eerder te stoppen; de sessie stopt vóór een stap die erover zou gaan.",
       "belowEstimate": "De limiet ligt onder wat de sessie kost tot het eerste voorstel, {cost}. Verhoog ze tot minstens dat bedrag.",
       "unaffordable": "Het budget van de organisatie dekt dit niet.",
       "start": "Starten",
-      "reads": "{runs, plural, =1 {Ze leest 1 antwoord dat deze lijn laadde en negatief werd beoordeeld of mislukte.} other {Ze leest # antwoorden die deze lijn laadden en negatief werden beoordeeld of mislukten.}} {agents, plural, =1 {De lijn bedient 1 agent.} other {De lijn bedient # agents.}}",
+      "reads": "{runs, plural, =1 {De sessie leest 1 antwoord dat deze lijn laadde en negatief werd beoordeeld of mislukte.} other {De sessie leest # antwoorden die deze lijn laadden en negatief werden beoordeeld of mislukten.}} {agents, plural, =1 {De lijn bedient 1 agent.} other {De lijn bedient # agents.}}",
       "usageUnknown": "{count, plural, =1 {1 antwoord dateert van voordat het laden van skills werd vastgelegd en wordt niet gelezen.} other {# antwoorden dateren van voordat het laden van skills werd vastgelegd en worden niet gelezen.}}",
       "checkNamedLater": "Voordat de wijzigingen worden gecontroleerd, wordt elke agent waarop ze draaien genoemd, en de agents waarop ze niet kunnen draaien, met de reden.",
       "noEvidence": "Nog geen antwoord dat deze lijn laadde, werd negatief beoordeeld of mislukte, dus er is niets om van te leren. Beoordeel in de chat een antwoord negatief waarin een agent deze skill gebruikte, en start dan opnieuw."
@@ -18584,8 +18584,8 @@
     },
     "checkAgain": {
       "why": "De lijn of haar agents zijn veranderd sinds dit resultaat werd gecontroleerd, dus het klopt misschien niet meer. Controleer dezelfde wijzigingen opnieuw op de lijn zoals ze nu is voordat je beslist.",
-      "pricing": "De controle prijzen…",
-      "priceMoved": "De prijs is veranderd naar tot {cost}. Druk opnieuw om te controleren.",
+      "pricing": "Prijs van de controle berekenen…",
+      "priceMoved": "De prijs is veranderd: nu tot {cost}. Druk opnieuw om te controleren.",
       "overLimit": "De controle kost meer dan wat deze sessie nog over heeft. Verhoog de limiet voor deze controle om door te gaan.",
       "go": "Opnieuw controleren · tot {cost}",
       "goUnpriced": "Opnieuw controleren",
@@ -18669,9 +18669,9 @@
       "conflicts": "{count, plural, =0 {Niets botst: elk deel neemt de kant die het wijzigde.} =1 {1 deel werd aan beide kanten gewijzigd. De assistent stelt er een tekst voor, en jij kunt die wijzigen.} other {# delen werden aan beide kanten gewijzigd. De assistent stelt voor elk een tekst voor, en jij kunt die wijzigen.}}",
       "agents": "{count, plural, =0 {Geen agent die je kunt zien, leest deze lijn.} =1 {1 agent controleert het resultaat.} other {# agents controleren het resultaat.}}",
       "hidden": "{count, plural, =1 {Nog 1 agent die je niet kunt zien, leest deze lijn.} other {Nog # agents die je niet kunt zien, lezen deze lijn.}}",
-      "price": "De teksten voor de conflicten voorstellen kost ongeveer {cost}. De controle wordt geprijsd bij Wijzigingen.",
+      "price": "De teksten voor de conflicten voorstellen kost ongeveer {cost}. De prijs van de controle zie je bij Wijzigingen.",
       "limit": "Uitgavenlimiet voor de sessie (USD)",
-      "limitHint": "Je kunt ze verhogen bij Wijzigingen, wanneer de controle wordt geprijsd.",
+      "limitHint": "Je kunt de limiet verhogen bij Wijzigingen, wanneer je de prijs van de controle ziet.",
       "unaffordable": "Het budget van de organisatie dekt dit niet.",
       "start": {
         "catch_up": "Het bijwerken starten",
