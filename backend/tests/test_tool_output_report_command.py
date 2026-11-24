@@ -34,6 +34,8 @@ def _empty_report():
         requests={},
         turns={},
         versions={},
+        inherited={},
+        parked=set(),
     )
 
 

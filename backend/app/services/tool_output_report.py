@@ -16,6 +16,10 @@ things that are recorded:
 The manifest keeps tool names, not call ids, and a turn's calls share one
 timestamp, so where one tool ran several times in a run its results' positions
 are unknown and are averaged. The report says how many calls that touched.
+
+A follow-up run in a conversation can also carry earlier runs' results in its
+history. How much of the stored history reached a request is not recorded, so
+that part is reported apart, as an upper bound.
 """
 
 import math
@@ -28,6 +32,7 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.ask_user import ASK_USER_TOOL
 from app.agents.capabilities import all_capabilities
 from app.agents.capabilities.compaction import CompactionConfig
 from app.agents.capabilities.tool_output_limits import ToolOutputLimitsConfig
@@ -40,7 +45,8 @@ CHARS_PER_TOKEN = 4
 PACK_THRESHOLD = 10_000
 FULL_SENDS = 2
 PLACEHOLDERS: dict[str, int] = {"1.3 KB": 1_300, "3.5 KB": 3_500}
-CLEARING_STRATEGIES = frozenset({"clear_tool_results", "tiered"})
+NONE = "none"
+UNKNOWN = "unknown"
 MCP = "mcp"
 UNREGISTERED = "(other)"
 BATCH = 500
@@ -71,17 +77,27 @@ class SizeRow:
 
 @dataclass(frozen=True)
 class ResendRow:
-    """One agent under one pair of bindings: what it re-sent, and what packing would save."""
+    """One agent under one pair of bindings: what it re-sent, and what packing would save.
+
+    Runs on platform instructions are a row of their own, named by `system_role`
+    with no `agent_id`, because their work is not the agent that started them.
+    `inherited_tokens` is what earlier runs of the same conversations got back
+    from tools, counted on every request of the follow-up run: an upper bound.
+    """
 
     agent: str
+    agent_id: str | None
+    system_role: str | None
     tool_output_limits: str
     compaction: str
     overstated: bool
     runs: int
-    runs_with_manifest: int
+    runs_estimated: int
     resent_tokens: int
+    inherited_tokens: int
     own_input_tokens: int
     share: float | None
+    share_with_inherited: float | None
     cache_read_tokens: int
     cache_write_tokens: int
     saving_tokens: dict[str, int]
@@ -95,7 +111,20 @@ class Matching:
     exact: int
     averaged: int
     unmatched: int
+    left_out: int
+
+
+@dataclass(frozen=True)
+class LeftOut:
+    """Runs left out of the re-send estimate, and why.
+
+    A run without a conversation records no tool results; a run that waited on an
+    approval or a question keeps only its last segment's requests in its manifest.
+    """
+
+    without_transcript: int
     without_manifest: int
+    waited: int
 
 
 @dataclass(frozen=True)
@@ -108,7 +137,7 @@ class ToolOutputReport:
     include_eval: bool
     include_tests: bool
     runs: int
-    runs_with_manifest: int
+    runs_estimated: int
     tool_calls: int
     turns_per_run: Distribution
     calls_per_run: Distribution
@@ -117,6 +146,7 @@ class ToolOutputReport:
     by_capability: list[SizeRow]
     by_tool: list[SizeRow]
     resend: list[ResendRow]
+    left_out: LeftOut
     matching: Matching
 
 
@@ -148,9 +178,9 @@ def estimate_run(calls: Sequence[CallSize], requests: Sequence[RecordedRequest])
 
     A call made by the response to request `i` is carried by every request after
     it. Its results are matched to requests by tool name; a name whose calls sit
-    in different requests is averaged over them. Packing is projected as #2137
-    designs it: a result over `PACK_THRESHOLD` goes in full on `FULL_SENDS`
-    requests and as a placeholder on every one after.
+    in different requests is averaged over them. Packing is projected as a result
+    over `PACK_THRESHOLD` going in full on `FULL_SENDS` requests and as a
+    placeholder on every one after.
     """
     ordered = sorted(requests, key=lambda request: request.index)
     later: dict[str, list[int]] = defaultdict(list)
@@ -183,9 +213,15 @@ def estimate_run(calls: Sequence[CallSize], requests: Sequence[RecordedRequest])
 
 
 def bindings_of(capabilities: Sequence[object] | None) -> tuple[str, str]:
-    """How a spec bound `tool_output_limits` and `compaction`: its action and strategy, or none."""
-    limits = compaction = "none"
-    for binding in capabilities or []:
+    """How a spec bound `tool_output_limits` and `compaction`: its action and strategy, or none.
+
+    No spec at all - a run whose published version was deleted - is unknown, not
+    a spec that bound neither.
+    """
+    if capabilities is None:
+        return UNKNOWN, UNKNOWN
+    limits = compaction = NONE
+    for binding in capabilities:
         if not isinstance(binding, dict) or binding.get("enabled", True) is False:
             continue
         config = binding.get("config") or {}
@@ -204,6 +240,18 @@ def _capability_of_tool() -> dict[str, str]:
     return owners
 
 
+def printable(label: str) -> str:
+    """A stored name made safe for a terminal: control and format characters escaped.
+
+    Agent and tool names are written by members, so a newline could forge a row of
+    the report and an escape sequence could drive the operator's terminal.
+    """
+    return "".join(
+        char if char.isprintable() else char.encode("unicode_escape").decode("ascii")
+        for char in label
+    )
+
+
 def _share(part: float, whole: int) -> float | None:
     return round(part / whole, 4) if whole else None
 
@@ -219,9 +267,13 @@ def _size_rows(groups: dict[str, list[int]], top: int) -> list[SizeRow]:
 
 @dataclass
 class _Totals:
+    label: str = ""
+    agent_id: str | None = None
+    system_role: str | None = None
     runs: int = 0
-    with_manifest: int = 0
+    estimated: int = 0
     resent_chars: float = 0.0
+    inherited_chars: float = 0.0
     own_input: int = 0
     cache_read: int = 0
     cache_write: int = 0
@@ -270,6 +322,8 @@ class ToolOutputReportService:
         calls: dict[UUID, list[CallSize]] = defaultdict(list)
         requests: dict[UUID, list[RecordedRequest]] = defaultdict(list)
         turns: dict[UUID, int] = {}
+        inherited: dict[UUID, int] = {}
+        parked: set[UUID] = set()
         for start in range(0, len(runs), BATCH):
             ids = [run.id for run in runs[start : start + BATCH]]
             for call in await report_repo.list_call_sizes(
@@ -282,6 +336,14 @@ class ToolOutputReportService:
                 requests[request.run_id].append(request)
             turns.update(
                 await report_repo.count_turns(self.db, organization_id=organization_id, run_ids=ids)
+            )
+            inherited.update(
+                await report_repo.list_inherited_sizes(
+                    self.db, organization_id=organization_id, run_ids=ids
+                )
+            )
+            parked |= await report_repo.list_parked(
+                self.db, organization_id=organization_id, run_ids=ids, question_tool=ASK_USER_TOOL
             )
         versions = await report_repo.list_version_capabilities(
             self.db,
@@ -300,6 +362,8 @@ class ToolOutputReportService:
             requests=requests,
             turns=turns,
             versions=versions,
+            inherited=inherited,
+            parked=parked,
         )
 
     @staticmethod
@@ -316,18 +380,30 @@ class ToolOutputReportService:
         requests: dict[UUID, list[RecordedRequest]],
         turns: dict[UUID, int],
         versions: dict[UUID, list[dict[str, Any]]],
+        inherited: dict[UUID, int],
+        parked: set[UUID],
     ) -> ToolOutputReport:
         owners = _capability_of_tool()
+        agents_named: dict[str, set[UUID]] = defaultdict(set)
+        for run in runs:
+            agents_named[run.agent_name].add(run.agent_id)
         by_agent: dict[str, list[int]] = defaultdict(list)
         by_capability: dict[str, list[int]] = defaultdict(list)
         by_tool: dict[str, list[int]] = defaultdict(list)
         totals: dict[tuple[str, str, str], _Totals] = defaultdict(_Totals)
-        exact = averaged = unmatched = without_manifest = 0
+        exact = averaged = unmatched = left_calls = 0
+        without_transcript = without_manifest = waited = 0
         for run in runs:
+            if run.system_role:
+                key, name = f"role:{run.system_role}", f"platform: {run.system_role}"
+            else:
+                key, name = f"agent:{run.agent_id}", run.agent_name
+                if len(agents_named[run.agent_name]) > 1:
+                    name = f"{run.agent_name} [{str(run.agent_id)[:8]}]"
             run_calls = calls.get(run.id, [])
             for call in run_calls:
                 capability = MCP if call.is_mcp else owners.get(call.tool_id or "", UNREGISTERED)
-                by_agent[run.agent_name].append(call.size)
+                by_agent[name].append(call.size)
                 by_capability[capability].append(call.size)
                 by_tool[call.tool_name].append(call.size)
             capabilities = (
@@ -338,35 +414,55 @@ class ToolOutputReportService:
                 else None
             )
             limits, compaction = bindings_of(capabilities)
-            bucket = totals[(run.agent_name, limits, compaction)]
+            bucket = totals[(key, limits, compaction)]
+            bucket.label = name
+            bucket.agent_id = None if run.system_role else str(run.agent_id)
+            bucket.system_role = run.system_role
             bucket.runs += 1
             run_requests = requests.get(run.id, [])
-            if not run_requests:
-                without_manifest += len(run_calls)
+            if run.conversation_id is None:
+                without_transcript += 1
+            elif not run_requests:
+                without_manifest += 1
+            elif run.id in parked:
+                waited += 1
+            else:
+                bucket.estimated += 1
+                estimate = estimate_run(run_calls, run_requests)
+                exact += estimate.exact
+                averaged += estimate.averaged
+                unmatched += estimate.unmatched
+                bucket.resent_chars += estimate.resent_chars
+                bucket.inherited_chars += inherited.get(run.id, 0) * len(run_requests)
+                bucket.own_input += sum(request.input_tokens for request in run_requests)
+                bucket.cache_read += sum(request.cache_read_tokens for request in run_requests)
+                bucket.cache_write += sum(request.cache_write_tokens for request in run_requests)
+                for label, saved in estimate.saving_chars.items():
+                    bucket.saving_chars[label] += saved
                 continue
-            bucket.with_manifest += 1
-            estimate = estimate_run(run_calls, run_requests)
-            exact += estimate.exact
-            averaged += estimate.averaged
-            unmatched += estimate.unmatched
-            bucket.resent_chars += estimate.resent_chars
-            bucket.own_input += sum(request.input_tokens for request in run_requests)
-            bucket.cache_read += sum(request.cache_read_tokens for request in run_requests)
-            bucket.cache_write += sum(request.cache_write_tokens for request in run_requests)
-            for label, saved in estimate.saving_chars.items():
-                bucket.saving_chars[label] += saved
+            left_calls += len(run_calls)
 
         resend = [
             ResendRow(
-                agent=agent,
+                agent=bucket.label,
+                agent_id=bucket.agent_id,
+                system_role=bucket.system_role,
                 tool_output_limits=limits,
                 compaction=compaction,
-                overstated=compaction in CLEARING_STRATEGIES,
+                overstated=compaction != NONE,
                 runs=bucket.runs,
-                runs_with_manifest=bucket.with_manifest,
+                runs_estimated=bucket.estimated,
                 resent_tokens=round(bucket.resent_chars / CHARS_PER_TOKEN),
+                inherited_tokens=round(bucket.inherited_chars / CHARS_PER_TOKEN),
                 own_input_tokens=bucket.own_input,
                 share=_share(bucket.resent_chars / CHARS_PER_TOKEN, bucket.own_input),
+                share_with_inherited=_share(
+                    min(
+                        (bucket.resent_chars + bucket.inherited_chars) / CHARS_PER_TOKEN,
+                        bucket.own_input,
+                    ),
+                    bucket.own_input,
+                ),
                 cache_read_tokens=bucket.cache_read,
                 cache_write_tokens=bucket.cache_write,
                 saving_tokens={
@@ -378,7 +474,7 @@ class ToolOutputReportService:
                     for label, saved in bucket.saving_chars.items()
                 },
             )
-            for (agent, limits, compaction), bucket in totals.items()
+            for (_, limits, compaction), bucket in totals.items()
         ]
         resend.sort(key=lambda row: (-row.saving_tokens[next(iter(PLACEHOLDERS))], row.agent))
         return ToolOutputReport(
@@ -388,7 +484,7 @@ class ToolOutputReportService:
             include_eval=include_eval,
             include_tests=include_tests,
             runs=len(runs),
-            runs_with_manifest=sum(1 for run in runs if requests.get(run.id)),
+            runs_estimated=sum(row.runs_estimated for row in resend),
             tool_calls=sum(len(run_calls) for run_calls in calls.values()),
             turns_per_run=distribution(turns.get(run.id, 0) for run in runs),
             calls_per_run=distribution(len(calls.get(run.id, [])) for run in runs),
@@ -399,7 +495,8 @@ class ToolOutputReportService:
             by_capability=_size_rows(by_capability, top),
             by_tool=_size_rows(by_tool, top),
             resend=resend,
-            matching=Matching(exact, averaged, unmatched, without_manifest),
+            left_out=LeftOut(without_transcript, without_manifest, waited),
+            matching=Matching(exact, averaged, unmatched, left_calls),
         )
 
 
@@ -420,23 +517,49 @@ def _percent(value: float | None) -> str:
 def assumptions(report: ToolOutputReport) -> list[str]:
     """What the figures assume, and what they cannot say."""
     matched = report.matching
+    left = report.left_out
     placed = matched.exact + matched.averaged + matched.unmatched
     return [
-        "Sizes are the characters each model received, after tool_output_limits.",
+        "Sizes are the characters each model received, after tool_output_limits. A failed "
+        "call stores a short notice instead of what the model was sent, so it counts at the "
+        "notice's size.",
         f"Tokens are estimated as characters / {CHARS_PER_TOKEN}.",
-        "Model requests come from each run's manifest; "
-        f"{report.runs - report.runs_with_manifest} run(s) without one are left out "
-        "of the re-send estimate.",
-        "A result is counted once for every request after the one that called it. "
-        f"Calls placed exactly: {_percent(_share(matched.exact, placed))}; averaged over a "
-        f"tool that ran more than once: {_percent(_share(matched.averaged, placed))}; "
-        f"not found in the manifest: {_percent(_share(matched.unmatched, placed))}.",
-        "A run's share is of its own model requests' input. A delegate is a run of its own "
-        "and is never added to its parent.",
-        "Not measured: how replacing results would change prompt caching. Cache reads and "
-        "writes are shown as recorded.",
-        "Compaction that clears tool results (clear_tool_results, tiered) stops re-sending "
-        "them before a run ends, so those rows are overstated (marked !).",
+        (
+            "Model requests come from each run's manifest. Left out of the re-send estimate: "
+            f"{left.without_transcript} run(s) outside a conversation, which record no tool "
+            f"results (eval runs among them); {left.without_manifest} without a manifest; "
+            f"{left.waited} that waited on an approval or a question, whose manifest keeps "
+            "only the last segment."
+        ),
+        (
+            "A result is counted once for every request after the one that called it. "
+            f"Calls placed exactly: {_percent(_share(matched.exact, placed))}; averaged over a "
+            f"tool that ran more than once: {_percent(_share(matched.averaged, placed))}; "
+            f"not found in the manifest: {_percent(_share(matched.unmatched, placed))}."
+        ),
+        (
+            "Inherited is what earlier runs of the same conversation got back from tools, "
+            "counted on every request of the follow-up run. It is an upper bound: stored "
+            "history is trimmed to a size limit, and a conversation with other authors "
+            "replays its transcript, which holds no results."
+        ),
+        (
+            "A run's share is of its own model requests' input. A delegate is a run of its own "
+            "and is never added to its parent."
+        ),
+        (
+            "Runs on platform instructions (maintenance, briefings, channel decisions) are "
+            "shown as platform: <role>, not under the agent that started them."
+        ),
+        (
+            "Not measured: how replacing results would change prompt caching. Cache reads and "
+            "writes are shown as recorded."
+        ),
+        (
+            "Compaction can summarize, drop or clear results before a run ends, so rows with "
+            "any compaction binding are overstated (marked !). unknown is a run whose published "
+            "version was deleted."
+        ),
         f"Projection: a result over {PACK_THRESHOLD:,} characters is sent in full "
         f"{FULL_SENDS} times, then as a placeholder of " + " or ".join(PLACEHOLDERS) + ".",
     ]
@@ -456,7 +579,7 @@ def render_text(report: ToolOutputReport) -> str:
         f"{report.started_from.isoformat()} to {report.ended.isoformat()}",
         f"Eval runs {'included' if report.include_eval else 'excluded'}; Builder test runs "
         f"{'included' if report.include_tests else 'excluded'}.",
-        f"Runs: {report.runs}, with a manifest: {report.runs_with_manifest}. "
+        f"Runs: {report.runs}, estimated: {report.runs_estimated}. "
         f"Tool calls: {report.tool_calls}.",
     ]
     if not report.runs:
@@ -477,7 +600,8 @@ def render_text(report: ToolOutputReport) -> str:
     ):
         lines += ["", title]
         lines += [
-            _distribution_line(row.name, row.sizes) + f" over_{PACK_THRESHOLD}={row.over_threshold}"
+            _distribution_line(printable(row.name), row.sizes)
+            + f" over_{PACK_THRESHOLD}={row.over_threshold}"
             for row in rows
         ]
     labels = list(PLACEHOLDERS)
@@ -491,8 +615,10 @@ def render_text(report: ToolOutputReport) -> str:
                 "limits/compaction",
                 "runs",
                 "re-sent",
+                "inherited (at most)",
                 "own input",
                 "share",
+                "with inherited",
                 "cache read",
                 "cache write",
             ]
@@ -505,8 +631,10 @@ def render_text(report: ToolOutputReport) -> str:
             f"{row.saving_tokens[label]} ({_percent(row.saving_share[label])})" for label in labels
         )
         lines.append(
-            f"  {row.agent}{mark}  {row.tool_output_limits}/{row.compaction}  "
-            f"{row.runs_with_manifest}/{row.runs}  {row.resent_tokens}  {row.own_input_tokens}  "
-            f"{_percent(row.share)}  {row.cache_read_tokens}  {row.cache_write_tokens}  {savings}"
+            f"  {printable(row.agent)}{mark}  "
+            f"{printable(row.tool_output_limits)}/{printable(row.compaction)}  "
+            f"{row.runs_estimated}/{row.runs}  {row.resent_tokens}  {row.inherited_tokens}  "
+            f"{row.own_input_tokens}  {_percent(row.share)}  {_percent(row.share_with_inherited)}  "
+            f"{row.cache_read_tokens}  {row.cache_write_tokens}  {savings}"
         )
     return "\n".join(lines)

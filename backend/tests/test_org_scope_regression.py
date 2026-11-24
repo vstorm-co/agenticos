@@ -309,6 +309,8 @@ TENANT_REQUIRED = [
     (tool_output_report_repo, "count_turns"),
     (tool_output_report_repo, "list_requests"),
     (tool_output_report_repo, "list_version_capabilities"),
+    (tool_output_report_repo, "list_inherited_sizes"),
+    (tool_output_report_repo, "list_parked"),
 ]
 
 # Deliberately unscoped, each documented at its definition.

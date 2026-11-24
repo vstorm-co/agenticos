@@ -11,6 +11,7 @@ from app.core.exceptions import NotFoundError, ValidationError
 from app.repositories.tool_output_report import CallSize, RecordedRequest, ReportRun
 from app.services.tool_output_report import (
     Distribution,
+    LeftOut,
     ToolOutputReportService,
     as_json,
     bindings_of,
@@ -102,8 +103,11 @@ class TestEstimateRun:
 
 class TestBindings:
     def test_an_agent_binding_neither(self) -> None:
-        assert bindings_of(None) == ("none", "none")
+        assert bindings_of([]) == ("none", "none")
         assert bindings_of([{"id": "web_search"}]) == ("none", "none")
+
+    def test_no_spec_at_all_is_unknown_not_none(self) -> None:
+        assert bindings_of(None) == ("unknown", "unknown")
 
     def test_a_bare_binding_reads_as_its_default(self) -> None:
         assert bindings_of([{"id": "tool_output_limits"}, {"id": "compaction"}]) == (
@@ -123,11 +127,30 @@ class TestBindings:
         assert bindings_of(capabilities) == ("none", "none")
 
 
-def _run(agent: str, *, run_id: UUID | None = None, capabilities=None) -> ReportRun:
-    return ReportRun(run_id or uuid4(), uuid4(), agent, None, None, capabilities)
+def _run(
+    agent: str,
+    *,
+    agent_id: UUID | None = None,
+    version: UUID | None = None,
+    capabilities=(),
+    conversation: bool = True,
+    system_role: str | None = None,
+) -> ReportRun:
+    return ReportRun(
+        uuid4(),
+        agent_id or uuid4(),
+        agent,
+        version,
+        None,
+        uuid4() if conversation else None,
+        system_role,
+        None if capabilities is None else list(capabilities),
+    )
 
 
-def _assemble(runs, calls, requests, *, turns=None, versions=None, top=20):
+def _assemble(
+    runs, calls, requests, *, turns=None, versions=None, top=20, inherited=None, parked=None
+):
     return ToolOutputReportService._assemble(
         uuid4(),
         started_from=date(2026, 11, 1),
@@ -140,6 +163,8 @@ def _assemble(runs, calls, requests, *, turns=None, versions=None, top=20):
         requests=requests,
         turns=turns or {},
         versions=versions or {},
+        inherited=inherited or {},
+        parked=parked or set(),
     )
 
 
@@ -188,11 +213,89 @@ class TestAssemble:
         run = _run("Support")
         report = _assemble([run], {run.id: [CallSize(run.id, "search", None, False, 700)]}, {})
 
-        assert (report.runs, report.runs_with_manifest, report.tool_calls) == (1, 0, 1)
-        assert report.matching.without_manifest == 1
+        assert (report.runs, report.runs_estimated, report.tool_calls) == (1, 0, 1)
+        assert report.left_out == LeftOut(0, 1, 0)
+        assert report.matching.left_out == 1
         assert report.by_tool[0].sizes.max == 700
         row = report.resend[0]
-        assert (row.runs, row.runs_with_manifest, row.share) == (1, 0, None)
+        assert (row.runs, row.runs_estimated, row.share) == (1, 0, None)
+
+    def test_a_run_outside_a_conversation_adds_no_input_it_has_no_results_for(self) -> None:
+        chat = _run("Support")
+        evaluated = _run("Support", agent_id=chat.agent_id, conversation=False)
+        calls = {chat.id: [CallSize(chat.id, "search", None, False, 400)]}
+        requests = {
+            run.id: [
+                RecordedRequest(run.id, 0, 300, 0, 0, ["search"]),
+                RecordedRequest(run.id, 1, 500, 0, 0, []),
+            ]
+            for run in (chat, evaluated)
+        }
+
+        report = _assemble([chat, evaluated], calls, requests)
+
+        row = report.resend[0]
+        assert (row.runs, row.runs_estimated, row.own_input_tokens) == (2, 1, 800)
+        assert row.share == round(400 / 4 / 800, 4)
+        assert report.left_out == LeftOut(1, 0, 0)
+
+    def test_a_run_that_waited_on_a_person_is_left_out_of_the_estimate(self) -> None:
+        run = _run("Support")
+        report = _assemble(
+            [run],
+            {run.id: [CallSize(run.id, "send_email", None, False, 50)]},
+            {run.id: [RecordedRequest(run.id, 0, 100, 0, 0, [])]},
+            parked={run.id},
+        )
+
+        assert report.left_out == LeftOut(0, 0, 1)
+        assert (report.matching.unmatched, report.matching.left_out) == (0, 1)
+        assert report.resend[0].own_input_tokens == 0
+
+    def test_earlier_turns_results_count_apart_on_every_request_of_a_follow_up(self) -> None:
+        run = _run("Support")
+        requests = {
+            run.id: [
+                RecordedRequest(run.id, 0, 1_000, 0, 0, ["search"]),
+                RecordedRequest(run.id, 1, 1_000, 0, 0, []),
+            ]
+        }
+        calls = {run.id: [CallSize(run.id, "search", None, False, 400)]}
+
+        row = _assemble([run], calls, requests, inherited={run.id: 2_000}).resend[0]
+        assert (row.resent_tokens, row.inherited_tokens) == (100, 1_000)
+        assert (row.share, row.share_with_inherited) == (0.05, 0.55)
+
+        capped = _assemble([run], calls, requests, inherited={run.id: 9_000}).resend[0]
+        assert capped.share_with_inherited == 1.0
+
+    def test_two_agents_sharing_a_name_stay_apart(self) -> None:
+        first, second = _run("Support"), _run("Support")
+        calls = {run.id: [CallSize(run.id, "search", None, False, 10)] for run in (first, second)}
+
+        report = _assemble([first, second], calls, {})
+
+        assert {row.agent_id for row in report.resend} == {
+            str(first.agent_id),
+            str(second.agent_id),
+        }
+        labels = {row.agent for row in report.resend}
+        assert labels == {
+            f"Support [{str(first.agent_id)[:8]}]",
+            f"Support [{str(second.agent_id)[:8]}]",
+        }
+        assert {row.name for row in report.by_agent} == labels
+
+    def test_platform_work_is_not_the_starter_agents(self) -> None:
+        own = _run("Support")
+        maintenance = _run("Support", agent_id=own.agent_id, system_role="memory_maintenance")
+
+        report = _assemble([own, maintenance], {}, {})
+
+        rows = {row.agent: row for row in report.resend}
+        assert set(rows) == {"Support", "platform: memory_maintenance"}
+        platform = rows["platform: memory_maintenance"]
+        assert (platform.agent_id, platform.system_role) == (None, "memory_maintenance")
 
     def test_a_registered_tool_is_counted_under_its_capability(self) -> None:
         run = _run("Support")
@@ -220,18 +323,22 @@ class TestAssemble:
 
     def test_a_test_run_uses_its_own_spec_and_a_published_run_its_versions(self) -> None:
         version = uuid4()
-        published = ReportRun(uuid4(), uuid4(), "Support", version, None, None)
+        published = _run("Support", version=version, capabilities=None)
+        orphaned = _run("Support", capabilities=None)
         tested = _run("Support", capabilities=[{"id": "tool_output_limits"}])
         report = _assemble(
-            [published, tested],
+            [published, orphaned, tested],
             {},
             {},
             versions={version: [{"id": "compaction", "config": {"strategy": "tiered"}}]},
         )
 
-        assert {(row.tool_output_limits, row.compaction) for row in report.resend} == {
-            ("none", "tiered"),
-            ("spill", "none"),
+        assert {
+            (row.tool_output_limits, row.compaction, row.overstated) for row in report.resend
+        } == {
+            ("none", "tiered", True),
+            ("unknown", "unknown", True),
+            ("spill", "none", False),
         }
 
 
@@ -255,6 +362,25 @@ class TestRendering:
         assert "Not measured: how replacing results would change prompt caching" in text
         assert "Coder !" in text
         assert "Calls placed exactly: 100.0%" in text
+
+    def test_names_cannot_forge_rows_or_drive_the_terminal(self) -> None:
+        run = _run(
+            "Evil\n  Forged  none/none  1/1\x1b]0;owned\x07",
+            capabilities=[{"id": "compaction", "config": {"strategy": "x\x1b[2J"}}],
+        )
+        report = _assemble(
+            [run],
+            {run.id: [CallSize(run.id, "read\r\u202eexe", None, False, 10)]},
+            {run.id: [RecordedRequest(run.id, 0, 100, 0, 0, ["read\r\u202eexe"])]},
+        )
+
+        text = render_text(report)
+
+        assert not any(char in text for char in "\x1b\x07\r\u202e")
+        assert not any(line.startswith("  Forged") for line in text.splitlines())
+        assert "Evil\\n  Forged" in text
+        assert "x\\x1b[2J" in text
+        assert "read\\r\\u202eexe" in text
 
     def test_the_json_carries_the_same_figures_and_assumptions(self) -> None:
         run = _run("Support")

@@ -14,7 +14,7 @@ import pytest
 from app.agents.spec import AgentSpec
 from app.core.exceptions import NotFoundError
 from app.db.models.agent import Agent, AgentVersion
-from app.db.models.agent_run import AgentRun, RunSurface
+from app.db.models.agent_run import AgentRun, RunSurface, ToolApproval
 from app.db.models.conversation import Conversation, Message, ToolCall
 from app.db.models.organization import Organization
 from app.db.models.resource_grant import Visibility
@@ -72,14 +72,23 @@ async def _run(
     agent: Agent,
     owner: User,
     *,
-    results: dict[str, int],
+    results: dict[str, int | None],
     requests: list[tuple[int, list[str]]] | None,
     input_tokens: int = 0,
     parent: AgentRun | None = None,
     started_at: datetime = _NOW,
+    conversation: Conversation | None = None,
     **extra,
 ) -> AgentRun:
-    """A run with one assistant turn calling `results` and, unless None, a manifest."""
+    """A run with one assistant turn calling `results` and, unless None, a manifest.
+
+    A size of None is a call that never returned. The run starts a conversation of
+    its own unless it is given one to follow up in.
+    """
+    if conversation is None:
+        conversation = Conversation(organization_id=agent.organization_id, user_id=owner.id)
+        db.add(conversation)
+        await db.flush()
     run = AgentRun(
         organization_id=agent.organization_id,
         agent_id=agent.id,
@@ -89,12 +98,10 @@ async def _run(
         started_at=started_at,
         input_tokens=input_tokens,
         parent_run_id=parent.id if parent else None,
+        conversation_id=extra.pop("conversation_id", conversation.id),
         **extra,
     )
     db.add(run)
-    await db.flush()
-    conversation = Conversation(organization_id=agent.organization_id, user_id=owner.id)
-    db.add(conversation)
     await db.flush()
     message = Message(
         conversation_id=conversation.id, role="assistant", content="done", run_id=run.id
@@ -108,7 +115,7 @@ async def _run(
                 tool_call_id=uuid.uuid4().hex,
                 tool_name=name,
                 args={},
-                result=(SECRET_RESULT + "x" * size)[:size],
+                result=None if size is None else (SECRET_RESULT + "x" * size)[:size],
                 status="completed",
                 started_at=started_at,
             )
@@ -216,6 +223,67 @@ async def test_eval_and_builder_test_runs_are_left_out_unless_asked_for(db) -> N
     assert (await _report(db, organization, include_eval=True, include_tests=True)).runs == 3
 
 
+async def test_a_follow_up_counts_its_conversations_earlier_results_apart(db) -> None:
+    owner = await _owner(db)
+    organization = await _org(db, owner)
+    support = await _agent(db, organization, owner, "Support")
+    first = await _run(
+        db,
+        support,
+        owner,
+        results={"search": 4_000},
+        requests=[(100, ["search"]), (100, [])],
+        started_at=_NOW - timedelta(minutes=5),
+    )
+    conversation = await db.get(Conversation, first.conversation_id)
+    await _run(
+        db,
+        support,
+        owner,
+        results={},
+        requests=[(1_000, []), (1_000, [])],
+        parent=first,
+        conversation=conversation,
+    )
+    await _run(
+        db, support, owner, results={}, requests=[(500, []), (500, [])], conversation=conversation
+    )
+
+    row = (await _report(db, organization)).resend[0]
+
+    assert row.resent_tokens == 4_000 // 4
+    assert row.inherited_tokens == 4_000 * 2 // 4
+
+
+async def test_a_run_that_waited_on_a_person_or_never_got_a_result_is_not_estimated(db) -> None:
+    owner = await _owner(db)
+    organization = await _org(db, owner)
+    support = await _agent(db, organization, owner, "Support")
+    approved = await _run(
+        db, support, owner, results={"send_email": 20}, requests=[(300, []), (300, [])]
+    )
+    db.add(
+        ToolApproval(
+            organization_id=organization.id,
+            run_id=approved.id,
+            agent_id=support.id,
+            tool_id="send_email",
+            tool_args={},
+        )
+    )
+    await _run(
+        db, support, owner, results={"ask_user_question": 30}, requests=[(300, []), (300, [])]
+    )
+    await _run(db, support, owner, results={"final_result": None}, requests=[(100, [])])
+    await db.flush()
+
+    report = await _report(db, organization)
+
+    assert (report.runs, report.runs_estimated, report.tool_calls) == (3, 1, 2)
+    assert report.left_out.waited == 2
+    assert report.resend[0].own_input_tokens == 100
+
+
 async def test_a_window_with_no_runs_says_so(db) -> None:
     owner = await _owner(db)
     organization = await _org(db, owner)
@@ -238,8 +306,8 @@ async def test_a_run_without_a_manifest_is_counted_but_not_estimated(db) -> None
 
     report = await _report(db, organization)
 
-    assert (report.runs, report.runs_with_manifest) == (1, 0)
-    assert report.matching.without_manifest == 1
+    assert (report.runs, report.runs_estimated) == (1, 0)
+    assert report.left_out.without_manifest == 1
     assert report.by_tool[0].sizes.max == 700
     assert report.resend[0].share is None
 

@@ -14,9 +14,10 @@ from uuid import UUID
 from sqlalchemy import Integer, column, func, select, true
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
 from app.db.models.agent import Agent, AgentVersion
-from app.db.models.agent_run import AgentRun, RunSurface
+from app.db.models.agent_run import AgentRun, RunSurface, ToolApproval
 from app.db.models.conversation import Message, ToolCall
 from app.db.models.run_manifest import RunManifest
 
@@ -29,6 +30,8 @@ class ReportRun(NamedTuple):
     agent_name: str
     agent_version_id: UUID | None
     parent_run_id: UUID | None
+    conversation_id: UUID | None
+    system_role: str | None
     test_capabilities: list[dict[str, Any]] | None
 
 
@@ -83,6 +86,8 @@ async def list_runs(
             Agent.name,
             AgentRun.agent_version_id,
             AgentRun.parent_run_id,
+            AgentRun.conversation_id,
+            AgentRun.system_role,
             AgentRun.test_spec["capabilities"],
         )
         .join(Agent, Agent.id == AgentRun.agent_id)
@@ -95,21 +100,88 @@ async def list_runs(
 async def list_call_sizes(
     db: AsyncSession, *, organization_id: UUID, run_ids: Sequence[UUID]
 ) -> list[CallSize]:
-    """Every tool call these runs made, measured rather than read."""
+    """Every tool call these runs made that returned something, measured rather than read.
+
+    A call with no stored result - one still parked, or a structured output the
+    run ended on - sent nothing back to the model, so it is not a result here.
+    """
     rows = await db.execute(
         select(
             AgentRun.id,
             ToolCall.tool_name,
             ToolCall.tool_id,
             ToolCall.mcp_connection_id.is_not(None),
-            func.coalesce(func.length(ToolCall.result), 0),
+            func.length(ToolCall.result),
         )
         .select_from(ToolCall)
         .join(Message, Message.id == ToolCall.message_id)
         .join(AgentRun, AgentRun.id == Message.run_id)
-        .where(AgentRun.organization_id == organization_id, Message.run_id.in_(run_ids))
+        .where(
+            AgentRun.organization_id == organization_id,
+            Message.run_id.in_(run_ids),
+            ToolCall.result.is_not(None),
+        )
     )
     return [CallSize(*row) for row in rows.all()]
+
+
+async def list_inherited_sizes(
+    db: AsyncSession, *, organization_id: UUID, run_ids: Sequence[UUID]
+) -> dict[UUID, int]:
+    """For each of these runs, the characters earlier runs of its conversation got back from tools.
+
+    A conversation's checkpoint keeps the model messages of the turns before, tool
+    results included, so a follow-up run can carry them in its history. Delegates
+    start from an empty history and never add to their parent's, so neither side
+    of the comparison is one.
+    """
+    current = aliased(AgentRun)
+    earlier = aliased(AgentRun)
+    rows = await db.execute(
+        select(current.id, func.sum(func.length(ToolCall.result)))
+        .select_from(current)
+        .join(Message, Message.conversation_id == current.conversation_id)
+        .join(earlier, earlier.id == Message.run_id)
+        .join(ToolCall, ToolCall.message_id == Message.id)
+        .where(
+            current.organization_id == organization_id,
+            current.id.in_(run_ids),
+            current.parent_run_id.is_(None),
+            earlier.organization_id == organization_id,
+            earlier.parent_run_id.is_(None),
+            earlier.started_at < current.started_at,
+            ToolCall.result.is_not(None),
+        )
+        .group_by(current.id)
+    )
+    return {run_id: int(size) for run_id, size in rows.all()}
+
+
+async def list_parked(
+    db: AsyncSession, *, organization_id: UUID, run_ids: Sequence[UUID], question_tool: str
+) -> set[UUID]:
+    """Which of these runs stopped to wait on an approval or a question.
+
+    A resumed run records its manifest again and the second recording replaces
+    the first, so its request waterfall is only the last segment's.
+    """
+    approvals = await db.execute(
+        select(ToolApproval.run_id).where(
+            ToolApproval.organization_id == organization_id, ToolApproval.run_id.in_(run_ids)
+        )
+    )
+    questions = await db.execute(
+        select(AgentRun.id)
+        .select_from(ToolCall)
+        .join(Message, Message.id == ToolCall.message_id)
+        .join(AgentRun, AgentRun.id == Message.run_id)
+        .where(
+            AgentRun.organization_id == organization_id,
+            Message.run_id.in_(run_ids),
+            ToolCall.tool_name == question_tool,
+        )
+    )
+    return set(approvals.scalars()) | set(questions.scalars())
 
 
 async def count_turns(
