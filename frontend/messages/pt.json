@@ -89,6 +89,7 @@
     "sessionsCouldNotBeRead": "Não foi possível ler as sessões."
   },
   "agents": {
+    "pricedModelConnectionLocked": "Alterar a chave ou o endpoint de um modelo com preços personalizados exige permissão para gerenciar orçamentos.",
     "profileDefaults": "Padrões do modelo",
     "profileDefaultsHint": "Estes padrões se aplicam em todos os lugares onde este modelo salvo é usado. Agentes individuais podem substituí-los. Deixe os parâmetros não suportados nos padrões do provedor.",
     "profileThinkingOn": "Ativado · esforço do provedor",
@@ -21725,5 +21726,16 @@
     "inProgress": "Em andamento",
     "unknown": "Não disponível",
     "otherStep": "Configuração"
+  },
+  "modelPricing": {
+    "title": "Preços",
+    "automaticAvailable": "Tarifas automáticas indicativas em USD por milhão de tokens. A tarifa real pode depender das faixas de uso ou do valor informado pelo provedor.",
+    "automaticUnavailable": "Os preços automáticos de tokens estão indisponíveis. O custo informado pelo provedor ainda pode ser registrado após uma solicitação.",
+    "input": "Tokens de entrada",
+    "output": "Tokens de saída",
+    "cache_read": "Tokens lidos do cache",
+    "cache_write": "Tokens gravados no cache",
+    "override": "Usar preços personalizados (USD por milhão de tokens)",
+    "cacheDefault": "Deixe em branco para usar o preço de entrada."
   }
 }
