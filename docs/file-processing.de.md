@@ -1,5 +1,5 @@
 ---
-source_sha: "5a5870477833"
+source_sha: "4fd0f3a65b54"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -1273,11 +1273,15 @@ Scope, statt ihre Namen erneut aufzulösen. Ein Agent, der an zwei Basen desselb
 Namens gebunden ist, durchsucht ihren gemeinsamen Scope und schließt andere
 gleichnamige Basen aus.
 
-Ein Agent bindet nur persönliche Basen und Basen der Organisation. Die
-Collection-Auswahl eines Agents und eines Spezialisten bietet keine app-weite Basis
-an, und das Veröffentlichen lehnt eine ab. Eine, die ein Agent schon führt, bleibt
-ausgewählt und gekennzeichnet, damit sie sich entfernen lässt. Der Workflow-Schritt
-Knowledge search liest app-weite Basen und bietet sie weiterhin an.
+Ein Agent bindet nur Basen seiner eigenen Organisation: die Basen der
+Organisation und persönliche Basen, die in ihr angelegt wurden. Das
+Veröffentlichen lehnt eine app-weite Basis ab, ebenso eine persönliche Basis, die
+ihr Eigentümer in einer anderen Organisation angelegt hat. Die Liste der
+Wissensdatenbanken zeigt sie dem Eigentümer weiterhin, weil er sie lesen darf. Die
+Collection-Auswahl eines Agents und eines Spezialisten bietet sie nicht an. Eine,
+die ein Agent schon führt, bleibt ausgewählt und gekennzeichnet, damit sie sich
+entfernen lässt. Der Workflow-Schritt Knowledge search liest jede Basis, die der
+Aufrufer lesen darf, und bietet weiterhin alle an.
 
 **`GET /rag/collections/{name}/filter-values`** antwortet mit den
 `organizational_unit`-Werten, die in der Collection tatsächlich vorkommen, unter
