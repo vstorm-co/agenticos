@@ -1061,6 +1061,13 @@ export const TOUR_STEPS: readonly TourStep[] = [
     inTour: true,
   },
   {
+    id: "workflows-describe",
+    page: ROUTES.WORKFLOWS,
+    target: "workflows-describe",
+    permission: Perm.workflowsCreate,
+    inTour: true,
+  },
+  {
     id: "workflows-list",
     page: ROUTES.WORKFLOWS,
     target: "workflows-list",
