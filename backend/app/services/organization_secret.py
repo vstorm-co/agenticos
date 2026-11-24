@@ -215,6 +215,7 @@ class OrganizationSecretService:
                 SecretSummary(
                     id=secret.id,
                     can_edit=secret.id in editable,
+                    can_delete=secret.id in editable or self._is_creator_of_org_key(ctx, secret),
                     name=secret.name,
                     description=secret.description,
                     kind=SecretKind(secret.kind),
@@ -495,7 +496,16 @@ class OrganizationSecretService:
         way a model profile whose key was deleted does. Silently substituting
         another secret is the alternative, and it is worse.
         """
-        secret = await self._get(ctx, secret_id, perm=Perm.SECRETS_EDIT)
+        secret = await self._get(ctx, secret_id)
+        if not await resolve_access(
+            self.db, ctx, secret, Perm.SECRETS_EDIT, resource_type=SECRET
+        ) and not self._is_creator_of_org_key(ctx, secret):
+            # The key is visible to this caller (`_get` checked), so a 404 would
+            # contradict their own listing: say which permission is missing.
+            raise AuthorizationError(
+                message=f"Deleting this secret needs the {Perm.SECRETS_EDIT.value} permission on it",
+                details={"secret_id": secret_id, "permission": Perm.SECRETS_EDIT.value},
+            )
         await organization_secret_repo.delete(
             self.db, secret_id, organization_id=ctx.organization_id
         )
@@ -948,6 +958,25 @@ class OrganizationSecretService:
         if not allowed:
             raise NotFoundError(message="Secret not found", details={"secret_id": str(secret_id)})
         return secret
+
+    @staticmethod
+    def _is_creator_of_org_key(ctx: AuthContext, secret: OrganizationSecret) -> bool:
+        """Whether this caller added this organization key and still holds `secrets:edit`.
+
+        An organization-visible key has no owner, so a role scoped to "own"
+        rows reaches it for nobody - including the member who added it. The
+        creator may delete it, and that is all this grants: rows with no
+        recorded creator match nobody, and the role must still hold the
+        permission (and an API key must have been issued for it).
+        """
+        return (
+            ctx.user_id is not None
+            and secret.created_by_user_id == ctx.user_id
+            and secret.usage_scope == "organization"
+            and secret.kind not in BROWSER_SECRET_KINDS
+            and ctx.has(Perm.SECRETS_EDIT)
+            and ctx.key_allows(Perm.SECRETS_EDIT)
+        )
 
     async def _refuse_duplicate_name(self, ctx: AuthContext, name: str) -> None:
         existing = await organization_secret_repo.get_by_name(

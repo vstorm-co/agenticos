@@ -317,3 +317,21 @@ it("sorts the combined inventory and preserves shared-key and usage metadata", a
   await userEvent.click(screen.getByRole("button", { name: /^Added by/ }));
   expect(screen.getByText("Legacy key")).toBeInTheDocument();
 });
+
+it("offers a creator Delete alone, without rotate or share", async () => {
+  const mine = secret({ name: "Created key", can_edit: false, can_delete: true });
+  const onDelete = vi.fn();
+  render(
+    <VaultTable
+      secrets={[mine]}
+      purposes={PURPOSES}
+      onShare={noop}
+      onRotate={noop}
+      onDelete={onDelete}
+    />,
+  );
+  expect(screen.queryByRole("button", { name: "Rotate Created key" })).toBeNull();
+  expect(screen.queryByRole("button", { name: /access.*Created key/i })).toBeNull();
+  await userEvent.click(screen.getByRole("button", { name: "Delete Created key" }));
+  expect(onDelete).toHaveBeenCalledWith(mine);
+});
