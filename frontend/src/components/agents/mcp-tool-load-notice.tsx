@@ -55,7 +55,12 @@ export function McpToolLoadNotice({
     personalConnections,
     platform.tools.length,
   );
-  const searching = spec.capabilities.some((binding) => binding.id === "tool_search");
+  // Explicit exclusions stay the author's choice. This notice offers to enable
+  // MCP deferral, not to remove exceptions from a configuration already using it.
+  const searching = spec.capabilities.some(
+    (binding) =>
+      binding.id === "tool_search" && binding.enabled && binding.config.defer_mcp_servers !== false,
+  );
   if (count <= MCP_TOOL_SEARCH_THRESHOLD || searching) return null;
 
   return (

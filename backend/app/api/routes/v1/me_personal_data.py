@@ -6,6 +6,8 @@ from fastapi import APIRouter, Depends
 
 from app.api.deps import CurrentUser, PersonalDataSvc, limit_personal_data_export
 from app.schemas.personal_data import PersonalDataExport
+from app.services.account_maintenance import account_maintenance
+from app.services.personal_data import PersonalDataService
 
 router = APIRouter()
 
@@ -41,4 +43,6 @@ async def export_my_data(
     yourself. An export is the shape of a breach when the caller is not who they
     claim to be, and the entry is what makes that readable afterwards.
     """
-    return await service.export(current_user.id, actor_user_id=current_user.id)
+    async with account_maintenance(service.db, current_user, require_admin=False) as selected:
+        scoped = service if selected is service.db else PersonalDataService(selected)
+        return await scoped.export(current_user.id, actor_user_id=current_user.id)

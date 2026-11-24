@@ -3,7 +3,8 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useSkillChanges } from "./use-skill-changes";
+import { useSkillChanges, useSkillProposalsAwaiting } from "./use-skill-changes";
+import { qk } from "@/lib/query-keys";
 import * as api from "@/lib/skill-changes-api";
 import type { SkillChangeRecord } from "@/lib/skill-changes-api";
 
@@ -34,6 +35,10 @@ function change(overrides: Partial<SkillChangeRecord> = {}): SkillChangeRecord {
     decided_at: null,
     created_at: "2026-08-03T00:00:00Z",
     updated_at: null,
+    revision: 1,
+    reaches: [],
+    reaches_hidden: 0,
+    fork_id: null,
     ...overrides,
   };
 }
@@ -60,10 +65,10 @@ describe("useSkillChanges", () => {
     await waitFor(() => expect(result.current.changes).toHaveLength(1));
 
     await act(async () => {
-      await result.current.apply("p-1");
+      await result.current.apply(change());
     });
 
-    expect(api.applySkillChange).toHaveBeenCalledWith("p-1");
+    expect(api.applySkillChange).toHaveBeenCalledWith(change());
     await waitFor(() => expect(api.listSkillChanges).toHaveBeenCalledTimes(2));
   });
 
@@ -72,10 +77,10 @@ describe("useSkillChanges", () => {
     await waitFor(() => expect(result.current.changes).toHaveLength(1));
 
     await act(async () => {
-      await result.current.discard("p-1");
+      await result.current.discard(change());
     });
 
-    expect(api.discardSkillChange).toHaveBeenCalledWith("p-1");
+    expect(api.discardSkillChange).toHaveBeenCalledWith(change());
     await waitFor(() => expect(api.listSkillChanges).toHaveBeenCalledTimes(2));
   });
 
@@ -90,11 +95,13 @@ describe("useSkillChanges", () => {
 
     await expect(
       act(async () => {
-        await result.current.apply("p-1");
+        await result.current.apply(change());
       }),
     ).rejects.toThrow(refused);
 
     expect(toast.error).toHaveBeenCalledWith("This change was already applied.");
+    // Read again, so a proposal a newer run rewrote comes back at its new revision.
+    await waitFor(() => expect(api.listSkillChanges).toHaveBeenCalledTimes(2));
   });
 
   it("reports a refusal to discard as well", async () => {
@@ -105,7 +112,7 @@ describe("useSkillChanges", () => {
 
     await expect(
       act(async () => {
-        await result.current.discard("p-1");
+        await result.current.discard(change());
       }),
     ).rejects.toThrow();
 
@@ -125,4 +132,34 @@ describe("useSkillChanges", () => {
 
     await waitFor(() => expect(result.current.error).toBe("Failed to load proposed skill changes"));
   });
+});
+
+describe("useSkillProposalsAwaiting", () => {
+  it("reads the changes nobody decided, and asks nothing of who may not decide them", async () => {
+    vi.mocked(api.listSkillChanges).mockResolvedValue([change()]);
+    const { result } = renderHook(() => useSkillProposalsAwaiting(), { wrapper });
+
+    await waitFor(() => expect(result.current.changes).toHaveLength(1));
+    expect(api.listSkillChanges).toHaveBeenCalledWith("pending");
+
+    vi.mocked(api.listSkillChanges).mockClear();
+    const off = renderHook(() => useSkillProposalsAwaiting({ enabled: false }), { wrapper });
+    expect(off.result.current.changes).toEqual([]);
+    expect(api.listSkillChanges).not.toHaveBeenCalled();
+  });
+});
+
+it("revalidates a pending proposal cached before another session decided it", async () => {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false, staleTime: 60000 } },
+  });
+  client.setQueryData(qk.skillChanges.list("pending"), [change()]);
+  vi.mocked(api.listSkillChanges).mockResolvedValue([]);
+  const { result } = renderHook(() => useSkillChanges(), {
+    wrapper: ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    ),
+  });
+  await waitFor(() => expect(api.listSkillChanges).toHaveBeenCalledWith("pending"));
+  await waitFor(() => expect(result.current.changes).toEqual([]));
 });

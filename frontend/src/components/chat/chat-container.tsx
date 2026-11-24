@@ -4,6 +4,9 @@ import { useWorkingStore } from "@/stores/working-store";
 
 import { onRemoteChange } from "@/lib/live-updates";
 import type { Mentionable } from "@/types/mention";
+import { useChatSendModePreference } from "@/stores/chat-send-mode-store";
+import { useMessageJump, type MessageJumpState } from "@/hooks/use-message-jump";
+import { MessageJumpNotice } from "./message-jump-notice";
 import {
   useEffect,
   useEffectEvent,
@@ -15,8 +18,9 @@ import {
 } from "react";
 import { Bot, Gauge, PhoneCall, SlidersHorizontal } from "lucide-react";
 import { useTranslations } from "next-intl";
-import type { ChatMessageFile, ChatPerson } from "@/types";
+import type { ChatMessageFile, ChatPerson, Conversation } from "@/types";
 import type { PublishedModel } from "@/types/agents";
+import type { ParkedSecretRequest } from "@/types/runs";
 import {
   useAgents,
   useChat,
@@ -28,55 +32,81 @@ import {
 import type { ChatTesting, SteerDraft } from "@/hooks/use-chat";
 import type { AssistantPageContext } from "@/lib/assistant-page-context";
 import { AgentPicker, isChattable } from "./agent-picker";
+import { ChatApprovalSelector } from "./chat-approval-selector";
 import { useSavedChatControls } from "@/hooks/use-saved-chat-controls";
 import { ChatControls } from "./chat-controls";
+import { PersonalModelConnection } from "./personal-model-connection";
+import { ChatModelHeader } from "./chat-model-header";
+import { ChatCompactionControl, ChatCompactionNotice } from "./chat-compaction-control";
 import { SheetRow } from "./composer-sheet";
 import { ChatEmptyState } from "./chat-empty-state";
 import { ChatRoomBar } from "./chat-room-bar";
+import { TeamRoomHeader, TeamRoomEmpty } from "./team-room-header";
+import { RoomRoutingPanel } from "./room-routing-panel";
+import { TeamRoomComposer } from "./team-room-composer";
+import { RoomThreadPanel } from "./room-thread-panel";
+import { useRoomRequests, useRoomSync } from "@/hooks/use-room";
 import { TypingIndicator } from "./typing-indicator";
 import { useProjectMentions } from "@/hooks/use-project-mentions";
 import type { PageComment } from "./browser-comment";
-import { ChatInput, type IncomingFiles } from "./chat-input";
+import { ChatInput, type ComposerDraft, type IncomingFiles } from "./chat-input";
 import { ComposerStatus } from "./composer-status";
 import { OutcomeCards } from "./outcome-cards";
 import { ProjectChip } from "./project-chip";
 import { UsageMeter } from "./usage-meter";
-import { WorkspaceFiles } from "./workspace-files";
 import { FilePreviewDialog } from "./file-preview-dialog";
-import type { Browse } from "@/lib/browse";
-import { BrowserPanelAutoOpen, LiveBrowsesProvider } from "./browser-card";
+import type { Browse, BrowserProtection } from "@/lib/browse";
+import { LiveBrowsesProvider } from "./browser-card";
 import { ConversationVisualsProvider } from "./visual-panel";
-import { BrowserPanel } from "./browser-panel";
+import { WorkspacePanels } from "./workspace-panels";
+import { browseSurfaces } from "@/lib/workspace-panels";
 import { SourcesPanel } from "./sources-panel";
-import { MessageList, coalesceActivity } from "./message-list";
+import { MessageList, coalesceActivity, type MessagePinActions } from "./message-list";
+import { PinnedMessages, type PinnedMessageTarget } from "./pinned-messages";
 import { TurnRail } from "./turn-rail";
 import { DelegationPanels } from "./delegation-panel";
 import { LocalAccessDialog } from "./local-access-dialog";
-import { useLocalAccessGate } from "@/hooks/use-local-access-gate";
+import { useComputerAccessOnUse, useLocalAccessGate } from "@/hooks/use-local-access-gate";
 import { CompactionNotice } from "./compaction-notice";
+import { ForkedFrom } from "./forked-from";
+import { type ConversationSideThreadActions } from "./conversation-side-threads";
+import { PersonalSideThreadPanel } from "./personal-side-thread-panel";
+import { ConversationAccessNotice } from "./conversation-access-notice";
+import { useConversationAccess, useSharedConversation } from "@/hooks/use-conversation-shares";
 import { SandboxPreparingNotice } from "./sandbox-preparing-notice";
 import { InterruptedNotice } from "./interrupted-notice";
 import { ConnectAccountPrompt } from "./connect-account-prompt";
 import { ConnectServicesCard } from "./connect-services-card";
 import { PendingMessages } from "./pending-messages";
 import { PlanStrip } from "./plan-strip";
-import { BackgroundTasks } from "./background-tasks";
 import { ToolApprovalDialog } from "./tool-approval-dialog";
 import { QuestionPrompt } from "@/components/ui";
+import { QuestionInteractionContext } from "./question-interaction";
+import { useMainChat } from "./main-chat-context";
+import { useChatHomeOptions } from "@/components/settings/console-experience-provider";
+import { DEFAULT_CHAT_HOME } from "@/lib/console-experience-api";
+import { ChatHomeInbox } from "./chat-home-inbox";
+import { SecretRequestCard } from "./secret-request-card";
 import type {
   PendingApproval,
   AskUserQuestion,
   AskUserAnswer,
   Compaction,
+  ChatCompactionStatus,
   ConnectionRequest,
   PersonalServiceGap,
   ConversationCost,
+  ConversationForkOrigin,
   Decision,
   Delegation,
   TurnUsage,
 } from "@/types";
 import { conversationMessageToChatMessage } from "@/lib/conversation-to-chat";
 import { latestUsage } from "@/lib/message-usage";
+import {
+  createConversationSideThread,
+  type ConversationForkRead,
+} from "@/lib/conversation-forks-api";
 import { dockedPlan } from "@/lib/plan-state";
 import {
   useAgentSelectionStore,
@@ -91,13 +121,14 @@ import { useInChatScope } from "@/stores/chat-scope-context";
 import { useComposerIntentStore } from "@/stores/composer-intent-store";
 import { cn } from "@/lib/utils";
 import { useConversations } from "@/hooks";
+import { useTenantId } from "@/hooks/use-organizations";
+import { useMessagePins } from "@/hooks/use-message-pins";
+import type { ConversationMessageSearchTarget } from "@/lib/conversation-message-search-api";
 import { useMounted } from "@/hooks/use-mounted";
 import { useOnline } from "@/hooks/use-online";
 import { offlineAvailable } from "@/lib/offline/device-cache";
 import { useSlashCommands } from "@/hooks";
-import { useFollowContent } from "@/hooks/use-follow-content";
-import { useSentTurnAnchor } from "@/hooks/use-sent-turn-anchor";
-import { useReaderScrolledUp } from "@/hooks/use-reader-scrolled-up";
+import { useChatViewport } from "@/hooks/use-chat-viewport";
 import { useFocusAfterCall } from "@/hooks/use-focus-after-call";
 import { useAgentDictation } from "@/hooks/use-agent-dictation";
 import { usePermissions, useVoiceReadiness, useVoiceSession, type VoiceSession } from "@/hooks";
@@ -106,7 +137,7 @@ import { ROUTES } from "@/lib/constants";
 import { qk } from "@/lib/query-keys";
 import { Perm } from "@/types/permissions";
 import { BrowserDictationPill, DictationPill } from "./dictation-bar";
-import { browserDictationHint, dictationHint, DictationStrip } from "./dictation-strip";
+import { dictationHint, DictationStrip } from "./dictation-strip";
 import { useAudioLevel } from "@/hooks/use-audio-level";
 import { AGENT_CALLS_ANCHOR, AGENT_DICTATION_ANCHOR } from "@/components/agents/voice-card";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
@@ -164,6 +195,16 @@ interface ChatContainerProps {
   sendDisabled?: boolean;
   /** Keep the welcome screen out of a saved conversation's initial load. */
   requestedConversationId?: string | null;
+  /** A saved question opened from Inbox. */
+  requestedQuestionRunId?: string | null;
+  composerDraft?: ComposerDraft;
+  requestedThreadRootId?: string | null;
+  requestedMessageId?: string | null;
+  messageJumpRevision?: number;
+  onOpenParent?: (target: { conversationId: string; messageId: string | null }) => void;
+  onOpenMessage?: (target: ConversationMessageSearchTarget) => void;
+  onOpenThread?: (rootId: string) => void;
+  onCloseThread?: () => void;
   /** Sent as soon as the socket is up, once per `id` (#2063). */
   prompt?: ChatPrompt | null;
   /** What an empty conversation shows instead of the generic suggestions. */
@@ -195,6 +236,15 @@ export interface PinnedPrompts {
 
 export function ChatContainer({
   requestedConversationId = null,
+  requestedQuestionRunId = null,
+  composerDraft,
+  requestedThreadRootId = null,
+  requestedMessageId = null,
+  messageJumpRevision = 0,
+  onOpenParent,
+  onOpenMessage,
+  onOpenThread,
+  onCloseThread,
   prompt = null,
   emptyState,
   agentFixed = false,
@@ -217,11 +267,17 @@ export function ChatContainer({
   }, [shared, clearShared]);
   const {
     currentConversationId,
+    createdConversationId,
+    pendingProjectId,
     currentMessages,
+    loadedTranscript,
+    selectionVersion,
     currentCost,
     isLoading: isConversationLoading,
   } = useConversationStore();
   const rereadMessages = useChatStore((state) => state.rereadMessages);
+  const committedTranscript = useChatStore((state) => state.loadedTranscript);
+  const unresolvedTranscript = loadedTranscript ?? committedTranscript;
   const chatApi = useChatStore.useApi();
   // The model override the picker holds, mirrored here because the context gauge
   // is a share of *its* window rather than of the agent's default.
@@ -247,21 +303,66 @@ export function ChatContainer({
     hasEarlierMessages,
     isLoadingEarlier,
     loadEarlierMessages,
+    error: conversationError,
     markRead,
+    forkConversation,
   } = useConversations();
   const prevConversationIdRef = useRef<string | null | undefined>(undefined);
 
-  // An archived conversation is read-only: the backend refuses new messages on
-  // it, so the composer says so instead of letting a send fail server-side.
-  const isArchived =
-    conversations.find((conversation) => conversation.id === currentConversationId)?.is_archived ??
-    false;
+  // Read access for non-owned threads even when channel participation lists them.
+  const listed = conversations.find((conversation) => conversation.id === currentConversationId);
+  const openConversation = listed;
+  const notListed = currentConversationId !== null && listed === undefined;
+  const meId = useAuthStore((state) => state.user?.id);
+  // Naming the first turn is not opening an unknown thread: the socket has
+  // just confirmed creation, before its row reaches the sidebar's query.
+  const newlyCreated = notListed && createdConversationId === currentConversationId;
+  const tenantId = useTenantId();
+  const needsAccess =
+    currentConversationId !== null && !newlyCreated && (notListed || listed?.user_id !== meId);
+  const access = useConversationAccess(currentConversationId, needsAccess);
+  const sharedConversation = useSharedConversation(currentConversationId);
+  const isArchived = listed?.is_archived ?? access.archived;
+  const viewOnly = access.viewOnly;
+  const readOnly = isArchived || viewOnly || !access.known;
+  // Somebody else's thread: its project is read-only until the access result says
+  // otherwise. Owned threads need no access read, so they are never read-only here.
+  const projectReadOnly = needsAccess && (!access.known || access.conversation?.user_id !== meId);
+  const scoped = useInChatScope();
+  // Project access defines the audience; a floating assistant keeps its own composer.
+  const roomProjectId =
+    scoped || agentFixed
+      ? null
+      : currentConversationId === null
+        ? pendingProjectId
+        : (listed?.project_id ??
+          access.conversation?.project_id ??
+          sharedConversation?.project_id ??
+          null);
+  const roomVisibility =
+    listed?.room_visibility ??
+    access.conversation?.room_visibility ??
+    sharedConversation?.room_visibility ??
+    null;
+  const isRoom = !scoped && !agentFixed && (roomProjectId !== null || roomVisibility != null);
+  useRoomSync(isRoom ? currentConversationId : null, rereadConversation);
+  const roomRequests = useRoomRequests(isRoom ? currentConversationId : null);
+  const canStartThread =
+    isRoom &&
+    !isArchived &&
+    access.known &&
+    !roomRequests.isError &&
+    roomRequests.data?.can_post === true;
+  const threadRootId =
+    requestedConversationId === currentConversationId ? requestedThreadRootId : null;
 
   // The one agent a conversation used, when it used exactly one. Recovered from the
   // conversation rather than the message, which is the only source history has left.
-  const conversationAgents = conversations.find(
-    (conversation) => conversation.id === currentConversationId,
-  )?.agents;
+  const conversationAgents = [
+    listed?.agents,
+    sharedConversation?.agents,
+    access.conversation?.agents,
+  ].find((agents) => agents !== undefined && agents.length > 0);
   const soleAgentId = conversationAgents?.length === 1 ? conversationAgents[0]?.id : undefined;
 
   // Opening a thread addresses the composer to the agent it was had with - in a
@@ -291,11 +392,7 @@ export function ChatContainer({
   // opening whether or not it was unread, because a read is also who has seen
   // it - a project chat lists its readers - and a teammate's chat is in nobody's
   // list but its owner's, so it never reads as unread to anyone else.
-  const openConversation = conversations.find(
-    (conversation) => conversation.id === currentConversationId,
-  );
-  const meId = useAuthStore((state) => state.user?.id);
-  const openIsUnread = openConversation?.unread === true;
+  const openIsUnread = openConversation?.unread === true || sharedConversation?.unread === true;
   const readOnOpen = useRef<string | null>(null);
   useEffect(() => {
     if (!currentConversationId) return;
@@ -373,19 +470,6 @@ export function ChatContainer({
     );
   }, [phase, callId, callRun, startedAt, callConversation, questions, setLiveCall]);
   useEffect(() => () => setLiveCall(null), [setLiveCall]);
-  const startCall = useCallback(
-    (transport: VoiceTransport) => {
-      if (selectedAgentId === null) return;
-      openCallRef.current = { conversationId: currentConversationId, agentId: selectedAgentId };
-      void voice.start({
-        kind: "console",
-        agentId: selectedAgentId,
-        conversationId: currentConversationId,
-        transport,
-      });
-    },
-    [selectedAgentId, currentConversationId, voice],
-  );
   // A call belongs to its conversation: opening another, or a new chat, hangs
   // it up, and an ended call's summary does not follow anybody elsewhere.
   const { end: endCall, dismiss: dismissCall } = voice;
@@ -445,7 +529,15 @@ export function ChatContainer({
   }, [currentConversationId, rereadConversation]);
 
   const {
-    messages,
+    messages: rawMessages,
+    activeThreadRootId = null,
+    actionThreadRoots = {
+      approval: null,
+      questions: null,
+      secrets: null,
+      connection: null,
+      computer: null,
+    },
     present,
     typing,
     notifyTyping,
@@ -455,6 +547,11 @@ export function ChatContainer({
     canStopParked,
     compacting,
     compactionImpossible,
+    compactionAvailable = false,
+    compactionReady = false,
+    compactionStatus = "idle",
+    compactionProgress = null,
+    compactConversation,
     sandboxPreparing,
     interrupted,
     detachedTurnPending,
@@ -464,7 +561,9 @@ export function ChatContainer({
     lastUsage,
     delegations,
     browses,
+    protectBrowser,
     sendMessage: sendChatMessage,
+    sendSteerMessage: sendSteerText,
     captureSubmission,
     stopGeneration,
     clearMessages,
@@ -483,8 +582,15 @@ export function ChatContainer({
     sendResumeDecisions,
     pendingQuestions,
     sendAskUserResponses,
+    submittingQuestions,
+    questionTarget,
+    pendingSecretRequests,
+    submitSecretRequest,
+    declineSecretRequest,
     pendingConnection,
     sendConnectionResponse,
+    pendingComputerAccess,
+    sendComputerAccessResponse,
     reportVisual,
   } = useChat({
     conversationId: currentConversationId,
@@ -493,13 +599,45 @@ export function ChatContainer({
     onTurnInterrupted: handleTurnInterrupted,
     testing,
     pageContext,
+    requestedQuestionRunId,
   });
-  // An agent that works on this computer is sent to once it knows where: the
-  // chat's folder, the one remembered for it, or the person's answer, asked once.
+  const startCall = useCallback(
+    (transport: VoiceTransport) => {
+      if (selectedAgentId === null || compactionStatus === "running") return;
+      openCallRef.current = { conversationId: currentConversationId, agentId: selectedAgentId };
+      void voice.start({
+        kind: "console",
+        agentId: selectedAgentId,
+        conversationId: currentConversationId,
+        transport,
+      });
+    },
+    [selectedAgentId, currentConversationId, voice, compactionStatus],
+  );
+  // Scope before any rendered-list upsert: a thread delta never flashes in the room.
+  const messages = useMemo(
+    () => rawMessages.filter((message) => message.threadRootMessageId === undefined),
+    [rawMessages],
+  );
+  // An agent that works on this computer is sent to with the folder this chat or
+  // the agent was given; with none, it asks when it needs the files.
   const sendMessage = useLocalAccessGate(sendChatMessage, selectedAgent, {
     selectedAgentId,
     metadataPending: agentsLoading,
     projectId: openConversation?.project_id,
+  });
+  useComputerAccessOnUse({
+    pending:
+      readOnly ||
+      actionThreadRoots.computer !== threadRootId ||
+      (actionThreadRoots.computer !== null && !isRoom)
+        ? null
+        : pendingComputerAccess,
+    respond: sendComputerAccessResponse,
+    agent:
+      pendingComputerAccess?.agent_id === undefined
+        ? selectedAgent
+        : agents.find((agent) => agent.id === pendingComputerAccess.agent_id),
   });
 
   // A message addressed to a workflow goes to it instead of the agent: the
@@ -531,6 +669,11 @@ export function ChatContainer({
   const runningSince =
     conversations.find((conversation) => conversation.id === currentConversationId)
       ?.running_since ?? null;
+  // The same listing row's latest heartbeat for that run: the fold reads it
+  // from the working store, beside the start the effect below already records.
+  const runningHeartbeatAt =
+    conversations.find((conversation) => conversation.id === currentConversationId)
+      ?.running_heartbeat_at ?? null;
   // Not while this tab holds a call: the call is that run, and its last spoken
   // turn is the caller's while the agent thinks - nobody left anything.
   const answeringElsewhere =
@@ -557,7 +700,8 @@ export function ChatContainer({
     // Both the sidebar and the transcript measure the same persisted run,
     // including when its stream resumes after a human decision.
     working.start(currentConversationId, runningSince);
-  }, [isProcessing, runningSince, currentConversationId]);
+    if (runningHeartbeatAt) working.setHeartbeat(currentConversationId, runningHeartbeatAt);
+  }, [isProcessing, runningSince, runningHeartbeatAt, currentConversationId]);
 
   const answeredRef = useRef(answered);
   useEffect(() => {
@@ -602,13 +746,13 @@ export function ChatContainer({
       : null;
   const askAgain = useCallback(
     (question: string) => {
-      if (sendDisabled) return;
+      if (sendDisabled || isRoom || compactionStatus === "running") return;
       const submission = pageContext ? captureSubmission() : undefined;
       setLostIn(null);
       if (submission) sendMessage(question, undefined, undefined, undefined, submission);
       else sendMessage(question);
     },
-    [sendMessage, sendDisabled, pageContext, captureSubmission],
+    [sendMessage, sendDisabled, pageContext, captureSubmission, isRoom],
   );
 
   // What the file panel watches, rather than a timer. Counted from the transcript
@@ -639,19 +783,58 @@ export function ChatContainer({
 
   const transcriptRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  // true = user deliberately scrolled up; suppress auto-scroll until they return to bottom
-  const userScrolledUpRef = useRef(false);
-  const sentTurnAnchoredRef = useRef(false);
   const sentTurnSpacerRef = useRef<HTMLDivElement>(null);
-  useSentTurnAnchor(
+  const dockRef = useRef<HTMLDivElement>(null);
+  // The viewport hook treats a scroll it did not write as the reader's own, so a
+  // jump to a message needs no separate hold on following.
+  const holdMessageJump = useCallback(() => undefined, []);
+  const jumpReady =
+    meId !== undefined &&
+    tenantId !== null &&
+    access.known &&
+    !isConversationLoading &&
+    committedTranscript?.conversationId === currentConversationId &&
+    committedTranscript?.selectionVersion === selectionVersion &&
+    committedTranscript?.accountId === meId &&
+    committedTranscript?.tenantId === tenantId;
+  const messageJump = useMessageJump({
+    messageId:
+      currentConversationId !== null &&
+      requestedConversationId === currentConversationId &&
+      threadRootId === null
+        ? requestedMessageId
+        : null,
+    scope: JSON.stringify([meId, tenantId, currentConversationId, selectionVersion]),
+    revision: messageJumpRevision,
+    ready: jumpReady,
+    messageIds: messages
+      .filter((message) => !message.threadRootMessageId)
+      .flatMap((message) => [message.id, ...(message.persistedId ? [message.persistedId] : [])]),
+    firstMessageId: currentMessages[0]?.id ?? null,
+    hasEarlier: hasEarlierMessages,
+    loadingEarlier: isLoadingEarlier,
+    loadEarlier: loadEarlierMessages,
+    container: scrollContainerRef,
+    beforeJump: holdMessageJump,
+  });
+  const canUseMessagePins =
+    jumpReady &&
+    currentConversationId !== null &&
+    !testing &&
+    onOpenMessage !== undefined &&
+    (requestedConversationId === null || requestedConversationId === currentConversationId);
+  // Transcript rows already carry pin state; fetch the paged list only when opened.
+  const messagePins = useMessagePins(canUseMessagePins ? currentConversationId : null, false);
+  const { dockHeight, revealQuestion, bindScroller } = useChatViewport({
+    conversationId: currentConversationId,
     messages,
-    scrollContainerRef,
-    transcriptRef,
-    sentTurnSpacerRef,
-    sentTurnAnchoredRef,
     sentTurnId,
-    userScrolledUpRef,
-  );
+    empty: messages.length === 0 && callPhase === "idle",
+    scroller: scrollContainerRef,
+    content: transcriptRef,
+    spacer: sentTurnSpacerRef,
+    dock: dockRef,
+  });
 
   // Clear messages when conversation changes, but NOT when going from null to a new ID
   // (that happens when a new chat is saved - we want to keep the messages)
@@ -686,9 +869,34 @@ export function ChatContainer({
   }, [currentConversationId, clearMessages, clearQueued]);
 
   useEffect(() => {
+    // A request made before the organization list resolved has no concrete
+    // tenant proof. Read it once under the resolved tenant instead of rebinding
+    // that history to whichever organization happens to be selected now.
     if (
-      currentMessages.length > 0 &&
-      currentMessages[0]?.conversation_id === currentConversationId
+      unresolvedTranscript?.conversationId === currentConversationId &&
+      unresolvedTranscript.selectionVersion === selectionVersion &&
+      unresolvedTranscript.accountId === (meId ?? null) &&
+      unresolvedTranscript.tenantId === null &&
+      tenantId !== null
+    ) {
+      void rereadConversation(unresolvedTranscript.conversationId);
+    }
+  }, [
+    unresolvedTranscript,
+    currentConversationId,
+    selectionVersion,
+    meId,
+    tenantId,
+    rereadConversation,
+  ]);
+
+  useEffect(() => {
+    if (
+      loadedTranscript?.conversationId === currentConversationId &&
+      loadedTranscript.selectionVersion === selectionVersion &&
+      loadedTranscript.accountId === (meId ?? null) &&
+      loadedTranscript.tenantId === tenantId &&
+      currentMessages.every((message) => message.conversation_id === currentConversationId)
     ) {
       // Not `clearMessages`: a re-read of this same conversation - a followed
       // turn ending, a teammate's answer landing - must not drop the reply
@@ -706,34 +914,20 @@ export function ChatContainer({
             agentId: message.agentId ?? soleAgentId,
           };
         }),
+        loadedTranscript,
       );
     }
-  }, [currentMessages, currentConversationId, rereadMessages, soleAgentId]);
+  }, [
+    currentMessages,
+    currentConversationId,
+    loadedTranscript,
+    selectionVersion,
+    meId,
+    tenantId,
+    rereadMessages,
+    soleAgentId,
+  ]);
 
-  // Whether the reader has moved up to read, so the transcript stops following.
-  useReaderScrolledUp(scrollContainerRef, userScrolledUpRef);
-
-  // An empty conversation is not followed at all: its welcome reads from the
-  // top, and in a narrow window - the Architect's, the test panel - following
-  // the foot scrolled the greeting and the face above it out of view. A call is
-  // content even before any of its turns is saved: its captions are followed.
-  const empty = messages.length === 0 && callPhase === "idle";
-  const emptyRef = useRef(empty);
-  useEffect(() => {
-    emptyRef.current = empty;
-    const container = scrollContainerRef.current;
-    if (emptyRef.current) {
-      container?.scrollTo({ top: 0 });
-      return;
-    }
-  }, [empty]);
-  // And on growth the messages do not announce: an answer's last words are
-  // revealed over frames after its message has stopped changing.
-  const holdFollow = useCallback(
-    () => emptyRef.current || userScrolledUpRef.current || sentTurnAnchoredRef.current,
-    [],
-  );
-  useFollowContent(scrollContainerRef, transcriptRef, holdFollow);
   // A turn starting here is a thread at work in the list beside it; asked once as
   // it starts, the row shows it at once, and the listing then polls until it ends.
   useEffect(() => {
@@ -749,7 +943,7 @@ export function ChatContainer({
     (content: string, fileIds?: string[], files?: ChatMessageFile[], mentions?: Mentionable[]) => {
       // Typing on after a call: its summary has said its piece, and would otherwise
       // sit under the new turn.
-      if (sendDisabled) return;
+      if (sendDisabled || isRoom) return;
       dismissCall();
       const submission = pageContext ? captureSubmission() : undefined;
       if (selectedWorkflow) void workflowChat.send(selectedWorkflow, content);
@@ -769,16 +963,59 @@ export function ChatContainer({
       pageContext,
       captureSubmission,
       sendDisabled,
+      isRoom,
+      compactionStatus,
+    ],
+  );
+  const sendSteer = useCallback(
+    (content: string) => {
+      if (
+        !content.trim() ||
+        !isProcessing ||
+        !isConnected ||
+        sendDisabled ||
+        readOnly ||
+        isRoom ||
+        pageContext !== undefined ||
+        selectedWorkflow !== null ||
+        holdSending ||
+        isStopping ||
+        pendingApproval != null ||
+        !!pendingQuestions?.length
+      )
+        return false;
+      return sendSteerText(content);
+    },
+    [
+      isProcessing,
+      isConnected,
+      sendDisabled,
+      readOnly,
+      isRoom,
+      pageContext,
+      selectedWorkflow,
+      holdSending,
+      isStopping,
+      pendingApproval,
+      pendingQuestions,
+      sendSteerText,
     ],
   );
   useEffect(() => {
-    if (held.current === null || holdSending || sendDisabled) return;
+    if (
+      held.current === null ||
+      holdSending ||
+      sendDisabled ||
+      isRoom ||
+      compactionStatus === "running"
+    )
+      return;
     const waiting = held.current;
     // A held contextual question must pass the gate for its chosen agent.
     if (waiting[4] && waiting[4].agentId !== selectedAgentId) return;
     held.current = null;
     sendMessage(...waiting);
-  }, [holdSending, sendMessage, sendDisabled, selectedAgentId]);
+  }, [holdSending, sendMessage, sendDisabled, selectedAgentId, isRoom, compactionStatus]);
 
   const handleRegenerate = useCallback(
     (assistantMessageId: string) => {
@@ -797,6 +1034,130 @@ export function ChatContainer({
     [messages, send, sendDisabled],
   );
 
+  const forkableConversation = openConversation ?? access.conversation;
+  const ownsOpenConversation =
+    forkableConversation?.user_id != null && forkableConversation.user_id === meId;
+  const openId = forkableConversation?.id;
+  const forking = useRef(false);
+  const [forkingMessageId, setForkingMessageId] = useState<string | null>(null);
+  const [activeSideThread, setActiveSideThread] = useState<{
+    scopeKey: string;
+    sourceConversationId: string;
+    fork: ConversationForkRead;
+  } | null>(null);
+  const [creatingSideThread, setCreatingSideThread] = useState<{
+    scopeKey: string;
+    messageId: string;
+  } | null>(null);
+  const sideThreadScopeKey = JSON.stringify([tenantId, meId ?? null, openId ?? null]);
+  const sideThreadScopeRef = useRef(sideThreadScopeKey);
+  const sideThreadRequestRef = useRef<object | null>(null);
+  const [sideThreadScopeState, setSideThreadScopeState] = useState(sideThreadScopeKey);
+  if (sideThreadScopeState !== sideThreadScopeKey) {
+    setSideThreadScopeState(sideThreadScopeKey);
+    setCreatingSideThread(null);
+    setActiveSideThread(null);
+  }
+  useLayoutEffect(() => {
+    sideThreadScopeRef.current = sideThreadScopeKey;
+    sideThreadRequestRef.current = null;
+    return () => {
+      sideThreadScopeRef.current = "";
+      sideThreadRequestRef.current = null;
+    };
+  }, [sideThreadScopeKey]);
+  const creatingSideThreadMessageId =
+    creatingSideThread?.scopeKey === sideThreadScopeKey ? creatingSideThread.messageId : null;
+  const canUsePersonalSideThreads = Boolean(
+    openId &&
+    tenantId &&
+    meId &&
+    ownsOpenConversation &&
+    access.known &&
+    !isArchived &&
+    !isRoom &&
+    forkableConversation?.project_id == null,
+  );
+  const visibleSideThread =
+    canUsePersonalSideThreads && activeSideThread?.scopeKey === sideThreadScopeKey
+      ? activeSideThread
+      : null;
+
+  const handleFork = useCallback(
+    async (messageId: string) => {
+      if (openId === undefined || forking.current) return;
+      forking.current = true;
+      setForkingMessageId(messageId);
+      try {
+        await forkConversation(openId, messageId);
+      } finally {
+        forking.current = false;
+        setForkingMessageId(null);
+      }
+    },
+    [forkConversation, openId],
+  );
+  const handleCreateSideThread = useCallback(
+    async (messageId: string) => {
+      if (
+        !canUsePersonalSideThreads ||
+        openId === undefined ||
+        sideThreadRequestRef.current !== null
+      ) {
+        // i18n-exempt: Internal invariant; the catch shows the localized createFailed alert.
+        throw new Error("Side thread cannot be created in this conversation");
+      }
+      const request = {};
+      const scopeKey = sideThreadScopeKey;
+      sideThreadRequestRef.current = request;
+      setCreatingSideThread({ scopeKey, messageId });
+      try {
+        const fork = await createConversationSideThread(openId, messageId);
+        if (sideThreadRequestRef.current !== request || sideThreadScopeRef.current !== scopeKey) {
+          return;
+        }
+        if (
+          fork.forked_from.conversation_id !== openId ||
+          fork.forked_from.message_id !== messageId
+        ) {
+          // i18n-exempt: Internal response check; the catch shows the localized createFailed alert.
+          throw new Error("Side thread response does not match its source answer");
+        }
+        setActiveSideThread({ scopeKey, sourceConversationId: openId, fork });
+      } finally {
+        if (sideThreadRequestRef.current === request) {
+          sideThreadRequestRef.current = null;
+          setCreatingSideThread((previous) => (previous?.scopeKey === scopeKey ? null : previous));
+        }
+      }
+    },
+    [canUsePersonalSideThreads, openId, sideThreadScopeKey],
+  );
+  const handleOpenSideThread = useCallback(
+    (messageId: string, fork: ConversationForkRead) => {
+      if (
+        !canUsePersonalSideThreads ||
+        openId === undefined ||
+        sideThreadScopeRef.current !== sideThreadScopeKey ||
+        fork.forked_from.conversation_id !== openId ||
+        fork.forked_from.message_id !== messageId
+      ) {
+        return;
+      }
+      setActiveSideThread({ scopeKey: sideThreadScopeKey, sourceConversationId: openId, fork });
+    },
+    [canUsePersonalSideThreads, openId, sideThreadScopeKey],
+  );
+  const sideThreadActions: ConversationSideThreadActions | undefined =
+    canUsePersonalSideThreads && openId
+      ? {
+          sourceConversationId: openId,
+          creatingMessageId: creatingSideThreadMessageId,
+          onCreate: handleCreateSideThread,
+          onOpen: handleOpenSideThread,
+        }
+      : undefined;
+
   // A prompt handed in from outside - a bubble the reader clicked in the
   // widget - goes out once the socket can carry it, and only once.
   const sentPromptRef = useRef<number | null>(null);
@@ -806,13 +1167,14 @@ export function ChatContainer({
       !isConnected ||
       holdSending ||
       sendDisabled ||
+      compactionStatus === "running" ||
       sentPromptRef.current === prompt.id
     ) {
       return;
     }
     sentPromptRef.current = prompt.id;
     send(prompt.text);
-  }, [prompt, isConnected, holdSending, send, sendDisabled]);
+  }, [prompt, isConnected, holdSending, send, sendDisabled, compactionStatus]);
 
   // Slash command handlers - passed down to ChatInput so the / palette can
   // run them locally without going through the agent.
@@ -836,6 +1198,91 @@ export function ChatContainer({
     <>
       <LocalAccessDialog />
       <ChatUI
+        manualCompaction={
+          ownsOpenConversation &&
+          !testing &&
+          !readOnly &&
+          !isRoom &&
+          threadRootId === null &&
+          selectedWorkflow === null &&
+          pageContext === undefined
+            ? {
+                available: compactionAvailable,
+                status: compactionStatus,
+                progress: compactionProgress,
+                onCompact: compactConversation,
+                disabled:
+                  !compactionReady ||
+                  !jumpReady ||
+                  sendDisabled ||
+                  holdSending ||
+                  !isConnected ||
+                  isProcessing ||
+                  isStopping ||
+                  canStopParked ||
+                  interrupted ||
+                  detachedTurnPending ||
+                  leftTurnPending ||
+                  runningSince !== null ||
+                  queuedMessages.length > 0 ||
+                  pendingApproval != null ||
+                  !!pendingQuestions?.length ||
+                  !!pendingSecretRequests?.length ||
+                  pendingConnection != null ||
+                  pendingComputerAccess != null ||
+                  callActive(voice),
+              }
+            : undefined
+        }
+        sideThreadActions={sideThreadActions}
+        messagePinActions={
+          canUseMessagePins
+            ? {
+                pendingMessageId: messagePins.pendingMessageId,
+                togglePin: messagePins.togglePin,
+              }
+            : undefined
+        }
+        onOpenPinnedMessage={
+          canUseMessagePins
+            ? (target) => {
+                if (currentConversationId !== null)
+                  onOpenMessage?.({
+                    ...target,
+                    conversationId: currentConversationId,
+                    threadRootMessageId: target.threadRootMessageId ?? undefined,
+                  });
+              }
+            : undefined
+        }
+        roomProjectId={roomProjectId}
+        isRoom={isRoom}
+        conversation={openConversation ?? null}
+        roomReadOnly={isArchived || !access.known}
+        threadRootId={threadRootId}
+        requestedMessageId={
+          requestedConversationId === currentConversationId ? requestedMessageId : null
+        }
+        messageJumpRevision={messageJumpRevision}
+        messageJump={
+          messageJump.status !== "idle" && !jumpReady && (conversationError || access.failed)
+            ? {
+                ...messageJump,
+                status: "failed",
+                retry: () => {
+                  messageJump.retry();
+                  if (currentConversationId !== null)
+                    void rereadConversation(currentConversationId);
+                },
+              }
+            : messageJump
+        }
+        onOpenThread={onOpenThread}
+        onCloseThread={onCloseThread}
+        canStartThread={canStartThread}
+        activeThreadRootId={activeThreadRootId}
+        actionThreadRoots={actionThreadRoots}
+        hasPendingComputerAccess={pendingComputerAccess !== null}
         hasEarlierMessages={hasEarlierMessages}
         isLoadingEarlier={isLoadingEarlier}
         loadEarlierMessages={loadEarlierMessages}
@@ -859,7 +1306,7 @@ export function ChatContainer({
         detachedTurnPending={detachedTurnPending}
         leftTurnPending={leftTurnPending || answeringElsewhere}
         answerLost={lostQuestion !== null}
-        onAskAgain={lostQuestion === null ? undefined : () => askAgain(lostQuestion)}
+        onAskAgain={lostQuestion === null || isRoom ? undefined : () => askAgain(lostQuestion)}
         onRecheck={handleRecheck}
         personalGaps={personalGaps}
         // The live turn's cost while there is one, and the newest measured answer in
@@ -868,6 +1315,13 @@ export function ChatContainer({
         lastUsage={lastUsage ?? latestUsage(currentMessages, currentConversationId)}
         contextWindow={contextWindow}
         agentCapabilities={agentCapabilities}
+        agentHostedCapabilities={selectedAgent?.published_hosted_capabilities ?? null}
+        workspaceCanRun={
+          selectedAgent?.can_run === true && !selectedWorkflow && !testing && !holdSending
+        }
+        agentUsesLocalTools={Boolean(
+          selectedAgent?.local_workspace || selectedAgent?.local_coding_agent,
+        )}
         agentModel={agentModel}
         // Only for the thread that is actually open. The store keeps the transcript
         // it last loaded, so between clicking another conversation and its messages
@@ -876,6 +1330,7 @@ export function ChatContainer({
         conversationCost={currentConversationId === null ? null : currentCost}
         delegations={delegations}
         browses={browses}
+        onBrowserProtected={protectBrowser}
         conversationId={currentConversationId}
         turns={turns}
         attachments={attachments}
@@ -884,7 +1339,17 @@ export function ChatContainer({
           (currentConversationId !== null && isConversationLoading && messages.length === 0)
         }
         isArchived={isArchived}
+        readOnly={readOnly}
+        projectReadOnly={projectReadOnly}
+        viewOnly={viewOnly}
+        accessState={access.failed ? "error" : !access.known ? "checking" : undefined}
+        onRetryAccess={access.retry}
         sendMessage={send}
+        onSteer={sendSteer}
+        showSendMode={selectedWorkflow === null && !holdSending}
+        steerContextAvailable={
+          pageContext === undefined && selectedWorkflow === null && !holdSending
+        }
         sendDisabled={sendDisabled}
         steers={steers}
         // Kept here as well as pushed into the hook, because the context gauge is a
@@ -897,7 +1362,20 @@ export function ChatContainer({
         // Only into the hook: nothing on screen is a share of it, unlike the
         // context gauge the model switch has to move.
         onApprovalModeChange={setApprovalMode}
-        onRegenerate={handleRegenerate}
+        onRegenerate={
+          readOnly || isRoom || compactionStatus === "running" ? undefined : handleRegenerate
+        }
+        onFork={ownsOpenConversation && access.known ? handleFork : undefined}
+        forkingMessageId={forkingMessageId}
+        forkedFrom={forkableConversation?.forked_from ?? null}
+        onOpenForkSource={(id) => {
+          if (onOpenParent)
+            onOpenParent({
+              conversationId: id,
+              messageId: forkableConversation?.forked_from?.message_id ?? null,
+            });
+          else void selectConversation(id);
+        }}
         pins={pins}
         slashContext={slashContext}
         slashCommands={slashCommands}
@@ -907,15 +1385,22 @@ export function ChatContainer({
         onSendQueuedNow={sendQueuedNow}
         onMoveQueued={moveQueued}
         transcriptRef={transcriptRef}
-        scrollContainerRef={scrollContainerRef}
-        userScrolledUpRef={userScrolledUpRef}
-        sentTurnAnchoredRef={sentTurnAnchoredRef}
+        bindScroller={bindScroller}
+        dockRef={dockRef}
+        dockHeight={dockHeight}
+        onRevealQuestion={revealQuestion}
         sentTurnSpacerRef={sentTurnSpacerRef}
+        submittingQuestions={submittingQuestions}
+        questionTarget={questionTarget}
         pendingApproval={pendingApproval}
         onResumeDecisions={sendResumeDecisions}
         mayRememberApproval={mayRememberApproval}
         pendingQuestions={pendingQuestions}
         onAnswerQuestions={sendAskUserResponses}
+        composerDraft={composerDraft}
+        pendingSecretRequests={pendingSecretRequests}
+        onSubmitSecretRequest={submitSecretRequest}
+        onDeclineSecretRequest={declineSecretRequest}
         pendingConnection={pendingConnection}
         onConnectionResponse={sendConnectionResponse}
         onStop={stopGeneration}
@@ -929,11 +1414,49 @@ export function ChatContainer({
         incomingFiles={incomingFiles ?? sharedHere}
         onVisualReport={reportVisual}
       />
+      {visibleSideThread && (
+        <PersonalSideThreadPanel
+          key={`${visibleSideThread.scopeKey}:${visibleSideThread.fork.id}`}
+          sourceConversationId={visibleSideThread.sourceConversationId}
+          fork={visibleSideThread.fork}
+          onClose={() => setActiveSideThread(null)}
+          onOpenParent={(target) => {
+            setActiveSideThread(null);
+            if (onOpenParent) onOpenParent(target);
+            else if (target.conversationId !== currentConversationId)
+              void selectConversation(target.conversationId);
+          }}
+        />
+      )}
     </>
   );
 }
 
 interface ChatUIProps {
+  manualCompaction?: {
+    available: boolean;
+    status: ChatCompactionStatus;
+    progress: Compaction | null;
+    disabled: boolean;
+    onCompact: () => boolean;
+  };
+  sideThreadActions?: ConversationSideThreadActions;
+  messagePinActions?: MessagePinActions;
+  onOpenPinnedMessage?: (target: PinnedMessageTarget) => void;
+  roomProjectId: string | null;
+  isRoom: boolean;
+  conversation: Conversation | null;
+  roomReadOnly: boolean;
+  threadRootId: string | null;
+  requestedMessageId: string | null;
+  messageJumpRevision: number;
+  messageJump: MessageJumpState;
+  onOpenThread?: (rootId: string) => void;
+  onCloseThread?: () => void;
+  canStartThread: boolean;
+  activeThreadRootId: string | null;
+  actionThreadRoots: ReturnType<typeof useChat>["actionThreadRoots"];
+  hasPendingComputerAccess: boolean;
   sendDisabled?: boolean;
   hasEarlierMessages: boolean;
   isLoadingEarlier: boolean;
@@ -978,6 +1501,9 @@ interface ChatUIProps {
   /** The selected agent's published model, shown as current in the model picker. */
   agentModel: PublishedModel | null;
   agentCapabilities: string[] | null;
+  agentHostedCapabilities?: string[] | null;
+  workspaceCanRun?: boolean;
+  agentUsesLocalTools?: boolean;
   /**
    * The turn's delegations, drawn under the transcript.
    *
@@ -987,6 +1513,7 @@ interface ChatUIProps {
   delegations: Delegation[];
   /** The turn's browses, for the live preview panel. See `BrowserPanel`. */
   browses: Browse[];
+  onBrowserProtected?: (protection: BrowserProtection) => void;
   /** The conversation the file panel reads, or null before one exists. */
   conversationId: string | null;
   /** Who has the conversation open, the reader included. */
@@ -1009,15 +1536,28 @@ interface ChatUIProps {
   isLoadingConversation?: boolean;
   /** True for an archived conversation - the composer is closed with a notice. */
   isArchived?: boolean;
+  viewOnly?: boolean;
+  readOnly: boolean;
+  /** Somebody else's thread, or its access is unknown: its project chip is read-only. */
+  projectReadOnly: boolean;
+  accessState?: "checking" | "error";
+  onRetryAccess: () => void;
   sendMessage: (
     content: string,
     fileIds?: string[],
     files?: import("@/types").ChatMessageFile[],
     mentions?: Mentionable[],
   ) => void;
+  onSteer?: (content: string) => boolean;
+  showSendMode?: boolean;
+  steerContextAvailable?: boolean;
   onModelProfileChange?: (profileId: string | null) => void;
   onApprovalModeChange?: (mode: import("./chat-controls").ApprovalMode) => void;
   onRegenerate?: (messageId: string) => void;
+  onFork?: (messageId: string) => void;
+  forkingMessageId?: string | null;
+  forkedFrom?: ConversationForkOrigin | null;
+  onOpenForkSource?: (conversationId: string) => void;
   pins?: PinnedPrompts;
   slashContext?: import("./slash-commands").SlashCommandContext;
   slashCommands?: import("./slash-commands").SlashCommand[];
@@ -1033,16 +1573,24 @@ interface ChatUIProps {
   steers?: SteerDraft[];
   /** The transcript's content, whose growth the scroller follows. */
   transcriptRef: React.RefObject<HTMLDivElement | null>;
-  scrollContainerRef: React.RefObject<HTMLDivElement | null>;
   /** Whether the reader scrolled up, and the scroller should stay where they left it. */
-  userScrolledUpRef: React.RefObject<boolean>;
-  sentTurnAnchoredRef: React.RefObject<boolean>;
+  bindScroller: (element: HTMLDivElement | null) => void;
+  dockRef: React.RefObject<HTMLDivElement | null>;
+  dockHeight: number;
+  onRevealQuestion: () => void;
+  submittingQuestions?: boolean;
+  questionTarget?: { id: string; messageId: string | null; toolCallIds: string[] } | null;
   sentTurnSpacerRef: React.RefObject<HTMLDivElement | null>;
   pendingApproval?: PendingApproval | null;
   onResumeDecisions?: (decisions: Decision[]) => void;
   mayRememberApproval?: boolean;
   pendingQuestions?: AskUserQuestion[] | null;
   onAnswerQuestions?: (answers: AskUserAnswer[]) => void;
+  composerDraft?: ComposerDraft;
+  /** The secrets a parked run asked its person for. See `SecretRequestCard`. */
+  pendingSecretRequests?: ParkedSecretRequest[] | null;
+  onSubmitSecretRequest?: (requestId: string, value: string) => void;
+  onDeclineSecretRequest?: (requestId: string) => void;
   /** The service a paused run waits for the person to connect. */
   pendingConnection?: ConnectionRequest | null;
   onConnectionResponse?: (connected: boolean) => void;
@@ -1055,7 +1603,41 @@ interface ChatUIProps {
   onStartCall: (transport: VoiceTransport) => void;
 }
 
+interface DirectChatDraft {
+  content: string;
+  accountId: string | null;
+  organizationId: string | null;
+  conversationId: string | null;
+  selectionVersion: number;
+}
+
+interface CreatedRoomDraftHandoff {
+  roomId: string;
+  projectId: string;
+  accountId: string;
+  organizationId: string;
+  selectionVersion: number;
+}
+
 function ChatUI({
+  manualCompaction,
+  sideThreadActions,
+  messagePinActions,
+  onOpenPinnedMessage,
+  roomProjectId,
+  isRoom,
+  conversation,
+  roomReadOnly,
+  threadRootId,
+  requestedMessageId,
+  messageJumpRevision,
+  messageJump,
+  onOpenThread,
+  onCloseThread,
+  canStartThread,
+  activeThreadRootId,
+  actionThreadRoots,
+  hasPendingComputerAccess,
   hasEarlierMessages,
   isLoadingEarlier,
   loadEarlierMessages,
@@ -1081,17 +1663,33 @@ function ChatUI({
   contextWindow,
   agentModel,
   agentCapabilities,
+  agentHostedCapabilities = null,
+  workspaceCanRun = false,
+  agentUsesLocalTools = false,
   delegations,
   browses,
+  onBrowserProtected,
   conversationId,
   turns,
   attachments,
   isLoadingConversation,
   isArchived,
+  viewOnly = false,
+  readOnly,
+  projectReadOnly,
+  accessState,
+  onRetryAccess,
   sendMessage,
+  onSteer,
+  showSendMode = true,
+  steerContextAvailable = true,
   onModelProfileChange,
   onApprovalModeChange,
   onRegenerate,
+  onFork,
+  forkingMessageId,
+  forkedFrom,
+  onOpenForkSource,
   pins,
   slashContext,
   slashCommands,
@@ -1102,15 +1700,22 @@ function ChatUI({
   onMoveQueued,
   steers = [],
   transcriptRef,
-  scrollContainerRef,
-  userScrolledUpRef,
-  sentTurnAnchoredRef,
+  bindScroller,
+  dockRef,
+  dockHeight,
+  onRevealQuestion,
+  submittingQuestions = false,
+  questionTarget,
   sentTurnSpacerRef,
   pendingApproval,
   onResumeDecisions,
   mayRememberApproval,
   pendingQuestions,
   onAnswerQuestions,
+  composerDraft,
+  pendingSecretRequests,
+  onSubmitSecretRequest,
+  onDeclineSecretRequest,
   pendingConnection,
   onConnectionResponse,
   onStop,
@@ -1125,11 +1730,122 @@ function ChatUI({
   onVisualReport,
   sendDisabled = false,
 }: ChatUIProps) {
+  const manualCompacting = manualCompaction?.status === "running";
+  const directDraftRef = useRef<DirectChatDraft | null>(null);
+  const createdRoomDraftHandoffRef = useRef<CreatedRoomDraftHandoff | null>(null);
+  const conversationApi = useConversationStore.useApi();
+  const selectionVersion = useConversationStore((state) => state.selectionVersion);
   const composerFocusRequest = useConversationStore((state) => state.composerFocusRequest);
   const t = useTranslations("chat");
+  const tThread = useTranslations("chat.roomThread");
   const tDictation = useTranslations("chat.dictation");
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
+  const accountId = useAuthStore((state) => state.user?.id ?? null);
+  const recordDirectDraft = useCallback(
+    (content: string) => {
+      directDraftRef.current = {
+        content,
+        accountId,
+        organizationId: activeOrgId,
+        conversationId,
+        selectionVersion,
+      };
+    },
+    [accountId, activeOrgId, conversationId, selectionVersion],
+  );
+  const authorizeCreatedRoomDraft = useCallback(
+    (roomId: string, projectId: string) => {
+      const current = conversationApi.getState();
+      if (
+        accountId === null ||
+        activeOrgId === null ||
+        conversationId !== null ||
+        roomProjectId !== projectId ||
+        useAuthStore.getState().user?.id !== accountId ||
+        useOrgStore.getState().activeOrgId !== activeOrgId ||
+        current.currentConversationId !== null ||
+        current.pendingProjectId !== projectId ||
+        current.selectionVersion !== selectionVersion
+      ) {
+        createdRoomDraftHandoffRef.current = null;
+        return false;
+      }
+
+      const draft = directDraftRef.current;
+      if (
+        draft !== null &&
+        draft.content.length > 0 &&
+        draft.accountId === accountId &&
+        draft.organizationId === activeOrgId &&
+        draft.conversationId === null &&
+        draft.selectionVersion === selectionVersion
+      ) {
+        createdRoomDraftHandoffRef.current = {
+          roomId,
+          projectId,
+          accountId,
+          organizationId: activeOrgId,
+          selectionVersion,
+        };
+      } else {
+        createdRoomDraftHandoffRef.current = null;
+      }
+      return true;
+    },
+    [accountId, activeOrgId, conversationApi, conversationId, roomProjectId, selectionVersion],
+  );
+  const consumeDirectDraft = useCallback(() => {
+    const draft = directDraftRef.current;
+    if (draft === null) return "";
+
+    const current = conversationApi.getState();
+    const sameIdentity =
+      useAuthStore.getState().user?.id === accountId &&
+      useOrgStore.getState().activeOrgId === activeOrgId;
+    const sameSelection =
+      current.currentConversationId === conversationId &&
+      current.selectionVersion === selectionVersion;
+    if (!sameIdentity || !sameSelection) return "";
+
+    const belongsToCurrentConversation =
+      draft.accountId === accountId &&
+      draft.organizationId === activeOrgId &&
+      draft.conversationId === conversationId &&
+      draft.selectionVersion === selectionVersion;
+    if (belongsToCurrentConversation) {
+      directDraftRef.current = null;
+      createdRoomDraftHandoffRef.current = null;
+      return draft.content;
+    }
+
+    const handoff = createdRoomDraftHandoffRef.current;
+    if (handoff?.roomId === conversationId) createdRoomDraftHandoffRef.current = null;
+    const belongsToCreatedRoom =
+      handoff !== null &&
+      handoff.roomId === conversationId &&
+      handoff.projectId === roomProjectId &&
+      handoff.accountId === accountId &&
+      handoff.organizationId === activeOrgId &&
+      handoff.selectionVersion === draft.selectionVersion &&
+      current.selectionVersion === handoff.selectionVersion + 1 &&
+      draft.accountId === accountId &&
+      draft.organizationId === activeOrgId &&
+      draft.conversationId === null;
+    if (belongsToCreatedRoom) {
+      directDraftRef.current = null;
+      return draft.content;
+    }
+
+    directDraftRef.current = null;
+    return "";
+  }, [accountId, activeOrgId, conversationApi, conversationId, roomProjectId, selectionVersion]);
+  const roomRequests = useRoomRequests(isRoom ? conversationId : null);
   const selectedAgentId = useAgentSelectionStore((state) => state.selectedAgentId);
+  const { mode: sendMode, setMode: setSendMode } = useChatSendModePreference(
+    accountId,
+    activeOrgId,
+    selectedAgentId,
+  );
   const {
     status,
     failed: dictationStatusFailed,
@@ -1210,18 +1926,27 @@ function ChatUI({
   // The Architect's window and the Builder's test panel: a narrow column beside
   // a page, with no room for the rail and no use for the full chat's spacing.
   const compact = useInChatScope();
+  const messagePinsControl =
+    conversationId !== null && messagePinActions && onOpenPinnedMessage ? (
+      <PinnedMessages
+        key={`${accountId}:${activeOrgId}:${conversationId}`}
+        conversationId={conversationId}
+        onJumpToMessage={onOpenPinnedMessage}
+      />
+    ) : null;
 
   // A voice call (#54): offered in Send's place when the selected agent can take
   // one, crossed out with the reason when it cannot - in the narrow windows too.
   // The test panel runs the draft while a call runs what is published, so there
   // the button says so.
   const tVoice = useTranslations("chat.voice");
-  const offerCall = hasAgent;
+  const offerCall = hasAgent && !isRoom;
   const { readiness, failed: readinessFailed } = useVoiceReadiness(
     offerCall ? selectedAgentId : null,
   );
   const onCall = callActive(voice);
   const startCall = () => {
+    if (manualCompacting) return;
     if (dictationState.phase !== "idle") cancelDictation();
     onStartCall(readiness?.transport ?? voice.call.transport ?? "webrtc");
   };
@@ -1233,11 +1958,26 @@ function ChatUI({
   const callRequested = intent === "call" && offerCall && (readiness !== null || readinessFailed);
   const callOnRequest = useEffectEvent(() => {
     clearIntent();
-    if (readiness?.available && !onCall && !isProcessing && !isArchived) startCall();
+    if (readiness?.available && !onCall && !isProcessing && !readOnly && !manualCompacting)
+      startCall();
   });
   useEffect(() => {
     if (callRequested) callOnRequest();
   }, [callRequested]);
+  const conversationActions =
+    messagePinsControl || manualCompaction?.available || manualCompacting ? (
+      <>
+        {messagePinsControl}
+        {manualCompaction && (
+          <ChatCompactionControl
+            available={manualCompaction.available}
+            status={manualCompaction.status}
+            disabled={manualCompaction.disabled || onCall || dictationState.phase !== "idle"}
+            onCompact={manualCompaction.onCompact}
+          />
+        )}
+      </>
+    ) : null;
   const dictateNow = intent === "dictate" && hasAgent && (status !== null || dictationStatusFailed);
   const voiceHint = voiceFailureHint(
     { call: voice.call, onRetry: startCall, onDismiss: voice.dismiss },
@@ -1249,13 +1989,7 @@ function ChatUI({
     onShowApproval: showVoiceApproval,
     active: onCall,
   });
-  // Browser recognition works for every agent; while it listens for one whose
-  // Dictation switch is off, the strip says so and where to turn it on.
-  const browserStrip =
-    stopBrowserDictation !== null && status?.requested === false
-      ? browserDictationHint(agentVoiceHref, tDictation)
-      : null;
-  const composerStrip = voiceHint ?? callHint ?? dictationStrip ?? browserStrip;
+  const composerStrip = voiceHint ?? callHint ?? dictationStrip;
   // Focus went into the call bar when the call started. When the call is over
   // it goes to the box after "continue in text", and otherwise back to the call
   // button - but only if it was lost with the bar, never taken from where the
@@ -1348,37 +2082,8 @@ function ChatUI({
   const plan = useMemo(() => dockedPlan(messages), [messages]);
   const [homeHintsSlot, setHomeHintsSlot] = useState<HTMLDivElement | null>(null);
   const [attachmentSlot, setAttachmentSlot] = useState<HTMLDivElement | null>(null);
-  // Where the files button sits: among the composer's own controls, rather than
-  // in a strip of its own down the conversation's right edge.
-  const [filesSlot, setFilesSlot] = useState<HTMLSpanElement | null>(null);
-  const dockRef = useRef<HTMLDivElement | null>(null);
-  const [dockHeight, setDockHeight] = useState(0);
-  useLayoutEffect(() => {
-    const dock = dockRef.current;
-    if (!dock) return;
-    const observer = new ResizeObserver(() => setDockHeight(dock.offsetHeight));
-    observer.observe(dock);
-    setDockHeight(dock.offsetHeight);
-    return () => observer.disconnect();
-  }, []);
-  // A taller dock is more padding under the last message, and padding is not
-  // content, so nothing follows it: when the call bar gave way to the composer
-  // at the end of a call, the last message was left under the composer. A reader
-  // at the bottom stays there; one who scrolled up is left where they are.
-  useLayoutEffect(() => {
-    const scroller = scrollContainerRef.current;
-    const empty = messages.length === 0 && voice.call.phase === "idle";
-    if (scroller === null || userScrolledUpRef.current || sentTurnAnchoredRef.current || empty)
-      return;
-    scroller.scrollTop = scroller.scrollHeight;
-  }, [
-    dockHeight,
-    scrollContainerRef,
-    userScrolledUpRef,
-    sentTurnAnchoredRef,
-    messages.length,
-    voice.call.phase,
-  ]);
+  // Real tool identities keep desktop frames separate from browser pages.
+  const surfaces = useMemo(() => browseSurfaces(messages), [messages]);
   const callReady = offerCall && readiness?.available === true;
   const callShown = offerCall && (readiness !== null || readinessFailed);
   // Hidden, not unmounted, during a call: the pill holds its controls, and focus
@@ -1388,7 +2093,7 @@ function ChatUI({
       <VoiceCallButton
         readiness={readiness}
         failed={readinessFailed}
-        disabled={isProcessing || isArchived}
+        disabled={isProcessing || readOnly || manualCompacting}
         onStart={startCall}
         setUpHref={agentCallsHref}
         prominent={callReady}
@@ -1396,8 +2101,101 @@ function ChatUI({
       />
     </span>
   );
+
+  const matchesAction = (scope: string | null, root: string | null) => scope === root;
+  const actionsDisabled = (isRoom ? !canStartThread : readOnly) || !isConnected || isStopping;
+  const otherActions = [
+    ...new Set([
+      ...(pendingApproval ? [actionThreadRoots.approval] : []),
+      ...(pendingQuestions?.length ? [actionThreadRoots.questions] : []),
+      ...(pendingSecretRequests?.length ? [actionThreadRoots.secrets] : []),
+      ...(pendingConnection ? [actionThreadRoots.connection] : []),
+      ...(hasPendingComputerAccess ? [actionThreadRoots.computer] : []),
+    ]),
+  ].filter((root) => root !== threadRootId);
+  const renderActions = (root: string | null, scopeReadOnly = false) => (
+    <>
+      {pendingApproval && onResumeDecisions && matchesAction(actionThreadRoots.approval, root) && (
+        <div className="pointer-events-auto mx-auto w-full max-w-4xl min-w-0 px-4 pb-2 sm:px-6">
+          <ToolApprovalDialog
+            actionRequests={pendingApproval.actionRequests}
+            reviewConfigs={pendingApproval.reviewConfigs}
+            onDecisions={onResumeDecisions}
+            mayRemember={mayRememberApproval}
+            disabled={scopeReadOnly || actionsDisabled || (root !== null && !isRoom)}
+          />
+        </div>
+      )}
+      {pendingConnection &&
+        onConnectionResponse &&
+        matchesAction(actionThreadRoots.connection, root) && (
+          <div className="pointer-events-auto mx-auto w-full max-w-4xl min-w-0 px-4 pb-2 sm:px-6">
+            <ConnectAccountPrompt
+              request={pendingConnection}
+              disabled={scopeReadOnly || actionsDisabled || (root !== null && !isRoom)}
+              onRespond={onConnectionResponse}
+            />
+          </div>
+        )}
+      {pendingQuestions &&
+        pendingQuestions.length > 0 &&
+        onAnswerQuestions &&
+        // A personal transcript shows its question inline; rooms and threads use this dock.
+        (root !== null || isRoom) &&
+        matchesAction(actionThreadRoots.questions, root) && (
+          <div className="pointer-events-auto mx-auto w-full max-w-4xl min-w-0 px-4 pb-2 sm:px-6">
+            <QuestionPrompt
+              questions={pendingQuestions}
+              disabled={scopeReadOnly || actionsDisabled || (root !== null && !isRoom)}
+              onComplete={onAnswerQuestions}
+            />
+          </div>
+        )}
+      {pendingSecretRequests &&
+        matchesAction(actionThreadRoots.secrets, root) &&
+        pendingSecretRequests.length > 0 &&
+        onSubmitSecretRequest &&
+        onDeclineSecretRequest && (
+          <div className="pointer-events-auto mx-auto w-full max-w-4xl min-w-0 px-4 pb-2 sm:px-6">
+            <SecretRequestCard
+              requests={pendingSecretRequests}
+              disabled={scopeReadOnly || actionsDisabled || (root !== null && !isRoom)}
+              onSubmit={onSubmitSecretRequest}
+              onDecline={onDeclineSecretRequest}
+            />
+          </div>
+        )}
+    </>
+  );
+  const threadNotices =
+    isRoom && otherActions.length > 0 ? (
+      <div className="pointer-events-auto mx-auto max-w-4xl space-y-2 px-4 pb-2 text-xs sm:px-6">
+        {otherActions.map((root) => (
+          <button
+            key={root ?? "main"}
+            type="button"
+            aria-label={root === null ? tThread("main") : tThread("open")}
+            className="text-primary block underline underline-offset-2"
+            onClick={() => (root === null ? onCloseThread?.() : onOpenThread?.(root))}
+          >
+            {root === null ? tThread("mainPending") : tThread("pending")}{" "}
+            {root === null ? tThread("main") : tThread("open")}
+          </button>
+        ))}
+      </div>
+    ) : null;
   const showWorkspaceHome =
-    !compact && messages.length === 0 && voice.call.phase === "idle" && !isLoadingConversation;
+    !compact &&
+    !isRoom &&
+    messages.length === 0 &&
+    voice.call.phase === "idle" &&
+    !isLoadingConversation;
+  const mainChat = useMainChat();
+  const [composerFilesSlot, setComposerFilesSlot] = useState<HTMLSpanElement | null>(null);
+  const configuredHome = useChatHomeOptions();
+  const homeOptions = mainChat ? configuredHome : DEFAULT_CHAT_HOME;
+  const showDailyBriefing = showWorkspaceHome && mainChat && !emptyState && !conversationId;
+  const composeSuggestion = (text: string) => setIncoming({ id: Date.now(), files: [], text });
   return (
     <div className="chat-surface @container/sources-layout relative flex h-full min-h-0 w-full min-w-0 overflow-hidden">
       <div className="@container/browser-layout relative flex h-full min-h-0 min-w-0 flex-1">
@@ -1413,12 +2211,49 @@ function ChatUI({
           className={cn(
             "@container/chat relative flex h-full min-h-0 min-w-0 flex-1 flex-col",
             showWorkspaceHome && "chat-home-column justify-center-safe overflow-y-auto",
+            showDailyBriefing && "chat-home-timeline",
+            threadRootId !== null && "max-lg:invisible",
           )}
         >
           {!compact && <TurnRail entries={railEntries} />}
-          <BrowserPanelAutoOpen browses={browses} />
+          {!compact && !isRoom && hasAgent && (
+            <ChatModelHeader
+              key={`${authUser?.id}:${activeOrgId}:${selectedAgentId}`}
+              name={callAgent?.name ?? t("rail.agent")}
+              agentModel={agentModel}
+              readOnly={
+                readOnly ||
+                isArchived === true ||
+                isLoadingConversation === true ||
+                manualCompacting
+              }
+              isProcessing={isProcessing || manualCompacting}
+              canEditAgent={Boolean(
+                callAgent?.can_edit &&
+                !readOnly &&
+                isArchived !== true &&
+                !isLoadingConversation &&
+                !manualCompacting,
+              )}
+              home={showWorkspaceHome}
+              onChange={(profileId) => onModelProfileChange?.(profileId)}
+              actions={conversationActions}
+            />
+          )}
+          {(compact || isRoom || !hasAgent) && conversationActions && (
+            <div
+              data-chat-model-header
+              className={cn(
+                "flex shrink-0 items-center justify-end border-b px-3 py-1",
+                !compact && "max-lg:pt-14",
+              )}
+            >
+              {conversationActions}
+            </div>
+          )}
+          <MessageJumpNotice jump={messageJump} />
           <div
-            ref={scrollContainerRef}
+            ref={bindScroller}
             data-chat-scroller
             className={cn(
               "min-h-0 min-w-0 flex-1 scrollbar-thin overflow-y-auto overscroll-contain",
@@ -1448,9 +2283,24 @@ function ChatUI({
             >
               {/* Who else has this chat open, held at the top while the transcript scrolls:
                 a project's chat is several people's at once. */}
-              {conversationId && !compact && (
+              {roomProjectId !== null && (
+                <TeamRoomHeader
+                  projectId={roomProjectId}
+                  present={present}
+                  conversation={conversation}
+                />
+              )}
+              {roomProjectId !== null && conversationId && !isLoadingConversation && (
+                <RoomRoutingPanel
+                  conversationId={conversationId}
+                  readOnly={readOnly}
+                  onOpenThread={onOpenThread}
+                />
+              )}
+              {roomProjectId === null && conversationId && (isRoom || !compact) && (
                 <ChatRoomBar
                   conversationId={conversationId}
+                  conversation={conversation}
                   present={present}
                   meId={authUser?.id}
                   canShare={ownsConversation}
@@ -1461,23 +2311,37 @@ function ChatUI({
                 <ConversationSkeleton />
               ) : messages.length === 0 && voice.call.phase === "idle" ? (
                 <div className={cn("flex h-full items-center", !emptyState && "chat-empty-state")}>
-                  {emptyState ? (
+                  {isRoom ? (
+                    <TeamRoomEmpty />
+                  ) : emptyState ? (
                     emptyState((picked) => sendMessage(picked))
                   ) : (
                     <ChatEmptyState
+                      showSuggestions={!drafting && homeOptions.starters}
+                      showGreeting={homeOptions.greeting}
+                      showDiscoveryHints={homeOptions.feature_hints}
                       suggestionsSlot={!compact ? homeHintsSlot : undefined}
-                      onPick={(picked) => sendMessage(picked)}
+                      onPick={
+                        showDailyBriefing ? composeSuggestion : (picked) => sendMessage(picked)
+                      }
                     />
                   )}
                 </div>
               ) : (
-                <LiveBrowsesProvider value={{ browses, onComment: commentOnPage }}>
+                <LiveBrowsesProvider
+                  value={{
+                    browses,
+                    surfaces,
+                    onComment: commentOnPage,
+                    onProtected: onBrowserProtected,
+                  }}
+                >
                   <ConversationVisualsProvider
                     messages={messages}
                     conversationId={conversationId}
                     onReport={onVisualReport}
                     onCompose={(text) => setIncoming({ id: Date.now(), files: [], text })}
-                    onSend={isArchived ? undefined : (text) => sendMessage(text)}
+                    onSend={readOnly ? undefined : (text) => sendMessage(text)}
                   >
                     {hasEarlierMessages && (
                       <button
@@ -1489,12 +2353,48 @@ function ChatUI({
                         {t("loadEarlierMessages")}
                       </button>
                     )}
-                    <MessageList
-                      messages={messages}
-                      delegations={delegations}
-                      onRegenerate={onRegenerate}
-                      pins={pins}
-                    />
+                    {forkedFrom && onOpenForkSource && (
+                      <ForkedFrom origin={forkedFrom} onOpen={onOpenForkSource} />
+                    )}
+                    <QuestionInteractionContext
+                      value={
+                        pendingQuestions?.length && onAnswerQuestions && !isRoom
+                          ? {
+                              id: questionTarget?.id ?? "question",
+                              messageId:
+                                questionTarget?.messageId ??
+                                messages.findLast((message) => message.role === "assistant")?.id ??
+                                null,
+                              toolCallIds: questionTarget?.toolCallIds ?? [],
+                              questions: pendingQuestions,
+                              submitting: submittingQuestions,
+                              disabled: readOnly || !isConnected || isStopping,
+                              onAnswer: onAnswerQuestions,
+                            }
+                          : null
+                      }
+                    >
+                      <MessageList
+                        messages={messages}
+                        roomReactionsEnabled={isRoom}
+                        canReactToRoomMessages={
+                          isRoom &&
+                          !roomReadOnly &&
+                          !roomRequests.isError &&
+                          roomRequests.data?.can_post === true
+                        }
+                        delegations={delegations}
+                        sideThreadActions={sideThreadActions}
+                        messagePinActions={messagePinActions}
+                        onRegenerate={onRegenerate}
+                        onFork={onFork}
+                        forkingMessageId={forkingMessageId}
+                        pins={pins}
+                        onOpenThread={onOpenThread}
+                        canStartThread={canStartThread}
+                        allowReply={!readOnly && (!isRoom || canStartThread)}
+                      />
+                    </QuestionInteractionContext>
                   </ConversationVisualsProvider>
                 </LiveBrowsesProvider>
               )}
@@ -1502,7 +2402,7 @@ function ChatUI({
                 conversation happening inside one turn of this one, and it can still be
                 streaming when the turn it belongs to has already answered. */}
               <DelegationPanels
-                delegations={delegations}
+                delegations={isRoom && activeThreadRootId !== null ? [] : delegations}
                 agents={knownAgents}
                 parent={knownAgents.find((agent) => agent.id === delegatingAgentId)}
                 settled={!isProcessing}
@@ -1533,6 +2433,7 @@ function ChatUI({
                     }}
                     agent={turn.role === "user" ? undefined : callAgent}
                     agents={knownAgents}
+                    allowReply={false}
                   />
                 )}
                 // The agent's message, thinking - where its spoken answer will be.
@@ -1587,50 +2488,36 @@ function ChatUI({
               compact && "bg-background",
             )}
           >
+            {pendingQuestions?.length && threadRootId === null && !isRoom ? (
+              <button
+                type="button"
+                // Blurring the disabled composer on press can collapse its phone
+                // controls and move this button before the click is delivered.
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={onRevealQuestion}
+                className="bg-popover text-foreground border-border focus-visible:outline-ring pointer-events-auto absolute bottom-full left-1/2 mb-2 -translate-x-1/2 rounded-full border px-4 py-2 text-sm shadow-sm focus-visible:outline-2"
+              >
+                {t("questions.reveal")}
+              </button>
+            ) : null}
+            {showDailyBriefing && homeOptions.inbox && (
+              <ChatHomeInbox onDiscuss={composeSuggestion} />
+            )}
             {/* Actionable notices belong beside the composer, outside the transcript.
               The approval panel replaces approval notices, including older runs. */}
             {conversationId && !compact && (
               <OutcomeCards
                 conversationId={conversationId}
-                hasApprovalPanel={!!pendingApproval && !!onResumeDecisions}
-                isWorking={isProcessing || messages.some((message) => message.isStreaming)}
                 className="pointer-events-auto mx-auto max-h-40 w-full max-w-4xl min-w-0 overflow-y-auto overscroll-contain px-4 pb-2 sm:px-6"
               />
             )}
-            {personalGaps.length > 0 && (
+            {personalGaps.length > 0 && (!isRoom || activeThreadRootId === null) && (
               <div className="chat-composer-suggestions pointer-events-auto mx-auto w-full max-w-4xl min-w-0 px-4 pb-2 sm:px-6">
                 <ConnectServicesCard gaps={personalGaps} />
               </div>
             )}
-            {pendingApproval && onResumeDecisions && (
-              <div className="pointer-events-auto mx-auto w-full max-w-4xl min-w-0 px-4 pb-2 sm:px-6">
-                <ToolApprovalDialog
-                  actionRequests={pendingApproval.actionRequests}
-                  reviewConfigs={pendingApproval.reviewConfigs}
-                  onDecisions={onResumeDecisions}
-                  mayRemember={mayRememberApproval}
-                  disabled={!isConnected || isStopping}
-                />
-              </div>
-            )}
-            {pendingConnection && onConnectionResponse && (
-              <div className="pointer-events-auto mx-auto w-full max-w-4xl min-w-0 px-4 pb-2 sm:px-6">
-                <ConnectAccountPrompt
-                  request={pendingConnection}
-                  disabled={!isConnected || isStopping}
-                  onRespond={onConnectionResponse}
-                />
-              </div>
-            )}
-            {pendingQuestions && pendingQuestions.length > 0 && onAnswerQuestions && (
-              <div className="pointer-events-auto mx-auto w-full max-w-4xl min-w-0 px-4 pb-2 sm:px-6">
-                <QuestionPrompt
-                  questions={pendingQuestions}
-                  disabled={!isConnected || isStopping}
-                  onComplete={onAnswerQuestions}
-                />
-              </div>
-            )}
+            {renderActions(null)}
+            {threadRootId === null && threadNotices}
             <div
               className={cn(
                 "pointer-events-auto mx-auto w-full min-w-0",
@@ -1652,7 +2539,7 @@ function ChatUI({
               />
               <CompactionNotice compacting={compacting} impossible={compactionImpossible} />
               {sandboxPreparing && <SandboxPreparingNotice />}
-              {onCancelQueued && (
+              {!isRoom && onCancelQueued && (
                 <PendingMessages
                   messages={queuedMessages ?? []}
                   steers={steers}
@@ -1667,8 +2554,10 @@ function ChatUI({
                 transcript because a plan is written in one turn and worked through
                 over the next several: as a step it scrolls away under the work it
                 describes, and what somebody wants is where the agent is now. */}
-              <BackgroundTasks conversationId={conversationId} />
-              <PlanStrip plan={plan} live={isProcessing} />
+              <PlanStrip
+                plan={plan}
+                live={isProcessing && (!isRoom || activeThreadRootId === null)}
+              />
               {/* Right over the box the reply is written in, where a messenger says it. */}
               <TypingIndicator people={typing} />
               {/* What is attached, above the composer rather than inside it. The
@@ -1680,239 +2569,347 @@ function ChatUI({
                 same question: at 900px with the conversation list open this box
                 is 360px wide, and a viewport breakpoint showed a reading there
                 that had nowhere to go. */}
-              <div className="@container min-w-0">
-                {/* While a call is on, the composer does not change: the call is one
+              {isRoom ? (
+                <TeamRoomComposer
+                  key={`${activeOrgId}:${authUser?.id}:${conversationId}`}
+                  projectId={roomProjectId}
+                  conversationId={conversationId}
+                  readOnly={roomReadOnly}
+                  onTyping={onTyping}
+                  consumeInitialContent={consumeDirectDraft}
+                  onRoomCreated={authorizeCreatedRoomDraft}
+                />
+              ) : (viewOnly || accessState) && !onCall ? (
+                <ConversationAccessNotice state={accessState ?? "view"} onRetry={onRetryAccess} />
+              ) : (
+                <div className="@container min-w-0">
+                  {/* While a call is on, the composer does not change: the call is one
                   pill floating above it, so the chat stays the chat and a draft
                   and its attachments are still there when the call ends. */}
-                <div className="relative">
-                  <FloatingPill
-                    pill={
-                      onCall
-                        ? {
-                            key: "call",
-                            node: (
-                              <VoiceCallBar
-                                pill
-                                session={voice}
-                                agentName={callAgent?.name ?? t("rail.agent")}
-                                avatar={
-                                  callAgent ? (
-                                    <AgentAvatar
-                                      agentId={callAgent.id}
-                                      slug={callAgent.slug}
-                                      hasAvatar={callAgent.has_avatar}
-                                      colorSlot={callAgent.avatar_color}
-                                      size="sm"
-                                      className="rounded-full"
-                                    />
-                                  ) : undefined
-                                }
-                                canDecide={can(Perm.approvalsDecide)}
-                                onShowApproval={showVoiceApproval}
-                              />
-                            ),
-                          }
-                        : serverDictating
+                  <div className="relative">
+                    <FloatingPill
+                      pill={
+                        onCall
                           ? {
-                              key: "dictation",
+                              key: "call",
                               node: (
-                                <DictationPill state={dictationState} actions={dictationActions} />
+                                <VoiceCallBar
+                                  pill
+                                  session={voice}
+                                  agentName={callAgent?.name ?? t("rail.agent")}
+                                  avatar={
+                                    callAgent ? (
+                                      <AgentAvatar
+                                        agentId={callAgent.id}
+                                        slug={callAgent.slug}
+                                        hasAvatar={callAgent.has_avatar}
+                                        colorSlot={callAgent.avatar_color}
+                                        size="sm"
+                                        className="rounded-full"
+                                      />
+                                    ) : undefined
+                                  }
+                                  canDecide={can(Perm.approvalsDecide)}
+                                  onShowApproval={showVoiceApproval}
+                                />
                               ),
                             }
-                          : stopBrowserDictation
+                          : serverDictating
                             ? {
-                                key: "browser",
+                                key: "dictation",
                                 node: (
-                                  <BrowserDictationPill
-                                    level={browserLevel}
-                                    onDone={stopBrowserDictation}
+                                  <DictationPill
+                                    state={dictationState}
+                                    actions={dictationActions}
                                   />
                                 ),
                               }
-                            : null
-                    }
-                  />
-                  {/* No glow under the box: the pill above it says the microphone is
+                            : stopBrowserDictation
+                              ? {
+                                  key: "browser",
+                                  node: (
+                                    <BrowserDictationPill
+                                      level={browserLevel}
+                                      onDone={stopBrowserDictation}
+                                    />
+                                  ),
+                                }
+                              : null
+                      }
+                    />
+                    {/* No glow under the box: the pill above it says the microphone is
                     open and how loud, and a second signal below read as a shadow. */}
-                  <div>
-                    {/* Every hint on top of the box, beside the pill it belongs to. */}
-                    {!isArchived && !onCall && (
-                      <NextSteps steps={nextSteps} onPick={(step) => sendMessage(step)} />
-                    )}
-                    <DictationStrip hint={composerStrip} placement="above" />
-                    <div
-                      data-tour="chat-composer"
-                      className={cn(
-                        "panel composer-box focus-within:border-foreground/25 focus-within:ring-foreground/10 min-w-0 rounded-2xl transition-colors focus-within:ring-2",
-                        composerStrip !== null && "rounded-t-none",
+                    <div>
+                      {/* Every hint on top of the box, beside the pill it belongs to. */}
+                      {!readOnly && !onCall && !manualCompacting && (
+                        <NextSteps steps={nextSteps} onPick={(step) => sendMessage(step)} />
                       )}
-                    >
-                      <div className={cn("min-w-0 px-3 pt-2 pb-2", !compact && "sm:px-4 sm:pt-3")}>
-                        {isArchived && (
-                          <p className="text-muted-foreground pb-2 text-center font-mono text-xs tracking-wider uppercase">
-                            {t("conversationArchived")}
-                          </p>
+                      {callAgent?.personal_model_key && (
+                        <PersonalModelConnection key={selectedAgentId} agentId={selectedAgentId} />
+                      )}
+                      {manualCompaction && (
+                        <ChatCompactionNotice
+                          status={manualCompaction.status}
+                          messagesBefore={manualCompaction.progress?.messages_before}
+                        />
+                      )}
+                      <DictationStrip hint={composerStrip} placement="above" />
+                      <div
+                        data-tour="chat-composer"
+                        className={cn(
+                          "panel composer-box focus-within:border-foreground/25 focus-within:ring-foreground/10 min-w-0 rounded-2xl transition-colors focus-within:ring-2",
+                          composerStrip !== null && "rounded-t-none",
                         )}
-                        {/* One row of actions under the text, the same at every
+                      >
+                        {!agentFixed && (
+                          <div className="border-border bg-muted/40 hidden items-center rounded-t-2xl border-b px-3 py-1.5 has-[a]:flex">
+                            <ProjectChip
+                              conversationId={conversationId}
+                              pickerOpen={projectPickerOpen}
+                              onPickerOpenChange={setProjectPickerOpen}
+                            />
+                          </div>
+                        )}
+                        <div
+                          className={cn("min-w-0 px-3 pt-2 pb-2", !compact && "sm:px-4 sm:pt-3")}
+                        >
+                          {isArchived && (
+                            <p className="text-muted-foreground pb-2 text-center font-mono text-xs tracking-wider uppercase">
+                              {t("conversationArchived")}
+                            </p>
+                          )}
+                          {/* One row of actions under the text, the same at every
                           level of every limit: attach and who answers on the left;
-                          usage, the model, the microphone and send on the right. A
+                          files, settings, the microphone and send on the right. A
                           limit near its end changes an icon's colour and never
                           costs the row a button. */}
-                        <ChatInput
-                          autoFocus={!compact && !onCall}
-                          focusRequest={composerFocusRequest}
-                          onSend={sendMessage}
-                          // Mentions address the agent the thread is talking to -
-                          // in a fixed window (the test panel, the Architect) the
-                          // scope's own selection holds it.
-                          agentId={delegatingAgentId}
-                          mentionsFromDraft={testingDraft}
-                          hints={messages.length === 0}
-                          disabled={
-                            sendDisabled ||
-                            isStopping ||
-                            isLoadingConversation ||
-                            (!isConnected && !keepsOutbox) ||
-                            isArchived ||
-                            onCall ||
-                            !!pendingApproval ||
-                            !!(pendingQuestions && pendingQuestions.length)
-                          }
-                          isProcessing={isProcessing}
-                          canStop={
-                            isStopping ||
-                            canStopParked ||
-                            isProcessing ||
-                            !!pendingApproval ||
-                            !!pendingQuestions?.length ||
-                            !!pendingConnection
-                          }
-                          onStop={onStop}
-                          stopDisabled={isStopping}
-                          slashContext={slashContext}
-                          commands={slashCommands}
-                          attachmentSlot={attachmentSlot}
-                          incoming={incoming}
-                          onTyping={onTyping}
-                          onDraftChange={setDrafting}
-                          offline={!isConnected}
-                          projects={projectMentions.items}
-                          onPickProject={projectMentions.pick}
-                          mic={mic}
-                          onListeningChange={onListeningChange}
-                          dictation={{
-                            engine,
-                            state: dictationState,
-                            actions: dictationActions,
-                          }}
-                          dictateNow={dictateNow}
-                          onDictateStarted={clearIntent}
-                          // Who answers first and largest: it is the most
-                          // consequential choice in the composer.
-                          controlsSlot={
-                            agentFixed ? undefined : (
+                          <ChatInput
+                            composerDraft={composerDraft}
+                            key={JSON.stringify([accountId, activeOrgId, selectionVersion])}
+                            autoFocus={!compact && !onCall && requestedMessageId === null}
+                            preserveReadingFocus={requestedMessageId !== null}
+                            focusRequest={composerFocusRequest}
+                            onSend={sendMessage}
+                            sendMode={
+                              showSendMode &&
+                              isProcessing &&
+                              !readOnly &&
+                              isArchived !== true &&
+                              !isLoadingConversation &&
+                              !sendDisabled &&
+                              !pendingApproval &&
+                              !pendingQuestions?.length &&
+                              !isStopping &&
+                              !onCall &&
+                              !isRoom
+                                ? sendMode
+                                : undefined
+                            }
+                            onSendModeChange={showSendMode ? setSendMode : undefined}
+                            onSteer={onSteer}
+                            steerContextAvailable={steerContextAvailable}
+                            // Mentions address the agent the thread is talking to -
+                            // in a fixed window (the test panel, the Architect) the
+                            // scope's own selection holds it.
+                            agentId={delegatingAgentId}
+                            mentionsFromDraft={testingDraft}
+                            hints={messages.length === 0}
+                            disabled={
+                              sendDisabled ||
+                              manualCompacting ||
+                              isStopping ||
+                              isLoadingConversation ||
+                              (!isConnected && !keepsOutbox) ||
+                              readOnly ||
+                              onCall ||
+                              !!pendingApproval ||
+                              !!(pendingQuestions && pendingQuestions.length)
+                            }
+                            isProcessing={isProcessing}
+                            canStop={
+                              manualCompacting ||
+                              isStopping ||
+                              canStopParked ||
+                              isProcessing ||
+                              !!pendingApproval ||
+                              !!pendingQuestions?.length ||
+                              !!pendingConnection
+                            }
+                            onStop={onStop}
+                            stopDisabled={isStopping}
+                            slashContext={slashContext}
+                            commands={slashCommands}
+                            attachmentSlot={attachmentSlot}
+                            incoming={incoming}
+                            onTyping={onTyping}
+                            onDraftChange={setDrafting}
+                            onTextDraftChange={recordDirectDraft}
+                            offline={!isConnected}
+                            projects={projectMentions.items}
+                            onPickProject={projectMentions.pick}
+                            mic={mic}
+                            onListeningChange={onListeningChange}
+                            dictation={{
+                              engine,
+                              state: dictationState,
+                              actions: dictationActions,
+                            }}
+                            dictateNow={dictateNow}
+                            onDictateStarted={clearIntent}
+                            // Who answers first and largest: it is the most
+                            // consequential choice in the composer.
+                            controlsSlot={
                               <>
-                                <AgentPicker />
-                                {/* A phone's row is the agent alone; the project is
-                                    picked from its `+` sheet. */}
-                                <span className="contents max-md:hidden">
-                                  <ProjectChip
-                                    conversationId={conversationId}
-                                    pickerOpen={projectPickerOpen}
-                                    onPickerOpenChange={setProjectPickerOpen}
+                                {!agentFixed && (
+                                  <fieldset disabled={manualCompacting} className="contents">
+                                    <AgentPicker />
+                                  </fieldset>
+                                )}
+                                {mainChat && (
+                                  <span
+                                    ref={setComposerFilesSlot}
+                                    data-chat-files
+                                    className="contents"
                                   />
-                                </span>
+                                )}
+                                {!mainChat && (
+                                  <ChatApprovalSelector
+                                    onChange={onApprovalModeChange}
+                                    disabled={isProcessing || readOnly || manualCompacting}
+                                  />
+                                )}
+                                {!agentFixed && (
+                                  <span className="contents max-md:hidden">
+                                    <ProjectChip
+                                      conversationId={conversationId}
+                                      pickerOpen={projectPickerOpen}
+                                      onPickerOpenChange={setProjectPickerOpen}
+                                      readOnly={projectReadOnly || manualCompacting}
+                                    />
+                                  </span>
+                                )}
                               </>
-                            )
-                          }
-                          onProject={
-                            agentFixed || conversationId
-                              ? undefined
-                              : () => setProjectPickerOpen(true)
-                          }
-                          // A phone's row keeps +, the agent, the microphone and
-                          // send; these move into its `+` sheet as rows.
-                          phoneRows={
-                            <>
-                              {!agentFixed && (
-                                <SheetRow icon={Bot} label={t("rail.agent")}>
-                                  <AgentPicker />
-                                </SheetRow>
-                              )}
-                              {offerCall && !onCall && (
-                                <SheetRow
-                                  icon={PhoneCall}
-                                  label={t("input.callAgent", {
-                                    agent: callAgent?.name ?? t("rail.agent"),
-                                  })}
-                                >
-                                  <VoiceCallButton
-                                    readiness={readiness}
-                                    failed={readinessFailed}
-                                    disabled={isProcessing || isArchived}
-                                    onStart={startCall}
-                                    setUpHref={agentCallsHref}
-                                    publishedOnly={testingDraft}
-                                  />
-                                </SheetRow>
-                              )}
-                              <SheetRow
-                                icon={SlidersHorizontal}
-                                label={t("input.modelAndApprovals")}
-                              >
-                                <ChatControls
-                                  onModelProfileChange={onModelProfileChange}
-                                  onApprovalModeChange={onApprovalModeChange}
-                                  agentModel={agentModel}
-                                  agentCapabilities={agentCapabilities}
-                                />
-                              </SheetRow>
-                              <SheetRow icon={Gauge} label={t("input.contextUsed")}>
-                                <UsageMeter
-                                  usage={lastUsage}
-                                  workspace={workspace}
-                                  total={conversationCost}
-                                  contextWindow={contextWindow}
-                                />
-                              </SheetRow>
-                            </>
-                          }
-                          actionsSlot={
-                            <span className="contents max-md:hidden">
-                              {/* Wide screens only, as is the panel it opens. */}
-                              <span ref={setFilesSlot} className="hidden lg:contents" />
-                              <UsageMeter
-                                usage={lastUsage}
-                                workspace={workspace}
-                                total={conversationCost}
-                                contextWindow={contextWindow}
-                              />
-                              <div>
-                                <ChatControls
-                                  onModelProfileChange={onModelProfileChange}
-                                  onApprovalModeChange={onApprovalModeChange}
-                                  agentModel={agentModel}
-                                  agentCapabilities={agentCapabilities}
-                                />
-                              </div>
-                              {/* The call stands in Send's place, as one that can
+                            }
+                            onProject={
+                              agentFixed || conversationId
+                                ? undefined
+                                : () => setProjectPickerOpen(true)
+                            }
+                            // A phone's row keeps +, the agent, the microphone and
+                            // send; these move into its `+` sheet as rows.
+                            phoneRows={
+                              mainChat && (!offerCall || onCall) ? undefined : (
+                                <>
+                                  {!agentFixed && !mainChat && (
+                                    <SheetRow icon={Bot} label={t("rail.agent")}>
+                                      <fieldset disabled={manualCompacting} className="contents">
+                                        <AgentPicker />
+                                      </fieldset>
+                                    </SheetRow>
+                                  )}
+                                  {offerCall && !onCall && (
+                                    <SheetRow
+                                      icon={PhoneCall}
+                                      label={t("input.callAgent", {
+                                        agent: callAgent?.name ?? t("rail.agent"),
+                                      })}
+                                    >
+                                      <VoiceCallButton
+                                        readiness={readiness}
+                                        failed={readinessFailed}
+                                        disabled={isProcessing || readOnly || manualCompacting}
+                                        onStart={startCall}
+                                        setUpHref={agentCallsHref}
+                                        publishedOnly={testingDraft}
+                                      />
+                                    </SheetRow>
+                                  )}
+                                  {!mainChat && (
+                                    <SheetRow
+                                      icon={SlidersHorizontal}
+                                      label={t("input.modelAndApprovals")}
+                                    >
+                                      <fieldset disabled={manualCompacting} className="contents">
+                                        <ChatControls
+                                          onModelProfileChange={onModelProfileChange}
+                                          onApprovalModeChange={onApprovalModeChange}
+                                          agentModel={agentModel}
+                                          agentCapabilities={agentCapabilities}
+                                        />
+                                      </fieldset>
+                                    </SheetRow>
+                                  )}
+                                  {!mainChat && (
+                                    <SheetRow icon={Gauge} label={t("input.contextUsed")}>
+                                      <UsageMeter
+                                        usage={lastUsage}
+                                        workspace={workspace}
+                                        total={conversationCost}
+                                        contextWindow={contextWindow}
+                                      />
+                                    </SheetRow>
+                                  )}
+                                </>
+                              )
+                            }
+                            actionsSlot={
+                              <span className="contents max-md:hidden">
+                                <div data-chat-actions>
+                                  {mainChat && (
+                                    <ChatControls
+                                      settingsOnly
+                                      agentCapabilities={agentCapabilities}
+                                    />
+                                  )}
+                                  {mainChat && (
+                                    <ChatApprovalSelector
+                                      iconOnly
+                                      onChange={onApprovalModeChange}
+                                      disabled={isProcessing || readOnly || manualCompacting}
+                                    />
+                                  )}
+                                  <fieldset disabled={manualCompacting} className="contents">
+                                    <ChatControls
+                                      usageSlot={
+                                        <div className="text-muted-foreground flex items-center gap-2 text-xs">
+                                          <span>{t("input.contextUsed")}</span>{" "}
+                                          <UsageMeter
+                                            key={`${conversationId ?? "new"}:${messages.length === 0}`}
+                                            iconOnly={mainChat}
+                                            beforeFirstMessage={mainChat && messages.length === 0}
+                                            usage={lastUsage}
+                                            workspace={workspace}
+                                            total={conversationCost}
+                                            contextWindow={contextWindow}
+                                          />
+                                        </div>
+                                      }
+                                      onModelProfileChange={onModelProfileChange}
+                                      onApprovalModeChange={onApprovalModeChange}
+                                      agentModel={agentModel}
+                                      agentCapabilities={agentCapabilities}
+                                    />
+                                  </fieldset>
+                                </div>
+                                {/* The call stands in Send's place, as one that can
                                   start or one that says why it cannot - except
                                   during the call, when it waits here, hidden, for
                                   focus to come back to. */}
-                              {onCall && callButton}
-                            </span>
-                          }
-                          // Not during a call: the box is closed then, Send with it.
-                          // Nor while readiness loads, when the button draws
-                          // nothing and the slot would leave no Send at all.
-                          idleSlot={callShown && !onCall ? callButton : undefined}
-                        />
+                                {onCall && callButton}
+                              </span>
+                            }
+                            // Not during a call: the box is closed then, Send with it.
+                            // Nor while readiness loads, when the button draws
+                            // nothing and the slot would leave no Send at all.
+                            idleSlot={callShown && !onCall ? callButton : undefined}
+                          />
+                        </div>
                       </div>
                     </div>
                   </div>
+                  <ComposerStatus isConnected={isConnected} />
                 </div>
-                <ComposerStatus isConnected={isConnected} />
-              </div>
+              )}
             </div>
           </div>
           {showWorkspaceHome && !emptyState && (
@@ -1924,10 +2921,37 @@ function ChatUI({
         </div>
         <FilePreviewDialog />
         {/* The browser shares the chat's width; a narrow chat opens it full screen. */}
-        <BrowserPanel
+        <WorkspacePanels
+          filesButtonSlot={mainChat ? composerFilesSlot : undefined}
+          teamRoom={isRoom}
+          compact={compact}
           browses={browses}
+          onBrowserProtected={onBrowserProtected}
+          surfaces={surfaces}
           onComment={commentOnPage}
-          onResume={() => sendMessage(t("browserResumePrompt"))}
+          onSend={sendMessage}
+          agentId={selectedAgentId}
+          hostedCapabilities={agentHostedCapabilities}
+          canRun={workspaceCanRun}
+          agentUsesLocalTools={agentUsesLocalTools}
+          conversationId={conversationId}
+          revision={turns}
+          attachments={attachments}
+          busy={
+            isProcessing ||
+            sandboxPreparing ||
+            isStopping ||
+            onCall ||
+            !!pendingApproval ||
+            !!pendingQuestions?.length
+          }
+          connected={isConnected}
+          readOnly={
+            isRoom
+              ? roomReadOnly || roomRequests.isError || roomRequests.data?.can_post !== true
+              : readOnly || sendDisabled
+          }
+          loading={Boolean(isLoadingConversation)}
         />
       </div>
       {/* Beside the transcript rather than under it: what the agent is holding is
@@ -1937,16 +2961,31 @@ function ChatUI({
           permanent third column took space from every conversation including the
           ones where the agent keeps nothing. Hidden on a narrow screen, where there
           is no room for it. */}
-      <SourcesPanel contained={compact} conversationId={conversationId} />
-      <div className="hidden h-full min-h-0 shrink-0 lg:block">
-        <WorkspaceFiles
+      {conversationId !== null && threadRootId !== null && onCloseThread && (
+        <RoomThreadPanel
+          key={`${activeOrgId}:${authUser?.id}:${conversationId}:${threadRootId}`}
           conversationId={conversationId}
-          revision={turns}
-          attachments={attachments}
-          buttonSlot={filesSlot}
-          overlay={compact}
+          isRoom={isRoom}
+          projectId={roomProjectId}
+          roomReactionsEnabled={isRoom}
+          rootId={threadRootId}
+          requestedMessageId={requestedMessageId}
+          messageJumpRevision={messageJumpRevision}
+          messagePinActions={messagePinActions}
+          onOpenPinnedMessage={onOpenPinnedMessage}
+          readOnly={!isRoom || roomReadOnly}
+          onClose={onCloseThread}
+          onTyping={onTyping}
+          actions={(scopeReadOnly) => (
+            <>
+              {renderActions(threadRootId, scopeReadOnly)}
+              {threadNotices}
+            </>
+          )}
+          isProcessing={isProcessing && activeThreadRootId === threadRootId}
         />
-      </div>
+      )}
+      <SourcesPanel contained={compact} conversationId={conversationId} />
     </div>
   );
 }

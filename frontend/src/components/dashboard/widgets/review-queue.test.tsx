@@ -1,0 +1,100 @@
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import { TooltipProvider } from "@/components/ui";
+import type { Period } from "@/lib/dashboard/period";
+import { ReviewQueueWidget } from "./review-queue";
+
+const useReviewQueueMock = vi.fn();
+vi.mock("@/hooks/use-scoring", () => ({
+  useReviewQueue: (...args: unknown[]) => useReviewQueueMock(...args),
+}));
+
+const PERIOD: Period = { preset: "30d", from: "2026-09-13", to: "2026-10-13" };
+
+function widget() {
+  return render(
+    <TooltipProvider>
+      <ReviewQueueWidget title="Awaiting review" hint="Queue" period={PERIOD} />
+    </TooltipProvider>,
+  );
+}
+
+function answer(overrides: Record<string, unknown>) {
+  useReviewQueueMock.mockReturnValue({
+    datasets: [],
+    total: 0,
+    isLoading: false,
+    error: null,
+    refetch: vi.fn(),
+    ...overrides,
+  });
+}
+
+function pending(id: string, failed: number, unscored: number, passed: number) {
+  return { dataset_id: id, name: `Dataset ${id}`, failed, unscored, passed };
+}
+
+describe("ReviewQueueWidget", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("breaks what waits down by outcome and by dataset, each opening on its scores", () => {
+    answer({ total: 7, datasets: [pending("a", 3, 1, 0), pending("b", 1, 0, 2)] });
+    widget();
+
+    expect(useReviewQueueMock).toHaveBeenCalledWith({ limit: 1 });
+    expect(screen.getByText("7 results wait for a decision")).toBeInTheDocument();
+    expect(screen.getByText("4 did not pass")).toBeInTheDocument();
+    expect(screen.getAllByText("1 not graded")).toHaveLength(2);
+    expect(screen.getAllByText("2 passed")).toHaveLength(2);
+    expect(screen.getByRole("link", { name: /Dataset a/ })).toHaveAttribute(
+      "href",
+      "/datasets/a?tab=review",
+    );
+    expect(screen.getByRole("link", { name: /Dataset b/ })).toHaveTextContent(
+      "1 did not pass2 passed",
+    );
+  });
+
+  it("sees all on the first by name between datasets holding as many", () => {
+    answer({ total: 4, datasets: [pending("b", 2, 0, 0), pending("a", 1, 1, 0)] });
+    widget();
+
+    expect(screen.getByRole("link", { name: "See all" })).toHaveAttribute(
+      "href",
+      "/datasets/a?tab=review",
+    );
+  });
+
+  it("sees all on the Review tab of the dataset holding the most", () => {
+    answer({ total: 9, datasets: [pending("a", 1, 0, 1), pending("b", 3, 2, 1)] });
+    widget();
+
+    expect(screen.getByRole("link", { name: "See all" })).toHaveAttribute(
+      "href",
+      "/datasets/b?tab=review",
+    );
+  });
+
+  it("says what appears here when nothing waits", () => {
+    answer({});
+    widget();
+    expect(screen.getByText("Nothing to review")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "See all" })).toBeNull();
+  });
+
+  it("offers a retry when the queue could not be read", async () => {
+    const refetch = vi.fn();
+    answer({ error: new Error("502"), refetch });
+    widget();
+    await userEvent.click(screen.getByRole("button", { name: /retry/i }));
+    expect(refetch).toHaveBeenCalled();
+  });
+
+  it("shows a skeleton while loading", () => {
+    answer({ isLoading: true });
+    widget();
+    expect(screen.queryByText("Nothing to review")).toBeNull();
+  });
+});

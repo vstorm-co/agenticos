@@ -51,13 +51,14 @@ const tileFor = (name: string): HTMLElement => screen.getByText(name).closest("l
 beforeEach(() => useSystemHealthMock.mockReset());
 
 describe("the service health widget", () => {
-  it("names the five probes the backend runs, rather than printing their keys", () => {
+  it("names configured probes rather than printing their keys, rather than printing their keys", () => {
     withChecks([
       check("database", "healthy"),
       check("redis", "healthy"),
       check("vector_store", "healthy"),
       check("model_access", "healthy"),
       check("scheduler", "healthy"),
+      check("map_tiles", "healthy"),
     ]);
     renderWidget();
 
@@ -97,4 +98,19 @@ describe("the service health widget", () => {
     const redis = tileFor(messages.dashboard.widgets.health.services.redis);
     expect(within(redis).getByText("PING was not answered")).toBeInTheDocument();
   });
+});
+
+it("does not present optional street maps as missing infrastructure", () => {
+  withChecks([check("database", "healthy"), check("map_tiles", "unconfigured")]);
+  renderWidget();
+  expect(screen.getByText("Database")).toBeVisible();
+  expect(
+    screen.queryByText(messages.dashboard.widgets.health.services.map_tiles),
+  ).not.toBeInTheDocument();
+});
+it("keeps an enabled but failing street map service visible", () => {
+  withChecks([check("map_tiles", "unhealthy", "The configured tile server did not respond")]);
+  renderWidget();
+  expect(screen.getByText(messages.dashboard.widgets.health.services.map_tiles)).toBeVisible();
+  expect(screen.getByText(messages.dashboard.widgets.health.status.unhealthy)).toBeVisible();
 });

@@ -42,9 +42,10 @@ async function openSharing(page: Page, agent: string): Promise<Locator> {
   return openShareDialog(page);
 }
 
-/** The Share dialog off the agent header, beside Publish, once it holds real data. */
+/** Open sharing from the agent header menu once it holds real data. */
 async function openShareDialog(page: Page): Promise<Locator> {
-  await page.getByRole("button", { name: "Share", exact: true }).click();
+  await page.getByRole("button", { name: "More actions", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Share", exact: true }).click();
 
   const panel = page.getByRole("dialog");
   // The panel renders a skeleton until the sharing state arrives, and the list

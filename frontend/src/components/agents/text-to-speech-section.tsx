@@ -19,6 +19,8 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  Switch,
+  FormField,
 } from "@/components/ui";
 import { useTextToSpeechProviders } from "@/hooks/use-model-providers";
 import { capabilityConfigErrors } from "@/lib/agent-spec";
@@ -27,7 +29,14 @@ import type { CapabilityBindingSpec, CapabilityCatalogEntry } from "@/types/agen
 import { useTranslations } from "next-intl";
 
 /** The fields this panel draws itself; the rest is the generated form. */
-const HAND_ROLLED = ["provider", "model", "voice", "voices", "output_format"];
+const HAND_ROLLED = [
+  "provider",
+  "model",
+  "voice",
+  "voices",
+  "output_format",
+  "use_organization_defaults",
+];
 
 interface TextToSpeechSectionProps {
   definition: CapabilityCatalogEntry | undefined;
@@ -58,7 +67,9 @@ export function TextToSpeechSection({
   configProblems,
 }: TextToSpeechSectionProps) {
   const t = useTranslations("agents");
+  const tDefaults = useTranslations("pages.agents");
   const { providers, isLoading, isError } = useTextToSpeechProviders();
+  const inherited = binding.config.use_organization_defaults === true;
   const configErrors = capabilityConfigErrors(configProblems ?? [], binding.id);
   const copyFor = useCapabilityFieldCopy(binding.id);
 
@@ -133,100 +144,125 @@ export function TextToSpeechSection({
 
   const controls = (
     <div className="space-y-4">
-      <ProviderModelFields
-        idPrefix="speech"
-        providers={providers}
-        resolved={resolved}
-        disabled={disabled}
-        onChange={chooseOffering}
-        copy={{
-          provider: t("speechProvider"),
-          providerPlaceholder: t("speechProviderPlaceholder"),
-          providerDetail: t("speechProviderDetail"),
-          model: t("speechModel"),
-          modelPlaceholder: t("speechModelPlaceholder"),
-          modelDetail: t("speechModelDetail"),
-          unknownProvider: (provider) => t("speechModelUnknownProvider", { provider }),
-        }}
-      />
-
-      {resolved.current !== undefined && (
-        <div className="space-y-1.5">
-          <Label htmlFor="speech-voice">{t("speechVoice")}</Label>
-          {resolved.current.account_voices ? (
-            <Input
-              id="speech-voice"
-              value={storedVoice}
-              disabled={disabled}
-              placeholder={t("speechVoiceIdPlaceholder")}
-              onChange={(event) => setConfig({ voice: event.target.value })}
-            />
-          ) : (
-            <Select
-              value={voice}
-              disabled={disabled || voices.length === 0}
-              onValueChange={chooseVoice}
-            >
-              <SelectTrigger id="speech-voice">
-                <SelectValue placeholder={t("speechVoicePlaceholder")} />
-              </SelectTrigger>
-              <SelectContent>
-                {voices.map((entry) => (
-                  <SelectItem key={entry.id} value={entry.id}>
-                    {entry.description ? `${entry.name} - ${entry.description}` : entry.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-          <p className="text-muted-foreground text-xs">
-            {resolved.current.account_voices
-              ? t("speechAccountVoiceDetail", { provider: resolved.current.name })
-              : t("speechVoiceDetail")}
-          </p>
-        </div>
-      )}
-
-      {resolved.current !== undefined && (
-        <SpeechVoiceChoices
-          provider={resolved.current}
-          offered={voices}
-          usualVoice={resolved.current.account_voices ? storedVoice : voice}
-          value={storedVoices(binding.config.voices)}
-          errors={configErrors}
-          disabled={disabled}
-          onChange={(others) =>
-            onChange({ ...binding, config: withVoices(binding.config, others) })
+      <FormField
+        htmlFor="speech-organization-defaults"
+        label={tDefaults("speechUseOrganizationDefaults")}
+        description={tDefaults("speechOrganizationDefaultsHint")}
+        layout="switch"
+      >
+        <Switch
+          checked={inherited}
+          disabled={disabled || readOnly}
+          onCheckedChange={(enabled) =>
+            onChange({
+              ...binding,
+              secret_id: enabled ? null : binding.secret_id,
+              config: {
+                ...withoutConfig(binding.config, ["voices", "output_format"]),
+                use_organization_defaults: enabled,
+              },
+            })
           }
         />
-      )}
+      </FormField>
+      {!inherited && (
+        <>
+          <ProviderModelFields
+            idPrefix="speech"
+            providers={providers}
+            resolved={resolved}
+            disabled={disabled}
+            onChange={chooseOffering}
+            copy={{
+              provider: t("speechProvider"),
+              providerPlaceholder: t("speechProviderPlaceholder"),
+              providerDetail: t("speechProviderDetail"),
+              model: t("speechModel"),
+              modelPlaceholder: t("speechModelPlaceholder"),
+              modelDetail: t("speechModelDetail"),
+              unknownProvider: (provider) => t("speechModelUnknownProvider", { provider }),
+            }}
+          />
 
-      {resolved.current !== undefined && (
-        <div className="space-y-1.5">
-          <Label htmlFor="speech-format">{t("speechFormat")}</Label>
-          <Select
-            value={
-              typeof binding.config.output_format === "string" &&
-              resolved.current.formats.includes(binding.config.output_format)
-                ? binding.config.output_format
-                : resolved.current.formats[0]
-            }
-            disabled={disabled || resolved.current.formats.length < 2}
-            onValueChange={(next) => setConfig({ output_format: next })}
-          >
-            <SelectTrigger id="speech-format">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {resolved.current.formats.map((entry) => (
-                <SelectItem key={entry} value={entry}>
-                  {entry}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <p className="text-muted-foreground text-xs">{t("speechFormatDetail")}</p>
-        </div>
+          {resolved.current !== undefined && (
+            <div className="space-y-1.5">
+              <Label htmlFor="speech-voice">{t("speechVoice")}</Label>
+              {resolved.current.account_voices ? (
+                <Input
+                  id="speech-voice"
+                  value={storedVoice}
+                  disabled={disabled}
+                  placeholder={t("speechVoiceIdPlaceholder")}
+                  onChange={(event) => setConfig({ voice: event.target.value })}
+                />
+              ) : (
+                <Select
+                  value={voice}
+                  disabled={disabled || voices.length === 0}
+                  onValueChange={chooseVoice}
+                >
+                  <SelectTrigger id="speech-voice">
+                    <SelectValue placeholder={t("speechVoicePlaceholder")} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {voices.map((entry) => (
+                      <SelectItem key={entry.id} value={entry.id}>
+                        {entry.description ? `${entry.name} - ${entry.description}` : entry.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              <p className="text-muted-foreground text-xs">
+                {resolved.current.account_voices
+                  ? t("speechAccountVoiceDetail", { provider: resolved.current.name })
+                  : t("speechVoiceDetail")}
+              </p>
+            </div>
+          )}
+
+          {resolved.current !== undefined && (
+            <SpeechVoiceChoices
+              provider={resolved.current}
+              offered={voices}
+              usualVoice={resolved.current.account_voices ? storedVoice : voice}
+              value={storedVoices(binding.config.voices)}
+              errors={configErrors}
+              disabled={disabled}
+              onChange={(others) =>
+                onChange({ ...binding, config: withVoices(binding.config, others) })
+              }
+            />
+          )}
+
+          {resolved.current !== undefined && (
+            <div className="space-y-1.5">
+              <Label htmlFor="speech-format">{t("speechFormat")}</Label>
+              <Select
+                value={
+                  typeof binding.config.output_format === "string" &&
+                  resolved.current.formats.includes(binding.config.output_format)
+                    ? binding.config.output_format
+                    : resolved.current.formats[0]
+                }
+                disabled={disabled || resolved.current.formats.length < 2}
+                onValueChange={(next) => setConfig({ output_format: next })}
+              >
+                <SelectTrigger id="speech-format">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {resolved.current.formats.map((entry) => (
+                    <SelectItem key={entry} value={entry}>
+                      {entry}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-muted-foreground text-xs">{t("speechFormatDetail")}</p>
+            </div>
+          )}
+        </>
       )}
 
       {/* `voices` says its own, beside the rows it is about. */}
@@ -268,6 +304,7 @@ export function TextToSpeechSection({
       // The controls above *are* this capability's configuration, the generated
       // fields included: drawing the form again would double every field.
       hideConfigForm
+      hideSecret={inherited}
     />
   );
 }

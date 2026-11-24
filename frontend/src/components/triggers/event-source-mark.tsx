@@ -20,6 +20,7 @@ const BRAND_SOURCES: Partial<Record<EventSource, BrandName>> = {
   // card draws too.
   outlook: "microsoft",
   hubspot: "hubspot",
+  linear: "linear",
   zendesk: "zendesk",
   google_drive: "gdrive",
   google_calendar: "googlecalendar",

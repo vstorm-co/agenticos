@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 
 import { ErrorState } from "@/components/states";
@@ -8,7 +8,7 @@ import {
   Badge,
   Button,
   DataTable,
-  ListCard,
+  ListCardControlsRow,
   ListCardFootRow,
   Select,
   SelectContent,
@@ -17,11 +17,14 @@ import {
   SelectValue,
   type Column,
 } from "@/components/ui";
+import { useChanged } from "@/hooks/use-changed";
+import { PageNavigation } from "@/components/ui/pagination-bar";
+import { QueueSection } from "./queue-section";
 import { useBackgroundJobActions, useBackgroundJobs } from "@/hooks/use-background-jobs";
 import { timeAgo } from "@/lib/utils";
 import type { BackgroundJob, JobPool, JobStatus } from "@/types/background-jobs";
 
-const POOLS: readonly JobPool[] = ["agent", "ingest", "system", "workflow"];
+const POOLS: readonly JobPool[] = ["agent", "eval", "ingest", "network", "system", "workflow"];
 const ALL = "all";
 
 const BADGE: Record<JobStatus, "default" | "secondary" | "destructive" | "outline"> = {
@@ -47,7 +50,24 @@ export function JobsTable({
   const locale = useLocale();
   const jobs = useBackgroundJobs({ status, pool });
   const { retry, cancel } = useBackgroundJobActions();
-  const rows = jobs.data?.pages.flatMap((page) => page.items) ?? [];
+  const filterKey = JSON.stringify([status, pool]);
+  const [position, setPosition] = useState({ filterKey, index: 0 });
+  if (useChanged(filterKey)) setPosition({ filterKey, index: 0 });
+  const setPage = (index: number) =>
+    setPosition((current) => (current.filterKey === filterKey ? { filterKey, index } : current));
+  const pages = jobs.data?.pages ?? [];
+  const page = Math.min(position.index, Math.max(0, pages.length - 1));
+  const rows = pages[page]?.items ?? [];
+  const hasNext = page < pages.length - 1 || jobs.hasNextPage === true;
+
+  const navigate = async (next: number) => {
+    if (next < pages.length) {
+      setPage(next);
+      return;
+    }
+    const result = await jobs.fetchNextPage();
+    if ((result.data?.pages.length ?? 0) > next) setPage(next);
+  };
 
   const columns = useMemo<Column<BackgroundJob>[]>(
     () => [
@@ -107,7 +127,9 @@ export function JobsTable({
         align: "right",
         className: "w-0 pr-3 sm:pr-5",
         cell: (job) =>
-          job.status === "dead" ? (
+          job.status === "dead" && job.retry_refusal ? (
+            <span className="text-muted-foreground max-w-64 text-xs">{job.retry_refusal}</span>
+          ) : job.status === "dead" ? (
             <Button size="sm" variant="outline" onClick={() => retry.mutate(job)}>
               {t("retry")}
             </Button>
@@ -122,10 +144,8 @@ export function JobsTable({
   );
 
   return (
-    <ListCard
-      title={t("jobs")}
-      counted={t("newestFirst")}
-      controls={
+    <QueueSection title={t("jobs")} count={t("newestFirst")}>
+      <ListCardControlsRow>
         <Select
           value={pool ?? ALL}
           onValueChange={(value) => onPool(value === ALL ? undefined : (value as JobPool))}
@@ -142,9 +162,7 @@ export function JobsTable({
             ))}
           </SelectContent>
         </Select>
-      }
-      contentClassName="p-0"
-    >
+      </ListCardControlsRow>
       <DataTable<BackgroundJob>
         columns={columns}
         rows={rows}
@@ -157,18 +175,17 @@ export function JobsTable({
         empty={t("noJobs")}
         className="rounded-none border-0 bg-transparent [&_table]:min-w-0 sm:[&_table]:min-w-[40rem]"
       />
-      {jobs.hasNextPage && (
-        <ListCardFootRow>
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={jobs.isFetchingNextPage}
-            onClick={() => void jobs.fetchNextPage()}
-          >
-            {t("loadMore")}
-          </Button>
+      {!jobs.error && (
+        <ListCardFootRow className="flex justify-end">
+          <PageNavigation
+            page={page}
+            pageCount={jobs.hasNextPage ? undefined : Math.max(1, pages.length)}
+            hasNext={hasNext}
+            isLoading={jobs.isFetchingNextPage}
+            onPage={(next) => void navigate(next)}
+          />
         </ListCardFootRow>
       )}
-    </ListCard>
+    </QueueSection>
   );
 }

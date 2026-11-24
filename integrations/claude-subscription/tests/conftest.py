@@ -13,7 +13,7 @@ import runtime as native
 from isolation import Home, Homes, Owner
 
 FAKE_CLI = r"""
-import json, pathlib, sys, time
+import json, os, pathlib, sys, time
 root = pathlib.Path.cwd()
 args = sys.argv[1:]
 if args[:2] == ["auth", "status"]:
@@ -34,7 +34,22 @@ elif args[:2] == ["auth", "login"]:
     (root / ".fake-connected").write_text("claude.ai")
     print("Signed in", flush=True)
 else:
-    prompt = sys.stdin.read()
+    payload = sys.stdin.read()
+    prompt = payload
+    (root / ".inference.json").write_text(json.dumps({
+        "arguments": args, "payload": payload,
+        "max_output_tokens": os.environ.get("CLAUDE_CODE_MAX_OUTPUT_TOKENS"),
+        "thinking_budget": os.environ.get("MAX_THINKING_TOKENS"),
+    }))
+    if "--input-format" in args:
+        assert args[args.index("--input-format") + 1] == "stream-json"
+        assert args[args.index("--output-format") + 1] == "stream-json"
+        assert "--verbose" in args
+        [line] = payload.splitlines()
+        event = json.loads(line)
+        assert event["type"] == "user" and event["message"]["role"] == "user"
+        prompt = event["message"]["content"][0]["text"]
+        print(json.dumps({"type": "system", "subtype": "init"}))
     assert args[args.index("--tools") + 1] == ""
     assert "--safe-mode" in args and "--bare" not in args
     assert "--strict-mcp-config" in args and "--no-session-persistence" in args
@@ -46,6 +61,10 @@ else:
         sys.exit(1)
     if prompt == "invalid":
         print(json.dumps({"type": "result", "subtype": "success", "is_error": False, "result": "no structured response"}))
+    elif prompt == "json-array":
+        print(json.dumps(["private provider error"]))
+    elif prompt == "json-scalar":
+        print(json.dumps("private provider error"))
     elif prompt == "overflow":
         print("x" * 100000)
     else:

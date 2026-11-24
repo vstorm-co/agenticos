@@ -29,9 +29,10 @@ from app.core.config import settings
 from app.db.locks import LockScope, try_hold_subject
 from app.db.models.workflow_run import DispatchOutbox, DispatchOutboxStatus, NodeAttemptStatus
 from app.repositories import workflow_approval as workflow_approval_repo
+from app.repositories import workflow_media_operation as media_repo
 from app.repositories import workflow_run as workflow_run_repo
 from app.services.workflow_execution import dispatch_queue, dispatcher
-from app.services.workflow_execution.approval_wake import still_waiting_on
+from app.services.workflow_execution.approval_wake import ready_to_resume, still_waiting_on
 from app.services.workflow_execution.approvals import still_parked
 
 logger = logging.getLogger(__name__)
@@ -68,7 +69,7 @@ class WorkflowReconcilerService:
         exactly one code path responsible for it. The jobs are deduped per node,
         so a backed-up pool is not buried in copies.
         """
-        now = datetime.now(UTC)
+        now = await workflow_run_repo.database_time(self.db)
         rows = await workflow_run_repo.take_stale_claims_for_resubmission(
             self.db,
             before=now,
@@ -86,7 +87,7 @@ class WorkflowReconcilerService:
         it at least a lease ago (`list_orphaned_in_flight`). Returns how many
         were resolved - zero on the ordinary sweep.
         """
-        scanned_at = datetime.now(UTC)
+        scanned_at = await workflow_run_repo.database_time(self.db)
         grace = timedelta(seconds=settings.WORKFLOW_DISPATCH_LEASE_SECONDS)
         attempts = await workflow_run_repo.list_orphaned_in_flight(
             self.db, before=scanned_at, closed_before=scanned_at - grace, limit=limit
@@ -124,14 +125,13 @@ class WorkflowReconcilerService:
             # claim done and leave its holder dispatching a node that must not
             # run again.
             fresh = await workflow_run_repo.get_attempt(self.db, attempt.id)
+            now = await workflow_run_repo.database_time(self.db)
             if (
                 run is None
                 or node_run is None
                 or fresh is None
                 or fresh.status != NodeAttemptStatus.IN_FLIGHT.value
-                or not _abandoned(
-                    outbox, at=datetime.now(UTC), closed_before=datetime.now(UTC) - grace
-                )
+                or not _abandoned(outbox, at=now, closed_before=now - grace)
             ):
                 continue
             await dispatcher.resolve_orphaned_attempt(
@@ -143,6 +143,33 @@ class WorkflowReconcilerService:
                 extra={"node_run_id": str(node_run.id), "attempt_id": str(fresh.id)},
             )
         return resolved
+
+    async def book_pending_media_costs(self, *, limit: int = 100) -> int:
+        """Close the crash gap after a late fee fact, including terminal attempts.
+
+        This sweep only books existing facts. It never authorizes a provider
+        request, changes an attempt verdict, or schedules another submission.
+        """
+        nodes = await media_repo.unbooked_nodes(self.db, limit=limit)
+        booked = 0
+        for organization_id, run_id, node_id in nodes:
+            if not await try_hold_subject(self.db, LockScope.WORKFLOW_FILE_BYTES, organization_id):
+                continue
+            run = await workflow_run_repo.try_lock_run(
+                self.db, run_id, organization_id=organization_id
+            )
+            if run is None:
+                continue
+            node = await workflow_run_repo.get_node_run_by_id_for_update(self.db, node_id)
+            if (
+                node is None
+                or node.organization_id != organization_id
+                or node.workflow_run_id != run.id
+            ):
+                continue
+            await dispatcher.book_media_costs(self.db, run=run, node_run=node)
+            booked += 1
+        return booked
 
     async def wake_stale_step_approvals(self, *, limit: int = 100) -> int:
         """Dispatch again every `human.approval` step whose request was decided, or ran
@@ -178,7 +205,10 @@ class WorkflowReconcilerService:
         one for the same `NodeRun`, read back here as "already dispatched"
         inside a savepoint rather than as a failure.
         """
-        node_runs = await workflow_run_repo.list_stale_approval_waits(self.db, limit=limit)
+        node_runs = [
+            *await workflow_run_repo.list_stale_approval_waits(self.db, limit=limit),
+            *await workflow_run_repo.list_stale_question_waits(self.db, limit=limit),
+        ]
         woken = 0
         for scanned in node_runs:
             run = await workflow_run_repo.get_run_by_id_for_update(self.db, scanned.workflow_run_id)
@@ -192,6 +222,8 @@ class WorkflowReconcilerService:
                 or node_run is None
                 or not still_waiting_on(run, node_run, agent_run_id=scanned.waiting_agent_run_id)
             ):
+                continue
+            if not await ready_to_resume(self.db, node_run, organization_id=run.organization_id):
                 continue
             try:
                 async with self.db.begin_nested():

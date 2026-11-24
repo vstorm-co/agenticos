@@ -30,7 +30,9 @@ async def proactive_sweep(tick: Tick) -> int:
 
 async def think_for_person(payload: ThinkForPerson) -> int:
     async with get_db_context() as db:
-        return await ProactiveService(db).think_for(payload.organization_id, payload.user_id)
+        return await ProactiveService(db).think_for(
+            payload.organization_id, payload.user_id, refresh_open=payload.refresh_open
+        )
 
 
 async def watch_sweep(tick: Tick) -> int:

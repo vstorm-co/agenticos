@@ -6,9 +6,12 @@ import type {
   ChatPerson,
   MessagePart,
   MessageReply,
+  RoomMessageMention,
+  RoomThreadSummary,
   ToolCall,
   TurnFileSource,
 } from "@/types";
+import type { RoomMessageReactionSummary } from "@/types/room-message-reaction";
 
 /**
  * Shape of a persisted message as returned by the backend (MessageRead).
@@ -17,7 +20,8 @@ import type {
 export interface RawToolCall {
   tool_call_id: string;
   tool_name: string;
-  presentation_kind?: "draft" | null;
+  tool_id?: string | null;
+  presentation_kind?: "draft" | "generic" | "platform" | null;
   args: Record<string, unknown>;
   result?: unknown;
   status: string;
@@ -25,8 +29,17 @@ export interface RawToolCall {
 
 /** One entry of a stored timeline - see `MessagePart` in the backend schemas. */
 export interface RawMessagePart {
+  setup_agent_id?: string | null;
   type:
-    "text" | "thinking" | "tool" | "ask_user" | "steer" | "mention" | "workflow_run" | "phone_call";
+    | "text"
+    | "thinking"
+    | "tool"
+    | "ask_user"
+    | "steer"
+    | "mention"
+    | "workflow_run"
+    | "phone_call"
+    | "model_setup";
   file_source?: TurnFileSource | null;
   text?: string | null;
   /** For a `mention` entry on a user turn (#2189). */
@@ -46,6 +59,13 @@ export interface RawMessagePart {
 
 export interface RawMessage {
   client_message_id?: string | null;
+  thread_root_message_id?: string | null;
+  thread_reply_count?: number;
+  thread_last_activity_at?: string | null;
+  thread_summary?: RoomThreadSummary | null;
+  /** Structured room recipients, separate from resource mention parts. */
+  room_mentions?: RoomMessageMention[] | null;
+  reactions?: RoomMessageReactionSummary[] | null;
   id: string;
   conversation_id: string;
   role: "user" | "assistant" | "system";
@@ -56,6 +76,7 @@ export interface RawMessage {
   /** The run that produced this turn. Null for a turn written outside one. */
   run_id?: string | null;
   run_status?: string | null;
+  run_error?: string | null;
   run_duration_ms?: number | null;
   run_started_at?: string | null;
   /** The version number of the frozen spec that produced it. */
@@ -71,6 +92,8 @@ export interface RawMessage {
    */
   parts?: RawMessagePart[] | null;
   user_rating?: number | null;
+  /** Reader-scoped status on authenticated transcript pages; absent elsewhere. */
+  is_pinned?: boolean | null;
   rating_count?: { likes: number; dislikes: number } | null;
   files?: ChatMessageFile[] | null;
   sender?: ChatPerson | null;
@@ -119,6 +142,15 @@ export function replayStoredParts(
         question: entry.question ?? "",
         answer: entry.answer ?? "",
         ...(entry.asked_by ? { askedBy: entry.asked_by } : {}),
+      });
+      return;
+    }
+    if (entry.type === "model_setup") {
+      parts.push({
+        id: `${msgId}-setup-${index}`,
+        type: "model_setup",
+        content: entry.text ?? "",
+        setupAgentId: entry.setup_agent_id ?? undefined,
       });
       return;
     }
@@ -209,6 +241,7 @@ export function conversationMessageToChatMessage(msg: RawMessage): ChatMessage {
   const toolCalls: ToolCall[] | undefined = msg.tool_calls?.map((tc) => ({
     id: tc.tool_call_id,
     name: tc.tool_name,
+    tool_id: tc.tool_id,
     presentation_kind: tc.presentation_kind,
     args: tc.args,
     result: tc.result,
@@ -232,6 +265,12 @@ export function conversationMessageToChatMessage(msg: RawMessage): ChatMessage {
   return {
     id: msg.id,
     clientMessageId: msg.client_message_id ?? undefined,
+    threadRootMessageId: msg.thread_root_message_id ?? undefined,
+    threadReplyCount: msg.thread_reply_count,
+    threadLastActivityAt: msg.thread_last_activity_at,
+    threadSummary: msg.thread_summary ?? undefined,
+    roomMentions: msg.room_mentions ?? undefined,
+    reactions: msg.reactions ?? undefined,
     role: msg.role,
     content: msg.content,
     thinking: msg.thinking ?? undefined,
@@ -254,6 +293,11 @@ export function conversationMessageToChatMessage(msg: RawMessage): ChatMessage {
     // Only the one worth drawing. A completed run needs no marker, and a run
     // still going has no answer on screen to mark.
     wasStopped: msg.run_status === "cancelled",
+    guardrailRefused: msg.run_status === "guardrail_blocked" || undefined,
+    runFailed: ["failed", "budget_exceeded", "guardrail_blocked", "loop_stopped"].includes(
+      msg.run_status ?? "",
+    ),
+    runError: msg.run_status === "failed" ? (msg.run_error ?? undefined) : undefined,
     turnId: msg.turn_id ?? undefined,
     interrupted: msg.interrupted === true || undefined,
     runDurationMs: msg.run_duration_ms ?? undefined,
@@ -261,6 +305,7 @@ export function conversationMessageToChatMessage(msg: RawMessage): ChatMessage {
     toolCalls,
     parts,
     user_rating: msg.user_rating ?? undefined,
+    ...(typeof msg.is_pinned === "boolean" ? { isPinned: msg.is_pinned } : {}),
     rating_count: msg.rating_count ?? undefined,
     files,
     fileIds: files?.map((f) => f.id),

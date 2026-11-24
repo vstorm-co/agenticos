@@ -1,5 +1,5 @@
 ---
-source_sha: "41a17f94320d"
+source_sha: "e1a252bf0cf3"
 title: "Trzymaj dane osobowe z dala od promptów i odpowiedzi agenta"
 description: "Skonfiguruj capability guardrails tak, żeby redagowała adresy e-mail, numery telefonów, numery kart i sekrety, a potem porównaj to, co faktycznie dostał model, z tym, co zobaczył odwiedzający."
 ---
@@ -58,6 +58,8 @@ I need to send a wire transfer today, can you help?
 | Ta sama wiadomość o przelewie bez ustawionego słowa kluczowego | Wykonuje się normalnie; blokuje słowo kluczowe, a nie temat |
 
 Nad drugim wierszem tabeli warto się zatrzymać: numer telefonu jest krajowy, więc zostaje wychwycony tylko dlatego, że `US` jest w **phone_regions**. Usuń `US`, a trafi do modelu dokładnie tak, jak go wpisano. Czwarty wiersz to drugi taki przypadek: osoba przeglądająca Activity, żeby zobaczyć, „co się stało”, widzi prawdziwe dane odwiedzającego, bo guardrail przepisuje to, co czyta *model*, a nigdy zapisanej tury rozmowy.
+
+Transkrypt dla człowieka pozostaje oryginalnym zapisem audytowym. Osobna kopia po redakcji, wraz z briefingiem załącznika, jest zapisywana do odtwarzania przez model i cytowania. Kolejne tury zachowują tę kopię nawet po późniejszym wyłączeniu redakcji wejścia. Starsza historia jest sprawdzana przed zarządzaniem kontekstem runu; zablokowane tury nadal używają znacznika odmowy.
 
 !!! example "Zapisano na v0.0.504, 25 września 2026, przed redagowaniem numerów telefonów"
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 import { Figure } from "@/components/ui";
 
@@ -18,6 +18,7 @@ import { UsageBody } from "./usage-body";
  */
 export function ActiveUsersWidget({ title, hint, period, seeAll, options }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.active-users");
+  const locale = useLocale();
 
   return (
     <WidgetFrame title={title} hint={hint} seeAll={seeAll} options={options}>
@@ -28,7 +29,7 @@ export function ActiveUsersWidget({ title, hint, period, seeAll, options }: Dash
           return (
             <div className="flex h-full flex-col gap-5">
               <Figure
-                value={active.toLocaleString()}
+                value={active.toLocaleString(locale)}
                 unit={t("ofMembers", { total: members })}
                 caption={t("subline")}
               />

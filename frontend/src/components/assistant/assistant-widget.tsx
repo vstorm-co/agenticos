@@ -27,7 +27,6 @@ import type { AssistantState } from "@/types/assistant";
 
 import { AssistantBubble } from "./assistant-bubble";
 import { architectName, AssistantLauncher, WidgetRoot } from "./assistant-launcher";
-import { AssistantSetup } from "./assistant-setup";
 import { AssistantWindow } from "./assistant-window";
 
 /** How long a page is looked at before the bubble speaks. */
@@ -48,26 +47,28 @@ let visits = 0;
  * A round button with the assistant's face, a speech bubble above it that speaks
  * to the page and to what is waiting, and a window holding the conversation.
  * Shown only to somebody who may run agents - the assistant is an agent like any
- * other. Before it has a model it walks through connecting one instead.
+ * other. Before it has a model the same chat explains how to connect one.
  */
-export function AssistantWidget() {
+export function AssistantWidget({
+  defaultAgentId,
+  viewer = false,
+}: { defaultAgentId?: string | null; viewer?: boolean } = {}) {
   // A failed read leaves the corner empty on every page rather than an error
   // following the reader around; Settings → Assistant is where it is said.
   const { assistant } = useAssistant();
   const userId = useAuthStore((state) => state.user?.id ?? null);
   const orgId = useOrgStore((state) => state.activeOrgId);
   if (!assistant || !assistant.can_use || assistant.agent_id === null) return null;
-  if (assistant.status === "ready") {
+  if (assistant.status === "ready" || assistant.status === "needs_model") {
     return (
       <ReadyWidget
-        key={JSON.stringify([userId, orgId, assistant.agent_id])}
+        key={JSON.stringify([userId, orgId, assistant.agent_id, defaultAgentId ?? null])}
         assistant={assistant}
         agentId={assistant.agent_id}
+        defaultAgentId={defaultAgentId ?? assistant.agent_id}
+        viewer={viewer}
       />
     );
-  }
-  if (assistant.status === "needs_model") {
-    return <AssistantSetup assistant={assistant} agentId={assistant.agent_id} />;
   }
   return null;
 }
@@ -108,7 +109,17 @@ function usePhone(): boolean {
   return phone;
 }
 
-function ReadyWidget({ assistant, agentId }: { assistant: AssistantState; agentId: string }) {
+function ReadyWidget({
+  assistant,
+  agentId,
+  defaultAgentId,
+  viewer,
+}: {
+  assistant: AssistantState;
+  agentId: string;
+  defaultAgentId: string;
+  viewer: boolean;
+}) {
   const t = useTranslations("assistantWidget");
   const pathname = usePathname();
   const { page, getSnapshot } = useAssistantPageContext(pathname);
@@ -205,10 +216,12 @@ function ReadyWidget({ assistant, agentId }: { assistant: AssistantState; agentI
     setEverOpened(true);
   }, [dock]);
 
+  const [draft, setDraft] = useState<{ id: number; text: string } | null>(null);
   const ask = useCallback(
-    (text: string) => {
+    (text: string, asDraft = false) => {
       openWindow();
-      setPrompt((last) => ({ id: (last?.id ?? 0) + 1, text }));
+      if (asDraft) setDraft((last) => ({ id: (last?.id ?? 0) + 1, text }));
+      else setPrompt((last) => ({ id: (last?.id ?? 0) + 1, text }));
     },
     [openWindow],
   );
@@ -223,13 +236,17 @@ function ReadyWidget({ assistant, agentId }: { assistant: AssistantState; agentI
       const { request, answered } = useArchitectAskStore.getState();
       if (!request) return;
       answered(request.id);
+      if (request.openOnly) {
+        openWindow();
+        return;
+      }
       if (
         architectAskMatchesScope(request, {
           userId: useAuthStore.getState().user?.id ?? null,
           orgId: useOrgStore.getState().activeOrgId,
         })
       )
-        ask(request.text);
+        ask(request.text, request.draft);
     };
     const unsubscribe = useArchitectAskStore.subscribe(consume);
     void Promise.resolve().then(consume);
@@ -237,7 +254,7 @@ function ReadyWidget({ assistant, agentId }: { assistant: AssistantState; agentI
       active = false;
       unsubscribe();
     };
-  }, [ask]);
+  }, [ask, openWindow]);
 
   const followLink = (link: ConsoleLink) => {
     // On a phone the full-screen window steps aside so the page can be seen.
@@ -251,12 +268,13 @@ function ReadyWidget({ assistant, agentId }: { assistant: AssistantState; agentI
       {everOpened && (
         // Keyed by organization: a switch starts the conversation afresh rather
         // than carrying one organization's thread into another.
-        <ChatScope key={organization ?? "none"} agentId={agentId}>
+        <ChatScope key={organization ?? "none"} agentId={defaultAgentId}>
           <AssistantWindow
             assistant={assistant}
             agentId={agentId}
             open={open}
             prompt={prompt}
+            draft={draft}
             page={page}
             getPageContext={getSnapshot}
             tipsOff={preferences.off}
@@ -273,7 +291,16 @@ function ReadyWidget({ assistant, agentId }: { assistant: AssistantState; agentI
         </ChatScope>
       )}
 
-      {speaking && (
+      {speaking && assistant.status === "needs_model" && (
+        <button
+          type="button"
+          onClick={openWindow}
+          className="bg-background border-border fixed right-4 bottom-24 z-50 max-w-[17rem] rounded-2xl border px-4 py-3 text-left text-sm shadow-lg md:right-6"
+        >
+          {t("setup.bubble")}
+        </button>
+      )}
+      {speaking && assistant.status === "ready" && (
         <AssistantBubble
           bubble={bubble}
           values={{ run: failedRun ?? "", form: signals.stuckIn ?? "" }}
@@ -299,6 +326,7 @@ function ReadyWidget({ assistant, agentId }: { assistant: AssistantState; agentI
       <AssistantLauncher
         assistant={assistant}
         agentId={agentId}
+        viewer={viewer}
         open={open}
         docked={docked}
         waiting={(docked || phone) && bubble !== null && isProactive(bubble) && !preferences.off}

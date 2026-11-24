@@ -26,8 +26,9 @@ from app.core.exceptions import (
 )
 from app.core.permissions import AuthContext
 from app.db.models.audit_log import AppAdminAuditLog
+from app.db.models.group import Group, GroupMember
 from app.db.models.notification import Notification
-from app.db.models.organization import OrganizationMember
+from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.user import User
 from app.db.models.workflow_approval import WorkflowApproval, WorkflowApprovalStatus
 from app.db.models.workflow_run import NodeAttempt, NodeRun, NodeRunStatus, WorkflowRunStatus
@@ -755,6 +756,60 @@ class TestWhoDecides:
         with pytest.raises(NotFoundError):
             await _decide(seeded, (await _request(seeded)).id, approved=True, ctx=stranger)
 
+    async def test_a_step_naming_nobody_tells_whoever_may_decide_in_its_own_organization(
+        self, engine: AsyncEngine
+    ):
+        """It used to tell nobody: the run waited where only Activity showed it."""
+        elsewhere = await seed_run(engine, Graph().graph)
+        seeded = await seed_run(engine, Graph().graph)
+        admin = await _another_member(seeded, role="admin")
+        member = await _another_member(seeded, role="member")
+        outsider = await _another_member(elsewhere, role="admin")
+        await drive(seeded)
+
+        async with seeded.factory() as db:
+            rows = (
+                (
+                    await db.execute(
+                        select(Notification).where(
+                            Notification.summary == "Approval needed: Send the refund?"
+                        )
+                    )
+                )
+                .scalars()
+                .all()
+            )
+        told = {row.recipient_user_id for row in rows}
+        assert {seeded.principal.id, admin.user_id} <= told
+        assert member.user_id not in told
+        assert outsider.user_id not in told and elsewhere.principal.id not in told
+        assert {row.organization_id for row in rows} == {seeded.org.id}
+        assert {row.context_url for row in rows} == {f"/runs?tab=approvals&org={seeded.org.id}"}
+
+    async def test_an_app_admin_among_the_members_is_told_whatever_their_role(
+        self, engine: AsyncEngine
+    ):
+        seeded = await seed_run(engine, Graph().graph)
+        admin = await _another_member(seeded, role="member")
+        async with seeded.factory() as db:
+            await db.execute(update(User).where(User.id == admin.user_id).values(is_app_admin=True))
+            await db.commit()
+        await drive(seeded)
+
+        async with seeded.factory() as db:
+            told = (
+                (
+                    await db.execute(
+                        select(Notification.summary).where(
+                            Notification.recipient_user_id == admin.user_id
+                        )
+                    )
+                )
+                .scalars()
+                .all()
+            )
+        assert told == ["Approval needed: Send the refund?"]
+
     async def test_named_approvers_are_told_and_must_be_members(self, engine: AsyncEngine):
         seeded = await seed_run(engine, Graph().graph)
         approver = await _another_member(seeded)
@@ -831,6 +886,77 @@ class TestTheQueue:
             )
         assert [row.id for row in inside.items] == [item.id]
         assert before.total == 0 and after.total == 0
+
+
+class TestTheCallersOwnQueue:
+    async def test_it_counts_what_the_caller_may_decide_across_every_page(
+        self, engine: AsyncEngine
+    ):
+        seeded = await seed_run(engine, Graph().graph)
+        other = await _another_member(seeded)
+        member = (seeded.principal, seeded.org)
+        named = await seed_run(engine, Graph(approvers=[str(other.user_id)]).graph, member=member)
+        second = await seed_run(engine, Graph().graph, member=member)
+        for run in (seeded, named, second):
+            await drive(run)
+
+        async with seeded.factory() as db:
+            service = WorkflowApprovalService(db)
+            everyone = await service.queue(seeded.ctx, statuses=[])
+            first = await service.queue(seeded.ctx, statuses=[], decidable=True, limit=1)
+            rest = await service.queue(seeded.ctx, statuses=[], decidable=True, skip=1)
+        assert everyone.total == 3
+        assert (first.total, len(first.items), rest.total, len(rest.items)) == (2, 1, 2, 1)
+        mine = [*first.items, *rest.items]
+        assert {item.workflow_run_id for item in mine} == {seeded.run.id, second.run.id}
+        assert all(item.can_decide for item in mine)
+
+    async def test_it_agrees_with_who_may_decide_each_request(self, engine: AsyncEngine):
+        """Read once for the caller, the groups pick the same requests the per-row
+        check does: the caller's group alone, a person or the caller's group, and
+        neither a group nor a person of the caller's."""
+        seeded = await seed_run(engine, Graph().graph)
+        other = await _another_member(seeded)
+        mine, theirs = uuid.uuid4(), uuid.uuid4()
+        async with seeded.factory() as db:
+            db.add_all(
+                [
+                    Group(id=mine, organization_id=seeded.org.id, name="Finance"),
+                    Group(id=theirs, organization_id=seeded.org.id, name="Legal"),
+                ]
+            )
+            await db.flush()
+            db.add_all(
+                [
+                    GroupMember(
+                        id=uuid.uuid4(), group_id=mine, user_id=seeded.ctx.user_id, source="manual"
+                    ),
+                    GroupMember(
+                        id=uuid.uuid4(), group_id=theirs, user_id=other.user_id, source="manual"
+                    ),
+                ]
+            )
+            await db.commit()
+        member = (seeded.principal, seeded.org)
+        shapes = [
+            Graph(approver_groups=[str(mine)]),
+            Graph(approvers=[str(other.user_id)], approver_groups=[str(mine)]),
+            Graph(approver_groups=[str(theirs)]),
+            Graph(approvers=[str(other.user_id)]),
+        ]
+        runs = [seeded, *[await seed_run(engine, shape.graph, member=member) for shape in shapes]]
+        for run in runs:
+            await drive(run)
+
+        async with seeded.factory() as db:
+            service = WorkflowApprovalService(db)
+            everyone = await service.queue(seeded.ctx, statuses=[])
+            decidable = await service.queue(seeded.ctx, statuses=[], decidable=True)
+        expected = {item.id for item in everyone.items if item.can_decide}
+        assert {item.id for item in decidable.items} == expected
+        assert {item.workflow_run_id for item in decidable.items} == {
+            run.run.id for run in runs[:3]
+        }
 
 
 _CHOICES = [{"id": "draft", "label": "Keep a draft"}, {"id": "send_now", "label": "Send now"}]
@@ -1073,3 +1199,254 @@ class TestTheQueueCarriesTheProposal:
             "markdown",
             "Reply",
         )
+
+
+class TestGroupApprovers:
+    @pytest.mark.parametrize(
+        "change", ["empty", "left", "inactive", "permission_lost", "deleted", "foreign"]
+    )
+    async def test_configured_groups_never_become_unrestricted(
+        self, engine: AsyncEngine, wakes, change: str
+    ):
+        group_id = uuid.uuid4()
+        shape = Graph(approver_groups=[str(group_id)])
+        seeded = await seed_run(engine, shape.graph)
+        async with seeded.factory() as db:
+            group = Group(id=group_id, organization_id=seeded.org.id, name="Finance")
+            db.add(group)
+            await db.flush()
+            if change != "empty":
+                db.add(
+                    GroupMember(
+                        id=uuid.uuid4(),
+                        group_id=group_id,
+                        user_id=seeded.ctx.user_id,
+                        source="manual",
+                    )
+                )
+            await db.commit()
+        await drive(seeded)
+        request = await _request(seeded)
+        assert request.approver_group_ids == [str(group_id)]
+        async with seeded.factory() as db:
+            if change == "left":
+                await db.execute(delete(GroupMember).where(GroupMember.group_id == group_id))
+            elif change == "inactive":
+                await db.execute(
+                    update(User).where(User.id == seeded.ctx.user_id).values(is_active=False)
+                )
+            elif change == "permission_lost":
+                await db.execute(
+                    update(OrganizationMember)
+                    .where(
+                        OrganizationMember.organization_id == seeded.org.id,
+                        OrganizationMember.user_id == seeded.ctx.user_id,
+                    )
+                    .values(role="member")
+                )
+            elif change == "foreign":
+                foreign_org = Organization(
+                    id=uuid.uuid4(),
+                    name="Other",
+                    slug=f"other-{uuid.uuid4().hex}",
+                    created_by_user_id=seeded.ctx.user_id,
+                )
+                db.add(foreign_org)
+                await db.flush()
+                await db.execute(
+                    update(Group).where(Group.id == group_id).values(organization_id=foreign_org.id)
+                )
+            elif change == "deleted":
+                await db.execute(delete(Group).where(Group.id == group_id))
+            await db.commit()
+        with pytest.raises(AuthorizationError):
+            await _decide(seeded, request.id, approved=True)
+
+    async def test_joining_a_group_after_the_request_allows_a_decision(
+        self, engine: AsyncEngine, wakes
+    ):
+        group_id = uuid.uuid4()
+        seeded = await seed_run(engine, Graph(approver_groups=[str(group_id)]).graph)
+        async with seeded.factory() as db:
+            db.add(Group(id=group_id, organization_id=seeded.org.id, name="Finance"))
+            await db.commit()
+        await drive(seeded)
+        request = await _request(seeded)
+        async with seeded.factory() as db:
+            db.add(
+                GroupMember(
+                    id=uuid.uuid4(), group_id=group_id, user_id=seeded.ctx.user_id, source="manual"
+                )
+            )
+            await db.commit()
+        result = await _decide(seeded, request.id, approved=True)
+        assert result.status == WorkflowApprovalStatus.APPROVED
+        assert result.approver_group_ids == [group_id]
+
+    async def test_only_the_deciding_members_of_a_named_group_are_told(
+        self, engine: AsyncEngine, wakes
+    ):
+        group_id = uuid.uuid4()
+        seeded = await seed_run(engine, Graph(approver_groups=[str(group_id)]).graph)
+        admin = await _another_member(seeded, role="admin")
+        member = await _another_member(seeded, role="member")
+        async with seeded.factory() as db:
+            db.add(Group(id=group_id, organization_id=seeded.org.id, name="Finance"))
+            await db.flush()
+            for user_id in (admin.user_id, member.user_id):
+                db.add(
+                    GroupMember(
+                        id=uuid.uuid4(), group_id=group_id, user_id=user_id, source="manual"
+                    )
+                )
+            await db.commit()
+        await drive(seeded)
+
+        async with seeded.factory() as db:
+            rows = (
+                (
+                    await db.execute(
+                        select(Notification).where(
+                            Notification.summary == "Approval needed: Send the refund?"
+                        )
+                    )
+                )
+                .scalars()
+                .all()
+            )
+        assert {row.recipient_user_id for row in rows} == {admin.user_id}
+
+
+async def _approval_step(seeded: SeededRun, shape: Graph) -> dict[str, Any] | None:
+    async with seeded.factory() as db:
+        listing = await WorkflowExecutionService(db).node_runs(seeded.ctx, seeded.run.id)
+    by_step = {item.node_instance_id: item for item in listing.items}
+    others = [item for step, item in by_step.items() if step != shape.ask.id]
+    assert all(item.approval is None for item in others)
+    approval = by_step[shape.ask.id].approval
+    return None if approval is None else approval.model_dump()
+
+
+class TestTheRunSaysWhoDecided:
+    async def test_a_pending_step_says_nobody_has_decided_yet(self, engine: AsyncEngine):
+        shape = Graph()
+        seeded = await seed_run(engine, shape.graph)
+        await drive(seeded)
+
+        assert await _approval_step(seeded, shape) == {
+            "status": "pending",
+            "decided_at": None,
+            "decided_by_name": None,
+        }
+
+    async def test_an_approval_names_the_decider_and_the_time(self, engine: AsyncEngine, wakes):
+        shape = Graph()
+        seeded = await seed_run(engine, shape.graph)
+        async with seeded.factory() as db:
+            await db.execute(
+                update(User).where(User.id == seeded.principal.id).values(full_name="Ola Nowak")
+            )
+            await db.commit()
+        await drive(seeded)
+        await _decide(seeded, (await _request(seeded)).id, approved=True)
+
+        step = await _approval_step(seeded, shape)
+        assert step is not None
+        assert (step["status"], step["decided_by_name"]) == ("approved", "Ola Nowak")
+        assert step["decided_at"] == (await _request(seeded)).decided_at
+
+    async def test_a_rejection_by_someone_with_no_name_reads_their_email(
+        self, engine: AsyncEngine, wakes
+    ):
+        shape = Graph()
+        seeded = await seed_run(engine, shape.graph)
+        approver = await _another_member(seeded)
+        await drive(seeded)
+        await _decide(seeded, (await _request(seeded)).id, approved=False, ctx=approver)
+
+        async with seeded.factory() as db:
+            email = await db.scalar(select(User.email).where(User.id == approver.user_id))
+        step = await _approval_step(seeded, shape)
+        assert step is not None
+        assert (step["status"], step["decided_by_name"]) == ("rejected", email)
+
+    async def test_a_decider_whose_account_is_gone_is_not_named(self, engine: AsyncEngine, wakes):
+        shape = Graph()
+        seeded = await seed_run(engine, shape.graph)
+        former = await _another_member(seeded)
+        await drive(seeded)
+        await _decide(seeded, (await _request(seeded)).id, approved=True, ctx=former)
+        async with seeded.factory() as db:
+            await db.execute(
+                delete(OrganizationMember).where(OrganizationMember.user_id == former.user_id)
+            )
+            await db.execute(delete(User).where(User.id == former.user_id))
+            await db.commit()
+
+        step = await _approval_step(seeded, shape)
+        assert step is not None
+        assert (step["status"], step["decided_by_name"]) == ("approved", None)
+        assert step["decided_at"] is not None
+
+    async def test_a_decider_who_left_the_organization_is_still_named(
+        self, engine: AsyncEngine, wakes
+    ):
+        shape = Graph()
+        seeded = await seed_run(engine, shape.graph)
+        former = await _another_member(seeded)
+        await drive(seeded)
+        await _decide(seeded, (await _request(seeded)).id, approved=True, ctx=former)
+        async with seeded.factory() as db:
+            await db.execute(
+                delete(OrganizationMember).where(OrganizationMember.user_id == former.user_id)
+            )
+            email = await db.scalar(select(User.email).where(User.id == former.user_id))
+            await db.commit()
+
+        step = await _approval_step(seeded, shape)
+        assert step is not None
+        assert step["decided_by_name"] == email
+
+    async def test_an_expired_request_names_nobody(self, engine: AsyncEngine, wakes):
+        shape = Graph(timeout_hours=1)
+        seeded = await seed_run(engine, shape.graph)
+        await drive(seeded)
+        async with seeded.factory() as db:
+            await db.execute(
+                update(WorkflowApproval)
+                .where(WorkflowApproval.workflow_run_id == seeded.run.id)
+                .values(expires_at=datetime.now(UTC) - timedelta(minutes=1))
+            )
+            await db.commit()
+        async with seeded.factory() as db:
+            await WorkflowReconcilerService(db).wake_stale_step_approvals()
+            await db.commit()
+        await drive(seeded)
+
+        step = await _approval_step(seeded, shape)
+        assert step is not None
+        assert step == {"status": "expired", "decided_at": None, "decided_by_name": None}
+
+    async def test_another_organizations_decisions_are_never_read(self, engine: AsyncEngine, wakes):
+        seeded = await seed_run(engine, Graph().graph)
+        await drive(seeded)
+        request = await _request(seeded)
+        await _decide(seeded, request.id, approved=True)
+
+        async with seeded.factory() as db:
+            assert (
+                await approval_repo.step_decisions(
+                    db, organization_id=uuid.uuid4(), node_run_ids=[request.node_run_id]
+                )
+                == []
+            )
+            assert (
+                await approval_repo.step_decisions(
+                    db, organization_id=seeded.org.id, node_run_ids=[]
+                )
+                == []
+            )
+            mine = await approval_repo.step_decisions(
+                db, organization_id=seeded.org.id, node_run_ids=[request.node_run_id]
+            )
+        assert [decision.status for decision in mine] == ["approved"]

@@ -1,5 +1,5 @@
 ---
-source_sha: "bfd7342ba921"
+source_sha: "45127605c8f9"
 ---
 
 # Berechtigungen { #permissions }
@@ -100,8 +100,28 @@ Zwei Arten von Berechtigung, und sie verhalten sich unterschiedlich.
 
 **Globale** Berechtigungen sind binär und organisationsweit: `members:view`, `members:manage`,
 `roles:manage`, `org:settings`, `org:delete`, `budgets:manage`,
-`approvals:decide`, `connections:view`, `connections:manage`,
-`channels:manage`, `runs:view`, `audit:read`, `ml:invoke`, `api_keys:create`, `api_keys:manage`.
+`approvals:decide`, `promotions:override`, `connections:view`, `connections:manage`,
+`channels:manage`, `runs:view`, `audit:read`, `ml:invoke`, `api_keys:create`, `api_keys:manage`, `personal:consent`, `mcp:personal:use`.
+
+Eine Ausnahme: `approvals:decide` ist global, aber `member` und `builder` halten es in
+`OWN`, nur für einen Run, den sie selbst gestartet haben. Der Scope wird pro Run im
+Entscheidungspfad durchgesetzt, nicht durch die Rolle — eine Rolle kann nicht sehen,
+zu welchem Run eine Approval gehört — sodass ein `member` die Approval seines eigenen
+Runs aus einer angemeldeten Web- oder Chat-Sitzung entscheiden kann, und keine andere.
+Fremde Approvals, Workflow-Approvals, die stehende Zustimmung für Routinen und der
+Waiver-Schalter der Organisation bleiben bei `owner`, `admin` und `operator`.
+
+Dieselbe Person öffnet ihren eigenen Run, liest sein Transkript und wiederholt ihn ohne `runs:view`; so funktioniert der Link der Ablauf-Benachrichtigung für einen `member`. Sie liest nur ihren eigenen Run, als angemeldete Web-Sitzung mit aktiver Mitgliedschaft und nur solange sie noch `approvals:decide` hält. Sie sieht weder einen Trace-Link noch benachbarte Runs, und das Manifest bleibt bei `runs:view`. API-Schlüssel, Veröffentlicher-Ersatz, Routinen und imitierte Sitzungen erhalten nichts davon.
+
+Der ausdrückliche Scope `mcp:personal:use` erlaubt externen API- oder OAuth-Runs, persönliche MCP-Verbindungen des Zugangsausstellers zu verwenden. Wählen Sie ihn unter **Custom** und bestätigen Sie die Delegation; keine Voreinstellung, auch **Full access** nicht, enthält ihn. Bestehende Zugänge behalten ausschließlich Organisationszugriff. Er gewährt weder persönlichen Speicher noch Gesprächssuche oder Zustimmung zu Routinen. Fortsetzungen nach einer Genehmigung behalten den ursprünglichen Eigentümer und Zugang bei; vor persönlichen Tool-Aufrufen werden verbundene Konten, aktuelle Schlüssel-Scopes sowie der Zugriff auf den Hauptagent und automatisch ausgewählte Subagents erneut geprüft.
+
+Für das Genehmigen persönlicher Routinen und Watches ist der ausdrückliche Scope `personal:consent` nötig, ausgewählt unter **Custom** beim Ausstellen eines Schlüssels oder Autorisieren eines MCP-Clients. Er ist in keiner Voreinstellung enthalten, auch nicht in **Full access**. Die Bestätigung erlaubt dem Zugang, dauerhafte Routinen und Watches mit Ihren persönlichen Verbindungen und Daten zu genehmigen; die üblichen Scopes `agents:run` und `runs:view` erlauben das nicht. Bestehende Schlüssel und MCP-Autorisierungen erhalten diese persönliche Zustimmung nicht automatisch.
+
+`promotions:override` promotet eine Version auf eine
+[Umgebung, die ihre Eval-Suites bewachen](environments.md#guarding-a-promotion-with-evals),
+obwohl sie auf ihr nicht bestanden haben, und ändert, welche Suites eine
+bewachen. Owner und Admins haben es; überhaupt zu promoten bleibt
+`agents:publish` auf dem Agent.
 
 `api_keys:create` erlaubt einem Mitglied,
 [API-Schlüssel](api.md#organization-api-keys) für sich auszustellen;
@@ -143,6 +163,17 @@ Teilmenge dieser Berechtigungen, nie mehr, als sein Aussteller jetzt hat.
     `secrets:view` auf diesem Schlüssel
     ([Modelle](models.md#changing-a-profiles-key-or-endpoint)).
 
+    Ein Secret an eine Sandbox-Verbindung anzuhängen oder einen Dienst damit zu
+    testen, braucht ebenfalls `secrets:view` auf diesem Secret: Die Verbindung
+    gibt den Schlüssel für die gesamte Organisation aus, also muss das Benennen
+    eines fremden privaten Schlüssels schon beim Anhängen abgelehnt werden. Die
+    Prüfung liegt bewusst *nicht* in `resolve_for_bindings`: Zur Laufzeit löst
+    der Runner die Bindungen einer veröffentlichten Spec für jeden auf, der den
+    Agent ausführen darf, und die Secrets der Spec wurden bei der
+    Veröffentlichung gegen den Veröffentlichenden geprüft. Der Vault öffnet sich
+    für einen Run; das Tor ist, wer das Secret in einem Schreibvorgang benennen
+    darf.
+
     `connections:manage` listet auch die Sync-Integrationen der Organisation
     auf: die Quellen jeder Base, mit ihrer Konfiguration, dem Vault-Secret, das
     jede nutzt, und ihrem letzten Fehler, sowie die nicht zugeordneten Quellen.
@@ -156,20 +187,30 @@ Teilmenge dieser Berechtigungen, nie mehr, als sein Aussteller jetzt hat.
 
 **Ressourcen**-Berechtigungen tragen einen `Scope`, denn sie beantworten die
 zweite Frage, die eine Rolle nicht kann: nicht "darf diese Rolle Agents
-anfassen?", sondern *welche* Agents.
+anfassen?", sondern _welche_ Agents.
 
-`mcp:manage` ist eine davon: Ein MCP-Server der Organisation lässt sich auf
-Gruppen oder Personen einschränken, wie ein Skill
-([Abteilungen](departments.md#a-departments-mcp-servers)). Eine Rolle, die sie auf
-`SHARED` hält, sieht die Server der Organisation, ihre eigenen und die mit ihr
-geteilten; `ALL` sieht jeden.
+`mcp:use` und `mcp:manage` trennen die Auswahl einer Verbindung von ihrer Verwaltung.
+Ein MCP-Server der Organisation lässt sich wie ein Skill auf Gruppen oder Personen
+einschränken ([Abteilungen](departments.md#a-departments-mcp-servers)). Ein
+`use`-Grant erlaubt das Einbinden seiner Werkzeuge; ein `edit`-Grant erlaubt die
+Verwaltung. Die Rollenbereiche gelten weiterhin: Owner und Admin behalten `ALL`,
+Builder behalten `SHARED`.
+
+Bestehende `use`-Grants bleiben erhalten und werden nicht auf `edit` erweitert.
+Ein Builder braucht für einen privaten Server einen ausdrücklichen `edit`-Grant,
+um ihn zu ändern, zu löschen, zu testen oder weiterzugeben. Bestehende API-Schlüssel
+mit Verwaltungs-Scope dürfen Verbindungen weiterhin nutzen; ein Schlüssel mit
+Nutzungs-Scope darf sie nicht verwalten. Die Delegation veröffentlichter Agents
+und die bestehenden Auswahlpfade für Workflows und Trigger behalten ihren
+bisherigen Nutzerkreis. Die Verwaltungsliste erfordert weiterhin `mcp:manage`;
+diese Änderung fügt weder einen Discovery-Endpunkt noch eine Viewer-Berechtigung hinzu.
 
 ### Scope { #scope }
 
 Geordnet als `NONE < OWN < SHARED < TEAM < ALL`.
 
 | Scope | Erreicht |
-|---|---|
+| --- | --- |
 | `NONE` | nichts |
 | `OWN` | Zeilen, die dieser Person gehören |
 | `SHARED` | ihre eigenen, plus alles organisationsweit Sichtbare |
@@ -190,12 +231,12 @@ benutzerdefinierte Rollen.
 ### Die eingebauten Rollen { #the-built-in-roles }
 
 | Rolle | Gedanke | Agents | Secrets | Global |
-|---|---|---|---|---|
-| `owner` | besitzt die Organisation | alles `ALL` | `ALL` | alles, einschließlich `org:delete` |
-| `admin` | führt sie im Tagesgeschäft | alles `ALL` | `ALL` | alles **außer** `org:delete` |
-| `builder` | baut, und lernt von der ganzen Organisation | `view`/`run` `ALL`, `edit`/`publish` `SHARED` | `view` `SHARED`, `edit` `OWN` | `mcp:manage` `SHARED`, `connections:view`+`connections:manage`, `runs:view`, `ml:invoke`, `api_keys:create`, `members:view` |
+| --- | --- | --- | --- | --- |
+| `owner` | besitzt die Organisation | alles `ALL` | `ALL` | alles, einschließlich `org:delete`; `mcp:use`/`mcp:manage` `ALL` |
+| `admin` | führt sie im Tagesgeschäft | alles `ALL` | `ALL` | alles **außer** `org:delete`; `mcp:use`/`mcp:manage` `ALL` |
+| `builder` | baut, und lernt von der ganzen Organisation | `view`/`run` `ALL`, `edit`/`publish` `SHARED` | `view` `SHARED`, `edit` `OWN` | `approvals:decide` `OWN`, `mcp:use`/`mcp:manage` `SHARED`, `connections:view`+`connections:manage`, `runs:view`, `ml:invoke`, `api_keys:create`, `members:view` |
 | `operator` | hält das laufende System gesund | `view`/`run` `ALL`, kein edit | `view` `SHARED` | `approvals:decide`, `connections:view`, `runs:view`, `ml:invoke`, `api_keys:create`, `members:view` |
-| `member` | der alltägliche Nutzer | `view`/`run` `SHARED`, `edit` `OWN` | `view` `SHARED`, `edit` `OWN` | `ml:invoke`, `api_keys:create`, `members:view` |
+| `member` | der alltägliche Nutzer | `view`/`run` `SHARED`, `edit` `OWN` | `view` `SHARED`, `edit` `OWN` | `approvals:decide` `OWN`, `ml:invoke`, `api_keys:create`, `members:view` |
 | `viewer` | liest | `view` `SHARED` | keines | `members:view` |
 
 Der Unterschied zwischen `builder` und `admin` ist der interessante: Ein Builder
@@ -217,7 +258,7 @@ Berechtigungen auf statt zu denen von jemand anderem.
 ### Wer welche Rolle vergeben darf { #who-may-hand-out-which-role }
 
 `roles:manage` zu halten besagt, dass ein Mitglied Rollen ändern darf; es besagt
-nicht, *welche*. `assignable_roles` beantwortet das aus dem Katalog: Eine Rolle
+nicht, _welche_. `assignable_roles` beantwortet das aus dem Katalog: Eine Rolle
 darf eine vergeben, deren Befugnis sie strikt übertrifft - jede Berechtigung, die
 die angebotene Rolle hält, mindestens ebenso weit beim Vergebenden, plus etwas,
 das der Vergebende hält und sie nicht. Zwei Folgen, und beide sind gewollt:
@@ -248,7 +289,7 @@ Seite früher zwei Vorstellungen von "welcher Mandant" hielt.
 
 Heute sind es eine. Der `ActiveOrgGuard` des Dashboards übernimmt die
 Organisation, die ein Pfad benennt, bevor die Seite irgendetwas fragt, sodass
-das, was ein Aufrufer dort darf, das ist, was er *dort* darf (#1032).
+das, was ein Aufrufer dort darf, das ist, was er _dort_ darf (#1032).
 
 **Eine Einladung ist ein Link, und der Absender bekommt immer eine Kopie davon.**
 
@@ -272,7 +313,7 @@ bietet das an, was `assignableRoles` in
 `GET /roles/catalog` ohnehin samt den Berechtigungen jeder Rolle zurückgibt.
 
 Es ist Arithmetik auf dem Client, aus demselben Grund wie auf dem Server: Eine
-Auswahl, die eine *Liste* hielt, bot jede Rolle außer `owner` an, wer auch immer
+Auswahl, die eine _Liste_ hielt, bot jede Rolle außer `owner` an, wer auch immer
 fragte, sodass einem Admin Admin angeboten und er nach dem Tippen der
 E-Mail-Adresse abgelehnt wurde (#1028).
 
@@ -300,7 +341,7 @@ ohnehin nicht laufen und keine Exposure erreicht ihn, also entscheidet das, wer
 ihn sieht, nicht was er tut.
 
 | Stufe | Erlaubt |
-|---|---|
+| --- | --- |
 | `read` | die Konfiguration zu sehen |
 | `use` | sie außerdem auszuführen oder anzuhängen |
 | `edit` | sie außerdem zu ändern |
@@ -311,7 +352,7 @@ In der Konsole ist das ein Dialog, so wie man ein Dokument teilt: Der Button
 Kontextdatei - jederzeit nach dem Anlegen, nicht nur dabei - fügt eine Person
 oder Gruppe auf einer Stufe hinzu, listet
 auf, wer Zugriff hat, den Besitzer zuerst, und setzt den **Allgemeinen Zugriff** -
-*Nur Personen mit Zugriff* ist `private`, *Alle in der Organisation* ist `org`.
+_Nur Personen mit Zugriff_ ist `private`, _Alle in der Organisation_ ist `org`.
 
 Ein Grant an eine Gruppe erreicht, wer in dem Moment in der Gruppe ist, in dem der
 Zugriff geprüft wird: Der Gruppe beizutreten heißt also, den Zugriff zu gewinnen,
@@ -320,6 +361,12 @@ Zeile hält - ihren eigenen und die ihrer Gruppen -, bekommt den höchsten davon
 Die Datenbank hält einen Grant an genau ein Subjekt, eine Person oder eine
 Gruppe, und eine Gruppe aus einer anderen Organisation erreicht hier niemanden,
 selbst wenn eine Zeile eine benennen würde.
+
+Eine Freigabe kann ein Ablaufdatum tragen: Nach ihm gibt der Grant nichts mehr,
+ohne dass jemand die Zeile löscht - der Teilen-Dialog listet ihn weiterhin,
+sodass der Besitzer ihn erneuern oder widerrufen kann. Das Entfernen eines
+Mitglieds widerruft seine direkten Grants mit der Mitgliedschaft, sodass eine
+erneute Einladung keinen von ihnen wiederbelebt.
 
 Die Tabelle ist bewusst generisch - `resource_type` + `resource_id`, ohne
 Fremdschlüssel auf das Ziel -, weil Agents, Collections, Skills, Context-Dateien,
@@ -373,7 +420,7 @@ Rolle ist das, was auflöst, was der Agent erreichen darf.
 Die Antwort ist **wer die Oberfläche veröffentlicht hat**, und der Rückfall ist
 der Teil, den man kennen sollte: `viewer`, wenn diese Person kein Mitglied mehr
 ist, `viewer`, wenn ihr Konto deaktiviert wurde, und `viewer`, wenn überhaupt
-kein Veröffentlichender erfasst wurde. Ein Weggang darf nicht still *erweitern*,
+kein Veröffentlichender erfasst wurde. Ein Weggang darf nicht still _erweitern_,
 was eine öffentliche Oberfläche erreicht, und ein Widget auf der Seite eines
 Kunden überlebt die Person, die es eingefügt hat.
 
@@ -408,12 +455,18 @@ sie auf nichts verengt werden sollte.
 bereits geladener Zeilen gibt es die Teilmenge zurück, auf der der Aufrufer eine
 Berechtigung ausüben darf, wendet dieselbe Regel `max(role scope, grant)` je
 Zeile an, liest aber jeden Grant in einem Nachschlagen statt einem je Zeile (und
-gar keinen, wenn die Rolle alles erreicht). Es ist das, was die
-Capability-Kennzeichen je Zeile einer Auflistung füllt - `AgentRead.can_run`, die
-Untergrenze dafür, auf einer Karte "new trigger" anzubieten - sodass ein Viewer,
-dem run auf einem Agent gewährt wurde, die Bedienung dort und sonst nirgends
-sieht. Ein Kontext ohne Subjekt und eine leere Eingabe lösen beide vor jeder
-Abfrage zur leeren Menge auf.
+gar keinen, wenn die Rolle alles erreicht).
+
+`accessible_ids` ist das, was die
+Capability-Kennzeichen je Zeile einer Auflistung füllt - `AgentRead.can_run`,
+die Untergrenze dafür, auf einer Karte "new trigger" anzubieten,
+`AgentRead.can_edit`, aus dem die Konsole liest, ob sie die Bearbeitung auf der
+Agent-Seite, das Testen eines Drafts und das Stoppen eines Eval-Runs anbietet,
+und `AgentRead.can_publish` für das Veröffentlichen - sodass ein Viewer, dem run
+auf einem Agent gewährt wurde, die Bedienung dort und sonst nirgends sieht.
+
+Ein Kontext ohne Subjekt und eine leere Eingabe lösen beide vor jeder Abfrage
+zur leeren Menge auf.
 
 Listen von Kontexten, Skills und Tresorschlüsseln liefern `can_edit` pro Ressource.
 Die Konsole verwendet diesen effektiven Zugriff zum Bearbeiten, Löschen, Teilen
@@ -429,7 +482,7 @@ verlangt: Eine Rolle, die alles erreicht, schlägt ihre Grants für eine schlich
 Auflistung nie nach, also holt der Filter sie trotzdem - ohne das würde "shared
 with me" eines Builders zu "die ganze Organisation minus meins" verkommen. Für
 die kb schließt er außerdem persönliche Zeilen aus (die des Aufrufers von
-Hause aus) und Zeilen mit App-Scope (die des Deployments - nie *mit* jemandem
+Hause aus) und Zeilen mit App-Scope (die des Deployments - nie _mit_ jemandem
 geteilt).
 
 ### Workflow-Runs { #workflow-runs }
@@ -447,7 +500,9 @@ ihn abbrechen, solange er den Workflow noch ausführen darf, und wer den Workflo
 bearbeiten darf, darf jeden seiner Runs abbrechen. Ein Member, der einen für die
 Organisation sichtbaren Workflow ausführen darf, stoppt seine eigenen Runs,
 nicht die eines Kollegen; wer den Run sieht, aber keines der beiden Rechte hat,
-wird mit `403` abgewiesen.
+wird mit `403` abgewiesen. Einen abgebrochenen Run zu wiederholen braucht dasselbe
+Recht, sodass ein von jemandem gestoppter Run nicht von einem Mitglied neu
+gestartet wird, das ihn nicht hätte stoppen können.
 
 **Ein Run handelt im Namen der Person, die ihn gestartet hat, und die wird bei
 jedem Knoten erneut geprüft.** Ein Knoten kann Tage nach dem Start des Runs
@@ -560,6 +615,24 @@ die Ablehnungen.
     vertretbar, wenn sie das herausfinden können. Eine engere Antwort wäre eine
     eigene Berechtigung, keine leisere Route.
 
+### Ein System-Agent ist eine Einstellung der Organisation { #system-agents }
+
+Ein [System-Agent](concepts.md#system-agents) - ein Bewerter, ein
+Fallgenerator, ein Lücken-Entwerfer oder -Klassifizierer, der
+Verbesserungsassistent - bewertet, entwirft oder schlägt vor für alle, die
+nutzen, was er bedient. Ihn zu ändern braucht darum `org:settings` zusätzlich zu
+`agents:edit` oder `agents:publish` auf der Zeile: sein Draft, ein YAML-Import,
+eine Veröffentlichung, eine Wiederherstellung, Archivieren oder Löschen, seine
+Umgebungen. Sonst erreichte ein Builder die mitgelieferten über ihre
+organisationsweite Sichtbarkeit. Lesen, Ausführen und Anlegen behalten ihre
+üblichen Berechtigungen; ein Bewerter, den ein Builder für ein Dataset anlegt,
+wird sofort veröffentlicht, und spätere Änderungen brauchen einen
+Administrator.
+
+Die Prüfung steckt in `AgentRegistryService.get`, also hält sie jeder
+Schreibweg ein, und `can_edit`/`can_publish` sind für einen Aufrufer ohne sie
+falsch.
+
 ## Delegation ist keine Privilegiengrenze { #delegation-is-not-a-privilege-boundary }
 
 Ein Agent kann [an einen anderen Agent
@@ -580,7 +653,7 @@ Das ist Absicht, und die Alternative ist schlechter. Ein erneutes Prüfen je
 Aufrufer würde einen veröffentlichten Agent für eine Kollegin funktionieren
 lassen und für eine andere nicht, auf derselben Version, wobei der Unterschied
 nirgends sichtbar wäre - und es hieße, dass die Antwort eines Support-Agents
-davon abhinge, welche seiner Delegates dem *Fragenden* gewährt worden waren.
+davon abhinge, welche seiner Delegates dem _Fragenden_ gewährt worden waren.
 Einen Delegate zu verleihen heißt zu verleihen, was man hält, genau wie das
 Binden einer Collection.
 
@@ -634,14 +707,14 @@ das Audit-Protokoll und das Approval-Tor schlüsseln alle auf eines.
 
 Die Oberflächen, die Menschen offenstehen, die dieses Deployment nicht benennen
 kann, nutzen diesen Konstruktor nicht. Eine gehostete Seite, ein Widget und ein
-Channel führen den Zug jeweils unter dem aus, der ihn *veröffentlicht* hat - der
+Channel führen den Zug jeweils unter dem aus, der ihn _veröffentlicht_ hat - der
 Eigentümer des Embeds oder das Binding, das den Agent auf den Bot gesetzt hat -,
 mit Rückfall auf `viewer`, wenn diese Person die Organisation verlassen hat oder
 ihr Konto deaktiviert wurde, sodass keines von beidem still erweitern kann, was
 eine öffentliche Oberfläche erreicht. Das Subjekt ist daher ein echtes, und es
 ist nicht die Person, die die Nachricht getippt hat.
 
-Ein Channel-Absender, der ein Mitgliedskonto verknüpft *hat*, läuft als dieses
+Ein Channel-Absender, der ein Mitgliedskonto verknüpft _hat_, läuft als dieses
 Mitglied — und derselbe verbundene Lesezugriff entscheidet, ob er noch eines ist.
 Deaktivierung lässt sowohl die Mitgliedschaftszeile als auch die Verknüpfung des
 Chat-Kontos bestehen, sodass eine allein von der Mitgliedschaft abgelesene Rolle
@@ -660,16 +733,83 @@ rechnet jene Runs einer Person zu, ohne umzuschreiben, als was sie liefen. Siehe
 Was ein solcher Run tun darf, kommt von der **Exposure**, die ihn eingelassen
 hat, angelegt von jemandem, der sehr wohl eine Rolle hatte.
 
+## Sichtbarkeit der Seitenleiste { #sidebar-visibility }
+
+### Was ein Mitglied standardmäßig sieht { #what-a-member-sees-by-default }
+
+Ein Mitglied (Member) sieht Dashboard, Chat, Inbox, Agent Messages, Apps, Agents,
+Workflows, Routines, Projects, Knowledge Bases, Tables, Skills, Context, Documents,
+Background Work, Connectors, Organizations und Groups. Apps und Projects zeigen
+nur zugängliche Ressourcen. Activity und Failure Learning benötigen `runs:view`;
+der deploymentweite Admin-Bereich benötigt `is_app_admin`, das eine
+Organisationsrolle nicht gewährt.
+
+Die Rolle Member erreicht eigene Ressourcen sowie Ressourcen, die für die
+Organisation sichtbar oder ausdrücklich mit dem Mitglied oder seinen Gruppen
+geteilt sind. Sie erlaubt das Bearbeiten eigener Arbeitsressourcen und das
+Ausführen zugänglicher Agents und Workflows. Sie gewährt keinen organisationsweiten
+Zugriff auf private Ressourcen, Mitgliederverwaltung, Budgets oder Audit-Logs.
+Ein ausdrücklicher Grant auf einer Ressource kann den Zugriff wie oben
+beschrieben erweitern.
+
+### Navigation für eine Rolle konfigurieren { #configure-navigation-for-a-role }
+
+Öffne **Organisationen (Organizations) → Mitglieder (Members) → Benutzer & Rollen
+(Users & Roles)** und dann **Sidebar visibility**. Die sechs eingebauten Rollen
+und ihre Berechtigungsdefinitionen bleiben fest vorgegeben. Dieser Editor
+konfiguriert die Navigation jeder Rolle in der ausgewählten Organisation.
+
+1. Wähle eine Rolle aus, um ihre aktuelle Navigation zu prüfen.
+2. Wähle aus, welche konfigurierbaren Einträge erscheinen. Einträge, die wegen der
+   Rollenberechtigungen nicht verfügbar sind, bleiben auch dann nicht verfügbar,
+   wenn sie eingeblendet werden.
+3. Prüfe vor dem Speichern **Sidebar preview**.
+4. Wähle **Save sidebar**, um die Änderungen anzuwenden.
+5. Um die Navigation der Rolle zurückzusetzen, wähle **Reset to defaults** und
+   anschließend **Save sidebar**. **Discard changes** lässt die gespeicherte
+   Richtlinie unverändert.
+
+Ein Besitzer (Owner) kann Admin und die niedrigeren Rollen bearbeiten. Ein
+Administrator (Admin) kann Builder, Operator, Member und Viewer bearbeiten,
+aber nicht seine eigene Stufe oder Owner. Andere Mitglieder können Richtlinien
+ansehen, ohne sie zu bearbeiten. Änderungen benötigen `roles:manage` und werden
+im Audit-Trail der Organisation aufgezeichnet.
+
+Dashboard und Organizations können nicht ausgeblendet werden; der
+deploymentweite Admin-Eintrag behält seine bestehende Superadmin-Prüfung.
+Diese Wege zur Wiederherstellung der Konfiguration bleiben verfügbar.
+Die Navigation von Owner bleibt unverändert, und Plattform-Superadmins sind
+von der Sichtbarkeitsrichtlinie nicht betroffen.
+
+### Sichtbarkeit und Zugriff { #visibility-and-access }
+
+Die gespeicherte Auswahl filtert die Seitenleiste auf Desktop und Mobilgeräten,
+angeheftete Apps und Projects sowie die Navigation der Befehlspalette,
+einschließlich Ressourcenkürzeln und der Aktion für einen neuen Chat.
+Ein aktives Fenster aktualisiert Berechtigungen alle 60 Sekunden und lädt
+veraltete Berechtigungen erneut, wenn es den Fokus zurückerhält.
+
+Einen Eintrag auszublenden entzieht keine API-Berechtigungen, entfernt keine
+Ressourcen-Grants und sperrt keine direkte URL. Einen Eintrag einzublenden
+gewährt keinen zusätzlichen Zugriff. Steuere den Zugriff über die
+Rollenzuweisung und das Teilen von Ressourcen; vereinfache die Navigation über
+die Sichtbarkeit der Seitenleiste. Diese Einstellung erstellt keine
+benutzerdefinierten Rollen und bearbeitet ihre Berechtigungen nicht.
+
+
 ## Was das Frontend liest { #what-the-frontend-reads }
 
 | Endpunkt | Antwortet |
-|---|---|
-| `GET /me/permissions` | die Rolle des Aufrufers, `is_app_admin` und jede Berechtigung samt ihrem Scope |
+| --- | --- |
+| `GET /me/permissions` | die Rolle des Aufrufers, `is_app_admin`, jede Berechtigung samt ihrem Scope und `hidden_navigation_items` für diese Rolle |
 | `GET /roles/catalog` | den ganzen Katalog und was jede Rolle bündelt |
+| `GET /roles/navigation` | die `hidden_items` der Organisation je Rolle, `configurable_items` und die `editable_roles` des Aufrufers |
+| `PATCH /roles/navigation/{role}` | ersetzt die `hidden_items` einer Rolle; erfordert `roles:manage` und Befugnis über diese Rolle |
 
-Beide sind **eine Bequemlichkeit für die Oberfläche und nichts weiter**. Der
-Server prüft jede Berechtigung auf dem Endpunkt erneut, der die Handlung
-ausführt, sodass ein Client, der diese APIs ignoriert, nichts gewinnt.
+Die Leseantworten steuern die Oberfläche; sie autorisieren keine Handlung.
+Der Server prüft jede Berechtigung an dem Endpunkt erneut, der die Handlung
+ausführt. Die Navigation zu ändern betrifft nur die Darstellung; ein Client,
+der sie ignoriert, erhält dadurch keinen zusätzlichen Zugriff.
 
 ## Zusammenfassung { #recap }
 
@@ -697,3 +837,5 @@ ausführt, sodass ein Client, der diese APIs ignoriert, nichts gewinnt.
 ::: app.core.permissions.Scope
 
 ::: app.core.permissions.AuthContext
+
+Installationsadministration über MCP erfordert das aktuelle Anwendungsadministrator-Flag und den separat genehmigten OAuth-Bereich `deployment:admin`. Dieser ist weder `Perm` noch Rollenberechtigung oder Vorgabe. Organisationsadministration kann ihn nicht verleihen. Nur ausdrücklich autorisierte externe Clients erhalten ihn; interne Agenten, Routinen und normale API-Schlüssel erben ihn nicht. Bestehende Verbindungen benötigen eine erneute Autorisierung. Siehe [MCP-Administration](mcp.de.md#administration-through-mcp).

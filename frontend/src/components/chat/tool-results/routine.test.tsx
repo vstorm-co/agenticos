@@ -99,3 +99,8 @@ describe("routine results", () => {
     expect(screen.getByRole("status")).toHaveTextContent("Loading routine");
   });
 });
+
+it("keeps trusted platform cards and refuses a generic external routine", () => {
+  expect(writtenRoutines([call({ presentation_kind: "platform" })])).toEqual([reference]);
+  expect(writtenRoutines([call({ presentation_kind: "generic" })])).toEqual([]);
+});

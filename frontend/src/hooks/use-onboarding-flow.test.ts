@@ -11,7 +11,10 @@ import { Perm, type Permission } from "@/types/permissions";
 
 // The pathname the arrived-signal reads; a test moves it to fake a navigation.
 const nav = vi.hoisted(() => ({ pathname: "/dashboard" }));
-vi.mock("next/navigation", () => ({ usePathname: () => nav.pathname }));
+vi.mock("next/navigation", () => ({
+  useSearchParams: () => new URLSearchParams(window.location.search),
+  usePathname: () => nav.pathname,
+}));
 
 // Mutable state the mocked hooks read, so a test can grow a list between renders.
 const rig = vi.hoisted(() => ({
@@ -34,10 +37,17 @@ const rig = vi.hoisted(() => ({
   connections: [] as unknown[],
   personalConnections: [] as unknown[],
   mcpLoading: false,
+  networkTotal: 0,
+  networkLoading: false,
+  networkFetching: false,
+  networkAvailable: false,
+  networkEnabled: false,
   orgs: [] as unknown[] | undefined,
   groups: [] as unknown[],
   groupsOrg: "",
   routines: 0,
+  datasetCases: [] as number[],
+  datasetsFetching: false,
   anyRunnable: true,
   anyRunnableLoading: false,
   anyRunnableFetching: false,
@@ -104,6 +114,17 @@ vi.mock("@/hooks/use-mcp-connections", () => ({
 vi.mock("@/hooks/use-organizations", () => ({
   useOrganizationList: () => ({ data: rig.orgs, isLoading: false, isFetching: false }),
 }));
+vi.mock("@/hooks/use-network-connections", () => ({
+  useNetworkConnections: (options?: { enabled?: boolean }) => {
+    rig.networkEnabled = options?.enabled ?? true;
+    return {
+      total: rig.networkTotal,
+      isLoading: rig.networkLoading,
+      isFetching: rig.networkFetching,
+      available: rig.networkAvailable,
+    };
+  },
+}));
 vi.mock("@/hooks/use-groups", () => ({
   // Records which organization it was asked about, the way the real hook keys on it.
   useGroups: (orgId: string) => {
@@ -113,6 +134,14 @@ vi.mock("@/hooks/use-groups", () => ({
 }));
 vi.mock("@/hooks/use-org-triggers", () => ({
   useOrgTriggers: () => ({ total: rig.routines, isLoading: false }),
+}));
+vi.mock("@/hooks/use-datasets", () => ({
+  useDatasets: () => ({
+    total: rig.datasetCases.length,
+    datasets: rig.datasetCases.map((case_count) => ({ case_count })),
+    isLoading: false,
+    isFetching: rig.datasetsFetching,
+  }),
 }));
 vi.mock("@/hooks/use-can-create-trigger", () => ({
   useCanCreateTriggerQuery: () => ({
@@ -147,6 +176,8 @@ vi.mock("@/lib/onboarding/flows", async () => {
 });
 
 beforeEach(() => {
+  rig.datasetCases = [];
+  rig.datasetsFetching = false;
   rig.ceiling = null;
   rig.pendingCreates = 0;
   rig.ceilingKnown = true;
@@ -163,6 +194,11 @@ beforeEach(() => {
   rig.connections = [];
   rig.personalConnections = [];
   rig.mcpLoading = false;
+  rig.networkTotal = 0;
+  rig.networkLoading = false;
+  rig.networkFetching = false;
+  rig.networkAvailable = false;
+  rig.networkEnabled = false;
   rig.orgs = [];
   rig.groups = [];
   rig.groupsOrg = "";
@@ -205,6 +241,38 @@ describe("useOnboardingFlow", () => {
     expect(result.current.steps.length).toBeGreaterThan(1);
     expect(result.current.step?.target).toBe("skills-new");
     expect(result.current.isLast).toBe(false);
+  });
+
+  it("does not fetch network records or wait for them during another creation flow", () => {
+    rig.networkFetching = true;
+    const { result } = renderHook(() => useOnboardingFlow());
+    act(() => useOnboardingStore.getState().openFlow("create-skill"));
+    expect(rig.networkEnabled).toBe(false);
+    expect(result.current.isActive).toBe(true);
+  });
+
+  it("waits for the network refresh before capturing enrollment availability and the creation count", () => {
+    rig.networkFetching = true;
+    rig.networkAvailable = true;
+    rig.networkTotal = 2;
+    const { result, rerender } = renderHook(() => useOnboardingFlow());
+    act(() => useOnboardingStore.getState().openFlow("connect-tailscale"));
+    expect(rig.networkEnabled).toBe(true);
+    expect(result.current.isActive).toBe(false);
+
+    rig.networkFetching = false;
+    rerender();
+    expect(result.current.isActive).toBe(true);
+    expect(result.current.steps.map((step) => step.id)).toContain("flow-tailscale-login");
+    const creationIndex = result.current.steps.findIndex(
+      (step) => step.id === "flow-tailscale-create",
+    );
+    act(() => useOnboardingStore.getState().setIndex(creationIndex));
+    expect(result.current.signalMet).toBe(false);
+
+    rig.networkTotal = 3;
+    rerender();
+    expect(result.current.signalMet).toBe(true);
   });
 
   it("is inactive when permissions filter every step away", () => {
@@ -449,6 +517,37 @@ describe("useOnboardingFlow", () => {
   it("asks about no organization's groups before one is active", () => {
     renderHook(() => useOnboardingFlow());
     expect(rig.groupsOrg).toBe("");
+  });
+
+  it("ends the dataset's save step once a case is added to one of them", () => {
+    rig.datasetCases = [0, 4];
+    const { result, rerender } = renderHook(() => useOnboardingFlow());
+    act(() => useOnboardingStore.getState().openFlow("create-dataset"));
+    const saveAt = result.current.steps.findIndex((s) => s.id === "flow-dataset-case-save");
+    act(() => useOnboardingStore.getState().setIndex(saveAt));
+    expect(result.current.signalMet).toBe(false);
+
+    rig.datasetCases = [1, 4];
+    rerender();
+    expect(result.current.signalMet).toBe(true);
+  });
+
+  it("takes no baseline from a dataset count a refetch is about to replace", () => {
+    rig.datasetsFetching = true;
+    rig.datasetCases = [0];
+    const { result, rerender } = renderHook(() => useOnboardingFlow());
+    act(() => useOnboardingStore.getState().openFlow("create-dataset"));
+    const saveAt = result.current.steps.findIndex((s) => s.id === "flow-dataset-case-save");
+    act(() => useOnboardingStore.getState().setIndex(saveAt));
+
+    rig.datasetsFetching = false;
+    rig.datasetCases = [1];
+    rerender();
+    expect(result.current.signalMet).toBe(false);
+
+    rig.datasetCases = [2];
+    rerender();
+    expect(result.current.signalMet).toBe(true);
   });
 
   it("advances the agent flow when an agent is created", () => {

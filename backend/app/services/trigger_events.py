@@ -7,9 +7,9 @@ decision to fire and the model owns only the row. Three questions, each dispatch
 on the source:
 
 * :func:`verify_signature` - is this delivery authentic? Every source signs the raw
-  body with HMAC-SHA256 under the trigger's per-trigger secret; they differ only in
-  the header the signature rides in (GitHub's own `X-Hub-Signature-256`, or the
-  `X-Signature-256` a relay is configured to send). The comparison is
+  body with a source-specific scheme under the trigger's per-trigger secret.
+  The generic source supports a configured raw-body HMAC header and encoding.
+  The comparison is
   constant-time, and an absent or malformed signature is a plain `False`, never an
   exception the caller must remember to catch.
 * :func:`event_matches` - does this delivery pass the trigger's filter? A GitHub
@@ -39,12 +39,15 @@ from typing import Any
 from app.db.models.agent_trigger import EventSource
 from app.schemas.agent_trigger import (
     CalendarTriggerConfig,
+    GithubFilterReason,
     GithubTriggerConfig,
     GmailTriggerConfig,
     GoogleDriveTriggerConfig,
     HubspotTriggerConfig,
+    LinearTriggerConfig,
     MicrosoftFilesTriggerConfig,
     OutlookTriggerConfig,
+    WebhookTriggerConfig,
     ZendeskTriggerConfig,
 )
 from app.services.portals import files_place, outlook_place
@@ -63,6 +66,7 @@ logger = logging.getLogger(__name__)
 _SIGNATURE_HEADER = {
     EventSource.GITHUB.value: "x-hub-signature-256",
     EventSource.HUBSPOT.value: "x-hubspot-signature-v3",
+    EventSource.LINEAR.value: "linear-signature",
     EventSource.WEBHOOK.value: "x-signature-256",
     EventSource.ZENDESK.value: "x-zendesk-webhook-signature",
 }
@@ -112,6 +116,12 @@ def delivery_id(source: str, headers: Mapping[str, str], payload: Mapping[str, A
     """
     if source == EventSource.HUBSPOT.value:
         return _hubspot_delivery(payload)
+    if source == EventSource.LINEAR.value:
+        # The delivery header is not signed. The authenticated payload is. A retry
+        # whose timestamp changes has a different key; Linear does not document
+        # whether its retry body changes.
+        encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str).encode()
+        return "linear:" + hashlib.sha256(encoded).hexdigest()
     value = headers.get(_DELIVERY_ID_HEADER[source], "").strip()
     return value or None
 
@@ -145,6 +155,11 @@ def accepts_delivery(source: str) -> bool:
     return source in _SIGNATURE_HEADER
 
 
+def signature(source: str, headers: Mapping[str, str]) -> str:
+    """The signature a GitHub or generic webhook delivery carries, as `verify_signature` reads it."""
+    return headers.get(_SIGNATURE_HEADER[source], "")
+
+
 def verify_signature(
     source: str,
     *,
@@ -153,6 +168,7 @@ def verify_signature(
     headers: Mapping[str, str],
     url: str | None = None,
     now: float | None = None,
+    config: Mapping[str, Any] | None = None,
 ) -> bool:
     """Whether `body` was signed with `secret` for this source, in constant time.
 
@@ -168,8 +184,9 @@ def verify_signature(
     replay it fails too, since the signature no longer covers the bare body. A
     sender that sends no timestamp is verified as before.
 
-    Both sources sign the exact request bytes with HMAC-SHA256 and send
-    `sha256=<hex>`; only the header name differs. A missing or malformed signature
+    GitHub and the default generic scheme send `sha256=<hex>`; the generic source
+    can instead accept a configured header containing a raw-body hex or base64
+    digest. These alternative modes do not check a timestamp. A missing or malformed signature
     is `False`, not an error - the caller turns a `False` into one 403 and does
     not otherwise distinguish "no signature" from "wrong signature", which would
     tell an attacker which of the two they achieved. The comparison is over bytes,
@@ -183,6 +200,19 @@ def verify_signature(
         return _hubspot_verified(secret, body=body, headers=headers, url=url, now=moment)
     if source == EventSource.ZENDESK.value:
         return _zendesk_verified(secret, body=body, headers=headers, now=moment)
+    if source == EventSource.LINEAR.value:
+        return _linear_verified(secret, body=body, headers=headers, now=moment)
+    if source == EventSource.WEBHOOK.value:
+        webhook = WebhookTriggerConfig.model_validate(config or {})
+        if webhook.signature_scheme != "legacy":
+            assert webhook.signature_header is not None
+            digest = hmac.new(secret.encode(), body, hashlib.sha256).digest()
+            expected = (
+                digest.hex()
+                if webhook.signature_scheme == "hmac-sha256-hex"
+                else base64.b64encode(digest).decode("ascii")
+            )
+            return _same(expected, headers.get(webhook.signature_header, ""))
     signature = headers.get(_SIGNATURE_HEADER[source], "")
     if not signature.startswith("sha256="):
         return False
@@ -234,6 +264,26 @@ def _hubspot_verified(
     return _same(expected, headers.get("x-hubspot-signature", "").strip())
 
 
+def _linear_verified(secret: str, *, body: bytes, headers: Mapping[str, str], now: float) -> bool:
+    """Linear signs the raw JSON body, including its millisecond timestamp."""
+    expected = hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
+    received = headers.get("linear-signature", "")
+    if len(received) != 64 or any(c not in "0123456789abcdef" for c in received):
+        return False
+    if not _same(expected, received):
+        return False
+    try:
+        payload = json.loads(body)
+    except ValueError, UnicodeDecodeError:
+        return False
+    if not isinstance(payload, dict):
+        return False
+    stamp = payload.get("webhookTimestamp")
+    if type(stamp) is not int:
+        return False
+    return abs(now * 1000 - stamp) <= 60_000
+
+
 def _zendesk_verified(secret: str, *, body: bytes, headers: Mapping[str, str], now: float) -> bool:
     """Zendesk's signature: an HMAC over its ISO timestamp and the body.
 
@@ -267,6 +317,11 @@ def event_matches(
         return _outlook_matches(payload, config)
     if source == EventSource.HUBSPOT.value:
         return _hubspot_matches(payload, config)
+    if source == EventSource.LINEAR.value:
+        parsed = LinearTriggerConfig.model_validate(dict(config))
+        return (parsed.event_types is None or payload.get("type") in parsed.event_types) and (
+            parsed.actions is None or payload.get("action") in parsed.actions
+        )
     if source == EventSource.ZENDESK.value:
         parsed = ZendeskTriggerConfig.model_validate(dict(config))
         return parsed.event_types is None or payload.get("type") in parsed.event_types
@@ -291,6 +346,10 @@ def render_context(source: str, *, payload: Mapping[str, Any]) -> str:
         return clean_text(_outlook_context(payload))
     if source == EventSource.HUBSPOT.value:
         return _hubspot_context(payload)
+    if source == EventSource.LINEAR.value:
+        return "A Linear webhook arrived.\n\n" + _clip(
+            json.dumps(dict(payload), indent=2, ensure_ascii=False, default=str)
+        )
     if source == EventSource.ZENDESK.value:
         return _zendesk_context(payload)
     if source in _FILE_PROVIDERS:
@@ -323,50 +382,61 @@ def polled_place(source: str, config: Mapping[str, Any]) -> str | None:
 def _github_matches(
     headers: Mapping[str, str], payload: Mapping[str, Any], config: Mapping[str, Any]
 ) -> bool:
+    return github_filter_reason(headers, payload, config) is None
+
+
+def github_filter_reason(
+    headers: Mapping[str, str], payload: Mapping[str, Any], config: Mapping[str, Any]
+) -> GithubFilterReason | None:
+    """The first failed GitHub filter, or None for a matching delivery.
+
+    Shared with diagnostics so the reason cannot diverge from admission. Only
+    fixed reason codes leave this function; no webhook content is retained.
+    """
     parsed = GithubTriggerConfig.model_validate(dict(config))
     event = parsed.event
     if headers.get(_GITHUB_EVENT_HEADER) != event:
-        return False
+        return "event"
     if event != "push" and payload.get("action") not in (parsed.actions or ()):
-        return False
+        return "action"
     sender = _mapping(payload.get("sender"))
     login = str(sender.get("login") or "")
-    # A bot - an App, Dependabot, the agent's own GitHub App - never sets a
-    # trigger off, or an agent that opens issues or comments would fire itself.
-    # A workflow run is the exception: a failed check is news whoever pushed.
+    # Bot and connected-account exclusions prevent routines firing themselves.
     if event != "workflow_run" and (sender.get("type") == "Bot" or login.endswith("[bot]")):
-        return False
+        return "bot"
     if parsed.ignore_login and login.casefold() == parsed.ignore_login.casefold():
-        return False
+        return "ignored_login"
     authored = _mapping(payload.get(_GITHUB_AUTHORED.get(event, "")))
-    if (
-        event in _GITHUB_AUTHORED
-        and parsed.authors == "members"
-        and authored.get("author_association") not in _GITHUB_MEMBERS
-    ):
-        return False
+    if event in _GITHUB_AUTHORED and parsed.authors != "anyone":
+        association = authored.get("author_association")
+        if association not in _GITHUB_MEMBERS and not (
+            parsed.authors == "contributors" and association == "CONTRIBUTOR"
+        ):
+            return "author"
     if event == "pull_request":
-        # A draft is not ready for anybody; it fires when marked ready instead.
         if payload.get("action") == "opened" and authored.get("draft"):
-            return False
-        return _on_branch(parsed.branches, _mapping(authored.get("base")).get("ref"))
+            return "draft"
+        return (
+            None
+            if _on_branch(parsed.branches, _mapping(authored.get("base")).get("ref"))
+            else "branch"
+        )
     if event == "issue_comment":
         body = str(authored.get("body") or "").casefold()
-        return parsed.mention is None or parsed.mention.casefold() in body
+        return None if parsed.mention is None or parsed.mention.casefold() in body else "mention"
     if event == "workflow_run":
         run = _mapping(payload.get("workflow_run"))
         if payload.get("action") == "completed" and run.get("conclusion") not in (
             parsed.conclusions or ()
         ):
-            return False
-        return _on_branch(parsed.branches, run.get("head_branch"))
+            return "conclusion"
+        return None if _on_branch(parsed.branches, run.get("head_branch")) else "branch"
     if event == "push":
         ref = str(payload.get("ref") or "")
-        # A deleted branch is a push with nothing in it, and a tag is not a branch.
         if payload.get("deleted") or not ref.startswith("refs/heads/"):
-            return False
-        return _on_branch(parsed.branches, ref.removeprefix("refs/heads/"))
-    return True
+            return "not_branch"
+        return None if _on_branch(parsed.branches, ref.removeprefix("refs/heads/")) else "branch"
+    return None
 
 
 def _mapping(value: Any) -> Mapping[str, Any]:

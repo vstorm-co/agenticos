@@ -945,3 +945,92 @@ async def test_test_chat_sessions_keep_context_but_cannot_attach_to_a_real_chat(
         )
     assert recorder.prompts.count("First test message") == 2
     assert recorder.prompts.count("New chat message") == 1
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("retry", [False, True])
+async def test_a_real_workflow_refusal_marks_its_exact_chat_prompt(engine, model, retry):
+    import dataclasses
+
+    from app.db.models.agent import AgentVersion
+    from app.db.models.conversation import Message
+    from app.repositories import conversation as conversations
+    from app.repositories import workflow_run as runs
+    from app.services.conversation import ConversationService
+    from app.services.message_history import REFUSED_TURN
+    from app.services.workflow_execution import WorkflowExecutionService
+
+    recorder = model("Should never answer")
+    seeded = await _setup(engine, _graph)
+    async with seeded.factory() as db:
+        source = await conversations.create_conversation(
+            db, organization_id=seeded.org.id, user_id=seeded.principal.id
+        )
+        prompt = await conversations.create_message(
+            db, conversation_id=source.id, role="user", content="XYZZY classified"
+        )
+        good = await conversations.create_message(
+            db, conversation_id=source.id, role="user", content="Hello"
+        )
+        version = (
+            await db.execute(
+                select(AgentVersion).where(
+                    AgentVersion.agent_id
+                    == uuid.UUID(seeded.graph.nodes[1].config["agent"]["agent_id"])
+                )
+            )
+        ).scalar_one()
+        version.spec = {
+            **version.spec,
+            "capabilities": [{"id": "guardrails", "config": {"blocked_keywords_in": "XYZZY"}}],
+        }
+        stored = await runs.get_run(db, seeded.run.id, organization_id=seeded.org.id)
+        await runs.update_run(
+            db,
+            run=stored,
+            update_data={
+                "reply_conversation_id": source.id,
+                "input": {
+                    "q": prompt.content,
+                    "conversation_id": str(source.id),
+                },
+                "triggered_by": "chat",
+                "source_conversation_id": source.id,
+                "source_message_id": prompt.id,
+                "status": WorkflowRunStatus.CANCELLED.value if retry else stored.status,
+            },
+        )
+        await db.commit()
+        source_id, prompt_id, good_id = source.id, prompt.id, good.id
+        if retry:
+            retried = await WorkflowExecutionService(db).retry(seeded.ctx, seeded.run.id)
+            await db.commit()
+            retry_row = await runs.get_run(db, retried.id, organization_id=seeded.org.id)
+            assert retry_row.reply_conversation_id is None
+            seeded = dataclasses.replace(seeded, run=retry_row)
+    assert (await drive(seeded)).status == WorkflowRunStatus.FAILED.value
+    assert recorder.prompts == []
+    async with seeded.factory() as db:
+        assert (await db.get(Message, prompt_id)).guardrail_refused is True
+        assert (await db.get(Message, good_id)).guardrail_refused is False
+        history = str(await ConversationService(db).model_history(source_id, limit=20))
+        assert "XYZZY" not in history and REFUSED_TURN in history
+        # A queued later attempt cannot ask a different agent to reconsider a
+        # source already refused, even before the dispatcher settles siblings.
+        retried = await WorkflowExecutionService(db).retry(seeded.ctx, seeded.run.id)
+        await db.commit()
+        retry_row = await runs.get_run(db, retried.id, organization_id=seeded.org.id)
+        later = dataclasses.replace(seeded, run=retry_row)
+    assert (await drive(later)).status == WorkflowRunStatus.FAILED.value
+    assert recorder.prompts == []
+    async with seeded.factory() as db:
+        await db.delete(await db.get(Conversation, source_id))
+        await db.commit()
+        retried = await WorkflowExecutionService(db).retry(seeded.ctx, later.run.id)
+        await db.commit()
+        retry_row = await runs.get_run(db, retried.id, organization_id=seeded.org.id)
+        assert retry_row.has_chat_source is True
+        assert retry_row.source_conversation_id is retry_row.source_message_id is None
+        deleted_source = dataclasses.replace(seeded, run=retry_row)
+    assert (await drive(deleted_source)).status == WorkflowRunStatus.FAILED.value
+    assert recorder.prompts == []

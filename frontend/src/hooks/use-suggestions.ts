@@ -20,11 +20,16 @@ import {
  * to poll. Either answer removes the card at once - the list is invalidated, and
  * a declined one is never proposed again.
  */
-export function useSuggestions() {
+export function useSuggestions(enabled = true) {
   const client = useQueryClient();
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: qk.suggestions.mine(),
     queryFn: listSuggestions,
+    staleTime: 30_000,
+    gcTime: 30 * 60_000,
+    // The opening row reads ahead; mounting its card must not restart a failed read.
+    retryOnMount: false,
+    enabled,
   });
   const settle = {
     onSettled: () =>

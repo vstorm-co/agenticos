@@ -62,9 +62,12 @@ persistence. Do not add to it.
    `test_every_declared_schedule_names_a_task_the_worker_knows` fails a schedule
    with no handler.
 
-Pick the pool by what the job spends: `agent` for model-bound runs, `ingest` for
-parsing and embedding (each job in a child process under a memory watchdog),
-`system` for short sweeps.
+Pick the pool by what the job spends: `agent` for model-bound runs, `eval` for
+an eval run (it holds its slot for hours, so it must not hold one an agent run
+needs), `ingest` for parsing and embedding (each job in a child process under a
+memory watchdog), `system` for short sweeps. A new pool needs its executor in
+`executors_for`, a setting for its concurrency, and the `background_jobs` pool
+CHECK widened.
 
 ## Rules
 

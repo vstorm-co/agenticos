@@ -13,6 +13,13 @@ export async function listWorkflowApprovals(): Promise<WorkflowApprovalList> {
   return apiClient.get<WorkflowApprovalList>(ROOT);
 }
 
+/** The first `limit` pending requests the caller may decide, and how many there are in all. */
+export async function listDecidableWorkflowApprovals(limit: number): Promise<WorkflowApprovalList> {
+  return apiClient.get<WorkflowApprovalList>(ROOT, {
+    params: { decidable: "true", limit: String(limit) },
+  });
+}
+
 /**
  * Approve or reject one request, which wakes the step waiting on it. `final` is
  * the approver's edited version of an editable step's proposal; the server

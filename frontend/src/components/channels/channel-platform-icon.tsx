@@ -15,6 +15,7 @@ const MARKS = {
   imessage: MessageSquare,
 
   discord: brandMark("discord"),
+  matrix: brandMark("matrix"),
 } as const;
 
 /**

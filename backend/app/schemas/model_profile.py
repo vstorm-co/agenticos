@@ -15,9 +15,11 @@ from uuid import UUID
 
 from pydantic import Field, computed_field
 
-from app.agents.model_resolver import ModelApi, ModelRegion, lacks_key
+from app.agents.model_resolver import ModelApi, ModelRegion, is_decision_api, lacks_key
 from app.core.claude_subscription import CLAUDE_SUBSCRIPTION_PROVIDER
+from app.core.image_workflow_catalog import ImageWorkflowSupport
 from app.core.secret_kinds import SecretKind
+from app.core.video_workflow_catalog import VideoWorkflowSupport
 from app.schemas.base import BaseSchema, TimestampSchema
 from app.services.model_outputs import listed_model_outputs
 
@@ -249,7 +251,16 @@ class ModelProfileRead(BaseSchema, TimestampSchema):
         removed. A model it cannot classify is true, and so is every profile
         with a `base_url`: the catalogs describe the vendor's API, not that server.
         """
-        return listed_model_outputs(self.provider, self.model, base_url=self.base_url).chat
+        return (
+            not is_decision_api(self.provider, self.api)
+            and listed_model_outputs(self.provider, self.model, base_url=self.base_url).chat
+        )
+
+    @computed_field
+    @property
+    def decision_capable(self) -> bool:
+        """Whether this profile explicitly selects a native typed-decision endpoint."""
+        return is_decision_api(self.provider, self.api)
 
     @computed_field  # type: ignore[prop-decorator]  # pydantic's documented form
     @property
@@ -316,6 +327,9 @@ class ImageModelRead(BaseSchema):
     id: str = Field(description="The id stored on the binding")
     name: str = Field(description="What to show")
     description: str = Field(description="When to reach for this one rather than another")
+    workflow: ImageWorkflowSupport | None = Field(
+        default=None, description="Verified workflow options; null refuses new workflow generation"
+    )
 
 
 class ImageProviderRead(BaseSchema):
@@ -368,6 +382,14 @@ class RealtimeModelRead(BaseSchema):
     supports_thinking: bool
     input_sample_rate: int
     output_sample_rate: int
+    unreported_token_usage: bool = Field(
+        default=False,
+        description="Token charges are unavailable; calls cannot enforce a spending budget.",
+    )
+    default_language: str | None = Field(
+        default=None,
+        description="Fixed provider default when language is omitted; null supports following the caller.",
+    )
 
 
 class RealtimeProviderRead(BaseSchema):
@@ -446,6 +468,9 @@ class VideoModelRead(BaseSchema):
         description="Whether a clip carries sound: always, on request, or never"
     )
     first_frame: bool = Field(description="Whether it can start from an image")
+    workflow: VideoWorkflowSupport | None = Field(
+        default=None, description="Verified workflow price and input contract; null is unavailable"
+    )
 
 
 class VideoProviderRead(BaseSchema):

@@ -22,13 +22,14 @@ from typing import ClassVar
 from pydantic import BaseModel, Field
 
 from app.core.exceptions import BadRequestError
-from app.core.secret_kinds import GcpServiceAccountSecret, SecretKind, StorableSecret
+from app.core.secret_kinds import GcpServiceAccountSecret, SecretKind
 from app.services.rag.connectors import (
     BaseSyncConnector,
     ConfigRefusal,
     ConnectorConfig,
     RemoteFile,
     RemoteListing,
+    SyncCredential,
 )
 from app.services.rag.drive_api import DriveClient, GoogleDriveOAuthGrant
 from app.services.rag.remote_names import checked_drive_folder_id
@@ -78,9 +79,7 @@ class GoogleDriveConnector(BaseSyncConnector):
     SECRET_KIND: ClassVar[SecretKind] = SecretKind.GCP_SERVICE_ACCOUNT
     CONFIG_MODEL: ClassVar[type[BaseModel]] = GoogleDriveConfig
 
-    def _get_drive_service(
-        self, credential: StorableSecret | GoogleDriveOAuthGrant | None
-    ) -> DriveClient:
+    def _get_drive_service(self, credential: SyncCredential | None) -> DriveClient:
         """Build an authenticated Drive client from the vault secret the source names.
 
         **There is no deployment-wide fallback.** A `GOOGLE_DRIVE_CREDENTIALS_FILE`
@@ -201,7 +200,7 @@ class GoogleDriveConnector(BaseSyncConnector):
         return files
 
     async def list_files(
-        self, config: ConnectorConfig, credential: StorableSecret | GoogleDriveOAuthGrant | None
+        self, config: ConnectorConfig, credential: SyncCredential | None
     ) -> RemoteListing:
         """List all files in the configured Google Drive folder."""
         folder_id = config["folder_id"]
@@ -218,7 +217,7 @@ class GoogleDriveConnector(BaseSyncConnector):
         file: RemoteFile,
         dest_path: Path,
         config: ConnectorConfig,
-        credential: StorableSecret | GoogleDriveOAuthGrant | None,
+        credential: SyncCredential | None,
     ) -> None:
         """Download a file from Google Drive to the path the base class chose.
 

@@ -4,7 +4,7 @@ import logging
 import secrets
 import time
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 from uuid import UUID
 
 from sqlalchemy.exc import DBAPIError, IntegrityError
@@ -19,7 +19,9 @@ from app.core.exceptions import (
     AuthorizationError,
     BadRequestError,
     ConcurrentChangeError,
+    ConfigurationError,
     ConflictError,
+    ExternalServiceError,
     NotFoundError,
     RateLimitError,
 )
@@ -42,14 +44,12 @@ from app.db.models.organization import Organization
 from app.db.models.user import User
 from app.db.updates import writable
 from app.repositories import (
-    collection_teardown_repo,
     conversation_repo,
     knowledge_base_repo,
     member_repo,
     organization_repo,
     organization_secret_repo,
     personal_data_repo,
-    rag_document_repo,
     session_repo,
     user_repo,
 )
@@ -61,15 +61,14 @@ from app.schemas.user import (
     UserUpdate,
 )
 from app.services import rate_limit
-from app.services.collection_access import CollectionAccessService
 from app.services.deployment_settings import DeploymentSettingsService
 from app.services.email.service import get_email_service
 from app.services.file_storage import avatar_filename, delete_files_best_effort, get_file_storage
 from app.services.generated_media import GeneratedMediaService
+from app.services.network_connections import NetworkConnectionService
 from app.services.organization import OrganizationService
 from app.services.personal_data import PersonalDataService
 from app.services.signup_policy import check_may_register
-from app.worker.jobs import BasePurge
 
 if TYPE_CHECKING:
     from app.services.rag.vectorstore import BaseVectorStore
@@ -272,18 +271,23 @@ class UserService:
             sort_by=sort_by,
             sort_dir=sort_dir,
         )
-        items = [
-            AdminUserRead(
-                id=user.id,
-                email=user.email,
-                full_name=user.full_name,
-                is_active=user.is_active,
-                is_app_admin=user.is_app_admin,
-                conversation_count=conv_count,
-                created_at=user.created_at,
+        activity = await session_repo.admin_activity_for(self.db, [user.id for user, _ in rows])
+        items = []
+        for user, conv_count in rows:
+            last_seen, sessions = activity.get(user.id, (None, 0))
+            items.append(
+                AdminUserRead(
+                    id=user.id,
+                    email=user.email,
+                    full_name=user.full_name,
+                    is_active=user.is_active,
+                    is_app_admin=user.is_app_admin,
+                    conversation_count=conv_count,
+                    created_at=user.created_at,
+                    last_seen_at=last_seen,
+                    active_sessions=sessions,
+                )
             )
-            for user, conv_count in rows
-        ]
         return AdminUserList(items=items, total=total)
 
     async def register(self, user_in: UserCreate) -> User:
@@ -418,7 +422,9 @@ class UserService:
         stored = user.hashed_password if user and user.hashed_password else _DUMMY_HASH
         ok = await asyncio.to_thread(verify_password, password, stored)
         if not user or not user.hashed_password or not ok:
-            raise AuthenticationError(message="Invalid email or password")
+            raise AuthenticationError(
+                message="Invalid email or password", details={"reason": "invalid_credentials"}
+            )
         if not user.is_active:
             raise AuthenticationError(message="User account is disabled")
         return user
@@ -747,6 +753,7 @@ class UserService:
         """`delete`, once `_lock_account` holds what the deletion locks."""
         user = locked.user
         user_id = user.id
+        await NetworkConnectionService(self.db).prepare_user_deletion(user_id)
         await self._release_owned_rows(user_id, locked_heirs=locked.heirs)
         # Read before the row goes. `chat_files` cascades from `users`, so the
         # rows naming each upload disappear with the account and the bytes stay
@@ -758,6 +765,7 @@ class UserService:
         # cascade would leave those rows with no conversation and the bytes
         # readable by the organization. After `_release_owned_rows`, so a project
         # chat the person started - kept for the team - keeps its media too.
+        await conversation_repo.invalidate_author_checkpoints(self.db, user_id=user_id)
         await GeneratedMediaService(self.db).forget_user(user_id)
         await PersonalDataService(self.db).purge(user_id)
         await user_repo.delete(self.db, user_id)
@@ -960,7 +968,9 @@ class UserService:
            documents, the order `OrganizationService.purge` locks them in, and
            deleting the documents first inverted it (#2638);
         3. the user rows (`_lock_user_rows`), `NOWAIT`;
-        4. the names of bases created while this waited (`_hold_late_names`).
+        4. conversations the person owns or authored, `NOWAIT`, before their checkpoints
+           are invalidated and their author references disappear;
+        5. the names of bases created while this waited (`_hold_late_names`).
 
         The user rows are never waited for while the organization is held, nor
         the organization while a user row is. A write for this person takes both
@@ -1012,6 +1022,9 @@ class UserService:
                     for org in sorted(personal_orgs, key=lambda org: org.id):
                         await organization_repo.get_by_id_for_update(self.db, org.id)
                     locked = await self._lock_user_rows(user_id, app_admins=app_admins, nowait=True)
+                    # A message insert locks its conversation before its author FK.
+                    # Never wait for that history while holding the user row.
+                    await conversation_repo.lock_authored_histories(self.db, user_id=user_id)
                     await self._hold_late_names(user_id, personal_orgs, names)
             except DBAPIError as failed:
                 if getattr(failed.orig, "sqlstate", None) != LOCK_NOT_AVAILABLE:
@@ -1092,38 +1105,14 @@ class UserService:
         only when no other base claims the name; it is not tenant-unique, so two
         bases can share one.
         """
-        storage_paths: list[str] = []
-        collections_to_drop: list[str] = []
-        base_purges: list[BasePurge] = []
-        # Sorted by name so this loop, `_lock_account` and
-        # `OrganizationService.purge` - the paths that take several teardown locks in
-        # one transaction - acquire any shared name (#913) in one order, and cannot
-        # invert into a teardown-vs-teardown deadlock (#1387). On account deletion the
-        # names are already held here, taken by `_lock_account`.
+        from app.services.knowledge_base import KnowledgeBaseService
+
         personal = await knowledge_base_repo.list_personal_by_owner(self.db, user_id)
         ordered = sorted(personal, key=lambda kb: kb.collection_name)
-        # Acquire every name before source rows: an edit assigning a source to
-        # the next name may already hold that name while waiting for its row.
         for collection in dict.fromkeys(kb.collection_name for kb in ordered):
             await hold_name(self.db, LockScope.COLLECTION_TEARDOWN, collection)
         for kb in ordered:
-            collection = kb.collection_name
-            storage_paths.extend(await rag_document_repo.delete_by_knowledge_base(self.db, kb.id))
-            await CollectionAccessService(self.db).detach_sources_targeting(kb)
-            await knowledge_base_repo.delete(self.db, kb.id)
-            if await knowledge_base_repo.list_by_collection_name(self.db, collection):
-                # The table stays for the base still holding the name, so this
-                # base's chunks are deleted by its id instead (#2537).
-                base_purges.append(BasePurge(collection=collection, knowledge_base_id=kb.id))
-            else:
-                collections_to_drop.append(collection)
-                await collection_teardown_repo.reserve(self.db, collection)
-        if storage_paths or collections_to_drop or base_purges:
-            from app.worker.tasks.teardown_tasks import queue_external_state_cleanup
-
-            await queue_external_state_cleanup(
-                self.db, storage_paths, collections_to_drop, base_purges=base_purges
-            )
+            await KnowledgeBaseService(self.db).purge(kb)
 
     async def admin_update(
         self, user_id: UUID, user_in: UserUpdate, *, acting_admin_id: UUID
@@ -1199,8 +1188,54 @@ class UserService:
         user = await user_repo.get_by_email(self.db, email)
         if user is None or not user.is_active:
             return None
-        token = create_password_reset_token(subject=str(user.id))
+        token = create_password_reset_token(
+            subject=str(user.id), credential_version=user.credential_version
+        )
         return user, token
+
+    @staticmethod
+    def password_reset_url(token: str) -> str:
+        return f"{settings.FRONTEND_URL.rstrip('/')}/reset-password?token={token}"
+
+    async def admin_password_reset(
+        self,
+        user_id: UUID,
+        *,
+        actor_id: UUID,
+        delivery: Literal["email", "link"],
+        ip_address: str | None,
+    ) -> str | None:
+        """Issue recovery for an active account and record the administrator's action."""
+        user = await self.get_by_id(user_id)
+        if not user.is_active:
+            raise ConflictError(message="Reactivate this account before issuing a reset link.")
+        url = self.password_reset_url(
+            create_password_reset_token(
+                subject=str(user.id), credential_version=user.credential_version
+            )
+        )
+        if delivery == "email":
+            mail = get_email_service()
+            if not mail.delivers:
+                raise ConfigurationError(message="Email delivery is unavailable. Use a reset link.")
+            app_name = await DeploymentSettingsService(self.db).effective_app_name()
+            result = await mail.send_password_reset(
+                to=user.email, name=user.full_name or user.email, reset_url=url, app_name=app_name
+            )
+            if not result.accepted:
+                raise ExternalServiceError(
+                    message="Reset email was not accepted. Use a reset link."
+                )
+        await record_audit(
+            self.db,
+            actor_user_id=actor_id,
+            action="admin.user.password_reset",
+            target_type="user",
+            target_id=str(user.id),
+            details={"delivery": delivery},
+            ip_address=ip_address,
+        )
+        return url if delivery == "link" else None
 
     async def confirm_password_reset(self, token: str, new_password: str) -> User:
         payload = verify_special_token(token, expected_type="password_reset")
@@ -1211,7 +1246,9 @@ class UserService:
         except (TypeError, ValueError) as exc:
             raise AuthenticationError(message="Reset link is invalid or has expired") from exc
 
-        user = await self.get_by_id(user_id)
+        user = await user_repo.get_by_id_for_update(self.db, user_id)
+        if user is None or payload.get("cv") != user.credential_version:
+            raise AuthenticationError(message="Reset link is invalid or has expired")
         if not user.is_active:
             raise AuthenticationError(message="Account is disabled")
 
@@ -1243,7 +1280,7 @@ class UserService:
         user = await user_repo.get_by_email(self.db, email)
         if user is None or not user.is_active:
             return None
-        token = create_magic_link_token(subject=str(user.id), return_to=return_to)
+        token = create_magic_link_token(subject=str(user.id), return_to=return_to, email=user.email)
         return user, token
 
     async def consume_magic_link_token(self, token: str) -> tuple[User, str | None]:

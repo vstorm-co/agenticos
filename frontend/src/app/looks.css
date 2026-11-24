@@ -35,7 +35,6 @@
   --color-accent: oklch(92% 0.005 75);
   --color-accent-foreground: oklch(23% 0.008 75);
   --color-border: oklch(88% 0.006 75);
-  --color-input: oklch(76% 0.008 75);
 }
 
 :root.dark[data-look="graphite"] {
@@ -56,7 +55,6 @@
   --color-accent: oklch(35% 0.006 75);
   --color-accent-foreground: oklch(94.5% 0.004 75);
   --color-border: oklch(38% 0.007 75);
-  --color-input: oklch(48% 0.008 75);
 }
 
 /* --- Midnight: deep blue-black, for a dark room; its light half is daylight. */
@@ -78,7 +76,6 @@
   --color-accent: oklch(92% 0.016 255);
   --color-accent-foreground: oklch(23% 0.03 265);
   --color-border: oklch(88% 0.014 255);
-  --color-input: oklch(76% 0.02 255);
 }
 
 :root.dark[data-look="midnight"] {
@@ -99,7 +96,6 @@
   --color-accent: oklch(34% 0.03 268);
   --color-accent-foreground: oklch(95% 0.01 268);
   --color-border: oklch(37% 0.025 268);
-  --color-input: oklch(46% 0.03 268);
 }
 
 /* --- Paper: warm cream for long reading; its dark half is sepia at night. -- */
@@ -121,7 +117,6 @@
   --color-accent: oklch(91.5% 0.018 85);
   --color-accent-foreground: oklch(27% 0.02 60);
   --color-border: oklch(87.5% 0.018 80);
-  --color-input: oklch(75% 0.025 80);
 }
 
 :root.dark[data-look="paper"] {
@@ -142,7 +137,6 @@
   --color-accent: oklch(35% 0.017 70);
   --color-accent-foreground: oklch(93% 0.02 85);
   --color-border: oklch(38% 0.016 70);
-  --color-input: oklch(47% 0.02 70);
 }
 
 /* --- Glass: translucent layers over a material, or over a soft backdrop. ---
@@ -159,7 +153,6 @@
   --color-muted: oklch(95% 0.003 265 / 0.6);
   --color-accent: oklch(90% 0.004 265 / 0.55);
   --color-border: oklch(70% 0.006 265 / 0.32);
-  --color-input: oklch(62% 0.008 265 / 0.45);
 }
 
 :root.dark[data-look="glass"] {
@@ -172,7 +165,6 @@
   --color-muted: oklch(34% 0.004 265 / 0.55);
   --color-accent: oklch(42% 0.005 265 / 0.45);
   --color-border: oklch(80% 0.006 265 / 0.16);
-  --color-input: oklch(80% 0.006 265 / 0.26);
 }
 
 /* The dark halves again, for the first paint under a dark operating system,
@@ -197,7 +189,6 @@
     --color-accent: oklch(35% 0.006 75);
     --color-accent-foreground: oklch(94.5% 0.004 75);
     --color-border: oklch(38% 0.007 75);
-    --color-input: oklch(48% 0.008 75);
   }
 
   :root:not(.light)[data-look="midnight"] {
@@ -218,7 +209,6 @@
     --color-accent: oklch(34% 0.03 268);
     --color-accent-foreground: oklch(95% 0.01 268);
     --color-border: oklch(37% 0.025 268);
-    --color-input: oklch(46% 0.03 268);
   }
 
   :root:not(.light)[data-look="paper"] {
@@ -239,7 +229,6 @@
     --color-accent: oklch(35% 0.017 70);
     --color-accent-foreground: oklch(93% 0.02 85);
     --color-border: oklch(38% 0.016 70);
-    --color-input: oklch(47% 0.02 70);
   }
 
   :root:not(.light)[data-look="glass"] {
@@ -252,6 +241,5 @@
     --color-muted: oklch(34% 0.004 265 / 0.55);
     --color-accent: oklch(42% 0.005 265 / 0.45);
     --color-border: oklch(80% 0.006 265 / 0.16);
-    --color-input: oklch(80% 0.006 265 / 0.26);
   }
 }

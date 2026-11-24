@@ -4,6 +4,8 @@ import { apiClient } from "@/lib/api-client";
 import { saveBlob } from "@/lib/file-access";
 
 import {
+  answerWorkflowRunQuestions,
+  listWorkflowRunQuestions,
   cancelWorkflowRun,
   editReplyExpectation,
   downloadWorkflowRunFile,
@@ -91,6 +93,7 @@ describe("a run history", () => {
       workflowId: "wf",
       status: "failed",
       mode: "test",
+      stepTest: false,
       triggeredBy: "webhook",
       createdAfter: "2026-09-29T12:00:00.000Z",
       page: 2,
@@ -102,6 +105,7 @@ describe("a run history", () => {
         workflow_id: "wf",
         status: "failed",
         mode: "test",
+        step_test: "false",
         triggered_by: "webhook",
         created_after: "2026-09-29T12:00:00.000Z",
       },
@@ -172,4 +176,17 @@ it("saves explicit reply criteria without allowing account replacement", async (
   };
   await editReplyExpectation("r", "n", body);
   expect(apiClient.put).toHaveBeenCalledWith("/workflow-runs/r/steps/n/reply-expectation", body);
+});
+
+it("reads authorized questions and posts answers to their original workflow step", async () => {
+  vi.mocked(apiClient.get).mockResolvedValue([]);
+  await expect(listWorkflowRunQuestions("r")).resolves.toEqual([]);
+  expect(apiClient.get).toHaveBeenLastCalledWith("/workflow-runs/r/questions");
+  const responses = { tool: [{ answer: "Draft it", skipped: false }] };
+  vi.mocked(apiClient.post).mockResolvedValue({ id: "r", status: "running" });
+  await answerWorkflowRunQuestions("r", "step", responses);
+  expect(apiClient.post).toHaveBeenLastCalledWith("/workflow-runs/r/nodes/step/answers", {
+    responses,
+  });
+  expect(isRunTerminal("waiting_for_user")).toBe(false);
 });

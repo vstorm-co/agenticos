@@ -1,8 +1,10 @@
 ---
-source_sha: "96494123ddae"
+source_sha: "2297a17a854b"
 ---
 
 # Virtual Tables { #virtual-tables }
+
+Das Tabellensymbol wählen Sie neben dem Namen in der Detailansicht. Katalogkarte und Dashboard-Zeile verwenden dasselbe Zeichen. **Standardsymbol verwenden** setzt es zurück; Spalten, Datensätze und Schemaversionen bleiben unverändert. Die Steuerung folgt dem Verwaltungsrecht der Tabelle, einschließlich der Einschränkungen von Aufgabenboards.
 
 Eine **Virtual Table** ist eine typisierte Tabelle mit Datensätzen, die eine
 Organisation für ihre Agents, [Workflows](workflows.md) und Integrationen führt: abzugleichende
@@ -53,6 +55,26 @@ erreichen die Antwort. `null` behält den ganzen Datensatz; `[]` liefert nur Met
 Berechnete Spalten werden vor der Projektion ausgewertet; ihre Abhängigkeiten müssen
 nicht ausgewählt sein. Dieselben Datensätze erscheinen sofort in der Konsole; die
 asynchrone Ausführung des Tabellen-Triggers verzögert die CRUD-Antwort nicht.
+
+## Mandantentrennung in der Datenbank { #database-tenant-isolation }
+
+Logische Tabellen bleiben in der PostgreSQL-Datenbank der Bereitstellung. Die
+RLS-Migration installiert Richtlinien, ohne sie zu aktivieren. Der Betreiber
+aktiviert sie, nachdem alle API- und Worker-Prozesse aktualisiert und ihre
+laufenden Arbeiten beendet wurden. Danach binden normale Tabellenoperationen die
+ID der authentifizierten Organisation an die aktuelle Transaktion. Ohne Kontext
+sind keine Tables-Zeilen sichtbar; eine Transaktion kann die Organisation nicht
+wechseln. Die Grenze umfasst Schemas, Datensätze, Verlauf, Medien, Ansichten,
+Operationsbestätigungen, Trigger, normalisierte Verknüpfungen und Tables-Freigaben.
+
+Read/Write-Berechtigungen für Tabellen und Zeilen prüft weiterhin der Service.
+Globale Kontoexporte und Kontolöschungen verwenden nach der Authentifizierung und
+einer erneuten Berechtigungsprüfung eine separat konfigurierte Wartungsverbindung.
+Beim Entfernen einer Organisationsmitgliedschaft werden die Tables-Freigaben der
+Person in derselben Transaktion gelöscht, auch bei Verzeichnisänderungen über
+mehrere Organisationen. Andere Ressourcentypen behalten ihre bisherigen
+Autorisierungsregeln. Das [Betriebshandbuch für die Umstellung](https://github.com/t3grp/agenticos/blob/t3/docs/plans/table-tenant-cutover.md)
+beschreibt getrennte Zugangsdaten, Vorprüfung, Aktivierung und Rücknahme.
 
 ## Wie eine Tabelle aufgebaut ist { #how-a-table-is-built }
 
@@ -141,13 +163,98 @@ Werte, eine Auswahl nach ihrem Label. Ein `rollup` ermittelt daraus etwas:
 gespeichert, geschrieben, gefiltert oder sortiert.
 
 Was ein Nachschlagen zeigt, reicht nicht weiter als der Leser darf: Eine
-verknüpfte Tabelle, die der Leser nicht sieht, lässt die Verknüpfungen
-unbenannt und jedes Nachschlagen und jede Zusammenfassung darüber leer. Eine
-Verknüpfung behält ihre Tabelle für immer. Ein Nachschlagen liest eine Spalte
+verknüpfte Tabelle, die der Leser nicht sieht, lässt die Verknüpfungen sowie
+jedes Nachschlagen und jede Zusammenfassung darüber leer. Auch die Zeilenrichtlinie
+des Ziels gilt: Rohe Verknüpfungs-IDs in `values` und Beschriftungen in `links` enthalten nur lesbare
+Datensätze. Archivierte Verknüpfungsspalten fehlen in den zurückgegebenen Werten.
+
+Eine Verknüpfung behält ihre Tabelle für immer. Ein Nachschlagen liest eine Spalte
 mit Werten, keine andere Verknüpfung und kein Nachschlagen, und das Archivieren
 einer Verknüpfungsspalte wird abgelehnt, solange etwas über sie liest. Ein
 Export schreibt eine Verknüpfung mit den Namen ihrer Datensätze und ein
 Nachschlagen mit dem Gelesenen.
+
+Verknüpfungsfilter verwenden dieselben lesbaren Ziele. `contains` trifft nie ein
+unlesbares oder gelöschtes Ziel; `is_null: true` bedeutet, dass kein lesbares Ziel
+vorhanden ist, auch wenn verborgene Verknüpfungen gespeichert bleiben. Listen,
+Zählungen, Exporte und Seitenabfragen prüfen dies vor der Paginierung. Ein
+zurückgegebenes Verknüpfungsarray ist die sichtbare Teilmenge des Aufrufers.
+Ersetzt ein älterer Client dieses Array, bleiben bestehende unlesbare Verknüpfungen
+erhalten; Änderungen anderer Felder behalten alle Verknüpfungen bei.
+
+Jede ausdrücklich übermittelte Verknüpfungs-ID muss lesbar sein, auch wenn sie
+bereits verknüpft ist oder die Zeile unverändert ließe. Eine verborgene ID wird
+wie eine unbekannte ID abgelehnt. Nur ausgelassene verborgene Verknüpfungen
+bleiben im Namen des Aufrufers erhalten.
+
+Eine ungültige gespeicherte Zeilenrichtlinie blockiert Datensatzlesevorgänge und
+Schreibvorgänge mit `ROW_POLICY_INVALID` (409), statt die Richtlinie abzuschalten.
+Berechtigte Benutzer können weiterhin Tabellenmetadaten mit
+`row_policy_valid: false` lesen. Ein berechtigter Tabelleneditor kann die Richtlinie
+über `PUT /tables/{id}/row-policy` reparieren. Bis dahin liefert ein Ziel mit
+ungültiger Richtlinie weder verknüpfte Datensätze noch geerbten Projektzugriff.
+
+### Beziehungsgrenzen und Rückverweise { #relationship-limits-and-backlinks }
+
+Ein Verknüpfungsfeld akzeptiert `link_limit` von 1 bis 100. Ohne Angabe bleibt die
+Grenze eines vorhandenen Feldes erhalten; ein neues Feld verwendet 100. Gezählt
+werden alle gültigen gespeicherten Ziele, auch die für den Schreibenden
+verborgenen. Eine Senkung wird abgelehnt, bis vorhandene Zeilen die Grenze
+einhalten. Bei 1 hat jede Quellzeile höchstens ein Ziel; mehrere Quellzeilen
+dürfen weiterhin dasselbe Ziel nennen.
+
+Verbindungen behalten ihre Reihenfolge und binden beide Endpunkte an die
+angegebenen Tabellen derselben Organisation. Aktuelle Lesevorgänge, Filter und
+geerbter Projektzugriff verwenden diese kanonischen Verbindungen. Ungültige
+Altdaten bleiben als Reparaturnachweis erhalten und gewähren keinen Zugriff.
+Archivieren bewahrt die Verbindungen; das Wiederherstellen desselben Feldes
+stellt sie wieder her. Das Löschen eines Ziels entfernt eingehende Verbindungen
+ohne neue Quellrevision; historische Momentaufnahmen behalten ihre Originaldaten.
+
+`GET /tables/{table_id}/records/{record_id}/backlinks` liest eingehende
+Verbindungen aus den erforderlichen Angaben `source_table_id` und `column_id`.
+`skip` liegt zwischen 0 und 10.000, `limit` zwischen 1 und 100 mit Standard 50.
+Das Ziel, die Quelltabelle und jede Quellzeile müssen lesbar sein; die Prüfung
+erfolgt vor der Paginierung. Ein archiviertes Verknüpfungsfeld kann nicht
+durchlaufen werden. Das Ergebnis enthält gewöhnliche Quelldatensätze, keine
+verborgene Gesamtzahl und keine zusätzliche Schreibberechtigung für die Endpunkte.
+
+### Atomare Änderungen an Verknüpfungen { #atomic-link-changes }
+
+Mit `link_changes` bei `PATCH /tables/{id}/records/{record_id}` lassen sich bestimmte
+Ziele hinzufügen oder entfernen. Die Schlüssel sind unveränderliche UUIDs der
+Verknüpfungsspalten; `add` und `remove` enthalten UUIDs der Zieldatensätze.
+Das optionale `values` kann andere Zellen in derselben Anfrage ändern:
+
+```json
+{
+  "expected_revision": 7,
+  "link_changes": {
+    "00000000-0000-4000-8000-000000000001": {
+      "add": ["00000000-0000-4000-8000-000000000002"],
+      "remove": ["00000000-0000-4000-8000-000000000003"]
+    }
+  }
+}
+```
+
+Der Quelldatensatz muss schreibbar sein. Jeder ausdrücklich hinzugefügte oder
+entfernte Datensatz muss aktuell in der verknüpften Tabelle und Organisation
+lesbar sein. Verborgene, fehlende und zur falschen Tabelle gehörende Ziele werden
+ohne Unterscheidung abgelehnt. Nicht genannte bestehende Verknüpfungen bleiben
+gespeichert, auch für den Bearbeiter verborgene. Die endgültige Zelle einschließlich
+verborgener Verknüpfungen muss weiterhin die Grenze von 100 Zielen einhalten.
+
+Eine Spalte darf nicht zugleich in `values` und `link_changes` stehen. Doppelte
+Ziele, Überschneidungen zwischen Hinzufügen und Entfernen, unbekannte oder archivierte
+Spalten und Änderungen an anderen Spaltentypen werden abgelehnt. Alle Zellen ändern
+sich in der bestehenden Transaktion mit einer Revision, einem Verlaufseintrag,
+gegebenenfalls einem Trigger-Ereignis und einer Idempotenzbestätigung. Eine veraltete
+Revision scheitert auch bei unveränderten Werten; eine erlaubte Anfrage ohne Änderung
+erzeugt weder Verlauf noch Bestätigung. Raster und Datensatzbereich senden diese
+expliziten Änderungen. Nach einem Konflikt wiederholt **Reload and reapply** dieselben
+Auswahlen mit der aktuellen Revision und erhält andere inzwischen hinzugefügte
+Verknüpfungen.
 
 ## Formeln { #formulas }
 
@@ -169,6 +276,19 @@ Summe, eine leere Zelle - lässt die Zelle dieses Datensatzes leer. Eine Formel
 wird beim Lesen ermittelt und nie gespeichert, geschrieben, gefiltert oder
 sortiert.
 
+Dezimalzahlen werden in jeder Sprache mit Punkt geschrieben, `{Price} * 1.23`: Ein
+Komma trennt die Argumente einer Funktion, deshalb wird `{Price} * 1,23` mit diesem
+Hinweis abgelehnt, statt als Zahl gelesen zu werden; ebenso ein Aufruf, dem das Komma einen Wert zu viel
+gibt, etwa `IF({Price} > 0,5, "yes", "no")`.
+
+Die Zahl der Werte eines Aufrufs wird geprüft, wenn
+seine Formel gespeichert wird: Eine früher gespeicherte funktioniert weiter, und die übrigen
+Spalten der Tabelle lassen sich ändern, bis jemand diese Formel bearbeitet. Eine Ablehnung nennt einen
+festen Grund in `details.formula.reason`, etwa `decimal_comma` oder `not_a_column`,
+mit dem die Konsole ihn in der Sprache der lesenden Person sagt. Die Konsole zeigt
+Zahlen, auch das Ergebnis einer Formel, mit dem Dezimaltrennzeichen der lesenden
+Person - `12,177` auf Deutsch - und gruppiert eine vierstellige Zahl nicht.
+
 ## Ein Schema ändern { #changing-a-schema }
 
 `PUT /tables/{id}/schema` nimmt die vollständige Liste der Spalten entgegen, die die
@@ -184,8 +304,12 @@ Der Service gleicht sie mit den aktuellen Spalten ab:
   wird zu Datum und Uhrzeit; eine Auswahl wird zu mehreren und zurück, wenn es eine
   ist. Jede andere Änderung wird abgelehnt, ebenso eine, die ein Wert nicht übersteht -
   mit Anzahl und Beispiel, und nichts wird geschrieben. Was die Spalte verwendet, lehnt
-  sie wie eine Archivierung ab. Die Revision eines Datensatzes rückt weiter, sodass
-  eine Bearbeitung gegen den alten Wert ein Konflikt ist.
+  sie wie eine Archivierung ab. Ein Datensatz, dessen Wert sich im neuen Typ anders
+  liest, erhält eine neue Revision, sodass eine Bearbeitung gegen den alten Wert ein
+  Konflikt ist, und sein Verlauf hält die Änderung unter der Person fest, die sie
+  vorgenommen hat; ein Wert, den die Änderung nicht berührt, lässt die Revision seines
+  Datensatzes unverändert. Eine Typänderung löst keinen [Trigger](#triggers) aus: Eine
+  Schemaänderung startet nicht für jeden Datensatz einen Workflow.
 - Text wird zu einer `email`-, `url`-, `phone`- oder `rating`-Spalte, wenn jeder Wert
   sich so liest, und eine Zahl wird zu einer Bewertung, wenn sie eine ganze Zahl von 1
   bis 5 ist. Jede davon wird wieder zu Text, eine Bewertung auch zu einer Zahl.
@@ -208,7 +332,7 @@ Der Service gleicht sie mit den aktuellen Spalten ab:
   angehängt, und die aktuelle Tabelle wird zurückgegeben. Eine neue Reihenfolge oder eine
   geänderte Bezeichnung ist eine Änderung.
 
-Datensätze werden nicht umgeschrieben. Ein unter Version 1 geschriebener Datensatz
+Außer bei einer Typänderung werden Datensätze nicht umgeschrieben. Ein unter Version 1 geschriebener Datensatz
 bleibt unter Version 4 lesbar und bearbeitbar; eine Pflichtspalte, die er nie hatte,
 erhält beim nächsten Bearbeiten des Datensatzes ihren Standardwert.
 
@@ -305,6 +429,13 @@ erneut und versuchen Sie es noch einmal. Ein Upsert, der einen bestehenden Daten
 und kein `expected_revision` erhält, bekommt `REVISION_REQUIRED` (428), wieder mit der
 zu sendenden Revision.
 
+Der aktuelle Write-Zugriff wird geprüft, bevor eine gespeicherte Revision
+offengelegt wird. Ein Upsert für eine verborgene bestehende external id und einer
+für eine neue ID, die der Aufrufer nicht erstellen darf, liefern beide
+`NOT_FOUND` (404) mit derselben Meldung und Tabellen-ID. Das Erstellen braucht
+außerdem Edit auf der Tabelle und eine Zeilenrichtlinie, die dem Ersteller das
+Lesen der neuen Zeile erlaubt; ein Write-Grant auf einer Zeile genügt nicht.
+
 Eine external id hat 1 bis 255 Zeichen und darf `/` enthalten, wie in `2026/ORD-1`. Sie darf weder NUL noch einen Zeilenumbruch enthalten. Der Service
 prüft das ebenso wie die Routen. Über HTTP lehnt die Route es zuerst ab, mit
 `VALIDATION_ERROR`; ein Aufrufer, der den Service direkt nutzt, erhält `INVALID_RECORD`.
@@ -349,7 +480,8 @@ Pflichtwerte da sind.
 Jede Bearbeitung ist ein `PATCH` gegen die angezeigte Revision, daher wird eine
 Bearbeitung, die gegen eine neuere Änderung verliert, abgelehnt statt darüber
 geschrieben. Der Datensatz öffnet sich dann mit dem abgelehnten Wert neben **Reload and
-reapply**. Markierte Zeilen bieten **Delete** für alle an, jede gegen ihre eigene
+reapply** und wird neu gelesen: Das Feld sagt, was es jetzt enthält, wer den Datensatz
+zuletzt geändert hat und wann, und der Titel des Panels zieht nach. Markierte Zeilen bieten **Delete** für alle an, jede gegen ihre eigene
 Revision: Ein zwischenzeitlich geänderter Datensatz bleibt erhalten, und die Konsole
 sagt, wie viele es waren. Das Datensatz-Panel löscht einen einzelnen Datensatz auf
 dieselbe Weise.
@@ -373,7 +505,11 @@ In **Columns** macht **Required** eine Spalte zur Pflicht, und eine archivierte 
 wandert unter **Archived columns**, wo **Restore** sie samt ihren Werten
 zurückbringt.
 
+Das Lesen des Vergleichs erhält ungespeicherte Änderungen anderer Felder und deren ursprüngliche Revision. Ein weiterer Konflikt liest einen neuen Vergleich; eine Antwort für einen geschlossenen Datensatz schließt keinen anderen. Lange Werte erscheinen als gekürzte Vorschau.
+
 ### Import und Export { #import-and-export }
+
+Ordne beim CSV-Import jede Tabellenspalte, einschließlich **External id**, nur einmal zu. Doppelte Ziele werden markiert und blockieren den Import, bis du ein anderes Ziel wählst oder eine Dateispalte überspringst.
 
 Exporte lesen höchstens 4 MiB des entpackten Datensatz-JSON pro Seite (oder
 einen Datensatz), mit maximal 500 Datensätzen pro Seite. Eine Organisation kann
@@ -408,14 +544,23 @@ hat, ändert die genannten Zellen dieses Datensatzes, statt als vergeben abgeleh
 werden (`update_existing` im Batch), und der Import zählt, was er hinzugefügt und was er
 aktualisiert hat.
 
-**New table** beginnt mit einer Spalte **Name**. Geben Sie zuerst den Tabellennamen und die Spalten an; Beschreibung und Sichtbarkeit stehen unter **More options**, standardmäßig privat. Stattdessen kann sie mit einer Datei
+Einen Datensatz, den jemand nach Beginn des Imports geändert hat, lässt er unverändert
+und führt ihn als `REVISION_CONFLICT` auf: Der erste Batch antwortet mit `as_of`, dem
+Beginn nach der Serveruhr, und die übrigen senden es zurück. Eine Zeile, die eine
+externe ID wiederholt, die die Datei schon genannt hat, wird aufgeführt statt gesendet,
+und der Batch lehnt eine Zeile, die eine ID wiederholt, die er schon enthält, mit
+`INVALID_RECORD` ab.
+
+**New table** beginnt mit einer Spalte **Name**. Geben Sie den Tabellennamen an, wählen Sie, wer sie sehen kann, und fügen Sie die Spalten hinzu; die Beschreibung steht unter **More options**. Eine Tabelle beginnt als **Only me**; **Everyone** öffnet sie für die Organisation, und **Some people** teilt sie mit den gewählten Gruppen und Mitgliedern, jeweils auf `read`, in derselben Anfrage (`group_ids` und `user_ids` bei `POST /tables`). Stattdessen kann sie mit einer Datei
 beginnen: **Start from a CSV file** macht aus der Kopfzeile Spalten und gibt jeder den engsten Typ, als den
 sich alle ihre Werte lesen lassen - Ganzzahl, Zahl, Ja/Nein, Datum, Datum und
 Uhrzeit in ISO, eine E-Mail-Adresse oder ein Link - und sonst Text, oder langen Text, sobald ein Wert einen Zeilenumbruch
 hat oder länger als 1.000 Zeichen ist. Der Name kommt aus der Datei, und beides lässt
 sich vor dem Erstellen ändern, was weniger kostet als eine spätere Typänderung. Sobald die
 Tabelle existiert, öffnet sich der Import mit jeder Spalte schon zugeordnet, danach die
-Tabelle.
+Tabelle. Jede Zeile muss gleich viele Zellen haben wie die Kopfzeile: Eine Zeile mit
+weniger oder mehr Zellen wird als Fehler aufgeführt und übersprungen, und keiner ihrer
+Werte wird importiert.
 
 ## Sichere Wiederholungen { #safe-retries }
 
@@ -425,7 +570,7 @@ erste Antwort mit `Idempotent-Replayed: true` und schreibt nichts, selbst wenn s
 Datensatz inzwischen geändert hat. Derselbe Schlüssel mit einem anderen Body wird mit
 `IDEMPOTENCY_KEY_REUSED` abgelehnt.
 
-Der Header kennzeichnet ein wiederholtes Create, Update oder Upsert. Ein wiederholtes
+Der Header kennzeichnet ein wiederholtes Create, Update, Upsert oder einen wiederholten Batch. Ein wiederholtes
 Delete antwortet wie beim ersten Mal mit 204 und wird nicht gekennzeichnet.
 
 Ein Schlüssel gehört dem Aufrufer und der Art des Schreibzugriffs, sodass zwei Aufrufer
@@ -434,8 +579,14 @@ Upsert nutzen kann. Nur Erfolge werden gespeichert: Ein abgelehnter Schreibzugri
 hinterlässt keine Quittung; Sie korrigieren ihn also und wiederholen ihn mit demselben
 Schlüssel.
 
-Eine Wiederholung wird nur einem Aufrufer beantwortet, der die Tabelle noch bearbeiten
-darf. Nach dem Entzug des Zugriffs ist dieselbe Wiederholung ein 404.
+Eine Wiederholung prüft den aktuellen Tabellenzugriff, die API-Key-Scopes und die
+Write-Berechtigung für den Datensatz. Ein Entzug führt zu 404, ohne ID oder Revision
+eines verborgenen Datensatzes offenzulegen. Nach dem Archivieren bleibt ein weiterhin
+autorisierter Receipt lesbar; seine Datensatz-Flags erlauben nur Lesen, keinen neuen
+Schreibzugriff. Batch-Importe benötigen weiterhin Edit auf Tabellenebene, da sie Datensätze
+anlegen können. Ihre Wiederholungen behalten die ursprünglichen Zähler und `as_of`,
+prüfen aber Datensätze aus externen IDs und gespeicherten Fehlerdetails erneut, bevor
+sie den Bericht zurückgeben.
 
 Ein Receipt hält 24 Stunden. Danach ist der Schlüssel vergessen, und derselbe Schlüssel mit
 demselben Body ist ein neuer Schreibzugriff: Er wird erneut ausgeführt, statt die erste
@@ -443,6 +594,14 @@ Antwort zurückzugeben. Wiederholen Sie innerhalb des Fensters und behandeln Sie
 längere Pause als neue Anfrage. Die Lebensdauer wird beim Verwenden des Schlüssels
 durchgesetzt und gilt daher auf die Stunde genau; der tägliche Sweep gibt nur den Platz
 von Receipts frei, die niemand wiederholt hat.
+
+Beim Entfernen einer Gruppe, eines Projekts oder eines Kontos werden die der
+Task-Board-Tabelle zugeordneten Receipts gelöscht, einschließlich der Batch-Ergebnisse.
+Beim Upgrade werden ältere Batch-Ergebnisse ohne Tabellen-id gelöscht, da sich ihre
+Tabellenzuordnung nicht rekonstruieren lässt. Ihre Schlüssel bleiben bis zum Ablauf
+erhalten: Dieselbe Anfrage liefert `IDEMPOTENCY_RESULT_PURGED` (409) und schreibt nichts.
+Prüfen Sie die Tabelle, bevor Sie einen neuen Schreibzugriff starten. Andere Receipt-Arten
+bleiben unverändert.
 
 ## Auflisten und Filtern { #listing-and-filtering }
 
@@ -503,6 +662,8 @@ zwischen **Private** und **Shared** um. Wer die Ansicht eines anderen Mitglieds
 verwaltet, etwa ein Admin, bekommt diesen Schalter nicht: Ob jemandes eigene Filter
 geteilt werden, entscheidet diese Person selbst.
 
+Auf dem Telefon enthält das Menü **Views** einer gespeicherten Ansicht das Speichern einer weiteren Ansicht, Umbenennen, Teilen und Löschen mit denselben Berechtigungen wie die Desktop-Steuerelemente.
+
 `GET/POST /tables/{id}/views` und `GET/PATCH/DELETE /tables/{id}/views/{view_id}`
 listen, erstellen, lesen, aktualisieren und löschen sie. Die Liste ist mit `skip`
 und `limit` (höchstens 100) seitenweise: zuerst die eigenen Ansichten des Aufrufers,
@@ -518,7 +679,7 @@ Das Objekt `display` enthält `column_order`, `hidden_system_columns`, `wrap_tex
 |---|---|
 | `kind` | `table`, `kanban` oder `list` - eine Ansicht wird *für* eine Art gespeichert |
 | `visibility` | `private` (nur ihr Besitzer) oder `shared` (jeder, der die Tabelle sehen kann) |
-| `can_manage` | Ob dieser Aufrufer sie umbenennen, umkonfigurieren oder teilen darf |
+| `can_manage` | Ob dieser Aufrufer sie umbenennen oder umkonfigurieren darf; teilen darf nur ihr Besitzer |
 | `can_delete` | Ob dieser Aufrufer sie löschen darf |
 
 Auflisten, Lesen und Löschen lösen sich gegen die Tabelle auf (`tables:view`); eine
@@ -535,6 +696,13 @@ funktioniert wie bei jedem anderen Schreibzugriff auf eine einzelne Ressource
 hier: `NOT_FOUND` (404), nie ein 403, der einem abgelehnten Aufrufer verraten
 würde, dass die Ansicht existiert. `can_manage` und `can_delete` sagen, welches von
 beidem dieser Aufrufer darf.
+
+Die private Ansicht eines anderen Mitglieds ist noch enger: Selbst ein Aufrufer
+mit Scope `ALL` darf sie nur löschen, nie ändern oder zurücklesen, daher
+beantwortet ein `PATCH` sie mit `NOT_FOUND` wie eine Ansicht, die es nicht gibt.
+Und nur der Besitzer einer Ansicht ändert ihre `visibility`: Jeder andere, der
+einen anderen Wert schickt, wird mit `AUTHORIZATION_ERROR` (403) abgelehnt, da
+er die Ansicht ohnehin schon vor sich hat.
 
 Das Archivieren einer Spalte wird mit `SCHEMA_DEPENDENCY` abgelehnt und nennt die
 Ansicht, wenn eine Ansicht, die der Aufrufer sowohl sehen als auch ändern kann, sie
@@ -619,6 +787,12 @@ oder Löschung auch `before` und die `changed` Spalten nach Beschriftung. **Trig
 auf der Seite der Tabelle listet die Workflows, pausiert und setzt jeden fort und
 öffnet seinen Verlauf.
 
+Ihn dort zu pausieren braucht `tables:edit` auf der Tabelle. Ihn fortzusetzen
+startet den Workflow wieder als die Person, die ihn veröffentlicht hat, und braucht
+deshalb auch `workflows:edit` und `workflows:run` auf diesem Workflow, wie der
+eigene Schalter **Active** des Workflows; ein Mitglied, das die Tabelle bearbeiten
+darf, den Workflow aber nicht, erfährt, dass der Workflow nicht gefunden wurde.
+
 Ein Trigger startet nur für Datensätze, die hinzukommen, während er eingeschaltet ist.
 Das Einschalten - eine Veröffentlichung oder das Fortsetzen - nimmt die Schema-Sperre der Tabelle, auf die jeder
 Schreibzugriff wartet, sodass kein vorher committeter Datensatz ihn je startet und nichts
@@ -681,9 +855,11 @@ die Nutzung eines Tenants nie auf einen anderen angerechnet wird, und wird mit
 | `TABLES_MAX_PER_ORGANIZATION` | 200 | Tabellen einer Organisation. Archivierte zählen mit, weil eine Tabelle nie gelöscht wird |
 | `TABLES_MAX_RECORDS_PER_TABLE` | 100.000 | Datensätze in einer Tabelle. Ein Update eines Datensatzes in einer vollen Tabelle ist erlaubt |
 | `TABLES_MAX_RECORD_BYTES` | 1.000.000 | Die serialisierten Werte eines Datensatzes in Bytes |
-| `TABLES_MAX_STORAGE_BYTES_PER_ORGANIZATION` | 1,073,741,824 | Gespeicherte PostgreSQL-JSONB-Nutzdaten je Organisation über Datensätze, Historie, Quittungen und Outbox; Tabellen- und Index-Overhead zählt separat |
+| `TABLES_MAX_STORAGE_BYTES_PER_ORGANIZATION` | 1,073,741,824 | Gespeicherte JSONB-Bytes für Datensätze, Historie, Quittungen und Outbox, Bildbytes sowie Zeilen für Beziehungsdefinitionen, Kanten und aufbewahrte Quelldaten je Organisation; Indizes und sonstiger physischer Overhead zählen separat |
 
 Die Gesamtgrenze wird im Savepoint der Änderung unter einer Organisationssperre vor dem Commit geprüft. Eine Überschreitung rollt den Datensatz und alle Kopien zurück, auch eine Importzeile; übrige Zeilen werden als abgelehnt gemeldet. Quittungswiederholungen, unveränderte Schreibvorgänge, Lesen und Löschen bleiben nach einer Absenkung möglich. Die Aufbewahrungsbereinigung gibt entfernte Bytes frei.
+
+Das Erstellen von Tabellen und Schemaänderungen unterliegen derselben Speichergrenze. Eine Ablehnung rollt die neue Tabelle oder Schemaversion, Beziehungsdefinitionen, umgeschriebene Werte samt Historie und eine neue Erstellungsquittung gemeinsam zurück. Der normale Tabellenaudit wird erst nach der Speicherprüfung geschrieben; der separate Audit der Quotenablehnung bleibt nach dem Rollback erhalten.
 
 Die Ablehnung nennt das Limit und seine Obergrenze in `details` (`{"quota": "records",
 "limit": 100000}`), nie den Inhalt, und schreibt einen Eintrag `table.quota_refused` in das
@@ -752,6 +928,74 @@ Detailseite nie raten muss, ob ihre Bearbeitungskontrollen abgelehnt würden. Da
 eigene `can_manage` und `can_delete` einer gespeicherten Ansicht sind dieselbe Idee,
 eine Ebene tiefer (siehe [Gespeicherte Ansichten](#saved-views)).
 
+### Lesen und Schreiben einzelner Zeilen { #row-read-write }
+
+Zeilenzugriff hat zwei Stufen. **Lesen (Read)** zeigt die Zeile und ihre sichtbaren
+verknüpften Datensätze. **Schreiben (Write)** umfasst Lesen und Änderungen an
+gewöhnlichen Zellen. Schreiben allein erlaubt weder Löschen noch Teilen der Zeile,
+Änderungen an Zugriffsfeldern, das Erstellen von Datensätzen oder Schemaänderungen.
+Tabellenadministratoren behalten ihre bisherigen Rechte. Die Person benötigt weiterhin
+Zugriff auf die übergeordnete Tabelle; eine Zeilenfreigabe öffnet allein keine andere
+Tabelle und keinen verknüpften Datensatz.
+
+Im Freigabedialog der Tabelle legen **Regeln für den Zeilenzugriff (Row access rules)**
+den Standard fest:
+
+| Regel | Lesezugriff | Schreibzugriff |
+|---|---|---|
+| `none` | Alle, die die Tabelle lesen dürfen | Bisherige Tabellenbearbeiter sowie Schreibfreigaben für die Zeile |
+| `grants` | Eine gültige Lese- oder Schreibfreigabe für die Zeile | Eine gültige Schreibfreigabe für die Zeile |
+| `assignee` | Lesefeld, Schreibfeld, optionale Projektmitgliedschaft oder Zeilenfreigabe | Schreibfeld oder Schreibfreigabe für die Zeile |
+
+Tabelleneigentümer, die Organisationsrollen Owner/Admin und der Deployment-Administrator
+behalten ihre Policy-Ausnahme. Tabellenzugriff und API-Key-Grenzen gelten weiterhin.
+Richten Sie im Modus `grants` Freigaben ein, bevor Sie bestehende Benutzer umstellen.
+
+Neue Zeilen benötigen weiterhin Tabellenverwaltung. Im Modus `grants` wird eine direkte
+Erstellung mit 403 abgelehnt, wenn die Zeile für den Tabellenbearbeiter unsichtbar wäre:
+`You do not have permission to write this row`. Die Stapelerstellung meldet für diese Zeile
+`AUTHORIZATION_ERROR`. Upsert liefert denselben 404 für eine verborgene bestehende externe
+ID und eine nicht erlaubte Erstellung. Die Ablehnung verrät somit nicht, ob diese ID existiert.
+
+Verwaltete Aufgabenboards behalten ihre eigenen Zugriffsregeln und bieten diese
+Zeilenfreigaben nicht an.
+
+Öffnen Sie eine Zeile und wählen Sie **Zeilenzugriff (Row access)**, um Personen oder
+Gruppen hinzuzufügen, Lesen oder Schreiben zu wählen, einen Ablauf festzulegen, die Stufe
+zu ändern oder Zugriff zu entziehen. Personenfreigaben können dauerhaft sein;
+Gruppenfreigaben laufen standardmäßig nach 90 Tagen ab. Es gelten aktuelle Organisations-
+und Gruppenmitgliedschaften sowie nicht abgelaufene Grants. Der stärkste gültige Grant
+gewinnt. Der Entzug eines Grants entfernt keinen Zugriff aus anderen Grants oder Tabellenregeln.
+
+Die REST-Endpunkte liegen unter `/tables/{table_id}/records/{record_id}/access`:
+
+- `GET` listet explizite Grants für einen Tabellenadministrator, der die Zeile lesen darf.
+- `PUT /grants` setzt genau eine `subject_user_id` oder `subject_group_id`,
+  einen `level` von `read` oder `write` und optional `expires_at`.
+- `DELETE /grants/{subject_user_id}` und
+  `DELETE /group-grants/{subject_group_id}` entziehen den angegebenen Grant.
+
+Derselbe Service schützt Schreibzugriffe aus Konsole, API, Agent und Workflow.
+Zeilengrants stehen in der bestehenden Tabelle `resource_grants` unter `table_record`;
+nur dort wird API-`write` als `edit` gespeichert. Sie werden nie zu
+Tabellenverwaltungsrechten. API-Keys benötigen `tables:view` zum Lesen und `tables:edit`
+zum Schreiben; ein Grant erweitert keinen Key. Das Löschen eines Datensatzes entfernt
+seine Grants in derselben Transaktion.
+
+Jeder gelieferte Datensatz enthält `access`, `can_delete`, `can_manage_access` und
+`read_only_column_ids`. Letzteres umfasst Policy-Felder und Projektmitgliedschaftsfelder,
+die eine andere Tabelle verwendet. Rasterzellen, Datensatzpanel und Kanban-Verschiebungen
+verwenden diese Antworten. Datensatzlisten, Katalogzähler, Exporte und verknüpfte Beschriftungen
+verwenden dieselbe Leseregel. Die Wiederholung eines idempotenten Schreibzugriffs prüft
+die aktuellen Rechte erneut, damit ein gespeicherter Beleg kein entzogenes Schreibrecht bewahrt.
+
+Workflow-Trigger prüfen das aktuelle Leserecht der veröffentlichenden Person für die
+Quellzeile erneut. Filter und Eingaben des Laufs enthalten nur lesbare verknüpfte
+Datensätze, sowohl in den aktuellen als auch in den vorherigen Werten. Eine Änderung
+ausschließlich verborgener Verknüpfungen startet keinen Workflow. Eine ungültige
+Zielrichtlinie zeigt keine verknüpften IDs; eine ungültige Quellrichtlinie filtert das
+Ereignis heraus. Gespeichertes Ereignis und Verlauf bleiben unverändert.
+
 ## Fehler { #errors }
 
 Jede Ablehnung antwortet mit `{"error": {"code", "message", "details"}}`, und der
@@ -771,6 +1015,7 @@ Jede Ablehnung antwortet mit `{"error": {"code", "message", "details"}}`, und de
 | `INVALID_QUERY` | 422 | Ein Filter oder eine Sortierung, die die Tabelle nicht beantworten kann |
 | `INVALID_SCHEMA` | 422 | Eine widersprüchliche Schemaänderung |
 | `IDEMPOTENCY_KEY_REUSED` | 422 | Der Schlüssel wurde für eine andere Anfrage verwendet |
+| `IDEMPOTENCY_RESULT_PURGED` | 409 | Ein älteres Batch-Ergebnis wurde beim Upgrade gelöscht; sein Schlüssel verhindert bis zum Ablauf einen erneuten Schreibzugriff |
 | `QUOTA_EXCEEDED` | 402 | Der Schreibzugriff würde ein Speicherlimit überschreiten; `details` nennt das Limit (`tables`, `records`, `record_bytes`, `storage_bytes`) und seine Obergrenze |
 | `RATE_LIMIT_EXCEEDED` | 429 | Zu viele Tabellenschreibzugriffe in der letzten Minute; siehe `Retry-After` |
 | `VALIDATION_ERROR` | 422 | Die Anfrage selbst ist fehlerhaft: ein falscher Typ, ein unbekanntes Feld, eine Grenze oder NUL, ein Zeilenumbruch oder ein einzelnes Surrogat in einer id, einem Schlüssel oder Namen. Die Route lehnt sie ab, bevor der Service läuft |
@@ -837,9 +1082,11 @@ Beim Erstellen einer leeren Tabelle benötigen Pflichtspalten keine Vorgaben: Je
 
 ## Dauerhafte Aufgaben {#durable-tasks}
 
+Ein **Agent** kann ebenfalls eine gemeinsame Aufgabentabelle besitzen. Der Zugriff folgt den aktuellen Agent-Berechtigungen; das Bearbeiten von Aufgaben erfordert zusätzlich Tabellenbearbeitung und die Berechtigung, den Agent auszuführen. Eigentümer oder Bearbeiter des Agents können die Tabelle verwalten. Die Zuweisung eines Agents gibt eine private Aufgabe nicht frei. AgenticOS MCP verwendet mit `create_task` und `ensure_task_board` die vorhandene Bereichstabelle oder erstellt sie bei der ersten Nutzung. Persönliche Aufgaben gehören in den privaten Bereich, Projektergebnisse zum Projekt und eine ausdrücklich gewünschte Agent-Warteschlange zum Agent. Bei unklarem Bereich nachfragen; persönliche Inhalte niemals stillschweigend teilen.
+
 Sie können Projektaufgaben aus privaten Unterhaltungen außerhalb des Projekts erstellen. Lassen Sie die Arbeitsunterhaltung offen: Die Aufgabe öffnet ihre eigene Unterhaltung im Projekt, ohne Ihr privates Transkript zu verknüpfen. Eine ausdrücklich verknüpfte Unterhaltung aus einem anderen Projekt wird abgelehnt.
 
-**Hintergrundarbeit** (`/work`) zeigt dauerhafte Aufgaben neben laufenden Hintergrundchats. Eine Aufgabe ist ein Virtual-Table-Datensatz mit Arbeitschat und einem Inbox-Fall, wenn Aufmerksamkeit nötig ist. Tabelle, Kanban und Aufgaben-API verwenden dieselbe Revision, ohne eine zweite synchronisierte TODO-Liste.
+Aufgaben werden in **Tables** (`/tables`) verwaltet. **Hintergrundarbeit** (`/work`) zeigt laufende Hintergrundchats und ihren Verlauf. Eine Aufgabe ist ein Virtual-Table-Datensatz mit Arbeitschat und einem Inbox-Fall, wenn Aufmerksamkeit nötig ist. Tabelle, Kanban und Aufgaben-API verwenden dieselbe Revision, ohne eine zweite synchronisierte TODO-Liste.
 
 Eine Aufgabentabelle entsteht bei der ersten Nutzung für eine **Person**, ein **Projekt**, eine **Gruppe** oder eine **Organisation** und wird wiederverwendet. Projects und Groups bieten **Aufgaben**; Tables öffnet die private Tabelle. Installation und neue Mitgliedschaften erzeugen keine leeren Tabellen. Die erste Erstellung erfordert `tables:create`. Aktuelle Projektberechtigungen und Gruppenmitgliedschaften gelten auch für Tabellen-API, Verknüpfungen und gespeicherte Ansichten. Private Aufgaben bleiben selbst vor einem anderen Organisationseigentümer verborgen. Eigene bestehende Aufgabentabellen und Projektverfolgungs-Presets werden nicht automatisch umgewandelt.
 
@@ -852,17 +1099,31 @@ AgenticOS MCP bietet `list_task_boards`, `ensure_task_board`, `list_tasks`, `get
 
 Gruppenmitglieder dürfen das Aufgabenboard ihrer Gruppe lesen; Schreibzugriff erfordert zusätzlich Tabellen-Bearbeitungsrechte oder eine ausdrückliche Bearbeitungsfreigabe. Verliert die zugewiesene prüfende Person den Zugriff, wird die Erinnerung blockiert und ihr Ersteller erhält einen Inbox-Fall zur Übergabe. Neue Arbeitsunterhaltungen für Projektaufgaben gehören zum Projekt. Eine Tabellenquote kann die optionale Aufgabe eines Routine-Ergebnisses verhindern; Arbeitschat, Inbox-Fall und Benachrichtigung werden dennoch zugestellt.
 
-Schreiben auf Projekt-Aufgabentafeln erfordert Projektzugriff und Tabellenbearbeitungsrechte oder eine ausdrückliche Edit-Freigabe für die Tabelle. Das Entfernen eines Projekts, einer Gruppe oder eines privaten Eigentümers storniert wartende Aufgaben, schließt ihre Fälle und löscht die verwaltete Tabelle dieses Bereichs samt Datensätzen, Verlauf und Medien in derselben Transaktion. Andere Bereiche bleiben erhalten. Verschwindet die ausgewählte Tafel, wechselt das Aufgabenpanel zur verfügbaren privaten Tafel.
+Schreiben auf Projekt-Aufgabentafeln erfordert Projektzugriff und Tabellenbearbeitungsrechte oder eine ausdrückliche Edit-Freigabe für die Tabelle. Das Entfernen eines Projekts, einer Gruppe oder eines privaten Eigentümers storniert wartende Aufgaben, schließt ihre Fälle und löscht die verwaltete Tabelle dieses Bereichs samt Datensätzen, Verlauf und Medien in derselben Transaktion. Andere Bereiche bleiben erhalten.
+
+Ein Aufgabenboard selbst zu ändern ist enger gefasst, als darauf zu arbeiten. Das Board
+umzubenennen, seine Spalten oder Standardansicht zu ändern und es zu archivieren oder
+wiederherzustellen braucht `tables:edit` im Scope `ALL` (Owner oder Admin) oder die
+Leitung des Scopes des Boards: die Leitung der Gruppe, den Besitzer des Projekts, die
+Person, der ein privates Board gehört. Alle anderen im Publikum des Boards legen weiterhin
+Aufgaben an und bearbeiten sie; `can_manage` der Tabelle sagt, welches von beidem ein
+Aufrufer darf, und die Konsole zeigt die Steuerelemente des Boards nur, wenn es wahr ist.
+Ein Versuch ohne es wird mit `AUTHORIZATION_ERROR` (403) abgelehnt.
 
 ## Standardansicht {#default-view}
 
-Tabelleneditoren können **Als Standard festlegen** in der Werkzeugleiste wählen. Layout, Filter und Gruppierung werden als geteilte Ansicht gespeichert und bei Besuchen ohne ausdrückliche URL-Parameter `view` oder `viewId` geöffnet. Neue Aufgabentabellen starten mit Kanban. Die Standardansicht muss geteilt sein und zur Tabelle gehören. Vor dem Privatmachen muss ein anderer Standard gewählt werden. Löschen stellt das einfache Tabellenlayout wieder her. Die API verwendet `PATCH /tables/{id}` mit `default_view_id`; null entfernt den Standard.
+Tabelleneditoren können **Als Standard festlegen** unter **Ansichtseinstellungen** wählen. Layout, Filter und Gruppierung werden als geteilte Ansicht gespeichert und bei Besuchen ohne ausdrückliche URL-Parameter `view` oder `viewId` geöffnet. Neue Aufgabentabellen starten mit Kanban. Die Standardansicht muss geteilt sein und zur Tabelle gehören. Vor dem Privatmachen muss ein anderer Standard gewählt werden. Löschen stellt das einfache Tabellenlayout wieder her. Die API verwendet `PATCH /tables/{id}` mit `default_view_id`; null entfernt den Standard.
 
 Aufgabennotizen sind Markdown-Dokumente mit demselben Rich-Text-Editor und derselben Vorschau wie andere Dokumentzellen. Separate Beziehungen **Person** und **Agent** behalten die verantwortliche Person und den ausführenden Agenten. **Nächster Schritt** wählt Person oder Agent und kehrt nach einem Ergebnis zur Person zurück. Die verantwortliche Person startet Agentenarbeit mit ihrem eigenen Konto. Für eine Übergabe zuerst die Person als nächsten Schritt wählen und den Empfänger selbst starten lassen.
 
 
-**Group by** wird automatisch gespeichert, wenn ein Bearbeiter eine Spalte auswählt. Ein verwaltbarer gespeicherter Kanban wird aktualisiert; andernfalls wird eine private Ansicht erstellt und ausgewählt. Bei abgelehntem Speichern bleibt die bisherige Gruppierung erhalten. Leser können die Gruppierung vorübergehend ändern. **Set as default** in der Werkzeugleiste speichert das aktuelle Format für alle; normale Tabellen öffnen sich als Table, bis ein Bearbeiter eine andere Standardansicht auswählt.
+**Group by** wird automatisch gespeichert, wenn ein Bearbeiter eine Spalte auswählt. Ein verwaltbarer gespeicherter Kanban wird aktualisiert; andernfalls wird eine private Ansicht erstellt und ausgewählt. Bei abgelehntem Speichern bleibt die bisherige Gruppierung erhalten. Leser können die Gruppierung vorübergehend ändern. **Set as default** unter **View settings** speichert das aktuelle Format für alle; normale Tabellen öffnen sich als Table, bis ein Bearbeiter eine andere Standardansicht auswählt.
 
 Ein Agent kann nicht gelöscht werden, solange eine verwaltete Aufgabe von seiner geplanten Ausführung abhängt. Weise diese Aufgaben zuerst neu zu, schließe sie ab oder brich sie ab; das Löschen darf ihre Ausführung nicht stillschweigend verwerfen.
 
-Beim Wiederherstellen einer archivierten verwalteten Aufgabentafel werden geplante Erinnerungen für Personen erneut eingereiht, auch wenn ihr Termin während der Archivierung verstrichen ist. Die Zustellung prüft weiterhin den aktuellen Zugriff des ursprünglichen Erstellers und Empfängers; die Wiederherstellung autorisiert keine neue Agentenarbeit.
+Beim Wiederherstellen einer archivierten verwalteten Aufgabentafel werden geplante Erinnerungen für Personen erneut eingereiht, auch wenn ihr Termin während der Archivierung verstrichen ist. Die Zustellung prüft weiterhin den aktuellen Zugriff des ursprünglichen Erstellers und Empfängers; die Wiederherstellung autorisiert keine neue Agentenarbeit. Auch die eigenen Aufgaben schreiben nicht in eine archivierte Tafel: Ein Fall, der in der Zwischenzeit in der Inbox erledigt wird, lässt seine Aufgabe unverändert, und erst die Wiederherstellung der Tafel setzt sie auf erledigt oder abgebrochen. Einen Fall wieder zu öffnen, dessen Aufgabe auf einer archivierten Tafel liegt, wird mit `TABLE_ARCHIVED` abgelehnt.
+
+
+Mitglieder mit Berechtigung zum Erstellen von Tabellen erhalten ihre fehlende private Aufgabentabelle beim ersten Besuch von **Tables**. Bestehende Tabellen werden wiederverwendet; dabei entstehen keine Organisations- oder Agent-Backlogs. Projekte bieten **Task table** zum Erstellen oder Öffnen ihrer Tabelle. Ohne Erstellungsrecht bleiben zugängliche Tabellen verfügbar, ohne einen verbotenen Schreibversuch.
+
+Inbox zeigt eine Aufgabe, wenn eine Person handeln oder ein Ergebnis prüfen muss; sie ist kein zweiter Aufgabenspeicher. Watches, Mail-Trigger und Routinen können Inbox-Fälle ohne Aufgabenrekord erzeugen. Aufgaben stehen für konkrete Verpflichtungen, nicht jedes Ereignis. Eine vereinbarte Tabellenkonvention darf mit geprüfter Tabellen-ID gespeichert werden; der aktuelle Aufgabenstatus bleibt in der Tabelle.

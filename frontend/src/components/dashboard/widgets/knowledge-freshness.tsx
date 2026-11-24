@@ -3,6 +3,7 @@
 import { useLocale, useTranslations } from "next-intl";
 
 import { useSyncSources } from "@/hooks";
+import { ragStatus } from "@/lib/rag-status";
 import { timeAgo } from "@/lib/utils";
 import { StatusList } from "../primitives/status-list";
 import { WidgetFrame } from "../widget-frame";
@@ -33,7 +34,7 @@ export function KnowledgeFreshnessWidget({ title, hint, seeAll, options }: Dashb
       ) : (
         <StatusList
           rows={sources.map((source) => {
-            const failing = source.last_sync_status === "failed";
+            const failing = ragStatus(source.last_sync_status ?? "").tone === "failure";
             return {
               id: source.id,
               label: source.name,

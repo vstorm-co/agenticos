@@ -47,10 +47,13 @@ def _run(
     status: str = RunStatus.AWAITING_APPROVAL.value,
     destination: Any = DESTINATION,
     parked_on: tuple[uuid.UUID, ...] = (APPROVAL,),
+    user_id: uuid.UUID | None = None,
 ) -> Any:
     return MagicMock(
         id=RUN,
         organization_id=ORG,
+        user_id=user_id or uuid.uuid4(),
+        initiated_by_publisher_fallback=False,
         surface="slack",
         status=status,
         chat_notice_sent_at=None,
@@ -346,6 +349,13 @@ class TestRefusing:
         assert p.post_notice.await_args.args[1][0].text == REFUSED_NOTICE
         p.record_chat_notice.assert_awaited_once()
         p.resume.assert_not_awaited()
+
+    async def test_a_member_may_continue_a_run_they_started(self) -> None:
+        with _Patched(run=_run(user_id=DECIDER)) as p:
+            p.decider_context.return_value = _decider(OrgRoleName.MEMBER)
+            await _continue()
+        p.resume.assert_awaited_once()
+        p.post_notice.assert_not_awaited()
 
     async def test_a_room_that_definitely_refuses_the_asker_runs_nothing_and_is_refused(
         self,

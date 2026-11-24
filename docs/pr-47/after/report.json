@@ -1,0 +1,43 @@
+{
+  "label": "after",
+  "base": "http://localhost:3001",
+  "run_id": "7c1e2a94-3b5d-4f60-9a8e-2d4b6c8f1a03",
+  "captures": [
+    {
+      "width": 1440,
+      "file": "after-run-detail-1440.png",
+      "fallback_line_visible": true,
+      "fallback_line_text": "Served by gpt-4.1-mini (fallback)",
+      "page_errors": [],
+      "console_errors": [
+        "WebSocket connection to 'ws://localhost:8000/api/v1/ws/events?organization_id=0c9d8e7f-6a5b-4c3d-9e2f-1a0b9c8d7e6f&conversation_events=true' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED"
+      ],
+      "unmatched_api": [
+        "GET /assistant",
+        "GET /stats/usage",
+        "GET /orgs/0c9d8e7f-6a5b-4c3d-9e2f-1a0b9c8d7e6f/members",
+        "GET /runs",
+        "GET /spend",
+        "GET /runs/7c1e2a94-3b5d-4f60-9a8e-2d4b6c8f1a03/transcript"
+      ]
+    },
+    {
+      "width": 390,
+      "file": "after-run-detail-390.png",
+      "fallback_line_visible": true,
+      "fallback_line_text": "Served by gpt-4.1-mini (fallback)",
+      "page_errors": [],
+      "console_errors": [
+        "WebSocket connection to 'ws://localhost:8000/api/v1/ws/events?organization_id=0c9d8e7f-6a5b-4c3d-9e2f-1a0b9c8d7e6f&conversation_events=true' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED"
+      ],
+      "unmatched_api": [
+        "GET /assistant",
+        "GET /stats/usage",
+        "GET /orgs/0c9d8e7f-6a5b-4c3d-9e2f-1a0b9c8d7e6f/members",
+        "GET /runs",
+        "GET /spend",
+        "GET /runs/7c1e2a94-3b5d-4f60-9a8e-2d4b6c8f1a03/transcript"
+      ]
+    }
+  ]
+}

@@ -96,6 +96,20 @@ describe("the animated theme switch", () => {
     expect(root().classList.contains("light")).toBe(false);
   });
 
+  it("flushes the new palette with component transitions suppressed and restores them immediately", () => {
+    const flush = vi.spyOn(root(), "offsetHeight", "get").mockImplementation(() => {
+      expect(root()).toHaveClass("theme-switching", useThemeStore.getState().theme);
+      return 0;
+    });
+    useThemeStore.setState({ theme: "dark" });
+    render(<ThemeProvider>{null}</ThemeProvider>);
+    expect(flush).toHaveBeenCalled();
+    expect(root()).not.toHaveClass("theme-switching");
+    act(() => useThemeStore.setState({ theme: "light" }));
+    expect(root()).not.toHaveClass("theme-switching");
+    flush.mockRestore();
+  });
+
   it("still changes the theme in a browser without the API", () => {
     root().classList.add("light");
 

@@ -5,7 +5,7 @@ Document upload and sync-source management are wired here (rather than under
 app-admin role required by the bulk `/rag` endpoints.
 """
 
-from typing import Any
+from typing import Annotated, Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Form, Query, Response, UploadFile, status
@@ -27,8 +27,8 @@ from app.core.field_errors import refused_field
 from app.core.permissions import Perm
 from app.schemas.knowledge_base import (
     KnowledgeBaseCreate,
+    KnowledgeBaseDetailRead,
     KnowledgeBaseList,
-    KnowledgeBaseRead,
     KnowledgeBaseUpdate,
 )
 from app.schemas.rag import (
@@ -65,8 +65,8 @@ async def list_knowledge_bases(
 ) -> Any:
     """List the Knowledge Bases this caller may read in the active organization.
 
-    Carries each collection's document and chunk counts, which the single-row
-    responses do not. A picker choosing what an agent may search is choosing
+    Carries each collection's document and chunk counts, as its detail does.
+    A picker choosing what an agent may search is choosing
     between collections, and a name alone does not distinguish the one with four
     hundred documents in it from the one somebody made and never filled.
     """
@@ -75,7 +75,7 @@ async def list_knowledge_bases(
 
 @router.post(
     "",
-    response_model=KnowledgeBaseRead,
+    response_model=KnowledgeBaseDetailRead,
     status_code=status.HTTP_201_CREATED,
     dependencies=[Depends(require(Perm.COLLECTIONS_EDIT))],
 )
@@ -95,20 +95,25 @@ async def create_knowledge_base(
     model is recorded from the deployment and is not settable - a collection's
     vectors are only comparable with themselves.
     """
-    return await service.create(data, ctx=ctx)
+    kb = await service.create(data, ctx=ctx)
+    return await service.describe(kb, ctx=ctx)
 
 
-@router.get("/{kb_id}", response_model=KnowledgeBaseRead)
+@router.get("/{kb_id}", response_model=KnowledgeBaseDetailRead)
 async def get_knowledge_base(
     kb_id: UUID,
     service: KnowledgeBaseSvc,
     ctx: Auth,
 ) -> Any:
-    """Get a Knowledge Base by ID."""
-    return await service.get(kb_id, ctx=ctx)
+    """Get a Knowledge Base with counts, usage and effective write access for this caller.
+
+    `can_edit` follows the same scope, ownership and grant rules as mutations.
+    """
+    kb = await service.get(kb_id, ctx=ctx)
+    return await service.describe(kb, ctx=ctx)
 
 
-@router.patch("/{kb_id}", response_model=KnowledgeBaseRead)
+@router.patch("/{kb_id}", response_model=KnowledgeBaseDetailRead)
 async def update_knowledge_base(
     kb_id: UUID,
     data: KnowledgeBaseUpdate,
@@ -121,7 +126,8 @@ async def update_knowledge_base(
     Nothing already indexed is re-parsed, and the embedding model cannot be
     changed here at all.
     """
-    return await service.update(kb_id, data, ctx=ctx)
+    kb = await service.update(kb_id, data, ctx=ctx)
+    return await service.describe(kb, ctx=ctx)
 
 
 @router.delete(
@@ -362,7 +368,7 @@ async def list_org_integrations_for_kb(
     """
     kb = await service.get(kb_id, ctx=ctx)
     all_org = await sync_source_svc.list_sources(organization_id=ctx.organization_id)
-    others = [s for s in all_org.items if s.collection_name != kb.collection_name]
+    others = [s for s in all_org.items if s.knowledge_base_id != str(kb.id)]
     return SyncSourceList(items=others, total=len(others))
 
 
@@ -388,21 +394,18 @@ async def create_kb_sync_source(
     data: SyncSourceCreate,
     service: KnowledgeBaseSvc,
     sync_source_svc: SyncSourceSvc,
-    access: CollectionAccessSvc,
     ctx: Auth,
 ) -> Any:
     """Wire up a sync source (Google Drive, S3, …) feeding this KB.
 
     The `collection_name` field on the request body is overridden with the
-    KB's own collection - clients should not need to know that detail. A KB
-    that shares its collection name with an older base of the organization is
-    refused with 400: a source names a collection, not a KB, so its sync would
-    write into that other base.
+    KB's own collection - clients should not need to know that detail. The
+    source records this KB, so it syncs into this one even when another base
+    shares its collection name (#2551).
     """
     kb = await service.get_for_write(kb_id, ctx=ctx)
-    await access.new_source_feeds(ctx, kb)
     payload = data.model_copy(update={"collection_name": kb.collection_name})
-    return await sync_source_svc.create_source(payload, ctx=ctx)
+    return await sync_source_svc.create_source(payload, ctx=ctx, knowledge_base=kb)
 
 
 @router.post(
@@ -430,10 +433,12 @@ async def clone_kb_sync_source(
     another tenant's Google Drive at their own collection and sync it.
     """
     kb = await service.get_for_write(kb_id, ctx=ctx)
-    await access.new_source_feeds(ctx, kb)
-    source = await access.sync_source(ctx, str(source_id))
+    await access.hold_source_target(kb)
+    source = await access.writable_sync_source(ctx, str(source_id))
     clone_data = data.model_copy(update={"collection_name": kb.collection_name})
-    return await sync_source_svc.clone_source(str(source.id), clone_data, ctx=ctx)
+    return await sync_source_svc.clone_source(
+        str(source.id), clone_data, ctx=ctx, knowledge_base=kb
+    )
 
 
 @router.post(
@@ -450,7 +455,8 @@ async def trigger_kb_sync_source(
 ) -> Any:
     """Manually trigger a sync run for one of this KB's sources."""
     kb = await service.get_for_write(kb_id, ctx=ctx)
-    await access.kb_sync_source(ctx, kb, str(source_id), for_update=True)
+    source = await access.kb_sync_source(ctx, kb, str(source_id), for_update=True)
+    sync_source_svc.refuse_paused(source)
     sync_log = await sync_source_svc.trigger_sync(str(source_id), user_id=ctx.user_id)
     return RAGSyncResponse(
         id=str(sync_log.id),
@@ -467,6 +473,7 @@ async def list_kb_sync_source_logs(
     sync_source_svc: SyncSourceSvc,
     access: CollectionAccessSvc,
     ctx: Auth,
+    skip: Annotated[int, Query(ge=0)] = 0,
     limit: int = Query(20, ge=1, le=100),
 ) -> Any:
     """List sync run history for a specific KB sync source.
@@ -482,7 +489,8 @@ async def list_kb_sync_source_logs(
     """
     kb = await service.get(kb_id, ctx=ctx)
     source = await access.kb_sync_source(ctx, kb, str(source_id))
-    return await sync_source_svc.list_logs(source.id, limit=limit)
+    scope = await access.kb_sync_log_scope(ctx, kb)
+    return await sync_source_svc.list_logs(source.id, scope=scope, limit=limit, skip=skip)
 
 
 @router.patch("/{kb_id}/sync-sources/{source_id}", response_model=SyncSourceRead)
@@ -509,12 +517,16 @@ async def update_kb_sync_source(
     A key set to `null` in `config` removes it from the stored config.
     """
     kb = await service.get_for_write(kb_id, ctx=ctx)
-    await access.kb_sync_source(ctx, kb, str(source_id), for_update=True)
+    await access.kb_sync_source(ctx, kb, str(source_id), for_update=False)
     if "collection_name" in data.model_fields_set and data.collection_name != kb.collection_name:
         raise refused_field(
             "collection_name", "A source cannot be moved to another knowledge base from here"
         )
-    return await sync_source_svc.update_source(str(source_id), data, ctx=ctx)
+    prepared = await sync_source_svc.prepare_update(str(source_id), data, ctx=ctx)
+    await access.kb_sync_source(ctx, kb, str(source_id), for_update=True)
+    return await sync_source_svc.update_source(
+        str(source_id), data, ctx=ctx, prepared=prepared, knowledge_base=kb
+    )
 
 
 @router.delete(

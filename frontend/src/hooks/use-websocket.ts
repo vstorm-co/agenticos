@@ -281,10 +281,18 @@ export function useWebSocket({
     connectRef.current();
   }, []);
 
-  const sendMessage = useCallback((data: string | object) => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      const message = typeof data === "string" ? data : JSON.stringify(data);
-      wsRef.current.send(message);
+  const sendMessage = useCallback((data: string | object): boolean => {
+    const live = wsRef.current;
+    if (live?.readyState !== WebSocket.OPEN) return false;
+    const message = typeof data === "string" ? data : JSON.stringify(data);
+    try {
+      live.send(message);
+      return true;
+    } catch (error) {
+      // A socket can close between readyState and send. Report that race to the
+      // composer so a direct steer keeps its draft available for retry.
+      if (error instanceof DOMException && error.name === "InvalidStateError") return false;
+      throw error;
     }
   }, []);
 

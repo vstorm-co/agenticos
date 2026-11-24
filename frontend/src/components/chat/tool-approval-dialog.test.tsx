@@ -10,8 +10,9 @@ import type { Permission } from "@/types/permissions";
 /**
  * What the caller may do. Every case below describes the decision itself, which
  * is offered only to somebody holding `approvals:decide` - the permission on the
- * two endpoints `onDecisions` calls. `tool-approval-dialog.integration.test.tsx`
- * covers that gate, against the real hook.
+ * two endpoints `onDecisions` calls - and, where the backend answered per action,
+ * only on a run that is theirs: a member holds the permission at `OWN`.
+ * `tool-approval-dialog.integration.test.tsx` covers that gate, against the real hook.
  */
 const held: { permissions: Permission[] } = { permissions: [] };
 
@@ -23,6 +24,11 @@ vi.mock("@/hooks", () => ({
 vi.mock("@/hooks/use-organizations", () => ({
   useOrganizationList: () => ({ data: [] }),
 }));
+
+// The task-description contract uses the real rich renderer. Resolve its heavy
+// module during fixture setup; markdown-content.loading.test.tsx covers the
+// separate lazy-loading fallback, without tying this UI deadline to a cold transform.
+import "./markdown-content.impl";
 
 beforeEach(() => {
   held.permissions = [Perm.approvalsDecide];
@@ -64,9 +70,35 @@ describe("the tool approval dialog", () => {
   it("says what is waiting, and names each call", () => {
     mount([action("a-1", { tool_name: "run_python" })]);
 
-    expect(screen.getByText("Tool approval required")).toBeVisible();
+    expect(screen.getByRole("group", { name: "Tool approval required" })).toBeVisible();
     // The catalog's words - the same ones the step above it uses - as a question.
     expect(screen.getByText("Allow Run Python?")).toBeVisible();
+  });
+
+  it("does not offer the decision on a run that is not this person's", () => {
+    // A member holds `approvals:decide` at `OWN`, so the role check alone
+    // would offer them a Submit on somebody else's reloaded run and have the
+    // API refuse it on the first call. The backend's per-action `can_decide`
+    // narrows it: what stays is the call itself and the sentence saying who
+    // can decide.
+    const onDecisions = mount([action("a-1", { can_decide: false })]);
+
+    expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Reject" })).toBeNull();
+    expect(
+      screen.getByText(
+        "Approving or refusing this needs a permission you do not hold. The run waits until somebody who can decide approvals does.",
+      ),
+    ).toBeVisible();
+    expect(onDecisions).not.toHaveBeenCalled();
+  });
+
+  it("offers the decision when the backend says this person may decide it", () => {
+    const onDecisions = mount([action("a-1", { can_decide: true })]);
+
+    expect(screen.getByRole("button", { name: "Approve" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Reject" })).toBeVisible();
+    expect(onDecisions).not.toHaveBeenCalled();
   });
 
   it("reads a call from an MCP server as its service and what it does there", () => {
@@ -250,7 +282,7 @@ describe("the tool approval dialog", () => {
 
     mount([action("a-1", { tool_name: "run_python" })]);
 
-    expect(screen.getByText("Tool approval required")).toBeVisible();
+    expect(screen.getByRole("group", { name: "Tool approval required" })).toBeVisible();
     expect(screen.getByText("Allow Run Python?")).toBeVisible();
   });
 
@@ -360,4 +392,57 @@ it("does not offer remembered approval for delegates or mixed tools", () => {
     />,
   );
   expect(screen.queryByRole("button", { name: "More approval options" })).toBeNull();
+});
+
+it("shows the fact share_memory would share, and offers no way to remember the answer", () => {
+  render(
+    <ToolApprovalDialog
+      actionRequests={[
+        action("a-1", {
+          tool_name: "share_memory",
+          capability_tool_id: "share_memory",
+          args: { claim_id: "c-1", to: "project" },
+          context: { claim: "Piotr takes over invoices", audience: "project" },
+          can_remember: false,
+        }),
+      ]}
+      reviewConfigs={[]}
+      onDecisions={vi.fn()}
+      mayRemember
+    />,
+  );
+
+  expect(
+    screen.getByText("Share with the project: “Piotr takes over invoices”"),
+  ).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "More approval options" })).toBeNull();
+});
+
+it("offers only Reject on a call this person may not approve unread", async () => {
+  const onDecisions = vi.fn();
+  render(
+    <ToolApprovalDialog
+      actionRequests={[
+        action("a-1", {
+          tool_name: "share_memory",
+          capability_tool_id: "share_memory",
+          args: { claim_id: "c-1", to: "organization" },
+          context: { audience: "organization" },
+          content_hidden: true,
+          always_asks: true,
+          can_remember: false,
+        }),
+      ]}
+      reviewConfigs={[]}
+      onDecisions={onDecisions}
+      mayRemember
+    />,
+  );
+
+  expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
+  expect(
+    screen.getByText("Only somebody who can see the run can approve this. You can reject it."),
+  ).toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Reject" }));
+  expect(onDecisions).toHaveBeenCalledWith([{ type: "reject" }]);
 });

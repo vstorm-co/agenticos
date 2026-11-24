@@ -458,3 +458,5 @@ is the process, the limits and the restart — which is what "deployed, updated
 and scaled independently" asks for.
 
 See `deploy/profiles/ml-services/README.md` for the overlay and what it expects.
+
+ElevenLabs Scribe is also available for organization, agent and channel transcription: `scribe_v3` and `scribe_v2`. It uses the same explicit ElevenLabs vault key as other voice features, with its own `xi-api-key`, `model_id` and `language_code` transport fields. No text model profile or environment key is used. The standard timeout, upload limits, language selection, tenant checks and usage recording apply. [ElevenLabs API](https://elevenlabs.io/docs/api-reference/speech-to-text/convert).

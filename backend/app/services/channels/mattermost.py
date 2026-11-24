@@ -30,9 +30,10 @@ import binascii
 import contextlib
 import json
 import logging
+import math
 import re
 import secrets
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from urllib.parse import parse_qs, quote
@@ -41,6 +42,7 @@ import httpx
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec
+from pydantic import BaseModel, TypeAdapter
 
 from app.agents.capabilities.channel_tools import (
     ChannelDetails,
@@ -49,8 +51,12 @@ from app.agents.capabilities.channel_tools import (
     ChannelPost,
     ChannelSummary,
 )
+from app.agents.capabilities.channel_tools._directory import (
+    ChannelListPage,
+    HistoryPage,
+    HistoryQuery,
+)
 from app.core.security import encode_untrusted
-from app.db.session import get_db_context
 from app.services.channels import connection_state
 from app.services.channels.attachments import routed_type
 from app.services.channels.base import (
@@ -69,8 +75,53 @@ from app.services.channels.base import (
     thread_key,
 )
 from app.services.channels.exceptions import ChannelNotConfigured
-from app.services.channels.router import ChannelMessageRouter
 from app.services.channels.webhooks import inbound_actions_url, inbound_dialogs_url, sign_press
+
+
+class _HistoryPost(BaseModel):
+    channel_id: str
+    user_id: str = ""
+    message: str = ""
+    create_at: int
+    root_id: str = ""
+    type: str = ""
+
+
+class _HistoryPayload(BaseModel):
+    has_next: bool | None = None
+    posts: dict[str, _HistoryPost]
+    order: list[str]
+
+
+class _HistoryChannel(BaseModel):
+    name: str
+    team_id: str = ""
+
+
+class _ReactionBot(BaseModel):
+    id: str
+
+
+class _JoinedChannel(BaseModel):
+    id: str
+    name: str
+    display_name: str = ""
+    purpose: str = ""
+    type: str
+    delete_at: int = 0
+
+
+class _ChannelMembership(BaseModel):
+    channel_id: str
+
+
+class _ChannelThreadRoot(BaseModel):
+    id: str
+    channel_id: str
+    root_id: str = ""
+
+
+_JOINED_CHANNELS = TypeAdapter(list[_JoinedChannel])
 
 logger = logging.getLogger(__name__)
 
@@ -125,6 +176,23 @@ def _posted_at(create_at: Any) -> datetime | None:
     if not isinstance(create_at, int | float) or not create_at:
         return None
     return datetime.fromtimestamp(create_at / 1000, UTC)
+
+
+def _recent_post_ids(
+    posts: Mapping[str, Mapping[str, object]], order: Sequence[str], limit: int
+) -> list[str]:
+    """Select recent human posts by creation time, independent of API order."""
+    return sorted(
+        (
+            post_id
+            for post_id in order
+            if post_id in posts and not str(posts[post_id].get("type") or "").startswith("system_")
+        ),
+        key=lambda post_id: (
+            _posted_at(posts[post_id].get("create_at")) or datetime.min.replace(tzinfo=UTC),
+            post_id,
+        ),
+    )[-limit:]
 
 
 def decode_webhook_body(raw: str) -> dict[str, Any]:
@@ -256,7 +324,7 @@ class MattermostAdapter(ChannelAdapter):
             posted.raise_for_status()
         return True
 
-    async def send_message(self, bot_token: str, msg: OutgoingMessage) -> None:
+    async def send_message(self, bot_token: str, msg: OutgoingMessage) -> str | None:
         """Post a reply.
 
         `platform_chat_id` is `channel_id` or `channel_id:root_id`; the second
@@ -306,6 +374,8 @@ class MattermostAdapter(ChannelAdapter):
 
             response = await client.post(f"{base_url}/api/v4/posts", headers=headers, json=body)
             response.raise_for_status()
+            post_id = response.json().get("id")
+            return str(post_id) if post_id else None
 
     async def begin_reply(self, bot_token: str, msg: OutgoingMessage) -> str | None:
         """Post the message that will become the answer, and return its id."""
@@ -360,11 +430,14 @@ class MattermostAdapter(ChannelAdapter):
         bot_id = prompt.bot_id
         body: dict[str, Any] = {
             "channel_id": channel_id,
-            "message": prompt.text,
+            "message": "",
             "props": {
                 "attachments": [
                     {
-                        "text": "",
+                        "title": "Your response is needed",
+                        "text": prompt.text,
+                        "fallback": prompt.text,
+                        "color": "#6b7280",
                         "actions": [
                             {
                                 "id": f"aos{index}",
@@ -430,16 +503,50 @@ class MattermostAdapter(ChannelAdapter):
             )
         response.raise_for_status()
 
+    async def react_to_message(
+        self,
+        bot_token: str,
+        channel_id: str,
+        message_id: str,
+        emoji: str,
+        *,
+        api_base_url: str | None,
+    ) -> None:
+        base = self._server(api_base_url)
+        headers = self._headers(bot_token)
+        async with self._client() as client:
+            target = await client.get(f"{base}/api/v4/posts/{message_id}", headers=headers)
+            target.raise_for_status()
+            post = _ChannelThreadRoot.model_validate_json(target.content)
+            if post.id != message_id or post.channel_id != channel_id:
+                raise ChannelDirectoryUnsupported(
+                    "The selected message does not belong to this channel"
+                )
+            own = await client.get(f"{base}/api/v4/users/me", headers=headers)
+            own.raise_for_status()
+            identity = _ReactionBot.model_validate_json(own.content)
+            response = await client.post(
+                f"{base}/api/v4/reactions",
+                headers=headers,
+                json={"user_id": identity.id, "post_id": message_id, "emoji_name": emoji},
+            )
+            response.raise_for_status()
+
     async def acknowledge_message(
-        self, bot_token: str, incoming: IncomingMessage, reaction: str
+        self,
+        bot_token: str,
+        incoming: IncomingMessage,
+        reaction: str,
+        *,
+        api_base_url: str | None = None,
     ) -> None:
         """React to the question with the bot's chosen emoji, as the bot (#2084)."""
-        base_url = self._base_urls.get(incoming.bot_id)
+        base_url = (api_base_url or self._base_urls.get(incoming.bot_id) or "").rstrip("/")
         if not base_url or not incoming.message_id:
             return
-        own = self._own_ids.get(incoming.bot_id) or await self._own_user_id(
-            incoming.bot_id, bot_token
-        )
+        # A durable message runs in a worker that may never own this bot's stream.
+        # Resolve identity from the current token as well, including after rotation.
+        own = await self._own_user_id(incoming.bot_id, bot_token, api_base_url=base_url)
         if own is None:
             return
         async with self._client() as client:
@@ -509,7 +616,19 @@ class MattermostAdapter(ChannelAdapter):
             response = await client.put(
                 f"{base_url}/api/v4/posts/{press.message_id}/patch",
                 headers=self._headers(bot_token),
-                json={"message": shown, "props": {"attachments": []}},
+                json={
+                    "message": "",
+                    "props": {
+                        "attachments": [
+                            {
+                                "title": text,
+                                "text": press.prompt_text or "",
+                                "fallback": shown,
+                                "color": "#6b7280",
+                            }
+                        ],
+                    },
+                },
             )
         response.raise_for_status()
 
@@ -688,6 +807,77 @@ class MattermostAdapter(ChannelAdapter):
         ).strip()
         return user.get("nickname") or full or None
 
+    async def joined_channels(
+        self,
+        bot_token: str,
+        *,
+        api_base_url: str | None,
+        query: str,
+        limit: int,
+        cursor: str | None,
+    ) -> ChannelListPage:
+        # This native endpoint has no pagination (Mattermost 6.1+). Page the
+        # sorted metadata locally; only one bounded page reaches the model.
+        if cursor is not None and (not cursor.isdecimal() or len(cursor) > 8):
+            raise ChannelDirectoryUnsupported("Use the channel-list cursor returned by this bot")
+        async with self._client() as client:
+            response = await client.get(
+                f"{self._server(api_base_url)}/api/v4/users/me/channels",
+                headers=self._headers(bot_token),
+            )
+            response.raise_for_status()
+        needle = query.casefold()
+        rows = sorted(
+            (
+                row
+                for row in _JOINED_CHANNELS.validate_json(response.content)
+                if row.type in {"O", "P"}
+                and not row.delete_at
+                and (
+                    needle in row.display_name.casefold()
+                    or needle in row.name.casefold()
+                    or needle in row.purpose.casefold()
+                )
+            ),
+            key=lambda row: row.id,
+        )
+        start = int(cursor or "0")
+        found = tuple(
+            ChannelSummary(
+                channel_id=row.id,
+                name=row.display_name or row.name,
+                purpose=row.purpose or None,
+                is_private=row.type == "P",
+            )
+            for row in rows[start : start + limit]
+        )
+        return ChannelListPage(found, str(start + limit) if start + limit < len(rows) else None)
+
+    async def require_joined_channel(
+        self, bot_token: str, channel_id: str, *, api_base_url: str | None
+    ) -> None:
+        async with self._client() as client:
+            response = await client.get(
+                f"{self._server(api_base_url)}/api/v4/channels/{channel_id}/members/me",
+                headers=self._headers(bot_token),
+            )
+            response.raise_for_status()
+            if _ChannelMembership.model_validate_json(response.content).channel_id != channel_id:
+                raise ChannelDirectoryUnsupported("The bot is not a member of this channel")
+
+    async def require_channel_thread(
+        self, bot_token: str, channel_id: str, thread_id: str, *, api_base_url: str | None
+    ) -> None:
+        async with self._client() as client:
+            response = await client.get(
+                f"{self._server(api_base_url)}/api/v4/posts/{thread_id}",
+                headers=self._headers(bot_token),
+            )
+            response.raise_for_status()
+            post = _ChannelThreadRoot.model_validate_json(response.content)
+            if post.channel_id != channel_id or post.id != thread_id or post.root_id:
+                raise ChannelDirectoryUnsupported("Choose a root message in the selected channel")
+
     async def channel_details(
         self, bot_token: str, channel_id: str, *, api_base_url: str | None
     ) -> ChannelDetails:
@@ -845,6 +1035,142 @@ class MattermostAdapter(ChannelAdapter):
             for entry in found.json()[:limit]
         ]
 
+    async def channel_history_page(
+        self,
+        bot_token: str,
+        channel_id: str,
+        *,
+        api_base_url: str | None,
+        limit: int,
+        thread_id: str | None,
+        filters: HistoryQuery,
+    ) -> HistoryPage:
+        """Search the bound room, then continue with native message-ID paging.
+
+        Search's page/per_page works only with Elasticsearch. Use its first
+        bounded result as a time/query anchor, then native history for older pages.
+        Exact filters and destination checks apply to every returned post.
+        """
+        base = self._server(api_base_url)
+        headers = self._headers(bot_token)
+        searched = False
+        async with self._client() as client:
+            if thread_id:
+                params: dict[str, str | int] = {"perPage": min(200, limit + 1), "direction": "up"}
+                if filters.cursor is not None:
+                    anchor_response = await client.get(
+                        f"{base}/api/v4/posts/{filters.cursor}", headers=headers
+                    )
+                    anchor_response.raise_for_status()
+                    anchor = _HistoryPost.model_validate(anchor_response.json())
+                    if anchor.channel_id != channel_id or (
+                        filters.cursor != thread_id and anchor.root_id != thread_id
+                    ):
+                        raise ChannelDirectoryUnsupported(
+                            "The history cursor no longer belongs to this thread."
+                        )
+                    params["fromPost"] = filters.cursor
+                    params["fromCreateAt"] = anchor.create_at
+                else:
+                    upper = filters.before or datetime.now(UTC)
+                    params["fromCreateAt"] = math.ceil(upper.timestamp() * 1000)
+                response = await client.get(
+                    f"{base}/api/v4/posts/{thread_id}/thread", headers=headers, params=params
+                )
+            elif filters.cursor is None and (filters.query or filters.before is not None):
+                searched = True
+                channel = await client.get(f"{base}/api/v4/channels/{channel_id}", headers=headers)
+                channel.raise_for_status()
+                details = _HistoryChannel.model_validate(channel.json())
+                if not details.team_id:
+                    raise ChannelDirectoryUnsupported(
+                        "Indexed history search is unavailable in this direct conversation. "
+                        "Use cursor='start' and continue native pages instead."
+                    )
+                # Search syntax never comes from the question. Text is reduced
+                # to literal word tokens; returned destination IDs are checked too.
+                words = re.findall(r"[^\W_]+", filters.query, re.UNICODE)
+                terms = [f"in:{details.name}", *(f'"{word}"' for word in words)]
+                if filters.query and not words:
+                    raise ChannelDirectoryUnsupported("Search needs at least one letter or number.")
+                if filters.after is not None:
+                    terms.append(
+                        f"after:{(filters.after.astimezone(UTC) - timedelta(days=1)).date()}"
+                    )
+                if filters.before is not None:
+                    terms.append(
+                        f"before:{(filters.before.astimezone(UTC) + timedelta(days=1)).date()}"
+                    )
+                response = await client.post(
+                    f"{base}/api/v4/teams/{details.team_id}/posts/search",
+                    headers=headers,
+                    json={"terms": " ".join(terms), "is_or_search": False, "time_zone_offset": 0},
+                )
+            else:
+                params = {"per_page": limit}
+                if filters.cursor is not None:
+                    params["before"] = filters.cursor
+                response = await client.get(
+                    f"{base}/api/v4/channels/{channel_id}/posts", headers=headers, params=params
+                )
+            response.raise_for_status()
+            payload = _HistoryPayload.model_validate(response.json())
+        # Mattermost repeats the root on partial pages; it is an oldest boundary
+        # only when the provider confirms that no older replies were omitted.
+        complete_thread = thread_id is not None and payload.has_next is False
+        available = sorted(
+            (
+                (post_id, post)
+                for post_id, post in payload.posts.items()
+                if post_id in payload.order
+                and post.channel_id == channel_id
+                and (thread_id is None or post_id == thread_id or post.root_id == thread_id)
+                and post_id != filters.cursor
+                and (
+                    complete_thread
+                    or thread_id is None
+                    or post_id != thread_id
+                    or not any(key != thread_id and key != filters.cursor for key in payload.posts)
+                )
+            ),
+            key=lambda item: (item[1].create_at, item[0]),
+            reverse=True,
+        )
+        ordered = available[:limit]
+        posts = [
+            ChannelPost(
+                author=post.user_id or "unknown",
+                author_id=post.user_id or None,
+                text=post.message,
+                posted_at=datetime.fromtimestamp(post.create_at / 1000, UTC),
+                post_id=post_id,
+            )
+            for post_id, post in ordered
+            if not post.type.startswith("system_")
+        ]
+        cursor = (
+            ordered[-1][0]
+            if ordered
+            and (
+                searched
+                or len(available) > limit
+                or (not complete_thread and len(ordered) == limit)
+                or (thread_id is not None and not complete_thread and ordered[-1][0] != thread_id)
+            )
+            else None
+        )
+        if (
+            ordered
+            and filters.after is not None
+            and ordered[-1][1].create_at <= filters.after.timestamp() * 1000
+        ):
+            cursor = None
+        return HistoryPage(
+            posts=tuple(reversed([post for post in posts if filters.includes(post)])),
+            scanned=len(ordered),
+            cursor=cursor,
+        )
+
     async def channel_history(
         self,
         bot_token: str,
@@ -862,10 +1188,9 @@ class MattermostAdapter(ChannelAdapter):
         thread, "summarise what we decided above" summarised the rest of the room
         (#1353).
 
-        Both endpoints answer the same `{order, posts}` shape, so the reversal and
-        the system-message filter below serve either. `order` comes back newest
-        first, and a model reading a conversation top to bottom wants it the way a
-        person would.
+        Both endpoints answer `{order, posts}`, but the thread order is not
+        reliably chronological and its paging parameters differ. Sort by creation
+        time and enforce the requested bound locally as well as at the API.
         """
         base_url = self._server(api_base_url)
         headers = self._headers(bot_token)
@@ -878,17 +1203,20 @@ class MattermostAdapter(ChannelAdapter):
             response = await client.get(
                 url,
                 headers=headers,
-                params={"per_page": limit},
+                params=(
+                    {
+                        "perPage": limit,
+                        "fromCreateAt": int(datetime.now(UTC).timestamp() * 1000),
+                        "direction": "up",
+                    }
+                    if thread_id
+                    else {"per_page": limit}
+                ),
             )
             response.raise_for_status()
             payload = response.json()
             posts = payload.get("posts") or {}
-            order = [
-                post_id
-                for post_id in reversed(payload.get("order") or [])
-                # "somebody joined the channel" is not what was said in it.
-                if not str((posts.get(post_id) or {}).get("type") or "").startswith("system_")
-            ]
+            order = _recent_post_ids(posts, payload.get("order") or [], limit)
             if not order:
                 return []
 
@@ -941,16 +1269,20 @@ class MattermostAdapter(ChannelAdapter):
             response = await client.get(
                 f"{base_url}/api/v4/posts/{thread_id}/thread",
                 headers=self._headers(bot_token),
-                params={"per_page": limit},
+                params={
+                    "perPage": limit,
+                    "fromCreateAt": int(datetime.now(UTC).timestamp() * 1000),
+                    "direction": "up",
+                },
             )
             response.raise_for_status()
             payload = response.json()
 
         posts = payload.get("posts") or {}
         found: list[IncomingAttachment] = []
-        # `order` is newest first, like every Mattermost listing; reversed so the
-        # caller's "keep the last few" keeps the most recent, not the oldest.
-        for post_id in reversed(payload.get("order") or []):
+        # Thread endpoints can return more posts than requested, in arbitrary
+        # order. Bound the scan and retain chronological attachment selection.
+        for post_id in _recent_post_ids(posts, payload.get("order") or [], limit):
             post = posts.get(post_id) or {}
             props = post.get("props") or {}
             # Its own uploads: a chart it drew, a file it returned. Feeding those
@@ -992,7 +1324,9 @@ class MattermostAdapter(ChannelAdapter):
             ),
         )
 
-    async def _own_user_id(self, bot_id: str, bot_token: str) -> str | None:
+    async def _own_user_id(
+        self, bot_id: str, bot_token: str, *, api_base_url: str | None = None
+    ) -> str | None:
         """Which Mattermost account this bot *is*, so a mention of it is legible.
 
         Resolved once per stream session rather than per message, and stored beside
@@ -1001,7 +1335,7 @@ class MattermostAdapter(ChannelAdapter):
         is the behaviour a bot had before this existed - answering too much is a
         worse failure than answering too little only where somebody chose it.
         """
-        base_url = self._base_urls.get(bot_id)
+        base_url = api_base_url or self._base_urls.get(bot_id)
         if not base_url:
             return None
         try:
@@ -1113,15 +1447,15 @@ class MattermostAdapter(ChannelAdapter):
             payload = json.loads(frame)
         except json.JSONDecodeError, TypeError:
             return
-        if payload.get("event") != "posted":
+        if payload.get("event") not in {"posted", "post_edited"}:
             return
 
         incoming = self.parse_incoming(payload, bot_id)
         if incoming is None:
             return
-        router = ChannelMessageRouter()
-        async with get_db_context() as db:
-            await router.route(incoming, db)
+        from app.services.channels.ingress import admit_message
+
+        await admit_message(incoming)
 
     async def register_webhook(self, bot_token: str, url: str, secret: str | None) -> bool:
         """Mattermost has no API for this: outgoing webhooks are created in its
@@ -1160,7 +1494,7 @@ class MattermostAdapter(ChannelAdapter):
         under `data.post`, the webhook is flat - and everything downstream is
         shared, so the difference stops here.
         """
-        if raw_payload.get("event") == "posted":
+        if raw_payload.get("event") in {"posted", "post_edited"}:
             return self._from_socket(raw_payload, bot_id)
         return self._from_webhook(raw_payload, bot_id)
 
@@ -1169,6 +1503,9 @@ class MattermostAdapter(ChannelAdapter):
         try:
             post = json.loads(data.get("post", "{}"))
         except json.JSONDecodeError, TypeError:
+            return None
+
+        if str(post.get("type") or "").startswith("system_"):
             return None
 
         # A bot's own posts come back down the same socket. Answering them is an
@@ -1187,6 +1524,21 @@ class MattermostAdapter(ChannelAdapter):
         # "D" is Mattermost's direct-message channel type; anything else is a
         # channel somebody put the bot in.
         channel_type = str(data.get("channel_type") or "")
+        addressed = self._direct_addressed(data, bot_id, text)
+        if payload.get("event") == "post_edited":
+            # Edit events need not repeat the original mention metadata. Only
+            # an explicit mention of this known bot may become a new request;
+            # the router's shared receipt admits previously ignored posts only.
+            own = self._own_names.get(bot_id)
+            if (
+                channel_type == "D"
+                or not own
+                or not re.search(
+                    rf"(?<!\w)@{re.escape(own)}(?![\w.-])", mentionable_text(text), re.I
+                )
+            ):
+                return None
+            addressed = True
 
         return IncomingMessage(
             platform=self.platform,
@@ -1208,7 +1560,7 @@ class MattermostAdapter(ChannelAdapter):
             message_id=post.get("id"),
             attachments=attachments,
             broadcast_mention=broadcast_mentioned(self.platform, text),
-            addressed=self._direct_addressed(data, bot_id, text),
+            addressed=addressed,
         )
 
     def _direct_addressed(self, data: dict[str, Any], bot_id: str, text: str) -> bool | None:

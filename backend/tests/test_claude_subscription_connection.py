@@ -1,6 +1,7 @@
 """Only the direct signed-in owner can reach a native subscription connection."""
 
 import json
+from base64 import b64decode
 from dataclasses import replace
 from unittest.mock import AsyncMock
 from uuid import uuid4
@@ -9,7 +10,7 @@ import httpx
 import pytest
 from pydantic import SecretStr, ValidationError
 
-from app.core.claude_subscription import ClaudeSubscriptionOwner
+from app.core.claude_subscription import ClaudeSubscriptionImage, ClaudeSubscriptionOwner
 from app.core.config import settings
 from app.core.exceptions import (
     AuthorizationError,
@@ -32,6 +33,22 @@ from app.services.claude_subscription import (
 from app.services.claude_subscription._client import ClaudeRuntimeError
 
 pytestmark = [pytest.mark.anyio, pytest.mark.security]
+
+
+@pytest.mark.parametrize("body", [b"not-json", b"\xff"])
+async def test_unreadable_runtime_error_body_returns_a_safe_application_error(
+    configured,
+    body: bytes,
+) -> None:
+    runtime = ClaudeSubscriptionRuntime(
+        transport=httpx.MockTransport(lambda request: httpx.Response(502, content=body))
+    )
+    with pytest.raises(ExternalServiceError) as refused:
+        await runtime.status(subscription_owner(_ctx()))
+    assert refused.value.code == "CLAUDE_RUNTIME_FAILED"
+    assert refused.value.message == (
+        "The Claude subscription request did not complete; reconnect or try again shortly"
+    )
 
 
 def _ctx():
@@ -356,3 +373,55 @@ def test_native_current_and_legacy_authorization_pages(url):
     from app.schemas.claude_subscription import ClaudeSubscriptionRead
 
     assert ClaudeSubscriptionRead(available=True, authorization_url=url).authorization_url == url
+
+
+async def test_inference_preserves_inline_image_bytes_and_false_thinking(configured):
+    requests = []
+
+    def respond(request):
+        requests.append(request)
+        return httpx.Response(
+            200,
+            json={
+                "structured_output": {"text": "Ready", "tool_calls": []},
+                "usage": {
+                    "input_tokens": 1,
+                    "output_tokens": 1,
+                    "cache_read_input_tokens": 0,
+                    "cache_creation_input_tokens": 0,
+                },
+                "model": "claude-test",
+            },
+        )
+
+    runtime = ClaudeSubscriptionRuntime(transport=httpx.MockTransport(respond))
+    image = ClaudeSubscriptionImage(media_type="image/png", data=b"\x89PNG\r\n\x1a\n")
+    owner = subscription_owner(_ctx())
+    await runtime.infer(
+        owner, model="opus", prompt="[image:1]", output_schema={}, images=[image], thinking=False
+    )
+    body = json.loads(requests[0].content)
+    assert body["thinking"] is False
+    assert body["user_id"] == str(owner.user_id)
+    assert body["images"][0]["media_type"] == image.media_type
+    assert b64decode(body["images"][0]["data"], validate=True) == image.data
+
+
+@pytest.mark.parametrize("raw_size,prompt_size", [(800_000, 1), (500_000, 500_000)])
+async def test_total_image_request_limit_accounts_for_base64_expansion(
+    configured, raw_size, prompt_size
+):
+    runtime = ClaudeSubscriptionRuntime(
+        transport=httpx.MockTransport(
+            lambda request: pytest.fail("An oversized image request must never reach the runtime")
+        )
+    )
+    image = ClaudeSubscriptionImage(media_type="image/jpeg", data=b"x" * raw_size)
+    with pytest.raises(BadRequestError, match="request is too large"):
+        await runtime.infer(
+            subscription_owner(_ctx()),
+            model="opus",
+            prompt="p" * prompt_size,
+            output_schema={},
+            images=[image],
+        )

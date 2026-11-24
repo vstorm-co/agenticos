@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
+import { useMotionStore } from "@/stores/motion-store";
+
 import { ADVANCE_MS, DiscoverTips } from "./discover-tips";
 
 const data = vi.hoisted(() => ({ perms: new Set<string>() }));
@@ -14,6 +16,7 @@ const EVERYTHING = ["agents:edit", "artifacts:view", "channels:manage"];
 
 beforeEach(() => {
   window.localStorage.clear();
+  useMotionStore.setState({ motion: "system" });
   data.perms = new Set(EVERYTHING);
 });
 
@@ -149,14 +152,57 @@ describe("the dashboard's discover tips", () => {
     vi.useRealTimers();
   });
 
+  it.each(["touchEnd", "touchCancel"] as const)(
+    "pauses during touch and resumes after %s only once focus leaves too",
+    (release) => {
+      vi.useFakeTimers();
+      Element.prototype.scrollTo = vi.fn();
+      render(<DiscoverTips />);
+      const first = screen.getAllByRole("article")[0]!;
+      const strip = first.parentElement!;
+      const link = within(first).getByRole("link");
+      fireEvent.touchStart(strip);
+      act(() => vi.advanceTimersByTime(ADVANCE_MS * 2));
+      expect(first).toHaveAttribute("data-lit", "true");
+      fireEvent.focus(link);
+      fireEvent[release](strip);
+      fireEvent.mouseEnter(strip);
+      fireEvent.mouseLeave(strip);
+      act(() => vi.advanceTimersByTime(ADVANCE_MS * 2));
+      expect(first).toHaveAttribute("data-lit", "true");
+      const nextLink = within(screen.getAllByRole("article")[1]!).getByRole("link");
+      fireEvent.blur(link, { relatedTarget: nextLink });
+      fireEvent.focus(nextLink);
+      act(() => vi.advanceTimersByTime(ADVANCE_MS));
+      expect(first).toHaveAttribute("data-lit", "true");
+      fireEvent.blur(nextLink);
+      act(() => vi.advanceTimersByTime(ADVANCE_MS));
+      expect(screen.getAllByRole("article")[1]).toHaveAttribute("data-lit", "true");
+      vi.useRealTimers();
+    },
+  );
+
   it("does not move for a reader who asked for less motion", () => {
     vi.useFakeTimers();
-    const desk = window.matchMedia;
-    window.matchMedia = ((query: string) => ({ matches: true, media: query })) as never;
+    useMotionStore.setState({ motion: "reduce" });
     render(<DiscoverTips />);
     act(() => vi.advanceTimersByTime(ADVANCE_MS * 3));
     expect(screen.getAllByRole("article").findIndex((tile) => tile.dataset.lit === "true")).toBe(0);
-    window.matchMedia = desk;
+    vi.useRealTimers();
+  });
+
+  it("stops an existing carousel immediately when motion is reduced", () => {
+    vi.useFakeTimers();
+    Element.prototype.scrollTo = vi.fn();
+    render(<DiscoverTips />);
+    act(() => vi.advanceTimersByTime(ADVANCE_MS));
+    expect(screen.getAllByRole("article")[1]).toHaveAttribute("data-lit", "true");
+    act(() => useMotionStore.setState({ motion: "reduce" }));
+    act(() => vi.advanceTimersByTime(ADVANCE_MS * 2));
+    expect(screen.getAllByRole("article")[1]).toHaveAttribute("data-lit", "true");
+    act(() => useMotionStore.setState({ motion: "full" }));
+    act(() => vi.advanceTimersByTime(ADVANCE_MS));
+    expect(screen.getAllByRole("article")[2]).toHaveAttribute("data-lit", "true");
     vi.useRealTimers();
   });
 

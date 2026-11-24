@@ -1,15 +1,20 @@
 "use client";
 
+import {
+  WorkflowRunLoading,
+  WORKFLOW_RUN_LAYOUT,
+  WORKFLOW_RUN_PANELS,
+} from "@/components/workflows/workflow-run-loading";
+
 import { use, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useConsoleRouter as useRouter } from "@/hooks/use-console-router";
 import {
   AlertTriangle,
   Bug,
   CircleDollarSign,
   Clock,
   ListChecks,
-  RotateCcw,
   ScrollText,
   Square,
 } from "lucide-react";
@@ -33,10 +38,14 @@ import {
   WorkflowCanvas,
 } from "@/components/workflows/canvas";
 import { NodeEditorDialog } from "@/components/workflows/node-editor";
+import { WorkflowRunQuestions } from "@/components/workflows/runs/run-questions";
 import { RunAnswer } from "@/components/workflows/runs/run-answer";
 import { outcomeLabels } from "@/components/workflows/logs/outcome-labels";
 import { StepLogs } from "@/components/workflows/logs/step-logs";
+import { SetAsideSteps } from "@/components/workflows/runs/set-aside-steps";
 import { RunFiles } from "@/components/workflows/runs/run-files";
+import { MediaOperationStatus } from "@/components/workflows/runs/media-operation-status";
+import { RunRetryButton } from "@/components/workflows/runs/run-retry-button";
 import { ReplyExpectationControl } from "@/components/workflows/runs/reply-expectation-control";
 import { StepAttentionDialog } from "@/components/workflows/runs/step-attention-dialog";
 import { NodeRunStatusLabel, WorkflowRunStatusBadge } from "@/components/workflows/runs/run-status";
@@ -47,10 +56,12 @@ import {
   useWorkflow,
   useWorkflowRun,
 } from "@/hooks";
+import { ErrorState } from "@/components/states";
+import { getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
 import { formatRunCostUsd, formatDateTime, formatRunDuration } from "@/lib/utils";
 import { routesErrors } from "@/lib/workflows/ports";
-import { stepDataOf } from "@/lib/workflows/step-data";
+import { iterationDataOf, iterationOf, stepDataOf, stepsTaken } from "@/lib/workflows/step-data";
 import {
   isRunRetryable,
   isRunTerminal,
@@ -79,11 +90,30 @@ export default function WorkflowRunPage({ params }: PageProps) {
   const { id, runId } = use(params);
   const t = useTranslations("pages.workflows");
   const locale = useLocale();
-  const { workflow } = useWorkflow(id);
-  const { nodes: catalog, isLoading: catalogLoading } = useNodeCatalog();
+  const common = useTranslations("common");
+  const errors = useTranslations("errors");
+  const { workflow, error: workflowError, refetch: refetchWorkflow } = useWorkflow(id);
+  const {
+    nodes: catalog,
+    isLoading: catalogLoading,
+    error: catalogError,
+    refetch: refetchCatalog,
+  } = useNodeCatalog();
   const router = useRouter();
-  const { run, isLoading, nodes, files, logs, logsError, graph, cancel, retry, resolveStep } =
-    useWorkflowRun(runId);
+  const {
+    run,
+    isLoading,
+    error: readError,
+    refetch,
+    nodes,
+    files,
+    logs,
+    logsError,
+    graph,
+    cancel,
+    retry,
+    resolveStep,
+  } = useWorkflowRun(runId);
   const [resolving, setResolving] = useState<string | null>(null);
   const { can } = usePermissions();
   const inspectNode = useWorkflowEditorStore((state) => state.editNode);
@@ -91,6 +121,7 @@ export default function WorkflowRunPage({ params }: PageProps) {
   const seedGraph = useWorkflowEditorStore((state) => state.seedGraph);
   const teardown = useWorkflowEditorStore((state) => state.teardown);
   const mergeStepData = useWorkflowEditorStore((state) => state.mergeStepData);
+  const setIterationData = useWorkflowEditorStore((state) => state.setIterationData);
   const seeded = useRef<string | null>(null);
 
   useEffect(() => {
@@ -107,10 +138,13 @@ export default function WorkflowRunPage({ params }: PageProps) {
     },
     [teardown],
   );
-  // What each step handed on in this run, for a step's Input and Output.
+  // What each step handed on in this run, for a step's Input and Output - per
+  // loop iteration for a step opened from its row in the list.
   useEffect(() => {
-    if (graph !== null) mergeStepData(stepDataOf(runId, nodes));
-  }, [graph, runId, nodes, mergeStepData]);
+    if (graph === null) return;
+    mergeStepData(stepDataOf(runId, nodes));
+    setIterationData(iterationDataOf(runId, nodes));
+  }, [graph, runId, nodes, mergeStepData, setIterationData]);
 
   const summaries = useMemo(() => summarizeNodeRuns(nodes), [nodes]);
   const live = run !== null && !isRunTerminal(run.status);
@@ -146,20 +180,34 @@ export default function WorkflowRunPage({ params }: PageProps) {
         );
   };
 
+  const loadError = workflowError ?? catalogError ?? readError;
+  if (loadError) {
+    return (
+      <ErrorState
+        description={getErrorMessage(loadError, errors)}
+        cta={{
+          label: common("retry"),
+          onClick: () => {
+            if (workflowError) void refetchWorkflow();
+            if (catalogError) void refetchCatalog();
+            if (readError) void refetch();
+          },
+        }}
+      />
+    );
+  }
+
   // As the editor does, the canvas waits for the catalog its cards are drawn from.
   if (isLoading || catalogLoading || run === null || !workflow) {
-    return (
-      <div className="flex min-h-0 flex-1 flex-col gap-4">
-        <Skeleton className="h-8 w-64" />
-        <Skeleton className="h-96 w-full" />
-      </div>
-    );
+    return <WorkflowRunLoading />;
   }
 
   // The typed `WorkflowError` the run recorded - its own words, never an exception's.
   const problem = run.error;
   const title = t("runTitle", { id: shortNodeId(run.id) });
   const stepsRun = nodes.filter((node) => node.status === "succeeded").length;
+  // The canvas shows every step, a skipped one faded; the list holds the steps the run took.
+  const listed = stepsTaken(nodes);
   const resolvingNode = nodes.find((node) => node.id === resolving) ?? null;
   const resolvingInstance = graph?.nodes.find(
     (entry) => entry.id === resolvingNode?.node_instance_id,
@@ -172,7 +220,7 @@ export default function WorkflowRunPage({ params }: PageProps) {
     Date.parse(node.ended_at) > Date.parse(run.ended_at);
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-4">
+    <div className={WORKFLOW_RUN_LAYOUT}>
       <PageHeader
         title={workflow?.name ?? title}
         description={run.mode === "test" ? t("runTestDescription") : t("runRealDescription")}
@@ -219,19 +267,27 @@ export default function WorkflowRunPage({ params }: PageProps) {
             </Button>
             {isRunRetryable(run.status) &&
               can(Perm.workflowsRun) &&
-              (run.mode === "real" || workflow.can_edit) && (
-                <Button
-                  disabled={retry.isPending}
-                  onClick={() =>
+              (run.mode === "real" || workflow.can_edit) &&
+              (run.status !== "cancelled" || run.can_cancel) && (
+                <RunRetryButton
+                  runId={run.id}
+                  hasMedia={
+                    graph === null
+                      ? null
+                      : graph.nodes.some(
+                          (node) =>
+                            node.definition_id === "image.generate" ||
+                            node.definition_id === "video.generate",
+                        )
+                  }
+                  busy={retry.isPending}
+                  onRetry={() =>
                     retry.mutate(undefined, {
                       onSuccess: (started) =>
                         router.push(ROUTES.WORKFLOW_RUN_DETAIL(id, started.id)),
                     })
                   }
-                >
-                  <RotateCcw className="h-4 w-4" />
-                  {t("runRetry")}
-                </Button>
+                />
               )}
           </>
         }
@@ -266,7 +322,7 @@ export default function WorkflowRunPage({ params }: PageProps) {
           {
             icon: Clock,
             label: t("runDuration"),
-            value: formatRunDuration(run.started_at, run.ended_at),
+            value: formatRunDuration(run.started_at, run.ended_at, locale),
           },
           {
             icon: CircleDollarSign,
@@ -278,7 +334,7 @@ export default function WorkflowRunPage({ params }: PageProps) {
           {
             icon: ListChecks,
             label: t("runSteps"),
-            value: t("runStepsOf", { done: stepsRun, count: nodes.length }),
+            value: t("runStepsOf", { done: stepsRun, count: listed.length }),
           },
         ].map(({ icon: Icon, label, value, caption }) => (
           <div key={label} className="flex min-w-0 items-center gap-3 px-3 py-3 sm:px-5 sm:py-4">
@@ -320,7 +376,11 @@ export default function WorkflowRunPage({ params }: PageProps) {
         </Alert>
       )}
 
-      <div className="grid min-h-[34rem] flex-1 gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]">
+      {live && nodes.some((node) => node.status === "waiting") && (
+        <WorkflowRunQuestions runId={run.id} />
+      )}
+
+      <div className={WORKFLOW_RUN_PANELS}>
         <div className="border-border bg-card min-h-[28rem] overflow-hidden rounded-xl border lg:min-h-0">
           {graph === null ? (
             <Skeleton className="h-full w-full" />
@@ -333,9 +393,11 @@ export default function WorkflowRunPage({ params }: PageProps) {
             <NodeEditorDialog workflowId={id} catalog={catalog} readOnly runData />
           )}
         </div>
+        {/* Size containment: a long step list scrolls in its tab rather than
+            growing the row, and the canvas beside it with it. */}
         <Tabs
           defaultValue="steps"
-          className="bg-card flex min-h-0 flex-col overflow-hidden rounded-xl border"
+          className="bg-card flex min-h-0 flex-col overflow-hidden rounded-xl border lg:[contain:size]"
         >
           <div className="shrink-0 border-b px-3 pt-3">
             <TabsList>
@@ -365,22 +427,28 @@ export default function WorkflowRunPage({ params }: PageProps) {
               </p>
             )}
             <ul className="divide-border divide-y">
-              {nodes.map((node, index) => (
+              {listed.map((node, index) => (
                 <li key={node.id} className="space-y-0.5 py-2">
                   <button
                     type="button"
                     className="hover:bg-muted/50 focus-visible:ring-ring flex w-full items-center justify-between gap-2 rounded-lg px-2 py-2 text-left outline-none focus-visible:ring-2"
-                    onClick={() => inspectNode(node.node_instance_id)}
+                    onClick={() => inspectNode(node.node_instance_id, iterationOf(node))}
                   >
                     <span className="min-w-0">
                       <span className="block truncate text-sm font-medium">
                         {nameOf(node.node_instance_id)}
                       </span>
                       <span className="text-muted-foreground mt-1 block text-xs tabular-nums">
-                        {formatRunDuration(node.started_at, node.ended_at)}
+                        {formatRunDuration(node.started_at, node.ended_at, locale)}
                       </span>
                     </span>
-                    <NodeRunStatusLabel status={node.status} />
+                    <NodeRunStatusLabel
+                      status={node.status}
+                      switchedOff={
+                        graph?.nodes.find((step) => step.id === node.node_instance_id)?.disabled ===
+                        true
+                      }
+                    />
                   </button>
                   {(finishedLate(node) ||
                     (live && node.status === "needs_attention" && run.can_cancel)) && (
@@ -418,13 +486,16 @@ export default function WorkflowRunPage({ params }: PageProps) {
                     />
                   )}
                   {node.error && <StepProblem problem={node.error} />}
+                  {node.media_operation != null && (
+                    <MediaOperationStatus operation={node.media_operation} />
+                  )}
                   <CalledRun
                     config={graph?.nodes.find((entry) => entry.id === node.node_instance_id)}
                     output={node.output}
                   />
                   {/* A step's lines are one list, under its first row - a loop's
                         iterations are rows of the same step. */}
-                  {nodes.findIndex((entry) => entry.node_instance_id === node.node_instance_id) ===
+                  {listed.findIndex((entry) => entry.node_instance_id === node.node_instance_id) ===
                     index && (
                     <StepLogs
                       entries={logs.filter(
@@ -435,6 +506,11 @@ export default function WorkflowRunPage({ params }: PageProps) {
                   )}
                 </li>
               ))}
+              <SetAsideSteps
+                graph={graph}
+                nameOf={nameOf}
+                onInspect={(nodeId) => inspectNode(nodeId, [])}
+              />
             </ul>
           </TabsContent>
         </Tabs>

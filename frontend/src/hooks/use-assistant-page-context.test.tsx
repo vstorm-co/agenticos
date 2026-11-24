@@ -57,7 +57,7 @@ describe("the floating assistant's current page", () => {
       expect(JSON.stringify(result.current.getSnapshot())).not.toContain("private-form-value");
       expect(result.current.getSnapshot()).not.toHaveProperty("selected_text");
       act(() => {
-        navigate("/de/runs?token=private-query#secret-fragment");
+        navigate("/en/runs?token=private-query#secret-fragment");
         document.title = "Runs";
       });
       rerender();

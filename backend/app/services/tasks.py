@@ -1,6 +1,7 @@
 """Durable tasks backed by scoped Virtual Tables, with transactional lifecycle hooks."""
 
 from contextvars import ContextVar
+from typing import Literal
 from uuid import UUID, uuid5
 
 from pydantic import ValidationError
@@ -11,7 +12,9 @@ from app.core.permissions import AuthContext, Perm
 from app.db.locks import LockScope, hold_subject
 from app.db.models.task_board import TaskBoard, TaskLink
 from app.db.models.virtual_table import VirtualTableRecord
+from app.db.table_rls import bind_table_access
 from app.repositories import (
+    agent_repo,
     conversation_repo,
     group_repo,
     member_repo,
@@ -31,6 +34,8 @@ from app.schemas.task import (
     TaskUpdate,
 )
 from app.schemas.virtual_table import (
+    MAX_LABEL,
+    CellValue,
     ColumnDef,
     RecordCreate,
     RecordFilter,
@@ -51,6 +56,54 @@ class TaskService:
         self.db = db
         self.tables = VirtualTableService(db)
 
+    async def record_may_schedule_agent_work(
+        self,
+        ctx: AuthContext,
+        table_id: UUID,
+        values: dict[str, CellValue],
+        *,
+        operation: Literal["add", "update", "upsert"],
+        record_id: UUID | None = None,
+        expected_revision: int | None = None,
+    ) -> bool:
+        """Point-read authorized task state; the mutation still checks its revision.
+
+        An upsert may recreate a concurrently deleted row, so only an explicitly
+        non-agent post-state is safe without asking. Published table automations
+        are already authorized and do not change this task-specific decision.
+        """
+        table = await self.tables.describe_table(ctx, table_id)
+        if not table.can_edit:
+            raise AuthorizationError(message="This table cannot be edited")
+        board = await task_repo.for_table(self.db, table_id, ctx.organization_id)
+        if board is None:
+            return False
+        if operation == "upsert":
+            return not (
+                values.get(board.column_ids["next_actor"]) == board.status_ids["actor:user"]
+                or values.get(board.column_ids["status"])
+                in {
+                    board.status_ids[status]
+                    for status in ("done", "cancelled", "waiting_for_user", "blocked")
+                }
+            )
+        cells: dict[str, object]
+        if operation == "add":
+            cells = {str(column.id): column.default for column in table.columns}
+        else:
+            if record_id is None or expected_revision is None:
+                return True
+            record = await task_repo.record(self.db, record_id, ctx.organization_id)
+            if (
+                record is None
+                or record.table_id != table_id
+                or record.revision != expected_revision
+            ):
+                return True
+            cells = dict(record.values)
+        cells.update(values)
+        return task_may_schedule_agent_work(from_cells(board, cells))
+
     async def require_no_agent_execution(self, ctx: AuthContext, agent_id: UUID) -> None:
         """Keep deleting an agent from silently discarding a task's scheduled work."""
         if await task_repo.has_agent_execution(self.db, ctx.organization_id, agent_id):
@@ -67,6 +120,12 @@ class TaskService:
         from app.services.task_execution import TaskExecution
 
         if organization_id is not None:
+            # The owning group/project service resolved this organization before
+            # deleting its scope. Global account teardown uses the maintenance
+            # connection and leaves organization_id unset.
+            await bind_table_access(
+                self.db, AuthContext(user_id=None, organization_id=organization_id, role="")
+            )
             await hold_subject(
                 self.db, LockScope.TASK_BOARD, uuid5(organization_id, f"{kind}:{scope_id}")
             )
@@ -83,15 +142,22 @@ class TaskService:
             if table is None:
                 continue
             await TaskExecution(self.db).purge_board(board)
+            await self.tables.release_links_to(
+                organization_id=board.organization_id, table_id=board.table_id
+            )
             await resource_grant_repo.delete_for_resource(
                 self.db,
                 organization_id=board.organization_id,
                 resource_type="table",
                 resource_id=board.table_id,
             )
+            await virtual_table_repo.delete_receipts_for_table(
+                self.db, organization_id=board.organization_id, table_id=board.table_id
+            )
             await task_repo.purge_table(self.db, board)
 
     async def ensure_board(self, ctx: AuthContext, data: BoardEnsure) -> TaskBoard:
+        await bind_table_access(self.db, ctx)
         scope_id = data.scope_id
         if data.scope == "private":
             scope_id = scope_id or ctx.user_id
@@ -105,6 +171,14 @@ class TaskService:
             await hold_subject(self.db, LockScope.PERSONAL_DATA_PER_USER, scope_id)
             if await user_repo.get_by_id(self.db, scope_id) is None:
                 raise NotFoundError(message="Task scope not found")
+        # Match deletion's agent -> board lock order and hold the scope alive.
+        if data.scope == "agent" and (
+            await agent_repo.get(
+                self.db, scope_id, organization_id=ctx.organization_id, for_update=True
+            )
+            is None
+        ):
+            raise NotFoundError(message="Task scope not found")
         # The binding, not a person's idempotency receipt: two project members
         # opening Tasks together must get the same board.
         await hold_subject(
@@ -116,10 +190,13 @@ class TaskService:
         if board is not None:
             return board
         scope_name = await self._scope_name(ctx, data.scope, scope_id)
+        table_name = f"Tasks · {(scope_name or data.scope)[:32]} · {scope_id.hex[:12]}"
+        if data.scope == "private":
+            table_name = await self._private_board_name(ctx, scope_name)
         table = await self.tables.create_table(
             ctx,
             TableCreate(
-                name=f"Tasks · {(scope_name or data.scope)[:32]} · {scope_id.hex[:12]}",
+                name=table_name,
                 description="Shared task state for chat, Tables and Inbox. Start at launches work; Due at is the deadline.",
                 visibility="private",
                 columns=task_columns(),
@@ -175,9 +252,15 @@ class TaskService:
                 config=TableViewConfig(group_by=table.columns[1].id),
             ),
         )
-        from app.schemas.virtual_table import TableUpdate
-
-        await self.tables.update_table(ctx, table.id, TableUpdate(default_view_id=default_view.id))
+        # The board row already exists here, and the person creating it need not be one
+        # who may change it later, so the default view is set as part of creating it.
+        created = await virtual_table_repo.get_table(
+            self.db, table.id, organization_id=ctx.organization_id, for_update=True
+        )
+        assert created is not None
+        await virtual_table_repo.update_table(
+            self.db, table=created, update_data={"default_view_id": default_view.id}
+        )
         views = TableViewService(self.db)
         await views.create_view(
             ctx, table.id, TableViewCreate(name="All tasks", kind="table", visibility="shared")
@@ -240,30 +323,53 @@ class TaskService:
             )
         return board
 
+    async def open_board(self, ctx: AuthContext, data: BoardEnsure) -> TaskBoardRead:
+        """`ensure_board`, answered the way `boards` lists it."""
+        return await self._board_read(ctx, await self.ensure_board(ctx, data))
+
     async def boards(self, ctx: AuthContext) -> list[TaskBoardRead]:
-        result: list[TaskBoardRead] = []
-        for board in await task_repo.boards(self.db, ctx.organization_id):
-            if not await board_allows(self.db, ctx, board, Perm.TABLES_VIEW):
-                continue
-            table = await virtual_table_repo.get_table(
-                self.db, board.table_id, organization_id=ctx.organization_id
-            )
-            editable = (
-                table is not None
-                and table.archived_at is None
-                and await board_allows(self.db, ctx, board, Perm.TABLES_EDIT)
-            )
-            result.append(
-                TaskBoardRead.model_validate(board).model_copy(
-                    update={
-                        "scope_name": await self._scope_name(ctx, board.scope_kind, board.scope_id),
-                        "can_edit": editable,
-                    }
-                )
-            )
-        return result
+        await bind_table_access(self.db, ctx)
+        return [
+            await self._board_read(ctx, board)
+            for board in await task_repo.boards(self.db, ctx.organization_id)
+            if await board_allows(self.db, ctx, board, Perm.TABLES_VIEW)
+        ]
+
+    async def _board_read(self, ctx: AuthContext, board: TaskBoard) -> TaskBoardRead:
+        table = await virtual_table_repo.get_table(
+            self.db, board.table_id, organization_id=ctx.organization_id
+        )
+        editable = (
+            table is not None
+            and table.archived_at is None
+            and await board_allows(self.db, ctx, board, Perm.TABLES_EDIT)
+        )
+        return TaskBoardRead.model_validate(board).model_copy(
+            update={
+                "scope_name": await self._scope_name(ctx, board.scope_kind, board.scope_id),
+                "can_edit": editable,
+            }
+        )
+
+    async def _private_board_name(self, ctx: AuthContext, scope_name: str | None) -> str:
+        person = (scope_name or "").strip() or "My"
+        ending = " Tasks"
+        name = f"{person[: MAX_LABEL - len(ending)].rstrip()}{ending}"
+        # Serialize suffix selection with ordinary table creates and renames.
+        await hold_subject(self.db, LockScope.VIRTUAL_TABLE_NAMES_PER_ORG, ctx.organization_id)
+        suffix = 2
+        while await virtual_table_repo.get_live_table_by_name(
+            self.db, name, organization_id=ctx.organization_id
+        ):
+            ending = f" Tasks ({suffix})"
+            name = f"{person[: MAX_LABEL - len(ending)].rstrip()}{ending}"
+            suffix += 1
+        return name
 
     async def _scope_name(self, ctx: AuthContext, kind: str, scope_id: UUID) -> str | None:
+        if kind == "agent":
+            agent = await agent_repo.get(self.db, scope_id, organization_id=ctx.organization_id)
+            return agent.name if agent else None
         if kind == "project":
             project = await project_repo.get(self.db, scope_id, organization_id=ctx.organization_id)
             return project.name if project else None
@@ -323,6 +429,7 @@ class TaskService:
         return await self.get(ctx, written.record.id)
 
     async def get(self, ctx: AuthContext, task_id: UUID) -> TaskRead:
+        await bind_table_access(self.db, ctx)
         record = await task_repo.record(self.db, task_id, ctx.organization_id)
         if record is None:
             raise NotFoundError(message="Task not found")
@@ -562,6 +669,18 @@ class TaskLifecycle:
             ):
                 raise BadRequestError(message="Choose a person who can access this task's scope")
         await self._schedule(ctx, board, record, link, fields)
+        from app.services.proactive import ProactiveService
+
+        people = {
+            person
+            for person in (
+                fields.assignee_user_id,
+                board.scope_id if board.scope_kind == "private" else None,
+            )
+            if person is not None
+        }
+        for person in people:
+            await ProactiveService(self.db).queue_context_change(ctx.organization_id, person)
 
     async def _schedule(
         self,
@@ -619,3 +738,12 @@ class TaskLifecycle:
                 board.status_ids["actor:agent"],
             } != {str(option.id) for option in column.options if not option.archived}:
                 raise BadRequestError(message="The next-step choices must remain Person and Agent")
+
+
+def task_may_schedule_agent_work(task: TaskFields) -> bool:
+    """The post-state can schedule fresh work, even after an earlier approved run."""
+    return (
+        task.status in {"planned", "in_progress"}
+        and task.next_actor == "agent"
+        and task.assignee_agent_id is not None
+    )

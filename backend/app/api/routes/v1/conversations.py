@@ -6,6 +6,7 @@ from fastapi.responses import StreamingResponse
 
 from app.api.deps import (
     ActiveOrg,
+    AgentRegistrySvc,
     Auth,
     CodingTaskChangeSvc,
     ConversationShareSvc,
@@ -14,30 +15,49 @@ from app.api.deps import (
     CurrentUser,
     MessageRatingSvc,
     ProjectSvc,
+    RoomMessageReactionSvc,
+    RoomParticipantSvc,
+    RoomRoutingSvc,
+    RoomSubmissionSvc,
+    RoomThreadSvc,
     VisualSvc,
     WorkspaceSvc,
+    key_needs,
+    limit_coding_revert,
+    limit_fork,
     require,
 )
+from app.api.public_api import INTERNAL, PUBLIC
 from app.api.responses import content_disposition
 from app.api.routes.v1._artifact_bytes import visual_image_response
 from app.api.routes.v1._workspace_bytes import file_response
-from app.core.exceptions import NotFoundError
+from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.core.permissions import Perm
 from app.schemas.coding_task_change import CodingTaskChangeRead
 from app.schemas.conversation import (
+    ConversationCompactionAvailability,
     ConversationCreate,
+    ConversationForkCreate,
+    ConversationForkList,
     ConversationList,
     ConversationRead,
     ConversationReadWithMessages,
+    ConversationSearchList,
     ConversationUpdate,
     MessageCreate,
     MessageList,
     MessageRead,
+    WaitingChatQuestionList,
+)
+from app.schemas.conversation_search import (
+    MAX_MESSAGE_SEARCH_SNIPPET_LENGTH,
+    ConversationMessageSearchHitRead,
 )
 from app.schemas.conversation_share import (
     ConversationShareCreate,
     ConversationShareList,
     ConversationShareRead,
+    ConversationShareUpdate,
     SharedConversationRead,
 )
 from app.schemas.conversation_task import ConversationTaskRead
@@ -45,15 +65,350 @@ from app.schemas.message_rating import (
     MessageRatingCreate,
     MessageRatingRead,
 )
+from app.schemas.room_participant import (
+    RoomCreate,
+    RoomMentionableList,
+    RoomParticipantAutoReplyUpdate,
+    RoomParticipantRead,
+    RoomParticipantRef,
+    RoomParticipantsRead,
+)
+from app.schemas.room_reaction import RoomMessageReactionCreate, RoomMessageReactionsRead
+from app.schemas.room_routing import (
+    RoomLeadPolicyRead,
+    RoomLeadPolicyWrite,
+    RoomProposalAccept,
+    RoomProposalDiscard,
+    RoomRoutingProposalList,
+    RoomRoutingProposalRead,
+    RoomTaskCardList,
+)
+from app.schemas.room_submission import (
+    RoomAgentRequestList,
+    RoomAgentRequestRead,
+    RoomMessageCreate,
+    RoomMessageRead,
+    RoomThreadRead,
+)
+from app.schemas.room_thread import RoomThreadActionRead, RoomThreadReadCursor
 from app.schemas.visual import VisualPublish, VisualPublished
 from app.schemas.workspace import (
     WorkspaceFileContent,
     WorkspaceFileRead,
     WorkspaceListing,
 )
+from app.services import conversation_search
 from app.services.sandbox_workspace import owner_label, stored_ceiling
 
 router = APIRouter()
+
+
+@router.get(
+    "/search",
+    response_model=ConversationSearchList,
+    dependencies=[Depends(require(Perm.AGENTS_VIEW))],
+)
+async def search_conversation_messages(
+    current_user: CurrentUser,
+    active_org: ActiveOrg,
+    query: str = Query(min_length=1, max_length=500),
+    limit: int = Query(default=40, ge=1, le=50),
+) -> Any:
+    """Search readable message text, including archives, with highlighted snippets.
+
+    Matches use the existing indexed full-text search and the same access rules
+    as reading a transcript. Snippets contain plain text with matched words
+    wrapped in `**`, never trusted HTML. Only the best `limit` threads return.
+    """
+    return {
+        "items": await conversation_search.search(
+            query=query, organization_id=active_org.id, user_id=current_user.id, limit=limit
+        )
+    }
+
+
+@router.get("/waiting-questions", response_model=WaitingChatQuestionList, openapi_extra=INTERNAL)
+async def list_waiting_questions(
+    service: ConversationSvc,
+    ctx: Auth,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(25, ge=1, le=100),
+) -> Any:
+    """Find unanswered web-chat questions addressed to the signed-in member.
+
+    Returns only navigation metadata. Open the conversation to read and answer
+    the question; access to the approval queue is unrelated.
+    """
+    return await service.list_waiting_questions(ctx, skip=skip, limit=limit)
+
+
+@router.get("/{conversation_id}/lead-policy", response_model=RoomLeadPolicyRead)
+async def read_room_lead_policy(conversation_id: UUID, service: RoomRoutingSvc, ctx: Auth) -> Any:
+    """The room's pinned lead policy and the current member's explicit controls."""
+    return await service.policy(ctx, conversation_id)
+
+
+@router.put("/{conversation_id}/lead-policy", response_model=RoomLeadPolicyRead)
+async def update_room_lead_policy(
+    conversation_id: UUID, body: RoomLeadPolicyWrite, service: RoomRoutingSvc, ctx: Auth
+) -> Any:
+    """Pin published cloud agents after project-edit and revision checks."""
+    return await service.update_policy(ctx, conversation_id, body)
+
+
+@router.get("/{conversation_id}/routing-proposals", response_model=RoomRoutingProposalList)
+async def list_room_routing_proposals(
+    conversation_id: UUID,
+    service: RoomRoutingSvc,
+    ctx: Auth,
+    thread_root_message_id: UUID | None = None,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+) -> Any:
+    """Room proposals across all threads, or only the named subthread, newest first."""
+    return await service.list(
+        ctx, conversation_id, thread_root_message_id=thread_root_message_id, skip=skip, limit=limit
+    )
+
+
+@router.get(
+    "/{conversation_id}/routing-proposals/{proposal_id}", response_model=RoomRoutingProposalRead
+)
+async def read_room_routing_proposal(
+    conversation_id: UUID, proposal_id: UUID, service: RoomRoutingSvc, ctx: Auth
+) -> Any:
+    """Reconcile one durable proposal and its final decision after an uncertain response."""
+    return await service.read(ctx, conversation_id, proposal_id)
+
+
+@router.post(
+    "/{conversation_id}/routing-proposals/{proposal_id}/accept",
+    response_model=RoomRoutingProposalRead,
+)
+async def accept_room_routing_proposal(
+    conversation_id: UUID,
+    proposal_id: UUID,
+    body: RoomProposalAccept,
+    service: RoomRoutingSvc,
+    ctx: Auth,
+) -> Any:
+    """The requester accepts selected items once, through the canonical task lifecycle."""
+    return await service.accept(ctx, conversation_id, proposal_id, body)
+
+
+@router.post(
+    "/{conversation_id}/routing-proposals/{proposal_id}/discard",
+    response_model=RoomRoutingProposalRead,
+)
+async def discard_room_routing_proposal(
+    conversation_id: UUID,
+    proposal_id: UUID,
+    body: RoomProposalDiscard,
+    service: RoomRoutingSvc,
+    ctx: Auth,
+) -> Any:
+    """The requester declines the proposal without creating or dispatching work."""
+    return await service.discard(ctx, conversation_id, proposal_id, body)
+
+
+@router.get("/{conversation_id}/task-links", response_model=RoomTaskCardList)
+async def list_room_task_cards(
+    conversation_id: UUID,
+    service: RoomRoutingSvc,
+    ctx: Auth,
+    thread_root_message_id: UUID | None = None,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+) -> Any:
+    """Current readable canonical task cards, without private working chat or Inbox ids."""
+    return await service.task_cards(
+        ctx, conversation_id, thread_root_message_id=thread_root_message_id, skip=skip, limit=limit
+    )
+
+
+@router.get(
+    "/{conversation_id}/compaction-availability",
+    response_model=ConversationCompactionAvailability,
+)
+async def compaction_availability(
+    conversation_id: UUID,
+    conversation_service: ConversationSvc,
+    registry: AgentRegistrySvc,
+    ctx: Auth,
+    current_user: CurrentUser,
+    active_org: ActiveOrg,
+    agent_id: UUID = Query(...),
+) -> ConversationCompactionAvailability:
+    """Read whether this owned personal chat can run a summarising maintenance pass."""
+    conversation = await conversation_service.get_conversation(
+        conversation_id,
+        organization_id=active_org.id,
+        user_id=current_user.id,
+        for_write=True,
+        turn=True,
+        include_favourite=False,
+        ctx=ctx,
+    )
+    if (
+        conversation.user_id != current_user.id
+        or conversation.project_id is not None
+        or conversation.workflow_id is not None
+        or conversation.origin is not None
+        or conversation.is_archived
+    ):
+        return ConversationCompactionAvailability(available=False)
+    try:
+        _, spec, _ = await registry.get_runnable_spec(ctx, agent_id)
+    except AuthorizationError, BadRequestError, NotFoundError:
+        return ConversationCompactionAvailability(available=False)
+    available = any(
+        binding.id == "compaction"
+        and binding.enabled
+        and binding.config.get("strategy", "summarize") in {"summarize", "tiered"}
+        for binding in spec.capabilities
+    )
+    return ConversationCompactionAvailability(available=available)
+
+
+@router.post("/{conversation_id}/room-messages", response_model=RoomMessageRead)
+async def post_room_message(
+    conversation_id: UUID,
+    body: RoomMessageCreate,
+    service: RoomSubmissionSvc,
+    ctx: Auth,
+    current_user: CurrentUser,
+) -> Any:
+    """Post as yourself; only an explicit agent selection queues an answer."""
+    return await service.post(ctx, conversation_id, body, current_user)
+
+
+@router.get("/{conversation_id}/room-requests", response_model=RoomAgentRequestList)
+async def list_room_requests(
+    conversation_id: UUID,
+    service: RoomSubmissionSvc,
+    ctx: Auth,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+) -> Any:
+    """The durable queue, and the current reader's right to post to this room."""
+    return await service.list_for_room(ctx, conversation_id, skip=skip, limit=limit)
+
+
+@router.get("/{conversation_id}/room-threads/{root_message_id}", response_model=RoomThreadRead)
+async def read_room_thread(
+    conversation_id: UUID,
+    root_message_id: UUID,
+    service: RoomSubmissionSvc,
+    ctx: Auth,
+    limit: int = Query(50, ge=1, le=100),
+    latest: bool = True,
+    before: UUID | None = None,
+) -> Any:
+    """Read the root separately from replies, oldest first within the selected page.
+
+    `latest=true` reads the newest page. `before` names an earlier-page boundary
+    in this same thread. Opening a thread neither posts nor requests an agent.
+    """
+    return await service.thread(
+        ctx,
+        conversation_id,
+        root_message_id,
+        limit=limit,
+        latest=latest,
+        before=before,
+    )
+
+
+@router.post(
+    "/{conversation_id}/room-threads/{root_message_id}/close",
+    response_model=RoomThreadActionRead,
+)
+async def close_room_thread(
+    conversation_id: UUID, root_message_id: UUID, service: RoomThreadSvc, ctx: Auth
+) -> Any:
+    """Close a thread to replies while keeping its history readable."""
+    return await service.close(ctx, conversation_id, root_message_id)
+
+
+@router.post(
+    "/{conversation_id}/room-threads/{root_message_id}/reopen",
+    response_model=RoomThreadActionRead,
+)
+async def reopen_room_thread(
+    conversation_id: UUID, root_message_id: UUID, service: RoomThreadSvc, ctx: Auth
+) -> Any:
+    """Reopen a previously closed thread."""
+    return await service.reopen(ctx, conversation_id, root_message_id)
+
+
+@router.post(
+    "/{conversation_id}/room-threads/{root_message_id}/archive",
+    response_model=RoomThreadActionRead,
+)
+async def archive_room_thread(
+    conversation_id: UUID, root_message_id: UUID, service: RoomThreadSvc, ctx: Auth
+) -> Any:
+    """Archive a thread, preventing further replies."""
+    return await service.archive(ctx, conversation_id, root_message_id)
+
+
+@router.post(
+    "/{conversation_id}/room-threads/{root_message_id}/unarchive",
+    response_model=RoomThreadActionRead,
+)
+async def unarchive_room_thread(
+    conversation_id: UUID, root_message_id: UUID, service: RoomThreadSvc, ctx: Auth
+) -> Any:
+    """Restore an archived thread to its prior open or closed state."""
+    return await service.unarchive(ctx, conversation_id, root_message_id)
+
+
+@router.put(
+    "/{conversation_id}/room-threads/{root_message_id}/follow",
+    response_model=RoomThreadActionRead,
+)
+async def follow_room_thread(
+    conversation_id: UUID, root_message_id: UUID, service: RoomThreadSvc, ctx: Auth
+) -> Any:
+    """Follow a thread to receive reply notifications."""
+    return await service.follow(ctx, conversation_id, root_message_id)
+
+
+@router.delete(
+    "/{conversation_id}/room-threads/{root_message_id}/follow",
+    response_model=RoomThreadActionRead,
+)
+async def unfollow_room_thread(
+    conversation_id: UUID, root_message_id: UUID, service: RoomThreadSvc, ctx: Auth
+) -> Any:
+    """Mute a thread, overriding the author and replier follow defaults."""
+    return await service.unfollow(ctx, conversation_id, root_message_id)
+
+
+@router.post(
+    "/{conversation_id}/room-threads/{root_message_id}/read",
+    response_model=RoomThreadActionRead,
+)
+async def mark_room_thread_read(
+    conversation_id: UUID,
+    root_message_id: UUID,
+    body: RoomThreadReadCursor,
+    service: RoomThreadSvc,
+    ctx: Auth,
+) -> Any:
+    """Advance read state through the last reply the client actually displayed."""
+    return await service.mark_read(ctx, conversation_id, root_message_id, body.through_message_id)
+
+
+@router.post(
+    "/{conversation_id}/room-requests/{request_id}/cancel",
+    response_model=RoomAgentRequestRead,
+)
+async def cancel_room_request(
+    conversation_id: UUID, request_id: UUID, service: RoomSubmissionSvc, ctx: Auth
+) -> Any:
+    """Withdraw your queued request, retaining the human message."""
+    return await service.cancel(ctx, conversation_id, request_id)
 
 
 @router.get("/background-tasks", response_model=list[ConversationTaskRead])
@@ -78,18 +433,42 @@ async def get_coding_task_change(change_id: UUID, service: CodingTaskChangeSvc, 
     whoever may read the conversation the task ran in - the transcript's own
     check - and missing (404) for anybody else, in this organization or another.
     """
-    return await service.get(ctx, change_id)
+    return await service.read(ctx, change_id)
+
+
+@router.post(
+    "/coding-changes/{change_id}/revert",
+    dependencies=[Depends(limit_coding_revert)],
+    response_model=CodingTaskChangeRead,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def revert_coding_task_change(
+    change_id: UUID, service: CodingTaskChangeSvc, ctx: Auth
+) -> Any:
+    """Queue a recoverable task revert; read its change set to follow the outcome."""
+    return await service.revert(ctx, change_id)
 
 
 @router.get("/shared-with-me", response_model=ConversationList)
 async def list_shared_with_me(
     share_service: ConversationShareSvc,
     current_user: CurrentUser,
+    active_org: ActiveOrg,
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
+    include_archived: bool = True,
 ) -> Any:
-    """List conversations shared with the current user."""
-    items, total = await share_service.list_shared_with_me(current_user.id, skip=skip, limit=limit)
+    """List shares in the active organization; filter archives before paging/counting.
+
+    Set `include_archived=false` for the newest active shares, as in the sidebar.
+    """
+    items, total = await share_service.list_shared_with_me(
+        current_user.id,
+        organization_id=active_org.id,
+        skip=skip,
+        limit=limit,
+        include_archived=include_archived,
+    )
     return ConversationList(items=items, total=total)
 
 
@@ -102,7 +481,58 @@ async def get_shared_conversation(
     return await share_service.get_by_token(token)
 
 
-@router.get("", response_model=ConversationList)
+@router.get(
+    "/search/messages",
+    response_model=list[ConversationMessageSearchHitRead],
+    dependencies=[PUBLIC, Depends(key_needs(Perm.RUNS_VIEW))],
+)
+async def search_message_content(
+    current_user: CurrentUser,
+    active_org: ActiveOrg,
+    query: str = Query(
+        min_length=1,
+        max_length=120,
+        description="Literal text to find in readable conversation messages",
+    ),
+) -> Any:
+    """Search up to 20 matching messages in conversations the caller may read.
+
+    The shared transcript-search service resolves owner, share, project and
+    confirmed room membership access inside the active organization. Input uses
+    plain text search semantics; punctuation does not add query operators.
+    """
+    cleaned_query = query.strip()
+    if not cleaned_query:
+        return []
+    hits = await conversation_search.search(
+        query=cleaned_query,
+        organization_id=active_org.id,
+        user_id=current_user.id,
+        limit=20,
+        literal=True,
+    )
+    return [
+        ConversationMessageSearchHitRead(
+            conversation_id=hit.conversation_id,
+            message_id=hit.message_id,
+            thread_root_message_id=hit.thread_root_message_id,
+            title=hit.title,
+            updated_at=hit.updated_at,
+            matched_at=hit.matched_at,
+            hits=hit.hits,
+            snippet=hit.snippet[:MAX_MESSAGE_SEARCH_SNIPPET_LENGTH],
+            speaker_role=hit.speaker_role,
+            speaker_name=hit.speaker_name,
+        )
+        for hit in hits
+    ]
+
+
+@router.get(
+    "",
+    response_model=ConversationList,
+    dependencies=[PUBLIC, Depends(key_needs(Perm.RUNS_VIEW))],
+)
 async def list_conversations(
     conversation_service: ConversationSvc,
     current_user: CurrentUser,
@@ -110,6 +540,9 @@ async def list_conversations(
     auth: Auth,
     skip: int = Query(0, ge=0, description="Number of conversations to skip"),
     limit: int = Query(50, ge=1, le=100, description="Maximum conversations to return"),
+    for_model: bool = Query(
+        False, description="Omit conversations containing guardrail-refused turns"
+    ),
     search: str | None = Query(default=None, description="Search by title"),
     agent_id: UUID | None = Query(default=None, description="Only threads this agent answered in"),
     include_archived: bool = Query(False, description="Include archived conversations"),
@@ -124,6 +557,9 @@ async def list_conversations(
         description="Leave out threads a bot answers in (Slack, Mattermost, Telegram, Teams)",
     ),
     project_id: UUID | None = Query(default=None, description="Only chats started in this project"),
+    project_scope: Literal["include", "only", "exclude"] = Query(
+        "include", description="Include, isolate or exclude project chats from pagination"
+    ),
 ) -> Any:
     """List conversations for the current user.
 
@@ -155,12 +591,117 @@ async def list_conversations(
         hide_api=hide_api,
         hide_channels=hide_channels,
         project_id=project_id,
+        project_scope=project_scope,
         reader=auth,
+        for_model=for_model,
     )
     return ConversationList(items=items, total=total)  # ty: ignore[invalid-argument-type]
 
 
-@router.post("", response_model=ConversationRead, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/rooms",
+    response_model=ConversationRead,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_room(
+    body: RoomCreate,
+    service: RoomParticipantSvc,
+    ctx: Auth,
+) -> Any:
+    """Create a private or public human and agent room in the active organization."""
+    return await service.create_room(ctx, body)
+
+
+@router.get("/rooms", response_model=ConversationList)
+async def list_public_rooms(
+    service: RoomParticipantSvc,
+    ctx: Auth,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+) -> Any:
+    """Directory of public rooms this organization member has not joined."""
+    items, total = await service.list_public_rooms(ctx, skip=skip, limit=limit)
+    return ConversationList(
+        items=[ConversationRead.model_validate(item) for item in items],
+        total=total,
+    )
+
+
+@router.get("/{conversation_id}/participants", response_model=RoomParticipantsRead)
+async def list_room_participants(
+    conversation_id: UUID,
+    service: RoomParticipantSvc,
+    ctx: Auth,
+) -> Any:
+    return await service.participants(ctx, conversation_id)
+
+
+@router.post(
+    "/{conversation_id}/participants",
+    response_model=RoomParticipantRead,
+)
+async def add_room_participant(
+    conversation_id: UUID,
+    body: RoomParticipantRef,
+    service: RoomParticipantSvc,
+    ctx: Auth,
+) -> Any:
+    return await service.add(ctx, conversation_id, body)
+
+
+@router.delete(
+    "/{conversation_id}/participants/{kind}/{member_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def remove_room_participant(
+    conversation_id: UUID,
+    kind: Literal["user", "agent"],
+    member_id: UUID,
+    service: RoomParticipantSvc,
+    ctx: Auth,
+) -> Response:
+    await service.remove(ctx, conversation_id, RoomParticipantRef(kind=kind, id=member_id))
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get("/{conversation_id}/room-mentionables", response_model=RoomMentionableList)
+async def list_room_mentionables(
+    conversation_id: UUID,
+    service: RoomParticipantSvc,
+    ctx: Auth,
+) -> Any:
+    return await service.mentionables(ctx, conversation_id)
+
+
+@router.patch(
+    "/{conversation_id}/participants/agent/{agent_id}",
+    response_model=RoomParticipantRead,
+)
+async def update_room_agent_auto_reply(
+    conversation_id: UUID,
+    agent_id: UUID,
+    body: RoomParticipantAutoReplyUpdate,
+    service: RoomParticipantSvc,
+    ctx: Auth,
+) -> Any:
+    return await service.set_auto_reply(ctx, conversation_id, agent_id, auto_reply=body.auto_reply)
+
+
+@router.post("/{conversation_id}/join", response_model=ConversationRead)
+async def join_public_room(
+    conversation_id: UUID,
+    service: RoomParticipantSvc,
+    ctx: Auth,
+) -> Any:
+    return await service.join_public_room(ctx, conversation_id)
+
+
+@router.post(
+    "",
+    response_model=ConversationRead,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[PUBLIC, Depends(key_needs(Perm.AGENTS_RUN))],
+)
 async def create_conversation(
     conversation_service: ConversationSvc,
     current_user: CurrentUser,
@@ -216,6 +757,78 @@ async def get_conversation(
     return conversation if include_messages else ConversationRead.model_validate(conversation)
 
 
+@router.get("/{conversation_id}/forks", response_model=ConversationForkList)
+async def list_conversation_forks(
+    conversation_id: UUID,
+    conversation_service: ConversationSvc,
+    current_user: CurrentUser,
+    active_org: ActiveOrg,
+    ctx: Auth,
+    message_id: UUID | None = Query(None),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=100),
+) -> Any:
+    """List the caller's personal child conversations, including archived ones."""
+    items, total = await conversation_service.list_forks(
+        conversation_id,
+        organization_id=active_org.id,
+        user_id=current_user.id,
+        ctx=ctx,
+        message_id=message_id,
+        skip=skip,
+        limit=limit,
+    )
+    return ConversationForkList(items=items, total=total)
+
+
+@router.post(
+    "/{conversation_id}/fork",
+    response_model=ConversationRead,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(limit_fork)],
+)
+async def fork_conversation(
+    conversation_id: UUID,
+    data: ConversationForkCreate,
+    conversation_service: ConversationSvc,
+    current_user: CurrentUser,
+    active_org: ActiveOrg,
+    ctx: Auth,
+) -> Any:
+    """Fork one of your conversations at an answer into a new chat (#2762).
+
+    The new conversation is yours, in the same project, and holds a copy of the
+    messages up to and including `message_id`, with their tool calls; the next
+    turn continues from there. The source is unchanged. Attachments, cost and
+    run records are not copied.
+
+    Only the conversation's owner may fork it; anybody else gets 404. `400`
+    when a run in the copied history is still running or parked on an
+    approval or a question, or the prefix exceeds 2,000 messages, 10,000 tool
+    calls or 20 MiB. Conversations with a saved checklist require their latest
+    answer with no later messages, so the checklist cannot come from later
+    history (`400` otherwise).
+    Externalized summary content is restored within the same byte quota, at
+    most 100 references and ten seconds; unavailable or over-limit content
+    refuses the copy (`400`) without creating a partial fork.
+    Retained copies reserve their payload plus 4 KiB per conversation and
+    1 KiB per message/tool call, within 100 MiB per member in the organization
+    and 1 GiB per organization. Only deleting a fork frees its charge.
+    Exhaustion or a drawing with source-only image files returns `400`.
+    `409` means the history or organization admission is busy and can be retried.
+    `forked_from` on the response names the source, and is only ever
+    set for the person who owns both. `429` past ten forks a minute per member
+    and organization.
+    """
+    return await conversation_service.fork(
+        conversation_id,
+        message_id=data.message_id,
+        organization_id=active_org.id,
+        user_id=current_user.id,
+        ctx=ctx,
+    )
+
+
 @router.get("/{conversation_id}/metadata", response_model=ConversationRead)
 async def get_conversation_metadata(
     conversation_id: UUID,
@@ -229,10 +842,9 @@ async def get_conversation_metadata(
     Uses the same tenant and reader access as the full conversation read.
     Transcript consumers should page `/conversations/{id}/messages` separately.
     """
-    return await conversation_service.get_conversation(
+    return await conversation_service.get_metadata(
         conversation_id,
         organization_id=active_org.id,
-        include_messages=False,
         user_id=current_user.id,
         ctx=ctx,
     )
@@ -287,20 +899,26 @@ async def get_visual_image(
     return visual_image_response(data, media_type)
 
 
-@router.patch("/{conversation_id}", response_model=ConversationRead)
+@router.patch(
+    "/{conversation_id}",
+    response_model=ConversationRead,
+    dependencies=[PUBLIC, Depends(key_needs(Perm.AGENTS_RUN))],
+)
 async def update_conversation(
     conversation_id: UUID,
     data: ConversationUpdate,
     conversation_service: ConversationSvc,
     current_user: CurrentUser,
     active_org: ActiveOrg,
+    ctx: Auth,
 ) -> Any:
-    """Update a conversation's title or archived status."""
+    """Update a conversation's title, archived status or project."""
     return await conversation_service.update_conversation(
         conversation_id,
         data,
         organization_id=active_org.id,
         user_id=current_user.id,
+        ctx=ctx,
     )
 
 
@@ -314,17 +932,22 @@ async def delete_conversation(
     ctx: Auth,
 ) -> None:
     """Delete a conversation and all its messages."""
+    await conversation_service.lock_for_deletion(
+        conversation_id,
+        organization_id=active_org.id,
+        user_id=current_user.id,
+        ctx=ctx,
+    )
+    # Read workspace refs before the conversation delete flushes their cascade.
+    # The purge queues remote destruction after commit, so a later refusal or
+    # rollback cannot delete the files of a restored conversation.
+    await workspaces.purge_for_conversation(ctx, conversation_id=conversation_id)
     await conversation_service.delete_conversation(
         conversation_id,
         organization_id=active_org.id,
         user_id=current_user.id,
         ctx=ctx,
     )
-    # The rows would cascade away with the conversation, but a container-backed
-    # workspace lives outside this database and would sit on the host until its
-    # TTL swept it - holding files whose conversation the user just deleted. Only
-    # this platform knows the conversation is gone.
-    await workspaces.purge_for_conversation(ctx, conversation_id=conversation_id)
 
 
 @router.post(
@@ -426,12 +1049,20 @@ async def list_messages(
     limit: int = Query(100, ge=1, le=500),
     latest: bool = False,
     before: UUID | None = None,
+    top_level_only: bool = Query(
+        default=True,
+        description="Exclude project-room thread replies unless set to false",
+    ),
 ) -> Any:
     """List messages in a conversation, always scoped to the caller.
 
     `latest=true` selects the newest page, still returned chronologically.
     `before` selects messages older than this conversation's named message;
     combine both to page backwards without concurrent appends shifting offsets.
+
+    `top_level_only` defaults to true so thread replies stay out of a project's
+    main transcript. Set it to false to include them; thread panels use the
+    scoped `room-threads/{root_message_id}` read instead.
 
     Same reasoning as `get_conversation` above: cross-user reads belong to
     `/admin/conversations`, not to a column on the user row.
@@ -447,12 +1078,57 @@ async def list_messages(
         limit=limit,
         latest=latest,
         before=before,
+        top_level_only=top_level_only,
         include_tool_calls=True,
         organization_id=active_org.id,
         user_id=current_user.id,
         ctx=ctx,
     )
     return MessageList(items=items, total=total, cost=cost)  # ty: ignore[invalid-argument-type]
+
+
+@router.put(
+    "/{conversation_id}/messages/{message_id}/reactions",
+    response_model=RoomMessageReactionsRead,
+)
+async def set_room_message_reaction(
+    conversation_id: UUID,
+    message_id: UUID,
+    body: RoomMessageReactionCreate,
+    service: RoomMessageReactionSvc,
+    ctx: Auth,
+    current_user: CurrentUser,
+) -> Any:
+    """Ensure the current person has this emoji on the room message."""
+    return await service.set_reaction(
+        ctx,
+        user_id=current_user.id,
+        conversation_id=conversation_id,
+        message_id=message_id,
+        data=body,
+    )
+
+
+@router.delete(
+    "/{conversation_id}/messages/{message_id}/reactions",
+    response_model=RoomMessageReactionsRead,
+)
+async def remove_room_message_reaction(
+    conversation_id: UUID,
+    message_id: UUID,
+    body: RoomMessageReactionCreate,
+    service: RoomMessageReactionSvc,
+    ctx: Auth,
+    current_user: CurrentUser,
+) -> Any:
+    """Ensure the current person no longer has this emoji on the room message."""
+    return await service.remove_reaction(
+        ctx,
+        user_id=current_user.id,
+        conversation_id=conversation_id,
+        message_id=message_id,
+        data=body,
+    )
 
 
 @router.post(
@@ -535,7 +1211,12 @@ async def share_conversation(
     share_service: ConversationShareSvc,
     current_user: CurrentUser,
 ) -> Any:
-    """Share a conversation with another user or generate a public link."""
+    """Share a conversation with another user or generate a public link.
+
+    Direct shares are bounded per organization, sender, recipient and pair across
+    conversations. A refused attempt returns `429` with `Retry-After` and writes
+    neither the share nor a notification. Link generation sends no notification.
+    """
     result = await share_service.share_conversation(
         conversation_id,
         shared_by=current_user.id,
@@ -558,6 +1239,30 @@ async def list_shares(
     return ConversationShareList(items=shares, total=len(shares))
 
 
+@router.patch("/{conversation_id}/shares/{share_id}", response_model=ConversationShareRead)
+async def change_share_permission(
+    conversation_id: UUID,
+    share_id: UUID,
+    data: ConversationShareUpdate,
+    share_service: ConversationShareSvc,
+    current_user: CurrentUser,
+    active_org: ActiveOrg,
+) -> Any:
+    """Change what a share with a person lets them do: `view` or `edit`.
+
+    The conversation's owner only (`403` otherwise). `400` for a share link,
+    which stays view-only; `404` when the share is not this conversation's
+    or the conversation belongs to another organization.
+    """
+    return await share_service.change_permission(
+        conversation_id,
+        share_id,
+        current_user.id,
+        permission=data.permission,
+        organization_id=active_org.id,
+    )
+
+
 @router.delete(
     "/{conversation_id}/shares/{share_id}",
     status_code=status.HTTP_204_NO_CONTENT,
@@ -571,6 +1276,25 @@ async def revoke_share(
 ) -> None:
     """Revoke a conversation share."""
     await share_service.revoke_share(share_id, current_user.id)
+
+
+@router.delete(
+    "/{conversation_id}/shared-with-me",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_model=None,
+)
+async def leave_shared_conversation(
+    conversation_id: UUID,
+    share_service: ConversationShareSvc,
+    current_user: CurrentUser,
+    active_org: ActiveOrg,
+) -> None:
+    """Remove a conversation somebody shared with you from your chats.
+
+    Ends your own share of it; the conversation and everybody else's access to
+    it stay. `404` when it was not shared with you in the active organization.
+    """
+    await share_service.leave(conversation_id, current_user.id, organization_id=active_org.id)
 
 
 @router.get("/{conversation_id}/workspace", response_model=WorkspaceListing)
@@ -633,6 +1357,7 @@ async def list_workspace_files(
         # workspace is is a fact about now, not about what a turn cost.
         bytes_limit=stored_ceiling(row),
         unreadable_reason=contents.unreadable_reason,
+        unreadable_code=contents.unreadable_code,
         truncated=contents.truncated,
     )
 

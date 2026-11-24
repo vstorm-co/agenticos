@@ -16,6 +16,7 @@ from fastapi import APIRouter, Depends, Query, status
 
 from app.api.deps import (
     Auth,
+    DBSession,
     WorkflowPortableSvc,
     WorkflowRegistrySvc,
     WorkflowStatsSvc,
@@ -32,6 +33,7 @@ from app.schemas.workflow import (
     WorkflowDetail,
     WorkflowDraftCheck,
     WorkflowDraftUpdate,
+    WorkflowInputSchema,
     WorkflowList,
     WorkflowPreparationCreate,
     WorkflowPreparationRead,
@@ -44,8 +46,16 @@ from app.schemas.workflow import (
     WorkflowVersionList,
     WorkflowVersionRestore,
 )
+from app.schemas.workflow_media import (
+    WorkflowMediaEstimateRead,
+    WorkflowMediaEstimateRequest,
+    WorkflowMediaOperationRead,
+    WorkflowMediaResolve,
+)
 from app.schemas.workflow_portable import WorkflowExport, WorkflowImported
 from app.schemas.workflow_stats import WorkflowsSummary, WorkflowStats
+from app.services.workflow_media_read import WorkflowMediaReadService
+from app.services.workflow_media_resolution import WorkflowMediaResolutionService
 
 router = APIRouter(dependencies=[PUBLIC])
 
@@ -58,6 +68,30 @@ router = APIRouter(dependencies=[PUBLIC])
 async def list_node_catalog(service: WorkflowRegistrySvc) -> Any:
     """Every registered node type, for the editor's palette."""
     return await service.node_catalog()
+
+
+@router.post(
+    "/media-estimate",
+    response_model=WorkflowMediaEstimateRead,
+    dependencies=[Depends(require(Perm.WORKFLOWS_VIEW))],
+)
+async def estimate_media(data: WorkflowMediaEstimateRequest, db: DBSession, ctx: Auth) -> Any:
+    """A current catalog reservation; no credential unwrap, provider call, or mutation."""
+    return await WorkflowMediaReadService(db).estimate(ctx, data)
+
+
+@router.post(
+    "/media-operations/{operation_id}/resolve",
+    response_model=WorkflowMediaOperationRead,
+    # A media operation carries no grants; settling a spend hold is the
+    # organization's budget authority, not access to one workflow.
+    dependencies=[Depends(require(Perm.BUDGETS_MANAGE))],
+)
+async def resolve_media_hold(
+    operation_id: UUID, data: WorkflowMediaResolve, db: DBSession, ctx: Auth
+) -> Any:
+    """Record the provider's charge, or that there was none, for an unresolved submission."""
+    return await WorkflowMediaResolutionService(db).resolve(ctx, operation_id, data)
 
 
 @router.get("", response_model=WorkflowList, dependencies=[Depends(require(Perm.WORKFLOWS_VIEW))])
@@ -243,6 +277,22 @@ async def list_workflow_versions(
 ) -> Any:
     """A metadata page, newest first; pass next_before for older versions. No graphs."""
     return await service.list_versions(ctx, workflow_id, before=before, limit=limit)
+
+
+@router.get("/{workflow_id}/input-schema", response_model=WorkflowInputSchema)
+async def get_workflow_input_schema(
+    workflow_id: UUID,
+    service: WorkflowRegistrySvc,
+    ctx: Auth,
+    version_id: UUID | None = Query(default=None),
+) -> Any:
+    """Discover a published version's Draft 2020-12 trigger input contracts.
+
+    Defaults to the current published version. Pass a version id to inspect
+    an older version. Entries identify the trigger to select with entry_node_id
+    when starting a run; schemas include local references without expanding them.
+    """
+    return await service.input_schema(ctx, workflow_id, version_id=version_id)
 
 
 @router.get("/{workflow_id}/versions/{version_id}", response_model=WorkflowVersionDetail)

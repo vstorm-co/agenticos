@@ -14,6 +14,7 @@ import { WidgetOptionChips } from "./widget-option-chips";
 
 interface WidgetFrameProps {
   title: string;
+  surface?: "card" | "plain";
   /**
    * What this card overrides about itself. Drawn in the header as chips, and
    * that is not decoration: a card answering about ninety days while the page
@@ -56,6 +57,7 @@ export function WidgetFrame({
   seeAll,
   options,
   className,
+  surface = "card",
   children,
 }: WidgetFrameProps) {
   const t = useTranslations("dashboard");
@@ -65,16 +67,23 @@ export function WidgetFrame({
   useScrollFade(body, "y");
   return (
     <Card
+      data-widget-surface={surface}
       // `group` so a body can answer the pointer over the whole card rather
       // than only over itself - `WidgetEmptyBody` brightens on it, which is how
       // a card that is waiting reads as waiting rather than as disabled.
       className={cn(
         CARD_SURFACE,
-        "dash-widget group @container/widget flex h-full min-w-0 flex-col overflow-hidden shadow-none",
+        "dash-widget group @container/widget flex h-full min-w-0 flex-col overflow-hidden shadow-none [&:has([data-widget-empty]:not([open]))>div:last-child]:pt-2 [&:has([data-widget-empty]:not([open]))>div:last-child]:pb-3",
+        surface === "plain" && "rounded-none border-0 bg-transparent",
         className,
       )}
     >
-      <div className="flex items-center justify-between gap-2 px-5 pt-4 pb-0">
+      <div
+        className={cn(
+          "flex items-center justify-between gap-2 px-5 pt-4 pb-0",
+          surface === "plain" && "px-0 pt-1",
+        )}
+      >
         <div className="flex min-w-0 items-center gap-1.5">
           <h3
             title={title}
@@ -99,7 +108,11 @@ export function WidgetFrame({
           otherwise be silently cut off at the border with nothing to say so. */}
       <div
         ref={body}
-        className={cn("flex min-h-0 flex-1 flex-col overflow-y-auto px-5 pt-4 pb-5", SCROLL_FADE_Y)}
+        className={cn(
+          "flex min-h-0 flex-1 flex-col overflow-y-auto px-5 pt-4 pb-5",
+          surface === "plain" && "px-0 pb-0",
+          SCROLL_FADE_Y,
+        )}
       >
         {children}
       </div>

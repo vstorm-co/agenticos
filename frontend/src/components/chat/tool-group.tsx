@@ -1,5 +1,9 @@
 "use client";
 
+import { NativeDisclosure } from "@/components/ui/native-disclosure";
+
+import { toolLookupName } from "@/lib/tool-identity";
+
 import { createElement, type ReactNode } from "react";
 import { ChevronRight, LoaderCircle } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -13,19 +17,26 @@ export function ToolGroup({
   calls,
   mcpServers,
   children,
+  collapsible = true,
 }: {
   calls: readonly ToolCall[];
   mcpServers: McpServerRef[];
   children: ReactNode;
+  collapsible?: boolean;
 }) {
   const t = useTranslations("chat.steps");
   const tTools = useTranslations("chat.tools");
   const runText = useTranslations("pages.runs");
-  if (calls.length < 2) return children;
+  if (!collapsible || calls.length < 2) return children;
   const finished = calls.every((call) => call.status === "completed");
-  const steps = calls.map((call) => toolStep(call.name, call.args, finished, tTools, mcpServers));
+  const steps = calls.map((call) =>
+    toolStep(call.name, call.args, finished, tTools, mcpServers, call),
+  );
   const labels = [...new Set(steps.map((step) => step.label))];
-  const Icon = toolIcon(calls[0]!.name, steps[0]!.kind);
+  const Icon = toolIcon(
+    steps[0]!.kind === "mcp" ? calls[0]!.name : toolLookupName(calls[0]!),
+    steps[0]!.kind,
+  );
   const running = calls.some((call) => call.status === "running" || call.status === "pending");
   const status = calls.some((call) => call.status === "awaiting_answer")
     ? "awaiting_answer"
@@ -35,7 +46,7 @@ export function ToolGroup({
         ? "error"
         : undefined;
   return (
-    <details className="group/tool-group min-w-0 text-[13px]">
+    <NativeDisclosure className="group/tool-group min-w-0 text-[13px]">
       <summary className="text-muted-foreground hover:text-foreground flex min-h-8 cursor-pointer items-center gap-2 rounded-md py-1 focus-visible:outline-2 focus-visible:outline-offset-2">
         <span className="flex size-5 shrink-0 items-center justify-center" aria-hidden>
           {running ? (
@@ -59,6 +70,6 @@ export function ToolGroup({
         />
       </summary>
       <div className="mt-1 pl-2">{children}</div>
-    </details>
+    </NativeDisclosure>
   );
 }

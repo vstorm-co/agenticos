@@ -1,5 +1,5 @@
 ---
-source_sha: "921578018ea4"
+source_sha: "ebf27ba3fe81"
 title: "Fragen neuer Mitarbeiter mit Context-Dateien und Skills beantworten"
 description: "Binden Sie eine kurze Context-Datei mit festen Fakten und einen Skill mit einer Prozedur an einen Agent und prüfen Sie, welches von beiden welche Art von Frage beantwortet."
 ---
@@ -85,7 +85,7 @@ How do I get access to the CRM?
 | Prüfung | Referenz |
 | --- | --- |
 | Frage zu Gehalt und Laptop | Direkt beantwortet, ohne Tool-Aufruf, weil die Context-Datei schon im Prompt steht |
-| Frage zum CRM-Zugang | Ruft vor der Antwort `load_capability` für `request-access` auf |
+| Frage zum CRM-Zugang | Ruft vor der Antwort `read_skill` für `request-access` auf |
 | Die CRM-Antwort | Nennt als ersten Schritt die schriftliche Zustimmung der Führungskraft, nicht nur "post in #it-help" |
 | Eine Frage, die die Context-Datei nicht abdeckt (z. B. "what's the dress code?") | Sagt, dass sie es nicht weiß, statt eine Regel zu erfinden |
 | Die Context-Datei nachträglich bearbeiten | Der nächste Run spiegelt die Änderung wider, ohne dass der Agent neu veröffentlicht wird |
@@ -96,7 +96,7 @@ Die ersten beiden Zeilen sind die Prüfung, auf die es ankommt: Eine Antwort sta
 
     Modell: Claude Sonnet 4.6 über OpenRouter. Die Frage zu Gehalt und Laptop verbrauchte 914 Eingabe-Tokens **ohne Tool-Aufruf** und bekam die Antwort: *"Payroll runs on the last business day of the month... The standard laptop is a MacBook Pro"*. Kosten: 0,004 USD.
 
-    Die CRM-Frage rief `load_capability` mit `{"id": "request-access"}` auf, bekam den vollständigen Inhalt des Skills zurück und antwortete: *"Since the CRM touches customer data, there's a specific process... Get your manager's written approval first... Post in #it-help. Tag your manager in the same thread"*. Kosten: 0,009 USD.
+    Die CRM-Frage rief `read_skill` mit `{"id": "request-access"}` auf, bekam den vollständigen Inhalt des Skills zurück und antwortete: *"Since the CRM touches customer data, there's a specific process... Get your manager's written approval first... Post in #it-help. Tag your manager in the same thread"*. Kosten: 0,009 USD.
 
 ## Wenn etwas schiefgeht { #when-it-goes-wrong }
 

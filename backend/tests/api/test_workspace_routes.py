@@ -201,6 +201,29 @@ class TestAHostThatCannotBeRead:
         assert response.status_code == 200
         assert "No workspace root" in response.json()["unreadable_reason"]
 
+    async def test_missing_archive_code_is_returned_without_claiming_a_healthy_empty_workspace(
+        self, client: AsyncClient
+    ):
+        _override(
+            conversation=MagicMock(get_conversation=AsyncMock()),
+            workspaces=MagicMock(
+                listing=AsyncMock(
+                    return_value=(
+                        _row(backend="service"),
+                        WorkspaceContents(
+                            entries=[],
+                            unreadable_reason="Archive not created or retained",
+                            unreadable_code="workspace_not_retained",
+                        ),
+                    )
+                )
+            ),
+        )
+        response = await client.get(f"/api/v1/conversations/{CONVERSATION_ID}/workspace")
+        assert response.status_code == 200
+        assert response.json()["unreadable_code"] == "workspace_not_retained"
+        assert response.json()["unreadable_reason"] == "Archive not created or retained"
+
     async def test_a_readable_workspace_carries_no_reason(self, client: AsyncClient):
         _override(
             conversation=MagicMock(get_conversation=AsyncMock()),
@@ -417,9 +440,27 @@ class TestDeletingTheConversation:
     async def test_the_workspace_is_purged_with_it(self, client: AsyncClient):
         """The row cascades; a container on the host does not."""
         workspaces = MagicMock(purge_for_conversation=AsyncMock(return_value=1))
-        _override(conversation=MagicMock(delete_conversation=AsyncMock()), workspaces=workspaces)
+        _override(
+            conversation=MagicMock(lock_for_deletion=AsyncMock(), delete_conversation=AsyncMock()),
+            workspaces=workspaces,
+        )
 
         response = await client.delete(f"/api/v1/conversations/{CONVERSATION_ID}")
 
         assert response.status_code == 204
         workspaces.purge_for_conversation.assert_awaited_once()
+
+    @pytest.mark.security
+    async def test_an_unwritable_conversation_keeps_its_remote_workspace(self, client: AsyncClient):
+        workspaces = MagicMock(purge_for_conversation=AsyncMock())
+        conversation = MagicMock(
+            lock_for_deletion=AsyncMock(
+                side_effect=NotFoundError(message="Conversation not found")
+            ),
+            delete_conversation=AsyncMock(),
+        )
+        _override(conversation=conversation, workspaces=workspaces)
+        response = await client.delete(f"/api/v1/conversations/{CONVERSATION_ID}")
+        assert response.status_code == 404
+        workspaces.purge_for_conversation.assert_not_awaited()
+        conversation.delete_conversation.assert_not_awaited()

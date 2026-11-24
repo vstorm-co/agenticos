@@ -2,6 +2,7 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
+import { ApiError } from "@/lib/api-error";
 import { parseSubject, toLevel } from "./grants";
 import { SharingPanel } from "./sharing-panel";
 import type { OrganizationMember } from "@/types";
@@ -13,13 +14,23 @@ const revoke = { mutate: vi.fn(), isPending: false };
 const setVisibility = { mutate: vi.fn(), isPending: false };
 
 let sharing: ResourceSharing | undefined;
+let readError: Error | null = null;
+const reread = vi.fn();
 let members: OrganizationMember[];
 let groups: Group[];
 
 // Read at render time, not at factory time, so each test can reshape the state
 // the panel is given.
 vi.mock("@/hooks", () => ({
-  useSharing: () => ({ sharing, isLoading: sharing === undefined, share, revoke, setVisibility }),
+  useSharing: () => ({
+    sharing,
+    isLoading: sharing === undefined,
+    error: readError,
+    refetch: reread,
+    share,
+    revoke,
+    setVisibility,
+  }),
   useMembers: () => ({ members }),
   useGroups: () => ({ groups }),
 }));
@@ -111,6 +122,7 @@ beforeAll(() => {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  readError = null;
   sharing = structuredClone(SHARING);
   members = [
     member("u-owner", "owner@example.com"),
@@ -121,6 +133,51 @@ beforeEach(() => {
 });
 
 describe("SharingPanel", () => {
+  it("keeps the add-recipient and access choices stable while sharing is pending", () => {
+    share.isPending = true;
+    try {
+      renderPanel();
+      expect(screen.getByLabelText(ADD)).toBeDisabled();
+      expect(screen.getByLabelText("Access")).toBeDisabled();
+      expect(screen.getByRole("button", { name: "Share" })).toBeDisabled();
+    } finally {
+      share.isPending = false;
+    }
+  });
+
+  it.each([403, 500])(
+    "shows a failed %i sharing read with retry rather than an endless skeleton",
+    async (status) => {
+      sharing = undefined;
+      readError = new ApiError(status, status === 403 ? "Access denied" : "Service unavailable");
+      renderPanel();
+      expect(screen.getByRole("alert")).toHaveTextContent(readError.message);
+      expect(screen.queryByRole("status")).toBeNull();
+      expect(screen.queryByText("Not shared with anyone yet.")).toBeNull();
+      await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+      expect(reread).toHaveBeenCalledOnce();
+      expect(share.mutate).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([401, 403, 404])(
+    "does not reveal cached grants after access is refused with %i",
+    (status) => {
+      readError = new ApiError(status, "Access unavailable");
+      renderPanel();
+      expect(screen.getByRole("alert")).toHaveTextContent("Access unavailable");
+      expect(screen.queryByText("sam@example.com")).toBeNull();
+      expect(screen.queryByRole("button", { name: "Share" })).toBeNull();
+    },
+  );
+
+  it("keeps cached access visible when its refresh fails and offers retry", () => {
+    readError = new Error("offline");
+    renderPanel();
+    expect(screen.getByRole("alert")).toBeVisible();
+    expect(screen.getByText("sam@example.com")).toBeVisible();
+  });
+
   it("waits for the sharing state rather than rendering an empty one", () => {
     sharing = undefined;
     renderPanel();
@@ -261,6 +318,25 @@ describe("SharingPanel", () => {
     await userEvent.click(screen.getByRole("button", { name: "Share" }));
 
     expect(share.mutate).toHaveBeenCalledWith({ subject_user_id: "u-nina", level: "use" });
+  });
+
+  it("offers a dataset no use level, which gives no built-in role anything", async () => {
+    render(<SharingPanel resourceType="dataset" resourceId="a1" canManage />);
+    await userEvent.click(screen.getByLabelText("Access"));
+
+    expect(await screen.findByRole("option", { name: "Can edit" })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "Can use" })).toBeNull();
+  });
+
+  it("says a dataset's existing use grant does nothing, and lets it be removed", async () => {
+    sharing = { ...SHARING, resource_type: "dataset", grants: [{ ...GRANT, level: "use" }] };
+    render(<SharingPanel resourceType="dataset" resourceId="a1" canManage />);
+
+    expect(screen.getByLabelText("Access for sam@example.com")).toHaveTextContent(
+      "Can use - no effect: running evals needs permission to read runs",
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Remove sam@example.com" }));
+    expect(revoke.mutate).toHaveBeenCalledWith({ kind: "user", id: "u-sam" });
   });
 
   it("lists a group it is shared with by name, marked as a group", () => {
@@ -531,4 +607,11 @@ describe("parseSubject", () => {
     // would share with the wrong kind of subject.
     expect(() => parseSubject(value)).toThrow(`Unknown grant subject: ${value}`);
   });
+});
+
+it("describes project access as a project rather than a secret", () => {
+  sharing = { ...SHARING, resource_type: "project", resource_id: "p1" };
+  render(<SharingPanel resourceType="project" resourceId="p1" canManage />);
+  expect(screen.getByText(/Nobody else finds this project/)).toBeInTheDocument();
+  expect(screen.queryByText(/finds this secret/)).toBeNull();
 });

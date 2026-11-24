@@ -25,7 +25,7 @@ async def test_server_instructions_survive_the_real_collection_path(
     toolset = _make_toolset(
         McpServerSpec(name=name, url="https://example.com/mcp", include_instructions=include)
     )
-    mcp = toolset.wrapped.wrapped.wrapped
+    mcp = toolset.wrapped.wrapped.wrapped.wrapped
     assert isinstance(mcp, MCPToolset)
     mcp.client = Client(server)
     seen: list[str | None] = []
@@ -53,7 +53,7 @@ async def test_two_connections_on_the_same_host_keep_distinct_instruction_source
         toolset = _make_toolset(
             McpServerSpec(name=name, url="https://example.com/mcp", include_instructions=True)
         )
-        mcp = toolset.wrapped.wrapped.wrapped
+        mcp = toolset.wrapped.wrapped.wrapped.wrapped
         assert isinstance(mcp, MCPToolset)
         mcp.client = Client(FastMCP(name, instructions=instructions))
         toolsets.append(toolset)
@@ -69,5 +69,5 @@ async def test_two_connections_on_the_same_host_keep_distinct_instruction_source
     assert seen[0] is not None
     assert "Use the work handbook." in seen[0]
     assert "Use my notes." in seen[0]
-    sources = re.findall(r'<context id="([^"]+)">', seen[0])
+    sources = re.findall(r'<pyai:context id="([^"]+)">', seen[0])
     assert len(sources) == len(set(sources)) == 2

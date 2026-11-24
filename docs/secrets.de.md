@@ -1,5 +1,5 @@
 ---
-source_sha: "6be4e8d3a870"
+source_sha: "dd968324d437"
 ---
 
 # Secrets und der Vault { #secrets-and-the-vault }
@@ -11,6 +11,10 @@ source_sha: "6be4e8d3a870"
     `app/core/vault.py`. Einen zweiten Weg hinzuzufügen, Zugangsdaten im
     Ruhezustand zu halten, ist genau der Defekt, den zwei Migrationen entfernt
     haben.
+
+## In der Konsole { #in-the-console }
+
+Vault zeigt Schlüssel, deine verbundenen Konten und Organisationskonten in einer Tabelle. **Schlüssel hinzufügen** speichert Zugangsdaten; **Konto verbinden** lässt dich dein eigenes Konto oder mit entsprechender Berechtigung ein Organisationskonto auswählen. Jede Zeile behält ihre eigenen Zugriffsrechte und Aktionen: Schlüssel teilen oder rotieren beziehungsweise Konten erneut verbinden oder trennen. OAuth-Tokens bleiben verborgen; das Trennen eines Kontos erfordert eine Bestätigung.
 
 ## Envelope-Verschlüsselung { #envelope-encryption }
 
@@ -213,6 +217,16 @@ Transkription nennt den Schlüssel, mit dem sie gesendet wurde. Siehe
 [welche Engine eine Aufnahme erreicht](ml-services.md#which-engine-a-recording-reaches).
 Die Liste der Agents, die einen Schlüssel nutzen, zeigt diese Verwendung nicht.
 
+**Medien in Workflows.** Generierungsknoten benennen einen organisationsgebundenen
+`api_key`, dessen Zweck genau dem gewählten Provider entspricht. Beim
+Veröffentlichen werden die Metadaten geprüft, ohne den Schlüssel zu entschlüsseln.
+`OrganizationSecretService.workflow_media_key` sperrt die Zeile und lädt sie neu,
+prüft die aktuellen Zugriffsrechte des Run-Auftraggebers und die für den Vorgang
+festgehaltene Autorisierungsgeneration erneut und öffnet den Schlüssel erst dann
+für den vertrauenswürdigen Generierungsadapter. Eine Rotation kann bei der
+Wiederherstellung nicht unbemerkt andere kostenpflichtige Zugangsdaten einsetzen.
+Graph und Belege enthalten IDs und Abrechnungsmetadaten, niemals Schlüsselwerte.
+
 **Sprachanrufe.** Der Schlüssel, mit dem ein [Sprachanruf](voice.md) geführt
 wird, ist auf der Karte Stimme (Voice) des Agents benannt, neben Realtime-Provider
 und Modell. Sein Zweck muss der Provider sein und seine Art die des Providers:
@@ -397,7 +411,7 @@ versiegelt — die Nutzlasten bleiben unberührt, und das macht die Rotation
 günstig.
 
 ```bash
-uv run agenticos cmd doctor    # reports whether a vault key is configured at all
+uv run agenticos cmd doctor    # says whether a dedicated key or the SECRET_KEY fallback seals the vault
 ```
 
 `make platform-bootstrap BOOTSTRAP_API_KEY=sk-...` hinterlegt den ersten

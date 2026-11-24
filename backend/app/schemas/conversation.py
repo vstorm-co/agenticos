@@ -8,13 +8,54 @@ from decimal import Decimal
 from typing import TYPE_CHECKING, Annotated, Any, Literal
 from uuid import UUID
 
-from pydantic import ConfigDict, Field, field_validator
+from pydantic import ConfigDict, Field, JsonValue, ValidationInfo, field_validator
 
 from app.schemas.base import BaseSchema, TimestampSchema
 from app.schemas.mention import MentionKind
+from app.schemas.room_participant import RoomMentionRead
+from app.schemas.room_reaction import RoomMessageReactionRead
+from app.schemas.room_thread import RoomThreadSummary
 
 if TYPE_CHECKING:
     from app.db.models.user import User
+
+
+class HistoryCheckpointFrontier(BaseSchema):
+    """The checkpoint and visible transcript frontier a model history was built from."""
+
+    model_config = ConfigDict(frozen=True)
+
+    summary_ordinal: int | None = Field(ge=0)
+    message_ordinal: int = Field(ge=0)
+
+
+class HistoryProvenance(BaseSchema):
+    """The agent and credential-free digest of a checkpoint's approved recipients."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    agent_id: UUID
+    configuration_digest: str = Field(pattern=r"^[0-9a-f]{64}$")
+    mcp_destination_digest: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+
+
+class HistoryCheckpoint(BaseSchema):
+    """Versioned private replay storage; older list snapshots have no recipient proof."""
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=False)
+    version: Literal[1]
+    provenance: HistoryProvenance
+    messages: list[dict[str, JsonValue]]
+
+
+class HistorySource(BaseSchema):
+    """The authorized transcript window to reload when a checkpoint is incompatible."""
+
+    model_config = ConfigDict(frozen=True)
+    conversation_id: UUID
+    limit: int
+    exclude_message_id: UUID | None = None
+    before_message_id: UUID | None = None
+    snapshot: bool = False
 
 
 class ChatPageResource(BaseSchema):
@@ -165,11 +206,22 @@ class MessagePart(BaseSchema):
     )
 
     type: Literal[
-        "text", "thinking", "tool", "ask_user", "workflow_run", "steer", "mention", "phone_call"
+        "text",
+        "thinking",
+        "tool",
+        "ask_user",
+        "workflow_run",
+        "steer",
+        "mention",
+        "phone_call",
+        "model_setup",
     ] = Field(description="What this entry is.")
     text: str | None = Field(
         default=None,
         description="The words, for a `text` or `thinking` entry, or what the person added for a `steer`.",
+    )
+    setup_agent_id: UUID | None = Field(
+        default=None, description="The shipped starter needing a model; never evidence of a run"
     )
     phone_call_id: UUID | None = Field(
         default=None, description="The owned telephone receipt for a phone_call entry."
@@ -252,7 +304,8 @@ class ToolCallComplete(BaseSchema):
 
 
 class ToolCallRead(ToolCallBase):
-    presentation_kind: Literal["draft"] | None = None
+    tool_id: str | None = None
+    presentation_kind: Literal["draft", "generic", "platform"] | None = None
     """Schema for reading a tool call (API response)."""
 
     id: UUID
@@ -303,6 +356,11 @@ class MessageCreate(MessageBase):
             "replied to one; refused when it is in another conversation."
         ),
     )
+    reply_to_excerpt: str | None = Field(
+        default=None,
+        max_length=280,
+        description="The normalized selected text quoted from the linked message, when selected",
+    )
     parts: list[MessagePart] | None = Field(
         default=None,
         description=(
@@ -351,6 +409,14 @@ class MessageCreate(MessageBase):
     agent_version_id: UUID | None = Field(
         default=None, description="The frozen spec that produced the answer"
     )
+
+    @field_validator("reply_to_excerpt")
+    @classmethod
+    def excerpt_requires_reply(cls, value: str | None, info: ValidationInfo) -> str | None:
+        """An excerpt is meaningful only with the message it was selected from."""
+        if value is not None and info.data.get("reply_to_message_id") is None:
+            raise ValueError("reply_to_excerpt requires reply_to_message_id")
+        return value
 
 
 class MessageFileRead(BaseSchema):
@@ -420,6 +486,23 @@ class MessageRead(MessageBase, TimestampSchema):
 
     id: UUID
     conversation_id: UUID
+    room_mentions: list[RoomMentionRead] = Field(default_factory=list)
+    reactions: list[RoomMessageReactionRead] = Field(
+        default_factory=list,
+        description="Aggregated human emoji reactions for the current signed-in reader",
+    )
+    thread_root_message_id: UUID | None = Field(
+        default=None, description="The top-level room message whose subthread contains this turn"
+    )
+    thread_reply_count: int = Field(default=0, ge=0, description="Replies in this root's subthread")
+    thread_last_activity_at: datetime | None = Field(
+        default=None,
+        description="Newest reply time in this root's subthread, independent of the loaded page",
+    )
+    thread_summary: RoomThreadSummary | None = Field(
+        default=None,
+        description="Per-reader follow, unread and lifecycle state for a room thread root",
+    )
     run_id: UUID | None = Field(
         default=None,
         description=(
@@ -507,6 +590,10 @@ class MessageRead(MessageBase, TimestampSchema):
             "half-written answer that reads exactly like a complete one."
         ),
     )
+    run_error: str | None = Field(
+        default=None,
+        description="The safe failure explanation for a failed run, never a raw provider exception",
+    )
     run_started_at: datetime | None = Field(
         default=None, description="The parent run start shared by transcript and sidebar timers"
     )
@@ -543,6 +630,10 @@ class MessageRead(MessageBase, TimestampSchema):
         default=None,
         description="Current user's rating (1 or -1)",
     )
+    is_pinned: bool | None = Field(
+        default=None,
+        description="Whether the authenticated reader pinned this message; absent without a reader",
+    )
     rating_count: dict[str, int] | None = Field(
         default=None,
         description="Aggregate counts {likes: N, dislikes: N}",
@@ -556,6 +647,12 @@ class MessageRead(MessageBase, TimestampSchema):
             "one-person thread, which is what a client should render as today."
         ),
     )
+
+    @field_validator("room_mentions", mode="before")
+    @classmethod
+    def unflushed_row_has_no_mentions(cls, value: object) -> object:
+        """A column default applies on flush, so a row not yet written reads `None`."""
+        return [] if value is None else value
 
 
 class ConversationBase(BaseSchema):
@@ -582,6 +679,7 @@ class ConversationUpdate(BaseSchema):
 
     title: str | None = Field(default=None, max_length=255)
     is_archived: bool | None = None
+    project_id: UUID | None = Field(default=None, description="The project this chat belongs to")
 
 
 class ConversationAgent(BaseSchema):
@@ -595,6 +693,48 @@ class ConversationAgent(BaseSchema):
     avatar_color: int | None = None
 
 
+class ConversationForkCreate(BaseSchema):
+    """Fork a conversation at one of its answers."""
+
+    message_id: UUID = Field(
+        description="The assistant message the fork's copied history ends with",
+    )
+
+
+class ConversationForkOrigin(BaseSchema):
+    """Where a fork came from, for the person who owns both."""
+
+    conversation_id: UUID
+    message_id: UUID | None = Field(
+        default=None, description="The answer the fork was made from; null once it is gone"
+    )
+    title: str | None = None
+
+
+class ConversationForkRead(BaseSchema):
+    """A child conversation the source owner may open beside its anchor."""
+
+    id: UUID
+    title: str | None = None
+    created_at: datetime
+    updated_at: datetime | None = None
+    is_archived: bool
+    forked_from: ConversationForkOrigin
+
+
+class ConversationForkList(BaseSchema):
+    """A bounded page of personal forks from one conversation."""
+
+    items: list[ConversationForkRead]
+    total: int
+
+
+class ConversationCompactionAvailability(BaseSchema):
+    """Whether the requested published agent supports a paid summary action."""
+
+    available: bool
+
+
 class ConversationRead(ConversationBase, TimestampSchema):
     """Schema for reading a conversation (API response)."""
 
@@ -603,6 +743,10 @@ class ConversationRead(ConversationBase, TimestampSchema):
     organization_id: UUID | None = None
     project_id: UUID | None = Field(
         default=None, description="The project this chat was started in, if any"
+    )
+    room_visibility: Literal["private", "public"] | None = Field(
+        default=None,
+        description="Private or public room visibility; null for legacy conversations and project chats",
     )
     is_archived: bool = False
     origin: Literal["api", "workflow"] | None = Field(
@@ -638,6 +782,46 @@ class ConversationRead(ConversationBase, TimestampSchema):
             "a run parked on an approval is waiting, not working, and is not counted."
         ),
     )
+    running_heartbeat_at: datetime | None = Field(
+        default=None,
+        description=(
+            "When the run still at work in this conversation last stamped "
+            "itself alive, or null when none is. A live run beats every 15 "
+            "seconds; a beat older than that by a wide margin means the "
+            "process behind the run has gone quiet, and the chat shows the "
+            "run as stalled. A hung model call keeps beating, so this does "
+            "not catch a hang - the per-request timeout ends that instead."
+        ),
+    )
+    waiting_since: datetime | None = Field(
+        default=None,
+        description=(
+            "When the run parked in this conversation stopped to wait, or null when "
+            "none is parked. Set on a listing, so a sidebar can show which threads "
+            "are waiting on their person from any tab or device - a parked run is "
+            "not at work, so `running_since` never says it."
+        ),
+    )
+    waiting_status: str | None = Field(
+        default=None,
+        description=(
+            "What the parked run is waiting on - `awaiting_answer` for an unanswered "
+            "question, `awaiting_approval` for an undecided approval - or null when "
+            "none is parked."
+        ),
+    )
+    waiting_question: str | None = Field(
+        default=None,
+        description=(
+            "The parked run's first unanswered question, or null when it parked on "
+            "an approval with no question left open. The full list is on the run "
+            "read; a listing carries the one line a row can show."
+        ),
+    )
+    waiting_run_ids: list[UUID] = Field(
+        default_factory=list,
+        description="Parked top-level runs, so one ending does not hide another.",
+    )
     agents: list[ConversationAgent] = Field(
         default_factory=list,
         description=(
@@ -651,6 +835,24 @@ class ConversationRead(ConversationBase, TimestampSchema):
         default_factory=list,
         description="Coding harnesses used in this conversation, most recently first, from saved task reports",
     )
+    share_permission: Literal["view", "edit"] | None = Field(
+        default=None,
+        description=(
+            "What the caller's share of somebody else's conversation lets them do - "
+            "`view` to read, `edit` to write in it too. Set on "
+            "`GET /conversations/shared-with-me` and on a single conversation's read; "
+            "null for the owner and for anyone reading it another way."
+        ),
+    )
+    forked_from: ConversationForkOrigin | None = Field(
+        default=None,
+        description=(
+            "The conversation this one was forked from. Set only for a caller who owns "
+            "both, so a fork shared with somebody else does not name its source; null "
+            "for anybody else, for a conversation that is not a fork, and once the "
+            "source is deleted."
+        ),
+    )
 
 
 class ConversationReadWithMessages(ConversationRead):
@@ -663,6 +865,23 @@ class ConversationList(BaseSchema):
     """Schema for listing conversations."""
 
     items: list[ConversationRead]
+    total: int
+
+
+class WaitingChatQuestion(BaseSchema):
+    """A pending question's location, without its private prompt or arguments."""
+
+    run_id: UUID
+    conversation_id: UUID
+    conversation_title: str | None
+    agent_name: str
+    expires_at: datetime
+
+
+class WaitingChatQuestionList(BaseSchema):
+    """One page of the questions the signed-in person can answer in chat."""
+
+    items: list[WaitingChatQuestion]
     total: int
 
 
@@ -736,3 +955,21 @@ class MessageList(BaseSchema):
             "before a cost could be read. Zeroes would be a claim this has none to make."
         ),
     )
+
+
+class ConversationSearchRead(BaseSchema):
+    """A readable thread with a highlighted excerpt from a matching message."""
+
+    conversation_id: UUID
+    title: str | None
+    updated_at: datetime
+    hits: int
+    snippet: str
+    speaker_role: str
+    speaker_name: str | None
+
+
+class ConversationSearchList(BaseSchema):
+    """The best matching threads, bounded by the requested limit."""
+
+    items: list[ConversationSearchRead]

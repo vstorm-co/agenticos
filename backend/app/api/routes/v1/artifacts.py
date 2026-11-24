@@ -56,6 +56,8 @@ from app.schemas.artifact import (
     ArtifactPublicDataCreate,
     ArtifactPublicDataDisclosure,
     ArtifactPublicLinkUpdate,
+    ArtifactRead,
+    ArtifactThumbnailRead,
     ArtifactUpdate,
     ArtifactVersionList,
     ArtifactView,
@@ -91,6 +93,7 @@ async def list_artifacts(
         False,
         description="Only what the caller owns or was shared with, whatever their role - the sidebar's list",
     ),
+    favourites: bool = Query(False, description="Only apps the caller has favourited"),
     agent_id: UUID | None = Query(None, description="Only the pages this agent published"),
     include_archived: bool = Query(
         False, description="List archived pages too; they are left out otherwise"
@@ -107,6 +110,7 @@ async def list_artifacts(
         ctx,
         shared_with_me=shared_with_me,
         mine_or_shared=mine_or_shared,
+        favourites=favourites,
         include_archived=include_archived,
         search=q,
         agent_id=agent_id,
@@ -143,7 +147,11 @@ async def update_artifact(
 
 @router.delete("/{artifact_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 async def delete_artifact(artifact_id: UUID, service: ArtifactSvc, ctx: Auth) -> None:
-    """Delete it with every version, its grants and its public link."""
+    """Delete it with every version, its grants and its public link.
+
+    Returns 409 with nothing deleted if an active writer keeps its source locks
+    busy beyond the short retry window. The caller may retry the deletion.
+    """
     await service.delete(ctx, artifact_id)
 
 
@@ -441,6 +449,29 @@ async def follow_artifact(artifact_id: UUID, service: ArtifactSvc, ctx: Auth) ->
 async def unfollow_artifact(artifact_id: UUID, service: ArtifactSvc, ctx: Auth) -> Any:
     """Stop being notified about new versions."""
     return await service.unfollow(ctx, artifact_id)
+
+
+@router.post("/{artifact_id}/favourite", response_model=ArtifactRead)
+async def favourite_artifact(artifact_id: UUID, service: ArtifactSvc, ctx: Auth) -> Any:
+    """Add the readable app to this person's favourites."""
+    return await service.set_favourite(ctx, artifact_id, favourite=True)
+
+
+@router.delete("/{artifact_id}/favourite", response_model=ArtifactRead)
+async def unfavourite_artifact(artifact_id: UUID, service: ArtifactSvc, ctx: Auth) -> Any:
+    """Remove the app from this person's favourites."""
+    return await service.set_favourite(ctx, artifact_id, favourite=False)
+
+
+@router.get("/{artifact_id}/thumbnail", response_model=ArtifactThumbnailRead)
+async def artifact_thumbnail(
+    artifact_id: UUID,
+    service: ArtifactSvc,
+    ctx: Auth,
+    version_id: UUID | None = Query(None, description="A version this caller may open"),
+) -> Any:
+    """A cached preview image without running the page in the listing or loading live records."""
+    return await service.thumbnail(ctx, artifact_id, version_id=version_id)
 
 
 @router.get("/{artifact_id}/view", response_model=ArtifactView)

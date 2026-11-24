@@ -1,7 +1,9 @@
 "use client";
 
+import { useTabIndicator } from "@/components/ui/use-tab-indicator";
 import * as React from "react";
 import * as TabsPrimitive from "@radix-ui/react-tabs";
+import { TAB_TRIGGER } from "./control-styles";
 import { cn } from "@/lib/utils";
 
 import { SCROLL_FADE, useScrollFade } from "./scroll-fade";
@@ -14,8 +16,35 @@ const TabsList = React.forwardRef<
 >(({ className, ...props }, ref) => {
   const strip = React.useRef<HTMLDivElement | null>(null);
   useScrollFade(strip);
+  useTabIndicator(strip);
+  React.useEffect(() => {
+    const list = strip.current;
+    if (!list) return;
+    const reveal = () => {
+      const active = list.querySelector<HTMLElement>('[role="tab"][data-state="active"]');
+      if (!active) return;
+      const bounds = list.getBoundingClientRect();
+      const tab = active.getBoundingClientRect();
+      const style = getComputedStyle(list);
+      const left = bounds.left + (parseFloat(style.scrollPaddingLeft) || 0);
+      const right = bounds.right - (parseFloat(style.scrollPaddingRight) || 0);
+      // Keep selected labels outside the edge fades, moving only the strip.
+      if (tab.left < left) list.scrollLeft += tab.left - left;
+      else if (tab.right > right) list.scrollLeft += tab.right - right;
+    };
+    reveal();
+    const selection = new MutationObserver(reveal);
+    selection.observe(list, { subtree: true, attributes: true, attributeFilter: ["data-state"] });
+    const size = new ResizeObserver(reveal);
+    size.observe(list);
+    return () => {
+      selection.disconnect();
+      size.disconnect();
+    };
+  }, []);
   return (
     <TabsPrimitive.List
+      data-tab-indicator="line"
       ref={(node) => {
         strip.current = node;
         if (typeof ref === "function") ref(node);
@@ -30,7 +59,7 @@ const TabsList = React.forwardRef<
         // The strip's line is an inset shadow, not a border: a scroll container
         // clips to inside its border, so a border here cut the active tab's
         // 2px underline to a hairline nobody could tell from the line itself.
-        "text-foreground/80 relative flex max-w-full min-w-0 scrollbar-none gap-2 overflow-x-auto overflow-y-hidden overscroll-x-contain bg-transparent shadow-[inset_0_-1px_0_var(--color-border)] sm:gap-4 [&>*]:shrink-0",
+        "text-foreground/80 relative flex max-w-full min-w-0 scrollbar-none gap-1 overflow-x-auto overflow-y-hidden overscroll-x-contain bg-transparent shadow-[inset_0_-1px_0_var(--color-border)] sm:gap-2 [&>*]:shrink-0",
         SCROLL_FADE,
         className,
       )}
@@ -48,9 +77,10 @@ const TabsTrigger = React.forwardRef<
     ref={ref}
     className={cn(
       // The active tab is the one carrying the ink: a bottom border in the
-      // foreground colour, the label darkening with it - no pill, no fill.
-      "focus-visible:ring-ring touch:min-h-11 inline-flex min-h-9 touch-manipulation items-center justify-center gap-2 border-b-2 border-transparent px-2 py-2 text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset disabled:pointer-events-none disabled:opacity-50",
-      "hover:text-foreground data-[state=active]:border-foreground data-[state=active]:text-foreground",
+      // foreground colour, with a quiet surface to make the selected area legible.
+      TAB_TRIGGER,
+      "focus-visible:-outline-offset-2 disabled:pointer-events-none disabled:opacity-50",
+      "hover:bg-foreground/[0.04] hover:text-foreground data-[state=active]:border-foreground data-[state=active]:bg-foreground/[0.055] data-[state=active]:text-foreground",
       className,
     )}
     {...props}
@@ -65,7 +95,7 @@ const TabsContent = React.forwardRef<
   <TabsPrimitive.Content
     ref={ref}
     className={cn(
-      "focus-visible:ring-ring mt-2 focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset data-[state=inactive]:hidden",
+      "tab-panel focus-visible:ring-ring mt-2 focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset data-[state=inactive]:hidden",
       className,
     )}
     {...props}

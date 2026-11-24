@@ -12,6 +12,7 @@ not trusted by default, and that a Redis nobody can reach degrades to no limit
 rather than to no service.
 """
 
+import asyncio
 from contextlib import AbstractAsyncContextManager, AsyncExitStack
 from unittest.mock import AsyncMock, MagicMock
 
@@ -57,6 +58,88 @@ class TestTheAllowanceItself:
 
         assert decision.allowed is True
         assert decision.metered is True
+
+    async def test_mfa_failures_lock_the_user_after_three_and_success_resets_the_window(self):
+        client = _redis([1, 2, 3])
+        client.get = AsyncMock(side_effect=[None, "1"])
+        client.set = AsyncMock(return_value=True)
+        client.delete = AsyncMock(return_value=1)
+        rate_limit.configure(client)
+
+        assert await rate_limit.record_mfa_failure("user-123") == 1
+        assert await rate_limit.record_mfa_failure("user-123") == 2
+        assert await rate_limit.record_mfa_failure("user-123") == 3
+        assert await rate_limit.mfa_backoff_locked("user-123") is False
+        assert await rate_limit.mfa_backoff_locked("user-123") is True
+        await rate_limit.reset_mfa_failures("user-123")
+
+        key = client.count_in_window.await_args.args[0]
+        assert key.startswith("auth:mfa:backoff:")
+        assert "user-123" not in key
+        assert client.count_in_window.await_args.kwargs == {"ttl": 300}
+        client.set.assert_awaited_once_with(f"{key.rsplit(':', 1)[0]}:locked", "1", ttl=300)
+        assert [call.args[0] for call in client.delete.await_args_list] == [
+            f"{key.rsplit(':', 1)[0]}:failures",
+            f"{key.rsplit(':', 1)[0]}:locked",
+        ]
+
+    @pytest.mark.security
+    async def test_unconfigured_mfa_backoff_does_not_turn_a_challenge_into_a_server_error(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        assert await rate_limit.mfa_backoff_locked("private-user-id") is False
+        assert await rate_limit.record_mfa_failure("private-user-id") == 0
+        await rate_limit.reset_mfa_failures("private-user-id")
+
+        assert "MFA backoff not configured" in caplog.text
+        assert "private-user-id" not in caplog.text
+
+    @pytest.mark.security
+    async def test_a_failed_mfa_lock_lookup_is_unmetered_without_leaking_the_account(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        client = _redis()
+        client.get = AsyncMock(side_effect=ConnectionError("Redis unavailable"))
+        rate_limit.configure(client)
+
+        assert await rate_limit.mfa_backoff_locked("private-user-id") is False
+        assert "mfa_backoff_redis_unavailable" in caplog.text
+        assert "private-user-id" not in caplog.text
+
+    @pytest.mark.security
+    @pytest.mark.parametrize("failed_operation", ["count_in_window", "set"])
+    async def test_a_failed_mfa_counter_or_lock_write_reports_no_recorded_failure(
+        self, failed_operation: str, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        client = _redis([3])
+        client.set = AsyncMock(return_value=True)
+        setattr(
+            client, failed_operation, AsyncMock(side_effect=ConnectionError("Redis unavailable"))
+        )
+        rate_limit.configure(client)
+
+        assert await rate_limit.record_mfa_failure("private-user-id") == 0
+        assert "mfa_backoff_redis_unavailable" in caplog.text
+        assert "private-user-id" not in caplog.text
+        if failed_operation == "count_in_window":
+            client.set.assert_not_awaited()
+
+    @pytest.mark.security
+    @pytest.mark.parametrize("failed_delete", [1, 2])
+    async def test_a_failed_mfa_reset_does_not_replace_a_successful_challenge_with_an_error(
+        self, failed_delete: int, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        client = _redis()
+        client.delete = AsyncMock(
+            side_effect=[1] * (failed_delete - 1) + [ConnectionError("Redis unavailable")]
+        )
+        rate_limit.configure(client)
+
+        await rate_limit.reset_mfa_failures("private-user-id")
+
+        assert client.delete.await_count == failed_delete
+        assert "mfa_backoff_redis_unavailable" in caplog.text
+        assert "private-user-id" not in caplog.text
 
     async def test_the_attempt_after_the_allowance_is_refused(self):
         """Four attempts against a limit of three: the fourth is the one the
@@ -905,3 +988,95 @@ class TestPaidSurfacesKeepAFloorWhileRedisIsDown:
         ]
 
         assert [(d.allowed, d.metered) for d in decisions] == [(True, True), (True, True)]
+
+
+@pytest.mark.security
+async def test_renewed_comparison_claim_outlives_its_ttl_and_stops_renewing_on_exit():
+    client, store = _claims()
+    renewed = asyncio.Event()
+    renewals = 0
+
+    async def extend(key: str, token: str, ttl: int) -> bool:
+        nonlocal renewals
+        renewals += 1
+        if renewals >= 3:
+            renewed.set()
+        return True
+
+    client.expire_if_equals = AsyncMock(side_effect=extend)
+    rate_limit.configure(client)
+    async with rate_limit.one_in_flight(
+        "eval_comparison", "org:renew", ttl_seconds=1, message="Busy", renew=True
+    ):
+        await asyncio.wait_for(renewed.wait(), timeout=5)
+        assert client.expire_if_equals.await_count >= 3
+        key, token, ttl = client.expire_if_equals.await_args.args
+        assert store == {key: token} and ttl == 1
+        with pytest.raises(RateLimitError):
+            async with rate_limit.one_in_flight(
+                "eval_comparison", "org:renew", ttl_seconds=1, message="Busy", renew=True
+            ):
+                pass
+    assert not store and key not in rate_limit._held_here
+    calls = client.expire_if_equals.await_count
+    await asyncio.sleep(0.4)
+    assert client.expire_if_equals.await_count == calls
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("outcome", [False, ConnectionError("unreachable")])
+async def test_renewal_failure_logs_and_keeps_the_per_process_floor(
+    outcome: bool | ConnectionError, caplog: pytest.LogCaptureFixture
+):
+    client, store = _claims()
+    attempted = asyncio.Event()
+
+    async def extend(key: str, token: str, ttl: int) -> bool:
+        attempted.set()
+        if isinstance(outcome, Exception):
+            raise outcome
+        return outcome
+
+    client.expire_if_equals = AsyncMock(side_effect=extend)
+    rate_limit.configure(client)
+    async with rate_limit.one_in_flight(
+        "eval_comparison", "org:failure", ttl_seconds=1, message="Busy", renew=True
+    ):
+        await asyncio.wait_for(attempted.wait(), timeout=5)
+        store.clear()
+        with pytest.raises(RateLimitError):
+            async with rate_limit.one_in_flight(
+                "eval_comparison", "org:failure", ttl_seconds=1, message="Busy", renew=True
+            ):
+                pass
+    assert "in_flight_limit_" in caplog.text
+    assert "inflight:eval_comparison:org:failure" not in rate_limit._held_here
+
+
+async def test_renewal_cleanup_preserves_cancellation():
+    client, store = _claims()
+    client.expire_if_equals = AsyncMock(return_value=True)
+    rate_limit.configure(client)
+    entered = asyncio.Event()
+
+    async def load():
+        async with rate_limit.one_in_flight(
+            "eval_comparison", "org:cancel", ttl_seconds=1, message="Busy", renew=True
+        ):
+            entered.set()
+            await asyncio.Event().wait()
+
+    task = asyncio.create_task(load())
+    await entered.wait()
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert not store and "inflight:eval_comparison:org:cancel" not in rate_limit._held_here
+
+
+async def test_an_in_flight_claim_needs_a_positive_ttl():
+    with pytest.raises(ValueError, match="positive TTL"):
+        async with rate_limit.one_in_flight(
+            "eval_comparison", "org:ttl", ttl_seconds=0, message="Busy", renew=True
+        ):
+            pass

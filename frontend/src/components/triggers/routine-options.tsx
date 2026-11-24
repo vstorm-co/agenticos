@@ -1,6 +1,9 @@
 "use client";
 
+import { NativeDisclosure } from "@/components/ui/native-disclosure";
+
 import { useEffect, useRef, type ReactNode } from "react";
+import { ChevronRight } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 /** Keep fields mounted so hidden execution settings still validate and retain edits. */
@@ -18,17 +21,23 @@ export function RoutineOptions({
     if (invalid && details.current) details.current.open = true;
   }, [invalid]);
   return (
-    <details ref={details} className="group rounded-lg border">
+    <NativeDisclosure ref={details} className="group rounded-lg border">
       <summary
         data-tour="routine-advanced"
-        className="marker:text-muted-foreground cursor-pointer px-4 py-3 text-sm font-medium"
+        className="focus-visible:ring-ring touch:min-h-11 flex cursor-pointer list-none items-start gap-2 rounded-lg px-3 py-3 text-sm font-medium outline-none focus-visible:ring-2 sm:px-4 [&::-webkit-details-marker]:hidden"
       >
-        {t("advancedOptions")}
-        <span className="text-muted-foreground mt-1 block text-xs font-normal">
-          {t("advancedOptionsHint")}
+        <ChevronRight
+          aria-hidden
+          className="text-muted-foreground mt-0.5 size-4 shrink-0 transition-transform group-open:rotate-90"
+        />
+        <span className="min-w-0">
+          <span>{t("advancedOptions")}</span>
+          <span className="text-muted-foreground mt-1 block text-xs font-normal">
+            {t("advancedOptionsHint")}
+          </span>
         </span>
       </summary>
-      <div className="space-y-4 border-t p-4">{children}</div>
-    </details>
+      <div className="space-y-4 border-t p-3 sm:p-4">{children}</div>
+    </NativeDisclosure>
   );
 }

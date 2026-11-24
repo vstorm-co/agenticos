@@ -1,0 +1,747 @@
+{
+  "schema_version": 1,
+  "title": "Reusable accounting roles and finance skills",
+  "authored_on": "2026-11-10",
+  "scope": "Reusable t3OS catalog content; no client-specific branding, live installation or external-account authorization.",
+  "sources": [
+    {
+      "repository": "anthropics/knowledge-work-plugins",
+      "commit": "e605d8ddbfb688da57dfaaceebd93f12a64ef1d3",
+      "license": "Apache-2.0"
+    },
+    {
+      "repository": "msitarzewski/agency-agents",
+      "commit": "8ae6164602c95ca78828b148b9052460ee426885",
+      "license": "MIT"
+    }
+  ],
+  "counts": {
+    "agent_templates": 5,
+    "skills": 12,
+    "anthropic_finance_skills": 8,
+    "anthropic_small_business_skills": 3,
+    "original_engagement_skills": 1
+  },
+  "items": [
+    {
+      "kind": "skill",
+      "key": "finance/anthropic-finance-audit-support",
+      "name": "anthropic-finance-audit-support",
+      "path": "backend/app/core/catalog/skill_gallery/finance/anthropic-finance-audit-support",
+      "license": "Apache-2.0",
+      "source": {
+        "repository": "anthropics/knowledge-work-plugins",
+        "commit": "e605d8ddbfb688da57dfaaceebd93f12a64ef1d3",
+        "path": "finance/skills/audit-support/SKILL.md",
+        "url": "https://github.com/anthropics/knowledge-work-plugins/blob/e605d8ddbfb688da57dfaaceebd93f12a64ef1d3/finance/skills/audit-support/SKILL.md",
+        "sha256": "6e53c9529c42bb92c11d00a58af5119f7383903d9cb3b911625089fec2ff4784"
+      },
+      "adaptation": [
+        "Renamed the skill to a collision-safe t3OS gallery key, replaced plugin-only metadata, and mapped upstream slash aliases to natural requests or available installed skills.",
+        "Adapted the substantive finance methodology and examples; localized connector references and made operations conditional on actual authorized read schemas.",
+        "Converted operational posting, notification and close actions into draft proposals or tracking of evidenced authorized-owner completion; proposals do not establish external execution.",
+        "Added engagement isolation, evidence, framework applicability and preparation-only boundaries; US/SOX examples are conditional and must be checked against the current engagement.",
+        "Documented read_skill/read_skill_resource loading and optional artifact runtime; no Claude plugin filesystem or connector installation is assumed."
+      ],
+      "resources": [
+        {
+          "local": "CONNECTORS.md",
+          "source": "finance/CONNECTORS.md"
+        },
+        {
+          "local": "LICENSE",
+          "source": "finance/LICENSE"
+        }
+      ]
+    },
+    {
+      "kind": "skill",
+      "key": "finance/anthropic-finance-close-management",
+      "name": "anthropic-finance-close-management",
+      "path": "backend/app/core/catalog/skill_gallery/finance/anthropic-finance-close-management",
+      "license": "Apache-2.0",
+      "source": {
+        "repository": "anthropics/knowledge-work-plugins",
+        "commit": "e605d8ddbfb688da57dfaaceebd93f12a64ef1d3",
+        "path": "finance/skills/close-management/SKILL.md",
+        "url": "https://github.com/anthropics/knowledge-work-plugins/blob/e605d8ddbfb688da57dfaaceebd93f12a64ef1d3/finance/skills/close-management/SKILL.md",
+        "sha256": "6c2df93bcd15eddf65017445fa44f3eb0b16a755711a5e0602d73ca595e73732"
+      },
+      "adaptation": [
+        "Renamed the skill to a collision-safe t3OS gallery key, replaced plugin-only metadata, and mapped upstream slash aliases to natural requests or available installed skills.",
+        "Adapted the substantive finance methodology and examples; localized connector references and made operations conditional on actual authorized read schemas.",
+        "Converted operational posting, notification and close actions into draft proposals or tracking of evidenced authorized-owner completion; proposals do not establish external execution.",
+        "Added engagement isolation, evidence, framework applicability and preparation-only boundaries; US/SOX examples are conditional and must be checked against the current engagement.",
+        "Documented read_skill/read_skill_resource loading and optional artifact runtime; no Claude plugin filesystem or connector installation is assumed."
+      ],
+      "resources": [
+        {
+          "local": "CONNECTORS.md",
+          "source": "finance/CONNECTORS.md"
+        },
+        {
+          "local": "LICENSE",
+          "source": "finance/LICENSE"
+        }
+      ]
+    },
+    {
+      "kind": "skill",
+      "key": "finance/anthropic-finance-financial-statements",
+      "name": "anthropic-finance-financial-statements",
+      "path": "backend/app/core/catalog/skill_gallery/finance/anthropic-finance-financial-statements",
+      "license": "Apache-2.0",
+      "source": {
+        "repository": "anthropics/knowledge-work-plugins",
+        "commit": "e605d8ddbfb688da57dfaaceebd93f12a64ef1d3",
+        "path": "finance/skills/financial-statements/SKILL.md",
+        "url": "https://github.com/anthropics/knowledge-work-plugins/blob/e605d8ddbfb688da57dfaaceebd93f12a64ef1d3/finance/skills/financial-statements/SKILL.md",
+        "sha256": "1a9ba1cc85495eef32fa250b8a4c05e4854430af574a290b855f919dbb557dfc"
+      },
+      "adaptation": [
+        "Renamed the skill to a collision-safe t3OS gallery key, replaced plugin-only metadata, and mapped upstream slash aliases to natural requests or available installed skills.",
+        "Adapted the substantive finance methodology and examples; localized connector references and made operations conditional on actual authorized read schemas.",
+        "Converted operational posting, notification and close actions into draft proposals or tracking of evidenced authorized-owner completion; proposals do not establish external execution.",
+        "Added engagement isolation, evidence, framework applicability and preparation-only boundaries; US/SOX examples are conditional and must be checked against the current engagement.",
+        "Documented read_skill/read_skill_resource loading and optional artifact runtime; no Claude plugin filesystem or connector installation is assumed."
+      ],
+      "resources": [
+        {
+          "local": "CONNECTORS.md",
+          "source": "finance/CONNECTORS.md"
+        },
+        {
+          "local": "LICENSE",
+          "source": "finance/LICENSE"
+        }
+      ]
+    },
+    {
+      "kind": "skill",
+      "key": "finance/anthropic-finance-journal-entry-prep",
+      "name": "anthropic-finance-journal-entry-prep",
+      "path": "backend/app/core/catalog/skill_gallery/finance/anthropic-finance-journal-entry-prep",
+      "license": "Apache-2.0",
+      "source": {
+        "repository": "anthropics/knowledge-work-plugins",
+        "commit": "e605d8ddbfb688da57dfaaceebd93f12a64ef1d3",
+        "path": "finance/skills/journal-entry-prep/SKILL.md",
+        "url": "https://github.com/anthropics/knowledge-work-plugins/blob/e605d8ddbfb688da57dfaaceebd93f12a64ef1d3/finance/skills/journal-entry-prep/SKILL.md",
+        "sha256": "122715fb18246c2f04d31a5f7c07584ecbfc5c0b46ee09b4c0f4557767d7351e"
+      },
+      "adaptation": [
+        "Renamed the skill to a collision-safe t3OS gallery key, replaced plugin-only metadata, and mapped upstream slash aliases to natural requests or available installed skills.",
+        "Adapted the substantive finance methodology and examples; localized connector references and made operations conditional on actual authorized read schemas.",
+        "Converted operational posting, notification and close actions into draft proposals or tracking of evidenced authorized-owner completion; proposals do not establish external execution.",
+        "Added engagement isolation, evidence, framework applicability and preparation-only boundaries; US/SOX examples are conditional and must be checked against the current engagement.",
+        "Documented read_skill/read_skill_resource loading and optional artifact runtime; no Claude plugin filesystem or connector installation is assumed."
+      ],
+      "resources": [
+        {
+          "local": "CONNECTORS.md",
+          "source": "finance/CONNECTORS.md"
+        },
+        {
+          "local": "LICENSE",
+          "source": "finance/LICENSE"
+        }
+      ]
+    },
+    {
+      "kind": "skill",
+      "key": "finance/anthropic-finance-journal-entry",
+      "name": "anthropic-finance-journal-entry",
+      "path": "backend/app/core/catalog/skill_gallery/finance/anthropic-finance-journal-entry",
+      "license": "Apache-2.0",
+      "source": {
+        "repository": "anthropics/knowledge-work-plugins",
+        "commit": "e605d8ddbfb688da57dfaaceebd93f12a64ef1d3",
+        "path": "finance/skills/journal-entry/SKILL.md",
+        "url": "https://github.com/anthropics/knowledge-work-plugins/blob/e605d8ddbfb688da57dfaaceebd93f12a64ef1d3/finance/skills/journal-entry/SKILL.md",
+        "sha256": "c085de41feb0b8c74771cdd631fff1f668ec253938c69fee47b6a953fc03a266"
+      },
+      "adaptation": [
+        "Renamed the skill to a collision-safe t3OS gallery key, replaced plugin-only metadata, and mapped upstream slash aliases to natural requests or available installed skills.",
+        "Adapted the substantive finance methodology and examples; localized connector references and made operations conditional on actual authorized read schemas.",
+        "Converted operational posting, notification and close actions into draft proposals or tracking of evidenced authorized-owner completion; proposals do not establish external execution.",
+        "Added engagement isolation, evidence, framework applicability and preparation-only boundaries; US/SOX examples are conditional and must be checked against the current engagement.",
+        "Documented read_skill/read_skill_resource loading and optional artifact runtime; no Claude plugin filesystem or connector installation is assumed."
+      ],
+      "resources": [
+        {
+          "local": "CONNECTORS.md",
+          "source": "finance/CONNECTORS.md"
+        },
+        {
+          "local": "LICENSE",
+          "source": "finance/LICENSE"
+        }
+      ]
+    },
+    {
+      "kind": "skill",
+      "key": "finance/anthropic-finance-reconciliation",
+      "name": "anthropic-finance-reconciliation",
+      "path": "backend/app/core/catalog/skill_gallery/finance/anthropic-finance-reconciliation",
+      "license": "Apache-2.0",
+      "source": {
+        "repository": "anthropics/knowledge-work-plugins",
+        "commit": "e605d8ddbfb688da57dfaaceebd93f12a64ef1d3",
+        "path": "finance/skills/reconciliation/SKILL.md",
+        "url": "https://github.com/anthropics/knowledge-work-plugins/blob/e605d8ddbfb688da57dfaaceebd93f12a64ef1d3/finance/skills/reconciliation/SKILL.md",
+        "sha256": "aa17e90539f4d4d84130c910c7f527236bfaa71977c4c03493c8e8e515ddeea6"
+      },
+      "adaptation": [
+        "Renamed the skill to a collision-safe t3OS gallery key, replaced plugin-only metadata, and mapped upstream slash aliases to natural requests or available installed skills.",
+        "Adapted the substantive finance methodology and examples; localized connector references and made operations conditional on actual authorized read schemas.",
+        "Converted operational posting, notification and close actions into draft proposals or tracking of evidenced authorized-owner completion; proposals do not establish external execution.",
+        "Added engagement isolation, evidence, framework applicability and preparation-only boundaries; US/SOX examples are conditional and must be checked against the current engagement.",
+        "Documented read_skill/read_skill_resource loading and optional artifact runtime; no Claude plugin filesystem or connector installation is assumed."
+      ],
+      "resources": [
+        {
+          "local": "CONNECTORS.md",
+          "source": "finance/CONNECTORS.md"
+        },
+        {
+          "local": "LICENSE",
+          "source": "finance/LICENSE"
+        }
+      ]
+    },
+    {
+      "kind": "skill",
+      "key": "finance/anthropic-finance-sox-testing",
+      "name": "anthropic-finance-sox-testing",
+      "path": "backend/app/core/catalog/skill_gallery/finance/anthropic-finance-sox-testing",
+      "license": "Apache-2.0",
+      "source": {
+        "repository": "anthropics/knowledge-work-plugins",
+        "commit": "e605d8ddbfb688da57dfaaceebd93f12a64ef1d3",
+        "path": "finance/skills/sox-testing/SKILL.md",
+        "url": "https://github.com/anthropics/knowledge-work-plugins/blob/e605d8ddbfb688da57dfaaceebd93f12a64ef1d3/finance/skills/sox-testing/SKILL.md",
+        "sha256": "5e5939a070a25d9696b27aaec6c20e64084e6f58637994b2f7ec92744074ea23"
+      },
+      "adaptation": [
+        "Renamed the skill to a collision-safe t3OS gallery key, replaced plugin-only metadata, and mapped upstream slash aliases to natural requests or available installed skills.",
+        "Adapted the substantive finance methodology and examples; localized connector references and made operations conditional on actual authorized read schemas.",
+        "Converted operational posting, notification and close actions into draft proposals or tracking of evidenced authorized-owner completion; proposals do not establish external execution.",
+        "Added engagement isolation, evidence, framework applicability and preparation-only boundaries; US/SOX examples are conditional and must be checked against the current engagement.",
+        "Documented read_skill/read_skill_resource loading and optional artifact runtime; no Claude plugin filesystem or connector installation is assumed."
+      ],
+      "resources": [
+        {
+          "local": "CONNECTORS.md",
+          "source": "finance/CONNECTORS.md"
+        },
+        {
+          "local": "LICENSE",
+          "source": "finance/LICENSE"
+        }
+      ]
+    },
+    {
+      "kind": "skill",
+      "key": "finance/anthropic-finance-variance-analysis",
+      "name": "anthropic-finance-variance-analysis",
+      "path": "backend/app/core/catalog/skill_gallery/finance/anthropic-finance-variance-analysis",
+      "license": "Apache-2.0",
+      "source": {
+        "repository": "anthropics/knowledge-work-plugins",
+        "commit": "e605d8ddbfb688da57dfaaceebd93f12a64ef1d3",
+        "path": "finance/skills/variance-analysis/SKILL.md",
+        "url": "https://github.com/anthropics/knowledge-work-plugins/blob/e605d8ddbfb688da57dfaaceebd93f12a64ef1d3/finance/skills/variance-analysis/SKILL.md",
+        "sha256": "467db7de3fb118550d013409254e2d4a9f87385a661e154655bf3431919b0ba1"
+      },
+      "adaptation": [
+        "Renamed the skill to a collision-safe t3OS gallery key, replaced plugin-only metadata, and mapped upstream slash aliases to natural requests or available installed skills.",
+        "Adapted the substantive finance methodology and examples; localized connector references and made operations conditional on actual authorized read schemas.",
+        "Converted operational posting, notification and close actions into draft proposals or tracking of evidenced authorized-owner completion; proposals do not establish external execution.",
+        "Added engagement isolation, evidence, framework applicability and preparation-only boundaries; US/SOX examples are conditional and must be checked against the current engagement.",
+        "Documented read_skill/read_skill_resource loading and optional artifact runtime; no Claude plugin filesystem or connector installation is assumed."
+      ],
+      "resources": [
+        {
+          "local": "CONNECTORS.md",
+          "source": "finance/CONNECTORS.md"
+        },
+        {
+          "local": "LICENSE",
+          "source": "finance/LICENSE"
+        }
+      ]
+    },
+    {
+      "kind": "skill",
+      "key": "finance/anthropic-smb-ap-processor",
+      "name": "anthropic-smb-ap-processor",
+      "path": "backend/app/core/catalog/skill_gallery/finance/anthropic-smb-ap-processor",
+      "license": "Apache-2.0",
+      "source": {
+        "repository": "anthropics/knowledge-work-plugins",
+        "commit": "e605d8ddbfb688da57dfaaceebd93f12a64ef1d3",
+        "path": "small-business/skills/ap-processor/SKILL.md",
+        "url": "https://github.com/anthropics/knowledge-work-plugins/blob/e605d8ddbfb688da57dfaaceebd93f12a64ef1d3/small-business/skills/ap-processor/SKILL.md",
+        "sha256": "a2dbac917c45a114d886a8e2d4348c04415888a2b0d51c7f2946fcd210e7736d"
+      },
+      "adaptation": [
+        "Rewrote the main workflow and substantive reference procedures as a faithful self-contained t3OS accounting-preparation adaptation, retaining the source work sequence, essential evidence checks and all bundled reference/shared resource paths.",
+        "Removed external bill/vendor creation, approval, sync, posting, payments, message sending, payment-link creation, scheduling and page-publishing instructions throughout the active workflow and references.",
+        "Replaced fixed connector recipes and product-wide capability claims with actual-schema checks, source-of-record reconciliation and scoped-export fallback; no connector installation or unbound skill is assumed.",
+        "Adapted shared client isolation, completeness, currency, privacy, voice and artifact policies; client-specific context is not written into immutable shared catalog resources.",
+        "Mapped skill continuations to actual installed names when available, documented read_skill/read_skill_resource, and normalized resource links to registered skill-root names.",
+        "Corrected the illustrative gross-credit-net arithmetic and made unresolved allocations, credits and coding explicit review questions rather than guessed values or automatic netting."
+      ],
+      "resources": [
+        {
+          "local": "shared/absent-is-not-zero.md",
+          "source": "small-business/shared/absent-is-not-zero.md"
+        },
+        {
+          "local": "shared/artifact-style.md",
+          "source": "small-business/shared/artifact-style.md"
+        },
+        {
+          "local": "shared/chain-seams.md",
+          "source": "small-business/shared/chain-seams.md"
+        },
+        {
+          "local": "shared/connector-call-shapes.md",
+          "source": "small-business/shared/connector-call-shapes.md"
+        },
+        {
+          "local": "shared/connector-neutrality.md",
+          "source": "small-business/shared/connector-neutrality.md"
+        },
+        {
+          "local": "shared/crm-of-record.md",
+          "source": "small-business/shared/crm-of-record.md"
+        },
+        {
+          "local": "shared/currency-and-locale.md",
+          "source": "small-business/shared/currency-and-locale.md"
+        },
+        {
+          "local": "shared/document-format.md",
+          "source": "small-business/shared/document-format.md"
+        },
+        {
+          "local": "shared/gmail-inbox-traps.md",
+          "source": "small-business/shared/gmail-inbox-traps.md"
+        },
+        {
+          "local": "shared/personal-data.md",
+          "source": "small-business/shared/personal-data.md"
+        },
+        {
+          "local": "shared/quickbooks-report-traps.md",
+          "source": "small-business/shared/quickbooks-report-traps.md"
+        },
+        {
+          "local": "shared/reference/artifact-example.html",
+          "source": "small-business/shared/reference/artifact-example.html"
+        },
+        {
+          "local": "shared/tenant-scope.md",
+          "source": "small-business/shared/tenant-scope.md"
+        },
+        {
+          "local": "shared/untrusted-content.md",
+          "source": "small-business/shared/untrusted-content.md"
+        },
+        {
+          "local": "shared/voice-profile.md",
+          "source": "small-business/shared/voice-profile.md"
+        },
+        {
+          "local": "reference/coding_rules.md",
+          "source": "small-business/skills/ap-processor/reference/coding_rules.md"
+        },
+        {
+          "local": "reference/gotchas.md",
+          "source": "small-business/skills/ap-processor/reference/gotchas.md"
+        },
+        {
+          "local": "reference/intake_and_extraction.md",
+          "source": "small-business/skills/ap-processor/reference/intake_and_extraction.md"
+        },
+        {
+          "local": "reference/matching_and_exceptions.md",
+          "source": "small-business/skills/ap-processor/reference/matching_and_exceptions.md"
+        },
+        {
+          "local": "reference/payment_run.md",
+          "source": "small-business/skills/ap-processor/reference/payment_run.md"
+        },
+        {
+          "local": "LICENSE",
+          "source": "LICENSE"
+        }
+      ]
+    },
+    {
+      "kind": "skill",
+      "key": "finance/anthropic-smb-invoice-chase",
+      "name": "anthropic-smb-invoice-chase",
+      "path": "backend/app/core/catalog/skill_gallery/finance/anthropic-smb-invoice-chase",
+      "license": "Apache-2.0",
+      "source": {
+        "repository": "anthropics/knowledge-work-plugins",
+        "commit": "e605d8ddbfb688da57dfaaceebd93f12a64ef1d3",
+        "path": "small-business/skills/invoice-chase/SKILL.md",
+        "url": "https://github.com/anthropics/knowledge-work-plugins/blob/e605d8ddbfb688da57dfaaceebd93f12a64ef1d3/small-business/skills/invoice-chase/SKILL.md",
+        "sha256": "538d4b6c0120f8279d1f8bafcd2be79f9836959c75ee52f3dff4a77e3a3c6b66"
+      },
+      "adaptation": [
+        "Rewrote the main workflow and substantive reference procedures as a faithful self-contained t3OS accounting-preparation adaptation, retaining the source work sequence, essential evidence checks and all bundled reference/shared resource paths.",
+        "Removed external bill/vendor creation, approval, sync, posting, payments, message sending, payment-link creation, scheduling and page-publishing instructions throughout the active workflow and references.",
+        "Replaced fixed connector recipes and product-wide capability claims with actual-schema checks, source-of-record reconciliation and scoped-export fallback; no connector installation or unbound skill is assumed.",
+        "Adapted shared client isolation, completeness, currency, privacy, voice and artifact policies; client-specific context is not written into immutable shared catalog resources.",
+        "Mapped skill continuations to actual installed names when available, documented read_skill/read_skill_resource, and normalized resource links to registered skill-root names.",
+        "Kept low-history collection tone neutral and held unresolved settlement/recipient matches; existing source reminder examples remain illustrative drafts only."
+      ],
+      "resources": [
+        {
+          "local": "shared/absent-is-not-zero.md",
+          "source": "small-business/shared/absent-is-not-zero.md"
+        },
+        {
+          "local": "shared/artifact-style.md",
+          "source": "small-business/shared/artifact-style.md"
+        },
+        {
+          "local": "shared/chain-seams.md",
+          "source": "small-business/shared/chain-seams.md"
+        },
+        {
+          "local": "shared/connector-call-shapes.md",
+          "source": "small-business/shared/connector-call-shapes.md"
+        },
+        {
+          "local": "shared/connector-neutrality.md",
+          "source": "small-business/shared/connector-neutrality.md"
+        },
+        {
+          "local": "shared/crm-of-record.md",
+          "source": "small-business/shared/crm-of-record.md"
+        },
+        {
+          "local": "shared/currency-and-locale.md",
+          "source": "small-business/shared/currency-and-locale.md"
+        },
+        {
+          "local": "shared/document-format.md",
+          "source": "small-business/shared/document-format.md"
+        },
+        {
+          "local": "shared/gmail-inbox-traps.md",
+          "source": "small-business/shared/gmail-inbox-traps.md"
+        },
+        {
+          "local": "shared/personal-data.md",
+          "source": "small-business/shared/personal-data.md"
+        },
+        {
+          "local": "shared/quickbooks-report-traps.md",
+          "source": "small-business/shared/quickbooks-report-traps.md"
+        },
+        {
+          "local": "shared/reference/artifact-example.html",
+          "source": "small-business/shared/reference/artifact-example.html"
+        },
+        {
+          "local": "shared/tenant-scope.md",
+          "source": "small-business/shared/tenant-scope.md"
+        },
+        {
+          "local": "shared/untrusted-content.md",
+          "source": "small-business/shared/untrusted-content.md"
+        },
+        {
+          "local": "shared/voice-profile.md",
+          "source": "small-business/shared/voice-profile.md"
+        },
+        {
+          "local": "reference/examples/firm-reminder.md",
+          "source": "small-business/skills/invoice-chase/reference/examples/firm-reminder.md"
+        },
+        {
+          "local": "reference/examples/gentle-reminder.md",
+          "source": "small-business/skills/invoice-chase/reference/examples/gentle-reminder.md"
+        },
+        {
+          "local": "reference/gotchas.md",
+          "source": "small-business/skills/invoice-chase/reference/gotchas.md"
+        },
+        {
+          "local": "reference/tone-matching.md",
+          "source": "small-business/skills/invoice-chase/reference/tone-matching.md"
+        },
+        {
+          "local": "reference/v2_sources.md",
+          "source": "small-business/skills/invoice-chase/reference/v2_sources.md"
+        },
+        {
+          "local": "LICENSE",
+          "source": "LICENSE"
+        }
+      ]
+    },
+    {
+      "kind": "skill",
+      "key": "finance/anthropic-smb-cash-flow-snapshot",
+      "name": "anthropic-smb-cash-flow-snapshot",
+      "path": "backend/app/core/catalog/skill_gallery/finance/anthropic-smb-cash-flow-snapshot",
+      "license": "Apache-2.0",
+      "source": {
+        "repository": "anthropics/knowledge-work-plugins",
+        "commit": "e605d8ddbfb688da57dfaaceebd93f12a64ef1d3",
+        "path": "small-business/skills/cash-flow-snapshot/SKILL.md",
+        "url": "https://github.com/anthropics/knowledge-work-plugins/blob/e605d8ddbfb688da57dfaaceebd93f12a64ef1d3/small-business/skills/cash-flow-snapshot/SKILL.md",
+        "sha256": "1e5584378c5817981899bfa81296d8a9c2a7e4381a2f1deed616194e51944fff"
+      },
+      "adaptation": [
+        "Rewrote the main workflow and substantive reference procedures as a faithful self-contained t3OS accounting-preparation adaptation, retaining the source work sequence, essential evidence checks and all bundled reference/shared resource paths.",
+        "Removed external bill/vendor creation, approval, sync, posting, payments, message sending, payment-link creation, scheduling and page-publishing instructions throughout the active workflow and references.",
+        "Replaced fixed connector recipes and product-wide capability claims with actual-schema checks, source-of-record reconciliation and scoped-export fallback; no connector installation or unbound skill is assumed.",
+        "Adapted shared client isolation, completeness, currency, privacy, voice and artifact policies; client-specific context is not written into immutable shared catalog resources.",
+        "Mapped skill continuations to actual installed names when available, documented read_skill/read_skill_resource, and normalized resource links to registered skill-root names.",
+        "Replaced the upstream heuristic percentage-on-signed-net range and inconsistent worked dates with dated scenario cash flows, opening-plus-cumulative-net roll-forwards, an internally consistent example and explicit nonstatistical scenario labels."
+      ],
+      "resources": [
+        {
+          "local": "shared/absent-is-not-zero.md",
+          "source": "small-business/shared/absent-is-not-zero.md"
+        },
+        {
+          "local": "shared/artifact-style.md",
+          "source": "small-business/shared/artifact-style.md"
+        },
+        {
+          "local": "shared/chain-seams.md",
+          "source": "small-business/shared/chain-seams.md"
+        },
+        {
+          "local": "shared/connector-call-shapes.md",
+          "source": "small-business/shared/connector-call-shapes.md"
+        },
+        {
+          "local": "shared/connector-neutrality.md",
+          "source": "small-business/shared/connector-neutrality.md"
+        },
+        {
+          "local": "shared/crm-of-record.md",
+          "source": "small-business/shared/crm-of-record.md"
+        },
+        {
+          "local": "shared/currency-and-locale.md",
+          "source": "small-business/shared/currency-and-locale.md"
+        },
+        {
+          "local": "shared/document-format.md",
+          "source": "small-business/shared/document-format.md"
+        },
+        {
+          "local": "shared/gmail-inbox-traps.md",
+          "source": "small-business/shared/gmail-inbox-traps.md"
+        },
+        {
+          "local": "shared/personal-data.md",
+          "source": "small-business/shared/personal-data.md"
+        },
+        {
+          "local": "shared/quickbooks-report-traps.md",
+          "source": "small-business/shared/quickbooks-report-traps.md"
+        },
+        {
+          "local": "shared/reference/artifact-example.html",
+          "source": "small-business/shared/reference/artifact-example.html"
+        },
+        {
+          "local": "shared/tenant-scope.md",
+          "source": "small-business/shared/tenant-scope.md"
+        },
+        {
+          "local": "shared/untrusted-content.md",
+          "source": "small-business/shared/untrusted-content.md"
+        },
+        {
+          "local": "shared/voice-profile.md",
+          "source": "small-business/shared/voice-profile.md"
+        },
+        {
+          "local": "reference/examples/worked-example.md",
+          "source": "small-business/skills/cash-flow-snapshot/reference/examples/worked-example.md"
+        },
+        {
+          "local": "reference/gotchas.md",
+          "source": "small-business/skills/cash-flow-snapshot/reference/gotchas.md"
+        },
+        {
+          "local": "reference/v2_sources.md",
+          "source": "small-business/skills/cash-flow-snapshot/reference/v2_sources.md"
+        },
+        {
+          "local": "LICENSE",
+          "source": "LICENSE"
+        }
+      ]
+    },
+    {
+      "kind": "skill",
+      "key": "finance/t3-accounting-engagement",
+      "name": "t3-accounting-engagement",
+      "path": "backend/app/core/catalog/skill_gallery/finance/t3-accounting-engagement",
+      "license": "Apache-2.0",
+      "source": {
+        "repository": "t3grp/agenticos",
+        "type": "original",
+        "authored_on": "2026-11-10"
+      },
+      "resources": [
+        {
+          "local": "LICENSE",
+          "source": "Apache-2.0 license text"
+        }
+      ],
+      "adaptation": [
+        "Original engagement and evidence contract shared by all five Agency-derived accounting roles."
+      ]
+    },
+    {
+      "kind": "agent_template",
+      "key": "finance/agency-bookkeeper-controller",
+      "name": "Bookkeeper & Controller",
+      "path": "backend/app/core/catalog/agent_templates/finance/agency-bookkeeper-controller",
+      "license": "MIT",
+      "source": {
+        "repository": "msitarzewski/agency-agents",
+        "commit": "8ae6164602c95ca78828b148b9052460ee426885",
+        "path": "finance/finance-bookkeeper-controller.md",
+        "url": "https://github.com/msitarzewski/agency-agents/blob/8ae6164602c95ca78828b148b9052460ee426885/finance/finance-bookkeeper-controller.md",
+        "sha256": "5510a24274d8f7897ca3f4df2c3318262138a2c82827b37dd2489dcfca8de75a"
+      },
+      "adaptation": [
+        "Rewrote the community persona as a reusable accounting-firm role with supported t3OS capabilities and actual bundled skill keys.",
+        "Removed fictional identity, career claims, universal US-law assumptions, invented connector availability and autonomous external execution.",
+        "Preserved the role’s substantive work sequence and deliverables as evidence-linked preparation for the engagement’s confirmed framework, jurisdiction and reviewer.",
+        "Bound the original t3-accounting-engagement helper and selected official Anthropic finance/small-business adaptations; model, client data and runtime bindings remain deployment configuration.",
+        "Kept the Tax Strategist jurisdiction-aware research/preparation rather than claiming a Singapore GST implementation or any preset tax regime."
+      ],
+      "resources": [
+        {
+          "local": "LICENSE",
+          "source": "LICENSE"
+        }
+      ]
+    },
+    {
+      "kind": "agent_template",
+      "key": "finance/agency-accounts-payable",
+      "name": "Accounts Payable",
+      "path": "backend/app/core/catalog/agent_templates/finance/agency-accounts-payable",
+      "license": "MIT",
+      "source": {
+        "repository": "msitarzewski/agency-agents",
+        "commit": "8ae6164602c95ca78828b148b9052460ee426885",
+        "path": "specialized/accounts-payable-agent.md",
+        "url": "https://github.com/msitarzewski/agency-agents/blob/8ae6164602c95ca78828b148b9052460ee426885/specialized/accounts-payable-agent.md",
+        "sha256": "f0f401daf0b61441eedb41a077e4bef13e0ff626483652d3c8a6eaae08b09a6e"
+      },
+      "adaptation": [
+        "Rewrote the community persona as a reusable accounting-firm role with supported t3OS capabilities and actual bundled skill keys.",
+        "Removed fictional identity, career claims, universal US-law assumptions, invented connector availability and autonomous external execution.",
+        "Preserved the role’s substantive work sequence and deliverables as evidence-linked preparation for the engagement’s confirmed framework, jurisdiction and reviewer.",
+        "Bound the original t3-accounting-engagement helper and selected official Anthropic finance/small-business adaptations; model, client data and runtime bindings remain deployment configuration.",
+        "Kept the Tax Strategist jurisdiction-aware research/preparation rather than claiming a Singapore GST implementation or any preset tax regime."
+      ],
+      "resources": [
+        {
+          "local": "LICENSE",
+          "source": "LICENSE"
+        }
+      ]
+    },
+    {
+      "kind": "agent_template",
+      "key": "finance/agency-fpa-analyst",
+      "name": "FP&A Analyst",
+      "path": "backend/app/core/catalog/agent_templates/finance/agency-fpa-analyst",
+      "license": "MIT",
+      "source": {
+        "repository": "msitarzewski/agency-agents",
+        "commit": "8ae6164602c95ca78828b148b9052460ee426885",
+        "path": "finance/finance-fpa-analyst.md",
+        "url": "https://github.com/msitarzewski/agency-agents/blob/8ae6164602c95ca78828b148b9052460ee426885/finance/finance-fpa-analyst.md",
+        "sha256": "5fa9137c80e0b91fbe62815e7981d7b6a2ca5bafe43013c56d1b847a3c963141"
+      },
+      "adaptation": [
+        "Rewrote the community persona as a reusable accounting-firm role with supported t3OS capabilities and actual bundled skill keys.",
+        "Removed fictional identity, career claims, universal US-law assumptions, invented connector availability and autonomous external execution.",
+        "Preserved the role’s substantive work sequence and deliverables as evidence-linked preparation for the engagement’s confirmed framework, jurisdiction and reviewer.",
+        "Bound the original t3-accounting-engagement helper and selected official Anthropic finance/small-business adaptations; model, client data and runtime bindings remain deployment configuration.",
+        "Kept the Tax Strategist jurisdiction-aware research/preparation rather than claiming a Singapore GST implementation or any preset tax regime."
+      ],
+      "resources": [
+        {
+          "local": "LICENSE",
+          "source": "LICENSE"
+        }
+      ]
+    },
+    {
+      "kind": "agent_template",
+      "key": "finance/agency-financial-analyst",
+      "name": "Financial Analyst",
+      "path": "backend/app/core/catalog/agent_templates/finance/agency-financial-analyst",
+      "license": "MIT",
+      "source": {
+        "repository": "msitarzewski/agency-agents",
+        "commit": "8ae6164602c95ca78828b148b9052460ee426885",
+        "path": "finance/finance-financial-analyst.md",
+        "url": "https://github.com/msitarzewski/agency-agents/blob/8ae6164602c95ca78828b148b9052460ee426885/finance/finance-financial-analyst.md",
+        "sha256": "3547907cd52e6108a4c666fd576d5e42715ac337586a3958a722deee4c1f77bb"
+      },
+      "adaptation": [
+        "Rewrote the community persona as a reusable accounting-firm role with supported t3OS capabilities and actual bundled skill keys.",
+        "Removed fictional identity, career claims, universal US-law assumptions, invented connector availability and autonomous external execution.",
+        "Preserved the role’s substantive work sequence and deliverables as evidence-linked preparation for the engagement’s confirmed framework, jurisdiction and reviewer.",
+        "Bound the original t3-accounting-engagement helper and selected official Anthropic finance/small-business adaptations; model, client data and runtime bindings remain deployment configuration.",
+        "Kept the Tax Strategist jurisdiction-aware research/preparation rather than claiming a Singapore GST implementation or any preset tax regime."
+      ],
+      "resources": [
+        {
+          "local": "LICENSE",
+          "source": "LICENSE"
+        }
+      ]
+    },
+    {
+      "kind": "agent_template",
+      "key": "finance/agency-tax-strategist",
+      "name": "Tax Strategist",
+      "path": "backend/app/core/catalog/agent_templates/finance/agency-tax-strategist",
+      "license": "MIT",
+      "source": {
+        "repository": "msitarzewski/agency-agents",
+        "commit": "8ae6164602c95ca78828b148b9052460ee426885",
+        "path": "finance/finance-tax-strategist.md",
+        "url": "https://github.com/msitarzewski/agency-agents/blob/8ae6164602c95ca78828b148b9052460ee426885/finance/finance-tax-strategist.md",
+        "sha256": "37ea1a246e1290f473ef59abe1bba9ecc4f346c9867522fefcc11d37cd0265ab"
+      },
+      "adaptation": [
+        "Rewrote the community persona as a reusable accounting-firm role with supported t3OS capabilities and actual bundled skill keys.",
+        "Removed fictional identity, career claims, universal US-law assumptions, invented connector availability and autonomous external execution.",
+        "Preserved the role’s substantive work sequence and deliverables as evidence-linked preparation for the engagement’s confirmed framework, jurisdiction and reviewer.",
+        "Bound the original t3-accounting-engagement helper and selected official Anthropic finance/small-business adaptations; model, client data and runtime bindings remain deployment configuration.",
+        "Kept the Tax Strategist jurisdiction-aware research/preparation rather than claiming a Singapore GST implementation or any preset tax regime."
+      ],
+      "resources": [
+        {
+          "local": "LICENSE",
+          "source": "LICENSE"
+        }
+      ]
+    }
+  ]
+}

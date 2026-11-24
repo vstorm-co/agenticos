@@ -34,6 +34,7 @@ import {
   UNKNOWN,
 } from "./schema";
 import { AUTHOR_NAMED_PORTS, ERROR_PORT, routesErrors } from "@/lib/workflows/ports";
+import { isLoopPart } from "@/lib/workflows/switch-off";
 import { isTrigger, entryNodes, UNATTENDED_TRIGGERS } from "@/lib/workflows/triggers";
 import {
   anyPairRunsTogether,
@@ -43,7 +44,14 @@ import {
   type GraphAnalysis,
   type JoinWire,
 } from "./joins";
-import { definitionFor, forwardEdges, kahn, nodeIds, type DefinitionMap } from "./topology";
+import {
+  definitionFor,
+  forwardEdges,
+  kahn,
+  nodeIds,
+  setAside,
+  type DefinitionMap,
+} from "./topology";
 import type { RawProblem } from "./types";
 
 function node(nodeId: string, code: RawProblem["code"], params?: RawProblem["params"]): RawProblem {
@@ -67,6 +75,22 @@ function graphLevel(code: RawProblem["code"]): RawProblem {
 export function danglingReferences(graph: WorkflowGraph): RawProblem[] {
   const ids = nodeIds(graph);
   const problems: RawProblem[] = [];
+  const ownerOf = new Map(graph.nodes.map((n) => [n.id, n.scope_id ?? null] as const));
+  for (const n of graph.nodes) {
+    if (n.scope_id == null) continue;
+    if (!ids.has(n.scope_id)) {
+      problems.push(node(n.id, "loop-scope-missing"));
+      continue;
+    }
+    // A loop named inside itself would send every walk up its loops round forever.
+    const seen = new Set([n.id]);
+    let owner: string | null = n.scope_id;
+    while (owner !== null && !seen.has(owner)) {
+      seen.add(owner);
+      owner = ownerOf.get(owner) ?? null;
+    }
+    if (owner !== null) problems.push(node(n.id, "loop-scope-cycle"));
+  }
   for (const e of graph.edges) {
     if (!ids.has(e.source_node_id)) problems.push(edge(e.id, "edge-source-node-missing"));
     if (!ids.has(e.target_node_id)) problems.push(edge(e.id, "edge-target-node-missing"));
@@ -128,7 +152,10 @@ export function rule2ReachableOutputs(
   nodeScope: Map<string, string>,
 ): RawProblem[] {
   if (!nodeIds(graph).has(graph.entry_node_id)) return [];
-  const topLevel = graph.nodes.filter((n) => !nodeScope.has(n.id)).map((n) => n.id);
+  const parked = setAside(graph);
+  const topLevel = graph.nodes
+    .filter((n) => !nodeScope.has(n.id) && !parked.has(n.id))
+    .map((n) => n.id);
   const adjacency = forwardEdges(graph);
   const seen = new Set<string>();
   const queue: string[] = entryNodes(graph).map((node) => node.id);
@@ -260,6 +287,7 @@ export function rule4BranchLocalAvailability(
 export function portNameClashes(graph: WorkflowGraph, definitions: DefinitionMap): RawProblem[] {
   const problems: RawProblem[] = [];
   for (const n of graph.nodes) {
+    if (n.disabled) continue;
     const definition = definitionFor(definitions, n.id);
     const named = definition === null ? undefined : AUTHOR_NAMED_PORTS[definition.id];
     const entries = named === undefined ? undefined : n.config[named.list];
@@ -488,7 +516,7 @@ export function mergeModeProblems(analysis: GraphAnalysis): RawProblem[] {
 /** A Split takes every branch at once, so it has no one way out for an error to take instead. */
 export function splitProblems(graph: WorkflowGraph, definitions: DefinitionMap): RawProblem[] {
   return graph.nodes
-    .filter((n) => routesErrors(n) && definitionFor(definitions, n.id)?.id === SPLIT)
+    .filter((n) => !n.disabled && routesErrors(n) && definitionFor(definitions, n.id)?.id === SPLIT)
     .map((n) => nodeField(n.id, "policy", "split-routes-errors"));
 }
 
@@ -525,6 +553,7 @@ export function errorRoutingProblems(
     graph.edges.some((e) => e.source_node_id === nodeId && e.source_port === port);
   const problems: RawProblem[] = [];
   for (const n of graph.nodes) {
+    if (n.disabled) continue;
     if (routesErrors(n) && !wired(n.id, ERROR_PORT))
       problems.push(node(n.id, "error-port-unwired"));
     if (definitionFor(definitions, n.id)?.id === "error.handle" && !wired(n.id, "default")) {
@@ -578,16 +607,12 @@ export function rule6NestedScopeBoundaries(
   scopes: readonly ScopeBoundary[],
   nodeScope: Map<string, string>,
 ): RawProblem[] {
-  const entryBoundary = new Map<string, ScopeBoundary>();
   const exitBoundary = new Map<string, ScopeBoundary>();
-  for (const scope of scopes) {
-    entryBoundary.set(scope.scope_node_id, scope);
-    exitBoundary.set(scope.exit_node_id, scope);
-  }
+  for (const scope of scopes) exitBoundary.set(scope.exit_node_id, scope);
   const problems: RawProblem[] = [];
   for (const e of graph.edges) {
     if (nodeScope.get(e.source_node_id) === nodeScope.get(e.target_node_id)) continue;
-    if (isSanctionedBoundaryEdge(e, entryBoundary, exitBoundary)) continue;
+    if (isScopeExitEdge(e, exitBoundary)) continue;
     problems.push(edge(e.id, "edge-crosses-scope"));
   }
   for (const { binding, ref } of outputReads(graph)) {
@@ -600,15 +625,56 @@ export function rule6NestedScopeBoundaries(
   return problems;
 }
 
-function isSanctionedBoundaryEdge(
-  e: WorkflowEdge,
-  entryBoundary: Map<string, ScopeBoundary>,
-  exitBoundary: Map<string, ScopeBoundary>,
-): boolean {
-  const entryScope = entryBoundary.get(e.source_node_id);
-  if (entryScope !== undefined && e.source_port === entryScope.entry_port) return true;
+/** A scope's exit, the one edge allowed out of a body. No edge crosses into one. */
+function isScopeExitEdge(e: WorkflowEdge, exitBoundary: Map<string, ScopeBoundary>): boolean {
   const exitScope = exitBoundary.get(e.source_node_id);
   return exitScope !== undefined && e.source_port === exitScope.exit_port;
+}
+
+/**
+ * A step names a loop that is one, and every step directly in a loop's body is
+ * reached from its `loop.item` by the body's own wires - the body's counterpart of
+ * the reachability rule, since nothing wires a body to its loop. Mirrors the
+ * scope checks of the server's rule 11; a body with no single item is the server's
+ * to report.
+ */
+export function loopBodyProblems(
+  graph: WorkflowGraph,
+  definitions: DefinitionMap,
+  nodeScope: Map<string, string>,
+): RawProblem[] {
+  const problems: RawProblem[] = [];
+  for (const n of graph.nodes) {
+    if (n.scope_id == null) continue;
+    const named = definitionFor(definitions, n.scope_id);
+    if (named !== null && !(named.kind === "control" && named.id.startsWith("control."))) {
+      problems.push(node(n.id, "loop-scope-not-a-loop"));
+    }
+  }
+  const adjacency = forwardEdges(graph);
+  const parked = setAside(graph);
+  for (const loop of graph.nodes) {
+    if (loop.definition_id !== "control.foreach") continue;
+    const direct = graph.nodes.filter((n) => nodeScope.get(n.id) === loop.id);
+    const items = direct.filter((n) => n.definition_id === "loop.item");
+    const [item] = items;
+    if (items.length !== 1 || item === undefined) continue;
+    const members = new Set(direct.map((n) => n.id));
+    const seen = new Set<string>();
+    const queue = [item.id];
+    while (queue.length > 0) {
+      const current = queue.shift() as string;
+      if (seen.has(current)) continue;
+      seen.add(current);
+      for (const e of adjacency.get(current) ?? []) {
+        if (members.has(e.target_node_id)) queue.push(e.target_node_id);
+      }
+    }
+    for (const n of direct) {
+      if (!seen.has(n.id) && !parked.has(n.id)) problems.push(node(n.id, "loop-body-unreachable"));
+    }
+  }
+  return problems;
 }
 
 // Rule 7 — no cycles.
@@ -707,16 +773,20 @@ export function rule9RequiredInputsBound(
   for (const n of graph.nodes) {
     const definition = definitionFor(definitions, n.id);
     if (definition === null) continue;
-    if (DECIDES_ON_VALUE.has(definition.id) && !valueBound(graph, n.id)) {
-      problems.push(nodeField(n.id, "value", "decision-value-not-bound"));
-    }
-    for (const fieldName of requiredFields(definition.input_schema)) {
-      const key = `${n.id}\u0000${fieldName}`;
-      if ((boundCounts.get(key) ?? 0) === 0) {
-        problems.push(nodeField(n.id, fieldName, "input-not-bound"));
+    // A step switched off, wired or not, is handed neither input nor settings, so
+    // none are asked of it: switching it back on is a change to publish, checked then.
+    const off = n.disabled === true;
+    if (!off) {
+      if (DECIDES_ON_VALUE.has(definition.id) && !valueBound(graph, n.id)) {
+        problems.push(nodeField(n.id, "value", "decision-value-not-bound"));
+      }
+      for (const fieldName of requiredFields(definition.input_schema)) {
+        if ((boundCounts.get(`${n.id}\u0000${fieldName}`) ?? 0) === 0) {
+          problems.push(nodeField(n.id, fieldName, "input-not-bound"));
+        }
       }
     }
-    if (definition.id === "agent.run" && !n.config.inline) {
+    if (!off && definition.id === "agent.run" && !n.config.inline) {
       const agent = n.config.agent;
       if (
         typeof agent !== "object" ||
@@ -732,7 +802,7 @@ export function rule9RequiredInputsBound(
     // A required setting - an agent, a table, the people to tell - left empty is
     // what the server's config check refuses first; a bindable one set by a
     // binding counts as set.
-    for (const fieldName of requiredFields(definition.config_schema)) {
+    for (const fieldName of off ? [] : requiredFields(definition.config_schema)) {
       const bound = (boundCounts.get(`${n.id}\u0000${fieldName}`) ?? 0) > 0;
       if (n.config[fieldName] === undefined && !bound) {
         problems.push(nodeField(n.id, fieldName, "config-not-set"));
@@ -776,8 +846,9 @@ function handsOn(graph: WorkflowGraph, definitions: DefinitionMap, ref: NodeOutp
 /**
  * Rule 13 — names tell steps apart, and a step switched off leaves nothing
  * waiting on it: no two steps share a name (ignoring case), the trigger and a
- * step that decides the way stay on, and nothing reads a step that is off -
- * unless what comes into it has the field read, which it hands on instead.
+ * loop's item and result steps stay on, so does a step that decides the way
+ * unless it is set aside, and nothing reads a step that is off - unless what
+ * comes into it has the field read, which it hands on instead.
  */
 export function rule13NamedAndSwitchedOffSteps(
   graph: WorkflowGraph,
@@ -786,6 +857,7 @@ export function rule13NamedAndSwitchedOffSteps(
   const problems: RawProblem[] = [];
   const named = new Set<string>();
   const off = new Set<string>();
+  const parked = setAside(graph);
   for (const n of graph.nodes) {
     const label = n.label?.trim() ?? "";
     if (label !== "") {
@@ -796,7 +868,8 @@ export function rule13NamedAndSwitchedOffSteps(
     if (n.disabled !== true) continue;
     off.add(n.id);
     if (n.id === graph.entry_node_id) problems.push(node(n.id, "trigger-switched-off"));
-    else if (definitionFor(definitions, n.id)?.kind === "control") {
+    else if (isLoopPart(n.definition_id)) problems.push(node(n.id, "loop-part-switched-off"));
+    else if (definitionFor(definitions, n.id)?.kind === "control" && !parked.has(n.id)) {
       problems.push(node(n.id, "control-switched-off"));
     }
   }

@@ -119,6 +119,8 @@ async def test_a_thread_opened_by_its_link_carries_its_drawings(mock_redis: Magi
             SimpleNamespace(
                 tool_call_id="d",
                 tool_name="draw",
+                tool_id=None,
+                presentation_kind=None,
                 args={"title": "Flow", "kind": "svg", "content": "<svg/>", "secret": "x"},
                 status="completed",
                 result="Drew 'Flow' as visual `d`.",
@@ -142,6 +144,10 @@ async def test_a_thread_opened_by_its_link_carries_its_drawings(mock_redis: Magi
             patch(
                 "app.services.conversation_share.conversation_repo.get_conversation_by_id",
                 new=AsyncMock(return_value=conversation),
+            ),
+            patch(
+                "app.services.conversation_share.organization_repo.get_by_id",
+                new=AsyncMock(return_value=SimpleNamespace(public_agenticos_attribution=True)),
             ),
         ):
             response = await _call("GET", f"{settings.API_V1_STR}/conversations/shared/tok")
@@ -199,3 +205,18 @@ async def test_the_console_s_thumbnail_reaches_the_service(service: MagicMock) -
         "toolu_1",
         b"\x89PNG",
     )
+
+
+async def test_preview_is_json_with_the_callers_context(service: MagicMock) -> None:
+    from app.schemas.visual import VisualPreview
+
+    context = _as(OrgRoleName.MEMBER)
+    visual_id = uuid4()
+    service.preview = AsyncMock(
+        return_value=VisualPreview(kind="html", title="Drawing", content="<h1>Drawing</h1>")
+    )
+    response = await _call("GET", f"{settings.API_V1_STR}/visuals/{visual_id}/preview")
+    assert response.status_code == 200
+    assert response.json()["content"] == "<h1>Drawing</h1>"
+    assert response.headers["content-type"] == "application/json"
+    service.preview.assert_awaited_once_with(context, visual_id)

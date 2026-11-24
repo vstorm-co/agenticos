@@ -127,6 +127,21 @@ class TriggerOverlap(enum.StrEnum):
     ALLOW = "allow"
 
 
+class TriggerConversationMode(enum.StrEnum):
+    """Which conversation a fire's run goes in (#14).
+
+    `CONTINUE` appends every fire to the trigger's one run-log conversation,
+    opened when the trigger is created - today's behaviour, and the default: a
+    trigger on the interval floor would otherwise mint ~1440 conversations a
+    day. `FRESH` opens a new conversation per fire and stores none of them on
+    the trigger, so each fire reads and writes only its own turn. There is no
+    third mode naming one conversation to keep appending to.
+    """
+
+    CONTINUE = "continue"
+    FRESH = "fresh"
+
+
 class EventSource(enum.StrEnum):
     """Where an *event* trigger's fire comes from.
 
@@ -171,6 +186,7 @@ class EventSource(enum.StrEnum):
     GOOGLE_CALENDAR = "google_calendar"
     GOOGLE_DRIVE = "google_drive"
     HUBSPOT = "hubspot"
+    LINEAR = "linear"
     MICROSOFT_FILES = "microsoft_files"
     OUTLOOK = "outlook"
     OUTLOOK_CALENDAR = "outlook_calendar"
@@ -245,6 +261,17 @@ class AgentTrigger(Base, TimestampMixin):
     local_target: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     approved_sources: Mapped[dict[str, object] | None] = mapped_column(JSONB, nullable=True)
 
+    @property
+    def setup_required(self) -> bool:
+        """A saved schedule whose source review has not been admitted."""
+        return (self.approved_sources or {}).get("pending_review") is True
+
+    @property
+    def setup_issues(self) -> list[str]:
+        """Safe source labels from initial setup, not provider error bodies."""
+        value = (self.approved_sources or {}).get("unavailable_sources", [])
+        return [item for item in value if isinstance(item, str)] if isinstance(value, list) else []
+
     action_consents: Mapped[list[dict[str, object]]] = mapped_column(
         JSONB, nullable=False, default=list, server_default="[]"
     )
@@ -296,6 +323,8 @@ class AgentTrigger(Base, TimestampMixin):
     # dict; a schedule leaves it `{}` and the source null.
     event_source: Mapped[str | None] = mapped_column(String(16), nullable=True)
     event_config: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
+    # One bounded diagnostic, read through an owner-only endpoint rather than listings.
+    last_filtered_event: Mapped[dict[str, object] | None] = mapped_column(JSONB, nullable=True)
 
     # The secret an event webhook is verified against, sealed for this
     # organization through the one vault (`app/core/vault.py`) - GitHub's HMAC key
@@ -355,11 +384,22 @@ class AgentTrigger(Base, TimestampMixin):
     # trigger is created (a per-fire conversation would be ~1440 rows a day on
     # the interval floor) and reused after. SET NULL so deleting the
     # conversation reopens a fresh log on the next fire rather than losing the
-    # schedule.
+    # schedule. Only `conversation_mode = 'continue'` uses it: a `fresh` trigger
+    # leaves it null and opens one conversation per fire instead (#14).
     conversation_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
         ForeignKey("conversations.id", ondelete="SET NULL"),
         nullable=True,
+    )
+
+    # Which conversation a fire's run goes in (#14): `continue` appends every
+    # fire to `conversation_id` above; `fresh` opens a new conversation per fire
+    # and stores none of them on the trigger.
+    conversation_mode: Mapped[str] = mapped_column(
+        String(16),
+        nullable=False,
+        default=TriggerConversationMode.CONTINUE.value,
+        server_default="continue",
     )
 
     # Where a fire's answer is also posted (#1985): a Teams conversation one of
@@ -401,9 +441,11 @@ class AgentTrigger(Base, TimestampMixin):
             .scalar_subquery()
         )
 
+    # Deleting the creator also deletes their conversations. Check after both
+    # SET NULL paths finish, regardless of PostgreSQL's cascade trigger order.
     delivery_conversation_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
-        ForeignKey("conversations.id", ondelete="SET NULL"),
+        ForeignKey("conversations.id", ondelete="SET NULL", deferrable=True, initially="DEFERRED"),
         nullable=True,
     )
     # What this routine may spend a month (#2575), counted from the runs it started. Once
@@ -478,9 +520,12 @@ class AgentTrigger(Base, TimestampMixin):
             "answer_to IN ('run_log', 'primary', 'conversation')", name="ck_trigger_answer_to"
         ),
         CheckConstraint(
+            "conversation_mode IN ('continue', 'fresh')", name="ck_trigger_conversation_mode"
+        ),
+        CheckConstraint(
             "event_source IS NULL OR event_source IN "
             "('github', 'gmail', 'google_calendar', 'google_drive', 'hubspot', "
-            "'microsoft_files', 'outlook', 'outlook_calendar', 'webhook', 'zendesk')",
+            "'linear', 'microsoft_files', 'outlook', 'outlook_calendar', 'webhook', 'zendesk')",
             name="ck_trigger_event_source",
         ),
         # The discriminator across both concepts, in one constraint so a row can
@@ -535,3 +580,42 @@ class AgentTrigger(Base, TimestampMixin):
             f"<AgentTrigger(id={self.id}, agent_id={self.agent_id}, "
             f"type={self.trigger_type}, active={self.is_active})>"
         )
+
+
+class TriggerAttempt(Base):
+    """An activation that stopped before producing an agent run.
+
+    Only bounded reason codes are kept: no prompt, provider error, credential or
+    source metadata can leak through routine history.
+    """
+
+    __tablename__ = "trigger_attempts"
+    id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+    trigger_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("agent_triggers.id", ondelete="CASCADE"), nullable=False
+    )
+    activation_id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    stage: Mapped[str] = mapped_column(String(24), nullable=False)
+    reason: Mapped[str] = mapped_column(String(40), nullable=False)
+    occurred_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    __table_args__ = (
+        Index("uq_trigger_attempt_activation", "trigger_id", "activation_id", unique=True),
+        Index("ix_trigger_attempt_history", "organization_id", "trigger_id", "occurred_at", "id"),
+        CheckConstraint("status IN ('blocked', 'failed')", name="ck_trigger_attempt_status"),
+        CheckConstraint(
+            "stage IN ('source_review', 'preparation')", name="ck_trigger_attempt_stage"
+        ),
+        CheckConstraint(
+            "reason IN ('platform_identity_required', 'source_review_required', "
+            "'agent_unavailable', 'preparation_failed', 'previous_run_active')",
+            name="ck_trigger_attempt_reason",
+        ),
+    )

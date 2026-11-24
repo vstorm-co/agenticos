@@ -6,14 +6,10 @@ name and a sentence saying when to reach for it is *data*, so it lives in
 morning is one entry with no code. No provider listing answers this question -
 `/v1/models` returns chat models, and none of them state which accept audio.
 
-**One API shape, on purpose.** Every entry declares `api: "transcriptions"`,
-meaning the provider serves OpenAI's `POST /audio/transcriptions`: multipart in,
-`{"text": ...}` out. OpenAI defined it, Groq and Mistral serve it, and that is
-what makes three providers one client rather than three. A provider whose only
-route to audio is a multimodal chat call - Google's, today - is not in the file,
-because the field is what says how to call it and there is no second shape yet.
-When there is, it arrives as another `api` value and another branch, not as a
-special case wired into the caller.
+**Two declared API shapes.** OpenAI, Groq and Mistral use OpenAI-compatible
+multipart transcription. ElevenLabs Scribe uses `/speech-to-text`, `xi-api-key`
+and `model_id`. The catalog chooses the implemented transport; listing a model
+does not make an unsupported API callable.
 
 The key works the way `image_models`' does: the pair is a pick from this
 catalog and the key is a vault secret named beside it, whose purpose is the
@@ -28,8 +24,7 @@ from typing import Literal
 
 from pydantic import TypeAdapter
 
-from app.agents.model_resolver import PROVIDERS
-from app.core import catalog
+from app.core import catalog, secret_purposes
 from app.core.secret_kinds import SecretKind
 
 RecordingFormat = Literal["webm", "wav"]
@@ -40,12 +35,12 @@ RecordingFormat = Literal["webm", "wav"]
 documents neither WebM nor Opus.
 """
 
-LanguageField = Literal["language", "languages"]
+LanguageField = Literal["language", "languages", "language_code"]
 """How a model is told which language a recording is in.
 
 `language`, one ISO-639-1 code, is the field OpenAI defined and Groq and
 Mistral serve. OpenAI's `gpt-transcribe` replaces it with a `languages` list
-and says not to send both - so the model's entry says which it takes.
+and says not to send both. ElevenLabs uses `language_code`; each model declares its field.
 """
 
 ComposerDictation = Literal["browser", "server"]
@@ -97,7 +92,7 @@ class SpeechToTextEntry:
 
     models: tuple[SpeechToTextModel, ...]
     api: str = "transcriptions"
-    """How this provider is called. `transcriptions` is OpenAI's endpoint shape.
+    """How this provider is called: OpenAI-compatible or ElevenLabs multipart.
 
     A field rather than an assumption, so the day a provider is worth offering
     whose only route to audio is a chat call, the catalog can say so and the
@@ -128,7 +123,7 @@ CATALOG: tuple[SpeechToTextEntry, ...] = catalog.load(
     "speech_to_text_models.json", TypeAdapter(tuple[SpeechToTextEntry, ...])
 )
 
-SUPPORTED_APIS = frozenset({"transcriptions"})
+SUPPORTED_APIS = frozenset({"transcriptions", "elevenlabs"})
 """API shapes there is a client for. An entry naming another one is dropped."""
 
 
@@ -150,22 +145,22 @@ def providers() -> tuple[SpeechToTextProvider, ...]:
 
     An entry is dropped where the platform does not know the provider, where it
     lists no models, where its API shape has no client, or where its credential is
-    not a plain API key - the transcription client sends one `Authorization:
-    Bearer`, so a provider wanting a service account or an AWS pair would fail on
-    its first call. The file is data and data can be wrong; a picker entry that
+    not a plain API key. Each implemented transport authenticates with one
+    API-key header, so a provider needing a service account or an AWS pair
+    would fail on its first call. The file is data and data can be wrong; a picker entry that
     fails when somebody sends a voice note is worse than one that is absent.
     """
     found: list[SpeechToTextProvider] = []
     for entry in CATALOG:
-        spec = PROVIDERS.get(entry.provider)
+        spec = secret_purposes.get(entry.provider)
         if spec is None or not entry.models or entry.api not in SUPPORTED_APIS:
             continue
-        if spec.secret_kind is not SecretKind.API_KEY:
+        if spec.kind is not SecretKind.API_KEY:
             continue
         found.append(
             SpeechToTextProvider(
                 provider=spec.id,
-                name=spec.name,
+                name=spec.label,
                 api=entry.api,
                 base_url=entry.base_url,
                 models=entry.models,

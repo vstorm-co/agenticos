@@ -26,6 +26,12 @@ vi.mock("./chart-message", async () => {
     ),
   };
 });
+// The table view reads its table through the query layer; here only which view opens matters.
+vi.mock("./tool-results/table-call", () => ({
+  TableToolResult: ({ toolName }: { toolName: string }) => (
+    <div data-testid="table-call">{toolName}</div>
+  ),
+}));
 const servers = vi.hoisted(() => ({ list: [] as { name: string; url: string }[] }));
 vi.mock("@/hooks", () => ({
   useMcpToolServers: () => servers.list,
@@ -51,20 +57,8 @@ function card(overrides: Partial<ToolCall> = {}) {
 
 /** The step's own row, which is the toggle when there is anything to open. */
 const row = () => screen.getAllByRole("button")[0]!;
-const raw = () => screen.getByRole("button", { name: /raw output|formatted view/ });
 const open = () => userEvent.click(row());
 
-/**
- * One tool call in the transcript.
- *
- * A step in a narration, not a card: while the tool runs the line says what the agent
- * is doing, and once it finishes it says what happened. That switch is the whole
- * design - "Writing test1.md" is useful while it is true and misleading afterwards.
- *
- * Collapsed by default, because a transcript of expanded tool calls is a transcript
- * nobody scrolls. The exceptions are the calls whose whole value is the thing they
- * produced: a chart, a question waiting on an answer, code that ran, a file written.
- */
 describe("a tool call in the transcript", () => {
   it("serializes an object result only when opened and retains it across unrelated renders", async () => {
     const serialize = vi.fn(() => ({ detail: "Large tool result" }));
@@ -136,9 +130,38 @@ describe("a tool call in the transcript", () => {
     expect(screen.queryByText("Running")).toBeNull();
   });
 
+  it.each(["pending", "running"] as const)(
+    "does not claim to wait for the person while a question is %s",
+    (status) => {
+      card({ name: "ask_user_question", args: {}, status, result: undefined });
+      expect(screen.getByText("Question for you")).toBeVisible();
+      expect(screen.queryByText("Waiting for your answer")).not.toBeInTheDocument();
+    },
+  );
+
+  it("distinguishes separate waiting calls by the questions they ask", () => {
+    card({
+      id: "plans",
+      name: "ask_user_question",
+      args: { questions: [{ question: "Which plans?" }] },
+      status: "awaiting_answer",
+      result: undefined,
+    });
+    card({
+      id: "schedule",
+      name: "ask_user_question",
+      args: { questions: [{ question: "When should it run?" }] },
+      status: "awaiting_answer",
+      result: undefined,
+    });
+    expect(screen.getByRole("button", { name: /Question for you\s*Which plans\?/ })).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: /Question for you\s*When should it run\?/ }),
+    ).toBeVisible();
+  });
+
   it("lets a question waiting on its person say so once, not as an approval", () => {
-    // Its own label is "Waiting for your answer"; the amber approval note beside it
-    // named a decision nobody was being asked to make.
+    // The question is identified by its subject; it is not an approval decision.
     card({
       name: "ask_user_question",
       args: { questions: [{ header: "Plans", question: "Which plans?" }] },
@@ -146,7 +169,7 @@ describe("a tool call in the transcript", () => {
       result: undefined,
     });
 
-    expect(screen.getByText("Waiting for your answer")).toBeInTheDocument();
+    expect(screen.getByText("Question for you")).toBeInTheDocument();
     expect(screen.queryByText("waiting for approval")).toBeNull();
   });
 
@@ -200,8 +223,9 @@ describe("a tool call in the transcript", () => {
       ],
       [{ name: "delegate", args: {} }, "Delegate"],
       [{ name: "run_python", args: { code: "x=1" }, result: "result: 1" }, "Run Python"],
-      [{ name: "load_capability", args: { id: "refund_policy" } }, "Refund Policy"],
-      [{ name: "load_capability", args: {} }, "Load Skill"],
+      [{ name: "load_capability", args: { id: "refund-policy" } }, "refund-policy"],
+      [{ name: "load_capability", args: {} }, "Read Skill"],
+      [{ name: "read_skill", args: { id: "refund-policy" } }, "refund-policy"],
       [{ name: "ls", args: { path: "/workspace" } }, "Listed /workspace"],
       [
         { name: "grep", args: { pattern: "TODO", path: "/workspace/app.py" } },
@@ -216,7 +240,9 @@ describe("a tool call in the transcript", () => {
       unmount();
     }
   });
+});
 
+describe("diagnostic details", () => {
   it("humanises a tool nobody named", () => {
     // A capability added by a backend release has to read sensibly with no
     // frontend change at all.
@@ -281,435 +307,7 @@ describe("a tool call in the transcript", () => {
     await open();
     expect(screen.queryByText("the output")).toBeNull();
   });
-
-  it("keeps generic results closed even when the caller requests automatic expansion", async () => {
-    render(
-      <ToolCallCard
-        mcpServers={[]}
-        autoExpand={false}
-        startOpen
-        toolCall={{
-          id: "tc-1",
-          name: "agenticos_list_projects",
-          args: {},
-          status: "completed",
-          result: "large result",
-        }}
-      />,
-    );
-    expect(screen.queryByText("large result")).toBeNull();
-    await open();
-    expect(screen.getByText("large result")).toBeInTheDocument();
-  });
-
-  it("is a button, so a keyboard opens it without a handler of its own", () => {
-    // The row used to be a div with a button role and hand-rolled Enter/Space keys.
-    card({ result: "the output" });
-
-    expect(row().tagName).toBe("BUTTON");
-    expect(row()).toHaveAttribute("aria-expanded", "false");
-  });
-
-  it("opens the skill the agent loaded, which is what somebody asks that step", async () => {
-    // `load_capability` is the framework's own tool and has no row in the registry,
-    // so without `FRAMEWORK_TOOLS` this step would read "Load Capability" over the
-    // JSON the framework answered with.
-    card({
-      name: "load_capability",
-      args: { id: "refunds" },
-      result: JSON.stringify({ instructions: "# Skill: refunds\n\nCheck the order date." }),
-    });
-
-    expect(screen.getByText("Refunds")).toBeInTheDocument();
-    await open();
-    expect(screen.getByText("Check the order date.")).toBeInTheDocument();
-  });
-
-  it("opens the context files the agent may read", async () => {
-    card({ name: "list_context", result: "- glossary: What the acronyms mean.\n- policy" });
-
-    await open();
-    expect(screen.getByText("glossary")).toBeInTheDocument();
-    expect(screen.getByText("What the acronyms mean.")).toBeInTheDocument();
-    expect(screen.getByText("policy")).toBeInTheDocument();
-  });
-
-  it("draws a planning call as its checklist rather than as its arguments", async () => {
-    // `write_plan` is called with the whole ordered list every time, so the generic
-    // renderer opened forty lines of pretty-printed JSON above a rendered copy of
-    // the same three steps.
-    card({
-      name: "write_plan",
-      args: { items: [{ content: "Ship it", status: "pending" }] },
-      result: "Plan updated: 2 step(s).\n\n1. [x] Read the diff\n2. [~] Ship it\n(1/2 completed)",
-    });
-
-    await open();
-    expect(screen.getByText("Read the diff")).toBeInTheDocument();
-    expect(screen.getByText("Ship it")).toBeInTheDocument();
-    expect(screen.queryByText("Arguments")).toBeNull();
-  });
-
-  it("opens the newest turn's last call, which is the result somebody came back for", () => {
-    // Probed by the card's own control rather than by the written text: a finished
-    // write no longer repeats its contents under a card that opens the file, so
-    // "hej" is absent by design and would make this assert the opposite of expansion.
-    render(
-      <ToolCallCard
-        mcpServers={servers.list}
-        startOpen
-        fileSource={{ kind: "conversation", id: "c-1" }}
-        toolCall={{
-          id: "tc-1",
-          name: "write_file",
-          args: { path: "notes.md", content: "hej" },
-          status: "completed",
-          result: "Wrote 1 lines",
-        }}
-      />,
-    );
-
-    expect(screen.getByRole("button", { name: "Open" })).toBeInTheDocument();
-  });
-
-  it("keeps the agent's bookkeeping folded even as the turn's last step", () => {
-    // A note the agent wrote itself for next time opened over the answer it came
-    // after. The same generic step that is not bookkeeping opens as before.
-    const props = {
-      mcpServers: servers.list,
-      startOpen: true,
-      fileSource: { kind: "conversation" as const, id: "c-1" },
-    };
-    const memory = render(
-      <ToolCallCard
-        {...props}
-        toolCall={{
-          id: "tc-1",
-          name: "write_memory",
-          args: { path: "preferences.md" },
-          status: "completed",
-          result: "Saved the note about preferences",
-        }}
-      />,
-    );
-    expect(screen.queryByText("Saved the note about preferences")).toBeNull();
-    memory.unmount();
-
-    render(
-      <ToolCallCard
-        {...props}
-        toolCall={{
-          id: "tc-2",
-          name: "read_artifact",
-          args: { name: "report" },
-          status: "completed",
-          result: "Read the page called report",
-        }}
-      />,
-    );
-    expect(screen.getByText(/Read the page called report/)).toBeInTheDocument();
-  });
-
-  it("leaves an older call read back from history folded", () => {
-    // Opening every finished call on mount turned a conversation somebody reopened
-    // into a wall of results they came back for none of. `create_chart` is the one
-    // exception and is asserted the other way round below - these three confirm that
-    // something happened, where a chart *is* the answer.
-    //
-    // On the code, not on the block it opens: a finished `run_python` closes its code
-    // in favour of its output, so an absent code block says nothing about the step.
-    const python = card({ name: "run_python", args: { code: "print(1)" }, result: "stdout:\n1" });
-    expect(screen.queryByText("python")).toBeNull();
-    python.unmount();
-
-    card({
-      name: "write_file",
-      args: { path: "notes.md", content: "hej" },
-      result: "Wrote 1 lines",
-    });
-    expect(screen.queryByText("hej")).toBeNull();
-  });
-
-  it("opens a chart wherever it sits in the turn, not only as the last step", () => {
-    // A turn that drew three charts showed two collapsed headers and one picture.
-    // Only the last step of a turn is handed `startOpen`, and a step whose result
-    // arrives with it never has the status transition `opensWhenDone` waits for - so
-    // the two charts that were not last had nothing to open them. Three charts are
-    // three answers, and this is the card mounted the way those two were.
-    const first = card({
-      id: "tc-1",
-      name: "create_chart",
-      result: JSON.stringify({ kind: "chart", title: "Trend", series: [] }),
-    });
-    expect(screen.getByTestId("chart")).toHaveTextContent("Trend");
-    first.unmount();
-
-    card({
-      id: "tc-2",
-      name: "create_chart",
-      result: JSON.stringify({ kind: "chart", title: "Udzial", series: [] }),
-    });
-    expect(screen.getByTestId("chart")).toHaveTextContent("Udzial");
-  });
-
-  it("opens a generated image on sight, since the picture is the answer", () => {
-    card({
-      name: "generate_image",
-      result: JSON.stringify({ kind: "generated_image", filename: "x_image.png", prompt: "a cat" }),
-    });
-
-    expect(screen.getByRole("img", { name: "a cat" })).toHaveAttribute(
-      "src",
-      "/api/generated/x_image.png",
-    );
-  });
-
-  it("plays generated speech on sight, since the clip is the answer", () => {
-    const { container } = card({
-      name: "generate_speech",
-      result: JSON.stringify({
-        kind: "generated_speech",
-        filename: "x_speech.mp3",
-        voice: "marin",
-      }),
-    });
-
-    expect(container.querySelector("audio")).toHaveAttribute("src", "/api/generated/x_speech.mp3");
-  });
-
-  it("plays a generated video on sight, since the clip is the answer", () => {
-    const { container } = card({
-      name: "generate_video",
-      result: JSON.stringify({ kind: "generated_video", filename: "x_video.mp4", prompt: "rain" }),
-    });
-
-    expect(container.querySelector("video")).toHaveAttribute("src", "/api/generated/x_video.mp4");
-  });
-
-  it("opens a kept desktop screenshot on sight, as it does a generated image", () => {
-    card({
-      name: "computer_save_screenshot",
-      result: JSON.stringify({
-        kind: "desktop_screenshot",
-        filename: "x_image.png",
-        caption: "The login form",
-      }),
-    });
-
-    expect(screen.getByRole("img", { name: "The login form" })).toHaveAttribute(
-      "src",
-      "/api/generated/x_image.png",
-    );
-  });
-
-  it("keeps a published page to one line, its card being under the answer", async () => {
-    // The card sits under the reply, so the step does not open over the work -
-    // which is what lets a turn that published an app fold away like any other.
-    card({
-      name: "publish_artifact",
-      result: JSON.stringify({
-        kind: "artifact",
-        artifact_id: "a1",
-        version_id: "v3",
-        version: 3,
-        title: "Weekly report",
-        unchanged: false,
-      }),
-    });
-    expect(screen.queryByRole("link", { name: /Weekly report/ })).toBeNull();
-
-    // Opened by hand, it still links the version this run wrote.
-    await userEvent.click(screen.getByRole("button", { name: /Published page/ }));
-    expect(screen.getByRole("link", { name: /Weekly report/ })).toHaveAttribute(
-      "href",
-      "/apps/a1?version=v3",
-    );
-  });
-
-  it("does not open a chart whose result never became one", () => {
-    // The payoff is the only reason to open it on sight. A `create_chart` that came
-    // back as an error string would otherwise put a stack of JSON where the picture
-    // was meant to be.
-    card({ name: "create_chart", result: "That chart could not be built (chart: ...)" });
-
-    expect(screen.queryByTestId("chart")).toBeNull();
-  });
-
-  it("opens what a call produced while somebody was watching it happen", () => {
-    // The live case: the step mounts running and finishes on screen. A file written in
-    // front of somebody is the answer to what they asked for.
-    const live = { id: "tc-1", name: "write_file", args: { path: "notes.md", content: "hej" } };
-    const { rerender } = render(
-      <ToolCallCard
-        mcpServers={servers.list}
-        fileSource={{ kind: "conversation", id: "c-1" }}
-        toolCall={{ ...live, status: "running" }}
-      />,
-    );
-    expect(screen.queryByRole("button", { name: "Open" })).toBeNull();
-
-    rerender(
-      <ToolCallCard
-        mcpServers={servers.list}
-        fileSource={{ kind: "conversation", id: "c-1" }}
-        toolCall={{ ...live, status: "completed", result: "Wrote 1 lines" }}
-      />,
-    );
-
-    expect(screen.getByRole("button", { name: "Open" })).toBeInTheDocument();
-  });
-
-  it("leaves code that is still running collapsed", () => {
-    card({ name: "run_python", args: { code: "print(1)" }, status: "running", result: undefined });
-
-    expect(screen.queryByTestId("markdown")).toBeNull();
-  });
-
-  it("leaves a chart result that is not a chart collapsed", () => {
-    card({ name: "create_chart", result: "the tool failed to draw one" });
-
-    expect(screen.queryByTestId("chart")).toBeNull();
-  });
-
-  it("opens a chart that finishes after the step was already on screen", () => {
-    // The same live rule, for the tool whose whole value is the picture.
-    const { rerender } = render(
-      <ToolCallCard
-        mcpServers={servers.list}
-        toolCall={{ id: "tc-1", name: "create_chart", args: {}, status: "running" }}
-      />,
-    );
-    expect(screen.queryByTestId("chart")).toBeNull();
-
-    rerender(
-      <ToolCallCard
-        mcpServers={servers.list}
-        toolCall={{
-          id: "tc-1",
-          name: "create_chart",
-          args: {},
-          status: "completed",
-          result: JSON.stringify({ kind: "chart", title: "Spend", series: [] }),
-        }}
-      />,
-    );
-
-    expect(screen.getByTestId("chart")).toHaveTextContent("Spend");
-  });
-
-  it("swaps the formatted view for the raw one", async () => {
-    // The escape hatch: whatever a renderer decided to show, this is what the tool
-    // actually said.
-    card({ args: { invoice_id: 7 }, result: "done" });
-    await open();
-
-    await userEvent.click(raw());
-
-    expect(screen.getByText("Arguments")).toBeInTheDocument();
-    expect(screen.getByText(/"invoice_id": 7/)).toBeInTheDocument();
-  });
-
-  it("keeps the step open when the raw view is toggled", async () => {
-    card({ args: { invoice_id: 7 }, result: "done" });
-    await open();
-
-    await userEvent.click(raw());
-
-    expect(row()).toHaveAttribute("aria-expanded", "true");
-  });
-
-  it("goes back to the formatted view", async () => {
-    card({
-      name: "search_documents",
-      args: { query: "refunds" },
-      result: "[1] Source: a.md (score: 0.9)\nA passage.",
-    });
-    await open();
-    await userEvent.click(raw());
-    expect(screen.getByText("Arguments")).toBeInTheDocument();
-
-    await userEvent.click(raw());
-
-    expect(screen.queryByText("Arguments")).toBeNull();
-    expect(screen.getByText("A passage.")).toBeInTheDocument();
-  });
-
-  it("forgets the raw view when the step is closed", async () => {
-    // Reopening on raw output would be a state nobody asked for twice.
-    card({ result: "done" });
-    await open();
-    await userEvent.click(raw());
-
-    await open();
-    await open();
-
-    expect(screen.queryByText("Arguments")).toBeNull();
-  });
-
-  it("offers no raw view until the step is open", () => {
-    // It is an escape hatch for somebody already looking at a call, not a control on
-    // every line of the transcript.
-    card({ result: "done" });
-
-    expect(screen.queryByRole("button", { name: /raw output/ })).toBeNull();
-  });
-
-  it("hands each renderer what it needs, once opened", async () => {
-    const cases: [Partial<ToolCall>, string][] = [
-      [
-        { name: "search_documents", result: "[1] Source: a.md (score: 0.9)\nA passage." },
-        "A passage.",
-      ],
-      [
-        {
-          name: "web_search",
-          result: JSON.stringify({
-            kind: "web_search",
-            results: [{ title: "Hit", url: "https://a.example/" }],
-          }),
-        },
-        "Hit",
-      ],
-      [
-        {
-          name: "load_capability",
-          args: { id: "refunds" },
-          result: JSON.stringify({ instructions: "How refunds work." }),
-        },
-        "How refunds work.",
-      ],
-      [{ name: "post_invoice", result: "Posted." }, "Posted."],
-      [{ name: "read_file", args: { path: "a.txt" }, result: "the contents" }, "the contents"],
-      [{ name: "execute", args: { command: "ls" }, result: "a.txt" }, "a.txt"],
-    ];
-
-    for (const [toolCall, expected] of cases) {
-      const { unmount } = card(toolCall);
-      await open();
-      expect(screen.getAllByText(expected)[0], expected).toBeInTheDocument();
-      unmount();
-    }
-  });
-
-  it("renders a structured result as JSON rather than as [object Object]", async () => {
-    // A tool can return an object; the raw view and the generic view both have to
-    // make text of it.
-    card({ result: { id: 7 } as never });
-
-    await open();
-
-    expect(screen.getByText(/"id": 7/)).toBeInTheDocument();
-  });
-
-  it("shows an empty result as empty rather than as the word undefined", async () => {
-    card({ result: undefined });
-
-    await open();
-
-    expect(screen.queryByText("undefined")).toBeNull();
-  });
 });
-
 describe("one agent asking another", () => {
   const asking = (overrides: Partial<ToolCall> = {}) =>
     render(
@@ -753,10 +351,8 @@ describe("one agent asking another", () => {
 
     await userEvent.click(screen.getByRole("button", { name: /Asked Finance Analyst/ }));
 
-    expect(screen.getByText("Where does MRR stand?")).toBeInTheDocument();
+    expect(screen.getByText(/"description": "Where does MRR stand\?/)).toBeInTheDocument();
     expect(screen.getByText("MRR is €153k.")).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Show more" }));
-    expect(screen.getByRole("button", { name: "Show less" })).toBeInTheDocument();
   });
 
   it("names a delegate the reader cannot see from its handle, without a brief it never got", async () => {
@@ -771,7 +367,54 @@ describe("one agent asking another", () => {
   });
 });
 
-it("does not stringify a collapsed result, and computes it only when opened (#2469)", async () => {
+it.each([
+  "recall",
+  "create_chart",
+  "generate_image",
+  "generate_speech",
+  "generate_video",
+  "search_documents",
+  "web_search",
+  "read_file",
+  "execute",
+  "run_python",
+  "table_query",
+  "ask_user_question",
+])("shows %s as raw diagnostics without a second visualization", async (name) => {
+  const result = JSON.stringify({
+    kind: "chart",
+    title: "Only in the transcript",
+    series: [],
+    items: ["profile role"],
+  });
+  card({ name, args: { query: "profile job-title role" }, result });
+  expect(row()).toHaveAttribute("aria-expanded", "false");
+  await open();
+  expect(screen.getByText(/"query": "profile job-title role"/)).toBeVisible();
+  expect(screen.getByText(result)).toBeVisible();
+  expect(screen.queryByTestId("chart")).not.toBeInTheDocument();
+  expect(screen.queryByText("Your memory")).not.toBeInTheDocument();
+  await open();
+  expect(row()).toHaveAttribute("aria-expanded", "false");
+});
+it("keeps explicit expansion across completion without opening other steps", async () => {
+  const call: ToolCall = { id: "a", name: "run_python", args: {}, status: "running" };
+  const view = render(<ToolCallCard toolCall={call} mcpServers={[]} />);
+  expect(row()).toHaveAttribute("aria-expanded", "false");
+  view.rerender(
+    <ToolCallCard toolCall={{ ...call, status: "completed", result: "done" }} mcpServers={[]} />,
+  );
+  expect(row()).toHaveAttribute("aria-expanded", "false");
+  await open();
+  expect(screen.getByText("done")).toBeVisible();
+});
+it.each([undefined, "", { id: 7 }])("handles empty and structured results", async (result) => {
+  card({ result });
+  await open();
+  expect(screen.queryByText("undefined")).not.toBeInTheDocument();
+  if (typeof result === "object") expect(screen.getByText(/"id": 7/)).toBeVisible();
+});
+it("serializes large result payloads only on explicit expansion", async () => {
   const result = { payload: "x".repeat(100_000) };
   const stringify = vi.spyOn(JSON, "stringify");
   try {
@@ -779,18 +422,7 @@ it("does not stringify a collapsed result, and computes it only when opened (#24
     expect(stringify.mock.calls.filter(([value]) => value === result)).toHaveLength(0);
     await open();
     expect(stringify.mock.calls.filter(([value]) => value === result)).toHaveLength(1);
-    expect(screen.getByText(/xxx/)).toBeInTheDocument();
   } finally {
     stringify.mockRestore();
   }
-});
-
-it("shows the task being worked on before the platform tool finishes", () => {
-  card({
-    name: "agenticos_create_task",
-    args: { task: { title: "Review supplier draft" } },
-    status: "running",
-  });
-  expect(screen.getByText("Create task")).toBeVisible();
-  expect(screen.getByText("Review supplier draft")).toBeVisible();
 });

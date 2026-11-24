@@ -1,7 +1,7 @@
 # ruff: noqa: I001 - Imports structured for Jinja2 template conditionals
 """Tests for authentication routes."""
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
@@ -19,6 +19,7 @@ from app.main import app
 from app.api.deps import get_redis
 from app.api.deps import get_db_session
 from app.api.deps import get_session_service
+from app.services.session import SessionService
 
 pytestmark = pytest.mark.security
 
@@ -41,6 +42,7 @@ class MockUser:
         self.role = role
         self.hashed_password = "hashed"
         self.credential_version = 0
+        self.totp_enabled = False
         self.avatar_url = None
         self.oauth_provider = None
         self.created_at = datetime.now(UTC)
@@ -96,6 +98,9 @@ async def test_login_success(client_with_mock_service: AsyncClient):
     assert "access_token" in data
     assert "refresh_token" in data
     assert data["token_type"] == "bearer"
+    payload = verify_token(data["access_token"])
+    assert payload is not None
+    assert isinstance(payload["auth_time"], int)
 
 
 @pytest.mark.anyio
@@ -105,8 +110,10 @@ async def test_login_names_its_session_in_the_access_token(
     """The access token carries the id of the session login opened, so a later
     password change can spare this session while revoking the account's rest (#1439)."""
     session_id = uuid4()
-    session_service = MagicMock()
-    session_service.create_session = AsyncMock(return_value=SimpleNamespace(id=session_id))
+    session_service = SessionService(MagicMock())
+    session_service.create_session = AsyncMock(
+        return_value=SimpleNamespace(id=session_id, created_at=datetime.now(UTC))
+    )
 
     app.dependency_overrides[get_user_service] = lambda: mock_user_service
     app.dependency_overrides[get_redis] = lambda: mock_redis
@@ -136,8 +143,10 @@ async def test_magic_link_binds_the_access_token_to_its_session(
     """A magic-link sign-in is a session like any other, bound to its row."""
     mock_user_service.consume_magic_link_token = ServiceMock(return_value=(mock_user, None))
     session_id = uuid4()
-    session_service = MagicMock()
-    session_service.create_session = ServiceMock(return_value=MagicMock(id=session_id))
+    session_service = SessionService(MagicMock())
+    session_service.create_session = ServiceMock(
+        return_value=SimpleNamespace(id=session_id, created_at=datetime.now(UTC))
+    )
     app.dependency_overrides[get_session_service] = lambda: session_service
 
     response = await client_with_mock_service.post(
@@ -225,8 +234,9 @@ async def test_refresh_refuses_a_token_behind_the_credential_version(
     user_service = MagicMock()
     user_service.get_by_id = AsyncMock(return_value=user)
     session_service = MagicMock()
+    auth_time = datetime.now(UTC) - timedelta(minutes=6)
     session_service.validate_refresh_token = AsyncMock(
-        return_value=SimpleNamespace(id=uuid4(), user_id=user.id)
+        return_value=SimpleNamespace(id=uuid4(), user_id=user.id, created_at=auth_time)
     )
     session_service.rotate_session = AsyncMock()
     stale = create_refresh_token(subject=str(user.id), credential_version=4)
@@ -258,8 +268,9 @@ async def test_refresh_at_the_current_version_mints_a_token_carrying_it(
     user_service = MagicMock()
     user_service.get_by_id = AsyncMock(return_value=user)
     session_service = MagicMock()
+    auth_time = datetime.now(UTC) - timedelta(minutes=6)
     session_service.validate_refresh_token = AsyncMock(
-        return_value=SimpleNamespace(id=uuid4(), user_id=user.id)
+        return_value=SimpleNamespace(id=uuid4(), user_id=user.id, created_at=auth_time)
     )
     session_service.rotate_session = AsyncMock(return_value=SimpleNamespace(id=uuid4()))
     current = create_refresh_token(subject=str(user.id), credential_version=5)
@@ -280,6 +291,9 @@ async def test_refresh_at_the_current_version_mints_a_token_carrying_it(
     minted = verify_token(resp.json()["refresh_token"])
     assert minted is not None
     assert minted["cv"] == 5
+    access = verify_token(resp.json()["access_token"])
+    assert access is not None
+    assert access["auth_time"] == int(auth_time.timestamp())
 
 
 @pytest.mark.anyio
@@ -311,7 +325,9 @@ async def test_a_password_change_returns_a_fresh_session_at_the_new_version(
     mock_user.credential_version = 3
     mock_user_service.change_password = AsyncMock(return_value=mock_user)
     session_service = MagicMock()
-    session_service.create_session = AsyncMock(return_value=SimpleNamespace(id=uuid4()))
+    session_service.create_session = AsyncMock(
+        return_value=SimpleNamespace(id=uuid4(), created_at=datetime.now(UTC))
+    )
     app.dependency_overrides[get_user_service] = lambda: mock_user_service
     app.dependency_overrides[get_session_service] = lambda: session_service
     app.dependency_overrides[get_redis] = lambda: mock_redis
@@ -370,10 +386,12 @@ async def test_a_wrong_current_password_is_refused_with_a_401(
 async def test_login_invalid_credentials(
     client_with_mock_service: AsyncClient,
     mock_user_service: MagicMock,
-):
-    """Test login with invalid credentials."""
+) -> None:
+    """The credential reason survives the API envelope without changing its code."""
     mock_user_service.authenticate = ServiceMock(
-        side_effect=AuthenticationError(message="Invalid credentials")
+        side_effect=AuthenticationError(
+            message="Invalid credentials", details={"reason": "invalid_credentials"}
+        )
     )
 
     response = await client_with_mock_service.post(
@@ -381,6 +399,8 @@ async def test_login_invalid_credentials(
         data={"username": "test@example.com", "password": "wrongpassword"},
     )
     assert response.status_code == 401
+    assert response.json()["error"]["code"] == "AUTHENTICATION_ERROR"
+    assert response.json()["error"]["details"] == {"reason": "invalid_credentials"}
 
 
 @pytest.mark.anyio

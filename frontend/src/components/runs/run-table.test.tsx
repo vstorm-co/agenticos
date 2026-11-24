@@ -38,6 +38,7 @@ function run(overrides: Partial<AgentRun> = {}): AgentRun {
     started_at: "2026-08-04T09:00:00Z",
     ended_at: "2026-08-04T09:00:30Z",
     parent_run_id: null,
+    retry_of_run_id: null,
     subagent_task_id: null,
     modality: "text",
     voice_chain: null,
@@ -51,6 +52,79 @@ function row() {
 }
 
 describe("a run history row", () => {
+  it("keeps essential columns while allowing metadata to be revealed", () => {
+    const view = render(<RunTable runs={[run()]} detailColumns={["surface"]} />);
+    expect(screen.queryByRole("columnheader", { name: "Model" })).toBeNull();
+    expect(screen.queryByRole("columnheader", { name: "Tokens" })).toBeNull();
+    expect(screen.getByRole("columnheader", { name: "Cost" })).toBeVisible();
+    view.rerender(<RunTable runs={[run()]} detailColumns={["surface", "model", "tokens"]} />);
+    expect(screen.getByRole("columnheader", { name: "Model" })).toBeVisible();
+    expect(screen.getByRole("columnheader", { name: "Tokens" })).toBeVisible();
+  });
+
+  it("names the small channel decision model separately from the full agent", () => {
+    render(<RunTable runs={[run({ system_role: "channel_decision" })]} />);
+    expect(screen.getByText("Channel participation decision (system)")).toBeInTheDocument();
+  });
+
+  it("says what each run was asked, and what a judge's run graded", () => {
+    const link = {
+      eval_run_id: "eval-1",
+      agent_id: "agent-1",
+      case_id: "case-1",
+      dataset_name: "refunds",
+      case_input: "Can I return it?",
+    };
+    render(
+      <RunTable
+        runs={[
+          run({ id: "chat", preview: "Where is my order?" }),
+          run({
+            id: "answer",
+            surface: "eval",
+            preview: "Can I return it?",
+            eval_case: { ...link, graded: false },
+          }),
+          run({
+            id: "grade",
+            surface: "eval",
+            preview: "Can I return it?",
+            eval_case: { ...link, graded: true },
+          }),
+          run({ id: "api", preview: null }),
+        ]}
+      />,
+    );
+
+    const [chat, answer, grade, api] = screen.getAllByRole("row").slice(1);
+    expect(within(chat!).getByText("Where is my order?")).toBeInTheDocument();
+    expect(within(answer!).getByText("Can I return it?")).toBeInTheDocument();
+    expect(within(grade!).getByText("Grading: Can I return it?")).toBeInTheDocument();
+    expect(within(api!).queryByText(/\?/)).toBeNull();
+  });
+
+  it("names a platform agent no agent list holds, and says what it worked on", () => {
+    render(
+      <RunTable
+        runs={[
+          run({
+            surface: "eval",
+            agent_id: "improver-1",
+            origin: { kind: "improve", agent_name: "Improver", agent_id: "agent-1" },
+          }),
+        ]}
+        agentsById={new Map()}
+      />,
+    );
+
+    expect(within(row()).getAllByText("Improver").length).toBeGreaterThan(0);
+    expect(within(row()).getByText("Improve")).toBeInTheDocument();
+    expect(within(row()).getByRole("link", { name: "Open the agent" })).toHaveAttribute(
+      "href",
+      "/agents/agent-1",
+    );
+  });
+
   it("names the platform role that did the work, not the agent it is recorded under", () => {
     render(<RunTable runs={[run({ system_role: "memory_maintenance" })]} />);
 
@@ -69,12 +143,101 @@ describe("a run history row", () => {
     expect(within(row()).queryByText(/Delegated/)).toBeNull();
   });
 
+  it("carries a failed run's reason on the row's hover, not in a column", () => {
+    // The row has no room for the sentence - a column for it would make every
+    // row taller - so the status cell holds it as a hover, and the detail view
+    // carries the full rendering.
+    render(
+      <RunTable
+        runs={[
+          run({ status: "failed", error: "The run did not finish (ModelHTTPError, HTTP 400)" }),
+        ]}
+      />,
+    );
+
+    const statusCell = within(row()).getAllByRole("cell")[0]!;
+    expect(
+      statusCell.querySelector('[title="The run did not finish (ModelHTTPError, HTTP 400)"]'),
+    ).not.toBeNull();
+  });
+
+  it("carries no reason on a run that has none", () => {
+    render(<RunTable runs={[run()]} />);
+
+    const statusCell = within(row()).getAllByRole("cell")[0]!;
+    expect(statusCell.querySelector("[title]")).toBeNull();
+  });
+
   it("marks a delegated run with the delegation that produced it", () => {
     // The task id is what makes this row and a panel in a transcript visibly one
     // delegation rather than two things about the same agent.
     render(<RunTable runs={[run({ parent_run_id: "run-0", subagent_task_id: "4f2a1b8c" })]} />);
 
     expect(within(row()).getByText("Delegated · 4f2a1b8c")).toBeVisible();
+  });
+
+  it("says what a run parked on a question is waiting on, and how long is left", () => {
+    // The row is where a parked run must not look finished: the question and
+    // its expiry, with the chat behind it one column over.
+    render(
+      <RunTable
+        runs={[
+          run({
+            status: "awaiting_answer",
+            waiting_questions: ["Which model should I use?"],
+            waiting_expires_at: new Date(Date.now() + 25 * 60 * 60 * 1000).toISOString(),
+          }),
+        ]}
+      />,
+    );
+
+    expect(within(row()).getByText("Which model should I use?")).toBeVisible();
+    expect(within(row()).getByText(/Expires in 1 d/)).toBeVisible();
+  });
+
+  it("says nothing about waiting for a run that is not parked on a question", () => {
+    render(<RunTable runs={[run({ status: "completed" })]} />);
+
+    expect(within(row()).queryByText(/Expires in/)).toBeNull();
+  });
+
+  it.each([
+    { questions: [], first: "Needs secret: Vendor API key", title: "Needs secret: Vendor API key" },
+    {
+      questions: ["Which calendar?"],
+      first: "Which calendar?",
+      title: "Which calendar? Needs secret: Vendor API key",
+    },
+  ])(
+    "shows the pending secret alongside $questions without making up an expiry",
+    ({ questions, first, title }) => {
+      render(
+        <RunTable
+          runs={[
+            run({
+              status: "awaiting_answer",
+              waiting_questions: questions,
+              waiting_secret_requests: ["Vendor API key"],
+              waiting_expires_at: null,
+            }),
+          ]}
+        />,
+      );
+      const summary = within(row()).getByTitle(title);
+      expect(summary).toHaveTextContent(first);
+      expect(within(row()).queryByText(/Expires in/)).not.toBeInTheDocument();
+    },
+  );
+
+  it("omits the waiting summary until at least one pending question or secret is known", () => {
+    render(
+      <RunTable
+        runs={[
+          run({ status: "awaiting_answer", waiting_questions: [], waiting_secret_requests: [] }),
+        ]}
+      />,
+    );
+    expect(within(row()).queryByText(/Needs secret:|Expires in/)).not.toBeInTheDocument();
   });
 
   it("still marks an orphaned delegation, without a handle it cannot honour", () => {
@@ -302,6 +465,24 @@ describe("who ran it, and which agent", () => {
     expect(within(row()).getAllByText("-").length).toBeGreaterThanOrEqual(2);
   });
 
+  it("uses a known member's email when no name was supplied and leaves an unattributed run unnamed", () => {
+    render(
+      <RunTable
+        runs={[run(), run({ id: "unattributed", user_id: null })]}
+        membersById={
+          new Map([["user-1", { user_id: "user-1", email: "kim@acme.test", full_name: "" }]])
+        }
+      />,
+    );
+    const rows = within(screen.getByRole("table")).getAllByRole("row");
+    const named = rows[1];
+    const unattributed = rows[2];
+    if (!named || !unattributed) throw new Error("Expected both run rows");
+    expect(within(named).getByText("kim@acme.test")).toBeVisible();
+    expect(within(unattributed).queryByText("kim@acme.test")).not.toBeInTheDocument();
+    expect(within(unattributed).getAllByText("-").length).toBeGreaterThan(0);
+  });
+
   it("withholds the Agent column entirely when the names cannot be resolved", () => {
     // No agents:view means no agent list - a column of dashes would read as
     // data missing rather than a permission withheld.
@@ -383,4 +564,58 @@ describe("a voice call's row", () => {
     expect(within(row()).getByText("Voice call")).toBeInTheDocument();
     expect(within(row()).getByText("30 s")).toBeInTheDocument();
   });
+});
+
+it("names the unlinked channel sender instead of the publisher on desktop and mobile", () => {
+  render(
+    <RunTable
+      runs={[
+        run({
+          user_id: "publisher",
+          surface: "mattermost",
+          initiated_by_publisher_fallback: true,
+          asked_in_chat: { platform: "mattermost", name: "@participant", bot_name: "Sales bot" },
+        }),
+      ]}
+      membersById={
+        new Map([
+          [
+            "publisher",
+            {
+              user_id: "publisher",
+              email: "publisher@example.test",
+              full_name: "Publisher Person",
+            },
+          ],
+        ])
+      }
+    />,
+  );
+  expect(within(row()).getAllByText("@participant")).toHaveLength(2);
+  expect(within(row()).getAllByText("Unverified")).toHaveLength(2);
+  expect(within(row()).queryByText("Publisher Person")).toBeNull();
+  expect(
+    within(row()).getAllByTitle(
+      /Asked in Mattermost by @participant \(unverified\), through Sales bot/,
+    ),
+  ).toHaveLength(2);
+});
+
+it("can show an unverified chat account without a member-directory lookup", () => {
+  render(
+    <RunTable
+      runs={[
+        run({
+          initiated_by_publisher_fallback: true,
+          asked_in_chat: { platform: "mattermost", name: "@participant", bot_name: null },
+        }),
+      ]}
+    />,
+  );
+  expect(within(row()).getAllByText("@participant")).toHaveLength(2);
+});
+
+it("does not name a publisher when an external sender has no remaining chat identity", () => {
+  render(<RunTable runs={[run({ initiated_by_publisher_fallback: true })]} />);
+  expect(within(row()).getAllByText("Anonymous participant")).toHaveLength(2);
 });

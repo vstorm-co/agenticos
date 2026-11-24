@@ -1,6 +1,7 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useAuthStore, useOrgStore } from "@/stores";
+import { CancelledError, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
@@ -20,6 +21,7 @@ import type {
   ArtifactPublicLinkUpdate,
   ArtifactVersionList,
   ArtifactView,
+  ArtifactThumbnail,
 } from "@/types/artifact";
 
 /** Which slice of the artifacts the caller may open to ask for. */
@@ -41,6 +43,8 @@ export interface ArtifactQuery {
    * the whole organization - the sidebar's list. Off for the management page.
    */
   mineOrShared?: boolean;
+  /** Only the apps the caller starred; the sidebar's favourites list. */
+  favourites?: boolean;
   /** Off when the caller may not list apps, so no request is made. Defaults to on. */
   enabled?: boolean;
 }
@@ -61,6 +65,7 @@ export function useArtifacts({
   groupId = null,
   projectId = null,
   mineOrShared = false,
+  favourites = false,
   enabled = true,
 }: ArtifactQuery = {}) {
   const { data, isLoading, error, refetch } = useQuery({
@@ -73,6 +78,7 @@ export function useArtifacts({
       groupId: groupId ?? "",
       ...(projectId ? { projectId } : {}),
       ...(mineOrShared ? { mineOrShared } : {}),
+      ...(favourites ? { favourites } : {}),
     }),
     enabled,
     queryFn: () => {
@@ -85,6 +91,7 @@ export function useArtifacts({
       if (groupId) params.set("group_id", groupId);
       if (projectId) params.set("project_id", projectId);
       if (mineOrShared) params.set("mine_or_shared", "true");
+      if (favourites) params.set("favourites", "true");
       return apiClient.get<ArtifactList>(`/apps?${params}`);
     },
     placeholderData: (previous) => previous,
@@ -144,6 +151,66 @@ export function useArtifactListActions() {
   });
 
   return { archive, unarchive, remove };
+}
+
+/** The list entries a star change lands in: lists, and the detail held under the id. */
+function isListKey(key: readonly unknown[]): boolean {
+  return key[1] === "list";
+}
+
+/**
+ * Star or unstar an app. The change shows at once in every list and in the
+ * app's own detail; a refused change is put back and says why. Each list is then
+ * refetched, so a favourites list drops an app that was unstarred and the total
+ * is right again.
+ */
+export function useToggleArtifactFavourite() {
+  const tErrors = useTranslations("errors");
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    // 204 with no body; idempotent on the server. The cache is corrected by the
+    // optimistic write above and by the invalidation in onSettled.
+    mutationFn: ({ id, favourite }: { id: string; favourite: boolean }) =>
+      favourite
+        ? apiClient.post<void>(`/apps/${id}/favourite`)
+        : apiClient.delete<void>(`/apps/${id}/favourite`),
+    onMutate: async ({ id, favourite }) => {
+      await queryClient.cancelQueries({ queryKey: qk.artifacts.all() });
+      const snapshot = queryClient.getQueriesData<ArtifactList | ArtifactDetail>({
+        queryKey: qk.artifacts.all(),
+      });
+      for (const [key, data] of snapshot) {
+        if (!data) continue;
+        if (isListKey(key) && "items" in data) {
+          // The favourites list drops an app once it is unstarred; the others flip its mark.
+          const onlyFavourites =
+            (key[2] as { favourites?: boolean } | undefined)?.favourites === true;
+          const removed = onlyFavourites && !favourite;
+          const items = removed
+            ? data.items.filter((item) => item.id !== id)
+            : data.items.map((item) =>
+                item.id === id ? { ...item, is_favourite: favourite } : item,
+              );
+          queryClient.setQueryData<ArtifactList>(key, {
+            ...data,
+            items,
+            total: removed ? Math.max(0, data.total - 1) : data.total,
+          });
+        } else if (key.length === 2 && key[1] === id && !("items" in data)) {
+          queryClient.setQueryData<ArtifactDetail>(key, { ...data, is_favourite: favourite });
+        }
+      }
+      return { snapshot };
+    },
+    onError: (error, _variables, context) => {
+      for (const [key, data] of context?.snapshot ?? []) {
+        queryClient.setQueryData(key, data);
+      }
+      toast.error(getErrorMessage(error, tErrors));
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: qk.artifacts.all() }),
+  });
 }
 
 /**
@@ -529,5 +596,57 @@ export function usePublicArtifactUnlock(publicKey: string) {
   const { apiUrl } = usePublicConfig();
   return useMutation({
     mutationFn: (password: string) => unlockPublicArtifact(apiUrl, publicKey, password),
+  });
+}
+
+/** Static, data-free previews survive navigation and are replaced only with a new version. */
+export function useArtifactThumbnail(
+  artifactId: string,
+  versionId: string | null,
+  enabled: boolean,
+) {
+  const org = useOrgStore((state) => state.activeOrgId);
+  const user = useAuthStore((state) => state.user?.id ?? null);
+  const client = useQueryClient();
+  const key = qk.artifacts.thumbnail(artifactId, versionId, org, user);
+  return useQuery({
+    queryKey: key,
+    // Let an already-started static preview finish into this scoped cache when
+    // navigating away. Cancelling it would restart its isolated render on Back.
+    queryFn: async () => {
+      // Keep the bounded recovery inside this shared fetch: Query cancels its
+      // own retries when the last card unmounts, even if its request continues.
+      for (let attempt = 0; attempt < 3; attempt++) {
+        if (attempt > 0) {
+          await new Promise<void>((resolve) => setTimeout(resolve, 1000 * 2 ** (attempt - 1)));
+        }
+        if (
+          useOrgStore.getState().activeOrgId !== org ||
+          (useAuthStore.getState().user?.id ?? null) !== user
+        ) {
+          // Revert this scope's unfinished fetch so returning can start it
+          // again, rather than caching a refusal from the newly selected scope.
+          await client.cancelQueries({ queryKey: key, exact: true });
+          throw new CancelledError({ revert: true });
+        }
+        const thumbnail = await apiClient.get<ArtifactThumbnail>(
+          `/apps/${artifactId}/thumbnail${versionId ? `?version_id=${encodeURIComponent(versionId)}` : ""}`,
+        );
+        if (thumbnail.state !== "unavailable" || thumbnail.retryable !== true) {
+          return thumbnail;
+        }
+      }
+      throw new Error("ARTIFACT_THUMBNAIL_UNAVAILABLE");
+    },
+    // Visibility toggles enabled after mount. Keep a failed immutable version
+    // failed instead of treating each visibility change as a fresh render.
+    enabled: enabled && client.getQueryState(key)?.status !== "error",
+    staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+    retry: false,
+    retryOnMount: false,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   });
 }

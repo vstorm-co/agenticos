@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
+import { useConsoleRouter as useRouter } from "@/hooks/use-console-router";
 import { ArrowRightLeft, Building2, Check, Plus } from "lucide-react";
 
 import { CreateOrgDialog } from "@/components/teams";
@@ -11,68 +12,66 @@ import { PageHeader } from "@/components/dashboard/page-header";
 import {
   Button,
   Badge,
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
+  ListCard,
+  ListCardEmpty,
+  SearchInput,
   Skeleton,
   EntityAvatar,
 } from "@/components/ui";
-import { useOrganizations } from "@/hooks";
+import { useOrganizations, useOrganizationList } from "@/hooks";
+import { ErrorState } from "@/components/states";
 import { ROUTES } from "@/lib/constants";
 import { useChanged } from "@/hooks/use-changed";
 import { useTranslations } from "next-intl";
 
-/**
- * The list's frame, drawn whether or not there is anything in it - the same
- * always-visible container the vault draws around its keys. Same header, same
- * border, in every state: what changes is what is inside it.
- */
-function WorkspacesCard({ count, children }: { count: number | null; children: ReactNode }) {
+/** A gallery shares the page surface, including while its count is loading. */
+function WorkspacesCard({
+  count,
+  controls,
+  children,
+}: {
+  count: number | null | undefined;
+  controls: ReactNode;
+  children: ReactNode;
+}) {
   const t = useTranslations("pages.orgs");
   return (
-    <Card className="flex flex-1 flex-col">
-      <CardHeader className="flex-row items-center justify-between space-y-0 border-b px-5 py-4">
-        <div className="space-y-1">
-          <CardTitle className="text-sm">{t("workspaces")}</CardTitle>
-          <CardDescription className="text-xs">
-            {/* `null` is "the request has not answered". Rendering "0 workspaces"
-                there would state something nothing has said yet. */}
-            {count === null ? <Skeleton className="h-3 w-24" /> : t("storedCount", { count })}
-          </CardDescription>
-        </div>
-      </CardHeader>
-      <CardContent className="flex-1 p-4">{children}</CardContent>
-    </Card>
+    <ListCard
+      fill
+      namedByPage
+      layout="grid"
+      title={t("workspaces")}
+      counted={count == null ? count : t("storedCount", { count })}
+      controls={controls}
+      contentClassName="p-0 pt-2"
+    >
+      {children}
+    </ListCard>
   );
 }
 
 export default function OrgsPage() {
   const t = useTranslations("pages.orgs");
   const tc = useTranslations("common");
-  const { orgs, activeOrgId, fetchOrgs, switchOrg } = useOrganizations();
+  const ui = useTranslations("ui");
+  const [query, setQuery] = useState("");
+  const { orgs, activeOrgId, switchOrg } = useOrganizations();
+  const organizations = useOrganizationList();
+  const isLoading = organizations.isPending;
   const [createOpen, setCreateOpen] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
   const searchParams = useSearchParams();
+
+  const search = query.trim().toLocaleLowerCase();
+  const filteredOrgs = orgs.filter((org) =>
+    [org.name, org.slug].some((value) => value?.toLocaleLowerCase().includes(search)),
+  );
 
   // `?create=1` opens the dialog. Read during render rather than written from
   // an effect: it is a value the URL already carries, not a thing to sync.
   if (useChanged(searchParams.get("create")) && searchParams.get("create") === "1") {
     setCreateOpen(true);
   }
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      await fetchOrgs();
-      if (!cancelled) setIsLoading(false);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [fetchOrgs, searchParams]);
 
   return (
     <div className="flex flex-1 flex-col space-y-4">
@@ -87,8 +86,15 @@ export default function OrgsPage() {
         }
       />
 
-      <WorkspacesCard count={isLoading ? null : orgs.length}>
-        {isLoading ? (
+      <WorkspacesCard
+        count={isLoading || organizations.error ? null : filteredOrgs.length}
+        controls={
+          <SearchInput value={query} onChange={setQuery} placeholder={t("searchOrganizations")} />
+        }
+      >
+        {organizations.error ? (
+          <ErrorState cta={{ label: tc("retry"), onClick: () => void organizations.refetch() }} />
+        ) : isLoading ? (
           // The same tiles the populated grid draws, as skeletons - a skeleton
           // that draws a different shape is a layout jump on every load.
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -126,16 +132,22 @@ export default function OrgsPage() {
               {t("createOrganization")}
             </Button>
           </div>
+        ) : filteredOrgs.length === 0 ? (
+          <ListCardEmpty
+            icon={Building2}
+            title={ui("noResults")}
+            onClearFilters={() => setQuery("")}
+          />
         ) : (
           <ul className="rise-in grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {orgs.map((org) => {
+            {filteredOrgs.map((org) => {
               const isActive = org.id === activeOrgId;
               return (
                 <li
                   key={org.id}
                   className="peek-card border-border bg-card hover:border-foreground/30 relative flex flex-col gap-4 rounded-xl border p-5"
                 >
-                  {/* Whole-row link, under the one real control. The link is an
+                  {/* Whole-row link, under the explicit controls. The link is an
                       absolute overlay at z-10, so static content beneath it
                       clicks through to the detail page; the Switch button sits
                       in a z-20 wrapper above it and handles its own click - a
@@ -216,7 +228,7 @@ export default function OrgsPage() {
       <CreateOrgDialog
         open={createOpen}
         onOpenChange={setCreateOpen}
-        onCreated={() => fetchOrgs(true)}
+        onCreated={() => void organizations.refetch()}
       />
     </div>
   );

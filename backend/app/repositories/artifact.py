@@ -26,8 +26,10 @@ from app.db.models.artifact import (
     ArtifactVersion,
     ConsentState,
 )
+from app.db.models.artifact_favourite import ArtifactFavourite
 from app.db.models.conversation import Conversation
 from app.db.models.resource_grant import Visibility
+from app.db.models.workflow_run import WorkflowRun
 from app.repositories._search import contains_ci
 
 
@@ -187,7 +189,7 @@ def _visible(
             or_(
                 Artifact.owner_user_id == user_id,
                 Artifact.visibility == Visibility.ORG.value,
-                and_(team_visible, Artifact.visibility == Visibility.TEAM.value),
+                Artifact.visibility == Visibility.TEAM.value if team_visible else false(),
                 Artifact.id.in_(shared_ids) if shared_ids else false(),
             )
         )
@@ -210,6 +212,7 @@ async def list_visible(
     agent_id: UUID | None = None,
     only_ids: Sequence[UUID] | None = None,
     project_id: UUID | None = None,
+    favourites_for: UUID | None = None,
     skip: int = 0,
     limit: int = 50,
 ) -> tuple[list[Artifact], int]:
@@ -228,6 +231,8 @@ async def list_visible(
         only_ids: Narrow to these rows - the pages shared with one group.
         project_id: Narrow to the pages a run in one of this project's chats
             published a version of, on top of the visibility rules.
+        favourites_for: Restrict to this reader's favourites, in the order they were
+            added to favourites.
     """
     where = _visible(
         organization_id=organization_id,
@@ -257,15 +262,77 @@ async def list_visible(
                 .where(Conversation.project_id == project_id)
             )
         )
+    if favourites_for is not None:
+        where.append(
+            Artifact.id.in_(
+                select(ArtifactFavourite.artifact_id).where(
+                    ArtifactFavourite.user_id == favourites_for
+                )
+            )
+        )
+        favourite_at = (
+            select(ArtifactFavourite.created_at)
+            .where(
+                ArtifactFavourite.user_id == favourites_for,
+                ArtifactFavourite.artifact_id == Artifact.id,
+            )
+            .scalar_subquery()
+        )
+        # Favourites take the place of the former pinned-app list. Preserve its
+        # stable pin order: the first app a person starred stays at the top.
+        ordering = [favourite_at.asc(), Artifact.id.asc()]
+    else:
+        ordering = [Artifact.published_at.desc(), Artifact.name.asc(), Artifact.id.asc()]
     items = await db.execute(
-        select(Artifact)
-        .where(*where)
-        .order_by(Artifact.published_at.desc(), Artifact.name.asc(), Artifact.id.asc())
-        .offset(skip)
-        .limit(limit)
+        select(Artifact).where(*where).order_by(*ordering).offset(skip).limit(limit)
     )
     total = await db.scalar(select(func.count(Artifact.id)).where(*where))
     return list(items.scalars().all()), total or 0
+
+
+async def set_favourite(
+    db: AsyncSession, *, user_id: UUID, artifact_id: UUID, favourite: bool
+) -> None:
+    """Star or unstar an app for one reader, idempotently."""
+    if favourite:
+        await db.execute(
+            pg_insert(ArtifactFavourite)
+            .values(user_id=user_id, artifact_id=artifact_id)
+            .on_conflict_do_nothing(index_elements=["user_id", "artifact_id"])
+        )
+    else:
+        await db.execute(
+            delete(ArtifactFavourite).where(
+                ArtifactFavourite.user_id == user_id,
+                ArtifactFavourite.artifact_id == artifact_id,
+            )
+        )
+    await db.flush()
+
+
+async def is_favourite(db: AsyncSession, *, user_id: UUID, artifact_id: UUID) -> bool:
+    result = await db.execute(
+        select(ArtifactFavourite.artifact_id).where(
+            ArtifactFavourite.user_id == user_id,
+            ArtifactFavourite.artifact_id == artifact_id,
+        )
+    )
+    return result.first() is not None
+
+
+async def favourite_ids(
+    db: AsyncSession, *, user_id: UUID, artifact_ids: Collection[UUID]
+) -> set[UUID]:
+    """Which artifacts in this page this reader has favourited."""
+    if not artifact_ids:
+        return set()
+    result = await db.execute(
+        select(ArtifactFavourite.artifact_id).where(
+            ArtifactFavourite.user_id == user_id,
+            ArtifactFavourite.artifact_id.in_(artifact_ids),
+        )
+    )
+    return set(result.scalars().all())
 
 
 async def list_for_agent(
@@ -385,6 +452,29 @@ async def update(db: AsyncSession, *, artifact: Artifact, update_data: dict[str,
     await db.flush()
     await db.refresh(artifact)
     return artifact
+
+
+async def lock_for_delete(db: AsyncSession, artifact: Artifact) -> None:
+    """Take every source lock without waiting; the caller owns a savepoint.
+
+    Waiting on a run while holding its App can block a writer's FK recheck
+    on a second event flush, even when the FK value did not change. NOWAIT
+    lets the caller release every partial lock before trying again.
+    """
+    await db.execute(
+        select(Artifact.id)
+        .where(Artifact.id == artifact.id, Artifact.organization_id == artifact.organization_id)
+        .with_for_update(nowait=True)
+    )
+    await db.execute(
+        select(WorkflowRun.id)
+        .where(
+            WorkflowRun.source_artifact_id == artifact.id,
+            WorkflowRun.organization_id == artifact.organization_id,
+        )
+        .order_by(WorkflowRun.id)
+        .with_for_update(nowait=True)
+    )
 
 
 async def delete_artifact(db: AsyncSession, artifact: Artifact) -> None:

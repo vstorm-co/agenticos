@@ -6,21 +6,25 @@ import { useTranslations } from "next-intl";
 import { ErrorState, LoadingState } from "@/components/states";
 import { Badge, ListCard, ListCardEmpty, SearchInput } from "@/components/ui";
 import { PAGE_SIZE, useMyMemory } from "@/hooks/use-my-memory";
+import type { AgentUsage } from "@/types/agents";
+import { MemoryAgentAvatar } from "./memory-agent-avatar";
 import { NoteDetail } from "./note-detail";
 import { MemoryPager, MemoryRow } from "./memory-list";
 
-export function MyNotes() {
+export function MyNotes({ agents }: { agents: readonly AgentUsage[] }) {
   const t = useTranslations("pages.memory");
   const view = useTranslations("pages.memory.browser");
   const [q, setQ] = useState("");
   const [selected, setSelected] = useState<string | null>(null);
-  const { page, isLoading, error, skip, showPage, setActive, remove } = useMyMemory(q.trim());
+  const { page, isLoading, error, skip, showPage, setActive, remove, update } = useMyMemory(
+    q.trim(),
+  );
   const note = page?.items.find((item) => item.id === selected);
   return (
     <ListCard
+      fill
       title={view("notes")}
       namedByPage
-      fill
       counted={isLoading || !page ? null : view("noteCount", { count: page.total })}
       contentClassName="p-0"
       headerTour="my-memory"
@@ -54,18 +58,19 @@ export function MyNotes() {
         {view("notesHint")}
       </p>
       {isLoading ? (
-        <LoadingState variant="skeleton-list" rows={3} />
+        <LoadingState className="flex-1" variant="skeleton-list" rows={3} />
       ) : error || !page ? (
-        <ErrorState />
+        <ErrorState className="flex-1" />
       ) : page.items.length === 0 ? (
         <ListCardEmpty
+          className="flex-1"
+          onClearFilters={Boolean(q) ? () => setQ("") : undefined}
           icon={FileText}
           title={view(q ? "noMatches" : "emptyNotes")}
           description={view(q ? "tryFilters" : "emptyNotesHint")}
-          {...(q ? { cta: { label: view("clearFilters"), onClick: () => setQ("") } } : {})}
         />
       ) : (
-        <ul className="divide-foreground/5 divide-y px-2">
+        <ul className="divide-foreground/5 min-h-0 flex-1 divide-y overflow-auto overscroll-contain px-2">
           {page.items.map((item) => (
             <MemoryRow
               key={item.id}
@@ -74,7 +79,10 @@ export function MyNotes() {
               muted={Boolean(item.deactivated_at)}
               onOpen={() => setSelected(item.id)}
             >
-              <span>{item.agent_name ?? t("anAgent")}</span>
+              <span className="inline-flex items-center gap-1.5">
+                <MemoryAgentAvatar agent={agents.find((agent) => agent.id === item.agent_id)} />
+                {item.agent_name ?? t("anAgent")}
+              </span>
               {item.description && (
                 <span className="line-clamp-1 max-w-xl">{item.description}</span>
               )}
@@ -96,9 +104,11 @@ export function MyNotes() {
         <NoteDetail
           key={note.id}
           note={note}
+          agent={agents.find((agent) => agent.id === note.agent_id)}
           onClose={() => setSelected(null)}
           setActive={setActive}
           remove={remove}
+          update={update}
         />
       )}
     </ListCard>

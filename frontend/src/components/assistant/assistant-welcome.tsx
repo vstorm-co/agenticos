@@ -4,13 +4,10 @@ import type { ReactNode } from "react";
 import { BookOpen, Bot, Eye, FileUp, type LucideIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { ModelSetupCard } from "@/components/chat/model-setup-card";
 import { ChatWelcome } from "@/components/chat/chat-welcome";
+import type { AssistantPageContext } from "@/lib/assistant-page-context";
 import { useAuthStore } from "@/stores";
-
-export interface PageContext {
-  path: string;
-  title: string;
-}
 
 interface Tile {
   key: "build" | "documents" | "lookAround" | "recipes";
@@ -29,15 +26,23 @@ interface AssistantWelcomeProps {
   name: string;
   /** The Architect's face, above the greeting. */
   mark: ReactNode;
-  page: PageContext | null;
+  page: Pick<AssistantPageContext, "path" | "title"> | null;
   onPick: (prompt: string) => void;
+  setup?: { agentId: string; canConfigure: boolean };
 }
 
 /**
  * The AI Architect's empty conversation, drawn as `/chat` draws one (#2075):
  * its face, the greeting, what it does, and four ways to start.
  */
-export function AssistantWelcome({ greeting, name, mark, page, onPick }: AssistantWelcomeProps) {
+export function AssistantWelcome({
+  greeting,
+  name,
+  mark,
+  page,
+  onPick,
+  setup,
+}: AssistantWelcomeProps) {
   const t = useTranslations("assistantWidget");
   const person = useAuthStore((state) => state.user?.full_name?.split(" ")[0] ?? null);
 
@@ -46,9 +51,21 @@ export function AssistantWelcome({ greeting, name, mark, page, onPick }: Assista
       ? t("tiles.lookAround.askOnPage", { title: page.title, path: page.path })
       : t(`tiles.${tile}.ask`);
 
+  if (setup)
+    return (
+      <div className="mx-auto w-full max-w-xl px-3 py-4">
+        <div className="mb-4 flex items-center gap-3">
+          {mark}
+          <p className="text-sm font-medium">{greeting ?? t("greeting", { assistant: name })}</p>
+        </div>
+        <ModelSetupCard agentId={setup.agentId} interactive canConfigure={setup.canConfigure} />
+      </div>
+    );
+
   return (
     <ChatWelcome
       compact
+      quiet
       mark={mark}
       title={
         greeting ??

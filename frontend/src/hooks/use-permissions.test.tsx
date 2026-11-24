@@ -62,6 +62,21 @@ describe("usePermissions", () => {
     expect(result.current.can(Perm.membersManage)).toBe(false);
     expect(result.current.role).toBe("builder");
     expect(result.current.isLoaded).toBe(true);
+    expect(result.current.hiddenNavigationItems).toEqual([]);
+  });
+
+  it("returns navigation preferences independently of API permissions", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({
+      organization_id: "org-1",
+      role: "member",
+      is_app_admin: false,
+      permissions: [{ permission: "agents:edit", scope: "own" }],
+      hidden_navigation_items: ["agents", "documents"],
+    });
+    const { result } = renderHook(() => usePermissions(), { wrapper });
+    await waitFor(() => expect(result.current.isLoaded).toBe(true));
+    expect(result.current.hiddenNavigationItems).toEqual(["agents", "documents"]);
+    expect(result.current.can(Perm.agentsEdit)).toBe(true);
   });
 
   it("exposes the scope, because which rows matters as much as whether", async () => {

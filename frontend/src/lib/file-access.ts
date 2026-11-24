@@ -35,7 +35,9 @@ export interface FileAccess {
   readText(): Promise<FileText>;
   /** A self-contained HTML preview with styles read from this same source. */
   readPreview?(): Promise<FileText>;
-  readBytes(): Promise<Blob>;
+  readBytes(signal?: AbortSignal): Promise<Blob>;
+  /** False for an authorized preview whose bytes must leave cache when it closes. */
+  retainBytes?: boolean;
   /**
    * Save it to disk.
    *

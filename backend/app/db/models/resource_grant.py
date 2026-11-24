@@ -2,9 +2,20 @@
 
 import enum
 import uuid
+from datetime import datetime
 from typing import Literal
 
-from sqlalchemy import CheckConstraint, ForeignKey, String, UniqueConstraint
+from sqlalchemy import (
+    CheckConstraint,
+    Computed,
+    DateTime,
+    ForeignKey,
+    ForeignKeyConstraint,
+    Index,
+    String,
+    UniqueConstraint,
+    text,
+)
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -69,6 +80,12 @@ class ResourceGrant(Base, TimestampMixin):
     `ck_resource_grant_one_subject` says so where no code path can forget it. A
     group grant reaches whoever is in the group when access is resolved, so
     leaving the group is losing the access, with nothing to revoke (#1773).
+
+    Member grants may be permanent. Group grants always expire; the repository's
+    access reads exclude expired rows, so an expired share stops widening
+    listings and stops passing `resolve_access` without anyone deleting the row.
+    The row stays, so the share can be seen, renewed or revoked from the Sharing
+    panel.
     """
 
     __tablename__ = "resource_grants"
@@ -92,11 +109,23 @@ class ResourceGrant(Base, TimestampMixin):
         nullable=True,
         index=True,
     )
+    # Directory membership removal can span organizations in one transaction.
+    # Referential integrity revokes only Tables user shares even when their
+    # tenant RLS rows are invisible to that authentication transaction.
+    table_subject_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        Computed(
+            "CASE WHEN resource_type IN ('table', 'table_record') THEN subject_user_id END",
+            persisted=True,
+        ),
+        nullable=True,
+    )
     resource_type: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
     resource_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
     level: Mapped[GrantLevelLiteral] = mapped_column(
         String(16), nullable=False, default=GrantLevel.READ.value
     )
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("users.id", ondelete="SET NULL"),
@@ -104,6 +133,19 @@ class ResourceGrant(Base, TimestampMixin):
     )
 
     __table_args__ = (
+        Index(
+            "ix_resource_grants_table_member",
+            "organization_id",
+            "table_subject_user_id",
+            postgresql_where=text("table_subject_user_id IS NOT NULL"),
+        ),
+        ForeignKeyConstraint(
+            ["organization_id", "table_subject_user_id"],
+            ["organization_members.organization_id", "organization_members.user_id"],
+            name="fk_resource_grants_table_member",
+            ondelete="CASCADE",
+            match="SIMPLE",
+        ),
         UniqueConstraint(
             "resource_type",
             "resource_id",

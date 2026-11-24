@@ -9,10 +9,15 @@ from pydantic_ai.toolsets import AgentToolset
 from pydantic_ai.toolsets.abstract import ToolsetTool
 from pydantic_ai_harness.ask_user import (
     AskUser,
+    AskUserAnsweredEvent,
     AskUserRequest,
+    AskUserRequestedEvent,
     AskUserResponse,
+    AskUserResult,
     AskUserToolset,
+    ask_user_result,
 )
+from pydantic_ai_harness.ask_user._types import Questions
 
 from app.agents.deps import AgentDeps, QuestionsCallback
 
@@ -38,8 +43,35 @@ async def through_the_surface(request: AskUserRequest) -> AskUserResponse:
 class SurfaceQuestions(AskUserToolset[AgentDeps]):
     """The harness's `ask_user_question`, with the run's channel bound around each call."""
 
-    def __init__(self) -> None:
-        super().__init__(answerer=through_the_surface)
+    async def ask_user_question(
+        self, ctx: RunContext[AgentDeps], questions: Questions
+    ) -> AskUserResult:
+        """Ask the user one or more multiple-choice questions and wait for the answers.
+
+        Use when the task is ambiguous and the workspace cannot answer it.
+        Offer concrete options; the user may also provide a custom answer.
+
+        Args:
+            ctx: The running agent and its surface.
+            questions: Related questions with unique headers and concrete options.
+        """
+        # The surface may park a run using CallDeferred. Answer inside the tool,
+        # before the harness's external-event handler takes ownership of the wait.
+        request = AskUserRequest(questions=tuple(questions))
+        await ctx.emit(AskUserRequestedEvent(request=request))
+        try:
+            response = await through_the_surface(request)
+        except Exception:
+            await ctx.emit(
+                AskUserAnsweredEvent(
+                    request_id=request.id,
+                    response=AskUserResponse(cancelled=True),
+                    failed=True,
+                )
+            )
+            raise
+        await ctx.emit(AskUserAnsweredEvent(request_id=request.id, response=response))
+        return ask_user_result(request, response)
 
     async def call_tool(
         self,

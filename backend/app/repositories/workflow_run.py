@@ -40,6 +40,7 @@ from app.db.models.agent_run import AgentRun, ApprovalStatus, RunStatus, ToolApp
 from app.db.models.background_task_kind import BackgroundTaskKind
 from app.db.models.workflow import Workflow
 from app.db.models.workflow_file import WorkflowFile
+from app.db.models.workflow_media_operation import WorkflowMediaOperation
 from app.db.models.workflow_run import (
     DispatchOutbox,
     DispatchOutboxStatus,
@@ -81,6 +82,9 @@ async def create_run(
     started_at: datetime,
     run_input: dict[str, Any] | None = None,
     reply_conversation_id: UUID | None = None,
+    source_conversation_id: UUID | None = None,
+    source_message_id: UUID | None = None,
+    has_chat_source: bool = False,
     retry_of_run_id: UUID | None = None,
     parent_node_run_id: UUID | None = None,
     timezone: str = "UTC",
@@ -92,6 +96,7 @@ async def create_run(
     key_scopes: list[str] | None = None,
     inline_result_bytes: int = 0,
     entry_node_id: UUID | None = None,
+    tested_step_node_id: UUID | None = None,
 ) -> WorkflowRun:
     # `root_run_id` is NOT NULL, so it must be known before the first
     # `INSERT` - not filled in after a flush "mints" the id, which never gets
@@ -107,6 +112,7 @@ async def create_run(
         workflow_version_id=workflow_version_id,
         draft_graph_snapshot=draft_graph_snapshot,
         entry_node_id=entry_node_id,
+        tested_step_node_id=tested_step_node_id,
         mode=mode,
         triggered_by=triggered_by,
         public_origin=public_origin,
@@ -126,6 +132,9 @@ async def create_run(
         input=run_input or {},
         inline_result_bytes=inline_result_bytes,
         reply_conversation_id=reply_conversation_id,
+        source_conversation_id=source_conversation_id,
+        source_message_id=source_message_id,
+        has_chat_source=has_chat_source or source_message_id is not None,
         retry_of_run_id=retry_of_run_id,
         parent_node_run_id=parent_node_run_id,
         depth=depth,
@@ -268,6 +277,12 @@ async def list_runs(
             where.append(WorkflowRun.status.in_([item.value for item in filters.statuses]))
         if filters.mode is not None:
             where.append(WorkflowRun.mode == filters.mode.value)
+        if filters.step_test is not None:
+            where.append(
+                WorkflowRun.tested_step_node_id.is_not(None)
+                if filters.step_test
+                else WorkflowRun.tested_step_node_id.is_(None)
+            )
         if filters.triggered_by is not None:
             where.append(WorkflowRun.triggered_by == filters.triggered_by.value)
         if filters.created_after is not None:
@@ -687,7 +702,11 @@ async def count_waiting_on_people(
             WorkflowRun.workflow_id.in_(visible),
             WorkflowRun.mode == "real",
             WorkflowRun.status.in_(
-                (WorkflowRunStatus.WAITING_APPROVAL.value, WorkflowRunStatus.NEEDS_ATTENTION.value)
+                (
+                    WorkflowRunStatus.WAITING_APPROVAL.value,
+                    WorkflowRunStatus.WAITING_FOR_USER.value,
+                    WorkflowRunStatus.NEEDS_ATTENTION.value,
+                )
             ),
         )
     )
@@ -788,10 +807,18 @@ async def list_node_runs_of(
 
 
 async def list_node_runs_page(
-    db: AsyncSession, *, workflow_run_id: UUID, organization_id: UUID, skip: int, limit: int
+    db: AsyncSession,
+    *,
+    workflow_run_id: UUID,
+    organization_id: UUID,
+    skip: int,
+    limit: int,
+    node_run_id: UUID | None = None,
 ) -> tuple[list[NodeRun], int]:
     """A page of a run's node runs, in the order they were created, and how many there are."""
     where = [NodeRun.workflow_run_id == workflow_run_id, NodeRun.organization_id == organization_id]
+    if node_run_id is not None:
+        where.append(NodeRun.id == node_run_id)
     total = await db.scalar(select(func.count()).select_from(NodeRun).where(*where)) or 0
     result = await db.execute(
         select(NodeRun)
@@ -894,6 +921,119 @@ async def find_node_run_waiting_on_agent_run(
     return result.scalar_one_or_none()
 
 
+async def find_node_run_for_agent_run(
+    db: AsyncSession, agent_run_id: UUID, *, organization_id: UUID
+) -> NodeRun | None:
+    """The workflow step that owns this agent run, including an executing step."""
+    result = await db.execute(
+        select(NodeRun)
+        .where(
+            NodeRun.waiting_agent_run_id == agent_run_id,
+            NodeRun.organization_id == organization_id,
+        )
+        .order_by(NodeRun.created_at)
+        .limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
+async def list_question_waits(db: AsyncSession, *, workflow_run_id: UUID) -> list[NodeRun]:
+    """The agent steps of a run currently parked on questions."""
+    result = await db.execute(
+        select(NodeRun)
+        .where(
+            NodeRun.workflow_run_id == workflow_run_id,
+            NodeRun.status == NodeRunStatus.WAITING.value,
+            NodeRun.waiting_reason == WaitingReason.QUESTION.value,
+            NodeRun.waiting_agent_run_id.is_not(None),
+        )
+        .order_by(NodeRun.created_at, NodeRun.id)
+    )
+    return list(result.scalars().all())
+
+
+async def list_waited_child_runs(
+    db: AsyncSession, *, workflow_run_id: UUID, organization_id: UUID
+) -> list[WorkflowRun]:
+    """Active child runs whose caller is synchronously waiting for their answer."""
+    terminal = [status.value for status in WorkflowRunStatus if status.is_terminal]
+    result = await db.execute(
+        select(WorkflowRun)
+        .join(NodeRun, NodeRun.id == WorkflowRun.parent_node_run_id)
+        .where(
+            NodeRun.workflow_run_id == workflow_run_id,
+            NodeRun.organization_id == organization_id,
+            NodeRun.status == NodeRunStatus.WAITING.value,
+            NodeRun.waiting_reason == WaitingReason.EXTERNAL_EVENT.value,
+            WorkflowRun.organization_id == organization_id,
+            WorkflowRun.status.not_in(terminal),
+        )
+        .order_by(WorkflowRun.created_at, WorkflowRun.id)
+    )
+    return list(result.scalars().all())
+
+
+async def list_called_run_ids(
+    db: AsyncSession, *, workflow_run_ids: Sequence[UUID], organization_id: UUID
+) -> list[UUID]:
+    """All runs called by these runs, including terminal intermediates with live descendants."""
+    result = await db.execute(
+        select(WorkflowRun.id)
+        .join(NodeRun, NodeRun.id == WorkflowRun.parent_node_run_id)
+        .where(
+            NodeRun.workflow_run_id.in_(workflow_run_ids),
+            NodeRun.organization_id == organization_id,
+            WorkflowRun.organization_id == organization_id,
+        )
+        .order_by(WorkflowRun.created_at, WorkflowRun.id)
+    )
+    return list(result.scalars().all())
+
+
+async def try_lock_run(
+    db: AsyncSession, run_id: UUID, *, organization_id: UUID
+) -> WorkflowRun | None:
+    """The run, row-locked - or None when another transaction holds it right now."""
+    result = await db.execute(
+        select(WorkflowRun)
+        .where(WorkflowRun.id == run_id, WorkflowRun.organization_id == organization_id)
+        .with_for_update(skip_locked=True)
+        .execution_options(populate_existing=True)
+    )
+    return result.scalar_one_or_none()
+
+
+async def list_stale_question_waits(db: AsyncSession, *, limit: int = 100) -> list[NodeRun]:
+    """Question waits with accepted answers or an ended child, and no queued continuation."""
+    live_outbox = select(DispatchOutbox.node_run_id).where(
+        DispatchOutbox.status.in_(
+            [DispatchOutboxStatus.PENDING.value, DispatchOutboxStatus.CLAIMED.value]
+        )
+    )
+    terminal = [status.value for status in WorkflowRunStatus if status.is_terminal]
+    answered = AgentRun.paused_state["question_results"].astext.not_in(["{}", "null"])
+    result = await db.execute(
+        select(NodeRun)
+        .join(
+            AgentRun,
+            (AgentRun.id == NodeRun.waiting_agent_run_id)
+            & (AgentRun.organization_id == NodeRun.organization_id),
+        )
+        .join(WorkflowRun, WorkflowRun.id == NodeRun.workflow_run_id)
+        .where(
+            NodeRun.status == NodeRunStatus.WAITING.value,
+            NodeRun.waiting_reason == WaitingReason.QUESTION.value,
+            AgentRun.status != RunStatus.RUNNING.value,
+            or_(AgentRun.status != RunStatus.AWAITING_ANSWER.value, answered),
+            WorkflowRun.status.not_in(terminal),
+            NodeRun.id.not_in(live_outbox),
+        )
+        .order_by(NodeRun.workflow_run_id, NodeRun.id)
+        .limit(limit)
+    )
+    return list(result.scalars().all())
+
+
 async def list_stale_approval_waits(db: AsyncSession, *, limit: int = 100) -> list[NodeRun]:
     """`NodeRun`s parked on an approval every blocking decision has already answered.
 
@@ -990,11 +1130,13 @@ async def create_attempt(
     retry_guarantee: str | None,
     started_at: datetime,
     reserved_usd: Decimal | None = None,
+    agent_run_id: UUID | None = None,
 ) -> NodeAttempt:
     attempt = NodeAttempt(
         organization_id=organization_id,
         node_run_id=node_run_id,
         attempt_no=attempt_no,
+        agent_run_id=agent_run_id,
         idempotency_key=idempotency_key,
         retry_guarantee=retry_guarantee,
         reserved_usd=reserved_usd,
@@ -1106,6 +1248,28 @@ async def settle_attempt(
     await db.flush()
     await db.refresh(attempt)
     return attempt
+
+
+async def link_attempt_agent_run(
+    db: AsyncSession, *, attempt: NodeAttempt, agent_run_id: UUID
+) -> None:
+    """Attach the child before admission commits, preserving historical ownership."""
+    attempt.agent_run_id = agent_run_id
+    db.add(attempt)
+    await db.flush()
+    await db.refresh(attempt)
+
+
+async def booked_agent_segments(
+    db: AsyncSession, *, node_run_id: UUID, agent_run_id: UUID
+) -> Decimal:
+    """Spend booked for this exact child, across all of its continuation segments."""
+    total = await db.scalar(
+        select(func.coalesce(func.sum(NodeAttempt.cost), 0)).where(
+            NodeAttempt.node_run_id == node_run_id, NodeAttempt.agent_run_id == agent_run_id
+        )
+    )
+    return Decimal(total or 0)
 
 
 async def sum_in_flight_reservations(db: AsyncSession, *, workflow_run_id: UUID) -> Decimal:
@@ -1289,6 +1453,7 @@ async def create_outbox(
     workflow_run_id: UUID,
     node_run_id: UUID,
     available_at: datetime | None = None,
+    delay: timedelta | None = None,
 ) -> DispatchOutbox:
     """Insert a dispatch row. Raises `IntegrityError` if one is already live.
 
@@ -1296,24 +1461,32 @@ async def create_outbox(
     failure wrap this in `db.begin_nested()`, the same savepoint shape
     `UserService.confirm_email_change` uses for its own race.
 
-    `available_at=None` means due now by the database's own clock - the clock
-    `claim_outbox` compares against - so an application host running slightly
-    ahead of the database cannot write a row that is not yet claimable when
-    its job arrives.
+    With neither `available_at` nor `delay` the row is due now by the database's
+    own clock - the clock `claim_outbox` compares against - so an application
+    host running slightly ahead of the database cannot write a row that is not
+    yet claimable when its job arrives. `delay` is measured on that clock too: a
+    retry's backoff waits as long as it says whatever the host's clock reads.
+    `available_at` is an absolute time, such as a Wait step's, and is kept as
+    given.
 
     `submitted_at` is when the row's job is due to run - now, or `available_at`
     when later - for the caller (`dispatch_queue.queue_dispatch`) queues that job
     in the same transaction. The poll then looks only at rows still pending a
     lease after they came due.
     """
+    due: datetime | ColumnElement[datetime]
+    if delay is not None:
+        due = func.clock_timestamp() + literal(delay, Interval())
+    elif available_at is not None:
+        due = available_at
+    else:
+        due = func.now()
     outbox = DispatchOutbox(
         organization_id=organization_id,
         workflow_run_id=workflow_run_id,
         node_run_id=node_run_id,
-        available_at=func.now() if available_at is None else available_at,
-        submitted_at=func.now()
-        if available_at is None
-        else func.greatest(func.now(), available_at),
+        available_at=due,
+        submitted_at=func.greatest(func.now(), due),
     )
     db.add(outbox)
     await db.flush()
@@ -1321,8 +1494,13 @@ async def create_outbox(
     return outbox
 
 
+async def database_time(db: AsyncSession) -> datetime:
+    """The database's clock now - the one a lease is written and checked against."""
+    return (await db.execute(select(func.clock_timestamp()))).scalar_one()
+
+
 async def claim_outbox(
-    db: AsyncSession, *, node_run_id: UUID, token: UUID, lease_expires_at: datetime
+    db: AsyncSession, *, node_run_id: UUID, token: UUID, lease_seconds: float
 ) -> DispatchOutbox | None:
     """The compare-and-swap claim: a `pending` row, or a `claimed` one whose lease expired.
 
@@ -1337,6 +1515,11 @@ async def claim_outbox(
     instant its worker died mid-lease. `available_at <= now()` keeps a
     scheduled-but-not-yet-due retry from being claimed early by a direct wake
     racing the poller.
+
+    The lease ends `lease_seconds` after the database's clock, the one every
+    expiry check reads: an application host whose clock runs ahead or behind
+    would otherwise hand out a lease that is already over, or one that outlives
+    its holder.
     """
     result = await db.execute(
         sql_update(DispatchOutbox)
@@ -1351,7 +1534,8 @@ async def claim_outbox(
         )
         .values(
             claimed_by=token,
-            lease_expires_at=lease_expires_at,
+            lease_expires_at=func.clock_timestamp()
+            + literal(timedelta(seconds=lease_seconds), Interval()),
             status=DispatchOutboxStatus.CLAIMED.value,
         )
         .returning(DispatchOutbox)
@@ -1489,6 +1673,27 @@ async def mark_outbox_done(db: AsyncSession, *, outbox: DispatchOutbox) -> Dispa
     await db.flush()
     await db.refresh(outbox)
     return outbox
+
+
+async def get_live_outbox(
+    db: AsyncSession, *, node_run_id: UUID, organization_id: UUID
+) -> DispatchOutbox | None:
+    """Read the unique live claim without holding a lease lock across an effect."""
+    result = await db.execute(
+        select(DispatchOutbox)
+        .where(
+            DispatchOutbox.node_run_id == node_run_id,
+            DispatchOutbox.organization_id == organization_id,
+            DispatchOutbox.status.in_(
+                [
+                    DispatchOutboxStatus.PENDING.value,
+                    DispatchOutboxStatus.CLAIMED.value,
+                ]
+            ),
+        )
+        .execution_options(populate_existing=True)
+    )
+    return result.scalar_one_or_none()
 
 
 async def get_outbox_for_node_run_for_update(
@@ -1722,6 +1927,15 @@ async def take_expired_runs(
             ~exists().where(
                 retry.retry_of_run_id == WorkflowRun.id,
                 retry.ended_at.is_(None),
+            ),
+            ~exists().where(
+                WorkflowMediaOperation.workflow_run_id == WorkflowRun.id,
+                WorkflowMediaOperation.organization_id == WorkflowRun.organization_id,
+                or_(
+                    WorkflowMediaOperation.held_usd > 0,
+                    WorkflowMediaOperation.held_bytes > 0,
+                    WorkflowMediaOperation.incurred_usd > WorkflowMediaOperation.booked_usd,
+                ),
             ),
             ~exists(
                 select(ResourceRef.id)

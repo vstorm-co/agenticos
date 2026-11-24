@@ -136,18 +136,19 @@ async def test_direct_provider_limits_keep_the_organization_bill_as_a_separate_q
         yield db
 
     monkeypatch.setattr(budget, "get_worker_db_context", session)
-    monthly = AsyncMock(return_value=Decimal("1.25"))
-    monkeypatch.setattr(budget, "organization_monthly_spend", monthly)
+    admission_usage = AsyncMock(return_value=Decimal("2"))
+    monkeypatch.setattr(budget, "organization_budget_usage_since", admission_usage)
     limits = await budget.provider_limits(
         db, organization_id=organization_id, remaining=Decimal("0.5")
     )
     assert limits[0].scope == BudgetScope.RUN and limits[0].limit_usd == Decimal("0.5")
     if ceiling is None:
         assert len(limits) == 1
+        admission_usage.assert_not_awaited()
     else:
         assert limits[1].scope == BudgetScope.ORGANIZATION and limits[1].limit_usd == ceiling
-        assert await limits[1].period_spend() == Decimal("1.25")
-        monthly.assert_awaited_once_with(db, organization_id)
+        assert await limits[1].period_spend() == Decimal("2")
+        admission_usage.assert_awaited_once_with(db, organization_id, budget.month_start())
 
 
 @pytest.mark.anyio
@@ -207,8 +208,18 @@ class TestUnreserved:
                 "sum_live_child_reservations",
                 AsyncMock(return_value=Decimal("0.2")),
             ),
+            patch.object(
+                budget.media_repo, "outstanding_usd", AsyncMock(return_value=Decimal("0.1"))
+            ) as media,
         ):
-            assert await budget.unreserved(MagicMock(), run) == Decimal("0.2")
+            db = MagicMock()
+            assert await budget.unreserved(db, run) == Decimal("0.1")
+            media.assert_awaited_once_with(
+                db,
+                organization_id=run.organization_id,
+                workflow_run_id=run.id,
+                uncovered_only=True,
+            )
 
     @pytest.mark.security
     async def test_more_held_than_the_cap_leaves_nothing_never_less(self):
@@ -223,6 +234,9 @@ class TestUnreserved:
                 budget.workflow_run_repo,
                 "sum_live_child_reservations",
                 AsyncMock(return_value=Decimal("0")),
+            ),
+            patch.object(
+                budget.media_repo, "outstanding_usd", AsyncMock(return_value=Decimal("0.2"))
             ),
         ):
             assert await budget.unreserved(MagicMock(), run) == Decimal("0")

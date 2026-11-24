@@ -154,6 +154,8 @@ def _build(ctx: CapabilityBuildContext) -> Weather | None:
   `description` should be the tool's own docstring summary — the person choosing
   what needs approval and the model choosing when to act should read the same text,
   not two paraphrases that drift.
+Recorded tool calls keep this stable `id` as `tool_id`, alongside the actual name the model called. Chat renderers and shared drawings use that identity, so a per-agent rename keeps its view after reload. Older calls without an id fall back to their recorded name; newly recorded external MCP calls carry an explicit generic presentation and cannot claim a built-in view by name.
+
 - **`config_schema`** generates the Builder's form and is validated at publish,
   so a bad value fails while somebody is looking at a form rather than mid-run.
   Give every field a `title` and a `description` written for the person filling

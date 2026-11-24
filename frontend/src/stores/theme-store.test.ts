@@ -8,6 +8,17 @@ afterEach(async () => {
   await useThemeStore.persist.rehydrate();
 });
 
+it("persists a selected look without replacing the theme preference", async () => {
+  useThemeStore.getState().setTheme("dark");
+  useThemeStore.getState().setLook("paper");
+  expect(useThemeStore.getState()).toMatchObject({ theme: "dark", look: "paper" });
+  expect(JSON.parse(localStorage.getItem(THEME_STORAGE_KEY) ?? "null")).toMatchObject({
+    state: { theme: "dark", look: "paper" },
+  });
+  await useThemeStore.persist.rehydrate();
+  expect(useThemeStore.getState()).toMatchObject({ theme: "dark", look: "paper" });
+});
+
 it("defaults to system theme and glass in desktop, including old settings without a look", async () => {
   window.__AGENTICOS_SHELL__ = {
     platform: "macos",

@@ -42,12 +42,14 @@ import re
 from collections.abc import AsyncGenerator, Set
 from dataclasses import dataclass, field
 from decimal import Decimal
+from functools import partial
 from io import BytesIO
 from typing import Any
 from uuid import UUID
 
 from botocore.exceptions import BotoCoreError, ClientError
 from PIL import Image
+from pydantic import JsonValue
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities.channel_tools import ChannelDirectory
@@ -62,7 +64,7 @@ from app.db.models.organization import Organization
 from app.repositories import agent_exposure_repo, agent_repo, member_repo
 from app.services import generated_media, visual_render
 from app.services.access import publisher_context
-from app.services.agent_runner import AgentRunnerService, RunStream
+from app.services.agent_runner import AgentRunnerService, RunSegment, RunStream
 from app.services.channels.attachments import MAX_OUTBOUND_BYTES
 from app.services.channels.base import (
     ROOM_HANDLES,
@@ -75,7 +77,9 @@ from app.services.channels.formatting import (
     LINK_ACCOUNT_INSTRUCTION,
     authored_prompt,
 )
+from app.services.channels.live_reply import with_preview_links
 from app.services.channels.next_steps import next_steps_of
+from app.services.channels.reply_receipts import saved_rendering, segment_sink
 from app.services.channels.steering import current_steering, is_asked_aside
 from app.services.file_storage import get_file_storage
 from app.services.transcript import RecordedToolCall
@@ -110,6 +114,7 @@ _SURFACES: dict[str, RunSurface] = {
     "email": RunSurface.EMAIL,
     "imessage": RunSurface.IMESSAGE,
     "discord": RunSurface.DISCORD,
+    "matrix": RunSurface.MATRIX,
 }
 
 
@@ -130,7 +135,7 @@ def drawn_chart(called: list[RecordedToolCall]) -> bytes | None:
     it through `asyncio.to_thread`, never inline.
     """
     for call in reversed(called):
-        if call.tool_name != _CHART_TOOL or call.result is None:
+        if call.renderer_name != _CHART_TOOL or call.result is None:
             continue
         spec = parse_chart_spec(call.result)
         if spec is None:
@@ -192,7 +197,7 @@ async def drawn_picture(
     for call in reversed(called):
         if call.result is None:
             continue
-        if call.tool_name == "generate_image":
+        if call.renderer_name == "generate_image":
             image = parse_generated_image(call.result)
             if image is None:
                 continue
@@ -224,13 +229,13 @@ async def drawn_picture(
                     "AgenticOS to check the image or ask the operator to check media storage."
                 )
             return None
-        if call.tool_name == _CHART_TOOL:
+        if call.renderer_name == _CHART_TOOL:
             return await asyncio.to_thread(drawn_chart, [call])
         # A visual the tool refused - a retry, the last attempt's refusal - is no
         # drawing; and one that cannot be drawn here leaves an earlier chart to go.
-        if call.tool_name in VISUAL_TOOLS and call.result.startswith(DREW):
+        if call.renderer_name in VISUAL_TOOLS and call.result.startswith(DREW):
             picture = await visual_render.picture_of_turn(
-                [(c.tool_call_id, c.tool_name, c.args, c.result) for c in called],
+                [(c.tool_call_id, c.renderer_name or "", c.args, c.result) for c in called],
                 organization_id=organization_id,
                 conversation_id=conversation_id,
             )
@@ -507,6 +512,11 @@ class ChannelAgentRouter:
             tool_calls=called,
             generated_files=generated_files,
             stream=stream,
+            on_segment=segment_sink(
+                partial(
+                    self._render_segment, ctx, usage_reporting=exposure.usage_reporting, turn=turn
+                )
+            ),
             surface=_SURFACES.get(platform, RunSurface.API),
             # A question is asked here as buttons and answered later (#2064) - of
             # a linked member. An unlinked sender's turn runs as the publisher,
@@ -538,10 +548,13 @@ class ChannelAgentRouter:
             # enforcing nothing.
             exposure=exposure,
         )
-        return AnsweredTurn(
-            text=await self._with_usage(
+        rendered_answer = saved_rendering()
+        if rendered_answer is None:
+            rendered_answer = await self._with_usage(
                 ctx, answer, run, usage_reporting=exposure.usage_reporting, turn=turn
-            ),
+            )
+        return AnsweredTurn(
+            text=rendered_answer,
             attachments=produced,
             refused=refused,
             delivery_notices=notices,
@@ -638,6 +651,11 @@ class ChannelAgentRouter:
             tool_calls=called,
             generated_files=generated_files,
             stream=stream,
+            on_segment=segment_sink(
+                partial(
+                    self._render_segment, ctx, usage_reporting=exposure.usage_reporting, turn=turn
+                )
+            ),
             surface=_SURFACES.get(platform, RunSurface.API),
             # A question is asked here as buttons and answered later (#2064) - of
             # a linked member. An unlinked sender's turn runs as the publisher,
@@ -663,10 +681,13 @@ class ChannelAgentRouter:
             channel_author_context="" if incoming is None else authored_prompt("", incoming),
             exposure=exposure,
         )
-        return AnsweredTurn(
-            text=await self._with_usage(
+        rendered_answer = saved_rendering()
+        if rendered_answer is None:
+            rendered_answer = await self._with_usage(
                 ctx, answer, run, usage_reporting=exposure.usage_reporting, turn=turn
-            ),
+            )
+        return AnsweredTurn(
+            text=rendered_answer,
             attachments=produced,
             refused=refused,
             delivery_notices=notices,
@@ -684,6 +705,18 @@ class ChannelAgentRouter:
             status=run.status,
             run_id=run.id,
             next_steps=next_steps_of(called),
+        )
+
+    async def _render_segment(
+        self,
+        ctx: AuthContext,
+        segment: RunSegment,
+        *,
+        usage_reporting: dict[str, JsonValue] | None,
+        turn: int,
+    ) -> str:
+        return await self._with_usage(
+            ctx, segment.output, segment.run, usage_reporting=usage_reporting, turn=turn
         )
 
     async def _with_usage(
@@ -708,6 +741,7 @@ class ChannelAgentRouter:
         Never raises. This hangs off an answer somebody is waiting for; a
         workspace that cannot be measured must not turn a good turn into an error.
         """
+        answer = await with_preview_links(answer, run.id)
         try:
             report = await self.usage.for_run(
                 ctx,

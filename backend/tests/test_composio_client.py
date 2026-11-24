@@ -520,3 +520,60 @@ async def test_delete_errors_are_sanitized_without_retry(network):
 @pytest.mark.parametrize("state", [None, {"val": {}}, {"val": {"displayName": "\n\t "}}])
 def test_missing_identity_does_not_invent_an_email(state):
     assert ComposioAccount.model_validate(account(state=state)).identity is None
+
+
+@pytest.mark.security
+@pytest.mark.parametrize(
+    ("items", "error"),
+    [([], ComposioAccountMissing), ([account(), account()], ExternalServiceError)],
+)
+async def test_discovery_requires_exactly_one_owner_scoped_account(items, error):
+    calls = []
+
+    def handler(request):
+        calls.append(request)
+        assert request.url.params["user_ids"] == "member-1"
+        assert request.url.params["connected_account_ids"] == "ca_expected"
+        return httpx.Response(200, json={"items": items})
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+        with pytest.raises(error):
+            await ComposioClient(http).discover_account_auth_config(
+                user_id="member-1", toolkit="gmail", account_id="ca_expected"
+            )
+    assert len(calls) == 1
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("session_id", [None, "../other-session"])
+async def test_managed_link_rejects_invalid_provider_session_identity(session_id):
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(
+            lambda request: httpx.Response(
+                200,
+                json={
+                    "session_id": session_id,
+                    "mcp": {"url": "https://backend.composio.dev/tool_router/session/test/mcp"},
+                },
+            )
+        )
+    ) as http:
+        with pytest.raises(ExternalServiceError, match="invalid session"):
+            await ComposioClient(http).create_link_session(
+                user_id="member-1", toolkit="gmail", tools=["GMAIL_FETCH_EMAILS"]
+            )
+
+
+@pytest.mark.security
+@pytest.mark.parametrize(
+    ("session_id", "toolkit"),
+    [("../other-session", "gmail"), ("trs_expected", "../other-toolkit")],
+)
+async def test_managed_link_identifiers_cannot_change_provider_paths(session_id, toolkit):
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(
+            lambda request: pytest.fail("Invalid identifier reached provider")
+        )
+    ) as http:
+        with pytest.raises(ExternalServiceError, match="identifier"):
+            await ComposioClient(http).link_session(session_id=session_id, toolkit=toolkit)

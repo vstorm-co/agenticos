@@ -241,3 +241,21 @@ def test_a_second_parallel_listener_does_not_take_an_unaddressed_buffer() -> Non
     inbox.add("For the parent")
     with inbox.listen("api"), inbox.listen("web") as second:
         assert second.unapplied() == []
+
+
+async def test_durable_additions_are_polled_and_screened_once_before_the_model_request():
+    from app.agents.capabilities.guardrails import GuardrailsConfig, input_screen
+    from app.agents.deps import AgentDeps
+
+    raw = "use key sk-ant-api03-" + "x" * 90
+    poll = AsyncMock(return_value=[raw])
+    screen = MagicMock(wraps=input_screen(GuardrailsConfig(redact_secrets_in=True)))
+    inbox = SteeringInbox(poll=poll, screen=screen)
+    deps = AgentDeps(steering=inbox)
+    last = ModelRequest(parts=[UserPromptPart(content="read the document")])
+    ctx = MagicMock(deps=deps, messages=[last])
+    sent = await Steering().before_model_request(ctx, _request([last]))
+    poll.assert_awaited_once_with(deps)
+    screen.assert_called_once_with(raw)
+    assert raw not in str(sent.messages)
+    assert "Added by the person" in str(sent.messages)

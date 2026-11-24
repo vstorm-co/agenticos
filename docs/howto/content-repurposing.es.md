@@ -1,5 +1,5 @@
 ---
-source_sha: "bc3d361ee1d5"
+source_sha: "c5a69d2f6d38"
 title: "Convierte un artículo en publicaciones sociales con la voz de tu marca"
 description: "Adjunta un artículo sintético breve y haz que un agent escriba una publicación por canal, cada una trazable a la fuente y dentro de los límites de su canal."
 ---
@@ -133,7 +133,7 @@ Cuenta los caracteres de la publicación de X a mano o con un script corto; no t
 
 !!! example "Registrado en v0.0.504, 25 de septiembre de 2026"
 
-    Modelo: Claude Sonnet 4.6 a través de OpenRouter. El agent llamó a `load_capability` para `brand-voice` y luego respondió directamente con las tres publicaciones. La de X tenía 185 caracteres. La de LinkedIn tenía 113 palabras y el texto del boletín 50, ambos dentro de sus límites. No apareció ninguna frase prohibida. Cada número de las tres publicaciones (25 %, de 12 s a 9 s, 40.000 recogidas, los 4 cm de parada del sensor y el despliegue en el cuarto trimestre en 40 sedes en cuatro tandas) coincidía con el artículo. Coste: 0,016 USD.
+    Modelo: Claude Sonnet 4.6 a través de OpenRouter. El agent llamó a `read_skill` para `brand-voice` y luego respondió directamente con las tres publicaciones. La de X tenía 185 caracteres. La de LinkedIn tenía 113 palabras y el texto del boletín 50, ambos dentro de sus límites. No apareció ninguna frase prohibida. Cada número de las tres publicaciones (25 %, de 12 s a 9 s, 40.000 recogidas, los 4 cm de parada del sensor y el despliegue en el cuarto trimestre en 40 sedes en cuatro tandas) coincidía con el artículo. Coste: 0,016 USD.
 
     Sin archivo adjunto, el agent cargó igualmente la skill, luego dijo "I don't see any article attached to your message" y pidió el artículo, en lugar de escribir publicaciones de la nada.
 

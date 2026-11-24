@@ -24,8 +24,10 @@ from app.db.models.resource_grant import Visibility
 from app.db.models.workflow import Workflow, WorkflowStatus
 from app.db.models.workflow_run import NodeAttempt, WorkflowRun, WorkflowRunMode
 from app.repositories import workflow_run as workflow_run_repo
-from app.schemas.workflow_eval import EvalCaseCreate, EvalExpectation
-from app.services.workflow_evals import WorkflowEvalService, judge
+from app.schemas.eval_judging import EvalExpectation
+from app.schemas.workflow_eval import EvalCaseCreate
+from app.services.eval_judging import judge
+from app.services.workflow_evals import WorkflowEvalService
 from app.services.workflow_execution.exceptions import WorkflowBudgetReachedError
 from app.workflows.graph.model import (
     MAX_PINNED_BYTES,

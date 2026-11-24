@@ -58,6 +58,23 @@ function headers(nth = 0): Record<string, string> {
   return init(nth).headers as Record<string, string>;
 }
 
+it("preserves Retry-After as a deadline on a refused API request", async () => {
+  const before = Date.now();
+  fetchMock.mockResolvedValue(
+    new Response(JSON.stringify({ detail: "Busy" }), {
+      status: 429,
+      headers: { "Retry-After": "17", "Content-Type": "application/json" },
+    }),
+  );
+  const error: unknown = await apiClient
+    .get("/eval-runs/r/comparison")
+    .catch((error: unknown) => error);
+  expect(error).toBeInstanceOf(ApiError);
+  if (!(error instanceof ApiError)) throw new Error("Expected ApiError");
+  expect(error.retryAt).toBeGreaterThanOrEqual(before + 17_000);
+  expect(error.retryAt).toBeLessThanOrEqual(Date.now() + 17_000);
+});
+
 describe("apiClient", () => {
   it("addresses this app's own proxy, never the platform", () => {
     // The whole reason the client exists: the backend URL is a server secret.
@@ -155,6 +172,24 @@ describe("apiClient", () => {
 });
 
 describe("recovering from an expired token", () => {
+  it("does not refresh or replay an explicit consent write when its caller opts out", async () => {
+    fetchMock.mockResolvedValue(refused(401, { detail: "Token expired" }));
+    await expect(
+      apiClient.post(
+        "/runs/r/browser-credential-plans/p/confirmation",
+        {
+          document_id: "document",
+          authorization_generation: "generation",
+          approve: true,
+        },
+        { retryAfterRefresh: false },
+      ),
+    ).rejects.toMatchObject({ status: 401 });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(init().method).toBe("POST");
+    expect(init()).not.toHaveProperty("retryAfterRefresh");
+  });
+
   it("refreshes once and retries the request", async () => {
     fetchMock
       .mockResolvedValueOnce(refused(401, { detail: "Token expired" }))

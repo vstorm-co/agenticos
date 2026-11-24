@@ -105,6 +105,17 @@ class TestWhichStoreARunTouches:
     def test_the_personal_lever_off_drops_the_person_store_entirely(self):
         assert memory_owner_key(RunAudience(user_id=PERSON), allow_personal=False) is None
 
+    def test_a_chat_others_read_has_no_personal_store(self):
+        audience = RunAudience(user_id=PERSON, shared_transcript=True)
+
+        assert memory_owner_key(audience, allow_personal=True) is None
+        assert not may_inject_memory(audience, allow_personal=True)
+
+    def test_a_group_chat_shared_for_editing_keeps_its_own_store(self):
+        audience = RunAudience(user_id=PERSON, room_key=ROOM_KEY, shared_transcript=True)
+
+        assert memory_owner_key(audience, allow_personal=True) == ROOM_KEY
+
     def test_the_personal_lever_off_leaves_group_chats_alone(self):
         """A compliance switch about private notes is not a switch about a channel
         everybody in it already reads."""
@@ -157,7 +168,7 @@ class TestThePreamble:
         have nothing saved" with the note one call away."""
         preamble = _preamble(allow_personal=True)
 
-        assert preamble.index("read") < preamble.index("save")
+        assert preamble.index("`recall`") < preamble.index("`remember`")
 
     def test_it_never_asks_the_model_to_reason_about_who_is_listening(self):
         """There is one store per conversation, resolved server-side, so there is
@@ -356,6 +367,50 @@ class TestDeleteMemory:
 
 
 class TestIndexInjection:
+    @pytest.fixture(autouse=True)
+    def _empty_note_list(self, monkeypatch):
+        monkeypatch.setattr(memory_store, "list_files", AsyncMock(return_value=[]))
+
+    async def test_lists_new_long_notes_and_keeps_legacy_inline_entries(self, monkeypatch):
+        from app.services.memory._native import MemoryFileIndexEntry
+
+        monkeypatch.setattr(
+            memory_store,
+            "read_file",
+            AsyncMock(return_value="- The saved word is heron.\n- roadmap"),
+        )
+        notes = AsyncMock(
+            return_value=[
+                MemoryFileIndexEntry("roadmap", None, "note"),
+                MemoryFileIndexEntry("people", "Team names and roles", "note"),
+            ]
+        )
+        monkeypatch.setattr(memory_store, "list_files", notes)
+
+        text = await self._capability().get_instructions()(_ctx(_deps()))
+
+        assert "The saved word is heron." in text
+        assert text.count("- roadmap") == 1
+        assert "- people: Team names and roles" in text
+        assert notes.await_args.kwargs["owner_key"] == PERSON_KEY
+
+    async def test_turning_off_injection_leaves_tools_and_skips_reads(self, monkeypatch):
+        read = AsyncMock()
+        monkeypatch.setattr(memory_store, "read_file", read)
+        capability = _build(
+            CapabilityBuildContext(
+                binding=CapabilityBinding("memory_files"),
+                config=MemoryFilesConfig(inject_context=False),
+            )
+        )
+
+        instructions = await capability.get_instructions()(_ctx(_deps()))
+
+        assert instructions == _preamble(allow_personal=True)
+        read.assert_not_awaited()
+        memory_store.list_files.assert_not_awaited()
+        assert capability.get_toolset() is not None
+
     def _capability(self, *, allow_personal: bool = True) -> MemoryFiles:
         return MemoryFiles(allow_personal=allow_personal)
 
@@ -466,10 +521,8 @@ class TestTheBinding:
 
         assert built[0].get_toolset() is not None
 
-    def test_the_only_field_is_the_person_store(self):
-        """Six fields became one: the backend is a separate capability now, and the
-        organisation-wide store is gone because `context` already did that job."""
-        assert set(MemoryFilesConfig.model_fields) == {"allow_personal"}
+    def test_the_builder_exposes_two_independent_memory_controls(self):
+        assert set(MemoryFilesConfig.model_fields) == {"allow_personal", "inject_context"}
 
     def test_personal_memory_is_on_by_default(self):
         assert MemoryFilesConfig().allow_personal is True

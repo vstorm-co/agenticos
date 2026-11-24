@@ -5,8 +5,19 @@ import pytest
 from pydantic import SecretStr
 
 from app.core.config import settings
-from app.core.exceptions import ConfigurationError, ExternalServiceError
+from app.core.exceptions import BadRequestError, ConfigurationError, ExternalServiceError
+from app.services.app_connections._catalog import (
+    APPS,
+    ComposioAction,
+    get_app,
+    resolve_action,
+    toolkit_from_catalog_key,
+)
 from app.services.app_connections._client import ComposioCatalogClient
+from app.services.app_connections._managed import (
+    is_managed_auth_type,
+    is_managed_catalog_key,
+)
 
 pytestmark = pytest.mark.anyio
 
@@ -290,3 +301,142 @@ async def test_missing_toolkit_and_malformed_catalog_response_are_safe_failures(
     assert provider_secret not in str(malformed.value)
     assert CATALOG_KEY not in repr(missing.value)
     assert CATALOG_KEY not in repr(malformed.value)
+
+
+def test_managed_registry_names_only_the_vendor() -> None:
+    assert is_managed_auth_type("composio")
+    assert not is_managed_auth_type("oauth")
+    assert not is_managed_auth_type("bearer")
+    assert not is_managed_auth_type(None)
+    assert is_managed_catalog_key("composio-gmail")
+    assert is_managed_catalog_key("COMPOSIO-GMAIL")
+    assert not is_managed_catalog_key("gmail")
+    assert not is_managed_catalog_key(None)
+
+
+def test_side_effecting_is_the_provider_neutral_read_of_read_only() -> None:
+    assert ComposioAction("GMAIL_FETCH_EMAILS", "Find email").side_effecting is False
+    assert (
+        ComposioAction("GMAIL_SEND_MESSAGE", "Send email", read_only=False).side_effecting is True
+    )
+
+
+def test_resolve_action_returns_the_composio_executor() -> None:
+    action = get_app("gmail").actions[0]
+    executor = resolve_action(action)
+    assert executor.kind == "composio"
+    assert executor.tool_name == "GMAIL_FETCH_EMAILS"
+    assert executor.side_effecting is False
+    assert executor.scopes == ("https://www.googleapis.com/auth/gmail.readonly",)
+
+
+def test_starter_actions_carry_least_privilege_scopes() -> None:
+    by_toolkit = {app.toolkit: app for app in APPS}
+    assert len(by_toolkit) == 7
+    for app in APPS:
+        assert all(not action.side_effecting for action in app.actions)
+        assert all(action.read_only for action in app.actions)
+    gmail = by_toolkit["gmail"]
+    assert all(
+        action.scopes == ("https://www.googleapis.com/auth/gmail.readonly",)
+        for action in gmail.actions
+    )
+    drive = by_toolkit["googledrive"]
+    assert all(
+        action.scopes == ("https://www.googleapis.com/auth/drive.readonly",)
+        for action in drive.actions
+    )
+    calendar = by_toolkit["googlecalendar"]
+    assert all(
+        action.scopes == ("https://www.googleapis.com/auth/calendar.readonly",)
+        for action in calendar.actions
+    )
+    outlook = by_toolkit["outlook"]
+    assert outlook.actions[0].scopes == ("Mail.Read",)
+    assert outlook.actions[1].scopes == ("Mail.Read",)
+    assert outlook.actions[2].scopes == ("Calendars.Read",)
+    slack = by_toolkit["slack"]
+    assert slack.actions[0].scopes == ("search:read",)
+    assert "channels:history" in slack.actions[1].scopes
+    assert "channels:history" in slack.actions[2].scopes
+    notion = by_toolkit["notion"]
+    assert all(action.scopes == () for action in notion.actions)
+    github = by_toolkit["github"]
+    assert all(action.scopes == ("repo",) for action in github.actions)
+
+
+@pytest.mark.security
+def test_catalog_key_parsing_does_not_admit_an_unreviewed_public_binding() -> None:
+    assert get_app("github").toolkit == "github"
+    assert toolkit_from_catalog_key(None) is None
+    assert toolkit_from_catalog_key("gmail") is None
+    assert toolkit_from_catalog_key("composio-salesforce") == "salesforce"
+    with pytest.raises(BadRequestError, match="not available"):
+        get_app("salesforce")
+
+
+async def test_unknown_legacy_deprecation_metadata_does_not_replace_explicit_flags() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/tools"):
+            tool = direct_tool("MICROSOFT_TEAMS_LIST_CHANNELS")
+            tool["deprecated"] = "legacy-description"
+            return httpx.Response(200, json={"items": [tool]})
+        metadata = toolkit_row()
+        metadata["deprecated"] = "legacy-description"
+        return httpx.Response(200, json=metadata)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+        catalog = ComposioCatalogClient(http)
+        metadata = await catalog.get_toolkit("microsoft_teams")
+        assert metadata.deprecated is None and not metadata.is_deprecated_flag
+        assert await catalog.direct_tool_names(toolkit="microsoft_teams") == [
+            "MICROSOFT_TEAMS_LIST_CHANNELS"
+        ]
+
+
+async def test_catalog_context_closes_only_the_http_client_it_owns() -> None:
+    owned = ComposioCatalogClient()
+    async with owned as entered:
+        assert entered is owned and not owned._client.is_closed
+    assert owned._client.is_closed
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(lambda request: pytest.fail("No provider request expected"))
+    ) as http:
+        async with ComposioCatalogClient(http) as injected:
+            assert injected._client is http
+        assert not http.is_closed
+
+
+@pytest.mark.security
+async def test_catalog_network_failure_does_not_reveal_credentials_or_retry() -> None:
+    calls: list[httpx.Request] = []
+    private = "synthetic-private-transport-detail"
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request)
+        raise httpx.ReadTimeout(private, request=request)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+        with pytest.raises(ExternalServiceError) as caught:
+            await ComposioCatalogClient(http).list_toolkits(search="", cursor=None, limit=24)
+    assert len(calls) == 1
+    for secret in (private, CATALOG_KEY, RUNTIME_KEY):
+        assert secret not in str(caught.value) and secret not in repr(caught.value)
+
+
+@pytest.mark.parametrize("limit", [0, 101])
+async def test_catalog_page_limits_are_refused_before_provider_io(limit: int) -> None:
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(lambda request: pytest.fail("Invalid limit reached provider"))
+    ) as http:
+        with pytest.raises(ValueError, match="page size"):
+            await ComposioCatalogClient(http).list_toolkits(search="", cursor=None, limit=limit)
+
+
+@pytest.mark.security
+async def test_a_catalog_with_no_direct_actions_cannot_create_an_ambient_tool_grant() -> None:
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(lambda request: httpx.Response(200, json={"items": []}))
+    ) as http:
+        with pytest.raises(ExternalServiceError, match="no available direct actions"):
+            await ComposioCatalogClient(http).direct_tool_names(toolkit="microsoft_teams")

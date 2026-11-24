@@ -3,8 +3,10 @@
 import type { ReactNode } from "react";
 import { useTranslations } from "next-intl";
 
+import { CONTROL_FOCUS } from "./control-styles";
 import { cn } from "@/lib/utils";
 import { Button } from "./button";
+import { ContextHelp } from "./context-help";
 import { Label } from "./label";
 
 /**
@@ -54,13 +56,16 @@ export function OptionalSetting({
   return (
     <div className="space-y-1.5">
       <div className="flex min-h-8 items-center justify-between gap-2">
-        <Label htmlFor={htmlFor}>{label}</Label>
+        <div className="flex items-center gap-1">
+          <Label htmlFor={htmlFor}>{label}</Label>
+          <ContextHelp>{description}</ContextHelp>
+        </div>
         {onReset && (
           <Button
             type="button"
             variant="ghost"
             size="sm"
-            className="h-6 px-2 text-xs"
+            className="h-8 px-2.5 text-[13px]"
             disabled={disabled}
             onClick={onReset}
           >
@@ -73,9 +78,7 @@ export function OptionalSetting({
         <p id={`${htmlFor}-error`} className="text-destructive text-xs">
           {error}
         </p>
-      ) : (
-        <p className="text-muted-foreground text-xs">{description}</p>
-      )}
+      ) : null}
     </div>
   );
 }
@@ -132,7 +135,11 @@ export function OptionalSlider({
           step={step}
           value={value ?? resting}
           disabled={disabled}
-          className={cn("accent-brand h-1.5 min-w-0 flex-1", !isSet && "opacity-40")}
+          className={cn(
+            CONTROL_FOCUS,
+            "accent-foreground touch:min-h-11 h-1.5 min-w-0 flex-1",
+            !isSet && "opacity-40",
+          )}
           onChange={(event) => onChange(Number(event.target.value))}
         />
         <span

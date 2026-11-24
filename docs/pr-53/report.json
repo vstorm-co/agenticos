@@ -1,0 +1,10 @@
+{
+  "pr": 53,
+  "before": "origin/t3 7332e80c",
+  "after": "7c8148d628af489179355a0cdf78bee8ee8db0b3 (head before this commit)",
+  "viewports": [1440, 390],
+  "after_shots": ["mfa-off", "mfa-enrol", "mfa-on", "login-mfa"],
+  "before_shots": {"account": "settings/account on t3, no two-factor section", "login": "password-only sign-in on t3"},
+  "not_captured_before": ["mfa-off, mfa-enrol, mfa-on, login-mfa: the MFA screens do not exist on origin/t3"],
+  "data": "synthetic user reviewer@example.com, synthetic secret"
+}

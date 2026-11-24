@@ -1,9 +1,20 @@
-/** Channel bots - the organization-level bindings to Slack, Telegram, Mattermost, Teams, Discord. */
+/**
+ * Channel bots - the organization-level bindings to Slack, Telegram, Mattermost, Teams,
+ * Discord and Matrix.
+ */
 
 import type { OrgRole } from "./organization";
 
 export type ChannelPlatform =
-  "telegram" | "slack" | "mattermost" | "teams" | "discord" | "sms" | "email" | "imessage";
+  | "telegram"
+  | "slack"
+  | "mattermost"
+  | "teams"
+  | "discord"
+  | "matrix"
+  | "sms"
+  | "email"
+  | "imessage";
 
 /** How a streamed answer shows its tool calls: one row each, or one plan (#2084). */
 export type StepDisplay = "timeline" | "plan";
@@ -61,7 +72,7 @@ export interface ChannelBot extends AnswerStyle {
   webhook_url: string | null;
   /**
    * The bot's own server, for a self-hosted platform. An address rather than a
-   * credential, so it is read back - Mattermost only; the others have one
+   * credential, so it is read back - Mattermost and Matrix only; the others have one
    * address for everybody.
    */
   api_base_url: string | null;
@@ -169,9 +180,9 @@ export interface ChannelBotCreate {
   /** The bot token as issued by the platform. Encrypted at rest, never read back. */
   token: string;
   /**
-   * Mattermost only, and required there: the bot's own server. Mattermost is
-   * self-hosted, so a bot that does not know its server cannot reply, cannot
-   * open its event stream and cannot fetch an attachment.
+   * Mattermost and Matrix only, and required there: the bot's own server (a Matrix
+   * homeserver). Both are self-hosted, so a bot that does not know its server cannot
+   * reply, cannot open its event stream and cannot fetch an attachment.
    */
   api_base_url?: string;
   /**
@@ -234,7 +245,7 @@ export interface ChannelBotUpdate {
   name?: string;
   /** A replacement bot token. Sealed at rest like the first one. */
   token?: string;
-  /** Mattermost only: the bot's own server. An address, so it is read back. */
+  /** Mattermost and Matrix only: the bot's own server. An address, so it is read back. */
   api_base_url?: string;
   webhook_secret?: string;
   slack_signing_secret?: string;
@@ -301,4 +312,14 @@ export interface DiscordServer {
 export interface DiscordServerList {
   items: DiscordServer[];
   total: number;
+}
+
+export interface ChannelDiagnostics {
+  checks: {
+    code: "active" | "transport" | "binding" | "published" | "identity" | "personal_service";
+    status: "ok" | "warning" | "blocked" | "unknown";
+    detail: string | null;
+  }[];
+  account_scope: "current_user";
+  credentials_probed: boolean;
 }

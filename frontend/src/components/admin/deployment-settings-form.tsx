@@ -1,0 +1,628 @@
+"use client";
+
+import { useState, type ReactNode } from "react";
+import { endInput, endInstant } from "@/components/triggers/ends-at-field";
+import { useConsoleRouter as useRouter } from "@/hooks/use-console-router";
+import { useTranslations } from "next-intl";
+
+import {
+  DeploymentSettingsLayout,
+  DeploymentSettingsPanel,
+} from "@/components/admin/deployment-settings-layout";
+import { DeploymentUpdatesCard } from "@/components/admin/deployment-updates-card";
+import { DiagnosticsCard } from "@/components/admin/diagnostics-card";
+import { ApnsKeyCard } from "@/components/admin/apns-key-card";
+import { ChatHomeControls } from "@/components/settings/chat-home-controls";
+import { BrandingImageField } from "@/components/admin/branding-image-field";
+import { DictationAudioCard } from "@/components/admin/dictation-audio-card";
+import { DomainListField } from "@/components/admin/domain-list-field";
+import { ErrorState } from "@/components/states";
+import { LoadingForm } from "@/components/states/loading-form";
+import {
+  FormField,
+  Label,
+  Input,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Switch,
+  Textarea,
+} from "@/components/ui";
+import { useAdminOrganizations } from "@/hooks/use-admin-organizations";
+import {
+  DEFAULT_ORGANIZATION_ROLES,
+  useDeploymentSettings,
+  type DefaultOrganizationRole,
+  type DeploymentSettingsPatch,
+} from "@/hooks/use-deployment-settings";
+import { getErrorMessage } from "@/lib/api-error";
+import { BUILT_IN_BRANDING, type NoticeLevel, type SignupMode } from "@/lib/branding";
+
+const SIGNUP_MODES: readonly SignupMode[] = ["open", "invite_only", "closed"];
+const NOTICE_LEVELS: readonly NoticeLevel[] = ["info", "warning", "critical"];
+
+/** The Select's value for "no default organization" - Radix refuses an empty one. */
+const NO_DEFAULT = "none";
+
+/**
+ * The deployment's own settings - what it is called, what it looks like, who may
+ * join it, and whether it is open.
+ *
+ * One page for all of it rather than four, because they are one row and one save.
+ * The sections below are the reader's grouping, not four requests.
+ *
+ * **An empty input clears an override.** That is the whole editing model here: a
+ * field left blank falls back to what this build ships with, so the placeholders
+ * show the built-in rather than pretending the field is empty. It is also why the
+ * save sends `null` and not `""` - the backend treats a blank as "give me the
+ * default back", and storing `""` would render a sign-in page with no name on it.
+ *
+ * The draft is the server's row with this session's edits laid over it, and the
+ * save sends only the edits. Copying the row into state on arrival would make every
+ * save a full write of every field, so renaming the deployment would also resend -
+ * and quietly re-assert - an announcement somebody else had changed meanwhile.
+ */
+type NoticeTimeField = "announcement_expires_at" | "maintenance_planned_end_at";
+const NOTICE_TIME_FIELDS: readonly NoticeTimeField[] = [
+  "announcement_expires_at",
+  "maintenance_planned_end_at",
+];
+
+export function DeploymentSettingsForm({ onContinue }: { onContinue?: () => void } = {}) {
+  const t = useTranslations("pages.admin");
+  const tc = useTranslations("common");
+  const experience = useTranslations("consoleExperience");
+  const tErrors = useTranslations("errors");
+  const router = useRouter();
+  const { settings, isLoading, error, refetch, save, uploadImage, clearImage } =
+    useDeploymentSettings();
+
+  // Only the fields this administrator has touched. The draft is derived from them
+  // over the server's answer rather than copied into state when it arrives, which
+  // is what makes the PATCH honest: what is sent is what was edited, so saving the
+  // name cannot silently rewrite an announcement somebody else changed meanwhile.
+  // It is also why an upload - which answers with the whole row - immediately shows
+  // its new mark without anything here re-seeding.
+  const [edits, setEdits] = useState<DeploymentSettingsPatch>({});
+  const [timing, setTiming] = useState<Partial<Record<NoticeTimeField, string>>>({});
+  // Team organizations only: a personal one cannot be the default, and the
+  // backend refuses it.
+  const { organizations: teams } = useAdminOrganizations({
+    kind: "team",
+    limit: 100,
+    sortBy: "name",
+    sortDir: "asc",
+  });
+
+  if (error || (!settings && !isLoading)) {
+    return (
+      <ErrorState
+        title={t("settingsUnreadable")}
+        description={getErrorMessage(error, tErrors, t("settingsUnreadableBody"))}
+        cta={{ label: tc("retry"), onClick: () => void refetch() }}
+      />
+    );
+  }
+
+  const draft: DeploymentSettingsPatch = {
+    app_name: settings?.app_name,
+    tagline: settings?.tagline,
+    description: settings?.description,
+    footer_text: settings?.footer_text,
+    terms_url: settings?.terms_url,
+    privacy_url: settings?.privacy_url,
+    signup_mode: settings?.signup_mode,
+    allowed_email_domains: settings?.allowed_email_domains,
+    announcement: settings?.announcement,
+    announcement_level: settings?.announcement_level,
+    maintenance_mode: settings?.maintenance_mode,
+    maintenance_message: settings?.maintenance_message,
+    max_organizations_per_user: settings?.max_organizations_per_user,
+    max_agents_per_organization: settings?.max_agents_per_organization,
+    notify_impersonated_users: settings?.notify_impersonated_users,
+    personal_organizations: settings?.personal_organizations,
+    default_organization_id: settings?.default_organization_id,
+    default_organization_role: settings?.default_organization_role,
+    dictation_compressed_audio: settings?.dictation_compressed_audio,
+    onboarding_reminders_available: settings?.onboarding_reminders_available,
+    announcement_expires_at: settings?.announcement_expires_at,
+    maintenance_planned_end_at: settings?.maintenance_planned_end_at,
+    ...edits,
+  };
+
+  const set = <K extends keyof DeploymentSettingsPatch>(
+    key: K,
+    value: DeploymentSettingsPatch[K],
+  ) => setEdits({ ...edits, [key]: value });
+
+  /**
+   * A ceiling's value, sent as `null` when emptied - which is how "no limit" is
+   * said. Empty rather than `0`, because zero is not a limit anybody means: it
+   * would leave an account that cannot own the personal organization sign-up
+   * creates for it, and the schema refuses it.
+   */
+  const ceiling = (key: "max_organizations_per_user" | "max_agents_per_organization") => ({
+    type: "number",
+    min: 1,
+    value: draft[key] === null || draft[key] === undefined ? "" : String(draft[key]),
+    onChange: (event: { target: { value: string } }) =>
+      set(key, event.target.value === "" ? null : Number(event.target.value)),
+    disabled: save.isPending,
+  });
+
+  /** A text input's value, sent as `null` when emptied so the built-in returns. */
+  const text = (key: keyof DeploymentSettingsPatch) => ({
+    value: (draft[key] as string | null) ?? "",
+    onChange: (event: { target: { value: string } }) =>
+      set(key, (event.target.value || null) as DeploymentSettingsPatch[typeof key]),
+    disabled: save.isPending,
+  });
+
+  const invalidTiming = NOTICE_TIME_FIELDS.some((field) => {
+    const value = timing[field];
+    return value !== undefined && endInstant(value) === undefined;
+  });
+  const timingField = (field: NoticeTimeField): ReactNode => {
+    const value = timing[field] ?? endInput(draft[field]);
+    const invalid = endInstant(value) === undefined;
+    const expiry = field === "announcement_expires_at";
+    return (
+      <FormField
+        label={experience(expiry ? "announcementExpiry" : "maintenanceEnd")}
+        htmlFor={field}
+        description={experience(expiry ? "announcementExpiryHint" : "maintenanceEndHint", {
+          zone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        })}
+        error={invalid ? experience("invalidTime") : undefined}
+      >
+        <Input
+          id={field}
+          type="datetime-local"
+          step="60"
+          value={value}
+          disabled={save.isPending}
+          aria-invalid={invalid}
+          onChange={(event) =>
+            setTiming((current) => ({ ...current, [field]: event.target.value }))
+          }
+        />
+      </FormField>
+    );
+  };
+
+  const submit = () => {
+    // `router.refresh()` because every surface that draws the name reads it from a
+    // context the server resolved above `[locale]`: without it the form would show
+    // a saved name the sidebar beside it still disagrees with.
+    const changes = { ...edits };
+    for (const field of NOTICE_TIME_FIELDS) {
+      const raw = timing[field];
+      if (raw === undefined) continue;
+      const instant = endInstant(raw);
+      if (instant === undefined) return;
+      changes[field] = instant;
+    }
+    save.mutate(changes, {
+      onSuccess: () => {
+        setEdits({});
+        setTiming({});
+        router.refresh();
+        onContinue?.();
+      },
+    });
+  };
+
+  const busy = uploadImage.isPending || clearImage.isPending;
+
+  return (
+    <LoadingForm loading={isLoading}>
+      <DeploymentSettingsLayout
+        guided={!!onContinue}
+        onContinue={onContinue}
+        dirty={Object.keys(edits).length > 0 || Object.keys(timing).length > 0}
+        invalid={invalidTiming}
+        pending={save.isPending}
+        onSave={submit}
+        onDiscard={() => {
+          setEdits({});
+          setTiming({});
+        }}
+        identity={
+          <>
+            <DeploymentSettingsPanel
+              title={experience("title")}
+              description={experience("deploymentHint")}
+            >
+              <ChatHomeControls
+                mode="availability"
+                value={{ ...settings?.chat_home_available, ...edits.chat_home_available }}
+                disabled={save.isPending || isLoading}
+                onChange={(field, value) =>
+                  set("chat_home_available", { ...edits.chat_home_available, [field]: value })
+                }
+              />
+            </DeploymentSettingsPanel>
+            <DeploymentSettingsPanel
+              title={experience("remindersTitle")}
+              description={experience("remindersDeploymentHint")}
+            >
+              <div className="flex items-center justify-between gap-4">
+                <Label htmlFor="deployment-reminders">{experience("remindersEnabled")}</Label>
+                <Switch
+                  id="deployment-reminders"
+                  checked={draft.onboarding_reminders_available !== false}
+                  disabled={save.isPending || isLoading}
+                  onCheckedChange={(value) => set("onboarding_reminders_available", value)}
+                />
+              </div>
+            </DeploymentSettingsPanel>
+            <DeploymentSettingsPanel
+              title={t("brandingIdentity")}
+              description={t("brandingIdentityHint")}
+            >
+              <div className="grid gap-5 sm:grid-cols-2">
+                <FormField
+                  className="sm:col-span-2"
+                  label={t("brandingName")}
+                  htmlFor="app-name"
+                  description={t("brandingNameHint")}
+                >
+                  <Input
+                    id="app-name"
+                    // The built-in itself, so "empty means the default" is visible rather
+                    // than described. Not copy: it is the product's own name, read from
+                    // the one constant that holds it.
+                    placeholder={BUILT_IN_BRANDING.appName}
+                    maxLength={64}
+                    {...text("app_name")}
+                  />
+                </FormField>
+
+                <FormField
+                  className="sm:col-span-2"
+                  label={t("brandingTagline")}
+                  htmlFor="tagline"
+                  description={t("brandingTaglineHint")}
+                >
+                  <Input
+                    id="tagline"
+                    placeholder={BUILT_IN_BRANDING.tagline}
+                    maxLength={160}
+                    {...text("tagline")}
+                  />
+                </FormField>
+
+                <FormField
+                  className="sm:col-span-2"
+                  label={t("brandingDescription")}
+                  htmlFor="description"
+                  description={t("brandingDescriptionHint")}
+                >
+                  <Input
+                    id="description"
+                    placeholder={BUILT_IN_BRANDING.description}
+                    maxLength={320}
+                    {...text("description")}
+                  />
+                </FormField>
+
+                <BrandingImageField
+                  kind="logo"
+                  version={settings?.logo_version ?? null}
+                  busy={busy}
+                  onUpload={(file) => uploadImage.mutate({ kind: "logo", file })}
+                  onClear={() => clearImage.mutate("logo")}
+                />
+                <BrandingImageField
+                  kind="favicon"
+                  version={settings?.favicon_version ?? null}
+                  busy={busy}
+                  onUpload={(file) => uploadImage.mutate({ kind: "favicon", file })}
+                  onClear={() => clearImage.mutate("favicon")}
+                />
+              </div>
+            </DeploymentSettingsPanel>
+
+            <DeploymentSettingsPanel
+              title={t("brandingLegal")}
+              description={t("brandingLegalHint")}
+            >
+              <div className="grid gap-5 sm:grid-cols-2">
+                <FormField
+                  className="sm:col-span-2"
+                  label={t("brandingFooter")}
+                  htmlFor="footer-text"
+                >
+                  <Input id="footer-text" maxLength={280} {...text("footer_text")} />
+                </FormField>
+                <FormField
+                  label={t("brandingTerms")}
+                  htmlFor="terms-url"
+                  description={t("brandingLinkHint")}
+                >
+                  <Input
+                    id="terms-url"
+                    type="url"
+                    placeholder="https://example.com/terms"
+                    {...text("terms_url")}
+                  />
+                </FormField>
+                <FormField label={t("brandingPrivacy")} htmlFor="privacy-url">
+                  <Input
+                    id="privacy-url"
+                    type="url"
+                    placeholder="https://example.com/privacy"
+                    {...text("privacy_url")}
+                  />
+                </FormField>
+              </div>
+            </DeploymentSettingsPanel>
+          </>
+        }
+        access={
+          <>
+            <DeploymentSettingsPanel title={t("accessSignup")} description={t("accessSignupHint")}>
+              <div className="grid gap-5 sm:grid-cols-2">
+                <FormField
+                  className="sm:col-span-2"
+                  label={t("accessMode")}
+                  htmlFor="signup-mode"
+                  description={t(`accessMode_${draft.signup_mode ?? "open"}`)}
+                >
+                  <Select
+                    value={draft.signup_mode ?? "open"}
+                    onValueChange={(value) => set("signup_mode", value as SignupMode)}
+                    disabled={save.isPending}
+                  >
+                    <SelectTrigger id="signup-mode">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {SIGNUP_MODES.map((mode) => (
+                        <SelectItem key={mode} value={mode}>
+                          {t(`accessModeLabel_${mode}`)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </FormField>
+
+                <FormField
+                  className="sm:col-span-2"
+                  label={t("accessDomains")}
+                  htmlFor="allowed-domains"
+                  description={t("accessDomainsHint")}
+                >
+                  <DomainListField
+                    domains={draft.allowed_email_domains ?? []}
+                    onChange={(next) => set("allowed_email_domains", next)}
+                    disabled={save.isPending}
+                  />
+                </FormField>
+              </div>
+            </DeploymentSettingsPanel>
+
+            <DeploymentSettingsPanel
+              title={t("newAccountsTitle")}
+              description={t("newAccountsHint")}
+            >
+              <div className="grid gap-5 sm:grid-cols-2">
+                <div className="bg-background/50 flex items-start justify-between gap-4 rounded-xl p-4 sm:col-span-2">
+                  <div className="min-w-0">
+                    <p className="text-foreground text-sm font-medium">
+                      {t("personalOrganizations")}
+                    </p>
+                    <p className="text-muted-foreground mt-0.5 text-xs">
+                      {t("personalOrganizationsHint")}
+                    </p>
+                  </div>
+                  <Switch
+                    checked={draft.personal_organizations ?? true}
+                    onCheckedChange={(checked) => set("personal_organizations", checked)}
+                    disabled={save.isPending}
+                    aria-label={t("personalOrganizations")}
+                  />
+                </div>
+
+                <FormField
+                  className="sm:col-span-2"
+                  label={t("defaultOrganization")}
+                  htmlFor="default-organization"
+                  description={t("defaultOrganizationHint")}
+                >
+                  <Select
+                    value={draft.default_organization_id ?? NO_DEFAULT}
+                    onValueChange={(value) =>
+                      set("default_organization_id", value === NO_DEFAULT ? null : value)
+                    }
+                    disabled={save.isPending}
+                  >
+                    <SelectTrigger id="default-organization">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={NO_DEFAULT}>{t("defaultOrganizationNone")}</SelectItem>
+                      {teams.map((org) => (
+                        <SelectItem key={org.id} value={org.id}>
+                          {org.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </FormField>
+
+                {draft.default_organization_id && (
+                  <FormField
+                    label={t("defaultOrganizationRole")}
+                    htmlFor="default-organization-role"
+                    description={t("defaultOrganizationRoleHint")}
+                  >
+                    <Select
+                      value={draft.default_organization_role ?? "member"}
+                      onValueChange={(value) =>
+                        set("default_organization_role", value as DefaultOrganizationRole)
+                      }
+                      disabled={save.isPending}
+                    >
+                      <SelectTrigger id="default-organization-role" className="capitalize">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {DEFAULT_ORGANIZATION_ROLES.map((role) => (
+                          <SelectItem key={role} value={role} className="capitalize">
+                            {role}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </FormField>
+                )}
+              </div>
+            </DeploymentSettingsPanel>
+
+            {/* Beside sign-up rather than under branding: a ceiling is about who may
+          use this deployment and how much of it, which is the question the card
+          above answers for the door. */}
+            <DeploymentSettingsPanel title={t("limitsTitle")} description={t("limitsHint")}>
+              <div className="grid gap-5 sm:grid-cols-2">
+                <FormField
+                  label={t("limitsOrganizations")}
+                  htmlFor="max-organizations"
+                  description={t("limitsOrganizationsHint")}
+                >
+                  <Input
+                    id="max-organizations"
+                    placeholder={t("limitsUnlimited")}
+                    {...ceiling("max_organizations_per_user")}
+                  />
+                </FormField>
+                <FormField
+                  label={t("limitsAgents")}
+                  htmlFor="max-agents"
+                  description={t("limitsAgentsHint")}
+                >
+                  <Input
+                    id="max-agents"
+                    placeholder={t("limitsUnlimited")}
+                    {...ceiling("max_agents_per_organization")}
+                  />
+                </FormField>
+              </div>
+            </DeploymentSettingsPanel>
+
+            <DeploymentSettingsPanel
+              title={t("adminAccessTitle")}
+              description={t("adminAccessHint")}
+            >
+              <div className="bg-background/50 flex items-start justify-between gap-4 rounded-xl p-4 sm:col-span-2">
+                <div className="min-w-0">
+                  <p className="text-foreground text-sm font-medium">
+                    {t("impersonationNoticeToggle")}
+                  </p>
+                  <p className="text-muted-foreground mt-0.5 text-xs">
+                    {t("impersonationNoticeToggleHint")}
+                  </p>
+                </div>
+                <Switch
+                  checked={draft.notify_impersonated_users ?? false}
+                  onCheckedChange={(checked) => set("notify_impersonated_users", checked)}
+                  disabled={save.isPending}
+                  aria-label={t("impersonationNoticeToggle")}
+                />
+              </div>
+            </DeploymentSettingsPanel>
+          </>
+        }
+        notices={
+          <>
+            <DeploymentSettingsPanel title={t("noticesTitle")} description={t("noticesHint")}>
+              <div className="grid gap-5 sm:grid-cols-2">
+                <FormField
+                  className="sm:col-span-2"
+                  label={t("noticeAnnouncement")}
+                  htmlFor="announcement"
+                  description={t("noticeAnnouncementHint")}
+                >
+                  <Textarea id="announcement" rows={2} maxLength={500} {...text("announcement")} />
+                </FormField>
+
+                {timingField("announcement_expires_at")}
+                <FormField
+                  className="sm:col-span-2"
+                  label={t("noticeLevel")}
+                  htmlFor="announcement-level"
+                >
+                  <Select
+                    value={draft.announcement_level ?? "info"}
+                    onValueChange={(value) => set("announcement_level", value as NoticeLevel)}
+                    disabled={save.isPending}
+                  >
+                    <SelectTrigger id="announcement-level">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {NOTICE_LEVELS.map((level) => (
+                        <SelectItem key={level} value={level}>
+                          {t(`noticeLevelLabel_${level}`)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </FormField>
+
+                <div className="bg-background/50 flex items-start justify-between gap-4 rounded-xl p-4 sm:col-span-2">
+                  <div className="min-w-0">
+                    <p className="text-foreground text-sm font-medium">{t("maintenanceToggle")}</p>
+                    <p className="text-muted-foreground mt-0.5 text-xs">
+                      {t("maintenanceToggleHint")}
+                    </p>
+                  </div>
+                  <Switch
+                    checked={draft.maintenance_mode ?? false}
+                    onCheckedChange={(checked) => set("maintenance_mode", checked)}
+                    disabled={save.isPending}
+                    aria-label={t("maintenanceToggle")}
+                  />
+                </div>
+
+                <FormField
+                  className="sm:col-span-2"
+                  label={t("maintenanceMessage")}
+                  htmlFor="maintenance-message"
+                  description={t("maintenanceMessageHint")}
+                >
+                  <Textarea
+                    id="maintenance-message"
+                    rows={2}
+                    maxLength={500}
+                    {...text("maintenance_message")}
+                  />
+                </FormField>
+                {timingField("maintenance_planned_end_at")}
+              </div>
+            </DeploymentSettingsPanel>
+          </>
+        }
+        services={
+          <>
+            <DictationAudioCard
+              checked={draft.dictation_compressed_audio ?? false}
+              disabled={save.isPending}
+              onChange={(accept) => set("dictation_compressed_audio", accept)}
+            />
+
+            <ApnsKeyCard />
+          </>
+        }
+        operations={
+          <>
+            <DeploymentUpdatesCard />
+            <DiagnosticsCard />
+          </>
+        }
+      />
+    </LoadingForm>
+  );
+}

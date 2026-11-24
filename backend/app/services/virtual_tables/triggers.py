@@ -3,8 +3,10 @@
 A workflow whose trigger node is `trigger.table_record` is subscribed to its
 table when a version is published (`app.services.workflow_triggers`): the
 trigger runs that version as the member who published it, and nobody can name
-someone else. A later publish moves it to the new version. Pausing and resuming
-from the table need `tables:edit`.
+someone else. A later publish moves it to the new version. Pausing from the
+table needs `tables:edit`; resuming it there also needs `workflows:edit` and
+`workflows:run` on the workflow, the same as the workflow's own switch, because
+the trigger runs the workflow as its publisher.
 
 Switching a trigger on takes the table's schema lock, the one record writes
 wait on, before stamping `activated_at`. A write that started before the switch
@@ -21,7 +23,7 @@ failed with a coarse reason - in a savepoint of its own. The unique
 """
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import Any, cast
@@ -30,7 +32,7 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import record_audit
-from app.core.exceptions import BadRequestError, NotFoundError
+from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, Perm
 from app.db.locks import LockScope, hold_subject
 from app.db.models.virtual_table import (
@@ -44,6 +46,7 @@ from app.db.models.virtual_table_trigger import (
 )
 from app.db.models.workflow import Workflow, WorkflowStatus, WorkflowVersion
 from app.db.models.workflow_run import WorkflowRun, WorkflowRunTrigger
+from app.db.table_rls import bind_table_access
 from app.repositories import member_repo, virtual_table_repo
 from app.repositories import user as user_repo
 from app.repositories import virtual_table_trigger as trigger_repo
@@ -60,11 +63,15 @@ from app.schemas.virtual_table_trigger import (
 )
 from app.services.access import TABLE, WORKFLOW, resolve_access
 from app.services.virtual_tables._base import Operations
+from app.services.virtual_tables.computed import visible_link_ids
+from app.services.virtual_tables.exceptions import InvalidRowPolicyError
 from app.services.virtual_tables.presentation import readable
+from app.services.virtual_tables.row_policy import may_view_row
 from app.services.virtual_tables.types import COLUMN_TYPES, CellProblem, validate_filter
 from app.services.workflow_authority import require_human_publisher
 from app.services.workflow_execution.exceptions import (
     WorkflowAdmissionQuotaError,
+    WorkflowArchivedError,
     WorkflowBudgetReachedError,
     WorkflowInlineStorageLimitError,
     WorkflowRunInputTooLargeError,
@@ -111,6 +118,8 @@ def holds(column: ColumnDef, condition: RecordFilter, values: dict[str, Any]) ->
     says of the same row, so a trigger and a filtered view agree about a record."""
     cell = values.get(str(condition.column_id))
     if condition.op == "is_null":
+        if column.type == "link":
+            return (not cell) == bool(condition.value)
         return (cell is None) == bool(condition.value)
     if cell is None:
         return False
@@ -227,6 +236,7 @@ class TableTriggerService(Operations):
 
         Runs it already started keep going.
         """
+        await bind_table_access(self.db, ctx)
         trigger = await trigger_repo.get_for_workflow(
             self.db, workflow_id=workflow.id, organization_id=ctx.organization_id
         )
@@ -239,17 +249,28 @@ class TableTriggerService(Operations):
         """Pause or resume a trigger; it keeps running as whoever published it.
 
         Resuming stamps a new `activated_at`, so the records added while it was
-        paused never start it.
+        paused never start it. Pausing needs only `tables:edit`; resuming starts
+        the workflow as its publisher again, so it also needs what the workflow's
+        own switch needs: `workflows:edit` and `workflows:run` on that workflow.
 
         Raises:
-            NotFoundError: The table or the trigger is out of reach.
+            NotFoundError: The table or the trigger is out of reach, or resuming and
+                the caller may not edit the workflow.
+            AuthorizationError: Resuming, and the caller may edit the workflow but
+                not run it.
+            WorkflowArchivedError: Resuming, and the workflow is archived.
             TableArchivedError: The table is archived.
         """
+        if data.is_active:
+            require_human_publisher(ctx)
+            table = await self._load_table(ctx, table_id, Perm.TABLES_EDIT)
+            await self._may_resume(ctx, await self._trigger(ctx, table.id, trigger_id))
         table = await self._load_table(ctx, table_id, Perm.TABLES_EDIT, lock=True)
         self._ensure_live(table)
         trigger = await self._trigger(ctx, table.id, trigger_id)
-        if data.is_active:
-            require_human_publisher(ctx)
+        # The resume's own check above may have read the trigger before another switch
+        # committed; the row as it stands under the table lock is what this one changes.
+        await self.db.refresh(trigger)
         changes: dict[str, Any] = {"is_active": data.is_active}
         if data.is_active and not trigger.is_active:
             changes["activated_at"] = trigger_repo.activation_time()
@@ -258,6 +279,37 @@ class TableTriggerService(Operations):
             ctx, trigger, "table.trigger_resumed" if data.is_active else "table.trigger_paused"
         )
         return await self._trigger_read(trigger)
+
+    async def _may_resume(self, ctx: AuthContext, trigger: VirtualTableTrigger) -> None:
+        """Lock the trigger's workflow and refuse resuming what the workflow's switch would.
+
+        The locks are the ones the workflow's own archive and switch take, in their order -
+        the organization's workflow lock, the workflow row, then the table row - so an
+        archive in flight is waited for and then seen, never raced into an archived
+        workflow with an active trigger.
+        """
+        await hold_subject(self.db, LockScope.WORKFLOW_FILE_BYTES, ctx.organization_id)
+        workflow = await workflow_repo.get_for_update(
+            self.db, trigger.workflow_id, organization_id=ctx.organization_id
+        )
+        if workflow is None or not await resolve_access(
+            self.db, ctx, workflow, Perm.WORKFLOWS_EDIT, resource_type=WORKFLOW
+        ):
+            raise NotFoundError(
+                message="Workflow not found", details={"workflow_id": trigger.workflow_id}
+            )
+        if workflow.status == WorkflowStatus.ARCHIVED.value:
+            raise WorkflowArchivedError(
+                workflow_id=workflow.id,
+                message="This workflow is archived, so its trigger cannot be resumed",
+            )
+        if not await resolve_access(
+            self.db, ctx, workflow, Perm.WORKFLOWS_RUN, resource_type=WORKFLOW
+        ):
+            raise AuthorizationError(
+                message="This trigger runs as its publisher, so you need to be able to run it",
+                details={"workflow_id": workflow.id},
+            )
 
     async def set_active_for_workflow(
         self, ctx: AuthContext, workflow: Workflow, active: bool
@@ -422,7 +474,7 @@ class TableTriggerConsumer:
         self.db = db
         self.runs = WorkflowExecutionService(db)
 
-    async def consume(self, *, limit: int = 100) -> list[tuple[UUID, UUID]]:
+    async def consume(self, ctx: AuthContext, *, limit: int = 100) -> list[tuple[UUID, UUID]]:
         """Judge every claimed event against every active trigger on its table.
 
         One transaction for the claim, each trigger's decision in a savepoint of
@@ -433,9 +485,12 @@ class TableTriggerConsumer:
         Returns `(run_id, entry_node_run_id)` for every run admitted; each first
         dispatch job is queued in this transaction.
         """
+        await bind_table_access(self.db, ctx)
         admitted: list[tuple[UUID, UUID]] = []
         now = datetime.now(UTC)
-        for event in await trigger_repo.claim_pending(self.db, limit=limit):
+        for event in await trigger_repo.claim_pending(
+            self.db, organization_id=ctx.organization_id, limit=limit
+        ):
             name = trigger_repo.EVENTS[event.event_type]
             triggers = [
                 trigger
@@ -500,6 +555,65 @@ class TableTriggerConsumer:
             author_id=UUID(actor) if isinstance(actor, str) else None,
         )
 
+    async def _publisher_snapshot(
+        self, ctx: AuthContext, columns: list[ColumnDef], snapshot: _Happened
+    ) -> _Happened:
+        """Project both event snapshots without changing the stored evidence.
+
+        Trigger filters and run inputs use the same readable destinations as an
+        ordinary record read. One target query covers both snapshots and every
+        link field pointing at that table.
+        """
+        links = [column for column in columns if column.type == "link"]
+        if not links:
+            return snapshot
+        active = [column for column in links if not column.archived and column.link_table_id]
+        originals = [snapshot.values, *([snapshot.before] if snapshot.before is not None else [])]
+        wanted: dict[UUID, set[str]] = {}
+        for column in active:
+            assert column.link_table_id is not None
+            ids = wanted.setdefault(column.link_table_id, set())
+            for original in originals:
+                cell = original.get(str(column.id))
+                for item in cell if isinstance(cell, list) else []:
+                    if not isinstance(item, str):
+                        continue
+                    try:
+                        UUID(item)
+                    except ValueError:
+                        continue
+                    ids.add(item)
+        readable = {
+            table_id: await visible_link_ids(self.db, ctx, table_id, ids) if ids else set()
+            for table_id, ids in wanted.items()
+        }
+        link_keys = {str(column.id) for column in links}
+
+        def project(original: dict[str, Any]) -> dict[str, Any]:
+            values = {key: value for key, value in original.items() if key not in link_keys}
+            for column in active:
+                key = str(column.id)
+                if key not in original:
+                    continue
+                assert column.link_table_id is not None
+                cell = original[key]
+                values[key] = (
+                    None
+                    if cell is None
+                    else [
+                        item
+                        for item in (cell if isinstance(cell, list) else [])
+                        if isinstance(item, str) and item in readable[column.link_table_id]
+                    ]
+                )
+            return values
+
+        return replace(
+            snapshot,
+            values=project(snapshot.values),
+            before=project(snapshot.before) if snapshot.before is not None else None,
+        )
+
     async def _causing_run(self, event: VirtualTableOutbox) -> WorkflowRun | None:
         """The run whose step wrote this record, if a workflow did."""
         raw = event.payload.get("causation_run_id")
@@ -543,14 +657,6 @@ class TableTriggerConsumer:
             await record(AdmissionStatus.FAILED, AdmissionReason.UNAVAILABLE)
             return None
         values = snapshot.values
-        changed = snapshot.changed()
-        if (
-            snapshot.event == "updated"
-            and trigger.watched_column_ids
-            and not changed & set(trigger.watched_column_ids)
-        ):
-            await record(AdmissionStatus.FILTERED, AdmissionReason.FILTER_MISMATCH)
-            return None
         # The trigger's table foreign key cascades, so the table is there while it is.
         table = cast(
             VirtualTable,
@@ -559,6 +665,37 @@ class TableTriggerConsumer:
             ),
         )
         columns = await self._columns(table)
+        fire = await self._fire_context(trigger, table)
+        if fire is None:
+            await record(AdmissionStatus.FAILED, AdmissionReason.PERMISSION_DENIED)
+            return None
+        ctx, workflow, version = fire
+        # The publisher's visibility is row-level too: a trigger must not hand
+        # a workflow run a record its publisher cannot see, and the run input
+        # would disclose it even though later node reads are filtered.
+        try:
+            visible = await may_view_row(
+                self.db, ctx, table, list(columns.values()), values, record_id=event.record_id
+            )
+        except InvalidRowPolicyError:
+            visible = False
+        if not visible:
+            await record(AdmissionStatus.FILTERED, AdmissionReason.ROW_POLICY)
+            return None
+        snapshot = await self._publisher_snapshot(ctx, list(columns.values()), snapshot)
+        values = snapshot.values
+        link_keys = {str(column.id) for column in columns.values() if column.type == "link"}
+        changed = {
+            key
+            for key in snapshot.changed()
+            if key not in link_keys or (snapshot.before or {}).get(key) or values.get(key)
+        }
+        if snapshot.event == "updated" and (
+            not changed
+            or (trigger.watched_column_ids and not changed & set(trigger.watched_column_ids))
+        ):
+            await record(AdmissionStatus.FILTERED, AdmissionReason.FILTER_MISMATCH)
+            return None
         conditions = [RecordFilter.model_validate(item) for item in trigger.filters]
         if not all(
             column is not None and holds(column, condition, values)
@@ -567,11 +704,6 @@ class TableTriggerConsumer:
         ):
             await record(AdmissionStatus.FILTERED, AdmissionReason.FILTER_MISMATCH)
             return None
-        fire = await self._fire_context(trigger, table)
-        if fire is None:
-            await record(AdmissionStatus.FAILED, AdmissionReason.PERMISSION_DENIED)
-            return None
-        ctx, workflow, version = fire
         if causing is not None:
             # Counted under the chain's lock, held to the end of this transaction:
             # a second pass over another event of the chain waits here, then counts

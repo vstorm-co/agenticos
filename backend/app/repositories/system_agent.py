@@ -22,15 +22,14 @@ async def get(db: AsyncSession, *, organization_id: UUID, role: str) -> SystemAg
 
 
 async def provision(db: AsyncSession, *, organization_id: UUID, role: str) -> SystemAgentProfile:
-    """The profile for a role, created disabled-by-nothing on first use.
+    """The profile for a role, created disabled on first use.
 
-    Created enabled but with no model: a role runs only once somebody has chosen
-    what it runs on, so provisioning spends nothing. Safe to race - the insert is
+    Choosing a model and enabling the role are explicit operator decisions. Safe to race - the insert is
     a no-op when another request provisioned it first.
     """
     await db.execute(
         pg_insert(SystemAgentProfile)
-        .values(organization_id=organization_id, role=role, enabled=True)
+        .values(organization_id=organization_id, role=role, enabled=False)
         .on_conflict_do_nothing(index_elements=["organization_id", "role"])
     )
     profile = await get(db, organization_id=organization_id, role=role)

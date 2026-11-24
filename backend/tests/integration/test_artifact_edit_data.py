@@ -507,7 +507,7 @@ class TestItDropsWhenTheOwnerGoes:
         self, db: AsyncSession, storage: LocalFileStorage
     ) -> None:
         world = await _world(db)
-        bea, _cal, _group = await self._two_grants(world)
+        bea, cal, _group = await self._two_grants(world)
         other = Artifact(
             organization_id=world.org.id,
             owner_user_id=bea.user_id,
@@ -518,14 +518,15 @@ class TestItDropsWhenTheOwnerGoes:
         )
         db.add(other)
         await db.flush()
-        await resource_grant_repo.upsert(
-            db,
-            organization_id=world.org.id,
-            subject_user_id=world.olga.user_id,  # type: ignore[arg-type]
-            resource_type="artifact",
-            resource_id=other.id,
-            level=GrantLevel.EDIT_DATA,
-        )
+        for recipient in (cal, world.olga):
+            await resource_grant_repo.upsert(
+                db,
+                organization_id=world.org.id,
+                subject_user_id=recipient.user_id,  # type: ignore[arg-type]
+                resource_type="artifact",
+                resource_id=other.id,
+                level=GrantLevel.EDIT_DATA,
+            )
         boss = world.org.created_by_user_id
 
         await MemberService(db).remove(world.org.id, world.olga.user_id, boss)  # type: ignore[arg-type]
@@ -534,11 +535,21 @@ class TestItDropsWhenTheOwnerGoes:
         kept = await resource_grant_repo.get_level(
             db,
             organization_id=world.org.id,
-            subject_user_id=world.olga.user_id,  # type: ignore[arg-type]
+            subject_user_id=cal.user_id,  # type: ignore[arg-type]
             resource_type="artifact",
             resource_id=other.id,
         )
         assert kept is GrantLevel.EDIT_DATA
+        assert (
+            await resource_grant_repo.get_level(
+                db,
+                organization_id=world.org.id,
+                subject_user_id=world.olga.user_id,  # type: ignore[arg-type]
+                resource_type="artifact",
+                resource_id=other.id,
+            )
+            is None
+        )
 
     async def test_the_owner_leaving_does_the_same(
         self, db: AsyncSession, storage: LocalFileStorage

@@ -1,17 +1,21 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { NextIntlClientProvider } from "next-intl";
 import { describe, expect, it, vi } from "vitest";
 
 import messages from "../../../messages/en.json";
 import { DecidedApproval, PendingApproval } from "./approval-cards";
+import { getTable } from "@/lib/tables-api";
 import type { ToolApproval } from "@/types/runs";
+import type { TableRead } from "@/types/tables";
 
 vi.mock("@/components/dashboard/agent-face", () => ({
   AgentFace: ({ agentId }: { agentId: string }) => <span>{`face ${agentId}`}</span>,
 }));
 vi.mock("@/components/runs/approval-delegate", () => ({ ApprovalDelegate: () => null }));
 vi.mock("@/lib/mobile/haptics", () => ({ haptic: vi.fn() }));
+vi.mock("@/lib/tables-api", () => ({ getTable: vi.fn(), getRecord: vi.fn() }));
 
 function approval(overrides: Partial<ToolApproval> = {}): ToolApproval {
   return {
@@ -187,6 +191,137 @@ describe("PendingApproval - a call from an MCP server", () => {
     expect(screen.getByText("Account: Work")).toBeInTheDocument();
   });
 
+  it("names a table write's table and cells instead of leading with its id", async () => {
+    const status = "e30bcc3d-2c44-4aae-86ff-cb149b75f8a1";
+    const table = "638b016e-c0fd-4e4d-b916-c4810a49a54c";
+    vi.mocked(getTable).mockResolvedValue({
+      id: table,
+      name: "hacker_news_table",
+      columns: [
+        {
+          id: status,
+          label: "status",
+          type: "text",
+          nullable: true,
+          default: null,
+          options: [],
+          archived: false,
+        },
+      ],
+    } as unknown as TableRead);
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <NextIntlClientProvider locale="en" messages={messages}>
+          <ul>
+            <PendingApproval
+              approval={approval({
+                tool_id: "agenticos_update_virtual_table_record",
+                tool_args: {
+                  table_id: table,
+                  record_id: "r1",
+                  update: { expected_revision: 1, values: { [status]: "Not worth sharing" } },
+                },
+              })}
+              deciding={false}
+              onDecide={vi.fn()}
+              onOpenRun={vi.fn()}
+            />
+          </ul>
+        </NextIntlClientProvider>
+      </QueryClientProvider>,
+    );
+
+    expect(await screen.findByRole("link", { name: "hacker_news_table" })).toBeVisible();
+    expect(screen.getByText("Not worth sharing")).toBeVisible();
+    expect(screen.queryByText(table)).toBeNull();
+  });
+
+  it.each([-1, 6, 0.5])(
+    "keeps a pending invalid rating %s readable alongside other approvals",
+    async (value) => {
+      const tableId = "638b016e-c0fd-4e4d-b916-c4810a49a54c";
+      vi.mocked(getTable).mockResolvedValue({
+        id: tableId,
+        name: "Ratings",
+        description: null,
+        visibility: "private",
+        owner_user_id: null,
+        schema_version: 1,
+        archived_at: null,
+        created_at: "2026-11-01T10:00:00Z",
+        updated_at: null,
+        can_edit: true,
+        can_restore: false,
+        can_manage: true,
+        columns: [
+          {
+            id: "rating",
+            label: "Rating",
+            type: "rating",
+            nullable: true,
+            default: null,
+            options: [],
+            archived: false,
+          },
+        ],
+      });
+      render(
+        <QueryClientProvider client={new QueryClient()}>
+          <NextIntlClientProvider locale="en" messages={messages}>
+            <ul>
+              <PendingApproval
+                approval={approval({
+                  tool_id: "agenticos_add_virtual_table_record",
+                  tool_args: { table_id: tableId, values: { rating: value } },
+                })}
+                deciding={false}
+                onDecide={vi.fn()}
+                onOpenRun={vi.fn()}
+              />
+              <PendingApproval
+                approval={approval({ id: "other" })}
+                deciding={false}
+                onDecide={vi.fn()}
+                onOpenRun={vi.fn()}
+              />
+            </ul>
+          </NextIntlClientProvider>
+        </QueryClientProvider>,
+      );
+      expect(await screen.findByRole("link", { name: "Ratings" })).toBeVisible();
+      expect(screen.getByText(String(value))).toBeVisible();
+      expect(screen.getByText("MEMORY.md")).toBeVisible();
+      expect(screen.getAllByRole("button", { name: "Approve" })).toHaveLength(2);
+    },
+  );
+
+  it("keeps a table write's target line for an approver who cannot read the table", async () => {
+    const table = "638b016e-c0fd-4e4d-b916-c4810a49a54c";
+    vi.mocked(getTable).mockRejectedValue(new Error("Forbidden"));
+    render(
+      <QueryClientProvider
+        client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
+      >
+        <NextIntlClientProvider locale="en" messages={messages}>
+          <ul>
+            <PendingApproval
+              approval={approval({
+                tool_id: "agenticos_delete_virtual_table_record",
+                tool_args: { table_id: table, record_id: "r1", expected_revision: 2 },
+              })}
+              deciding={false}
+              onDecide={vi.fn()}
+              onOpenRun={vi.fn()}
+            />
+          </ul>
+        </NextIntlClientProvider>
+      </QueryClientProvider>,
+    );
+    await waitFor(() => expect(getTable).toHaveBeenCalled());
+    expect(await screen.findByText(table)).toBeVisible();
+    expect(screen.queryByRole("link")).toBeNull();
+  });
+
   it("has no telling line for a call with nothing to say", () => {
     inIntl(
       <PendingApproval
@@ -245,4 +380,97 @@ describe("DecidedApproval - a line of the record", () => {
     );
     expect(screen.getByText("Account: Work")).toBeInTheDocument();
   });
+});
+
+describe("PendingApproval - a fact somebody's run would share", () => {
+  const share = {
+    tool_id: "share_memory",
+    capability_tool_id: "share_memory",
+    tool_args: { claim_id: "c-1", to: "organization" },
+  };
+
+  it("leads with the fact and who would read it", () => {
+    inIntl(
+      <PendingApproval
+        approval={approval({
+          ...share,
+          context: { claim: "The Acme renewal is due in March", audience: "organization" },
+        })}
+        deciding={false}
+        onDecide={vi.fn()}
+        onOpenRun={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByText("Share with the whole organization: “The Acme renewal is due in March”"),
+    ).toBeInTheDocument();
+  });
+
+  it("says why the fact is missing for a reader who may not see the run", () => {
+    inIntl(
+      <PendingApproval
+        approval={approval({
+          ...share,
+          context: { audience: "project" },
+          content_hidden: true,
+        })}
+        deciding={false}
+        onDecide={vi.fn()}
+        onOpenRun={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByText(
+        "What this call quotes from its run is shown only to people who can see that run.",
+      ),
+    ).toBeInTheDocument();
+  });
+});
+
+it("offers only Reject on a call that always asks when the reader cannot see what it quotes", async () => {
+  const onDecide = vi.fn();
+  inIntl(
+    <PendingApproval
+      approval={approval({
+        tool_id: "share_memory",
+        capability_tool_id: "share_memory",
+        tool_args: { claim_id: "c-1", to: "organization" },
+        context: { audience: "organization" },
+        content_hidden: true,
+        always_asks: true,
+      })}
+      deciding={false}
+      onDecide={onDecide}
+      onOpenRun={vi.fn()}
+    />,
+  );
+
+  expect(screen.queryByRole("button", { name: /Approve/ })).toBeNull();
+  expect(
+    screen.getByText("Only somebody who can see the run can approve this. You can reject it."),
+  ).toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: /Reject/ }));
+  expect(onDecide).toHaveBeenCalledWith(false);
+});
+
+it("words a correction by the fact before and after it", () => {
+  inIntl(
+    <PendingApproval
+      approval={approval({
+        tool_id: "correct_memory",
+        capability_tool_id: "correct_memory",
+        tool_args: { claim_id: "c-1", statement: "Office closes at five" },
+        context: { before: "Office closes at six", after: "Office closes at five" },
+      })}
+      deciding={false}
+      onDecide={vi.fn()}
+      onOpenRun={vi.fn()}
+    />,
+  );
+
+  expect(
+    screen.getByText("Correct “Office closes at six” to “Office closes at five”"),
+  ).toBeInTheDocument();
 });

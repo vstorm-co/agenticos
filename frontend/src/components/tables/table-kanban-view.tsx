@@ -1,4 +1,5 @@
 "use client";
+import { canWriteCell } from "@/lib/table-record-access";
 
 import { cn } from "@/lib/utils";
 import { useTableDisplay } from "./table-display-context";
@@ -55,6 +56,48 @@ function laneFilter(groupBy: string, lane: Lane, archivedOptionIds: string[]): R
 /** The most fields a card shows under its title: enough to tell cards apart. */
 const CARD_FIELDS = 4;
 
+const KANBAN_CARD =
+  "group border-border/60 bg-card hover:border-foreground/20 has-[[data-kanban-actions][data-state=open]]:border-foreground/20 relative isolate cursor-pointer space-y-4 rounded-xl border p-4 text-sm shadow-sm transition-[border-color,box-shadow] hover:shadow-md";
+
+function KanbanFields({
+  record,
+  properties,
+  boolLabel,
+}: {
+  record: RecordRead;
+  properties: ColumnDef[];
+  boolLabel: (value: boolean) => string;
+}) {
+  const locale = useLocale();
+  const display = useTableDisplay();
+  const shown = properties
+    .map((column) => ({ column, value: record.values[column.id] ?? null }))
+    .filter(
+      ({ value }) => value !== null && value !== "" && !(Array.isArray(value) && !value.length),
+    )
+    .slice(0, CARD_FIELDS);
+  return shown.length === 0 ? null : (
+    <dl className="space-y-1 text-xs">
+      {shown.map(({ column, value }) => (
+        <div key={column.id} className="flex min-w-0 items-start gap-2">
+          <dt className="text-muted-foreground w-24 shrink-0 leading-5 break-words">
+            {column.label}
+          </dt>
+          <dd
+            className={cn(
+              "min-w-0 flex-1",
+              display.wrap_text ? "break-words whitespace-pre-wrap" : "truncate",
+            )}
+          >
+            {selectChips(column, value) ??
+              recordCellText(column, record, boolLabel, locale, display)}
+          </dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
 function KanbanCard({
   record,
   titleColumn,
@@ -91,12 +134,6 @@ function KanbanCard({
   const locale = useLocale();
   const display = useTableDisplay();
   const title = recordCellText(titleColumn, record, boolLabel, locale, display);
-  const shown = properties
-    .map((column) => ({ column, value: record.values[column.id] ?? null }))
-    .filter(
-      ({ value }) => value !== null && value !== "" && !(Array.isArray(value) && !value.length),
-    )
-    .slice(0, CARD_FIELDS);
 
   return (
     <motion.div
@@ -107,14 +144,14 @@ function KanbanCard({
     >
       <div
         {...dragProps}
-        className="group border-border/60 bg-card hover:border-foreground/20 has-[[data-kanban-actions][data-state=open]]:border-foreground/20 space-y-4 rounded-xl border p-4 text-sm shadow-sm transition-[border-color,box-shadow] hover:shadow-md"
-        style={{ touchAction: canEdit ? "pan-y" : undefined }}
+        className={KANBAN_CARD}
+        style={{ ...dragProps.style, touchAction: canEdit ? "pan-y" : undefined }}
       >
         <div className="flex items-start justify-between gap-2">
           <button
             type="button"
             onClick={onOpen}
-            className="min-w-0 flex-1 text-left leading-5 font-medium break-words"
+            className="focus-visible:after:outline-ring min-w-0 flex-1 text-left leading-5 font-medium break-words outline-none after:absolute after:inset-0 after:rounded-xl focus-visible:after:outline-2 focus-visible:after:-outline-offset-2"
           >
             {title || record.id}
           </button>
@@ -125,7 +162,7 @@ function KanbanCard({
                   data-kanban-actions
                   variant="ghost"
                   size="icon"
-                  className="touch:opacity-100 size-7 shrink-0 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100 data-[state=open]:opacity-100"
+                  className="touch:opacity-100 relative z-10 size-7 shrink-0 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100 data-[state=open]:opacity-100"
                   aria-label={t("moveTo")}
                 >
                   <MoreHorizontal className="size-4" aria-hidden />
@@ -144,28 +181,9 @@ function KanbanCard({
             </DropdownMenu>
           )}
         </div>
-        {shown.length > 0 && (
-          <dl className="space-y-1 text-xs">
-            {shown.map(({ column, value }) => (
-              <div key={column.id} className="flex min-w-0 items-start gap-2">
-                <dt className="text-muted-foreground w-24 shrink-0 leading-5 break-words">
-                  {column.label}
-                </dt>
-                <dd
-                  className={cn(
-                    "min-w-0 flex-1",
-                    display.wrap_text ? "break-words whitespace-pre-wrap" : "truncate",
-                  )}
-                >
-                  {selectChips(column, value) ??
-                    recordCellText(column, record, boolLabel, locale, display)}
-                </dd>
-              </div>
-            ))}
-          </dl>
-        )}
+        <KanbanFields record={record} properties={properties} boolLabel={boolLabel} />
         {conflict && (
-          <div className="bg-destructive/10 text-destructive space-y-1.5 rounded-md p-2 text-xs">
+          <div className="bg-destructive/10 text-destructive relative z-10 space-y-1.5 rounded-md p-2 text-xs">
             <div className="flex items-center gap-1.5">
               <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
               <span>{t("conflict")}</span>
@@ -264,7 +282,7 @@ function KanbanLane({
 
   return (
     <div
-      className="bg-foreground/[0.025] data-[drag-over=true]:bg-accent/70 data-[drag-over=true]:ring-ring/40 flex w-80 shrink-0 flex-col gap-3 rounded-2xl p-3 transition-colors data-[drag-over=true]:ring-2 data-[drag-over=true]:ring-inset"
+      className="bg-foreground/[0.025] data-[drag-over=true]:bg-accent/70 data-[drag-over=true]:ring-ring/40 flex min-h-full w-80 shrink-0 flex-col gap-3 rounded-2xl p-3 transition-colors data-[drag-over=true]:ring-2 data-[drag-over=true]:ring-inset"
       {...laneDropProps}
     >
       <div className="flex items-center justify-between gap-3 px-1 py-1.5">
@@ -275,7 +293,7 @@ function KanbanLane({
         )}
         <Badge variant="secondary">{records.length}</Badge>
       </div>
-      <div className="min-h-24 space-y-2.5">
+      <div className="min-h-24 flex-1 space-y-2.5">
         {isLoading && records.length === 0 && <Skeleton className="h-16 w-full" />}
         {!isLoading && !error && records.length === 0 && (
           <p className="text-muted-foreground border-border/60 flex min-h-24 items-center justify-center rounded-xl border border-dashed px-3 text-xs">
@@ -289,7 +307,9 @@ function KanbanLane({
             titleColumn={titleColumn}
             properties={properties}
             boolLabel={boolLabel}
-            dragProps={canEdit && !lane.archived ? cardProps(record) : noDrag}
+            dragProps={
+              canWriteCell(record, groupBy, canEdit) && !lane.archived ? cardProps(record) : noDrag
+            }
             onOpen={() => onOpenRecord(record)}
             conflict={isGroupingConflict(record.id)}
             onReload={() => onReload(record.id)}
@@ -298,7 +318,7 @@ function KanbanLane({
               (target) => target.id !== lane.optionId || lane.archived,
             )}
             onMoveTo={(target) => onMoveTo(record, target)}
-            canEdit={canEdit}
+            canEdit={canWriteCell(record, groupBy, canEdit)}
           />
         ))}
       </div>
@@ -384,13 +404,14 @@ export function TableKanbanView({
 
   const [pendingMoves, setPendingMoves] = useState<ReadonlyMap<string, PendingMove>>(new Map());
   const reducedMotion = useReducedMotion();
-  const { cardProps, laneProps, draggingItem, position } = useKanbanDrag<RecordRead>(
+  const { cardProps, laneProps, draggingItem, position, preview } = useKanbanDrag<RecordRead>(
     (record, targetOptionId) => moveRecord(record, targetOptionId),
   );
 
   const laneOf = (record: RecordRead) => record.values[groupByColumnId] ?? null;
 
   function moveRecord(record: RecordRead, targetOptionId: string | null) {
+    if (!canWriteCell(record, groupByColumnId, canEdit)) return;
     // A card dropped back on its own lane is not a move. Writing it anyway
     // could only fail - against a revision someone else has since advanced -
     // with a conflict banner for a move the user never made.
@@ -493,7 +514,10 @@ export function TableKanbanView({
   return (
     <MotionConfig reducedMotion="user">
       <LayoutGroup>
-        <div data-kanban-board className="flex min-h-0 flex-1 items-start gap-4 overflow-auto p-4">
+        <div
+          data-kanban-board
+          className="flex min-h-0 flex-1 items-stretch gap-4 overflow-auto p-4"
+        >
           {lanes.map((lane) => (
             <KanbanLane
               key={lane.archived ? "__archived__" : (lane.optionId ?? "__none__")}
@@ -509,7 +533,13 @@ export function TableKanbanView({
               properties={properties}
               boolLabel={boolLabel}
               cardProps={cardProps}
-              laneDropProps={laneProps(lane.optionId, canEdit && lane.archived !== true)}
+              laneDropProps={laneProps(
+                lane.optionId,
+                lane.archived !== true &&
+                  (canEdit ||
+                    (draggingItem !== null &&
+                      canWriteCell(draggingItem, groupByColumnId, canEdit))),
+              )}
               pendingMoves={pendingMoves}
               onOpenRecord={onOpenRecord}
               moveTargets={moveTargets}
@@ -522,16 +552,25 @@ export function TableKanbanView({
         </div>
         {draggingItem !== null &&
           position !== null &&
+          preview !== null &&
           createPortal(
             <div
-              className="bg-card pointer-events-none fixed z-[100] w-64 rounded-xl border p-4 text-sm font-medium shadow-xl"
+              data-kanban-drag-preview
+              aria-hidden
+              inert
+              className={cn(KANBAN_CARD, "pointer-events-none fixed z-[100] shadow-xl")}
               style={{
-                left: position.x + 12,
-                top: position.y + 12,
+                left: position.x - preview.offsetX,
+                top: position.y - preview.offsetY,
+                width: preview.width,
+                minHeight: preview.height,
                 transform: reducedMotion ? undefined : "rotate(2deg)",
               }}
             >
-              {recordCellText(titleColumn, draggingItem, boolLabel, locale, display)}
+              <p className="leading-5 font-medium break-words">
+                {recordCellText(titleColumn, draggingItem, boolLabel, locale, display)}
+              </p>
+              <KanbanFields record={draggingItem} properties={properties} boolLabel={boolLabel} />
             </div>,
             document.body,
           )}

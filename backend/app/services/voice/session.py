@@ -26,6 +26,7 @@ from pydantic_ai.exceptions import UsageLimitExceeded
 from pydantic_ai.realtime import RealtimeSession
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.capabilities.guardrails import GuardrailBlocked
 from app.core.exceptions import AppException, AuthenticationError
 from app.core.permissions import AuthContext, Perm
 from app.db.models.agent_run import RunStatus
@@ -62,7 +63,9 @@ from app.schemas.voice import (
     TurnSavedFrame,
 )
 from app.services.access import AGENT, publisher_context, resolve_access
+from app.services.conversation import check_history_snapshot
 from app.services.embed_session import visible_frames
+from app.services.message_history import ModelHistory
 from app.services.voice import limits
 from app.services.voice.exceptions import VoiceRefused
 from app.services.voice.hangup import HangUpTarget, hang_up
@@ -393,6 +396,7 @@ class VoiceCallSession:
 
     async def _live(self, db: AsyncSession, started: StartedCall, frame: StartFrame) -> None:
         provider_call_id: str | None = None
+        history_refused = False
         error: str | None = None
         entry = started.resolved.entry
         relay = (
@@ -435,13 +439,22 @@ class VoiceCallSession:
                     call.cancel_scope.cancel()
                 call.start_soon(self._guard_setup, started, watching)
                 call.start_soon(self._connect_deadline, connecting, call.cancel_scope)
-                async with self._sessions() as own:
-                    history = await seed_history(
-                        own,
-                        conversation_id=started.conversation_id,
-                        context_window=started.resolved.entry.context_window,
-                        summarise=summariser(started.prepared),
-                    )
+                try:
+                    async with self._sessions() as own:
+                        history = await seed_history(
+                            own,
+                            conversation_id=started.conversation_id,
+                            context_window=started.resolved.entry.context_window,
+                            summarise=summariser(started.prepared),
+                        )
+                    if isinstance(history, ModelHistory):
+                        async with self._sessions() as own:
+                            await check_history_snapshot(own, started.conversation_id, history)
+                except GuardrailBlocked as exc:
+                    history_refused = True
+                    self._reason = VoiceEndReason.GUARDRAIL
+                    self._message = str(exc)
+                    raise
                 realtime = started.prepared.realtime(
                     started.model,
                     settings=started.settings,
@@ -488,12 +501,17 @@ class VoiceCallSession:
             self._reason = self._reason or VoiceEndReason.SHUTDOWN
             raise
         except Exception:
-            logger.exception("voice_call_failed", extra={"call_id": str(started.call_id)})
-            self._reason = self._reason or VoiceEndReason.ERROR
-            error = "The call failed."
+            if history_refused:
+                error = self._message
+            else:
+                logger.exception("voice_call_failed", extra={"call_id": str(started.call_id)})
+                self._reason = self._reason or VoiceEndReason.ERROR
+                error = "The call failed."
         finally:
             with anyio.CancelScope(shield=True):
-                await self._teardown(db, started, pump, provider_call_id, error)
+                await self._teardown(
+                    db, started, pump, provider_call_id, error, history_refused=history_refused
+                )
 
     async def _events(self, pump: EventPump, session: RealtimeSession) -> None:
         try:
@@ -761,6 +779,8 @@ class VoiceCallSession:
         pump: EventPump,
         provider_call_id: str | None,
         error: str | None,
+        *,
+        history_refused: bool = False,
     ) -> None:
         reason = self._reason or VoiceEndReason.ERROR
         call_id = str(started.call_id)
@@ -825,7 +845,9 @@ class VoiceCallSession:
             logger.exception("voice_call_row_close_failed", extra={"call_id": call_id})
         try:
             await started.runner.finish(
-                started.prepared, status=_STATUS[reason], error=error or self._message
+                started.prepared,
+                status=RunStatus.GUARDRAIL_BLOCKED if history_refused else _STATUS[reason],
+                error=error or self._message,
             )
             # `finish` writes whatever is still parked on the run's channel as
             # pending, on this session; the call that would have decided it is over.

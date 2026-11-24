@@ -240,7 +240,10 @@ class TestCuratedFallbacksAreData:
             if priced_model(provider, entry.id) is None
         ]
 
-        assert unknown == []
+        # Verified through the Codex app-server model list. Subscription access
+        # can precede the public pricing snapshot, so these show no context size.
+        verified_codex_models = {"openai_codex:gpt-6.2-sol", "openai_codex:gpt-6.2-astra"}
+        assert set(unknown) <= verified_codex_models
 
     def test_a_model_the_snapshot_knows_without_a_window_is_not_a_failure(self):
         # Two of the curated ids are exactly this today - `gemini-3.1-pro-preview`
@@ -258,6 +261,15 @@ class TestCuratedFallbacksAreData:
 
         assert windows["claude-opus-5"] == 1_000_000
         assert windows["claude-haiku-4-5"] == 200_000
+
+    def test_the_snapshot_records_sonnet_4_5_at_its_real_window(self):
+        # The survey recorded this as 1,000,000 against a real 200,000 (#773);
+        # the pinned snapshot now says 200,000. Pin it, so a bundle bump that
+        # re-introduces the wrong number fails the build instead of shipping a
+        # compaction trigger that never fires before the provider refuses.
+        from app.services.model_catalog import context_window
+
+        assert context_window("anthropic", "claude-sonnet-4-5") == 200_000
 
     def test_an_openrouter_id_takes_its_window_from_the_provider_it_names(self):
         # An OpenRouter id is `<provider>/<model>`, and the snapshot prices those
@@ -928,6 +940,52 @@ async def test_otari_discovery_never_defaults_a_key_to_the_hosted_gateway() -> N
     factory.assert_not_called()
 
 
+@pytest.mark.anyio
+async def test_a_custom_provider_without_an_endpoint_has_no_listing() -> None:
+    """It exists only at an endpoint the caller names, so there is nothing to ask
+    before one is named."""
+    for provider in ("openai_compatible", "anthropic_compatible"):
+        with patch(f"{MODULE}._client") as factory:
+            assert await models_for(provider, api_key="k") == ([], "unlisted")
+        factory.assert_not_called()
+
+
+@pytest.mark.anyio
+async def test_a_custom_endpoint_is_listed_where_the_sdk_reaches_it() -> None:
+    """The path the SDK itself uses, not the one a vendor's API answers on.
+
+    Anthropic's SDK posts to `<endpoint>/v1/messages`, so its models are listed
+    at `<endpoint>/v1/models` - while an OpenAI-compatible endpoint already is
+    the `/v1` root and lists at `<endpoint>/models`.
+    """
+    received: list[httpx.Request] = []
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        received.append(request)
+        return httpx.Response(200, json={"data": [{"id": "llama3.3"}]})
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
+        with patch(f"{MODULE}._client", return_value=client):
+            models, source = await models_for(
+                "anthropic_compatible", api_key="k", base_url="https://models.example"
+            )
+    assert source == "live"
+    assert [model.id for model in models] == ["llama3.3"]
+    assert str(received[0].url) == "https://models.example/v1/models"
+    assert received[0].headers["x-api-key"] == "k"
+
+    received.clear()
+    async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
+        with patch(f"{MODULE}._client", return_value=client):
+            models, source = await models_for(
+                "openai_compatible", api_key="k", base_url="https://models.example/v1"
+            )
+    assert source == "live"
+    assert [model.id for model in models] == ["llama3.3"]
+    assert str(received[0].url) == "https://models.example/v1/models"
+    assert received[0].headers["Authorization"] == "Bearer k"
+
+
 def test_otari_catalog_prices_direct_selectors_but_not_routing_aliases() -> None:
     from app.services.model_catalog import priced_model
 
@@ -935,3 +993,33 @@ def test_otari_catalog_prices_direct_selectors_but_not_routing_aliases() -> None
         "anthropic", "claude-sonnet-4-6"
     )
     assert priced_model("otari", "gpt-4.1") is None
+
+
+@pytest.mark.anyio
+async def test_native_catalogs_never_reuse_text_suggestions_or_custom_fallbacks():
+    native = {"data": [{"id": "typesafe/jev-1.14", "name": "Jev"}]}
+    client = _responds(native)
+    with patch(f"{MODULE}.httpx.AsyncClient", return_value=client):
+        models, source = await models_for("openrouter", api="decisions")
+    assert source == "live"
+    assert [model.id for model in models] == ["typesafe/jev-1.14"]
+    assert client.get.call_args.args[0].endswith("/models?output_modalities=decisions")
+    client = _responds({"data": [{"id": "text-only"}]})
+    with patch(f"{MODULE}.httpx.AsyncClient", return_value=client):
+        text, _ = await models_for("openrouter", api="chat")
+    assert [model.id for model in text] == ["text-only"]
+    for provider in ("openai", "google", "typesafe"):
+        models, source = await models_for(provider, api="decisions")
+        assert source == "curated" and models
+        assert all(model.output_modalities == ("decisions",) for model in models)
+        custom, source = await models_for(provider, api="decisions", base_url="http://local.test")
+        assert source == "unlisted" and not custom
+    models, source = await models_for("system-one", api="decisions", base_url="http://local.test")
+    assert source == "unlisted" and not models
+    with patch(f"{MODULE}._listed", new=AsyncMock(side_effect=httpx.ConnectError("offline"))):
+        public, source = await models_for("openrouter", api="decisions", base_url=None)
+        assert source == "curated" and public
+        custom, source = await models_for(
+            "openrouter", api="decisions", base_url="http://local.test"
+        )
+        assert source == "unlisted" and not custom

@@ -580,7 +580,6 @@ describe("the artifact actions bridge", () => {
   });
 });
 
-
 describe("the explicit assistant context bridge", () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
@@ -602,17 +601,20 @@ describe("the explicit assistant context bridge", () => {
     });
     filters.stage = "lost";
     selected_ids.push("deal-2");
-    expect(parent.postMessage).toHaveBeenCalledExactlyOnceWith({
-      type: "assistant_context",
-      n: "nonce-1",
-      context: {
-        view: "pipeline",
-        filters: { stage: "won" },
-        selected_ids: ["deal-1"],
-        summary: "One won deal",
-        selected_text: "Explicit selection",
+    expect(parent.postMessage).toHaveBeenCalledExactlyOnceWith(
+      {
+        type: "assistant_context",
+        n: "nonce-1",
+        context: {
+          view: "pipeline",
+          filters: { stage: "won" },
+          selected_ids: ["deal-1"],
+          summary: "One won deal",
+          selected_text: "Explicit selection",
+        },
       },
-    }, "*");
+      "*",
+    );
   });
 
   it("replays the last detached context only to a parent request under this nonce", () => {
@@ -626,13 +628,23 @@ describe("the explicit assistant context bridge", () => {
     dispatch(null);
     expect(parent.postMessage).not.toHaveBeenCalled();
     dispatch(request);
-    expect(parent.postMessage).toHaveBeenCalledExactlyOnceWith({
-      type: "assistant_context", n: "nonce-1", context: { summary: "Current view" },
-    }, "*");
+    expect(parent.postMessage).toHaveBeenCalledExactlyOnceWith(
+      {
+        type: "assistant_context",
+        n: "nonce-1",
+        context: { summary: "Current view" },
+      },
+      "*",
+    );
     agenticos.setAssistantContext(null);
-    expect(parent.postMessage).toHaveBeenLastCalledWith({
-      type: "assistant_context", n: "nonce-1", context: null,
-    }, "*");
+    expect(parent.postMessage).toHaveBeenLastCalledWith(
+      {
+        type: "assistant_context",
+        n: "nonce-1",
+        context: null,
+      },
+      "*",
+    );
   });
 
   it("caps context sizes, omits invalid fields, and never changes an object's prototype", () => {
@@ -644,19 +656,26 @@ describe("the explicit assistant context bridge", () => {
       ...Array.from({ length: 25 }, (_, index) => ["filter" + index, "x".repeat(300)]),
     ]);
     agenticos.setAssistantContext({
-      view: "v".repeat(200), filters,
+      view: "v".repeat(200),
+      filters,
       selected_ids: ["", null, ...Array.from({ length: 25 }, () => "i".repeat(200))],
-      summary: "s".repeat(7000), selected_text: "t".repeat(3000),
+      summary: "s".repeat(7000),
+      selected_text: "t".repeat(3000),
     });
     const message = parent.postMessage.mock.calls.at(-1)?.[0] as {
       context: {
-        view: string; filters: Record<string, string>; selected_ids: string[];
-        summary: string; selected_text: string;
+        view: string;
+        filters: Record<string, string>;
+        selected_ids: string[];
+        summary: string;
+        selected_text: string;
       };
     };
     expect(message.context.view).toHaveLength(120);
     expect(Object.keys(message.context.filters)).toHaveLength(20);
-    expect(Object.values(message.context.filters).every((value) => value.length === 240)).toBe(true);
+    expect(Object.values(message.context.filters).every((value) => value.length === 240)).toBe(
+      true,
+    );
     expect(Object.getPrototypeOf(message.context.filters)).toBe(Object.prototype);
     expect(Object.hasOwn(message.context.filters, "__proto__")).toBe(false);
     expect(message.context.selected_ids).toHaveLength(20);
@@ -666,10 +685,7 @@ describe("the explicit assistant context bridge", () => {
   });
 
   it("does not post without a parent or a nonempty load nonce", () => {
-    for (const run of [
-      start({ live: false }, { orphan: true }),
-      start({ live: false, n: "" }),
-    ]) {
+    for (const run of [start({ live: false }, { orphan: true }), start({ live: false, n: "" })]) {
       run.agenticos.setAssistantContext({ summary: "Local only" });
       expect(run.parent.postMessage).not.toHaveBeenCalled();
     }

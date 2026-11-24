@@ -11,16 +11,20 @@ import { useTranslations } from "next-intl";
 
 import { BrandIcon } from "@/components/icons/brand-icon";
 import { brandForUrl, consolePageIcon, isAppLink, offsiteUrl } from "@/lib/link-brands";
+import { rehypePromptVariables } from "@/lib/prompt-variables";
 import { rehypeStreamWords } from "@/lib/stream-words";
 import { cn } from "@/lib/utils";
 
 import { CollapsibleBlock } from "./collapsible-block";
+import { LinkFavicon } from "./link-favicon";
 import { MarkdownQuote } from "./markdown-quote";
 import { MarkdownTable } from "./markdown-table";
+import { TurnFileLink } from "./turn-file-links";
 import type { MarkdownContentProps } from "./markdown-content";
 
 const REMARK_PLUGINS = [remarkGfm];
 const REHYPE_PLUGINS = [rehypeHighlight];
+const PROMPT_PLUGINS = [rehypeHighlight, rehypePromptVariables];
 const STREAM_PLUGINS = [rehypeHighlight, rehypeStreamWords];
 
 /** Parse `language-xyz` from a `<code>` className that rehype-highlight emits. */
@@ -131,6 +135,7 @@ export const MarkdownContent = memo(function MarkdownContent({
   inertImages,
   documentMedia,
   streaming,
+  highlightVariables,
 }: MarkdownContentProps) {
   const t = useTranslations("chat");
   const processed = onCiteClick ? preprocessCitations(content) : content;
@@ -271,47 +276,56 @@ export const MarkdownContent = memo(function MarkdownContent({
         // `https:host` on an `http:` console, leave it without starting
         // `https://`, and with no target they leave in this tab. An absolute `http(s)://` address on this
         // console still opens in a new tab, as before.
+        const offsite = href ? offsiteUrl(href, window.location.origin) : null;
         const external =
-          app || !href
-            ? null
-            : (offsiteUrl(href, window.location.origin) ??
-              (/^https?:\/\//i.test(href) ? href : null));
+          app || !href ? null : (offsite ?? (/^https?:\/\//i.test(href) ? href : null));
         const isExternal = external !== null;
+        const consoleLink =
+          !!href && offsite === null && (href.startsWith("/") || /^https?:\/\//i.test(href));
         const brand = external ? brandForUrl(external) : null;
         // A console page the agent points at wears the sidebar's mark for it.
         const PageIcon = !app && href ? consolePageIcon(href, window.location.origin) : null;
         const label = app && textOf(children) === href ? t("openApp") : children;
         return (
-          <a
-            href={href}
-            target={isExternal ? "_blank" : undefined}
-            rel={isExternal ? "noopener noreferrer" : undefined}
-            className="text-foreground hover:text-brand-hover decoration-brand hover:decoration-brand inline font-medium [overflow-wrap:anywhere] break-words underline decoration-2 underline-offset-[3px] transition-colors"
-            {...props}
-          >
-            {app && (
-              <PanelsTopLeft
-                aria-hidden
-                className="text-foreground/70 inline h-[0.95em] w-[0.95em] shrink-0 translate-y-[0.1em]"
-              />
-            )}
-            {PageIcon && (
-              <PageIcon
-                aria-hidden
-                className="text-foreground/70 inline h-[0.95em] w-[0.95em] shrink-0 translate-y-[0.1em]"
-              />
-            )}
-            {brand && (
-              <BrandIcon
-                name={brand}
-                className="inline h-[0.95em] w-[0.95em] shrink-0 translate-y-[0.1em]"
-              />
-            )}
-            {label}
-            {isExternal && !brand && (
-              <ExternalLink className="text-foreground/60 inline h-[0.8em] w-[0.8em] shrink-0 -translate-y-[1px]" />
-            )}
-          </a>
+          <TurnFileLink href={href} label={children} title={props.title}>
+            <a
+              href={href}
+              target={isExternal ? "_blank" : undefined}
+              rel={isExternal ? "noopener noreferrer" : undefined}
+              data-console-link={consoleLink ? "" : undefined}
+              className="text-foreground hover:text-brand-hover decoration-brand hover:decoration-brand inline-flex items-baseline gap-1 font-medium underline decoration-2 underline-offset-[3px] transition-colors"
+              {...props}
+            >
+              {app && (
+                <PanelsTopLeft
+                  aria-hidden
+                  className="text-foreground/70 inline h-[0.95em] w-[0.95em] shrink-0 translate-y-[0.1em]"
+                />
+              )}
+              {PageIcon && (
+                <PageIcon
+                  aria-hidden
+                  className="text-foreground/70 inline h-[0.95em] w-[0.95em] shrink-0 translate-y-[0.1em]"
+                />
+              )}
+              {brand && (
+                <BrandIcon
+                  name={brand}
+                  className="inline h-[0.95em] w-[0.95em] shrink-0 translate-y-[0.1em]"
+                />
+              )}
+              {external && !brand && !inertImages && (
+                <LinkFavicon
+                  url={external}
+                  className="inline h-[0.95em] w-[0.95em] translate-y-[0.1em]"
+                />
+              )}
+              {label}
+              {isExternal && !brand && inertImages && (
+                <ExternalLink className="text-foreground/60 inline h-[0.8em] w-[0.8em] shrink-0 -translate-y-[1px]" />
+              )}
+            </a>
+          </TurnFileLink>
         );
       },
       p({ children, ...props }) {
@@ -435,7 +449,9 @@ export const MarkdownContent = memo(function MarkdownContent({
   return (
     <ReactMarkdown
       remarkPlugins={REMARK_PLUGINS}
-      rehypePlugins={streaming ? STREAM_PLUGINS : REHYPE_PLUGINS}
+      rehypePlugins={
+        streaming ? STREAM_PLUGINS : highlightVariables ? PROMPT_PLUGINS : REHYPE_PLUGINS
+      }
       components={components}
     >
       {processed}

@@ -53,6 +53,7 @@ pytestmark = pytest.mark.anyio
 ORG = uuid4()
 PERSON = uuid4()
 THREAD = uuid4()
+MESSAGE = uuid4()
 AT = datetime(2026, 8, 14, 10, 4, tzinfo=UTC)
 
 
@@ -78,6 +79,9 @@ def _hit(**overrides) -> FoundConversation:
             "snippet": "the **pricing** floor stays",
             "speaker_role": "assistant",
             "speaker_name": None,
+            "message_id": MESSAGE,
+            "thread_root_message_id": None,
+            "matched_at": AT,
             **overrides,
         }
     )
