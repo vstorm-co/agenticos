@@ -96,6 +96,7 @@ from app.core.secret_kinds import ApiKeySecret, NoSecret
 from app.db.models.agent_environment import AgentEnvironmentConnection
 from app.db.models.agent_run import ApprovalStatus, RunStatus, RunSurface
 from app.db.models.intercepted_tool_call import InterceptionOutcome, InterceptionReason
+from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.db.models.skill import Skill
 from app.db.vector_tables import VectorScope
 from app.repositories.group import CappedGroup
@@ -630,6 +631,34 @@ class TestPrepare:
         scope = resources["kb_vector_scopes"]["shared"]
         assert scope.knowledge_base_id == ids[0]
         assert scope.additional_knowledge_base_ids == (ids[1],)
+
+    @pytest.mark.anyio
+    @pytest.mark.security
+    async def test_an_app_scoped_base_is_left_out_beside_a_same_named_org_base(self):
+        """The org base is searched alone, under its own tenant."""
+        ctx = _ctx()
+        app_id, org_id = uuid.uuid4(), uuid.uuid4()
+        bases = {
+            app_id: KnowledgeBase(
+                id=app_id, scope=KBScope.APP.value, organization_id=None, collection_name="handbook"
+            ),
+            org_id: KnowledgeBase(
+                id=org_id,
+                scope=KBScope.ORG.value,
+                organization_id=ctx.organization_id,
+                collection_name="handbook",
+            ),
+        }
+        with patch(
+            "app.services.agent_runner.knowledge_base_repo.get_by_ids",
+            new=AsyncMock(return_value=bases),
+        ):
+            resources = await AgentRunnerService(_db())._bound_collections(
+                AgentSpec(name="Both", collection_ids=[app_id, org_id]), ctx
+            )
+
+        assert resources["kb_collection_names"] == ["handbook"]
+        assert resources["kb_vector_scopes"] == {"handbook": bases[org_id].vector_scope}
 
     @pytest.mark.anyio
     async def test_preparing_a_run_resolves_every_collection_in_one_query(self):

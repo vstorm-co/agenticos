@@ -41,6 +41,7 @@ from app.core.exceptions import (
 )
 from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.agent import AgentKind, AgentStatus
+from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.db.models.resource_grant import GrantLevel, Visibility
 from app.schemas.agent import AgentCreate, LocalCodingAgent, PublishedCodingAgent
 from app.schemas.deployment_settings import DeploymentLimits
@@ -2316,6 +2317,29 @@ class TestValidateSpec:
                 f"{REGISTRY_PATH}.knowledge_base_repo.get_by_ids",
                 new=_batch(foreign),
             ),
+            pytest.raises(BadRequestError) as refused,
+        ):
+            await AgentRegistryService(_db()).validate_spec(
+                ctx, _spec(collection_ids=[collection_id], model_profile_id=uuid.uuid4())
+            )
+
+        assert refused.value.details["problems"] == [f"Collection not found: {collection_id}"]
+
+    @pytest.mark.anyio
+    async def test_an_app_scoped_collection_cannot_be_bound(self):
+        """An app-scoped base belongs to no organization, so no publisher reaches it."""
+        ctx = _ctx()
+        collection_id = uuid.uuid4()
+        app_base = KnowledgeBase(
+            id=collection_id, scope=KBScope.APP.value, organization_id=None, collection_name="kb"
+        )
+
+        with (
+            patch(
+                f"{REGISTRY_PATH}.credential_repo.get_profile",
+                new=AsyncMock(return_value=MagicMock()),
+            ),
+            patch(f"{REGISTRY_PATH}.knowledge_base_repo.get_by_ids", new=_batch(app_base)),
             pytest.raises(BadRequestError) as refused,
         ):
             await AgentRegistryService(_db()).validate_spec(
