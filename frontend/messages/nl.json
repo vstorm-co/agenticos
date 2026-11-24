@@ -10413,7 +10413,7 @@
     },
     "overlapHint": {
       "skip": "De planning wacht op het volgende tijdstip. Een trage agent draait zo vaak als hij kan afronden.",
-      "queue": "Draait zodra de vorige run eindigt, hoe vaak er ook werd gemist.",
+      "queue": "Zodra de vorige run klaar is, start één inhaalrun, ongeacht hoeveel geplande uitvoeringen zijn gemist.",
       "allow": "Start op tijd naast de run die nog bezig is. Voor beide runs wordt betaald."
     },
     "howOften": "Hoe vaak",
@@ -10934,9 +10934,9 @@
         "qwenHelp": "Installeer Qwen Code en gebruik /auth in qwen om Qwen Account with Subscription te kiezen. Kies het absolute pad naar qwen. Dit sjabloon kiest uitdrukkelijk qwen-subscription zonder ACP authenticate aan te roepen of tokens te importeren, en verwijdert overgenomen overschrijvingen van OpenAI-sleutel, endpoint en model. Laat Extern model-ID leeg; kies een abonnementsmodel in Qwen. Oudere CLI's ondersteunen deze modus mogelijk niet. Toegang en quota hangen af van je account. Registreer opnieuw na het wisselen van account.",
         "qwenSubscription": "Qwen-abonnement",
         "museApi": "Muse-API-sleutel",
-        "hermesHelp": "Kies het uitvoerbare Python-bestand in de gedocumenteerde Hermes-omgeving, zonder argumenten. Desktop beheert de ACP-host op de voorgrond; het koppelt nooit je gedeelde gateway. Elk privégesprek heeft een aparte Hermes-home. De eerste keer starten toont de systeeminstructies voor het instellen van die home. Rond daar het instellen van model en provider en het inloggen bij Nous Portal af; kopieer geen andere home of tokenbestanden. Systeemtools, de keuze tussen API en abonnement en de kosten blijven bij Hermes; AgenticOS toont er geen kosten voor.",
-        "museHelp": "Muse vereist CLI 1.4.23 en gebruikt de vastgezette officiële SDK via een eigen MSP-host. Voer eerst muse uit om het account in te stellen. Omgevingssleutels en opgeslagen API-sleutels gaan voor op inloggen via de browser; de status van de inloggegevens meldt de werkelijke bron. De modus met API-sleutel vereist META_API_KEY in Desktop. Systeemtools en extensies behouden lokale toegang; AgenticOS toont de kosten niet.",
-        "piHelp": "Pi gebruikt native RPC met zijn eigen ingestelde accounts, extensies en model. Voer pi uit, log in en kies eerst de provider en het model. Laat Extern model-ID leeg. Systeemtools en extensies hebben volledige lokale toegang. Ondersteunde dialogen met mensen verschijnen in de live chat; er worden geen platformtools of vault-inloggegevens doorgegeven. AgenticOS toont de kosten niet.",
+        "hermesHelp": "Kies het uitvoerbare Python-bestand in de gedocumenteerde Hermes-omgeving, zonder argumenten. Desktop beheert de ACP-host op de voorgrond; het koppelt nooit je gedeelde gateway. Elk privégesprek heeft een aparte Hermes-home. Bij de eerste start toont Hermes zijn eigen instructies om die home in te stellen. Rond daar het instellen van model en provider en het inloggen bij Nous Portal af; kopieer geen andere home of tokenbestanden. De eigen tools van Hermes, de keuze tussen API en abonnement en de kosten blijven bij Hermes; AgenticOS toont er geen kosten voor.",
+        "museHelp": "Muse vereist CLI 1.4.23 en gebruikt de vastgezette officiële SDK via een eigen MSP-host. Voer eerst muse uit om het account in te stellen. Omgevingssleutels en opgeslagen API-sleutels gaan voor op inloggen via de browser; de status van de inloggegevens meldt de werkelijke bron. De modus met API-sleutel vereist META_API_KEY in Desktop. De eigen tools van Muse en extensies behouden lokale toegang; AgenticOS toont de kosten niet.",
+        "piHelp": "Pi gebruikt native RPC met zijn eigen ingestelde accounts, extensies en model. Voer pi uit, log in en kies eerst de provider en het model. Laat Extern model-ID leeg. De eigen tools van Pi en extensies hebben volledige lokale toegang. Ondersteunde dialogen met mensen verschijnen in de live chat; er worden geen platformtools of vault-inloggegevens doorgegeven. AgenticOS toont de kosten niet.",
         "devinHelp": "Installeer Devin CLI, voer devin auth login uit en controleer devin auth status. Kies het absolute pad naar devin. Dit sjabloon start de lokale ACP-agent met normale rechten en vereist de aangeboden methode devin-browser. Facturatie en CLI-rechten voor ondernemingen hangen af van je account. Het start geen --cloud en roept de cloudtaak-API niet aan. Laat Extern model-ID leeg en kies het model in Devin. Registreer opnieuw na het wisselen van account.",
         "account": {
           "status": "Account controleren",
@@ -10953,7 +10953,7 @@
           "waiting": "Wachten tot je het inloggen afrondt. Houd deze pagina open.",
           "failed": "De accountbewerking is niet voltooid. Controleer de bevestiging van het systeem, de CLI-versie en de omgevingssleutel, en probeer het opnieuw."
         },
-        "piKeyHelp": "Pi 1.5.2 is vereist. Dit sjabloon krijgt de gekozen vault-API-sleutel alleen als je er zelf toegang toe hebt. Kies de overeenkomende vault-sleutelprovider voor Pi en een exacte model-ID in de configuratie van de agent. Pi gebruikt een afgeschermde configuratie; opgeslagen logins en ontdekte extensies worden uitgesloten. De sleutel wordt niet opgeslagen in argumenten of gegenereerde bestanden. Systeemtools hebben volledige lokale toegang en AgenticOS toont de API-kosten niet.",
+        "piKeyHelp": "Pi 1.5.2 is vereist. Dit sjabloon krijgt de gekozen vault-API-sleutel alleen als je er zelf toegang toe hebt. Kies de overeenkomende vault-sleutelprovider voor Pi en een exacte model-ID in de configuratie van de agent. Pi gebruikt een afgeschermde configuratie; opgeslagen logins en ontdekte extensies worden uitgesloten. De sleutel wordt niet opgeslagen in argumenten of gegenereerde bestanden. De eigen tools van Pi hebben volledige lokale toegang en AgenticOS toont de API-kosten niet.",
         "cursorApi": "Cursor-API-sleutel",
         "grokApi": "Grok-API-sleutel",
         "cliAccount": {
@@ -13256,7 +13256,7 @@
     "memberHint": "Bijgehouden door de directorysynchronisatie, die dit lidmaatschap wijzigt en verwijdert zoals de directory dat doet. Als je de rol hier wijzigt, neem je het lidmaatschap over, en laat de synchronisatie het vanaf dan met rust.",
     "howItWorks": "Wanneer iemand inlogt via de directory (LDAP of Kerberos), of via een OIDC-provider die een groups-claim meestuurt, plaatst elke koppeling hieronder die overeenkomt met een van hun directorygroepen hen in deze organisatie met de gekoppelde rol, en in de gekoppelde groep als die er is.",
     "precedence": "Als meerdere koppelingen overeenkomen, wordt de rol in deze volgorde gekozen: admin, builder, operator, member, viewer. Lidmaatschappen die de synchronisatie maakte, zijn gemarkeerd met Directory, en alleen die worden bijgewerkt en verwijderd. Als je de rol van zo'n lid met de hand wijzigt, neem je het lidmaatschap over.",
-    "removal": "Een koppeling verwijderen verwijdert de mensen die ze plaatste bij hun volgende login, tenzij hun lidmaatschap is overgenomen.",
+    "removal": "Als je een koppeling verwijdert, verliezen de mensen die via die koppeling lid werden, bij hun volgende login hun lidmaatschap van deze organisatie, tenzij hun lidmaatschap met de hand is overgenomen.",
     "notYours": "Directorykoppelingen zijn voor ledenbeheerders",
     "askAnAdmin": "Om ze te lezen, heb je het recht nodig om leden te beheren. Vraag het aan een beheerder van deze organisatie.",
     "listTitle": "Koppelingen",
@@ -14016,7 +14016,7 @@
       },
       "redact_pii_in": {
         "title": "Persoonsgegevens verbergen in de vraag",
-        "description": "E-mailadressen, telefoonnummers, IBAN's, kaarten en nationale identificatienummers weglakken uit de prompt"
+        "description": "E-mailadressen, telefoonnummers, IBAN's, betaalkaartnummers en Amerikaanse socialezekerheidsnummers (SSN's) weglakken uit de prompt"
       },
       "blocked_keywords_in": {
         "title": "Geblokkeerde woorden in de vraag",
@@ -14028,7 +14028,7 @@
       },
       "redact_pii_out": {
         "title": "Persoonsgegevens verbergen in het antwoord",
-        "description": "E-mailadressen, telefoonnummers, IBAN's, kaarten en nationale identificatienummers weglakken uit het antwoord"
+        "description": "E-mailadressen, telefoonnummers, IBAN's, betaalkaartnummers en Amerikaanse socialezekerheidsnummers (SSN's) weglakken uit het antwoord"
       },
       "blocked_keywords_out": {
         "title": "Geblokkeerde woorden in het antwoord",
@@ -14040,7 +14040,7 @@
       },
       "redact_pii_tool": {
         "title": "Persoonsgegevens verbergen in toolresultaten",
-        "description": "E-mailadressen, telefoonnummers, IBAN's, kaarten en nationale identificatienummers weglakken uit toolresultaten"
+        "description": "E-mailadressen, telefoonnummers, IBAN's, betaalkaartnummers en Amerikaanse socialezekerheidsnummers (SSN's) weglakken uit toolresultaten"
       },
       "blocked_keywords_tool": {
         "title": "Geblokkeerde woorden in toolresultaten",
@@ -14052,7 +14052,7 @@
       },
       "redact_pii_args": {
         "title": "Persoonsgegevens verbergen in toolargumenten",
-        "description": "E-mailadressen, telefoonnummers, IBAN's, kaarten en nationale identificatienummers weglakken uit toolargumenten"
+        "description": "E-mailadressen, telefoonnummers, IBAN's, betaalkaartnummers en Amerikaanse socialezekerheidsnummers (SSN's) weglakken uit toolargumenten"
       },
       "blocked_keywords_args": {
         "title": "Geblokkeerde woorden in toolargumenten",
@@ -16632,7 +16632,7 @@
         "capability": "capability “{name}”{count, plural, =0 {} =1 {, waarbij de tool die schrijft om goedkeuring vraagt} other {, waarbij de # tools die schrijven om goedkeuring vragen}}",
         "collection": "kennisbank “{name}”",
         "context": "contextbestand “{name}”",
-        "mcpTools": "{count, plural, =0 {elke tool van {server}} =1 {tool {tools} van {server}} other {tools {tools} van {server}}}, met goedkeuring waar ze schrijven",
+        "mcpTools": "{count, plural, =0 {elke tool van {server}} =1 {tool {tools} van {server}} other {tools {tools} van {server}}}, waarbij de tools die schrijven om goedkeuring vragen",
         "keeps": "Als de server nergens om goedkeuring vroeg, vraagt na het accepteren elke tool van die server die schrijft om goedkeuring - niet alleen de toegevoegde. Ongedaan maken zet de tools terug en laat ze om goedkeuring blijven vragen."
       },
       "skillBody": "Instructies van de skill",
@@ -19143,7 +19143,7 @@
             "description": "Een agent uit de catalogus, en de gepubliceerde versie die deze stap uitvoert."
           },
           "inline": {
-            "description": "Een agent die in deze stap is ingesteld - model, instructies, capabilities, kennis en MCP-servers - met dezelfde versies als de workflow."
+            "description": "Een agent die in deze stap is ingesteld - model, instructies, capabilities, kennis en MCP-servers - en die samen met de workflow wordt geversioneerd."
           },
           "max_cost_usd": {
             "title": "Max. kosten (USD)",
@@ -21307,7 +21307,7 @@
         "config": {
           "repository": {
             "title": "Repository",
-            "description": "De repository, als eigenaar/naam"
+            "description": "De repository, in de vorm owner/name"
           },
           "events": {
             "title": "Start bij",
