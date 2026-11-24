@@ -63,7 +63,7 @@ beforeEach(() => {
   });
   env.replace.mockReset();
 });
-it.each(["result", "dismissed"] as const)(
+it.each(["result", "dismissed", "activity"] as const)(
   "takes an automatic welcome to chat for %s",
   async (reason) => {
     env[reason] = true;
@@ -72,18 +72,14 @@ it.each(["result", "dismissed"] as const)(
     expect(screen.queryByRole("heading", { name: "Workspace setup" })).not.toBeInTheDocument();
   },
 );
-it.each(["activity", "ready"] as const)(
-  "still offers the guided start for %s without a first result",
-  (reason) => {
-    // Starter agents ship with every organization and earlier activity is not
-    // a finished task, so neither skips the welcome any more. Only a real
-    // completed run, a dismissal, or completion takes it to chat.
-    env[reason] = true;
-    render(<StartEntry />);
-    expect(screen.getByRole("heading", { name: "Workspace setup" })).toBeVisible();
-    expect(env.replace).not.toHaveBeenCalled();
-  },
-);
+it("still offers the guided start when only starter agents are ready", () => {
+  // Starter agents ship with every organization, so they never skip the
+  // welcome. Activity, a real completed run, a dismissal, or completion do.
+  env.ready = true;
+  render(<StartEntry />);
+  expect(screen.getByRole("heading", { name: "Workspace setup" })).toBeVisible();
+  expect(env.replace).not.toHaveBeenCalled();
+});
 it("keeps manually opened setup available to existing users", () => {
   env.automatic = false;
   env.activity = true;
@@ -114,17 +110,15 @@ it.each(["account", "joined"])(
   },
 );
 it.each(["account", "joined"])(
-  "still offers the %s journey after personal activity without a first result",
-  (entry) => {
-    // Earlier activity is not a finished task: the welcome still opens the
-    // guided start until a real run completes, rather than sending the user
-    // straight to chat.
+  "takes the %s journey to chat after personal activity",
+  async (entry) => {
+    // Earlier activity means the organization has started: no repeated welcome.
     env.entry = entry;
     env.ready = true;
     env.activity = true;
     render(<StartEntry />);
-    expect(screen.getByRole("heading", { name: "Workspace setup" })).toBeVisible();
-    expect(env.replace).not.toHaveBeenCalled();
+    await waitFor(() => expect(env.replace).toHaveBeenCalledWith("/chat"));
+    expect(screen.queryByRole("heading", { name: "Workspace setup" })).not.toBeInTheDocument();
   },
 );
 it("keeps an explicitly resumed walkthrough open", () => {
