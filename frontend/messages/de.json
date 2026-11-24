@@ -130,6 +130,8 @@
     "allowedSites": "Erlaubte Sites",
     "answersCustomerQuestionsFrom": "Beantwortet Kundenfragen aus dem Produkt-Wiki.",
     "anyoneThoseSites": "Jeder auf diesen Sites",
+    "appWide": "App-weit",
+    "appWideNotForAgents": "App-weite Collections können Agents nicht nutzen. Wählen Sie sie ab, um sie zu entfernen.",
     "approval": "Freigabe",
     "approvalAlways": "Immer fragen",
     "approvalHintDefaultReadOnly": "Läuft ohne Freigabe, weil diese Capability nur liest.",
@@ -421,6 +423,8 @@
     "orphanedContext": "Dieser Agent verweist außerdem auf {count, plural, =1 {1 Kontextdatei} other {# Kontextdateien}}, die diese Organisation nicht mehr hat. Das Veröffentlichen wird abgelehnt, bis sie entfernt sind:",
     "orphanedServers": "Dieser Agent verweist außerdem auf {count, plural, =1 {1 Server} other {# Server}}, die diese Organisation nicht anbietet – seither entfernt oder aus einem importierten Spec übernommen. Das Veröffentlichen wird abgelehnt, bis sie entfernt sind:",
     "orphanedSkills": "Dieser Agent verweist außerdem auf {count, plural, =1 {1 Skill} other {# Skills}}, die diese Organisation nicht mehr hat. Das Veröffentlichen wird abgelehnt, bis sie entfernt sind:",
+    "otherOrganization": "Andere Organisation",
+    "otherOrganizationNotForAgents": "Diese Collection gehört zu einer anderen Organisation, daher können Agents hier sie nicht nutzen. Wählen Sie sie ab, um sie zu entfernen.",
     "staleReferences": "Dieser Entwurf verweist noch auf {list}, die diese Organisation nicht mehr hat. Das Veröffentlichen wird abgelehnt, bis sie entfernt sind.",
     "staleCollections": "{count, plural, =1 {1 Wissens-Collection} other {# Wissens-Collections}}",
     "staleContext": "{count, plural, =1 {1 Kontextdatei} other {# Kontextdateien}}",
@@ -5005,7 +5009,7 @@
       },
       "channels-list": {
         "title": "Verbundene Kanäle",
-        "body": "Die Plattformen, auf denen diese Organisation erreichbar ist. Ein Kanal gehört der Organisation, nicht einem Agent, derselbe Bot kann also jedem daran gebundenen Agent dienen."
+        "body": "Die Plattformen, auf denen diese Organisation erreichbar ist. Ein Bot gehört der Organisation und antwortet als ein Agent; ein Agent kann auf mehreren Bots antworten."
       },
       "channels-new": {
         "title": "Agents dort erreichen, wo die Menschen sind",
@@ -6192,6 +6196,10 @@
         "title": "Bereitschaft prüfen",
         "body": "Prüfen Sie Bot-Verbindung, Agent-Veröffentlichung und Ihre verknüpften Konten, ohne eine Aufgabe zu starten."
       },
+      "channels-binding": {
+        "title": "Festlegen, wer antwortet",
+        "body": "Binden Sie einen Agent an einen Bot oder lösen Sie ihn wieder. Ein Bot antwortet als ein Agent; Umgebung, Pause und Abfragen bleiben im Tab Verfügbarkeit des Agents."
+      },
       "agent-model-credentials": {
         "title": "Wer den Modellschlüssel bereitstellt",
         "body": "Wähle dein Abonnement und verbinde es hier oder verwende einen API-Schlüssel der Organisation. Eigene Gateways und Endpoints findest du unter den erweiterten Verbindungen. Abonnementmodelle verwenden die Anweisungen und Werkzeuge von AgenticOS; installierte Agenten werden separat unter Delegation konfiguriert."
@@ -6745,6 +6753,15 @@
       "theAgentWillRunAsYou": "Der Bot muss wissen, wer Sie sind, bevor er Ihnen antwortet."
     },
     "channels": {
+      "agentBound": "@{agent} antwortet jetzt auf {bot}",
+      "agentUnbound": "@{agent} antwortet nicht mehr auf {bot}",
+      "bindAgent": "Agent binden",
+      "bindAgentConfirm": "Binden",
+      "bindAgentDescription": "Ein Bot antwortet als ein Agent. Er antwortet in der Standardumgebung des Agents; Umgebung, Pause und Abfragen ändern Sie im Tab Verfügbarkeit des Agents.",
+      "bindAgentPlaceholder": "Agent auswählen",
+      "bindAgentTo": "Agent an {bot} binden",
+      "bindingPaused": "Bindung pausiert",
+      "noBindableAgents": "Es gibt keinen Agent, den Sie veröffentlichen dürfen und hier binden könnten.",
       "respondToBroadcasts": "Auf Gruppen-Erwähnungen antworten",
       "respondToBroadcastsHint": "Aus: auf direkte Aufrufe dieses Bots reagieren. Ein: auch auf @all, @here und unterstützte Gruppen-Erwähnungen. Direktnachrichten benötigen keine Erwähnung.",
       "broadcastsTeamsHint": "Laden Sie nach dem Aktivieren das aktualisierte Teams-App-Paket herunter und installieren oder aktualisieren Sie es im Zielteam oder Chat. Der Besitzer muss dem Empfang von Nachrichten zustimmen.",
@@ -6800,7 +6817,7 @@
       "noAppToken": "Kein App-Level-Token",
       "noChannelsYet": "Noch kein Kanal registriert",
       "noSigningSecret": "Kein Signatur-Secret",
-      "pageDescription": "Die Chat-Plattformen, auf denen diese Organisation erreichbar ist. Ein Bot dient jedem an ihn gebundenen Agent – binden Sie einen über den Tab Verfügbarkeit eines Agents.",
+      "pageDescription": "Die Chat-Plattformen, auf denen diese Organisation erreichbar ist. Ein Bot antwortet als ein Agent – binden Sie ihn hier oder im Tab Verfügbarkeit des Agents.",
       "pauseBot": "{bot} pausieren",
       "paused": "Pausiert",
       "platform": "Plattform",
@@ -6821,6 +6838,9 @@
       "transcriptionOff": "Aus",
       "transcriptionProvider": "Transkription von Sprachnachrichten",
       "transcriptionProviderHint": "Der eigene Provider dieses Bots, unabhängig davon, was sein Agent oder die Organisation nutzen.",
+      "unbindAgent": "@{agent} von {bot} lösen",
+      "unbindAgentConfirm": "Lösen",
+      "unbindAgentDescription": "{bot} antwortet nicht mehr, bis ein anderer Agent gebunden wird. Die Anweisungen, Abfragen und die Umgebung dieser Bindung werden mit ihr gelöscht.",
       "webhook": "Webhook",
       "webhookToken": "Kein Webhook-Token",
       "slackManifestWhy": "Legen Sie die Slack-App aus ihrem Manifest an: in Slack Create New App, From a manifest, und einfügen. Schaltflächen, /agent, der Assistenten-Bereich und App Home sind dabei.",
@@ -10189,6 +10209,7 @@
     "enableRoutine": "Routine aktivieren",
     "finishLater": "Später fortfahren",
     "stopWaitingRun": "Wartende Ausführung stoppen",
+    "deliveryPending": "Letzte Antwort wird an den Chat gesendet",
     "deliveryUnavailable": "Letzte Antwort im Chat nicht verfügbar",
     "attemptsTitle": "Vor dem Agentenstart",
     "attemptsHint": "Diese Versuche haben keinen Agentenlauf gestartet und keine Modellkosten verursacht.",
@@ -10204,7 +10225,7 @@
       "preparation": "Agentenvorbereitung"
     },
     "attemptReason": {
-      "platform_identity_required": "Aktivieren Sie Als Ersteller handeln oder entfernen Sie die integrierte Plattform-MCP-Bindung aus dem Agenten und seinen Delegaten.",
+      "platform_identity_required": "Aktivieren Sie „Als ich ausführen“ oder entfernen Sie die integrierte Plattform-MCP-Bindung aus dem Agenten und seinen Delegaten.",
       "source_review_required": "Prüfen Sie die Quellen der Routine und nicht verfügbare Verbindungen vor einem erneuten Versuch.",
       "agent_unavailable": "Prüfen Sie die veröffentlichte Version, Konfiguration und Zugriffsrechte des Agenten, bevor Sie die Routine wieder aktivieren.",
       "preparation_failed": "Die Vorbereitung ist vor dem Erstellen eines Agentenlaufs fehlgeschlagen. Bitten Sie einen Betreiber, die Worker-Protokolle zu diesem Zeitpunkt zu prüfen.",

@@ -20,6 +20,10 @@ const STALE: Record<ChangeResource, (orgId: string) => QueryKey[]> = {
     qk.authoring.all(),
     qk.sharing.all(),
     qk.environments.all(),
+    // Binding an agent to a bot is announced as a change to the agent, and the
+    // Channels list names who answers on each bot.
+    qk.exposures.all(),
+    qk.channelBots.list(),
     qk.runs.assistantSignals(orgId),
     // A new version can stale a routine's source review or its consents.
     qk.triggers.readinessAll(),

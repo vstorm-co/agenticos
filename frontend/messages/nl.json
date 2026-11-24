@@ -1164,7 +1164,11 @@
     "observationSave": "Deelname-instellingen opslaan",
     "connectionSettings": "Koppelingsinstellingen · {provider} · {endpoint}",
     "customEndpoint": "Eigen endpoint",
-    "noMatchingModels": "Geen overeenkomende modellen."
+    "noMatchingModels": "Geen overeenkomende modellen.",
+    "appWide": "App-breed",
+    "appWideNotForAgents": "App-brede kennisbanken kunnen niet door agents worden gebruikt. Vink de kennisbank uit om deze te verwijderen.",
+    "otherOrganization": "Andere organisatie",
+    "otherOrganizationNotForAgents": "Deze kennisbank hoort bij een andere organisatie. Agents hier kunnen deze niet gebruiken. Vink de kennisbank uit om deze te verwijderen."
   },
   "auth": {
     "agreeToTerms": "Door een account aan te maken, ga je akkoord met onze <terms>Voorwaarden</terms> en ons <privacy>Privacybeleid</privacy>.",
@@ -6212,6 +6216,10 @@
       "improvement-mode": {
         "title": "Stap voor stap of zoeken",
         "body": "Kies hoe de helper wijzigingen vindt: één voorstel per poging, of een zoektocht over veel varianten van de instructies, gescoord op trainingsvragen. Zoeken vereist minstens tien trainingsvragen."
+      },
+      "channels-binding": {
+        "title": "Kies wie antwoordt",
+        "body": "Koppel een agent aan een bot of maak de koppeling los. Een bot antwoordt als één agent. De omgeving, pauzestand en zoekinstellingen blijven op het tabblad Beschikbaarheid van de agent."
       }
     },
     "chooseLanguage": "Taal",
@@ -7515,7 +7523,19 @@
           "blocked": "Geblokkeerd",
           "unknown": "Niet bevestigd"
         }
-      }
+      },
+      "agentBound": "@{agent} antwoordt nu op {bot}",
+      "agentUnbound": "@{agent} antwoordt niet meer op {bot}",
+      "bindAgent": "Agent koppelen",
+      "bindAgentConfirm": "Koppelen",
+      "bindAgentDescription": "Een bot antwoordt als één agent, in de standaardomgeving van die agent. Wijzig de omgeving, pauzeer de koppeling of kies de zoekinstellingen op het tabblad Beschikbaarheid van de agent.",
+      "bindAgentPlaceholder": "Kies een agent",
+      "bindAgentTo": "Een agent aan {bot} koppelen",
+      "bindingPaused": "Koppeling gepauzeerd",
+      "noBindableAgents": "Er is geen agent die je mag publiceren om hier te koppelen.",
+      "unbindAgent": "@{agent} loskoppelen van {bot}",
+      "unbindAgentConfirm": "Loskoppelen",
+      "unbindAgentDescription": "{bot} antwoordt niet meer totdat er een andere agent is gekoppeld. De eigen instructies, zoekinstellingen en omgeving van de koppeling worden verwijderd."
     },
     "invitations": {
       "acceptInvitation": "Uitnodiging accepteren",
@@ -10614,7 +10634,8 @@
       "actions_need_approval": "{count, plural, =1 {1 actie heeft geen doorlopende toestemming en vraagt bij gebruik om goedkeuring.} other {# acties hebben geen doorlopende toestemming en vragen bij gebruik om goedkeuring.}}",
       "readiness_checking": "Controleren of deze routine kan worden uitgevoerd…",
       "readiness_unavailable": "Er kon niet worden gecontroleerd of deze routine kan worden uitgevoerd. Nu uitvoeren controleert de rechten nog steeds."
-    }
+    },
+    "deliveryPending": "Laatste antwoord wordt naar de chat verstuurd"
   },
   "portals": {
     "backToServices": "Terug naar services",

@@ -10,9 +10,8 @@ import { EventSourceMark } from "@/components/triggers/event-source-mark";
 import { RoutineAutoPause } from "@/components/triggers/failure-policy-field";
 import { TriggerFormDialog } from "@/components/triggers/trigger-form-dialog";
 import { TriggerRunsSheet } from "@/components/triggers/trigger-runs-view";
-import { RoutineActionTooltip } from "@/components/triggers/routine-action-tooltip";
 import { TriggerSummary } from "@/components/triggers/trigger-summary";
-import { Badge, Button, ConfirmDialog, TooltipProvider } from "@/components/ui";
+import { Badge, Button, ConfirmDialog, ActionTooltip, TooltipProvider } from "@/components/ui";
 import { ActionConsentsDialog } from "@/components/triggers/action-consents-dialog";
 import { RoutineBlockers } from "@/components/triggers/routine-blockers";
 import { useAuthStore } from "@/stores";
@@ -187,6 +186,9 @@ export function TriggerRow({ trigger, showAgent = false, blockers: read }: Trigg
           </p>
         </div>
       </button>
+      {trigger.last_delivery_status === "pending" && (
+        <Badge variant="outline">{t("deliveryPending")}</Badge>
+      )}
       {trigger.last_delivery_status === "unavailable" && (
         <Badge variant="secondary">{t("deliveryUnavailable")}</Badge>
       )}
@@ -208,7 +210,7 @@ export function TriggerRow({ trigger, showAgent = false, blockers: read }: Trigg
           <TooltipProvider>
             <div className="ml-auto flex shrink-0 flex-wrap items-center gap-0.5">
               {isOwner && (
-                <RoutineActionTooltip label={t("actionConsents.title")}>
+                <ActionTooltip label={t("actionConsents.title")}>
                   <Button
                     variant="ghost"
                     size="icon"
@@ -219,9 +221,9 @@ export function TriggerRow({ trigger, showAgent = false, blockers: read }: Trigg
                   >
                     <ShieldCheck className="h-4 w-4" />
                   </Button>
-                </RoutineActionTooltip>
+                </ActionTooltip>
               )}
-              <RoutineActionTooltip label={t("runNow")} disabled={runDisabled}>
+              <ActionTooltip label={t("runNow")} disabled={runDisabled}>
                 <Button
                   variant="ghost"
                   size="icon"
@@ -233,8 +235,8 @@ export function TriggerRow({ trigger, showAgent = false, blockers: read }: Trigg
                 >
                   <Zap className="h-4 w-4" />
                 </Button>
-              </RoutineActionTooltip>
-              <RoutineActionTooltip label={t("edit")}>
+              </ActionTooltip>
+              <ActionTooltip label={t("edit")}>
                 <Button
                   variant="ghost"
                   size="icon"
@@ -244,9 +246,9 @@ export function TriggerRow({ trigger, showAgent = false, blockers: read }: Trigg
                 >
                   <Pencil className="h-4 w-4" />
                 </Button>
-              </RoutineActionTooltip>
+              </ActionTooltip>
               {(trigger.is_active || !actsForSomeoneElse) && (
-                <RoutineActionTooltip label={trigger.is_active ? t("pause") : t("resume")}>
+                <ActionTooltip label={trigger.is_active ? t("pause") : t("resume")}>
                   <Button
                     variant="ghost"
                     size="icon"
@@ -265,9 +267,9 @@ export function TriggerRow({ trigger, showAgent = false, blockers: read }: Trigg
                       <Play className="h-4 w-4" />
                     )}
                   </Button>
-                </RoutineActionTooltip>
+                </ActionTooltip>
               )}
-              <RoutineActionTooltip label={t("delete")}>
+              <ActionTooltip label={t("delete")}>
                 <Button
                   variant="ghost"
                   size="icon"
@@ -278,7 +280,7 @@ export function TriggerRow({ trigger, showAgent = false, blockers: read }: Trigg
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>
-              </RoutineActionTooltip>
+              </ActionTooltip>
             </div>
           </TooltipProvider>
         )}

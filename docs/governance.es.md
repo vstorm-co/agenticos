@@ -1,5 +1,5 @@
 ---
-source_sha: "def479e6997c"
+source_sha: "c5fdb378622e"
 ---
 
 # Governance { #governance }
@@ -77,6 +77,8 @@ El aviso de finalización enlaza el chat solo tras una entrega correcta.
 
 `last_delivery_status` distingue entrega, solo registro, ausencia de respuesta y ejecución incompleta; los registros históricos siguen sin estado conocido hasta otra ejecución. La migración `0265_trigger_delivery_status.py` añade este estado sin inferir éxitos anteriores.
 
+Para una rutina creada en un chat privado de una aplicación de chat que abre un chat nuevo para cada ejecución (`chat_mode=per_run`), el estado es `pending` hasta que el bot publica la respuesta, y después `delivered` o `unavailable` con un aviso al propietario. La migración `0363_trigger_delivery_pending.py` añade `pending`; su reversión lee `pending` como `delivered`. Consulte [Respuestas de rutinas en un chat privado](channels.md#routine-answers-in-a-private-chat).
+
 Define `ends_at` con un desplazamiento UTC para el trabajo con duración limitada y
 `monthly_budget_usd` para un límite mensual más estricto. La herramienta MCP de
 actualización permite quitar ambos ajustes. Una clave API ordinaria no puede
@@ -100,7 +102,7 @@ El formulario de la rutina permite definir o quitar su fecha de fin. La fecha us
 
 Una rutina vuelve a comprobar su creador, membresía activa, rol y permisos de ejecución antes de cada herramienta, también en delegaciones y después de una aprobación. Pausar, borrar, caducar, retirar el consentimiento personal o cambiar esa autoridad impide las siguientes llamadas. La comprobación no revierte efectos ya enviados a servicios externos. La migración `0260_routine_run_origin` conserva el origen tras borrar la rutina; los horarios antiguos aparcados cuyo origen ya se perdió se rechazan en lugar de usar la autoridad de quien aprueba.
 
-El servidor MCP integrado de AgenticOS requiere **Actuar como creador**, también cuando lo vincula un delegado publicado. Sin una identidad de persona, la revisión de fuentes y la creación de la rutina rechazan esta configuración con una explicación concreta. Active la opción o quite la vinculación de plataforma del agente y sus delegados. La plataforma nunca adopta automáticamente la identidad del creador.
+El servidor MCP integrado de AgenticOS requiere **Ejecutar como yo**, también cuando lo vincula un delegado publicado. Sin una identidad de persona, la revisión de fuentes y la creación de la rutina rechazan esta configuración con una explicación concreta. Active la opción o quite la vinculación de plataforma del agente y sus delegados. La plataforma nunca adopta automáticamente la identidad del creador.
 
 El historial de la rutina también muestra intentos bloqueados o fallidos anteriores a un run del agente. Cada uno incluye la hora, la etapa y una indicación para solucionarlo. No generan cargos de modelo ni contienen prompts, errores del proveedor o credenciales. Los registros permanecen hasta eliminar la rutina o la organización; un fallo en la entrega de notificaciones no los elimina. El job fire-trigger guarda un resultado separado bloqueado o fallido. Completar el job de la cola no significa que el agente se haya ejecutado correctamente.
 
@@ -2547,6 +2549,8 @@ La lista muestra la pausa automática y el número de fallos. Se conservan como 
 ## Fuentes revisadas de las rutinas { #routine-sources }
 
 Las rutinas nuevas admiten automáticamente la configuración inicialmente disponible del agente publicado dentro de los permisos vigentes del creador. Las eliminaciones seguras de fuentes y los cambios exclusivamente de modelo o presentación del agente principal no requieren revisión. Las fuentes, cuentas o herramientas nuevas, los cambios de instrucciones o variables y los cambios de capacidades, skills efectivos, contexto o comportamiento delegado requieren la revisión de acceso del propietario antes de otra ejecución. Publicar el agente compartido no amplía por sí solo la autoridad permanente de una persona. Las cuentas MCP opcionales ausentes no bloquean otras tareas; siguen vigentes las entradas obligatorias de eventos, identidad, permisos, presupuestos y aprobaciones obligatorias.
+
+Una capability desactivada y lo que solo ella alcanza - los skills con **Skills** desactivada, los archivos de contexto con **Context** desactivada, las colecciones con **Knowledge** desactivada, los delegados y agentes remotos con **Subagents** desactivada - no son fuentes: ningún run los alcanza, así que la revisión no los muestra, uno eliminado no bloquea la rutina y editar uno de esos skills o archivos de contexto no requiere un nuevo consentimiento. Activar la capability es una fuente nueva y se revisa.
 
 Cambiar la versión fijada de un delegado requiere revisión, incluso si su publicación solo modifica el modelo.
 

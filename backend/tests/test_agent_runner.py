@@ -96,6 +96,7 @@ from app.core.secret_kinds import ApiKeySecret, NoSecret
 from app.db.models.agent_environment import AgentEnvironmentConnection
 from app.db.models.agent_run import ApprovalStatus, RunStatus, RunSurface
 from app.db.models.intercepted_tool_call import InterceptionOutcome, InterceptionReason
+from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.db.models.skill import Skill
 from app.db.vector_tables import VectorScope
 from app.repositories.group import CappedGroup
@@ -569,7 +570,11 @@ class TestPrepare:
         agent = MagicMock(
             id=uuid.uuid4(), current_version_id=uuid.uuid4(), system_key=None, kind="agent"
         )
-        spec = AgentSpec(name="Support", collection_ids=[live_id, deleted_id, foreign_id])
+        spec = AgentSpec(
+            name="Support",
+            collection_ids=[live_id, deleted_id, foreign_id],
+            capabilities=[{"id": "knowledge"}],
+        )
 
         async def get_collections(_db, ids):
             # A batched read: an id with no row is absent from the map, the way
@@ -624,7 +629,7 @@ class TestPrepare:
             new=AsyncMock(return_value=collections),
         ):
             resources = await AgentRunnerService(_db())._bound_collections(
-                AgentSpec(name="Both", collection_ids=ids), ctx
+                AgentSpec(name="Both", collection_ids=ids, capabilities=[{"id": "knowledge"}]), ctx
             )
         assert resources["kb_collection_names"] == ["shared"]
         scope = resources["kb_vector_scopes"]["shared"]
@@ -656,10 +661,41 @@ class TestPrepare:
             new=AsyncMock(return_value=collections),
         ):
             resources = await AgentRunnerService(_db())._bound_collections(
-                AgentSpec(name="Both", collection_ids=ids), ctx
+                AgentSpec(name="Both", collection_ids=ids, capabilities=[{"id": "knowledge"}]), ctx
             )
         assert resources["kb_collection_names"] == ["shared"]
         assert resources["kb_vector_scopes"]["shared"] == scopes[0]
+
+    @pytest.mark.anyio
+    @pytest.mark.security
+    async def test_an_app_scoped_base_is_left_out_beside_a_same_named_org_base(self):
+        """The org base is searched alone, under its own tenant."""
+        ctx = _ctx()
+        app_id, org_id = uuid.uuid4(), uuid.uuid4()
+        bases = {
+            app_id: KnowledgeBase(
+                id=app_id, scope=KBScope.APP.value, organization_id=None, collection_name="handbook"
+            ),
+            org_id: KnowledgeBase(
+                id=org_id,
+                scope=KBScope.ORG.value,
+                organization_id=ctx.organization_id,
+                collection_name="handbook",
+            ),
+        }
+        with patch(
+            "app.services.agent_runner.knowledge_base_repo.get_by_ids",
+            new=AsyncMock(return_value=bases),
+        ):
+            resources = await AgentRunnerService(_db())._bound_collections(
+                AgentSpec(
+                    name="Both", collection_ids=[app_id, org_id], capabilities=[{"id": "knowledge"}]
+                ),
+                ctx,
+            )
+
+        assert resources["kb_collection_names"] == ["handbook"]
+        assert resources["kb_vector_scopes"] == {"handbook": bases[org_id].vector_scope}
 
     @pytest.mark.anyio
     async def test_preparing_a_run_resolves_every_collection_in_one_query(self):
@@ -675,7 +711,7 @@ class TestPrepare:
         agent = MagicMock(
             id=uuid.uuid4(), current_version_id=uuid.uuid4(), system_key=None, kind="agent"
         )
-        spec = AgentSpec(name="Support", collection_ids=ids)
+        spec = AgentSpec(name="Support", collection_ids=ids, capabilities=[{"id": "knowledge"}])
 
         async def get_collections(_db, given):
             return {cid: collections[cid] for cid in given}
@@ -2761,6 +2797,63 @@ class TestAThreadsEarlierAttachmentsAreBroughtBack:
         assert prepared.run.skill_version_ids == [before, now]
 
     @pytest.mark.anyio
+    async def test_skills_bound_while_the_capability_is_off_reach_neither_prompt_nor_workspace(
+        self,
+    ):
+        """Switched off means none are loaded, sandbox or not - the Builder says so."""
+        bound = _served_skill("refunds", uuid.uuid4())
+        spec = AgentSpec.model_validate(
+            {
+                "name": "Books",
+                "skill_ids": [str(bound.id)],
+                "capabilities": [{"id": "skills", "enabled": False}],
+            }
+        )
+        resolve = AsyncMock(
+            side_effect=lambda ctx, skill_ids, **_: [
+                skill for skill in (bound,) if skill.id in skill_ids
+            ]
+        )
+        document = StateBackend()
+
+        prepared, instructions, *_ = await self._prepare(
+            _sandbox(document), earlier=None, spec=spec, resolve_skills=resolve
+        )
+
+        assert [call.args[1] for call in resolve.await_args_list] == [[]]
+        assert prepared.run.skill_version_ids == []
+        assert SKILLS_ROOT not in instructions
+        assert prepared.materialised_skills is None or not prepared.materialised_skills.written
+
+    @pytest.mark.anyio
+    async def test_context_and_collections_kept_while_switched_off_are_not_resolved(self):
+        """Neither reaches a run whose capability is off, so neither is read for it."""
+        from app.services.context import ContextService
+
+        spec = AgentSpec.model_validate(
+            {
+                "name": "Books",
+                "context_ids": [str(uuid.uuid4())],
+                "collection_ids": [str(uuid.uuid4())],
+                "capabilities": [
+                    {"id": "context", "enabled": False},
+                    {"id": "knowledge", "enabled": False},
+                ],
+            }
+        )
+        contexts = AsyncMock(return_value=[])
+        collections = AsyncMock(return_value={})
+
+        with (
+            patch.object(ContextService, "resolve_for_agent", new=contexts),
+            patch("app.services.agent_runner.knowledge_base_repo.get_by_ids", new=collections),
+        ):
+            await self._prepare(_sandbox(StateBackend()), earlier=None, spec=spec)
+
+        assert [call.args[1] for call in contexts.await_args_list] == [[]]
+        assert [call.args[1] for call in collections.await_args_list] == [[]]
+
+    @pytest.mark.anyio
     async def test_a_run_records_its_specialists_skill_versions_from_one_resolve_each(self):
         """The specialist's skills are the ones it was built with, not resolved again."""
         own, specialist = (
@@ -2772,6 +2865,7 @@ class TestAThreadsEarlierAttachmentsAreBroughtBack:
                 "name": "Books",
                 "skill_ids": [str(own.id)],
                 "capabilities": [
+                    {"id": "skills"},
                     {
                         "id": "subagents",
                         "config": {
@@ -2781,10 +2875,11 @@ class TestAThreadsEarlierAttachmentsAreBroughtBack:
                                     "description": "Bills.",
                                     "instructions": "Bill.",
                                     "skill_ids": [str(specialist.id)],
+                                    "capabilities": [{"id": "skills"}],
                                 }
                             ]
                         },
-                    }
+                    },
                 ],
             }
         )

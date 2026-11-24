@@ -68,6 +68,8 @@ Completion notifications link to the conversation only after successful delivery
 
 `last_delivery_status` distinguishes delivery, log-only, no answer and an incomplete run; historical rows stay unknown until another fire. Migration `0265_trigger_delivery_status.py` adds this status without inferring past success.
 
+For a routine made in a private chat on a chat app that opens a new chat for each run (`chat_mode=per_run`), the status reads `pending` until the bot has posted the answer, then `delivered`, or `unavailable` with a notice to the owner. Migration `0363_trigger_delivery_pending.py` adds `pending`; its downgrade reads `pending` as `delivered`. See [Routine answers in a private chat](channels.md#routine-answers-in-a-private-chat).
+
 Set `ends_at` with a UTC offset for time-bounded work, and `monthly_budget_usd`
 for a tighter monthly limit. The MCP update tool can clear either setting.
 An ordinary API key cannot authorize a routine to use its issuer's personal accounts. Background runs, impersonation and resumed group or public turns cannot grant that personal authority either.
@@ -90,7 +92,7 @@ Routine runs retain the MCP accounts and tool aliases admitted for that executio
 
 A parked routine without this admission state cannot continue managed-account MCP calls. Start a new run after reviewing its access. Ordinary interactive agent defaults and explicit approval policies are unchanged; account-specific routine approval exceptions are still separate from this source check.
 
-The built-in AgenticOS platform MCP server requires **Act as creator**, including when a published delegate binds it. Without a person-backed identity, source review and routine creation refuse this configuration with an explicit explanation. Enable Act as creator or remove the platform binding from the agent and its delegates. The platform never borrows the creator’s identity automatically.
+The built-in AgenticOS platform MCP server requires **Run as me**, including when a published delegate binds it. Without a person-backed identity, source review and routine creation refuse this configuration with an explicit explanation. Turn on Run as me or remove the platform binding from the agent and its delegates. The platform never borrows the creator’s identity automatically.
 
 Routine history also lists blocked or failed attempts that ended before an agent run existed. Each shows its time, stage and a repair direction. They incur no model charges and never contain prompts, provider errors or credentials. Records remain until their routine or organization is deleted. Notification delivery failure does not remove this history. The fire-trigger worker job records a separate blocked or failed outcome; completing the queue job does not imply an agent ran successfully.
 
@@ -2396,6 +2398,8 @@ The list shows when a routine was paused automatically and its failure count. He
 ## Reviewed routine sources { #routine-sources }
 
 New routines automatically admit the selected published agent's initial available configuration within the creator's current permissions. Safe source removals and changes limited to the root agent’s model or display metadata can follow without review. New sources, accounts or tools, changed instructions or variables, and changed capability, effective skill, context or delegated behavior require the owner's access review before another execution. Publishing a shared agent alone cannot expand a person's standing authority. Missing optional MCP accounts do not block unrelated work; required event inputs, identity, resource grants, budgets and mandatory approvals remain enforced.
+
+A capability switched off, and what only it reaches - skills while **Skills** is off, context files while **Context** is off, collections while **Knowledge** is off, delegates and remote agents while **Subagents** is off - are not sources: no run reaches them, so the review does not list them, one that is gone does not block the routine, and editing such a skill or context file needs no new consent. Switching the capability on is a new source and is reviewed.
 
 Changing a pinned delegate version requires review, including a model-only publication of that delegate.
 

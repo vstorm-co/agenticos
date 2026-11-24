@@ -81,6 +81,7 @@ from app.repositories import (
     agent_repo,
     agent_run_repo,
     agent_trigger_repo,
+    channel_session_repo,
     conversation_repo,
     mcp_connection_repo,
     member_repo,
@@ -90,6 +91,7 @@ from app.repositories import (
     user_repo,
 )
 from app.repositories import background_job as background_job_repo
+from app.repositories import channel_bot as channel_bot_repo
 from app.repositories import routine_delivery as routine_delivery_repo
 from app.repositories import routine_device_wait as device_wait_repo
 from app.schemas.agent_trigger import (
@@ -154,7 +156,7 @@ from app.services.routine_sources import (
     read_policy,
 )
 from app.services.spend import month_start
-from app.worker.jobs import FIRE_TRIGGER, FireTrigger
+from app.worker.jobs import FIRE_TRIGGER, ROUTINE_CHAT_ANSWER, FireTrigger, RoutineChatAnswer
 
 logger = logging.getLogger(__name__)
 
@@ -516,6 +518,17 @@ def _parse_json(body: bytes, *, source: str) -> dict[str, Any]:
 class AnswerDelivery:
     status: TriggerDeliveryStatus
     conversation_id: UUID | None = None
+    chat_queued: bool = False
+    """A job will post the stored answer to its private chat; it settles the status."""
+
+    @property
+    def recorded(self) -> TriggerDeliveryStatus:
+        """What the routine's row reads: `pending` until the queued post settles it.
+
+        `status` keeps its console meaning, `delivered` once the answer is stored,
+        and is what a delivery receipt records.
+        """
+        return TriggerDeliveryStatus.PENDING if self.chat_queued else self.status
 
 
 class AgentTriggerService:
@@ -3430,7 +3443,7 @@ class AgentTriggerService:
                 observed_at=observation,
                 run=run,
             )
-        elif delivery.status is TriggerDeliveryStatus.DELIVERED or trigger.answer_to == "run_log":
+        elif delivery.recorded is TriggerDeliveryStatus.DELIVERED or trigger.answer_to == "run_log":
             await OutcomeService(self.db).resolve_routine_failure(
                 organization_id=trigger.organization_id,
                 user_id=trigger.created_by_user_id,
@@ -3439,7 +3452,7 @@ class AgentTriggerService:
                 reason="delivery",
                 recovered_at=observation,
             )
-        trigger.last_delivery_status = delivery.status.value
+        trigger.last_delivery_status = delivery.recorded.value
         trigger.last_run_id = run.id
         # And the run says which trigger made it: with `user_id`, "trigger X,
         # acting as member Y" rather than a run that reads as the member's own.
@@ -3568,7 +3581,7 @@ class AgentTriggerService:
             conversation_id=delivered.conversation_id,
         )
         if trigger.last_run_id == run.id:
-            trigger.last_delivery_status = delivered.status.value
+            trigger.last_delivery_status = delivered.recorded.value
         if trigger.one_shot is True:
             from app.services.task_execution import TaskExecution
 
@@ -3588,7 +3601,7 @@ class AgentTriggerService:
                 observed_at=observation,
                 run=run,
             )
-        elif delivered.status in (TriggerDeliveryStatus.DELIVERED, TriggerDeliveryStatus.RUN_LOG):
+        elif delivered.recorded in (TriggerDeliveryStatus.DELIVERED, TriggerDeliveryStatus.RUN_LOG):
             await OutcomeService(self.db).resolve_routine_failure(
                 organization_id=organization_id,
                 user_id=trigger.created_by_user_id,
@@ -3891,7 +3904,11 @@ class AgentTriggerService:
         if mode == "shared":
             return AnswerDelivery(TriggerDeliveryStatus.RUN_LOG, run.conversation_id)
         if mode == "per_run":
-            return AnswerDelivery(TriggerDeliveryStatus.DELIVERED, run.conversation_id)
+            return AnswerDelivery(
+                TriggerDeliveryStatus.DELIVERED,
+                run.conversation_id,
+                chat_queued=await self._queue_chat_post_of_run(trigger, run),
+            )
         # Runs admitted before chat modes retain their recorded delivery contract.
         if trigger.answer_to == "run_log" or trigger.result_mode == "inbox":
             return AnswerDelivery(TriggerDeliveryStatus.RUN_LOG)
@@ -3985,6 +4002,59 @@ class AgentTriggerService:
                 extra={"trigger_id": str(trigger.id), "error_type": type(error).__name__},
             )
         return AnswerDelivery(TriggerDeliveryStatus.UNAVAILABLE)
+
+    async def _queue_chat_post_of_run(self, trigger: AgentTrigger, run: AgentRun) -> bool:
+        """Queue the post of a per-run answer to the private chat the routine was made in.
+
+        The routine's chat of origin is its legacy `delivery_conversation_id`,
+        which a routine created from a conversation records. Only a conversation
+        bound to a private chat on a chat platform is posted to; group chats and
+        SMS, iMessage and email keep the answer in its console chat alone. A bot
+        that is gone still queues, so the job settles the delivery as unavailable
+        instead of this fire reading it as delivered. Queued in the fire's own
+        transaction, so it commits or rolls back with the run.
+        """
+        from app.services.channels.routine_answer import ROUTINE_CHAT_PLATFORMS
+
+        conversation_id = trigger.delivery_conversation_id
+        if trigger.answer_to != "conversation" or conversation_id is None:
+            return False
+        answer = next(
+            (
+                message
+                for message in await conversation_repo.get_messages_by_run(
+                    self.db, run.id, newest=True, limit=20
+                )
+                if message.role == "assistant" and not message.guardrail_refused
+            ),
+            None,
+        )
+        if answer is None:
+            return False
+        session = await channel_session_repo.get_for_conversation(self.db, conversation_id)
+        if session is None or session.chat_type != "private":
+            return False
+        bot = await channel_bot_repo.get_for_org(
+            self.db, session.bot_id, organization_id=trigger.organization_id
+        )
+        if bot is not None and bot.platform not in ROUTINE_CHAT_PLATFORMS:
+            return False
+        await enqueue(
+            self.db,
+            ROUTINE_CHAT_ANSWER,
+            RoutineChatAnswer(
+                organization_id=trigger.organization_id,
+                trigger_id=trigger.id,
+                run_id=run.id,
+                conversation_id=conversation_id,
+                session_id=session.id,
+                message_id=answer.id,
+            ),
+            organization_id=trigger.organization_id,
+            dedupe_key=f"routine-chat-answer:{run.id}",
+            concurrency_key=f"channel-handback:{session.bot_id}:{session.platform_chat_id}",
+        )
+        return True
 
     async def _teams_target(self, ctx: AuthContext, conversation_id: UUID) -> None:
         """Refuse a Teams conversation that is not one of this organization's to post into.

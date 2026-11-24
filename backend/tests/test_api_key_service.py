@@ -1,6 +1,7 @@
 """ApiKeyService paths the end-to-end tests do not reach: presets, listing, revocation."""
 
 import uuid
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -242,3 +243,55 @@ class TestThePublicSurface:
             reached = calls(route.dependant)
             if get_current_user in reached:
                 assert reached & {get_auth_context, get_path_org_context}, route.path
+
+
+class TestRunAgent:
+    @pytest.mark.security
+    async def test_a_session_names_no_run_agent(self) -> None:
+        with patch(f"{PATH}.api_key_repo.get", new=AsyncMock()) as get_key:
+            assert await ApiKeyService(MagicMock()).run_agent_id(_ctx()) is None
+
+        get_key.assert_not_awaited()
+
+    @pytest.mark.security
+    async def test_a_person_issued_key_or_oauth_token_names_no_run_agent(self) -> None:
+        ctx = replace(_ctx(), api_key_id=uuid.uuid4(), key_internal=False)
+        with patch(f"{PATH}.api_key_repo.get", new=AsyncMock()) as get_key:
+            assert await ApiKeyService(MagicMock()).run_agent_id(ctx) is None
+
+        get_key.assert_not_awaited()
+
+    @pytest.mark.security
+    async def test_a_row_that_is_not_internal_names_no_run_agent(self) -> None:
+        ctx = replace(_ctx(), api_key_id=uuid.uuid4(), key_internal=True)
+        row = _key(ctx, internal=False, source_agent_id=uuid.uuid4())
+        with patch(f"{PATH}.api_key_repo.get", new=AsyncMock(return_value=row)):
+            assert await ApiKeyService(MagicMock()).run_agent_id(ctx) is None
+
+    @pytest.mark.security
+    async def test_a_run_agent_outside_the_callers_organization_is_not_named(self) -> None:
+        ctx = replace(_ctx(), api_key_id=uuid.uuid4(), key_internal=True)
+        row = _key(ctx, internal=True, source_agent_id=uuid.uuid4())
+        with (
+            patch(f"{PATH}.api_key_repo.get", new=AsyncMock(return_value=row)),
+            patch(f"{PATH}.agent_repo.get", new=AsyncMock(return_value=None)) as get_agent,
+        ):
+            assert await ApiKeyService(MagicMock()).run_agent_id(ctx) is None
+
+        assert get_agent.await_args.kwargs["organization_id"] == ctx.organization_id
+
+    async def test_a_run_credential_without_an_agent_names_none(self) -> None:
+        ctx = replace(_ctx(), api_key_id=uuid.uuid4(), key_internal=True)
+        row = _key(ctx, internal=True, source_agent_id=None)
+        with patch(f"{PATH}.api_key_repo.get", new=AsyncMock(return_value=row)):
+            assert await ApiKeyService(MagicMock()).run_agent_id(ctx) is None
+
+    async def test_a_run_credential_names_the_agent_it_was_minted_for(self) -> None:
+        ctx = replace(_ctx(), api_key_id=uuid.uuid4(), key_internal=True)
+        agent_id = uuid.uuid4()
+        row = _key(ctx, internal=True, source_agent_id=agent_id)
+        with (
+            patch(f"{PATH}.api_key_repo.get", new=AsyncMock(return_value=row)),
+            patch(f"{PATH}.agent_repo.get", new=AsyncMock(return_value=MagicMock(id=agent_id))),
+        ):
+            assert await ApiKeyService(MagicMock()).run_agent_id(ctx) == agent_id

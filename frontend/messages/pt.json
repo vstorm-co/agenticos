@@ -1164,7 +1164,11 @@
     "observationSave": "Salvar configurações de participação",
     "connectionSettings": "Configurações de conexão · {provider} · {endpoint}",
     "customEndpoint": "Endpoint personalizado",
-    "noMatchingModels": "Nenhum modelo correspondente."
+    "noMatchingModels": "Nenhum modelo correspondente.",
+    "appWide": "Em toda a aplicação",
+    "appWideNotForAgents": "Agentes não podem usar bases de conhecimento de toda a aplicação. Desmarque a base para removê-la.",
+    "otherOrganization": "Outra organização",
+    "otherOrganizationNotForAgents": "Esta base de conhecimento pertence a outra organização, então os agentes daqui não podem usá-la. Desmarque a base para removê-la."
   },
   "auth": {
     "agreeToTerms": "Ao criar uma conta, você concorda com nossos <terms>Termos</terms> e com nossa <privacy>Política de Privacidade</privacy>.",
@@ -6212,6 +6216,10 @@
       "improvement-mode": {
         "title": "Passo a passo ou busca",
         "body": "Escolha como o assistente encontra as alterações: uma proposta por tentativa ou uma busca em muitas variantes das instruções, pontuadas nas perguntas de treino. A busca exige pelo menos dez perguntas de treino."
+      },
+      "channels-binding": {
+        "title": "Escolha quem responde",
+        "body": "Vincule um agente a um bot ou remova o vínculo. Um bot responde como um único agente; o ambiente, a pausa e as consultas continuam na aba Disponibilidade do agente."
       }
     },
     "chooseLanguage": "Idioma",
@@ -7515,7 +7523,19 @@
           "blocked": "Bloqueado",
           "unknown": "Não confirmado"
         }
-      }
+      },
+      "agentBound": "@{agent} agora responde em {bot}",
+      "agentUnbound": "@{agent} não responde mais em {bot}",
+      "bindAgent": "Vincular agente",
+      "bindAgentConfirm": "Vincular",
+      "bindAgentDescription": "Um bot responde como um único agente, no ambiente padrão dele. Altere o ambiente, pause o vínculo ou escolha as consultas na aba Disponibilidade do agente.",
+      "bindAgentPlaceholder": "Escolha um agente",
+      "bindAgentTo": "Vincular um agente a {bot}",
+      "bindingPaused": "Vínculo pausado",
+      "noBindableAgents": "Não há nenhum agente que você tenha permissão para publicar e vincular aqui.",
+      "unbindAgent": "Desvincular @{agent} de {bot}",
+      "unbindAgentConfirm": "Desvincular",
+      "unbindAgentDescription": "{bot} para de responder até que outro agente seja vinculado. As instruções, consultas e o ambiente próprios do vínculo são excluídos junto com ele."
     },
     "invitations": {
       "acceptInvitation": "Aceitar convite",
@@ -10614,7 +10634,8 @@
       "actions_need_approval": "{count, plural, =1 {1 ação não tem consentimento permanente e precisará de aprovação se for usada.} other {# ações não têm consentimento permanente e precisarão de aprovação se forem usadas.}}",
       "readiness_checking": "Verificando se esta rotina pode ser executada…",
       "readiness_unavailable": "Não foi possível verificar se esta rotina pode ser executada. Executar agora ainda verificará as permissões dela."
-    }
+    },
+    "deliveryPending": "Enviando a última resposta ao chat"
   },
   "portals": {
     "backToServices": "Voltar para os serviços",

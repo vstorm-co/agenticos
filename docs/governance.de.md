@@ -1,5 +1,5 @@
 ---
-source_sha: "def479e6997c"
+source_sha: "c5fdb378622e"
 ---
 
 # Governance { #governance }
@@ -77,6 +77,8 @@ Abschlussmeldungen verlinken den Chat erst nach erfolgreicher Zustellung.
 
 `last_delivery_status` unterscheidet Zustellung, nur Protokoll, keine Antwort und einen unvollständigen Lauf; historische Einträge bleiben bis zum nächsten Lauf unbekannt. Die Migration `0265_trigger_delivery_status.py` ergänzt diesen Status, ohne frühere Erfolge zu erraten.
 
+Für eine Routine, die in einem privaten Chat in einer Chat-App angelegt wurde und für jeden Lauf einen neuen Chat öffnet (`chat_mode=per_run`), lautet der Status `pending`, bis der Bot die Antwort gepostet hat, danach `delivered` oder `unavailable` mit einer Benachrichtigung an die besitzende Person. Die Migration `0363_trigger_delivery_pending.py` ergänzt `pending`; ihr Downgrade liest `pending` als `delivered`. Siehe [Routine-Antworten in einem privaten Chat](channels.md#routine-answers-in-a-private-chat).
+
 Setzen Sie `ends_at` mit UTC-Offset für zeitlich begrenzte Aufgaben und
 `monthly_budget_usd` für ein engeres Monatslimit. Das MCP-Aktualisierungstool kann
 beide Einstellungen entfernen. Ein gewöhnlicher API-Schlüssel kann keine Routine
@@ -102,7 +104,7 @@ Im Routineformular können Sie das Ende festlegen oder entfernen. Das Datum verw
 
 Eine Routine prüft vor jedem Werkzeug ihren Ersteller, aktive Mitgliedschaft, Rolle und Ausführungsrechte erneut, auch bei Delegationen und nach einer Freigabe. Pausieren, Löschen, Ablauf, Widerruf persönlicher Zustimmung oder Änderungen dieser Berechtigung verhindern weitere Werkzeugaufrufe. Bereits an externe Dienste gesendete Effekte werden dadurch nicht zurückgerufen. Migration `0260_routine_run_origin` bewahrt den Ursprung beim Löschen; ältere geparkte Zeitpläne mit verlorenem Ursprung werden abgelehnt, statt die Rechte der freigebenden Person zu übernehmen.
 
-Der integrierte AgenticOS-MCP-Server erfordert **Als Ersteller handeln**, auch wenn ein veröffentlichter Delegat ihn einbindet. Ohne eine personenbezogene Identität lehnen die Quellenprüfung und das Erstellen der Routine diese Konfiguration mit einer konkreten Erklärung ab. Aktivieren Sie die Option oder entfernen Sie die Plattformbindung aus dem Agenten und seinen Delegaten. Die Plattform übernimmt niemals automatisch die Identität des Erstellers.
+Der integrierte AgenticOS-MCP-Server erfordert **Als ich ausführen**, auch wenn ein veröffentlichter Delegat ihn einbindet. Ohne eine personenbezogene Identität lehnen die Quellenprüfung und das Erstellen der Routine diese Konfiguration mit einer konkreten Erklärung ab. Aktivieren Sie die Option oder entfernen Sie die Plattformbindung aus dem Agenten und seinen Delegaten. Die Plattform übernimmt niemals automatisch die Identität des Erstellers.
 
 Der Routinenverlauf zeigt auch blockierte oder fehlgeschlagene Versuche vor dem Erstellen eines Agentenlaufs. Jeder enthält Zeitpunkt, Phase und einen Reparaturhinweis. Es entstehen keine Modellkosten; Prompts, Anbieterfehler und Zugangsdaten werden nie gespeichert. Die Einträge bleiben bis zum Löschen der Routine oder Organisation erhalten, unabhängig von der Benachrichtigungszustellung. Der Worker-Job fire-trigger speichert ein separates blockiertes oder fehlgeschlagenes Ergebnis. Ein abgeschlossener Warteschlangenjob bedeutet nicht, dass ein Agent erfolgreich lief.
 
@@ -2695,6 +2697,8 @@ Die Liste zeigt automatische Pause und Fehlerzahl. Höchstens 50 Beobachtungen p
 ## Geprüfte Routinequellen { #routine-sources }
 
 Neue Routinen genehmigen automatisch die anfänglich verfügbare Konfiguration des veröffentlichten Agenten innerhalb der aktuellen Erstellerberechtigungen. Sichere Quellenentfernungen und reine Modell- oder Anzeigeänderungen des Hauptagenten benötigen keine Prüfung. Neue Quellen, Konten oder Werkzeuge, geänderte Anweisungen oder Variablen sowie Änderungen an Capabilities, tatsächlich verwendeten Skills, Kontext oder delegiertem Verhalten erfordern vor einer weiteren Ausführung die Zugriffsprüfung des Eigentümers. Eine Veröffentlichung des gemeinsamen Agenten erweitert allein keine dauerhafte Befugnis einer Person. Fehlende optionale MCP-Konten blockieren keine unabhängige Arbeit; erforderliche Ereigniseingänge, Identität, Ressourcenzugriffe, Budgets und verbindliche Freigaben gelten weiter.
+
+Eine ausgeschaltete Capability und das, was nur sie erreicht - Skills bei ausgeschalteter **Skills**, Kontextdateien bei ausgeschalteter **Context**, Sammlungen bei ausgeschalteter **Knowledge**, Delegierte und Remote-Agenten bei ausgeschalteter **Subagents** -, sind keine Quellen: Kein Run erreicht sie. Die Prüfung führt sie deshalb nicht auf, eine gelöschte blockiert die Routine nicht, und die Bearbeitung eines solchen Skills oder einer solchen Kontextdatei erfordert keine neue Zustimmung. Das Einschalten der Capability ist eine neue Quelle und wird geprüft.
 
 Eine geänderte fixierte Delegatenversion erfordert eine Prüfung, auch bei einer reinen Modelländerung dieses Delegaten.
 

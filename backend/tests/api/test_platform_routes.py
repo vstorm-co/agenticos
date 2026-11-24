@@ -907,6 +907,7 @@ class TestPermissionIntrospectionIsOpenToEveryMember:
 
         assert response.status_code == 200
         assert response.json()["role"] == role.value
+        assert response.json()["run_agent_id"] is None
 
     @pytest.mark.parametrize("role", list(OrgRoleName), ids=lambda role: role.value)
     async def test_every_role_can_read_the_role_catalog(

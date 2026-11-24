@@ -382,7 +382,7 @@ describe("before-run attempts", () => {
       { wrapper },
     );
     expect(await screen.findByRole("heading", { name: "Before the agent started" })).toBeVisible();
-    expect(screen.getByText(/Enable Act as creator/)).toBeVisible();
+    expect(screen.getByText(/Turn on Run as me/)).toBeVisible();
     expect(screen.getByText(/did not start an agent run or incur model charges/)).toBeVisible();
     expect(screen.queryByText("Starting…")).toBeNull();
     expect(screen.queryByRole("link", { name: "Open run" })).toBeNull();
@@ -466,7 +466,7 @@ it("returns to the newest attempt page when another fire starts", async () => {
   );
   firing = true;
   view.rerender(<TriggerRunsView trigger={trigger()} activationId="requested-fire" />);
-  expect(await screen.findByText(/Enable Act as creator/)).toBeVisible();
+  expect(await screen.findByText(/Turn on Run as me/)).toBeVisible();
   expect(screen.queryByText("Starting…")).toBeNull();
 });
 

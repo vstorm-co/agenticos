@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities import load_builtins
 from app.agents.mcp import McpSourceIdentity
-from app.agents.spec import AgentSpec
+from app.agents.spec import AgentSpec, CapabilityBindingSpec
 from app.core.exceptions import AuthorizationError, BadRequestError, ConflictError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent import Agent, AgentVersion
@@ -996,6 +996,7 @@ async def test_instruction_edits_invalidate_review_tokens_and_standing_consent(
         db.add(skill)
         await db.flush()
         world.spec.skill_ids = [skill.id]
+        world.spec.capabilities = [*world.spec.capabilities, CapabilityBindingSpec(id="skills")]
         if binding == "resource":
             target = SkillResource(skill_id=skill.id, name="policy.md", content="Original policy")
             db.add(target)
@@ -1011,6 +1012,7 @@ async def test_instruction_edits_invalidate_review_tokens_and_standing_consent(
         db.add(target)
         await db.flush()
         world.spec.context_ids = [target.id]
+        world.spec.capabilities = [*world.spec.capabilities, CapabilityBindingSpec(id="context")]
     else:
         target = Project(
             organization_id=world.org.id,
@@ -1094,6 +1096,7 @@ async def test_recreated_skill_resource_cannot_reactivate_its_previous_consent(
     resource = SkillResource(skill_id=skill.id, name="policy.md", content="Original policy")
     db.add(resource)
     world.spec.skill_ids = [skill.id]
+    world.spec.capabilities = [*world.spec.capabilities, CapabilityBindingSpec(id="skills")]
     world.version.spec = world.spec.model_dump(mode="json")
     reviewed_sources(world.trigger, spec=world.spec, version_id=world.version.id)
     await db.flush()
@@ -1109,6 +1112,85 @@ async def test_recreated_skill_resource_cannot_reactivate_its_previous_consent(
     db.add(SkillResource(skill_id=skill.id, name="policy.md", content="Original policy"))
     await db.flush()
     assert (await authority.action_policy(world.agent.id, world.spec, tool())).consented_by is None
+
+
+async def test_a_skill_bound_while_skills_is_off_is_not_part_of_the_instructions(
+    db: AsyncSession, world: World
+) -> None:
+    """Editing a skill no run reads leaves standing consent alone; switching
+    `skills` on makes its text instructions, which then need consent again."""
+    from app.db.models.skill import Skill
+    from app.services.routine_actions import instruction_fingerprint
+
+    skill = Skill(
+        organization_id=world.org.id,
+        owner_user_id=world.ctx.user_id,
+        name="unread",
+        description="Unread",
+        content="Original",
+    )
+    db.add(skill)
+    await db.flush()
+    world.spec.skill_ids = [skill.id]
+    world.spec.capabilities = [
+        *world.spec.capabilities,
+        CapabilityBindingSpec(id="skills", enabled=False),
+    ]
+
+    async def fingerprint() -> str | None:
+        return await instruction_fingerprint(
+            db, organization_id=world.org.id, spec=world.spec, project_id=None
+        )
+
+    assert await fingerprint() is None
+    skill.content = "Changed"
+    skill.updated_at = datetime.now(UTC)
+    await db.flush()
+    assert await fingerprint() is None
+    world.spec.capabilities = [
+        binding.model_copy(update={"enabled": True}) if binding.id == "skills" else binding
+        for binding in world.spec.capabilities
+    ]
+    assert await fingerprint() is not None
+
+
+async def test_context_and_delegates_kept_while_switched_off_are_not_instructions(
+    db: AsyncSession, world: World
+) -> None:
+    """A context file no run reads and a delegate no run reaches add nothing to
+    the instructions consent covers; switched on, the delegate is walked again."""
+    from app.agents.spec import SubagentRef
+    from app.db.models.context import ContextFile
+    from app.services.routine_actions import instruction_fingerprint
+
+    context = ContextFile(
+        organization_id=world.org.id,
+        owner_user_id=world.ctx.user_id,
+        name="unread",
+        content="Original",
+    )
+    db.add(context)
+    await db.flush()
+    world.spec.context_ids = [context.id]
+    world.spec.subagents = [SubagentRef(agent_id=uuid4(), agent_version_id=uuid4())]
+    world.spec.capabilities = [
+        *world.spec.capabilities,
+        CapabilityBindingSpec(id="context", enabled=False),
+        CapabilityBindingSpec(id="subagents", enabled=False),
+    ]
+
+    async def fingerprint() -> str | None:
+        return await instruction_fingerprint(
+            db, organization_id=world.org.id, spec=world.spec, project_id=None
+        )
+
+    assert await fingerprint() is None
+    world.spec.capabilities = [
+        binding.model_copy(update={"enabled": True}) if binding.id == "subagents" else binding
+        for binding in world.spec.capabilities
+    ]
+    with pytest.raises(BadRequestError):
+        await fingerprint()
 
 
 @pytest.mark.parametrize("binding", ["skill", "context"])
@@ -1150,6 +1232,7 @@ async def test_delegate_instruction_edits_invalidate_the_parent_fingerprint(
         name="Delegate",
         context_ids=[target.id] if binding == "context" else [],
         skill_ids=[target.id] if binding == "skill" else [],
+        capabilities=[CapabilityBindingSpec(id="skills" if binding == "skill" else "context")],
     )
     version = AgentVersion(
         organization_id=world.org.id,
@@ -1160,6 +1243,7 @@ async def test_delegate_instruction_edits_invalidate_the_parent_fingerprint(
     db.add(version)
     await db.flush()
     world.spec.subagents = [SubagentRef(agent_id=child.id, agent_version_id=version.id)]
+    world.spec.capabilities = [*world.spec.capabilities, CapabilityBindingSpec(id="subagents")]
     before = await instruction_fingerprint(
         db, organization_id=world.org.id, spec=world.spec, project_id=None
     )
@@ -1312,7 +1396,6 @@ async def test_the_real_console_tool_obeys_routine_consent_and_explicit_agent_ga
     from app.agents.capabilities.approval import approval_required_tools
     from app.agents.capabilities.approval._capability import ApprovalGate
     from app.agents.deps import AgentDeps
-    from app.agents.spec import CapabilityBindingSpec
     from app.services.agent_runner import ApprovalChannel
 
     # Grant against the actual published version, then assemble its real toolset.

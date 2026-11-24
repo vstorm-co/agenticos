@@ -54,6 +54,7 @@ from app.repositories import (
     skill_version_repo,
     virtual_table_repo,
 )
+from app.repositories import tool_output_report as tool_output_report_repo
 from app.repositories import workflow_run as workflow_run_repo
 from app.services.conversation import ConversationService
 
@@ -303,6 +304,13 @@ TENANT_REQUIRED = [
     (skill_version_repo, "forks_served_since"),
     (workflow_run_repo, "try_lock_run"),
     (workflow_run_repo, "list_called_run_ids"),
+    (tool_output_report_repo, "list_runs"),
+    (tool_output_report_repo, "list_call_sizes"),
+    (tool_output_report_repo, "count_turns"),
+    (tool_output_report_repo, "list_requests"),
+    (tool_output_report_repo, "list_version_capabilities"),
+    (tool_output_report_repo, "list_inherited_sizes"),
+    (tool_output_report_repo, "list_parked"),
 ]
 
 # Deliberately unscoped, each documented at its definition.

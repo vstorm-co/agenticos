@@ -1,5 +1,5 @@
 ---
-source_sha: "def479e6997c"
+source_sha: "c5fdb378622e"
 ---
 
 # Governance { #governance }
@@ -73,6 +73,8 @@ Powiadomienie o zakończeniu wskazuje rozmowę dopiero po udanym dostarczeniu.
 
 `last_delivery_status` rozróżnia dostarczenie, sam log, brak odpowiedzi i niezakończony przebieg; stare wpisy pozostają nieznane do kolejnego wykonania. Migracja `0265_trigger_delivery_status.py` dodaje ten stan bez zgadywania wcześniejszych sukcesów.
 
+Dla rutyny utworzonej w czacie prywatnym w komunikatorze, która otwiera nowy czat dla każdego uruchomienia (`chat_mode=per_run`), status to `pending`, dopóki bot nie opublikuje odpowiedzi, a potem `delivered` albo `unavailable` z powiadomieniem właściciela. Migracja `0363_trigger_delivery_pending.py` dodaje `pending`; jej cofnięcie odczytuje `pending` jako `delivered`. Zobacz [Odpowiedzi rutyn w czacie prywatnym](channels.md#routine-answers-in-a-private-chat).
+
 Ustaw `ends_at` z przesunięciem UTC dla pracy ograniczonej w czasie oraz
 `monthly_budget_usd` dla niższego limitu miesięcznego. Narzędzie aktualizacji
 MCP pozwala usunąć oba ustawienia. Zwykły klucz API nie może upoważnić rutyny
@@ -97,7 +99,7 @@ Formularz rutyny pozwala ustawić lub usunąć datę zakończenia. Data używa p
 
 Rutyna przed każdym narzędziem ponownie sprawdza twórcę, aktywne członkostwo, rolę i granty uruchamiania, także w delegacjach i po zatwierdzeniu. Pauza, usunięcie, wygaśnięcie, cofnięcie zgody na osobiste konta lub zmiana tych uprawnień odmawia kolejnych wywołań. Kontrola nie cofa efektu już wysłanego do zewnętrznej usługi. Migracja `0260_routine_run_origin` zachowuje pochodzenie po usunięciu rutyny; starszy zaparkowany harmonogram, który utracił pochodzenie, jest odrzucany zamiast pożyczać uprawnienia zatwierdzającego.
 
-Wbudowany serwer MCP AgenticOS wymaga opcji **Działaj jako twórca**, również gdy używa go opublikowany delegat. Bez tożsamości użytkownika przegląd źródeł i tworzenie procedury odrzucają tę konfigurację z jasnym wyjaśnieniem. Włącz tę opcję albo usuń powiązanie platformowego MCP z agenta i jego delegatów. Platforma nigdy nie pożycza automatycznie tożsamości twórcy.
+Wbudowany serwer MCP AgenticOS wymaga opcji **Uruchamiaj jako ja**, również gdy używa go opublikowany delegat. Bez tożsamości użytkownika przegląd źródeł i tworzenie procedury odrzucają tę konfigurację z jasnym wyjaśnieniem. Włącz tę opcję albo usuń powiązanie platformowego MCP z agenta i jego delegatów. Platforma nigdy nie pożycza automatycznie tożsamości twórcy.
 
 Historia procedury pokazuje też zablokowane i nieudane próby zakończone przed utworzeniem runu agenta. Każda ma czas, etap i wskazówkę naprawy. Nie naliczają kosztów modelu ani nie zawierają promptów, błędów dostawcy lub poświadczeń. Rekordy pozostają do usunięcia procedury lub organizacji. Błąd dostarczenia powiadomienia nie usuwa historii. Zadanie workera fire-trigger zapisuje osobny wynik zablokowany lub nieudany; zakończenie zadania kolejki nie oznacza poprawnego uruchomienia agenta.
 
@@ -2536,6 +2538,8 @@ Lista pokazuje automatyczne wstrzymanie i liczbę błędów. Metadane zachowują
 ## Zatwierdzone źródła rutyn { #routine-sources }
 
 Nowe rutyny automatycznie zatwierdzają początkową dostępną konfigurację opublikowanego agenta w granicach bieżących uprawnień twórcy. Bezpieczne usunięcia źródeł oraz zmiany samego modelu lub etykiet głównego agenta nie wymagają przeglądu. Nowe źródła, konta i narzędzia, zmienione instrukcje lub zmienne oraz zmiany capabilities, faktycznie używanych skilli, kontekstu i delegowanego zachowania wymagają przeglądu dostępu przez właściciela przed kolejnym wykonaniem. Sama publikacja współdzielonego agenta nie rozszerza stałych uprawnień osoby. Brak opcjonalnego konta MCP nie blokuje innej pracy; wymagane wejścia zdarzeń, tożsamość, uprawnienia, budżety i obowiązkowe zatwierdzenia nadal obowiązują.
+
+Wyłączona capability i to, do czego sięga tylko ona - skille przy wyłączonej **Skills**, pliki kontekstu przy wyłączonej **Context**, kolekcje przy wyłączonej **Knowledge**, delegaci i zdalni agenci przy wyłączonej **Subagents** - nie są źródłami: żaden run do nich nie sięga, więc przegląd ich nie wymienia, usunięcie któregoś nie blokuje rutyny, a edycja takiego skilla lub pliku kontekstu nie wymaga nowej zgody. Włączenie capability to nowe źródło i wymaga przeglądu.
 
 Zmiana przypiętej wersji delegata wymaga przeglądu, także gdy jego publikacja zmienia tylko model.
 

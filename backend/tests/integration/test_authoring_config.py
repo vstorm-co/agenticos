@@ -18,6 +18,7 @@ from app.db.models.agent_run import AgentRun
 from app.db.models.authoring import HunkKind, HunkOrigin, SpecProposalHunk
 from app.db.models.context import ContextFile
 from app.db.models.credential import ModelProfile
+from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.db.models.mcp_connection import McpConnection
 from app.schemas.authoring import FieldChange
 from app.services.agent_registry import AgentRegistryService
@@ -273,3 +274,57 @@ async def test_widening_any_binding_names_the_tools_it_adds_and_those_that_may_w
             "writes": ["create_agent_draft"],
         },
     ]
+
+
+async def test_the_collections_offered_are_only_those_an_agent_may_bind(db):
+    """Publish binds a base of the caller's organization alone, so the improver is offered
+    neither an app-scoped base nor the caller's own base made in another organization."""
+    ctx = await _owner(db)
+    elsewhere = await _owner(db)
+
+    def base(**values: Any) -> KnowledgeBase:
+        return KnowledgeBase(
+            id=uuid.uuid4(),
+            collection_name=f"c_{uuid.uuid4().hex[:12]}",
+            embedding_model="text-embedding-3-small",
+            embedding_dim=1536,
+            **values,
+        )
+
+    ours = base(
+        name="Ours",
+        scope=KBScope.ORG.value,
+        organization_id=ctx.organization_id,
+        owner_user_id=ctx.user_id,
+        visibility="org",
+    )
+    mine = base(
+        name="Mine",
+        scope=KBScope.PERSONAL.value,
+        organization_id=ctx.organization_id,
+        owner_user_id=ctx.user_id,
+    )
+    app_wide = base(name="Manual", scope=KBScope.APP.value, organization_id=None)
+    other_org = base(
+        name="Theirs",
+        scope=KBScope.ORG.value,
+        organization_id=elsewhere.organization_id,
+        owner_user_id=elsewhere.user_id,
+        visibility="org",
+    )
+    mine_elsewhere = base(
+        name="Mine elsewhere",
+        scope=KBScope.PERSONAL.value,
+        organization_id=elsewhere.organization_id,
+        owner_user_id=ctx.user_id,
+    )
+    db.add_all([ours, mine, app_wide, other_org, mine_elsewhere])
+    await db.flush()
+
+    text = await ConfigurationService(db).describe(ctx, _spec(await _connection(db, ctx)))
+    offered = text.split("Collections (collection_ids):\n", 1)[1]
+
+    assert f"- {ours.id}: Ours" in offered
+    assert f"- {mine.id}: Mine" in offered
+    for refused in (app_wide, other_org, mine_elsewhere):
+        assert str(refused.id) not in offered

@@ -1,5 +1,5 @@
 ---
-source_sha: "758431de6963"
+source_sha: "9a33f1c990a8"
 ---
 
 # Uprawnienia { #permissions }
@@ -648,7 +648,7 @@ wpuściła, stworzonej przez kogoś, kto rolę jednak miał.
 
 | Endpoint | Odpowiada |
 | --- | --- |
-| `GET /me/permissions` | rolą wywołującego, `is_app_admin` oraz każdym uprawnieniem wraz z jego scope'em |
+| `GET /me/permissions` | rolą wywołującego, `is_app_admin`, każdym uprawnieniem wraz z jego scope'em oraz, dla poświadczenia przebiegu agenta, `run_agent_id` |
 | `GET /roles/catalog` | całym katalogiem i tym, co pakuje w sobie każda rola |
 
 Oba są **wygodą dla interfejsu i niczym więcej**. Serwer sprawdza każde
