@@ -1,4 +1,6 @@
 "use client";
+
+import { NativeDisclosure } from "@/components/ui/native-disclosure";
 import { MarkdownContent } from "@/components/chat/markdown-content";
 
 import Link from "next/link";
@@ -212,7 +214,7 @@ function TopicCard({ items }: { items: ImprovementEvidenceItem[] }) {
   const comments = items.flatMap((each) => each.comments);
   return (
     <article className="bg-background rounded-xl border text-sm">
-      <details>
+      <NativeDisclosure>
         <summary className="hover:bg-muted/50 cursor-pointer space-y-1.5 rounded-xl p-3">
           <span className="line-clamp-2 font-medium break-words">
             {item.question || t("unavailableAnswer")}
@@ -289,7 +291,7 @@ function TopicCard({ items }: { items: ImprovementEvidenceItem[] }) {
             </div>
           )}
         </div>
-      </details>
+      </NativeDisclosure>
     </article>
   );
 }

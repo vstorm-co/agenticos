@@ -53,6 +53,35 @@ async function expectRunsOn(
 }
 
 test.describe("Models", () => {
+  test("model fields keep their geometry when pressed and opened", async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    await openAgent(page, DRAFT_AGENT_NAME);
+    await selectSavedModel(page, SEEDED_MODEL_LABEL);
+
+    for (const suffix of ["-add-model-provider", "-add-model-id"]) {
+      const field = page.locator(`[id$="${suffix}"]:visible`);
+      const before = await field.boundingBox();
+      expect(before).not.toBeNull();
+      await field.hover();
+      await page.mouse.down();
+      try {
+        await expect(field).toHaveCSS("scale", "none");
+        const pressed = await field.boundingBox();
+        expect(pressed?.width).toBeCloseTo(before?.width ?? 0, 1);
+        expect(pressed?.x).toBeCloseTo(before?.x ?? 0, 1);
+      } finally {
+        await page.mouse.up();
+      }
+      await expect(field).toHaveAttribute("aria-expanded", "true");
+      await page.keyboard.press("Escape");
+      await expect(field).toHaveAttribute("aria-expanded", "false");
+      await field.focus();
+      await page.keyboard.press("Enter");
+      await expect(field).toHaveAttribute("aria-expanded", "true");
+      await page.keyboard.press("Escape");
+    }
+  });
+
   test("names the provider and the model id of what the agent runs on", async ({ page }) => {
     // A label is worth nothing on its own: `openai · gpt-4.1` is the pair that
     // decides which API is called and what the run costs, and it is the pair
@@ -92,11 +121,16 @@ test.describe("Models", () => {
     // by its label so this contract survives harmless field-id changes.
     const key = page.getByRole("combobox", { name: "Key", exact: true });
     const automaticKey = page.getByText(FAKE_KEY_LABEL, { exact: true });
+    // The key lives under the collapsed "Connection settings" disclosure.
+    const access = page.getByRole("button", { name: /^Connection settings/ });
+    if (!(await key.isVisible()) && (await access.count()) > 0) await access.first().click();
     await expect(key.or(automaticKey).first()).toBeVisible();
     if (await key.isVisible()) {
       await key.click();
       await page.getByRole("option", { name: new RegExp(FAKE_KEY_LABEL) }).click();
-      await expect(key).toContainText(FAKE_KEY_LABEL);
+      // The chosen key reads back from the control itself, whatever its name becomes
+      // once it holds a value.
+      await expect(page.locator('[id$="-add-model-key"]:visible')).toContainText(FAKE_KEY_LABEL);
     } else {
       // A sole matching key is selected automatically and named in the form.
       await expect(automaticKey).toBeVisible();

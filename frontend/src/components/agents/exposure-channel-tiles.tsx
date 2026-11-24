@@ -24,6 +24,7 @@ const PLATFORMS: readonly ExposureSurface[] = [
   "imessage",
 
   "discord",
+  "matrix",
 ];
 
 export const SURFACE_LABEL: Record<ExposureSurface, string> = {
@@ -39,6 +40,7 @@ export const SURFACE_LABEL: Record<ExposureSurface, string> = {
   imessage: "iMessage",
 
   discord: "Discord",
+  matrix: "Matrix",
 };
 
 const TILE =

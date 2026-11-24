@@ -114,7 +114,9 @@ export function entryForConnection(
  * connection that was never authorized has no credentials at all, so reporting
  * it as "disabled" or as a stale error would send someone to the wrong control.
  */
-export function connectionState(connection: McpConnectionRecord | null): McpConnectionState {
+export function connectionState(
+  connection: Pick<McpConnectionRecord, "authorized" | "is_enabled" | "last_status"> | null,
+): McpConnectionState {
   if (!connection) return "not-connected";
   // The server's own answer to whether the credential can be used, so every
   // surface that renders a connection agrees with `ownAccountStatus` and the run
@@ -251,27 +253,60 @@ export function rowsForEntries(
   });
 }
 
-/**
- * What a tool picker's state means as an allowlist: a list, or unrestricted.
- *
- * Null means "no narrowing from here", so tools the server adds later flow
- * through instead of silently staying off. It is only honest to write when the
- * catalogue on screen was a real probe.
- *
- * `probed` is the whole reason this is a function. A connection nothing has
- * probed has no catalogue, so the picker falls back to displaying the names the
- * binding already holds - and then "everything is checked" is true by
- * construction. Saving without touching anything rewrote a reviewed subset to
- * unrestricted, quietly handing the agent every tool the connection permits,
- * including write and destructive ones added since.
- */
+/** Checkboxes edit today's tools. Only the explicit future-tools switch can open a pinned list. */
 export function narrowedSelection(
-  checked: Set<string>,
+  checked: ReadonlySet<string>,
   tools: readonly { name: string }[],
-  probed: boolean,
+  previous: string[] | null,
 ): string[] | null {
-  if (probed && checked.size === tools.length) return null;
-  return [...checked];
+  const before = new Set(previous ?? tools.map((tool) => tool.name));
+  if (before.size === checked.size && [...before].every((name) => checked.has(name))) {
+    return previous;
+  }
+  return [
+    ...[...before].filter((name) => checked.has(name)),
+    ...[...checked].filter((name) => !before.has(name)),
+  ];
+}
+
+/** Identify a binding independently of its allowlist and approval settings. */
+export function bindingKey(ref: McpServerRef): string {
+  if (ref.account === "platform") return "platform";
+  return ref.account === "personal"
+    ? `personal:${ref.catalog_key}`
+    : `organization:${ref.connection_id}`;
+}
+
+/** Save a tool picker without rewriting an unchanged or removed binding. */
+export function applyMcpToolSelection(
+  bindings: McpServerRef[],
+  key: string | null,
+  checked: ReadonlySet<string>,
+  tools: readonly { name: string }[],
+): McpServerRef[] {
+  const binding = bindings.find((one) => bindingKey(one) === key);
+  if (binding === undefined) return bindings;
+  const allowed_tools = narrowedSelection(checked, tools, binding.allowed_tools);
+  if (allowed_tools === binding.allowed_tools) return bindings;
+  return bindings.map((one) => (one === binding ? { ...one, allowed_tools } : one));
+}
+
+export interface McpBindingSlot {
+  index: number;
+  binding: McpServerRef;
+}
+
+/** Restore bindings from a switch-off in this editor session, without changing other rows. */
+export function restoreMcpBindings(
+  current: McpServerRef[],
+  removed: readonly McpBindingSlot[],
+): McpServerRef[] {
+  const next = current.slice();
+  const existing = new Set(current.map(bindingKey));
+  for (const { index, binding } of removed) {
+    if (!existing.has(bindingKey(binding))) next.splice(index, 0, binding);
+  }
+  return next;
 }
 
 /** Connections outside a complete catalog, for pickers and bookmarked accounts. */

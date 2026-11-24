@@ -34,10 +34,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW = REPO_ROOT / ".github" / "workflows" / "ci.yml"
 MAKEFILE = REPO_ROOT / "Makefile"
 
-# The ceiling on any one job's `timeout-minutes`. Set against the slowest job this
-# workflow runs - `test`, which runs the suite twice. The 18,711-test native-client
-# branch reached only 72% of its first pass within 45 minutes on two workers;
-# four workers and 90 minutes leave room for both passes without an unbounded job.
+# Leave room for cold runs while retaining a bound on every CI job.
 MAX_TIMEOUT_MINUTES = 90
 
 

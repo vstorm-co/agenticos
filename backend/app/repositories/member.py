@@ -4,7 +4,8 @@ from datetime import datetime
 from typing import Any, Literal, NamedTuple
 from uuid import UUID
 
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import and_, cast, func, null, or_, select, update
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.agent import Agent
@@ -606,3 +607,65 @@ async def find_active(
         .order_by(User.email)
     )
     return [(row[0], row[1], row[2]) for row in result.all()]
+
+
+async def set_console_preferences(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    user_id: UUID,
+    changes: dict[str, bool | None] | None,
+) -> OrganizationMember:
+    """Atomically patch one membership; null clears inheritance overrides."""
+    value = (
+        null()
+        if changes is None
+        else func.jsonb_strip_nulls(
+            func.coalesce(OrganizationMember.chat_home_preferences, cast({}, JSONB)).op("||")(
+                cast(changes, JSONB)
+            )
+        )
+    )
+    result = await db.execute(
+        update(OrganizationMember)
+        .where(
+            OrganizationMember.organization_id == organization_id,
+            OrganizationMember.user_id == user_id,
+        )
+        .values(chat_home_preferences=value)
+        .returning(OrganizationMember)
+        .execution_options(populate_existing=True)
+    )
+    await db.flush()
+    return result.scalar_one()
+
+
+async def set_onboarding_reminders(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    user_id: UUID,
+    changes: dict[str, bool | int | None] | None,
+) -> OrganizationMember:
+    """Atomically patch one membership; null clears inheritance overrides."""
+    value = (
+        null()
+        if changes is None
+        else func.jsonb_strip_nulls(
+            func.coalesce(OrganizationMember.onboarding_reminders, cast({}, JSONB)).op("||")(
+                cast(changes, JSONB)
+            )
+        )
+    )
+    result = await db.execute(
+        update(OrganizationMember)
+        .where(
+            OrganizationMember.organization_id == organization_id,
+            OrganizationMember.user_id == user_id,
+        )
+        .values(onboarding_reminders=value)
+        .returning(OrganizationMember)
+        .execution_options(populate_existing=True)
+    )
+    await db.flush()
+    return result.scalar_one()

@@ -1,5 +1,5 @@
 ---
-source_sha: "9fe09e5e598b"
+source_sha: "2738919b34a2"
 ---
 
 # Branches und was sie schützt { #branches-and-what-protects-them }
@@ -204,7 +204,8 @@ dabei aussieht, steht weiter unten.
 | `Security Scan` | 10 | 14s |
 | `docs` | 15 | 4m34s |
 | `test-frontend` | 45 | 20m07s |
-| `test` | 90 | 22m25s |
+| `test-shard` | 45 | — |
+| `test` | 15 | — |
 | `e2e` | 25 | 8m01s |
 
 Die meisten Zeiten stammen aus Lauf 31116003994, einer vollen Matrix auf
@@ -382,6 +383,22 @@ kostet einen Klick statt eines Aufsatzes.
   `main`-Lauf einen anderen abbricht.
 
 ## Release-Cuts und gemeinsame Releases { #release-cuts-and-release-trains }
+
+Behalte separate PRs und bereite bei Änderungen in Unreleased **ein manuelles
+Release pro Tag** vor. Es gibt keinen geplanten Cut und keine automatische
+Veröffentlichung. Der Teamablauf:
+
+1. Nutze während der Entwicklung Entwürfe, gezielte lokale Tests und leichte CI-Prüfungen.
+2. Markiere den PR als Ready for review, um das vollständige passende CI und CodeQL zu starten.
+3. Merge jeden geprüften PR mit grünen Checks einzeln. Warte nicht auf das Release des vorherigen PRs.
+4. Bereite einmal täglich einen Cut aller gemergten Unreleased-Änderungen vor. Funktionen und inkompatible Änderungen erfordern Minor, reine Fehlerkorrekturen Patch.
+5. Verlange vor der Veröffentlichung erfolgreiches CI und CodeQL für die Merge-SHA des Cuts, einschließlich zulässiger Wiederverwendung geprüfter Ergebnisse. Veröffentliche Release und Tag zusammen. Das Produktionsdeployment behält seine separate Freigabe.
+6. Veröffentliche dringende Hotfixes sofort außerhalb des Tagesrhythmus mit demselben Review, Prüfungen, Cut und Freigabeprozess.
+
+Gestapelte PRs werden in Abhängigkeitsreihenfolge gemergt und können ein Release
+teilen. Unabhängige Änderungen brauchen keinen gemeinsamen großen PR. Jeder
+bereite PR und jeder Source-Merge führt weiterhin das passende CI aus: Gemeinsame
+Releases reduzieren Release-Aufwand, nicht die Validierung jeder Änderung.
 
 Zuerst die Feature-PRs mergen, danach einen Cut für die Gruppe vorbereiten.
 Der größte enthaltene Versionssprung entscheidet: `make release-cut BUMP=patch`

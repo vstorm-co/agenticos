@@ -14,12 +14,13 @@ anything the storage backend holds.
 
 from typing import Any
 
-from fastapi import APIRouter, File, UploadFile
+from fastapi import APIRouter, Depends, File, UploadFile
 
-from app.api.deps import CurrentAppAdmin, DeploymentSettingsSvc
+from app.api.deps import CurrentAppAdmin, DeploymentSettingsSvc, require_deployment_mcp_scope
+from app.api.public_api import ASSISTANT
 from app.schemas.deployment_settings import DeploymentSettingsRead, DeploymentSettingsUpdate
 
-router = APIRouter()
+router = APIRouter(dependencies=[ASSISTANT, Depends(require_deployment_mcp_scope)])
 
 
 @router.get("", response_model=DeploymentSettingsRead)

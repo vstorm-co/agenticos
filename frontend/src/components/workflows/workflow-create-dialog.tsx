@@ -132,7 +132,7 @@ export function WorkflowCreateDialog({
         if (!busy) onOpenChange(next);
       }}
     >
-      <DialogContent className={cn(DIALOG_COLUMN, DIALOG_FORM)}>
+      <DialogContent data-workflow-fields className={cn(DIALOG_COLUMN, DIALOG_FORM)}>
         <DialogHeader>
           <DialogTitle>{t("createDialogTitle")}</DialogTitle>
           <DialogDescription>{agent("startsAsDraftNothing")}</DialogDescription>
@@ -166,6 +166,7 @@ export function WorkflowCreateDialog({
               <Label htmlFor="workflow-create-name">{t("createName")}</Label>
               <Input
                 id="workflow-create-name"
+                data-initial-focus
                 value={name}
                 onChange={(event) => setName(event.target.value)}
                 maxLength={128}

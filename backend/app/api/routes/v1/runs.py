@@ -598,14 +598,19 @@ async def retry_run(run_id: UUID, service: AgentRunnerSvc, ctx: Auth) -> Any:
 
 
 @router.get("/runs/{run_id}/questions", response_model=list[ParkedQuestion])
-async def get_parked_questions(run_id: UUID, service: AgentRunnerSvc, ctx: Auth) -> Any:
+async def get_parked_questions(
+    run_id: UUID, service: AgentRunnerSvc, ctx: Auth, conversation_id: UUID | None = None
+) -> Any:
     """The questions this run is waiting on you to answer (#2064).
 
     A run whose agent asked something you left unanswered parks, and reopening the
     conversation is where the card comes back - the frame that carried it live
     went with the page. Empty unless the run is waiting on *your* answer.
+    A conversation deep link can require the run to belong to that conversation.
     """
     run = await service.get_run(ctx, run_id)
+    if conversation_id is not None and run.conversation_id != conversation_id:
+        return []
     return await service.parked_questions(ctx, run)
 
 

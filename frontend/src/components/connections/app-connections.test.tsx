@@ -164,6 +164,7 @@ describe("real app connection journey", () => {
     await userEvent.click(screen.getByRole("button", { name: "Connect Gmail" }));
     const dialog = screen.getByRole("dialog");
     expect(within(dialog).getByText(/Review the exact permissions/)).toBeVisible();
+    expect(within(dialog).getByText(/sign-in page comes from Composio/)).toBeVisible();
     await userEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(apiClient.post).not.toHaveBeenCalled();
@@ -187,6 +188,7 @@ describe("real app connection journey", () => {
     expect(
       within(dialog).getByText(/Review the exact permissions on the provider's consent screen/),
     ).toBeVisible();
+    expect(within(dialog).queryByText(/sign-in page comes from Composio/)).toBeNull();
     expect(apiClient.post).not.toHaveBeenCalled();
     await userEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
     expect(apiClient.post).not.toHaveBeenCalled();
@@ -294,6 +296,42 @@ describe("real app connection journey", () => {
     await userEvent.click(screen.getByRole("button", { name: "Choose apps" }));
     expect(screen.getByRole("button", { name: "Connect Google Calendar" })).toBeDisabled();
     expect(apiClient.post).not.toHaveBeenCalled();
+  });
+
+  it("names who can fix an unconfigured app and what to ask for", async () => {
+    data([], false);
+    mount();
+    expect(await screen.findByText("App connections are not configured yet")).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "Choose apps" }));
+    expect(screen.getAllByText(/Ask your administrator to add/)).toHaveLength(4);
+    expect(screen.getByText(/add Gmail's sign-in details/)).toBeVisible();
+    const links = screen.getAllByRole("link", { name: /How an administrator sets this up/ });
+    expect(links).toHaveLength(4);
+    for (const link of links) {
+      expect(link).toHaveAttribute(
+        "href",
+        "https://github.com/t3grp/agenticos/blob/t3/integrations/composio/README.md",
+      );
+    }
+  });
+
+  it("keeps an unavailable app's plain hint without a setup link", async () => {
+    vi.mocked(apiClient.get).mockImplementation(async (url) =>
+      url.endsWith("/catalog")
+        ? {
+            configured: true,
+            catalog_available: true,
+            apps: [{ ...apps[0], configured: false, availability: "unavailable" }],
+            next_cursor: null,
+          }
+        : { items: [], total: 0 },
+    );
+    mount();
+    await userEvent.click(await screen.findByRole("button", { name: "Choose apps" }));
+    expect(
+      screen.getByText("This integration does not support connecting an account here."),
+    ).toBeVisible();
+    expect(screen.queryByRole("link", { name: /How an administrator sets this up/ })).toBeNull();
   });
 
   it("does not present a sample result or runnable task for an unverified account", async () => {

@@ -157,16 +157,16 @@ for (const platform of ["ios", "android"] as const) {
       await expect(dialog).toBeHidden();
 
       await page.goto("/chat");
-      await page.getByRole("button", { name: "Add to message", exact: true }).tap();
-      const attachmentSheet = page.getByRole("dialog");
-      await expect(attachmentSheet).toBeVisible();
-      const picker = attachmentSheet.getByRole("button", { name: /^Agent:/ });
+      const picker = page.getByRole("button", { name: /^Agent:/ });
       await expectTouchTarget(picker);
       await picker.tap();
       await expect(page.getByRole("radiogroup")).toBeVisible();
       await page.keyboard.press("Escape");
+      await page.getByRole("button", { name: "Add to message", exact: true }).tap();
       await expect(
-        page.getByRole("dialog").getByRole("button", { name: "Files", exact: true }),
+        page
+          .locator("[data-chat-popover]")
+          .getByRole("button", { name: "Attach file", exact: true }),
       ).toBeVisible();
       await page.keyboard.press("Escape");
       await expectContained(page);
@@ -357,7 +357,7 @@ for (const platform of ["ios", "android"] as const) {
       for (const width of [320, 390]) {
         await page.setViewportSize({ width, height: 844 });
         await page.goto(href);
-        const controls = page.getByRole("button", { name: "App controls", exact: true });
+        const controls = page.getByRole("button", { name: "Page controls", exact: true });
         await expectTouchTarget(controls);
         const floating = await controls.boundingBox();
         if (!floating) throw new Error("Expected the floating app controls");

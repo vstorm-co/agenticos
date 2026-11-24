@@ -1,5 +1,9 @@
 "use client";
 
+import { canonicalParts, mergeToolCall } from "@/lib/turn-timeline";
+
+import { retainQuestionAnswerResult } from "@/lib/question-answers";
+import { toolLookupName } from "@/lib/tool-identity";
 import { retainNextSteps } from "@/lib/next-step-events";
 
 import { create, createStore, type StateCreator } from "zustand";
@@ -116,6 +120,24 @@ function plainTextAnswer(message: ChatMessage): boolean {
   );
 }
 
+/** Replayed partial receipts retain choices by invocation id, never by question wording. */
+function retainQuestionReceipts(saved: ChatMessage, previous: ChatMessage): ChatMessage {
+  const known = new Map((previous.toolCalls ?? []).map((call) => [call.id, call]));
+  const retain = (call: ToolCall): ToolCall => {
+    const before = known.get(call.id);
+    return before && toolLookupName(call) === "ask_user_question"
+      ? { ...call, result: retainQuestionAnswerResult(call.args, before.result, call.result) }
+      : call;
+  };
+  return {
+    ...saved,
+    toolCalls: saved.toolCalls?.map(retain),
+    parts: saved.parts?.map((part) =>
+      part.toolCall ? { ...part, toolCall: retain(part.toolCall) } : part,
+    ),
+  };
+}
+
 export interface ChatState {
   messages: ChatMessage[];
   /** Set atomically with the converted transcript, before its socket may attach. */
@@ -215,9 +237,12 @@ function reconcileTranscript(
           ? { ...message, persistedId: id }
           : {
               ...retainNextSteps(
-                persisted.isPinned === undefined && message.isPinned !== undefined
-                  ? { ...persisted, isPinned: message.isPinned }
-                  : persisted,
+                retainQuestionReceipts(
+                  persisted.isPinned === undefined && message.isPinned !== undefined
+                    ? { ...persisted, isPinned: message.isPinned }
+                    : persisted,
+                  message,
+                ),
                 message,
               ),
               renderKey: message.renderKey ?? message.id,
@@ -302,7 +327,7 @@ const chatState: StateCreator<ChatState> = (set) => ({
           ? {
               ...msg,
               toolCalls: msg.toolCalls?.map((tc) =>
-                tc.id === toolCallId ? { ...tc, ...update } : tc,
+                tc.id === toolCallId ? mergeToolCall(tc, update) : tc,
               ),
             }
           : msg,
@@ -345,8 +370,15 @@ const chatState: StateCreator<ChatState> = (set) => ({
         msg.id === messageId
           ? {
               ...msg,
-              parts: [...(msg.parts ?? []), { id: clientId(), type: "tool", toolCall }],
-              toolCalls: [...(msg.toolCalls || []), toolCall],
+              parts: canonicalParts([
+                ...(msg.parts ?? []),
+                { id: clientId(), type: "tool", toolCall },
+              ]),
+              toolCalls: msg.toolCalls?.some((call) => call.id === toolCall.id)
+                ? msg.toolCalls.map((call) =>
+                    call.id === toolCall.id ? mergeToolCall(call, toolCall) : call,
+                  )
+                : [...(msg.toolCalls ?? []), toolCall],
             }
           : msg,
       ),
@@ -360,11 +392,11 @@ const chatState: StateCreator<ChatState> = (set) => ({
               ...msg,
               parts: msg.parts?.map((p) =>
                 p.type === "tool" && p.toolCall && p.toolCall.id === toolCallId
-                  ? { ...p, toolCall: { ...p.toolCall, ...update } }
+                  ? { ...p, toolCall: mergeToolCall(p.toolCall, update) }
                   : p,
               ),
               toolCalls: msg.toolCalls?.map((tc) =>
-                tc.id === toolCallId ? { ...tc, ...update } : tc,
+                tc.id === toolCallId ? mergeToolCall(tc, update) : tc,
               ),
             }
           : msg,

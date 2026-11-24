@@ -284,6 +284,21 @@ def test_openbot_features_extend_the_published_chain_without_rewriting_it() -> N
         assert script is not None and script.down_revision == parent
 
 
+def test_personal_work_context_chains_after_the_deployed_t3_head() -> None:
+    # Upstream numbered this 0349 on its own line; T3 already shipped
+    # 0349_room_participants, so it sits after T3's 0354 head, which stays put.
+    chain = _chain()
+    personal = chain.get_revision("0349_personal_work_context")
+    assert personal is not None
+    assert personal.down_revision == "0354_drop_user_theme_look"
+    for revision, parent in {
+        "0349_room_participants": "0348_approval_expired_notice",
+        "0354_drop_user_theme_look": "0348_architect_generated_avatar",
+    }.items():
+        script = chain.get_revision(revision)
+        assert script is not None and script.down_revision == parent
+
+
 # `alembic_version.version_num` is `VARCHAR(32)`, which alembic creates and never
 # widens. A longer id is not refused when the file is written or when the chain is
 # read - it is refused by the *database*, after the migration's DDL has run, on the

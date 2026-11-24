@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { KeyboardEvent, ReactNode, RefObject } from "react";
+import type { CSSProperties, KeyboardEvent, ReactNode, RefObject } from "react";
 import { Maximize2 } from "lucide-react";
 
 import { MarkdownContent } from "@/components/chat/markdown-content";
@@ -21,6 +21,8 @@ interface MarkdownEditorProps {
   label: string;
   placeholder?: string;
   rows?: number;
+  /** Initial height of the inline editor; the expanded editor stays unconstrained. */
+  editorHeight?: CSSProperties["height"];
   disabled?: boolean;
   id?: string;
   /**
@@ -63,6 +65,8 @@ interface MarkdownEditorProps {
   suggestions?: ReactNode;
   /** Heading and caller-owned controls sharing the editor toolbar. */
   toolbar?: ReactNode;
+  /** Fit document view actions beside a caller-owned compact section heading. */
+  compactToolbar?: boolean;
   /**
    * Draw images in the preview as links instead of fetching them, for text a
    * caller did not write - a model's, or another person's - where an image is a
@@ -93,6 +97,7 @@ export function MarkdownEditor({
   describedBy,
   placeholder,
   rows = 10,
+  editorHeight,
   disabled,
   id,
   textareaRef,
@@ -102,6 +107,7 @@ export function MarkdownEditor({
   inertImages,
   suggestions,
   toolbar,
+  compactToolbar = false,
 }: MarkdownEditorProps) {
   const t = useTranslations("ui");
   const [ownMode, setOwnMode] = useState<MarkdownMode>("source");
@@ -126,7 +132,7 @@ export function MarkdownEditor({
         <Button
           type="button"
           variant="ghost"
-          size="icon"
+          size={compactToolbar ? "icon-sm" : "icon"}
           data-tour="text-editor-expand"
           aria-label={t("expandEditor", { label })}
           onClick={() => setExpanded(true)}
@@ -140,7 +146,7 @@ export function MarkdownEditor({
         // by rows like the textarea it replaced, and still draggable taller.
         <div
           className="border-input bg-background resize-y overflow-hidden rounded-xl border"
-          style={{ height: `calc(${rows} * 1.5rem + 1.5rem + 2px)` }}
+          style={{ height: editorHeight ?? `calc(${rows} * 1.5rem + 1.5rem + 2px)` }}
         >
           <CodeArea
             name="field.md"
@@ -166,7 +172,7 @@ export function MarkdownEditor({
           role="region"
           aria-label={t("labelPreview", { label })}
           className="border-input resize-y overflow-auto rounded-xl border p-3"
-          style={{ height: `calc(${rows} * 1.5rem + 1.5rem + 2px)` }}
+          style={{ height: editorHeight ?? `calc(${rows} * 1.5rem + 1.5rem + 2px)` }}
         >
           {preview}
         </div>

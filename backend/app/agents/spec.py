@@ -1141,7 +1141,8 @@ class PlatformMcpServerRef(BaseModel):
 
     Its tools carry MCP's read-only hints, so a `writes` policy holds every
     call that changes something for a person's approval - which the Architect's
-    own template asks for.
+    own template asks for. Letting a change run unasked is a decision about one
+    named tool, in `tool_approval`, never the binding's default.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -1157,6 +1158,17 @@ class PlatformMcpServerRef(BaseModel):
             "Which of the platform's tools wait for a person to approve the call: "
             "`writes` (every tool that changes something) or `all`. `none` is held "
             "to `writes`: these tools act with the authority of whoever is asking"
+        ),
+    )
+    tool_approval: McpToolApproval = Field(
+        default_factory=dict,
+        exclude_if=lambda decided: not decided,
+        description=(
+            "Per-tool overrides on top of `approval`, keyed by the platform tool's "
+            "name - the names `allowed_tools` holds. `required` asks before that tool "
+            "and `never` lets it run unasked, a change included. A name the platform "
+            "does not offer is refused at publish. Left out of the stored spec while "
+            "no tool has one."
         ),
     )
 
@@ -1610,6 +1622,10 @@ class AgentSpec(BaseModel):
             "First messages the chat offers whoever opens this agent with nothing "
             "said yet - one click sends one. Up to four; none shows the chat's own"
         ),
+    )
+    show_starters: bool = Field(
+        default=True,
+        description="Show suggested first messages in an empty chat, including built-in suggestions.",
     )
     starter_titles: StarterTitles = Field(
         default_factory=dict,

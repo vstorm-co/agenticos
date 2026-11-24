@@ -149,7 +149,7 @@ export function StartRunDialog({
 
   return (
     <Dialog open={open} onOpenChange={changeOpen}>
-      <DialogContent className={cn(DIALOG_FORM, DIALOG_SCROLL)}>
+      <DialogContent data-workflow-fields className={cn(DIALOG_FORM, DIALOG_SCROLL)}>
         <DialogHeader>
           <DialogTitle>{t("startRunTitle")}</DialogTitle>
           <DialogDescription>{t("startRunDescription")}</DialogDescription>

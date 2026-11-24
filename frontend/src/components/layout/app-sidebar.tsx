@@ -35,8 +35,10 @@ import { stripLocale } from "@/lib/active-route";
 import { SidebarSearch } from "@/components/layout/sidebar-search";
 import { SidebarShell } from "@/components/layout/sidebar-shell";
 import { useMounted } from "@/hooks/use-mounted";
+import { useConnectionHealth } from "@/hooks/use-connection-health";
 import { useSuggestions } from "@/hooks/use-suggestions";
 import { usePendingApprovals } from "@/hooks/use-pending-approvals";
+import { useWaitingChatQuestions } from "@/hooks/use-waiting-chat-questions";
 import { useNavPins } from "@/hooks/use-nav-pins";
 import { usePermissions } from "@/hooks/use-permissions";
 import { buildNavLayout, navItemId } from "@/lib/nav-pins";
@@ -72,7 +74,7 @@ function NavLink({
       title={collapsed ? label : undefined}
       aria-label={collapsed ? label : undefined}
       className={cn(
-        "sidebar-nav-link touch:min-h-11 focus-visible:ring-ring relative flex shrink-0 items-center rounded-lg text-sm font-medium transition-colors duration-[var(--duration-fast)] outline-none focus-visible:ring-2 focus-visible:ring-inset",
+        "sidebar-nav-link touch:min-h-11 focus-visible:ring-ring relative flex shrink-0 items-center rounded-lg text-sm font-normal transition-colors duration-[var(--duration-fast)] outline-none focus-visible:ring-2 focus-visible:ring-inset",
         // One row height in both states, so collapsing the column moves no icon
         // up or down - the rail is the same list with its words taken away.
         collapsed ? "touch:min-w-11 h-9 w-9 justify-center" : "h-9 gap-2.5 px-2.5",
@@ -80,13 +82,14 @@ function NavLink({
         // on the page's own tile, not here: a column of coloured pills competed
         // with the content it points at.
         active
-          ? "bg-accent text-foreground"
+          ? "bg-accent text-foreground font-medium"
           : "text-foreground/80 hover:bg-foreground/5 hover:text-foreground",
       )}
     >
       <NavIcon icon={item.icon} />
       {collapsed ? null : <span className="truncate">{label}</span>}
       {item.count === "inbox" && <InboxCount collapsed={collapsed} />}
+      {item.count === "connectionHealth" && <ConnectionHealthCount collapsed={collapsed} />}
     </Link>
   );
 }
@@ -96,7 +99,8 @@ function InboxCount({ collapsed }: { collapsed: boolean }) {
   const t = useTranslations("nav");
   const { suggestions } = useSuggestions();
   const approvals = usePendingApprovals();
-  const waiting = suggestions.length + approvals.count;
+  const questions = useWaitingChatQuestions();
+  const waiting = suggestions.length + approvals.count + questions.count;
   if (waiting === 0) return null;
   const label = t("inboxCount", { count: waiting });
   return collapsed ? (
@@ -110,6 +114,29 @@ function InboxCount({ collapsed }: { collapsed: boolean }) {
       aria-label={label}
     >
       {waiting}
+    </span>
+  );
+}
+
+/** How many connections need attention: a number in the column, a dot on the rail. */
+function ConnectionHealthCount({ collapsed }: { collapsed: boolean }) {
+  const t = useTranslations("nav");
+  const { total } = useConnectionHealth();
+  if (total === 0) return null;
+  // Destructive, not muted like the inbox count: this is not something
+  // waiting, it is something broken, and the column should say so at a glance.
+  const label = t("connectionHealthCount", { count: total });
+  return collapsed ? (
+    <span
+      className="bg-destructive absolute top-1 right-1 h-1.5 w-1.5 rounded-full"
+      aria-label={label}
+    />
+  ) : (
+    <span
+      className="text-destructive ml-auto px-1 text-xs font-medium tabular-nums"
+      aria-label={label}
+    >
+      {total}
     </span>
   );
 }

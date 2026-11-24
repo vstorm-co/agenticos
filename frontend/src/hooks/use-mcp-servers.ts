@@ -91,10 +91,11 @@ export function useMcpCatalogPage(
   page: number,
   enabled = true,
   state: McpServerStateFilter = "all",
+  reviewedOnly = false,
 ) {
   const needle = query.trim();
   const { data, isLoading, isFetching, isPlaceholderData, error, refetch } = useQuery({
-    queryKey: qk.mcpServers.listPage(needle, category, auth, page, state),
+    queryKey: qk.mcpServers.listPage(needle, category, auth, page, state, reviewedOnly),
     enabled,
     queryFn: () =>
       apiClient.get<McpCatalog>(
@@ -102,6 +103,7 @@ export function useMcpCatalogPage(
           `&category=${encodeURIComponent(category)}` +
           `&auth=${encodeURIComponent(auth)}` +
           `&state=${state}` +
+          `&reviewed_only=${reviewedOnly}` +
           `&skip=${page * MCP_PAGE_SIZE}&limit=${MCP_PAGE_SIZE}`,
       ),
     ...DASHBOARD_FRESHNESS,
@@ -163,6 +165,9 @@ export function useMcpServers({ retryOnMount = true }: { retryOnMount?: boolean 
      * as "no servers", on the one deployment state that cannot be true.
      */
     error: catalog.error ?? personal.error,
+    retry: async () => {
+      await Promise.all([catalog.refetch(), personal.refresh()]);
+    },
     organization,
     personal,
     /** Tools discovered by a check in this session, keyed by connection id. */

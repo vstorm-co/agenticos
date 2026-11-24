@@ -70,7 +70,7 @@ describe("the tool approval dialog", () => {
   it("says what is waiting, and names each call", () => {
     mount([action("a-1", { tool_name: "run_python" })]);
 
-    expect(screen.getByText("Tool approval required")).toBeVisible();
+    expect(screen.getByRole("group", { name: "Tool approval required" })).toBeVisible();
     // The catalog's words - the same ones the step above it uses - as a question.
     expect(screen.getByText("Allow Run Python?")).toBeVisible();
   });
@@ -282,7 +282,7 @@ describe("the tool approval dialog", () => {
 
     mount([action("a-1", { tool_name: "run_python" })]);
 
-    expect(screen.getByText("Tool approval required")).toBeVisible();
+    expect(screen.getByRole("group", { name: "Tool approval required" })).toBeVisible();
     expect(screen.getByText("Allow Run Python?")).toBeVisible();
   });
 

@@ -3,7 +3,7 @@ import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
 import { PersonalModelConnection } from "./personal-model-connection";
-import { PersonalModelKeys } from "@/components/vault/personal-model-keys";
+import { PersonalModelKeys } from "@/components/settings/personal-model-keys";
 import { useAuthStore } from "@/stores";
 import * as api from "@/lib/personal-model-keys-api";
 import { ApiError } from "@/lib/api-error";
@@ -171,4 +171,12 @@ it("does not read another destination before a signed-in tenant or selected agen
   mount(<PersonalModelConnection agentId={null} />);
   expect(api.agentModelConnection).not.toHaveBeenCalled();
   expect(screen.queryByRole("form")).not.toBeInTheDocument();
+});
+
+it("allows retrying a failed connection status read", async () => {
+  vi.mocked(api.agentModelConnection).mockRejectedValueOnce(new Error("connection unavailable"));
+  mount();
+  expect(await screen.findByText("connection unavailable")).toBeVisible();
+  await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+  expect(await screen.findByLabelText("Your API key")).toBeVisible();
 });

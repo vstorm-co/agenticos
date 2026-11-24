@@ -19,6 +19,7 @@ const state = vi.hoisted(() => ({
   search: "",
   tab: undefined as string | null | undefined,
   setTab: vi.fn(),
+  health: { apps: 0, mcp: 0, total: 0 },
 }));
 
 vi.mock("next/navigation", async (importOriginal) => ({
@@ -44,6 +45,7 @@ vi.mock("@/hooks", async (importOriginal) => ({
     state.setTab,
   ],
   useMcpOAuthOutcome: () => undefined,
+  useConnectionHealth: () => state.health,
 }));
 
 vi.mock("@/hooks/use-network-connections", () => ({
@@ -55,6 +57,7 @@ describe("ConnectorsPage", () => {
     state.granted = new Set([Perm.agentsView, Perm.secretsView, Perm.connectionsView]);
     state.search = "";
     state.tab = undefined;
+    state.health = { apps: 0, mcp: 0, total: 0 };
     state.networksAvailable = null;
     state.setTab.mockReset();
   });
@@ -123,6 +126,28 @@ describe("ConnectorsPage", () => {
     render(<ConnectorsPage />);
     await userEvent.click(screen.getByRole("tab", { name: "MCP servers" }));
     expect(state.setTab).toHaveBeenLastCalledWith("mcp");
+  });
+
+  it("counts the connections needing attention on their own tab", () => {
+    // A broken connection on the tab somebody is not looking at is the one
+    // they will not find until a run fails, so each tab carries its own count.
+    state.health = { apps: 1, mcp: 2, total: 3 };
+    render(<ConnectorsPage />);
+
+    const apps = screen.getByRole("tab", { name: "Apps" });
+    const mcp = screen.getByRole("tab", { name: "MCP servers" });
+    expect(within(apps).getByText("1")).toBeInTheDocument();
+    expect(within(mcp).getByText("2")).toBeInTheDocument();
+    expect(apps).toHaveAccessibleDescription("1 connection needs attention");
+    expect(mcp).toHaveAccessibleDescription("2 connections need attention");
+    expect(screen.getByRole("tab", { name: "More" })).toBeInTheDocument();
+  });
+
+  it("shows no count on a tab whose connections are all healthy", () => {
+    render(<ConnectorsPage />);
+
+    expect(screen.getByRole("tab", { name: "Apps" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "MCP servers" })).toBeInTheDocument();
   });
 
   it("lists every More connection a caller may read, each linking under /connectors", async () => {

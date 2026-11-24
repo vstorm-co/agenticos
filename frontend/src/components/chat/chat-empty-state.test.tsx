@@ -4,13 +4,21 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ChatEmptyState, greetingKey } from "./chat-empty-state";
-import type { Agent } from "@/types/agents";
+import type { CapabilityGuide } from "@/hooks/use-capability-guide";
+import type { McpConnectionRecord } from "@/lib/mcp-connections-api";
+import type { Agent, CapabilityCatalogEntry, McpServerRef } from "@/types/agents";
+import type { McpCatalogEntry } from "@/types/mcp";
 
 const env = vi.hoisted(() => ({
   agents: [] as Partial<Agent>[],
   loading: false,
   personalLoading: false,
   personal: null as string[] | null,
+  catalog: [] as CapabilityCatalogEntry[],
+  guides: {} as Record<string, CapabilityGuide>,
+  bindings: [] as McpServerRef[],
+  connections: [] as McpConnectionRecord[],
+  servers: [] as McpCatalogEntry[],
 }));
 
 vi.mock("@/hooks", () => ({
@@ -18,6 +26,17 @@ vi.mock("@/hooks", () => ({
     user: { full_name: "Ada Lovelace", email: "ada@example.com" },
   }),
   useAgents: () => ({ agents: env.agents, isLoading: env.loading }),
+  useCapabilityCatalog: () => ({ capabilities: env.catalog, isLoading: false }),
+  useAgentVersion: () => ({
+    version: { spec: { mcp_servers: env.bindings } },
+    isLoading: false,
+    error: null,
+  }),
+  useMcpConnections: () => ({ connections: env.connections, isLoading: false }),
+  useMcpCatalog: () => ({ servers: env.servers, isLoading: false }),
+}));
+vi.mock("@/hooks/use-capability-guide", () => ({
+  useCapabilityGuide: () => (id: string) => env.guides[id],
 }));
 // Kept per organization, read from their own route (Codex on #2324), and read
 // only for the starter agent: `asked` counts who mounted the query.
@@ -87,6 +106,11 @@ describe("ChatEmptyState", () => {
     env.personal = null;
     env.loading = false;
     env.personalLoading = false;
+    env.catalog = [];
+    env.guides = {};
+    env.bindings = [];
+    env.connections = [];
+    env.servers = [];
     asked.count = 0;
   });
 
@@ -189,6 +213,55 @@ describe("ChatEmptyState", () => {
     await userEvent.click(screen.getByRole("button", { name: /^Plan a trip on a map/ }));
     expect(onPick).toHaveBeenCalledWith(expect.stringContaining("on a map"));
   });
+
+  it("keeps what the selected agent can do behind a collapsed control", async () => {
+    env.agents = [
+      { ...AGENT, starters: ["How do refunds work?"], published_capabilities: ["knowledge"] },
+    ];
+    env.catalog = [
+      {
+        id: "knowledge",
+        name: "knowledge",
+        category: "general",
+        description: "knowledge description",
+        side_effecting: false,
+        scopes: [],
+        tools: [{ id: "search", name: "search", description: "Searches." }],
+        contracts: [],
+        config_schema: null,
+        requires_secret: null,
+        voice: "never",
+        recommended: null,
+      },
+    ];
+    env.guides = {
+      knowledge: {
+        name: "Knowledge",
+        does: "Answers from your documents.",
+        examples: ["Find the refund policy"],
+        needs: "A collection.",
+        never: "Never invents a source.",
+      },
+    };
+    const onPick = vi.fn();
+    render(<ChatEmptyState onPick={onPick} />);
+
+    expect(screen.queryByText("Knowledge")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "What can this agent do" }));
+    expect(screen.getByText("Knowledge")).toBeInTheDocument();
+    expect(screen.getByText(/Answers from your documents\./)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Find the refund policy" }));
+    expect(onPick).toHaveBeenCalledWith("Find the refund policy");
+  });
+
+  it("says plainly when the selected agent has no bindings", async () => {
+    env.agents = [{ ...AGENT, starters: [] }];
+    render(<ChatEmptyState onPick={vi.fn()} />);
+    await userEvent.click(screen.getByRole("button", { name: "What can this agent do" }));
+
+    expect(screen.getByText(/This agent has no tools or connected apps yet\./)).toBeInTheDocument();
+  });
 });
 
 it("renders stable server markup without guessing a local-time greeting", () => {
@@ -201,4 +274,13 @@ it("shows a neutral avatar skeleton rather than a demo mark while resolving the 
   env.agents = [];
   render(<ChatEmptyState onPick={vi.fn()} />);
   expect(screen.getByTestId("welcome-agent-loading")).toBeVisible();
+});
+
+it("applies the mobile two-prompt policy to the main chat while retaining four desktop choices", () => {
+  env.loading = false;
+  env.agents = [{ ...AGENT, starters: ["One", "Two", "Three", "Four"] }];
+  render(<ChatEmptyState onPick={vi.fn()} />);
+  const hints = screen.getByRole("button", { name: /^One/ }).closest("[data-chat-welcome-hints]");
+  expect(hints).toHaveClass("max-sm:[&>*:nth-child(n+3)]:hidden");
+  expect(hints?.children).toHaveLength(4);
 });

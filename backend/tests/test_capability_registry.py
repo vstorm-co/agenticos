@@ -621,7 +621,6 @@ class TestReadOnlyDeclarations:
             ("burst", "run_burst"),
             ("secret_request", "request_secret"),
             ("memory_files", "correct_memory"),
-            ("memory_files", "recall"),
             ("memory_files", "remember"),
             ("memory_files", "share_memory"),
             ("mirage", "mirage_edit_file"),

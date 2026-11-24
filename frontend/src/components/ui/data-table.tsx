@@ -5,6 +5,8 @@ import { EmptyIllustration } from "@/components/illustrations/empty-illustration
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
+import { PAGE_SIZE } from "@/components/ui/list-controls";
+import { PaginationBar } from "@/components/ui/pagination-bar";
 import { SortButton } from "@/components/ui/sort-button";
 import { StickyScrollbar } from "@/components/ui/sticky-scrollbar";
 import { cn } from "@/lib/utils";
@@ -92,6 +94,8 @@ interface DataTableProps<T> {
    * becomes the vertical one too, and `sticky` resolves against it.
    */
   fillHeight?: boolean;
+  /** Page a complete in-memory collection after sorting. Never use with server paging or infinite loading. */
+  clientPagination?: boolean;
   /** Stack compact, non-virtual tables into labeled rows in narrow containers. */
   stackOnNarrow?: boolean;
   /** Number of skeleton rows while loading. */
@@ -154,6 +158,7 @@ export function DataTable<T>({
   onRowClick,
   isRowActive,
   fillHeight = false,
+  clientPagination = false,
   stackOnNarrow = false,
   skeletonRows = 6,
   className,
@@ -164,6 +169,7 @@ export function DataTable<T>({
   onEndReached,
 }: DataTableProps<T>) {
   const t = useTranslations("ui");
+  const [page, setPage] = useState(0);
   const [clientSort, setClientSort] = useState<TableSort | null>(defaultSort ?? null);
 
   const serverSorted = onSort !== undefined;
@@ -174,6 +180,7 @@ export function DataTable<T>({
       activeSort?.by === key
         ? { by: key, dir: activeSort.dir === "asc" ? "desc" : "asc" }
         : { by: key, dir: "desc" };
+    setPage(0);
     if (onSort) onSort(next);
     else setClientSort(next);
   };
@@ -201,12 +208,20 @@ export function DataTable<T>({
     return () => observer.disconnect();
   }, [rowHeight]);
 
-  const total = visible?.length ?? 0;
+  const recordCount = visible?.length ?? 0;
+  const currentPage = Math.min(page, Math.max(0, Math.ceil(recordCount / PAGE_SIZE) - 1));
+  const pageOffset = clientPagination ? currentPage * PAGE_SIZE : 0;
+  const pageRows = clientPagination ? visible?.slice(pageOffset, pageOffset + PAGE_SIZE) : visible;
+  useEffect(() => {
+    if (clientPagination && scrollRef.current) scrollRef.current.scrollTop = 0;
+  }, [clientPagination, currentPage, clientSort]);
+
+  const total = pageRows?.length ?? 0;
   const first = rowHeight ? Math.max(0, Math.floor(scrollTop / rowHeight) - OVERSCAN) : 0;
   const last = rowHeight
     ? Math.min(total, Math.ceil((scrollTop + viewport) / rowHeight) + OVERSCAN)
     : total;
-  const drawn = rowHeight ? visible?.slice(first, last) : visible;
+  const drawn = rowHeight ? pageRows?.slice(first, last) : pageRows;
 
   const onScroll = (element: HTMLDivElement) => {
     if (rowHeight) setScrollTop(element.scrollTop);
@@ -322,7 +337,7 @@ export function DataTable<T>({
               drawn?.map((row, offset) => (
                 <tr
                   role={stackOnNarrow ? "row" : undefined}
-                  key={getRowKey(row, first + offset)}
+                  key={getRowKey(row, pageOffset + first + offset)}
                   onClick={onRowClick ? () => onRowClick(row) : undefined}
                   tabIndex={onRowClick ? 0 : undefined}
                   onKeyDown={
@@ -416,6 +431,18 @@ export function DataTable<T>({
       </div>
       {/* Its own bar is under the last row; this one floats while that is off screen. */}
       <StickyScrollbar target={scrollRef} />
+      {clientPagination && !showError && (
+        <div className="border-border shrink-0 border-t px-4 py-3 sm:px-5">
+          <PaginationBar
+            showSinglePage
+            page={currentPage}
+            pageSize={PAGE_SIZE}
+            total={recordCount}
+            isLoading={loading || showError}
+            onPage={setPage}
+          />
+        </div>
+      )}
     </div>
   );
 }

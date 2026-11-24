@@ -33,7 +33,7 @@ export function WebhookSecretDialog({ url, secret, onClose }: WebhookSecretDialo
   const t = useTranslations("pages.workflows");
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-lg">
+      <DialogContent data-workflow-fields className="max-w-lg">
         <DialogHeader>
           <DialogTitle>{t("webhookReadyTitle")}</DialogTitle>
           <DialogDescription>{t("webhookReadyDescription")}</DialogDescription>

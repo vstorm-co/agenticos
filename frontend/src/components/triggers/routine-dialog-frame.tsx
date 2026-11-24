@@ -12,6 +12,7 @@ import {
 } from "@/components/ui";
 import { DIALOG_FORM, DIALOG_FRAMED } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
+import { useStepDirection } from "@/hooks/use-step-direction";
 
 /** One frame for scheduled, event-driven and monitoring routines. */
 export function RoutineDialogFrame({
@@ -34,6 +35,9 @@ export function RoutineDialogFrame({
   pending?: boolean;
   bodyKey?: string;
 }) {
+  const direction = useStepDirection(
+    progress?.steps.findIndex((step) => step.id === progress.current) ?? 0,
+  );
   return (
     <DialogContent
       dismissible={!pending}
@@ -47,6 +51,7 @@ export function RoutineDialogFrame({
       </DialogHeader>
       <fieldset
         key={bodyKey}
+        data-direction={direction}
         disabled={disabled}
         className="wizard-step-in min-h-0 min-w-0 scrollbar-thin overflow-y-auto px-4 py-4 sm:px-6"
       >

@@ -5,7 +5,8 @@ import { isRendered } from "@/lib/rendered";
 import "driver.js/dist/driver.css";
 
 import { useCallback, useEffect, useMemo, useRef } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
+import { useConsoleRouter as useRouter } from "@/hooks/use-console-router";
 import { useLocale, useTranslations } from "next-intl";
 import { toast } from "sonner";
 import type { AllowedButtons, DriveStep, Driver } from "driver.js";
@@ -29,7 +30,7 @@ import { activateTab } from "@/lib/activate-tab";
 import { stripLocale } from "@/lib/active-route";
 import { ROUTES } from "@/lib/constants";
 import { flowForPage } from "@/lib/onboarding/flows";
-import { pageKey } from "@/lib/onboarding/tour";
+import { ARTIFACT_DETAIL, pageKey } from "@/lib/onboarding/tour";
 import { useAuthStore, useOnboardingStore } from "@/stores";
 import { appendLanguageChoice } from "./tour-language";
 import { appendRoleChoice } from "./tour-role";
@@ -215,6 +216,22 @@ export function OnboardingTour() {
     // pulse of a control about to fire — plays where the reader is looking rather
     // than under a light still on its way.
     const show = (element: Element | undefined): Promise<void> => {
+      const inPlacePage = mode === "page" && pageKey(here) === ARTIFACT_DETAIL;
+      if (inPlacePage && index === 0) {
+        // All app tips point into this already loaded viewer. Count unavailable
+        // optional controls before showing the first caption, not as Next finds them.
+        for (const candidate of steps) {
+          if (
+            candidate.optional &&
+            candidate.target &&
+            ![...document.querySelectorAll(`[data-tour="${candidate.target}"]`)].some(isRendered)
+          )
+            absentRef.current.add(candidate.id);
+        }
+      }
+      const finalVisible = inPlacePage
+        ? !steps.slice(index + 1).some((candidate) => !isAbsent(candidate))
+        : isLast;
       const driveStep: DriveStep = {
         element,
         popover: {
@@ -230,9 +247,9 @@ export function OnboardingTour() {
             current: index + 1 - steps.slice(0, index).filter(isAbsent).length,
             total: steps.length - steps.filter(isAbsent).length,
           }),
-          nextBtnText: isLast ? t("finish") : t("next"),
+          nextBtnText: finalVisible ? t("finish") : t("next"),
           prevBtnText: t("back"),
-          onNextClick: () => (isLast ? completeWalk() : next()),
+          onNextClick: () => (finalVisible ? completeWalk() : next()),
           onPrevClick: () => back(),
           onCloseClick: () => closeWalk(),
           // The first card offers the console's languages, before the walk

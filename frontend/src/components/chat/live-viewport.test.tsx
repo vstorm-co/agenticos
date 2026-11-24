@@ -100,4 +100,10 @@ describe("LiveViewport - the agent's page, and the page itself while it is yours
     rerender(<LiveViewport browse={browse()} holding onCommand={vi.fn()} flush />);
     expect(screen.getByRole("application")).toHaveClass("ring-inset");
   });
+  it("does not forward the Enter used to finish an IME composition", () => {
+    const { onCommand, surface } = setup(true);
+    fireEvent.keyDown(surface, { key: "Enter", isComposing: true });
+    fireEvent.keyDown(surface, { key: "Enter", keyCode: 229 });
+    expect(onCommand).not.toHaveBeenCalled();
+  });
 });

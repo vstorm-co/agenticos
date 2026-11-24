@@ -128,6 +128,7 @@ export function SkillAgents({
       headerTour="skill-agents"
     >
       <DataTable
+        clientPagination
         columns={columns}
         rows={agents === undefined && !error ? undefined : rows}
         getRowKey={readerKey}

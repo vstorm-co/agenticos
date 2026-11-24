@@ -52,7 +52,9 @@ export function BrowserTabs({
                 : (current + (event.key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length;
           const tab = tabs[index];
           if (tab) onSelect(tab);
-          event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]')[index]?.focus();
+          event.currentTarget
+            .querySelectorAll<HTMLButtonElement>('[role="tab"]')
+            [index]?.focus({ preventScroll: true });
         }}
       >
         {tabs.map((tab) => (

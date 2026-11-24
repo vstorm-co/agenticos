@@ -15,6 +15,7 @@ import type { Artifact } from "@/types/artifact";
  */
 
 let params = new URLSearchParams();
+const pushMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/api-client", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api-client")>("@/lib/api-client");
@@ -24,12 +25,13 @@ vi.mock("next/navigation", async () => {
   const actual = await vi.importActual<typeof import("next/navigation")>("next/navigation");
   return {
     ...actual,
-    useRouter: () => ({ push: vi.fn() }),
+    useRouter: () => ({ push: pushMock }),
     usePathname: () => "/apps",
     useSearchParams: () => params,
   };
 });
 let canEdit = true;
+let canView = true;
 vi.mock("@/hooks", async () => {
   // The real URL state: the archive choice is kept in the address.
   const { useUrlState } =
@@ -38,7 +40,8 @@ vi.mock("@/hooks", async () => {
     useUrlState,
     useGroups: () => ({ groups: [] }),
     usePermissions: () => ({
-      can: (perm: string) => perm !== "artifacts:edit" || canEdit,
+      can: (perm: string) =>
+        perm === "artifacts:view" ? canView : perm !== "artifacts:edit" || canEdit,
       isLoading: false,
     }),
   };
@@ -88,12 +91,17 @@ function listRequests(): string[] {
 
 beforeEach(() => {
   canEdit = true;
+  canView = true;
   params = new URLSearchParams();
+  pushMock.mockReset();
   window.history.replaceState({}, "", "/apps");
   vi.mocked(apiClient.get).mockReset();
   vi.mocked(apiClient.post).mockReset();
   vi.mocked(apiClient.delete).mockReset();
 });
+
+/** Where "Make a page" lands: a fresh chat with the ask already started. */
+const MAKE_APP_URL = "/chat?new=1&prompt=Build%20me%20a%20page%20that%E2%80%A6";
 
 describe("the artifacts list", () => {
   it("stars an app from its card and updates the control optimistically", async () => {
@@ -128,7 +136,7 @@ describe("the artifacts list", () => {
     expect(screen.queryByText("Old report")).toBeNull();
     expect(listRequests().every((path) => !path.includes("include_archived"))).toBe(true);
 
-    await user.click(screen.getByRole("combobox", { name: "Which apps" }));
+    await user.click(screen.getByRole("combobox", { name: "Which pages" }));
     await user.click(screen.getByRole("option", { name: "Archived included" }));
 
     expect(await screen.findByText("Old report")).toBeInTheDocument();
@@ -136,9 +144,20 @@ describe("the artifacts list", () => {
     expect(listRequests().at(-1)).toContain("include_archived=true");
     expect(window.location.search).toBe("?show=all");
 
-    await user.click(screen.getByRole("combobox", { name: "Which apps" }));
-    await user.click(screen.getByRole("option", { name: "Active apps" }));
+    await user.click(screen.getByRole("combobox", { name: "Which pages" }));
+    await user.click(screen.getByRole("option", { name: "Active pages" }));
     expect(window.location.search).toBe("");
+  });
+
+  it("offers Make a page in the header, opening a fresh chat with the ask started", async () => {
+    serve([page()], [page()]);
+    const user = userEvent.setup();
+    render(<ArtifactsPage />, { wrapper });
+
+    await screen.findByText("Weekly report");
+    await user.click(screen.getByRole("button", { name: "Make a page" }));
+
+    expect(pushMock).toHaveBeenCalledWith(MAKE_APP_URL);
   });
 
   it("offers the archive even when every page is archived and the list is empty", async () => {
@@ -146,8 +165,32 @@ describe("the artifacts list", () => {
     render(<ArtifactsPage />, { wrapper });
 
     expect(await screen.findByText("Nothing published yet")).toBeInTheDocument();
-    expect(screen.getByRole("combobox", { name: "Which apps" })).toBeInTheDocument();
-    expect(screen.queryByPlaceholderText("Search apps…")).toBeNull();
+    expect(screen.getByRole("combobox", { name: "Which pages" })).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText("Search pages…")).toBeNull();
+  });
+
+  it("offers Make a page in the empty state instead of the agents list", async () => {
+    serve([], []);
+    const user = userEvent.setup();
+    render(<ArtifactsPage />, { wrapper });
+
+    expect(await screen.findByText("Nothing published yet")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Open your agents" })).toBeNull();
+    // The header carries one and the empty state the other; the empty state's
+    // is the second in the document.
+    const buttons = screen.getAllByRole("button", { name: "Make a page" });
+    expect(buttons).toHaveLength(2);
+    await user.click(buttons[1]!);
+
+    expect(pushMock).toHaveBeenCalledWith(MAKE_APP_URL);
+  });
+
+  it("offers no Make a page to a member who cannot see apps", async () => {
+    canView = false;
+    render(<ArtifactsPage />, { wrapper });
+
+    expect(await screen.findByText("You cannot see this organization's pages")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Make a page" })).toBeNull();
   });
 
   it("opens on the archive when a link asks for it", async () => {
@@ -156,7 +199,7 @@ describe("the artifacts list", () => {
     render(<ArtifactsPage />, { wrapper });
 
     await waitFor(() => expect(listRequests().at(-1)).toContain("include_archived=true"));
-    expect(await screen.findByText("No app matches")).toBeInTheDocument();
+    expect(await screen.findByText("No page matches")).toBeInTheDocument();
   });
 });
 

@@ -16,7 +16,7 @@ from fastapi import APIRouter, Depends, status
 
 from app.agents.model_resolver import PROVIDERS, ModelApi, is_decision_api
 from app.api.deps import Auth, ModelProfileSvc, SecretSvc, require, require_media_catalog_access
-from app.api.public_api import PUBLIC
+from app.api.public_api import ASSISTANT, PUBLIC
 from app.core.claude_subscription import CLAUDE_SUBSCRIPTION_PROVIDER
 from app.core.exceptions import AuthorizationError
 from app.core.field_errors import refused_field
@@ -64,7 +64,7 @@ router = APIRouter()
 @router.get(
     "/catalog",
     response_model=ProviderCatalog,
-    dependencies=[Depends(require(Perm.AGENTS_VIEW))],
+    dependencies=[ASSISTANT, Depends(require(Perm.AGENTS_VIEW))],
 )
 async def list_provider_catalog() -> Any:
     """Every selectable model provider, and the connection shape it needs.
@@ -110,7 +110,7 @@ async def list_model_profiles(service: ModelProfileSvc, ctx: Auth) -> Any:
     "/model-profiles",
     response_model=ModelProfileRead,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(require(Perm.CONNECTIONS_MANAGE))],
+    dependencies=[ASSISTANT, Depends(require(Perm.CONNECTIONS_MANAGE))],
 )
 async def create_model_profile(
     data: ModelProfileCreate, service: ModelProfileSvc, ctx: Auth
@@ -134,7 +134,7 @@ async def create_model_profile(
 @router.patch(
     "/model-profiles/{profile_id}",
     response_model=ModelProfileRead,
-    dependencies=[Depends(require(Perm.CONNECTIONS_MANAGE))],
+    dependencies=[ASSISTANT, Depends(require(Perm.CONNECTIONS_MANAGE))],
 )
 async def update_model_profile(
     profile_id: UUID, data: ModelProfileUpdate, service: ModelProfileSvc, ctx: Auth
@@ -422,13 +422,18 @@ async def list_provider_models(
         if provider not in CUSTOM_LISTINGS:
             raise refused_field(
                 "base_url",
-                "Only OpenRouter, Stav and Otari support a custom model listing endpoint",
+                "Only OpenRouter, Stav, Otari, Custom (OpenAI-compatible) and Custom "
+                "(Anthropic-compatible) support a custom model listing endpoint",
             )
         if not ctx.has(Perm.CONNECTIONS_MANAGE):
             raise AuthorizationError(
                 message="Managing connections is required for a custom endpoint"
             )
         base_url = await validate_endpoint_url(base_url)
+        # The SDK's own path is below the endpoint, so an endpoint that already
+        # carries it is trimmed: the listing is asked for where the requests go.
+        if (spec := PROVIDERS.get(provider)) is not None:
+            base_url = spec.endpoint(base_url)
     if provider == CLAUDE_SUBSCRIPTION_PROVIDER and secret_id is not None:
         raise refused_field(
             "secret_id", "Claude subscriptions use the signed-in user's native connection"

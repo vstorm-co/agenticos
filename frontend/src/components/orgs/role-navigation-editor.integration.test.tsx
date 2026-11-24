@@ -184,8 +184,8 @@ describe("role navigation editor", () => {
   it("replaces an existing hidden item and removes empty preview sections", async () => {
     await renderEditor();
     await userEvent.click(screen.getByRole("checkbox", { name: "Show Skills" }));
-    await userEvent.click(screen.getByRole("checkbox", { name: "Show Apps" }));
-    expect(preview().queryByText("Apps")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("checkbox", { name: "Show All pages" }));
+    expect(preview().queryByText("Pages")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Save sidebar" })).toBeEnabled();
     await userEvent.click(screen.getByRole("button", { name: "Save sidebar" }));
     await waitFor(() =>

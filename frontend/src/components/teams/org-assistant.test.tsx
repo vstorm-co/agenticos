@@ -70,7 +70,6 @@ describe("OrgAssistant", () => {
   it("links the agent itself to the Builder", () => {
     render(<OrgAssistant orgId="o1" />);
 
-    fireEvent.click(screen.getByRole("button", { name: "AI Architect" }));
     expect(screen.getByRole("link", { name: "Open in Agent Builder" })).toHaveAttribute(
       "href",
       "/agents/a1",
@@ -93,20 +92,26 @@ describe("OrgAssistant", () => {
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
   });
 
-  it("keeps the switch separate from its keyboard-operated disclosure and preserves the Builder link", async () => {
+  it("offers the Builder directly and keeps its switch independent", async () => {
     render(<OrgAssistant orgId="o1" />);
-    const heading = screen.getByRole("button", { name: "AI Architect" });
-    expect(heading).toHaveAttribute("aria-expanded", "false");
-    expect(screen.getByRole("switch", { name: "Switched on" })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "AI Architect" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "AI Architect" })).toBeNull();
+    const builder = screen.getByRole("link", { name: "Open in Agent Builder" });
+    expect(builder).toBeVisible();
+    expect(builder).toHaveAttribute("href", "/agents/a1");
     await userEvent.click(screen.getByRole("switch", { name: "Switched on" }));
-    expect(heading).toHaveAttribute("aria-expanded", "false");
     expect(state.mutate).toHaveBeenCalledWith({ enabled: false });
-    heading.focus();
-    await userEvent.keyboard("{Enter}");
+    expect(builder).toBeVisible();
+  });
+
+  it("blocks another toggle while its write is pending", async () => {
+    state.isPending = true;
+    render(<OrgAssistant orgId="o1" />);
+    const toggle = screen.getByRole("switch", { name: "Switched on" });
+    expect(toggle).toBeDisabled();
+    await userEvent.click(toggle);
+    expect(state.mutate).not.toHaveBeenCalled();
     expect(screen.getByRole("link", { name: "Open in Agent Builder" })).toBeVisible();
-    await userEvent.keyboard(" ");
-    expect(heading).toHaveAttribute("aria-expanded", "false");
-    expect(screen.queryByRole("link", { name: "Open in Agent Builder" })).not.toBeInTheDocument();
   });
 
   it("says where to give it a model when it has none", () => {

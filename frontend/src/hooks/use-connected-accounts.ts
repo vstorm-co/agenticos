@@ -57,6 +57,7 @@ export function useConnectedAccounts(owner: AccountOwner, { enabled = true } = {
     accounts: accounts.data?.items ?? [],
     isLoading: accounts.isLoading,
     error: accounts.error,
+    refetch: accounts.refetch,
     connect: (returnTo: string) => connect.mutate(returnTo),
     isConnecting: connect.isPending,
     disconnect: (id: string) => disconnect.mutate(id),

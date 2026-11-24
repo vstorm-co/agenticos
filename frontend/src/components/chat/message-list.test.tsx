@@ -7,7 +7,6 @@ import {
   coalesceActivity,
   continuesTurn,
   endsTurn,
-  lastToolTurnIndex,
   layoutMessages,
 } from "./message-list";
 import type { ChatMessage } from "@/types";
@@ -314,7 +313,7 @@ describe("the transcript", () => {
     expect(rendered("m-3")?.groupPosition).toBe("last");
   });
 
-  it("opens the last step of the last turn that used a tool, not of the last turn", async () => {
+  it("keeps diagnostic steps closed when the conversation is reopened", () => {
     // The case this got wrong: an agent writes a file and then answers about it in
     // prose. Anchoring on "the newest assistant message" left the file it had just
     // written folded away, which is the one thing somebody reopening the chat wants.
@@ -327,7 +326,7 @@ describe("the transcript", () => {
       />,
     );
 
-    expect(rendered("wrote")?.openLastStep).toBe(true);
+    expect(rendered("wrote")?.openLastStep).toBe(false);
     expect(rendered("spoke")?.openLastStep).toBe(false);
   });
 
@@ -335,44 +334,6 @@ describe("the transcript", () => {
     render(<MessageList messages={[message({ id: "a" }), message({ id: "b" })]} />);
 
     expect(state.rendered.every((entry) => !entry.openLastStep)).toBe(true);
-  });
-});
-
-/**
- * Which turn's work stays open.
- *
- * Its own function because the answer depends on the messages around a message, and
- * the awkward cases are all off-screen: a tool turn followed by prose, a user message
- * after both, and a transcript with no tool call in it at all.
- */
-describe("the last turn that used a tool", () => {
-  it("finds the most recent one, past anything said after it", () => {
-    const messages = [
-      message({ id: "a", parts: [{ id: "p1", type: "tool", toolCall: TOOL }] }),
-      message({ id: "b", parts: [{ id: "p2", type: "tool", toolCall: TOOL }] }),
-      message({ id: "c", content: "prose" }),
-      message({ id: "d", role: "user", content: "thanks" }),
-    ];
-
-    expect(lastToolTurnIndex(messages)).toBe(1);
-  });
-
-  it("counts a legacy message that carries its calls beside its parts", () => {
-    // Messages written before parts existed keep them on `toolCalls`.
-    expect(lastToolTurnIndex([message({ id: "a", toolCalls: [TOOL] })])).toBe(0);
-  });
-
-  it("answers -1 when nothing used a tool", () => {
-    expect(lastToolTurnIndex([message({ id: "a" })])).toBe(-1);
-    expect(lastToolTurnIndex([])).toBe(-1);
-  });
-
-  it("never answers with a user message, whatever it carries", () => {
-    const messages = [
-      message({ id: "u", role: "user", parts: [{ id: "p", type: "tool", toolCall: TOOL }] }),
-    ];
-
-    expect(lastToolTurnIndex(messages)).toBe(-1);
   });
 });
 
@@ -754,4 +715,15 @@ it("does not combine another agent or cross a user reply", () => {
     user,
     next,
   ]);
+});
+
+it("retains acknowledged tool results while coalescing a delayed opening segment", () => {
+  const completed = { ...TOOL, status: "completed" as const, result: "confirmed" };
+  const late = { ...TOOL, status: "pending" as const, result: undefined };
+  const [combined] = coalesceActivity([
+    message({ id: "a", runId: "r", toolCalls: [completed] }),
+    message({ id: "b", runId: "r", toolCalls: [late] }),
+  ]);
+  expect(combined?.toolCalls).toEqual([completed]);
+  expect(combined?.parts?.find((part) => part.type === "tool")?.toolCall).toEqual(completed);
 });

@@ -57,8 +57,12 @@ export type NavItem = {
   tabbed?: boolean;
   /** Lit on its own page only - a project's page lights the project's own row instead. */
   exact?: boolean;
-  /** A count beside the label: how much waits there. Only the inbox has one. */
-  count?: "inbox";
+  /**
+   * A count beside the label: how much waits there. The inbox counts its open
+   * items; Connections counts the connections needing attention - expired or
+   * needing re-auth - so a broken one is visible before a run fails on it.
+   */
+  count?: "inbox" | "connectionHealth";
 };
 
 /** The section hue a group carries - see "Section hues" in `globals.css`. */
@@ -100,9 +104,8 @@ export const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
-    // The apps an agent published, listed by `AppsRows`, which lists only what the
-    // caller may open and hides the whole section when there is none. This entry
-    // is the route table's record of `/apps`; "All apps" is its one static row.
+    // The pages an agent published. This entry is the route table's record of
+    // `/apps`; "All pages" is its one row.
     labelKey: "apps",
     domain: "use",
     items: [
@@ -212,6 +215,7 @@ export const NAV_GROUPS: NavGroup[] = [
         // Each area of the page keeps its own gate; the entry shows to anyone
         // who can reach one of them.
         permissions: [Perm.agentsView, Perm.secretsView, Perm.connectionsView, Perm.networksView],
+        count: "connectionHealth",
       },
     ],
   },

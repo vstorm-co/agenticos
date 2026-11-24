@@ -210,6 +210,14 @@ class Organization(Base, TimestampMixin):
     # The number here is what the organization *asked for*. What actually sweeps
     # is `app/core/retention.py`'s resolution of it against the deployment's
     # defaults, its ceiling and the audit floor, and no other place resolves it.
+    onboarding_reminders: Mapped[dict[str, bool | int | None] | None] = mapped_column(
+        JSONB(none_as_null=True), nullable=True
+    )
+
+    chat_home_defaults: Mapped[dict[str, bool | None] | None] = mapped_column(
+        JSONB(none_as_null=True), nullable=True
+    )
+
     retention_days: Mapped[dict[str, int | None] | None] = mapped_column(JSONB, nullable=True)
 
     # Navigation preferences only: authorization still comes from permissions
@@ -314,6 +322,14 @@ class OrganizationMember(Base):
     # here, written in the background from what they did in this organization -
     # so on the membership, never the account, which every organization reads.
     # Null until the first look, which the agent's own starters stand in for.
+    onboarding_reminders: Mapped[dict[str, bool | int | None] | None] = mapped_column(
+        JSONB(none_as_null=True), nullable=True
+    )
+
+    chat_home_preferences: Mapped[dict[str, bool | None] | None] = mapped_column(
+        JSONB(none_as_null=True), nullable=True
+    )
+
     personal_starters: Mapped[list[str] | None] = mapped_column(JSONB, nullable=True)
     personal_starters_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True

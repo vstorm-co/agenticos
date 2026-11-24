@@ -33,6 +33,17 @@ const auth = vi.hoisted(() => ({
 vi.mock("@/hooks", () => ({
   useAuth: () => ({ user: auth.user }),
   useAgents: () => ({ agents: auth.agents }),
+  useCapabilityCatalog: () => ({ capabilities: [], isLoading: false }),
+  useAgentVersion: () => ({
+    version: { spec: { mcp_servers: [] } },
+    isLoading: false,
+    error: null,
+  }),
+  useMcpConnections: () => ({ connections: [], isLoading: false }),
+  useMcpCatalog: () => ({ servers: [], isLoading: false }),
+}));
+vi.mock("@/hooks/use-capability-guide", () => ({
+  useCapabilityGuide: () => () => undefined,
 }));
 // What the agent may be pointed at - here, nothing that draws, so the general
 // starters show; `chat-empty-state.test.tsx` covers an agent with Visuals.
@@ -325,8 +336,9 @@ describe("the slash command palette", () => {
     );
 
     const rows = container.querySelectorAll("li");
-    expect(rows[1]).toHaveClass("bg-foreground/[0.06]");
-    expect(rows[0]).not.toHaveClass("bg-foreground/[0.06]");
+    expect(rows[1]).toHaveClass("bg-control");
+    expect(rows[0]).not.toHaveClass("bg-control");
+    expect(rows[1]).toHaveTextContent(`/${commands[1]!.name}`);
   });
 
   it("follows the mouse, so hover and the arrow keys agree", () => {
@@ -378,31 +390,39 @@ describe("the slash command palette", () => {
     expect(screen.getByText(/No matching commands/)).toBeInTheDocument();
   });
 
-  it("keeps the highlighted row in view as the selection moves", () => {
-    // A palette scrolled past its own selection is a palette that looks empty.
-    const scrollIntoView = vi.fn();
-    const original = Element.prototype.scrollIntoView;
-    Element.prototype.scrollIntoView = scrollIntoView;
-
-    const { rerender } = render(
-      <SlashCommandPalette
-        commands={commands}
-        selectedIndex={0}
-        onSelectIndex={vi.fn()}
-        onPick={vi.fn()}
-      />,
-    );
-    rerender(
-      <SlashCommandPalette
-        commands={commands}
-        selectedIndex={4}
-        onSelectIndex={vi.fn()}
-        onPick={vi.fn()}
-      />,
-    );
-
-    expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest" });
-    Element.prototype.scrollIntoView = original;
+  it("keeps the highlighted row in its own scrollport without moving ancestors", () => {
+    let rowTop = 120;
+    const bounds = vi
+      .spyOn(HTMLElement.prototype, "getBoundingClientRect")
+      .mockImplementation(function (this: HTMLElement) {
+        return this.tagName === "UL"
+          ? new DOMRect(0, 100, 300, 100)
+          : new DOMRect(0, rowTop, 300, 30);
+      });
+    const ancestorScroll = vi.spyOn(Element.prototype, "scrollIntoView");
+    try {
+      const draw = (selectedIndex: number) => (
+        <SlashCommandPalette
+          commands={commands}
+          selectedIndex={selectedIndex}
+          onSelectIndex={vi.fn()}
+          onPick={vi.fn()}
+        />
+      );
+      const { container, rerender } = render(draw(0));
+      const list = container.querySelector("ul")!;
+      expect(list.scrollTop).toBe(0);
+      rowTop = 240;
+      rerender(draw(4));
+      expect(list.scrollTop).toBe(70);
+      rowTop = 60;
+      rerender(draw(0));
+      expect(list.scrollTop).toBe(30);
+      expect(ancestorScroll).not.toHaveBeenCalled();
+    } finally {
+      bounds.mockRestore();
+      ancestorScroll.mockRestore();
+    }
   });
 });
 

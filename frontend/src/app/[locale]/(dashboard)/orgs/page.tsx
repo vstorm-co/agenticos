@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
+import { useConsoleRouter as useRouter } from "@/hooks/use-console-router";
 import { ArrowRightLeft, Building2, Check, Plus } from "lucide-react";
 
 import { CreateOrgDialog } from "@/components/teams";
@@ -17,7 +18,8 @@ import {
   Skeleton,
   EntityAvatar,
 } from "@/components/ui";
-import { useOrganizations } from "@/hooks";
+import { useOrganizations, useOrganizationList } from "@/hooks";
+import { ErrorState } from "@/components/states";
 import { ROUTES } from "@/lib/constants";
 import { useChanged } from "@/hooks/use-changed";
 import { useTranslations } from "next-intl";
@@ -53,9 +55,10 @@ export default function OrgsPage() {
   const tc = useTranslations("common");
   const ui = useTranslations("ui");
   const [query, setQuery] = useState("");
-  const { orgs, listFailed, activeOrgId, fetchOrgs, switchOrg } = useOrganizations();
+  const { orgs, activeOrgId, switchOrg } = useOrganizations();
+  const organizations = useOrganizationList();
+  const isLoading = organizations.isPending;
   const [createOpen, setCreateOpen] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -69,17 +72,6 @@ export default function OrgsPage() {
   if (useChanged(searchParams.get("create")) && searchParams.get("create") === "1") {
     setCreateOpen(true);
   }
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      await fetchOrgs();
-      if (!cancelled) setIsLoading(false);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [fetchOrgs, searchParams]);
 
   return (
     <div className="flex flex-1 flex-col space-y-4">
@@ -95,12 +87,14 @@ export default function OrgsPage() {
       />
 
       <WorkspacesCard
-        count={isLoading ? null : listFailed ? undefined : filteredOrgs.length}
+        count={isLoading || organizations.error ? null : filteredOrgs.length}
         controls={
           <SearchInput value={query} onChange={setQuery} placeholder={t("searchOrganizations")} />
         }
       >
-        {isLoading ? (
+        {organizations.error ? (
+          <ErrorState cta={{ label: tc("retry"), onClick: () => void organizations.refetch() }} />
+        ) : isLoading ? (
           // The same tiles the populated grid draws, as skeletons - a skeleton
           // that draws a different shape is a layout jump on every load.
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -116,14 +110,6 @@ export default function OrgsPage() {
                 <Skeleton className="h-8 w-full" />
               </div>
             ))}
-          </div>
-        ) : listFailed ? (
-          // A failed request is not an empty account: say so, and offer the retry.
-          <div role="alert" className="px-6 py-12 text-center">
-            <p className="text-foreground text-sm font-medium">{t("loadFailed")}</p>
-            <Button variant="outline" size="sm" className="mt-5" onClick={() => void fetchOrgs()}>
-              {tc("retry")}
-            </Button>
           </div>
         ) : orgs.length === 0 ? (
           // Inline rather than an `EmptyState`: that component draws its own
@@ -161,7 +147,7 @@ export default function OrgsPage() {
                   key={org.id}
                   className="peek-card border-border bg-card hover:border-foreground/30 relative flex flex-col gap-4 rounded-xl border p-5"
                 >
-                  {/* Whole-row link, under the one real control. The link is an
+                  {/* Whole-row link, under the explicit controls. The link is an
                       absolute overlay at z-10, so static content beneath it
                       clicks through to the detail page; the Switch button sits
                       in a z-20 wrapper above it and handles its own click - a
@@ -242,7 +228,7 @@ export default function OrgsPage() {
       <CreateOrgDialog
         open={createOpen}
         onOpenChange={setCreateOpen}
-        onCreated={() => fetchOrgs(true)}
+        onCreated={() => void organizations.refetch()}
       />
     </div>
   );

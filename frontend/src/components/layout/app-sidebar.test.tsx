@@ -33,9 +33,17 @@ vi.mock("@/hooks/use-nav-pins", () => ({
 }));
 const waiting = vi.fn<() => { id: string }[]>(() => []);
 vi.mock("@/hooks/use-suggestions", () => ({ useSuggestions: () => ({ suggestions: waiting() }) }));
+const connectionHealth = vi.fn<() => { total: number }>(() => ({ total: 0 }));
+vi.mock("@/hooks/use-connection-health", () => ({
+  useConnectionHealth: () => connectionHealth(),
+}));
 const approvals = vi.fn<() => number>(() => 0);
 vi.mock("@/hooks/use-pending-approvals", () => ({
   usePendingApprovals: () => ({ count: approvals() }),
+}));
+const questions = vi.fn<() => number>(() => 0);
+vi.mock("@/hooks/use-waiting-chat-questions", () => ({
+  useWaitingChatQuestions: () => ({ count: questions() }),
 }));
 vi.mock("@/stores", () => ({
   useAuthStore: () => ({ user: currentUser() }),
@@ -52,6 +60,7 @@ beforeEach(() => {
   navigation.hiddenItems = [];
   navigation.isLoaded = true;
   pins.ids = [];
+  questions.mockReturnValue(0);
 });
 
 const navLabels = () =>
@@ -418,12 +427,13 @@ describe("the inbox count (#2301)", () => {
     expect(screen.getByLabelText("inboxCount")).toBeEmptyDOMElement();
   });
 
-  it("counts the approvals waiting on the reader with everything else", () => {
+  it("counts questions and approvals waiting on the reader with everything else", () => {
     can.mockReturnValue(true);
     waiting.mockReturnValue([{ id: "s1" }]);
     approvals.mockReturnValue(2);
+    questions.mockReturnValue(1);
     const { unmount } = render(<SidebarNav />);
-    expect(screen.getByLabelText("inboxCount")).toHaveTextContent("3");
+    expect(screen.getByLabelText("inboxCount")).toHaveTextContent("4");
     unmount();
 
     waiting.mockReturnValue([]);
@@ -436,5 +446,27 @@ describe("the inbox count (#2301)", () => {
     waiting.mockReturnValue([]);
     render(<SidebarNav />);
     expect(screen.queryByLabelText("inboxCount")).toBeNull();
+  });
+});
+
+describe("the connection-health badge", () => {
+  it("says how many connections need attention, as a number in the column and a dot on the rail", () => {
+    can.mockReturnValue(true);
+    pins.ids = ["connectors"];
+    connectionHealth.mockReturnValue({ total: 2 });
+    const { unmount } = render(<SidebarNav />);
+    expect(screen.getByLabelText("connectionHealthCount")).toHaveTextContent("2");
+    unmount();
+
+    render(<SidebarNav collapsed />);
+    expect(screen.getByLabelText("connectionHealthCount")).toBeEmptyDOMElement();
+  });
+
+  it("shows nothing when every connection is healthy", () => {
+    can.mockReturnValue(true);
+    pins.ids = ["connectors"];
+    connectionHealth.mockReturnValue({ total: 0 });
+    render(<SidebarNav />);
+    expect(screen.queryByLabelText("connectionHealthCount")).toBeNull();
   });
 });

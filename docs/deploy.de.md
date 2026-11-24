@@ -1,5 +1,5 @@
 ---
-source_sha: "0d080c65b077"
+source_sha: "e885d6a41f7e"
 ---
 
 # Auf einem Server deployen { #deploy-to-a-server }
@@ -325,7 +325,7 @@ an und erneuert es. Nichts neu zu laden und keine zweite Konfigurationsdatei, di
 im Gleichschritt bleiben muss.
 
 Ist Traefik noch nicht vorhanden, liefert das Repository einen mit:
-`traefik/traefik.yml` und `docker-compose-traefik.yml`, das ist ein Entrypoint auf
+`docker-compose-traefik.yml`, das ist ein Entrypoint auf
 443 mit einem Let's-Encrypt-Resolver und 80, das dorthin umleitet.
 
 ```bash
@@ -350,9 +350,17 @@ von dort liest `scripts/deploy.sh` es — spätere Deploys behalten also den Pro
 bei, mit dem dieser Host eingerichtet wurde, und nicht den, den ein Skript
 annahm.
 
+Der mitgelieferte Proxy liest alle statischen Einstellungen aus den
+Compose-Befehlsargumenten, einschließlich `ACME_EMAIL` und `TRAEFIK_NETWORK`. Mounten Sie
+keine zusätzliche statische `traefik.yml`: Traefik wählt eine statische Quelle
+und ignoriert diese Argumente, wenn diese Datei vorhanden ist.
+`traefik/dynamic.yml` enthält weiterhin die Routing-Konfiguration des
+Datei-Providers, einschließlich HSTS. WebSocket-Upgrades benötigen keine weitere
+Middleware; Uploads werden ohne Größenlimit im Proxy gestreamt.
+
 !!! info "`exposedByDefault: false` leistet echte Arbeit"
 
-    Es ist die eine Einstellung in `traefik/traefik.yml`, die es sich zu lesen lohnt,
+    Es ist die eine Einstellung in `docker-compose-traefik.yml`, die es sich zu lesen lohnt,
     bevor Sie ihn betreiben. Nur `app` und `frontend` tragen `traefik.enable=true`,
     also sind Postgres, Redis, der Worker und der Sandbox-Daemon von nichts
     außerhalb des Hosts erreichbar — und das ist eine Eigenschaft davon, *nicht
@@ -408,7 +416,7 @@ annahm.
     erhalten.
 
     Traefik kann ein ganzes Feld behalten, verwerfen oder redigieren, aber keinen
-    Teil davon umschreiben, deshalb entfernt `traefik/traefik.yml` `RequestPath`,
+    Teil davon umschreiben, deshalb entfernt `docker-compose-traefik.yml` `RequestPath`,
     das den Query-String enthält, aus dem Access-Log von Traefik. Nginx könnte
     einen Teil eines Werts umschreiben, doch `nginx/nginx.conf` lässt den Pfad,
     den Query-String und den `Referer` auf dieselbe Weise weg, mit dem Log-Format `agenticos_no_path`, das jeder
@@ -440,6 +448,28 @@ Zertifikate zu beschaffen und zu erneuern ist Ihre Sache, und ebenso der Header
 terminiert. Das Access-Log der Vorlage lässt den Request-Pfad, den Query-String
 und den `Referer` weg; *Manche Request-Pfade und Query-Strings sind
 Zugangsdaten* oben erklärt, warum, und was das Error-Log weiterhin schreibt.
+
+Die Vorlage benötigt **Nginx 1.25.1 oder neuer**, da sie `http2 on` verwendet.
+Nginx 1.24 unter Ubuntu 24.04 benötigt ein neueres Paket oder
+`listen 443 ssl http2;` und das IPv6-Gegenstück anstelle der separaten
+`http2 on;`-Direktiven. Installieren Sie die Vorlage im `http`-Kontext,
+beispielsweise als `/etc/nginx/conf.d/agenticos.conf`, und führen Sie vor dem
+Neuladen `nginx -t` aus.
+
+Der API-Host und die aufgeführten Multipart-Upload-Routen der Konsole setzen
+`client_max_body_size 55m;`: den größten Wert aus
+`MAX_UPLOAD_SIZE_MB`, `CHAT_MAX_UPLOAD_SIZE_MB`, `EMBED_MAX_UPLOAD_SIZE_MB` und
+`ML_MAX_UPLOAD_SIZE_MB` plus 5 MiB für den Multipart-Rahmen. Erhöhen Sie **beide**
+Proxy-Grenzen, wenn Sie diesen größten Wert erhöhen. Nginx erlaubt sonst nur
+1 MiB einschließlich Rahmen und lehnt Uploads vor der Anwendung ab.
+Die Konsole leitet Uploads über ihren eigenen Host weiter; gehostete Seiten
+verwenden den API-Host.
+
+Konsolenseiten, Authentifizierung und gewöhnliches JSON
+behalten die Grenze von 1 MiB. Ergänzen Sie neue Upload-Routen der Konsole in
+der Location-Liste der Vorlage. Der API-Proxy leitet WebSocket-Upgrades auf allen Pfaden
+weiter, einschließlich `/api/v1/ws/`, eingebettetem Chat und Sprache sowie
+Telefonmedien. Gewöhnliches HTTP behält `Connection: close`.
 
 !!! warning "`BIND_HOST` ist eine Sicherheitseinstellung, keine Bequemlichkeit"
 
@@ -648,7 +678,7 @@ ssh you@your-host "trap 'rm -f $remote' EXIT; bash $remote <commit-sha>"
 
 `scripts/deploy.sh` holt diesen Commit, wartet auf die Images, die die CI dafür
 veröffentlicht hat (`sha-<short>`, meist schon da), holt sie, startet neu und
-wartet darauf, dass beide Container sich als gesund melden, bevor es mit einem
+wartet darauf, dass API, Hintergrund-Worker und Frontend sich als gesund melden, bevor es mit einem
 Wert ungleich null zurückkehrt oder eben nicht. Es nimmt einen **Commit** statt
 eines Branches entgegen, das Deployte ist also das Geprüfte und nicht das, wohin
 `main` seither gewandert ist - und was läuft, ist Byte für Byte das, was die CI
@@ -850,3 +880,18 @@ annehmen.
   selbst.
 - **Sichern Sie `postgres_data` und `backend/.env` zusammen.** Das eine ohne das
   andere ist keine Wiederherstellung.
+
+## Fork-Images und lokale Prüfung { #fork-images-and-local-verification }
+
+Compose und `scripts/deploy.sh` unterstützen `AGENTICOS_IMAGE_PREFIX`, standardmäßig
+`ghcr.io/vstorm-co/agenticos`. Setzen Sie den Image-Präfix des Forks und dessen
+GitHub `owner/repository` in `AGENTICOS_SOURCE_REPOSITORY`. Backend, Frontend und
+Browser nutzen den Präfix; der separat versionierte Sandbox-Daemon bleibt eine
+Upstream-Abhängigkeit. Images verwendet standardmäßig den kleingeschriebenen
+GHCR-Präfix seines eigenen Repositorys. Eine gleichnamige GitHub-Repositoryvariable
+kann ihn ersetzen; Paketberechtigungen müssen dieses Ziel abdecken.
+
+Ein Fork konfiguriert keine SSH-Geheimnisse, Umgebungsprüfer oder Repositoryregeln.
+Prüfen Sie diese vor releasegesteuerten Bereitstellungen. Plugin und isolierte
+lokale Prüfung veröffentlichter Images beschreibt
+[AgenticOS mit einem KI-Client bedienen](howto/operate-with-ai.md).

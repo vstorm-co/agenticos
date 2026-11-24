@@ -71,7 +71,28 @@ async def test_private_board_is_reused_and_hidden_even_from_another_org_owner(
     assert (await tables.list_tables(data.contexts[1])).items == []
     with pytest.raises(NotFoundError):
         await tables.describe_table(data.contexts[1], first.table_id)
-    assert len((await tables.list_tables(data.contexts[0])).items) == 1
+    assert [item.name for item in (await tables.list_tables(data.contexts[0])).items] == [
+        "Owner Tasks"
+    ]
+
+
+async def test_private_boards_with_the_same_owner_name_get_distinct_titles(
+    db: AsyncSession,
+) -> None:
+    data = await world(db)
+    for user in data.users:
+        user.full_name = "A" * 120
+    await db.flush()
+    service = TaskService(db)
+    await service.ensure_board(data.contexts[0], BoardEnsure())
+    second = await service.ensure_board(data.contexts[1], BoardEnsure())
+    assert (await service.ensure_board(data.contexts[1], BoardEnsure())).id == second.id
+    assert [
+        item.name for item in (await VirtualTableService(db).list_tables(data.contexts[0])).items
+    ] == ["A" * 58 + " Tasks"]
+    assert [
+        item.name for item in (await VirtualTableService(db).list_tables(data.contexts[1])).items
+    ] == ["A" * 54 + " Tasks (2)"]
 
 
 async def test_group_membership_controls_table_and_task_access_live(db: AsyncSession) -> None:
@@ -1928,3 +1949,57 @@ async def test_agent_board_reuses_its_table_and_tracks_live_agent_access(db: Asy
     await service.purge_scope("agent", agent.id, organization_id=data.org.id)
     assert await service.boards(data.contexts[0]) == []
     assert (await tables.list_tables(data.contexts[0])).items == []
+
+
+async def test_approval_preflight_cannot_release_a_write_after_the_record_changes(
+    db: AsyncSession,
+) -> None:
+    from app.services.virtual_tables.exceptions import RevisionConflictError
+
+    data = await world(db)
+    service = TaskService(db)
+    task = await service.create(data.contexts[0], TaskCreate(title="Human review"))
+    board = await service.ensure_board(data.contexts[0], BoardEnsure())
+    values = {board.column_ids["description"]: "Edited notes"}
+    assert not await service.record_may_schedule_agent_work(
+        data.contexts[0],
+        board.table_id,
+        values,
+        operation="update",
+        record_id=task.id,
+        expected_revision=task.revision,
+    )
+    with pytest.raises(NotFoundError):
+        await service.record_may_schedule_agent_work(
+            data.contexts[1],
+            board.table_id,
+            values,
+            operation="update",
+            record_id=task.id,
+            expected_revision=task.revision,
+        )
+    tables = VirtualTableService(db)
+    await tables.update_record(
+        data.contexts[0],
+        board.table_id,
+        task.id,
+        RecordUpdate(
+            expected_revision=task.revision, values={board.column_ids["title"]: "Changed elsewhere"}
+        ),
+    )
+    assert await service.record_may_schedule_agent_work(
+        data.contexts[0],
+        board.table_id,
+        values,
+        operation="update",
+        record_id=task.id,
+        expected_revision=task.revision,
+    )
+    with pytest.raises(RevisionConflictError):
+        await tables.update_record(
+            data.contexts[0],
+            board.table_id,
+            task.id,
+            RecordUpdate(expected_revision=task.revision, values=values),
+        )
+    assert (await service.get(data.contexts[0], task.id)).description != "Edited notes"

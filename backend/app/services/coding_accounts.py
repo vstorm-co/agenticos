@@ -206,6 +206,13 @@ class CodingAccountService:
             if row.pool_member != data.pool_member:
                 row.pool_member = data.pool_member
                 row.generation = uuid4()
+        if consent_changed:
+            from app.services.sandbox_workspace import SandboxWorkspaceService
+
+            await SandboxWorkspaceService(self.db).purge_personal_coding(
+                organization_id=ctx.organization_id,
+                account_id=row.id,
+            )
         if row.enabled != data.enabled:
             row.enabled = data.enabled
             row.generation = uuid4()
@@ -224,6 +231,12 @@ class CodingAccountService:
         owner = account_owner(ctx)
         await self._lock_owner(ctx, owner)
         row = await self.own(ctx, account_id, locked=True)
+        from app.services.sandbox_workspace import SandboxWorkspaceService
+
+        await SandboxWorkspaceService(self.db).purge_personal_coding(
+            organization_id=ctx.organization_id,
+            account_id=row.id,
+        )
         await self._audit(ctx, row, "coding_account.disconnected")
         await account_repo.delete(self.db, row)
 

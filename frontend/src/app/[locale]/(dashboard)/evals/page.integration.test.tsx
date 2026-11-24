@@ -51,7 +51,7 @@ function answer(runs: { items: unknown[]; total: number }) {
 describe("the eval runs page", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    granted.perms = [Perm.runsView, Perm.agentsView];
+    granted.perms = [Perm.runsView, Perm.agentsView, Perm.datasetsView];
   });
 
   it("lists the runs by agent, a page at a time", async () => {
@@ -111,5 +111,12 @@ describe("the eval runs page", () => {
 
     expect(screen.getByText("You can't see eval runs")).toBeInTheDocument();
     expect(get).not.toHaveBeenCalledWith(expect.stringContaining("/eval-runs/recent"));
+  });
+  it("does not send a reader to datasets they may not open", async () => {
+    granted.perms = [Perm.runsView];
+    answer({ items: [], total: 0 });
+    render(<EvalRunsPage />, { wrapper });
+    expect(await screen.findByText("No eval runs yet")).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Open datasets" })).toBeNull();
   });
 });
