@@ -214,7 +214,7 @@ describe("ChatEmptyState", () => {
     expect(onPick).toHaveBeenCalledWith(expect.stringContaining("on a map"));
   });
 
-  it("lists what the selected agent can do under the openers", async () => {
+  it("keeps what the selected agent can do behind a collapsed control", async () => {
     env.agents = [
       { ...AGENT, starters: ["How do refunds work?"], published_capabilities: ["knowledge"] },
     ];
@@ -246,7 +246,8 @@ describe("ChatEmptyState", () => {
     const onPick = vi.fn();
     render(<ChatEmptyState onPick={onPick} />);
 
-    expect(screen.getByRole("heading", { name: "What can this agent do" })).toBeInTheDocument();
+    expect(screen.queryByText("Knowledge")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "What can this agent do" }));
     expect(screen.getByText("Knowledge")).toBeInTheDocument();
     expect(screen.getByText(/Answers from your documents\./)).toBeInTheDocument();
 
@@ -254,9 +255,10 @@ describe("ChatEmptyState", () => {
     expect(onPick).toHaveBeenCalledWith("Find the refund policy");
   });
 
-  it("says plainly when the selected agent has no bindings", () => {
+  it("says plainly when the selected agent has no bindings", async () => {
     env.agents = [{ ...AGENT, starters: [] }];
     render(<ChatEmptyState onPick={vi.fn()} />);
+    await userEvent.click(screen.getByRole("button", { name: "What can this agent do" }));
 
     expect(screen.getByText(/This agent has no tools or connected apps yet\./)).toBeInTheDocument();
   });

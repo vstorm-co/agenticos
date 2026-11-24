@@ -43,6 +43,8 @@ interface ChatWelcomeProps {
   limitMobileSuggestions?: boolean;
   /** Generic discovery copy can be hidden without moving the composer. */
   showLead?: boolean;
+  /** A compact control at the end of the mark row; it takes no height of its own. */
+  aside?: ReactNode;
 }
 
 /**
@@ -67,6 +69,7 @@ export function ChatWelcome({
   showGreeting = true,
   showLead = true,
   limitMobileSuggestions = false,
+  aside,
 }: ChatWelcomeProps) {
   const t = useTranslations("chat.empty");
   const docked = quiet && suggestionsSlot !== undefined;
@@ -206,6 +209,9 @@ export function ChatWelcome({
           <span className="relative" data-chat-welcome-avatar={quiet && !compact ? "" : undefined}>
             {mark}
           </span>
+          {aside && !compact && (
+            <div className="absolute inset-y-0 right-0 flex items-center">{aside}</div>
+          )}
         </div>
         <h2
           aria-hidden={!showGreeting || undefined}

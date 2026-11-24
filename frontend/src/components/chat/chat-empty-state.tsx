@@ -158,10 +158,9 @@ function Welcome({
     : defaults;
 
   return (
-    // One child of the transcript's centering row: the welcome and the
-    // capabilities panel stack, rather than sitting side by side.
     <div className="w-full">
       <ChatWelcome
+        aside={<AgentCapabilitiesPanel agent={agent} onPick={onPick} />}
         limitMobileSuggestions
         quiet
         showGreeting={showGreeting}
@@ -206,7 +205,6 @@ function Welcome({
         suggestions={suggestions}
         onPick={onPick}
       />
-      <AgentCapabilitiesPanel agent={agent} onPick={onPick} />
     </div>
   );
 }

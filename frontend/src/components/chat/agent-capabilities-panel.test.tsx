@@ -73,8 +73,23 @@ const AGENT: Partial<Agent> = {
   published_capabilities: ["knowledge"],
 };
 
+const open = () => userEvent.click(screen.getByRole("button", { name: "What can this agent do" }));
+
+function phone(matches: boolean) {
+  vi.mocked(window.matchMedia).mockImplementation(
+    (query: string) =>
+      ({
+        matches,
+        media: query,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      }) as unknown as MediaQueryList,
+  );
+}
+
 describe("AgentCapabilitiesPanel", () => {
   beforeEach(() => {
+    phone(false);
     env.agent = { ...AGENT };
     env.catalog = [entry({ id: "knowledge" })];
     env.catalogLoading = false;
@@ -87,16 +102,60 @@ describe("AgentCapabilitiesPanel", () => {
     env.serversLoading = false;
   });
 
-  it("lists what the agent can do, in plain words, with something to try", async () => {
-    const onPick = vi.fn();
-    render(<AgentCapabilitiesPanel agent={env.agent as Agent} onPick={onPick} />);
+  it("is a collapsed control that mounts none of the content", () => {
+    render(<AgentCapabilitiesPanel agent={env.agent as Agent} onPick={vi.fn()} />);
 
-    expect(screen.getByRole("heading", { name: "What can this agent do" })).toBeInTheDocument();
+    const control = screen.getByRole("button", { name: "What can this agent do" });
+    expect(control).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByText("Knowledge")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Find the refund policy" })).toBeNull();
+  });
+
+  it("opens what the agent can do, in plain words, with something to try", async () => {
+    render(<AgentCapabilitiesPanel agent={env.agent as Agent} onPick={vi.fn()} />);
+    await open();
+
+    expect(screen.getByRole("button", { name: "What can this agent do" })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
     expect(screen.getByText("Knowledge")).toBeInTheDocument();
     expect(screen.getByText(/Answers from your documents\./)).toBeInTheDocument();
+  });
+
+  it("sends an example, closes, and returns focus to the control", async () => {
+    const onPick = vi.fn();
+    render(<AgentCapabilitiesPanel agent={env.agent as Agent} onPick={onPick} />);
+    await open();
 
     await userEvent.click(screen.getByRole("button", { name: "Find the refund policy" }));
+
     expect(onPick).toHaveBeenCalledWith("Find the refund policy");
+    expect(screen.queryByText("Knowledge")).toBeNull();
+    expect(screen.getByRole("button", { name: "What can this agent do" })).toHaveFocus();
+  });
+
+  it("returns focus to the control when closed with Escape", async () => {
+    render(<AgentCapabilitiesPanel agent={env.agent as Agent} onPick={vi.fn()} />);
+    await open();
+    await userEvent.keyboard("{Escape}");
+
+    expect(screen.queryByText("Knowledge")).toBeNull();
+    expect(screen.getByRole("button", { name: "What can this agent do" })).toHaveFocus();
+  });
+
+  it("opens in a sheet on a phone", async () => {
+    phone(true);
+    const onPick = vi.fn();
+    render(<AgentCapabilitiesPanel agent={env.agent as Agent} onPick={onPick} />);
+    await open();
+
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "What can this agent do" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Find the refund policy" }));
+    expect(onPick).toHaveBeenCalledWith("Find the refund policy");
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.getByRole("button", { name: "What can this agent do" })).toHaveFocus();
   });
 
   it("names the connected apps the agent is bound to", () => {
@@ -148,44 +207,45 @@ describe("AgentCapabilitiesPanel", () => {
       },
     ];
     render(<AgentCapabilitiesPanel agent={env.agent as Agent} onPick={vi.fn()} />);
-
-    expect(screen.getByText("Connected apps: Gmail · Notion")).toBeInTheDocument();
+    return open().then(() => {
+      expect(screen.getByText("Connected apps: Gmail · Notion")).toBeInTheDocument();
+    });
   });
 
-  it("says plainly when the agent has no bindings at all", () => {
+  it("says plainly when the agent has no bindings at all", async () => {
     env.agent = { ...AGENT, published_capabilities: [] };
     render(<AgentCapabilitiesPanel agent={env.agent as Agent} onPick={vi.fn()} />);
+    await open();
 
-    expect(screen.getByRole("heading", { name: "What can this agent do" })).toBeInTheDocument();
     expect(screen.getByText(/This agent has no tools or connected apps yet\./)).toBeInTheDocument();
   });
 
-  it("says nothing while any list it reads from is still loading", () => {
+  it("shows no control while any list it reads from is still loading", () => {
     env.catalogLoading = true;
     const { rerender } = render(
       <AgentCapabilitiesPanel agent={env.agent as Agent} onPick={vi.fn()} />,
     );
-    expect(screen.queryByRole("heading", { name: "What can this agent do" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "What can this agent do" })).toBeNull();
 
     env.catalogLoading = false;
     env.versionLoading = true;
     rerender(<AgentCapabilitiesPanel agent={env.agent as Agent} onPick={vi.fn()} />);
-    expect(screen.queryByRole("heading", { name: "What can this agent do" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "What can this agent do" })).toBeNull();
   });
 
-  it("says nothing when the agent is bound to something the catalog cannot name", () => {
+  it("shows no control when the agent is bound to something the catalog cannot name", () => {
     // A failed catalog lookup leaves no rows for a capable agent: that is a
     // lookup failure, not an agent with nothing to do, so no plain "no tools"
     // line is drawn.
     env.catalog = [];
     render(<AgentCapabilitiesPanel agent={env.agent as Agent} onPick={vi.fn()} />);
 
-    expect(screen.queryByRole("heading", { name: "What can this agent do" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "What can this agent do" })).toBeNull();
   });
 
   it("renders nothing before the agent resolves", () => {
     render(<AgentCapabilitiesPanel agent={undefined} onPick={vi.fn()} />);
 
-    expect(screen.queryByRole("heading", { name: "What can this agent do" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "What can this agent do" })).toBeNull();
   });
 });

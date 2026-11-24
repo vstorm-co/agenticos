@@ -1,10 +1,22 @@
 "use client";
 
-import { ArrowUpRight } from "lucide-react";
+import { useRef, useState } from "react";
+import { ArrowUpRight, ChevronDown } from "lucide-react";
 import { useTranslations } from "next-intl";
+
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+  Sheet,
+  SheetClose,
+  SheetContent,
+  SheetTitle,
+} from "@/components/ui";
 
 import { useAgentVersion, useCapabilityCatalog, useMcpCatalog, useMcpConnections } from "@/hooks";
 import { useCapabilityGuide } from "@/hooks/use-capability-guide";
+import { useNarrowScreen } from "@/hooks/use-narrow-screen";
 import { capabilityRows, connectedAppNames } from "@/lib/agent-capabilities";
 import type { Agent } from "@/types/agents";
 
@@ -24,6 +36,10 @@ import type { Agent } from "@/types/agents";
  * loading, or where a lookup failed and left it with no rows for an agent
  * that is bound to something: a "no tools" line drawn on a failed catalog
  * would be a lie about a capable agent.
+ *
+ * It is a compact control, closed by default: the lists open in a popover, or a
+ * sheet on a phone, so the panel never takes height from the column the
+ * composer sits in. The content is unmounted while it is closed.
  */
 export function AgentCapabilitiesPanel({
   agent,
@@ -33,6 +49,9 @@ export function AgentCapabilitiesPanel({
   onPick: (prompt: string) => void;
 }) {
   const t = useTranslations("chat.empty");
+  const [open, setOpen] = useState(false);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const phone = useNarrowScreen();
   const { capabilities, isLoading: catalogLoading } = useCapabilityCatalog();
   const guide = useCapabilityGuide();
   const { version, isLoading: versionLoading } = useAgentVersion(
@@ -52,17 +71,85 @@ export function AgentCapabilitiesPanel({
       (agent.published_capabilities ?? []).length > 0 ||
       (version?.spec.mcp_servers ?? []).length > 0;
     if (bound) return null;
+  }
+
+  const content = (
+    <CapabilitiesContent
+      rows={rows}
+      apps={apps}
+      onPick={(prompt) => {
+        setOpen(false);
+        onPick(prompt);
+      }}
+    />
+  );
+  const button = (
+    <button
+      ref={trigger}
+      type="button"
+      aria-haspopup="dialog"
+      aria-expanded={open}
+      onClick={phone ? () => setOpen(true) : undefined}
+      className="bg-foreground/[0.06] hover:bg-foreground/[0.1] data-[state=open]:bg-foreground/[0.12] text-muted-foreground hover:text-foreground focus-visible:ring-ring touch:min-h-11 inline-flex touch-manipulation items-center gap-1.5 rounded-lg px-2.5 py-1 text-[13px] transition-colors outline-none focus-visible:ring-2"
+    >
+      {t("panelTitle")}
+      <ChevronDown aria-hidden className="h-3 w-3 shrink-0" />
+    </button>
+  );
+
+  if (phone) {
     return (
-      <section aria-label={t("panelTitle")} className="mx-auto mt-8 w-full">
-        <h3 className="text-foreground text-sm font-medium">{t("panelTitle")}</h3>
-        <p className="text-muted-foreground mt-2 text-sm leading-relaxed">{t("panelEmpty")}</p>
-      </section>
+      <>
+        {button}
+        <Sheet open={open} onOpenChange={setOpen}>
+          <SheetContent
+            side="bottom"
+            onCloseAutoFocus={(event) => {
+              event.preventDefault();
+              trigger.current?.focus({ preventScroll: true });
+            }}
+          >
+            <div className="flex items-center justify-between gap-2 border-b px-4 py-2">
+              <SheetTitle className="text-base">{t("panelTitle")}</SheetTitle>
+              <SheetClose onClick={() => setOpen(false)} />
+            </div>
+            <div className="p-4">{content}</div>
+          </SheetContent>
+        </Sheet>
+      </>
     );
   }
   return (
-    <section aria-label={t("panelTitle")} className="mx-auto mt-8 w-full">
-      <h3 className="text-foreground text-sm font-medium">{t("panelTitle")}</h3>
-      <ul className="mt-3 space-y-4">
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>{button}</PopoverTrigger>
+      <PopoverContent
+        align="end"
+        collisionPadding={12}
+        aria-label={t("panelTitle")}
+        className="bg-popover max-h-[min(28rem,70dvh)] w-[min(26rem,calc(100vw-1.5rem))] overflow-y-auto p-4"
+      >
+        {content}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function CapabilitiesContent({
+  rows,
+  apps,
+  onPick,
+}: {
+  rows: ReturnType<typeof capabilityRows>;
+  apps: string[];
+  onPick: (prompt: string) => void;
+}) {
+  const t = useTranslations("chat.empty");
+  if (rows.length === 0 && apps.length === 0) {
+    return <p className="text-muted-foreground text-sm leading-relaxed">{t("panelEmpty")}</p>;
+  }
+  return (
+    <>
+      <ul className="space-y-4">
         {rows.map((row) => {
           const example = row.example;
           return (
@@ -90,6 +177,6 @@ export function AgentCapabilitiesPanel({
           {t("panelApps", { apps: apps.join(" · ") })}
         </p>
       )}
-    </section>
+    </>
   );
 }
