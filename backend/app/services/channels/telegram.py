@@ -57,7 +57,11 @@ from app.services.channels.base import (
     supervise_stream,
 )
 from app.services.channels.exceptions import ChannelNotConfigured
-from app.services.channels.telegram_format import to_telegram_html
+from app.services.channels.telegram_format import (
+    TELEGRAM_TEXT_LIMIT,
+    telegram_pieces,
+    to_telegram_html,
+)
 from app.services.channels.telegram_press import parse_press
 
 logger = logging.getLogger(__name__)
@@ -268,11 +272,13 @@ class TelegramAdapter(ChannelAdapter):
 
         Mid-stream edits carry no parse mode: half-written Markdown is the normal
         state of a message being streamed, and Telegram rejects an unclosed `**`
-        with a 400. The final edit (`msg.final`) holds the whole answer, so it is
-        sent as HTML the way `send_message` sends it, and as plain text if
-        Telegram refuses the HTML. An edit to text the message already holds
-        counts as done: Telegram refuses it with a 400, and treating that as a
-        failure would post the answer a second time.
+        with a 400. They show the first 4096 characters, all one message holds.
+        The final edit (`msg.final`) holds the whole answer, so it is sent as
+        HTML the way `send_message` sends it, and as plain text if Telegram
+        refuses the HTML. An answer too long for one message keeps its first
+        piece here and sends the rest as new messages. An edit to text the
+        message already holds counts as done: Telegram refuses it with a 400,
+        and treating that as a failure would post the answer a second time.
         """
         chat_id = _where(msg.platform_chat_id)["chat_id"]
         async with self._bot(bot_token) as bot:
@@ -287,19 +293,23 @@ class TelegramAdapter(ChannelAdapter):
                         raise
 
             if not msg.final:
-                await edit(msg.text, None)
+                await edit(msg.text[:TELEGRAM_TEXT_LIMIT], None)
                 return
+            first, *rest = telegram_pieces(msg.text) or [msg.text]
             try:
-                await edit(to_telegram_html(msg.text), ParseMode.HTML)
+                await edit(to_telegram_html(first), ParseMode.HTML)
             except TelegramBadRequest:
-                await edit(msg.text, None)
+                await edit(first, None)
+            await self._send_pieces(bot, rest, _where(msg.platform_chat_id), None)
 
     async def send_message(self, bot_token: str, msg: OutgoingMessage) -> None:
         """Send a reply back to Telegram.
 
         As HTML converted from the agent's Markdown (#2068) - Telegram's own
         Markdown rejects half of what a model writes - and as plain text if even
-        that is refused, so the answer always arrives.
+        that is refused, so the answer always arrives. An answer over Telegram's
+        4096 characters is sent as several messages, and only the first replies
+        to the question.
         """
         reply_to = int(msg.reply_to_message_id) if msg.reply_to_message_id else None
         where = _where(msg.platform_chat_id)
@@ -317,16 +327,29 @@ class TelegramAdapter(ChannelAdapter):
             if msg.attachments:
                 await self._send_documents(bot, msg, reply_to)
                 return
+            # Empty text is still sent, so Telegram refuses it rather than nothing arriving.
+            await self._send_pieces(bot, telegram_pieces(msg.text) or [msg.text], where, reply_to)
+
+    @staticmethod
+    async def _send_pieces(
+        bot: Bot, pieces: list[str], where: dict[str, Any], reply_to: int | None
+    ) -> None:
+        """Send each piece as HTML, or as plain text where Telegram refuses the HTML.
+
+        Only the first piece replies to `reply_to`: the rest continue it.
+        """
+        for index, piece in enumerate(pieces):
+            reply = reply_to if index == 0 else None
             try:
                 await bot.send_message(
-                    text=to_telegram_html(msg.text),
+                    text=to_telegram_html(piece),
                     parse_mode=ParseMode.HTML,
-                    reply_to_message_id=reply_to,
+                    reply_to_message_id=reply,
                     **where,
                 )
             except TelegramBadRequest:
                 await bot.send_message(
-                    text=msg.text, parse_mode=None, reply_to_message_id=reply_to, **where
+                    text=piece, parse_mode=None, reply_to_message_id=reply, **where
                 )
 
     @staticmethod
@@ -344,9 +367,7 @@ class TelegramAdapter(ChannelAdapter):
         caption: str | None = msg.text if len(msg.text) <= 1024 else None
         where = _where(msg.platform_chat_id)
         if caption is None:
-            await bot.send_message(
-                text=msg.text, parse_mode=None, reply_to_message_id=reply_to, **where
-            )
+            await TelegramAdapter._send_pieces(bot, telegram_pieces(msg.text), where, reply_to)
 
         for index, attachment in enumerate(msg.attachments):
             await bot.send_document(

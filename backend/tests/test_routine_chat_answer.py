@@ -450,3 +450,36 @@ async def test_a_delivery_with_no_recorded_run_is_closed_without_a_notice(world:
 
     assert world.trigger.last_delivery_status == "unavailable"
     world.blocked.assert_not_awaited()
+
+
+async def test_a_routine_answer_longer_than_a_telegram_message_is_delivered_in_pieces(
+    world: _World,
+) -> None:
+    """Telegram refuses a message over 4096 characters; the answer arrives split instead."""
+    from aiogram.exceptions import TelegramBadRequest
+
+    from app.services.channels.telegram import TelegramAdapter
+
+    sent: list[str] = []
+
+    async def send_message(*, text: str, **_: object) -> MagicMock:
+        if len(text) > 4096:
+            raise TelegramBadRequest(MagicMock(), "Bad Request: message is too long")
+        sent.append(text)
+        return MagicMock(message_id=1)
+
+    telegram = MagicMock(send_message=AsyncMock(side_effect=send_message))
+
+    @asynccontextmanager
+    async def fake_bot(token: str, **_: object) -> AsyncIterator[MagicMock]:
+        yield telegram
+
+    world.message.content = "\n".join(f"**Finding {i}**: merged & deployed" for i in range(400))
+    with (
+        patch.object(TelegramAdapter, "_bot", staticmethod(fake_bot)),
+        patch.object(routine_answer, "get_adapter", return_value=TelegramAdapter()),
+    ):
+        await send_routine_answer(world.job)
+
+    assert len(sent) > 1
+    assert world.trigger.last_delivery_status == "delivered"

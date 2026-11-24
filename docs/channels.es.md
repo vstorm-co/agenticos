@@ -1,5 +1,5 @@
 ---
-source_sha: "9c15026c1933"
+source_sha: "de2ba02566cc"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -1485,7 +1485,10 @@ junto a `/new`, `/link` y `/help` —, muestra *escribiendo…* mientras trabaja
 nombra el paso en el que está, envía las respuestas como HTML de Telegram
 convertido desde el Markdown del agent para que los bloques de código y los
 enlaces sobrevivan, y responde en el tema de un grupo con temas dentro de ese
-tema.
+tema. Una respuesta transmitida en streaming recibe el mismo formato cuando
+termina. Una respuesta más larga que los 4096 caracteres de Telegram llega como
+varios mensajes, y un bloque de código cortado entre dos de ellos se cierra y se
+vuelve a abrir.
 
 ## Mattermost { #mattermost }
 

@@ -12,7 +12,11 @@ from app.agents.capabilities.channel_tools import ChannelDirectoryUnsupported
 from app.services.channels.base import CHANNEL_COMMANDS, OutgoingAttachment, OutgoingMessage
 from app.services.channels.router import ChannelMessageRouter
 from app.services.channels.telegram import TelegramAdapter
-from app.services.channels.telegram_format import to_telegram_html
+from app.services.channels.telegram_format import (
+    TELEGRAM_TEXT_LIMIT,
+    telegram_pieces,
+    to_telegram_html,
+)
 
 pytestmark = pytest.mark.anyio
 
@@ -39,6 +43,68 @@ class TestFormatting:
 
     def test_a_quote_in_a_url_cannot_end_the_attribute(self):
         assert "&quot;" in to_telegram_html('[x](https://x.io/"onmouseover)')
+
+
+def _words(text: str) -> str:
+    return "".join(text.split())
+
+
+class TestSplittingALongAnswer:
+    """Telegram refuses a message over 4096 characters, counted after the HTML conversion."""
+
+    def test_a_short_answer_is_one_piece(self):
+        assert telegram_pieces("**Done**") == ["**Done**"]
+
+    def test_each_piece_fits_once_converted_and_nothing_is_lost(self):
+        markdown = "\n".join(f"**Item {i}** costs < 5 & ships today" for i in range(400))
+
+        pieces = telegram_pieces(markdown)
+
+        assert len(pieces) > 1
+        assert all(len(to_telegram_html(piece)) <= TELEGRAM_TEXT_LIMIT for piece in pieces)
+        assert all(len(piece) <= TELEGRAM_TEXT_LIMIT for piece in pieces)
+        assert _words("".join(pieces)) == _words(markdown)
+
+    def test_escaping_that_lengthens_the_text_is_counted(self):
+        """Each `&` becomes `&amp;`: text that fits as written does not once converted."""
+        markdown = "a & b " * 600
+
+        pieces = telegram_pieces(markdown)
+
+        assert len(markdown) <= TELEGRAM_TEXT_LIMIT
+        assert len(pieces) > 1
+        assert all(len(to_telegram_html(piece)) <= TELEGRAM_TEXT_LIMIT for piece in pieces)
+
+    def test_a_cut_inside_a_code_fence_closes_and_reopens_it(self):
+        code = "\n".join(f"print({i})  # line {i}" for i in range(600))
+        markdown = f"First:\n```sh\nls\n```\nThen:\n```python\n{code}\n```\nDone."
+
+        pieces = telegram_pieces(markdown)
+
+        assert len(pieces) > 1
+        for piece in pieces:
+            rendered = to_telegram_html(piece)
+            assert len(rendered) <= TELEGRAM_TEXT_LIMIT
+            assert rendered.count("<pre>") == rendered.count("</pre>") >= 1
+            assert "```" not in rendered
+        assert all(piece.lstrip().startswith("```python") for piece in pieces[1:])
+
+    def test_a_cut_in_a_fences_opening_line_moves_before_the_fence(self):
+        markdown = "intro " * 600 + "```text " + "w " * 400 + "\ncode\n```"
+
+        first, second = telegram_pieces(markdown)
+
+        assert "```" not in first
+        assert second.startswith("```text ")
+
+    def test_whitespace_after_the_last_cut_is_not_a_piece(self):
+        assert telegram_pieces("") == []
+        assert telegram_pieces("x" * 4096 + "\n" + " " * 10) == ["x" * 4096]
+
+    def test_a_word_longer_than_a_message_is_cut_where_it_must_be(self):
+        pieces = telegram_pieces("x" * 10_000)
+
+        assert [len(piece) for piece in pieces] == [4096, 4096, 1808]
 
 
 def _telegram(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
@@ -150,7 +216,7 @@ class TestTopicsAndTyping:
 
         assert bot.send_photo.await_args.kwargs["message_thread_id"] == 7
         assert bot.send_document.await_args.kwargs["message_thread_id"] == 7
-        assert bot.send_message.await_args.kwargs["parse_mode"] is None
+        assert bot.send_message.await_args.kwargs["message_thread_id"] == 7
 
 
 class TestTheCommandMenu:
@@ -316,6 +382,103 @@ class TestTheFinalEditIsFormatted:
         sent = bot.edit_message_text.await_args.kwargs
         assert sent["text"] == "**Do"
         assert sent["parse_mode"] is None
+
+
+class TestALongAnswerArrivesInPieces:
+    LONG = "\n".join(f"**Point {i}**: the detail that matters & why" for i in range(300))
+
+    async def test_empty_text_is_still_sent_for_telegram_to_refuse(self, monkeypatch):
+        bot = _telegram(monkeypatch)
+
+        await TelegramAdapter().send_message("t", OutgoingMessage(platform_chat_id="42", text=""))
+
+        assert bot.send_message.await_args.kwargs["text"] == ""
+
+    async def test_a_long_answer_is_sent_as_several_messages_that_fit(self, monkeypatch):
+        bot = _telegram(monkeypatch)
+
+        await TelegramAdapter().send_message(
+            "t", OutgoingMessage(platform_chat_id="42", text=self.LONG, reply_to_message_id="9")
+        )
+
+        sent = [call.kwargs for call in bot.send_message.await_args_list]
+        assert len(sent) > 1
+        assert all(len(each["text"]) <= TELEGRAM_TEXT_LIMIT for each in sent)
+        assert all(each["parse_mode"] == "HTML" for each in sent)
+        assert [each["reply_to_message_id"] for each in sent] == [9] + [None] * (len(sent) - 1)
+
+    async def test_a_piece_telegram_refuses_as_html_is_sent_plain_alone(self, monkeypatch):
+        bot = _telegram(monkeypatch)
+        refused = TelegramBadRequest(MagicMock(), "Bad Request: can't parse entities")
+        calls = iter(range(100))
+
+        def second_refused(**_: Any) -> MagicMock:
+            if next(calls) == 1:
+                raise refused
+            return MagicMock()
+
+        bot.send_message.side_effect = second_refused
+        pieces = telegram_pieces(self.LONG)
+
+        await TelegramAdapter().send_message(
+            "t", OutgoingMessage(platform_chat_id="42", text=self.LONG)
+        )
+
+        sent = [call.kwargs for call in bot.send_message.await_args_list]
+        modes = [each["parse_mode"] for each in sent]
+        assert modes == ["HTML", "HTML", None] + ["HTML"] * (len(pieces) - 2)
+        assert sent[2]["text"] == pieces[1]
+
+    async def test_the_final_edit_holds_the_first_piece_and_the_rest_follow(self, monkeypatch):
+        bot = _telegram(monkeypatch)
+
+        await TelegramAdapter().update_reply(
+            "t",
+            OutgoingMessage(platform_chat_id="42", text=self.LONG, final=True),
+            "5",
+        )
+
+        pieces = telegram_pieces(self.LONG)
+        assert bot.edit_message_text.await_args.kwargs["text"] == to_telegram_html(pieces[0])
+        followed = [call.kwargs for call in bot.send_message.await_args_list]
+        assert [each["text"] for each in followed] == [to_telegram_html(p) for p in pieces[1:]]
+        assert all(each["reply_to_message_id"] is None for each in followed)
+
+    async def test_an_edit_mid_stream_shows_what_fits(self, monkeypatch):
+        bot = _telegram(monkeypatch)
+
+        await TelegramAdapter().update_reply(
+            "t", OutgoingMessage(platform_chat_id="42", text=self.LONG), "5"
+        )
+
+        assert bot.edit_message_text.await_args.kwargs["text"] == self.LONG[:TELEGRAM_TEXT_LIMIT]
+        bot.send_message.assert_not_awaited()
+
+    async def test_files_still_follow_a_long_answer(self, monkeypatch):
+        bot = _telegram(monkeypatch)
+        order: list[str] = []
+        bot.send_message.side_effect = lambda **_: order.append("text") or MagicMock()
+        bot.send_document.side_effect = lambda **_: order.append("file") or MagicMock()
+
+        await TelegramAdapter().send_message(
+            "t",
+            OutgoingMessage(
+                platform_chat_id="42",
+                text=self.LONG,
+                attachments=[
+                    OutgoingAttachment(
+                        filename="r.pdf", content=b"%PDF", mime_type="application/pdf"
+                    )
+                ],
+            ),
+        )
+
+        assert order[-1] == "file"
+        assert order.count("text") > 1
+        assert all(
+            len(call.kwargs["text"]) <= TELEGRAM_TEXT_LIMIT
+            for call in bot.send_message.await_args_list
+        )
 
 
 class TestMembersOfAPrivateChat:

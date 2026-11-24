@@ -1,5 +1,5 @@
 ---
-source_sha: "9c15026c1933"
+source_sha: "de2ba02566cc"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -1453,7 +1453,10 @@ Bot ustawia swoje menu komend — `/agents` mówi, który agent odpowiada i co r
 obok `/new`, `/link` i `/help` — pokazuje *pisze…* w trakcie pracy i nazywa krok,
 na którym jest, wysyła odpowiedzi jako HTML Telegrama przekonwertowany z Markdownu
 agenta, więc bloki kodu i linki przetrwają, a w grupie z tematami odpowiada w tym
-samym temacie.
+samym temacie. Odpowiedź przesyłana strumieniowo jest formatowana tak samo, gdy
+się skończy. Odpowiedź dłuższa niż 4096 znaków Telegrama przychodzi jako kilka
+wiadomości, a blok kodu przecięty między dwiema z nich jest zamykany i otwierany
+ponownie.
 
 ## Mattermost { #mattermost }
 

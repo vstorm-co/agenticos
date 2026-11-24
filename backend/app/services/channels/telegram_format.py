@@ -55,3 +55,73 @@ def to_telegram_html(markdown: str) -> str:
         last = match.end()
     parts.append(_with_inline_code(markdown[last:]))
     return "".join(parts)
+
+
+TELEGRAM_TEXT_LIMIT = 4096
+"""The most characters Telegram takes in one message, counted after the HTML conversion."""
+
+
+def _fits(markdown: str, limit: int) -> bool:
+    # The Markdown is checked too: it is what is sent when Telegram refuses the HTML.
+    return len(markdown) <= limit and len(to_telegram_html(markdown)) <= limit
+
+
+def _open_fence(markdown: str, cut: int) -> tuple[int, str] | None:
+    """The fence a cut at `cut` falls inside: its start and its opening line."""
+    for match in _FENCE.finditer(markdown):
+        if match.start() < cut < match.end():
+            opener = markdown[match.start() : markdown.index("\n", match.start()) + 1]
+            return match.start(), opener
+    return None
+
+
+def _piece(markdown: str, cut: int) -> str:
+    """The text before `cut`, with a fence it leaves open closed."""
+    head = markdown[:cut]
+    if _open_fence(markdown, cut) is None:
+        return head
+    return head + ("```" if head.endswith("\n") else "\n```")
+
+
+def _cut(markdown: str, limit: int) -> int:
+    """Where the first piece ends: at a newline, else a space, else wherever it must."""
+    low, high = 1, len(markdown)
+    while low < high:
+        middle = (low + high + 1) // 2
+        if _fits(_piece(markdown, middle), limit):
+            low = middle
+        else:
+            high = middle - 1
+    head = markdown[:low]
+    for separator in ("\n", " "):
+        at = head.rfind(separator)
+        if at > low // 2:
+            low = at + 1
+            break
+    fence = _open_fence(markdown, low)
+    if fence is not None and low < fence[0] + len(fence[1]) and fence[0] > 0:
+        # A cut inside a fence's opening line moves to before the fence.
+        low = fence[0]
+    return low
+
+
+def telegram_pieces(markdown: str, limit: int = TELEGRAM_TEXT_LIMIT) -> list[str]:
+    """The answer as Markdown pieces that each fit one Telegram message.
+
+    Each piece fits as HTML and as plain text, so either can be sent. A piece
+    cut inside a code fence closes it, and the next piece opens it again with
+    the same language, so both render as code. None is empty.
+    """
+    pieces: list[str] = []
+    rest = markdown
+    while rest.strip():
+        if _fits(rest, limit):
+            pieces.append(rest)
+            break
+        cut = _cut(rest, limit)
+        fence = _open_fence(rest, cut)
+        pieces.append(_piece(rest, cut).rstrip())
+        tail = rest[cut:]
+        # Reopened only when that still makes progress through the text.
+        rest = fence[1] + tail if fence is not None and cut > len(fence[1]) else tail.lstrip("\n")
+    return [piece for piece in pieces if piece.strip()]

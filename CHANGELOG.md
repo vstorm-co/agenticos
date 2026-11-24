@@ -32,6 +32,7 @@ Two things are versioned separately from this file and worth knowing about:
 - Let an agent bound to the platform MCP server schedule a routine for itself: `create_routine` without `agent_id` now schedules the agent the run belongs to, and `GET /me/permissions` returns that agent as `run_agent_id` for an agent's run credential. An API key or an MCP client still names the agent.
 
 - Format the finished Telegram answer: the last edit of a streamed reply is now sent as HTML, so `**bold**`, lists, links and code render instead of showing raw Markdown, and as plain text if Telegram refuses the HTML (#3227).
+- Send a Telegram answer longer than 4096 characters as several messages instead of losing it. Each piece fits after the HTML conversion, a code block cut between pieces is closed and reopened, and only the first piece replies to the question. A routine's long answer to a Telegram chat now reads `delivered` instead of failing every attempt.
 - Stop posting a streamed Telegram answer twice: Telegram's "message is not modified" reply to the final edit is now a success instead of an error that triggered a second post (#3227).
 
 - Stop logging an error when an agent asks for the member list of a Telegram private chat. A private chat has no member list, so `{channel_members}` reads `(unavailable)` and the member tool says why, without calling Telegram (#3229).
