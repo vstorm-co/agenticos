@@ -37,7 +37,7 @@ export function useSkillSections({
     queryKey: qk.skills.sections({
       arrange,
       search,
-      category: (categories ?? []).join(","),
+      categories: categories ?? [],
       sort,
       groupId: groupId ?? "",
     }),
