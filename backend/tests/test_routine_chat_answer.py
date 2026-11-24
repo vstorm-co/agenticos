@@ -514,3 +514,31 @@ async def test_an_answer_whose_run_is_gone_is_not_sent(world: _World) -> None:
 
     world.adapter.send_message.assert_not_awaited()
     assert world.trigger.last_delivery_status == "unavailable"
+
+
+async def test_the_worker_settler_hands_the_job_to_the_routine_settler() -> None:
+    from app.worker.tasks import channel_tasks
+
+    job = MagicMock()
+    with patch.object(channel_tasks, "settle_unsent_answer", new=AsyncMock()) as settle:
+        await channel_tasks.settle_lost_routine_answer(job, "dead")
+
+    settle.assert_awaited_once_with(job, "dead")
+
+
+async def test_an_unnamed_routine_is_posted_under_its_agents_name(world: _World) -> None:
+    world.trigger.name = None
+
+    await send_routine_answer(world.job)
+
+    assert world.sent[1].text == "**Agent**\n\nThree PRs merged."
+
+
+async def test_an_unnamed_routine_whose_agent_is_gone_is_posted_without_a_title(
+    world: _World,
+) -> None:
+    world.trigger.name = None
+    with patch.object(routine_answer.agent_repo, "get", new=AsyncMock(return_value=None)):
+        await send_routine_answer(world.job)
+
+    assert world.sent[1].text == "Three PRs merged."
