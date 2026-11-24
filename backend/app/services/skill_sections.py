@@ -88,6 +88,10 @@ def by_origin(
 ) -> list[Section]:
     """The organization's own skills, the private ones, then what shipped with the deployment.
 
+    "The organization's own" is every skill written here that is not private -
+    one shared with the whole organization or only with chosen groups (`team`),
+    since both are the organization's work rather than one person's.
+
     Shipped skills split into the bundled platform library and one section per
     gallery industry. Both are recognised by name, because installing copies a
     folder into an ordinary row and the name is all that stays of where it came

@@ -100,6 +100,15 @@ class TestByOrigin:
         ]
         assert sections[3].industry == "finance"
 
+    def test_a_skill_shared_with_chosen_groups_is_the_organizations_own(self):
+        team = _key("support-tone", visibility="team")
+
+        sections = by_origin([team], bundled_names=frozenset(), gallery_industries={})
+
+        assert [(section.key, section.skill_ids) for section in sections] == [
+            ("origin:org", [team.id])
+        ]
+
     def test_a_shipped_name_reads_as_shipped_even_when_private(self):
         """Installing keeps only the name, so the name is what decides."""
         copied = _key("refund-policy", visibility="private")
