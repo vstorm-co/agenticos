@@ -5,6 +5,7 @@ identify entries within a file and never grant access to either organization.
 """
 
 from enum import StrEnum
+from math import isfinite
 from pathlib import PurePosixPath
 from typing import Annotated, Literal, Self
 from uuid import UUID
@@ -145,6 +146,22 @@ class BundleResource(BaseSchema):
     definition: dict[str, JsonValue] | None = None
     references: tuple[BundleReference, ...] = Field(default=(), max_length=10_000)
     included: frozenset[BundleContentLayer] = frozenset()
+
+    @field_validator("definition")
+    @classmethod
+    def finite_json_values(cls, value: dict[str, JsonValue] | None) -> dict[str, JsonValue] | None:
+        if value is None:
+            return value
+        pending = list(value.values())
+        while pending:
+            item = pending.pop()
+            if isinstance(item, dict):
+                pending.extend(item.values())
+            elif isinstance(item, list):
+                pending.extend(item)
+            elif isinstance(item, float) and not isfinite(item):
+                raise ValueError("Portable definitions require finite JSON numbers")
+        return value
 
     @model_validator(mode="after")
     def consistent_definition(self) -> Self:

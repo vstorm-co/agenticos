@@ -7,6 +7,7 @@ from uuid import UUID
 from pydantic import JsonValue
 
 from app.core.exceptions import BadRequestError
+from app.core.field_errors import refused_field
 from app.schemas.resource_bundle import BundleDestination, BundlePath, BundleResource
 
 
@@ -24,7 +25,7 @@ class ReboundDefinition:
 
 
 def _refuse(message: str) -> BadRequestError:
-    return BadRequestError(message=message, details={"field": "bindings"})
+    return refused_field("bundle", message)
 
 
 def _at(definition: dict[str, JsonValue], path: BundlePath) -> JsonValue:

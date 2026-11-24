@@ -1,10 +1,12 @@
 """Bounded archive transport; no extraction, provider calls or executable imports."""
 
-from collections.abc import Generator, Iterator
+import json
+from collections.abc import Generator, Iterator, Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass
 from hashlib import sha256
 from io import SEEK_END
+from pathlib import Path
 from stat import S_IFLNK, S_IFMT
 from typing import BinaryIO
 from zipfile import ZIP_DEFLATED, ZIP_STORED, BadZipFile, ZipFile
@@ -13,6 +15,7 @@ from zlib import error as ZlibError
 from pydantic import ValidationError
 
 from app.core.exceptions import BadRequestError
+from app.core.field_errors import refused_field
 from app.schemas.resource_bundle import BundleAsset, ResourceBundle
 
 
@@ -26,7 +29,7 @@ class BundleLimits:
 
 
 def _refuse(message: str) -> BadRequestError:
-    return BadRequestError(message=message, details={"field": "bundle"})
+    return refused_field("bundle", message)
 
 
 class BundleArchive:
@@ -57,6 +60,15 @@ class BundleArchive:
             raise _refuse("An asset does not match its declared size or digest")
 
 
+def _unique_keys(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    result: dict[str, object] = {}
+    for key, value in pairs:
+        if key in result:
+            raise _refuse("Bundle manifest object keys must be unique")
+        result[key] = value
+    return result
+
+
 def _manifest(archive: ZipFile, limits: BundleLimits) -> ResourceBundle:
     members = archive.infolist()
     if len(members) > limits.entries:
@@ -85,8 +97,8 @@ def _manifest(archive: ZipFile, limits: BundleLimits) -> ResourceBundle:
     try:
         with archive.open("manifest.json") as source:
             data = source.read(limits.manifest_bytes + 1)
-        manifest = ResourceBundle.model_validate_json(data)
-    except ValidationError as exc:
+        manifest = ResourceBundle.model_validate(json.loads(data, object_pairs_hook=_unique_keys))
+    except (ValidationError, json.JSONDecodeError, UnicodeDecodeError, RecursionError) as exc:
         raise _refuse("The bundle manifest does not match a supported format") from exc
     expected = {"manifest.json", *(asset.archive_path for asset in manifest.assets)}
     if expected != set(by_name):
@@ -116,3 +128,58 @@ def open_bundle(
         except (BadZipFile, EOFError, ZlibError) as exc:
             raise _refuse("The bundle manifest is corrupt or incomplete") from exc
         yield BundleArchive(archive, manifest)
+
+
+def write_bundle(
+    target: BinaryIO,
+    manifest: ResourceBundle,
+    files: Mapping[str, Path],
+    *,
+    limits: BundleLimits = BundleLimits(),
+) -> None:
+    """Write a verified bundle into a fresh, caller-owned staging file.
+
+    `files` maps content digests to server-staged paths, never upload filenames.
+    Call on the file worker pool. At most one source file and one 64 KiB chunk
+    are open at once. Only a successful return makes the output publishable;
+    failure leaves an incomplete staging file for the caller to discard.
+    """
+    target.seek(0, SEEK_END)
+    if target.tell():
+        raise _refuse("A bundle output must be an empty staging file")
+    target.seek(0)
+    data = manifest.model_dump(mode="json")
+    for resource in data["resources"]:
+        resource["included"] = sorted(resource["included"])
+    encoded = (json.dumps(data, ensure_ascii=False, separators=(",", ":")) + "\n").encode()
+    expected = {asset.sha256 for asset in manifest.assets}
+    if expected != files.keys():
+        raise _refuse("The export must stage exactly its declared asset digests")
+    if len(encoded) > min(limits.manifest_bytes, limits.entry_bytes):
+        raise _refuse("The bundle manifest exceeds the size limit")
+    if len(expected) + 1 > limits.entries:
+        raise _refuse("This bundle contains too many archive entries")
+    sizes = {asset.sha256: asset.size_bytes for asset in manifest.assets}
+    if any(size > limits.entry_bytes for size in sizes.values()):
+        raise _refuse("An archive entry exceeds the size limit")
+    if len(encoded) + sum(sizes.values()) > limits.expanded_bytes:
+        raise _refuse("This bundle exceeds the expanded size limit")
+    with ZipFile(target, mode="w", compression=ZIP_DEFLATED, compresslevel=6) as archive:
+        archive.writestr("manifest.json", encoded)
+        for digest, path in files.items():
+            checksum = sha256()
+            length = 0
+            with path.open("rb") as source, archive.open(f"assets/{digest}", mode="w") as member:
+                while chunk := source.read(64 * 1024):
+                    length += len(chunk)
+                    if length > sizes[digest]:
+                        raise _refuse("A staged asset exceeds its declared size")
+                    checksum.update(chunk)
+                    member.write(chunk)
+                    if target.tell() > limits.compressed_bytes:
+                        raise _refuse("This bundle exceeds the compressed size limit")
+            if length != sizes[digest] or checksum.hexdigest() != digest:
+                raise _refuse("A staged asset does not match its declared size or digest")
+    if target.tell() > limits.compressed_bytes:
+        raise _refuse("This bundle exceeds the compressed size limit")
+    target.seek(0)

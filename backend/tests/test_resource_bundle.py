@@ -3,6 +3,7 @@
 from dataclasses import replace
 from hashlib import sha256
 from io import BytesIO
+from pathlib import Path
 from stat import S_IFLNK
 from uuid import uuid4
 from zipfile import ZIP_DEFLATED, BadZipFile, ZipFile, ZipInfo
@@ -20,6 +21,7 @@ from app.schemas.resource_bundle import (
     ResourceBundle,
 )
 from app.services.portability import BundleLimits, open_bundle
+from app.services.portability.archive import write_bundle
 
 
 def _asset(content: bytes = b"# Instructions\n") -> BundleAsset:
@@ -519,3 +521,123 @@ def test_manifest_round_trip_never_trims_instruction_text_or_nested_application_
     assert restored.resources[0].definition == resource.definition
     assert restored.resources[0].definition["instructions"] == body
     assert restored.resources[0].name == " Researcher "
+
+
+def test_writer_round_trip_streams_binary_content_and_deduplicates_it(tmp_path: Path) -> None:
+    content = bytes(range(256)) * 1024
+    asset = _asset(content)
+    manifest = _manifest(asset)
+    manifest = manifest.model_copy(
+        update={"assets": (asset, asset.model_copy(update={"name": "other/file.bin"}))}
+    )
+    source = tmp_path / "staged-content"
+    source.write_bytes(content)
+    target = BytesIO()
+    write_bundle(target, manifest, {asset.sha256: source})
+    assert not target.closed and target.tell() == 0
+    with open_bundle(target) as restored:
+        assert restored.manifest == manifest
+        for member in restored.manifest.assets:
+            chunks = list(restored.asset_chunks(member))
+            assert all(len(chunk) <= 64 * 1024 for chunk in chunks)
+            assert b"".join(chunks) == content
+    with ZipFile(target) as archive:
+        assert len(archive.infolist()) == 2
+
+
+def test_writer_accepts_a_definition_only_bundle_without_asset_files() -> None:
+    target = BytesIO()
+    manifest = _manifest()
+    write_bundle(target, manifest, {})
+    with open_bundle(target) as restored:
+        assert restored.manifest == manifest
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "nonempty",
+        "missing",
+        "extra",
+        "manifest",
+        "entries",
+        "entry",
+        "expanded",
+        "compressed",
+        "footer",
+        "short",
+        "long",
+        "digest",
+    ],
+)
+def test_writer_never_promotes_missing_changed_or_oversized_content(
+    tmp_path: Path, case: str
+) -> None:
+    content = b"# Instructions\n"
+    asset = _asset(content)
+    manifest = _manifest(asset)
+    path = tmp_path / "source"
+    path.write_bytes(content)
+    files = {asset.sha256: path}
+    limits = BundleLimits()
+    target = BytesIO(b"existing" if case == "nonempty" else b"")
+    if case == "missing":
+        files = {}
+    elif case == "extra":
+        files["extra"] = path
+    elif case == "manifest":
+        limits = replace(limits, manifest_bytes=1)
+    elif case == "entries":
+        limits = replace(limits, entries=1)
+    elif case == "entry":
+        limits = replace(limits, entry_bytes=4096)
+        asset = asset.model_copy(update={"size_bytes": limits.entry_bytes + 1})
+        manifest = manifest.model_copy(update={"assets": (asset,)})
+    elif case == "expanded":
+        limits = replace(limits, expanded_bytes=1)
+    elif case in ("compressed", "footer"):
+        if case == "footer":
+            completed = BytesIO()
+            write_bundle(completed, manifest, files)
+            limits = replace(limits, compressed_bytes=len(completed.getvalue()) - 1)
+        else:
+            limits = replace(limits, compressed_bytes=1)
+    elif case == "short":
+        path.write_bytes(content[:-1])
+    elif case == "long":
+        path.write_bytes(content + b"extra")
+    elif case == "digest":
+        path.write_bytes(b"X" * len(content))
+    with pytest.raises(BadRequestError):
+        write_bundle(target, manifest, files, limits=limits)
+    assert not target.closed
+
+
+def test_archive_manifest_refuses_duplicate_keys_and_invalid_json() -> None:
+    for text in ('{"format":"agenticos.bundle","format":"other"}', "{invalid", b"\xff", "[" * 2000):
+        target = BytesIO()
+        with ZipFile(target, "w") as archive:
+            archive.writestr("manifest.json", text)
+        with pytest.raises(BadRequestError), open_bundle(target):
+            pytest.fail("An ambiguous or invalid manifest must not be opened")
+
+
+@pytest.mark.parametrize("number", [float("nan"), float("inf"), float("-inf")])
+def test_portable_definitions_refuse_nonfinite_json_numbers_before_database_writes(
+    number: float,
+) -> None:
+    with pytest.raises(ValidationError, match="finite JSON numbers"):
+        BundleResource(
+            key="agent/one",
+            kind=BundleResourceKind.AGENT,
+            name="Agent",
+            definition={"params": {"nested": [number]}},
+            included=frozenset({BundleContentLayer.DEFINITION}),
+        )
+    assert BundleResource(
+        key="agent/one",
+        kind=BundleResourceKind.AGENT,
+        name="Agent",
+        definition={"params": {"nested": [1.5]}},
+        included=frozenset({BundleContentLayer.DEFINITION}),
+    ).definition["params"] == {"nested": [1.5]}

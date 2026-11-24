@@ -25,7 +25,7 @@ required-ID objects, which can also remove an embedded agent's MCP policies.
 
 ## Implementation status
 
-The versioned manifest, bounded archive reader, exact reference mapper and
+The versioned manifest, bounded archive reader/writer, exact reference mapper and
 schema-owned agent reference inventory are implemented as internal contracts.
 They have focused regression coverage. Storage now supports seekable streamed
 uploads on local files and S3, including a real MinIO multipart round trip.
@@ -42,8 +42,8 @@ run or index anything. A local cross-organization import/export round trip has
 been exercised through the real UI and database.
 
 This is not yet the complete portability implementation. Binary/large bundles,
-full knowledge-base content, advanced workflow bundles, durable transfer operations and the runtime separation below are still
-implementation work. The PR remains a draft until that scope is complete.
+full knowledge-base content, advanced workflow bundles, durable transfer
+operations and the runtime separation below are still implementation work. The PR remains a draft until that scope is complete.
 
 ## Invariants
 
