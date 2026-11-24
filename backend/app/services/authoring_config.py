@@ -74,9 +74,12 @@ class ConfigurationService:
             str(profile.id): f"{profile.label} ({profile.provider}/{profile.model})"
             for profile in profiles
         }
+        # Publish binds a base of the caller's organization only: an app-scoped base, or a
+        # personal one made in another organization, is readable here and still refused.
         collections = {
             str(item.id): item.name
             for item in await KnowledgeBaseService(self.db).list_accessible(ctx)
+            if item.organization_id == ctx.organization_id
         }
         contexts_page, _ = await ContextService(self.db).list_context(ctx, limit=_CATALOG_LIMIT)
         contexts = {str(item.id): f"{item.name} ({item.mode})" for item in contexts_page}

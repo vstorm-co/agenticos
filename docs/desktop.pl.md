@@ -1,5 +1,5 @@
 ---
-source_sha: "e2a19cf6c8da"
+source_sha: "f8bc977a8b57"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -86,7 +86,8 @@ App readiness lub przy użyciu, a nie wymagany krok przed wyborem połączenia.
 
 Przy łączeniu aplikacji desktopowej możesz wkleić oryginalny link zaproszenia zamiast samego adresu serwera. Aplikacja połączy się z serwerem z tego linku i otworzy zaproszenie, zachowując cel podczas logowania. Nie zaakceptuje go automatycznie ani nie zapisze tokenu w ustawieniach natywnych. Opcjonalny przegląd połączenia poczeka na zakończenie zaproszenia.
 
-Natywny start i konsola obsługują angielski, polski, niemiecki i turecki. Wybór
+Natywny start obsługuje angielski, polski, niemiecki, turecki i portugalski w odmianie brazylijskiej, a konsola
+dodatkowo francuski i niderlandzki. Wybór
 z instalatora trafia do konsoli; zapisany język istniejącego konta nadal ma
 pierwszeństwo. Konfiguracja lokalna pyta o jedną nazwę przestrzeni; oddzielna
 nazwa organizacji to opcja zaawansowana. Po przeglądzie połączenia **Pierwsze kroki**
@@ -267,6 +268,8 @@ Strzałki i Enter lub Tab wybierają zasób, a Escape najpierw zamyka podpowiedz
 Usunięcie wzmianki usuwa powiązanie zasobu z następnej wiadomości.
 
 ## Aplikacja, nie karta { #an-application-not-a-tab }
+
+Na macOS linki żądające nowego okna, także przez **Otwórz w nowym oknie**, otwierają się w domyślnej przeglądarce. Przekazywane są tylko adresy HTTP(S) bez osadzonych poświadczeń; aplikacja nie tworzy okien popup. Przeglądarka ma osobną sesję logowania, więc prywatny link do konsoli może wymagać ponownego zalogowania.
 
 Na macOS pasek boczny konsoli trzyma przyciski okna i przeciąga okno, okno
 pamięta swój rozmiar i miejsce, a zamknięcie go zostawia aplikację w pasku menu.

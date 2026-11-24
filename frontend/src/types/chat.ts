@@ -551,6 +551,8 @@ export interface ReviewConfig {
 }
 
 export interface PendingApproval {
+  savedDecisions?: { request: ActionRequest; approved: boolean }[];
+  continuesInChat?: boolean;
   actionRequests: ActionRequest[];
   reviewConfigs: ReviewConfig[];
   /** The run to continue once every call has been decided. */
@@ -571,6 +573,7 @@ export type DecisionType = "approve" | "edit" | "reject";
 
 export interface Decision {
   remember_scope?: "conversation" | "agent";
+  note?: string;
   type: DecisionType;
   editedAction?: {
     id: string;

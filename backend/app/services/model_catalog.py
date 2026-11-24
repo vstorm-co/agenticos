@@ -23,10 +23,11 @@ hour is politeness rather than necessity: the lists move on the order of weeks.
 """
 
 import asyncio
-import hashlib
+import hmac
 import json
 import logging
 import re
+import secrets
 import time
 from collections import OrderedDict
 from dataclasses import dataclass, field, replace
@@ -48,6 +49,9 @@ MAX_LISTING_BYTES = 2 * 1024 * 1024
 MAX_CATALOG_MODELS = 2048
 MAX_CATALOG_FIELD = 256
 MAX_CACHED_CATALOGS = 16
+# Cache partitions last only for this process; avoid a reusable credential
+# fingerprint in cache diagnostics across process lifetimes.
+_CACHE_FINGERPRINT_KEY = secrets.token_bytes(32)
 
 CatalogSource = Literal["live", "curated", "unlisted"]
 """Where a picker's suggestions came from, and it is three answers rather than two.
@@ -555,7 +559,8 @@ async def models_for(
         return _fallback(curated)
 
     if spec.auth_header is not None and api_key is not None:
-        cache_key = f"{cache_key}:{hashlib.sha256(api_key.encode()).hexdigest()}"
+        fingerprint = hmac.digest(_CACHE_FINGERPRINT_KEY, api_key.encode(), "sha256").hex()
+        cache_key = f"{cache_key}:{fingerprint}"
 
     try:
         models = await _listed(

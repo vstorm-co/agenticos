@@ -1,5 +1,5 @@
 ---
-source_sha: "e2a19cf6c8da"
+source_sha: "f8bc977a8b57"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -87,7 +87,8 @@ sie sind keine Voraussetzung für die Wahl einer Verbindung.
 
 Beim Verbinden der Desktop-App können Sie statt der Serveradresse den ursprünglichen Einladungslink einfügen. Die App verbindet sich mit dessen Server und öffnet die Einladung; das Ziel bleibt beim Anmelden erhalten. Die Einladung wird nicht automatisch angenommen und ihr Token nicht in den nativen Einstellungen gespeichert. Die optionale Verbindungsprüfung wartet, bis die Einladung abgeschlossen ist.
 
-Nativer Start und Konsole unterstützen Englisch, Polnisch, Deutsch und Türkisch.
+Der native Start unterstützt Englisch, Polnisch, Deutsch, Türkisch und brasilianisches Portugiesisch, die Konsole
+zusätzlich Französisch und Niederländisch.
 Die Auswahl wird an die Konsole übergeben; die gespeicherte Kontosprache hat
 weiterhin Vorrang. Lokal wird ein Arbeitsbereichsname abgefragt; ein separater
 Organisationsname ist eine erweiterte Option. Nach der Verbindungsprüfung öffnet
@@ -277,6 +278,8 @@ Pfeiltasten und Enter oder Tab wählen aus; Escape schließt zuerst die Vorschl�
 Das Löschen einer Erwähnung entfernt ihre Ressourcenbindung aus der nächsten Nachricht.
 
 ## Eine Anwendung, kein Tab { #an-application-not-a-tab }
+
+Unter macOS öffnen Links, die ein neues Fenster anfordern, einschließlich **In neuem Fenster öffnen**, im Standardbrowser. Weitergeleitet werden nur HTTP(S)-Adressen ohne eingebettete Zugangsdaten; eingebettete Popup-Fenster werden nicht erstellt. Der Browser verwendet eine eigene Anmeldesitzung, sodass ein privater Konsolenlink eine erneute Anmeldung verlangen kann.
 
 Auf macOS trägt die Seitenleiste der Konsole die Fensterknöpfe und zieht das
 Fenster, das Fenster merkt sich Größe und Position, und Schließen lässt die App in

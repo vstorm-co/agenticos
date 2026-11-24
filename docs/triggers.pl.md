@@ -1,5 +1,5 @@
 ---
-source_sha: "6aec4865a6f4"
+source_sha: "60a9139b3d7e"
 ---
 
 # Konfigurowanie triggera zdarzeniowego { #setting-up-an-event-trigger }
@@ -72,6 +72,11 @@ Każde uruchomienie jest zapisane w dzienniku uruchomień triggera. `answer_to` 
 trafia dodatkowo do osoby, która go utworzyła (#2575): `primary`, domyślnie, to jej własna rozmowa z
 agentem, więc wszystko, co jej mówi, jest w jednym miejscu; `conversation` to jeden z jej innych czatów
 (`delivery_conversation_id`), dla rutyny utworzonej w tym czacie; `run_log` nie wysyła nigdzie indziej.
+
+Gdy rutyna utworzona w czacie prywatnym w komunikatorze otwiera nowy czat dla każdego
+uruchomienia (`chat_mode=per_run`), bot publikuje każdą odpowiedź także w tym czacie (zob.
+[Odpowiedzi rutyn w czacie prywatnym](channels.md#routine-answers-in-a-private-chat)); status to
+`pending`, dopóki nie zostanie wysłana.
 
 Dostarczane jest tylko ukończone uruchomienie z odpowiedzią, a dostarczenie, które nie może wylądować -
 czat usunięto - zostawia uruchomienie w dzienniku zamiast je psuć. Czat, który nie należy do

@@ -1,5 +1,5 @@
 ---
-source_sha: "cf07a5b19ce8"
+source_sha: "2971c06097fa"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -726,6 +726,11 @@ los grants.
 El texto de un caso copiado de una conversación solo es visible para lectores con `runs:view` o acceso a la conversación original. Los demás ven metadatos y un marcador, tanto en versiones actuales e históricas como en exportaciones CSV/JSONL. Si falta la fuente, el texto sigue oculto. No se puede editar texto oculto ni revelarlo al cambiar metadatos. Las evaluaciones siguen ejecutando la revisión completa almacenada.
 
 Las respuestas, notas de Review y pruebas de evaluación requieren `runs:view` y acceso al agente que respondió. Si falta alguno, se conservan el resultado y el estado, pero se eliminan el texto de respuesta, motivos, reglas y citas. Antes de copiar la conversación privada de otra persona, el diálogo identifica a su propietario y avisa de que los lectores del dataset que puedan leer runs verán su texto.
+
+Los datasets no se agrupan por departamento - la lista no tiene filtro de grupo
+ni insignias de departamento -, así que un departamento llega a un dataset
+mediante un grant sobre él, como con cualquier otro recurso. Consulte
+[Departamentos](departments.md#grouping-a-list-by-department).
 
 ## Datos personales { #personal-data }
 
