@@ -48,38 +48,43 @@ async def deliver_handback(job: ChannelHandback) -> bool:
             # A retry would post the pieces already in the chat a second time.
             logger.warning("channel_handback_partly_delivered", extra={"run_id": str(job.run_id)})
     else:
-        return await deliver_in_chat(
-            organization_id=job.organization_id,
-            run_id=job.run_id,
-            destination=destination,
-            said=ChatDelivery(
-                output=job.output,
-                tool_calls=tuple(
-                    RecordedToolCall(
-                        call.tool_call_id,
-                        call.tool_name,
-                        dict(call.args),
-                        call.result,
-                        call.tool_id,
-                        call.presentation_kind,
-                    )
-                    for call in job.tool_calls
-                ),
-                generated_files=job.generated_files,
-                outbound=tuple(
-                    [
-                        OutgoingAttachment(
-                            filename=file.filename,
-                            mime_type=file.mime_type,
-                            content=await generated_media.load_generated_media(
-                                job.organization_id, file.stored_leaf
-                            ),
+        try:
+            return await deliver_in_chat(
+                organization_id=job.organization_id,
+                run_id=job.run_id,
+                destination=destination,
+                said=ChatDelivery(
+                    output=job.output,
+                    tool_calls=tuple(
+                        RecordedToolCall(
+                            call.tool_call_id,
+                            call.tool_name,
+                            dict(call.args),
+                            call.result,
+                            call.tool_id,
+                            call.presentation_kind,
                         )
-                        for file in job.attachments
-                    ]
+                        for call in job.tool_calls
+                    ),
+                    generated_files=job.generated_files,
+                    outbound=tuple(
+                        [
+                            OutgoingAttachment(
+                                filename=file.filename,
+                                mime_type=file.mime_type,
+                                content=await generated_media.load_generated_media(
+                                    job.organization_id, file.stored_leaf
+                                ),
+                            )
+                            for file in job.attachments
+                        ]
+                    ),
                 ),
-            ),
-        )
+            )
+        except PartlyDelivered:
+            # Part of the answer is in the chat: not confirmed, and not retried.
+            logger.warning("channel_handback_partly_delivered", extra={"run_id": str(job.run_id)})
+            return False
 
     return True
 

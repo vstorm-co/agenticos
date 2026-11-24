@@ -194,6 +194,18 @@ _RATE_LIMIT_WAIT = 30
 """The longest a reply waits on a Telegram rate limit before giving up on a piece."""
 
 
+def _partly_delivered(delivered: int, total: int, cause: Exception) -> PartlyDelivered:
+    """The error for a reply that stopped after `delivered` of its `total` messages."""
+    logger.warning(
+        "telegram_reply_partly_delivered",
+        extra={"delivered": delivered, "pieces": total},
+        exc_info=cause,
+    )
+    return PartlyDelivered(
+        details={"platform": "telegram", "delivered": delivered, "pieces": total}
+    )
+
+
 async def _send_piece(bot: Bot, piece: str, where: dict[str, Any], reply: int | None) -> str:
     """One piece, as HTML or plain text, waiting once if Telegram rate-limits it."""
     try:
@@ -390,18 +402,7 @@ class TelegramAdapter(ChannelAdapter):
             except Exception as exc:
                 if delivered + index == 0:
                     raise
-                logger.warning(
-                    "telegram_reply_partly_delivered",
-                    extra={"delivered": delivered + index, "pieces": delivered + len(pieces)},
-                    exc_info=True,
-                )
-                raise PartlyDelivered(
-                    details={
-                        "platform": "telegram",
-                        "delivered": delivered + index,
-                        "pieces": delivered + len(pieces),
-                    }
-                ) from exc
+                raise _partly_delivered(delivered + index, delivered + len(pieces), exc) from exc
         return last
 
     @staticmethod
@@ -412,22 +413,30 @@ class TelegramAdapter(ChannelAdapter):
         message, so the answer and the file it is about arrive together. Telegram
         caps a caption at 1024 characters, so a longer answer is sent as a message
         first and the files follow - truncating an agent's answer to fit a caption
-        would lose the part somebody asked for.
+        would lose the part somebody asked for. A file that fails once the text or
+        an earlier file is in the chat raises `PartlyDelivered`.
         """
         from aiogram.types import BufferedInputFile
 
         caption: str | None = msg.text if len(msg.text) <= 1024 else None
         where = _where(msg.platform_chat_id)
-        if caption is None:
-            await TelegramAdapter._send_pieces(bot, telegram_pieces(msg.text), where, reply_to)
+        pieces = [] if caption is not None else telegram_pieces(msg.text)
+        await TelegramAdapter._send_pieces(bot, pieces, where, reply_to)
 
+        total = len(pieces) + len(msg.attachments)
         for index, attachment in enumerate(msg.attachments):
-            await bot.send_document(
-                document=BufferedInputFile(attachment.content, filename=attachment.filename),
-                caption=caption if index == 0 else None,
-                reply_to_message_id=reply_to,
-                **where,
-            )
+            try:
+                await bot.send_document(
+                    document=BufferedInputFile(attachment.content, filename=attachment.filename),
+                    caption=caption if index == 0 else None,
+                    reply_to_message_id=reply_to,
+                    **where,
+                )
+            except Exception as exc:
+                # Once the text or a file is in the chat, a retry would post it again.
+                if len(pieces) + index == 0:
+                    raise
+                raise _partly_delivered(len(pieces) + index, total, exc) from exc
 
     #
     # Two of the four, and that is the whole of what Telegram gives a bot.

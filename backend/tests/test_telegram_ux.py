@@ -574,6 +574,53 @@ class TestALongAnswerArrivesInPieces:
         assert last == "77"
         assert alone is None
 
+    async def test_a_file_failing_after_the_text_is_partly_delivered(self, monkeypatch):
+        bot = _telegram(monkeypatch)
+        bot.send_document.side_effect = TelegramNetworkError(MagicMock(), "down")
+        files = [OutgoingAttachment(filename="r.pdf", content=b"%PDF")]
+
+        with pytest.raises(PartlyDelivered) as raised:
+            await TelegramAdapter().send_message(
+                "t", OutgoingMessage(platform_chat_id="42", text=self.LONG, attachments=files)
+            )
+
+        pieces = len(telegram_pieces(self.LONG))
+        assert raised.value.details["delivered"] == pieces
+        assert raised.value.details["pieces"] == pieces + 1
+
+    async def test_a_second_file_failing_after_a_captioned_one_is_partly_delivered(
+        self, monkeypatch
+    ):
+        bot = _telegram(monkeypatch)
+        bot.send_document.side_effect = [MagicMock(), TelegramNetworkError(MagicMock(), "down")]
+        files = [
+            OutgoingAttachment(filename="a.pdf", content=b"%PDF"),
+            OutgoingAttachment(filename="b.pdf", content=b"%PDF"),
+        ]
+
+        with pytest.raises(PartlyDelivered) as raised:
+            await TelegramAdapter().send_message(
+                "t", OutgoingMessage(platform_chat_id="42", text="see", attachments=files)
+            )
+
+        assert raised.value.details["delivered"] == 1
+
+    async def test_the_first_file_failing_with_nothing_sent_is_an_ordinary_failure(
+        self, monkeypatch
+    ):
+        bot = _telegram(monkeypatch)
+        bot.send_document.side_effect = TelegramNetworkError(MagicMock(), "down")
+
+        with pytest.raises(TelegramNetworkError):
+            await TelegramAdapter().send_message(
+                "t",
+                OutgoingMessage(
+                    platform_chat_id="42",
+                    text="see",
+                    attachments=[OutgoingAttachment(filename="a.pdf", content=b"%PDF")],
+                ),
+            )
+
     async def test_an_edit_mid_stream_shows_what_fits(self, monkeypatch):
         bot = _telegram(monkeypatch)
 
