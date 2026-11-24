@@ -1379,7 +1379,9 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         with `list_sandbox_connections` and inspect `get_sandbox_policy` first.
         `mcp_servers` binds organization connection ids or personal catalog keys,
         never a personal connection id. `skill_ids` and `collection_ids` bind
-        existing skills and knowledge bases. `context_ids` binds standing Context files;
+        existing skills and knowledge bases; an agent binds personal and organization
+        bases only, and publish refuses one with `scope: app`. `context_ids` binds
+        standing Context files;
         inspect inject/link mode and audience before binding. `model_profile_id` is
         one of `list_models`; a draft needs one before it can be tested or
         published. `starters` are up to four first messages the chat offers
@@ -1445,7 +1447,9 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         Bind organization connection ids or personal catalog keys, never personal
         connection ids. `skill_ids`,
         `collection_ids` (knowledge bases), `context_ids` and `starters` each replace their whole
-        list. The published version keeps answering until `publish_agent`.
+        list. `collection_ids` takes personal and organization bases only; publish
+        refuses one with `scope: app`. The published version keeps answering until
+        `publish_agent`.
         """
         agent = await api.request("GET", f"/agents/{agent_id}")
         if "draft_spec" not in agent:
