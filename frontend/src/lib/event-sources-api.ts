@@ -55,7 +55,7 @@ export interface SourceUsage {
     id: string;
     kind: "routine" | "workflow";
     target_id: string | null;
-    name: string;
+    name: string | null;
     is_active: boolean | null;
   }[];
   total: number;

@@ -263,28 +263,33 @@ async def test_a_source_cannot_attach_a_routine_from_another_tenant(
 
 
 @pytest.mark.security
-async def test_usage_does_not_disclose_a_private_target_name(ctx, source, setup, monkeypatch):
+@pytest.mark.parametrize(
+    ("visible", "name"), [(False, "Private acquisition"), (True, None), (True, "Audit")]
+)
+async def test_routine_usage_returns_only_the_visible_target_metadata(
+    ctx, source, setup, monkeypatch, visible, name
+):
     service, _, _ = setup
     trigger = AgentTrigger(
         id=uuid4(),
         organization_id=ctx.organization_id,
         agent_id=uuid4(),
-        name="Private acquisition",
+        name=name,
         is_active=True,
     )
     target = Agent(
         id=trigger.agent_id,
         organization_id=ctx.organization_id,
-        owner_user_id=uuid4(),
+        owner_user_id=ctx.user_id if visible else uuid4(),
         visibility="private",
     )
     module.repo.subscriptions.return_value = [EventSubscription(id=uuid4(), trigger_id=trigger.id)]
     monkeypatch.setattr(module.trigger_repo, "get_by_id", AsyncMock(return_value=trigger))
     monkeypatch.setattr(module.agent_repo, "get", AsyncMock(return_value=target))
     result = await service.usage(ctx, source.id)
-    assert result.items[0].name == "Private routine"
-    assert result.items[0].target_id is None
-    assert result.items[0].is_active is None
+    assert result.items[0].name == (name if visible else None)
+    assert result.items[0].target_id == (trigger.id if visible else None)
+    assert result.items[0].is_active is (True if visible else None)
     assert "Private acquisition" not in result.model_dump_json()
 
 
@@ -413,7 +418,7 @@ async def test_workflow_usage_reports_only_the_name_the_caller_can_view(
     result = await service.usage(ctx, source.id)
     assert result.total == 1
     assert result.items[0].kind == "workflow"
-    assert result.items[0].name == ("Acquisition plans" if visible else "Private workflow")
+    assert result.items[0].name == ("Acquisition plans" if visible else None)
     assert result.items[0].target_id == (workflow.id if visible else None)
     assert result.items[0].is_active is (False if visible else None)
 

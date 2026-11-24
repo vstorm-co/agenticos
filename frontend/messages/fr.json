@@ -21183,6 +21183,8 @@
     "confirmDelete": "Confirmer la suppression",
     "deleteBlocked": "Détachez les abonnés avant de supprimer cette source.",
     "sourceRoutine": "Créer une routine à partir d’une source d’événements",
+    "privateRoutine": "Routine privée",
+    "privateWorkflow": "Workflow privé",
     "credentialHelp": "Saisissez le secret de l’expéditeur. Les identifiants existants ne sont jamais affichés.",
     "filters": {
       "event_types": "Types d’événements",

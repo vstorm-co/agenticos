@@ -17162,6 +17162,8 @@
     "confirmDelete": "Silmeyi onayla",
     "deleteBlocked": "Bu kaynağı silmeden önce abonelikleri kaldırın.",
     "sourceRoutine": "Olay kaynağından rutin oluştur",
+    "privateRoutine": "Özel rutin",
+    "privateWorkflow": "Özel workflow",
     "credentialHelp": "Gönderenin gizli anahtarını girin. Mevcut kimlik bilgileri hiçbir zaman gösterilmez.",
     "filters": {
       "event_types": "Olay türleri",

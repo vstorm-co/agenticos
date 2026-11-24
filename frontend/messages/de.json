@@ -21460,6 +21460,8 @@
     "confirmDelete": "Löschen bestätigen",
     "deleteBlocked": "Entfernen Sie die Abonnements, bevor Sie diese Quelle löschen.",
     "sourceRoutine": "Routine aus einer Ereignisquelle erstellen",
+    "privateRoutine": "Private Routine",
+    "privateWorkflow": "Privater Workflow",
     "credentialHelp": "Gib das Geheimnis des Absenders ein. Vorhandene Zugangsdaten werden nie angezeigt.",
     "filters": {
       "event_types": "Ereignistypen",

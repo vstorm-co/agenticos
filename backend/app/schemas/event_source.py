@@ -146,7 +146,7 @@ class SourceUsage(BaseModel):
     id: UUID
     kind: Literal["routine", "workflow"]
     target_id: UUID | None
-    name: str
+    name: str | None
     is_active: bool | None
 
 

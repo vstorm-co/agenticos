@@ -173,7 +173,14 @@ function SourceSubscribers({ source }: { source: EventSource }) {
       <p>{t("usage", { count: usage.data.total })}</p>
       {usage.data.items.map((item) => (
         <p key={item.id} className="wrap-break-word">
-          {item.name} · {t(item.kind)}
+          {item.target_id === null ? (
+            t(item.kind === "routine" ? "privateRoutine" : "privateWorkflow")
+          ) : (
+            <>
+              {item.name !== null && <>{item.name} · </>}
+              {t(item.kind)}
+            </>
+          )}
           {item.is_active !== null && <> · {t(item.is_active ? "active" : "paused")}</>}
         </p>
       ))}

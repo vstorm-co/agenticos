@@ -12,7 +12,7 @@ import {
   node,
 } from "@/components/workflows/validation/fixtures";
 import { apiClient } from "@/lib/api-client";
-import type { EventSource } from "@/lib/event-sources-api";
+import type { EventSource, SourceUsage } from "@/lib/event-sources-api";
 import { SourceForm } from "./source-form";
 import { SourceManager } from "./source-manager";
 import { SourceSelector } from "./source-selector";
@@ -38,7 +38,7 @@ const source: EventSource = {
 };
 let permissions: string[];
 let items: EventSource[];
-let subscribers = 0;
+let subscribers: SourceUsage["items"] = [];
 function wrapper({ children }: { children: ReactNode }) {
   return (
     <QueryClientProvider
@@ -56,18 +56,12 @@ beforeEach(() => {
   vi.clearAllMocks();
   permissions = ["event_sources:view", "event_sources:use", "event_sources:edit"];
   items = [source];
-  subscribers = 0;
+  subscribers = [];
   vi.mocked(apiClient.get).mockImplementation(async (path) => {
     if (path === "/me/permissions")
       return { permissions: permissions.map((permission) => ({ permission, scope: "all" })) };
     if (path === "/event-sources") return { items, total: items.length };
-    if (path.endsWith("/usage"))
-      return {
-        items: subscribers
-          ? [{ id: "sub1", kind: "routine", target_id: "r1", name: "Triage", is_active: true }]
-          : [],
-        total: subscribers,
-      };
+    if (path.endsWith("/usage")) return { items: subscribers, total: subscribers.length };
     if (path.includes("/listen/"))
       return {
         state: "caught",
@@ -254,8 +248,24 @@ describe("event source management", () => {
     expect(list).toHaveBeenCalledTimes(2);
   });
 
+  it("labels private and unnamed subscribers without changing user-provided names", async () => {
+    subscribers = [
+      { id: "1", kind: "routine", target_id: null, name: null, is_active: null },
+      { id: "2", kind: "workflow", target_id: null, name: null, is_active: null },
+      { id: "3", kind: "routine", target_id: "r3", name: null, is_active: false },
+      { id: "4", kind: "routine", target_id: "r4", name: "Private workflow", is_active: true },
+    ];
+    render(<SourceManager />, { wrapper });
+    expect(await screen.findByText("Private routine")).toBeVisible();
+    expect(screen.getByText("Private workflow")).toBeVisible();
+    expect(screen.getByText("Routine · Paused")).toBeVisible();
+    expect(screen.getByText("Private workflow · Routine · Active")).toBeVisible();
+  });
+
   it("pauses only the source and explains the subscribers blocking deletion", async () => {
-    subscribers = 1;
+    subscribers = [
+      { id: "sub1", kind: "routine", target_id: "r1", name: "Triage", is_active: true },
+    ];
     render(<SourceManager />, { wrapper });
     expect(await screen.findByText(/Triage/)).toBeVisible();
     await userEvent.click(screen.getByRole("button", { name: "More actions for Issues" }));

@@ -21774,6 +21774,8 @@
     "confirmDelete": "Confirm deletion",
     "deleteBlocked": "Detach subscribers before deleting this source.",
     "sourceRoutine": "Create routine from an event source",
+    "privateRoutine": "Private routine",
+    "privateWorkflow": "Private workflow",
     "credentialHelp": "Enter the sender’s secret. Existing credentials are never shown.",
     "filters": {
       "event_types": "Event types",

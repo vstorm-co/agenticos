@@ -21547,6 +21547,8 @@
     "confirmDelete": "Potwierdź usunięcie",
     "deleteBlocked": "Odłącz subskrybentów przed usunięciem tego źródła.",
     "sourceRoutine": "Utwórz rutynę ze źródła zdarzeń",
+    "privateRoutine": "Prywatna rutyna",
+    "privateWorkflow": "Prywatny workflow",
     "credentialHelp": "Wpisz sekret nadawcy. Istniejące dane uwierzytelniające nigdy nie są wyświetlane.",
     "filters": {
       "event_types": "Typy zdarzeń",

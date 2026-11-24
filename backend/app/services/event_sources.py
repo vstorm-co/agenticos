@@ -331,7 +331,7 @@ class EventSourceService:
                             id=sub.id,
                             kind="routine",
                             target_id=trigger.id if visible else None,
-                            name=(trigger.name or "Routine") if visible else "Private routine",
+                            name=trigger.name if visible else None,
                             is_active=trigger.is_active if visible else None,
                         )
                     )
@@ -350,7 +350,7 @@ class EventSourceService:
                                 id=sub.id,
                                 kind="workflow",
                                 target_id=workflow.id if visible else None,
-                                name=workflow.name if visible else "Private workflow",
+                                name=workflow.name if visible else None,
                                 is_active=exposure.is_active if visible else None,
                             )
                         )
