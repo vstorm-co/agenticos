@@ -9,6 +9,7 @@ folder: who a skill reaches is still its audience and its grants.
 """
 
 from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Set as AbstractSet
 from dataclasses import dataclass, field
 from uuid import UUID
 
@@ -47,34 +48,46 @@ def arrangement_of(key: str) -> SkillArrangement | None:
 def by_agent(
     keys: Sequence[SkillKey],
     *,
-    used: Mapping[UUID, Sequence[AgentUsage]],
-    drafted: Mapping[UUID, Sequence[AgentUsage]],
+    serving: Mapping[UUID, AbstractSet[UUID]],
+    drafting: Mapping[UUID, AbstractSet[UUID]],
+    agents: Mapping[UUID, AgentUsage],
 ) -> list[Section]:
     """One section per agent that serves a skill, then the drafted-only and the unused.
 
-    A skill several agents serve sits under each of them: the section answers
-    "what does this agent use", and a shared skill is part of every answer.
-    `drafted` is every agent whose draft binds a skill, including ones that
-    already serve it; a skill falls to the drafted-only section only when no
-    agent serves it. `unused` is relative to the caller - an agent they cannot
-    view is absent from `used`, so its skills read as used by none they can see.
+    `serving` and `drafting` map each agent the caller may see to the skills it
+    binds, all of them among `keys`, and `agents` names every one of them. A
+    skill several agents serve sits under each of them: the section answers
+    "what does this agent use", and a shared skill is part of every answer. A
+    skill falls to the drafted-only section only when no agent serves it, and to
+    the unused one when no agent binds it at all - relative to the caller, since
+    an agent they cannot view is in neither map.
     """
-    serving: dict[UUID, tuple[AgentUsage, list[UUID]]] = {}
-    drafted_only = Section(key=DRAFTED, kind="drafted")
-    unused = Section(key=UNUSED, kind="unused")
-    for skill in keys:
-        agents = used.get(skill.id, ())
-        for agent in agents:
-            serving.setdefault(agent.id, (agent, []))[1].append(skill.id)
-        if not agents:
-            (drafted_only if drafted.get(skill.id) else unused).skill_ids.append(skill.id)
+    position = {key.id: index for index, key in enumerate(keys)}
+    served = {skill_id for ids in serving.values() for skill_id in ids}
+    drafted = {skill_id for ids in drafting.values() for skill_id in ids}
     by_name = sorted(
-        serving.values(), key=lambda entry: (entry[0].name.casefold(), str(entry[0].id))
+        (agents[agent_id] for agent_id in serving),
+        key=lambda agent: (agent.name.casefold(), str(agent.id)),
+    )
+    drafted_only = Section(
+        key=DRAFTED,
+        kind="drafted",
+        skill_ids=[key.id for key in keys if key.id not in served and key.id in drafted],
+    )
+    unused = Section(
+        key=UNUSED,
+        kind="unused",
+        skill_ids=[key.id for key in keys if key.id not in served and key.id not in drafted],
     )
     return [
         *(
-            Section(key=f"agent:{agent.id}", kind="agent", agent=agent, skill_ids=skill_ids)
-            for agent, skill_ids in by_name
+            Section(
+                key=f"agent:{agent.id}",
+                kind="agent",
+                agent=agent,
+                skill_ids=sorted(serving[agent.id], key=position.__getitem__),
+            )
+            for agent in by_name
         ),
         *(section for section in (drafted_only, unused) if section.skill_ids),
     ]

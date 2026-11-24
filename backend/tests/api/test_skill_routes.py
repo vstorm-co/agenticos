@@ -29,6 +29,7 @@ from app.core.permissions import AuthContext, OrgRoleName
 from app.main import app
 from app.schemas.skill_usage import SkillUsageRead
 from app.services import skill_library
+from app.services.resource_usage import SkillBindings
 from app.services.skills import SkillService
 
 pytestmark = pytest.mark.anyio
@@ -47,8 +48,8 @@ def _used_nowhere(monkeypatch: pytest.MonkeyPatch) -> None:
     async def no_forks(*_args: object, skill_ids: list[UUID], **_kwargs: object):
         return dict.fromkeys(skill_ids, 0)
 
-    async def no_bindings(*_args: object, skill_ids: list[UUID], **_kwargs: object):
-        return {skill_id: [] for skill_id in skill_ids}, {skill_id: [] for skill_id in skill_ids}
+    async def no_bindings(*_args: object, **_kwargs: object) -> SkillBindings:
+        return SkillBindings(serving={}, drafting={}, agents={})
 
     monkeypatch.setattr("app.services.skills.agents_serving_skills", no_skill_agents)
     monkeypatch.setattr("app.services.skills.skill_bindings", no_bindings)

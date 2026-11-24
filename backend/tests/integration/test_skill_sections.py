@@ -31,6 +31,7 @@ from app.db.models.resource_grant import GrantLevel, ResourceGrant
 from app.db.models.skill import Skill
 from app.schemas.skill import SkillSections
 from app.services import skill_library
+from app.services.resource_usage import skill_bindings
 from app.services.skills import SkillService
 from tests.integration.test_authoring import _member, _owner
 
@@ -397,6 +398,56 @@ class TestCardsAcrossArrangements:
         assert "planned-too" not in cards
         assert [agent.name for agent in paged["planned-too"].drafted_by] == ["Builder"]
         assert paged["planned"].drafted_by == []
+
+
+class TestBoundedWork:
+    async def test_an_agent_binding_many_skills_is_named_once(self, db: AsyncSession):
+        """Bindings stay ids per agent; an agent is a name once, not once per skill."""
+        owner = await _owner(db)
+        library = [await _skill(db, owner, f"skill-{index:02d}") for index in range(30)]
+        busy = await _agent(db, owner, "Busy", serves=library, drafts=library[:5])
+
+        bindings = await skill_bindings(db, owner, skill_ids=[skill.id for skill in library])
+        sections = await SkillService(db).list_sections(owner, "agent", per_section=3)
+
+        assert list(bindings.agents) == [busy.id]
+        assert bindings.serving[busy.id] == frozenset(skill.id for skill in library)
+        assert [(s.key, s.count, len(s.items)) for s in sections.sections] == [
+            (f"agent:{busy.id}", 30, 3)
+        ]
+
+    async def test_an_archived_agent_serves_nothing(self, db: AsyncSession):
+        owner = await _owner(db)
+        retired = await _skill(db, owner, "retired")
+        archived = await _agent(db, owner, "Archived", serves=[retired])
+        archived.status = "archived"
+        await db.flush()
+
+        sections = await SkillService(db).list_sections(owner, "agent")
+
+        assert _laid_out(sections) == [("unused", 1, ["retired"])]
+
+    async def test_by_origin_reads_agents_only_for_the_cards_it_shows(
+        self, db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+    ):
+        owner = await _owner(db)
+        shown = await _skill(db, owner, "aaa-shown")
+        for index in range(5):
+            await _skill(db, owner, f"zzz-{index}")
+        await _agent(db, owner, "Support", serves=[shown])
+        asked: list[int] = []
+
+        async def counting(db_: AsyncSession, ctx: AuthContext, *, skill_ids: Any) -> Any:
+            asked.append(len(skill_ids))
+            return await skill_bindings(db_, ctx, skill_ids=skill_ids)
+
+        monkeypatch.setattr("app.services.skills.MAX_SECTION_CARDS", 2)
+        monkeypatch.setattr("app.services.skills.skill_bindings", counting)
+
+        sections = await SkillService(db).list_sections(owner, "origin")
+
+        assert asked == [2]
+        assert [agent.name for agent in sections.sections[0].items[0].used_by] == ["Support"]
 
 
 class TestByCategory:

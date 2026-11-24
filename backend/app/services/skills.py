@@ -48,7 +48,6 @@ from app.repositories import (
 )
 from app.repositories.skill import SkillKey, SkillSort
 from app.schemas.agent_run import RunSkillUseRead
-from app.schemas.resource_usage import AgentUsage
 from app.schemas.skill import (
     GalleryIndustryRead,
     GalleryInstallResult,
@@ -81,6 +80,7 @@ from app.services.access import (
     visible_resource_ids,
 )
 from app.services.resource_usage import (
+    SkillBindings,
     agents_serving_skills,
     agents_using,
     agents_using_skill,
@@ -165,12 +165,11 @@ class _ListingScope(TypedDict):
 
 @dataclass(frozen=True, slots=True)
 class _Arranged:
-    """A filtered listing sorted into sections, with the agent usage read on the way."""
+    """A filtered listing sorted into sections, and the agents read on the way, if any."""
 
     keys: list[SkillKey]
     sections: list[skill_sections.Section]
-    used: Mapping[UUID, list[AgentUsage]]
-    drafted: Mapping[UUID, list[AgentUsage]]
+    bindings: SkillBindings | None
 
 
 def _clean_resource_path(raw: str) -> str:
@@ -518,8 +517,9 @@ class SkillService:
             items=await self._summaries(
                 ctx,
                 items,
-                used=None if arranged is None else arranged.used,
-                drafted=None if arranged is None else arranged.drafted,
+                bindings=None
+                if arranged is None
+                else await self._card_bindings(ctx, arranged, [item.id for item in items]),
             ),
             total=total,
             categories=await self.list_categories(ctx),
@@ -572,8 +572,7 @@ class SkillService:
             for summary in await self._summaries(
                 ctx,
                 [rows[skill_id] for skill_id in shown if skill_id in rows],
-                used=arranged.used,
-                drafted=arranged.drafted,
+                bindings=await self._card_bindings(ctx, arranged, shown),
             )
         }
         return SkillSections(
@@ -612,45 +611,62 @@ class SkillService:
     ) -> _Arranged:
         """Every skill the filtered listing would page through, sorted into sections.
 
-        The agents behind every skill are read whatever the arrangement, so a
-        card says the same "used by" and "drafted by" under each of them and on
-        a section's own pages.
+        Only an arrangement by agent reads the agents of the whole library, and
+        then as id sets; the others read them later for the cards they show.
         """
         scope = await self._listing_scope(ctx, shared_with_me=shared_with_me, group_id=group_id)
         keys = await skill_repo.list_visible_keys(
             self.db, **scope, search=search, categories=categories, sort=sort
         )
-        used, drafted = await skill_bindings(self.db, ctx, skill_ids=[key.id for key in keys])
         if arrange == "origin":
             sections = skill_sections.by_origin(
                 keys,
                 bundled_names=_bundled_names(),
                 gallery_industries=skill_library.gallery_industries(),
             )
-        elif arrange == "category":
+            return _Arranged(keys=keys, sections=sections, bindings=None)
+        if arrange == "category":
             sections = skill_sections.by_category(keys, suggested=SUGGESTED_CATEGORIES)
-        else:
-            sections = skill_sections.by_agent(keys, used=used, drafted=drafted)
-        return _Arranged(keys=keys, sections=sections, used=used, drafted=drafted)
+            return _Arranged(keys=keys, sections=sections, bindings=None)
+        bindings = await skill_bindings(self.db, ctx, skill_ids=[key.id for key in keys])
+        sections = skill_sections.by_agent(
+            keys, serving=bindings.serving, drafting=bindings.drafting, agents=bindings.agents
+        )
+        return _Arranged(keys=keys, sections=sections, bindings=bindings)
+
+    async def _card_bindings(
+        self, ctx: AuthContext, arranged: _Arranged, card_ids: Sequence[UUID]
+    ) -> SkillBindings:
+        """The agents behind the cards an arranged listing shows.
+
+        Those the arrangement already read, or else read for these cards alone, so
+        a card says the same "used by" and "drafted by" whatever the arrangement
+        and the work stays bounded by the cards rather than the library.
+        """
+        if arranged.bindings is not None:
+            return arranged.bindings
+        return await skill_bindings(self.db, ctx, skill_ids=card_ids)
 
     async def _summaries(
         self,
         ctx: AuthContext,
         skills: Sequence[Skill],
         *,
-        used: Mapping[UUID, list[AgentUsage]] | None = None,
-        drafted: Mapping[UUID, list[AgentUsage]] | None = None,
+        bindings: SkillBindings | None = None,
     ) -> list[SkillSummary]:
         """Skills as cards: their agents, departments, forks and whether the caller may edit.
 
-        `used` and `drafted` may arrive already read for a larger set, as an
-        arrangement by agent reads them; anything else is read here in one batch.
+        The arranged listing hands over `bindings`, whose agents count a draft's
+        inline specialists, and names agents only for the cards it shows; the
+        plain listing reads its page's agents here, in one batch.
         """
         ids = [skill.id for skill in skills]
-        if used is None:
+        if bindings is None:
             used = await agents_serving_skills(self.db, ctx, skill_ids=ids)
-        if drafted is None:
             drafted = await agents_using(self.db, ctx, field="skill_ids", resource_ids=ids)
+        else:
+            used = {skill_id: bindings.used_by(skill_id) for skill_id in ids}
+            drafted = {skill_id: bindings.drafted_by(skill_id) for skill_id in ids}
         groups = await groups_sharing(self.db, ctx, resource_type=SKILL, resource_ids=ids)
         editable = await accessible_ids(self.db, ctx, skills, Perm.SKILLS_EDIT, resource_type=SKILL)
         forks = await skill_version_repo.count_active_forks(

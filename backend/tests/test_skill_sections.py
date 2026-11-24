@@ -15,7 +15,7 @@ from app.core.permissions import AuthContext, OrgRoleName
 from app.repositories.skill import SkillKey
 from app.schemas.resource_usage import AgentUsage
 from app.services import skill_sections
-from app.services.resource_usage import skill_bindings
+from app.services.resource_usage import SkillBindings, skill_bindings
 from app.services.skill_sections import (
     arrangement_of,
     by_agent,
@@ -34,15 +34,25 @@ def _agent(name: str) -> AgentUsage:
     return AgentUsage(id=uuid.uuid4(), name=name, slug=name.lower())
 
 
+def _arranged(keys, *, serving=(), drafting=(), agents=()):
+    """`by_agent` over per-agent id sets, as `skill_bindings` hands them over."""
+    return by_agent(
+        keys,
+        serving={agent.id: frozenset(ids) for agent, ids in serving},
+        drafting={agent.id: frozenset(ids) for agent, ids in drafting},
+        agents={agent.id: agent for agent in agents},
+    )
+
+
 class TestByAgent:
     def test_a_skill_several_agents_serve_sits_under_each_of_them(self):
         refunds, tone = _key("refunds"), _key("tone")
         support, billing = _agent("Support"), _agent("billing")
 
-        sections = by_agent(
+        sections = _arranged(
             [refunds, tone],
-            used={refunds.id: [support, billing], tone.id: [support]},
-            drafted={},
+            serving=[(support, {tone.id, refunds.id}), (billing, {refunds.id})],
+            agents=(support, billing),
         )
 
         assert [(section.key, section.skill_ids) for section in sections] == [
@@ -55,10 +65,11 @@ class TestByAgent:
         drafted, served = _key("drafted"), _key("served")
         support, builder = _agent("Support"), _agent("Builder")
 
-        sections = by_agent(
+        sections = _arranged(
             [drafted, served],
-            used={served.id: [support]},
-            drafted={drafted.id: [builder], served.id: [builder]},
+            serving=[(support, {served.id})],
+            drafting=[(builder, {drafted.id, served.id})],
+            agents=(support, builder),
         )
 
         assert [section.kind for section in sections] == ["agent", "drafted"]
@@ -66,8 +77,11 @@ class TestByAgent:
 
     def test_a_skill_no_agent_uses_falls_last(self):
         lonely, drafted = _key("lonely"), _key("drafted")
+        builder = _agent("Builder")
 
-        sections = by_agent([lonely, drafted], used={}, drafted={drafted.id: [_agent("Builder")]})
+        sections = _arranged(
+            [lonely, drafted], drafting=[(builder, {drafted.id})], agents=(builder,)
+        )
 
         assert [(section.key, section.skill_ids) for section in sections] == [
             ("drafted", [drafted.id]),
@@ -75,7 +89,7 @@ class TestByAgent:
         ]
 
     def test_nothing_to_arrange_is_no_section(self):
-        assert by_agent([], used={}, drafted={}) == []
+        assert _arranged([]) == []
 
 
 class TestByOrigin:
@@ -182,5 +196,23 @@ async def test_no_skills_asked_reads_no_agents():
     db = AsyncMock()
     ctx = AuthContext(user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role=OrgRoleName.OWNER)
 
-    assert await skill_bindings(db, ctx, skill_ids=[]) == ({}, {})
+    bindings = await skill_bindings(db, ctx, skill_ids=[])
+
+    assert (bindings.serving, bindings.drafting, bindings.agents) == ({}, {}, {})
     db.execute.assert_not_awaited()
+
+
+class TestSkillBindings:
+    def test_a_skill_is_named_by_the_agents_that_bind_it_in_name_order(self):
+        refunds, tone = uuid.uuid4(), uuid.uuid4()
+        billing, support = _agent("Billing"), _agent("Support")
+        bindings = SkillBindings(
+            serving={billing.id: frozenset({refunds}), support.id: frozenset({refunds, tone})},
+            drafting={support.id: frozenset({tone})},
+            agents={billing.id: billing, support.id: support},
+        )
+
+        assert bindings.used_by(refunds) == [billing, support]
+        assert bindings.used_by(tone) == [support]
+        assert bindings.drafted_by(tone) == [support]
+        assert bindings.drafted_by(refunds) == []

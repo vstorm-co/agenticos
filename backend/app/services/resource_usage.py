@@ -9,6 +9,7 @@ card (#2072). The listings ask both once per page.
 
 import json
 from collections.abc import Collection, Sequence
+from dataclasses import dataclass
 from typing import Any
 from uuid import UUID
 
@@ -58,19 +59,19 @@ async def _visible_usage(
     agents = {agent.id: agent for bound in found.values() for agent in bound}
     visible = await accessible_ids(db, ctx, agents.values(), Perm.AGENTS_VIEW, resource_type=AGENT)
     return {
-        resource_id: [
-            AgentUsage(
-                id=agent.id,
-                name=agent.name,
-                slug=agent.slug,
-                has_avatar=agent.has_avatar,
-                avatar_color=agent.avatar_color,
-            )
-            for agent in bound
-            if agent.id in visible
-        ]
+        resource_id: [_usage(agent) for agent in bound if agent.id in visible]
         for resource_id, bound in found.items()
     }
+
+
+def _usage(agent: Agent) -> AgentUsage:
+    return AgentUsage(
+        id=agent.id,
+        name=agent.name,
+        slug=agent.slug,
+        has_avatar=agent.has_avatar,
+        avatar_color=agent.avatar_color,
+    )
 
 
 async def groups_sharing(
@@ -175,44 +176,87 @@ async def agents_using_skill(
     )
 
 
+@dataclass(frozen=True, slots=True)
+class SkillBindings:
+    """Which agents serve or draft which skills, by id, with each agent named once.
+
+    Kept as id sets per agent rather than as a list of agents per skill, so a
+    library bound by many agents costs ids, not an agent object per binding: the
+    names are drawn only for the cards a listing actually shows.
+    """
+
+    serving: dict[UUID, frozenset[UUID]]
+    """Per agent the caller may see, the skills a version it serves binds."""
+
+    drafting: dict[UUID, frozenset[UUID]]
+    """Per agent the caller may see, the skills its draft binds."""
+
+    agents: dict[UUID, AgentUsage]
+    """Every agent above, in name order."""
+
+    def used_by(self, skill_id: UUID) -> list[AgentUsage]:
+        """The agents serving one skill, in name order."""
+        return [
+            agent
+            for agent_id, agent in self.agents.items()
+            if skill_id in self.serving.get(agent_id, ())
+        ]
+
+    def drafted_by(self, skill_id: UUID) -> list[AgentUsage]:
+        """The agents whose draft binds one skill, in name order."""
+        return [
+            agent
+            for agent_id, agent in self.agents.items()
+            if skill_id in self.drafting.get(agent_id, ())
+        ]
+
+
 async def skill_bindings(
     db: AsyncSession, ctx: AuthContext, *, skill_ids: Collection[UUID]
-) -> tuple[dict[UUID, list[AgentUsage]], dict[UUID, list[AgentUsage]]]:
-    """Across a whole library: per skill, the agents serving it, and those whose draft binds it.
+) -> SkillBindings:
+    """Across a whole library: which agents serve each skill, and whose draft binds it.
 
     What `agents_serving_skills` and `agents_using` answer for a page, read for any
     number of skills at once: every served version and every live draft of the
     organization is parsed once, instead of being matched once per skill. A skill
     an inline specialist binds counts, in a draft as in a served version, and only
-    agents the caller may see are named. A draft that does not parse binds nothing
+    agents the caller may see are kept. A draft that does not parse binds nothing
     here - it serves no answer, and a listing is not a deletion check.
     """
-    wanted = set(skill_ids)
+    wanted = frozenset(skill_ids)
     if not wanted:
-        return {}, {}
+        return SkillBindings(serving={}, drafting={}, agents={})
     live = {
         agent.id: agent
         for agent in await agent_repo.list_live(db, organization_id=ctx.organization_id)
     }
-    serving: dict[UUID, set[UUID]] = {skill_id: set() for skill_id in skill_ids}
+    serving: dict[UUID, set[UUID]] = {}
     for environment, version in await agent_environment_repo.served(
         db, organization_id=ctx.organization_id
     ):
-        for skill_id in _bound_skills(version.spec) & wanted:
-            serving[skill_id].add(environment.agent_id)
-    drafting: dict[UUID, set[UUID]] = {skill_id: set() for skill_id in skill_ids}
-    for agent in live.values():
-        for skill_id in _bound_skills(agent.draft_spec) & wanted:
-            drafting[skill_id].add(agent.id)
-
-    def named(ids: set[UUID]) -> list[Agent]:
-        return sorted(
-            (live[agent_id] for agent_id in ids if agent_id in live), key=lambda a: a.name
-        )
-
-    used = await _visible_usage(db, ctx, {key: named(ids) for key, ids in serving.items()})
-    drafted = await _visible_usage(db, ctx, {key: named(ids) for key, ids in drafting.items()})
-    return used, drafted
+        bound = _bound_skills(version.spec) & wanted
+        if bound and environment.agent_id in live:
+            serving.setdefault(environment.agent_id, set()).update(bound)
+    drafting = {
+        agent.id: bound
+        for agent in live.values()
+        if (bound := _bound_skills(agent.draft_spec) & wanted)
+    }
+    visible = await accessible_ids(
+        db,
+        ctx,
+        [live[agent_id] for agent_id in serving.keys() | drafting.keys()],
+        Perm.AGENTS_VIEW,
+        resource_type=AGENT,
+    )
+    return SkillBindings(
+        serving={key: frozenset(ids) for key, ids in serving.items() if key in visible},
+        drafting={key: frozenset(ids) for key, ids in drafting.items() if key in visible},
+        agents={
+            agent.id: _usage(agent)
+            for agent in sorted((live[key] for key in visible), key=lambda agent: agent.name)
+        },
+    )
 
 
 def _bound_skills(spec: dict[str, Any]) -> set[UUID]:
