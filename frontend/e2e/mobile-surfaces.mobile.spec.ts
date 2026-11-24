@@ -416,7 +416,8 @@ for (const platform of ["ios", "android"] as const) {
         if (!content || !action) throw new Error("Expected the resource card's bounds");
         expect(action.y).toBeGreaterThanOrEqual(content.y + content.height);
         await expectContained(page);
-        await page.screenshot({ path: test.info().outputPath(`${path.slice(1)}-${width}.png`) });
+        const shot = new URL(path, "http://console").pathname.slice(1);
+        await page.screenshot({ path: test.info().outputPath(`${shot}-${width}.png`) });
       }
     });
 
