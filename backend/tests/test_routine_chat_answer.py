@@ -351,6 +351,7 @@ async def test_an_unconfirmed_send_is_not_retried_and_does_not_log_provider_secr
 
     from app.worker.jobs import ROUTINE_CHAT_ANSWER
 
+    assert raised.value.message == "Delivery of the routine answer could not be confirmed"
     assert ROUTINE_CHAT_ANSWER.max_attempts == 1
     assert TOKEN not in caplog.text
     assert all(record.exc_info is None for record in caplog.records)

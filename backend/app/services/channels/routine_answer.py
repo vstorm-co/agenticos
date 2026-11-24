@@ -184,7 +184,7 @@ async def send_routine_answer(job: RoutineChatAnswer) -> None:
             },
         )
         raise ExternalServiceError(
-            message="The chat platform did not accept the routine answer",
+            message="Delivery of the routine answer could not be confirmed",
             details={"platform": post.platform},
         ) from None
     await _settle_delivered(job)
