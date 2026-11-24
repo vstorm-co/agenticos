@@ -63,7 +63,7 @@ it("validates a read-only teammate preview", async () => {
   expect(apiClient.get).toHaveBeenCalledWith(`/me/onboarding/members/${id}`);
 });
 
-it.each(["dismissed", "completed", "walkthrough"])(
+it.each(["dismissed", "completed", "walkthrough", "activity"])(
   "does not offer repeated onboarding for %s",
   (reason) => {
     const data = {
@@ -77,20 +77,20 @@ it.each(["dismissed", "completed", "walkthrough"])(
     if (reason === "dismissed") data.dismissed = true;
     if (reason === "completed") data.has_result = true;
     if (reason === "walkthrough") data.completed = true;
+    if (reason === "activity") data.has_activity = true;
     expect(shouldOfferStart(data)).toBe(false);
   },
 );
 
-it("still offers the start when only starter agents or earlier activity exist", () => {
+it("still offers the start when only starter agents exist", () => {
   // Bootstrap publishes the Architect and AgenticOS starter agents into every
-  // new organization, so "no runnable agent yet" could never pass there — and
-  // a failed or abandoned run is not a finished task either. Only a real
-  // completed run, completion, or an active snooze hides the offer.
+  // new organization, so "no runnable agent yet" could never pass there. The
+  // agent list is not part of the decision.
   const data = {
     dismissed: false,
     completed: false,
     has_result: false,
-    has_activity: true,
+    has_activity: false,
     agents: [{ id, name: "AgenticOS" }],
   };
   expect(shouldOfferStart(data)).toBe(true);

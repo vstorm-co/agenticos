@@ -17,6 +17,7 @@ from contextlib import ExitStack, asynccontextmanager, contextmanager
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import click
 import pytest
 from click.testing import CliRunner
 
@@ -25,6 +26,8 @@ from app.commands.seed_demo import (
     DEMO_CONVERSATION_TITLE,
     DEMO_PROJECT_NAME,
     DEMO_USER_PROMPT,
+    _find_demo_conversations,
+    _find_demo_projects,
     _run,
     seed_demo,
 )
@@ -42,17 +45,16 @@ def _db_context(db):
     return context
 
 
-def _result(value):
+def _named(rows):
+    """A lookup result whose `scalars().all()` answers with `rows`."""
     result = MagicMock()
-    result.scalar_one_or_none.return_value = value
+    result.scalars.return_value.all.return_value = rows
     return result
 
 
-def _named(orgs):
-    """A lookup result whose `scalars().all()` answers with `orgs`."""
-    result = MagicMock()
-    result.scalars.return_value.all.return_value = orgs
-    return result
+def _result(project):
+    """The demo-project lookup: none, or one."""
+    return _named([] if project is None else [project])
 
 
 @pytest.fixture
@@ -92,6 +94,9 @@ def _patch_all(
     *,
     existing_project=None,
     existing_conversation=None,
+    existing_projects=None,
+    existing_conversations=None,
+    owner_id=OWNER_ID,
     created_project=None,
     created_conversation=None,
     name_matches=None,
@@ -104,11 +109,21 @@ def _patch_all(
     lookups = []
     if name_matches is not None:
         lookups.append(_named(name_matches))
-    lookups.append(_result(existing_project))
-    if existing_project is not None:
-        # A clear run looks the conversation up after the project; a
-        # dry-run/second run never reaches it, so the extra answer is unused.
-        lookups.append(_result(existing_conversation))
+    projects = (
+        existing_projects
+        if existing_projects is not None
+        else ([] if existing_project is None else [existing_project])
+    )
+    conversations = (
+        existing_conversations
+        if existing_conversations is not None
+        else ([] if existing_conversation is None else [existing_conversation])
+    )
+    lookups.append(_named(projects))
+    if projects:
+        # A clear run looks the conversations up after the projects; a
+        # dry-run/second run never reaches them, so the extra answer is unused.
+        lookups.append(_named(conversations))
     db.execute = AsyncMock(side_effect=lookups)
     return [
         patch("app.commands.seed_demo.get_db_context", _db_context(db)),
@@ -118,13 +133,13 @@ def _patch_all(
         ),
         patch(
             "app.commands.seed_demo.member_repo.first_owner_id",
-            new=AsyncMock(return_value=OWNER_ID),
+            new=AsyncMock(return_value=owner_id),
         ),
         patch(
             "app.commands.seed_demo.project_repo.create",
             new=AsyncMock(return_value=created_project),
         ),
-        patch("app.commands.seed_demo.project_repo.delete", new=AsyncMock()),
+        patch("app.commands.seed_demo.ProjectService.delete", new=AsyncMock()),
         patch(
             "app.commands.seed_demo.conversation_repo.create_conversation",
             new=AsyncMock(return_value=created_conversation),
@@ -166,21 +181,31 @@ class TestTheCommand:
                 "app.commands.seed_demo.organization_repo.get_by_id",
                 new=AsyncMock(return_value=None),
             ),
+            pytest.raises(click.exceptions.Exit) as refused,
         ):
             await _run(str(ORG_ID), False, False)
+        assert refused.value.exit_code == 1
         assert "No organization" in capsys.readouterr().out
 
     @pytest.mark.anyio
     async def test_an_unknown_organization_name_is_refused(self, db, org, capsys):
-        with _patched(db, org, name_matches=[]) as mocks:
+        with (
+            _patched(db, org, name_matches=[]) as mocks,
+            pytest.raises(click.exceptions.Exit) as refused,
+        ):
             await _run("No Such Org", False, False)
+        assert refused.value.exit_code == 1
         assert "No organization named 'No Such Org'" in capsys.readouterr().out
         mocks[3].assert_not_called()
 
     @pytest.mark.anyio
     async def test_an_ambiguous_organization_name_is_refused(self, db, org, capsys):
-        with _patched(db, org, name_matches=[org, org]) as mocks:
+        with (
+            _patched(db, org, name_matches=[org, org]) as mocks,
+            pytest.raises(click.exceptions.Exit) as refused,
+        ):
             await _run("Northwind Labs", False, False)
+        assert refused.value.exit_code == 1
         assert "More than one organization is named" in capsys.readouterr().out
         mocks[3].assert_not_called()
 
@@ -267,7 +292,12 @@ class TestTheCommand:
         # Deleting the project alone would only detach the chat (its project
         # foreign key is SET NULL), leaving an ordinary chat behind.
         db.delete.assert_awaited_once_with(conversation)
-        mocks[4].assert_awaited_once_with(db, project)
+        # The project goes through the service, so its grants, tasks, triggers
+        # and audit entry are cleaned up too.
+        mocks[4].assert_awaited_once()
+        ctx, project_id = mocks[4].await_args.args
+        assert (ctx.organization_id, ctx.user_id) == (ORG_ID, OWNER_ID)
+        assert project_id == project.id
 
     @pytest.mark.anyio
     async def test_clear_with_a_project_but_no_conversation_removes_only_the_project(
@@ -276,7 +306,54 @@ class TestTheCommand:
         with _patched(db, org, existing_project=project) as mocks:
             await _run(str(ORG_ID), True, False)
         db.delete.assert_not_called()
-        mocks[4].assert_awaited_once_with(db, project)
+        mocks[4].assert_awaited_once()
+
+    @pytest.mark.anyio
+    async def test_clear_removes_every_duplicate_and_renamed_chat(self, db, org, capsys):
+        first, second = MagicMock(), MagicMock()
+        first.id, second.id = uuid.uuid4(), uuid.uuid4()
+        renamed_a, renamed_b = MagicMock(), MagicMock()
+        with _patched(
+            db,
+            org,
+            existing_projects=[first, second],
+            existing_conversations=[renamed_a, renamed_b],
+        ) as mocks:
+            await _run(str(ORG_ID), True, False)
+        assert [c.args[0] for c in db.delete.await_args_list] == [renamed_a, renamed_b]
+        assert [c.args[1] for c in mocks[4].await_args_list] == [first.id, second.id]
+        assert "Removed 2 demo workspace(s)" in capsys.readouterr().out
+
+    @pytest.mark.anyio
+    async def test_clear_without_an_owner_exits_non_zero_and_deletes_nothing(
+        self, db, org, project
+    ):
+        with (
+            _patched(db, org, existing_project=project, owner_id=None) as mocks,
+            pytest.raises(click.exceptions.Exit) as refused,
+        ):
+            await _run(str(ORG_ID), True, False)
+        assert refused.value.exit_code == 1
+        db.delete.assert_not_called()
+        mocks[4].assert_not_called()
+
+    @pytest.mark.anyio
+    async def test_the_lookups_are_scoped_to_what_the_seed_wrote(self, db):
+        db.execute = AsyncMock(side_effect=[_named([]), _named([])])
+        assert await _find_demo_projects(db, ORG_ID) == []
+        assert (
+            await _find_demo_conversations(db, organization_id=ORG_ID, project_ids=[uuid.uuid4()])
+            == []
+        )
+        projects_sql, conversations_sql = (
+            str(c.args[0].whereclause) for c in db.execute.await_args_list
+        )
+        # Name alone is not enough to claim a project; a title alone is not
+        # enough to claim a chat (it can be renamed).
+        assert "projects.description" in projects_sql
+        assert "projects.backend" in projects_sql
+        assert "messages.model_name" in conversations_sql
+        assert "conversations.title" not in conversations_sql
 
     @pytest.mark.anyio
     async def test_clear_with_nothing_seeded_is_a_no_op(self, db, org, capsys):
@@ -296,5 +373,7 @@ class TestTheCommand:
             ),
         ):
             result = CliRunner().invoke(seed_demo, ["00000000-0000-4000-8000-000000000001"])
-        assert result.exit_code == 0
+        # A refused organization must fail the process, or `quickstart.sh --demo`
+        # would report success for a workspace that was never seeded.
+        assert result.exit_code == 1
         assert "No organization" in result.output

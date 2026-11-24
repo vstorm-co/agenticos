@@ -54,18 +54,18 @@ export async function previewMemberStart(userId: string): Promise<{ has_common_a
 }
 
 /**
- * The offer is about first value, not about what already exists.
+ * The offer is for an organization that has not started yet.
  *
  * Bootstrap always installs and publishes the Architect and AgenticOS starter
  * agents, so "no runnable agent yet" could never pass on a bootstrapped org —
  * the start offer never appeared anywhere: not on the dashboard, not in chat,
- * and the welcome redirect bounced straight to /chat. Earlier activity is not
- * first value either — a failed or abandoned run is not a finished task. Only
- * a real completed run (`has_result`) proves the product delivered, and only
- * completion or an active 24-hour snooze hides the offer.
+ * and the welcome redirect bounced straight to /chat. The agent list therefore
+ * plays no part. Earlier activity (`has_activity`) or a completed run
+ * (`has_result`) means the organization has started, and completion or an
+ * active 24-hour snooze hides the offer too.
  */
 export function shouldOfferStart(
-  data: Pick<Onboarding, "dismissed" | "completed" | "has_result">,
+  data: Pick<Onboarding, "dismissed" | "completed" | "has_result" | "has_activity">,
 ): boolean {
-  return !data.dismissed && !data.completed && !data.has_result;
+  return !data.dismissed && !data.completed && !data.has_result && !data.has_activity;
 }

@@ -37,12 +37,22 @@ that resolution added; the wizard #209 also built is parked and not revived
 here.
 
 Idempotent: running it twice reports the existing workspace and creates
-nothing. `--clear` removes exactly what it created — the demo conversation
-first (deleting the project alone would only detach it, leaving an ordinary
-chat behind), then the project — and nothing else.
+nothing. `--clear` removes exactly what it created and nothing else. Seeded
+rows are recognised by what the seed wrote, not by a title a person can edit:
+a project by its name, its fixed description and `backend="state"`; a
+conversation by the assistant message stored with `model_name="demo"`, so a
+renamed demo chat is still removed. If duplicates exist (a person created a
+look-alike, or a race seeded twice), every match is cleared. The conversations
+go first (deleting the project alone would only detach them, leaving ordinary
+chats behind), then each project through `ProjectService.delete`, which also
+clears grants, tasks, triggers and writes the audit entry.
+
+An unknown or ambiguous organization exits non-zero, so `quickstart.sh --demo`
+reports the failure instead of printing a green summary.
 """
 
 import asyncio
+from typing import NoReturn
 from uuid import UUID
 
 import click
@@ -50,7 +60,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.commands import command, error, info, success
-from app.db.models.conversation import Conversation
+from app.core.permissions import AuthContext, OrgRoleName
+from app.db.models.conversation import Conversation, Message
 from app.db.models.organization import Organization
 from app.db.models.project import Project
 from app.db.models.resource_grant import Visibility
@@ -58,6 +69,7 @@ from app.db.session import get_db_context
 from app.repositories import conversation as conversation_repo
 from app.repositories import member_repo, organization_repo
 from app.repositories import project as project_repo
+from app.services.project import ProjectService
 
 DEMO_PROJECT_NAME = "Demo — first-run example"
 DEMO_PROJECT_DESCRIPTION = (
@@ -69,6 +81,7 @@ DEMO_PROJECT_INSTRUCTIONS = (
     "This is the demo workspace for the guided first run. Treat its content as fictional examples."
 )
 DEMO_CONVERSATION_TITLE = "Demo — meeting notes into an action plan"
+DEMO_MODEL_NAME = "demo"
 DEMO_USER_PROMPT = (
     "Turn these fictional meeting notes into an action plan with an owner and due date "
     "for each item. Flag missing information rather than inventing it.\n\n"
@@ -84,8 +97,17 @@ DEMO_ASSISTANT_REPLY = (
 )
 
 
-async def _resolve_organization(db: AsyncSession, value: str) -> Organization | None:
-    """An organization by id, or by exact name when the value is not a UUID."""
+def _refuse(message: str) -> NoReturn:
+    """Report the problem and exit non-zero, so a calling script sees the failure."""
+    error(message)
+    raise click.exceptions.Exit(1)
+
+
+async def _resolve_organization(db: AsyncSession, value: str) -> Organization:
+    """An organization by id, or by exact name when the value is not a UUID.
+
+    Exits non-zero when the id or name matches nothing, or a name matches several.
+    """
     try:
         org_id = UUID(value)
     except ValueError:
@@ -93,41 +115,59 @@ async def _resolve_organization(db: AsyncSession, value: str) -> Organization | 
     if org_id is not None:
         org = await organization_repo.get_by_id(db, org_id)
         if org is None:
-            error(f"No organization with id {org_id}")
+            _refuse(f"No organization with id {org_id}")
         return org
     result = await db.execute(select(Organization).where(Organization.name == value))
     matches = result.scalars().all()
     if not matches:
-        error(f"No organization named {value!r}")
-        return None
+        _refuse(f"No organization named {value!r}")
     if len(matches) > 1:
-        error(f"More than one organization is named {value!r}; pass its id instead")
-        return None
+        _refuse(f"More than one organization is named {value!r}; pass its id instead")
     return matches[0]
 
 
-async def _find_demo_project(db: AsyncSession, organization_id: UUID) -> Project | None:
-    """The demo workspace, if this organization already has one."""
+async def _find_demo_projects(db: AsyncSession, organization_id: UUID) -> list[Project]:
+    """Every project this seed could have written, oldest first.
+
+    Matches the name, the fixed description and the stateless backend together,
+    so an unrelated project that only shares the name is left alone.
+    """
     result = await db.execute(
-        select(Project).where(
+        select(Project)
+        .where(
             Project.organization_id == organization_id,
             Project.name == DEMO_PROJECT_NAME,
+            Project.description == DEMO_PROJECT_DESCRIPTION,
+            Project.backend == "state",
         )
+        .order_by(Project.created_at.asc(), Project.id.asc())
     )
-    return result.scalar_one_or_none()
+    return list(result.scalars().all())
 
 
-async def _find_demo_conversation(
-    db: AsyncSession, *, organization_id: UUID, project_id: UUID
-) -> Conversation | None:
+async def _find_demo_conversations(
+    db: AsyncSession, *, organization_id: UUID, project_ids: list[UUID]
+) -> list[Conversation]:
+    """The seeded chats in these projects, found by the stored demo answer.
+
+    The title is editable and the answer is not, so a renamed chat still matches.
+    """
     result = await db.execute(
-        select(Conversation).where(
+        select(Conversation)
+        .where(
             Conversation.organization_id == organization_id,
-            Conversation.project_id == project_id,
-            Conversation.title == DEMO_CONVERSATION_TITLE,
+            Conversation.project_id.in_(project_ids),
+            Conversation.id.in_(
+                select(Message.conversation_id).where(
+                    Message.role == "assistant",
+                    Message.model_name == DEMO_MODEL_NAME,
+                    Message.run_id.is_(None),
+                )
+            ),
         )
+        .order_by(Conversation.created_at.asc(), Conversation.id.asc())
     )
-    return result.scalar_one_or_none()
+    return list(result.scalars().all())
 
 
 @command("seed-demo", help="Seed a curated demo workspace for the guided first run")
@@ -141,23 +181,27 @@ def seed_demo(organization: str, clear: bool, dry_run: bool) -> None:
 async def _run(organization: str, clear: bool, dry_run: bool) -> None:
     async with get_db_context() as db:
         org = await _resolve_organization(db, organization)
-        if org is None:
-            return
-
-        project = await _find_demo_project(db, org.id)
+        projects = await _find_demo_projects(db, org.id)
+        project = projects[0] if projects else None
 
         if clear:
-            if project is None:
+            if not projects:
                 info("No demo workspace to remove.")
                 return
-            conversation = await _find_demo_conversation(
-                db, organization_id=org.id, project_id=project.id
+            owner_id = await member_repo.first_owner_id(db, organization_id=org.id)
+            if owner_id is None:
+                _refuse(f"{org.name} has no owner to remove the demo workspace as")
+            conversations = await _find_demo_conversations(
+                db, organization_id=org.id, project_ids=[p.id for p in projects]
             )
-            if conversation is not None:
+            for conversation in conversations:
                 await db.delete(conversation)
-                await db.flush()
-            await project_repo.delete(db, project)
-            success(f"Removed demo workspace from {org.name}")
+            await db.flush()
+            ctx = AuthContext(user_id=owner_id, organization_id=org.id, role=OrgRoleName.OWNER)
+            service = ProjectService(db)
+            for demo_project in projects:
+                await service.delete(ctx, demo_project.id)
+            success(f"Removed {len(projects)} demo workspace(s) from {org.name}")
             return
 
         if dry_run:
@@ -203,7 +247,7 @@ async def _run(organization: str, clear: bool, dry_run: bool) -> None:
             conversation_id=conversation.id,
             role="assistant",
             content=DEMO_ASSISTANT_REPLY,
-            model_name="demo",
+            model_name=DEMO_MODEL_NAME,
         )
         success(
             f"Created demo workspace in {org.name}: "
