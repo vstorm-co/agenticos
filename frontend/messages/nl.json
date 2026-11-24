@@ -12318,10 +12318,10 @@
     "askForAccess": "Vraag een beheerder om toegang tot apps.",
     "count": "{count, plural, =1 {1 app} other {# apps}}",
     "search": "Apps zoeken…",
-    "noMatches": "Geen app komt overeen",
+    "noMatches": "Geen apps gevonden",
     "noMatchesWhy": "Titels en namen worden doorzocht.",
     "noneYet": "Nog niets gepubliceerd",
-    "noneYetWhy": "Een agent met de capability Apps publiceert hier een app wanneer je hem om een rapport of een dashboard vraagt. Die is privé voor jou tot je hem deelt.",
+    "noneYetWhy": "Een agent met de capability Apps publiceert hier een app wanneer je hem om een rapport of een dashboard vraagt. De app is privé voor jou tot je hem deelt.",
     "noneYetCta": "Je agents openen",
     "sharedOrg": "Hele organisatie",
     "publicBadge": "Openbare link",
@@ -12333,7 +12333,7 @@
     "unavailableWhy": "Hij is verwijderd, of je hebt er geen toegang meer toe.",
     "couldNotLoad": "Deze app kon niet worden geladen",
     "deleteTitle": "{title} verwijderen?",
-    "deleteWhy": "Elke versie en de openbare link gaan mee, en niemand met wie hij was gedeeld, kan hem nog openen. De agent maakt een nieuwe de volgende keer dat hij onder deze naam publiceert.",
+    "deleteWhy": "Elke versie en de openbare link worden ook verwijderd, en niemand met wie hij was gedeeld, kan hem nog openen. De agent maakt een nieuwe de volgende keer dat hij onder deze naam publiceert.",
     "deleted": "App verwijderd",
     "publicLink": "Openbare link",
     "publicLinkAddress": "Adres van de openbare link",
@@ -12397,7 +12397,7 @@
       "why": "De pagina “{page}” vraagt om deze workflow namens jou uit te voeren, met jouw toegang en jouw budget. Controleer wat hij zal versturen voordat je verdergaat.",
       "pageWording": "Hoe de pagina het noemt",
       "sends": "Wat hij zal versturen",
-      "sendsNothing": "Niets: de workflow neemt geen invoer.",
+      "sendsNothing": "Niets: de workflow verwacht geen invoer.",
       "notGiven": "niet opgegeven",
       "run": "Uitvoeren",
       "rateLimited": "Te veel runs vanaf deze pagina. Probeer het over een minuut opnieuw.",
@@ -12438,8 +12438,8 @@
     "archive": "Archiveren",
     "archiveTitle": "{title} archiveren?",
     "archiveWhy": "Niemand kan hem openen en de agent kan hem niet opnieuw publiceren, en de openbare link wordt uitgeschakeld. Alles wordt bewaard, dus je kunt hem later herstellen.",
-    "archived": "Artefact gearchiveerd",
-    "unarchived": "Artefact hersteld",
+    "archived": "App gearchiveerd",
+    "unarchived": "App hersteld",
     "archivedOn": "Gearchiveerd op {when}",
     "archivedWhy": "Niemand kan deze pagina openen en de agent kan haar niet opnieuw publiceren. Na het herstellen blijft de openbare link uit tot je hem inschakelt.",
     "unarchive": "Herstellen",
@@ -12452,7 +12452,7 @@
     "consent": {
       "confirmed": "Gegevens bevestigd",
       "withdrawn": "Delen van gegevens gestopt",
-      "withdraw": "Stoppen met het delen van gegevens",
+      "withdraw": "Gegevens niet meer delen",
       "withdrawTitle": "De gegevens van deze pagina niet meer delen?",
       "withdrawWhy": "Anderen, behalve rollen die elke tabel zien, zien de pagina zonder gegevens tot {who, select, you {jij ze opnieuw bevestigt} unknown {de eigenaar ze opnieuw bevestigt} other {{owner} ze opnieuw bevestigt}}. Automatisch delen wordt uitgeschakeld, en “Kan bewerken, inclusief gegevens” wordt “Kan bewerken”.",
       "confirm": "Gegevens bevestigen",
@@ -12476,14 +12476,14 @@
       "tablesRead": "Tabellen: {tables}",
       "log": {
         "step": "uit de stap {step}",
-        "outcomes": "vertrokken via {outcomes}",
+        "outcomes": "via uitkomst {outcomes}",
         "run": "uit de run {run}",
         "filters": "Alleen regels {conditions}.",
         "allLines": "Alle regels.",
         "testsIncluded": "Testruns zijn inbegrepen.",
         "testsLeftOut": "Testruns zijn weggelaten.",
-        "lines": "Biedt de nieuwste {count, plural, =1 {1 regel} other {# regels}}, nieuwste eerst.",
-        "perDay": "Biedt het aantal regels per dag over {days} dagen, in {tz}.",
+        "lines": "Toont de nieuwste {count, plural, =1 {1 regel} other {# regels}}, nieuwste eerst.",
+        "perDay": "Toont het aantal regels per dag over {days} dagen, in {tz}.",
         "summary": "{workflow}: {keeps} {serves}"
       },
       "parts": {
@@ -12495,7 +12495,7 @@
         "sortDerived": "{column} ({derived}), {direction, select, asc {oplopend} other {aflopend}}",
         "fieldPlain": "{column} ({type})",
         "fieldDerived": "{column}: {derived}",
-        "formula": "formule over {inputs}",
+        "formula": "formule op basis van {inputs}",
         "formulaBare": "formule",
         "link": "koppeling, labels uit {table} -> {column}",
         "linkIds": "koppeling, labels uit {table} -> record-id's",
@@ -12607,8 +12607,8 @@
       "confirm": "Gegevens bevestigen",
       "confirmAgain": "Opnieuw bevestigen",
       "cancel": "Annuleren",
-      "withdraw": "Stoppen met gegevens tonen",
-      "withdrawTitle": "Stoppen met gegevens tonen op de openbare link?",
+      "withdraw": "Gegevens niet meer tonen",
+      "withdrawTitle": "Gegevens niet meer tonen op de openbare link?",
       "withdrawWhy": "De openbare link en embeds tonen de pagina zonder gegevens tot iemand ze opnieuw bevestigt.",
       "confirmTitle": "Gegevens bevestigen voor de openbare link",
       "confirmWhy": "Iedereen met de link, en elke site die de pagina insluit, ziet deze records zonder in te loggen. Controleer wat er wordt gedeeld en wie het kan bereiken.",
@@ -12616,7 +12616,7 @@
       "audienceTitle": "Wie het kan zien",
       "audienceAnyone": "Iedereen met de openbare link, zonder in te loggen.",
       "audiencePassword": "Ze moeten het wachtwoord van de link invullen.",
-      "audienceNoPassword": "Geen wachtwoord: de link alleen opent het.",
+      "audienceNoPassword": "Geen wachtwoord: de link volstaat om het te openen.",
       "audienceNoExpiry": "De link verloopt niet.",
       "audienceExpires": "De link werkt niet meer na {date}.",
       "audienceEmbeds": "Getoond op deze sites wanneer ze de pagina insluiten: {sites}.",
@@ -13885,7 +13885,7 @@
         "description": "Toegestane browserhosts. Geen beperking staat elk domein toe; een lege domeinlijst blokkeert alles. Patronen zoals *.example.com worden ondersteund. Bij elke stap gecontroleerd."
       },
       "max_steps": {
-        "title": "Hoogstens stappen per aanroep",
+        "title": "Maximumaantal stappen per aanroep",
         "description": "Hoeveel stappen één aanroep mag nemen; elke stap is één modelverzoek. Een taak die er meer nodig heeft, gaat bij de volgende aanroep verder in hetzelfde tabblad."
       },
       "vision": {
@@ -13894,7 +13894,7 @@
       },
       "candidate_cap": {
         "title": "Elementen aangeboden per stap",
-        "description": "Hoeveel elementen van de pagina in één stap als keuze mogen worden aangeboden. Lager is goedkoper en blinder; het antwoord op een pagina die te vol is voor de limiet, is scrollen."
+        "description": "Hoeveel elementen van de pagina in één stap als keuze mogen worden aangeboden. Lager is goedkoper maar ziet minder; bij een pagina die te vol is voor de limiet, is scrollen de oplossing."
       },
       "preview": {
         "title": "Een live voorbeeld tonen",
@@ -13906,11 +13906,11 @@
       },
       "step_model_profile_id": {
         "title": "Model voor elke browsestap",
-        "description": "Een modelprofiel dat `browse_web` voor elke stap vraagt in plaats van dat van de agent zelf. Stappen nemen het grootste deel van de tijd en kosten van een browsesessie in, dus een goedkoper model hier maakt een lange browsesessie goedkoper, en sneller waar de provider snel antwoordt - meet het, want een klein model via een trage gateway is niet sneller. Leeg gebruikt het model van de agent. De eigen browsertools van de agent gebruiken altijd dat model."
+        "description": "Een modelprofiel dat `browse_web` voor elke stap vraagt in plaats van dat van de agent zelf. Stappen nemen het grootste deel van de tijd en kosten van een browsesessie in, dus een goedkoper model hier maakt een lange browsesessie goedkoper, en sneller waar de provider snel antwoordt - meet het, want een klein model via een trage gateway is niet sneller. Laat leeg om het model van de agent te gebruiken. De eigen browsertools van de agent gebruiken altijd dat model."
       },
       "connection": {
         "title": "Hoe de browser het web bereikt",
-        "description": "Ingebouwd gebruikt de browser van de installatie en het adres ervan. Een proxy stuurt het surfen via een eigen adres - een residentieel of regionaal adres dat sites minder blokkeren. Een gehoste browser laat het draaien in een browserservice waarvoor je betaalt, bereikt via CDP. Deze computer vereist een gekoppelde desktop en lokaal surfen gekozen voor deze chat."
+        "description": "Ingebouwd gebruikt de browser van de installatie en het adres ervan. Een proxy stuurt het surfen via een eigen adres - een residentieel of regionaal adres dat sites minder blokkeren. Een gehoste browser laat het draaien in een browserservice waarvoor je betaalt, bereikt via CDP. Voor Deze computer zijn een gekoppelde desktop en lokaal surfen in deze chat nodig."
       },
       "proxy_url": {
         "title": "Proxyadres",
@@ -13939,8 +13939,8 @@
     },
     "channel_tools": {
       "tools": {
-        "title": "Toegestane opzoekingen",
-        "description": "Welke kanaalopzoekingen deze koppeling toestaat, op tool-id. Leeg betekent geen. Nieuwe koppelingen staan alle tools toe die het platform ondersteunt; bestaande keuzes blijven ongewijzigd."
+        "title": "Toegestane opzoekacties",
+        "description": "Welke opzoekacties in kanalen deze koppeling toestaat, op tool-id. Leeg betekent geen. Nieuwe koppelingen staan alle tools toe die het platform ondersteunt; bestaande keuzes blijven ongewijzigd."
       },
       "default_limit": {
         "title": "Resultaten als er geen aantal wordt gevraagd",
@@ -13956,7 +13956,7 @@
     "code_execution": {
       "timeout_secs": {
         "title": "Tijdslimiet per aanroep (seconden)",
-        "description": "Wandkloktijd voor één aanroep, in seconden"
+        "description": "Maximale werkelijke tijd voor één aanroep, in seconden"
       },
       "max_memory_mb": {
         "title": "Geheugenlimiet per aanroep (MB)",
@@ -13982,11 +13982,11 @@
       },
       "summary_prompt": {
         "title": "Samenvattingsprompt",
-        "description": "Wat het samenvattende model te horen krijgt. `{messages}` is waar het gesprek dat wordt vervangen, wordt ingevoegd, en het is verplicht - een prompt zonder vat niets samen. Bewerk het om te behouden waar het werk van je agent van afhangt: de standaard behoudt bedoeling, beslissingen en open draden, en dat is niet hetzelfde als wat een supporttranscript of een codereview nodig heeft"
+        "description": "Wat het samenvattende model te horen krijgt. `{messages}` is waar het gesprek dat wordt vervangen, wordt ingevoegd, en het is verplicht - een prompt zonder deze placeholder vat niets samen. Bewerk het om te behouden waar het werk van je agent van afhangt: de standaard behoudt bedoeling, beslissingen en openstaande punten, en dat is niet hetzelfde als wat een supporttranscript of een codereview nodig heeft"
       },
       "context_window": {
         "title": "Contextvenster overschrijven",
-        "description": "Overschrijf het venster waartegen dit wordt geactiveerd. Ook waardoor de contextmeter van de chat deelt, zodat de twee één plafond beschrijven. Stel het in wanneer het gevonden getal niet klopt voor je installatie - een bèta of een niveau kan minder krijgen dan de provider publiceert - of om een agent eerder te laten samenvatten dan zijn model vereist"
+        "description": "Overschrijf het venster waarop dit wordt geactiveerd. De contextmeter van de chat deelt ook door dit getal, zodat beide hetzelfde plafond beschrijven. Stel het in wanneer het bepaalde getal niet klopt voor je installatie - een bèta of een niveau kan minder krijgen dan de provider publiceert - of om een agent eerder te laten samenvatten dan zijn model vereist"
       },
       "fallback_context_window": {
         "title": "Terugvalcontextvenster",
@@ -14016,7 +14016,7 @@
       },
       "redact_pii_in": {
         "title": "Persoonsgegevens verbergen in de vraag",
-        "description": "E-mailadressen, telefoonnummers, IBAN's, kaarten en burgerservicenummers weglakken uit de prompt"
+        "description": "E-mailadressen, telefoonnummers, IBAN's, kaarten en nationale identificatienummers weglakken uit de prompt"
       },
       "blocked_keywords_in": {
         "title": "Geblokkeerde woorden in de vraag",
@@ -14028,7 +14028,7 @@
       },
       "redact_pii_out": {
         "title": "Persoonsgegevens verbergen in het antwoord",
-        "description": "E-mailadressen, telefoonnummers, IBAN's, kaarten en burgerservicenummers weglakken uit het antwoord"
+        "description": "E-mailadressen, telefoonnummers, IBAN's, kaarten en nationale identificatienummers weglakken uit het antwoord"
       },
       "blocked_keywords_out": {
         "title": "Geblokkeerde woorden in het antwoord",
@@ -14040,7 +14040,7 @@
       },
       "redact_pii_tool": {
         "title": "Persoonsgegevens verbergen in toolresultaten",
-        "description": "E-mailadressen, telefoonnummers, IBAN's, kaarten en burgerservicenummers weglakken uit toolresultaten"
+        "description": "E-mailadressen, telefoonnummers, IBAN's, kaarten en nationale identificatienummers weglakken uit toolresultaten"
       },
       "blocked_keywords_tool": {
         "title": "Geblokkeerde woorden in toolresultaten",
@@ -14052,7 +14052,7 @@
       },
       "redact_pii_args": {
         "title": "Persoonsgegevens verbergen in toolargumenten",
-        "description": "E-mailadressen, telefoonnummers, IBAN's, kaarten en burgerservicenummers weglakken uit toolargumenten"
+        "description": "E-mailadressen, telefoonnummers, IBAN's, kaarten en nationale identificatienummers weglakken uit toolargumenten"
       },
       "blocked_keywords_args": {
         "title": "Geblokkeerde woorden in toolargumenten",
@@ -14060,7 +14060,7 @@
       },
       "phone_regions": {
         "title": "Landen voor telefoonnummers",
-        "description": "Landen waarvan het weglakken van persoonsgegevens de nationale telefoonformaten leest, als codes van twee letters (gescheiden door komma's of nieuwe regels), hoogstens 16 regio's en 256 tekens. Een nummer dat met + is geschreven, wordt weggelakt wat er ook is vermeld"
+        "description": "Landen waarvan de nationale notatie van telefoonnummers wordt herkend bij het weglakken van persoonsgegevens, als codes van twee letters (gescheiden door komma's of nieuwe regels), hoogstens 16 regio's en 256 tekens. Een nummer dat met + is geschreven, wordt altijd weggelakt, ongeacht wat er is vermeld"
       }
     },
     "image_generation": {
@@ -14100,14 +14100,14 @@
       },
       "self_query_enabled": {
         "title": "Filters afleiden uit de vraag",
-        "description": "FA-039-bedrijfsfilters (bron, documenttype, organisatie-eenheid, datumbereik) met een LLM afleiden uit de vraag in natuurlijke taal wanneer het model zoekt zonder zelf een filter te noemen. Standaard uit. Elke zo'n zoekopdracht doet één extra modelverzoek, gefactureerd aan de run. Het kan alleen beperken binnen de tenant en collecties van de agent, nooit verruimen."
+        "description": "FA-039-bedrijfsfilters (bron, documenttype, organisatie-eenheid, datumbereik) met een LLM afleiden uit de vraag in natuurlijke taal wanneer het model zoekt zonder zelf een filter te noemen. Standaard uit. Elke zoekopdracht van dat soort doet één extra modelverzoek, gefactureerd aan de run. Het kan alleen beperken binnen de tenant en collecties van de agent, nooit verruimen."
       },
       "query_analysis_mode": {
         "title": "Uitbreiding van zoekopdrachten",
-        "description": "Optioneel de zoekopdracht analyseren en uitbreiden voor het ophalen, om de recall bij korte of vage vragen te verbeteren. Standaard uit. `multi_query` en `hyde` doen elk één extra modelaanroep"
+        "description": "Optioneel de zoekopdracht analyseren en uitbreiden vóór het ophalen, om de recall bij korte of vage vragen te verbeteren. Standaard uit. `multi_query` en `hyde` doen elk één extra modelaanroep"
       },
       "query_analysis_max_variants": {
-        "title": "Hoogstens herformuleringen",
+        "title": "Maximumaantal herformuleringen",
         "description": "Hoeveel herformuleringen `multi_query` mag toevoegen, wat de fan-out en kosten begrenst. Genegeerd door de andere modi"
       },
       "parent_context": {
@@ -14124,11 +14124,11 @@
     "memory_files": {
       "allow_personal": {
         "title": "Privénotities per persoon bijhouden",
-        "description": "Of de agent privénotities bijhoudt voor elke persoon met wie hij praat, alleen leesbaar als hij alleen met die persoon is. Uit laat die opslag helemaal vallen, voor compliance of privacy; de notities die hij in groepschats bijhoudt, blijven."
+        "description": "Of de agent privénotities bijhoudt voor elke persoon met wie hij praat, alleen leesbaar als hij alleen met die persoon is. Als dit uit staat, verdwijnt die opslag helemaal, voor compliance of privacy; de notities die hij in groepschats bijhoudt, blijven."
       },
       "inject_context": {
         "title": "Geheugen automatisch meenemen",
-        "description": "Toon een begrensde samenvatting van persoonlijke herinneringen en notities in privégesprekken. Uit houdt geheugentools en onderhoud op de achtergrond beschikbaar."
+        "description": "Toon een begrensde samenvatting van persoonlijke herinneringen en notities in privégesprekken. Als dit uit staat, blijven geheugentools en onderhoud op de achtergrond beschikbaar."
       }
     },
     "planning": {
@@ -14137,7 +14137,7 @@
         "description": "Voegt subtaken en afhankelijkheden toe: een stap wacht als geblokkeerd tot de stappen ervoor klaar zijn. Standaard uit, omdat een platte checklist voor het meeste werk volstaat."
       },
       "cache_ttl": {
-        "title": "Oude levensduur van de promptcache",
+        "title": "Levensduur van de promptcache (verouderd)",
         "description": "Bewaard zodat bestaande agentspecs nog laden. Planning gebruikt deze waarde niet meer; stel promptcaching in via cache in de modelinstellingen."
       }
     },
@@ -14148,7 +14148,7 @@
       },
       "connection_id": {
         "title": "Sandboxkoppeling",
-        "description": "Op welke geregistreerde sandboxkoppeling wordt gedraaid; leeg neemt de standaard van de organisatie. Een id, nooit een adres of een token - een spec wordt geëxporteerd naar de git-repository van een klant, dus het enige wat hij mag bevatten, is een verwijzing. De koppeling bepaalt of dat een container is op een host die je zelf draait, of een sandbox bij een cloudprovider of op een OpenSandbox-server."
+        "description": "Op welke geregistreerde sandboxkoppeling wordt gedraaid; laat leeg voor de standaard van de organisatie. Een id, nooit een adres of een token - een spec wordt geëxporteerd naar de git-repository van een klant, dus het enige wat hij mag bevatten, is een verwijzing. De koppeling bepaalt of dat een container is op een host die je zelf draait, of een sandbox bij een cloudprovider of op een OpenSandbox-server."
       },
       "session_scope": {
         "title": "Wie de workspace deelt",
@@ -14156,7 +14156,7 @@
       },
       "runtime": {
         "title": "Runtime",
-        "description": "Optionele providerspecifieke overschrijving van de runtime, tot 64 tekens: een sandboxd-alias, E2B-template, Daytona-snapshot of OpenSandbox-image. Leeg gebruikt de standaard van de koppeling; stel langere verwijzingen naar OpenSandbox-images in op de koppeling."
+        "description": "Optionele providerspecifieke overschrijving van de runtime, tot 64 tekens: een sandboxd-alias, E2B-template, Daytona-snapshot of OpenSandbox-image. Laat leeg voor de standaard van de koppeling; stel langere verwijzingen naar OpenSandbox-images in op de koppeling."
       },
       "include_execute": {
         "title": "Shellcommando's toestaan",
@@ -14166,7 +14166,7 @@
     "subagents": {
       "inline": {
         "title": "Ingebouwde specialisten",
-        "description": "Specialisten die binnen deze agent zijn gedefinieerd, voor werk dat geen eigen gepubliceerde agent rechtvaardigt. Niet geversioneerd: deze agent bewerken wijzigt ze, en niets anders kan ernaar verwijzen."
+        "description": "Specialisten die binnen deze agent zijn gedefinieerd, voor werk dat geen eigen gepubliceerde agent rechtvaardigt. Niet geversioneerd: als je deze agent bewerkt, veranderen ze mee, en niets anders kan ernaar verwijzen."
       },
       "mode": {
         "title": "Delegatiemodus",
@@ -14186,7 +14186,7 @@
       },
       "max_fanout": {
         "title": "Delegaties tegelijk",
-        "description": "Hoeveel delegaties tegelijk mogen draaien. Is dat bereikt, dan wordt de volgende geweigerd met een bericht waarop het model kan reageren in plaats van een fout. Dit is het plafond voor een delegatie op de achtergrond die een delegatie op de achtergrond start tot er een dozijn agents op één budget draaien."
+        "description": "Hoeveel delegaties tegelijk mogen draaien. Is dat bereikt, dan wordt de volgende geweigerd met een bericht waarop het model kan reageren in plaats van een fout. Dit plafond voorkomt dat delegaties op de achtergrond steeds nieuwe delegaties starten tot er een dozijn agents op één budget draaien."
       },
       "max_result_chars": {
         "title": "Getoonde antwoordlengte per gedelegeerde",
@@ -14216,13 +14216,13 @@
       },
       "cache_ttl": {
         "title": "Levensduur van de promptcache",
-        "description": "Levensduur in de cache van het breekpunt dat voor de afsluitende herinnering wordt geplaatst"
+        "description": "Levensduur in de cache van het breekpunt dat vóór de afsluitende herinnering wordt geplaatst"
       }
     },
     "thinking": {
       "effort": {
         "title": "Redeneerinspanning",
-        "description": "Hoe hard het model redeneert voordat het antwoordt. Laat leeg voor de eigen standaardinspanning van de provider; een niveau dat een provider niet heeft, wordt naar het dichtstbijzijnde vertaald."
+        "description": "Hoe hard het model redeneert voordat het antwoordt. Laat leeg voor de eigen standaardinspanning van de provider; een niveau dat een provider niet heeft, wordt vervangen door het dichtstbijzijnde."
       }
     },
     "tool_output_limits": {
@@ -14240,7 +14240,7 @@
       },
       "max_chars": {
         "title": "Bewaarde tekens",
-        "description": "Tekens die worden bewaard wanneer een resultaat wordt ingekort, of wanneer uitbesteden of samenvatten terugvalt op inkorten. Niet ingesteld nooit meer dan de drempel"
+        "description": "Tekens die worden bewaard wanneer een resultaat wordt ingekort, of wanneer wegschrijven of samenvatten terugvalt op inkorten. Als dit niet is ingesteld, nooit meer dan de drempel"
       },
       "truncation_strategy": {
         "title": "Welk deel bewaren",
@@ -14258,19 +14258,19 @@
     "tool_search": {
       "strategy": {
         "title": "Zoekmethode",
-        "description": "auto: native tool search bij een provider die het ondersteunt, elders lokaal matchen op trefwoorden. keywords: altijd lokaal matchen, bij elke provider. local_bm25: identificaties, beschrijvingen en argumenten lokaal rangschikken bij elke provider. bm25 / regex: een native algoritme van Anthropic afdwingen; geeft een fout bij een provider zonder native tool search."
+        "description": "auto: native tool search bij een provider die het ondersteunt, elders lokaal matchen op trefwoorden. keywords: altijd lokaal matchen, bij elke provider. local_bm25: id's, beschrijvingen en argumenten lokaal rangschikken bij elke provider. bm25 / regex: een native algoritme van Anthropic afdwingen; geeft een fout bij een provider zonder native tool search."
       },
       "max_results": {
         "title": "Treffers per zoekopdracht",
-        "description": "Hoeveel overeenkomsten de lokale zoekopdracht teruggeeft; genegeerd bij native zoeken."
+        "description": "Hoeveel treffers de lokale zoekopdracht teruggeeft; genegeerd bij native zoeken."
       },
       "defer_capabilities": {
         "title": "Tools van capabilities uitstellen",
-        "description": "Geschikte tools van ingeschakelde capabilities verbergen tot de agent ernaar zoekt. Uit houdt tools van capabilities zichtbaar."
+        "description": "Geschikte tools van ingeschakelde capabilities verbergen tot de agent ernaar zoekt. Als dit uit staat, blijven tools van capabilities zichtbaar."
       },
       "defer_mcp_servers": {
         "title": "MCP-tools uitstellen",
-        "description": "Geschikte tools van gekoppelde MCP-servers verbergen tot de agent ernaar zoekt. Uit houdt MCP-tools zichtbaar."
+        "description": "Geschikte tools van gekoppelde MCP-servers verbergen tot de agent ernaar zoekt. Als dit uit staat, blijven MCP-tools zichtbaar."
       },
       "exclude_capabilities": {
         "title": "Altijd zichtbare capabilities",
@@ -14278,7 +14278,7 @@
       },
       "exclude_mcp_servers": {
         "title": "Altijd zichtbare MCP-servers",
-        "description": "Namespaceprefixen van MCP-tools gescheiden door komma's waarvan de tools zichtbaar blijven, zoals github_work of agenticos. Gebruik het prefix voor de toolnaam, met koppeltekens vervangen door underscores."
+        "description": "Namespaceprefixen van MCP-tools gescheiden door komma's waarvan de tools zichtbaar blijven, zoals github_work of agenticos. Gebruik het prefix vóór de toolnaam, met koppeltekens vervangen door underscores."
       },
       "exclude_tools": {
         "title": "Altijd zichtbare tools",
@@ -14296,11 +14296,11 @@
       },
       "allowed_domains": {
         "title": "Toegestane domeinen",
-        "description": "Kale hostnamen die de agent mag ophalen, bijv. docs.example.com; leeg betekent elke. Exact gematcht - geen wildcards, geen subdomeinen."
+        "description": "Kale hostnamen die de agent mag ophalen, bijv. docs.example.com; leeg betekent alle. Moeten exact overeenkomen - geen wildcards, geen subdomeinen."
       },
       "blocked_domains": {
         "title": "Geblokkeerde domeinen",
-        "description": "Kale hostnamen die de agent nooit mag ophalen, exact gematcht."
+        "description": "Kale hostnamen die de agent nooit mag ophalen; ze moeten exact overeenkomen."
       }
     },
     "web_research": {
@@ -14320,15 +14320,15 @@
       },
       "access": {
         "title": "Wat hij mag doen",
-        "description": "Bestanden wijzigen en commando's uitvoeren, zoals tests - of alleen de code lezen en antwoorden. Zet Menselijke goedkeuring hoe dan ook op vragen voor elke taak."
+        "description": "Bestanden wijzigen en commando's uitvoeren, zoals tests - of alleen de code lezen en antwoorden. Zet Menselijke goedkeuring aan om in beide gevallen vóór elke taak te vragen."
       },
       "model": {
         "title": "Model",
-        "description": "Het model voor de standaard coding-agent: Claude voor Claude Code, OpenAI voor Codex. Leeg gebruikt de eigen standaard. De andere coding-agent per taak kiezen gebruikt het standaardmodel van die agent. Desktoptaken gebruiken hun lokale instelling."
+        "description": "Het model voor de standaard coding-agent: Claude voor Claude Code, OpenAI voor Codex. Laat leeg voor de eigen standaard. Kies je per taak de andere coding-agent, dan wordt het standaardmodel van die agent gebruikt. Desktoptaken gebruiken hun lokale instelling."
       },
       "base_url": {
         "title": "Anthropic-compatibel endpoint",
-        "description": "Alleen Claude Code: een gateway die de API van Anthropic spreekt, zoals https://openrouter.ai/api, waarbij de sleutel in de vault die van die gateway is. Leeg roept Anthropic rechtstreeks aan."
+        "description": "Alleen Claude Code: een gateway die de API van Anthropic spreekt, zoals https://openrouter.ai/api, waarbij de sleutel in de vault die van die gateway is. Laat leeg om Anthropic rechtstreeks aan te roepen."
       },
       "timeout_minutes": {
         "title": "Tijdslimiet (minuten)",
@@ -14366,19 +14366,19 @@
       },
       "voice": {
         "title": "Stem",
-        "description": "De stem die spreekt tenzij de agent een andere kiest; leeg gelaten de eerste van het model. Stemmen van ElevenLabs horen bij je account, dus plak voor ElevenLabs de stem-id uit je stembibliotheek."
+        "description": "De stem die spreekt tenzij de agent een andere kiest; laat leeg voor de eerste stem van het model. Stemmen van ElevenLabs horen bij je account, dus plak voor ElevenLabs de stem-id uit je stembibliotheek."
       },
       "voices": {
         "title": "Toegestane stemmen",
-        "description": "De enige stemmen waarnaar de agent per fragment mag overschakelen in plaats van die hierboven - voor een dialoog, of een verteller en een personage. Leeg gelaten mag hij elke stem kiezen die het model aanbiedt - voor ElevenLabs elke stem-id in je account."
+        "description": "De enige stemmen waarnaar de agent per fragment mag overschakelen in plaats van die hierboven - voor een dialoog, of een verteller en een personage. Als je dit leeg laat, mag hij elke stem kiezen die het model aanbiedt - voor ElevenLabs elke stem-id in je account."
       },
       "output_format": {
         "title": "Bestandsformaat",
-        "description": "mp3 is kleiner, wav is ongecomprimeerd. Leeg gelaten het eerste formaat van de provider - Gemini geeft alleen wav terug."
+        "description": "mp3 is kleiner, wav is ongecomprimeerd. Laat leeg voor het eerste formaat van de provider - Gemini geeft alleen wav terug."
       },
       "max_characters": {
-        "title": "Langste tekst",
-        "description": "De meeste tekst die één aanroep mag uitspreken, wat begrenst wat één aanroep kan kosten."
+        "title": "Maximale tekstlengte",
+        "description": "De maximale hoeveelheid tekst die één aanroep mag uitspreken, wat de kosten van één aanroep begrenst."
       },
       "use_organization_defaults": {
         "title": "Standaarden van de organisatie gebruiken",
@@ -14396,31 +14396,31 @@
       },
       "resolution": {
         "title": "Resolutie",
-        "description": "De resolutie waarin een fragment wordt gemaakt tenzij de agent om een andere vraagt; leeg gelaten de eerste van het model. Hoger kost meer per seconde."
+        "description": "De resolutie waarin een fragment wordt gemaakt tenzij de agent om een andere vraagt; laat leeg voor de eerste van het model. Hoger kost meer per seconde."
       },
       "max_resolution": {
         "title": "Hoogste resolutie",
-        "description": "De hoogste resolutie waarom de agent mag vragen, minstens de gebruikelijke; ze begrenst wat een seconde kan kosten. Leeg gelaten mag de agent om elke resolutie vragen die het model rendert."
+        "description": "De hoogste resolutie waarom de agent mag vragen, minstens de gebruikelijke; ze begrenst wat een seconde kan kosten. Als je dit leeg laat, mag de agent om elke resolutie vragen die het model rendert."
       },
       "aspect_ratio": {
         "title": "Beeldverhouding",
-        "description": "De vorm van een fragment tenzij de agent om een andere vraagt; leeg gelaten de eerste van het model."
+        "description": "De vorm van een fragment tenzij de agent om een andere vraagt; laat leeg voor de eerste van het model."
       },
       "seconds": {
         "title": "Lengte",
-        "description": "Seconden die een fragment duurt tenzij de agent om een andere lengte vraagt; leeg gelaten vijf, of de dichtstbijzijnde die het model maakt. Niet voor een model dat zelf de lengte bepaalt."
+        "description": "Seconden die een fragment duurt tenzij de agent om een andere lengte vraagt; laat leeg voor vijf, of de dichtstbijzijnde lengte die het model maakt. Niet voor een model dat zelf de lengte bepaalt."
       },
       "max_seconds": {
         "title": "Langste fragment",
-        "description": "Het langste fragment waarom de agent mag vragen, wat begrenst wat één aanroep kan kosten; leeg gelaten de eigen limiet van het model. Niet voor een model dat zelf de lengte bepaalt."
+        "description": "Het langste fragment waarom de agent mag vragen, wat begrenst wat één aanroep kan kosten; laat leeg voor de eigen limiet van het model. Niet voor een model dat zelf de lengte bepaalt."
       },
       "audio": {
         "title": "Geluid",
-        "description": "Of fragmenten geluid hebben tenzij de agent anders vraagt, waar het model het optioneel maakt; leeg gelaten de standaard van de provider."
+        "description": "Of fragmenten geluid hebben tenzij de agent anders vraagt, waar het model het optioneel maakt; laat leeg voor de standaard van de provider."
       },
       "alibaba_workspace": {
         "title": "Alibaba-workspace",
-        "description": "Alleen Alibaba: de id van de Model Studio-workspace, waarlangs Wan 3.0 wordt aangeroepen. Leeg gelaten het gedeelde DashScope-endpoint, dat Alibaba behoudt voor bestaande integraties."
+        "description": "Alleen Alibaba: de id van de Model Studio-workspace, waarlangs Wan 3.0 wordt aangeroepen. Laat leeg voor het gedeelde DashScope-endpoint, dat Alibaba behoudt voor bestaande integraties."
       },
       "alibaba_region": {
         "title": "Alibaba-regio",
@@ -14434,7 +14434,7 @@
     "follow_ups": {
       "model_profile_id": {
         "title": "Model voor volgende stappen",
-        "description": "Een apart modelprofiel dat op de achtergrond knoppen voor volgende stappen schrijft nadat het antwoord is opgeslagen. Het vertraagt nooit het antwoord of het volgende bericht. Een klein, goedkoop model volstaat. Leeg schakelt suggesties voor volgende stappen uit."
+        "description": "Een apart modelprofiel dat op de achtergrond knoppen voor volgende stappen schrijft nadat het antwoord is opgeslagen. Het vertraagt nooit het antwoord of het volgende bericht. Een klein, goedkoop model volstaat. Laat leeg om suggesties voor volgende stappen uit te schakelen."
       }
     },
     "computer_use": {
@@ -14480,7 +14480,7 @@
       },
       "allowed_commands": {
         "title": "Toegestane commando's",
-        "description": "Alleen deze commando's draaien, bijv. ls, cat, grep. Leeg staat virtuele commando's toe; rechtstreekse curl/wget zijn uitgeschakeld."
+        "description": "Alleen deze commando's draaien, bijv. ls, cat, grep. Laat leeg om virtuele commando's toe te staan; rechtstreekse curl/wget zijn uitgeschakeld."
       },
       "hidden_paths": {
         "title": "Verborgen paden",
@@ -14504,11 +14504,11 @@
       },
       "auth_method": {
         "title": "Authenticatiemodus",
-        "description": "Gebruik het ingestelde account van het programma, of kies uitdrukkelijk de persoonlijke Google-login van Antigravity. Een ontbrekende methode faalt zonder over te schakelen naar een API-sleutel of een ander account."
+        "description": "Gebruik het ingestelde account van het programma, of kies uitdrukkelijk de persoonlijke Google-login van Antigravity. Ontbreekt de methode, dan mislukt de taak zonder over te schakelen naar een API-sleutel of een ander account."
       },
       "model_id": {
         "title": "Extern model-ID",
-        "description": "Optionele exacte ID uit inspect_acp_agent op dit account. Leeg houdt het eigen model van het programma. Dit kiest een runtimemodel, geen modelprofiel van AgenticOS."
+        "description": "Optionele exacte ID uit inspect_acp_agent op dit account. Laat leeg om het eigen model van het programma te houden. Dit kiest een runtimemodel, geen modelprofiel van AgenticOS."
       },
       "api_provider": {
         "title": "Provider van de vault-sleutel",
