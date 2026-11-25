@@ -188,6 +188,24 @@ _GATE_MESSAGES = {
 }
 
 
+def refuse_never_accepted(hunk: SpecProposalHunk) -> None:
+    """Refuse a stored field change the assistant may never propose, whatever the draft holds.
+
+    Raises:
+        BadRequestError: It is not a change the assistant may propose, or it removes
+            or reconfigures a safeguard.
+    """
+    if hunk.kind != HunkKind.SPEC_FIELD.value:
+        return
+    refused = authoring_fields.standing_refusal(
+        hunk.path or "", hunk.op or "", hunk.base_value, hunk.new_value
+    )
+    if refused is not None:
+        raise BadRequestError(
+            message=_STANDING_REFUSALS[refused], details={"hunk_id": hunk.id, "reason": refused}
+        )
+
+
 def _changes_model(hunk: SpecProposalHunk) -> bool:
     return hunk.kind == HunkKind.SPEC_FIELD.value and hunk.path == "model_profile_id"
 
@@ -1380,13 +1398,7 @@ class AuthoringService:
             AuthorizationError: It adds something the person accepting it may not
                 grant: a capability, a collection, a context file, a model, MCP tools.
         """
-        refused = authoring_fields.standing_refusal(
-            hunk.path or "", hunk.op or "", hunk.base_value, hunk.new_value
-        )
-        if refused is not None:
-            raise BadRequestError(
-                message=_STANDING_REFUSALS[refused], details={"hunk_id": hunk.id, "reason": refused}
-            )
+        refuse_never_accepted(hunk)
         value = hunk.new_value
         if decision.value is not None:
             if hunk.path not in _EDITABLE and not (hunk.path or "").endswith("/description"):

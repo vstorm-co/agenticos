@@ -323,7 +323,10 @@ def apply(spec: AgentSpec, hunk: SpecProposalHunk, *, text: str | None = None) -
             return None
         return spec.model_copy(update={"skill_ids": [*spec.skill_ids, key]})
     if hunk.kind == HunkKind.SPEC_FIELD.value:
-        return apply_field(spec, hunk, hunk.new_value)
+        refused = authoring_fields.standing_refusal(
+            hunk.path or "", hunk.op or "", hunk.base_value, hunk.new_value
+        )
+        return None if refused is not None else apply_field(spec, hunk, hunk.new_value)
     if hunk.kind == HunkKind.TOOL_OVERRIDE.value:
         applied = apply_tool(spec, hunk)
         return None if applied is None else applied[0]
