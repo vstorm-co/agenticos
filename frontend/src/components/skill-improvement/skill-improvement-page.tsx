@@ -68,7 +68,7 @@ export function SkillImprovementPage({
   const common = useTranslations("common");
   const tErrors = useTranslations("errors");
   const { skill, isLoading, error, refetch } = useSkill(skillId);
-  const { can } = usePermissions();
+  const permissions = usePermissions();
   if (isLoading) return <LoadingState variant="pending" />;
   if (error || !skill)
     return (
@@ -86,15 +86,32 @@ export function SkillImprovementPage({
       }
     />
   );
+  const canViewRuns = permissions.can(Perm.runsView);
+  // Until the set is in, a missing permission is unknown rather than refused.
+  const permissionsUnknown = !canViewRuns && !permissions.isLoaded;
   // A session is read from the line agents' runs; starting one changes the skill too.
-  if (!can(Perm.runsView) || (!skill.can_edit && sessionId === "new"))
+  if (permissionsUnknown || !canViewRuns || (!skill.can_edit && sessionId === "new"))
     return (
       <div className="w-full space-y-6 pb-16">
         {header}
-        <p role="alert">{t("permission")}</p>
-        <Link className="text-sm underline underline-offset-4" href={ROUTES.SKILL_DETAIL(skillId)}>
-          {t("openSkill")}
-        </Link>
+        {permissionsUnknown && permissions.error ? (
+          <ErrorState
+            description={getErrorMessage(permissions.error, tErrors)}
+            cta={{ label: common("retry"), onClick: () => void permissions.refetch() }}
+          />
+        ) : permissionsUnknown ? (
+          <LoadingState variant="pending" />
+        ) : (
+          <>
+            <p role="alert">{t("permission")}</p>
+            <Link
+              className="text-sm underline underline-offset-4"
+              href={ROUTES.SKILL_DETAIL(skillId)}
+            >
+              {t("openSkill")}
+            </Link>
+          </>
+        )}
       </div>
     );
   return (

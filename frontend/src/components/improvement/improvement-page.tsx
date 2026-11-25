@@ -38,7 +38,7 @@ export function ImprovementPage({ agentId, sessionId }: { agentId: string; sessi
   const tErrors = useTranslations("errors");
   const orgId = useOrgStore((state) => state.activeOrgId);
   const { agent, isLoading, error, refetch } = useAgent(agentId);
-  const { can } = usePermissions();
+  const permissions = usePermissions();
   if (isLoading) return <LoadingState variant="pending" />;
   if (error || !agent)
     return (
@@ -47,19 +47,33 @@ export function ImprovementPage({ agentId, sessionId }: { agentId: string; sessi
         cta={{ label: t("retryRead"), onClick: () => void refetch() }}
       />
     );
+  const canViewRuns = permissions.can(Perm.runsView);
+  // Until the set is in, a missing permission is unknown rather than refused.
+  const permissionsUnknown = !canViewRuns && !permissions.isLoaded;
   // Reading a session needs the agent and its runs; starting one, or changing
   // one, needs edit access too, and without it the session is only read.
-  if (!can(Perm.runsView) || (!agent.can_edit && sessionId === "new"))
+  if (permissionsUnknown || !canViewRuns || (!agent.can_edit && sessionId === "new"))
     return (
       <div className="w-full min-w-0 space-y-4 pb-8 sm:space-y-6 sm:pb-12">
         <PageHeader
           title={t("title", { name: agent.name })}
           breadcrumbs={[{ label: agent.name, href: `/agents/${agentId}` }, { label: t("heading") }]}
         />
-        <p role="alert">{t("permission")}</p>
-        <Link className="text-sm underline underline-offset-4" href={`/agents/${agentId}`}>
-          {t("openAgent")}
-        </Link>
+        {permissionsUnknown && permissions.error ? (
+          <ErrorState
+            description={getErrorMessage(permissions.error, tErrors)}
+            cta={{ label: t("retryRead"), onClick: () => void permissions.refetch() }}
+          />
+        ) : permissionsUnknown ? (
+          <LoadingState variant="pending" />
+        ) : (
+          <>
+            <p role="alert">{t("permission")}</p>
+            <Link className="text-sm underline underline-offset-4" href={`/agents/${agentId}`}>
+              {t("openAgent")}
+            </Link>
+          </>
+        )}
       </div>
     );
   if (sessionId === "new") return <ImprovementStartRedirect agentId={agentId} />;
