@@ -355,8 +355,6 @@ CALLS: tuple[Call, ...] = (
         query="?started_from=2020-01-01T00:00:00&started_to=2020-01-02T00:00:00",
     ),
     Call("GET", "/runs/{run_id}", Perm.RUNS_VIEW),
-    Call("GET", "/runs/{run_id}/parked", Perm.APPROVALS_DECIDE),
-    Call("POST", "/runs/{run_id}/resume", Perm.APPROVALS_DECIDE),
     Call("GET", "/approvals", Perm.APPROVALS_DECIDE),
     Call(
         "GET",
@@ -364,7 +362,6 @@ CALLS: tuple[Call, ...] = (
         Perm.APPROVALS_DECIDE,
         query="?created_from=2020-01-01T00:00:00&created_to=2020-01-02T00:00:00",
     ),
-    Call("POST", "/approvals/{approval_id}", Perm.APPROVALS_DECIDE, body={"approved": True}),
     Call("GET", "/spend", Perm.RUNS_VIEW),
     Call(
         "GET",
@@ -1448,6 +1445,8 @@ class TestReadingWhatARunIsParkedOn:
                 "subagent_name": None,
                 "content_hidden": False,
                 "always_asks": False,
+                "may_decide": False,
+                "may_approve": False,
             },
             {
                 "id": str(shared_id),
@@ -1462,6 +1461,8 @@ class TestReadingWhatARunIsParkedOn:
                 "subagent_name": None,
                 "content_hidden": False,
                 "always_asks": False,
+                "may_decide": False,
+                "may_approve": False,
             },
         ]
 
