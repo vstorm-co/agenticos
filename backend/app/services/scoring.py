@@ -16,10 +16,12 @@ passed or failed - and can be graded again, on the same answer, once the cause i
 fixed.
 """
 
+import asyncio
 import hashlib
 from contextlib import nullcontext
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from functools import partial
 from typing import Any
 from uuid import UUID
 
@@ -813,8 +815,11 @@ class ScoringService:
         judged = []
         if scoring.checks.enabled:
             defaults = [check.model_dump(by_alias=True) for check in scoring.checks.defaults]
-            checked, judged = run_checks(
-                [*defaults, *case.checks], answer, required=scoring.checks.required
+            # A keys check scans the answer once per key: off the event loop.
+            checked, judged = await asyncio.to_thread(
+                partial(run_checks, required=scoring.checks.required),
+                [*defaults, *case.checks],
+                answer,
             )
             results.extend(checked)
         if scoring.trajectory.enabled:

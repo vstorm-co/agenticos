@@ -106,7 +106,10 @@ async function readyComposer(page: Page) {
   return input;
 }
 
-/** Start recording from the microphone beside Send. */
+/**
+ * Start recording: from the composer's mic, or - once a draft has turned that
+ * mic into Send - from the "+" menu.
+ */
 async function startDictating(page: Page): Promise<void> {
   await page.getByRole("button", { name: "Add to message" }).click();
   await page

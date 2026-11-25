@@ -8,8 +8,10 @@ import {
   draftOf,
   EMPTY_DRAFT,
   expectsSomething,
+  keyRows,
   lengthFields,
   sameCheck,
+  withKeys,
 } from "./case-form";
 
 const CASE = {
@@ -170,6 +172,88 @@ describe("a length check", () => {
     expect(checksOf([draft(" 3 ", "3")]).checks).toEqual([
       { type: "length", unit: "words", min: 3, max: 3 },
     ]);
+  });
+});
+
+describe("a keys check", () => {
+  const stored = {
+    type: "keys",
+    keys: [
+      { key: "Invoice", value: "INV-7" },
+      { key: "Total", value: "913.68" },
+    ],
+    family: "invoice facts",
+  };
+
+  it("reads back what it was made from, trimmed, with its other fields kept", () => {
+    const draft = checkDraft(stored);
+    expect(keyRows(draft)).toEqual(stored.keys);
+    expect(checksOf([draft]).checks).toEqual([stored]);
+    const padded = {
+      ...draft,
+      rest: { ...draft.rest, keys: [{ key: " Invoice ", value: " INV-7 " }] },
+    };
+    expect(checksOf([padded]).checks).toEqual([
+      { type: "keys", family: "invoice facts", keys: [{ key: "Invoice", value: "INV-7" }] },
+    ]);
+  });
+
+  it("leaves out blank rows, and needs a label and a value on every other one", () => {
+    const draft = (keys: { key: string; value: string }[]) => ({
+      type: "keys",
+      value: "",
+      rest: { keys },
+    });
+    expect(checksOf([draft([])]).problems).toEqual(["checkEmpty"]);
+    expect(checksOf([draft([{ key: " ", value: "" }])]).problems).toEqual(["checkEmpty"]);
+    expect(checksOf([draft([{ key: "Invoice", value: "" }])]).problems).toEqual(["checkEmpty"]);
+    expect(
+      checksOf([
+        draft([
+          { key: "Invoice", value: "INV-7" },
+          { key: "", value: "" },
+        ]),
+      ]).checks,
+    ).toEqual([{ type: "keys", keys: [{ key: "Invoice", value: "INV-7" }] }]);
+  });
+
+  it("fills the first keys check, keeping its other fields, or adds one", () => {
+    const contains = checkDraft({ type: "contains", value: "INV" });
+    const keys = [{ key: "Invoice", value: "INV-7" }];
+    expect(withKeys([contains], keys)).toEqual([
+      contains,
+      { type: "keys", value: "", rest: { keys } },
+    ]);
+    const held = checkDraft(stored);
+    expect(withKeys([contains, held], keys)[1]).toEqual({
+      type: "keys",
+      value: "",
+      rest: { family: "invoice facts", keys },
+    });
+  });
+
+  it("starts with no keys as a fresh draft", () => {
+    expect(keyRows({ type: "keys", value: "", rest: {} })).toEqual([]);
+  });
+
+  it("tells keys checks apart by their facts", () => {
+    const draft = checkDraft(stored);
+    expect(sameCheck(draft, checkDraft({ ...stored, family: undefined }))).toBe(true);
+    expect(
+      sameCheck(draft, checkDraft({ ...stored, keys: [{ key: "Invoice", value: "INV-7" }] })),
+    ).toBe(false);
+    expect(
+      sameCheck(
+        draft,
+        checkDraft({
+          ...stored,
+          keys: [
+            { key: "Invoice", value: "INV-8" },
+            { key: "Total", value: "913.68" },
+          ],
+        }),
+      ),
+    ).toBe(false);
   });
 });
 

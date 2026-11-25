@@ -1,5 +1,5 @@
 ---
-source_sha: "45127605c8f9"
+source_sha: "b8cfb018adf5"
 ---
 
 # Berechtigungen { #permissions }
@@ -801,7 +801,7 @@ benutzerdefinierten Rollen und bearbeitet ihre Berechtigungen nicht.
 
 | Endpunkt | Antwortet |
 | --- | --- |
-| `GET /me/permissions` | die Rolle des Aufrufers, `is_app_admin`, jede Berechtigung samt ihrem Scope und `hidden_navigation_items` für diese Rolle |
+| `GET /me/permissions` | die Rolle des Aufrufers, `is_app_admin`, jede Berechtigung samt ihrem Scope und `hidden_navigation_items` für diese Rolle und, für die Zugangsdaten eines Agent-Laufs, `run_agent_id` |
 | `GET /roles/catalog` | den ganzen Katalog und was jede Rolle bündelt |
 | `GET /roles/navigation` | die `hidden_items` der Organisation je Rolle, `configurable_items` und die `editable_roles` des Aufrufers |
 | `PATCH /roles/navigation/{role}` | ersetzt die `hidden_items` einer Rolle; erfordert `roles:manage` und Befugnis über diese Rolle |

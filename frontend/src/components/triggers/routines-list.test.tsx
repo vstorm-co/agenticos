@@ -31,6 +31,14 @@ vi.mock("@/hooks/use-watches", () => ({
   }),
 }));
 vi.mock("@/hooks", () => ({ useMcpConnections: () => ({ connections: [] }) }));
+// One readiness read for the routines shown; the rows themselves are stubbed here.
+const readiness = vi.hoisted(() => vi.fn());
+vi.mock("@/hooks/use-routine-readiness", () => ({
+  useRoutinesReadiness: (triggers: { id: string }[]) => {
+    readiness(triggers.map((trigger) => trigger.id));
+    return () => [];
+  },
+}));
 vi.mock("./trigger-row", () => ({
   TriggerRow: ({ trigger }: { trigger: { name: string } }) => <span>{trigger.name}</span>,
 }));
@@ -63,6 +71,8 @@ it("lists scheduled tasks and monitoring in the same searchable list", async () 
   expect(screen.getByText("Weekly report")).toBeVisible();
   expect(screen.getByText("Client mail")).toBeVisible();
   expect(screen.getByText("2 routines")).toBeVisible();
+  // Readiness is asked for the scheduled tasks on screen, never for a monitor.
+  expect(readiness).toHaveBeenLastCalledWith(["task"]);
   await userEvent.type(screen.getByPlaceholderText("Search routines"), "urgent");
   expect(screen.getByText("Client mail")).toBeVisible();
   expect(screen.queryByText("Weekly report")).toBeNull();

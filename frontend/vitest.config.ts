@@ -414,6 +414,7 @@ export default defineConfig({
         "src/components/vault/browser-secret-fields.tsx",
         "src/components/vault/browser-credential-metadata.tsx",
         "src/components/vault/browser-credential-policy.tsx",
+        "src/components/onboarding/start-subscriptions.tsx",
       ],
       exclude: [
         "node_modules",

@@ -129,7 +129,9 @@ def model_outputs(provider: str, model: str, *, base_url: str | None = None) -> 
         return ModelOutputs(modalities=("text",), chat=True)
     # These transports share the vendor's model ids; pricing's other aliases
     # (for example Bedrock) do not imply an identical model namespace.
-    provider = {"openai_codex": "openai", "google_cloud": "google"}.get(provider, provider)
+    provider = {"openai_codex": "openai", "openai_chatgpt": "openai", "google_cloud": "google"}.get(
+        provider, provider
+    )
     known = _from_catalogs()
     found = known.get((provider, model))
     if found is None and provider == "openrouter" and "/" in model:

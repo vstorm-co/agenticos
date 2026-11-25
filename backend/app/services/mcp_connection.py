@@ -291,12 +291,11 @@ def _revealed(value: SecretStr | None) -> str | None:
 def _refuse_a_client_this_server_will_not_authenticate(server: mcp_oauth.DiscoveredServer) -> None:
     """Refuse a pre-registered confidential client this flow cannot authenticate.
 
-    Dynamic registration states `client_secret_post` in `client_metadata`, so the
-    server is told how the secret will arrive. A client registered by hand was
-    not, and `exchange_code` and `refresh_tokens` only ever put `client_secret`
-    in the form body - a client configured for `client_secret_basic` would pass
-    consent and then fail every token request, which is the worst moment to find
-    out. Refused here instead, while there is still a form to say it on.
+    Dynamic registration tells the server how the client will authenticate.
+    For a client registered by hand with a secret, `exchange_code` and
+    `refresh_tokens` put `client_secret` in the form body. A client configured
+    for `client_secret_basic` would pass consent and then fail every token
+    request. Checking here lets the operator correct the client before consent.
 
     Silence is taken as consent: RFC 8414 makes
     `token_endpoint_auth_methods_supported` optional and defaults it to

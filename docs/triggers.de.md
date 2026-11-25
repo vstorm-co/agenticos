@@ -1,5 +1,5 @@
 ---
-source_sha: "df55c13ceec2"
+source_sha: "7217c199e76d"
 ---
 
 # Einen Event-Trigger einrichten { #setting-up-an-event-trigger }
@@ -83,6 +83,11 @@ zusätzlich an die Person geht, die ihn angelegt hat (#2575): `primary`, der Sta
 Unterhaltung mit dem Agenten, sodass alles, was er ihr sagt, an einem Ort steht; `conversation` ist einer
 ihrer anderen Chats (`delivery_conversation_id`), für eine in diesem Chat angelegte Routine; `run_log`
 postet sonst nirgends.
+
+Öffnet eine Routine, die in einem privaten Chat in einer Chat-App angelegt wurde, für jeden
+Lauf einen neuen Chat (`chat_mode=per_run`), postet der Bot jede Antwort auch in diesen Chat (siehe
+[Routine-Antworten in einem privaten Chat](channels.md#routine-answers-in-a-private-chat)); der Status
+lautet `pending`, bis sie gesendet ist.
 
 Nur ein abgeschlossener Lauf mit Antwort wird zugestellt, und eine Zustellung, die
 nicht ankommen kann - der Chat wurde gelöscht - lässt den Lauf im Protokoll, statt ihn scheitern zu lassen.

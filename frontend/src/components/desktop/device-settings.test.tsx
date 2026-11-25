@@ -95,3 +95,7 @@ it("says linked for the link and live for the connection, in one verb pair", () 
   expect(screen.getByText("Live")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Unlink" })).toBeInTheDocument();
 });
+
+vi.mock("@/components/desktop/external-agent-settings", () => ({
+  ExternalAgentSettings: () => null,
+}));

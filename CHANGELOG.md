@@ -21,6 +21,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Upgrading
 
+- Upstream v1.93.0 sync (including v1.91.0 and v1.92.0) applies upstream revisions `0346_personal_model_generations` through `0364_merge_routine_and_kb` after T3 `0349_personal_work_context` (no T3 revision is renumbered; T3's `0353_nav_pins`, `0355_magic_link_claims` and `0356_trigger_webhook_receipts` are joined to the merged head by merge revision `0365_merge_t3_v1930`; one head, `0365_merge_t3_v1930`). Note the upstream numbering quirk: three `0350`s and three `0351`s on parallel branches, joined by merge revisions; two `0363`s likewise. The fork stays English-only: the new Dutch and Brazilian Portuguese console catalogs are not taken (`locales = ["en"]`, `retiredLocales` gains `nl` and `pt`). Subscription accounts are on by default: the next `scripts/deploy.sh` run generates `SUBSCRIPTION_GATEWAY_TOKEN` into `backend/.env` and starts the `subscriptions` profile; set an empty `SUBSCRIPTION_GATEWAY_TOKEN` to keep the gateway off. CLIProxyAPI subscription credentials stay in their native token store and refresh journal on `subscription_accounts`, outside Vault — an explicit maintainer-approved exception; protect the volume and backups as credentials. Apply `0350_member_onboarding_progress` before starting the new API. Pydantic AI 2.71 and harness 0.71: finish paused code executions before upgrading — saved code checkpoints are rejected after a runtime change. Personal work moves to v7. Deploy API and workers together; routine/monitor Inbox publication is now MCP-only, and new routines act as their creator. Migration `0363_app_bases_have_no_org` sets `organization_id` to NULL on every app-scoped knowledge base; see the [1.93.0] notes below before upgrading.
 - Recreate API and ML service containers with the matching Compose configuration. The backend services now enable the container engine's init process to reap parser descendants after forced termination; existing containers need recreation to receive this setting.
 
 - Magic-link sign-in adds migration `0355_magic_link_claims.py` after `0353_nav_pins.py`: one table of hashed, single-use claims. Links issued before this upgrade no longer sign in; request a fresh link. Downgrade drops outstanding claims. Deploy the matching API and migration together.
@@ -200,6 +201,355 @@ Two things are versioned separately from this file and worth knowing about:
 - Chat followers recover saved-answer acknowledgements and final outcomes when a turn finishes during replay or a quiet interval. Sequence checks keep recovered frames in order without duplicating earlier output.
 - Tools whose schema a strict grammar cannot express, such as `browser_fill_credential`, are sent non-strict, so an Anthropic model behind an OpenAI-style gateway no longer rejects the request with HTTP 400.
 - Room workers carry the persisted assistant message ID through their completion callback so connected participants receive a save acknowledgement before the turn ends. The acknowledgement still requires a separately committed message from the same run.
+
+## [1.93.0] - 2026-11-24
+
+### Added
+
+- Bind or unbind an agent from its bot row on Channels, with paused bindings shown explicitly.
+- Inspect re-sent tool-output estimates with the read-only `agenticos cmd tool-output-report` command, including per-agent/tool sizes, cache counts and projected packing savings.
+- Choose Nederlands or Brazilian Portuguese in the console, with complete message catalogs, localized agent language instructions, voice previews and channel greetings. Desktop connection setup also offers Portuguese.
+
+- Clarify that datasets use resource sharing rather than department list filters.
+- Show why a routine cannot run, with source/access review actions, parked-run links and the same diagnostics on the dashboard.
+- Reject tool calls and workflow approvals with feedback in chat, Activity and Inbox. Preserve already saved decisions when retrying a partially failed batch.
+
+### Fixed
+
+- Keep creator consent on routines whose environment a publish, rollback or promotion does not change. Re-promoting the same version leaves their consent intact.
+
+- Keep resources of disabled capabilities out of agent execution, setup instructions and routine source/action consent. Reopen consent dialogs with a fresh review.
+- Offer agents and specialists only knowledge bases from their active organization, keeping invalid existing bindings visible for removal. Workflows retain their broader authorized selection.
+- Deliver per-run routine answers to their originating private chat, show pending delivery, and stop duplicate or truncated Telegram replies and ambiguous Slack resubmissions. A send has one durable attempt; an unconfirmed submission is not automatically repeated, and provider exceptions cannot log bot credentials.
+- Let platform-connected agents create routines for themselves without guessing an agent ID; authorization remains on the selected agent.
+- Keep readiness checks isolated to each routine's identity, refresh them after source changes, and recover parked runs whose worker stopped before saving their last-run link. Limit concurrent checks per person and organization.
+- Preserve the recorded owner of a channel continuation when a stale approval decision conflicts with an API-key decision.
+- Search every explicitly selected knowledge base when several share a collection name, without including their unselected siblings. Reject incompatible tenant scopes when publishing a workflow.
+- Show folders in the chat Files panel without also showing the empty-files message.
+
+- Open chat links that request a new window in the default browser on macOS.
+- Restore the chat Files panel width, dragging and maximization without leaving a dark gap.
+- Register public PKCE clients when the MCP authorization server advertises `none` without `client_secret_post`.
+- Keep failed or unanswered routine checks visibly distinct from confirmed readiness, while leaving final run authorization to the server.
+- Use process-local keyed fingerprints for authenticated model-catalog caches instead of stable credential digests.
+
+### Upgrading
+
+- Migration `0363_app_bases_have_no_org` sets `organization_id` to `NULL` on every app-scoped knowledge base. An agent bound to one through that id stops searching it: a published version's run goes on without it and logs `Agent references collection <id> which is gone from org <id>`, and a new version that still lists it is refused at publish with `Collection not found`. To see whether this concerns you, list those bases and the agents whose published version names one before upgrading:
+
+  ```sql
+  SELECT kb.id, kb.name, kb.organization_id,
+         (SELECT string_agg(a.name, ', ')
+          FROM agents a
+          JOIN agent_versions v ON v.id = a.current_version_id
+          WHERE a.organization_id = kb.organization_id
+            AND v.spec -> 'collection_ids' @> jsonb_build_array(kb.id::text)) AS bound_by_agents
+  FROM knowledge_bases kb
+  WHERE kb.scope = 'app' AND kb.organization_id IS NOT NULL;
+  ```
+
+  To keep such an agent searching those documents, move them into an organization base and bind that. The downgrade drops the check only; it does not restore the cleared organization ids.
+
+- Apply the migration chain through `backend/alembic/versions/0364_merge_routine_and_kb.py` before starting the updated API and workers. The chain joins app-wide knowledge-base isolation with the new pending chat-delivery status.
+
+## [1.92.0] - 2026-11-23
+
+### Added
+
+- **French console**: choose Français as your language. Welcome messages, watch briefings, voice previews and the model-setup reply follow it; newly added messages without a French translation use the existing English fallback. Product nouns (agent, skill, run, workspace…) stay in English, as in the other languages.
+
+- Count criteria by family. A dataset check takes an optional `family` - every case's `total including VAT` regex, every case's "names the account manager" criterion - and a comparison counts a family case by case: it passes in a case when every criterion of it does. Eval comparisons expose `families`, an Improve attempt keeps them in its verdict, and the result step and the eval run's comparison table them. An attempt with no whole question flipped is judged on its families; one the helper put down to a skill that got worse no longer makes the attempt worse, and the result says the skill is the one to fix. The result step adds **Criteria passed**, before and after, and **Still held back by a skill**, and an attempt that broke questions still names what it made better (#3178).
+
+- An eval run's sides show **Criteria passed** beside the pass rate: the mean share of each question's criteria its first answer passed, so six of seven counts 6/7 rather than a failure. Arm summaries expose `criteria_passed`, `criteria_graded` and `partial_credit`, compared cases each side's `[passed, decided]` criteria, and the case table shows them per question (#3178).
+
+- Finishing an Improve session takes an optional `round`, so a session that stopped on its attempt is selected and accepted in one call instead of `rounds/{n}/select` first (#3178).
+
+- A skill's improver writes an edit for every problem it is given, or says in its expected effect why the skill's text cannot fix one, and keeps every problem an agent's Improve handed over. The grades a helper reads name each criterion's family, so a whole family can be put down to a skill (#3178).
+
+- Agent Improve puts a criterion down to a skill only when it quotes the skill's own line stating the wrong value or rule, and that line is in the skill's text. Where the skill is only silent, or only forbids other sections, the criterion stays the agent's to fix: the helper proposes the agent change, a skill problem without a line is advice, and the verdict holds the agent to that family (#3178).
+
+- A skill's Improve started from an agent's Improve learns from the failed training answers that session read that used the skill, so it no longer refuses with "Nothing to learn from yet" when the agent's problems came from evals (#3178).
+
+- Introduce personal subscriptions, a first chat task, coding-client connections, everyday tools, projects and personal memory first in Discover AgenticOS, with direct links and permission-aware tips.
+
+- Record guided-setup progress per organization membership and show completed, in-progress or unstarted status in organization member tables, with readable step labels.
+
+- Start new accounts on onboarding with account language and appearance, explicit invitation acceptance, provider-first model setup and suggested service connections. Pass the account’s preferred language to agents through the `language` built-in variable and person briefing.
+
+- Refine shared console headings and tables, expose run failure details, and keep model/account identity visible in chat.
+
+- A simpler Studio onboarding with one form column, model/Vault setup, MCP connections, a swipeable avatar-look chooser and direct entry to installed AgenticOS and Architect agents. Conversation and Launchpad remain available as preview variants.
+
+- Subscription onboarding uses directly connectable service tiles after personal context. Subscriptions settings lists individual accounts in a searchable, paginated table with usage windows.
+
+- A dedicated Subscriptions settings tab with per-account usage bars and reset times, live quota metadata for Codex and Antigravity, and separate Antigravity model-group windows.
+
+- Optional subscription selection and inline sign-in during onboarding, before the first chat.
+
+- Choose a specific personal subscription account for a model, with account-bound routing, restored selection and provider-reported Codex/Claude quota windows when available.
+
+- The model picker lists subscriptions by familiar provider names, connects accounts inline and reads each account’s own model catalog. Organization API keys and advanced custom endpoints stay separate. Capabilities follow task-based groups with enabled and recommended entries first; installed agents are grouped under delegation.
+
+- Add isolated Cursor and Grok CLI API-key templates, native account controls for Cursor, Grok, Kimi, Devin and Vibe, and process-only model selection for Vibe, Kimi, Qwen and Devin. Account changes stop affected runtimes before replacing credentials; launch models must be acknowledged before inference.
+
+- Sign in to your own Claude, ChatGPT, Antigravity, Grok, Kimi, Devin and Meta AI subscriptions under Settings → Profile, and run models on the new **Subscription accounts** provider with them. A bundled `subscription-gateway` service runs a separate CLIProxyAPI process for each person in each organization, only the person's own chats spend their accounts, and leaving an organization deletes the sign-ins.
+
+- Choose any registered Desktop ACP agent, including Antigravity, Cursor, Cline, Grok, OpenCode and Hermes, as the conversation runtime, with the models of its own sign-in read by Desktop and an `EXTERNAL_NATIVE_CONVERSATION_ENABLED` switch (on by default) to withhold it (#3177).
+
+- Codex and Claude Agent conversation runtimes are now available by default; each person answers for their own CLI account's terms, which the picker states. Operators can still withhold them with `CODEX_NATIVE_CONVERSATION_ENABLED=false` or `CLAUDE_NATIVE_CONVERSATION_ENABLED=false`.
+
+- Add an Antigravity Gemini API key template that uses a Gemini key chosen from the vault, or the Desktop-inherited `GEMINI_API_KEY`, and never falls back to the saved Google sign-in. Delegation selects the key through **Vault-key provider → Gemini**; the conversation runtime picker offers the vault keys you can view. Registering the personal sign-in template now requires accepting the risk that Google limits or suspends the account.
+
+- Run Hermes through an owned foreground ACP host with isolated private-conversation profiles, Nous Portal setup handoff, model discovery and optional scoped platform tools.
+
+- Use Claude Agent as a private Desktop conversation runtime, with an independent eligibility switch, native session recovery and scoped platform tools.
+
+- Choose Codex as the primary Desktop conversation runtime, with native streamed answers, scoped session receipts, platform-tool policy, explicit reset and no cloud credential fallback.
+
+- External Desktop runtimes can opt into run-scoped platform tools through a process-owned local MCP bridge, preserving validation, approvals, budgets and result screening. Pi uses an isolated app-owned extension; Muse uses its official SDK. Live approvals are committed before actions execute.
+
+- Connect official ChatGPT plan usage separately from Codex, with durable client registration, explicit plan consent, account-specific models and generation-checked vault refresh.
+
+- Run Inception, DeepSeek and OpenRouter through isolated Pi vault-key templates with independent member access checks, fixed credential precedence and scoped native sessions.
+
+- Manage Muse account status, native device sign-in and sign-out from Desktop settings, with account-change session revocation.
+
+- Show supported native runtime questions, complete Cursor plans and Pi editors in live chat with correlated answers and cancellation.
+
+- Add Muse native SDK delegation with pinned CLI compatibility, effective credential-source reporting and explicit API-key mode.
+
+- Add Pi native RPC delegation with scoped session resume, authoritative settlement, model discovery and owned process cancellation.
+
+- Add GitHub Copilot model profiles and personal device sign-in with account-specific Chat Completions catalogs, user-sealed credentials and AgenticOS integration identity.
+
+- Add Devin CLI desktop ACP delegation with negotiated browser login and fixed local launch permissions.
+
+- Add Qwen Code subscription ACP delegation with explicit CLI subscription mode and no API-key authentication fallback.
+
+- Add Kimi Code desktop ACP delegation with CLI-owned login and live human questions.
+
+- Add a Grok Build desktop ACP template with cached headless account auth, API-key isolation and live human questions.
+
+- Add Mistral Vibe ACP delegation with browser/key setup, delayed model discovery and sanitized credential-source reporting, without assuming subscription entitlement (#3108).
+
+- Add foreground Cline ACP account and inherited-key templates, with a fixed Cline provider, native missing-key refusal and no saved-account fallback in key mode (#3108).
+
+- Delegate native Cursor CLI account tasks through ACP, with explicit login negotiation, environment credential isolation and refusal of unanswered questions or plan approvals (#3108).
+
+- Add OpenCode and OpenCode Go Desktop ACP templates, delayed model discovery and a Go primary-model namespace restriction, without copying CLI credentials (#3108).
+
+- Add an Antigravity Desktop setup template with enforced Google personal ACP login, account-specific model discovery and explicit runtime model selection (#3109).
+
+- Register installed ACP agents in Desktop settings and delegate tasks through the External ACP agent capability, with native consent, isolated session identity and revocation (#3130).
+
+- Sign in to a Codex subscription with a short device code approved on ChatGPT, in the Vault, the model picker and Coding accounts; pasting the redirect address stays as a fallback.
+
+- Add Nous Portal, Inception, Cline, Chutes and Synthetic as OpenAI-compatible model providers with each key's own model catalog.
+
+- Use subscription accounts without a plan key (Antigravity, Grok Build, Devin, Muse Code and others) as model profiles through a CLIProxyAPI subscription gateway that holds their sign-ins, with the gateway's own model list.
+
+- Kimi Code, Alibaba Coding Plan, OpenCode Go and Ollama Cloud plan keys work as model profiles on their plans' OpenAI-compatible endpoints, with each key's own model catalog, regional endpoints and unpriced subscription usage.
+
+- MiniMax models accept vault API or M Plan keys through a separate OpenAI-compatible provider identity, with explicit regional endpoints and tool calling.
+
+- Z.AI model profiles accept explicit GLM Coding Plan endpoints, with authenticated model catalogs isolated from the ordinary API and other accounts.
+
+- Default to one read-only shared routine history with creator-owned forks
+  for follow-up work, or choose an editable private chat per execution.
+
+- One-page schedule creation with independent tool approval choices and visible,
+  locked explanations for tools that always require approval.
+
+- Run-bound `publish_inbox_finding` MCP reporting, automatically available to
+  routines and read-only monitors without granting general platform access.
+
+- Add an instruction-variant search mode to Improve. Try budgeted variants against training questions, keep the strongest candidate and require the existing held-out check and human acceptance before applying it (#3237).
+
+- A dataset case's `keys` check lists the facts a written document must carry - an invoice number, a total, a date - each as a label and the value the document should show. It scores the share of keys the answer carries, passes only when it carries them all, and names up to 20 missing labels. A value matches as a whole token: a number is not found inside a longer one, and a space may group thousands. The case and grading editors write it, and anonymising a case removes its keys with its reference answer (#2524).
+
+- **List keys from the reference answer** in the case editor: the Key extractor system agent reads a saved case's reference answer in a job, as the person who asked, metered and in Activity, and drafts its keys. Only a value the answer states as written is kept, and nothing reaches the case until a person uses the draft and saves it. `POST`, `GET` and `DELETE /datasets/{id}/cases/{case_id}/key-draft`. A draft is deleted once used or dismissed, or after 7 days, and the extractor's run forgets the reference answer whenever its draft goes (#2524).
+
+- **Results → Key coverage** on a dataset: for a published agent, the Source coverage system agent judges in a job which of the dataset's key labels none of the agent's sources holds - knowledge bases, context files, skills and MCP servers. It reads labels and what the sources show, never a key's value, and the report keeps labels and source names only. A reader who may not see a source gets it unnamed, and the judge's reasons only when they may see every source it read. `POST` and `GET /datasets/{id}/key-coverage`. Improve reads a test answer that misses only such keys as missing knowledge, from a report on the agent's and the dataset's current versions (#2524).
+
+### Fixed
+
+- Drafting a knowledge-gap passage and a workflow's knowledge search now search
+  exactly the knowledge base that was checked. Both looked the base up again by
+  its collection name, which several bases of one organization can share, so
+  they could read passages from a same-named base the person or the run's
+  principal had no access to.
+
+- **Needs attention** on the dashboard and the agent list's badge no longer name the platform's
+  own agents (judges, drafters, generators, classifiers and the improver), whose pages do not
+  open; the link led to an unavailable page.
+
+- Serialize eval-answer gap classification with case-copy erasure, remove classifier manifests with the erased copies, and keep competing classifications consistent with their recorded misses.
+
+- Price automatically reused baselines and held-out-only checks consistently before budget gates; show the same expected cost on the evaluation start button and summary.
+
+- Rejudge skill checks by a stored rule version, report inaccessible rows as skipped, and recount only finished attempts under the session lock. Preserve indexed UUID lookups for judge costs.
+
+- Hide Add to dataset for eval-only knowledge topics, and count authoring context in Unicode code points so emoji do not cause false truncation.
+
+- **Cost estimates now include the confirming reruns.** An eval run, an Improve check and a skill check showed as their likely cost only the first answers, while a compared run asks about half of its cases again: on the Fernhill run, checks cost 2 to 3.6 times their estimate. The estimate adds `expected_usd`, the first answers and half of the rerun ceiling for a compared run, and the start dialog, a run's page, the Improve check's quote and a skill check show it with the most the step may cost. An Improve check no longer asks its training cases again, since nothing reads those reruns, and its ceiling counts its held-out cases alone. With no history on a model, an answer from an agent with tools is priced as `1 + EVAL_FALLBACK_TOOL_ROUNDS` requests (new, default 2) and a grading as a request that also reads the answer. (#3188).
+
+- **A skill's Improve session names what accepting it did.** Its status line read "Kept as draft", an agent session's label, for a change applied to the skill. It now says Applied, Made a fork, Caught up with main or Moved to main. A new `skill-checks-rejudge` command judges again, from their stored runs and with no model call, the agents of finished skill checks that an older rule judged: one kept before families shows them, and one kept before `too_few_questions` existed no longer says its run could not grade every answer. It also counts the judge's gradings in a session attempt that counted only its check's answers, and a skill check's cost now counts them, so a session's spend and budget include its judge. A decided check keeps its decision, and the group of agents with too few questions says so once, without any agent's counts (#3189).
+
+- **Improve finds missing knowledge in eval answers.** A session that learned from evals sorted no answer for missing knowledge, so it listed no topic even when the agent said the documents were silent: the sort read chat answers alone. Its failed training answers now go to the Knowledge gap classifier too, kept by the run that answered, and one the agent did not know becomes a question in the knowledge base's topics, listed at **Understand** and on the result. Such an answer stays in what the improver reads. A case's erased copies take the questions and verdicts read from its answers with them. The classifier also names what a miss read from an answer lacks, in a few words, and its topic is grouped and named by that - "Lead times by product" rather than one customer's question (#3190).
+
+- Protect native Vault keys in forwarded tool calls and shared transcripts, price metered subscription fallbacks under the responding provider, and restrict official ChatGPT model catalogs to their grant owner.
+
+- Release gateway streams and startup processes on failure or cancellation, report credential deletion failures, and isolate rejoined memberships from delayed account cleanup. Cleanup remains recorded while the gateway is disabled.
+
+- Show sign-in polling failures with a retry action, refresh external-agent catalogs after registration changes, support legacy ACP model selection, and allow Antigravity model IDs without probing Desktop's environment key.
+
+- Toggle chat source and browser side panels closed from the same entry point; switching answers or browser sessions keeps the requested panel open.
+
+- Keep avatar colour selection and keyboard-focus rings fully visible inside expanded profile settings and other clipped panels.
+
+- Keep subscription account rows compact with a two-limit preview, expandable details and an account actions menu.
+
+- Restore the concrete subscription service, account and model in Builder model controls. Keep chat model search behind a magnifier beside the tabs, move refresh and the count into that row, and leave account details in Account to give models more space.
+
+- Seal the model catalog's sticky search against the scroll edge on desktop and mobile, and discard queued onboarding progress from a previous account or organization.
+
+- Keep the normal chat composer visible beside agent questions. Stop pauses queued follow-ups until explicit resume instead of sending them after cancellation.
+
+- Use one tab-to-content spacing across every dashboard view, align sidebar project rows with primary navigation and add model refresh controls to remaining catalogs and saved-profile selectors.
+
+- Keep pending agent questions clear of the chat composer, preserving its draft while answering or cancelling. Place Architect and assistant service cards before Chat home in organization settings, with consistent icons.
+
+- Keep the question being answered fixed while its receipt replaces the form, including on narrow screens where preceding work remains visible.
+
+- Open agent cards in Build while retaining evaluation-attention indicators, remove the Recent work strip above Builder, and tighten dashboard spacing with concrete, linked approval/question/Inbox counts and clearer directional tab transitions.
+
+- Keep Studio actions in a stationary footer, animate explicit step changes without losing form drafts, and replace the avatar strip with a draggable spring gallery. Keep setup reminders in the sidebar only and respect Full motion for tab indicators even when the operating system reduces motion.
+
+- Keep model-picker scrolling inside its lists, restore Studio/carousel motion using the resolved app preference, and animate dashboard panels only after an explicit tab change. Keep the avatar carousel available when a profile has a photo.
+
+- Read Claude subscription limits directly, including five-hour, weekly and model-family windows; add Kimi Code regional quota reads and Devin reported daily/weekly snapshots. Correct Kimi regional labels and device sign-ins without a separate user code. API-provider connection screens now share the branded subscription layout.
+
+- Claude subscription and custom-gateway models retain all agent tools without exceeding Anthropic’s limit of 20 strict tool schemas.
+
+- Chat model selection uses one list without a Saved models tab or success notification, with a button to restore the agent’s model and branded connection screens. Devin and Meta display their provider logos.
+
+- Hide subscription account routing from model catalog names in the chat composer.
+
+- Codex weekly usage remains visible when its secondary quota window is inactive.
+
+- Browser subscription sign-in explains the local return address and how to finish connecting.
+
+- Show the entire chat model catalog, its source and count; make OpenRouter's region explicit and keep regional profiles separate when changing it.
+
+- Keep compressed subscription model responses decodable instead of failing with a UTF-8 error in chat.
+
+- Open the model picker on the active subscription and model, emphasize connected accounts, show all connection groups immediately and recognize model-family icons in subscription catalogs.
+
+- Show the missing provider marks and gateway icons in model pickers and the vault.
+
+- Show the creator's routine run logs in the chat sidebar with current access,
+  search, pagination and running/unread state.
+
+- Revoke standing routine consents when switching to manual approvals and keep
+  portal creation identity-free during administrator impersonation.
+
+- Recognize historical routine source fingerprints across chat starter visibility
+  changes without accepting changed accounts or permissions.
+
+- Release a failed scheduled fire's lease after rollback instead of leaving the
+  next occurrence blocked until its lease expires.
+
+### Changed
+
+- Rebuild eval and Improve results around saved changes, answer comparisons and per-agent impact. Reuse the console’s cards, compact question rows and list toolbars, keep record navigation above the result and technical context on demand, align page insets, open knowledge drafts for reading, and protect unsaved edits. Load reused baseline answers from their original evaluation run. Read agent results in one vertical flow; keep draft timestamps by their heading and remove the redundant copy control. Open the first attempt and the question review by default, and simplify historical Changes (#3186).
+
+- An eval run asks a case again only when it decides something: its whole outcome flipped, or a family of criteria flipped in it that moved on two cases or more and that an exact McNemar test over its own flipped cases cannot settle. A family settled by its own spread counts every flip it had, and one that moved on a single case decides nothing. Asking every case with any flipped criterion again had cost more than the first answers (#3178).
+
+- An Improve check settles families on its held-out cases apart from its training cases, as its verdict reads them, so a family that moved on two held-out cases is asked again there even when the whole run would settle it, and a reused baseline is asked those cases again too (#3178).
+
+- An unchanged draft baseline answers once per Improve session: a later check reuses the earlier check's baseline answers when the draft's fingerprint, the cases left out, the dataset version, model, scoring, environment and judge all match (#3178).
+
+- An Improve session started from a draft nobody edited since publishing reuses that version's own eval as its baseline, priced at nothing in the estimate, when it left out the same cases as the check (#3178).
+
+- A skill check asks each agent the dataset its newest Improve session measures on, so a set kept back for a final measurement stays unasked (#3178).
+
+- A skill check keeps each agent's families of criteria, so its details table one row per family - every case's check of one thing together - instead of one row per case's check. Agents expose `families`; `skill_check_agents` gains the column (#3178).
+
+- A skill check's agent whose runs graded every answer on fewer held-out questions than a result needs is unknown for `too_few_questions` rather than `inconclusive`, and its row says how many came out better and worse and that they are too few to be sure (#3178).
+
+### Upgrading
+
+- Apply `backend/alembic/versions/0353_skill_check_verdict_version.py` to record which rule judged a skill-check agent. Existing rows are eligible for one rejudgement; its downgrade removes the marker.
+
+- Migration `backend/alembic/versions/0350_skill_check_families.py` adds `skill_check_agents.families`, empty for agents judged before it. Its downgrade drops the column.
+
+- Migration `backend/alembic/versions/0351_skill_check_too_few.py` lets `skill_check_agents.unknown_reason` take `too_few_questions`. Its downgrade reads it as `inconclusive`.
+
+- Migration `backend/alembic/versions/0352_eval_answer_gaps.py` adds `knowledge_gap_eval_classifications`, `knowledge_searches.subject` and a unique index on `knowledge_searches` for misses read from eval answers. Earlier misses have no subject and keep their topics. Its downgrade drops all three, with the misses read from eval answers.
+
+- CLIProxyAPI subscription credentials retain their native token store and
+  refresh journal on `subscription_accounts`, outside Vault. This is an explicit
+  maintainer-approved exception; protect the volume and backups as credentials.
+  See the native subscription store section in `docs/secrets.md`.
+
+- Apply `0351_merge_personal_context_and_onboarding.py` to join the personal work index and provider/onboarding migration histories.
+
+- Apply `0350_member_onboarding_progress.py` before starting the new API. It adds nullable current-step and update-time columns to organization memberships, with no inferred backfill from profile data. Existing recorded completion remains unchanged.
+
+- Subscription accounts are on by default. The next `scripts/deploy.sh` run (or `make dev`) generates `SUBSCRIPTION_GATEWAY_TOKEN` into `backend/.env`, starts the `subscriptions` profile and points the API and worker at the gateway; the host updater keeps the profile running. To keep the gateway off on a server, add an empty `SUBSCRIPTION_GATEWAY_TOKEN=` line to `backend/.env` before deploying. `docker-compose.yml` started without a clone uses a fixed local token; set your own in `.env` there.
+
+- Apply `0346_personal_model_generations.py` before running this version. It adds credential-free connection revisions that prevent an older OAuth sign-in from recreating a deleted personal connection.
+
+- Apply `0347_chatgpt_registrations.py` for durable official ChatGPT application registrations. Official plan usage remains disabled until the operator verifies deployment eligibility and configures a stable host UUID.
+
+- Apply `0342_personal_coding_sessions.py` and update API/workers together before using retained personal coding sessions. Existing workspace rows are unchanged. Sessions remain subject to provider idle expiry; failed tasks without confirmed safe retention are discarded.
+
+- Migration `0351_routine_chat_modes.py` maps primary/specific-chat delivery to
+  per-run chats and log-only/legacy Inbox delivery to shared history. Existing
+  transcripts, schedules, pauses, budgets and tool consents are retained. Shared
+  histories become read-only; fork an answer to continue in a private chat.
+
+- Drain workers and update API/workers together with migration
+  `0350_run_reporting_credential.py`. Routine and monitor Inbox publication now
+  uses MCP only; final answers are not parsed into cards. Existing `result_mode`
+  values remain readable. New routine instructions request MCP reporting; amend
+  custom reporting instructions if they require a particular card policy.
+
+- New routines default to acting as their creator. Existing identity settings and
+  explicit approval floors remain unchanged; legacy identity-free routines need
+  the owner's consent before using personal accounts or general platform tools.
+
+- Migration `backend/alembic/versions/0354_case_key_drafts.py` adds `case_key_drafts` and the `extractor` agent kind. A draft nobody uses or dismisses is deleted after 7 days by the daily `expire-case-key-drafts` job. Its downgrade drops the table and turns extractor agents into ordinary ones.
+
+- Migration `backend/alembic/versions/0355_key_coverage_reports.py` adds `key_coverage_reports` and the `coverage` agent kind. Its downgrade drops the table and turns coverage agents into ordinary ones.
+
+- Migration `backend/alembic/versions/0356_improvement_search.py` adds `improvement_runs.mode` (existing sessions read `steps`), the `searching` stage, the `no_variant` stop reason, `improvement_iterations.search` and the `improvement_search_variants` table. Its downgrade drops them, reads a searching session as `proposing` and `no_variant` as `no_proposal`.
+
+## [1.91.0] - 2026-11-23
+
+### Upgrading
+
+- The bundled agent framework moves to Pydantic AI 2.71 and harness 0.71. Finish paused code executions before upgrading: saved code checkpoints are tied to the interpreter/runtime versions and are rejected after a runtime change rather than replaying completed effects.
+
+- The personal work extractor moves to `personal-work-v7` to retain concrete work needs and supply source-attributed temporal context. Existing authorized history is refreshed lazily in bounded jobs under the configured proactivity budget; select the intended background model before resuming a paused rollout. Saved Inbox decisions are retained.
+
+### Added
+
+- Configure model defaults for daily briefing, suggestions and memory maintenance: reasoning effort, sampling, output limits, request timeout and parallel tool calls. Reuse the agent builder controls, preserve provider defaults when unset, and save changes explicitly to the shared model profile.
+
+### Fixed
+
+- Bound the entire memory extraction transcript, including source timestamps, identifiers and JSON escaping, so many short turns cannot exceed the configured input allowance.
+
+- Update the backend framework, MCP, authentication, channel and validation dependencies from #3235 and #3236. Retain croniter 6 so existing saved cron expressions keep their scheduling semantics.
+
+- Adapt skill catalog rendering, code-result serialization and the Stav client factory to the updated agent SDK contracts. Keep tool-output limits restricted to the declared read-back tool rather than exposing new upstream tools implicitly.
+
+- Personal Inbox readers receive structured questions, linked authenticated answers, original timestamps and timezone-aware local dates throughout extraction and verification. Schedule wording is interpreted by the model rather than a weekday/time regex. Memory maintenance retains source timestamps and question/answer provenance; clipped transcript tails are marked explicitly.
+
+- Background model reads now honor their selected model profile's generation parameters, including thinking effort and output limits.
+
+- Preserve grounded personal Inbox opportunities across proposal and verification: recognize recurring requests across conversations, propose new setup when only a historical assistant claim says a missing routine exists, and introduce unused features when they directly help the person's work. Keep deletion, dismissal, current-resource and authenticated-answer checks. Interpret native scheduling answers from their linked questions and temporal context without language-specific weekday/time parsing.
 
 ## [1.90.1] - 2026-11-22
 
@@ -22681,7 +23031,10 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.90.1...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.93.0...HEAD
+[1.93.0]: https://github.com/vstorm-co/agenticos/compare/v1.92.0...v1.93.0
+[1.92.0]: https://github.com/vstorm-co/agenticos/compare/v1.91.0...v1.92.0
+[1.91.0]: https://github.com/vstorm-co/agenticos/compare/v1.90.1...v1.91.0
 [1.90.1]: https://github.com/vstorm-co/agenticos/compare/v1.90.0...v1.90.1
 [1.90.0]: https://github.com/vstorm-co/agenticos/compare/v1.89.1...v1.90.0
 [1.89.1]: https://github.com/vstorm-co/agenticos/compare/v1.89.0...v1.89.1

@@ -12,6 +12,7 @@ from sqlalchemy.orm import aliased
 
 from app.db.models.eval_run import ArmRole, EvalRun, EvalRunArm, EvalRunCase, EvalRunStatus
 from app.db.models.skill_check import (
+    SKILL_CHECK_VERDICT_VERSION,
     AgentState,
     CheckSource,
     CheckStatus,
@@ -244,6 +245,44 @@ async def agents_for_runs(
         )
     )
     return list(result.scalars().all())
+
+
+async def judged_before_families(
+    db: AsyncSession, *, check_ids: Collection[UUID] = ()
+) -> list[tuple[UUID, UUID, list[UUID]]]:
+    """Finished checks with an agent judged by an older rule, and that agent's stage runs.
+
+    An agent judged before families were kept holds none, and one judged before
+    `too_few_questions` existed reads `inconclusive`; both are judged again from
+    the runs they kept. Unscoped by organization: an operator's sweep, narrowed to
+    `check_ids` when given. Each as (organization, check, stage runs), by check.
+    """
+    statement = (
+        select(
+            SkillCheckAgent.organization_id,
+            SkillCheckAgent.check_id,
+            SkillCheckAgent.skill_set_run_id,
+            SkillCheckAgent.dataset_run_id,
+        )
+        .join(SkillCheck, SkillCheck.id == SkillCheckAgent.check_id)
+        .where(
+            SkillCheck.status.notin_([CheckStatus.RUNNING.value, CheckStatus.CANCELLED.value]),
+            or_(
+                SkillCheckAgent.skill_set_run_id.is_not(None),
+                SkillCheckAgent.dataset_run_id.is_not(None),
+            ),
+            SkillCheckAgent.verdict_version < SKILL_CHECK_VERDICT_VERSION,
+        )
+    )
+    if check_ids:
+        statement = statement.where(SkillCheckAgent.check_id.in_(list(check_ids)))
+    found: dict[tuple[UUID, UUID], list[UUID]] = {}
+    for organization_id, check_id, *runs in (await db.execute(statement)).all():
+        found.setdefault((organization_id, check_id), []).extend(r for r in runs if r is not None)
+    return [
+        (organization_id, check_id, runs)
+        for (organization_id, check_id), runs in sorted(found.items(), key=lambda i: str(i[0][1]))
+    ]
 
 
 class CheckAnswer(NamedTuple):

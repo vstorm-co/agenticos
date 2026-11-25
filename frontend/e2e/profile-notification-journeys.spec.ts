@@ -1,6 +1,6 @@
 import type { Page } from "@playwright/test";
 import { test, expect } from "./fixtures";
-import { AUTH_STATE, json, rowsAt } from "./helpers";
+import { AUTH_STATE, OWNER_EMAIL, json, rowsAt } from "./helpers";
 import type { User } from "../src/types";
 
 async function heldRefusal(page: Page, path: string, method: "GET" | "PATCH" | "POST") {
@@ -33,6 +33,37 @@ for (const device of [
       reducedMotion: "reduce",
       actionTimeout: 15_000,
     });
+    test("avatar colour rings remain inside the expanded section", async ({ page }) => {
+      await page.goto("/settings/profile");
+      const owner = await json<User>(page.request, "/api/users/me");
+      expect(owner.email).toBe(OWNER_EMAIL);
+      await page.getByRole("button", { name: "Fallback colour", exact: true }).click();
+      const palette = page.getByRole("radiogroup", { name: "Avatar colour", exact: true });
+      await expect(palette.getByRole("radio")).toHaveCount(11);
+      // Both the checked ring and the keyboard outline extend 4px beyond the swatch.
+      const clearance = () =>
+        palette.evaluate((element) => {
+          const clip = element.closest(".disclosure-content")?.firstElementChild;
+          if (!clip) throw new Error("Expected the palette's clipping disclosure");
+          const bounds = clip.getBoundingClientRect();
+          return Math.min(
+            ...Array.from(element.querySelectorAll("input")).flatMap((input) => {
+              const swatch = input.getBoundingClientRect();
+              return [
+                swatch.left - bounds.left,
+                bounds.right - swatch.right,
+                swatch.top - bounds.top,
+                bounds.bottom - swatch.bottom,
+              ];
+            }),
+          );
+        });
+      await expect.poll(clearance).toBeGreaterThanOrEqual(4);
+      await palette.getByRole("radio", { checked: true }).focus();
+      await page.emulateMedia({ forcedColors: "active" });
+      await expect.poll(clearance).toBeGreaterThanOrEqual(4);
+    });
+
     test("profile and notification choices survive refusal, retry, navigation and reload", async ({
       page,
     }) => {
@@ -68,10 +99,12 @@ for (const device of [
         release = colorHeld.release;
         await page.getByRole("radio", { name: `Colour ${color}`, exact: true }).click();
         await colorHeld.started;
-        await expect(page.getByLabel("Display name", { exact: true })).toBeDisabled();
+        await expect(page.getByLabel("Display name", { exact: true })).toBeEnabled();
+        await page.getByLabel("Display name", { exact: true }).fill(name);
         await expect(page.getByLabel("Your role", { exact: true })).toBeDisabled();
         colorHeld.release();
         await expect(page.getByLabel("Display name", { exact: true })).toBeEnabled();
+        await expect(page.getByLabel("Display name", { exact: true })).toHaveValue(name);
         await colorHeld.remove();
         const colorSaved = updated("PATCH", "/api/users/me");
         await page.getByRole("radio", { name: `Colour ${color}`, exact: true }).click();

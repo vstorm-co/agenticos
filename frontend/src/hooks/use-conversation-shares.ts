@@ -105,7 +105,7 @@ export function useConversationAccess(
     conversation: enabled && !isError ? (data ?? null) : null,
     retry: () => void refetch(),
     archived: data?.is_archived === true,
-    viewOnly: data?.share_permission === "view",
+    viewOnly: data?.share_permission === "view" || data?.origin === "routine",
   };
 }
 

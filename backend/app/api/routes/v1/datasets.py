@@ -15,10 +15,11 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Query, UploadFile, status
 
-from app.api.deps import Auth, DatasetSvc, ScoringSvc, require
+from app.api.deps import Auth, CaseKeyDraftSvc, DatasetSvc, KeyCoverageSvc, ScoringSvc, require
 from app.api.public_api import ASSISTANT
 from app.api.responses import csv_response, jsonl_response
 from app.core.permissions import Perm
+from app.schemas.case_key_draft import CaseKeyDraftRead
 from app.schemas.dataset import (
     DatasetCaseCreate,
     DatasetCaseFromMessage,
@@ -36,6 +37,7 @@ from app.schemas.dataset import (
     DatasetVersionList,
     DatasetVersionRead,
 )
+from app.schemas.key_coverage import KeyCoverageReportRead, KeyCoverageRequest
 from app.schemas.scoring import (
     CaseScoreCreate,
     CaseScoreList,
@@ -265,6 +267,70 @@ async def update_dataset_case(
 ) -> Any:
     """Edit a case in the newest version. The edit is a new version; the old one is kept."""
     return await service.update_case(ctx, dataset_id, case_id, data)
+
+
+@router.post(
+    "/{dataset_id}/cases/{case_id}/key-draft",
+    response_model=CaseKeyDraftRead,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def draft_case_keys(
+    dataset_id: UUID, case_id: UUID, service: CaseKeyDraftSvc, ctx: Auth
+) -> Any:
+    """List the facts the case's reference answer holds, for its keys check.
+
+    The key extractor runs as the caller, metered and in Activity, in a job; poll
+    the draft until it is `ready` or `failed`. The case's earlier draft is
+    replaced. Only a value the answer states as written is kept, and nothing
+    reaches the case until a person saves it into the keys check.
+    """
+    return await service.start(ctx, dataset_id, case_id)
+
+
+@router.get("/{dataset_id}/cases/{case_id}/key-draft", response_model=CaseKeyDraftRead)
+async def get_case_key_draft(
+    dataset_id: UUID, case_id: UUID, service: CaseKeyDraftSvc, ctx: Auth
+) -> Any:
+    """The keys drafted for the case, while they are listed and once they are."""
+    return await service.get(ctx, dataset_id, case_id)
+
+
+@router.delete(
+    "/{dataset_id}/cases/{case_id}/key-draft",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_model=None,
+)
+async def dismiss_case_key_draft(
+    dataset_id: UUID, case_id: UUID, service: CaseKeyDraftSvc, ctx: Auth
+) -> None:
+    """Delete the case's drafted keys, once used or when they are not wanted."""
+    await service.dismiss(ctx, dataset_id, case_id)
+
+
+@router.post(
+    "/{dataset_id}/key-coverage",
+    response_model=KeyCoverageReportRead,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def report_key_coverage(
+    dataset_id: UUID, data: KeyCoverageRequest, service: KeyCoverageSvc, ctx: Auth
+) -> Any:
+    """Judge which of the dataset's keys none of the agent's published sources covers.
+
+    Needs edit access to the agent. The source coverage agent runs as the caller,
+    metered and in Activity, in a job; poll the report until it is `ready` or
+    `failed`. It is shown key labels and what the sources hold for them, never a
+    key's value, and the pair's earlier report is replaced.
+    """
+    return await service.start(ctx, dataset_id, data.agent_id)
+
+
+@router.get("/{dataset_id}/key-coverage", response_model=KeyCoverageReportRead)
+async def get_key_coverage(
+    dataset_id: UUID, service: KeyCoverageSvc, ctx: Auth, agent_id: UUID = Query(...)
+) -> Any:
+    """The agent's coverage report for the dataset. A source the caller may not see is unnamed."""
+    return await service.get(ctx, dataset_id, agent_id)
 
 
 @router.delete(

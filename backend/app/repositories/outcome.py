@@ -291,3 +291,22 @@ async def refresh_context(
     outcome.source_run_id = source_run_id
     outcome.source_conversation_id = source_conversation_id
     await db.flush()
+
+
+async def count_run_findings(
+    db: AsyncSession, *, organization_id: UUID, user_id: UUID, run_id: UUID
+) -> int:
+    """Count persisted findings, rather than model claims or reporting tool attempts."""
+    return (
+        await db.scalar(
+            select(func.count())
+            .select_from(Outcome)
+            .where(
+                Outcome.organization_id == organization_id,
+                Outcome.user_id == user_id,
+                Outcome.source_run_id == run_id,
+                Outcome.kind == "finding",
+            )
+        )
+        or 0
+    )

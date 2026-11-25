@@ -115,7 +115,7 @@ describe("WorkflowApprovalsCard", () => {
     expect(screen.getByText("1 named approver")).toBeTruthy();
     expect(screen.getByText(/expires/)).toBeTruthy();
 
-    await userEvent.click(screen.getByRole("button", { name: /Reject/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Reject" }));
     await waitFor(() =>
       expect(apiClient.post).toHaveBeenCalledWith("/workflow-approvals/wa-1", { approved: false }),
     );
@@ -243,10 +243,27 @@ describe("WorkflowApprovalsCard editing", () => {
     render(<WorkflowApprovalsCard />, { wrapper });
 
     await replaceDraft("Not this");
-    await userEvent.click(screen.getByRole("button", { name: /Reject/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Reject" }));
 
     await waitFor(() =>
       expect(apiClient.post).toHaveBeenCalledWith("/workflow-approvals/wa-1", { approved: false }),
+    );
+  });
+
+  it("sends rejection feedback but never the edited proposal", async () => {
+    queue(EDITABLE);
+    render(<WorkflowApprovalsCard />, { wrapper });
+
+    await replaceDraft("Unsubmitted edits");
+    await userEvent.click(screen.getByRole("button", { name: "Reject with feedback" }));
+    await userEvent.type(screen.getByRole("textbox", { name: "Feedback" }), "Remove the price");
+    await userEvent.click(screen.getByRole("button", { name: "Reject and send feedback" }));
+
+    await waitFor(() =>
+      expect(apiClient.post).toHaveBeenCalledWith("/workflow-approvals/wa-1", {
+        approved: false,
+        note: "Remove the price",
+      }),
     );
   });
 
@@ -271,7 +288,8 @@ describe("WorkflowApprovalsCard editing", () => {
 
     expect(await screen.findByRole("textbox", { name: "Reply to the customer" })).toBeDisabled();
     expect(screen.getByRole("button", { name: /Approve/ })).toBeDisabled();
-    expect(screen.getByRole("button", { name: /Reject/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Reject" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Reject with feedback" })).not.toBeInTheDocument();
     expect(screen.getByText("Only the people this step names can decide it.")).toBeTruthy();
   });
 
@@ -300,7 +318,7 @@ describe("WorkflowApprovalsCard editing", () => {
     await userEvent.clear(editor);
     await userEvent.type(editor, "   ");
     expect(approve).toBeDisabled();
-    expect(screen.getByRole("button", { name: /Reject/ })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Reject" })).toBeEnabled();
   });
 
   it("keeps the draft when the queue is read again", async () => {
@@ -458,7 +476,7 @@ describe("a step that offers choices", () => {
     expect(await screen.findByRole("button", { name: /Keep a draft/ })).toBeTruthy();
     expect(screen.getByRole("button", { name: /Send now/ })).toBeTruthy();
     expect(screen.queryByRole("button", { name: /^Approve/ })).toBeNull();
-    expect(screen.getByRole("button", { name: /Reject/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Reject" })).toBeTruthy();
 
     await userEvent.click(screen.getByRole("button", { name: /Send now/ }));
     await waitFor(() =>
@@ -485,7 +503,7 @@ describe("a step that offers choices", () => {
       }),
     );
 
-    await userEvent.click(screen.getByRole("button", { name: /Reject/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Reject" }));
     await waitFor(() =>
       expect(apiClient.post).toHaveBeenLastCalledWith("/workflow-approvals/wa-1", {
         approved: false,

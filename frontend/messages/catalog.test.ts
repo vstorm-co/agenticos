@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parse, TYPE } from "@formatjs/icu-messageformat-parser";
+import { parse, TYPE, type MessageFormatElement } from "@formatjs/icu-messageformat-parser";
 
 import { CHAT_NOTIFICATION_CHANNELS } from "../src/lib/notification-preferences-api";
 
@@ -277,6 +277,83 @@ describe("every message", () => {
     expect(broken).toEqual([]);
   });
 });
+
+interface IcuContract {
+  arguments: string[];
+  tags: string[];
+  selectors: string[];
+  plurals: string[];
+}
+
+function icuContract(message: string): IcuContract {
+  const args = new Set<string>();
+  const tags = new Set<string>();
+  const selectors = new Set<string>();
+  const plurals = new Set<string>();
+  function visit(nodes: MessageFormatElement[]): void {
+    for (const node of nodes) {
+      switch (node.type) {
+        case TYPE.literal:
+        case TYPE.pound:
+          continue;
+        case TYPE.tag:
+          tags.add(node.value);
+          visit(node.children);
+          continue;
+        default:
+          args.add(node.value);
+      }
+      if (node.type === TYPE.select || node.type === TYPE.plural) {
+        if (node.type === TYPE.select) {
+          for (const key of Object.keys(node.options))
+            selectors.add(JSON.stringify([node.value, key]));
+        } else {
+          plurals.add(
+            JSON.stringify([
+              node.value,
+              node.pluralType,
+              node.offset,
+              Object.keys(node.options)
+                .filter((key) => key.startsWith("="))
+                .sort(),
+            ]),
+          );
+        }
+        for (const option of Object.values(node.options)) visit(option.value);
+      }
+    }
+  }
+  visit(parse(message));
+  return {
+    arguments: [...args].sort(),
+    tags: [...tags].sort(),
+    selectors: [...selectors].sort(),
+    plurals: [...plurals].sort(),
+  };
+}
+
+describe("the ICU contract", () => {
+  it("detects changed argument and link names or selector values", () => {
+    expect(icuContract("<terms>{name}</terms>")).not.toEqual(
+      icuContract("<privacy>{name}</privacy>"),
+    );
+    expect(icuContract("{count}")).not.toEqual(icuContract("{sayi}"));
+    expect(icuContract("{role, select, owner {Owner} other {Other}}")).not.toEqual(
+      icuContract("{role, select, admin {Admin} other {Other}}"),
+    );
+  });
+
+  it("allows locale-specific plural categories while preserving exact counts and offsets", () => {
+    expect(icuContract("{count, plural, =0 {None} one {# item} other {# items}}")).toEqual(
+      icuContract("{count, plural, =0 {Yok} other {# öğe}}"),
+    );
+    expect(icuContract("{count, plural, =0 {None} other {# items}}")).not.toEqual(
+      icuContract("{count, plural, other {# öğe}}"),
+    );
+  });
+});
+
+
 
 it("names every selectable private notification platform", () => {
   const messages = new Map(entries(en));

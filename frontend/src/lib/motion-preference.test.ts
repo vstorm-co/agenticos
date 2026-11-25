@@ -53,16 +53,32 @@ describe("the no-flash script", () => {
     expect(runBootstrap()).toBe(reduced ? "reduce" : null);
   });
 
-  it("follows the operating system before anything was ever stored", () => {
+  it("starts with Full before anything was ever stored, even when the OS reduces", () => {
     osAsks(true);
-
-    expect(runBootstrap()).toBe("reduce");
-  });
-
-  it("leaves the attribute to the app when the stored value is unreadable", () => {
-    osAsks(true);
-    localStorage.setItem(MOTION_STORAGE_KEY, "{not json");
+    localStorage.removeItem(MOTION_STORAGE_KEY);
 
     expect(runBootstrap()).toBeNull();
+  });
+
+  it.each(["{not json", "null", JSON.stringify({ state: { motion: "unknown" } })])(
+    "uses Full when stored data is unreadable or unknown: %s",
+    (stored) => {
+      osAsks(true);
+      localStorage.setItem(MOTION_STORAGE_KEY, stored);
+      document.documentElement.setAttribute(MOTION_ATTRIBUTE, "reduce");
+
+      expect(runBootstrap()).toBeNull();
+      expect(localStorage.getItem(MOTION_STORAGE_KEY)).toBe(stored);
+    },
+  );
+
+  it("uses Full when storage is blocked", () => {
+    osAsks(true);
+    const read = vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+      throw new Error("Storage is blocked");
+    });
+
+    expect(runBootstrap()).toBeNull();
+    read.mockRestore();
   });
 });

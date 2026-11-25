@@ -6,6 +6,7 @@ import { CheckCircle2, ExternalLink, XCircle } from "lucide-react";
 import { AgentFace } from "@/components/dashboard/agent-face";
 import { ApprovalDelegate } from "@/components/runs/approval-delegate";
 import { AccountBadge, ApprovalDetails, useActionPhrase } from "@/components/runs/approval-request";
+import { RejectionFeedback } from "@/components/runs/rejection-feedback";
 import { surfaceLabel } from "@/components/runs/surface-icon";
 import { Button, SwipeToDecide } from "@/components/ui";
 import { approvalSummary } from "@/lib/agent-step-captions";
@@ -81,7 +82,7 @@ export function PendingApproval({
   className?: string;
   approval: ToolApproval;
   deciding: boolean;
-  onDecide: (approved: boolean) => void;
+  onDecide: (approved: boolean, note?: string) => void;
   onOpenRun: () => void;
   onReviewCredential?: (selection: BrowserCredentialSelection) => void;
 }) {
@@ -206,7 +207,7 @@ export function PendingApproval({
             />
           </div>
         </div>
-        <div className="flex shrink-0 gap-2 sm:flex-col">
+        <div className="flex shrink-0 flex-wrap gap-2 sm:flex-col">
           {mayApprove ? (
             <Button size="sm" disabled={deciding} onClick={() => onDecide(true)}>
               <CheckCircle2 className="h-4 w-4" aria-hidden />
@@ -219,6 +220,11 @@ export function PendingApproval({
             <XCircle className="h-4 w-4" aria-hidden />
             {t("reject")}
           </Button>
+          <RejectionFeedback
+            requests={[{ id: approval.id }]}
+            disabled={deciding}
+            onReject={([note]) => onDecide(false, note)}
+          />
         </div>
       </SwipeToDecide>
     </li>
@@ -325,6 +331,11 @@ export function DecidedApproval({
       {summary !== null && (
         <p className="text-foreground/80 mt-1 truncate pl-10 text-sm" title={summary}>
           {summary}
+        </p>
+      )}
+      {approval.status === "rejected" && approval.note && (
+        <p className="text-foreground/80 mt-1 pl-10 text-sm break-words whitespace-pre-wrap">
+          {approval.note}
         </p>
       )}
       <div className="text-muted-foreground mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 pl-10 text-xs">

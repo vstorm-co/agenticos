@@ -57,6 +57,7 @@ vi.mock("@/stores/onboarding-store", () => ({
 vi.mock("@/hooks", () => ({
   useModelProviders: () => ({
     profiles: state.profiles,
+    catalog: [{ id: "openai_codex", name: "ChatGPT (Codex)" }],
     createProfile: { mutateAsync: vi.fn(), isPending: false },
   }),
   useProviderModels: () => ({
@@ -80,6 +81,9 @@ vi.mock("@/stores", () => ({
   useOrgStore: (pick: (state: unknown) => unknown) => pick({ activeOrgId: "org-1" }),
   useAgentSelectionStore: (pick: (state: unknown) => unknown) =>
     pick({ selectedAgentId: "agent-1" }),
+}));
+vi.mock("@/hooks/use-subscription-accounts", () => ({
+  useSubscriptionAccounts: () => ({ accounts: { data: { items: [] } } }),
 }));
 vi.mock("@/hooks/use-agents", () => ({
   useAgents: () => ({
@@ -508,7 +512,7 @@ it("clears a saved model override when switching to a personal-key agent", async
 describe("main chat composition", () => {
   afterEach(() => vi.unstubAllEnvs());
 
-  it("names the active model without its provider or saved profile label", () => {
+  it("names the active model and provider without repeating the saved profile label", () => {
     state.publishedModel = {
       provider: "openai_codex",
       model: "gpt-6.2-astra",
@@ -522,8 +526,8 @@ describe("main chat composition", () => {
       </ChatLayout>,
     );
     const control = screen.getByRole("button", { name: "Model" });
-    expect(control).toHaveTextContent(/^GPT-6.2 Astra$/);
-    expect(control).toHaveAccessibleDescription("GPT-6.2 Astra");
+    expect(control).toHaveTextContent(/^GPT-6.2 Astra ChatGPT \(Codex\)$/);
+    expect(control).toHaveAccessibleDescription("GPT-6.2 Astra ChatGPT (Codex)");
 
     state.catalog = [];
     rerender(
@@ -531,8 +535,8 @@ describe("main chat composition", () => {
         <ChatControls />
       </ChatLayout>,
     );
-    expect(control).toHaveTextContent(/^gpt-6.2-astra$/);
-    expect(control).toHaveAttribute("title", "gpt-6.2-astra");
+    expect(control).toHaveTextContent(/^gpt-6.2-astra ChatGPT \(Codex\)$/);
+    expect(control).toHaveAttribute("title", "gpt-6.2-astra · ChatGPT (Codex)");
   });
 
   it("offers one model control without repeated permission choices", async () => {

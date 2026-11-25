@@ -142,6 +142,19 @@ beforeEach(() => {
 });
 
 describe("the list the URL asks for", () => {
+  it("opens a routine run log supplied by the authorized chat listing", async () => {
+    serve([conversation("routine-log", "Weekly routine report")]);
+    mount();
+    await userEvent.click(await within(list()).findByText("Weekly routine report"));
+    await waitFor(() =>
+      expect(useConversationStore.getState().currentConversationId).toBe("routine-log"),
+    );
+    expect(apiClient.get).toHaveBeenCalledWith(
+      "/conversations/routine-log/messages?latest=true&limit=101",
+      expect.anything(),
+    );
+  });
+
   it("starts from the URL it was given", async () => {
     urlParams = new URLSearchParams("agent=a-1&sort=title:asc&view=archived");
     mount();

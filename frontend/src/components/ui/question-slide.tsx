@@ -8,16 +8,24 @@ import { cn } from "@/lib/utils";
 
 export interface QuestionChoice {
   label: string;
+  labelKey?: "runtimeApprovePlan" | "runtimeRejectPlan" | "runtimeYes" | "runtimeNo";
   description?: string | null;
 }
 
 export interface QuestionPromptItem {
+  requestId?: string;
+  multiline?: boolean;
+  initialValue?: string;
+  allowEmpty?: boolean;
+  maxAnswerLength?: number;
   question: string;
   /** A short label for the question, shown as a chip above it. */
   header?: string | null;
   options?: QuestionChoice[];
   /** Whether several options may be picked. */
   multiSelect?: boolean;
+  minSelections?: number;
+  maxSelections?: number;
   /** Allow a free-form answer via the "Something else" field (default true). */
   allowCustom?: boolean;
 }
@@ -62,14 +70,19 @@ export function QuestionSlide({
   const options = item.options ?? [];
   const allowCustom = item.allowCustom ?? true;
   const multi = item.multiSelect ?? false;
+  const minimum = item.minSelections ?? 1;
+  const maximum = item.maxSelections ?? options.length;
   const [focusIdx, setFocusIdx] = useState(0);
   const [picked, setPicked] = useState<string[]>(previous?.selected ?? []);
   const [customOpen, setCustomOpen] = useState(
     allowCustom && (options.length === 0 || !!previous?.answer),
   );
-  const [customText, setCustomText] = useState(previous?.answer ?? "");
+  const [customText, setCustomText] = useState(
+    previous && !previous.skipped ? previous.answer : (item.initialValue ?? ""),
+  );
   const containerRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
+  const Entry = item.multiline ? "textarea" : "input";
 
   useEffect(() => {
     if (customOpen && (autoFocus || options.length > 0))
@@ -83,13 +96,17 @@ export function QuestionSlide({
       return;
     }
     setPicked((current) =>
-      current.includes(label) ? current.filter((one) => one !== label) : [...current, label],
+      current.includes(label)
+        ? current.filter((one) => one !== label)
+        : current.length < maximum
+          ? [...current, label]
+          : current,
     );
   };
 
   const submitCustom = () => {
-    const text = customText.trim();
-    if (text) onAnswer({ answer: text, skipped: false });
+    const text = item.multiline ? customText : customText.trim();
+    if (text.trim() || item.allowEmpty) onAnswer({ answer: text, skipped: false });
   };
 
   const onListKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
@@ -130,8 +147,16 @@ export function QuestionSlide({
               {item.header}
             </span>
           )}
-          <p className="text-foreground text-sm leading-snug font-medium">{item.question}</p>
-          {multi && <p className="text-muted-foreground text-xs">{t("pickAnyNumber")}</p>}
+          <p className="text-foreground text-sm leading-snug font-medium whitespace-pre-wrap">
+            {item.question}
+          </p>
+          {multi && (
+            <p className="text-muted-foreground text-xs">
+              {item.minSelections !== undefined || item.maxSelections !== undefined
+                ? t("pickBetween", { minimum, maximum })
+                : t("pickAnyNumber")}
+            </p>
+          )}
         </div>
         {aside}
       </div>
@@ -147,7 +172,7 @@ export function QuestionSlide({
               <li key={option.label}>
                 <button
                   type="button"
-                  disabled={disabled}
+                  disabled={disabled || (multi && !ticked && picked.length >= maximum)}
                   aria-pressed={multi ? ticked : undefined}
                   onMouseEnter={() => setFocusIdx(index)}
                   onClick={() => choose(option.label)}
@@ -171,7 +196,9 @@ export function QuestionSlide({
                   {/* The name, then what it means on the same line, cut at the
                       edge - the whole sentence is the row's title. */}
                   <span className="min-w-0 flex-1 truncate" title={option.description ?? undefined}>
-                    <span className="text-foreground text-sm">{option.label}</span>
+                    <span className="text-foreground text-sm">
+                      {option.labelKey ? t(option.labelKey) : option.label}
+                    </span>
                     {option.description && (
                       <span className="text-muted-foreground ml-2 text-xs">
                         {option.description}
@@ -191,16 +218,19 @@ export function QuestionSlide({
         {allowCustom && customOpen ? (
           <>
             <Pencil className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
-            <input
-              ref={inputRef}
-              type="text"
+            <Entry
+              ref={(element: HTMLInputElement | HTMLTextAreaElement | null) => {
+                inputRef.current = element;
+              }}
+              {...(item.multiline ? { rows: 4 } : { type: "text" })}
+              maxLength={item.maxAnswerLength}
               value={customText}
               disabled={disabled}
               placeholder={t("typeYourAnswer")}
               onChange={(event) => setCustomText(event.target.value)}
               onKeyDown={(event) => {
                 if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return;
-                if (event.key === "Enter") {
+                if (event.key === "Enter" && (!item.multiline || event.ctrlKey || event.metaKey)) {
                   event.preventDefault();
                   submitCustom();
                 }
@@ -215,7 +245,7 @@ export function QuestionSlide({
             />
             <button
               type="button"
-              disabled={disabled || !customText.trim()}
+              disabled={disabled || (!item.allowEmpty && !customText.trim())}
               onClick={submitCustom}
               className="text-foreground text-sm font-medium disabled:opacity-40"
             >
@@ -253,7 +283,7 @@ export function QuestionSlide({
               {multi && (
                 <button
                   type="button"
-                  disabled={disabled || picked.length === 0}
+                  disabled={disabled || picked.length < minimum || picked.length > maximum}
                   onClick={() => onAnswer({ answer: "", selected: picked, skipped: false })}
                   className="bg-foreground text-background rounded-lg px-3 py-1 text-sm font-medium disabled:opacity-40"
                 >

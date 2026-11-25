@@ -70,6 +70,7 @@ _NON_SOURCE_FIELDS = frozenset(
         "instructions",
         "variables",
         "starters",
+        "show_starters",
         "time_zone",
         "model_profile_id",
         "model_settings",
@@ -96,6 +97,25 @@ def spec_fingerprint(spec: AgentSpec) -> str:
             separators=(",", ":"),
         ).encode()
     ).hexdigest()
+
+
+def compatible_spec_fingerprints(spec: AgentSpec) -> frozenset[str]:
+    """Recognize the three historical encodings of the chat-only starter switch.
+
+    Every other source-bearing value remains in the hashed material. This does
+    not admit a changed binding, account, approval policy or capability.
+    """
+    material = spec.model_dump(mode="json", exclude=set(_NON_SOURCE_FIELDS))
+    if not spec.table_bindings:
+        material.pop("table_bindings", None)
+    return frozenset(
+        _fingerprint(value)
+        for value in (
+            material,
+            {**material, "show_starters": True},
+            {**material, "show_starters": False},
+        )
+    )
 
 
 def _fingerprint(value: object) -> str:
@@ -132,15 +152,26 @@ def materialized_behavior(
     return result
 
 
-def _within_behavior(current: dict[str, str], approved: dict[str, str]) -> bool:
-    return all(approved.get(key) == value for key, value in current.items())
+def _within_behavior(
+    current: dict[str, str],
+    approved: dict[str, str],
+    compatible: Mapping[str, frozenset[str]] | None = None,
+) -> bool:
+    return all(
+        approved.get(key) == value or approved.get(key) in (compatible or {}).get(key, frozenset())
+        for key, value in current.items()
+    )
 
 
-def _within_ceiling(current: RoutineSourcePolicy, approved: RoutineSourcePolicy) -> bool:
+def _within_ceiling(
+    current: RoutineSourcePolicy,
+    approved: RoutineSourcePolicy,
+    compatible: Mapping[str, frozenset[str]] | None = None,
+) -> bool:
     if (
         approved.behavior is None
         or current.behavior is None
-        or not _within_behavior(current.behavior, approved.behavior)
+        or not _within_behavior(current.behavior, approved.behavior, compatible)
     ):
         return False
     for now, before in (
@@ -211,10 +242,17 @@ class RoutineSourcesRequired(AuthorizationError):
 
 class PlatformRoutineIdentityRequired(RoutineSourcesRequired):
     message = (
-        "The AgenticOS platform MCP server requires Act as creator. Enable it or remove "
+        "The AgenticOS platform MCP server requires Run as me. Turn it on or remove "
         "the platform binding from this agent and its delegates."
     )
     code = "ROUTINE_PLATFORM_IDENTITY_REQUIRED"
+
+
+PLATFORM_NEEDS_CREATOR = "AgenticOS platform MCP (needs Run as me)"
+"""How the platform binding is named in a source list while the routine does not run as its creator.
+
+A name, not a sentence: the console puts it inside its own sentence.
+"""
 
 
 def read_policy(value: object) -> RoutineSourcePolicy:
@@ -377,6 +415,14 @@ class RoutineSourceSnapshot:
     optional_unavailable: frozenset[str] = frozenset()
     items: list[RoutineSourceItem] = field(default_factory=list)
     behavior_fingerprints: dict[str, str] = field(default_factory=dict)
+    compatible_spec_hashes: frozenset[str] = frozenset()
+    compatible_behavior: dict[str, frozenset[str]] = field(default_factory=dict)
+
+    def matches_restricted(self, previous: RoutineSourcePolicy) -> bool:
+        excluded = {"id", "reviewed_at", "version_id", "spec_hash"}
+        return previous.spec_hash in self.compatible_spec_hashes | {
+            self.policy.spec_hash
+        } and previous.model_dump(exclude=excluded) == self.policy.model_dump(exclude=excluded)
 
     def token(self) -> str:
         content = self.policy.model_dump(mode="json", exclude={"id", "reviewed_at"})
@@ -442,15 +488,19 @@ class RoutineSourceService:
         delegates: list[UUID] = []
         credentials: set[UUID] = set()
         for current in specs:
-            resources.update(f"Knowledge · {identifier}" for identifier in current.collection_ids)
-            resources.update(f"Context · {identifier}" for identifier in current.context_ids)
-            resources.update(f"Skill · {identifier}" for identifier in current.skill_ids)
-            resources.update(f"Capability · {binding.id}" for binding in current.capabilities)
+            resources.update(
+                f"Knowledge · {identifier}" for identifier in current.served_collection_ids
+            )
+            resources.update(f"Context · {identifier}" for identifier in current.served_context_ids)
+            resources.update(f"Skill · {identifier}" for identifier in current.served_skill_ids)
+            resources.update(
+                f"Capability · {binding.id}" for binding in current.capabilities if binding.enabled
+            )
             resources.update(
                 f"Table · {grant.table_id} · {'/'.join(operation.value for operation in grant.operations)}"
                 for grant in current.table_bindings
             )
-            for delegate in current.subagents:
+            for delegate in current.served_subagents:
                 if delegate.agent_version_id in seen:
                     continue
                 if len(seen) >= 64:
@@ -581,7 +631,7 @@ class RoutineSourceService:
                 else:
                     phone_sources[endpoint.id] = endpoint_fingerprint(endpoint, bot)
         external_sources: dict[UUID, str] = {}
-        for ref in (ref for current in specs for ref in current.external_agents):
+        for ref in (ref for current in specs for ref in current.served_external_agents):
             remote = await external_repo.get(
                 self.db, ref.external_agent_id, organization_id=ctx.organization_id
             )
@@ -602,8 +652,8 @@ class RoutineSourceService:
                 items.append(RoutineSourceItem(kind="platform"))
                 if not trigger.runs_as_creator:
                     requires_creator_identity = True
-                    unavailable.add(PlatformRoutineIdentityRequired.message)
-                    required_unavailable.add(PlatformRoutineIdentityRequired.message)
+                    unavailable.add(PLATFORM_NEEDS_CREATOR)
+                    required_unavailable.add(PLATFORM_NEEDS_CREATOR)
                 continue
             if isinstance(ref, OrgMcpServerRef):
                 connection = await mcp_connection_repo.get_org_scoped_by_id(
@@ -710,9 +760,11 @@ class RoutineSourceService:
                 )
         if len(sources) > 100:
             raise RoutineSourcesRequired(message="A routine can review at most 100 source accounts")
-        behavior = await self._behavior(ctx, specs, spec_namespaces)
+        behavior, compatible_behavior = await self._behavior(ctx, specs, spec_namespaces)
         return RoutineSourceSnapshot(
             behavior_fingerprints=behavior,
+            compatible_behavior=compatible_behavior,
+            compatible_spec_hashes=compatible_spec_fingerprints(spec),
             policy=RoutineSourcePolicy(
                 mode=mode,
                 id=uuid4(),
@@ -754,7 +806,7 @@ class RoutineSourceService:
 
     async def _behavior(
         self, ctx: AuthContext, specs: list[AgentSpec], namespaces: list[str]
-    ) -> dict[str, str]:
+    ) -> tuple[dict[str, str], dict[str, frozenset[str]]]:
         from app.agents.capabilities.context import context_config
         from app.agents.capabilities.subagents import SubagentsConfig
         from app.services.context import ContextService
@@ -780,10 +832,29 @@ class RoutineSourceService:
             "model_settings",
         }
         result: dict[str, str] = {}
+        compatible: dict[str, frozenset[str]] = {}
         for prefix, spec in zip(namespaces, specs, strict=True):
-            result[prefix + ":instructions"] = _fingerprint(
-                spec.model_dump(mode="json", exclude=lists | metadata)
+            material = spec.model_dump(mode="json", exclude=lists | metadata | {"show_starters"})
+            key = prefix + ":instructions"
+            result[key] = _fingerprint(material)
+            compatible[key] = frozenset(
+                _fingerprint(value)
+                for value in (
+                    material,
+                    {**material, "show_starters": True},
+                    {**material, "show_starters": False},
+                )
             )
+            dumped = spec.model_dump(mode="json")
+            # What a switched-off capability would reach is not behavior a run has.
+            served = spec.model_copy(
+                update={
+                    "collection_ids": spec.served_collection_ids,
+                    "subagents": spec.served_subagents,
+                    "external_agents": spec.served_external_agents,
+                }
+            ).model_dump(mode="json", include={"collection_ids", "subagents", "external_agents"})
+            dumped.update(served)
             for name in (
                 "capabilities",
                 "mcp_servers",
@@ -792,7 +863,7 @@ class RoutineSourceService:
                 "subagents",
                 "external_agents",
             ):
-                for value in spec.model_dump(mode="json")[name]:
+                for value in dumped[name]:
                     if name == "capabilities" and value.get("enabled") is False:
                         continue
                     if name == "mcp_servers" and value.get("allowed_tools") == []:
@@ -811,15 +882,15 @@ class RoutineSourceService:
                     )
             for resource_namespace, resource_spec in resource_specs:
                 skills = await SkillService(self.db).resolve_for_agent(
-                    ctx, resource_spec.skill_ids, bindings=resource_spec.skill_bindings
+                    ctx, resource_spec.served_skill_ids, bindings=resource_spec.skill_bindings
                 )
                 contexts = await ContextService(self.db).resolve_for_agent(
                     ctx,
-                    resource_spec.context_ids,
+                    resource_spec.served_context_ids,
                     config=context_config(resource_spec.capabilities),
                 )
                 result.update(materialized_behavior(skills, contexts, namespace=resource_namespace))
-        return result
+        return result, compatible
 
     async def require_behavior(
         self, ctx: AuthContext, trigger: AgentTrigger, policy: RoutineSourcePolicy
@@ -834,7 +905,9 @@ class RoutineSourceService:
             )
         except BadRequestError, NotFoundError:
             raise RoutineSourcesRequired() from None
-        if not _within_behavior(current.behavior_fingerprints, policy.behavior):
+        if not _within_behavior(
+            current.behavior_fingerprints, policy.behavior, current.compatible_behavior
+        ):
             raise RoutineSourcesRequired()
 
     async def _named(
@@ -853,10 +926,12 @@ class RoutineSourceService:
         another organization's.
         """
         organization_id = ctx.organization_id
-        skill_ids = sorted({identifier for spec in specs for identifier in spec.skill_ids})
-        context_ids = sorted({identifier for spec in specs for identifier in spec.context_ids})
+        skill_ids = sorted({identifier for spec in specs for identifier in spec.served_skill_ids})
+        context_ids = sorted(
+            {identifier for spec in specs for identifier in spec.served_context_ids}
+        )
         collection_ids = sorted(
-            {identifier for spec in specs for identifier in spec.collection_ids}
+            {identifier for spec in specs for identifier in spec.served_collection_ids}
         )
         table_ids = sorted({grant.table_id for spec in specs for grant in spec.table_bindings})
         skills = await self._viewable(
@@ -907,6 +982,7 @@ class RoutineSourceService:
             named.extend(
                 RoutineSourceItem(kind="capability", id=binding.id, name=labels.get(binding.id))
                 for binding in spec.capabilities
+                if binding.enabled
             )
             for grant in spec.table_bindings:
                 table = tables.get(grant.table_id)
@@ -981,15 +1057,14 @@ class RoutineSourceService:
             previous = RoutineSourcePolicy.model_validate(trigger.approved_sources)
         except ValidationError:
             previous = None
-        current = previous is not None and (
-            previous.model_dump(exclude={"id", "reviewed_at", "version_id"})
-            == review.policy.model_dump(exclude={"id", "reviewed_at", "version_id"})
-        )
+        current = previous is not None and review.matches_restricted(previous)
         if previous is not None and previous.mode == "follow_agent":
             current = (
                 previous.approved_ceiling is not None
                 and previous.scope_hash == review.policy.scope_hash
-                and _within_ceiling(review.policy, previous.approved_ceiling)
+                and _within_ceiling(
+                    review.policy, previous.approved_ceiling, review.compatible_behavior
+                )
             )
         required = set(review.unavailable) - review.optional_unavailable
         return RoutineSourceReview(
@@ -1070,6 +1145,24 @@ class RoutineSourceService:
         self, ctx: AuthContext, trigger: AgentTrigger, *, expected_id: UUID | None
     ) -> RoutineSourcePolicy:
         """Check metadata before opening a provider, preserving the admitted review."""
+        policy, refreshed = await self.current(ctx, trigger, expected_id=expected_id)
+        if refreshed:
+            trigger.approved_sources = policy.model_dump(mode="json")
+            await self.db.flush()
+        return policy
+
+    async def current(
+        self, ctx: AuthContext, trigger: AgentTrigger, *, expected_id: UUID | None
+    ) -> tuple[RoutineSourcePolicy, bool]:
+        """The admitted review as a fire would use it, and whether it was refreshed.
+
+        Writes nothing, so a read can ask whether the next fire would be admitted.
+        A following review whose accounts were reconnected or rotated within its
+        approved ceiling comes back refreshed; `require_current` stores that.
+
+        Raises:
+            RoutineSourcesRequired: The review is missing, stale or exceeded.
+        """
         policy = read_policy(trigger.approved_sources)
         if (
             policy.id != expected_id
@@ -1081,7 +1174,7 @@ class RoutineSourceService:
         self._require_available(review)
         if policy.mode == "follow_agent":
             if policy.approved_ceiling is None or not _within_ceiling(
-                review.policy, policy.approved_ceiling
+                review.policy, policy.approved_ceiling, review.compatible_behavior
             ):
                 raise RoutineSourcesRequired()
             if (
@@ -1093,14 +1186,12 @@ class RoutineSourceService:
             # snapshot, so reconnecting or rotating an account cannot retarget it.
             excluded = {"id", "reviewed_at", "version_id", "approved_ceiling"}
             if policy.model_dump(exclude=excluded) == review.policy.model_dump(exclude=excluded):
-                return policy
-            current = review.policy.model_copy(
+                return policy, False
+            return review.policy.model_copy(
                 update={"id": policy.id, "approved_ceiling": policy.approved_ceiling}
-            )
-            trigger.approved_sources = current.model_dump(mode="json")
-            await self.db.flush()
-            return current
-        excluded = {"id", "reviewed_at", "version_id"}
-        if policy.model_dump(exclude=excluded) != review.policy.model_dump(exclude=excluded):
+            ), True
+        if not review.matches_restricted(policy):
             raise RoutineSourcesRequired()
-        return policy
+        if policy.spec_hash != review.policy.spec_hash:
+            return policy.model_copy(update={"spec_hash": review.policy.spec_hash}), True
+        return policy, False

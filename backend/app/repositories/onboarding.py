@@ -17,8 +17,18 @@ async def save(db: AsyncSession, *, member: OrganizationMember, data: Onboarding
         member.onboarding_goal = data.goal
     if data.dismissed is not None:
         member.onboarding_dismissed_at = datetime.now(UTC) if data.dismissed else None
+    if (
+        "current_step" in data.model_fields_set
+        and member.onboarding_completed_at is None
+        and member.onboarding_current_step != data.current_step
+    ):
+        member.onboarding_current_step = data.current_step
+        member.onboarding_updated_at = datetime.now(UTC)
     if data.completed:
-        member.onboarding_completed_at = member.onboarding_completed_at or datetime.now(UTC)
+        member.onboarding_current_step = None
+        if member.onboarding_completed_at is None:
+            member.onboarding_completed_at = datetime.now(UTC)
+            member.onboarding_updated_at = member.onboarding_completed_at
         member.onboarding_dismissed_at = None
     await db.flush()
     await db.refresh(member)
@@ -66,3 +76,14 @@ async def has_activity(db: AsyncSession, *, organization_id: UUID, user_id: UUID
         .exists()
     )
     return bool(await db.scalar(statement))
+
+
+def effective_completed_at(
+    member: OrganizationMember, account_completed_at: datetime | None
+) -> datetime | None:
+    """Honor legacy account completion only for memberships already present then."""
+    if member.onboarding_completed_at is not None:
+        return member.onboarding_completed_at
+    if account_completed_at is not None and member.joined_at <= account_completed_at:
+        return account_completed_at
+    return None

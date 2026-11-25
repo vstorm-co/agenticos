@@ -746,6 +746,7 @@ export function QuickAsk({
         )}
         {active && pendingApproval && (
           <ToolApprovalDialog
+            savedDecisions={pendingApproval.savedDecisions}
             actionRequests={pendingApproval.actionRequests}
             reviewConfigs={pendingApproval.reviewConfigs}
             onDecisions={sendResumeDecisions}

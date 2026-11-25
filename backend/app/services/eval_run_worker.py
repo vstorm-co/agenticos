@@ -13,8 +13,9 @@ a draft. What it answered and called is copied onto the attempt, because a run
 without a conversation keeps no transcript.
 
 After the first answer of every case, an improvement session's check asks once
-more the answers the infrastructure lost, then the cases whose outcome, or any one
-of whose criteria, flipped against the baseline are rerun, and the run ends.
+more the answers the infrastructure lost, then the cases whose outcome flipped
+against the baseline, or in which a family of criteria the first answers cannot
+settle flipped, are rerun, and the run ends.
 """
 
 import asyncio
@@ -76,8 +77,14 @@ from app.services.access import AGENT, DATASET, resolve_access
 from app.services.agent_registry import Candidate, PublishedCandidate, UnpublishedCandidate
 from app.services.agent_runner import AgentRunnerService
 from app.services.api_key import job_context
-from app.services.eval_comparison import Flip, classify, criterion_flipped
-from app.services.eval_run import EvalRunService, drifts, skill_body_from_json
+from app.services.eval_comparison import Flip, classify, family_flipped
+from app.services.eval_run import (
+    EvalRunService,
+    compare_batches,
+    drifts,
+    held_out_cases,
+    skill_body_from_json,
+)
 from app.services.improvement_states import affordable
 from app.services.message_history import HistoryMessage, build_message_history
 from app.services.notifications import NotificationService
@@ -984,11 +991,13 @@ class EvalRunWorker:
             return True
 
     async def _queue_reruns(self, ctx: AuthContext) -> bool:
-        """Queue the confirmation reruns of every flipped case. True if any were queued.
+        """Queue the confirmation reruns of every case that decides. True if any were queued.
 
-        A case flipped when its outcome did, or when any criterion graded on both
-        sides did: a case that kept failing for one reason may pass another now,
-        and only the reruns can confirm that.
+        A case decides when its outcome flipped, or when a family of criteria
+        flipped in it that the first answers alone cannot settle: one that moved
+        on at least two cases with too few of them for an exact test to tell which
+        way. A family settled by its own spread needs no reruns, and one that
+        moved on a single case decides nothing, so neither sends a case again.
 
         A stability run compares nothing: every first answer is asked again.
 
@@ -996,7 +1005,9 @@ class EvalRunWorker:
         own baseline arm - one that ran here, or one standing in for an earlier
         run's answers, which is asked the flipped cases again here. A case whose
         content changed since the baseline answered it is not compared, so not
-        rerun.
+        rerun. A measured run is asked again on its held-out cases alone: its
+        verdict reads only those, and what learns from its training cases reads
+        their first answers.
 
         The run is locked while they are queued, as a cancel locks it: a cancel
         landing between the status check and the insert would skip the pending
@@ -1011,6 +1022,7 @@ class EvalRunWorker:
             attempts = await eval_run_repo.list_cases(db, run.id, organization_id=org)
             firsts = {(a.arm_id, a.case_id): a for a in attempts if a.attempt == 0}
             arms = await eval_run_repo.list_arms(db, [run.id], organization_id=org)
+            held_out = held_out_cases(run)
             # Each rerun with the first attempt it repeats: a reused baseline has
             # none of its own here, so it repeats the candidate's case revision.
             queued: dict[tuple[UUID, UUID], EvalRunCase] = {}
@@ -1046,28 +1058,44 @@ class EvalRunWorker:
                         else None
                     )
                     same, _ = await service.pairing(ctx, run, arm, baseline, attempts)
-                    criterion_flips: set[UUID] = set()
-                    async with aclosing(
+                    their_arm = baseline.here or baseline.arm
+                    compared = [
+                        case_id
+                        for case_id in mine
+                        if case_id in same
+                        and case_id in theirs
+                        and (held_out is None or case_id in held_out)
+                    ]
+                    comparison = await compare_batches(
                         service.criterion_batches(
-                            ctx,
-                            arm,
-                            attempts,
-                            baseline.here or baseline.arm,
-                            their_attempts,
-                            case_ids=[
-                                case_id for case_id in mine if case_id in same and case_id in theirs
-                            ],
+                            ctx, arm, attempts, their_arm, their_attempts, case_ids=compared
                         )
-                    ) as batches:
-                        async for batch in batches:
-                            criterion_flips.update(
-                                case_id
-                                for case_id, pair in batch
-                                if criterion_flipped(pair.baseline, pair.candidate)
+                    )
+                    family_flips: set[UUID] = set()
+                    if comparison.undecided:
+                        async with aclosing(
+                            service.criterion_batches(
+                                ctx, arm, attempts, their_arm, their_attempts, case_ids=compared
                             )
+                        ) as batches:
+                            async for batch in batches:
+                                family_flips.update(
+                                    case_id
+                                    for case_id, pair in batch
+                                    if family_flipped(
+                                        pair.baseline,
+                                        pair.candidate,
+                                        pair.named,
+                                        comparison.undecided,
+                                    )
+                                )
                     for case_id, (outcome, _, _) in mine.items():
                         first = firsts.get((arm.id, case_id))
-                        if case_id not in same or first is None:
+                        if (
+                            case_id not in same
+                            or first is None
+                            or (held_out is not None and case_id not in held_out)
+                        ):
                             continue
                         if (
                             classify(theirs[case_id][0], outcome)
@@ -1075,7 +1103,7 @@ class EvalRunWorker:
                                 Flip.REGRESSION,
                                 Flip.FIXED,
                             )
-                            and case_id not in criterion_flips
+                            and case_id not in family_flips
                         ):
                             continue
                         queued[(arm.id, case_id)] = first

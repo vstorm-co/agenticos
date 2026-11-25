@@ -9,6 +9,12 @@ import type { AgentRun } from "@/types/runs";
 
 type Context = { href: string; label: string };
 
+/** The dataset tab a platform agent's work is read on; the generated cases otherwise. */
+const DATASET_TABS: Partial<Record<NonNullable<AgentRun["origin"]>["kind"], string>> = {
+  key_drafts: "",
+  key_coverage: "?tab=coverage",
+};
+
 /** Where the work a run did is read: its eval run, Improve session, gap topic or dataset. */
 function context(run: AgentRun): Context | null {
   const origin = run.origin;
@@ -34,7 +40,11 @@ function context(run: AgentRun): Context | null {
       : { href: gaps, label: "openGaps" };
   }
   if (origin.dataset_id) {
-    return { href: `${ROUTES.DATASETS}/${origin.dataset_id}?tab=generated`, label: "openDataset" };
+    const dataset = `${ROUTES.DATASETS}/${origin.dataset_id}`;
+    return {
+      href: `${dataset}${DATASET_TABS[origin.kind] ?? "?tab=generated"}`,
+      label: "openDataset",
+    };
   }
   return null;
 }

@@ -287,7 +287,7 @@ export interface DelegateRef {
   has_avatar?: boolean;
   avatar_color?: number | null;
   /** Set for a coding harness, which wears its own mark rather than an agent's face. */
-  harness?: CodingHarness;
+  harness?: CodingHarness | "custom";
 }
 
 /**

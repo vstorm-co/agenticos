@@ -50,7 +50,6 @@ from pydantic_ai.models.function import (
     FunctionModel,
 )
 from pydantic_ai.tools import RunContext
-from pydantic_ai_harness._background_completion import make_background_completion
 from pydantic_ai_harness.guardrails import (
     GuardrailResult,
     InputGuardrail,
@@ -570,7 +569,7 @@ def _resumed(*parts: UserPromptPart) -> list[ModelMessage]:
     return [ModelRequest(parts=list(parts))]
 
 
-async def test_resumed_background_content_matches_the_harness_input_policy() -> None:
+async def test_resumed_legacy_background_content_matches_the_harness_input_policy() -> None:
     """With an explicit resumed prompt, upstream screens every prompt part too."""
     detector = _edge_detector(
         redact_secrets_on=False,
@@ -583,7 +582,14 @@ async def test_resumed_background_content_matches_the_harness_input_policy() -> 
     for capability in (InputGuardrail(guard=detector), ScreenedPrompt(guard=detector)):
         agent: Agent = Agent(model=_answers("ok"), capabilities=[capability])
         history = _resumed(
-            UserPromptPart([make_background_completion("classified", "task-1")]),
+            UserPromptPart(
+                [
+                    TextContent(
+                        content="classified",
+                        metadata={"origin": "pydantic-ai-harness.background_tools.result.v1"},
+                    )
+                ]
+            ),
             UserPromptPart(["look", PICTURE]),
         )
         with pytest.raises(GuardrailBlocked):

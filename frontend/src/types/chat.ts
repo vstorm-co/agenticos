@@ -52,6 +52,8 @@ export interface QueuedMessage {
    */
   refused?: string;
   submission?: ChatSubmissionContext;
+  /** Stop holds follow-ups, including a sealed native outbox, until Resume queue. */
+  paused?: boolean;
 }
 
 /** The earlier message a turn answers, quoted above it. */
@@ -342,6 +344,7 @@ export type WSEventType =
   | "error"
   | "tool_approval_required"
   | "ask_user"
+  | "runtime_question_closed"
   | "user_question_required"
   | "ask_user_answered"
   | "run_answer_result"
@@ -606,6 +609,8 @@ export interface ReviewConfig {
 }
 
 export interface PendingApproval {
+  savedDecisions?: { request: ActionRequest; approved: boolean }[];
+  continuesInChat?: boolean;
   actionRequests: ActionRequest[];
   reviewConfigs: ReviewConfig[];
   /** The run to continue once every call has been decided. */
@@ -626,6 +631,7 @@ export type DecisionType = "approve" | "edit" | "reject";
 
 export interface Decision {
   remember_scope?: "conversation" | "agent";
+  note?: string;
   type: DecisionType;
   editedAction?: {
     id: string;
@@ -635,11 +641,19 @@ export interface Decision {
 }
 
 export interface AskUserChoice {
+  labelKey?: "runtimeApprovePlan" | "runtimeRejectPlan" | "runtimeYes" | "runtimeNo";
   label: string;
   description?: string | null;
 }
 
 export interface AskUserQuestion {
+  requestId?: string;
+  minSelections?: number;
+  maxSelections?: number;
+  multiline?: boolean;
+  initialValue?: string;
+  allowEmpty?: boolean;
+  maxAnswerLength?: number;
   question: string;
   /** A short label for the question, shown as a chip (#2064). */
   header?: string | null;
@@ -744,7 +758,7 @@ export interface SubagentStartFrame extends SubagentFrameBase {
    * Set when the worker is a coding harness, started by the `coding_agent`
    * capability rather than delegated to an agent, so the panel draws its mark.
    */
-  harness?: CodingHarness | null;
+  harness?: CodingHarness | "custom" | null;
 }
 
 /** The coding harnesses the `coding_agent` capability runs. */
@@ -897,8 +911,8 @@ export interface Delegation {
    * chat reads, and what its absence hides that action for. See `SpecialistDefinition`.
    */
   specialist: SpecialistDefinition | null;
-  /** A coding harness, when the worker is one rather than an agent. */
-  harness: CodingHarness | null;
+  /** Claude Code or Codex, when the worker is a coding harness rather than an agent. */
+  harness: CodingHarness | "custom" | null;
   text: string;
   thinking: string;
   steps: DelegationStep[];

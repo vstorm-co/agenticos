@@ -24,6 +24,7 @@ describe("pageMetadata", () => {
 
     expect(meta.alternates?.languages).toEqual({
       en: `${siteOrigin()}/en/legal/terms`,
+
     });
   });
 
@@ -33,6 +34,7 @@ describe("pageMetadata", () => {
     expect(meta.alternates?.canonical).toBe(`${siteOrigin()}/en`);
     expect(meta.alternates?.languages).toEqual({
       en: `${siteOrigin()}/en`,
+
     });
   });
 

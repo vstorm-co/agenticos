@@ -44,6 +44,7 @@ from app.schemas.scoring import ScorerResult
 from app.services.access import AGENT, DATASET, accessible_ids
 from app.services.conversation import ConversationService
 from app.services.eval_comparison import Attempt, Outcome
+from app.services.scorers import MAX_MISSING_NAMED, missing_keys
 
 MAX_EVIDENCE_RUNS = 20
 """The most runs one request reads."""
@@ -95,6 +96,10 @@ class PackedRun:
         via_delegate: The skill was used by an agent this run delegated to.
         masked: Its text was withheld from a reader who may not open its
             conversation.
+        uncovered_keys: Keys a test answer is missing that no source of the agent
+            holds, by label, from the agent's source coverage report.
+        knowledge_only: Every check the answer failed is a keys check, and every key
+            it is missing is one of those - nothing the agent's instructions can fix.
     """
 
     run_id: UUID
@@ -113,11 +118,15 @@ class PackedRun:
     skill_use: Literal["used", "probable"] | None = None
     via_delegate: bool = False
     masked: bool = False
+    uncovered_keys: tuple[str, ...] = ()
+    knowledge_only: bool = False
 
     @property
     def grade_lines(self) -> list[str]:
         return [
-            f"{grade.scorer}/{grade.name}: {_clip(grade.reason, _TURN_CHARS)}"
+            f"{grade.scorer}/{grade.name}"
+            + (f" (family: {grade.family})" if grade.family else "")
+            + f": {_clip(grade.reason, _TURN_CHARS)}"
             for grade in self.grades
         ]
 
@@ -144,6 +153,11 @@ class PackedRun:
             lines.append("Skill used by an agent this one delegated to")
         lines += [f"Reader comment: {comment}" for comment in self.comments]
         lines += [f"Graded: {line}" for line in self.grade_lines]
+        if self.uncovered_keys:
+            lines.append(
+                "No source of this agent holds these keys, so the user must supply them "
+                f"rather than the instructions: {', '.join(self.uncovered_keys)}"
+            )
         lines.append(
             f"Test question from the dataset: {self.prompt}"
             if self.evidence_kind == "train_eval"
@@ -401,6 +415,7 @@ class EvidenceService:
     ) -> tuple[list[PackedRun], str]:
         from app.repositories import eval_run_repo
         from app.services.eval_run import EvalRunService
+        from app.services.key_coverage import KeyCoverageService
 
         since = self._since(window_days, at)
         candidates = await authoring_repo.evaluated_datasets(
@@ -426,6 +441,9 @@ class EvidenceService:
             since=since,
             until=at,
             case_ids=case_ids,
+        )
+        uncovered = await KeyCoverageService(self.db).uncovered_labels(
+            ctx, agent_id, sorted(allowed)
         )
         packed: list[PackedRun] = []
         seen: set[UUID] = set()
@@ -516,10 +534,20 @@ class EvidenceService:
                 ]
                 if person is not None
             }
+            missing = missing_keys(row.case.checks or [], row.attempt.answer or "")
+            gaps = uncovered.get(row.case.dataset_id, frozenset())
+            unheld = tuple(label for label in missing if label.casefold() in gaps)
+            failed = [result for result in results if result.status == "fail"]
             packed.append(
                 PackedRun(
                     run_id=row.run.id,
                     conversation_id=None,
+                    uncovered_keys=unheld[:MAX_MISSING_NAMED],
+                    knowledge_only=bool(failed)
+                    and len(unheld) == len(missing) > 0
+                    and all(
+                        result.scorer == "check" and result.name == "keys" for result in failed
+                    ),
                     status="train_eval_failure" if settled is False else "train_eval_reviewed",
                     rating=0,
                     evidence_kind="train_eval",
@@ -633,6 +661,47 @@ class EvidenceService:
             unknown_runs=sum(count for agent, count in unknown.items() if agent in visible),
             hidden_agents=len((reading | set(unknown)) - visible),
         )
+
+    async def for_skill_handoff(
+        self, ctx: AuthContext, skill_id: UUID, improvement_run_id: UUID
+    ) -> list[PackedRun]:
+        """The failed training answers an agent's session read that used this skill.
+
+        An agent's Improve that hands a skill over found its problems in these
+        answers: test questions of the session's own dataset, from its stored
+        training partition only, which a skill check never measures on. A caller
+        who may not run that dataset reads none of them.
+        """
+        from app.core.exceptions import AuthorizationError
+        from app.repositories import improvement_repo
+
+        session = await improvement_repo.get_run(
+            self.db, improvement_run_id, organization_id=ctx.organization_id
+        )
+        if session is None:
+            return []
+        try:
+            handed = await self.for_improvement(ctx, improvement_run_id)
+        except AuthorizationError:
+            return []
+        failed = [
+            run
+            for run in handed.runs
+            if run.evidence_kind == "train_eval" and run.status == "train_eval_failure"
+        ]
+        uses: dict[UUID, list[RunSkillUse]] = {}
+        for use in await skill_usage_repo.uses_in_runs(
+            self.db,
+            organization_id=ctx.organization_id,
+            skill_id=skill_id,
+            run_ids=[run.run_id for run in failed],
+        ):
+            uses.setdefault(use.run_id, []).append(use)
+        return [
+            replace(_by_skill(run, uses[run.run_id], session.agent_id), number=0)
+            for run in failed
+            if run.run_id in uses
+        ]
 
     async def for_context(
         self, ctx: AuthContext, context_id: UUID, *, window_days: int

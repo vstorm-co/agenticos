@@ -880,6 +880,7 @@ def load_builtins() -> None:
         council,
         drafts,
         eval_tool_tuning,
+        external_acp,
         follow_ups,
         guardrails,
         harness,

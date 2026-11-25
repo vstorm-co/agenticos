@@ -17,6 +17,7 @@ from pydantic import ValidationError
 from pydantic_ai.exceptions import UserError
 
 from app.agents.capabilities.coding_agent._harness import (
+    AcpHarness,
     Harness,
     Said,
     StepEnded,
@@ -42,11 +43,13 @@ from tests.workspaces import document_workspace
 pytestmark = pytest.mark.anyio
 
 
-def test_the_subagent_frame_names_the_same_five_harnesses() -> None:
+def test_the_subagent_frame_names_the_same_six_harnesses() -> None:
     """`SubagentStarted.harness` spells the literal out - see its comment."""
     field = SubagentStarted.model_fields["harness"].annotation
     literals = [arg for arg in get_args(field) if get_args(arg)]
-    assert {value for literal in literals for value in get_args(literal)} == set(get_args(Harness))
+    assert {value for literal in literals for value in get_args(literal)} == {
+        value for arg in get_args(AcpHarness) for value in get_args(arg)
+    }
 
 
 def _opencode_stream() -> list[dict[str, Any]]:

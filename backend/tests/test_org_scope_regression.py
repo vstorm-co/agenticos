@@ -25,6 +25,7 @@ from app.repositories import (
     agent_run_repo,
     authoring_repo,
     case_generation_repo,
+    case_key_draft_repo,
     case_score_repo,
     channel_bot_repo,
     context_proposal_repo,
@@ -37,6 +38,7 @@ from app.repositories import (
     eval_suite_repo,
     improvement_repo,
     intercepted_tool_call_repo,
+    key_coverage_report_repo,
     knowledge_base_repo,
     knowledge_gap_repo,
     message_rating_repo,
@@ -52,6 +54,7 @@ from app.repositories import (
     skill_version_repo,
     virtual_table_repo,
 )
+from app.repositories import tool_output_report as tool_output_report_repo
 from app.repositories import workflow_run as workflow_run_repo
 from app.services.conversation import ConversationService
 
@@ -85,6 +88,10 @@ TENANT_REQUIRED = [
     (improvement_repo, "create_iteration"),
     (improvement_repo, "get_iteration"),
     (improvement_repo, "list_iterations"),
+    (improvement_repo, "add_variants"),
+    (improvement_repo, "list_variants"),
+    (improvement_repo, "get_variant"),
+    (improvement_repo, "next_pending_variant"),
     (conversation_repo, "question_of_run"),
     (channel_bot_repo, "get_for_org"),
     (channel_bot_repo, "get_by_platform"),
@@ -114,6 +121,7 @@ TENANT_REQUIRED = [
     (dataset_repo, "for_agent"),
     (dataset_repo, "create"),
     (dataset_repo, "get_version"),
+    (dataset_repo, "get_case_revision"),
     (dataset_repo, "list_versions"),
     (dataset_repo, "create_version"),
     (dataset_repo, "list_cases"),
@@ -159,6 +167,18 @@ TENANT_REQUIRED = [
     (case_score_repo, "list_for_dataset"),
     (case_score_repo, "list_pending"),
     (case_score_repo, "pending_counts"),
+    (case_key_draft_repo, "get_for_case"),
+    (case_key_draft_repo, "get"),
+    (case_key_draft_repo, "replace"),
+    (case_key_draft_repo, "delete_for_case"),
+    (case_key_draft_repo, "delete_for_dataset"),
+    (case_key_draft_repo, "finish"),
+    (key_coverage_report_repo, "get_for"),
+    (key_coverage_report_repo, "get"),
+    (key_coverage_report_repo, "replace"),
+    (key_coverage_report_repo, "ready_for_agent"),
+    (key_coverage_report_repo, "finish"),
+    (key_coverage_report_repo, "source_marks"),
     (case_generation_repo, "create_generation"),
     (case_generation_repo, "get_generation"),
     (case_generation_repo, "list_generations"),
@@ -284,6 +304,13 @@ TENANT_REQUIRED = [
     (skill_version_repo, "forks_served_since"),
     (workflow_run_repo, "try_lock_run"),
     (workflow_run_repo, "list_called_run_ids"),
+    (tool_output_report_repo, "list_runs"),
+    (tool_output_report_repo, "list_call_sizes"),
+    (tool_output_report_repo, "count_turns"),
+    (tool_output_report_repo, "list_requests"),
+    (tool_output_report_repo, "list_version_capabilities"),
+    (tool_output_report_repo, "list_inherited_sizes"),
+    (tool_output_report_repo, "list_parked"),
 ]
 
 # Deliberately unscoped, each documented at its definition.
@@ -311,6 +338,8 @@ CROSS_TENANT_BY_DESIGN = [
     (skill_improvement_repo, "list_active"),
     (skill_improvement_repo, "list_resting"),
     (promotion_gate_repo, "guarded_followers"),
+    (skill_check_repo, "judged_before_families"),
+    (skill_improvement_repo, "checked_iterations"),
 ]
 
 

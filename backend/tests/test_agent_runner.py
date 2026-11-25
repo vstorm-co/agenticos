@@ -99,6 +99,7 @@ from app.core.secret_kinds import ApiKeySecret, NoSecret
 from app.db.models.agent_environment import AgentEnvironmentConnection
 from app.db.models.agent_run import ApprovalStatus, RunStatus, RunSurface
 from app.db.models.intercepted_tool_call import InterceptionOutcome, InterceptionReason
+from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.db.models.skill import Skill
 from app.db.vector_tables import VectorScope
 from app.repositories.group import CappedGroup
@@ -656,7 +657,11 @@ class TestPrepare:
         agent = MagicMock(
             id=uuid.uuid4(), current_version_id=uuid.uuid4(), system_key=None, kind="agent"
         )
-        spec = AgentSpec(name="Support", collection_ids=[live_id, deleted_id, foreign_id])
+        spec = AgentSpec(
+            name="Support",
+            collection_ids=[live_id, deleted_id, foreign_id],
+            capabilities=[{"id": "knowledge"}],
+        )
 
         async def get_collections(_db, ids):
             # A batched read: an id with no row is absent from the map, the way
@@ -711,12 +716,73 @@ class TestPrepare:
             new=AsyncMock(return_value=collections),
         ):
             resources = await AgentRunnerService(_db())._bound_collections(
-                AgentSpec(name="Both", collection_ids=ids), ctx
+                AgentSpec(name="Both", collection_ids=ids, capabilities=[{"id": "knowledge"}]), ctx
             )
         assert resources["kb_collection_names"] == ["shared"]
         scope = resources["kb_vector_scopes"]["shared"]
         assert scope.knowledge_base_id == ids[0]
         assert scope.additional_knowledge_base_ids == (ids[1],)
+
+    @pytest.mark.anyio
+    @pytest.mark.security
+    async def test_a_same_named_base_of_another_scope_is_left_out(self):
+        """Two scopes cannot be read as one union, so the second base stays out
+        rather than being read under the first one's tenant."""
+        ctx = _ctx()
+        ids = [uuid.uuid4(), uuid.uuid4()]
+        scopes = [
+            VectorScope(tenant=ctx.organization_id, knowledge_base_id=ids[0]),
+            VectorScope(tenant=None, knowledge_base_id=ids[1], operator_unfiled_only=True),
+        ]
+        collections = {
+            cid: SimpleNamespace(
+                id=cid,
+                organization_id=ctx.organization_id,
+                collection_name="shared",
+                vector_scope=scope,
+            )
+            for cid, scope in zip(ids, scopes, strict=True)
+        }
+        with patch(
+            "app.services.agent_runner.knowledge_base_repo.get_by_ids",
+            new=AsyncMock(return_value=collections),
+        ):
+            resources = await AgentRunnerService(_db())._bound_collections(
+                AgentSpec(name="Both", collection_ids=ids, capabilities=[{"id": "knowledge"}]), ctx
+            )
+        assert resources["kb_collection_names"] == ["shared"]
+        assert resources["kb_vector_scopes"]["shared"] == scopes[0]
+
+    @pytest.mark.anyio
+    @pytest.mark.security
+    async def test_an_app_scoped_base_is_left_out_beside_a_same_named_org_base(self):
+        """The org base is searched alone, under its own tenant."""
+        ctx = _ctx()
+        app_id, org_id = uuid.uuid4(), uuid.uuid4()
+        bases = {
+            app_id: KnowledgeBase(
+                id=app_id, scope=KBScope.APP.value, organization_id=None, collection_name="handbook"
+            ),
+            org_id: KnowledgeBase(
+                id=org_id,
+                scope=KBScope.ORG.value,
+                organization_id=ctx.organization_id,
+                collection_name="handbook",
+            ),
+        }
+        with patch(
+            "app.services.agent_runner.knowledge_base_repo.get_by_ids",
+            new=AsyncMock(return_value=bases),
+        ):
+            resources = await AgentRunnerService(_db())._bound_collections(
+                AgentSpec(
+                    name="Both", collection_ids=[app_id, org_id], capabilities=[{"id": "knowledge"}]
+                ),
+                ctx,
+            )
+
+        assert resources["kb_collection_names"] == ["handbook"]
+        assert resources["kb_vector_scopes"] == {"handbook": bases[org_id].vector_scope}
 
     @pytest.mark.anyio
     async def test_preparing_a_run_resolves_every_collection_in_one_query(self):
@@ -732,7 +798,7 @@ class TestPrepare:
         agent = MagicMock(
             id=uuid.uuid4(), current_version_id=uuid.uuid4(), system_key=None, kind="agent"
         )
-        spec = AgentSpec(name="Support", collection_ids=ids)
+        spec = AgentSpec(name="Support", collection_ids=ids, capabilities=[{"id": "knowledge"}])
 
         async def get_collections(_db, given):
             return {cid: collections[cid] for cid in given}
@@ -2883,6 +2949,63 @@ class TestAThreadsEarlierAttachmentsAreBroughtBack:
         assert prepared.run.skill_version_ids == [before, now]
 
     @pytest.mark.anyio
+    async def test_skills_bound_while_the_capability_is_off_reach_neither_prompt_nor_workspace(
+        self,
+    ):
+        """Switched off means none are loaded, sandbox or not - the Builder says so."""
+        bound = _served_skill("refunds", uuid.uuid4())
+        spec = AgentSpec.model_validate(
+            {
+                "name": "Books",
+                "skill_ids": [str(bound.id)],
+                "capabilities": [{"id": "skills", "enabled": False}],
+            }
+        )
+        resolve = AsyncMock(
+            side_effect=lambda ctx, skill_ids, **_: [
+                skill for skill in (bound,) if skill.id in skill_ids
+            ]
+        )
+        document = StateBackend()
+
+        prepared, instructions, *_ = await self._prepare(
+            _sandbox(document), earlier=None, spec=spec, resolve_skills=resolve
+        )
+
+        assert [call.args[1] for call in resolve.await_args_list] == [[]]
+        assert prepared.run.skill_version_ids == []
+        assert SKILLS_ROOT not in instructions
+        assert prepared.materialised_skills is None or not prepared.materialised_skills.written
+
+    @pytest.mark.anyio
+    async def test_context_and_collections_kept_while_switched_off_are_not_resolved(self):
+        """Neither reaches a run whose capability is off, so neither is read for it."""
+        from app.services.context import ContextService
+
+        spec = AgentSpec.model_validate(
+            {
+                "name": "Books",
+                "context_ids": [str(uuid.uuid4())],
+                "collection_ids": [str(uuid.uuid4())],
+                "capabilities": [
+                    {"id": "context", "enabled": False},
+                    {"id": "knowledge", "enabled": False},
+                ],
+            }
+        )
+        contexts = AsyncMock(return_value=[])
+        collections = AsyncMock(return_value={})
+
+        with (
+            patch.object(ContextService, "resolve_for_agent", new=contexts),
+            patch("app.services.agent_runner.knowledge_base_repo.get_by_ids", new=collections),
+        ):
+            await self._prepare(_sandbox(StateBackend()), earlier=None, spec=spec)
+
+        assert [call.args[1] for call in contexts.await_args_list] == [[]]
+        assert [call.args[1] for call in collections.await_args_list] == [[]]
+
+    @pytest.mark.anyio
     async def test_a_run_records_its_specialists_skill_versions_from_one_resolve_each(self):
         """The specialist's skills are the ones it was built with, not resolved again."""
         own, specialist = (
@@ -2894,6 +3017,7 @@ class TestAThreadsEarlierAttachmentsAreBroughtBack:
                 "name": "Books",
                 "skill_ids": [str(own.id)],
                 "capabilities": [
+                    {"id": "skills"},
                     {
                         "id": "subagents",
                         "config": {
@@ -2903,10 +3027,11 @@ class TestAThreadsEarlierAttachmentsAreBroughtBack:
                                     "description": "Bills.",
                                     "instructions": "Bill.",
                                     "skill_ids": [str(specialist.id)],
+                                    "capabilities": [{"id": "skills"}],
                                 }
                             ]
                         },
-                    }
+                    },
                 ],
             }
         )
@@ -9533,6 +9658,96 @@ class TestPerRunLocalServices:
 
     @pytest.mark.anyio
     @pytest.mark.parametrize(
+        "harness,enabled,refusal",
+        [
+            ("codex", True, None),
+            ("claude_code", True, None),
+            ("external", True, None),
+            ("external", False, "has not enabled"),
+            ("codex", True, "plain text output"),
+        ],
+    )
+    async def test_a_native_primary_runtime_replaces_the_model_without_a_cloud_credential(
+        self, monkeypatch: pytest.MonkeyPatch, harness: str, enabled: bool, refusal: str | None
+    ):
+        from app.agents.native_model_spec import NativeModelSpec
+        from app.core.config import settings
+        from app.schemas.local_target import LocalTarget, NativeConversationTarget
+        from app.services import device_hub
+
+        for name in ("CODEX", "CLAUDE", "EXTERNAL"):
+            monkeypatch.setattr(settings, f"{name}_NATIVE_CONVERSATION_ENABLED", enabled)
+        ctx = _ctx()
+        session = uuid.uuid4()
+        runtime = NativeConversationTarget(
+            harness=harness,
+            session_epoch=uuid.uuid4(),
+            access="edit",
+            model_id="account-model",
+            registration_id="agy" if harness == "external" else None,
+        )
+        target = LocalTarget(folder="/approved", mode="full_access", conversation_runtime=runtime)
+        assert ctx.user_id is not None
+        workspace = OpenWorkspace(
+            workspace=Workspace(device_hub.DeviceWorkspace(session, ctx.user_id, target)),
+            kind="service",
+            scope="run",
+            scope_key="local",
+            row_id=None,
+            local=True,
+        )
+        service = AgentRunnerService(_db())
+        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4(), kind="agent")
+        spec = AgentSpec(
+            name="Native",
+            model_profile_id=uuid.uuid4(),
+            output_schema={"type": "object"} if refusal == "plain text output" else None,
+        )
+        with (
+            patch.object(
+                service.registry,
+                "get_runnable_spec",
+                new=AsyncMock(return_value=(agent, spec, agent.current_version_id)),
+            ),
+            patch.object(
+                service.models,
+                "resolve",
+                new=AsyncMock(side_effect=AssertionError("No cloud credential for a native run")),
+            ),
+            patch.object(
+                service.models,
+                "profile_for_organization",
+                new=AsyncMock(return_value=MagicMock(id=spec.model_profile_id)),
+            ),
+            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+            patch.object(service.workspaces, "open", new=AsyncMock(return_value=workspace)),
+            patch(
+                "app.services.agent_runner.agent_run_repo.create_run",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ),
+            patch.object(
+                device_hub, "wait_for", AsyncMock(return_value=MagicMock(session_id=session))
+            ),
+            patch.object(device_hub, "local_mcp_toolset"),
+            patch("app.services.agent_runner.build_agent") as build,
+            patch("app.services.agent_runner.workspace_snapshot", AsyncMock(return_value=set())),
+        ):
+            if refusal is not None:
+                with pytest.raises(BadRequestError, match=refusal):
+                    await service.prepare(ctx, agent.id, local=target, surface=RunSurface.WEB)
+                build.assert_not_called()
+                return
+            async with asyncio.timeout(5):
+                await service.prepare(ctx, agent.id, local=target, surface=RunSurface.WEB)
+        model = build.call_args.args[1]
+        assert isinstance(model, NativeModelSpec) and model.target == runtime
+        assert model.provider == f"native-{harness}"
+        assert model.label.endswith("(native conversation)")
+        assert model.credential.routing["native_model"] == "account-model"
+        assert "The primary conversation runs in" in build.call_args.args[0].instructions
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize(
         "with_folder,whole_computer", [(True, False), (False, False), (True, True)]
     )
     async def test_local_skills_reach_the_run_through_the_persons_own_session(
@@ -9680,6 +9895,10 @@ class TestPerRunLocalServices:
             ),
             patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
             patch.object(service.workspaces, "open", opened),
+            patch(
+                "app.services.agent_runner.build_toolsets_for_agent",
+                new=AsyncMock(return_value=ResolvedMcpToolsets([], [])),
+            ),
             patch(
                 "app.services.agent_runner.agent_run_repo.create_run",
                 new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
@@ -10427,6 +10646,9 @@ async def test_routine_origin_and_live_tool_guard_are_attached_during_preparatio
     )
     with (
         patch(
+            "app.services.agent_runner.mint_for_run", new=AsyncMock(return_value="run-test-key")
+        ) as credential,
+        patch(
             "app.services.agent_runner.build_toolsets_for_agent",
             new=AsyncMock(return_value=resolved),
         ),
@@ -10481,6 +10703,8 @@ async def test_routine_origin_and_live_tool_guard_are_attached_during_preparatio
     assert create.await_args.kwargs["routine_policy"]["activation_id"] == (
         None if ctx.routine_dispatch_id is None else str(ctx.routine_dispatch_id)
     )
+    assert credential.await_args.kwargs["run_id"] == create.await_args.kwargs["run_id"]
+    assert credential.await_args.kwargs["reporting_only"] is True
     assert create.await_args.kwargs["trigger_id"] == ctx.routine_id
     assert create.await_args.kwargs["routine_policy"]["mcp_sources"] == {}
     assert (
@@ -10583,6 +10807,9 @@ async def test_watch_preparation_uses_the_selected_agent_with_approved_sources_a
     )
     receipt = WatchReadReceipt(activation_at=datetime.now(UTC))
     with (
+        patch(
+            "app.services.agent_runner.mint_for_run", new=AsyncMock(return_value="watch-test-key")
+        ),
         patch.object(
             service.registry,
             "get_runnable_spec",

@@ -339,7 +339,9 @@ class TestADelegateSearchesUnderItsOwnName:
         ):
             resources = await service._delegate_resources(
                 ctx,
-                AgentSpec(name="Delegate", collection_ids=[kb_id]),
+                AgentSpec(
+                    name="Delegate", collection_ids=[kb_id], capabilities=[{"id": "knowledge"}]
+                ),
                 agent_id=agent_id,
                 person_id=ctx.user_id,
                 shared=[],

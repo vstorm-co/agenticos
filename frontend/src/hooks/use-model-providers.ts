@@ -1,12 +1,13 @@
 "use client";
 
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useRef } from "react";
 import {
   queryOptions,
   useMutation,
   useQueries,
   useQuery,
   useQueryClient,
+  type RefetchOptions,
 } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
@@ -28,6 +29,7 @@ import type {
   ProviderCatalog,
 } from "@/types/providers";
 export interface NewModelProfile {
+  params?: Record<string, unknown>;
   label: string;
   provider: string;
   model: string;
@@ -60,6 +62,7 @@ export interface NewModelProfile {
  * clears a key, an endpoint or an API choice where the server allows it.
  */
 export interface ModelProfileChanges {
+  params?: Record<string, unknown>;
   secret_id?: string | null;
   base_url?: string | null;
   api?: ModelApi | null;
@@ -123,7 +126,7 @@ export function useModelProfiles({ enabled = true }: { enabled?: boolean } = {})
   return { profiles: query.data?.items ?? [] };
 }
 
-export function useModelProviders() {
+export function useModelProviders({ silentCreate = false }: { silentCreate?: boolean } = {}) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("settings");
   const queryClient = useQueryClient();
@@ -178,7 +181,7 @@ export function useModelProviders() {
       apiClient.post<ModelProfile>("/providers/model-profiles", data),
     onSuccess: async (profile) => {
       await invalidate();
-      toast.success(t("modelAdded", { label: profile.label }));
+      if (!silentCreate) toast.success(t("modelAdded", { label: profile.label }));
     },
   });
 
@@ -268,30 +271,59 @@ interface ProviderModelList {
   source: "live" | "curated" | "unlisted";
 }
 
+function requestProviderModels(
+  providerId: string,
+  baseUrl: string | undefined,
+  secretId: string | undefined,
+  decision: boolean,
+  refresh = false,
+): Promise<ProviderModelList> {
+  const params = new URLSearchParams();
+  if (decision) params.set("api", "decisions");
+  if (baseUrl) params.set("base_url", baseUrl);
+  if (secretId) params.set("secret_id", secretId);
+  if (refresh) params.set("refresh", "true");
+  const query = params.size > 0 ? `?${params.toString()}` : "";
+  return apiClient.get<ProviderModelList>(`/providers/${providerId}/models${query}`);
+}
+
 function providerModelsQuery(
   providerId: string,
   baseUrl?: string,
   secretId?: string,
   decision = false,
 ) {
-  const params = new URLSearchParams();
-  if (decision) params.set("api", "decisions");
-  if (baseUrl) params.set("base_url", baseUrl);
-  if (secretId) params.set("secret_id", secretId);
-  const query = params.size > 0 ? `?${params.toString()}` : "";
   return queryOptions({
     queryKey: [
       ...qk.providers.models(providerId, baseUrl, secretId),
       ...(decision ? ["decisions"] : []),
     ],
-    queryFn: () => apiClient.get<ProviderModelList>(`/providers/${providerId}/models${query}`),
-    staleTime: 60 * 60 * 1000,
+    queryFn: () => requestProviderModels(providerId, baseUrl, secretId, decision),
+    // A sign-in's listing changes with the account behind it, so never cached.
+    staleTime: ["openai_chatgpt", "subscription_accounts"].includes(providerId)
+      ? 0
+      : 60 * 60 * 1000,
     gcTime: 30 * 60 * 1000,
     // An empty dropdown is the fallback the field is built for, so a provider
     // that cannot be reached must not retry three times behind an open form.
     retry: false,
   });
 }
+
+/**
+ * Plan providers whose regional endpoint is set in the form: the listing goes to
+ * that endpoint with the selected key, never to the vendor's general API.
+ */
+export const KEYED_PLAN_ENDPOINTS = [
+  "zai",
+  "kimi_code",
+  "alibaba_coding_plan",
+  "opencode_go",
+  "ollama_cloud",
+];
+
+/** Providers whose catalog is read at a named endpoint with the profile's own key. */
+export const KEYED_LISTINGS = ["stav", "otari", "cliproxyapi", ...KEYED_PLAN_ENDPOINTS];
 
 /**
  * The models one provider offers, for the field where a model id is typed.
@@ -311,13 +343,29 @@ export function useProviderModels(
   secretId?: string,
   decision = false,
 ) {
-  const { data, isFetching, refetch } = useQuery({
+  const nextRefresh = useRef(false);
+  const canRefresh =
+    providerId !== "" &&
+    !(providerId === "openai_chatgpt" && !secretId) &&
+    !(LISTED_ONLY_AT_ENDPOINT.includes(providerId) && !baseUrl) &&
+    !([...LISTED_WITH_KEY, ...KEYED_LISTINGS].includes(providerId) && baseUrl && !secretId);
+  const { data, isFetching, refetch, error } = useQuery({
     ...providerModelsQuery(providerId, baseUrl, secretId, decision),
-    enabled:
-      providerId !== "" &&
-      !(LISTED_ONLY_AT_ENDPOINT.includes(providerId) && !baseUrl) &&
-      !(LISTED_WITH_KEY.includes(providerId) && baseUrl && !secretId),
+    queryFn: () => {
+      const requested = nextRefresh.current;
+      nextRefresh.current = false;
+      return requestProviderModels(providerId, baseUrl, secretId, decision, requested);
+    },
+    enabled: canRefresh,
   });
+
+  const refreshModels = useCallback(
+    (options?: RefetchOptions) => {
+      nextRefresh.current = true;
+      return refetch(options);
+    },
+    [refetch],
+  );
 
   // Both fields this fills choose a model to talk to, so a speech or embedding
   // model is not a suggestion (#2487). The field stays free text, so the ids
@@ -333,7 +381,9 @@ export function useProviderModels(
     source: data?.source ?? null,
     isLoading: isFetching,
     hasCachedListing: data !== undefined,
-    refetch,
+    error,
+    refetch: refreshModels,
+    canRefresh,
   };
 }
 

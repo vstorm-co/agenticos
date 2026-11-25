@@ -20,6 +20,7 @@ export interface BrowserPanelState {
   openCallId: string | null;
   open: (callId: string, surface?: BrowseSurface) => void;
   openSurface: (surface: WorkspaceSurface) => void;
+  toggle: (callId: string) => void;
   close: () => void;
 }
 
@@ -35,6 +36,7 @@ const browserPanelState: StateCreator<BrowserPanelState> = (set) => ({
   openCallId: null,
   open: (callId, surface = "browser") => set({ surface, openCallId: callId }),
   openSurface: (surface) => set({ surface, openCallId: null }),
+  toggle: (callId) => set((state) => ({ openCallId: state.openCallId === callId ? null : callId })),
   close: () => set({ surface: null, openCallId: null }),
 });
 

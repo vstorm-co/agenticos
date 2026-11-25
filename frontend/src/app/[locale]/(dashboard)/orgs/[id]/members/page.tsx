@@ -1,5 +1,7 @@
 "use client";
 
+import { OnboardingStatusCell } from "@/components/onboarding/onboarding-status-cell";
+
 import { use, useEffect, useId, useMemo, useState } from "react";
 import Link from "next/link";
 import {
@@ -107,6 +109,7 @@ const ROLE_VARIANT: Record<OrgRole, "default" | "secondary" | "outline"> = {
 export default function OrgMembersPage({ params }: PageProps) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("pages.orgs");
+  const onboarding = useTranslations("onboardingStatus");
   const tc = useTranslations("common");
   const tSetup = useTranslations("setupHints");
   const setupId = useId();
@@ -291,6 +294,17 @@ export default function OrgMembersPage({ params }: PageProps) {
         },
       },
       {
+        key: "onboarding",
+        header: onboarding("header"),
+        cell: (member) => (
+          <OnboardingStatusCell
+            completed_at={member.onboarding_completed_at}
+            current_step={member.onboarding_current_step}
+            updated_at={member.onboarding_updated_at}
+          />
+        ),
+      },
+      {
         key: "lastAction",
         header: <span title={t("lastActionHint")}>{t("lastAction")}</span>,
         cell: (member) => (
@@ -350,7 +364,18 @@ export default function OrgMembersPage({ params }: PageProps) {
     }
 
     return cols;
-  }, [canManage, user?.id, assignable, changeRole, tDirectory, tDiscord, t, tc, locale]);
+  }, [
+    canManage,
+    user?.id,
+    assignable,
+    changeRole,
+    tDirectory,
+    tDiscord,
+    t,
+    tc,
+    locale,
+    onboarding,
+  ]);
 
   return (
     <div className="flex flex-1 flex-col space-y-4">
@@ -648,7 +673,6 @@ export default function OrgMembersPage({ params }: PageProps) {
               <h2 className="text-sm font-medium">{t("assistantServices")}</h2>
               <p className="text-muted-foreground text-sm">{t("assistantServicesHint")}</p>
             </div>
-            {org && canSettings && <OrgChatHomeSettings org={org} />}
             {canConfigureAssistant && <OrgAssistant orgId={id} />}
             <div data-tour="org-proactivity">
               {org && (
@@ -671,6 +695,7 @@ export default function OrgMembersPage({ params }: PageProps) {
               <OrgSystemAgents org={org} excludeBriefing />
             </section>
           )}
+          {org && canSettings && <OrgChatHomeSettings org={org} />}
         </TabsContent>
       </Tabs>
 

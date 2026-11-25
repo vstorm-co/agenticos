@@ -55,6 +55,7 @@ export default getRequestConfig(async ({ requestLocale }) => {
 export function getLocaleLabel(locale: Locale): string {
   const labels: Record<Locale, string> = {
     en: "English",
+
   };
   return labels[locale];
 }
@@ -62,6 +63,7 @@ export function getLocaleLabel(locale: Locale): string {
 export function getLocaleFlag(locale: Locale): string {
   const flags: Record<Locale, string> = {
     en: "🇬🇧",
+
   };
   return flags[locale];
 }

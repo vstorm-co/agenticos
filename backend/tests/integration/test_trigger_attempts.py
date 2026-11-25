@@ -1,5 +1,6 @@
 """Before-run failures remain visible without retaining provider errors or prompts."""
 
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
@@ -11,7 +12,7 @@ from app.agents.spec import PlatformMcpServerRef
 from app.core.exceptions import NotFoundError
 from app.db.models.agent import AgentVersion
 from app.db.models.agent_run import AgentRun
-from app.repositories import agent_trigger_repo
+from app.repositories import agent_run_repo, agent_trigger_repo, conversation_repo
 from app.services.agent_trigger import AgentTriggerService
 from app.services.routine_sources import (
     PlatformRoutineIdentityRequired,
@@ -268,3 +269,59 @@ async def test_an_overlapping_schedule_leaves_a_reason_and_fires_after_the_run_e
     with patch.object(service, "queue_fire", AsyncMock()) as queued:
         assert await service.claim_and_advance(now=now) == [trigger]
     queued.assert_awaited_once()
+
+
+@pytest.mark.security
+async def test_readiness_finds_unlinked_parked_roots_without_crossing_tenants(
+    db: AsyncSession,
+) -> None:
+    from app.services.routine_readiness import _parked_run
+
+    ctx, trigger, _, _ = await world(db)
+    conversation = await conversation_repo.create_conversation(
+        db, organization_id=ctx.organization_id, user_id=ctx.subject_id, title="Routine history"
+    )
+    trigger.conversation_id = conversation.id
+    parked = await agent_run_repo.create_run(
+        db,
+        organization_id=ctx.organization_id,
+        agent_id=trigger.agent_id,
+        agent_version_id=trigger.pinned_version_id,
+        user_id=ctx.subject_id,
+        conversation_id=conversation.id,
+        surface="web",
+        model_label=None,
+        started_at=datetime.now(UTC),
+    )
+    parked.status = "awaiting_approval"
+    for status, parent in [("awaiting_answer", parked.id), ("completed", None)]:
+        run = await agent_run_repo.create_run(
+            db,
+            organization_id=ctx.organization_id,
+            agent_id=trigger.agent_id,
+            agent_version_id=trigger.pinned_version_id,
+            user_id=ctx.subject_id,
+            conversation_id=conversation.id,
+            surface="web",
+            model_label=None,
+            started_at=datetime.now(UTC),
+            parent_run_id=parent,
+        )
+        run.status = status
+    await db.flush()
+    assert trigger.last_run_id is None
+    blocker = await _parked_run(db, trigger)
+    assert blocker is not None and blocker.run_id == parked.id
+    assert blocker.code == "awaiting_approval" and blocker.severity == "blocked"
+    assert (
+        await agent_run_repo.latest_parked_run_for_conversation(
+            db, organization_id=uuid4(), conversation_id=conversation.id
+        )
+        is None
+    )
+    assert (
+        await agent_run_repo.latest_parked_run_for_conversation(
+            db, organization_id=ctx.organization_id, conversation_id=uuid4()
+        )
+        is None
+    )

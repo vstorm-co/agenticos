@@ -36,6 +36,7 @@ def _conversation(
         project_id=project_id,
         room_visibility=None,
         title="Source",
+        origin=None,
         plan_items=None,
         forked_from_conversation_id=forked_from,
         forked_from_message_id=uuid4() if forked_from else None,
@@ -138,6 +139,7 @@ class TestTheOwnerForks:
         assert copy.await_args.kwargs == {
             "source": source,
             "through": answer,
+            "owner_user_id": OWNER_ID,
             "restored_summary": None,
             "copy_summary": False,
             "copy_bytes": 5120,

@@ -4,7 +4,7 @@ import { toolLookupName } from "@/lib/tool-identity";
 
 import { createContext, useContext } from "react";
 
-import { Maximize2, Monitor } from "lucide-react";
+import { Minimize2, Monitor } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { useLiveBrowse } from "@/hooks/use-live-browse";
@@ -101,9 +101,9 @@ function InlineBrowser({
   surface: BrowseSurface;
 }) {
   const t = useTranslations("chat");
-  const workspace = useTranslations("chat.workspace");
   const { browses, surfaces = new Map(), onProtected } = useContext(LiveBrowses);
   const expand = useBrowserPanelStore((state) => state.open);
+  const toggle = useBrowserPanelStore((state) => state.toggle);
   const choice = useBrowserPanelStore((state) => state.surface);
   const callId = useBrowserPanelStore((state) => state.openCallId);
   const selected = choice === "browser" || choice === "computer" ? choice : null;
@@ -125,13 +125,13 @@ function InlineBrowser({
       {expanded ? (
         <button
           type="button"
-          onClick={() => expand(streamed.callId, surface)}
+          onClick={() => toggle(streamed.callId)}
+          aria-expanded
+          title={t("browserClose")}
           className="text-muted-foreground hover:text-foreground flex h-full w-full flex-col items-center justify-center gap-2 text-sm"
         >
-          <Maximize2 className="size-5" aria-hidden />
-          {surface === "computer"
-            ? workspace("openComputer")
-            : t("browserShownInPanel", { host: hostOf(browse.url) ?? t("browserHeading") })}
+          <Minimize2 className="size-5" aria-hidden />
+          {t("browserShownInPanel", { host: hostOf(browse.url) ?? t("browserHeading") })}
         </button>
       ) : (
         <BrowserWindow
@@ -154,7 +154,7 @@ function InlineBrowser({
   );
 }
 
-/** A compact transcript entry that reopens the browser side panel. */
+/** A compact transcript entry that toggles its browser side panel. */
 function BrowserLink({ browse }: { browse: Browse }) {
   const t = useTranslations("browserCredentials");
   const open = useBrowserPanelStore((state) => state.open);
@@ -167,6 +167,15 @@ function BrowserLink({ browse }: { browse: Browse }) {
       />
     );
   }
+  const toggle = useBrowserPanelStore((state) => state.toggle);
+  const expanded = useBrowserPanelStore((state) => state.openCallId === browse.callId);
   const page = recordedBrowserPage({ args: { url: browse.url }, result: undefined });
-  return <BrowserVisit url={page.url} title={browse.title} onOpen={() => open(browse.callId)} />;
+  return (
+    <BrowserVisit
+      url={page.url}
+      title={browse.title}
+      expanded={expanded}
+      onOpen={() => toggle(browse.callId)}
+    />
+  );
 }

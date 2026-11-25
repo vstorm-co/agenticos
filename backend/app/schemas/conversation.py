@@ -749,9 +749,9 @@ class ConversationRead(ConversationBase, TimestampSchema):
         description="Private or public room visibility; null for legacy conversations and project chats",
     )
     is_archived: bool = False
-    origin: Literal["api", "workflow"] | None = Field(
+    origin: Literal["api", "workflow", "routine"] | None = Field(
         default=None,
-        description="`api` for organization-key runs, `workflow` for private agent-step threads; null otherwise",
+        description="`api` for organization-key runs, `workflow` for private agent-step threads, `routine` for read-only shared routine histories; null otherwise",
     )
     is_favourite: bool = Field(
         default=False,
@@ -843,6 +843,10 @@ class ConversationRead(ConversationBase, TimestampSchema):
             "`GET /conversations/shared-with-me` and on a single conversation's read; "
             "null for the owner and for anyone reading it another way."
         ),
+    )
+    can_fork_routine_log: bool = Field(
+        default=False,
+        description="Whether this reader created the routine and may fork its shared history into a private chat.",
     )
     forked_from: ConversationForkOrigin | None = Field(
         default=None,

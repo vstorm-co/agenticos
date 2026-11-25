@@ -1,5 +1,6 @@
 "use client";
 
+import { SquareTerminal } from "lucide-react";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { BrandIcon } from "@/components/icons/brand-icon";
 import { AvatarFace } from "@/components/ui/avatar-face";
@@ -34,7 +35,9 @@ export function DelegateFace({
           className,
         )}
       >
-        {who.harness === "claude_code" || who.harness === "codex" ? (
+        {who.harness === "custom" ? (
+          <SquareTerminal className="size-[60%]" aria-hidden />
+        ) : who.harness === "claude_code" || who.harness === "codex" ? (
           <BrandIcon name={who.harness} className="size-[60%]" aria-hidden />
         ) : (
           // No brand glyph for the new harnesses yet: the icon generator owns
@@ -42,6 +45,7 @@ export function DelegateFace({
           <span className="size-full overflow-hidden rounded-full">
             <AvatarFace seed={`harness:${who.harness}`} background={false} />
           </span>
+
         )}
       </span>
     );

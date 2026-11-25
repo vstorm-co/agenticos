@@ -1,8 +1,10 @@
 "use client";
 
-import { useId, useState, type ReactNode } from "react";
+import { isChatGPTSignInKind, type SecretPurpose } from "@/types/secrets";
+import { useId, useRef, useState, type ReactNode } from "react";
 import { Check, KeyRound, Plus, Save } from "lucide-react";
 
+import { canonicalJson } from "@/lib/canonical-json";
 import { NO_FAILURE, submitFailure } from "@/lib/api-error";
 import {
   connectionModelLabel,
@@ -11,6 +13,15 @@ import {
   LISTED_WITH_KEY,
   runsAgents,
 } from "@/lib/model-profiles";
+import { ModelSourceSelect } from "./model-source-select";
+import { SubscriptionModelForm } from "./subscription-model-form";
+import {
+  subscriptionChoice,
+  subscriptionFromChoice,
+  subscriptionProviderFor,
+} from "@/lib/subscription-accounts-api";
+import { useSubscriptionAccounts } from "@/hooks/use-subscription-accounts";
+import { ProfileModelSettings } from "./profile-model-settings";
 import { ModelCombobox } from "@/components/agents/model-combobox";
 import { InlineChatGPTSignIn } from "@/components/vault/chatgpt-sign-in";
 import { InlineSecret } from "@/components/vault/inline-secret";
@@ -35,14 +46,17 @@ import {
   useSecretPurposes,
   useSecrets,
 } from "@/hooks";
+import { KEYED_LISTINGS, KEYED_PLAN_ENDPOINTS } from "@/hooks/use-model-providers";
 import { Perm } from "@/types/permissions";
 import type { ModelApi, ModelProfile, ModelRegion, ProviderInfo } from "@/types/providers";
 import type { Secret } from "@/types/secrets";
 import { useTranslations } from "next-intl";
 
 interface AddModelProps {
+  generationSettings?: boolean;
   /** The caller owns the provider choice; do not draw a second selector. Remount on change. */
   fixedProviderId?: string;
+  presentation?: "form" | "library";
   /** Keep an existing model’s connection details behind a readable summary. */
   collapseConnection?: boolean;
   purpose?: "chat" | "decision";
@@ -261,6 +275,7 @@ export function endpointProfileLabel(
 
 export function AddModel({
   fixedProviderId,
+  presentation = "form",
   onCreated,
   onCreationPendingChange,
   onCancel,
@@ -269,8 +284,13 @@ export function AddModel({
   connection,
   purpose,
   collapseConnection = false,
+  generationSettings = false,
 }: AddModelProps) {
   const fieldId = useId();
+  const settingsFields = useRef<HTMLDivElement>(null);
+  const [params, setParams] = useState<Record<string, unknown>>(selected?.params ?? {});
+  const savedParams = canonicalJson(selected?.params ?? {});
+  const [previousParams, setPreviousParams] = useState(savedParams);
   const [connectionOpen, setConnectionOpen] = useState(false);
   const tErrors = useTranslations("errors");
   const t = useTranslations("agents");
@@ -278,7 +298,12 @@ export function AddModel({
   // `placeholderWords`. The chat's picker resolves the same keys from its own
   // namespace, so they cannot be relative to either caller's.
   const tRoot = useTranslations();
-  const { createProfile, updateProfile, catalog, profiles = [] } = useModelProviders();
+  const {
+    createProfile,
+    updateProfile,
+    catalog,
+    profiles = [],
+  } = useModelProviders({ silentCreate: purpose === "chat" });
   const { purposes } = useSecretPurposes();
   const { secrets } = useSecrets();
   const { can } = usePermissions();
@@ -293,8 +318,24 @@ export function AddModel({
   // `null` here means nobody has picked yet, and the answer below is what the
   // organization already told us.
   const [pickedProvider, setPickedProvider] = useState<string | null>(
-    connection?.purpose ?? selected?.provider ?? null,
+    selected?.provider === "subscription_accounts"
+      ? null
+      : (connection?.purpose ?? selected?.provider ?? null),
   );
+  const personalAccounts = useSubscriptionAccounts({
+    enabled: selected?.provider === "subscription_accounts",
+  });
+  const restoredSubscription = subscriptionProviderFor(
+    selected,
+    personalAccounts.accounts.data?.items ?? [],
+    (provider) => tRoot(`subscriptionAccounts.providers.${provider}`),
+  );
+  const restoredProvider =
+    selected?.provider === "subscription_accounts"
+      ? restoredSubscription
+        ? subscriptionChoice(restoredSubscription)
+        : ""
+      : selected?.provider;
   const [model, setModel] = useState(selected?.model ?? "");
   const [label, setLabel] = useState("");
   const [secretId, setSecretId] = useState(connection?.id ?? selected?.secret_id ?? "");
@@ -311,14 +352,42 @@ export function AddModel({
   const [failure, setFailure] = useState(NO_FAILURE);
   const [naming, setNaming] = useState(false);
 
-  const providers = purposes.filter(
-    (entry) =>
-      entry.category === "model_provider" &&
-      (purpose !== "decision" ||
-        catalog.some(
-          (provider) => provider.id === entry.id && provider.apis.includes("decisions"),
-        )),
-  );
+  const chooseSource = (value: string) => {
+    setPickedProvider(value);
+    setParams({});
+    setSecretId("");
+    setModel("");
+    setBaseUrl("");
+    setPickedApi(null);
+    setPickedRegion(null);
+    setFailure(NO_FAILURE);
+  };
+
+  const providers: SecretPurpose[] = [
+    ...purposes.filter(
+      (entry) =>
+        entry.category === "model_provider" &&
+        (purpose !== "decision" ||
+          catalog.some(
+            (provider) => provider.id === entry.id && provider.apis.includes("decisions"),
+          )),
+    ),
+    // Subscription accounts have no vault purpose - each person signs in to
+    // their own - so the catalog is what offers them. Never a decision model.
+    ...(purpose === "decision"
+      ? []
+      : catalog
+          .filter((entry) => entry.personal_gateway)
+          .map((entry): SecretPurpose => ({
+            id: entry.id,
+            label: entry.name,
+            category: "model_provider",
+            kind: "api_key",
+            help_url: null,
+            description: "",
+            icon: "",
+          }))),
+  ].sort((a, b) => a.label.localeCompare(b.label));
   /*
    * The provider an organization with exactly one key is obviously going to
    * pick, chosen for them.
@@ -334,8 +403,14 @@ export function AddModel({
    * `pickedProvider` wins and this stops being consulted.
    */
   const providerId =
-    fixedProviderId ?? pickedProvider ?? soleKeyedProvider(providers, secrets) ?? "";
-  const provider = providers.find((entry) => entry.id === providerId);
+    (fixedProviderId === "subscription_accounts"
+      ? (pickedProvider ?? restoredProvider ?? "")
+      : (fixedProviderId ?? pickedProvider ?? restoredProvider)) ??
+    soleKeyedProvider(providers, secrets) ??
+    "";
+  const found = providers.find((entry) => entry.id === providerId);
+  const provider =
+    found?.id === "cliproxyapi" ? { ...found, label: tRoot("modelSources.gateway") } : found;
   // The purposes list says which providers a *key* can be stored for; only the
   // provider catalog knows whether one accepts an endpoint and whether it can run
   // without a key at all. Both facts are the API's to state - a hardcoded list
@@ -348,7 +423,9 @@ export function AddModel({
   // provider is keyless *and* an endpoint says where to send the request, which is
   // the rule `ModelProfileService.create_profile` enforces; anything looser here
   // would offer a submit the API refuses.
-  const keyOptional = (capabilities?.keyless ?? false) && baseUrl.trim() !== "";
+  // Each person's own signed-in accounts: no key and no endpoint to choose.
+  const personalGateway = capabilities?.personal_gateway ?? false;
+  const keyOptional = personalGateway || ((capabilities?.keyless ?? false) && baseUrl.trim() !== "");
   // Only `openai` and `azure` serve both of OpenAI's APIs; for every other
   // provider there is nothing to choose and the field is not drawn.
   // What the provider publishes, where it publishes anything. Cached hard: a
@@ -384,7 +461,9 @@ export function AddModel({
   const endpoint = baseUrl.trim().replace(/\/+$/, "");
   const manualDiscovery =
     providerId !== "system-one" &&
-    (providerId === "otari" || (capabilities?.requires_base_url ?? false));
+    (providerId === "otari" ||
+      (KEYED_PLAN_ENDPOINTS.includes(providerId) && endpoint !== "") ||
+      (capabilities?.requires_base_url ?? false));
   const confirmedGateway =
     gatewayDiscovery?.endpoint === endpoint && gatewayDiscovery?.secretId === chosenKey;
   const listingEndpoint = manualDiscovery && !confirmedGateway ? undefined : endpoint || undefined;
@@ -418,10 +497,20 @@ export function AddModel({
     refused,
     source,
     isLoading: loadingModels,
+    error: listingError,
+    refetch: refreshModels,
+    canRefresh,
   } = useProviderModels(
-    personal && endpoint ? "" : providerId,
-    LISTED_AT_ENDPOINT.includes(providerId) ? listingEndpoint : undefined,
-    (personal && !endpoint) || LISTED_WITH_KEY.includes(providerId)
+    personal && endpoint
+      ? ""
+      : KEYED_PLAN_ENDPOINTS.includes(providerId) && manualDiscovery && !confirmedGateway
+        ? ""
+        : subscriptionFromChoice(providerId)
+          ? ""
+          : providerId,
+    [...LISTED_AT_ENDPOINT, ...KEYED_LISTINGS].includes(providerId) ? listingEndpoint : undefined,
+    (personal && !endpoint) ||
+      [...LISTED_WITH_KEY, ...KEYED_LISTINGS, "openai_chatgpt"].includes(providerId)
       ? chosenKey || undefined
       : undefined,
     (pickedApi ?? startingApi) === "decisions" || ["typesafe", "system-one"].includes(providerId),
@@ -470,12 +559,24 @@ export function AddModel({
   // profile* while ignoring the endpoint, the key and the name somebody had
   // just typed. A form with any of those filled in is creating something,
   // whatever its first two fields say.
+  // A refetch can rotate shared defaults; refresh an untouched form without erasing edits.
+  if (previousParams !== savedParams) {
+    if (
+      canonicalJson(params) === previousParams &&
+      providerId === selected?.provider &&
+      model.trim() === selected?.model
+    )
+      setParams(selected.params);
+    setPreviousParams(savedParams);
+  }
+
   const unchanged =
     selected !== undefined &&
     hasKey(selected) &&
     provider?.id === selected.provider &&
     model.trim() === selected.model &&
     label.trim() === "" &&
+    (!generationSettings || canonicalJson(params) === canonicalJson(selected.params)) &&
     baseUrl.trim() === (selected.base_url ?? "") &&
     api === (selected.api ?? null) &&
     // A Stav profile stored with no region runs in the default one, which is
@@ -554,9 +655,16 @@ export function AddModel({
     setFailure(NO_FAILURE);
   };
 
+  const settingsValid = (): boolean =>
+    !generationSettings ||
+    Array.from(settingsFields.current?.querySelectorAll("input") ?? []).every((input) =>
+      input.reportValidity(),
+    );
+
   const update = async () => {
     /* v8 ignore next -- `editing` is only true with a selection and a provider */
     if (selected === undefined || provider === undefined) return;
+    if (!settingsValid()) return;
     setFailure(NO_FAILURE);
     onCreationPendingChange?.(true);
     try {
@@ -565,6 +673,7 @@ export function AddModel({
         // All three, every time: the server compares them with what is stored
         // and writes only what differs, so what the form shows is what is saved.
         changes: {
+          ...(generationSettings ? { params } : {}),
           secret_id: chosenKey || null,
           base_url: customEndpoint ? baseUrl.trim() : null,
           api,
@@ -582,6 +691,7 @@ export function AddModel({
   const submit = async (separate = false) => {
     /* v8 ignore next -- the id comes from the list this select was built from */
     if (provider === undefined) return;
+    if (!settingsValid()) return;
     setFailure(NO_FAILURE);
     // Every caller selects what this creates as a model to talk to - an agent's,
     // or the one describing a document's images - so a model the provider's
@@ -615,6 +725,7 @@ export function AddModel({
         label: label.trim() || automaticLabel,
         provider: provider.id,
         model: model.trim(),
+        ...(generationSettings ? { params } : {}),
         // `null`, not `""`: the API distinguishes "no key, this is self-hosted"
         // from an unset field, and an empty string is neither.
         secret_id: chosenKey || null,
@@ -645,59 +756,61 @@ export function AddModel({
     }
   };
 
+  const subscription = subscriptionFromChoice(providerId);
+  const showProvider = fixedProviderId === undefined || fixedProviderId === "subscription_accounts";
+  if (subscription !== undefined)
+    return (
+      <div
+        className={
+          presentation === "library"
+            ? "space-y-4"
+            : "border-border bg-muted/20 space-y-4 rounded-xl border p-4"
+        }
+      >
+        <SubscriptionModelForm
+          key={subscription}
+          provider={subscription}
+          initialModel={providerId === restoredProvider ? selected?.model : undefined}
+          disabled={disabled}
+          onCreated={onCreated}
+          onPendingChange={onCreationPendingChange}
+          providerField={
+            showProvider && (
+              <FormField htmlFor={`${fieldId}-add-model-provider`} label={t("provider")}>
+                <ModelSourceSelect
+                  id={`${fieldId}-add-model-provider`}
+                  value={providerId}
+                  providers={providers}
+                  subscriptions
+                  disabled={disabled}
+                  onChange={chooseSource}
+                />
+              </FormField>
+            )
+          }
+        />
+      </div>
+    );
+
   return (
     <div className="border-border bg-muted/20 space-y-4 rounded-xl border p-4">
       <div
         className={
-          fixedProviderId === undefined
-            ? "grid gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]"
-            : "grid gap-4"
+          showProvider ? "grid gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]" : "grid gap-4"
         }
       >
-        {fixedProviderId === undefined && (
+        {showProvider && (
           <FormField htmlFor={`${fieldId}-add-model-provider`} label={t("provider")}>
-            <Select
+            <ModelSourceSelect
+              id={`${fieldId}-add-model-provider`}
               value={providerId}
+              providers={providers}
+              subscriptions={
+                purpose !== "decision" && catalog.some((entry) => entry.personal_gateway)
+              }
               disabled={disabled || connection !== undefined}
-              onValueChange={(value) => {
-                setPickedProvider(value);
-                setSecretId("");
-                setModel("");
-                setBaseUrl("");
-                setPickedApi(null);
-                setPickedRegion(null);
-                setFailure(NO_FAILURE);
-              }}
-            >
-              <SelectTrigger id={`${fieldId}-add-model-provider`} className="h-10">
-                <SelectValue placeholder={t("chooseProvider")} />
-              </SelectTrigger>
-              <SelectContent className="max-h-80">
-                {providers.map((entry) => {
-                  const keyed = secrets.some((secret) => secret.purpose === entry.id);
-                  return (
-                    <SelectItem
-                      key={entry.id}
-                      value={entry.id}
-                      // The row draws a mark and a mark has a `<title>`, which
-                      // counts as the item's text: without this, type-to-search
-                      // matches the brand rather than the provider's name.
-                      textValue={entry.label}
-                      // Outside the row on purpose: the trigger mirrors an item's
-                      // text, and a tick there would read as "selected" rather
-                      // than "this provider already has a key".
-                      trailing={
-                        keyed && (
-                          <Check className="text-muted-foreground ml-auto h-3.5 w-3.5 shrink-0" />
-                        )
-                      }
-                    >
-                      <ProviderRow provider={entry.id} name={entry.label} />
-                    </SelectItem>
-                  );
-                })}
-              </SelectContent>
-            </Select>
+              onChange={chooseSource}
+            />
           </FormField>
         )}
 
@@ -720,17 +833,29 @@ export function AddModel({
             id={`${fieldId}-add-model-id`}
             value={model}
             onChange={(next) => {
+              if (next !== model)
+                setParams(
+                  next.trim() === selected?.model && providerId === selected.provider
+                    ? selected.params
+                    : {},
+                );
               setModel(next);
               setFailure(NO_FAILURE);
             }}
             options={suggestions}
             source={source}
             loading={loadingModels}
-            disabled={provider === undefined}
+            onRefresh={canRefresh ? () => void refreshModels() : undefined}
+            disabled={disabled || provider === undefined}
             placeholder={placeholderWords(modelPlaceholder(provider?.id), tRoot)}
           />
         </FormField>
       </div>
+      {listingError && (
+        <p role="alert" className="text-destructive text-xs">
+          {tRoot("chat.modelPicker.catalogFailed")}
+        </p>
+      )}
 
       <ConnectionSettings
         collapsed={collapseConnection && selected !== undefined}
@@ -748,7 +873,7 @@ export function AddModel({
         }
         onOpenChange={setConnectionOpen}
       >
-        {provider !== undefined && (
+        {provider !== undefined && !personalGateway && (
           <div className="space-y-1.5">
             {/* One key needs no question. The vault has exactly one OpenRouter
               key in most organizations, and a select with a single option is a
@@ -805,14 +930,16 @@ export function AddModel({
                     ? t("noProviderKeyAddOneHere", { provider: provider.label })
                     : t("noProviderKeyAskSomebody", { provider: provider.label })}
                 </p>
-                {canStoreKey && provider.kind === "openai_codex" && (
+                {canStoreKey && isChatGPTSignInKind(provider.kind) && (
                   <InlineChatGPTSignIn
+                    key={provider.id}
+                    kind={isChatGPTSignInKind(provider.kind) ? provider.kind : "openai_codex"}
                     suggestedName={provider.label}
                     onCreated={chooseKey}
                     disabled={disabled}
                   />
                 )}
-                {canStoreKey && provider.kind !== "openai_codex" && (
+                {canStoreKey && !isChatGPTSignInKind(provider.kind) && (
                   <InlineSecret
                     kind="api_key"
                     purpose={provider.id}
@@ -975,6 +1102,16 @@ export function AddModel({
           </FormField>
         )}
       </ConnectionSettings>
+
+      {generationSettings && provider !== undefined && model.trim() !== "" && (
+        <div ref={settingsFields}>
+          <ProfileModelSettings
+            value={params}
+            onChange={setParams}
+            disabled={disabled || createProfile.isPending || updateProfile.isPending}
+          />
+        </div>
+      )}
 
       {/* The name is derived and almost never worth changing - it exists so an
           organization can run the same model twice under two keys and tell them
