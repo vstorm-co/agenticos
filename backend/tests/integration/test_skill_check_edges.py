@@ -560,7 +560,7 @@ class TestRunning:
         stale.created_at = stale.created_at - timedelta(days=2)
         await db.flush()
 
-        async def fail(_self, _check):
+        async def fail(_self, _check, _ctx):
             raise RuntimeError("cannot settle")
 
         monkeypatch.setattr(SkillCheckService, "_expire", fail)
