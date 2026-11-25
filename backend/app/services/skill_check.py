@@ -2313,11 +2313,12 @@ class SkillCheckService:
         self, ctx: AuthContext, skill_id: UUID, check_id: UUID, *, from_session: bool = False
     ) -> SkillCheckRead:
         """Refuse the change; a pending proposal it checked is discarded with it."""
-        await self.versions.skill_for(ctx, skill_id, Perm.SKILLS_EDIT)
+        skill = await self.versions.skill_for(ctx, skill_id, Perm.SKILLS_EDIT)
+        # The skill first, as every decision on a check takes it, so an apply and a discard
+        # queue; then the proposal before the check, as discarding the proposal does.
+        await skill_repo.lock(self.db, skill.id)
         proposal_id = (await self._check(ctx, skill_id, check_id)).proposal_id
         if proposal_id is not None:
-            # Discarding the proposal locks it before its running checks; taking the two
-            # locks in that order here too keeps a discard of each from deadlocking.
             await skill_proposal_repo.lock(
                 self.db, proposal_id, organization_id=ctx.organization_id
             )

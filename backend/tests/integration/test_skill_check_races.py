@@ -198,3 +198,71 @@ async def test_a_check_and_its_proposal_discarded_at_once_do_not_deadlock(
         stored = await reading.get(SkillProposal, proposal.id)
         assert check is not None and check.status == "discarded"
         assert stored is not None and stored.status == "discarded"
+
+
+async def test_a_check_applied_and_discarded_at_once_do_not_deadlock(
+    db: AsyncSession, engine: AsyncEngine, monkeypatch: pytest.MonkeyPatch
+):
+    """Both decisions lock the skill first. Paused once the apply holds the check, the
+    discard waits on the skill rather than taking the proposal and waiting on the check
+    while the apply waits on the proposal, which is the cycle Postgres aborts."""
+    lab = await _lab(db)
+    evals = FakeEvals()
+    evals.install(monkeypatch)
+    proposal = await _proposal(db, lab)
+    service = SkillCheckService(db)
+    started = await service.start(lab.ctx, lab.skill.id, SkillCheckStart(proposal_id=proposal.id))
+    evals.outcomes = {lab.a.id: Outcome(fixed=1)}
+    await _run_to_end(service, evals, lab, started.id)
+    await db.commit()
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    holding, go = asyncio.Event(), asyncio.Event()
+    get = skill_check_repo.get
+    first_lock = [True]
+
+    async def pausing(db_: AsyncSession, check_id, **kwargs):
+        found = await get(db_, check_id, **kwargs)
+        if kwargs.get("lock") and check_id == started.id and first_lock[0]:
+            first_lock[0] = False
+            holding.set()
+            await go.wait()
+        return found
+
+    monkeypatch.setattr(skill_check_repo, "get", pausing)
+
+    async def apply_check() -> None:
+        async with factory() as session:
+            await SkillCheckService(session).apply(
+                lab.ctx, lab.skill.id, started.id, SkillCheckApply(acknowledge_unknown=True)
+            )
+            await session.commit()
+
+    async def discard_check() -> str:
+        async with factory() as session:
+            try:
+                await SkillCheckService(session).discard(lab.ctx, lab.skill.id, started.id)
+            except AlreadyExistsError:
+                return "refused"
+            await session.commit()
+            return "discarded"
+
+    tasks: list[asyncio.Task[object]] = []
+    try:
+        tasks.append(asyncio.create_task(apply_check()))
+        await holding.wait()
+        tasks.append(asyncio.create_task(discard_check()))
+        await _waiting_for_a_lock(factory, tasks[1])
+        go.set()
+        await tasks[0]
+        assert await tasks[1] == "refused"
+        tasks = []
+    finally:
+        go.set()
+        for task in tasks:
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError, Exception):
+                await task
+
+    async with factory() as reading:
+        check = await reading.get(SkillCheck, started.id)
+        assert check is not None and check.status == "applied"
