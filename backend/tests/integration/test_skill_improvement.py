@@ -149,6 +149,20 @@ def fixed_evidence(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
     return state
 
 
+async def reviewed_check(
+    db: AsyncSession,
+    ctx: AuthContext,
+    skill_id: uuid.UUID,
+    run_id: uuid.UUID,
+    *,
+    main_alone: bool = False,
+) -> uuid.UUID:
+    """The check a person deciding on the session reviewed: its result, or main alone."""
+    session = await SkillImprovementService(db).read(ctx, skill_id, run_id)
+    check = session.main_alone_check if main_alone else session.check
+    return uuid.uuid4() if check is None else check.id
+
+
 async def _skill_on_main(db: AsyncSession, ctx: AuthContext) -> Skill:
     skill = await _skill(db, ctx, f"refunds-{uuid.uuid4().hex[:6]}")
     await SkillService(db).update(ctx, skill.id, SkillUpdate(content=_BODY))
@@ -1636,7 +1650,12 @@ class TestOutcomes:
             ctx,
             run.skill_id,
             run.id,
-            SkillImprovementApply(confirmed=True, pin_worse=True, acknowledge_unknown=True),
+            SkillImprovementApply(
+                confirmed=True,
+                check_id=await reviewed_check(db, ctx, run.skill_id, run.id),
+                pin_worse=True,
+                acknowledge_unknown=True,
+            ),
         )
 
         assert (applied.session.status, applied.session.outcome) == ("accepted", "applied_pinned")
@@ -1644,7 +1663,48 @@ class TestOutcomes:
         [(_, sent)] = [call for call in fake.calls if call[0] == "apply"]
         assert sent.pin_worse and sent.acknowledge_unknown
         with pytest.raises(ConcurrentChangeError):
-            await service.apply(ctx, run.skill_id, run.id, SkillImprovementApply(confirmed=True))
+            await service.apply(
+                ctx,
+                run.skill_id,
+                run.id,
+                SkillImprovementApply(
+                    confirmed=True, check_id=await reviewed_check(db, ctx, run.skill_id, run.id)
+                ),
+            )
+
+    @pytest.mark.security
+    async def test_a_decision_on_a_result_other_than_the_one_reviewed_is_refused(
+        self, db, evidence, monkeypatch
+    ):
+        """The session's result is checked again after a person reviewed it: applying or
+        forking names the check that was shown, and is refused for the other."""
+        fake = _checked(db, monkeypatch)
+        ctx = await _owner(db)
+        run = await _at_changes(db, ctx)
+        await _check_now(db, ctx, run)
+        run = await _settle(db, run, status="done", verdict="passed")
+        shown = await reviewed_check(db, ctx, run.skill_id, run.id)
+        service = SkillImprovementService(db)
+        other = uuid.uuid4()
+
+        with pytest.raises(ConcurrentChangeError, match="Refresh the session") as refused:
+            await service.apply(
+                ctx, run.skill_id, run.id, SkillImprovementApply(confirmed=True, check_id=other)
+            )
+        with pytest.raises(ConcurrentChangeError, match="Refresh the session"):
+            await service.fork(
+                ctx,
+                run.skill_id,
+                run.id,
+                SkillImprovementFork(confirmed=True, check_id=other, name="Returns"),
+            )
+
+        assert refused.value.details == {"check_id": shown, "reviewed_check_id": other}
+        assert [call for call in fake.calls if call[0] in ("apply", "fork")] == []
+        applied = await service.apply(
+            ctx, run.skill_id, run.id, SkillImprovementApply(confirmed=True, check_id=shown)
+        )
+        assert applied.session.outcome == "applied"
 
     async def test_apply_without_a_worse_agent_is_a_plain_apply(self, db, evidence, monkeypatch):
         _checked(db, monkeypatch)
@@ -1654,7 +1714,12 @@ class TestOutcomes:
         run = await _settle(db, run, status="done", verdict="passed")
 
         applied = await SkillImprovementService(db).apply(
-            ctx, run.skill_id, run.id, SkillImprovementApply(confirmed=True)
+            ctx,
+            run.skill_id,
+            run.id,
+            SkillImprovementApply(
+                confirmed=True, check_id=await reviewed_check(db, ctx, run.skill_id, run.id)
+            ),
         )
 
         assert applied.session.outcome == "applied" and applied.pinned == []
@@ -1669,7 +1734,14 @@ class TestOutcomes:
         run = await _settle(db, run, status="done", verdict="blocked")
 
         forked = await SkillImprovementService(db).fork(
-            ctx, run.skill_id, run.id, SkillImprovementFork(confirmed=True, name="Returns")
+            ctx,
+            run.skill_id,
+            run.id,
+            SkillImprovementFork(
+                confirmed=True,
+                check_id=await reviewed_check(db, ctx, run.skill_id, run.id),
+                name="Returns",
+            ),
         )
 
         assert (forked.session.status, forked.session.outcome) == ("accepted", "forked")
@@ -1684,7 +1756,14 @@ class TestOutcomes:
 
         with pytest.raises(ConcurrentChangeError):
             await SkillImprovementService(db).fork(
-                ctx, run.skill_id, run.id, SkillImprovementFork(confirmed=True, name="Returns")
+                ctx,
+                run.skill_id,
+                run.id,
+                SkillImprovementFork(
+                    confirmed=True,
+                    check_id=await reviewed_check(db, ctx, run.skill_id, run.id),
+                    name="Returns",
+                ),
             )
 
     async def test_a_check_plan_that_changed_at_the_same_price_asks_again(
@@ -2037,7 +2116,14 @@ class TestCheckAgain:
         service = SkillImprovementService(db)
 
         with pytest.raises(ConcurrentChangeError):
-            await service.apply(ctx, run.skill_id, run.id, SkillImprovementApply(confirmed=True))
+            await service.apply(
+                ctx,
+                run.skill_id,
+                run.id,
+                SkillImprovementApply(
+                    confirmed=True, check_id=await reviewed_check(db, ctx, run.skill_id, run.id)
+                ),
+            )
         before = await service.read(ctx, run.skill_id, run.id)
         rechecked = await _recheck(db, ctx, run)
         run = await _settle(db, run, status="done", verdict="passed")
@@ -2299,7 +2385,14 @@ class TestReviewFixes:
         _, run = await _with_result(db, await _owner(db), monkeypatch)
         ctx = await _owner_of(db, run)
         service = SkillImprovementService(db)
-        await service.apply(ctx, run.skill_id, run.id, SkillImprovementApply(confirmed=True))
+        await service.apply(
+            ctx,
+            run.skill_id,
+            run.id,
+            SkillImprovementApply(
+                confirmed=True, check_id=await reviewed_check(db, ctx, run.skill_id, run.id)
+            ),
+        )
 
         with pytest.raises(ConcurrentChangeError):
             await service.discard(ctx, run.skill_id, run.id, ImprovementDiscard(confirmed=True))

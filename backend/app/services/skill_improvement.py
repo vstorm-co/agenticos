@@ -953,6 +953,7 @@ class SkillImprovementService:
         """
         line, run = await self._editable_row(ctx, skill_id, run_id, lock=True)
         check_id = await self._decidable(run)
+        self._refuse_unreviewed(data.check_id, check_id)
         if run.purpose == Purpose.CATCH_UP.value:
             return await self._catch_up(ctx, line, run, check_id, data)
         merged_from_id = None
@@ -1026,6 +1027,7 @@ class SkillImprovementService:
         assert run.fork_id is not None, "a catch-up runs on its fork"
         alone = await self._main_alone_check(run)
         assert alone is not None, "return to main is offered after main alone was checked"
+        self._refuse_unreviewed(data.check_id, alone.id)
         await self.checks.decidable_for_session(ctx, run.skill_id, alone.id)
         measured = await self.checks.read(ctx, run.skill_id, alone.id)
         unknown = measured.hidden_unknown + sum(
@@ -1115,6 +1117,7 @@ class SkillImprovementService:
                 details={"purpose": run.purpose},
             )
         check_id = await self._decidable(run)
+        self._refuse_unreviewed(data.check_id, check_id)
         forked = await self.checks.fork(
             ctx,
             skill_id,
@@ -2037,6 +2040,18 @@ class SkillImprovementService:
         return await skill_check_repo.get(
             self.db, iteration.skill_check_id, organization_id=run.organization_id
         )
+
+    @staticmethod
+    def _refuse_unreviewed(reviewed: UUID, current: UUID) -> None:
+        """Refuse a decision on any result but the one the person reviewed."""
+        if reviewed != current:
+            raise ConcurrentChangeError(
+                message=(
+                    "The result waiting to be decided changed since you reviewed it. "
+                    "Refresh the session and review it again."
+                ),
+                details={"check_id": current, "reviewed_check_id": reviewed},
+            )
 
     async def _decidable(self, run: SkillImprovementRun) -> UUID:
         """The check a person decides on: the result the session waits with."""

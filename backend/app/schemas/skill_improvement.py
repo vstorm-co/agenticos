@@ -364,10 +364,16 @@ class SkillContinuationConsent(ContinuationConsent):
 
 class SkillImprovementApply(SkillCheckApply):
     confirmed: Literal[True]
+    check_id: UUID = Field(
+        description="The `check.id` of the result that was reviewed, from the session's read"
+    )
 
 
 class SkillImprovementReturn(BaseSchema):
     confirmed: Literal[True]
+    check_id: UUID = Field(
+        description="The `main_alone_check.id` that was reviewed, from the session's read"
+    )
     acknowledge_unknown: bool = Field(
         default=False,
         description="Return the fork's agents although main alone could not be checked on "
@@ -377,6 +383,9 @@ class SkillImprovementReturn(BaseSchema):
 
 class SkillImprovementFork(SkillCheckFork):
     confirmed: Literal[True]
+    check_id: UUID = Field(
+        description="The `check.id` of the result that was reviewed, from the session's read"
+    )
 
 
 class SkillImprovementApplied(BaseSchema):
