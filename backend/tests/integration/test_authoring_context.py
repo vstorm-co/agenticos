@@ -384,3 +384,25 @@ async def test_the_worker_stops_on_a_file_gone_or_out_of_the_starters_reach(db):
         gone.id: "The context file is gone.",
         lost.id: "Whoever started this may no longer edit the context file.",
     }
+
+
+@pytest.mark.security
+async def test_a_proposed_body_with_characters_nobody_can_see_is_never_recorded_or_applied(db):
+    """A bidi override in the body reorders what a reviewer reads; the proposal is not
+    recorded, and a row that carries one anyway is refused at Apply, the file unchanged."""
+    ctx, _agent, file, run_id = await _bound(db)
+
+    request = await _improve_context(db, ctx, file, _proposes(db, run_id, "Returns‮ 30."))
+
+    assert request.status != "completed" and "cannot be seen" in (request.error or "")
+    assert await _pending(db, file) == []
+    await _improve_context(db, ctx, file, _proposes(db, run_id))
+    (proposal,) = await _pending(db, file)
+    proposal.content = "Returns take 30 days.\U000e0041"
+    await db.flush()
+
+    with pytest.raises(BadRequestError, match="cannot see"):
+        await ContextProposalService(db).apply(ctx, proposal.id, ProposalDecision(revision=1))
+
+    await db.refresh(file)
+    assert file.content == "Returns take 90 days."

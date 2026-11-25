@@ -2,11 +2,12 @@
 
 from datetime import datetime
 from decimal import Decimal
-from typing import Literal
+from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import ConfigDict, Field, model_validator
+from pydantic import AfterValidator, ConfigDict, Field, model_validator
 
+from app.core.hidden_text import visible
 from app.db.models.improvement import (
     DroppedHunk,
     ImprovementMode,
@@ -646,7 +647,7 @@ class ChangeEdit(BaseSchema):
 
     model_config = ConfigDict(str_strip_whitespace=False)
 
-    edited_text: str | None = Field(max_length=20000)
+    edited_text: Annotated[str, AfterValidator(visible)] | None = Field(max_length=20000)
 
 
 class SelectionEstimate(BaseSchema):

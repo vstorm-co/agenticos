@@ -49,6 +49,7 @@ from app.core.exceptions import (
     PaymentRequiredError,
 )
 from app.core.field_errors import refused_field
+from app.core.hidden_text import holds_refused
 from app.core.permissions import AuthContext, Perm
 from app.db.models.authoring import (
     AuthoringKind,
@@ -315,8 +316,8 @@ def filtered(
     """The edits a session offers, and the ones its policy drops with why.
 
     An edit repeating one already kept is dropped, and so is one whose passage an
-    edit kept before it already changed - both cannot be applied - and every
-    description after the first.
+    edit kept before it already changed - both cannot be applied - every
+    description after the first, and an edit holding characters a person cannot see.
     """
     kept: list[SpecProposalHunk] = []
     dropped: list[DroppedHunk] = []
@@ -325,7 +326,9 @@ def filtered(
     described = False
     for hunk in hunks:
         reason: str | None = None
-        if hunk.kind == HunkKind.SKILL_DESCRIPTION.value:
+        if holds_refused([hunk.new_text, hunk.edited_text, hunk.new_description]):
+            reason = "hidden_characters"
+        elif hunk.kind == HunkKind.SKILL_DESCRIPTION.value:
             reason = "repeated" if described else None
             described = True
         elif (hunk.old_text, hunk.new_text) in seen:
@@ -1853,7 +1856,14 @@ class SkillImprovementService:
         *,
         base: SkillVersion | None = None,
     ) -> SkillCheckStart:
-        text = candidate_text(base or await self.base_of(run), await self._chosen(ctx, iteration))
+        chosen = await self._chosen(ctx, iteration)
+        if any(holds_refused([h.new_text, h.edited_text, h.new_description]) for h in chosen):
+            raise refused_field(
+                "hunk_ids",
+                "A chosen change holds characters a person cannot see, so it is neither "
+                "checked nor applied; leave it out",
+            )
+        text = candidate_text(base or await self.base_of(run), chosen)
         if text is None:
             raise refused_field(
                 "hunk_ids",

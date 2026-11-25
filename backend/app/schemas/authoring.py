@@ -8,11 +8,20 @@ a change somewhere it was not meant to go.
 from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
-from typing import Literal, TypedDict
+from typing import Annotated, Literal, TypedDict
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, JsonValue, field_validator, model_validator
+from pydantic import (
+    AfterValidator,
+    BaseModel,
+    ConfigDict,
+    Field,
+    JsonValue,
+    field_validator,
+    model_validator,
+)
 
+from app.core.hidden_text import holds_refused, visible
 from app.schemas.base import BaseSchema
 from app.schemas.dataset_helpers import DatasetHelper
 from app.schemas.skill import skill_name_refusal
@@ -43,6 +52,8 @@ class Rejection(StrEnum):
     """It names a tool the agent does not have."""
     INVALID_TOOL_CHANGE = "invalid_tool_change"
     """A tool name or description a binding may not take."""
+    HIDDEN_CHARACTERS = "hidden_characters"
+    """Its text holds characters a person cannot see: controls, bidi or tag characters."""
     # What `authoring_fields.stage` refuses, by the names it gives.
     NOT_A_TARGET = "not_a_target"
     OPERATION = "operation"
@@ -560,8 +571,15 @@ class HunkDecision(BaseSchema):
     model_config = ConfigDict(str_strip_whitespace=False)
 
     action: Literal["accept", "dismiss", "undo"]
-    text: str | None = Field(default=None, max_length=20000)
+    text: Annotated[str, AfterValidator(visible)] | None = Field(default=None, max_length=20000)
     value: JsonValue = None
+
+    @field_validator("value")
+    @classmethod
+    def _value_is_visible(cls, value: JsonValue) -> JsonValue:
+        if holds_refused(value):
+            raise ValueError("This value holds characters that cannot be seen")
+        return value
 
 
 class ProposalCheck(BaseSchema):

@@ -677,6 +677,8 @@ include = [
     "app/core/sanitize.py",
     # The bounded opening of a skill or context body that a listing card peeks at.
     "app/core/excerpt.py",
+    # Which characters a proposed or edited text may not carry before a person accepts it.
+    "app/core/hidden_text.py",
     # The client that dials the address it validated, for a URL the party being
     # validated chose. A miss here is an SSRF the operator cannot see.
     "app/core/pinned_http.py",
@@ -1618,6 +1620,8 @@ include = [
     "app/core/sanitize.py",
     # The bounded opening of a skill or context body that a listing card peeks at.
     "app/core/excerpt.py",
+    # Which characters a proposed or edited text may not carry before a person accepts it.
+    "app/core/hidden_text.py",
     # The client that dials the address it validated, for a URL the party being
     # validated chose. A miss here is an SSRF the operator cannot see.
     "app/core/pinned_http.py",

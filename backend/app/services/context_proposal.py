@@ -27,9 +27,11 @@ from app.core.audit import record_audit
 from app.core.exceptions import (
     AlreadyExistsError,
     AuthorizationError,
+    BadRequestError,
     ConcurrentChangeError,
     NotFoundError,
 )
+from app.core.hidden_text import holds_refused
 from app.core.permissions import AuthContext, Perm
 from app.db.models.context import ContextFile, ContextMode
 from app.db.models.context_proposal import ContextProposal
@@ -297,6 +299,14 @@ class ContextProposalService:
         """
         proposal, file = await self._get(ctx, proposal_id, perm=Perm.CONTEXT_EDIT)
         self._refuse_second_decision(proposal, decision.revision)
+        if holds_refused([proposal.content, proposal.description]):
+            raise BadRequestError(
+                message=(
+                    "This proposal holds characters a person cannot see, so it is never "
+                    "applied. Discard it, or edit the file by hand."
+                ),
+                details={"proposal_id": proposal.id, "reason": "hidden_characters"},
+            )
         # Locking re-reads the row into `file`: an edit committed meanwhile is seen.
         await context_repo.lock(self.db, file.id, organization_id=ctx.organization_id)
         if file.updated_at != proposal.base_updated_at:

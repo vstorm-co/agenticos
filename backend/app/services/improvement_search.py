@@ -46,6 +46,7 @@ from app.agents.spec import AgentSpec
 from app.agents.system_agents import IMPROVER
 from app.core.config import settings
 from app.core.exceptions import AppException, AuthenticationError
+from app.core.hidden_text import holds_refused
 from app.core.permissions import AuthContext
 from app.db.models.agent import Agent, AgentStatus
 from app.db.models.agent_run import RunStatus, RunSurface
@@ -165,6 +166,16 @@ def case_share(results: Sequence[ScorerResult]) -> float | None:
     if not graded:
         return None
     return sum(1 for r in graded if r.status == "pass") / len(graded)
+
+
+def usable_variant(seed: str, variant: str) -> bool:
+    """Whether a rewrite may be answered with: it keeps the seed's placeholders, changes
+    something, and carries no character a person reading the winner could not see."""
+    return (
+        keeps_placeholders(seed, variant)
+        and not holds_refused(variant)
+        and variant.strip() != seed.strip()
+    )
 
 
 def keeps_placeholders(seed: str, variant: str) -> bool:
@@ -968,8 +979,7 @@ class SearchWorker:
             kept = [
                 variant
                 for variant in proposed.variants
-                if keeps_placeholders(unit.seed, variant.instructions)
-                and variant.instructions.strip() != unit.seed.strip()
+                if usable_variant(unit.seed, variant.instructions)
             ][: unit.count]
             parent = unit.parent_ids[0] if unit.parent_ids else None
             await improvement_repo.add_variants(
