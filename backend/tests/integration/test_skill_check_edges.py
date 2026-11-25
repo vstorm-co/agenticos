@@ -636,13 +636,16 @@ class TestRunning:
         self, db, monkeypatch
     ):
         """More running checks than the sweep reads at once must not keep a newer one
-        whose runs all ended waiting behind them; one old enough to expire is read too."""
+        whose runs all ended waiting behind them, nor one whose agents were all deleted;
+        one old enough to expire is read too."""
         lab = await _lab(db)
         FakeEvals().install(monkeypatch)
         service = SkillCheckService(db)
         waiting = [await service.start(lab.ctx, lab.skill.id, _start()) for _ in range(3)]
         expiring = await service.start(lab.ctx, lab.skill.id, _start(fork_id=lab.fork_id))
         movable = await service.start(lab.ctx, lab.skill.id, _start(mode="thorough"))
+        orphaned = await service.start(lab.ctx, lab.skill.id, _start())
+        await db.execute(delete(SkillCheckAgent).where(SkillCheckAgent.check_id == orphaned.id))
         for check in waiting:
             stored = await skill_check_repo.get(
                 db, check.id, organization_id=lab.ctx.organization_id
@@ -660,7 +663,7 @@ class TestRunning:
             run.status = EvalRunStatus.COMPLETED.value
         await db.flush()
 
-        assert await service.sweep(limit=2) == 2
+        assert await service.sweep(limit=3) == 3
 
         queued = {
             job.payload["check_id"]
@@ -668,7 +671,7 @@ class TestRunning:
                 select(BackgroundJob).where(BackgroundJob.kind == "advance-skill-check")
             )
         }
-        assert queued == {str(movable.id), str(expiring.id)}
+        assert queued == {str(movable.id), str(expiring.id), str(orphaned.id)}
 
     async def test_a_starter_who_lost_sight_of_the_runs_leaves_the_agent_unknown(
         self, db, monkeypatch

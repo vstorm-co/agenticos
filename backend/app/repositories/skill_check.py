@@ -346,7 +346,8 @@ async def needing_advance(
 ) -> list[tuple[UUID, UUID]]:
     """Running checks in every organization that have something to do, as
     `(organization_id, id)`, oldest first: an agent whose current stage's run settled
-    or is gone, or the check old enough to expire.
+    or is gone, no run left to wait for - its agents queued, finished or deleted - or
+    the check old enough to expire.
 
     The sweep's own read: it re-reads each one in its organization before acting. A
     check whose runs are all still going waits for them rather than taking a place
@@ -364,11 +365,28 @@ async def needing_advance(
             or_(EvalRun.id.is_(None), EvalRun.status.in_(list(settled))),
         )
     )
+    waiting_on_a_run = (
+        select(SkillCheckAgent.id)
+        .join(
+            EvalRun,
+            and_(EvalRun.id == current, EvalRun.organization_id == SkillCheckAgent.organization_id),
+        )
+        .where(
+            SkillCheckAgent.check_id == SkillCheck.id,
+            SkillCheckAgent.state == AgentState.RUNNING.value,
+            EvalRun.status.not_in(list(settled)),
+        )
+        .exists()
+    )
     rows = await db.execute(
         select(SkillCheck.organization_id, SkillCheck.id)
         .where(
             SkillCheck.status == CheckStatus.RUNNING.value,
-            or_(SkillCheck.id.in_(movable), SkillCheck.created_at < stale_before),
+            or_(
+                SkillCheck.id.in_(movable),
+                ~waiting_on_a_run,
+                SkillCheck.created_at < stale_before,
+            ),
         )
         .order_by(SkillCheck.created_at)
         .limit(limit)
