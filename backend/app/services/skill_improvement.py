@@ -82,6 +82,7 @@ from app.repositories import (
     agent_repo,
     agent_run_repo,
     authoring_repo,
+    dataset_repo,
     skill_check_repo,
     skill_improvement_repo,
     skill_repo,
@@ -138,6 +139,7 @@ from app.services.api_key import job_context
 from app.services.authoring import AuthoringService
 from app.services.authoring_evidence import EvidencePack
 from app.services.background_jobs import enqueue
+from app.services.improvement_data import quotes_a_question
 from app.services.improvement_pipeline import ImprovementPipelineService
 from app.services.improvement_skills import SkillSeed
 from app.services.skill_agents import SkillAgentService
@@ -915,6 +917,12 @@ class SkillImprovementService:
             "actor_api_key_id": ctx.api_key_id,
         }
         if quote.mode == "next_round":
+            if consent.note is not None and quotes_a_question(
+                consent.note, await self._measured_questions(run)
+            ):
+                raise refused_field(
+                    "note", "The note quotes a question this attempt is measured on"
+                )
             await self._set_aside_checks(run)
             number = run.iteration + 1
             await skill_improvement_repo.create_iteration(
@@ -2029,6 +2037,40 @@ class SkillImprovementService:
                 code="LINE_MOVED",
                 details={"base_version_id": run.base_version_id, "latest": line.latest},
             )
+
+    async def _measured_questions(self, run: SkillImprovementRun) -> list[str]:
+        """The questions the next check may grade: the skill's own test questions, every one
+        held out, and the held-out questions of the datasets the last check asked its
+        agents."""
+        org = run.organization_id
+        sets: list[tuple[UUID, int, bool]] = []
+        test_set = await dataset_repo.for_skill(self.db, run.skill_id, organization_id=org)
+        if test_set is not None:
+            sets.append((test_set.id, test_set.latest_version, True))
+        check = await self._check(run)
+        if check is not None:
+            sets.extend(
+                (row.dataset_id, row.dataset_version, False)
+                for row in await skill_check_repo.list_agents(
+                    self.db, [check.id], organization_id=org
+                )
+                if row.dataset_id is not None and row.dataset_version is not None
+            )
+        questions: list[str] = []
+        for dataset_id, number, whole in dict.fromkeys(sets):
+            version = await dataset_repo.get_version(
+                self.db, dataset_id, number, organization_id=org
+            )
+            if version is None:
+                continue
+            questions.extend(
+                case.input
+                for case in await dataset_repo.list_cases(
+                    self.db, version.id, organization_id=org, limit=None
+                )
+                if whole or case.improvement_partition == "holdout"
+            )
+        return questions
 
     async def _check(self, run: SkillImprovementRun) -> SkillCheck | None:
         """The current attempt's check, once it started."""

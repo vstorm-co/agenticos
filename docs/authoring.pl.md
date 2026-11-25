@@ -1,5 +1,5 @@
 ---
-source_sha: "08e76ac5a7af"
+source_sha: "dea33e05483e"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -365,6 +365,12 @@ materiału; próba pisze nowe zmiany i zatrzymuje się po **Zmianach**, bo
 ramach budżetu. Dwa wyniki z rzędu bez zmiany albo nierozstrzygnięty wynik i
 jego powtórzenie pokazują się na wyniku jako podpowiedź, że kolejna próba raczej
 nie pomoże, a nie jako zatrzymanie.
+
+Notatka cytująca pytanie, na którym mierzy się nowa próba, jest odrzucana na
+polu `note`, tak samo jak notatka w sesji skilla cytująca pytanie, które może
+ocenić jego następny test: pomocnik czytałby to, co test potem mierzy.
+Porównanie pomija wielkość liter i odstępy i łapie kopię, a nie parafrazę,
+dlatego Architekt w ogóle nie dostaje treści pytań odłożonych.
 
 Kto może rozpocząć sesję dla agenta - prawo edycji, `runs:view` i  - może też wykonać jej następny krok albo spróbować ponownie. Sesja
 zapisuje, kto to zrobił, a dalsze kroki idą z aktualnymi uprawnieniami i

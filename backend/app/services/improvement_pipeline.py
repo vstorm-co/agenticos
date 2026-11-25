@@ -162,6 +162,7 @@ from app.services.improvement_data import (
     drawn_holdout,
     holdout_count,
     input_hash,
+    quotes_a_question,
     split_seed,
 )
 from app.services.improvement_search import (
@@ -2055,6 +2056,13 @@ class ImprovementPipelineService:
             )
         if data.note is not None and quote.mode != "next_round":
             raise refused_field("note", "A note goes only with Try again")
+        if data.note is not None and quotes_a_question(
+            data.note,
+            await self._questions_of(
+                run, await self._kept_aside(run, quote.number, plan.measurable)
+            ),
+        ):
+            raise refused_field("note", "The note quotes a question this attempt is measured on")
         stage = self._continued_stage(run, quote.mode)
         if quote.mode == "next_round":
             following = await improvement_repo.get_iteration(
@@ -3308,6 +3316,38 @@ class ImprovementPipelineService:
             ),
             attempt_holdout=iteration.holdout_case_ids,
         )
+
+    async def _kept_aside(
+        self, run: ImprovementRun, number: int, measurable: set[UUID]
+    ) -> list[UUID]:
+        """The questions attempt `number` keeps aside: its stored draw, or the draw it will
+        get, from the same seed `_draw_split` takes."""
+        drawn = await improvement_repo.get_iteration(
+            self.db, organization_id=run.organization_id, run_id=run.id, number=number
+        )
+        if drawn is not None and drawn.holdout_case_ids is not None:
+            return list(drawn.holdout_case_ids)
+        share, cases = await self._split_cases(run)
+        return drawn_holdout(
+            cases, share=share, seed=split_seed(run.id, number), measurable=measurable
+        )
+
+    async def _questions_of(self, run: ImprovementRun, case_ids: Collection[UUID]) -> list[str]:
+        """The pinned questions of these cases, as an attempt asks them."""
+        if not case_ids:
+            return []
+        version = await dataset_repo.get_version(
+            self.db, run.dataset_id, run.dataset_version, organization_id=run.organization_id
+        )
+        assert version is not None, "the session pins a version that exists"
+        wanted = set(case_ids)
+        return [
+            case.input
+            for case in await dataset_repo.list_cases(
+                self.db, version.id, organization_id=run.organization_id, limit=None
+            )
+            if case.case_id in wanted
+        ]
 
     async def _split_cases(self, run: ImprovementRun) -> tuple[Decimal, list[UUID]]:
         """The share a new attempt keeps aside, and the pinned questions it draws them from."""

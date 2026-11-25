@@ -4,7 +4,7 @@ import hashlib
 import re
 import unicodedata
 from collections import Counter
-from collections.abc import Collection, Sequence
+from collections.abc import Collection, Iterable, Sequence
 from dataclasses import dataclass
 from decimal import ROUND_HALF_UP, Decimal
 from uuid import UUID
@@ -67,9 +67,34 @@ def drawn_holdout(
     return ranked[: holdout_count(len(case_ids), share)]
 
 
+SHORTEST_QUOTED = 12
+"""The fewest characters of a question, normalized, that `quotes_a_question` looks for.
+
+Shorter questions are left out: "Hi" or "Why?" occurs in ordinary prose, and a
+note refused for containing one would be refused for nothing.
+"""
+
+
+def _normalized(text: str) -> str:
+    return _SPACE.sub(" ", unicodedata.normalize("NFKC", text).casefold()).strip()
+
+
 def input_hash(text: str) -> str:
-    normalized = _SPACE.sub(" ", unicodedata.normalize("NFKC", text).casefold()).strip()
-    return hashlib.sha256(normalized.encode()).hexdigest()
+    return hashlib.sha256(_normalized(text).encode()).hexdigest()
+
+
+def quotes_a_question(text: str, questions: Iterable[str]) -> bool:
+    """Whether `text` contains one of `questions` word for word, case and spacing aside.
+
+    Catches a copy, not a paraphrase: what it guards is a note somebody pasted a
+    question into, and what keeps a question from being pasted at all is that it is
+    not handed out where a note is written.
+    """
+    haystack = _normalized(text)
+    return any(
+        len(needle) >= SHORTEST_QUOTED and needle in haystack
+        for needle in (_normalized(question) for question in questions)
+    )
 
 
 @dataclass(frozen=True)

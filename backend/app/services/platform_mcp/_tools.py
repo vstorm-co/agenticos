@@ -827,13 +827,18 @@ _REASON_CHARS = 150
 
 
 def _noise(noise: dict[str, Any] | None) -> dict[str, Any] | None:
-    """How far a session's test can be trusted, its example questions cut short."""
+    """How far a session's test can be trusted, its example questions by id alone.
+
+    Every example is a held-out question. A question handed to the Architect can
+    be pasted into a Try again note, and the next attempt may be measured on it,
+    so the person reads the text in the console and the Architect gets none.
+    """
     if noise is None:
         return None
     return {
         **noise,
         "examples": [
-            {**example, "input": example["input"][:_INPUT_CHARS]}
+            {key: value for key, value in example.items() if key != "input"}
             for example in noise.get("examples", [])
         ],
     }
