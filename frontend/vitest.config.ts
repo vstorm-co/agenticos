@@ -57,6 +57,8 @@ export default defineConfig({
         "src/stores/**",
         "src/hooks/**",
         "src/components/agents/**/*.{ts,tsx}",
+        "src/components/portability/**/*.{ts,tsx}",
+        "src/components/workflows/bundle-import-dialog.tsx",
         "src/components/authoring/**/*.tsx",
         "src/components/improvement/**/*.tsx",
         "src/components/settings/service-card.tsx",

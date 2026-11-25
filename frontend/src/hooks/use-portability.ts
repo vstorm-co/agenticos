@@ -2,41 +2,49 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  downloadAgentExport,
+  downloadResourceExport,
+  previewResourceExport,
+  previewResourceImport,
+  importResourceBundle,
+  type BundleRootKind,
+  type BundleImportRequest,
   listImportDestinations,
   type ImportDestinationQuery,
-  importAgentBundle,
-  previewAgentExport,
-  previewAgentImport,
 } from "@/lib/portability-api";
+import { useAuthStore, useOrgStore } from "@/stores";
+import { invalidateImportedResources } from "@/lib/bundle-cache";
 import { qk } from "@/lib/query-keys";
 
-export function useAgentExport(id: string, enabled: boolean) {
+export function useResourceExport(kind: BundleRootKind, id: string, enabled: boolean) {
+  const user = useAuthStore((state) => state.user?.id ?? null);
+  const org = useOrgStore((state) => state.activeOrgId);
   const preview = useQuery({
-    queryKey: qk.agents.exportPreview(id),
-    queryFn: () => previewAgentExport(id),
+    queryKey: qk.portability.exportPreview(org, user, kind, id),
+    queryFn: () => previewResourceExport(kind, id),
     enabled,
   });
   const download = useMutation({
     mutationFn: (data: { format: "yaml" | "json"; resources: Record<string, string[]> }) =>
-      downloadAgentExport(id, data.format, data.resources),
+      downloadResourceExport(kind, id, data.format, data.resources),
   });
   return { preview, download };
 }
 
-export function useAgentImport() {
+export function useResourceImport(kind: BundleRootKind) {
   const client = useQueryClient();
-  const preview = useMutation({ mutationFn: previewAgentImport });
+  const preview = useMutation({ mutationFn: (text: string) => previewResourceImport(kind, text) });
   const apply = useMutation({
-    mutationFn: importAgentBundle,
-    onSuccess: () => client.invalidateQueries({ queryKey: qk.agents.all() }),
+    mutationFn: (data: BundleImportRequest) => importResourceBundle(kind, data),
+    onSuccess: (receipt) => invalidateImportedResources(client, receipt),
   });
   return { preview, apply };
 }
 
 export function useImportDestinations(query: ImportDestinationQuery, enabled = true) {
+  const user = useAuthStore((state) => state.user?.id ?? null);
+  const org = useOrgStore((state) => state.activeOrgId);
   return useQuery({
-    queryKey: qk.agents.importDestinations(query),
+    queryKey: qk.portability.destinations(org, user, query),
     queryFn: () => listImportDestinations(query),
     enabled,
   });

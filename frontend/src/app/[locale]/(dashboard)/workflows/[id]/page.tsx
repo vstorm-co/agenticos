@@ -14,6 +14,7 @@ import {
   Zap,
 } from "lucide-react";
 import { WorkflowIcon as Workflow } from "@/components/icons/product-icons";
+import { ExportResourceDialog } from "@/components/portability/resource-export-dialog";
 import { useTranslations } from "next-intl";
 
 import { ErrorState } from "@/components/states";
@@ -131,6 +132,8 @@ export default function WorkflowEditorPage({ params }: PageProps) {
   } = useWorkflow(id);
   const actions = useWorkflowActions();
   const exporting = useWorkflowExport();
+  const [exportOpen, setExportOpen] = useState(false);
+  const tPortability = useTranslations("portability");
   const restoreVersion = useRestoreVersion(restore.mutateAsync);
   const {
     nodes,
@@ -308,12 +311,16 @@ export default function WorkflowEditorPage({ params }: PageProps) {
                     {t("logsTitle")}
                   </Link>
                 </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setExportOpen(true)}>
+                  <Download className="h-4 w-4" />
+                  {t("exportWorkflow")}
+                </DropdownMenuItem>
                 <DropdownMenuItem
                   disabled={exporting.isPending}
                   onSelect={() => exporting.mutate({ id: workflow.id, slug: workflow.slug })}
                 >
                   <Download className="h-4 w-4" />
-                  {t("exportWorkflow")}
+                  {tPortability("exportLegacy")}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -464,6 +471,12 @@ export default function WorkflowEditorPage({ params }: PageProps) {
           </div>
         </SheetContent>
       </Sheet>
+      <ExportResourceDialog
+        resourceId={workflow.id}
+        rootKind="workflow"
+        open={exportOpen}
+        onOpenChange={setExportOpen}
+      />
       <Sheet open={historyOpen} onOpenChange={setHistoryOpen}>
         <SheetContent side="right" className="w-full max-w-lg overflow-y-auto">
           <SheetHeader>

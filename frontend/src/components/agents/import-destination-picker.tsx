@@ -38,15 +38,16 @@ export function ImportDestinationPicker({
   const t = useTranslations("portability");
   const errors = useTranslations("errors");
   const [search, setSearch] = useState("");
+  const [open, setOpen] = useState(false);
   const [skip, setSkip] = useState(0);
   const [chosenName, setChosenName] = useState(selectedName);
   const needsOwner = ["agent_version", "skill_version", "skill_fork"].includes(kind) && !parentId;
   const query = useImportDestinations(
     { kind, parent_id: parentId, search, skip, limit: PAGE_SIZE },
-    !needsOwner,
+    !needsOwner && (open || search.length > 0 || !selectedName || !value),
   );
   const rows = query.data?.items ?? [];
-  const searchable = !["agent", "agent_version", "skill_version"].includes(kind);
+  const searchable = !["agent", "agent_version", "skill_version", "workflow"].includes(kind);
   if (needsOwner)
     return <p className="text-muted-foreground text-xs">{t("chooseExistingOwner")}</p>;
   return (
@@ -67,14 +68,15 @@ export function ImportDestinationPicker({
       <Label htmlFor={id}>{t("destinationResource")}</Label>
       <Select
         value={value}
-        disabled={disabled || query.isPending}
+        onOpenChange={setOpen}
+        disabled={disabled || query.isFetching}
         onValueChange={(identity) => {
           setChosenName(rows.find((row) => row.id === identity)?.name);
           onChange(identity);
         }}
       >
         <SelectTrigger id={id}>
-          <SelectValue placeholder={query.isPending ? t("loading") : t("chooseDestination")} />
+          <SelectValue placeholder={query.isFetching ? t("loading") : t("chooseDestination")} />
         </SelectTrigger>
         <SelectContent>
           {value && !rows.some((row) => row.id === value) && (

@@ -23,6 +23,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 - Deployment, role and personal limits for MCP and Skill discovery, plus organization dashboard defaults per role. Existing resource access stays permission-based; personal layouts take precedence over role defaults.
 - Platform approval cards name the affected agent, skill, version or dataset and show trusted quoted estimates. Paid starts can reject a stale estimate; queued knowledge drafts retain and recheck their quote before work. External MCP clients receive destructive hints for actions that require confirmation.
+- Resource transfer dialogs select workflow dependencies and knowledge-base file layers, review omitted bindings and restore owner-scoped operations after a refresh. Completed imports refresh their new resource catalogs; existing workflow file formats remain available.
+
 - Selective workflow resource bundles share the agent import/export review, dependency mapping and resumable ZIP transfers. Imports create private drafts, map delegates to explicitly selected published versions, refresh reused table schemas and report omitted bindings without activating triggers.
 
 - Selectively transfer knowledge-base originals and parsed text in ZIP bundles. Imports stay private and unindexed, show parsed previews without model calls, and can be indexed explicitly after configuring destination providers.

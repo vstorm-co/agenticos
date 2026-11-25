@@ -32,7 +32,7 @@ import {
   useListControls,
 } from "@/components/ui";
 import { WorkflowCard } from "@/components/workflows/workflow-card";
-import { ImportWorkflowDialog } from "@/components/workflows/import-dialog";
+import { WorkflowImportEntryDialog } from "@/components/workflows/bundle-import-dialog";
 import { WorkflowTemplateDialog } from "@/components/workflows/workflow-template-dialog";
 import { WorkflowCreateDialog } from "@/components/workflows/workflow-create-dialog";
 import type { WorkflowCreateChoice } from "@/components/workflows/workflow-create-dialog";
@@ -378,7 +378,7 @@ export default function WorkflowsPage() {
         )}
       </ListCard>
 
-      <ImportWorkflowDialog open={importOpen} onOpenChange={setImportOpen} />
+      <WorkflowImportEntryDialog open={importOpen} onOpenChange={setImportOpen} />
       <WorkflowTemplateDialog
         open={templatesOpen}
         onOpenChange={setTemplatesOpen}

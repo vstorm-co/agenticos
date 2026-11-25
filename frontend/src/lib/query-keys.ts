@@ -11,6 +11,17 @@ import type { SharingResourceType } from "@/types/sharing";
 
 export const qk = {
   portability: {
+    exportPreview: (
+      org: string | null,
+      user: string | null,
+      kind: "agent" | "workflow",
+      id: string,
+    ) => ["portability", org, user, kind, id, "export-preview"] as const,
+    destinations: (
+      org: string | null,
+      user: string | null,
+      query: { kind: string; parent_id?: string; search: string; skip: number; limit: number },
+    ) => ["portability", org, user, "destinations", query] as const,
     transfer: (org: string | null, user: string | null, id: string | null) =>
       ["portability", org, user, id] as const,
   },
@@ -136,14 +147,6 @@ export const qk = {
     directoryMappings: (orgId: string) => ["organizations", orgId, "directory-mappings"] as const,
   },
   agents: {
-    importDestinations: (query: {
-      kind: string;
-      parent_id?: string;
-      search: string;
-      skip: number;
-      limit: number;
-    }) => ["agents", "import-destinations", query] as const,
-    exportPreview: (agentId: string) => ["agents", agentId, "export-preview"] as const,
     all: () => ["agents"] as const,
     /** Every agent the caller sees, all pages read - the eval start dialog's picker. */
     every: () => ["agents", "every"] as const,

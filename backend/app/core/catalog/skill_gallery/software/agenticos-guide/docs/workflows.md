@@ -61,14 +61,11 @@ Run history fills the available page area by default, without an expansion contr
 
 Run history keeps pagination at the bottom of its panel. A run detail uses a compact summary, a canvas that fills the workspace and one side panel with Steps, Output and available files. Click a step to inspect its recorded data. File and pasted-JSON imports have separate tabs; pasted JSON has a code field and a format action that reports invalid JSON without discarding it.
 
-**Export workflow**, under **More** in the editor's header, exports the draft as a
-`.workflow.json` file. The file carries no ids of this deployment: every agent,
-table, secret, member, bot or workflow a step picked is left out and listed,
-pinned test data is left out, and so is the error workflow. It never holds a
-secret's value. **Import** on the list makes a new draft from such a file, takes
-out any id a hand-made one still names, and lists every step and field to choose
-again before you publish. A file with a step this deployment does not have is
-refused, and nothing is made.
+**Export workflow**, under **More**, opens a selectable resource bundle. Choose linked definitions, then use ZIP to include selected knowledge-base originals or parsed text. The workflow list's **Import** reviews those dependencies before creating private drafts. Missing bindings are shown before import and in its receipt; published delegate versions must be chosen under their destination agent.
+
+**Export an older workflow file** keeps the `.workflow.json` format: resource IDs, pinned test output and the error workflow are left out. **Import an older workflow file** keeps its original flow, listing resources to choose again before publication. Unsupported step types are refused without creating a workflow.
+
+The tab can restore a transfer after a page refresh for the same signed-in person and organization. Only its operation ID is kept in session storage. The server checks access again before showing its result. An interrupted upload needs the original ZIP selected again and uploads from the beginning; file bytes and upload offsets are not saved in the browser. An expired or inaccessible transfer offers a fresh start.
 
 ### Finding, naming and retiring a workflow { #finding-naming-and-retiring-a-workflow }
 

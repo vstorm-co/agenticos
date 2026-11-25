@@ -2,17 +2,17 @@ import { beforeEach, expect, it, vi } from "vitest";
 import { apiClient } from "./api-client";
 import { saveBlob } from "./file-access";
 import {
-  downloadAgentExport,
+  downloadResourceExport,
   downloadBundleTransfer,
   startBundleExport,
   startBundleUpload,
   uploadBundleFile,
   getBundleTransfer,
   applyBundleTransfer,
-  importAgentBundle,
+  importResourceBundle,
   listImportDestinations,
-  previewAgentExport,
-  previewAgentImport,
+  previewResourceExport,
+  previewResourceImport,
 } from "./portability-api";
 import type { ResourceBundle } from "./portability-api";
 
@@ -27,9 +27,9 @@ it("uses the authenticated organization-aware API for previews and reviewed impo
   const response = { reviewed: true };
   vi.mocked(apiClient.get).mockResolvedValue(response);
   vi.mocked(apiClient.post).mockResolvedValue(response);
-  expect(await previewAgentExport("agent-1")).toBe(response);
+  expect(await previewResourceExport("agent", "agent-1")).toBe(response);
   expect(apiClient.get).toHaveBeenCalledWith("/agents/agent-1/export-preview");
-  expect(await previewAgentImport("name: Researcher")).toBe(response);
+  expect(await previewResourceImport("agent", "name: Researcher")).toBe(response);
   expect(apiClient.post).toHaveBeenCalledWith("/agents/import-preview", {
     text: "name: Researcher",
   });
@@ -45,7 +45,7 @@ it("uses the authenticated organization-aware API for previews and reviewed impo
     bundle,
     choices: { "agent/root": { action: "create" as const } },
   };
-  expect(await importAgentBundle(request)).toBe(response);
+  expect(await importResourceBundle("agent", request)).toBe(response);
   expect(apiClient.post).toHaveBeenCalledWith("/agents/import", request);
 });
 
@@ -53,7 +53,7 @@ it("downloads selected definitions through the API and saves the actual response
   vi.mocked(apiClient.raw).mockResolvedValue(
     new Response("name: Researcher", { headers: { "content-type": "application/yaml" } }),
   );
-  await downloadAgentExport("agent-1", "yaml", { "agent/root": ["definition"] });
+  await downloadResourceExport("agent", "agent-1", "yaml", { "agent/root": ["definition"] });
   expect(apiClient.raw).toHaveBeenCalledWith("/agents/agent-1/export", {
     method: "POST",
     body: { file_format: "yaml", resources: { "agent/root": ["definition"] } },
@@ -65,7 +65,9 @@ it("downloads selected definitions through the API and saves the actual response
 
 it("does not save an empty success file when the API refuses the export", async () => {
   vi.mocked(apiClient.raw).mockRejectedValue(new Error("Export refused"));
-  await expect(downloadAgentExport("agent-1", "json", {})).rejects.toThrow("Export refused");
+  await expect(downloadResourceExport("agent", "agent-1", "json", {})).rejects.toThrow(
+    "Export refused",
+  );
   expect(saveBlob).not.toHaveBeenCalled();
 });
 
@@ -125,4 +127,45 @@ it("saves the ZIP download only after an authorized successful response", async 
   const [blob, name] = vi.mocked(saveBlob).mock.calls[0] ?? [];
   expect(await blob?.text()).toBe("archive");
   expect(name).toBe("agenticos-transfer.zip");
+});
+
+it("uses workflow bundle endpoints while retaining the existing agent HTTP paths", async () => {
+  vi.mocked(apiClient.get).mockResolvedValue({});
+  vi.mocked(apiClient.post).mockResolvedValue({});
+  await previewResourceExport("workflow", "workflow-id");
+  expect(apiClient.get).toHaveBeenLastCalledWith("/workflows/workflow-id/export-preview");
+  await previewResourceImport("workflow", "bundle");
+  expect(apiClient.post).toHaveBeenLastCalledWith("/workflows/bundle-import-preview", {
+    text: "bundle",
+  });
+  const request = {
+    operation_id: "operation",
+    bundle: {
+      format: "agenticos.bundle",
+      format_version: 1,
+      roots: [],
+      resources: [],
+      assets: [],
+    } as const,
+    choices: {},
+  };
+  await importResourceBundle("workflow", {
+    ...request,
+    bundle: { ...request.bundle, roots: [], resources: [], assets: [] },
+  });
+  expect(apiClient.post).toHaveBeenLastCalledWith(
+    "/workflows/bundle-import",
+    expect.objectContaining({ operation_id: "operation" }),
+  );
+  vi.mocked(apiClient.raw).mockResolvedValue(new Response("workflow"));
+  await downloadResourceExport("workflow", "workflow-id", "json", {});
+  expect(apiClient.raw).toHaveBeenLastCalledWith("/workflows/workflow-id/bundle-export", {
+    method: "POST",
+    body: { file_format: "json", resources: {} },
+  });
+  await startBundleExport("workflow-id", {}, "request", "workflow");
+  expect(apiClient.post).toHaveBeenLastCalledWith(
+    "/portability/exports",
+    expect.objectContaining({ root_kind: "workflow" }),
+  );
 });
