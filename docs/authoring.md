@@ -42,7 +42,7 @@ An unrated run that succeeded says nothing either way and is not read. Neither i
 a test from the Builder's test panel, nor a delegate's run.
 
 The built-in assistant has no tools. A helper agent picked in its place may bind
-`knowledge`, `context` or `skills` and nothing that reaches further, and one that
+`thinking`, `knowledge`, `context` or `skills` and nothing that reaches further, and one that
 searches is given the knowledge bases of the agent it improves. Its instructions
 are the dataset's improvement instructions, or the built-in ones - never those of
 its own published version.

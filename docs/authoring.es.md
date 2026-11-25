@@ -1,5 +1,5 @@
 ---
-source_sha: "feec2e9263cc"
+source_sha: "80ef4f667029"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las herramientas, la configuración, los skills y los archivos de contexto de un agent. Una persona decide cada uno."
 ---
@@ -43,7 +43,7 @@ Un run sin valorar que salió bien no dice nada y no se lee. Tampoco una prueba
 del panel de pruebas del Builder ni el run de un delegado.
 
 El asistente integrado no tiene herramientas. Un agent auxiliar elegido en su
-lugar puede vincular `knowledge`, `context` o `skills` y nada que llegue más
+lugar puede vincular `thinking`, `knowledge`, `context` o `skills` y nada que llegue más
 lejos, y uno que busca recibe las bases de conocimiento del agent que mejora. Sus
 instrucciones son las de mejora de los ajustes del dataset, o las integradas -
 nunca las de su propia versión publicada.

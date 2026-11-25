@@ -1,5 +1,5 @@
 ---
-source_sha: "feec2e9263cc"
+source_sha: "80ef4f667029"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -45,7 +45,7 @@ Ebenso wenig ein Test aus dem Testpanel des Builders oder der Run eines
 Delegierten.
 
 Der eingebaute Assistent hat keine Tools. Ein an seiner Stelle gewählter
-Hilfsagent darf `knowledge`, `context` oder `skills` binden und nichts, das
+Hilfsagent darf `thinking`, `knowledge`, `context` oder `skills` binden und nichts, das
 weiter reicht; einer, der sucht, bekommt die Wissensdatenbanken des Agents, den
 er verbessert. Seine Anweisungen sind die Verbesserungsanweisungen aus den
 Einstellungen des Datasets oder die eingebauten - nie die seiner eigenen
