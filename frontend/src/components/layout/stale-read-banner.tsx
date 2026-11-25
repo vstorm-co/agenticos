@@ -28,7 +28,7 @@ export function StaleReadBanner() {
     () =>
       cache
         .findAll({ predicate: stoppedPolling })
-        .map((query) => query.queryHash)
+        .map((query) => `${query.queryHash}@${query.state.errorUpdatedAt}`)
         .join("\n"),
     [cache],
   );

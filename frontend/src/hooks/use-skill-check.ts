@@ -37,6 +37,7 @@ export const SKILL_CHECK_POLL_MS = 5000;
  * A check is decided by whoever gets there first, in another tab or by another
  * reviewer, so it is read again each time it is shown and each time the window
  * comes back, rather than served from a cache that may offer what is gone.
+ * Spread after `livePolling`, whose own focus refetch covers a failed read only.
  */
 const ALWAYS_FRESH = {
   staleTime: 0,
@@ -57,11 +58,11 @@ export function useSkillCheck(skillId: string, checkId: string | null) {
     queryKey: key,
     queryFn: () => getSkillCheck(skillId, checkId as string),
     enabled: checkId !== null,
-    ...ALWAYS_FRESH,
     ...livePolling(
       SKILL_CHECK_POLL_MS,
       (data: SkillCheck | undefined) => data?.status === "running",
     ),
+    ...ALWAYS_FRESH,
   });
   const decided = async () => {
     await Promise.all([
@@ -154,12 +155,12 @@ export function useSkillChecksAwaiting({ enabled = true }: { enabled?: boolean }
     queryKey: qk.skillChecks.awaiting(),
     queryFn: listSkillChecksAwaiting,
     enabled,
-    ...ALWAYS_FRESH,
     ...livePolling(
       SKILL_CHECK_POLL_MS,
       (checks: SkillCheckAwaiting[] | undefined) =>
         checks?.some((check) => check.status === "running") ?? false,
     ),
+    ...ALWAYS_FRESH,
   });
   return {
     checks: query.data ?? [],
@@ -174,12 +175,12 @@ function useLineChecks(skillId: string, forkId: string | null, page = 0) {
   return useQuery({
     queryKey: qk.skillChecks.line(skillId, forkId, page),
     queryFn: () => listSkillChecks(skillId, forkId, page),
-    ...ALWAYS_FRESH,
     ...livePolling(
       SKILL_CHECK_POLL_MS,
       (page: { items: SkillCheck[] } | undefined) =>
         page?.items.some((check) => check.status === "running") ?? false,
     ),
+    ...ALWAYS_FRESH,
   });
 }
 

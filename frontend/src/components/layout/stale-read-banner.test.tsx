@@ -82,3 +82,22 @@ it("goes once the page that stopped is left", async () => {
   );
   await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
 });
+
+it("names the newest reason when the same read fails again", async () => {
+  const read = vi
+    .fn<() => Promise<{ status: string }>>()
+    .mockResolvedValueOnce({ status: "running" })
+    .mockRejectedValueOnce(
+      new ApiError(502, "Bad gateway", { error: { code: "BAD_GATEWAY", message: "Bad gateway" } }),
+    )
+    .mockRejectedValueOnce(
+      new ApiError(403, "No access", { error: { code: "FORBIDDEN", message: "No access" } }),
+    );
+  page(<LiveRun read={read} />);
+  await readAgain();
+  expect(await screen.findByRole("alert")).toHaveTextContent("Bad gateway");
+
+  await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+  await waitFor(() => expect(screen.getByRole("alert")).not.toHaveTextContent("Bad gateway"));
+  expect(read).toHaveBeenCalledTimes(3);
+});

@@ -284,3 +284,13 @@ describe("a read of a running check that fails", () => {
     });
   });
 });
+
+it("reads a check again on every return to the tab, not only after a failed read", async () => {
+  vi.mocked(api.getSkillCheck).mockResolvedValueOnce(
+    finishedCheck({ status: "running", verdict: null, outcomes: [] }),
+  );
+  renderHook(() => useSkillCheck("s-1", "c-1"), { wrapper });
+  await waitFor(() => expect(client.getQueryCache().getAll()[0]?.state.status).toBe("success"));
+  const [query] = client.getQueryCache().getAll();
+  expect(query?.observers[0]?.options.refetchOnWindowFocus).toBe(true);
+});

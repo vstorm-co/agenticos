@@ -20,7 +20,10 @@ function useRun(read: () => Promise<{ status: string }>) {
 }
 
 beforeEach(() => {
-  client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  // As the console's provider sets them: focus alone reads nothing again.
+  client = new QueryClient({
+    defaultOptions: { queries: { retry: false, refetchOnWindowFocus: false } },
+  });
 });
 
 afterEach(() => {
@@ -34,6 +37,12 @@ it("reads a moving subject again on the interval and stops when it is still", ()
   expect(refetchInterval({ state: { status: "success", data: "on" } })).toBe(1000);
   expect(refetchInterval({ state: { status: "success", data: "off" } })).toBe(false);
   expect(refetchInterval({ state: { status: "error", data: "on" } })).toBe(false);
+});
+
+it("reads again on focus only a query whose last read failed", () => {
+  const { refetchOnWindowFocus } = livePolling(1000, () => true);
+  expect(refetchOnWindowFocus({ state: { status: "error", data: "on" } })).toBe(true);
+  expect(refetchOnWindowFocus({ state: { status: "success", data: "on" } })).toBe(false);
 });
 
 it("stops asking after a failed read, and starts again once a retry answers", async () => {
@@ -60,6 +69,32 @@ it("stops asking after a failed read, and starts again once a retry answers", as
   expect(read).toHaveBeenCalledTimes(2);
 
   await act(() => query.fetch());
+  await act(() => vi.advanceTimersByTimeAsync(1000));
+  expect(read).toHaveBeenCalledTimes(4);
+});
+
+it("resumes polling when the person comes back to the tab after a failed read", async () => {
+  vi.useFakeTimers({ shouldAdvanceTime: true });
+  focusManager.setFocused(true);
+  const read = vi
+    .fn<() => Promise<{ status: string }>>()
+    .mockResolvedValueOnce({ status: "running" })
+    .mockRejectedValueOnce(new Error("refused"))
+    .mockResolvedValue({ status: "running" });
+  renderHook(() => useRun(read), { wrapper });
+  const query = await waitFor(() => {
+    const found = client.getQueryCache().find({ queryKey: ["run"] });
+    expect(found?.state.status).toBe("success");
+    return found!;
+  });
+  await act(() => vi.advanceTimersByTimeAsync(1000));
+  expect(query.state.status).toBe("error");
+
+  act(() => {
+    focusManager.setFocused(false);
+    focusManager.setFocused(true);
+  });
+  await waitFor(() => expect(query.state.status).toBe("success"));
   await act(() => vi.advanceTimersByTimeAsync(1000));
   expect(read).toHaveBeenCalledTimes(4);
 });
