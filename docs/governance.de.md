@@ -1,5 +1,5 @@
 ---
-source_sha: "8687cae4b169"
+source_sha: "ca0138b9ea83"
 ---
 
 # Governance { #governance }
@@ -2289,7 +2289,7 @@ Das Publikum wird also nach der Berechtigung aufgeteilt, statt darauf beschnitte
 | Empfänger hält | Bekommt |
 | --- | --- |
 | `approvals:decide` | die Anfrage, mit dem Link zur Queue |
-| nichts, ist aber die Person des Runs, und unter den Aufrufen ist ihr eigener Plattform-Aufruf, der immer fragt | die Anfrage, mit dem Link zur Queue |
+| nichts, ist aber die Person des Runs, und unter den Aufrufen ist ihr eigener Plattform-Aufruf, der immer fragt | die Anfrage, mit einem Link zur Unterhaltung, in der gefragt wurde, solange dieser Aufruf wartet |
 | irgendetwas Geringeres | die _Tatsache_: Der Run ist angehalten, nicht gescheitert, jemand, der über Freigaben entscheiden darf, muss ihn beantworten, und von ihnen wird nichts verlangt |
 
 Zu beschneiden würde stattdessen die eine Person, die definitiv auf den Run

@@ -19,6 +19,8 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.core.config import settings
 from app.core.exceptions import AppException
+from app.db.models.agent import Agent
+from app.db.models.agent_run import AgentRun, ApprovalStatus, RunStatus, RunSurface, ToolApproval
 from app.db.models.announcement import Announcement
 from app.db.models.notification import Notification, NotificationEventType
 from app.db.models.notification_delivery import DeliveryStatus, NotificationDelivery
@@ -29,7 +31,7 @@ from app.repositories import deployment_settings_repo
 from app.services.email.providers.base import SendResult
 from app.services.email.service import EmailKey
 from app.services.email.templates import render_email
-from app.services.notification_center import APPROVABLE_BY
+from app.services.notification_center import APPROVABLE_BY, APPROVABLE_CALLS
 from app.services.notification_delivery import NotificationDeliveryService
 
 pytestmark = pytest.mark.anyio
@@ -122,6 +124,44 @@ async def _delivery(
     db.add(delivery)
     await db.flush()
     return delivery
+
+
+async def _own_platform_call(db, org: Organization, person: User) -> ToolApproval:
+    """A run of `person`'s parked on their own platform call that always asks."""
+    agent = Agent(
+        id=uuid.uuid4(),
+        organization_id=org.id,
+        slug=f"architect-{uuid.uuid4().hex[:8]}",
+        name="Architect",
+        draft_spec={},
+    )
+    db.add(agent)
+    await db.flush()
+    run = AgentRun(
+        id=uuid.uuid4(),
+        organization_id=org.id,
+        agent_id=agent.id,
+        user_id=person.id,
+        status=RunStatus.AWAITING_APPROVAL.value,
+        surface=RunSurface.WEB.value,
+        started_at=datetime.now(UTC),
+    )
+    db.add(run)
+    await db.flush()
+    approval = ToolApproval(
+        id=uuid.uuid4(),
+        organization_id=org.id,
+        run_id=run.id,
+        agent_id=agent.id,
+        tool_id="agenticos_accept_improvement",
+        tool_args={},
+        status=ApprovalStatus.PENDING.value,
+        always_asks=True,
+        created_at=datetime.now(UTC),
+    )
+    db.add(approval)
+    await db.flush()
+    return approval
 
 
 def _sent(message_id: str = "abc") -> MagicMock:
@@ -819,17 +859,17 @@ class TestRenderDispatch:
             assert ("approvals_url" in context) is keeps_link
 
     @pytest.mark.security
-    async def test_the_runs_person_gets_the_link_to_their_own_platform_call(self, db):
+    async def test_the_runs_person_gets_the_link_to_their_own_platform_call_while_it_waits(
+        self, db
+    ):
         owner = await _user(db)
         org = await _org(db, owner)
         person = await _member(db, org, role="builder")  # no approvals:decide
         other = await _member(db, org, role="member")
+        call = await _own_platform_call(db, org, person)
         now = datetime.now(UTC)
 
-        for recipient, expected_key, keeps_link in (
-            (person, EmailKey.APPROVAL_REQUESTED, True),
-            (other, EmailKey.APPROVAL_PENDING, False),
-        ):
+        async def mailed(recipient: User) -> tuple[EmailKey, dict]:
             delivery = await _delivery(
                 db,
                 recipient=recipient,
@@ -837,8 +877,9 @@ class TestRenderDispatch:
                 event_type=NotificationEventType.APPROVAL_REQUESTED,
                 render_context={
                     "tools": "agenticos_accept_improvement",
-                    "approvals_url": "https://app.example.com/runs",
+                    "approvals_url": "https://app.example.com/chat?id=c",
                     APPROVABLE_BY: str(person.id),
+                    APPROVABLE_CALLS: [str(call.id)],
                 },
                 claimed_at=now,
                 attempts=1,
@@ -849,10 +890,18 @@ class TestRenderDispatch:
             )
             with patch(f"{MODULE}.get_email_service", return_value=service):
                 await NotificationDeliveryService(db).send_and_settle(delivery.id, claimed_at=now)
-            assert service.send.call_args.kwargs["key"] is expected_key
-            context = service.send.call_args.kwargs["context"]
-            assert ("approvals_url" in context) is keeps_link
-            assert APPROVABLE_BY not in context
+            return service.send.call_args.kwargs["key"], service.send.call_args.kwargs["context"]
+
+        key, context = await mailed(person)
+        assert key is EmailKey.APPROVAL_REQUESTED and "approvals_url" in context
+        assert APPROVABLE_BY not in context and APPROVABLE_CALLS not in context
+        key, context = await mailed(other)
+        assert key is EmailKey.APPROVAL_PENDING and "approvals_url" not in context
+
+        call.status = ApprovalStatus.APPROVED.value
+        await db.flush()
+        key, context = await mailed(person)
+        assert key is EmailKey.APPROVAL_PENDING and "approvals_url" not in context
 
     @pytest.mark.security
     async def test_an_approval_stored_before_the_asker_line_renders_without_a_placeholder(self, db):

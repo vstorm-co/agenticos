@@ -45,9 +45,9 @@ from app.services.email.service import EmailKey, get_email_service
 from app.services.notification_catalog import is_mandatory
 from app.services.notification_center import (
     APPROVABLE_BY,
+    APPROVABLE_CALLS,
     NotificationCenterService,
     absolute_context_url,
-    approvable_by,
 )
 from app.services.notification_routes import NotificationRouteService
 from app.services.push import PushService
@@ -287,7 +287,12 @@ class NotificationDeliveryService:
             )
             return outcome
 
-        email_key, context = self._render(notification, recipient=recipient, role=role)
+        email_key, context = self._render(
+            notification,
+            recipient=recipient,
+            role=role,
+            own_call=await self._center.answers_own_call(ctx, notification),
+        )
         # Resolved now, not frozen at write time with the rest of
         # `render_context`: `EmailService`'s own contract is that a caller
         # resolves the deployment's *current* name through
@@ -414,7 +419,7 @@ class NotificationDeliveryService:
         return recipient.is_app_admin, None
 
     def _render(
-        self, notification: Notification, *, recipient: User, role: str | None
+        self, notification: Notification, *, recipient: User, role: str | None, own_call: bool
     ) -> tuple[EmailKey, dict[str, Any]]:
         """What re-derives at send time is the *gate*, never the whole
         rendering (Decision 3) - `render_context`, frozen at write time, is
@@ -432,9 +437,9 @@ class NotificationDeliveryService:
             # Rows stored before the asker line existed have no such key, and a
             # missing one would print as a literal placeholder.
             context.setdefault("asked_by", "")
-            person = approvable_by(notification)
             context.pop(APPROVABLE_BY, None)
-            decides = recipient.is_app_admin or role in _DECIDING_ROLES or person == recipient.id
+            context.pop(APPROVABLE_CALLS, None)
+            decides = recipient.is_app_admin or role in _DECIDING_ROLES or own_call
             if decides:
                 return EmailKey.APPROVAL_REQUESTED, context
             # No link at all, and that is the point of it - the same "nothing
