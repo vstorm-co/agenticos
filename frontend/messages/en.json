@@ -4351,7 +4351,6 @@
     "testSettings": "Test",
     "testingSettings": "Testing…",
     "testCost": "{count, plural, =0 {No probes} one {# probe} other {# probes}}",
-    "testRetryNote": "If the first comparison fails it is repeated once.",
     "probePassed": "{count, plural, =0 {Nothing stored yet, so nothing can break} one {# knowledge base keeps its vectors} other {# knowledge bases keep their vectors}}",
     "probeOutcome": {
       "passed": "Passed",

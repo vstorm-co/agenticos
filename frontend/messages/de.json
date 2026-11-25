@@ -4351,7 +4351,6 @@
     "testSettings": "Testen",
     "testingSettings": "Wird getestet …",
     "testCost": "{count, plural, =0 {Keine Proben} one {# Probe} other {# Proben}}",
-    "testRetryNote": "Schlägt der erste Vergleich fehl, wird er einmal wiederholt.",
     "probePassed": "{count, plural, =0 {Noch nichts gespeichert, also kann nichts brechen} one {# Wissensbasis behält ihre Vektoren} other {# Wissensbasen behalten ihre Vektoren}}",
     "probeOutcome": {
       "passed": "Bestanden",

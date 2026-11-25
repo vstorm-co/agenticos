@@ -10972,7 +10972,6 @@
     "testSettings": "Test et",
     "testingSettings": "Test ediliyor…",
     "testCost": "{count, plural, =0 {Yoklama yok} other {# yoklama}}",
-    "testRetryNote": "İlk karşılaştırma başarısız olursa bir kez tekrarlanır.",
     "probePassed": "{count, plural, =0 {Henüz hiçbir şey saklanmadı, bu yüzden bozulacak bir şey yok} other {# bilgi tabanı vektörlerini korur}}",
     "probeOutcome": {
       "passed": "Geçti",

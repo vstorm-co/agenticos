@@ -4258,7 +4258,6 @@
     "testSettings": "Tester",
     "testingSettings": "Test en cours…",
     "testCost": "{count, plural, =0 {Aucune sonde} one {# sonde} other {# sondes}}",
-    "testRetryNote": "Si la première comparaison échoue, elle est répétée une fois.",
     "probePassed": "{count, plural, =0 {Rien n’est encore stocké, donc rien ne peut casser} one {# base de connaissances conserve ses vecteurs} other {# bases de connaissances conservent leurs vecteurs}}",
     "probeOutcome": {
       "passed": "Réussi",

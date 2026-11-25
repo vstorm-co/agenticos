@@ -4351,7 +4351,6 @@
     "testSettings": "Testar",
     "testingSettings": "A testar…",
     "testCost": "{count, plural, =0 {Nenhuma sondagem} one {# sondagem} other {# sondagens}}",
-    "testRetryNote": "Se a primeira comparação falhar, é repetida uma vez.",
     "probePassed": "{count, plural, =0 {Ainda nada guardado, por isso nada pode quebrar} one {# base de conhecimento mantém os seus vetores} other {# bases de conhecimento mantêm os seus vetores}}",
     "probeOutcome": {
       "passed": "Aprovado",

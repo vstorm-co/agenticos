@@ -286,7 +286,6 @@ export function EmbeddingDialog({
                 )}
                 {moved && (
                   <div className="space-y-2">
-                    <p className="text-muted-foreground text-xs">{t("testRetryNote")}</p>
                     {gate.result && <ProbeResult result={gate.result} />}
                     {gate.status === "failed" && (
                       <p className="text-muted-foreground text-xs">{t("probeFailedAdvice")}</p>

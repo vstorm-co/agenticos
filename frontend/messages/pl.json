@@ -2153,7 +2153,6 @@
     "testSettings": "Testuj",
     "testingSettings": "Testowanie…",
     "testCost": "{count, plural, =0 {Brak prób} one {# próba} few {# próby} many {# prób} other {# próby}}",
-    "testRetryNote": "Jeśli pierwsze porównanie się nie powiedzie, jest powtarzane raz.",
     "probePassed": "{count, plural, =0 {Nic jeszcze nie zapisano, więc nic nie może się zepsuć} one {# baza wiedzy zachowuje swoje wektory} few {# bazy wiedzy zachowują swoje wektory} many {# baz wiedzy zachowuje swoje wektory} other {# bazy wiedzy zachowuje swoje wektory}}",
     "probeOutcome": {
       "passed": "Zaliczony",
