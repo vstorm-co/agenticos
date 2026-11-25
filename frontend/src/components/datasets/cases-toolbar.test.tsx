@@ -7,7 +7,13 @@ it("keeps creation, generation, import guidance and Activity beside the cases ta
   const generate = vi.fn();
   const importFile = vi.fn().mockResolvedValue({});
   render(
-    <CasesToolbar datasetId="dataset-1" onAdd={add} onGenerate={generate} onImport={importFile} />,
+    <CasesToolbar
+      datasetId="dataset-1"
+      importMaxBytes={10_485_760}
+      onAdd={add}
+      onGenerate={generate}
+      onImport={importFile}
+    />,
   );
   await userEvent.click(screen.getByRole("button", { name: "Add case" }));
   expect(add).toHaveBeenCalledOnce();

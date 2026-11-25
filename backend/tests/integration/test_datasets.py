@@ -25,6 +25,7 @@ from sqlalchemy import ColumnElement, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
+from app.core.config import settings
 from app.core.exceptions import (
     AlreadyExistsError,
     AuthorizationError,
@@ -566,6 +567,17 @@ async def test_an_import_is_parsed_without_holding_the_event_loop(
 
     assert version.case_count == 1
     assert ticks >= 10
+
+
+async def test_a_dataset_says_how_large_a_file_its_import_accepts(
+    db, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(settings, "DATASET_IMPORT_MAX_BYTES", 2 * 1024 * 1024)
+    ctx = await _owner(db)
+    service = DatasetService(db)
+    dataset = await service.create(ctx, DatasetCreate(name="sized"))
+
+    assert (await service.read(ctx, dataset.id)).import_max_bytes == 2 * 1024 * 1024
 
 
 async def test_exporting_an_empty_dataset_is_the_header_alone_and_is_audited(db) -> None:

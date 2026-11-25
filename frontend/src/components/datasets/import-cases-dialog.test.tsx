@@ -12,7 +12,7 @@ describe("ImportCasesDialog", () => {
   it("downloads JSONL when selected and only opens the file picker on request", async () => {
     const choose = vi.fn();
     const close = vi.fn();
-    render(<ImportCasesDialog open onOpenChange={close} onChoose={choose} />);
+    render(<ImportCasesDialog open onOpenChange={close} onChoose={choose} maxBytes={10_485_760} />);
     await userEvent.click(screen.getByRole("button", { name: "JSONL" }));
     await userEvent.click(screen.getByRole("button", { name: "Download a template" }));
     expect(saveBlob).toHaveBeenCalledWith(expect.any(Blob), "dataset-template.jsonl");
@@ -23,10 +23,12 @@ describe("ImportCasesDialog", () => {
   });
   it("describes every column and downloads a template without opening the picker", async () => {
     const onChoose = vi.fn();
-    render(<ImportCasesDialog open onOpenChange={vi.fn()} onChoose={onChoose} />);
+    render(
+      <ImportCasesDialog open onOpenChange={vi.fn()} onChoose={onChoose} maxBytes={2_621_440} />,
+    );
 
     for (const column of IMPORT_COLUMNS) expect(screen.getByText(column)).toBeInTheDocument();
-    expect(screen.getByText(/CSV or JSONL file of up to 10 MB/)).toBeInTheDocument();
+    expect(screen.getByText(/CSV or JSONL file of up to 2.5 MB/)).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: "Download a template" }));
     expect(saveBlob).toHaveBeenCalledWith(expect.any(Blob), "dataset-template.csv");
