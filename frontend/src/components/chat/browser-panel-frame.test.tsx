@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import { BrowserPanelFrame } from "./browser-panel-frame";
+import { FULLSCREEN_SAFE } from "@/lib/safe-area";
 
 function panel() {
   return render(
@@ -137,13 +138,10 @@ it("keeps its header clear of a phone's status bar when it covers the screen", (
   // indicator; its header and close button sat beneath the clock.
   const view = panel();
   const aside = view.container.querySelector("aside")!;
-  expect(aside.className).toContain(
-    "pt-[max(var(--shell-inset-top,0px),env(safe-area-inset-top))]",
-  );
-  expect(aside.className).toContain("pb-[env(safe-area-inset-bottom)]");
+  for (const token of FULLSCREEN_SAFE.split(" ")) expect(aside.className).toContain(token);
   // Docked beside the chat it sits below the console's header instead.
   expect(aside.className).toContain("@min-[900px]/browser-layout:pt-0");
   // Inside another surface, that surface clears the status bar.
   const inside = render(<BrowserPanelFrame contained>{() => null}</BrowserPanelFrame>);
-  expect(inside.container.querySelector("aside")!.className).not.toContain("safe-area-inset-top");
+  expect(inside.container.querySelector("aside")!.className).not.toContain("fullscreen-inset-top");
 });

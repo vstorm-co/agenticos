@@ -358,6 +358,22 @@
   --safe-bottom: max(env(safe-area-inset-bottom, 0px), var(--shell-inset-bottom, 0px));
 }
 
+/* The top a surface covering the whole window keeps clear (lib/safe-area.ts):
+   the status bar on a phone, or the title-bar row a desktop main window
+   reserves with its drag strip. Set here rather than read from #main's
+   --window-drag-height: a panel portalled to the body is drawn outside #main. */
+:root {
+  --fullscreen-inset-top: max(var(--shell-inset-top, 0px), env(safe-area-inset-top, 0px));
+}
+
+:root:is(
+    [data-shell="macos"],
+    [data-shell="windows"],
+    [data-shell="linux"]
+  )[data-shell-window="main"] {
+  --fullscreen-inset-top: max(var(--shell-inset-top, 0px), 1.75rem);
+}
+
 /* Pages slide the way the platform's own do (#2097, item 21): a page pushed
    comes in from the trailing edge, one popped from the leading edge. The fade
    the browser console uses stays everywhere else, and reduced motion turns both
