@@ -29,7 +29,10 @@ function useCallLine(approval: ToolApproval, withArguments: boolean): string | n
   // only as the fallback of `TableCallReadout`, which names the table instead.
   const argumentLine =
     withArguments && !isTableTool(approval.tool_id) ? callSummary(approval.tool_args) : null;
-  return approvalSummary(approval.capability_tool_id, approval.context, tTools) ?? argumentLine;
+  return (
+    approvalSummary(approval.capability_tool_id, approval.context, tTools, approval.tool_id) ??
+    argumentLine
+  );
 }
 
 /**
@@ -141,6 +144,7 @@ export function PendingApproval({
             <ApprovalDetails
               toolName={approval.tool_id}
               args={approval.tool_args}
+              context={approval.context}
               fallback={
                 tableLine !== null && (
                   <p className="text-foreground/80 truncate text-sm" title={tableLine}>
@@ -255,7 +259,11 @@ export function DecidedApproval({
           </span>
         )}
         <div className="w-full pt-1">
-          <ApprovalDetails toolName={approval.tool_id} args={approval.tool_args} />
+          <ApprovalDetails
+            toolName={approval.tool_id}
+            args={approval.tool_args}
+            context={approval.context}
+          />
         </div>
       </div>
     </li>

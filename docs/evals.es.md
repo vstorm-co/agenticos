@@ -1,5 +1,5 @@
 ---
-source_sha: "76ac5bb3504a"
+source_sha: "5cc200b1d8e2"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -168,6 +168,18 @@ incluye todos los intentos de confirmación, el juez y las repeticiones del
 baseline, también cuando se reutiliza. El coste real puede variar. Cada petición
 al modelo sigue sujeta a los presupuestos mensuales; agotarlos termina el run
 como `budget_exceeded`.
+
+Un inicio puede devolver `total_usd` como `quoted_usd` y la `dataset_version`
+estimada. Si la estimación actual de inicio es mayor, el servidor rechaza con
+`409`. El Architect envía ambos valores y la tarjeta muestra la cotización.
+Esto compara estimaciones; no impone un límite estricto a la factura final del
+proveedor. Las comprobaciones de skills, los borradores y los guardias de
+promoción también aceptan `quoted_usd`; `GET .../gate/estimate` calcula los
+guardias pendientes.
+
+Un borrador de conocimiento en cola conserva su cotización. El worker vuelve a
+comprobarla antes de recuperar datos o ejecutar el modelo y rechaza precios
+mayores o desconocidos. Los clientes y trabajos existentes sin cotización no cambian.
 
 El límite de gasto estimado de una suite también incluye repeticiones y ambos
 lados cuando se comparan. La primera estimación de publicación incluye la versión

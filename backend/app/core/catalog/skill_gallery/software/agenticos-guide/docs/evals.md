@@ -159,6 +159,17 @@ reused baseline. Actual spending can differ from this estimate. Each model
 request still observes the monthly budgets; exhausting one ends the eval as
 `budget_exceeded`.
 
+A start may carry the estimate's `total_usd` back as `quoted_usd`, and the
+estimate's `dataset_version` with it. Starting refuses with `409` if the current
+start estimate is higher than that quote. The Architect passes both, and its
+approval card shows the quote. This compares estimates, not a hard cap on the
+provider's eventual bill. Skill update checks, knowledge drafts and promotion
+guards accept `quoted_usd` too; `GET .../gate/estimate` prices the due guards.
+
+A queued knowledge draft retains its quote. Its worker checks the estimate
+again before retrieval or model work, and refuses a higher or unknown price.
+Existing clients and jobs without a quote retain their previous behavior.
+
 A suite's estimated spend cap also includes confirming reruns and both sides
 when paired. Its first publish estimate includes the existing version as the
 next publication's baseline even when only one version exists. This estimate

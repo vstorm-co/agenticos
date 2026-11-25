@@ -232,6 +232,7 @@ ordinary organization API key is refused on those routes.
 | `list_agent_versions`, `get_agent_version` | read access to the agent | no |
 | `list_agent_environments`, `get_promotion_gate` | read access to the agent | no |
 | `create_agent_environment`, `update_agent_environment` | publish access; stronger checks for guards and overrides | yes |
+| `estimate_promotion_gate` | the same authority as `run_promotion_gate` | no |
 | `run_promotion_gate` | publication/run authority and guarding suite admission | yes, may spend |
 | `list_eval_suites`, `estimate_eval_suite` | agent and dataset access | no |
 | `create_eval_suite`, `update_eval_suite` | agent/dataset access and standing personal authority | yes |

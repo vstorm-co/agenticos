@@ -1572,6 +1572,8 @@ Remembered choices are stored on the server. **Chat controls → Preferences →
 
 The approvals queue is the organization's, but some calls quote what their run's person reads - the fact `share_memory` would share. That quote reaches only somebody who may see the run: the person it ran for, or a member who reads every run and may view the agent. Everyone else sees the tool and the audience, and a note that the content is hidden. A call that asks every time is approved only by somebody who can read what it quotes: anyone else may reject it, and an approval from them is refused.
 
+The card of such a call says what it does in names, read as the run's person when it parks: the agent, the attempt and its verdict, the version a publish makes, the dataset an eval runs on, the price it was quoted at. The raw arguments stay under Details, and a call whose records the person cannot read shows only those.
+
 The rule above is the agent's, decided at publish time and per tool, and that is
 the right place for it: it is a statement about what the agent _is_. What it
 cannot express is the mood of one session — somebody working through twenty turns

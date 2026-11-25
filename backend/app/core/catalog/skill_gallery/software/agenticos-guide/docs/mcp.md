@@ -214,7 +214,11 @@ provider prompt caching, so fewer tool schemas alone do not establish lower cost
 For an external server, `approval: none` lets calls run, `writes` asks before tools
 without `readOnlyHint: true`, and `all` also asks before reads. The server supplies
 that hint; use `all` when you do not trust its classification. An external MCP
-client, such as Claude Code, applies its own confirmation settings.
+client, such as Claude Code, applies its own confirmation settings. AgenticOS's own
+server marks `destructiveHint: true` on every call that always asks a person inside
+AgenticOS, on every task or table-record write that may start agent work, and on
+every delete, discard, end or publish, and its instructions tell
+the client to confirm those with its person first.
 
 The platform binding enforces at least `writes`. Its trusted defaults let authorized
 reads, draft preparation, ordinary task and table-record changes, empty knowledge

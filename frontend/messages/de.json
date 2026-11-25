@@ -2169,7 +2169,12 @@
       "runAcpAgent": "Externer ACP-Agent",
       "runningAcpAgent": "Externer ACP-Agent",
       "inspectAcpAgent": "ACP-Modellauswahl lesen",
-      "readingAcpModels": "ACP-Modellauswahl wird gelesen"
+      "readingAcpModels": "ACP-Modellauswahl wird gelesen",
+      "approveAcceptImprovement": "Versuch {attempt} für {agent} übernehmen ({verdict, select, better {besser} criteria_better {besser nach Kriterien} no_change {keine Änderung} criteria_worse {schlechter nach Kriterien} regression {schlechter} inconclusive {nicht eindeutig} other {nicht gemessen}}) {publish, select, yes {und als v{version} veröffentlichen} other {als Entwurf}}",
+      "approvePublishAgent": "{agent} als v{version} veröffentlichen",
+      "approveChangeSkillVersion": "{state, select, main {{agent} auf die Hauptlinie von {skill} setzen} pinned {{agent} an {skill} v{version} heften} other {{agent} auf einen Fork von {skill} setzen}}",
+      "approveAcceptSkillImprovement": "{outcome, select, apply {Die verbesserte Skill {skill} anwenden} apply_and_pin {Die verbesserte Skill {skill} anwenden und die Agenten anheften, denen sie schaden würde} fork_for_helped {Einen Fork von {skill} für die Agenten anlegen, denen sie half} catch_up {Den Fork von {skill} auf den Stand von main bringen} other {Den Fork von {skill} zu main zurückführen}}",
+      "approveStartEvalRun": "{agent} mit dem Dataset {dataset} v{version} testen"
     },
     "turnWasStopped": "gestoppt",
     "unfavourite": "Aus den Favoriten entfernen",
@@ -7460,6 +7465,7 @@
       "actionInService": "{action} in {service}",
       "approvalDetails": "Details",
       "approvalNoArguments": "Es nimmt nichts entgegen.",
+      "approvalQuotedPrice": "Genannte Schätzung: {price}",
       "cache": {
         "title": "Prompt-Cache",
         "description": "Anfragen, deren gecachter Prompt nicht zurückgelesen wurde. Ein Bust ist ein Präfix, das sich verschoben hat - Tools neu sortiert, ein Zeitstempel in den Anweisungen - und zum vollen Eingabepreis berechnet wurde; ein Ablauf hatte den Cache des Anbieters überdauert.",

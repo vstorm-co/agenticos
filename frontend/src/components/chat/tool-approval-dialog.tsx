@@ -132,8 +132,12 @@ export function ToolApprovalDialog({
             // it was parked as the person the run acts for; else the one telling argument.
             const summary =
               draft === null
-                ? (approvalSummary(action.capability_tool_id, action.context, tTools) ??
-                  callSummary(args))
+                ? (approvalSummary(
+                    action.capability_tool_id,
+                    action.context,
+                    tTools,
+                    action.tool_name,
+                  ) ?? callSummary(args))
                 : null;
             return (
               <li key={action.id} className="flex gap-2.5">
@@ -168,7 +172,11 @@ export function ToolApprovalDialog({
                   {draft !== null ? (
                     <AgentDraftProposal draft={draft} />
                   ) : (
-                    <ApprovalDetails toolName={action.tool_name} args={args} />
+                    <ApprovalDetails
+                      toolName={action.tool_name}
+                      args={args}
+                      context={action.context}
+                    />
                   )}
                 </div>
               </li>

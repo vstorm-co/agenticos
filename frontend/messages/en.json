@@ -2169,7 +2169,12 @@
       "runAcpAgent": "External ACP agent",
       "runningAcpAgent": "External ACP agent",
       "inspectAcpAgent": "Read ACP model choices",
-      "readingAcpModels": "Reading ACP model choices"
+      "readingAcpModels": "Reading ACP model choices",
+      "approveAcceptImprovement": "Accept attempt {attempt} for {agent} ({verdict, select, better {better} criteria_better {better on criteria} no_change {no change} criteria_worse {worse on criteria} regression {worse} inconclusive {inconclusive} other {not measured}}) {publish, select, yes {and publish it as v{version}} other {as a draft}}",
+      "approvePublishAgent": "Publish {agent} as v{version}",
+      "approveChangeSkillVersion": "{state, select, main {Move {agent} to the main line of {skill}} pinned {Pin {agent} to {skill} v{version}} other {Move {agent} to a fork of {skill}}}",
+      "approveAcceptSkillImprovement": "{outcome, select, apply {Apply the improved skill {skill}} apply_and_pin {Apply the improved skill {skill} and pin the agents it would hurt} fork_for_helped {Fork {skill} for the agents it helped} catch_up {Catch the fork of {skill} up with main} other {Return the fork of {skill} to main}}",
+      "approveStartEvalRun": "Test {agent} on the dataset {dataset} v{version}"
     },
     "turnWasStopped": "stopped",
     "unfavourite": "Remove from favourites",
@@ -8188,6 +8193,7 @@
       "actionInService": "{action} in {service}",
       "approvalDetails": "Details",
       "approvalNoArguments": "It takes nothing.",
+      "approvalQuotedPrice": "Quoted estimate: {price}",
       "cache": {
         "title": "Prompt cache",
         "description": "Requests whose cached prompt was not read back. A bust is a prefix that moved - tools reordered, a timestamp in the instructions - and was billed at the full input rate; an expiry had outlived the provider's cache.",

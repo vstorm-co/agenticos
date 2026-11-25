@@ -780,6 +780,7 @@ class TestTheDraftingJob:
             assert await draft_knowledge_gap(job)
 
         assert draft.await_args.args == (asker, job.topic_id)
+        assert draft.await_args.kwargs == {"quoted_usd": None}
         worker.assert_awaited_once_with(ORG)
 
     async def test_a_refused_draft_fails_the_job_and_the_page_still_hears_of_it(self, worker):
@@ -989,3 +990,64 @@ def test_legacy_classifier_labels_pass_transport_validation_before_normalization
     answer = {"answers": [{"number": 1, "signal": legacy}]}
     Draft202012Validator(output_schema(ClassificationOutput)).validate(answer)
     assert read_output(answer, ClassificationOutput).answers[0].signal == current
+
+
+@pytest.mark.anyio
+async def test_draft_worker_keeps_the_approved_quote(monkeypatch: pytest.MonkeyPatch) -> None:
+    from decimal import Decimal
+
+    quoted = _draft_job().model_copy(update={"quoted_usd": Decimal("0.40")})
+    draft = AsyncMock()
+    monkeypatch.setattr(f"{_TASKS}.get_worker_db_context", _Context)
+    monkeypatch.setattr(f"{_TASKS}.change_feed.connect_in_worker", AsyncMock())
+    monkeypatch.setattr(f"{_TASKS}.change_feed.publish_knowledge_gaps_grouped", AsyncMock())
+    monkeypatch.setattr(f"{_TASKS}.job_context", AsyncMock(return_value=MagicMock()))
+    monkeypatch.setattr(KnowledgeGapService, "draft", draft)
+    assert await draft_knowledge_gap(quoted)
+    assert draft.await_args.kwargs == {"quoted_usd": Decimal("0.40")}
+
+
+@pytest.mark.anyio
+@pytest.mark.security
+@pytest.mark.parametrize("current", [None, Decimal("0.41")])
+async def test_a_queued_quote_is_rechecked_before_retrieval_or_model_work(
+    current: Decimal | None,
+) -> None:
+    from app.core.exceptions import ConcurrentChangeError
+    from app.schemas.knowledge_gap import KnowledgeGapDraftEstimate
+
+    ctx = AuthContext(user_id=uuid.uuid4(), organization_id=ORG, role="owner")
+    service = KnowledgeGapService(MagicMock())
+    with (
+        patch.object(
+            service,
+            "draft_estimate",
+            AsyncMock(return_value=KnowledgeGapDraftEstimate(total_usd=current)),
+        ),
+        patch(
+            "app.services.knowledge_gaps.knowledge_gap_repo.drafting_material", AsyncMock()
+        ) as material,
+        patch("app.services.knowledge_gaps.SystemAgentRunner.run", AsyncMock()) as run,
+        pytest.raises(ConcurrentChangeError),
+    ):
+        await service.draft(ctx, uuid.uuid4(), quoted_usd=Decimal("0.40"))
+    material.assert_not_awaited()
+    run.assert_not_awaited()
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("price", [Decimal("0.39"), Decimal("0.40")])
+async def test_a_draft_quote_accepts_an_unchanged_or_lower_estimate(price: Decimal) -> None:
+    from app.schemas.knowledge_gap import KnowledgeGapDraftEstimate
+
+    service = KnowledgeGapService(MagicMock())
+    with patch.object(
+        service,
+        "draft_estimate",
+        AsyncMock(return_value=KnowledgeGapDraftEstimate(total_usd=price)),
+    ):
+        await service._check_draft_quote(
+            AuthContext(user_id=uuid.uuid4(), organization_id=ORG, role="owner"),
+            uuid.uuid4(),
+            Decimal("0.40"),
+        )

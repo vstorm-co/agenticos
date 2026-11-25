@@ -1,5 +1,5 @@
 ---
-source_sha: "2abb88150859"
+source_sha: "77974aa5830b"
 ---
 
 # Governance { #governance }
@@ -1684,6 +1684,8 @@ La tarjeta de aprobación también ofrece permitir esta herramienta en este chat
 Las elecciones se guardan en el servidor. **Chat controls → Preferences → Remembered tool approvals → Ask again** revoca una elección sin borrar la aprobación original. Antes de cada aprobación automática se vuelven a comprobar la pertenencia, el permiso de aprobación y la política de la organización. El modo de preguntar por todo tiene prioridad sobre las elecciones guardadas. Cada aprobación automática sigue registrando quién consintió y los argumentos reales de la llamada.
 
 La cola de aprobaciones es de la organización, pero algunas llamadas citan lo que lee la persona de su run: el hecho que compartiría `share_memory`. Esa cita solo la ve quien puede ver el run: la persona para la que corrió, o un miembro que lee todos los runs y puede ver el agent. Los demás ven la herramienta, la audiencia y un aviso de que el contenido está oculto. Una llamada que pregunta siempre solo la aprueba quien puede leer lo que cita: cualquier otra persona puede rechazarla, y su aprobación se rechaza.
+
+La tarjeta de una llamada así dice con nombres lo que hace, leído como la persona del run cuando se aparca: el agent, el intento y su veredicto, la versión que crea una publicación, el dataset en el que corre un eval y el precio indicado. Los argumentos en bruto siguen en Detalles, y una llamada cuyos registros la persona no puede leer muestra solo esos.
 
 La regla de arriba es la del agent, decidida al publicar y por herramienta, y ese es
 el sitio correcto para ella: es una afirmación sobre lo que el agent _es_. Lo que no

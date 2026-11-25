@@ -444,3 +444,15 @@ it("offers only Reject on a call this person may not approve unread", async () =
   await userEvent.click(screen.getByRole("button", { name: "Reject" }));
   expect(onDecisions).toHaveBeenCalledWith([{ type: "reject" }]);
 });
+
+it("shows the price a paid platform call was quoted at", () => {
+  mount([
+    action("a-1", {
+      tool_name: "agenticos_start_eval_run",
+      args: { quoted_usd: "0.40" },
+      context: { platform_tool: "true" },
+      always_asks: true,
+    }),
+  ]);
+  expect(screen.getByText("Quoted estimate: $0.40")).toBeInTheDocument();
+});
