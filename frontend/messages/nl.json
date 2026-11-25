@@ -16114,6 +16114,16 @@
     "cancelRun": "Stoppen",
     "progress": "Beantwoorde testgevallen",
     "comparisonFailed": "Het oordeel kon niet worden gelezen.",
+    "invalidReason": {
+      "knowledge_not_retrieved": "Zoeken gaf het concept niet terug voor elke bevestigde verbetering.",
+      "too_few_held_out": "{missing, plural, =1 {Voeg nog 1 apart gehouden testvraag toe om een wijziging te meten.} other {Voeg nog # apart gehouden testvragen toe om een wijziging te meten.}}",
+      "scoring_changed": "De twee runs zijn met verschillende beoordelingsinstellingen beoordeeld.",
+      "judge_changed_mid_run": "De beoordelaar veranderde terwijl de testgevallen van deze run werden beoordeeld, dus de beoordelingen zijn niet vergelijkbaar. Voer hem opnieuw uit.",
+      "judge_instructions_changed": "De instructies van de beoordelaar verschillen tussen de twee kanten, dus de beoordelingen zijn niet vergelijkbaar. Voer de basislijn opnieuw uit om beide op dezelfde manier te beoordelen.",
+      "judge_differs": "De twee kanten zijn beoordeeld door een andere beoordelaar, een ander model of andere beoordelingscriteria.",
+      "knowledge_draft_changed": "Het kennisconcept is gewijzigd of verwijderd. Controleer het opnieuw.",
+      "held_out_ungraded": "Apart gehouden vragen zijn nog niet beoordeeld of onvolledig."
+    },
     "compareArm": "Dit model vergelijken",
     "draft": "Concept",
     "proposed": "Voorgestelde wijzigingen",
@@ -18843,6 +18853,17 @@
       "live": "Naar main verplaatst en gepubliceerd: {names}.",
       "drafts": "{count, plural, =1 {Naar main verplaatst in zijn concept, dat wacht op publicatie: {names}.} other {Naar main verplaatst in hun concepten, die wachten op publicatie: {names}.}}",
       "refused": "{name} blijft op de fork: {reason}",
+      "refusal": {
+        "agent_not_found": "je mag hem niet wijzigen, of hij bestaat niet meer",
+        "workflow_agent": "hij is ingesteld in zijn workflowstap",
+        "architect_admin_only": "alleen een beheerder kan de AI Architect wijzigen",
+        "system_agent_admin_only": "het is een systeemagent, die alleen een beheerder kan wijzigen",
+        "via_specialist": "hij gebruikt de skill alleen via een specialist, die je wijzigt in de Builder van de agent",
+        "not_bound": "hij gebruikt de skill niet",
+        "binding_problems": "de skill kan niet zo aan hem worden gekoppeld",
+        "system_agent_parts": "een systeemagent kan dit niet bevatten",
+        "does_not_publish": "hij kan nog niet worden gepubliceerd"
+      },
       "hidden": "{count, plural, =1 {1 agent die je niet kunt zien, bleef zoals hij was.} other {# agents die je niet kunt zien, bleven zoals ze waren.}}",
       "archived": "Niemand leest de fork nog, dus hij werd gearchiveerd.",
       "remaining": "{count, plural, =0 {De fork bleef zoals hij was.} =1 {1 agent leest de fork nog, dus hij werd niet gearchiveerd.} other {# agents lezen de fork nog, dus hij werd niet gearchiveerd.}}"

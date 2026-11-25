@@ -16114,6 +16114,16 @@
     "cancelRun": "Parar",
     "progress": "Casos respondidos",
     "comparisonFailed": "Não foi possível ler o veredito.",
+    "invalidReason": {
+      "knowledge_not_retrieved": "A pesquisa não devolveu o rascunho para cada melhoria confirmada.",
+      "too_few_held_out": "{missing, plural, =1 {Adicione mais 1 pergunta de teste reservada para medir uma mudança.} other {Adicione mais # perguntas de teste reservadas para medir uma mudança.}}",
+      "scoring_changed": "As duas execuções foram avaliadas com configurações de avaliação diferentes.",
+      "judge_changed_mid_run": "O avaliador mudou enquanto os casos desta execução eram avaliados, então as notas não são comparáveis. Execute-a de novo.",
+      "judge_instructions_changed": "As instruções do avaliador mudaram entre os dois lados, então as notas não são comparáveis. Execute a referência de novo para avaliar os dois da mesma forma.",
+      "judge_differs": "Os dois lados foram avaliados por outro avaliador, modelo ou critério.",
+      "knowledge_draft_changed": "O rascunho de conhecimento mudou ou foi removido. Verifique-o de novo.",
+      "held_out_ungraded": "Perguntas reservadas continuam sem avaliação ou incompletas."
+    },
     "compareArm": "Comparar este modelo",
     "draft": "Rascunho",
     "proposed": "Alterações propostas",
@@ -18843,6 +18853,17 @@
       "live": "Movido para a principal e publicado: {names}.",
       "drafts": "{count, plural, =1 {Movido para a principal no seu rascunho, que aguarda publicação: {names}.} other {Movidos para a principal nos seus rascunhos, que aguardam publicação: {names}.}}",
       "refused": "{name} permanece na bifurcação: {reason}",
+      "refusal": {
+        "agent_not_found": "você não pode alterá-lo, ou ele não existe mais",
+        "workflow_agent": "ele está configurado na etapa do seu workflow",
+        "architect_admin_only": "só um administrador pode alterar o AI Architect",
+        "system_agent_admin_only": "é um agente de sistema, que só um administrador pode alterar",
+        "via_specialist": "ele usa a skill só por meio de um especialista, que se altera no Builder do agente",
+        "not_bound": "ele não usa a skill",
+        "binding_problems": "a skill não pode ser vinculada a ele dessa forma",
+        "system_agent_parts": "um agente de sistema não pode conter isso",
+        "does_not_publish": "ele ainda não pode ser publicado"
+      },
       "hidden": "{count, plural, =1 {1 agente que você não pode ver foi mantido como estava.} other {# agentes que você não pode ver foram mantidos como estavam.}}",
       "archived": "Ninguém mais usa a bifurcação, então ela foi arquivada.",
       "remaining": "{count, plural, =0 {A bifurcação foi mantida como estava.} =1 {1 agente ainda usa a bifurcação, então ela não foi arquivada.} other {# agentes ainda usam a bifurcação, então ela não foi arquivada.}}"
