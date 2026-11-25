@@ -51,14 +51,20 @@ async def _seed(monkeypatch, db, requests, measured):
     )
 
 
-async def test_a_quote_from_an_answer_the_check_grades_never_reaches_the_improver(
+async def test_a_problem_citing_an_answer_the_check_grades_never_reaches_the_improver(
     monkeypatch, mock_db_session
 ):
+    """Its wording was written from every answer it cites, so it goes whole: a problem
+    that also cites an admissible answer is withheld as well."""
     learned, kept_aside, chat = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
     requests = [
         _found(
-            ("The window is wrong", [(kept_aside, "HELD_OUT_ANSWER"), (learned, "TRAIN_ANSWER")]),
+            (
+                "The window is wrong",
+                [(kept_aside, "HELD_OUT_ANSWER"), (learned, "TRAIN_ANSWER_TOO")],
+            ),
             ("Only seen where it is graded", [(kept_aside, "HELD_OUT_ONLY")]),
+            ("Learned from training", [(learned, "TRAIN_ANSWER")]),
             ("Said in a conversation", [(chat, "CHAT_ANSWER")]),
         )
     ]
@@ -66,11 +72,12 @@ async def test_a_quote_from_an_answer_the_check_grades_never_reaches_the_improve
     seed = await _seed(monkeypatch, mock_db_session, requests, {kept_aside})
     prompt = _seed_section({"problems": seed.problems, "quotes": seed.quotes})
 
-    assert seed.problems == ["The window is wrong", "Said in a conversation"]
+    assert seed.problems == ["Learned from training", "Said in a conversation"]
     assert seed.quotes == ["TRAIN_ANSWER", "CHAT_ANSWER"]
     assert set(seed.run_ids) == {learned, chat}
-    assert seed.withheld == 1
+    assert seed.withheld == 2
     assert "HELD_OUT" not in prompt
+    assert "The window is wrong" not in prompt and "TRAIN_ANSWER_TOO" not in prompt
     assert "TRAIN_ANSWER" in prompt and "CHAT_ANSWER" in prompt
 
 

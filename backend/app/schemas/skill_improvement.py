@@ -240,7 +240,7 @@ class SkillImprovementRead(BaseSchema):
     seed_withheld: int = Field(
         default=0,
         description="For a session started from an agent's Improve, how many of the problems "
-        "it found in the skill were left out because every answer they quote is to a "
+        "it found in the skill were left out because an answer they quote is to a "
         "question the skill's check measures on",
     )
     check: SkillCheckRead | None = Field(

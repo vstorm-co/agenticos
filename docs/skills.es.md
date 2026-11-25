@@ -1,5 +1,5 @@
 ---
-source_sha: "b758a7275e44"
+source_sha: "603a82afc33b"
 ---
 
 # Skills { #skills }
@@ -880,9 +880,9 @@ esa sesión informó. Solo un problema que cita una línea del skill con el valo
 la regla equivocados se lleva los criterios del agente; cuando el skill solo
 calla, el problema es un consejo y el agente sigue respondiendo de esos
 criterios - consulta [Cuando el fallo está en un
-skill](authoring.md#when-the-fault-is-in-a-skill). Las citas de respuestas que
-calificará la comprobación de esta sesión no se entregan, y un problema que se
-queda sin ninguna se cuenta en vez de pasarse.
+skill](authoring.md#when-the-fault-is-in-a-skill). Un problema que cita una
+respuesta que calificará la comprobación de esta sesión no se entrega: se
+cuenta.
 
 Al empezar dice cuántas respuestas valoradas a la baja o fallidas lee, y a cuántos
 agents sirve la línea. También dice cuánto

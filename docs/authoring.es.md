@@ -1,5 +1,5 @@
 ---
-source_sha: "4422b99a1df9"
+source_sha: "08e76ac5a7af"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las herramientas, la configuración, los skills y los archivos de contexto de un agent. Una persona decide cada uno."
 ---
@@ -596,7 +596,7 @@ Cuando el skill solo calla, o solo prohíbe añadir otras secciones, y los datos
 
 El paso Changes muestra estos problemas en **Belongs to a skill**. Cada tarjeta muestra los problemas con sus citas y cuántos agentes leen la misma línea del skill. **Improve X** abre el Improve del propio skill, con los problemas de esta sesión como evidencia inicial. Si el agente sigue un fork, ese Improve trabaja sobre el fork; los problemas de un agente fijado van a main. Sin permiso de edición sobre el skill, la tarjeta indica a quién pedírselo.
 
-Una cita se entrega solo cuando la comprobación del skill no calificará la respuesta de la que procede: una respuesta a una pregunta guardada en la parte apartada de su dataset, o a cualquiera de las preguntas de prueba propias de un skill, se queda atrás, así que el asistente del skill nunca lee lo que su comprobación mide después. Un problema que se queda sin otra cita no se entrega, y la sesión del skill dice cuántos quedaron fuera (`seed_withheld`).
+Un problema se entrega solo cuando la comprobación del skill no calificará ninguna de las respuestas que cita: un problema que cita una respuesta a una pregunta guardada en la parte apartada de su dataset, o a cualquiera de las preguntas de prueba propias de un skill, no se entrega en absoluto, porque su texto se escribió también a partir de esa respuesta. Así el asistente del skill nunca lee lo que su comprobación mide después, y la sesión del skill dice cuántos problemas quedaron fuera (`seed_withheld`).
 
 Las respuestas de entrenamiento fallidas que leyó esta sesión y que usaron el skill también cuentan como evidencia del skill: preguntas de prueba de la parte de entrenamiento guardada del propio dataset de la sesión, con la que una comprobación de skill nunca mide. Un Improve del skill iniciado así ya no necesita respuestas de chat valoradas negativamente para empezar; quien no puede ejecutar ese dataset no lee ninguna de esas respuestas.
 

@@ -562,7 +562,7 @@ When the skill is only silent, or only says not to add other sections, and the f
 
 The Changes step lists these problems under **Belongs to a skill**. Each card shows the problems with their quotes, and how many agents read the same line of the skill. **Improve X** opens the skill's own Improve, with this session's problems as its starting evidence. If the agent follows a fork, that Improve works on the fork; a pinned agent's problems go to main. Without edit access to the skill, the card says to ask someone who has it.
 
-A quote is handed over only when the skill's check will not grade the answer it comes from: an answer to a question stored in its dataset's held-out part, or to any of a skill's own test questions, stays behind, so the skill's helper never reads what its check then measures. A problem left with no other quote is not handed over, and the skill's session says how many were left out (`seed_withheld`).
+A problem is handed over only when the skill's check will grade none of the answers it quotes: a problem that quotes an answer to a question stored in its dataset's held-out part, or to any of a skill's own test questions, is not handed over at all, since its wording was written from that answer too. So the skill's helper never reads what its check then measures, and the skill's session says how many problems were left out (`seed_withheld`).
 
 The failed training answers this session read that used the skill count as the skill's evidence too: test questions from the stored training part of the session's own dataset, which a skill check never measures on. A skill's Improve started this way no longer needs chat answers rated down to begin; a caller who may not run that dataset reads none of those answers.
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "4422b99a1df9"
+source_sha: "08e76ac5a7af"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -614,7 +614,7 @@ Schweigt der Skill nur oder verbietet er nur weitere Abschnitte, und stehen die 
 
 Der Schritt Changes listet diese Probleme unter **Gehört zu einem Skill**. Jede Karte zeigt die Probleme mit ihren Zitaten und wie viele Agents dieselbe Linie des Skills lesen. **X verbessern** öffnet das Improve des Skills selbst, mit den Problemen dieser Session als Startbelegen. Folgt der Agent einem Fork, arbeitet dieses Improve am Fork; die Probleme eines gepinnten Agents gehen an Main. Ohne Bearbeitungsrecht für den Skill sagt die Karte, wen man fragen kann.
 
-Ein Zitat wird nur übergeben, wenn die Prüfung des Skills die Antwort, aus der es stammt, nicht bewertet: Eine Antwort auf eine Frage aus dem zurückgelegten Teil ihres Datasets oder auf eine der eigenen Testfragen eines Skills bleibt zurück, sodass der Helfer des Skills nie liest, was seine Prüfung danach misst. Ein Problem ohne anderes Zitat wird nicht übergeben, und die Session des Skills sagt, wie viele ausgelassen wurden (`seed_withheld`).
+Ein Problem wird nur übergeben, wenn die Prüfung des Skills keine der Antworten bewertet, die es zitiert: Ein Problem, das eine Antwort auf eine Frage aus dem zurückgelegten Teil ihres Datasets oder auf eine der eigenen Testfragen eines Skills zitiert, wird gar nicht übergeben, denn sein Wortlaut entstand auch aus dieser Antwort. So liest der Helfer des Skills nie, was seine Prüfung danach misst, und die Session des Skills sagt, wie viele Probleme ausgelassen wurden (`seed_withheld`).
 
 Die fehlgeschlagenen Trainingsantworten, die diese Session gelesen hat und die den Skill verwendet haben, zählen ebenfalls als Belege des Skills: Testfragen aus dem gespeicherten Trainingsteil des eigenen Datasets der Session, auf dem eine Skill-Prüfung nie misst. Ein so gestartetes Improve des Skills braucht zum Beginnen keine negativ bewerteten Chat-Antworten mehr; wer dieses Dataset nicht ausführen darf, liest keine dieser Antworten.
 

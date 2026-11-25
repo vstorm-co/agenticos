@@ -43,8 +43,8 @@ class SkillSeed:
         run_ids: The runs the problems cite.
         problems: What the agent's improver found wrong in the skill.
         quotes: The checked quotes those problems cite.
-        withheld: Problems left out because every answer they cite is to a
-            question the skill's check measures on.
+        withheld: Problems left out because an answer they cite is to a question
+            the skill's check measures on.
     """
 
     agent_id: UUID
@@ -117,10 +117,11 @@ class ImprovementSkillService:
         no version to compare with takes the line the agent's served version reads,
         as the session's card shows it.
 
-        A quote from an answer to a question the skill's check measures on - a
-        stored held-out case, a question of a skill's own test set - is left out:
-        the skill's improver would otherwise read what its check then grades. A
-        problem with nothing else to cite goes with it, counted in `withheld`.
+        A problem that cites an answer to a question the skill's check measures on -
+        a stored held-out case, a question of a skill's own test set - is left out
+        whole, counted in `withheld`: its wording was written from every answer it
+        cites, so dropping the quote alone would still hand the skill's improver
+        what its check then grades.
 
         Raises:
             NotFoundError: The caller may not see the skill.
@@ -141,16 +142,16 @@ class ImprovementSkillService:
             organization_id=ctx.organization_id,
         )
         kept = [
-            (problem.problem, [item for item in problem.evidence if item.run_id not in measured])
+            problem
             for problem in problems
+            if not any(item.run_id in measured for item in problem.evidence)
         ]
-        kept = [(problem, evidence) for problem, evidence in kept if evidence]
-        evidence = [item for _, cited in kept for item in cited]
+        evidence = [item for problem in kept for item in problem.evidence]
         return SkillSeed(
             agent_id=agent.id,
             fork_id=await self._read_fork(ctx, agent, skill_id, base_version_id),
             run_ids=list(dict.fromkeys(item.run_id for item in evidence)),
-            problems=[problem for problem, _ in kept],
+            problems=[problem.problem for problem in kept],
             quotes=[item.quote for item in evidence if item.quote],
             withheld=len(problems) - len(kept),
         )

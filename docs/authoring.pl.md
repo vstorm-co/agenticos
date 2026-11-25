@@ -1,5 +1,5 @@
 ---
-source_sha: "4422b99a1df9"
+source_sha: "08e76ac5a7af"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -579,7 +579,7 @@ Gdy skill tylko milczy albo tylko zabrania dodawania innych sekcji, a fakty potr
 
 Krok Changes pokazuje te problemy w sekcji **Należy do skilla**. Każda karta zawiera problemy z cytatami oraz liczbę agentów czytających tę samą linię skilla. **Popraw X** otwiera Improve samego skilla z problemami z tej sesji jako dowodami startowymi. Jeśli agent korzysta z forka, ten Improve pracuje na forku; problemy przypiętego agenta trafiają do main. Bez prawa edycji skilla karta mówi, kogo poprosić.
 
-Cytat jest przekazywany tylko wtedy, gdy test skilla nie oceni odpowiedzi, z której pochodzi: odpowiedź na pytanie zapisane w odłożonej części swojego datasetu albo na dowolne z własnych pytań testowych skilla zostaje, więc pomocnik skilla nigdy nie czyta tego, co jego test potem mierzy. Problem, któremu nie został żaden inny cytat, nie jest przekazywany, a sesja skilla podaje, ile takich pominięto (`seed_withheld`).
+Problem jest przekazywany tylko wtedy, gdy test skilla nie oceni żadnej z odpowiedzi, które cytuje: problem cytujący odpowiedź na pytanie zapisane w odłożonej części swojego datasetu albo na dowolne z własnych pytań testowych skilla w ogóle nie jest przekazywany, bo jego treść powstała także z tej odpowiedzi. Pomocnik skilla nigdy więc nie czyta tego, co jego test potem mierzy, a sesja skilla podaje, ile problemów pominięto (`seed_withheld`).
 
 Dowodami skilla są też przeczytane przez sesję błędne odpowiedzi treningowe z jego użyciem: pytania testowe z zapisanej części treningowej datasetu tej sesji, na której sprawdzenie skilla nigdy nie mierzy. Tak uruchomiony Improve nie potrzebuje już do startu negatywnie ocenionych odpowiedzi z rozmów; kto nie może uruchamiać tego datasetu, żadnej z nich nie czyta.
 
