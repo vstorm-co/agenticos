@@ -1,5 +1,5 @@
 ---
-source_sha: "57bc6e1afff1"
+source_sha: "fdd4d75fb9d2"
 ---
 
 # Los servicios de ML { #the-ml-services }
@@ -93,6 +93,15 @@ subida legítima responde con un documento multiplicado muchas veces.
 Un documento del que no se puede leer nada se rechaza en lugar de responderse con
 una lista de páginas vacía, y el rechazo dice que se llame a OCR — que es lo que
 un escaneo parseado por su capa de texto siempre necesita.
+
+El análisis lee como máximo **1000 páginas**, conserva como máximo **10 000 000 de
+caracteres de chunks preparados** y dispone de **120 segundos**. PyMuPDF limita
+además el contenido extraído a **5 000 000 de caracteres** y **1000 tablas**. El parseo se ejecuta en un
+proceso separado con límites de CPU y memoria; un timeout o una solicitud
+cancelada detiene ese proceso antes de liberar su plaza de admisión. Un documento
+que supera un límite semántico se rechaza pidiendo que se divida, mientras que un
+documento normal dentro de esos límites conserva el formato de respuesta
+anterior.
 
 ### OCR { #ocr }
 

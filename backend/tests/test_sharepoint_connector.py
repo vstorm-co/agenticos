@@ -721,8 +721,9 @@ class TestDownloads:
         tenant.nodes["i-hr"].size = 3 * 1024 * 1024
         connector, handbook = await self._file(tenant, "Handbook.pdf")
 
-        with pytest.raises(BadRequestError, match="is 3 MB, and a synced file may be at most 1 MB"):
+        with pytest.raises(BadRequestError, match="larger than the 1 MB limit") as caught:
             await connector.download_file(handbook, tmp_path, credential=CREDENTIAL)
+        assert caught.value.details == {"size_bytes": 3 * 1024 * 1024, "limit_bytes": 1024 * 1024}
         assert not [r for r in tenant.requests if r.url.host == "contoso.sharepoint.com"]
 
     async def test_a_body_larger_than_its_size_said_is_cut_off(

@@ -1,5 +1,5 @@
 ---
-source_sha: "57bc6e1afff1"
+source_sha: "fdd4d75fb9d2"
 ---
 
 # Usługi ML { #the-ml-services }
@@ -92,6 +92,14 @@ legalne wysłanie odpowiada dokumentem zwielokrotnionym wiele razy.
 Dokument, z którego nic nie da się odczytać, zostaje odrzucony, a nie zwrócony z
 pustą listą stron, a odmowa mówi, żeby wywołać OCR — czego skan parsowany dla
 warstwy tekstowej potrzebuje zawsze.
+
+Analiza czyta najwyżej **1000 stron**, zachowuje najwyżej **10 000 000 znaków
+przygotowanych chunków** oraz ma **120 sekund**. PyMuPDF dodatkowo ogranicza
+wyodrębnioną treść do **5 000 000 znaków** i **1000 tabel**. Parsowanie działa w osobnym procesie z limitami
+CPU i pamięci; przekroczenie czasu lub anulowanie żądania kończy ten proces przed
+zwolnieniem miejsca przyjęcia. Dokument przekraczający limit semantyczny zostaje
+odrzucony z prośbą o podzielenie, a zwykły dokument mieszczący się w limitach
+zachowuje powyższy format odpowiedzi.
 
 ### OCR { #ocr }
 

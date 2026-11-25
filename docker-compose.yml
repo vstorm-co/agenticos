@@ -64,6 +64,7 @@ services:
     restart: "no"
 
   app:
+    init: true
     image: ${AGENTICOS_IMAGE_PREFIX:-ghcr.io/vstorm-co/agenticos}-backend:${AGENTICOS_VERSION:-latest}
     # Longer than background.drain()'s 30s timeout, or Docker's 10s default
     # SIGKILLs the container mid-drain and an upload stays `processing` (#11).
@@ -92,9 +93,9 @@ services:
       # Empty outside compose, so a bare `uvicorn` run degrades to "no container
       # workspace available" rather than erroring. Note what is absent here:
       # no docker.sock, which is the whole point of the sandbox service below.
-    # One worker by default. `--workers` above 1 puts uvicorn's supervisor at
-    # PID 1, which replaces a worker that dies; at 1 the process *is* PID 1, so
-    # a death is a container exit and `restart:` below is what replaces it. A
+    # One worker by default. Above 1, uvicorn's supervisor replaces a worker
+    # that dies; at 1 a death exits the container and `restart:` replaces it.
+    # Init reaps parser descendants that lose their parent during a hard kill. A
     # worker that is wedged rather than dead kills itself either way
     # (`app/core/watchdog.py`). Each worker imports the application on its own,
     # 460 MiB measured, so raise this with the host's memory in mind -

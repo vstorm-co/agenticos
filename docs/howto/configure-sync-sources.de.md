@@ -1,5 +1,5 @@
 ---
-source_sha: "0e3f3c6c82f8"
+source_sha: "8819ef1c6f61"
 ---
 
 # Sync-Quellen einrichten { #configure-sync-sources }
@@ -31,6 +31,8 @@ Sync-Vorgangs fest.
 | `SyncSourceService` | `app/services/sync_source.py` | Fachlogik für CRUD und Auslösen |
 | RAG-CLI-Befehle | `app/commands/rag.py` | CLI-Oberfläche zur Verwaltung der Quellen |
 | RAG-API-Routen | `app/api/routes/v1/rag.py` | REST-API zur Verwaltung der Quellen |
+
+S3- und Google-Drive-Syncs prüfen pro Lauf höchstens 10.000 Einträge und 1.000 Listing-Seiten. Ein Listing-Zeitbudget von 15 Minuten wird vor und nach Anbieteranfragen geprüft. Jede heruntergeladene Datei muss unter `MAX_UPLOAD_SIZE_MB` bleiben; die tatsächlich übertragenen Bytes zählen auch bei fehlenden oder falschen Metadaten. Ein Lauf darf höchstens 1 GiB herunterladen, einschließlich fehlgeschlagener Teilübertragungen. Grenzen Sie den Ordner oder das Präfix ein, wenn die Quelle diese Grenzen überschreitet. Abgelehnte Listings lösen keine Löschung zuvor synchronisierter Dokumente aus.
 
 ## Schnelleinstieg -- CLI { #quick-start-cli }
 

@@ -254,15 +254,15 @@ class IngestionConfig(BaseModel):
         ge=1,
         le=10000,
         description=(
-            "Pages LiteParse reads before it stops. The setting that actually "
-            "bounds the cost of one document - the timeout only bounds the wait."
+            "Pages a local PDF parser reads before it stops. This bounds the "
+            "semantic cost of one document as well as the caller's wait."
         ),
     )
     parse_timeout_seconds: float = Field(
         default=600.0,
         gt=0.0,
         le=3600.0,
-        description="How long LiteParse may spend on one document.",
+        description="How long a local PDF parser may spend on one document.",
     )
     chunk_size: int = Field(
         default=2500, ge=64, le=8192, description="Characters per embedded chunk."
@@ -485,6 +485,8 @@ def rag_settings_for(
             method=config.pdf_parser.value,
             api_key=llamaparse_api_key or "",
             tier=config.llamaparse_tier.value,
+            pymupdf_max_pages=config.max_pages,
+            pymupdf_timeout_seconds=config.parse_timeout_seconds,
             liteparse_ocr_server_url=ocr_server_url,
             liteparse_ocr_language=config.ocr_language,
             liteparse_timeout_seconds=config.parse_timeout_seconds,

@@ -18,8 +18,8 @@ orphaned `soffice` lingers.
 
 What one conversion is held to, all of it from the two it replaced:
 
-- its **own session** (`start_new_session=True`), so the child leads a fresh
-  process group and teardown reaches `soffice.bin` and `oosplash` too;
+- its **own session** (`start_new_session=True`), or its isolated parser's
+  owned group, so teardown reaches `soffice.bin` and `oosplash` too;
 - a **group kill on timeout *and* on cancellation** - `SIGTERM`, a short grace,
   then `SIGKILL` over the whole group regardless of the leader;
 - a **per-call user profile**, because LibreOffice refuses a second instance
@@ -50,8 +50,9 @@ import sys
 import tempfile
 import uuid
 import weakref
-from collections.abc import AsyncGenerator
-from contextlib import asynccontextmanager
+from collections.abc import AsyncGenerator, Generator
+from contextlib import asynccontextmanager, contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
@@ -61,6 +62,24 @@ from app.core.blocking import create_cancel_safe, delete_cancel_safe, run_blocki
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
+
+_parent_owns_group: ContextVar[bool] = ContextVar("office_parent_owns_group", default=False)
+
+
+@contextmanager
+def use_parent_process_group() -> Generator[None]:
+    """Keep converters inside a killable parser worker's process group.
+
+    The parser's parent owns termination and scratch cleanup. A conversion
+    timeout may terminate the parser too; its parent then reports an engine
+    failure and clears the whole group before releasing admission.
+    """
+    token = _parent_owns_group.set(True)
+    try:
+        yield
+    finally:
+        _parent_owns_group.reset(token)
+
 
 # The macOS bundle, checked last, mirroring liteparse's own discovery order
 # (`find_libre_office_command`) so this module and the parser agree on whether a
@@ -316,16 +335,17 @@ async def _convert(
             str(source),
             stdout=asyncio.subprocess.DEVNULL,
             stderr=asyncio.subprocess.PIPE,
-            start_new_session=True,
+            start_new_session=not _parent_owns_group.get(),
         )
         # The process-group id, captured now rather than derived at teardown.
         # Reading `os.getpgid(proc.pid)` after a timeout could race the child
         # watcher reaping the leader - LibreOffice's launcher exits after forking
         # `soffice.bin` - and raise `ProcessLookupError`, so teardown would
         # return without signalling a survivor still in the group.
-        # `start_new_session=True` makes the child a group leader, so its pgid is
-        # its pid (#1654).
-        pgid = proc.pid
+        # Normally the child leads its own group (#1654). Inside an isolated ML
+        # parser it joins the parser's group so a hard parent kill reaches it;
+        # the API parent owns final group termination and workspace cleanup.
+        pgid = os.getpgrp() if _parent_owns_group.get() else proc.pid
         try:
             stderr = await asyncio.wait_for(_drain(proc), timeout=timeout_seconds)
         except TimeoutError:

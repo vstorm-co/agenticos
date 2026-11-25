@@ -325,6 +325,8 @@ class TestTurningAConfigurationIntoPipelineSettings:
 
         assert settings.pdf_parser.method == "liteparse"
         assert settings.pdf_parser.tier == "fast"
+        assert settings.pdf_parser.pymupdf_max_pages == 25
+        assert settings.pdf_parser.pymupdf_timeout_seconds == 30.0
         assert settings.pdf_parser.liteparse_ocr_language == "deu"
         assert settings.pdf_parser.liteparse_timeout_seconds == 30.0
         assert settings.pdf_parser.liteparse_auto_ocr is False

@@ -16,6 +16,7 @@ available for organizations that still use it.
 import asyncio
 import json as _json
 import logging
+from collections import deque
 from pathlib import Path
 from typing import ClassVar
 
@@ -32,6 +33,7 @@ from app.services.rag.connectors import (
     SyncCredential,
 )
 from app.services.rag.drive_api import DriveClient, GoogleDriveOAuthGrant
+from app.services.rag.remote_limits import ListingBudget
 from app.services.rag.remote_names import checked_drive_folder_id
 
 logger = logging.getLogger(__name__)
@@ -146,56 +148,63 @@ class GoogleDriveConnector(BaseSyncConnector):
     def _list_folder(
         self, service: DriveClient, folder_id: str, include_subfolders: bool
     ) -> list[RemoteFile]:
-        """Recursively list files in a Google Drive folder (sync, runs in thread).
+        """List a Google Drive folder tree iteratively (sync, runs in thread).
 
         The parent id is checked rather than escaped, here where the query is
         built: this is the one funnel both the configured folder and every
-        sub-folder id pass through, so nothing reaches the query language
+        queued sub-folder id pass through, so nothing reaches the query language
         unchecked whichever way in it came - a route, a clone, or a row older
         than the check.
         """
         files: list[RemoteFile] = []
-        query = f"'{checked_drive_folder_id(folder_id)}' in parents and trashed = false"
-        page_token = None
+        folders = deque([folder_id])
+        budget = ListingBudget()
 
-        while True:
-            page = service.list_page(
-                q=query,
-                fields="nextPageToken, files(id, name, mimeType, size, modifiedTime)",
-                page_size=100,
-                page_token=page_token,
-            )
-
-            for f in page.files:
-                mime = f.mime_type
-
-                if mime == "application/vnd.google-apps.folder":
-                    if include_subfolders:
-                        files.extend(self._list_folder(service, f.id, include_subfolders))
-                    continue
-
-                name = f.name
-
-                if mime in GOOGLE_DOCS_EXPORT:
-                    export_mime, ext = GOOGLE_DOCS_EXPORT[mime]
-                    if not name.endswith(ext):
-                        name = f"{name}{ext}"
-                    mime = export_mime
-
-                files.append(
-                    RemoteFile(
-                        id=f.id,
-                        name=name,
-                        mime_type=mime,
-                        size=f.size,
-                        modified_at=f.modified_time,
-                        source_path=f"gdrive://{f.id}",
-                    )
+        while folders:
+            current_folder = folders.popleft()
+            query = f"'{checked_drive_folder_id(current_folder)}' in parents and trashed = false"
+            page_token = None
+            while True:
+                budget.check_time()
+                page = service.list_page(
+                    q=query,
+                    fields="nextPageToken, files(id, name, mimeType, size, modifiedTime)",
+                    page_size=100,
+                    page_token=page_token,
                 )
+                budget.observe_page()
 
-            page_token = page.next_page_token
-            if not page_token:
-                break
+                for f in page.files:
+                    mime = f.mime_type
+                    is_folder = mime == "application/vnd.google-apps.folder"
+                    budget.observe(f.size, downloadable=not is_folder)
+                    if is_folder:
+                        if include_subfolders:
+                            folders.append(f.id)
+                        continue
+
+                    name = f.name
+
+                    if mime in GOOGLE_DOCS_EXPORT:
+                        export_mime, ext = GOOGLE_DOCS_EXPORT[mime]
+                        if not name.endswith(ext):
+                            name = f"{name}{ext}"
+                        mime = export_mime
+
+                    files.append(
+                        RemoteFile(
+                            id=f.id,
+                            name=name,
+                            mime_type=mime,
+                            size=f.size,
+                            modified_at=f.modified_time,
+                            source_path=f"gdrive://{f.id}",
+                        )
+                    )
+
+                page_token = page.next_page_token
+                if not page_token:
+                    break
 
         return files
 
@@ -225,14 +234,16 @@ class GoogleDriveConnector(BaseSyncConnector):
         For regular files, downloads directly.
         """
 
+        allowance = self._allowance(file)
+
         def _download() -> None:
             with self._get_drive_service(credential) as service:
                 original_mime = service.metadata(file.id, fields="mimeType").mime_type
                 if original_mime in GOOGLE_DOCS_EXPORT:
                     export_mime, _ = GOOGLE_DOCS_EXPORT[original_mime]
-                    service.export(file.id, export_mime, dest_path)
+                    service.export(file.id, export_mime, dest_path, allowance=allowance)
                 else:
-                    service.download(file.id, dest_path)
+                    service.download(file.id, dest_path, allowance=allowance)
 
             logger.info(
                 "Downloaded %s from Google Drive (%d bytes)", file.id, dest_path.stat().st_size

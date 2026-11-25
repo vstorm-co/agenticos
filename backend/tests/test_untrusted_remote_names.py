@@ -27,6 +27,7 @@ from app.core.exceptions import BadRequestError
 from app.core.secret_kinds import AwsCredentialsSecret, GcpServiceAccountSecret
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+from app.services.rag import remote_limits
 from app.services.rag.connectors import (
     CONNECTOR_REGISTRY,
     BaseSyncConnector,
@@ -198,6 +199,28 @@ class TestTheGoogleDriveConnector:
         assert exported.url.path == "/drive/v3/files/f1/export"
         assert exported.url.params["mimeType"] == "application/pdf"
 
+    @pytest.mark.security
+    async def test_a_declared_oversized_drive_file_is_refused_before_fetch(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        remote = _Drive(meta={"mimeType": "text/plain"})
+        connector = GoogleDriveConnector()
+        monkeypatch.setattr(connector, "_get_drive_service", lambda credential: remote.client())
+
+        with pytest.raises(BadRequestError):
+            await connector.download_file(
+                RemoteFile(
+                    id="f1",
+                    name="large.txt",
+                    size=settings.MAX_UPLOAD_SIZE_MB * remote_limits.MIB + 1,
+                    source_path="gdrive://f1",
+                ),
+                tmp_path,
+                config={},
+            )
+
+        assert remote.requests == []
+
     async def test_the_listing_query_constrains_to_one_parent(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -208,6 +231,23 @@ class TestTheGoogleDriveConnector:
         await connector.list_files({"folder_id": "1AbC-dEf_2", "include_subfolders": False}, None)
 
         assert remote.queries() == ["'1AbC-dEf_2' in parents and trashed = false"]
+
+    @pytest.mark.security
+    async def test_a_drive_listing_stops_at_the_shared_entry_ceiling(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(remote_limits, "MAX_SYNC_ITEMS", 1)
+        remote = _Drive(
+            files=[
+                {"id": "f1", "name": "a.txt", "mimeType": "text/plain", "size": "1"},
+                {"id": "f2", "name": "b.txt", "mimeType": "text/plain", "size": "1"},
+            ]
+        )
+        connector = GoogleDriveConnector()
+        monkeypatch.setattr(connector, "_get_drive_service", lambda credential: remote.client())
+
+        with pytest.raises(BadRequestError):
+            await connector.list_files({"folder_id": "1AbC"}, None)
 
     async def test_a_listing_names_exports_and_reads_drive_timestamps(
         self, monkeypatch: pytest.MonkeyPatch
@@ -362,7 +402,7 @@ class TestTheS3Connector:
                 config={},
             )
 
-        client.download_file.assert_not_called()
+        client.get_object.assert_not_called()
 
 
 class TestTheLegacyCliSources:
@@ -428,9 +468,10 @@ class TestTheLegacyCliSources:
         source = S3Source.__new__(S3Source)
         source.bucket = "docs"
         source.client = MagicMock()
-        source.client.download_file.side_effect = lambda bucket, key, path: Path(path).write_bytes(
-            b"payload"
-        )
+        body = MagicMock()
+        body.iter_chunks.return_value = [b"payload"]
+        source.client.head_object.return_value = {"ContentLength": 7}
+        source.client.get_object.return_value = {"Body": body, "ContentLength": 7}
 
         local = await source.download_file("../../evil.txt", sync_dir)
 

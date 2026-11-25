@@ -140,6 +140,16 @@ PARSER_PDF_FORMATS: dict[str, set[str]] = {
 }
 
 
+# PyMuPDF reads attacker-controlled compressed structures in native code. These
+# defaults bound the semantic work and retained output even when a collection
+# has not chosen narrower page and time limits of its own.
+PYMUPDF_MAX_CONTENT_CHARS = 5_000_000
+PYMUPDF_MAX_TABLES = 1_000
+PYMUPDF_MAX_IMAGES = 1_000
+PYMUPDF_MAX_IMAGE_BYTES = 64 * 1024 * 1024
+DOCUMENT_MAX_CHUNK_CHARS = 10_000_000
+
+
 def get_supported_formats(parser_name: str = "pymupdf") -> set[str]:
     """Get supported file formats for a given parser."""
     return PARSER_FORMATS.get(parser_name, PYMUPDF_FORMATS)
@@ -200,6 +210,15 @@ class PdfParser(BaseModel):
     method: str = "pymupdf"  # Runtime: pymupdf, llamaparse, liteparse
     api_key: str = ""
     tier: str = "agentic"
+    # PyMuPDF-specific. Page/time limits inherit the collection's generic local
+    # parser budgets; the other ceilings bound retained output and expensive
+    # table/image expansion independently of the compressed upload size.
+    pymupdf_max_pages: int = Field(default=1000, gt=0)
+    pymupdf_max_content_chars: int = Field(default=PYMUPDF_MAX_CONTENT_CHARS, gt=0)
+    pymupdf_max_tables: int = Field(default=PYMUPDF_MAX_TABLES, gt=0)
+    pymupdf_max_images: int = Field(default=PYMUPDF_MAX_IMAGES, gt=0)
+    pymupdf_max_image_bytes: int = Field(default=PYMUPDF_MAX_IMAGE_BYTES, gt=0)
+    pymupdf_timeout_seconds: float = Field(default=600.0, gt=0)
     # LiteParse-specific. ocr_server_url=None falls back to bundled Tesseract.
     # Set to e.g. "http://easyocr:8000" to use an external OCR microservice.
     liteparse_ocr_server_url: str | None = None
@@ -239,6 +258,7 @@ class RAGSettings(BaseModel):
     chunk_size: int = 2500
     chunk_overlap: int = 200
     chunking_strategy: str = "recursive"
+    max_chunk_chars: int = Field(default=DOCUMENT_MAX_CHUNK_CHARS, gt=0)
     enable_hybrid_search: bool = False
     enable_ocr: bool = False
 

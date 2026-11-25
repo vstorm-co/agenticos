@@ -12,6 +12,11 @@ from botocore.config import Config
 
 from app.core.config import settings
 from app.services.rag.filters import Source
+from app.services.rag.remote_limits import (
+    DOWNLOAD_CHUNK_BYTES,
+    ListingBudget,
+    write_download,
+)
 from app.services.rag.remote_names import destination_within
 from app.services.rag.sources.base import BaseDocumentSource, SourceFile
 
@@ -56,16 +61,19 @@ class S3Source(BaseDocumentSource):
             params["Prefix"] = path
 
         files = []
+        budget = ListingBudget()
         for page in paginator.paginate(**params):
+            budget.observe_page()
             for obj in page.get("Contents", []):
                 key = obj["Key"]
-                if key.endswith("/"):
-                    continue
-
+                is_file = not key.endswith("/")
+                size = obj.get("Size")
                 name = Path(key).name
                 ext = Path(name).suffix.lower()
+                selected = is_file and (not extensions or ext in extensions)
+                budget.observe(size if isinstance(size, int) else None, downloadable=selected)
 
-                if extensions and ext not in extensions:
+                if not selected:
                     continue
 
                 files.append(
@@ -94,7 +102,23 @@ class S3Source(BaseDocumentSource):
             BadRequestError: the key does not name a file inside `dest_dir`.
         """
         dest_path = destination_within(dest_dir, file_id)
-        self.client.download_file(self.bucket, file_id, str(dest_path))
+        metadata = self.client.head_object(Bucket=self.bucket, Key=file_id)
+        size = metadata.get("ContentLength")
+        budget = self._downloads()
+        allowance = budget.allowance(size if isinstance(size, int) else None)
+        response = self.client.get_object(Bucket=self.bucket, Key=file_id)
+        body = response["Body"]
+        try:
+            content_length = response.get("ContentLength")
+            allowance.check_declared(content_length if isinstance(content_length, int) else None)
+            write_download(
+                dest_path,
+                body.iter_chunks(chunk_size=DOWNLOAD_CHUNK_BYTES),
+                allowance,
+            )
+            budget.record(dest_path, allowance)
+        finally:
+            body.close()
         logger.info(
             "Downloaded s3://%s/%s (%d bytes)", self.bucket, file_id, dest_path.stat().st_size
         )
