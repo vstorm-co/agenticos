@@ -118,10 +118,12 @@ from app.services.authoring_config import ConfigurationService
 from app.services.authoring_evidence import EvidencePack, EvidenceService
 from app.services.background_jobs import enqueue
 from app.services.context import ContextService
+from app.services.context_proposal import context_quotes_credential
 from app.services.dataset import redact_credentials, redact_json
 from app.services.eval_run import EvalRunService, spec_hash
 from app.services.eval_suite import EvalSuiteService
 from app.services.model_profile import ModelProfileService
+from app.services.skill_proposal import PROPOSAL_QUOTES_CREDENTIAL, proposal_quotes_credential
 from app.services.skills import SkillService, improver_skill_chars
 from app.services.spend import month_start, organization_monthly_spend
 from app.services.system_agent_runner import SystemAgentRunner
@@ -1712,6 +1714,10 @@ class AuthoringService:
             raise NotFoundError(
                 message="No change to this skill is waiting", details={"skill_id": skill.id}
             )
+        if proposal_quotes_credential(proposal):
+            raise BadRequestError(
+                message=PROPOSAL_QUOTES_CREDENTIAL, details={"proposal_id": proposal.id}
+            )
         if body.agent_id is None:
             raise BadRequestError(
                 message="Pick an agent that uses this skill to check the change on",
@@ -1829,6 +1835,10 @@ class AuthoringService:
             raise NotFoundError(
                 message="No change to this context file is waiting",
                 details={"context_id": file.id},
+            )
+        if context_quotes_credential(proposal):
+            raise BadRequestError(
+                message=PROPOSAL_QUOTES_CREDENTIAL, details={"proposal_id": proposal.id}
             )
         if body.agent_id is None:
             raise BadRequestError(

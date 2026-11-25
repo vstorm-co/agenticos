@@ -55,6 +55,11 @@ _PRODUCT_CONTEXT = "agenticos-product-map"
 _PRODUCT_CONTEXT_DESCRIPTION = "Choose the right AgenticOS feature for a task."
 
 
+def context_quotes_credential(proposal: ContextProposal) -> bool:
+    """Whether a proposed context file change would write a credential into the file."""
+    return holds_credential([proposal.description, proposal.content])
+
+
 class ContextProposalService:
     """List, apply and discard the assistant's proposed context file changes."""
 
@@ -221,7 +226,7 @@ class ContextProposalService:
             context_name=file.name,
             description=redact_credentials(proposal.description)[0],
             content=redact_credentials(proposal.content)[0] or proposal.content,
-            contains_credential=holds_credential([proposal.description, proposal.content]),
+            contains_credential=context_quotes_credential(proposal),
             current_description=file.description,
             current_content=file.content,
             status=proposal.status,
@@ -301,7 +306,7 @@ class ContextProposalService:
         """
         proposal, file = await self._get(ctx, proposal_id, perm=Perm.CONTEXT_EDIT)
         self._refuse_second_decision(proposal, decision.revision)
-        if holds_credential([proposal.description, proposal.content]):
+        if context_quotes_credential(proposal):
             raise BadRequestError(
                 message="This change quotes a credential; discard it and edit the file by hand",
                 details={"proposal_id": proposal.id},

@@ -58,10 +58,13 @@ from app.services.skills import SkillService
 logger = logging.getLogger(__name__)
 
 
-_QUOTES_CREDENTIAL = "This change quotes a credential; discard it and make the change by hand"
+PROPOSAL_QUOTES_CREDENTIAL = (
+    "This change quotes a credential; discard it and make the change by hand"
+)
 
 
-def _quotes_credential(proposal: SkillProposal) -> bool:
+def proposal_quotes_credential(proposal: SkillProposal) -> bool:
+    """Whether a proposed skill change would write a credential into the skill."""
     return holds_credential(
         [proposal.name, proposal.description, proposal.content, dict(proposal.resources or {})]
     )
@@ -234,7 +237,7 @@ class SkillProposalService:
                     name: redact_credentials(body)[0] or body
                     for name, body in read.resources.items()
                 },
-                "contains_credential": _quotes_credential(proposal),
+                "contains_credential": proposal_quotes_credential(proposal),
             }
         )
         skill_id = proposal.skill_id
@@ -308,8 +311,10 @@ class SkillProposalService:
         """
         proposal = await self.get(ctx, proposal_id)
         self._refuse_second_decision(proposal, decision.revision)
-        if _quotes_credential(proposal):
-            raise BadRequestError(message=_QUOTES_CREDENTIAL, details={"proposal_id": proposal.id})
+        if proposal_quotes_credential(proposal):
+            raise BadRequestError(
+                message=PROPOSAL_QUOTES_CREDENTIAL, details={"proposal_id": proposal.id}
+            )
         if proposal.skill_id is not None and decision.check_id is not None and not checked:
             from app.schemas.skill_check import SkillCheckApply
             from app.services.skill_check import SkillCheckService
