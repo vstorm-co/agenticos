@@ -1,5 +1,5 @@
 ---
-source_sha: "4d024f432da0"
+source_sha: "af45341180f5"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -737,6 +737,8 @@ los grants.
 El texto de un caso copiado de una conversación solo es visible para lectores con `runs:view` o acceso a la conversación original. Los demás ven metadatos y un marcador, tanto en versiones actuales e históricas como en exportaciones CSV/JSONL. Si falta la fuente, el texto sigue oculto, también en un caso generado a partir de un chat. La comprobación de preguntas duplicadas (`cases/twins`) nunca coincide con un caso oculto, y la **Cobertura de claves** omite las etiquetas de claves que solo tienen casos ocultos. No se puede editar texto oculto ni revelarlo al cambiar metadatos. Las evaluaciones siguen ejecutando la revisión completa almacenada.
 
 Las respuestas, notas de Review y pruebas de evaluación requieren `runs:view` y acceso al agente que respondió. Si falta alguno, se conservan el resultado y el estado, pero se eliminan el texto de respuesta, motivos, reglas y citas. Antes de copiar la conversación privada de otra persona, el diálogo identifica a su propietario y avisa de que los lectores del dataset que puedan leer runs verán su texto.
+
+Los pasajes de conocimiento del juez se eliminan junto con la respuesta. Quien ve la respuesta recibe un pasaje solo de una base de conocimiento que puede leer; ver [Eval runs](evals.md).
 
 El texto escrito a partir de los casos de un dataset sigue el acceso al dataset. Los cambios de una sesión de Improve requieren acceso de lectura a su dataset. Un run no registra qué dataset leyó, así que dos lecturas requieren acceso de lectura a todos los datasets: las citas de una sesión de skill tomadas de respuestas de evaluación y, en el registro del run, los mensajes que recibió una respuesta de evaluación y el prompt y los mensajes de un agente de la plataforma, como el juez.
 

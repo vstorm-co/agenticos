@@ -1,5 +1,5 @@
 ---
-source_sha: "4d024f432da0"
+source_sha: "af45341180f5"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -773,6 +773,8 @@ zusammenwirken, steht unter [Berechtigungen](permissions.md).
 Den Text eines aus einer Unterhaltung kopierten Falls sehen nur Leser mit `runs:view` oder Zugriff auf die Quellunterhaltung. Andere sehen Metadaten und einen Platzhalter, sowohl in aktuellen und historischen Versionen als auch in CSV/JSONL-Exporten. Eine fehlende Quelle gibt den Text nicht frei, auch bei einem aus einem Chat generierten Fall. Die Prüfung auf doppelte Fragen (`cases/twins`) findet nie einen verborgenen Fall, und die **Schlüsselabdeckung** lässt Schlüsselbezeichnungen aus, die nur verborgene Fälle enthalten. Verborgener Text kann nicht bearbeitet und durch Metadatenänderungen nicht offengelegt werden. Evals führen weiterhin die vollständige gespeicherte Revision aus.
 
 Antworten, Prüfungsnotizen und Bewertungsbelege benötigen `runs:view` und Zugriff auf den antwortenden Agenten. Fehlt eines davon, bleiben Ergebnis und Status sichtbar, aber Antworttext, Begründungen, Regeln und Zitate werden entfernt. Vor dem Kopieren einer fremden privaten Unterhaltung nennt der Dialog deren Eigentümer und warnt, dass Dataset-Leser mit Leserecht für Runs den Text sehen werden.
+
+Die Wissensstellen des Bewerters werden mit der Antwort entfernt. Wer die Antwort sieht, bekommt eine Stelle nur aus einer Wissensbasis, die er lesen darf; siehe [Eval-Runs](evals.md).
 
 Text, der aus den Fällen eines Datasets geschrieben wurde, folgt dem Zugriff auf das Dataset. Die Änderungen einer Improve-Sitzung brauchen Lesezugriff auf ihr Dataset. Ein Run speichert nicht, welches Dataset er gelesen hat, daher brauchen zwei Lesevorgänge Lesezugriff auf alle Datasets: die Zitate einer Skill-Sitzung aus Eval-Antworten und, im Protokoll des Runs, die Nachrichten an eine Eval-Antwort sowie Prompt und Nachrichten eines Plattform-Agenten wie des Judge.
 
