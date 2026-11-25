@@ -17616,6 +17616,7 @@
     "startDataset": "Dataset",
     "startDatasetHint": "Escolha os casos usados para verificar as respostas deste agente.",
     "analysisEstimate": "Custo estimado da análise",
+    "permissionRuns": "Ler uma sessão do Improve requer runs:view, que esta função não tem. Peça acesso a um proprietário da organização.",
     "startCostHint": "A análise vem primeiro. Cada tentativa seguinte é estimada separadamente, em torno de {cost}, dentro do limite da sessão.",
     "comparisonInvalid": "Estes resultados não podem ser comparados. Revise as respostas individuais sem tratar as diferenças como correções ou regressões.",
     "skills": {

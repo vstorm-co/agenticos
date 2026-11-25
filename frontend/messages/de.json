@@ -17418,6 +17418,7 @@
     "startDataset": "Dataset",
     "startDatasetHint": "Wählen Sie die Fälle zur Prüfung der Antworten dieses Agents.",
     "analysisEstimate": "Geschätzte Analysekosten",
+    "permissionRuns": "Eine Improve-Sitzung zu lesen braucht runs:view, das diese Rolle nicht hat. Bitten Sie einen Owner der Organisation um Zugriff.",
     "startCostHint": "Zuerst kommt die Analyse. Jeder weitere Versuch wird separat geschätzt, etwa {cost}, innerhalb des Sitzungslimits.",
     "comparisonInvalid": "Diese Ergebnisse sind nicht vergleichbar. Prüfe die einzelnen Antworten, ohne Unterschiede als Verbesserungen oder Regressionen zu werten.",
     "skills": {

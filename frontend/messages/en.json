@@ -17732,6 +17732,7 @@
     "startDataset": "Dataset",
     "startDatasetHint": "Choose the cases used to check this agent’s answers.",
     "analysisEstimate": "Estimated analysis cost",
+    "permissionRuns": "Reading an Improve session needs runs:view, which this role does not hold. Ask an organization owner for access.",
     "startCostHint": "Analysis comes first. Each later attempt is estimated separately, around {cost}, within the session limit.",
     "comparisonInvalid": "These results cannot be compared. Review the individual answers without treating differences as fixes or regressions.",
     "skills": {

@@ -1053,7 +1053,13 @@ class ImprovementPipelineService:
         return await self._read(ctx, run)
 
     async def read(self, ctx: AuthContext, agent_id: UUID, run_id: UUID) -> ImprovementRead:
+        """One session, for a reader of its agent who also holds `runs:view`.
+
+        A session is read from its agent's runs - its notes, verdicts and timeline -
+        so reading one asks what starting one asks of the reader.
+        """
         await self.registry.get(ctx, agent_id)
+        self._require_runs(ctx)
         return await self._read(ctx, await self._row(ctx, agent_id, run_id))
 
     async def skills(self, ctx: AuthContext, agent_id: UUID, run_id: UUID) -> ImprovementSkills:
@@ -1209,9 +1215,11 @@ class ImprovementPipelineService:
         """The agent's recent sessions, each without its measurement noise.
 
         The noise re-reads every attempt's check, which a list of up to twenty
-        sessions cannot afford; reading one session gives it.
+        sessions cannot afford; reading one session gives it. Needs `runs:view`, as
+        reading one session does.
         """
         await self.registry.get(ctx, agent_id)
+        self._require_runs(ctx)
         rows = await improvement_repo.list_for_agent(
             self.db, organization_id=ctx.organization_id, agent_id=agent_id
         )

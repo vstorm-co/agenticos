@@ -17616,6 +17616,7 @@
     "startDataset": "Dataset",
     "startDatasetHint": "Kies de testgevallen waarmee de antwoorden van deze agent worden gecontroleerd.",
     "analysisEstimate": "Geschatte kosten van de analyse",
+    "permissionRuns": "Een Improve-sessie lezen vereist runs:view, en die heeft deze rol niet. Vraag een eigenaar van de organisatie om toegang.",
     "startCostHint": "De analyse komt eerst. Elke latere poging wordt apart geschat, rond {cost}, binnen de sessielimiet.",
     "comparisonInvalid": "Deze resultaten kunnen niet worden vergeleken. Review de afzonderlijke antwoorden zonder verschillen als verbeteringen of regressies te beschouwen.",
     "skills": {
