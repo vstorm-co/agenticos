@@ -15,7 +15,12 @@ from app.db.models.workflow_media_operation import WorkflowMediaOperation
 from app.services import image_models, video_models
 from app.services.image_generation import generate_image, open_image_model
 from app.services.media_inspection import MediaInfo, MediaInspectionError, inspect_media
-from app.services.video_generation import FirstFrame, VideoReceipt, generate_video
+from app.services.video_generation import (
+    FirstFrame,
+    VideoProviderError,
+    VideoReceipt,
+    generate_video,
+)
 from app.services.workflow_execution import context
 from app.services.workflow_media import _output
 from app.services.workflow_media._admission import MediaConfig, admit, effect_key
@@ -226,10 +231,10 @@ async def _interrupted(journal: MediaJournal | None, code: str, message: str) ->
     )
 
 
-async def _provider_refused(journal: MediaJournal | None, error: ModelHTTPError) -> NodeResult:
+async def _provider_refused(journal: MediaJournal | None, status: int) -> NodeResult:
     code = "MEDIA_PROVIDER_REFUSED"
     message = (
-        f"The media provider {DEFINITE_REFUSALS[error.status_code]} (HTTP {error.status_code}); "
+        f"The media provider {DEFINITE_REFUSALS[status]} (HTTP {status}); "
         "nothing was generated or billed"
     )
     if journal is None:
@@ -292,11 +297,18 @@ async def generate(config: MediaConfig, supplied: MediaGenerateInput) -> NodeRes
                     "workflow_media_cancellation_pending", extra={"operation_id": str(journal.id)}
                 )
         raise
+    except VideoProviderError as exc:
+        # Only the answer to the first request proves that no job exists; a resumed
+        # receipt never reaches it, and a later 4xx came from a job the provider holds.
+        # The journal still refuses to release a hold that has a receipt.
+        if exc.phase == "submission" and exc.status is not None and exc.status in DEFINITE_REFUSALS:
+            return await _provider_refused(journal, exc.status)
+        return await _interrupted(journal, exc.code, str(exc))
     except (AppException, MediaInspectionError) as exc:
         return await _interrupted(journal, exc.code, str(exc))
     except ModelHTTPError as exc:
         if exc.status_code in DEFINITE_REFUSALS:
-            return await _provider_refused(journal, exc)
+            return await _provider_refused(journal, exc.status_code)
         return await _interrupted(
             journal,
             "MEDIA_PROVIDER_INTERRUPTED",
