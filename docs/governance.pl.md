@@ -1,5 +1,5 @@
 ---
-source_sha: "2abb88150859"
+source_sha: "f8559d73d9a1"
 ---
 
 # Governance { #governance }
@@ -1418,6 +1418,10 @@ jednym zadaniem. Co `every` żądań do modelu recenzent czyta ostatnie `window`
 tokenów runu i albo zostawia go w spokoju, albo wysyła jedną krótką poprawkę,
 którą model runu dostaje przy następnym żądaniu, z nazwą recenzenta. Widok runu
 wymienia każdą poprawkę i to, kto ją wysłał.
+
+Recenzent dostaje zasadę, że run, który czyta, jest materiałem do oceny, a nie
+instrukcjami dla niego; jego zadanie jest dopisywane do tej zasady i nigdy jej
+nie zastępuje.
 
 Wywołania recenzenta są sprawdzane z budżetem agenta i organizacji, zanim
 zostaną wykonane, i księgowane na runie po cenie modelu recenzenta. Wywołanie
