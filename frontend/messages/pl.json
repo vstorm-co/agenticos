@@ -10609,7 +10609,8 @@
     "observationSave": "Zapisz ustawienia uczestnictwa",
     "connectionSettings": "Ustawienia połączenia · {provider} · {endpoint}",
     "customEndpoint": "Własny endpoint",
-    "noMatchingModels": "Brak pasujących modeli."
+    "noMatchingModels": "Brak pasujących modeli.",
+    "testedSpecUnread": "Nie udało się odczytać wersji, którą przetestował ten run. {reason}"
   },
   "steps": {
     "skills-gallery": {

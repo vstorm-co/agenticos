@@ -7202,7 +7202,8 @@
     "observationSave": "Katılım ayarlarını kaydet",
     "subscriptionAccountsNote": "Herkes bu modelleri kendi hesaplarıyla çalıştırır. Kendinizinkileri <link>Ayarlar → Profil</link> bölümünde bağlayın.",
     "connectionSettings": "Bağlantı ayarları · {provider} · {endpoint}",
-    "customEndpoint": "Özel uç nokta"
+    "customEndpoint": "Özel uç nokta",
+    "testedSpecUnread": "Bu run'ın test ettiği sürüm okunamadı. {reason}"
   },
   "dashboard": {
     "edit": {

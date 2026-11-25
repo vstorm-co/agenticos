@@ -1168,7 +1168,8 @@
     "observationSave": "Save participation settings",
     "connectionSettings": "Connection settings · {provider} · {endpoint}",
     "customEndpoint": "Custom endpoint",
-    "noMatchingModels": "No matching models."
+    "noMatchingModels": "No matching models.",
+    "testedSpecUnread": "The version this run tested could not be read. {reason}"
   },
   "auth": {
     "agreeToTerms": "By creating an account, you agree to our <terms>Terms</terms> and <privacy>Privacy Policy</privacy>.",

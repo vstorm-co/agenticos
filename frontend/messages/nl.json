@@ -1168,7 +1168,8 @@
     "appWide": "App-breed",
     "appWideNotForAgents": "App-brede kennisbanken kunnen niet door agents worden gebruikt. Vink de kennisbank uit om deze te verwijderen.",
     "otherOrganization": "Andere organisatie",
-    "otherOrganizationNotForAgents": "Deze kennisbank hoort bij een andere organisatie. Agents hier kunnen deze niet gebruiken. Vink de kennisbank uit om deze te verwijderen."
+    "otherOrganizationNotForAgents": "Deze kennisbank hoort bij een andere organisatie. Agents hier kunnen deze niet gebruiken. Vink de kennisbank uit om deze te verwijderen.",
+    "testedSpecUnread": "De versie die deze run testte, kon niet worden gelezen. {reason}"
   },
   "auth": {
     "agreeToTerms": "Door een account aan te maken, ga je akkoord met onze <terms>Voorwaarden</terms> en ons <privacy>Privacybeleid</privacy>.",

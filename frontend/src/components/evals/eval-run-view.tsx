@@ -173,6 +173,7 @@ export function EvalRunView({ agentId, runId }: { agentId: string; runId: string
         run={named}
         candidate={candidate}
         canPublish={agent?.can_publish === true}
+        canEdit={agent?.can_edit === true}
         canEditDataset={dataset?.can_edit === true}
         comparison={live ? undefined : comparison}
         onCancel={

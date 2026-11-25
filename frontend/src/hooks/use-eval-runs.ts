@@ -333,7 +333,7 @@ export function useEvalArmSpec(runId: string | null, armId: string | null) {
     enabled: runId !== null && armId !== null,
     staleTime: Infinity,
   });
-  return { spec: query.data, isLoading: query.isLoading };
+  return { spec: query.data, isLoading: query.isLoading, error: query.error };
 }
 
 /** A dataset's runs over the agents the caller may see, newest first. */
