@@ -274,7 +274,7 @@ class TestSearch:
         assert run.status == "waiting" and run.stage == "filtering"
         assert model.asked and all(prompt.startswith("Train question") for prompt in model.asked)
         assert model.proposals and not any("Held question" in p for p in model.proposals)
-        assert "Train question" in model.proposals[0] and "Failed:" in model.proposals[0]
+        assert "Train question" in model.proposals[0] and "<failed_checks>" in model.proposals[0]
         iteration = await _iteration(db, read.id)
         hunks = list(
             await db.scalars(
