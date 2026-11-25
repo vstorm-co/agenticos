@@ -1257,6 +1257,33 @@ class TestEdges:
             (str(agent.id), str(dismissed.id))
         ]
 
+    async def test_dismissing_all_audits_only_what_it_dismissed(self, db):
+        """A suggestion decided elsewhere after the list was read stays as it is, unaudited."""
+        ctx, agent, _ = await _setup(db)
+        service = AuthoringService(db)
+        await _improve(db, ctx, agent, Improver(db))
+        batch = (await service.for_agent(ctx, agent.id)).batch
+        assert batch is not None
+        first, second = batch.hunks
+        decide = authoring_repo.decide_hunk
+
+        async def taken_first(db, *, hunk_id, **values):
+            if hunk_id == second.id:
+                return None
+            return await decide(db, hunk_id=hunk_id, **values)
+
+        with patch("app.services.authoring.authoring_repo.decide_hunk", new=taken_first):
+            await service.dismiss_all(ctx, agent.id)
+
+        entries = list(
+            await db.scalars(
+                select(AppAdminAuditLog).where(
+                    AppAdminAuditLog.action == "authoring.suggestion_dismiss"
+                )
+            )
+        )
+        assert [(entry.details or {}).get("hunk_id") for entry in entries] == [str(first.id)]
+
     async def test_changes_that_cannot_land_are_not_proposed(self, db):
         ctx, agent, _ = await _setup(db)
         model = Improver(

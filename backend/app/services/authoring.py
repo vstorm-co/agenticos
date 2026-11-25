@@ -1506,15 +1506,17 @@ class AuthoringService:
             for hunk in await authoring_repo.list_hunks(
                 self.db, organization_id=ctx.organization_id, batch_id=batch.id
             ):
-                if hunk.status == HunkStatus.PENDING.value:
-                    await authoring_repo.decide_hunk(
-                        self.db,
-                        organization_id=ctx.organization_id,
-                        hunk_id=hunk.id,
-                        expected=HunkStatus.PENDING,
-                        status=HunkStatus.DISMISSED,
-                        decided_by=ctx.user_id,
-                    )
+                if hunk.status != HunkStatus.PENDING.value:
+                    continue
+                dismissed = await authoring_repo.decide_hunk(
+                    self.db,
+                    organization_id=ctx.organization_id,
+                    hunk_id=hunk.id,
+                    expected=HunkStatus.PENDING,
+                    status=HunkStatus.DISMISSED,
+                    decided_by=ctx.user_id,
+                )
+                if dismissed is not None:
                     await record_audit(
                         self.db,
                         actor_user_id=ctx.subject_id,
