@@ -7,6 +7,7 @@ from fastapi.responses import StreamingResponse
 from app.api.deps import (
     ActiveOrg,
     Auth,
+    ChatCostVisibilitySvc,
     CodingTaskChangeSvc,
     ConversationShareSvc,
     ConversationSvc,
@@ -279,6 +280,7 @@ async def get_conversation(
     current_user: CurrentUser,
     active_org: ActiveOrg,
     ctx: Auth,
+    costs: ChatCostVisibilitySvc,
     include_messages: bool = Query(True),
 ) -> Any:
     """Get a conversation, optionally including its full transcript.
@@ -306,7 +308,9 @@ async def get_conversation(
         ctx=ctx,
     )
 
-    return conversation if include_messages else ConversationRead.model_validate(conversation)
+    if not include_messages:
+        return ConversationRead.model_validate(conversation)
+    return await costs.conversation(ctx, ConversationReadWithMessages.model_validate(conversation))
 
 
 @router.post(
@@ -572,6 +576,7 @@ async def list_messages(
     current_user: CurrentUser,
     active_org: ActiveOrg,
     ctx: Auth,
+    costs: ChatCostVisibilitySvc,
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=500),
     latest: bool = False,
@@ -602,7 +607,12 @@ async def list_messages(
         user_id=current_user.id,
         ctx=ctx,
     )
-    return MessageList(items=items, total=total, cost=cost)  # ty: ignore[invalid-argument-type]
+    return await costs.transcript(
+        ctx,
+        MessageList(
+            items=[MessageRead.model_validate(item) for item in items], total=total, cost=cost
+        ),
+    )
 
 
 @router.post(
@@ -616,15 +626,19 @@ async def add_message(
     conversation_service: ConversationSvc,
     current_user: CurrentUser,
     active_org: ActiveOrg,
+    ctx: Auth,
+    costs: ChatCostVisibilitySvc,
 ) -> Any:
     """Add a message to a conversation in the caller's organization.
 
     Unscoped, this accepted a `role: "assistant"` turn into any conversation
     in the deployment, and it rendered to its owner as the agent's answer.
     """
-    return await conversation_service.add_message(
+    message = await conversation_service.add_message(
         conversation_id, data, organization_id=active_org.id, user_id=current_user.id
     )
+
+    return await costs.message(ctx, MessageRead.model_validate(message))
 
 
 @router.post(

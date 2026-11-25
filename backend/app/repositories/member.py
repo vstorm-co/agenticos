@@ -687,3 +687,20 @@ async def set_onboarding_reminders(
     )
     await db.flush()
     return result.scalar_one()
+
+
+async def set_chat_cost_preference(
+    db: AsyncSession, *, organization_id: UUID, user_id: UUID, visible: bool | None
+) -> OrganizationMember | None:
+    result = await db.execute(
+        update(OrganizationMember)
+        .where(
+            OrganizationMember.organization_id == organization_id,
+            OrganizationMember.user_id == user_id,
+        )
+        .values(chat_costs_visible=visible)
+        .returning(OrganizationMember)
+        .execution_options(populate_existing=True)
+    )
+    await db.flush()
+    return result.scalar_one_or_none()

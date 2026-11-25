@@ -678,14 +678,14 @@ export interface ResumedRun {
   /** The questions the run is now waiting on its person to answer, if it asked again. */
   questions?: ParkedQuestion[];
   /** Serialised Decimal - never parse into a float for arithmetic. */
-  cost_usd: string;
+  cost_usd?: string | null;
   /**
    * Whether `cost_usd` is a floor rather than the whole of it.
    *
    * A resumed turn draws its cost from here, so without it a continuation would
    * report an exact-looking figure where the parked half reported a caveat.
    */
-  cost_is_partial: boolean;
+  cost_is_partial?: boolean | null;
   input_tokens: number;
   output_tokens: number;
   /** Of `input_tokens`, those read from the provider's cache. */

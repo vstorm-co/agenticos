@@ -130,6 +130,7 @@ export function DeploymentSettingsForm({ onContinue }: { onContinue?: () => void
     default_organization_role: settings?.default_organization_role,
     dictation_compressed_audio: settings?.dictation_compressed_audio,
     onboarding_reminders_available: settings?.onboarding_reminders_available,
+    chat_costs_available: settings?.chat_costs_available,
     announcement_expires_at: settings?.announcement_expires_at,
     maintenance_planned_end_at: settings?.maintenance_planned_end_at,
     ...edits,
@@ -246,6 +247,23 @@ export function DeploymentSettingsForm({ onContinue }: { onContinue?: () => void
                   set("chat_home_available", { ...edits.chat_home_available, [field]: value })
                 }
               />
+            </DeploymentSettingsPanel>
+            <DeploymentSettingsPanel
+              title={experience("costs.title")}
+              description={experience("costs.deploymentHint")}
+            >
+              <div
+                className="flex items-center justify-between gap-4"
+                data-tour="deployment-chat-costs"
+              >
+                <Label htmlFor="deployment-chat-costs">{experience("costs.available")}</Label>
+                <Switch
+                  id="deployment-chat-costs"
+                  checked={draft.chat_costs_available !== false}
+                  disabled={save.isPending || isLoading}
+                  onCheckedChange={(value) => set("chat_costs_available", value)}
+                />
+              </div>
             </DeploymentSettingsPanel>
             <DeploymentSettingsPanel
               title={experience("remindersTitle")}

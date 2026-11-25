@@ -6,6 +6,7 @@ import { ErrorState, LoadingState } from "@/components/states";
 import { Button } from "@/components/ui";
 import { SectionCard } from "./settings-section";
 import { OnboardingReminderControls } from "./onboarding-reminder-controls";
+import { PersonalChatCostControl } from "./chat-cost-controls";
 import { ChatHomeControls } from "./chat-home-controls";
 import { CHAT_HOME_ITEMS, DEFAULT_CHAT_HOME } from "@/lib/console-experience-api";
 
@@ -48,6 +49,19 @@ export function ChatHomePreferences() {
               {t("reset")}
             </Button>
           </>
+        )}
+      </SectionCard>
+      <SectionCard
+        title={t("costs.title")}
+        description={t("costs.personalHint")}
+        tour="personal-chat-costs"
+      >
+        {experience.data?.costs && (
+          <PersonalChatCostControl
+            policy={experience.data.costs}
+            disabled={experience.save.isPending}
+            onChange={(chat_costs) => experience.save.mutate({ chat_costs })}
+          />
         )}
       </SectionCard>
       <SectionCard title={t("remindersTitle")} description={t("remindersPersonalHint")}>

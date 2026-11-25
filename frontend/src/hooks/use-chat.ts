@@ -2609,7 +2609,7 @@ export function useChat(options: UseChatOptions = {}) {
         output_tokens: resumed.output_tokens,
         cache_read_tokens: resumed.cache_read_tokens ?? null,
         cache_write_tokens: resumed.cache_write_tokens ?? null,
-        cost_usd: resumed.cost_usd ?? "0",
+        cost_usd: resumed.cost_usd ?? null,
         cost_is_partial: resumed.cost_is_partial,
         // A resume is not told where the run stands against its budget, and
         // an invented percentage is worse than a bar that is not drawn.

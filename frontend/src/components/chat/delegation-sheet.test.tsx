@@ -1,3 +1,4 @@
+import { ChatCostContext } from "@/components/settings/console-experience-provider";
 import { render, screen } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
 
@@ -25,4 +26,19 @@ it.each([true, false])("gates the child run link on run access (%s)", (allowed) 
   const link = screen.queryByRole("link", { name: "Open in run history" });
   if (allowed) expect(link).toHaveAttribute("href", "/runs?run=child-run");
   else expect(link).toBeNull();
+});
+
+it("keeps delegate tokens but hides cached spend", () => {
+  render(
+    <ChatCostContext.Provider value={false}>
+      <DelegationSheet
+        items={[{ ...item, costUsd: 0.12 }]}
+        opened="task"
+        onOpen={() => {}}
+        onClose={() => {}}
+      />
+    </ChatCostContext.Provider>,
+  );
+  expect(screen.queryByText(/\$0.1200/)).toBeNull();
+  expect(screen.getByText(/25 output tokens/)).toBeVisible();
 });

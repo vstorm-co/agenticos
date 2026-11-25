@@ -110,3 +110,32 @@ local login. Preview SSO is a local dummy provider, not a tested live IdP.
 
 Desktop/mobile captures are available locally. The aggregate CI gate and the
 remaining #3300/#3302 and #3299 work are still pending; no release is cut.
+
+## Chat cost disclosure (#3302)
+
+Implemented on `codex/chat-cost-visibility`, based on #3432. Deployment
+availability bounds the organization audience (everyone, spend-privileged
+readers, nobody in chat), and each membership may hide costs further. Null
+stored settings preserve the existing everyone-visible default. Preference
+updates are tenant/subject scoped; organization changes require the existing
+settings permission and emit an audit event.
+
+History, paged/API transcripts, message creation responses, Q&A/resume results,
+live completion and delegation frames are projected for the actual reader.
+Socket replay resolves fresh membership, role and administrator state. A failed
+policy database read withholds financial metadata while preserving an already
+persisted answer. Shared live-turn storage retains the original frame so the
+initiator's preference cannot strip accounting from another authorized reader.
+The projection copies response data; it does not mutate persisted accounting,
+agent text or arbitrary tool output. Activity and dashboard retain their own
+spend permissions. Missing prices no longer become fabricated zeroes in chat.
+
+Verification: 188 focused policy/HTTP/coverage-contract tests, plus the expanded
+12-case HTTP serialization matrix; 238 existing socket/conversation regressions;
+a real-Postgres preference/isolation/constraint test; 504 focused UI/hook tests
+and 68 cost-meter/delegation tests including four new hidden-policy cases.
+New policy and projection modules have 100% scoped statement/branch coverage
+(81 statements, 22 branches). The isolated UI policy/control/cost slice has
+100% statements/functions/lines and 98.07% branches. Migration
+`0369_chat_cost_visibility.py` upgrades, downgrades and upgrades without model
+drift. Full aggregate CI and the rest of the release train remain pending.

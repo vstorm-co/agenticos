@@ -19,6 +19,8 @@ const DEFAULT_REMINDERS: OnboardingReminderOptions = { enabled: true, snooze_day
 export const OnboardingReminderContext =
   createContext<OnboardingReminderOptions>(DEFAULT_REMINDERS);
 
+export const ChatCostContext = createContext(true);
+
 export const ChatHomeContext = createContext<ChatHomeOptions>(DEFAULT_CHAT_HOME);
 
 /** Authenticated console only: public chat and embedded builders keep their own contracts. */
@@ -29,7 +31,9 @@ export function ConsoleExperienceProvider({ children }: { children: ReactNode })
   return (
     <ChatHomeContext.Provider value={data?.effective ?? HIDDEN_CHAT_HOME}>
       <OnboardingReminderContext.Provider value={reminders}>
-        {children}
+        <ChatCostContext.Provider value={!error && !!data && (data.costs?.effective ?? true)}>
+          {children}
+        </ChatCostContext.Provider>
       </OnboardingReminderContext.Provider>
     </ChatHomeContext.Provider>
   );
@@ -40,4 +44,8 @@ export function useChatHomeOptions(): ChatHomeOptions {
 
 export function useOnboardingReminderPolicy(): OnboardingReminderOptions {
   return useContext(OnboardingReminderContext);
+}
+
+export function useChatCostsVisible(): boolean {
+  return useContext(ChatCostContext);
 }

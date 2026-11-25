@@ -162,6 +162,7 @@ class DeploymentSettingsService:
         return DeploymentSettingsRead(
             **branding.model_dump(),
             password_sign_in_forced=settings.AUTH_PASSWORD_SIGN_IN_FORCE_ENABLED,
+            chat_costs_available=row.chat_costs_available if row else None,
             chat_home_available=ChatHomeOverrides.model_validate(row.chat_home_available)
             if row and row.chat_home_available is not None
             else None,

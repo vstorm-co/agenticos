@@ -1,5 +1,5 @@
 ---
-source_sha: "3dfdff8360c1"
+source_sha: "11debd5eabee"
 ---
 
 Selektor modeli utrzymuje nagłówek, karty dostawcy i wyszukiwarkę na miejscu, a listy modeli i dostawców przewijają się niezależnie. Zmiana karty dashboardu zachowuje krótkie przejście; wejście na dashboard ani przywrócenie historii przeglądarki nie animuje całego panelu. Karuzela avatarów w onboardingu pozostaje dostępna także obok wgranego zdjęcia, z wyjaśnieniem, że wybór koloru dotyczy avatara pokazywanego, gdy zdjęcie jest niedostępne.
@@ -209,6 +209,13 @@ Ukrycie podglądu skrzynki pozostawia dostęp do pełnej skrzynki i kolejki zgó
 Ustawienia instalacji mają też opcjonalny termin **Wygaśnięcia ogłoszenia**. Po tym terminie serwer przestaje zwracać ogłoszenie, a otwarte strony otrzymują zmianę podczas zwykłego odpytywania o komunikaty. **Planowany koniec prac** to wyłącznie informacja: nie otwiera automatycznie aplikacji. Tryb konserwacji kończy administrator. Pola dat pokazują strefę urządzenia i zapisują daty ze strefą w UTC.
 
 Administracja jest dostępna w menu konta. Jej ustawienia używają wspólnych zakładek i zachowują draft podczas przełączania sekcji. Pamięć i Notatki wypełniają pozostały obszar, przewijają własne wiersze i zachowują stopkę **1 / 1**. Zwykły Architect używa tej samej rodziny generowanych portretów co inni agenci; własne przesłane obrazy pozostają zachowane. Widoki skrzynki współdzielą wygląd wierszy, a przeciąganie Kanbana pokazuje rzeczywistą kartę. Późniejsze kroki konfiguracji zachowują spójny układ nagłówka, formularza i ilustracji; kontynuacja niezmienionego profilu nie zgłasza zapisu.
+
+### Koszty w chacie { #chat-cost-visibility }
+
+**Koszty w chacie** mają ściślejszą hierarchię: dostępność w deploymencie → odbiorcy w organizacji → wybór użytkownika. Deployment może ukryć koszty w całym chacie. W ustawieniach **AI i usługi** organizacji wybierz **Wszyscy** (domyślnie), **Osoby z dostępem do wydatków** (`budgets:manage` lub `runs:view`) albo **Nikt w chacie**. W **Ustawienia → Profil** użytkownik może ukryć koszty u siebie, ale nie może obejść nadrzędnego ograniczenia.
+
+Reguła obejmuje ceny odpowiedzi, koszty delegacji, sumy rozmów i procent wykorzystanego budgetu, także w zapisanej historii, streamie po ponownym połączeniu, współdzielonych chatach i kontynuacjach Q&A. Ukryte metadane finansowe nie trafiają do odpowiedzi API chatu; odczyty tokenów i kontekstu pozostają dostępne. Reguła nie zmienia tekstu odpowiedzi agenta ani dowolnych wyników narzędzi. Księgowanie i egzekwowanie budgetów działają bez zmian. Koszty w Activity i dashboardzie zachowują własne uprawnienia.
+
 
 ## Dashboard { #the-dashboard }
 

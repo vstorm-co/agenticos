@@ -3,6 +3,7 @@ import { beforeEach, expect, it, vi } from "vitest";
 import {
   ConsoleExperienceProvider,
   useChatHomeOptions,
+  useChatCostsVisible,
   useOnboardingReminderPolicy,
 } from "./console-experience-provider";
 import { DEFAULT_CHAT_HOME, type ConsoleExperience } from "@/lib/console-experience-api";
@@ -13,9 +14,11 @@ const env = vi.hoisted(() => ({
 vi.mock("@/hooks/use-console-experience", () => ({ useConsoleExperience: () => env }));
 function Probe() {
   const home = useChatHomeOptions();
+  const costs = useChatCostsVisible();
   const reminder = useOnboardingReminderPolicy();
   return (
     <>
+      <p data-testid="costs">{String(costs)}</p>
       <p data-testid="home">{JSON.stringify(home)}</p>
       <p data-testid="reminders">{JSON.stringify(reminder)}</p>
     </>
@@ -75,4 +78,44 @@ it("keeps unknown policies quiet when the initial read fails", () => {
   render(content);
   expect(screen.getByTestId("home")).toHaveTextContent('"inbox":false');
   expect(screen.getByTestId("reminders")).toHaveTextContent('"enabled":false');
+});
+
+it("withholds cached costs on a failed policy refresh", () => {
+  env.data = {
+    availability: DEFAULT_CHAT_HOME,
+    organization_defaults: {},
+    preferences: {},
+    effective: DEFAULT_CHAT_HOME,
+    reminders: {
+      availability: true,
+      organization_defaults: {},
+      preferences: {},
+      effective: { enabled: true, snooze_days: 1 },
+    },
+    costs: {
+      availability: true,
+      organization_policy: "everyone",
+      preference: null,
+      permitted: true,
+      effective: true,
+    },
+  };
+  const view = render(content);
+  expect(screen.getByTestId("costs").textContent).toBe("true");
+  env.data = { ...env.data, costs: { ...env.data.costs!, effective: false } };
+  view.rerender(content);
+  // A new element is required for a context provider to observe the changed query result.
+  view.rerender(
+    <ConsoleExperienceProvider>
+      <Probe />
+    </ConsoleExperienceProvider>,
+  );
+  expect(screen.getByTestId("costs").textContent).toBe("false");
+  env.error = new Error("offline");
+  view.rerender(
+    <ConsoleExperienceProvider>
+      <Probe />
+    </ConsoleExperienceProvider>,
+  );
+  expect(screen.getByTestId("costs").textContent).toBe("false");
 });

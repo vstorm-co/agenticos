@@ -6228,6 +6228,18 @@
       "deployment-password-sign-in": {
         "title": "Métodos de acesso",
         "body": "Exija o provedor de identidade configurado ou permita senhas locais e links de acesso por e-mail. Somente o administrador da implantação pode alterar essa política."
+      },
+      "deployment-chat-costs": {
+        "title": "Custos do chat",
+        "body": "Permita que as organizações mostrem custos no chat. Desativar oculta-os para todos."
+      },
+      "organization-chat-costs": {
+        "title": "Custos do chat",
+        "body": "Escolha quem vê os custos de respostas, delegações e conversas. A contabilidade, os budgets e o acesso a Activity e ao painel permanecem inalterados."
+      },
+      "personal-chat-costs": {
+        "title": "Custos do chat",
+        "body": "Oculte custos nos seus chats. As restrições da organização ou do deployment continuam a aplicar-se."
       }
     },
     "chooseLanguage": "Idioma",
@@ -21704,7 +21716,20 @@
     "maintenanceEnd": "Fim da manutenção planejada",
     "maintenanceEndHint": "Opcional. Horário em {zone}, armazenado em UTC. Apenas informativo; um administrador deve encerrar a manutenção.",
     "maintenanceEndInformational": "Esta é uma estimativa. O acesso será restabelecido quando um administrador encerrar a manutenção.",
-    "invalidTime": "Escolha uma data e hora locais válidas."
+    "invalidTime": "Escolha uma data e hora locais válidas.",
+    "costs": {
+      "title": "Custos do chat",
+      "audience": "Quem vê custos no chat",
+      "everyone": "Todos",
+      "spend_privileged": "Pessoas com acesso às despesas",
+      "nobody": "Ninguém no chat",
+      "organizationHint": "Escolha quem vê os custos de respostas, delegações e conversas. A contabilidade, os budgets e o acesso a Activity e ao painel permanecem inalterados.",
+      "personalLabel": "Mostrar custos nos meus chats",
+      "personalHint": "Oculte custos nos seus chats. As restrições da organização ou do deployment continuam a aplicar-se.",
+      "restricted": "A sua organização ou deployment oculta os custos do chat para esta conta.",
+      "deploymentHint": "Permita que as organizações mostrem custos no chat. Desativar oculta-os para todos.",
+      "available": "Permitir custos no chat"
+    }
   },
   "modelSources": {
     "subscriptions": "Suas assinaturas",

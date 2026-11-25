@@ -1,5 +1,5 @@
 ---
-source_sha: "3dfdff8360c1"
+source_sha: "11debd5eabee"
 ---
 
 **Refresh models** im Anbieterkatalog lädt die Liste erneut und behält Suche und Auswahl bei. Bei gespeicherten Organisationsmodellen werden stattdessen die gespeicherten Profile neu geladen. Aktualisieren speichert kein Modell und startet keinen Agenten. Endpoint, Vault-Schlüssel, API-Typ und Region erscheinen entsprechend den Fähigkeiten des Anbieters; persönliche Abonnements verwenden die Einstellungen ihres verbundenen Kontos.
@@ -212,6 +212,13 @@ Eine ausgeblendete Posteingangsvorschau entzieht weder den vollständigen Postei
 Installationseinstellungen bieten außerdem einen optionalen Zeitpunkt **Ankündigung läuft ab**. Danach liefert der Server die Ankündigung nicht mehr aus; offene Seiten erhalten dies über die reguläre Statusabfrage. **Geplantes Wartungsende** ist nur informativ und öffnet die Anwendung niemals automatisch. Ein Administrator beendet die Wartung ausdrücklich. Datumsfelder zeigen die Gerätezeitzone und speichern Zeitpunkte mit Zeitzone in UTC.
 
 Die Administration befindet sich im Kontomenü. Ihre Einstellungen verwenden gemeinsame Register und bewahren Entwürfe beim Abschnittswechsel. Erinnerungen und Notizen füllen den verbleibenden Arbeitsbereich, scrollen ihre eigenen Zeilen und behalten die Fußzeile **1 / 1**. Der normale Architect nutzt dieselbe Familie generierter Porträts wie andere Agenten; eigene hochgeladene Bilder bleiben erhalten. Posteingangsansichten teilen die Zeilendarstellung, und Kanban zeigt beim Ziehen die tatsächliche Karte. Spätere Einrichtungsschritte behalten den einheitlichen Aufbau aus Überschrift, Formular und Illustration; das Fortsetzen eines unveränderten Profils meldet keinen Speichervorgang.
+
+### Kosten im Chat { #chat-cost-visibility }
+
+**Chatkosten** folgen einer strengeren Hierarchie: Deployment-Verfügbarkeit → Organisationszielgruppe → persönliche Auswahl. Das Deployment kann Kosten im gesamten Chat ausblenden. Unter **KI & Dienste** der Organisation wählst du **Alle** (Standard), **Personen mit Zugriff auf Ausgaben** (`budgets:manage` oder `runs:view`) oder **Niemand im Chat**. Unter **Einstellungen → Profil** können Mitglieder Kosten für sich ausblenden, aber keine übergeordnete Einschränkung aufheben.
+
+Die Regel gilt für Antwortpreise, Delegationskosten, Gesprächssummen und Budget-Prozentsätze, auch in gespeicherten Verläufen, laufenden und wiederverbundenen Streams, geteilten Chats und Q&A-Fortsetzungen. Verborgene Finanzmetadaten fehlen in der Chat-Antwort; Token- und Kontextwerte bleiben verfügbar. Agentenantworten und beliebige Tool-Inhalte werden nicht umgeschrieben. Abrechnung und Budget-Durchsetzung bleiben unverändert. Kosten in Activity und Dashboard behalten ihre bisherigen Berechtigungen.
+
 
 ## Das Dashboard { #the-dashboard }
 

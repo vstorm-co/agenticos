@@ -6223,6 +6223,18 @@
       "deployment-password-sign-in": {
         "title": "Anmeldemethoden",
         "body": "Verlangen Sie Ihren konfigurierten Identitätsanbieter oder erlauben Sie lokale Passwörter und Anmeldelinks per E-Mail. Nur der Bereitstellungsadministrator kann diese Richtlinie ändern."
+      },
+      "deployment-chat-costs": {
+        "title": "Chatkosten",
+        "body": "Erlaube Organisationen, Kosten im Chat anzuzeigen. Ausschalten blendet sie für alle aus."
+      },
+      "organization-chat-costs": {
+        "title": "Chatkosten",
+        "body": "Lege fest, wer Kosten von Antworten, Delegationen und Gesprächen sieht. Abrechnung, Budgets sowie Zugriffe auf Activity und Dashboard bleiben unverändert."
+      },
+      "personal-chat-costs": {
+        "title": "Chatkosten",
+        "body": "Blende Kosten in deinen Chats aus. Organisations- und Deployment-Beschränkungen gelten weiterhin."
       }
     },
     "chooseLanguage": "Sprache",
@@ -21506,7 +21518,20 @@
     "maintenanceEnd": "Geplantes Wartungsende",
     "maintenanceEndHint": "Optional. Uhrzeit in {zone}, gespeichert in UTC. Nur informativ; ein Administrator muss die Wartung beenden.",
     "maintenanceEndInformational": "Dies ist eine Schätzung. Der Zugriff kehrt zurück, sobald ein Administrator die Wartung beendet.",
-    "invalidTime": "Wähle ein gültiges lokales Datum mit Uhrzeit."
+    "invalidTime": "Wähle ein gültiges lokales Datum mit Uhrzeit.",
+    "costs": {
+      "title": "Chatkosten",
+      "audience": "Wer sieht Kosten im Chat?",
+      "everyone": "Alle",
+      "spend_privileged": "Personen mit Zugriff auf Ausgaben",
+      "nobody": "Niemand im Chat",
+      "organizationHint": "Lege fest, wer Kosten von Antworten, Delegationen und Gesprächen sieht. Abrechnung, Budgets sowie Zugriffe auf Activity und Dashboard bleiben unverändert.",
+      "personalLabel": "Kosten in meinen Chats anzeigen",
+      "personalHint": "Blende Kosten in deinen Chats aus. Organisations- und Deployment-Beschränkungen gelten weiterhin.",
+      "restricted": "Deine Organisation oder dein Deployment blendet Chatkosten für dieses Konto aus.",
+      "deploymentHint": "Erlaube Organisationen, Kosten im Chat anzuzeigen. Ausschalten blendet sie für alle aus.",
+      "available": "Kosten im Chat erlauben"
+    }
   },
   "modelSources": {
     "subscriptions": "Deine Abonnements",

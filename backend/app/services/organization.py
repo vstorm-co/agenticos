@@ -6,6 +6,7 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import current_impersonator, record_audit
+from app.core.chat_costs import chat_cost_policy
 from app.core.config import settings
 from app.core.exceptions import (
     AlreadyExistsError,
@@ -91,6 +92,7 @@ def _org_read(
         onboarding_reminders=OnboardingReminderOverrides.model_validate(org.onboarding_reminders)
         if org.onboarding_reminders is not None
         else None,
+        chat_cost_visibility=chat_cost_policy(org.chat_cost_visibility),
         chat_home_defaults=ChatHomeOverrides.model_validate(org.chat_home_defaults)
         if org.chat_home_defaults is not None
         else None,
@@ -530,6 +532,22 @@ class OrganizationService:
                 if data.onboarding_reminders is not None
                 else None,
             )
+
+        if "chat_cost_visibility" in data.model_fields_set:
+            before_visibility = org.chat_cost_visibility
+            org = await organization_repo.set_chat_cost_visibility(
+                self.db, org, policy=data.chat_cost_visibility
+            )
+            if before_visibility != org.chat_cost_visibility:
+                await record_audit(
+                    self.db,
+                    actor_user_id=requester_id,
+                    organization_id=org.id,
+                    action="organization.chat_cost_visibility_changed",
+                    target_type="organization",
+                    target_id=str(org.id),
+                    details={"from": before_visibility, "to": org.chat_cost_visibility},
+                )
 
         if "chat_home_defaults" in data.model_fields_set:
             org = await organization_repo.set_chat_home_defaults(

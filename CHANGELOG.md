@@ -21,6 +21,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Organization and personal controls for chat cost visibility, bounded by deployment availability. Chat history, live/reconnected answers and Q&A continuations withhold restricted financial metadata while keeping accounting and budget enforcement intact.
+
 - Configure provider-only sign-in in deployment settings. Local password,
   registration, recovery and email-link endpoints enforce the policy. Show only
   configured identity providers, retain the console display filter, and provide

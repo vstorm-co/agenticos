@@ -6112,6 +6112,18 @@
       "deployment-password-sign-in": {
         "title": "Méthodes de connexion",
         "body": "Exigez le fournisseur d’identité configuré ou autorisez les mots de passe locaux et les liens par e-mail. Seul l’administrateur du déploiement peut modifier cette règle."
+      },
+      "deployment-chat-costs": {
+        "title": "Coûts du chat",
+        "body": "Autorisez les organisations à afficher les coûts dans le chat. Désactiver les masque pour tout le monde."
+      },
+      "organization-chat-costs": {
+        "title": "Coûts du chat",
+        "body": "Choisissez qui voit les coûts des réponses, délégations et conversations. La comptabilité, les budgets et les accès à Activity et au tableau de bord restent inchangés."
+      },
+      "personal-chat-costs": {
+        "title": "Coûts du chat",
+        "body": "Masquez les coûts dans vos chats. Les restrictions de votre organisation ou de votre déploiement restent applicables."
       }
     },
     "chooseLanguage": "Langue",
@@ -21112,7 +21124,20 @@
     "maintenanceEnd": "Fin de maintenance prévue",
     "maintenanceEndHint": "Facultatif. Heure en {zone}, enregistrée en UTC. À titre indicatif seulement ; un administrateur doit mettre fin à la maintenance.",
     "maintenanceEndInformational": "Il s’agit d’une estimation. L’accès revient lorsqu’un administrateur met fin à la maintenance.",
-    "invalidTime": "Choisissez une date et une heure locales valides."
+    "invalidTime": "Choisissez une date et une heure locales valides.",
+    "costs": {
+      "title": "Coûts du chat",
+      "audience": "Qui voit les coûts dans le chat",
+      "everyone": "Tout le monde",
+      "spend_privileged": "Personnes ayant accès aux dépenses",
+      "nobody": "Personne dans le chat",
+      "organizationHint": "Choisissez qui voit les coûts des réponses, délégations et conversations. La comptabilité, les budgets et les accès à Activity et au tableau de bord restent inchangés.",
+      "personalLabel": "Afficher les coûts dans mes chats",
+      "personalHint": "Masquez les coûts dans vos chats. Les restrictions de votre organisation ou de votre déploiement restent applicables.",
+      "restricted": "Votre organisation ou déploiement masque les coûts du chat pour ce compte.",
+      "deploymentHint": "Autorisez les organisations à afficher les coûts dans le chat. Désactiver les masque pour tout le monde.",
+      "available": "Autoriser les coûts dans le chat"
+    }
   },
   "portability": {
     "exportTitle": "Exporter l’agent",

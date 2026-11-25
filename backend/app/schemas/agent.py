@@ -1167,9 +1167,10 @@ class AgentRunResult(BaseSchema):
         ),
     )
     status: str
-    cost_usd: Decimal
-    cost_is_partial: bool = Field(
+    cost_usd: Decimal | None = Field(default=None, exclude_if=lambda value: value is None)
+    cost_is_partial: bool | None = Field(
         default=False,
+        exclude_if=lambda value: value is None,
         description=(
             "Whether `cost_usd` is a floor - true when the run reached a model with no "
             "price entry, whose request the ledger books at zero. The chat draws the "

@@ -457,7 +457,7 @@ export interface TurnUsage {
   /** Of `input_tokens`, those written to the provider's cache - priced above it. */
   cache_write_tokens?: number | null;
   /** The turn's cost as a Decimal string, the shape every REST surface uses. */
-  cost_usd: string;
+  cost_usd?: string | null;
   /**
    * Whether `cost_usd` is a floor rather than the whole of it.
    *
@@ -466,7 +466,7 @@ export interface TurnUsage {
    * as a caveat rather than dropped - a number nobody can act on is still worth
    * more than nothing, provided it does not claim to be exact.
    */
-  cost_is_partial: boolean;
+  cost_is_partial?: boolean | null;
   budget_percent: number | null;
   /** This agent's own monthly cap, which is the one an author can raise. */
   agent_budget_percent: number | null;
@@ -791,7 +791,7 @@ export interface ConversationCost {
   input_tokens: number;
   output_tokens: number;
   /** A string on the wire, because money is `Numeric`. */
-  cost_usd: string | number;
+  cost_usd?: string | number | null;
   /** Null where no turn recorded the flag - "nobody knows", not "exact". */
   cost_is_partial: boolean | null;
 }

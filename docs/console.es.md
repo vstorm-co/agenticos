@@ -1,5 +1,5 @@
 ---
-source_sha: "3dfdff8360c1"
+source_sha: "11debd5eabee"
 ---
 
 **Refresh models** en el catálogo del proveedor vuelve a obtener la lista y conserva la búsqueda y la selección. Junto a los modelos guardados de la organización, vuelve a cargar los perfiles guardados. Actualizar no guarda un modelo ni inicia un agente. Endpoint, clave de Vault, tipo de API y región aparecen según las capacidades del proveedor; las suscripciones personales utilizan los ajustes de su cuenta conectada.
@@ -212,6 +212,13 @@ Los **Recordatorios de configuración** siguen la misma jerarquía: disponibilid
 Los ajustes de instalación también ofrecen una fecha opcional de **Caducidad del anuncio**. Después del plazo el servidor deja de devolverlo, y las páginas abiertas lo reciben mediante su consulta periódica de avisos. El **Fin previsto del mantenimiento** solo es informativo: nunca vuelve a abrir la aplicación automáticamente. Un administrador termina el mantenimiento expresamente. Los campos muestran la zona horaria del dispositivo y guardan instantes con zona horaria en UTC.
 
 La administración se abre desde el menú de cuenta. Sus ajustes usan pestañas comunes y conservan borradores al cambiar de sección. Memorias y Notas llenan el espacio restante, desplazan sus propias filas y mantienen el pie **1 / 1**. El Architect normal usa la misma familia de retratos generados que otros agentes; las imágenes personales subidas se conservan. Las vistas de la bandeja comparten el diseño de filas, y al arrastrar Kanban se ve la tarjeta real. Los últimos pasos de configuración mantienen el mismo diseño de título, formulario e ilustración; continuar un perfil sin cambios no anuncia que se haya guardado.
+
+### Costes en el chat { #chat-cost-visibility }
+
+**Costes del chat** sigue una jerarquía más estricta: disponibilidad del despliegue → audiencia de la organización → elección personal. El despliegue puede ocultar costes en todo el chat. En **IA y servicios** de la organización, elige **Todos** (predeterminado), **Personas con acceso a gastos** (`budgets:manage` o `runs:view`) o **Nadie en el chat**. En **Ajustes → Perfil**, los miembros pueden ocultarlos para sí mismos, pero no superar una restricción superior.
+
+La regla cubre precios de respuestas, costes de delegaciones, totales de conversaciones y porcentajes de budget, incluidos historiales guardados, streams reconectados, chats compartidos y continuaciones Q&A. Los metadatos financieros ocultos se omiten de la respuesta del chat; los datos de tokens y contexto siguen disponibles. No se reescriben respuestas del agente ni contenidos arbitrarios de herramientas. La contabilidad y los límites de budget permanecen iguales. Los costes de Activity y del panel conservan sus permisos actuales.
+
 
 ## El dashboard { #the-dashboard }
 

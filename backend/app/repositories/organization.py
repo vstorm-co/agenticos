@@ -10,6 +10,7 @@ from sqlalchemy import update as sql_update
 from sqlalchemy.dialects.postgresql import JSONB, distinct_on
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.chat_costs import ChatCostVisibility
 from app.core.permissions import OrgRoleName
 from app.db.models.agent import Agent
 from app.db.models.organization import (
@@ -684,3 +685,12 @@ async def set_onboarding_reminders(
     )
     await db.flush()
     return result.scalar_one()
+
+
+async def set_chat_cost_visibility(
+    db: AsyncSession, org: Organization, *, policy: ChatCostVisibility | None
+) -> Organization:
+    org.chat_cost_visibility = policy
+    await db.flush()
+    await db.refresh(org)
+    return org

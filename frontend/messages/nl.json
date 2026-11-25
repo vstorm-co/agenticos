@@ -6228,6 +6228,18 @@
       "deployment-password-sign-in": {
         "title": "Aanmeldmethoden",
         "body": "Vereis de ingestelde identiteitsprovider of sta lokale wachtwoorden en aanmeldlinks per e-mail toe. Alleen de beheerder kan dit beleid wijzigen."
+      },
+      "deployment-chat-costs": {
+        "title": "Chatkosten",
+        "body": "Sta organisaties toe kosten in de chat te tonen. Uitschakelen verbergt ze voor iedereen."
+      },
+      "organization-chat-costs": {
+        "title": "Chatkosten",
+        "body": "Kies wie de kosten van antwoorden, delegaties en gesprekken ziet. Boekhouding, budgets en toegang tot Activity en dashboard blijven ongewijzigd."
+      },
+      "personal-chat-costs": {
+        "title": "Chatkosten",
+        "body": "Verberg kosten in je eigen chats. Beperkingen van je organisatie of deployment blijven gelden."
       }
     },
     "chooseLanguage": "Taal",
@@ -21704,7 +21716,20 @@
     "maintenanceEnd": "Gepland einde van het onderhoud",
     "maintenanceEndHint": "Optioneel. Tijd in {zone}, opgeslagen in UTC. Alleen ter informatie; een beheerder moet het onderhoud beëindigen.",
     "maintenanceEndInformational": "Dit is een schatting. De toegang keert terug wanneer een beheerder het onderhoud beëindigt.",
-    "invalidTime": "Kies een geldige lokale datum en tijd."
+    "invalidTime": "Kies een geldige lokale datum en tijd.",
+    "costs": {
+      "title": "Chatkosten",
+      "audience": "Wie ziet kosten in de chat",
+      "everyone": "Iedereen",
+      "spend_privileged": "Personen met toegang tot uitgaven",
+      "nobody": "Niemand in de chat",
+      "organizationHint": "Kies wie de kosten van antwoorden, delegaties en gesprekken ziet. Boekhouding, budgets en toegang tot Activity en dashboard blijven ongewijzigd.",
+      "personalLabel": "Kosten in mijn chats tonen",
+      "personalHint": "Verberg kosten in je eigen chats. Beperkingen van je organisatie of deployment blijven gelden.",
+      "restricted": "Je organisatie of deployment verbergt chatkosten voor dit account.",
+      "deploymentHint": "Sta organisaties toe kosten in de chat te tonen. Uitschakelen verbergt ze voor iedereen.",
+      "available": "Kosten in de chat toestaan"
+    }
   },
   "modelSources": {
     "subscriptions": "Je abonnementen",

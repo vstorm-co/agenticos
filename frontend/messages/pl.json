@@ -7997,6 +7997,18 @@
       "deployment-password-sign-in": {
         "title": "Metody logowania",
         "body": "Wymagaj skonfigurowanego dostawcy tożsamości lub zezwalaj na lokalne hasła i linki logowania przez e-mail. Tę zasadę zmienia tylko administrator wdrożenia."
+      },
+      "deployment-chat-costs": {
+        "title": "Koszty w chacie",
+        "body": "Pozwól organizacjom wyświetlać koszty w chacie. Wyłączenie ukrywa je dla wszystkich."
+      },
+      "organization-chat-costs": {
+        "title": "Koszty w chacie",
+        "body": "Wybierz, kto widzi koszty odpowiedzi, delegacji i rozmów. Księgowanie, limity oraz dostęp do Activity i dashboardu pozostają bez zmian."
+      },
+      "personal-chat-costs": {
+        "title": "Koszty w chacie",
+        "body": "Możesz ukryć koszty we własnych chatach. Nie możesz obejść ograniczeń organizacji ani deploymentu."
       }
     },
     "chooseLanguage": "Język",
@@ -21593,7 +21605,20 @@
     "maintenanceEnd": "Planowany koniec prac",
     "maintenanceEndHint": "Opcjonalne. Czas w strefie {zone}, zapisywany w UTC. Wyłącznie informacja — administrator musi zakończyć tryb konserwacji.",
     "maintenanceEndInformational": "To przewidywany termin. Dostęp wróci, gdy administrator zakończy tryb konserwacji.",
-    "invalidTime": "Wybierz prawidłową lokalną datę i godzinę."
+    "invalidTime": "Wybierz prawidłową lokalną datę i godzinę.",
+    "costs": {
+      "title": "Koszty w chacie",
+      "audience": "Kto widzi koszty w chacie",
+      "everyone": "Wszyscy",
+      "spend_privileged": "Osoby z dostępem do wydatków",
+      "nobody": "Nikt w chacie",
+      "organizationHint": "Wybierz, kto widzi koszty odpowiedzi, delegacji i rozmów. Księgowanie, limity oraz dostęp do Activity i dashboardu pozostają bez zmian.",
+      "personalLabel": "Pokazuj koszty w moich chatach",
+      "personalHint": "Możesz ukryć koszty we własnych chatach. Nie możesz obejść ograniczeń organizacji ani deploymentu.",
+      "restricted": "Organizacja lub deployment ukrywa koszty w chacie dla tego konta.",
+      "deploymentHint": "Pozwól organizacjom wyświetlać koszty w chacie. Wyłączenie ukrywa je dla wszystkich.",
+      "available": "Pozwalaj pokazywać koszty w chacie"
+    }
   },
   "modelSources": {
     "subscriptions": "Twoje subskrypcje",

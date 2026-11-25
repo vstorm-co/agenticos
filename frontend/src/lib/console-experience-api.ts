@@ -19,11 +19,21 @@ export interface OnboardingReminderRead {
   preferences: OnboardingReminderOverrides;
   effective: OnboardingReminderOptions;
 }
+export type ChatCostVisibility = "everyone" | "spend_privileged" | "nobody";
+export interface ChatCostPolicy {
+  availability: boolean;
+  organization_policy: ChatCostVisibility;
+  preference: boolean | null;
+  permitted: boolean;
+  effective: boolean;
+}
 export interface ConsoleExperienceChanges {
+  chat_costs?: boolean | null;
   preferences?: ChatHomeOverrides | null;
   reminders?: OnboardingReminderOverrides | null;
 }
 export interface ConsoleExperience {
+  costs?: ChatCostPolicy;
   reminders: OnboardingReminderRead;
   availability: ChatHomeOptions;
   organization_defaults: ChatHomeOverrides;

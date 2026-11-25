@@ -1,5 +1,6 @@
 "use client";
 
+import { useChatCostsVisible } from "@/components/settings/console-experience-provider";
 import { NativeDisclosure } from "@/components/ui/native-disclosure";
 
 import { usePermissions } from "@/hooks/use-permissions";
@@ -65,6 +66,7 @@ export function DelegationSheet({
   const { can } = usePermissions();
   const chat = useTranslations("chat");
   const t = useTranslations("chat.delegation");
+  const costsVisible = useChatCostsVisible();
   const tTools = useTranslations("chat.tools");
   // Live task frames can be replaced by saved tool calls while the sheet is
   // open. Their keys differ; keep the sheet usable when that transition lands.
@@ -106,7 +108,7 @@ export function DelegationSheet({
             </SheetTitle>
             <p className="text-muted-foreground text-xs">
               {t(STATUS_KEY[item.status])}
-              {item.costUsd != null && <> · ${item.costUsd.toFixed(4)}</>}
+              {costsVisible && item.costUsd != null && <> · ${item.costUsd.toFixed(4)}</>}
               {item.steps && item.steps.length > 0 && (
                 <> · {t("actionCount", { count: item.steps.length })}</>
               )}

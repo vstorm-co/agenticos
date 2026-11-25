@@ -145,6 +145,9 @@ class DeploymentSettings(Base, TimestampMixin):
     with it.
     """
 
+    chat_costs_available: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    """Deployment disclosure ceiling; null retains chat cost visibility."""
+
     password_sign_in_enabled: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=True, server_default=text("true")
     )

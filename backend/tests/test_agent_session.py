@@ -143,6 +143,16 @@ pytestmark = pytest.mark.anyio
 _CONVERSATION = "11111111-1111-1111-1111-111111111111"
 
 
+@pytest.fixture(autouse=True)
+def public_cost_policy(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Disclosure authorization has its own repository/recipient tests; these
+    # tests exercise protocol ordering under the unchanged default policy.
+    monkeypatch.setattr(
+        "app.services.agent_session.ChatCostVisibilityService.visible_for_user",
+        AsyncMock(return_value=True),
+    )
+
+
 def _session() -> AgentSession:
     websocket = MagicMock()
     websocket.send_json = AsyncMock()

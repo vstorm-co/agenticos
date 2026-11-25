@@ -6344,6 +6344,18 @@
       "deployment-password-sign-in": {
         "title": "Sign-in methods",
         "body": "Require your configured identity provider or allow local passwords and email sign-in links. Only the deployment administrator can change this policy."
+      },
+      "deployment-chat-costs": {
+        "title": "Chat costs",
+        "body": "Allow organizations to display costs in chat. Turning this off hides chat costs for everyone."
+      },
+      "organization-chat-costs": {
+        "title": "Chat costs",
+        "body": "Choose who sees answer, delegation and conversation costs. Accounting, budgets, Activity and dashboard access stay unchanged."
+      },
+      "personal-chat-costs": {
+        "title": "Chat costs",
+        "body": "Hide costs in your own chats. Your choice cannot override organization or deployment restrictions."
       }
     },
     "chooseLanguage": "Language",
@@ -21820,7 +21832,20 @@
     "maintenanceEnd": "Planned maintenance end",
     "maintenanceEndHint": "Optional. Time in {zone}, stored in UTC. Informational only; an administrator must end maintenance.",
     "maintenanceEndInformational": "This is an estimate. Access returns when an administrator ends maintenance.",
-    "invalidTime": "Choose a valid local date and time."
+    "invalidTime": "Choose a valid local date and time.",
+    "costs": {
+      "title": "Chat costs",
+      "audience": "Who sees costs in chat",
+      "everyone": "Everyone",
+      "spend_privileged": "People with access to spend",
+      "nobody": "Nobody in chat",
+      "organizationHint": "Choose who sees answer, delegation and conversation costs. Accounting, budgets, Activity and dashboard access stay unchanged.",
+      "personalLabel": "Show costs in my chats",
+      "personalHint": "Hide costs in your own chats. Your choice cannot override organization or deployment restrictions.",
+      "restricted": "Your organization or deployment hides chat costs for this account.",
+      "deploymentHint": "Allow organizations to display costs in chat. Turning this off hides chat costs for everyone.",
+      "available": "Allow costs in chat"
+    }
   },
   "modelSources": {
     "subscriptions": "Your subscriptions",

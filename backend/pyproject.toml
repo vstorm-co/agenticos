@@ -993,6 +993,7 @@ include = [
     "app/services/onboarding.py",
     "app/schemas/console_experience.py",
     "app/services/console_experience.py",
+    "app/services/chat_cost_visibility.py",
     "app/api/routes/v1/me_onboarding.py",
     "app/api/routes/v1/me_dashboard_layout.py",
     "app/repositories/dashboard_preset.py",
@@ -1358,6 +1359,7 @@ include = [
     # the gate (#1420).
     "app/core/retention.py",
     "app/core/sign_in_methods.py",
+    "app/core/chat_costs.py",
     "app/repositories/retention.py",
     "app/services/retention.py",
     # Where `HTTPException` joins the one error envelope. It answers a 405, an
@@ -1979,6 +1981,7 @@ include = [
     "app/services/onboarding.py",
     "app/schemas/console_experience.py",
     "app/services/console_experience.py",
+    "app/services/chat_cost_visibility.py",
     "app/api/routes/v1/me_onboarding.py",
     "app/api/routes/v1/me_dashboard_layout.py",
     "app/repositories/dashboard_preset.py",
@@ -2344,6 +2347,7 @@ include = [
     # the gate (#1420).
     "app/core/retention.py",
     "app/core/sign_in_methods.py",
+    "app/core/chat_costs.py",
     "app/repositories/retention.py",
     "app/services/retention.py",
     # Where `HTTPException` joins the one error envelope. It answers a 405, an

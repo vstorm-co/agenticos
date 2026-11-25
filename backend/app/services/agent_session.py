@@ -15,6 +15,7 @@ from pydantic import Field, ValidationError
 from pydantic_ai.exceptions import ContentFilterError, ModelHTTPError, UsageLimitExceeded
 from pydantic_ai.messages import ModelMessage, ToolCallPart
 from pydantic_ai_harness.ask_user import AskUserRequest, AskUserResponse
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.ask_user import (
@@ -89,6 +90,7 @@ from app.services.agent_chat import (
 )
 from app.services.agent_runner import AgentRunnerService, LiveRunSurface, PersonalServiceGap
 from app.services.attachments import load_turn_attachments
+from app.services.chat_cost_visibility import ChatCostVisibilityService, cost_bearing_chat_frame
 from app.services.chat_timeline import TurnTimeline
 from app.services.conversation import ConversationService
 from app.services.notifications import NotificationService
@@ -1791,6 +1793,26 @@ class AgentSession:
             db, message_id, [str(file_id) for file_id in file_ids], user_id=self.user.id
         )
 
+    async def _send_chat_frame(self, kind: str, payload: object) -> bool:
+        accounting = cost_bearing_chat_frame(kind, payload)
+        if accounting is None:
+            return await send_event(self.websocket, kind, payload)
+        try:
+            async with get_db_context() as db:
+                visible = await ChatCostVisibilityService(db).visible_for_user(
+                    organization_id=self.organization_id, user_id=self.user.id
+                )
+        except NotFoundError:
+            visible = False
+        except SQLAlchemyError:
+            # A failed policy read withholds the financial metadata. It must not
+            # disclose spend, or discard an answer already persisted successfully.
+            logger.exception("chat_cost_visibility_read_failed")
+            visible = False
+        return await send_event(
+            self.websocket, kind, accounting.data if visible else accounting.redacted()
+        )
+
     async def _emit(self, kind: str, payload: Any) -> bool:
         """Send one frame to this socket, and keep it for whoever follows the turn.
 
@@ -1798,7 +1820,7 @@ class AgentSession:
         and came back follows the rest of the turn from another socket. Answers
         whether this socket took it, as `send_event` does.
         """
-        sent = await send_event(self.websocket, kind, payload)
+        sent = await self._send_chat_frame(kind, payload)
         if self._live_turn is not None:
             await live_turn.publish(self._live_turn, kind, payload)
         return sent
@@ -2086,7 +2108,7 @@ class AgentSession:
                     )
                     return False
                 recheck = time.monotonic() + RECHECK_SECONDS
-            if not await send_event(self.websocket, frame["type"], frame["data"]):
+            if not await self._send_chat_frame(frame["type"], frame["data"]):
                 return False
         if not ended:
             # The turn ended between the check and the subscription: the

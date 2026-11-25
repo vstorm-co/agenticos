@@ -197,6 +197,13 @@ Deployment settings also offer an optional **Announcement expires** time. The se
 
 Administration is reached from the account menu. Its settings use the shared tabs and preserve drafts when changing sections. Memory and Notes fill their remaining workspace, scroll their own rows and retain a **1 / 1** footer. The ordinary Architect now uses the same generated portrait family as other agents; custom uploads remain intact. Inbox views share their row treatment, and Kanban dragging previews the actual card. Guided setup keeps a consistent heading, form and illustration layout through its later steps; continuing an unchanged profile does not report a save.
 
+### Costs in chat { #chat-cost-visibility }
+
+**Chat costs** follows a stricter hierarchy: deployment availability → organization audience → personal choice. The deployment can hide costs everywhere in chat. In the organization’s **AI & services** settings, choose **Everyone** (the default), **People with access to spend** (`budgets:manage` or `runs:view`), or **Nobody in chat**. In **Settings → Profile**, members may hide costs for themselves, but cannot override a restriction above them.
+
+The rule applies to answer prices, delegation costs, conversation totals and budget percentages, including saved transcripts, live and reconnected streams, shared chats and Q&A continuations. Withheld financial metadata is omitted from the chat response; token and context readings remain available. This does not rewrite agent answers or arbitrary tool content. Accounting and budget enforcement continue unchanged. Activity and dashboard costs keep their existing permissions.
+
+
 ## The dashboard
 
 The landing page is an **arrangeable grid of widgets**, and it is the answer to

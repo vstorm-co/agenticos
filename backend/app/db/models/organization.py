@@ -237,6 +237,9 @@ class Organization(Base, TimestampMixin):
         JSONB(none_as_null=True), nullable=True
     )
 
+    chat_cost_visibility: Mapped[str | None] = mapped_column(String(24), nullable=True)
+    """Null inherits everyone; affects disclosure in chat, never the spend ledger."""
+
     chat_home_defaults: Mapped[dict[str, bool | None] | None] = mapped_column(
         JSONB(none_as_null=True), nullable=True
     )
@@ -255,6 +258,10 @@ class Organization(Base, TimestampMixin):
     )
 
     __table_args__ = (
+        CheckConstraint(
+            "chat_cost_visibility IS NULL OR chat_cost_visibility IN ('everyone', 'spend_privileged', 'nobody')",
+            name="ck_organization_chat_cost_visibility",
+        ),
         # Zero is not a tighter cap, it is an organization whose agents can never
         # answer - and it is one keystroke away from the number somebody meant to
         # type. The same constraint guards `agent_exposures`.
@@ -350,6 +357,9 @@ class OrganizationMember(Base):
     onboarding_reminders: Mapped[dict[str, bool | int | None] | None] = mapped_column(
         JSONB(none_as_null=True), nullable=True
     )
+
+    chat_costs_visible: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    """Personal display preference, bounded by the organization and deployment."""
 
     chat_home_preferences: Mapped[dict[str, bool | None] | None] = mapped_column(
         JSONB(none_as_null=True), nullable=True

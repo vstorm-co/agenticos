@@ -2,7 +2,7 @@
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
-import { MessageSquare, BellRing } from "lucide-react";
+import { MessageSquare, BellRing, Coins } from "lucide-react";
 import { toast } from "sonner";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useConsoleExperience } from "@/hooks/use-console-experience";
@@ -10,17 +10,22 @@ import { useOrgStore } from "@/stores";
 import { apiClient } from "@/lib/api-client";
 import { getErrorMessage } from "@/lib/api-error";
 import { qk } from "@/lib/query-keys";
-import type { ChatHomeOverrides, OnboardingReminderOverrides } from "@/lib/console-experience-api";
+import type {
+  ChatHomeOverrides,
+  OnboardingReminderOverrides,
+  ChatCostVisibility,
+} from "@/lib/console-experience-api";
 import { Perm } from "@/types/permissions";
 import type { Organization } from "@/types/organization";
 import { ErrorState } from "@/components/states";
 import { ServiceCard } from "@/components/settings/service-card";
 import { OnboardingReminderControls } from "@/components/settings/onboarding-reminder-controls";
+import { OrganizationChatCostControl } from "@/components/settings/chat-cost-controls";
 import { ChatHomeControls } from "@/components/settings/chat-home-controls";
 
 type OrganizationExperience = Pick<
   Organization,
-  "id" | "chat_home_defaults" | "onboarding_reminders"
+  "id" | "chat_home_defaults" | "onboarding_reminders" | "chat_cost_visibility"
 >;
 
 export function OrgChatHomeSettings({ org }: { org: OrganizationExperience }) {
@@ -38,6 +43,7 @@ function OrganizationChatHome({ org }: { org: OrganizationExperience }) {
   const save = useMutation({
     mutationFn: (changes: {
       chat_home_defaults?: ChatHomeOverrides;
+      chat_cost_visibility?: ChatCostVisibility;
       onboarding_reminders?: OnboardingReminderOverrides;
     }) => {
       if (useOrgStore.getState().activeOrgId !== org.id) throw new Error(errors("sessionExpired"));
@@ -71,6 +77,21 @@ function OrganizationChatHome({ org }: { org: OrganizationExperience }) {
           disabled={save.isPending || !data}
           onChange={(field, value) => save.mutate({ chat_home_defaults: { [field]: value } })}
         />
+      </ServiceCard>
+      <ServiceCard
+        icon={Coins}
+        action={null}
+        title={t("costs.title")}
+        description={t("costs.organizationHint")}
+      >
+        <OrganizationChatCostControl
+          value={org.chat_cost_visibility ?? "everyone"}
+          disabled={save.isPending || !data || data.costs?.availability === false}
+          onChange={(chat_cost_visibility) => save.mutate({ chat_cost_visibility })}
+        />
+        {data?.costs?.availability === false && (
+          <p className="text-muted-foreground mt-2 text-xs">{t("unavailable")}</p>
+        )}
       </ServiceCard>
       <ServiceCard
         icon={BellRing}

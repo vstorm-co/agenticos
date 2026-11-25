@@ -30,6 +30,7 @@ export interface DeploymentSettings extends BrandingResponse {
   password_sign_in_forced?: boolean;
   chat_home_available?: ChatHomeOverrides | null;
   onboarding_reminders_available?: boolean | null;
+  chat_costs_available?: boolean | null;
   announcement_expires_at?: string | null;
   maintenance_planned_end_at?: string | null;
   announcement: string | null;
@@ -77,6 +78,7 @@ export interface DeploymentSettingsPatch {
   password_sign_in_enabled?: boolean;
   chat_home_available?: ChatHomeOverrides | null;
   onboarding_reminders_available?: boolean | null;
+  chat_costs_available?: boolean | null;
   announcement_expires_at?: string | null;
   maintenance_planned_end_at?: string | null;
   app_name?: string | null;

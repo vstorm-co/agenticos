@@ -4,6 +4,7 @@ from typing import Literal
 
 from pydantic import ConfigDict, Field, StrictBool, field_validator
 
+from app.core.chat_costs import ChatCostVisibility, permits_chat_costs
 from app.schemas.base import BaseSchema
 
 
@@ -129,9 +130,38 @@ def resolve_onboarding_reminders(
     )
 
 
+class ChatCostRead(BaseSchema):
+    availability: bool = True
+    organization_policy: ChatCostVisibility = ChatCostVisibility.EVERYONE
+    preference: StrictBool | None = None
+    permitted: bool = True
+    effective: bool = True
+
+
+def resolve_chat_costs(
+    available: bool | None,
+    policy: ChatCostVisibility,
+    preference: bool | None,
+    *,
+    eligible: bool,
+    spend_privileged: bool,
+) -> ChatCostRead:
+    permitted = eligible and permits_chat_costs(
+        policy, available=available, spend_privileged=spend_privileged
+    )
+    return ChatCostRead(
+        availability=available is not False,
+        organization_policy=policy,
+        preference=preference,
+        permitted=permitted,
+        effective=permitted and preference is not False,
+    )
+
+
 class ConsoleExperienceRead(BaseSchema):
     """The active membership's hierarchy, without deployment policy unrelated to the console."""
 
+    costs: ChatCostRead = Field(default_factory=ChatCostRead)
     reminders: OnboardingReminderRead
     availability: ChatHomeOptions
     organization_defaults: ChatHomeOverrides
@@ -143,5 +173,6 @@ class ConsoleExperienceUpdate(BaseSchema):
     """Change only my active membership; null resets all four personal choices."""
 
     model_config = ConfigDict(extra="forbid")
+    chat_costs: StrictBool | None = None
     preferences: ChatHomeOverrides | None = None
     reminders: OnboardingReminderOverrides | None = None

@@ -166,6 +166,7 @@ class DeploymentSettingsRead(BrandingRead):
     """The administrator's view: everything, in one request."""
 
     password_sign_in_forced: bool = False
+    chat_costs_available: bool | None = None
     chat_home_available: ChatHomeOverrides | None = None
     onboarding_reminders_available: bool | None = Field(
         default=None,
@@ -217,6 +218,7 @@ class DeploymentSettingsUpdate(BaseSchema):
     a path is written only by the upload route, which puts the bytes there itself.
     """
 
+    chat_costs_available: bool | None = None
     chat_home_available: ChatHomeOverrides | None = None
     onboarding_reminders_available: bool | None = Field(
         default=None,

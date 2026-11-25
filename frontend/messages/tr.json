@@ -9086,6 +9086,18 @@
       "deployment-password-sign-in": {
         "title": "Oturum açma yöntemleri",
         "body": "Yapılandırılmış kimlik sağlayıcısını zorunlu tutun veya yerel parolalar ve e-posta bağlantılarına izin verin. Bu ilkeyi yalnızca dağıtım yöneticisi değiştirebilir."
+      },
+      "deployment-chat-costs": {
+        "title": "Sohbet maliyetleri",
+        "body": "Kuruluşların sohbette maliyet göstermesine izin verin. Kapatmak bunları herkesten gizler."
+      },
+      "organization-chat-costs": {
+        "title": "Sohbet maliyetleri",
+        "body": "Yanıt, delegasyon ve konuşma maliyetlerini kimlerin göreceğini seçin. Muhasebe, budget ve Activity ile pano erişimi değişmez."
+      },
+      "personal-chat-costs": {
+        "title": "Sohbet maliyetleri",
+        "body": "Kendi sohbetlerinizde maliyetleri gizleyin. Kuruluş veya deployment kısıtlamaları geçerli kalır."
       }
     }
   },
@@ -17208,7 +17220,20 @@
     "maintenanceEnd": "Planlanan bakım bitişi",
     "maintenanceEndHint": "İsteğe bağlı. Saat {zone} bölgesinde gösterilir ve UTC olarak saklanır. Yalnızca bilgi amaçlıdır; bakımı bir yönetici bitirmelidir.",
     "maintenanceEndInformational": "Bu tahmini bir süredir. Yönetici bakımı bitirdiğinde erişim açılır.",
-    "invalidTime": "Geçerli bir yerel tarih ve saat seçin."
+    "invalidTime": "Geçerli bir yerel tarih ve saat seçin.",
+    "costs": {
+      "title": "Sohbet maliyetleri",
+      "audience": "Sohbette maliyetleri kim görür",
+      "everyone": "Herkes",
+      "spend_privileged": "Harcamalara erişimi olan kişiler",
+      "nobody": "Sohbette hiç kimse",
+      "organizationHint": "Yanıt, delegasyon ve konuşma maliyetlerini kimlerin göreceğini seçin. Muhasebe, budget ve Activity ile pano erişimi değişmez.",
+      "personalLabel": "Sohbetlerimde maliyetleri göster",
+      "personalHint": "Kendi sohbetlerinizde maliyetleri gizleyin. Kuruluş veya deployment kısıtlamaları geçerli kalır.",
+      "restricted": "Kuruluşunuz veya deployment bu hesap için sohbet maliyetlerini gizliyor.",
+      "deploymentHint": "Kuruluşların sohbette maliyet göstermesine izin verin. Kapatmak bunları herkesten gizler.",
+      "available": "Sohbette maliyetlere izin ver"
+    }
   },
   "onboardingStatus": {
     "header": "Başlangıç kurulumu",

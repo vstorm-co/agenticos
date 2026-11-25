@@ -192,6 +192,27 @@ export interface TourStep {
 
 export const TOUR_STEPS: readonly TourStep[] = [
   {
+    id: "deployment-chat-costs",
+    page: "/admin/settings",
+    target: "deployment-chat-costs",
+    activate: "deployment-identity-tab",
+    optional: true,
+  },
+  {
+    id: "organization-chat-costs",
+    page: ORG_MEMBERS,
+    target: "organization-chat-costs",
+    activate: "org-tab-assistant",
+    permission: Perm.orgSettings,
+    optional: true,
+  },
+  {
+    id: "personal-chat-costs",
+    page: SETTINGS_DETAIL,
+    target: "personal-chat-costs",
+    optional: true,
+  },
+  {
     id: "deployment-password-sign-in",
     page: "/admin/settings",
     target: "deployment-password-sign-in",

@@ -2632,3 +2632,15 @@ def get_console_experience_service(db: DBSession) -> ConsoleExperienceService:
 
 
 ConsoleExperienceSvc = Annotated[ConsoleExperienceService, Depends(get_console_experience_service)]
+
+
+from app.services.chat_cost_visibility import ChatCostVisibilityService
+
+
+def get_chat_cost_visibility_service(db: DBSession) -> ChatCostVisibilityService:
+    return ChatCostVisibilityService(db)
+
+
+ChatCostVisibilitySvc = Annotated[
+    ChatCostVisibilityService, Depends(get_chat_cost_visibility_service)
+]
