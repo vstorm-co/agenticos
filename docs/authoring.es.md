@@ -1,5 +1,5 @@
 ---
-source_sha: "00510e13f0b4"
+source_sha: "613fe14edc93"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las herramientas, la configuración, los skills y los archivos de contexto de un agent. Una persona decide cada uno."
 ---
@@ -103,6 +103,11 @@ pretendía. Si el draft ha cambiado - el fragmento se eliminó o la descripción
 una herramienta se cambió a mano -, la sugerencia dice que **ya no encaja en el
 draft** y solo se puede descartar. Deshacer se niega igual cuando el texto
 aceptado se editó después a mano: tiraría esa edición.
+
+Un fragmento movido a mano, o junto a un cambio aceptado antes que él, se sigue
+encontrando mientras aparezca una sola vez y sea una línea entera, tenga al menos
+40 caracteres o conserve un lado de lo que lo rodeaba. Una frase más corta, como un
+importe, no se sigue a otra oración: su sugerencia ya no encaja en el draft.
 
 La barra tiene dos pestañas, cada una con su número. **To review** muestra entera
 cada sugerencia que sigue pendiente. **Decided** pliega cada una aceptada, editada

@@ -100,6 +100,11 @@ by hand - the suggestion says it **no longer fits the draft** and can only be
 dismissed. Undo refuses the same way once the accepted text was edited by hand: it
 would throw that edit away.
 
+A passage moved by hand, or next to a change accepted before it, is still found
+while it occurs only once and is a whole line, is at least 40 characters long, or
+keeps one side of what surrounded it. A shorter phrase, such as an amount, is not
+followed into another sentence: its suggestion no longer fits the draft.
+
 The strip has two tabs, each with a count. **To review** shows every suggestion
 still waiting, whole. **Decided** folds each accepted, edited or dismissed one to a
 line naming the kind of change - Instructions, a tool description, a setting, a new
