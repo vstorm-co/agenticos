@@ -356,6 +356,42 @@ async def test_an_edit_sent_with_windows_line_breaks_is_taken_and_kept_with_newl
 
 
 @pytest.mark.security
+async def test_a_stored_change_nobody_can_fully_see_is_left_out_of_the_attempt(db):
+    """A change stored with a bidi override, before the rule or by hand, is never measured:
+    the policy filter drops it with its reason."""
+    ctx, agent, _, read = await _started(db)
+    await _until_child(db, ctx, read.id)
+    service = ImprovementPipelineService(db)
+    proposing = await service.read(ctx, agent.id, read.id)
+    request_id = proposing.iterations[0].authoring_request_id
+    assert request_id is not None
+    with _answering(Improver(db)):
+        await AuthoringWorker(request_id, ctx.organization_id, sessions=_sessions(db)).run()
+    batch = await authoring_repo.batch_for_request(
+        db, request_id, organization_id=ctx.organization_id
+    )
+    assert batch is not None
+    hunks = await authoring_repo.list_hunks(
+        db, organization_id=ctx.organization_id, batch_id=batch.id
+    )
+    hidden = next(hunk for hunk in hunks if hunk.kind == "instructions")
+    hidden.new_text = f"{hidden.new_text}\u202e"
+    await db.flush()
+
+    for _ in range(2):
+        await service.advance(read.id, ctx.organization_id)
+    waiting = await service.read(ctx, agent.id, read.id)
+    await service.continue_run(
+        ctx, agent.id, waiting.id, await _consent(service, ctx, agent, waiting)
+    )
+
+    [attempt] = await improvement_repo.list_iterations(
+        db, organization_id=ctx.organization_id, run_id=read.id
+    )
+    assert {"hunk_id": str(hidden.id), "reason": "hidden_characters"} in attempt.dropped
+
+
+@pytest.mark.security
 async def test_a_change_is_edited_only_at_the_stop_by_whoever_may_continue_and_only_its_text(db):
     from app.schemas.improvement import ChangeEdit
 

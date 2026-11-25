@@ -34,9 +34,11 @@ from app.core.audit import record_audit
 from app.core.exceptions import (
     AlreadyExistsError,
     AuthorizationError,
+    BadRequestError,
     ConcurrentChangeError,
     NotFoundError,
 )
+from app.core.hidden_text import holds_refused
 from app.core.permissions import AuthContext, Perm
 from app.db.models.skill import Skill
 from app.db.models.skill_proposal import ProposalStatus, SkillProposal
@@ -284,6 +286,14 @@ class SkillProposalService:
         """
         proposal = await self.get(ctx, proposal_id)
         self._refuse_second_decision(proposal, decision.revision)
+        if holds_refused([proposal.content, proposal.description]):
+            raise BadRequestError(
+                message=(
+                    "This change holds characters a person cannot see, so it is never "
+                    "applied. Dismiss it and ask again."
+                ),
+                details={"proposal_id": proposal.id, "reason": "hidden_characters"},
+            )
         if proposal.skill_id is not None and decision.check_id is not None and not checked:
             from app.schemas.skill_check import SkillCheckApply
             from app.services.skill_check import SkillCheckService

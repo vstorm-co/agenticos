@@ -1590,6 +1590,8 @@ class AuthoringService:
                 message="No suggestion is waiting to be checked",
                 details={"agent_id": agent.id},
             )
+        for hunk in pending:
+            refuse_never_accepted(hunk)
         projected, skipped = authoring_hunks.projection(
             AgentSpec.model_validate(agent.draft_spec), pending
         )

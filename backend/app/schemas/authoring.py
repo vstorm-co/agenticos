@@ -532,9 +532,9 @@ class ProposedSkill(BaseSchema):
     What the preview shows, edited or not; the name follows the skill library's rule.
     """
 
-    name: str = Field(min_length=1, max_length=64)
-    description: str = Field(min_length=1, max_length=500)
-    content: str = Field(min_length=1, max_length=20_000)
+    name: Annotated[str, AfterValidator(visible)] = Field(min_length=1, max_length=64)
+    description: Annotated[str, AfterValidator(visible)] = Field(min_length=1, max_length=500)
+    content: Annotated[str, AfterValidator(visible)] = Field(min_length=1, max_length=20_000)
 
     @field_validator("name")
     @classmethod

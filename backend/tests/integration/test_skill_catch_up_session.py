@@ -1090,6 +1090,28 @@ class TestReviewFixes:
         await db.refresh(run)
         assert run.status == "ready" and run.outcome is None
 
+    @pytest.mark.security
+    async def test_a_merged_text_nobody_can_fully_see_waits_for_a_person(
+        self, db, call_price, monkeypatch
+    ):
+        """The model's combined text holds a bidi override: it settles nothing, and the
+        conflict stays for a person to write."""
+        _checked(db, monkeypatch)
+        ctx = await _owner(db)
+        skill, fork = await _described(db, ctx)
+        run = await _started(db, ctx, skill, fork)
+        await _advance(db, run)
+        await _advance(db, run)
+        merge = await SkillCatchUpService(db).merge_for_run(
+            run.id, organization_id=ctx.organization_id
+        )
+        assert merge is not None and merge.conflicts == 1
+
+        await SkillCatchUpService(db).fill_conflicts(merge, ["Refunds\u202e within 30 days"])
+
+        assert merge.description["result"] is None
+        assert merge.description.get("proposed") is None
+
     async def test_a_merged_description_past_its_limit_waits_for_a_person(
         self, db, call_price, monkeypatch
     ):

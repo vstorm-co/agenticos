@@ -888,6 +888,11 @@ class AuthoringRun:
             raise
         pack = await self._checked_evidence(pack)
         content = _unwrapped(proposal.content, "skill", skill.content)
+        if holds_refused([content, proposal.description]):
+            raise Stopped(
+                "The proposed text holds characters that cannot be seen, so it was not "
+                "recorded. Ask again."
+            )
         if _same_text(content, skill.content) and _same_text(
             proposal.description[:500], skill.description
         ):

@@ -1,6 +1,8 @@
 """Characters a proposed or edited text may not carry, and the ones it may."""
 
 import uuid
+from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 import pytest
 from pydantic import ValidationError
@@ -21,6 +23,8 @@ from app.schemas.authoring import (
     HunkDecision,
     InstructionChange,
     NewSkillChange,
+    ProposedSkill,
+    Rejection,
     SkillImprovement,
     ToolChange,
 )
@@ -28,6 +32,7 @@ from app.schemas.improvement import ChangeEdit
 from app.schemas.skill_improvement import MergeTexts, SkillBodyEdit, SkillEdits
 from app.schemas.skill_merge import MergeDescriptionEdit, MergePartEdit
 from app.services import authoring_fields
+from app.services.authoring_worker import AuthoringRun
 from app.services.improvement_search import InstructionVariant, usable_variant
 from app.services.skill_improvement import filtered
 
@@ -73,8 +78,9 @@ def test_a_refusal_names_the_characters_and_a_json_value_is_read_whole():
         lambda text: HunkDecision(action="accept", value={"description": text}),
         lambda text: MergeDescriptionEdit(result=text),
         lambda text: MergePartEdit(result=text),
+        lambda text: ProposedSkill(name="refunds", description="Refunds", content=text),
     ],
-    ids=["reword", "accept-text", "accept-value", "merge-description", "merge-part"],
+    ids=["reword", "accept-text", "accept-value", "merge-description", "merge-part", "skill-idea"],
 )
 def test_a_person_s_edit_carrying_one_is_refused_on_its_field(build):
     with pytest.raises(ValidationError):
@@ -185,6 +191,33 @@ def test_a_proposal_with_windows_line_breaks_is_judged_and_kept_with_newlines(bu
 
     assert texts == [UNIX] * len(texts)
     assert not holds_refused(texts)
+
+
+def test_a_tool_change_carrying_one_is_not_proposed():
+    change = ToolChange(
+        capability_id="web", tool_id="fetch", description=f"Fetch{BIDI} pages.", rationale="r"
+    )
+
+    assert AuthoringRun._tool_refusal({("web", "fetch")}, change) is Rejection.HIDDEN_CHARACTERS
+
+
+def test_a_skill_edit_or_description_carrying_one_is_not_proposed():
+    rejected: list[tuple[str, Rejection]] = []
+    worker = SimpleNamespace(_reject=lambda kind, reason, _change: rejected.append((kind, reason)))
+    edits = SkillEdits(
+        summary="s",
+        expected_effect="e",
+        edits=[SkillBodyEdit(old_text="Refunds.", new_text=f"Refunds{BIDI}.", rationale="r")],
+        description=f"Refunds{TAG}",
+    )
+
+    hunks = AuthoringRun._skill_hunks(worker, "Refunds.", "Refunds", MagicMock(), edits)
+
+    assert hunks == []
+    assert rejected == [
+        (HunkKind.SKILL_BODY, Rejection.HIDDEN_CHARACTERS),
+        (HunkKind.SKILL_DESCRIPTION, Rejection.HIDDEN_CHARACTERS),
+    ]
 
 
 def test_a_field_change_carrying_one_is_neither_staged_nor_accepted():

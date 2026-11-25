@@ -42,7 +42,7 @@ from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_run import AgentRun, RunSurface
 from app.db.models.api_key import ApiKey
 from app.db.models.audit_log import AppAdminAuditLog
-from app.db.models.authoring import AuthoringRequest, SpecProposalBatch
+from app.db.models.authoring import AuthoringRequest, SpecProposalBatch, SpecProposalHunk
 from app.db.models.conversation import Conversation, Message
 from app.db.models.dataset import Dataset, DatasetCase
 from app.db.models.eval_run import EvalRun, EvalRunArm
@@ -969,6 +969,66 @@ class TestSkills:
         with pytest.raises(BadRequestError, match="no draft to verify"):
             await service.estimate_skill(ctx, skill.id, AuthoringStart(kind="verify"))
 
+    @pytest.mark.security
+    async def test_a_skill_body_with_characters_nobody_can_see_is_never_recorded_or_applied(
+        self, db
+    ):
+        """A bidi override in the new body reorders what a reviewer reads: the proposal is
+        not recorded, and a row that carries one anyway is refused at Apply."""
+        from app.schemas.resource_usage import ProposalDecision
+        from app.services.skill_proposal import SkillProposalService
+
+        class Hiding(Improver):
+            def _answer(self, prompt: str) -> dict[str, Any]:
+                answer = super()._answer(prompt)
+                if prompt.startswith("Propose an improved body for the skill"):
+                    return {**answer, "content": "Refunds take 30\u202e days."}
+                return answer
+
+        ctx, _agent, run = await _setup(db)
+        skill = Skill(
+            organization_id=ctx.organization_id,
+            owner_user_id=ctx.user_id,
+            visibility="org",
+            name="refunds",
+            description="Refunds",
+            content="Refunds take 90 days.",
+            version=3,
+        )
+        db.add(skill)
+        await db.flush()
+        await skill_usage_repo.record_uses(
+            db,
+            [SkillUseRecord(agent_id=run.agent_id, skill_id=skill.id, loaded=True)],
+            organization_id=ctx.organization_id,
+            run_id=run.id,
+            started_at=datetime.now(UTC),
+        )
+        service = AuthoringService(db)
+        proposals = select(SkillProposal).where(SkillProposal.skill_id == skill.id)
+
+        started = await service.start_skill(ctx, skill.id, AuthoringStart())
+        with _answering(Hiding(db)):
+            await AuthoringWorker(started.id, ctx.organization_id, sessions=_sessions(db)).run()
+
+        request = await db.get(AuthoringRequest, started.id)
+        assert request is not None and "cannot be seen" in (request.error or "")
+        assert (await db.execute(proposals)).scalars().all() == []
+        started = await service.start_skill(ctx, skill.id, AuthoringStart())
+        with _answering(Improver(db)):
+            await AuthoringWorker(started.id, ctx.organization_id, sessions=_sessions(db)).run()
+        (proposal,) = (await db.execute(proposals)).scalars().all()
+        proposal.content = "Refunds take 30 days.\U000e0041"
+        await db.flush()
+
+        with pytest.raises(BadRequestError, match="cannot see"):
+            await SkillProposalService(db).apply(
+                ctx, proposal.id, ProposalDecision(revision=proposal.revision)
+            )
+
+        await db.refresh(skill)
+        assert skill.content == "Refunds take 90 days."
+
 
 class TestRefusals:
     @pytest.mark.security
@@ -1160,6 +1220,26 @@ class TestWorker:
 
 
 class TestEdges:
+    @pytest.mark.security
+    async def test_a_check_refuses_a_stored_suggestion_with_characters_nobody_can_see(self, db):
+        """A row stored before the rule, or written by hand, is refused before any model
+        reads it, not only at Accept."""
+        ctx, agent, _ = await _setup(db)
+        await _improve(db, ctx, agent, Improver(db))
+        batch = (await AuthoringService(db).for_agent(ctx, agent.id)).batch
+        assert batch is not None
+        stored = await db.get(SpecProposalHunk, batch.hunks[0].id)
+        assert stored is not None
+        stored.new_text = f"{stored.new_text}\u202e"
+        await db.flush()
+
+        with pytest.raises(BadRequestError) as refused:
+            await AuthoringService(db).estimate_check(
+                ctx, agent.id, ProposalCheck(dataset_id=uuid.uuid4())
+            )
+
+        assert refused.value.details == {"hunk_id": stored.id, "reason": "hidden_characters"}
+
     async def test_an_archived_agent_is_not_improved(self, db):
         ctx, agent, _ = await _setup(db)
         agent.status = "archived"
