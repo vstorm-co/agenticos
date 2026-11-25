@@ -1,5 +1,5 @@
 ---
-source_sha: "08e76ac5a7af"
+source_sha: "bf0a7ae06283"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las herramientas, la configuración, los skills y los archivos de contexto de un agent. Una persona decide cada uno."
 ---
@@ -372,6 +372,14 @@ sesión. Una sesión hace como máximo tres intentos dentro de su presupuesto. D
 resultados seguidos sin cambios, o uno inconcluso y su repetición, aparecen en el
 resultado como una pista de que otro intento probablemente no ayudará, no como
 una parada.
+
+Una nota que cita una pregunta con la que se mide el nuevo intento se rechaza en
+`note`, y también una en la sesión de un skill que cita una pregunta que su
+siguiente comprobación puede calificar: el asistente leería lo que la
+comprobación mide después. La comparación ignora mayúsculas y espacios y detecta
+una copia, no una paráfrasis, por eso el Architect nunca recibe el texto de una
+pregunta apartada. Solo se comparan las preguntas que quien llama puede
+leer: rechazar una nota por una que no puede ver confirmaría una suposición.
 
 Quien puede empezar una sesión del agente - permiso de edición, `runs:view` y la
  - puede también dar su siguiente paso o volver a

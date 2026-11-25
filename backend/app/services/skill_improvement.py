@@ -82,6 +82,7 @@ from app.repositories import (
     agent_repo,
     agent_run_repo,
     authoring_repo,
+    dataset_repo,
     skill_check_repo,
     skill_improvement_repo,
     skill_repo,
@@ -133,11 +134,12 @@ from app.schemas.skill_improvement import (
 from app.schemas.skill_version import PersonRef, ReturnToMain
 from app.services import authoring_hunks
 from app.services import improvement_states as rules
-from app.services.access import AGENT, SKILL, accessible_ids, resolve_access
+from app.services.access import AGENT, DATASET, SKILL, accessible_ids, resolve_access
 from app.services.api_key import job_context
 from app.services.authoring import AuthoringService
 from app.services.authoring_evidence import EvidencePack
 from app.services.background_jobs import enqueue
+from app.services.improvement_data import quotes_a_question
 from app.services.improvement_pipeline import ImprovementPipelineService
 from app.services.improvement_skills import SkillSeed
 from app.services.skill_agents import SkillAgentService
@@ -915,6 +917,12 @@ class SkillImprovementService:
             "actor_api_key_id": ctx.api_key_id,
         }
         if quote.mode == "next_round":
+            if consent.note is not None and quotes_a_question(
+                consent.note, await self._measured_questions(ctx, line, run)
+            ):
+                raise refused_field(
+                    "note", "The note quotes a question this attempt is measured on"
+                )
             await self._set_aside_checks(run)
             number = run.iteration + 1
             await skill_improvement_repo.create_iteration(
@@ -2029,6 +2037,51 @@ class SkillImprovementService:
                 code="LINE_MOVED",
                 details={"base_version_id": run.base_version_id, "latest": line.latest},
             )
+
+    async def _measured_questions(
+        self, ctx: AuthContext, line: SessionLine, run: SkillImprovementRun
+    ) -> list[str]:
+        """The questions the next check may grade that the caller may read.
+
+        The next check asks the skill's own test questions, every one held out, and for
+        each agent the line serves now, the held-out questions of a dataset testing it
+        that its starter may read - so every such dataset is read here. A question the
+        caller may not read is left out: refusing a note for one would confirm a guess.
+        """
+        org = run.organization_id
+        test_set = await dataset_repo.for_skill(self.db, run.skill_id, organization_id=org)
+        candidates = [] if test_set is None else [test_set]
+        for reached in await self.skill_agents.line_agents(line.skill, line.fork_id):
+            candidates.extend(
+                item
+                for item in await dataset_repo.testing_agent(
+                    self.db, reached.agent.id, organization_id=org
+                )
+                if item.skill_id is None
+            )
+        readable = await accessible_ids(
+            self.db, ctx, candidates, Perm.DATASETS_VIEW, resource_type=DATASET
+        )
+        sets = [
+            (item.id, item.latest_version, item.skill_id is not None)
+            for item in candidates
+            if item.id in readable
+        ]
+        questions: list[str] = []
+        for dataset_id, number, whole in dict.fromkeys(sets):
+            version = await dataset_repo.get_version(
+                self.db, dataset_id, number, organization_id=org
+            )
+            if version is None:
+                continue
+            questions.extend(
+                case.input
+                for case in await dataset_repo.list_cases(
+                    self.db, version.id, organization_id=org, limit=None
+                )
+                if whole or case.improvement_partition == "holdout"
+            )
+        return questions
 
     async def _check(self, run: SkillImprovementRun) -> SkillCheck | None:
         """The current attempt's check, once it started."""

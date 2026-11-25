@@ -607,3 +607,38 @@ async def test_attribution_refuses_a_changed_base_and_an_exhausted_session_budge
         await service.select_round(ctx, agent.id, started.id, 1)
     with pytest.raises(ConcurrentChangeError, match="stale"):
         await service.estimate_attribution(ctx, agent.id, started.id, 2)
+
+
+@pytest.mark.security
+async def test_a_try_again_note_quoting_a_question_the_attempt_is_measured_on_is_refused(db):
+    """The helper reads the note beside its evidence: a held-out question pasted into it
+    would be graded by the check the attempt is measured with."""
+    ctx, agent, _ = await _setup(db)
+    dataset, measured = await _marked_dataset(db, ctx, share=Decimal("0.625"))
+    service = ImprovementPipelineService(db)
+    started = await service.start(
+        ctx,
+        agent.id,
+        ImprovementStart(dataset_id=dataset.id, budget_usd=Decimal(100), max_iterations=3),
+    )
+    for _ in range(2):
+        await service.advance(started.id, ctx.organization_id)
+    await _next_step(db, ctx, started.id)
+    await _round(db, ctx, agent, started.id, "ROUND_BAD")
+
+    with (
+        patch("app.services.improvement_pipeline.drawn_holdout", return_value=measured),
+        pytest.raises(BadRequestError) as refused,
+    ):
+        await _next_step(
+            db, ctx, started.id, note="Fix the flaky one:  holdout_question_marker_4 please"
+        )
+    with patch("app.services.improvement_pipeline.drawn_holdout", return_value=measured):
+        allowed = await _next_step(
+            db, ctx, started.id, note="Keep TRAIN_QUESTION_MARKER_0 answered as before"
+        )
+
+    assert refused.value.details["fields"][0]["field"] == "note"
+    assert "HOLDOUT_QUESTION_MARKER_4" not in refused.value.message
+    assert (allowed.status, allowed.iteration) == ("running", 2)
+    assert allowed.iterations[1].note == "Keep TRAIN_QUESTION_MARKER_0 answered as before"

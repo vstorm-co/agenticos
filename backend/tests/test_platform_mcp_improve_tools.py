@@ -322,9 +322,12 @@ class TestReadingSessions:
 
 
 class TestTheNoise:
-    async def test_a_noisy_test_reads_as_such_with_its_examples_cut_short(
+    @pytest.mark.security
+    async def test_a_noisy_test_reads_as_such_with_no_question_text(
         self, server: FastMCP, api: MagicMock
     ) -> None:
+        """Every example is a held-out question, and a question the Architect holds can be
+        pasted into a Try again note the next attempt is measured on."""
         noise = {
             "noisy": True,
             "held_out": 10,
@@ -353,7 +356,8 @@ class TestTheNoise:
         read = session["measurement_noise"]
         assert read["noisy"] is True
         assert (read["baseline_low"], read["baseline_high"]) == (0.5, 0.7)
-        assert len(read["examples"][0]["input"]) == 200
+        assert "input" not in read["examples"][0]
+        assert read["examples"][0]["case_id"] == noise["examples"][0]["case_id"]
 
     async def test_a_session_read_by_its_id_names_its_agent(
         self, server: FastMCP, api: MagicMock
@@ -1569,6 +1573,43 @@ class TestReadingAnEvalRun:
         assert set(listed.kwargs["params"]["case_id"]) == {
             c["case_id"] for c in run["broken"] + run["fixed"]
         }
+
+    @pytest.mark.security
+    @pytest.mark.parametrize(
+        "proposal_check",
+        [{"improvement_run_id": str(uuid.uuid4())}, {"skill_check_id": str(uuid.uuid4())}],
+    )
+    async def test_a_run_measuring_a_session_names_its_questions_by_id_alone(
+        self, server: FastMCP, api: MagicMock, proposal_check: dict[str, str]
+    ) -> None:
+        """Its flips are held-out questions the next attempt may keep aside again: text
+        the Architect holds can be pasted into a Try again note."""
+        case = str(uuid.uuid4())
+        api.request = _responder(
+            {
+                ("GET", f"/eval-runs/{RUN}"): {
+                    **self.RUN_READ,
+                    "proposal_check": {"kind": "agent", "suggestions": 1, **proposal_check},
+                },
+                ("GET", f"/eval-runs/{RUN}/comparison"): {
+                    "cases": [
+                        {
+                            "case_id": case,
+                            "input": "Do you ship to Canada?",
+                            "flip": "regression",
+                            "confirmed": True,
+                        }
+                    ],
+                    "candidate": {"arm_id": "a"},
+                },
+            }
+        )
+
+        run = await _call(server, "get_eval_run", run_id=RUN)
+
+        assert run["broken"] == [{"case_id": case, "confirmed": True}]
+        assert "Canada" not in str(run)
+        assert api.request.await_count == 2
 
     async def test_a_question_from_a_conversation_the_caller_cannot_open_has_no_reason(
         self, server: FastMCP, api: MagicMock

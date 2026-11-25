@@ -17,7 +17,7 @@ from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.core.exceptions import (
@@ -32,6 +32,7 @@ from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.agent import Agent
 from app.db.models.agent_run import AgentRun
 from app.db.models.authoring import AuthoringRequest, AuthoringStatus, HunkKind
+from app.db.models.dataset import Dataset
 from app.db.models.organization import OrganizationMember
 from app.db.models.skill import Skill
 from app.db.models.skill_check import (
@@ -53,6 +54,7 @@ from app.repositories import (
     skill_version_repo,
 )
 from app.schemas.authoring import AuthoringEstimate, InstructionChange
+from app.schemas.dataset import DatasetCaseCreate, DatasetCreate
 from app.schemas.improvement import ChangeEdit, ImprovementDiscard, ImprovementSelection
 from app.schemas.skill import SkillUpdate
 from app.schemas.skill_check import (
@@ -79,6 +81,7 @@ from app.schemas.skill_version import SkillForkRead, VersionNumberRef, VersionRe
 from app.services import authoring_hunks
 from app.services.authoring import AuthoringService
 from app.services.authoring_evidence import EvidencePack, EvidenceService, PackedRun
+from app.services.dataset import DatasetService
 from app.services.improvement_pipeline import ImprovementPipelineService
 from app.services.improvement_skills import SkillSeed
 from app.services.personal_data import PersonalDataService
@@ -1773,6 +1776,56 @@ class TestOutcomes:
         assert (quote.mode, read.iteration, read.stage) == ("next_round", 2, "proposing")
         assert read.check is None
         assert ("set_aside", checked) in fake.calls
+
+    @pytest.mark.security
+    async def test_a_try_again_note_quoting_a_skill_test_question_is_refused(
+        self, db, evidence, monkeypatch
+    ):
+        """Every question of the skill's own set is graded by the next check, so a note
+        carrying one would hand the helper what the check then measures."""
+        _checked(db, monkeypatch)
+        ctx = await _owner(db)
+        run = await _at_changes(db, ctx)
+        await _check_now(db, ctx, run)
+        run = await _settle(db, run, status="done", verdict="blocked")
+        datasets = DatasetService(db)
+        test_set = await datasets.create(ctx, DatasetCreate(name="refunds-skill-questions"))
+        await db.execute(
+            update(Dataset).where(Dataset.id == test_set.id).values(skill_id=run.skill_id)
+        )
+        await datasets.add_case(
+            ctx,
+            test_set.id,
+            DatasetCaseCreate(
+                input="How long is the refund window for shoes?", reference_answer="30 days"
+            ),
+        )
+        service = SkillImprovementService(db)
+        quote = await service.estimate_continuation(ctx, run.skill_id, run.id, SkillContinue())
+
+        def consent(note: str) -> SkillContinuationConsent:
+            return SkillContinuationConsent(
+                confirmed=True,
+                estimate_usd=quote.total_usd,
+                candidate_hash=quote.candidate_hash,
+                budget_usd=run.budget_usd,
+                note=note,
+            )
+
+        with pytest.raises(BadRequestError) as refused:
+            await service.continue_run(
+                ctx,
+                run.skill_id,
+                run.id,
+                consent("Answer   how long is the REFUND window for shoes? with 30 days"),
+            )
+        read = await service.continue_run(
+            ctx, run.skill_id, run.id, consent("Keep main's other rules")
+        )
+
+        assert refused.value.details["fields"][0]["field"] == "note"
+        assert "refund window" not in refused.value.message
+        assert (read.iteration, read.stage) == (2, "proposing")
 
     async def test_a_result_nobody_decided_for_a_week_sets_its_check_aside(
         self, db, evidence, monkeypatch
