@@ -50,7 +50,6 @@ from app.db.models.authoring import (
     BatchStatus,
     HunkKind,
     HunkOrigin,
-    HunkStatus,
 )
 from app.db.models.context import ContextFile
 from app.db.models.improvement import ImprovementStage, ImprovementStatus
@@ -1496,7 +1495,8 @@ class AuthoringRun:
     ) -> int:
         """Replace the open batch with this request's - unless a newer request already did.
 
-        A change somebody dismissed in the batch being replaced is not proposed again.
+        A change somebody dismissed since the agent was last published is not proposed
+        again.
         """
         started = self.request.started_at or self.request.created_at
         await self._serialize(agent_id)
@@ -1517,6 +1517,7 @@ class AuthoringRun:
                         self.db, organization_id=self.ctx.organization_id, batch_id=previous.id
                     )
                 )
+            hunks = await self._not_dismissed(agent_id, hunks)
             batch = await authoring_repo.create_batch(
                 self.db,
                 organization_id=self.ctx.organization_id,
@@ -1534,37 +1535,12 @@ class AuthoringRun:
         current = await authoring_repo.get_open_batch(
             self.db, organization_id=self.ctx.organization_id, agent_id=agent_id, lock=True
         )
-        if current is not None:
-            if current.source_started_at > started:
-                for hunk in hunks:
-                    self._reject(HunkKind(hunk["kind"]), Rejection.SUPERSEDED, _proposed(hunk))
-                return 0
-            dismissed = {
-                _signature(
-                    {
-                        "kind": hunk.kind,
-                        "old_text": hunk.old_text,
-                        "new_text": hunk.new_text,
-                        "capability_id": hunk.capability_id,
-                        "tool_id": hunk.tool_id,
-                        "new_name": hunk.new_name,
-                        "new_description": hunk.new_description,
-                        "path": hunk.path,
-                        "op": hunk.op,
-                        "new_value": hunk.new_value,
-                    }
-                )
-                for hunk in await authoring_repo.list_hunks(
-                    self.db, organization_id=self.ctx.organization_id, batch_id=current.id
-                )
-                if hunk.status == HunkStatus.DISMISSED.value
-            }
+        if current is not None and current.source_started_at > started:
             for hunk in hunks:
-                if _signature(hunk) in dismissed:
-                    self._reject(
-                        HunkKind(hunk["kind"]), Rejection.DISMISSED_BEFORE, _proposed(hunk)
-                    )
-            hunks = [hunk for hunk in hunks if _signature(hunk) not in dismissed]
+                self._reject(HunkKind(hunk["kind"]), Rejection.SUPERSEDED, _proposed(hunk))
+            return 0
+        hunks = await self._not_dismissed(agent_id, hunks)
+        if current is not None:
             await authoring_repo.close_batch(self.db, batch=current, status=BatchStatus.SUPERSEDED)
         batch = await authoring_repo.create_batch(
             self.db,
@@ -1586,11 +1562,15 @@ class AuthoringRun:
         """Add verify's changes to the open batch, opening one when there is none.
 
         Verify is offered while Improve's suggestions may still wait, so it adds
-        to them rather than replacing them.
+        to them rather than replacing them. A change a person dismissed since the
+        agent was last published is not added again.
         """
         if not hunks:
             return 0
         await self._serialize(agent_id)
+        hunks = await self._not_dismissed(agent_id, hunks)
+        if not hunks:
+            return 0
         batch = await authoring_repo.get_open_batch(
             self.db, organization_id=self.ctx.organization_id, agent_id=agent_id, lock=True
         )
@@ -1613,6 +1593,37 @@ class AuthoringRun:
             self.db, organization_id=self.ctx.organization_id, batch_id=batch.id, hunks=hunks
         )
         return len(hunks)
+
+    async def _not_dismissed(
+        self, agent_id: UUID, hunks: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        """`hunks` without the changes a person dismissed since the agent was last published."""
+        dismissed = {
+            _signature(
+                {
+                    "kind": row.kind,
+                    "old_text": row.old_text,
+                    "new_text": row.new_text,
+                    "capability_id": row.capability_id,
+                    "tool_id": row.tool_id,
+                    "new_name": row.new_name,
+                    "new_description": row.new_description,
+                    "path": row.path,
+                    "op": row.op,
+                    "new_value": row.new_value,
+                }
+            )
+            for row in await authoring_repo.dismissed_since_publish(
+                self.db, organization_id=self.ctx.organization_id, agent_id=agent_id
+            )
+        }
+        kept: list[dict[str, Any]] = []
+        for hunk in hunks:
+            if _signature(hunk) in dismissed:
+                self._reject(HunkKind(hunk["kind"]), Rejection.DISMISSED_BEFORE, _proposed(hunk))
+            else:
+                kept.append(hunk)
+        return kept
 
     async def _serialize(self, agent_id: UUID) -> None:
         """Lock the agent, so two requests finishing at once do not both open a batch.
