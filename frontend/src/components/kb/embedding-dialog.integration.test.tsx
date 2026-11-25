@@ -517,6 +517,8 @@ describe("testing a move against the stored chunks", () => {
 
     expect(screen.getByRole("button", { name: "Save" })).toBeEnabled();
     expect(screen.getByText("1 knowledge base keeps its vectors")).toBeVisible();
+    // A passing test leaves nothing to override.
+    expect(screen.queryByRole("button", { name: "Save without testing" })).toBeNull();
   });
 
   it("moves a collection unverified only after the confirmation", async () => {

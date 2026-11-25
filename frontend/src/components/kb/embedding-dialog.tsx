@@ -326,7 +326,7 @@ export function EmbeddingDialog({
           >
             {t("cancel")}
           </Button>
-          {moved && (
+          {moved && gate.token === null && (
             <Button
               type="button"
               variant="ghost"

@@ -383,7 +383,7 @@ export function ServiceConnectionDialog({
           <Button type="button" variant="outline" onClick={close}>
             {t("cancel")}
           </Button>
-          {needsTest && (
+          {needsTest && gate.token === null && (
             <Button
               type="button"
               variant="ghost"

@@ -368,6 +368,7 @@ describe("ServiceConnections", () => {
         base_url: "http://ollama-2:11434/v1",
       });
       expect(save()).toBeEnabled();
+      expect(screen.queryByRole("button", { name: "Save without testing" })).toBeNull();
       await userEvent.click(save());
       await waitFor(() =>
         expect(apiClient.patch).toHaveBeenCalledWith("/service-connections/ls-1", {
