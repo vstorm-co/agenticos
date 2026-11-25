@@ -945,6 +945,22 @@ export function ChatInput({
     primary === "mic" ? micLabel : primary === "stop" ? t("stopGenerating") : t("send");
   const sendDisabled = disabled || isUploading || !hasDraft;
 
+  const stopButtonRef = useRef<HTMLButtonElement>(null);
+  const sendHadFocus = useRef(false);
+  const sendButtonRef = useCallback((button: HTMLButtonElement | null) => {
+    if (!button) return;
+    // Ref cleanup runs before React removes Send and the browser drops focus.
+    return () => {
+      sendHadFocus.current = document.activeElement === button;
+    };
+  }, []);
+  useLayoutEffect(() => {
+    // Hand off only to a Stop mounted in this commit, not one in a later turn.
+    if (sendHadFocus.current && document.activeElement === document.body)
+      stopButtonRef.current?.focus({ preventScroll: true });
+    sendHadFocus.current = false;
+  });
+
   return (
     <form
       onSubmit={handleSubmit}
@@ -1118,6 +1134,7 @@ export function ChatInput({
           {minimal ? (
             <Button
               key={primary === "stop" ? "stop" : "primary"}
+              ref={primary === "stop" ? stopButtonRef : primary === "send" ? sendButtonRef : null}
               type={primary === "send" ? "submit" : "button"}
               variant="ghost"
               size="icon"
@@ -1176,6 +1193,7 @@ export function ChatInput({
               {canStop && onStop ? (
                 <Button
                   key="stop"
+                  ref={stopButtonRef}
                   type="button"
                   size="icon"
                   onClick={onStop}
@@ -1193,6 +1211,7 @@ export function ChatInput({
                 idleSlot
               ) : (
                 <Button
+                  ref={sendButtonRef}
                   type="submit"
                   size="icon"
                   variant="ghost"
