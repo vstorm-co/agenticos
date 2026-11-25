@@ -17098,6 +17098,7 @@
     "causedBreak": "Nieuw verslechterd door deze wijziging: {question}",
     "causedFix": "Hersteld door deze wijziging: {question}",
     "openCheck": "De volledige controle openen",
+    "changedMore": "{count, plural, =1 {Nog 1 gewijzigd antwoord staat in de controle.} other {Nog # gewijzigde antwoorden staan in de controle.}}",
     "permission": "Om deze agent te verbeteren, moet je hem kunnen bewerken en runs kunnen bekijken.",
     "retryRead": "Opnieuw proberen te lezen",
     "stepsLabel": "Verbeterstappen",

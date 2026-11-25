@@ -16987,6 +16987,7 @@
     "causedBreak": "Ta zmiana zepsuła odpowiedź: {question}",
     "causedFix": "Ta zmiana naprawiła odpowiedź: {question}",
     "openCheck": "Otwórz pełne sprawdzenie",
+    "changedMore": "{count, plural, one {Jeszcze 1 zmieniona odpowiedź jest w sprawdzeniu.} few {Jeszcze # zmienione odpowiedzi są w sprawdzeniu.} other {Jeszcze # zmienionych odpowiedzi jest w sprawdzeniu.}}",
     "permission": "Poprawianie wymaga uprawnień do edycji tego agenta i przeglądania runów.",
     "retryRead": "Spróbuj odczytać ponownie",
     "stepsLabel": "Kroki poprawiania",

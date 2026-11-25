@@ -17117,7 +17117,8 @@
       "exactChange": "Tam metni karşılaştır",
       "invalid": "Test sürümleri güvenilir biçimde karşılaştıramadı. Sonuç çıkarmadan önce testi inceleyin.",
       "noExamples": "Gösterilecek değişmiş yanıt yok. Tüm sorular için tam testi açın."
-    }
+    },
+    "changedMore": "{count, plural, =1 {Değişen 1 yanıt daha kontrolde.} other {Değişen # yanıt daha kontrolde.}}"
   },
   "personalModelKeys": {
     "copilot": {

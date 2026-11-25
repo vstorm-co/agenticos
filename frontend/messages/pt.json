@@ -17098,6 +17098,7 @@
     "causedBreak": "Quebrada por esta mudança: {question}",
     "causedFix": "Corrigida por esta mudança: {question}",
     "openCheck": "Abrir a verificação completa",
+    "changedMore": "{count, plural, =1 {Mais 1 resposta alterada está na verificação.} other {Mais # respostas alteradas estão na verificação.}}",
     "permission": "Para melhorar este agente, é necessário poder editá-lo e ver as execuções.",
     "retryRead": "Tentar ler novamente",
     "stepsLabel": "Etapas de melhoria",

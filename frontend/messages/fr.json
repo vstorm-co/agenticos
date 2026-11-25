@@ -16694,6 +16694,7 @@
     "causedBreak": "Nouvellement cassée par cette modification : {question}",
     "causedFix": "Corrigée par cette modification : {question}",
     "openCheck": "Ouvrir la vérification complète",
+    "changedMore": "{count, plural, =1 {1 autre réponse modifiée se trouve dans la vérification.} other {# autres réponses modifiées se trouvent dans la vérification.}}",
     "permission": "Modifier cet agent et voir les runs sont nécessaires pour l’améliorer.",
     "retryRead": "Réessayer la lecture",
     "stepsLabel": "Étapes d’amélioration",

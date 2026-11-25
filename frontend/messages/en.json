@@ -17214,6 +17214,7 @@
     "causedBreak": "Newly broken by this change: {question}",
     "causedFix": "Fixed by this change: {question}",
     "openCheck": "Open the full check",
+    "changedMore": "{count, plural, =1 {1 more changed answer is in the check.} other {# more changed answers are in the check.}}",
     "permission": "Editing this agent and viewing runs are required to improve it.",
     "retryRead": "Try reading again",
     "stepsLabel": "Improvement steps",

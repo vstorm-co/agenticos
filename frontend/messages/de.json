@@ -16900,6 +16900,7 @@
     "causedBreak": "Durch diese Änderung verschlechtert: {question}",
     "causedFix": "Durch diese Änderung behoben: {question}",
     "openCheck": "Vollständige Prüfung öffnen",
+    "changedMore": "{count, plural, =1 {1 weitere geänderte Antwort steht in der Prüfung.} other {# weitere geänderte Antworten stehen in der Prüfung.}}",
     "permission": "Zum Verbessern benötigen Sie Bearbeitungszugriff auf diesen Agenten und Leserechte für Runs.",
     "retryRead": "Erneut laden",
     "stepsLabel": "Verbesserungsschritte",
