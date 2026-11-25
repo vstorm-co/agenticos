@@ -9,7 +9,7 @@ import asyncio
 import re
 import uuid
 from collections.abc import Callable, Iterator
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
@@ -30,7 +30,7 @@ from app.core.exceptions import (
     NotFoundError,
     NothingToScoreError,
 )
-from app.core.permissions import AuthContext, OrgRoleName
+from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.core.secret_kinds import ApiKeySecret, SecretKind, seal_secret
 from app.core.vault import VaultScope
 from app.db.models.agent import Agent, AgentStatus
@@ -360,6 +360,31 @@ async def _score_for_an_eval(db, tenant: Tenant, dataset, case, run: AgentRun, e
         enqueue_review=False,
         eval_run_id=eval_run_id,
     )
+
+
+async def _decidable(db, tenant: Tenant):
+    """An organization-visible dataset, and the score one of its eval runs gave."""
+    dataset, case = await _dataset(db, tenant, scoring=DatasetScoring(), visibility="org")
+    run = await _scored_run(db, tenant)
+    eval_run_id = await _eval_run(db, tenant, dataset, run)
+    return dataset, await _score_for_an_eval(db, tenant, dataset, case, run, eval_run_id)
+
+
+async def _editor(db, tenant: Tenant, role: OrgRoleName, dataset_id: uuid.UUID) -> AuthContext:
+    """A member of `role` handed an edit grant on the dataset, so the grant is never the refusal."""
+    member = await _join(db, tenant, role)
+    db.add(
+        ResourceGrant(
+            organization_id=tenant.organization.id,
+            resource_type="dataset",
+            resource_id=dataset_id,
+            subject_user_id=member.user_id,
+            level=GrantLevel.EDIT.value,
+            created_by_user_id=tenant.owner.id,
+        )
+    )
+    await db.flush()
+    return member
 
 
 async def _eval_runs(db, tenant: Tenant) -> list[AgentRun]:
@@ -2298,6 +2323,103 @@ class TestVerdicts:
 
 
 @pytest.mark.security
+class TestDecidingOnAnEvalRunsAnswer:
+    """A verdict or a new grade on an eval run's score settles again what was built on
+    the run, so it needs what reading the answer needs, whatever the dataset grants."""
+
+    @pytest.mark.parametrize(
+        "role",
+        [OrgRoleName.OWNER, OrgRoleName.ADMIN, OrgRoleName.BUILDER, OrgRoleName.OPERATOR],
+    )
+    async def test_a_role_that_reads_runs_and_the_agent_decides_and_grades_again(
+        self, db, judge, role
+    ) -> None:
+        tenant = await _tenant(db)
+        dataset, score = await _decidable(db, tenant)
+        editor = await _editor(db, tenant, role, dataset.id)
+        service = ScoringService(db)
+
+        decided = await service.set_verdict(editor, dataset.id, score.id, CaseVerdict(passed=False))
+        again = await service.rescore(editor, dataset.id, RescoreRequest(score_ids=[score.id]))
+
+        assert (decided.human_passed, decided.answer_hidden) == (False, False)
+        assert again.kept == [score.id]
+
+    @pytest.mark.parametrize("role", [OrgRoleName.MEMBER, OrgRoleName.VIEWER])
+    async def test_a_dataset_grant_without_runs_view_neither_decides_nor_grades_again(
+        self, db, judge, role
+    ) -> None:
+        tenant = await _tenant(db)
+        dataset, score = await _decidable(db, tenant)
+        editor = await _editor(db, tenant, role, dataset.id)
+        service = ScoringService(db)
+
+        for verdict in (True, None):
+            with pytest.raises(AuthorizationError) as refused:
+                await service.set_verdict(editor, dataset.id, score.id, CaseVerdict(passed=verdict))
+            assert refused.value.details["score_ids"] == [score.id]
+        with pytest.raises(AuthorizationError):
+            await service.rescore(editor, dataset.id, RescoreRequest(score_ids=[score.id]))
+
+        await db.refresh(score)
+        assert (score.human_passed, score.reviewed_by_user_id, score.review_state) == (
+            None,
+            None,
+            "none",
+        )
+
+    async def test_a_key_without_agents_view_cannot_decide_on_an_answer_it_cannot_read(
+        self, db, judge
+    ) -> None:
+        tenant = await _tenant(db)
+        dataset, score = await _decidable(db, tenant)
+        builder = await _editor(db, tenant, OrgRoleName.BUILDER, dataset.id)
+        key = replace(
+            builder,
+            api_key_id=uuid.uuid4(),
+            key_scopes=frozenset(
+                {Perm.DATASETS_VIEW, Perm.DATASETS_EDIT, Perm.DATASETS_RUN, Perm.RUNS_VIEW}
+            ),
+        )
+        service = ScoringService(db)
+
+        with pytest.raises(AuthorizationError):
+            await service.set_verdict(key, dataset.id, score.id, CaseVerdict(passed=True))
+        with pytest.raises(AuthorizationError):
+            await service.rescore(key, dataset.id, RescoreRequest(score_ids=[score.id]))
+
+        [read] = (await service.list_scores(key, dataset.id)).items
+        assert read.answer_hidden
+
+    async def test_another_organization_neither_decides_nor_grades_again(self, db, judge) -> None:
+        tenant, stranger = await _tenant(db), await _tenant(db)
+        dataset, score = await _decidable(db, tenant)
+        service = ScoringService(db)
+
+        with pytest.raises(NotFoundError):
+            await service.set_verdict(stranger.ctx, dataset.id, score.id, CaseVerdict(passed=True))
+        with pytest.raises(NotFoundError):
+            await service.rescore(stranger.ctx, dataset.id, RescoreRequest(score_ids=[score.id]))
+
+    async def test_a_score_graded_on_its_own_keeps_the_dataset_s_own_permission(
+        self, db, judge
+    ) -> None:
+        tenant = await _tenant(db)
+        dataset, case = await _dataset(db, tenant, scoring=DatasetScoring(), visibility="org")
+        run = await _scored_run(db, tenant)
+        service = ScoringService(db)
+        scored = await service.score_run(
+            tenant.ctx, dataset.id, case.case_id, CaseScoreCreate(run_id=run.id)
+        )
+        member = await _editor(db, tenant, OrgRoleName.MEMBER, dataset.id)
+
+        decided = await service.set_verdict(
+            member, dataset.id, scored.id, CaseVerdict(passed=False)
+        )
+
+        assert (decided.human_passed, decided.answer_hidden) == (False, True)
+
+
 class TestRefusals:
     async def test_another_organization_s_dataset_is_not_found(self, db, judge) -> None:
         mine, theirs = await _tenant(db), await _tenant(db)

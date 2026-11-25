@@ -1,5 +1,5 @@
 ---
-source_sha: "84a0aa32d216"
+source_sha: "3af26d301af7"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -556,6 +556,10 @@ nie uruchamia się ponownie, a wynik zachowuje swój run ewaluacji i decyzję,
 którą ktoś na nim podjął; wynik, na którym każdy oceniacz wydał werdykt,
 zostaje bez zmian.
 
+Nowa ocena odpowiedzi runu ewaluacji, tak jak decyzja osoby, ponownie rozstrzyga
+porównanie tego runu oraz zbudowane na nim suity, sesje Improve i sprawdzenia
+skilli.
+
 Przyczyna, która nadal trwa - nieopublikowany sędzia -
 jest odrzucana tak, jak jest, podobnie jak sędzia runu ewaluacji opublikowany na
 nowo od czasu, gdy zawiódł, albo wynik takiego runu przypięty do wcześniejszego
@@ -667,8 +671,10 @@ na jego stronie - obie zmiany dotyczą każdej odpowiedzi ocenianej później, w
 | Zmienić sposób oceniania datasetu | `datasets:edit` na nim |
 | Utworzyć dla niego sędziego | `datasets:edit` na nim oraz `agents:edit` |
 | Ocenić run względem niego | `datasets:run` na nim oraz `runs:view` |
+| Ocenić odpowiedź ponownie | `datasets:run` na nim oraz `runs:view`; dla odpowiedzi runu ewaluacji także dostęp do agenta, który odpowiedział |
 | Czytać jego wyniki | `datasets:view` na nim |
-| Wysłać wyniki do przeglądu, zapisać albo wycofać decyzję | `datasets:edit` na nim |
+| Wysłać wyniki do przeglądu | `datasets:edit` na nim |
+| Zapisać albo wycofać decyzję | `datasets:edit` na nim; dla odpowiedzi runu ewaluacji także `runs:view` i dostęp do agenta, który odpowiedział |
 
 Uzasadnienie napisane przez sędziego przechodzi przed zapisaniem przez tę samą
 redakcję poświadczeń co przypadek.
@@ -720,6 +726,8 @@ granty, opisuje strona [Uprawnienia](permissions.md).
 Tekst przypadku skopiowanego z rozmowy widzą tylko czytelnicy z `runs:view` lub dostępem do rozmowy źródłowej. Pozostali widzą metadane i placeholder, zarówno w najnowszej i historycznych wersjach, jak i eksportach CSV/JSONL. Brak źródła nie odsłania tekstu. Czytelnik nie może edytować ukrytej treści, a zmiana metadanych jej nie ujawnia. Ewaluacje nadal wykonują pełną zapisaną rewizję.
 
 Odpowiedzi, notatki recenzenta i dowody oceny w przeglądzie wymagają `runs:view` oraz dostępu do odpowiadającego agenta. Bez któregoś z nich pozostają wynik i status, ale tekst odpowiedzi, uzasadnienia, reguły i cytaty są usuwane. Przed dodaniem cudzej prywatnej rozmowy dialog wskazuje jej właściciela i ostrzega, że czytelnicy datasetu mogący odczytywać runy zobaczą jej tekst.
+
+Decyzja w sprawie odpowiedzi runu ewaluacji albo jej nowa ocena również wymaga `runs:view` i dostępu do odpowiadającego agenta, bo zmienia werdykty zbudowane na tym runie: czytający, który nie widzi odpowiedzi, nie dostaje żadnej z tych opcji, a API odrzuca je z `403`.
 
 Datasety nie są grupowane po dziale - lista nie ma filtra grupy ani plakietek
 działów - więc dział dostaje dostęp do datasetu przez grant na nim, jak przy

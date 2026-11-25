@@ -1,5 +1,5 @@
 ---
-source_sha: "76ac5bb3504a"
+source_sha: "5a321e5b8ad8"
 title: "Runy ewaluacji"
 description: "Run ewaluacji odpowiada na każdy przypadek datasetu wersją agenta albo jego wersją roboczą, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -75,7 +75,7 @@ ile pierwszych odpowiedzi już jest, a porównanie czeka na obie strony.
 Odpowiedzi, których sędzia nie zdołał ocenić, mówią dlaczego i nie liczą się ani
 jako zaliczone, ani jako niezaliczone, a **Oceń ponownie** (Grade again) w
 nagłówku ocenia je ponownie bez pytania agenta, dla każdego, kto może uruchamiać
-dataset.
+dataset i czytać odpowiedzi runu.
 
 Pod werdyktem są obie strony obok siebie, to, jak wypadają w porównaniu, i
 przypadki - każdy wiersz z kropką zaliczenia lub niezaliczenia dla każdej
@@ -342,7 +342,7 @@ Odpowiedź, której sędzia nie zdołał ocenić albo którą pominął, jest **
 (`POST /api/v1/datasets/{id}/scores/rescore`) czyta odpowiedź zachowaną w
 próbie, zamiast pytać agenta. Werdykt osoby w
 [kolejce przeglądu](datasets.md#review) zastępuje wynik oceniających dla tego
-przypadku, a liczby runa idą za nim.
+przypadku, a liczby runa idą za nim, tak jak za nową oceną.
 
 Sędzia, który przeszukuje - [Knowledge search](concepts.md#system-agent-spec)
 na jego zakładce Narzędzia - sprawdza fakty w odpowiedzi względem baz wiedzy agenta, który
@@ -765,6 +765,12 @@ dataset - run na datasecie, którego czytający nie może otworzyć, nie jest
 wyświetlany, a prośba o niego po id odpowiada `404`, tak jak run innej
 organizacji. Runy datasetu wymagają też `datasets:view` na nim i wymieniają
 tylko agentów, których czytający może widzieć.
+
+Decyzja w sprawie jednej z odpowiedzi runu albo jej ponowna ocena wymaga
+`runs:view` i dostępu do agenta, który odpowiedział, oprócz własnego uprawnienia
+datasetu - `datasets:edit`, by zdecydować, `datasets:run`, by ocenić. Każda z nich
+zmienia werdykt runu i to, co na nim zbudowano: bramkę suity, sesję Improve,
+sprawdzenie skilla. Sam grant na datasecie ich nie otwiera.
 
 Utworzenie, zmiana, wstrzymanie albo uruchomienie suity wymaga `agents:edit` i
 `agents:run` na agencie, `datasets:run` na datasecie i `runs:view`, a do tego

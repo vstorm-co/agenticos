@@ -1,5 +1,5 @@
 ---
-source_sha: "76ac5bb3504a"
+source_sha: "5a321e5b8ad8"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Entwurf, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -81,7 +81,7 @@ antwortet, sagt die Seite, wie viele erste Antworten vorliegen, und der
 Vergleich wartet auf beide Seiten. Antworten, die der Bewerter nicht bewerten
 konnte, sagen, warum, und zählen weder als bestanden noch als nicht bestanden,
 und **Erneut bewerten** (Grade again) im Kopfbereich bewertet sie erneut, ohne den Agent zu
-fragen, für jeden, der das Dataset laufen lassen darf.
+fragen, für jeden, der das Dataset laufen lassen und die Antworten des Runs lesen darf.
 
 Unter dem Urteil stehen die Seiten nebeneinander, wie die beiden abschneiden,
 und die Fälle - jede Zeile mit einem Punkt für bestanden oder nicht bestanden
@@ -362,7 +362,7 @@ Bewertungen als `ungraded_score_ids`, und sie erneut zu bewerten
 (`POST /api/v1/datasets/{id}/scores/rescore`) liest die im Versuch behaltene
 Antwort, statt den Agent zu fragen. Das Urteil einer Person bei der
 [Prüfung](datasets.md#review) ersetzt für diesen Fall das Ergebnis der Scorer,
-und die Zahlen des Runs folgen ihm.
+und die Zahlen des Runs folgen ihm, wie sie einer neuen Bewertung folgen.
 
 Ein Bewerter, der sucht - [Knowledge search](concepts.md#system-agent-spec) auf
 seinem Toolbox-Tab -, prüft die Fakten einer Antwort an den Wissensbasen des Agents,
@@ -810,6 +810,13 @@ Agent als auch das Dataset sehen kann - ein Run über ein Dataset, das sie nicht
 `404`, wie bei einem Run einer anderen Organisation. Die Runs eines Datasets
 erfordern außerdem `datasets:view` darauf und listen nur die Agents, die die
 lesende Person sehen darf.
+
+Über eine der Antworten eines Runs zu entscheiden oder sie erneut zu bewerten,
+erfordert neben der eigenen Berechtigung des Datasets - `datasets:edit` zum
+Entscheiden, `datasets:run` zum Bewerten - auch `runs:view` und Zugriff auf den
+antwortenden Agent. Beides ändert das Urteil des Runs und was darauf aufbaut:
+das Gate einer Suite, eine Verbesserungssitzung, eine Skill-Prüfung. Eine
+Freigabe des Datasets allein öffnet beides nicht.
 
 Eine Suite anzulegen, zu ändern, zu pausieren oder auszuführen erfordert
 `agents:edit` und `agents:run` auf dem Agent, `datasets:run` auf dem Dataset und

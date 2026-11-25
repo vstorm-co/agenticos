@@ -1,5 +1,5 @@
 ---
-source_sha: "84a0aa32d216"
+source_sha: "3af26d301af7"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -592,6 +592,10 @@ Agent läuft nicht erneut, und der Score behält seinen Eval-Run und jede
 Entscheidung, die eine Person darüber getroffen hat; einer, bei dem jeder
 Scorer zu einem Urteil kam, bleibt, wie er ist.
 
+Eine neue Bewertung der Antwort eines Eval-Runs entscheidet den Vergleich dieses
+Runs und die darauf aufbauenden Suites, Verbesserungssitzungen und
+Skill-Prüfungen neu, wie es die Entscheidung einer Person tut.
+
 Eine Ursache, die noch besteht - Bewerter nicht
 veröffentlicht -, wird so abgelehnt, wie sie ist, ebenso der Bewerter eines
 Eval-Runs, der seit seinem Fehlschlag neu veröffentlicht wurde, oder ein
@@ -714,8 +718,10 @@ danach bewertete Antwort, daher wird keines davon im Dialog geändert.
 | Zu ändern, wie ein Dataset bewertet wird | `datasets:edit` darauf |
 | Einen Bewerter dafür anzulegen | `datasets:edit` darauf und `agents:edit` |
 | Einen Run dagegen zu bewerten | `datasets:run` darauf und `runs:view` |
+| Eine Antwort erneut zu bewerten | `datasets:run` darauf und `runs:view`; bei der Antwort eines Eval-Runs außerdem Zugriff auf den antwortenden Agent |
 | Seine Scores zu lesen | `datasets:view` darauf |
-| Scores zur Prüfung zu schicken, eine Prüfentscheidung festzuhalten oder zurückzuziehen | `datasets:edit` darauf |
+| Scores zur Prüfung zu schicken | `datasets:edit` darauf |
+| Eine Prüfentscheidung festzuhalten oder zurückzuziehen | `datasets:edit` darauf; bei der Antwort eines Eval-Runs außerdem `runs:view` und Zugriff auf den antwortenden Agent |
 
 Eine Begründung, die der Bewerter geschrieben hat, durchläuft vor dem Speichern
 dieselbe Schwärzung von Zugangsdaten wie ein Fall.
@@ -767,6 +773,8 @@ zusammenwirken, steht unter [Berechtigungen](permissions.md).
 Den Text eines aus einer Unterhaltung kopierten Falls sehen nur Leser mit `runs:view` oder Zugriff auf die Quellunterhaltung. Andere sehen Metadaten und einen Platzhalter, sowohl in aktuellen und historischen Versionen als auch in CSV/JSONL-Exporten. Eine fehlende Quelle gibt den Text nicht frei. Verborgener Text kann nicht bearbeitet und durch Metadatenänderungen nicht offengelegt werden. Evals führen weiterhin die vollständige gespeicherte Revision aus.
 
 Antworten, Prüfungsnotizen und Bewertungsbelege benötigen `runs:view` und Zugriff auf den antwortenden Agenten. Fehlt eines davon, bleiben Ergebnis und Status sichtbar, aber Antworttext, Begründungen, Regeln und Zitate werden entfernt. Vor dem Kopieren einer fremden privaten Unterhaltung nennt der Dialog deren Eigentümer und warnt, dass Dataset-Leser mit Leserecht für Runs den Text sehen werden.
+
+Eine Entscheidung über die Antwort eines Eval-Runs oder ihre neue Bewertung erfordert ebenfalls `runs:view` und Zugriff auf den antwortenden Agenten, weil sie die auf diesem Run aufbauenden Urteile ändert: Wer die Antwort nicht sehen kann, bekommt keines von beiden angeboten, und die API lehnt beides mit `403` ab.
 
 Datasets werden nicht nach Abteilung gruppiert - die Liste hat keinen
 Gruppenfilter und keine Abteilungsplaketten -, daher erreicht eine Abteilung ein
