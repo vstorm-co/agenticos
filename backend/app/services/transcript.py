@@ -36,11 +36,14 @@ from pydantic_ai.messages import (
     ToolCallPart,
     ToolReturnPart,
 )
+from pydantic_core import to_jsonable_python
 
 from app.agents.ask_user import parked_status
+from app.agents.code_checkpoint import ScriptCall
 from app.agents.ephemeral_media import describe_binary
 from app.agents.tool_errors import controlled_tool_error
 from app.core.tool_identity import PresentationKind, ToolIdentity
+from app.db.models.conversation import ScriptCallEntry, ScriptCalls
 from app.repositories import chat_file as chat_file_repo
 from app.repositories import conversation as conversation_repo
 
@@ -51,6 +54,14 @@ if TYPE_CHECKING:
     from app.db.models.chat_file import ChatFile
 
 STOPPED_TOOL_RESULT = "Not performed: the run was stopped."
+
+SCRIPT_CALLS_KEPT = 100
+"""How many of one `run_code` script's calls its row keeps; the rest are counted as `omitted`.
+
+A script may make up to 500. A row whose script lost calls this way is not offered
+to a recording call by call: a partial list would answer some calls and leave the
+rest divergent, which reads as the agent's doing.
+"""
 
 logger = logging.getLogger(__name__)
 
@@ -69,6 +80,9 @@ class RecordedToolCall:
             failure text is replaced with a notice (:func:`_result_text`).
             `None` for a call that never returned - the
             run was parked on it, stopped, or broke before it completed.
+        script_calls: For a `run_code` call, what its script called
+            (:func:`script_calls_record`); `None` for any other call, and for a
+            script that called nothing.
     """
 
     tool_call_id: str
@@ -77,6 +91,7 @@ class RecordedToolCall:
     result: str | None = None
     tool_id: str | None = None
     presentation_kind: PresentationKind | None = None
+    script_calls: ScriptCalls | None = None
 
     @property
     def renderer_name(self) -> str | None:
@@ -142,11 +157,50 @@ def _result_text(part: ToolReturnPart) -> str:
     return tool_result_text(part.content)
 
 
+def script_calls_record(
+    calls: Sequence[ScriptCall], *, earlier: ScriptCalls | None = None
+) -> ScriptCalls | None:
+    """What a script's calls are stored as: `{"calls": [...], "omitted": n}`, in its order.
+
+    Each call keeps its id, tool, arguments, result and outcome (`success`,
+    `failed` or `denied`), the result exactly as a direct call's row holds it
+    (:func:`_result_text`). `earlier` is what the row
+    already holds from before a park; a call it lists is not added twice. Past
+    :data:`SCRIPT_CALLS_KEPT` calls are counted rather than kept.
+    """
+    kept: list[ScriptCallEntry] = [] if earlier is None else list(earlier["calls"])
+    omitted = 0 if earlier is None else earlier["omitted"]
+    listed = {entry["tool_call_id"] for entry in kept}
+    for script in calls:
+        if script.call.tool_call_id in listed:
+            continue
+        if len(kept) >= SCRIPT_CALLS_KEPT:
+            omitted += 1
+            continue
+        kept.append(
+            {
+                "tool_call_id": script.call.tool_call_id,
+                "tool_name": script.call.tool_name,
+                "args": to_jsonable_python(
+                    script.call.args_as_dict(raise_if_invalid=False),
+                    bytes_mode="base64",
+                    serialize_unknown=True,
+                ),
+                "result": _result_text(script.returned),
+                "outcome": script.returned.outcome,
+            }
+        )
+    if not kept and not omitted:
+        return None
+    return {"calls": kept, "omitted": omitted}
+
+
 def tool_calls_in(
     messages: Sequence[ModelMessage],
     *,
     identities: Mapping[str, ToolIdentity] | None = None,
     definitions: Mapping[str, ToolIdentity] | None = None,
+    scripts: Mapping[str, Sequence[ScriptCall]] | None = None,
 ) -> list[RecordedToolCall]:
     """Every tool call in these messages, each paired with what it returned.
 
@@ -166,6 +220,9 @@ def tool_calls_in(
     sound because a result part sits in the `ModelRequest` that answers its
     call's `ModelResponse`, so the call - when it is in these messages at all -
     has always been seen first.
+
+    `scripts` holds what each `run_code` script called, by the script's call id
+    (`CodeContinuations.script_calls`); the model's messages hold only the script.
     """
     calls: dict[str, RecordedToolCall] = {}
     results: dict[str, str] = {}
@@ -192,6 +249,7 @@ def tool_calls_in(
             result=results.get(call.tool_call_id),
             tool_id=call.tool_id,
             presentation_kind=call.presentation_kind,
+            script_calls=script_calls_record((scripts or {}).get(call.tool_call_id, ())),
         )
         for call in calls.values()
     ]
@@ -260,6 +318,7 @@ class TranscriptService:
         model_content: str | None = None,
         tool_calls: Sequence[RecordedToolCall] = (),
         settled: Mapping[str, str] | None = None,
+        scripts: Mapping[str, Sequence[ScriptCall]] | None = None,
         parked: Collection[str] = (),
         question_tool_call_ids: Collection[str] = (),
         model_label: str | None = None,
@@ -309,6 +368,10 @@ class TranscriptService:
         the call it belongs to (:func:`settled_calls_in`). So the one call somebody
         deliberately reviewed used to be the one call the transcript showed
         finishing with nothing under it.
+
+        `scripts` is what each `run_code` script called in this segment, by the
+        script's call id. A script resumed from a park adds to the row the parked
+        segment wrote, whether or not it has finished.
 
         `mcp_origins` maps a tool the run was given by an organization MCP
         connection to that connection, and each call to one is stored against it
@@ -367,8 +430,14 @@ class TranscriptService:
                         ),
                     )
                     await self._attach(asked.id, attachments)
-                for tool_call_id, result in (settled or {}).items():
-                    await self._settle(run, tool_call_id=tool_call_id, result=result)
+                written = {call.tool_call_id for call in tool_calls}
+                for tool_call_id in (settled or {}).keys() | ((scripts or {}).keys() - written):
+                    await self._settle(
+                        run,
+                        tool_call_id=tool_call_id,
+                        result=(settled or {}).get(tool_call_id),
+                        script=(scripts or {}).get(tool_call_id, ()),
+                    )
                 if answer or tool_calls:
                     return await self._answer(
                         run.conversation_id,
@@ -429,21 +498,40 @@ class TranscriptService:
         except Exception:
             logger.exception("transcript_file_link_failed", extra={"message_id": str(message_id)})
 
-    async def _settle(self, run: AgentRun, *, tool_call_id: str, result: str) -> None:
+    async def _settle(
+        self,
+        run: AgentRun,
+        *,
+        tool_call_id: str,
+        result: str | None,
+        script: Sequence[ScriptCall],
+    ) -> None:
         """Close a call this run left open, if the row is still open.
 
         Silent when there is no such row. A return with no call in the transcript
         is a call that was never written - a surface that recorded nothing, or a
         run whose park predates the write - and inventing a row here would put a
         step in a turn that has no other trace of it.
+
+        A script that parked again adds the calls it settled meanwhile and stays open.
         """
         row = await conversation_repo.get_open_tool_call_in_run(
             self.db, run_id=run.id, tool_call_id=tool_call_id
         )
         if row is None:
             return
+        script_calls = script_calls_record(script, earlier=row.script_calls) if script else None
+        if result is None:
+            await conversation_repo.record_script_calls(
+                self.db, db_tool_call=row, script_calls=script_calls
+            )
+            return
         await conversation_repo.complete_tool_call(
-            self.db, db_tool_call=row, result=result, completed_at=datetime.now(UTC)
+            self.db,
+            db_tool_call=row,
+            result=result,
+            completed_at=datetime.now(UTC),
+            script_calls=script_calls,
         )
 
     async def _answer(
@@ -518,6 +606,7 @@ class TranscriptService:
                 tool_id=call.tool_id,
                 presentation_kind=call.presentation_kind
                 or ("draft" if call.tool_name in draft_tools else None),
+                script_calls=call.script_calls,
             )
             if call.result is not None:
                 await conversation_repo.complete_tool_call(

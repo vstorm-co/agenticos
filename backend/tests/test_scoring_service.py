@@ -297,3 +297,66 @@ async def test_verdict_authorization_precedes_work_admission(monkeypatch):
     with pytest.raises(AuthorizationError):
         await service.set_verdict(_ctx(), uuid.uuid4(), uuid.uuid4(), CaseVerdict(passed=False))
     admission.assert_not_called()
+
+
+async def test_a_code_mode_runs_calls_are_read_as_what_its_script_called(monkeypatch) -> None:
+    script = MagicMock(
+        tool_call_id="c9",
+        tool_name="run_code",
+        args={"code": "..."},
+        script_calls={
+            "calls": [
+                {
+                    "tool_call_id": "c9__1",
+                    "tool_name": "send_email",
+                    "args": {"to": "ada@example.com"},
+                    "result": "held",
+                    "outcome": "success",
+                }
+            ],
+            "omitted": 0,
+        },
+    )
+    monkeypatch.setattr(
+        scoring.conversation_repo,
+        "list_tool_calls_for_run",
+        AsyncMock(return_value=[(script, MagicMock())]),
+    )
+    monkeypatch.setattr(
+        scoring.intercepted_tool_call_repo,
+        "list_for_run",
+        AsyncMock(return_value=[MagicMock(tool_call_id="c9__1", outcome="blocked")]),
+    )
+
+    calls = await ScoringService(AsyncMock())._calls_of(_ctx(), uuid.uuid4())
+
+    assert calls == (ScoredCall(tool="send_email", args={"to": "ada@example.com"}, blocked=True),)
+
+
+async def test_an_eval_answer_graded_again_reads_a_scripts_calls_in_its_place(monkeypatch) -> None:
+    attempt = MagicMock(
+        answer="sent",
+        cost_usd=None,
+        latency_ms=None,
+        agent_run_id=uuid.uuid4(),
+        calls=[
+            {"tool": "run_code", "args": {}, "outcome": "executed", "reason": None, "script": True},
+            {
+                "tool": "lookup",
+                "args": {"q": 1},
+                "outcome": "executed",
+                "reason": None,
+                "parent": "c9",
+            },
+            {"tool": "send_email", "args": {}, "outcome": "blocked", "reason": "writes"},
+        ],
+    )
+    monkeypatch.setattr(scoring.eval_run_repo, "case_of_score", AsyncMock(return_value=attempt))
+    score = MagicMock(eval_run_id=uuid.uuid4(), id=uuid.uuid4())
+
+    answer = await ScoringService(AsyncMock()).answer_for(_ctx(), score)
+
+    assert answer.calls == (
+        ScoredCall(tool="lookup", args={"q": 1}),
+        ScoredCall(tool="send_email", args={}, blocked=True),
+    )

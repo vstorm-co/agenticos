@@ -36,10 +36,13 @@ from pydantic_ai.messages import (
     UserPromptPart,
 )
 
+from app.agents.code_checkpoint import ScriptCall
 from app.repositories.conversation import Attributed
+from app.services import transcript
 from app.services.transcript import (
     RecordedToolCall,
     TranscriptService,
+    script_calls_record,
     settled_calls_in,
     tool_calls_in,
 )
@@ -889,3 +892,146 @@ class TestWritingTheTranscript:
         assert "transcript_file_link_failed" in caplog.text
         roles = [call.kwargs["role"] for call in conversations.create_message.await_args_list]
         assert roles == ["user", "assistant"]
+
+
+def _made(
+    n: int,
+    tool: str = "lookup",
+    *,
+    content: str = "found",
+    outcome: Literal["success", "failed"] = "success",
+) -> ScriptCall:
+    """The `n`th call script `c9` made, as code mode reports it."""
+    return ScriptCall(
+        call=ToolCallPart(tool, {"q": n}, tool_call_id=f"c9__{n}"),
+        returned=ToolReturnPart(tool, content, tool_call_id=f"c9__{n}", outcome=outcome),
+    )
+
+
+class TestWhatAScriptCalled:
+    """A code-mode script's calls, kept on its `run_code` row for evals and recordings."""
+
+    def test_each_call_keeps_its_arguments_result_and_outcome_in_order(self, caplog):
+        kept = script_calls_record(
+            [_made(1), _made(2, "charge", content="https://vendor/err?key=sk-1", outcome="failed")]
+        )
+
+        assert kept is not None
+        assert kept["omitted"] == 0
+        assert [(c["tool_call_id"], c["tool_name"], c["args"]) for c in kept["calls"]] == [
+            ("c9__1", "lookup", {"q": 1}),
+            ("c9__2", "charge", {"q": 2}),
+        ]
+        assert [c["outcome"] for c in kept["calls"]] == ["success", "failed"]
+        assert kept["calls"][0]["result"] == "found"
+        # A failure keeps the notice a direct call's row would, never the vendor's text.
+        assert "sk-1" not in kept["calls"][1]["result"]
+
+    def test_a_script_that_settled_nothing_keeps_nothing(self):
+        assert script_calls_record([]) is None
+
+    def test_calls_past_the_kept_number_are_counted_not_kept(self, monkeypatch):
+        monkeypatch.setattr(transcript, "SCRIPT_CALLS_KEPT", 2)
+
+        kept = script_calls_record([_made(n) for n in (1, 2, 3, 4)])
+
+        assert kept is not None
+        assert [c["tool_call_id"] for c in kept["calls"]] == ["c9__1", "c9__2"]
+        assert kept["omitted"] == 2
+
+    def test_a_resumed_script_adds_only_the_calls_its_row_does_not_hold(self):
+        before_the_park = script_calls_record([_made(1)])
+
+        kept = script_calls_record([_made(1), _made(2)], earlier=before_the_park)
+
+        assert kept is not None
+        assert [c["tool_call_id"] for c in kept["calls"]] == ["c9__1", "c9__2"]
+
+    def test_the_script_call_is_read_with_what_its_script_called(self):
+        calls = tool_calls_in(
+            [_called("run_code", "c9", code="await lookup(q=1)"), _returned("run_code", "c9", "1")],
+            scripts={"c9": [_made(1)]},
+        )
+
+        (script,) = calls
+        assert script.script_calls is not None
+        assert [c["tool_name"] for c in script.script_calls["calls"]] == ["lookup"]
+
+
+class TestWritingWhatAScriptCalled:
+    @pytest.fixture
+    def conversations(self):
+        with patch("app.services.transcript.conversation_repo") as repo:
+            repo.create_message = AsyncMock(return_value=MagicMock(id=uuid.uuid4()))
+            repo.create_tool_call = AsyncMock(return_value=MagicMock(id=uuid.uuid4()))
+            repo.complete_tool_call = AsyncMock()
+            repo.record_script_calls = AsyncMock()
+            repo.attributed_to_run = AsyncMock(return_value=Attributed())
+            yield repo
+
+    @pytest.fixture(autouse=True)
+    def steps(self):
+        with patch("app.services.follow_ups.queue_next_steps"):
+            yield
+
+    async def test_a_script_row_is_written_with_its_calls(self, conversations):
+        kept = script_calls_record([_made(1)])
+
+        await TranscriptService(_session()).record(
+            _run(),
+            prompt="look it up",
+            answer="done",
+            tool_calls=[
+                RecordedToolCall(
+                    tool_call_id="c9",
+                    tool_name="run_code",
+                    args={"code": "await lookup(q=1)"},
+                    result="1",
+                    script_calls=kept,
+                )
+            ],
+        )
+
+        assert conversations.create_tool_call.await_args.kwargs["script_calls"] == kept
+
+    async def test_a_resumed_script_adds_its_calls_to_the_row_its_park_left(self, conversations):
+        row = MagicMock(id=uuid.uuid4(), script_calls=script_calls_record([_made(1)]))
+        conversations.get_open_tool_call_in_run = AsyncMock(return_value=row)
+
+        await TranscriptService(_session()).record(
+            _run(),
+            prompt=None,
+            answer="done",
+            settled={"c9": "2"},
+            scripts={"c9": [_made(2)]},
+        )
+
+        completed = conversations.complete_tool_call.await_args.kwargs
+        assert completed["result"] == "2"
+        assert [c["tool_call_id"] for c in completed["script_calls"]["calls"]] == [
+            "c9__1",
+            "c9__2",
+        ]
+
+    async def test_a_script_that_parked_again_keeps_what_it_settled_and_stays_open(
+        self, conversations
+    ):
+        row = MagicMock(id=uuid.uuid4(), script_calls=script_calls_record([_made(1)]))
+        conversations.get_open_tool_call_in_run = AsyncMock(return_value=row)
+
+        await TranscriptService(_session()).record(
+            _run(), prompt=None, answer="", scripts={"c9": [_made(2)]}
+        )
+
+        conversations.complete_tool_call.assert_not_awaited()
+        kept = conversations.record_script_calls.await_args.kwargs["script_calls"]
+        assert [c["tool_call_id"] for c in kept["calls"]] == ["c9__1", "c9__2"]
+
+    async def test_a_settled_call_with_no_script_leaves_the_rows_calls_alone(self, conversations):
+        conversations.get_open_tool_call_in_run = AsyncMock(return_value=MagicMock())
+
+        await TranscriptService(_session()).record(
+            _run(), prompt=None, answer="done", settled={"c1": "6 sheets"}
+        )
+
+        assert conversations.complete_tool_call.await_args.kwargs["script_calls"] is None

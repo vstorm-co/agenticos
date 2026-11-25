@@ -63,7 +63,6 @@ from app.db.models.improvement import (
     SearchVariantStatus,
     VariantFailure,
 )
-from app.db.models.intercepted_tool_call import InterceptionOutcome
 from app.db.session import get_worker_db_context
 from app.repositories import (
     agent_repo,
@@ -81,12 +80,12 @@ from app.services.agent_runner import AgentRunnerService
 from app.services.api_key import job_context
 from app.services.background_jobs import enqueue
 from app.services.eval_run import EvalRunService, scoring_hash, spec_hash
-from app.services.eval_run_worker import trajectory
+from app.services.eval_run_worker import held_back
 from app.services.improvement_data import split_seed
 from app.services.improvement_states import SEARCH_CHOICES
 from app.services.message_history import HistoryMessage, build_message_history
 from app.services.model_profile import ModelProfileService
-from app.services.scorers import CaseView, ScoredAnswer, ScoredCall
+from app.services.scorers import CaseView, ScoredAnswer, scored_calls
 from app.services.scoring import ScoringService
 from app.services.system_agent_runner import SystemAgentRunner
 from app.services.transcript import RecordedToolCall
@@ -842,17 +841,9 @@ class SearchWorker:
             intercepted = await intercepted_tool_call_repo.list_for_run(
                 db, run_id=agent_run.id, organization_id=self.organization_id
             )
-            rows = trajectory(calls, intercepted)
             answer = ScoredAnswer(
                 text=output,
-                calls=tuple(
-                    ScoredCall(
-                        tool=call.tool_name,
-                        args=call.args,
-                        blocked=row["outcome"] == InterceptionOutcome.BLOCKED.value,
-                    )
-                    for call, row in zip(calls, rows, strict=True)
-                ),
+                calls=scored_calls(calls, blocked=held_back(intercepted)),
                 cost_usd=agent_run.cost_usd,
                 latency_ms=None,
                 run_id=agent_run.id,

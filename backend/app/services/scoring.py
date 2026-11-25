@@ -115,6 +115,7 @@ from app.services.scorers import (
     rubric_hash,
     run_checks,
     score_trajectory,
+    scored_calls,
     verdict_schema,
 )
 from app.services.system_agent_runner import SystemAgentRunner
@@ -505,14 +506,7 @@ class ScoringService:
         blocked = {
             call.tool_call_id for call in held if call.outcome == InterceptionOutcome.BLOCKED
         }
-        return tuple(
-            ScoredCall(
-                tool=call.tool_name,
-                args=call.args or {},
-                blocked=call.tool_call_id in blocked,
-            )
-            for call, _ in calls
-        )
+        return scored_calls([call for call, _ in calls], blocked=blocked)
 
     async def score_case(
         self,
@@ -728,6 +722,7 @@ class ScoringService:
                             blocked=call["outcome"] == InterceptionOutcome.BLOCKED.value,
                         )
                         for call in attempt.calls
+                        if not call.get("script")
                     ),
                     cost_usd=attempt.cost_usd,
                     latency_ms=attempt.latency_ms,

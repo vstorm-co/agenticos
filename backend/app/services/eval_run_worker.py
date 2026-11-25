@@ -49,6 +49,7 @@ from app.core.exceptions import (
 from app.core.permissions import AuthContext, Perm
 from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
 from app.db.models.case_score import CaseScore
+from app.db.models.conversation import ScriptCallEntry
 from app.db.models.dataset import DatasetCase
 from app.db.models.eval_run import (
     ArmRole,
@@ -89,7 +90,7 @@ from app.services.improvement_states import affordable
 from app.services.message_history import HistoryMessage, build_message_history
 from app.services.notifications import NotificationService
 from app.services.rag.overlay import KnowledgeOverlay, OverlayDocument
-from app.services.scorers import ScoredAnswer, ScoredCall
+from app.services.scorers import ScoredAnswer, scored_calls
 from app.services.scoring import ScoringService
 from app.services.transcript import RecordedToolCall
 
@@ -211,6 +212,10 @@ def _latency_ms(run: AgentRun) -> int | None:
     return int((run.ended_at - run.started_at).total_seconds() * 1000)
 
 
+def _script_of(call: RecordedToolCall) -> list[ScriptCallEntry]:
+    return [] if call.script_calls is None else call.script_calls["calls"]
+
+
 def trajectory(
     calls: list[RecordedToolCall], intercepted: list[InterceptedToolCall]
 ) -> list[dict[str, Any]]:
@@ -218,23 +223,40 @@ def trajectory(
 
     A call isolation answered without executing it - held back because it
     writes, answered from a recording, or matching nothing recorded - carries
-    that outcome and why; everything else ran.
+    that outcome and why; everything else ran. A code-mode script is followed by
+    the calls it made, each naming the script as its `parent`, and is marked
+    `script` so a grader reads its calls in its place (:func:`scored_calls`).
     """
     held = {call.tool_call_id: call for call in intercepted}
+
+    def row(tool: str, args: dict[str, Any], tool_call_id: str) -> dict[str, Any]:
+        caught = held.get(tool_call_id)
+        return {
+            "tool": tool,
+            "args": recorded_args(ToolCallPart(tool, args, tool_call_id=tool_call_id)),
+            "outcome": caught.outcome if caught is not None else "executed",
+            "reason": caught.reason if caught is not None else None,
+        }
+
     rows = []
     for call in calls:
-        caught = held.get(call.tool_call_id)
+        script = _script_of(call)
         rows.append(
-            {
-                "tool": call.tool_name,
-                "args": recorded_args(
-                    ToolCallPart(call.tool_name, call.args, tool_call_id=call.tool_call_id)
-                ),
-                "outcome": caught.outcome if caught is not None else "executed",
-                "reason": caught.reason if caught is not None else None,
-            }
+            row(call.tool_name, call.args, call.tool_call_id) | ({"script": True} if script else {})
+        )
+        rows.extend(
+            row(entry["tool_name"], entry["args"], entry["tool_call_id"])
+            | {"parent": call.tool_call_id}
+            for entry in script
         )
     return rows
+
+
+def held_back(intercepted: list[InterceptedToolCall]) -> frozenset[str]:
+    """The calls an isolated run kept from running, by tool call id."""
+    return frozenset(
+        call.tool_call_id for call in intercepted if call.outcome == InterceptionOutcome.BLOCKED
+    )
 
 
 _ERRORED = "This eval stopped on an error before it finished. Run it again."
@@ -647,14 +669,7 @@ class EvalRunWorker:
             rows = trajectory(calls, intercepted)
             answer = ScoredAnswer(
                 text=output,
-                calls=tuple(
-                    ScoredCall(
-                        tool=call.tool_name,
-                        args=call.args,
-                        blocked=row["outcome"] == InterceptionOutcome.BLOCKED.value,
-                    )
-                    for call, row in zip(calls, rows, strict=True)
-                ),
+                calls=scored_calls(calls, blocked=held_back(intercepted)),
                 cost_usd=agent_run.cost_usd,
                 latency_ms=_latency_ms(agent_run),
                 run_id=agent_run.id,

@@ -62,7 +62,16 @@ logger = logging.getLogger(__name__)
 
 _CONVERSATION_FIELDS = ("id", "title", "created_at", "updated_at", "is_archived")
 _MESSAGE_FIELDS = ("id", "conversation_id", "role", "content", "ordinal", "created_at")
-_TOOL_CALL_FIELDS = ("id", "message_id", "tool_name", "args", "result", "status", "started_at")
+_TOOL_CALL_FIELDS = (
+    "id",
+    "message_id",
+    "tool_name",
+    "args",
+    "result",
+    "script_calls",
+    "status",
+    "started_at",
+)
 _RATING_FIELDS = ("id", "message_id", "rating", "comment", "created_at")
 _VERDICT_FIELDS = ("id", "dataset_id", "case_id", "human_passed", "human_note", "reviewed_at")
 _SCORED_ANSWER_FIELDS = ("id", "dataset_id", "case_id", "run_id", "answer", "created_at")

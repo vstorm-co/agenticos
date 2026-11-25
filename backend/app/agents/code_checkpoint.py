@@ -7,6 +7,7 @@ invalidates the checkpoint explicitly rather than replaying completed effects.
 from dataclasses import dataclass, field
 
 from pydantic import BaseModel, ConfigDict, Field, JsonValue
+from pydantic_ai.messages import ToolCallPart, ToolReturnPart
 
 
 class CodeHostCall(BaseModel):
@@ -45,13 +46,29 @@ class CodeCheckpoint(BaseModel):
     manifest: dict[str, JsonValue]
 
 
+@dataclass(frozen=True)
+class ScriptCall:
+    """One call a `run_code` script made, as it settled: answered, held, refused or failed.
+
+    A failure is kept as a `failed` return, so it is recorded like a direct call's.
+    """
+
+    call: ToolCallPart
+    returned: ToolReturnPart
+
+
 @dataclass
 class CodeContinuations:
-    """Shared by a run and its delegates; only the runner persists it."""
+    """Shared by a run and its delegates; only the runner persists it.
+
+    `script_calls` is not persisted: each segment of a run - up to a park, or from a
+    resume - reports only the calls that settled in it, and the transcript keeps them.
+    """
 
     checkpoints: dict[str, CodeCheckpoint] = field(default_factory=dict)
     native_tools: dict[str | None, frozenset[str]] = field(default_factory=dict)
     approval_calls: set[str] = field(default_factory=set)
+    script_calls: dict[str, list[ScriptCall]] = field(default_factory=dict)
 
     @property
     def orphan_approvals(self) -> set[str]:

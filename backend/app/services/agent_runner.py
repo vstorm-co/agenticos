@@ -313,7 +313,7 @@ from app.db.models.agent_run import (
     RunSurface,
 )
 from app.db.models.chat_file import ChatFile
-from app.db.models.conversation import Message
+from app.db.models.conversation import Message, ToolCall
 from app.db.models.credential import ModelProfile
 from app.db.models.intercepted_tool_call import InterceptedToolCall
 from app.db.models.knowledge_base import KnowledgeBase
@@ -496,6 +496,19 @@ _ORIGIN_KINDS: dict[
     AgentKind.EXTRACTOR.value: "key_drafts",
     AgentKind.COVERAGE.value: "key_coverage",
 }
+
+
+def _answers_of(call: ToolCall) -> list[CallRow]:
+    """What a recorded row can answer: itself, or the calls its script made."""
+    script = call.script_calls
+    if script is not None and script["calls"] and not script["omitted"]:
+        return [
+            CallRow(tool_name=entry["tool_name"], args=entry["args"], result=entry["result"])
+            for entry in script["calls"]
+        ]
+    if call.result is None:
+        return []
+    return [CallRow(tool_name=call.tool_name, args=call.args, result=call.result)]
 
 
 def _preview(text: str) -> str:
@@ -6997,6 +7010,11 @@ class AgentRunnerService:
         that renamed a tool still matches its own recorded calls. A call that
         never returned is left out: there is nothing to answer it with.
 
+        A code-mode script is offered as the calls it made, never as itself: a
+        replay runs the script again and each of its calls is answered from here,
+        so the replay's trajectory lists them too. A script recorded before its
+        calls were kept, or one that made more than its row kept, is offered whole.
+
         The manifest is the check that no row is missing. Its request waterfall
         names every call the model asked for, and survives every trim; a call it
         names that has no row means the transcript lost part of the run. A row
@@ -7036,11 +7054,7 @@ class AgentRunnerService:
                 tools = capability_tools(AgentSpec.model_validate(version.spec))
         return ToolRecording(
             recorded_calls(
-                [
-                    CallRow(tool_name=call.tool_name, args=call.args, result=call.result)
-                    for call, _ in rows
-                    if call.result is not None
-                ],
+                [answer for call, _ in rows for answer in _answers_of(call)],
                 tools=tools,
             )
         )
@@ -9126,6 +9140,7 @@ class AgentRunnerService:
                 new_messages,
                 identities=prepared.built.deps.tool_identities,
                 definitions=prepared.built.deps.tool_definitions,
+                scripts=prepared.built.deps.code_continuations.script_calls,
             )
             # And what the *inherited* calls returned. On a resume the approved
             # call was made by the previous execution, so only its return is new -
@@ -9242,6 +9257,7 @@ class AgentRunnerService:
                         ),
                         tool_calls=called,
                         settled=settled,
+                        scripts=prepared.built.deps.code_continuations.script_calls,
                         # So the step the run stopped on reads "awaiting approval" when
                         # the conversation is read back, not as a call that ran (#601).
                         parked=frozenset(paused.tool_call_ids.values()) if paused else frozenset(),

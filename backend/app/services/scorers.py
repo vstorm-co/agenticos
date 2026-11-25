@@ -11,10 +11,10 @@ import json
 import re
 import unicodedata
 from collections import Counter
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass
 from decimal import Decimal
-from typing import Any
+from typing import Any, Protocol
 from uuid import UUID
 
 import regex
@@ -24,6 +24,7 @@ from pydantic import BaseModel, Field, JsonValue, TypeAdapter, field_validator
 from pydantic import ValidationError as PydanticValidationError
 from referencing.exceptions import Unresolvable
 
+from app.db.models.conversation import ScriptCalls
 from app.schemas.scoring import (
     CHECK,
     CeilingCheck,
@@ -65,6 +66,52 @@ class ScoredCall:
     tool: str
     args: Mapping[str, Any]
     blocked: bool = False
+
+
+class CalledTool(Protocol):
+    """A call as a run recorded it: a transcript row, or one the runner has just collected."""
+
+    @property
+    def tool_call_id(self) -> str: ...
+
+    @property
+    def tool_name(self) -> str: ...
+
+    @property
+    def args(self) -> Mapping[str, Any]: ...
+
+    @property
+    def script_calls(self) -> ScriptCalls | None: ...
+
+
+def scored_calls(
+    calls: Sequence[CalledTool], *, blocked: Collection[str]
+) -> tuple[ScoredCall, ...]:
+    """The calls an answer is graded on: a code-mode script's own calls in its place.
+
+    The model calls one tool, `run_code`, and the script calls the agent's tools;
+    graded as the script, every `exact` trajectory of a code-mode agent would fail
+    on it. A script that called nothing is graded as itself. `blocked` names the
+    calls, the script's own included, an isolated run held back.
+    """
+    graded: list[ScoredCall] = []
+    for call in calls:
+        script = [] if call.script_calls is None else call.script_calls["calls"]
+        graded.extend(
+            ScoredCall(
+                tool=entry["tool_name"],
+                args=entry["args"],
+                blocked=entry["tool_call_id"] in blocked,
+            )
+            for entry in script
+        )
+        if not script:
+            graded.append(
+                ScoredCall(
+                    tool=call.tool_name, args=call.args, blocked=call.tool_call_id in blocked
+                )
+            )
+    return tuple(graded)
 
 
 @dataclass(frozen=True)
