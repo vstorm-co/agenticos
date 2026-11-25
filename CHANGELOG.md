@@ -19,6 +19,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- The iPhone app icon's long-press menu works again: Call an agent, Dictate, New chat,
+  Approvals and pinned agents did nothing, because tao runs the app with scenes and iOS
+  hands a quick action to the scene's delegate, which had no handler.
+
 ## [1.93.0] - 2026-11-24
 
 ### Added
