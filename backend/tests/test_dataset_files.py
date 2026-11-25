@@ -207,9 +207,45 @@ class TestRefusals:
 
         refusal = _refusal(content, fmt)
 
+        # Whichever gives up first - the JSON parser's recursion or the schema's depth
+        # limit, which depends on the platform's stack - the row is the one refused.
         assert refusal.details["refused_rows"] == 1
+        assert refusal.details["fields"][0]["field"].startswith("rows.2")
+
+    @pytest.mark.parametrize("fmt", ["csv", "jsonl"])
+    def test_a_parser_out_of_recursion_names_the_row(
+        self, fmt: str, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        loads = json.loads
+
+        def shallow(text: str, *args: object, **kwargs: object) -> object:
+            if "[[" in text:
+                raise RecursionError("maximum recursion depth exceeded")
+            return loads(text, *args, **kwargs)
+
+        monkeypatch.setattr(json, "loads", shallow)
+        content = (
+            'input,reference_answer,history\nok,a,\nq,a,"[[1]]"\n'
+            if fmt == "csv"
+            else '{"input": "ok", "reference_answer": "a"}\n{"input": "q", "history": [[1]]}\n'
+        )
+
+        refusal = _refusal(content, fmt)
+
         assert refusal.details["fields"][0]["field"] == "rows.2"
         assert "nested too deeply" in refusal.details["fields"][0]["message"]
+
+    def test_a_jsonl_file_past_the_row_limit_is_refused_before_its_later_lines_are_read(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(settings, "DATASET_IMPORT_MAX_ROWS", 5)
+        lines = ['{"input": "q", "reference_answer": "a"}'] * 40 + ["not json"]
+
+        refusal = _refusal("\r\n".join(lines) + "\r\n", "jsonl")
+
+        assert refusal.details["fields"] == [
+            {"field": "file", "message": "An import holds at most 5 rows; split the file"}
+        ]
 
     def test_jsonl_lines_that_are_not_case_objects_are_refused(self) -> None:
         refusal = _refusal(

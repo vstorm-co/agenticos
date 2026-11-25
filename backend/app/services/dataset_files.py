@@ -148,7 +148,7 @@ def _rows(text: str, fmt: DatasetFileFormat) -> Iterator[tuple[int, dict[str, An
     """The file's records one at a time, each with its line or row number, or a reason
     it is unreadable."""
     if fmt == "jsonl":
-        for number, line in enumerate(text.splitlines(), start=1):
+        for number, line in enumerate(io.StringIO(text, newline=None), start=1):
             if not line.strip():
                 continue
             try:
