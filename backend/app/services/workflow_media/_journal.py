@@ -228,6 +228,35 @@ class MediaJournal:
                 db, row.id, organization_id=self.organization_id, values=changes
             )
 
+    async def refuse(self, *, reason: str) -> bool:
+        """Release the hold for a provider refusal that proves nothing was generated.
+
+        Only a request that was submitted and has neither a provider receipt nor
+        output can be released this way. Any other evidence keeps its hold and
+        returns False, so the caller records it as an interruption instead.
+        """
+        async with get_worker_db_context() as db:
+            row = await self._load(db)
+            if (
+                row.phase != "submitting"
+                or row.provider_receipt is not None
+                or row.output_sha256 is not None
+            ):
+                return False
+            await media_repo.change(
+                db,
+                row.id,
+                organization_id=self.organization_id,
+                values={
+                    "phase": "failed",
+                    "held_usd": Decimal(0),
+                    "held_bytes": 0,
+                    "accounting_complete": True,
+                    "reason_code": reason,
+                },
+            )
+            return True
+
     async def reject_output(self, *, reason: str) -> None:
         """Known unusable bytes are not published; their incurred fees still survive."""
         async with get_worker_db_context() as db:

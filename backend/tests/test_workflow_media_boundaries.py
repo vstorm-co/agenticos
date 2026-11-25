@@ -7,7 +7,9 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 from uuid import uuid4
 
+import httpx
 import pytest
+from pydantic_ai.exceptions import ModelAPIError, ModelHTTPError
 from pydantic_ai.messages import BinaryImage
 
 from app.core.exceptions import BadRequestError
@@ -211,6 +213,91 @@ async def test_interruption_never_claims_no_effect_when_its_journal_is_unavailab
     result = await _execution._interrupted(journal, "SYNTHETIC_REFUSAL", "Controlled refusal")
     assert isinstance(result, Uncertain if not database_available or started else Failed)
     assert "private provider body" not in result.model_dump_json()
+
+
+def provider_journal(*, releasable=True):
+    return SimpleNamespace(
+        id=uuid4(),
+        refuse=AsyncMock(return_value=releasable),
+        interrupted=AsyncMock(),
+        read=AsyncMock(return_value=SimpleNamespace(effect_started_at=object())),
+    )
+
+
+async def generate_failing_with(monkeypatch, failure, journal):
+    monkeypatch.setattr(_execution, "_reference", AsyncMock(return_value=None))
+    monkeypatch.setattr(_execution, "admit", AsyncMock(return_value=operation()))
+    monkeypatch.setattr(_execution, "MediaJournal", lambda _: journal)
+    monkeypatch.setattr(_execution, "_recover", AsyncMock(return_value=None))
+    monkeypatch.setattr(_execution, "_image", AsyncMock(side_effect=failure))
+    return await _execution.generate(image_config(), MediaGenerateInput(prompt="Synthetic"))
+
+
+@pytest.mark.parametrize("status", [400, 401, 403, 429])
+async def test_a_definite_provider_refusal_fails_the_node_and_releases_the_hold(
+    monkeypatch, status
+):
+    journal = provider_journal()
+    failure = ModelHTTPError(status, "synthetic-model", {"error": "private provider body"})
+    result = await generate_failing_with(monkeypatch, failure, journal)
+    assert isinstance(result, Failed)
+    assert result.error.code == "MEDIA_PROVIDER_REFUSED"
+    assert str(status) in result.error.message and result.error.retryable is False
+    assert "private provider body" not in result.model_dump_json()
+    journal.refuse.assert_awaited_once_with(reason="MEDIA_PROVIDER_REFUSED")
+    journal.interrupted.assert_not_awaited()
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [
+        ModelHTTPError(500, "synthetic-model", None),
+        ModelHTTPError(503, "synthetic-model", None),
+        ModelHTTPError(404, "synthetic-model", None),
+        TimeoutError(),
+        ModelAPIError("synthetic-model", "Connection error."),
+        httpx.ConnectError("connection lost after send"),
+    ],
+)
+async def test_an_unknown_provider_outcome_stays_for_reconciliation_with_its_hold(
+    monkeypatch, failure
+):
+    journal = provider_journal()
+    result = await generate_failing_with(monkeypatch, failure, journal)
+    assert isinstance(result, Uncertain)
+    journal.refuse.assert_not_awaited()
+    journal.interrupted.assert_awaited_once()
+
+
+async def test_a_refusal_whose_hold_cannot_be_proven_releasable_keeps_the_hold(monkeypatch):
+    journal = provider_journal(releasable=False)
+    result = await generate_failing_with(
+        monkeypatch, ModelHTTPError(429, "synthetic-model", None), journal
+    )
+    assert isinstance(result, Uncertain)
+    journal.interrupted.assert_awaited_once()
+
+
+async def test_a_refusal_without_a_journal_still_fails_the_node_with_nothing_to_release():
+    result = await _execution._provider_refused(
+        None, ModelHTTPError(429, "synthetic-model", {"error": "private provider body"})
+    )
+    assert isinstance(result, Failed)
+    assert result.error.code == "MEDIA_PROVIDER_REFUSED"
+    assert "429" in result.error.message and result.error.retryable is False
+    assert "private provider body" not in result.model_dump_json()
+
+
+async def test_a_refusal_whose_release_fails_is_interrupted_with_its_receipt_and_costs_kept():
+    journal = provider_journal()
+    journal.refuse = AsyncMock(side_effect=RuntimeError("private database detail"))
+    result = await _execution._provider_refused(
+        journal, ModelHTTPError(429, "synthetic-model", None)
+    )
+    assert isinstance(result, Uncertain)
+    assert "retained its receipt and unresolved costs" in result.detail
+    assert "private database detail" not in result.model_dump_json()
+    journal.interrupted.assert_awaited_once_with(reason="MEDIA_PROVIDER_REFUSED")
 
 
 @pytest.mark.parametrize("journal_failure", [False, True])
