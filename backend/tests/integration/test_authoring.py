@@ -41,7 +41,7 @@ from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_run import AgentRun, RunSurface
 from app.db.models.api_key import ApiKey
-from app.db.models.authoring import AuthoringRequest, SpecProposalBatch
+from app.db.models.authoring import AuthoringRequest, SpecProposalBatch, SpecProposalHunk
 from app.db.models.conversation import Conversation, Message
 from app.db.models.dataset import Dataset, DatasetCase
 from app.db.models.eval_run import EvalRun, EvalRunArm
@@ -628,9 +628,12 @@ class TestImprove:
         assert first is not None
         [instructions] = [hunk for hunk in first.hunks if hunk.kind == "instructions"]
         await service.decide(ctx, agent.id, instructions.id, HunkDecision(action="dismiss"))
+        # One transaction stamps the publish with its own start, so what came before is
+        # moved back past it.
         row = await db.get(SpecProposalBatch, first.id)
-        assert row is not None
-        row.created_at = datetime.now(UTC) - timedelta(minutes=5)
+        dismissed = await db.get(SpecProposalHunk, instructions.id)
+        assert row is not None and dismissed is not None
+        row.created_at = dismissed.decided_at = datetime.now(UTC) - timedelta(minutes=5)
         await AgentRegistryService(db).publish(ctx, agent.id)
 
         request = await _improve(db, ctx, agent, Improver(db))

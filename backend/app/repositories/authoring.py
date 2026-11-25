@@ -236,9 +236,12 @@ async def latest_batch(
 async def dismissed_since_publish(
     db: AsyncSession, *, organization_id: UUID, agent_id: UUID
 ) -> list[SpecProposalHunk]:
-    """The agent's suggestions a person dismissed in any batch since its newest version.
+    """The agent's suggestions a person dismissed and no publish has closed on since.
 
-    For an agent never published, every batch counts.
+    That is every dismissal in the open batch, and in any other batch created or
+    decided after the agent's newest version; for an agent never published, every
+    batch counts. A suggestion a check left out is marked dismissed with no
+    decision time, and is not one a person made.
     """
     published_at = (
         select(AgentVersion.created_at)
@@ -253,9 +256,15 @@ async def dismissed_since_publish(
         .where(
             SpecProposalBatch.organization_id == organization_id,
             SpecProposalBatch.agent_id == agent_id,
-            or_(published_at.is_(None), SpecProposalBatch.created_at > published_at),
             SpecProposalHunk.organization_id == organization_id,
             SpecProposalHunk.status == HunkStatus.DISMISSED.value,
+            SpecProposalHunk.decided_at.is_not(None),
+            or_(
+                published_at.is_(None),
+                SpecProposalBatch.status == BatchStatus.OPEN.value,
+                SpecProposalBatch.created_at > published_at,
+                SpecProposalHunk.decided_at > published_at,
+            ),
         )
         .order_by(SpecProposalHunk.decided_at)
     )
