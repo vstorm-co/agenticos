@@ -1,5 +1,5 @@
 ---
-source_sha: "4a21e67c33ea"
+source_sha: "00db4ca3cf8e"
 ---
 
 # Skills { #skills }
@@ -949,6 +949,13 @@ Skills mit dem falschen Wert oder der falschen Regel zitiert, nimmt die
 Kriterien des Agents mit; schweigt der Skill nur, ist das Problem ein Rat, und
 der Agent bleibt an diese Kriterien gebunden - siehe [Wenn der Fehler in einem
 Skill liegt](authoring.md#when-the-fault-is-in-a-skill).
+
+Was eine Sitzung schreibt - Titel und Zusammenfassung jedes Problems und den
+vorgeschlagenen Text -, stammt aus allen Antworten, die ihr Starter lesen konnte,
+und jeder, der die Sitzung lesen darf (`runs:view` und Zugriff auf den Skill),
+liest es. Nur Zitate und Agent-Namen folgen dem Zugriff des Lesenden: Ein Zitat
+aus einem Agent, den er nicht sieht, und der Name dieses Agents werden gezählt
+statt gezeigt.
 
 Der Start sagt, wie viele negativ bewertete oder fehlgeschlagene Antworten sie liest
 und wie vielen Agents die Linie dient. Er nennt

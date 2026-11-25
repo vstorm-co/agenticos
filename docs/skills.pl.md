@@ -1,5 +1,5 @@
 ---
-source_sha: "4a21e67c33ea"
+source_sha: "00db4ca3cf8e"
 ---
 
 # Skille { #skills }
@@ -875,6 +875,12 @@ Tylko problem cytujący linię skilla, która podaje złą wartość lub reguł�
 zabiera ze sobą kryteria agenta; gdy skill tylko milczy, problem jest radą, a
 agent nadal odpowiada za te kryteria - zobacz [Gdy błąd jest w
 skillu](authoring.md#when-the-fault-is-in-a-skill).
+
+To, co sesja pisze - tytuł i podsumowanie każdego problemu oraz proponowany
+tekst - powstaje ze wszystkich odpowiedzi, które mógł przeczytać ten, kto ją
+rozpoczął, i czyta to każdy, kto może czytać sesję (`runs:view` i dostęp do
+skilla). Tylko cytaty i nazwy agentów idą za dostępem czytającego: cytat z
+agenta, którego nie widzi, i nazwa tego agenta są policzone zamiast pokazane.
 
 Start mówi, ile ocenionych w dół albo nieudanych odpowiedzi przeczyta i ilu agentom
 służy linia. Mówi też, ile kosztuje

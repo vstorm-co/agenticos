@@ -1,5 +1,5 @@
 ---
-source_sha: "11d42313d5f2"
+source_sha: "feec2e9263cc"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -32,7 +32,7 @@ W Agent Builderze **Budowa** zawiera konfigurację, a **Test** otwiera interakty
 
 ## Co czyta { #what-it-reads }
 
-Asystent nie ma narzędzi. To, co czyta, jest dla niego zebrane z runów agenta z
+To, co asystent czyta, jest dla niego zebrane z runów agenta z
 ostatnich 30 dni:
 
 - odpowiedzi ocenione negatywnie, najpierw te z komentarzami;
@@ -42,6 +42,12 @@ ostatnich 30 dni:
 
 Udany run bez oceny nie mówi niczego i nie jest czytany. Nie jest też czytany
 test z panelu testowego Buildera ani run delegata.
+
+Wbudowany asystent nie ma narzędzi. Agent pomocniczy wybrany w jego miejsce może
+podpiąć `knowledge`, `context` albo `skills` i nic, co sięga dalej, a taki, który
+wyszukuje, dostaje bazy wiedzy poprawianego agenta. Jego instrukcje to instrukcje
+poprawiania z ustawień datasetu albo wbudowane - nigdy te z jego własnej
+opublikowanej wersji.
 
 **Uczy się wyłącznie na przypadkach treningowych.** Oprócz ocenionych rozmów asystent czyta błędne odpowiedzi treningowe, potwierdzone regresje, uzasadnienia sędziego i notatki przeglądu z dostępnych [datasetów](datasets.md). Dostaje skuteczność treningu według tagów i kryteriów sędziego oraz liczby napraw i regresji. Pytania kontrolne, odpowiedzi i oceny nigdy nie trafiają do jego promptu. Runy sędziego i samego asystenta nadal są pomijane.
 
@@ -308,7 +314,7 @@ Retencja aktywności zachowuje łączny koszt usuniętych płatnych runów sesji
 | Przyjąć sugestię, która coś podpina albo do czegoś sięga | Także dostępu, by podpiąć to ręcznie |
 | Zastosować albo odrzucić zmianę skilla | `skills:edit` na skillu i `runs:view` |
 | Zastosować albo odrzucić zmianę pliku kontekstowego | `context:edit` na pliku i `runs:view` |
-| Sprawdzić w ewaluacji | Tego, czego wymaga [run ewaluacji](evals.md#access), i uprawnień edycji agenta |
+| Sprawdzić w ewaluacji | Tego, czego wymaga [run ewaluacji](evals.md#access), i uprawnień edycji agenta; przy zmianie skilla albo pliku kontekstu uprawnień edycji skilla lub pliku i uprawnień uruchamiania agenta, na którym jest sprawdzana |
 
 Granty się liczą: członek z grantem edycji na jednym agencie może ulepszać tego
 agenta.

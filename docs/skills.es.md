@@ -1,5 +1,5 @@
 ---
-source_sha: "4a21e67c33ea"
+source_sha: "00db4ca3cf8e"
 ---
 
 # Skills { #skills }
@@ -895,6 +895,12 @@ la regla equivocados se lleva los criterios del agente; cuando el skill solo
 calla, el problema es un consejo y el agente sigue respondiendo de esos
 criterios - consulta [Cuando el fallo está en un
 skill](authoring.md#when-the-fault-is-in-a-skill).
+
+Lo que escribe una sesión - el título y el resumen de cada problema, y el texto
+que propone - sale de todas las respuestas que pudo leer quien la empezó, y lo lee
+todo el que puede leer la sesión (`runs:view` y acceso al skill). Solo las citas
+y los nombres de agents siguen el acceso de quien lee: una cita de un agent que no
+ve, y el nombre de ese agent, se cuentan en lugar de mostrarse.
 
 Al empezar dice cuántas respuestas valoradas a la baja o fallidas lee, y a cuántos
 agents sirve la línea. También dice cuánto

@@ -45,7 +45,8 @@ async def read_waiting_suggestions(service: AuthoringSvc, ctx: Auth) -> Any:
 async def read_agent_authoring(agent_id: UUID, service: AuthoringSvc, ctx: Auth) -> Any:
     """The suggestions waiting for this agent's draft, and the assistant's latest requests.
 
-    A quote from a run is included only for a caller holding `runs:view`.
+    Needs `runs:view`: suggestions and requests can carry what people wrote in their
+    conversations, quoted or not.
     """
     return await service.for_agent(ctx, agent_id)
 
