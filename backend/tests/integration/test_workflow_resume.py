@@ -6,6 +6,7 @@ from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+import httpx2
 import pytest
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncEngine
@@ -25,6 +26,7 @@ from app.services.workflow_execution.resume_link import resume_token, resume_url
 from app.workflows.contracts.io import Binding, NodeOutputRef
 from app.workflows.graph.model import Edge, NodeInstance, NodePosition, WorkflowGraph
 from app.workflows.graph.validate import validate_graph
+from app.workflows.nodes.http_request import _handler as http_handler
 from tests.integration.workflow_run_support import SeededRun, drive, node_statuses, seed_run
 
 pytestmark = pytest.mark.anyio
@@ -140,7 +142,20 @@ async def test_resume_link_targets_the_nested_wait_without_overwriting_the_inter
 
 
 @pytest.mark.parametrize("scripted_link", [False, True], ids=["canvas-link", "completed-script"])
-async def test_retry_issues_its_own_resume_links(engine: AsyncEngine, scripted_link: bool):
+async def test_retry_issues_its_own_resume_links(
+    engine: AsyncEngine, scripted_link: bool, monkeypatch: pytest.MonkeyPatch
+):
+    fetched: list[str] = []
+
+    def fetch(request: httpx2.Request) -> httpx2.Response:
+        fetched.append(str(request.url))
+        return httpx2.Response(200, json={"url": str(request.url)})
+
+    monkeypatch.setattr(
+        http_handler,
+        "PinnedAsyncClient",
+        lambda **_: httpx2.AsyncClient(transport=httpx2.MockTransport(fetch)),
+    )
     graph, link, wait = _waiting_for_a_call()
     entry, _, _, out = graph.nodes
     link_path = ("url",)
@@ -159,9 +174,10 @@ async def test_retry_issues_its_own_resume_links(engine: AsyncEngine, scripted_l
             "actions": {
                 "link": {"type": "flow.resume_link"},
                 "value": {"type": "data.value"},
+                "fetch": {"type": "http.request", "config": {"method": "GET"}},
                 "wait_for_callback": {"type": wait.definition_id, "config": wait.config},
             },
-            "code": "url = value(value=link()['url'])['value']\nreply = wait_for_callback()\n{'url': url, 'body': reply['body']}",
+            "code": "url = fetch(url=value(value=link()['url'])['value'])['body']['url']\nreply = wait_for_callback()\n{'url': url, 'body': reply['body']}",
         },
     )
     graph = WorkflowGraph(
@@ -200,6 +216,7 @@ async def test_retry_issues_its_own_resume_links(engine: AsyncEngine, scripted_l
     assert ended.status == "succeeded", ended.error
     # Both the step that finished and the script interrupted at Wait must issue
     # this run's working callback, not the terminal original's URL.
+    assert fetched == [resume_url(original.run.id), resume_url(retry.id)]
     assert ended.output["text"] == resume_url(retry.id)
     assert ended.output["structured"] == {"url": resume_url(retry.id), "body": {"ok": True}}
 

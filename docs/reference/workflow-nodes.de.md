@@ -1,5 +1,5 @@
 ---
-source_sha: "632745df63f9"
+source_sha: "453391bcf878"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -1463,7 +1463,7 @@ Für einen MCP-Aufruf wählst du Verbindung und Tool einmal aus. Heißt die Funk
 
 Ein Skript führt bis zu 100 Aufrufe nacheinander aus. Vor jedem Aufruf speichert der Interpreter seine Position (bis zu 512 KiB Zustand). Eine Freigabe gilt nur für diesen Aufruf. Bei einem Schreibvorgang mit ungewissem Ausgang gelten die Wiederherstellungsregeln der Aktion. Beim erneuten Versuch nutzt der Lauf abgeschlossene Aufrufe mit denselben Argumenten und wiederholt einen unbestätigten Schreibvorgang nicht stillschweigend. Auslöser, Verzweigungen und beide Abschlussschritte bleiben auf der Arbeitsfläche.
 
-Erhält dieselbe reine Aktion beim erneuten Versuch andere Argumente, läuft sie mit den neuen Werten erneut. Bei einem neuen Versuch darf ein fehlgeschlagener Schreibvorgang erneut laufen, wenn für jeden vorherigen Versuch feststeht, dass nichts gesendet wurde. Nach einer Zeitüberschreitung beim Warten auf die Antwort oder bei einem älteren Versuch ohne diesen Nachweis wird nicht automatisch erneut gesendet.
+Die Wiederverwendung eines gespeicherten Ergebnisses reserviert kein Budget. Erhält dieselbe reine Aktion oder derselbe HTTP-GET-Aufruf beim erneuten Versuch andere Argumente, wird sie bzw. er mit den neuen Werten ausgeführt. Bei einem neuen Versuch darf ein fehlgeschlagener Schreibvorgang erneut laufen, wenn für jeden vorherigen Versuch feststeht, dass nichts gesendet wurde. Nach einer Zeitüberschreitung beim Warten auf die Antwort oder bei einem älteren Versuch ohne diesen Nachweis wird nicht automatisch erneut gesendet.
 
 `code.python.simple` führt ein kurzes Skript in der Monty-Sandbox aus, die kein
 Dateisystem, kein Netzwerk und nur eine kleine Standardbibliothek hat. Das Skript liest

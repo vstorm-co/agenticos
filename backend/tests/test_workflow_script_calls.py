@@ -91,7 +91,7 @@ async def test_a_changed_pure_call_cannot_replace_another_alias_in_an_older_run(
         NodeRun(scope_path=[{**current, "action": "send"}]),
     ]
     with pytest.raises(ScriptRetryUnsafeError):
-        await script_calls.retry_output(AsyncMock(), run, child, writes=False, pure=True)
+        await script_calls.retry_output(AsyncMock(), run, child, writes=False, can_recompute=True)
 
 
 @pytest.mark.parametrize("writes,started", [(False, True), (True, False)])

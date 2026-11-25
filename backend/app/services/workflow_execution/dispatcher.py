@@ -772,7 +772,7 @@ async def _script_action_call(
         child,
         writes=unknown_write,
         reuse_result=definition.id != "flow.resume_link",
-        pure=definition.effect_kind == "pure",
+        can_recompute=read_only_http or definition.effect_kind == "pure",
     )
     return _ResolvedCall(
         graph,
@@ -1120,10 +1120,10 @@ async def begin_attempt(
 
     reserved: Decimal | None = None
     handed = budget.remaining(run)
-    # Collecting the end of a called run or forwarding a known failure does
-    # not spend money and need not wait for a sibling to release its share.
+    # A stand-in never calls the spending handler. Collecting the result of a
+    # called run likewise needs no reservation: the child already did the work.
     collecting = (
-        node_run.waiting_reason == WaitingReason.EXTERNAL_EVENT.value or call.stands_in == "failure"
+        node_run.waiting_reason == WaitingReason.EXTERNAL_EVENT.value or call.stands_in is not None
     )
     if definition.spends_budget and run.budget_limit is not None and not collecting:
         free = await budget.unreserved(db, run)

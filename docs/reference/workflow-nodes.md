@@ -1352,7 +1352,7 @@ For **Call an MCP tool**, select the connection and tool once. If the function n
 
 Calls run in order, up to 100 per script. The interpreter saves its place before each call (up to 512 KiB of interpreter state). An approval belongs to that call, not the entire script. A write whose outcome is unknown follows the action's own recovery rules. Retrying a failed run reuses completed calls with matching arguments; it does not silently repeat an unconfirmed write. Triggers, graph routing and both Finish steps stay on the canvas.
 
-If the same pure action receives different arguments on retry, it runs again with the new values. A failed write can run in a new retry if every prior attempt recorded that it stopped before sending. A timeout after sending, or an older attempt without that evidence, is not safe to repeat automatically.
+Replaying a stored result reserves no budget. If a pure action or an HTTP GET receives different arguments on retry, the same bound action runs again with the new values. A failed write can run in a new retry if every prior attempt recorded that it stopped before sending. A timeout after sending, or an older attempt without that evidence, is not safe to repeat automatically.
 
 `code.python.simple` runs a short script in the Monty sandbox, which has no
 filesystem, no network and a small standard library. The script reads the bound

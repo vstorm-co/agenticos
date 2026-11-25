@@ -166,7 +166,7 @@ async def retry_output(
     *,
     writes: bool,
     reuse_result: bool = True,
-    pure: bool = False,
+    can_recompute: bool = False,
 ) -> dict[str, JsonValue] | None:
     """Reuse settled calls across retry runs. Never repeat an unconfirmed write.
 
@@ -192,7 +192,7 @@ async def retry_output(
             if old.scope_path != child.scope_path:
                 # Position and enclosing scope matched in script_call_at. The
                 # same alias in this frozen graph still names the same action.
-                if not pure or child_alias(old) != child_alias(child):
+                if not can_recompute or child_alias(old) != child_alias(child):
                     raise ScriptRetryUnsafeError()
                 # Recompute with the new inputs, but check older calls as well:
                 # an interrupted intermediate retry is not proof of safe history.
