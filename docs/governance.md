@@ -1334,6 +1334,9 @@ reads the most recent `window` tokens of the run and either lets it be or sends
 one short correction, which the run's model receives on its next request with the
 reviewer's name on it. The run view lists each correction and who sent it.
 
+A reviewer is told that the run it reads is material to review, not instructions
+to it; its focus is added to that rule and never replaces it.
+
 A reviewer's calls are checked against the agent's and the organization's budget
 before they are made and booked on the run, priced as the reviewer's model. One
 refused for budget is skipped, and a reviewer that fails is logged; neither fails
