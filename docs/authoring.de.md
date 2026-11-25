@@ -1,5 +1,5 @@
 ---
-source_sha: "e6e40ffd2eff"
+source_sha: "5c5748c4374a"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -197,7 +197,7 @@ sich bezieht, nie eine Kennung.
 | Modell | Das Modellprofil wechseln |
 | Modelleinstellungen | Temperatur, Top-p, maximale Tokens, Timeout oder parallele Tool-Aufrufe setzen |
 | Schrittlimit | `max_steps` setzen |
-| Capabilities | Eine hinzufügen oder entfernen oder ihre Einstellungen ändern - nur dort, wo die Einstellungen allein die Qualität betreffen, etwa wie viel Wissen abgerufen oder wann kompaktiert wird; Einstellungen, die eine URL, eine Domain, eine Verbindung, einen Anbieter oder personenbezogene Daten erreichen, ändern sich nie, und Subagents werden nie hinzugefügt oder umkonfiguriert. Eine Schutzmaßnahme - Guardrails - lässt sich nur hinzufügen: nie entfernen oder umkonfigurieren, gleich, wie der Vorschlag sie nennt |
+| Capabilities | Eine hinzufügen oder entfernen oder ihre Einstellungen ändern - nur dort, wo die Einstellungen allein die Qualität betreffen, etwa wie viel Wissen abgerufen oder wann kompaktiert wird; Einstellungen, die eine URL, eine Domain, eine Verbindung, einen Anbieter oder personenbezogene Daten erreichen, ändern sich nie, und Subagents werden nie hinzugefügt oder umkonfiguriert. Eine Capability, deren Tools über das Deployment hinausreichen - ins Web, in einen Browser oder auf einen Desktop, in einen Messaging-Kanal oder ans Telefon, zu einem eingebundenen Dienst, in eine Sandbox, in einen Workflow oder zu einem anderen Agent -, wird nie hinzugefügt. Eine Schutzmaßnahme - Guardrails - lässt sich nur hinzufügen: nie entfernen oder umkonfigurieren, gleich, wie der Vorschlag sie nennt |
 | Freigabe | Eine Capability oder eines ihrer Tools zuerst fragen lassen |
 | Spezialisten | Die Beschreibung eines eingebetteten [Spezialisten](reference/capabilities.md#delegation) umschreiben |
 | Wissensbasen | Eine binden oder lösen |
@@ -236,6 +236,16 @@ hinzufügt. Er erweitert nie, was ohne einen Menschen läuft:
   **Annehmen** abgelehnt. Die Karte zeigt die ganze Bindung, die er schreibt,
   und schreibt jedes Zeichen aus, das nichts zeichnet oder den Text darum
   umordnet, etwa `\u{202E}`.
+- Eine Capability, deren Tools über das Deployment hinausreichen, wird nie
+  hinzugefügt: Sie steht unter **weitere Ideen, die der Assistent nicht
+  hinzugefügt hat**, zum Hinzufügen im Builder, wo ihre Grenzen festgelegt
+  werden.
+- Eine Capability wieder hinzuzufügen, die die veröffentlichte Version bindet
+  und der Entwurf nicht mehr, gilt als Änderung gegenüber der veröffentlichten
+  Bindung: Eine ausgeschaltete Bindung wird nicht wieder eingeschaltet, ihre
+  Einstellungen ändern sich nur dort, wo sie allein die Qualität
+  betreffen, die einer Schutzmaßnahme nie, und keines ihrer Tools fragt seltener
+  um Freigabe als zuvor.
 
 Einen Vorschlag, der eine Wissensbasis, eine Context-Datei, ein Modellprofil
 oder einen MCP-Server bindet oder den Agent mehr MCP-Tools aufrufen lässt, nimmt

@@ -5,7 +5,7 @@ from decimal import Decimal
 from typing import Literal
 from uuid import UUID
 
-from pydantic import Field, model_validator
+from pydantic import ConfigDict, Field, model_validator
 
 from app.db.models.improvement import (
     DroppedHunk,
@@ -641,7 +641,10 @@ class ImprovementSelection(BaseSchema):
 
 class ChangeEdit(BaseSchema):
     """A person's edit of one proposed change's text while the session waits at Changes;
-    null puts back the text that was proposed."""
+    null puts back the text that was proposed. Kept exactly as typed: whitespace at either
+    end is part of the passage."""
+
+    model_config = ConfigDict(str_strip_whitespace=False)
 
     edited_text: str | None = Field(max_length=20000)
 

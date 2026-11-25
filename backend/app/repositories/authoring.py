@@ -340,6 +340,23 @@ async def update_batch(
     return batch
 
 
+async def append_check_run(
+    db: AsyncSession, *, organization_id: UUID, batch: SpecProposalBatch, run_id: UUID
+) -> SpecProposalBatch:
+    """Add a check's eval run to a batch in one statement, so checks started together all land."""
+    await db.execute(
+        update(SpecProposalBatch)
+        .where(
+            SpecProposalBatch.id == batch.id,
+            SpecProposalBatch.organization_id == organization_id,
+        )
+        .values(check_eval_run_ids=func.array_append(SpecProposalBatch.check_eval_run_ids, run_id))
+    )
+    await db.flush()
+    await db.refresh(batch)
+    return batch
+
+
 async def close_batch(
     db: AsyncSession, *, batch: SpecProposalBatch, status: BatchStatus
 ) -> SpecProposalBatch:
