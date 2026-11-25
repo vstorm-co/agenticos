@@ -382,6 +382,7 @@ async def list_topics(
     skip: int,
     limit: int,
     topic_id: UUID | None = None,
+    topic_ids: Sequence[UUID] | None = None,
 ) -> tuple[list[TopicRow], int]:
     """Topics of these knowledge bases, the most asked first, with how many there are."""
     question_count = func.count(KnowledgeSearch.id)
@@ -429,6 +430,8 @@ async def list_topics(
         grouped = grouped.where(_status() == status)
     if topic_id is not None:
         grouped = grouped.where(KnowledgeGapTopic.id == topic_id)
+    if topic_ids is not None:
+        grouped = grouped.where(KnowledgeGapTopic.id.in_(list(topic_ids)))
     total = (await db.execute(select(func.count()).select_from(grouped.subquery()))).scalar_one()
     result = await db.execute(
         grouped.order_by(question_count.desc(), last_asked_at.desc(), KnowledgeGapTopic.id)

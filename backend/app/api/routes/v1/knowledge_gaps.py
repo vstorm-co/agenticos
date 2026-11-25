@@ -92,9 +92,17 @@ async def list_agent_gaps(
     topic_status: TopicStatusLiteral | None = Query(None, alias="status"),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
+    topic_ids: list[UUID] | None = Query(
+        None,
+        alias="topic_id",
+        max_length=100,
+        description="Only these topics; repeat the parameter for each",
+    ),
 ) -> Any:
     """What one agent searched for and did not find, in the knowledge bases the caller reads."""
-    return await service.list_for_agent(ctx, agent_id, status=topic_status, skip=skip, limit=limit)
+    return await service.list_for_agent(
+        ctx, agent_id, status=topic_status, skip=skip, limit=limit, topic_ids=topic_ids
+    )
 
 
 @router.get("/{topic_id}", response_model=KnowledgeGapTopicDetail)

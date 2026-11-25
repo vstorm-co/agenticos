@@ -817,6 +817,24 @@ async def test_an_agents_gaps_hold_only_its_own_questions(db) -> None:
     assert [t.question_count for t in theirs.items] == [1]
 
 
+async def test_an_agents_gaps_read_by_their_ids_past_the_first_page(db) -> None:
+    """A caller holding topic ids reads those topics wherever they fall in the list."""
+    ctx = await _owner(db)
+    kb, agent, parking = await _a_topic(db, ctx)
+    run, _ = await _turn(db, ctx, agent, question="Is there wifi?")
+    await _searched(db, ctx, run, kb, query="wifi password")
+    with _embedding():
+        await _group(db, ctx, kb)
+    [wifi] = [topic for topic in await _topics(db, kb) if topic != parking]
+    service = KnowledgeGapService(db)
+
+    first = await service.list_for_agent(ctx, agent.id, limit=1)
+    asked = await service.list_for_agent(ctx, agent.id, limit=1, topic_ids=[wifi, uuid.uuid4()])
+
+    assert [t.id for t in first.items] == [parking]
+    assert ([t.id for t in asked.items], asked.total) == ([wifi], 1)
+
+
 async def test_another_organizations_topic_and_knowledge_base_read_as_missing(db) -> None:
     ours = await _owner(db)
     theirs = await _owner(db)
