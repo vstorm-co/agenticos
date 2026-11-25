@@ -1,5 +1,5 @@
 ---
-source_sha: "9450e4fc0678"
+source_sha: "14cefa66f5c8"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las herramientas, la configuración, los skills y los archivos de contexto de un agent. Una persona decide cada uno."
 ---
@@ -456,7 +456,7 @@ Una línea sobre los pasos da el estado de la sesión - **Working** mientras un 
 
 Un paso se abre cuando tiene trabajo que mostrar o una decisión que pedir. La página sigue el paso en el que está la sesión y, tras abrir otro, **Go to the current step** vuelve a él. En una parada, el pie lleva el siguiente paso con su precio, por ejemplo **Next step: write the changes · about $0.04**; nada se gasta antes de pulsarlo. Si el precio cambió desde que se mostró, el pie lo dice - **The price changed to about $0.05. Press again to go on.** - y, cuando el paso cuesta más de lo que le queda a la sesión, permite subir su límite allí mismo.
 
-**Inicio.** Improve abre un diálogo sobre el Agent Builder. Elige el dataset en el formulario principal; el conjunto de pruebas propio del agent aparece seleccionado cuando existe. Los contadores de feedback resumen las evidencias. Si no hay un conjunto adecuado, **Write test questions for me** estima primero crear preguntas a partir de respuestas valoradas y temas sin ejemplos, antes de escribir nada.
+**Inicio.** Improve abre un diálogo sobre el Agent Builder. Elige el dataset en el formulario principal; el conjunto de pruebas propio del agent aparece seleccionado cuando existe. Los contadores de feedback resumen las evidencias. Si no hay un conjunto adecuado, **Write test questions for me** estima primero crear preguntas a partir de respuestas valoradas y temas sin ejemplos, antes de escribir nada. Cuando el dataset tiene orientaciones para el ayudante de mejora, el diálogo las muestra con quién las cambió por última vez: un miembro por su nombre, y quien se fue como antiguo miembro.
 
 El coste del análisis y el límite de gasto de toda la sesión aparecen antes de **Start improving**. Cada paso posterior tiene su propia estimación y espera tu decisión. **Show details** contiene el límite de gasto, la distribución de preguntas, la prueba actual y un enlace a los ajustes del ayudante en el dataset. La sesión en curso abre su propia página después de iniciarla. Cerrar la configuración vuelve al agent; los enlaces existentes `/improve/new` abren el mismo diálogo.
 

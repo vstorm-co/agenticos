@@ -96,6 +96,7 @@ logger = logging.getLogger(__name__)
 from app.services.improvement_data import case_partition
 
 MAX_CASES = MAX_EXPORT_ROWS
+_HELPER_AUTHORSHIP = {"instructions_updated_by", "instructions_updated_at"}
 _MAX_REPLY_STEPS = 50
 _MAX_EXPECTED_CALLS = 50
 
@@ -628,11 +629,19 @@ class DatasetService:
                     ("improver", data.helper_settings.improver, kept.improver),
                 ):
                     if name in data.helper_settings.model_fields_set:
-                        setattr(
-                            kept,
-                            name,
-                            current.model_copy(update=helper.model_dump(exclude_unset=True)),
-                        )
+                        changes = helper.model_dump(exclude_unset=True, exclude=_HELPER_AUTHORSHIP)
+                        merged = current.model_copy(update=changes)
+                        if (
+                            "instructions" in changes
+                            and changes["instructions"] != current.instructions
+                        ):
+                            merged = merged.model_copy(
+                                update={
+                                    "instructions_updated_by": ctx.subject_id,
+                                    "instructions_updated_at": datetime.now(UTC),
+                                }
+                            )
+                        setattr(kept, name, merged)
             update_data["helper_settings"] = kept.model_dump(mode="json")
         if data.helper_settings is not None:
             for name, helper in (

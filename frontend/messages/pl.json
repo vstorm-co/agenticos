@@ -17508,6 +17508,12 @@
     "startDataset": "Dataset",
     "startDatasetHint": "Wybierz przypadki, na których sprawdzimy odpowiedzi agenta.",
     "analysisEstimate": "Szacowany koszt analizy",
+    "guidance": {
+      "title": "Wskazówki datasetu dla pomocnika",
+      "hint": "Pomocnik czyta je pod regułami platformy, które obowiązują zawsze. Napisał je ktoś, kto edytuje ten dataset.",
+      "changed": "{who, select, named {Ostatnio zmienił(a): {name}.} former {Ostatnio zmienił były członek.} other {}}",
+      "changedOn": "{who, select, named {Ostatnio zmienił(a): {name}, {date}.} former {Ostatnio zmienił były członek, {date}.} other {Ostatnia zmiana: {date}.}}"
+    },
     "startCostHint": "Najpierw analiza. Każda kolejna próba ma osobną wycenę, około {cost}, w ramach limitu sesji.",
     "comparisonInvalid": "Tych wyników nie można porównać. Sprawdź poszczególne odpowiedzi bez uznawania różnic za poprawę lub regresję.",
     "skills": {

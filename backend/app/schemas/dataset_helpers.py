@@ -1,5 +1,6 @@
 """Dataset-owned configuration for the platform's evaluation pipelines."""
 
+from datetime import datetime
 from typing import Annotated
 from uuid import UUID
 
@@ -13,10 +14,16 @@ type PipelineInstructions = Annotated[
 
 
 class DatasetHelper(BaseSchema):
-    """A model and instructions; null inherits the tested model or code instructions."""
+    """A model and the dataset's guidance, added below the platform's rules for the helper.
+
+    Null inherits the tested model, or adds no guidance. Who last changed the
+    guidance and when is recorded by the server; a value sent for either is ignored.
+    """
 
     model_profile_id: UUID | None = None
     instructions: PipelineInstructions | None = None
+    instructions_updated_by: UUID | None = None
+    instructions_updated_at: datetime | None = None
 
 
 class DatasetHelpers(BaseSchema):
@@ -27,7 +34,7 @@ class DatasetHelpers(BaseSchema):
 
 
 class DatasetHelperDefaults(BaseSchema):
-    """The code-defined instructions shown before a dataset overrides them."""
+    """The platform's rules for each helper, which a dataset's guidance is added below."""
 
     judge: str
     generator: str

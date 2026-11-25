@@ -1152,3 +1152,106 @@ async def test_criterion_metadata_in_read_and_list_keeps_dataset_and_skill_acces
         "criteria"
         not in (await service.read(ctx, agent.id, started.id)).iterations[0].verdict_detail
     )
+
+
+async def _guided(db: AsyncSession, author: AuthContext, dataset_id: UUID) -> None:
+    from app.schemas.dataset import DatasetUpdate
+    from app.schemas.dataset_helpers import DatasetHelper, DatasetHelpers
+    from app.services.dataset import DatasetService
+
+    await DatasetService(db).update(
+        author,
+        dataset_id,
+        DatasetUpdate(
+            helper_settings=DatasetHelpers(
+                improver=DatasetHelper(instructions="Prefer the shortest correct answer.")
+            )
+        ),
+    )
+
+
+@pytest.mark.security
+class TestTheStartShowsTheDatasetsGuidance:
+    async def test_it_names_the_member_who_last_changed_it(self, db: AsyncSession):
+        from app.core.permissions import OrgRoleName
+        from app.db.models.user import User
+        from tests.integration.test_eval_suites import _member
+
+        ctx, agent, _run = await _setup(db)
+        dataset = await _dataset(db, ctx, cases=5)
+        author = await _member(db, ctx, OrgRoleName.ADMIN)
+        await db.execute(
+            update(User).where(User.id == author.user_id).values(full_name="Ada Lovelace")
+        )
+        await _guided(db, author, dataset.id)
+
+        estimate = await ImprovementPipelineService(db).estimate(
+            ctx, agent.id, ImprovementTarget(dataset_id=dataset.id, max_iterations=1)
+        )
+
+        assert estimate.guidance is not None
+        assert estimate.guidance.text == "Prefer the shortest correct answer."
+        assert estimate.guidance.updated_by_name == "Ada Lovelace"
+        assert estimate.guidance.updated_at is not None
+        assert not estimate.guidance.updated_by_former_member
+
+    async def test_a_member_who_left_is_a_former_member_and_not_named(self, db: AsyncSession):
+        from app.core.permissions import OrgRoleName
+        from tests.integration.test_eval_suites import _member
+
+        ctx, agent, _run = await _setup(db)
+        dataset = await _dataset(db, ctx, cases=5)
+        author = await _member(db, ctx, OrgRoleName.ADMIN)
+        await _guided(db, author, dataset.id)
+        await db.execute(
+            delete(OrganizationMember).where(OrganizationMember.user_id == author.user_id)
+        )
+
+        estimate = await ImprovementPipelineService(db).estimate(
+            ctx, agent.id, ImprovementTarget(dataset_id=dataset.id, max_iterations=1)
+        )
+
+        assert estimate.guidance is not None
+        assert estimate.guidance.updated_by_name is None
+        assert estimate.guidance.updated_by_former_member
+
+    async def test_somebody_from_another_organization_is_never_named(self, db: AsyncSession):
+        from app.db.models.dataset import Dataset
+        from app.db.models.user import User
+
+        ctx, agent, _run = await _setup(db)
+        dataset = await _dataset(db, ctx, cases=5)
+        elsewhere = await _owner(db)
+        await db.execute(
+            update(User).where(User.id == elsewhere.user_id).values(full_name="Outside Person")
+        )
+        await db.execute(
+            update(Dataset)
+            .where(Dataset.id == dataset.id)
+            .values(
+                helper_settings={
+                    "improver": {
+                        "instructions": "Prefer the shortest correct answer.",
+                        "instructions_updated_by": str(elsewhere.user_id),
+                    }
+                }
+            )
+        )
+
+        estimate = await ImprovementPipelineService(db).estimate(
+            ctx, agent.id, ImprovementTarget(dataset_id=dataset.id, max_iterations=1)
+        )
+
+        assert estimate.guidance is not None
+        assert estimate.guidance.updated_by_name is None
+        assert estimate.guidance.updated_by_former_member
+
+    async def test_a_dataset_without_guidance_shows_none(self, db: AsyncSession):
+        ctx, agent, _run = await _setup(db)
+        dataset = await _dataset(db, ctx, cases=5)
+
+        estimate = await ImprovementPipelineService(db).estimate(
+            ctx, agent.id, ImprovementTarget(dataset_id=dataset.id, max_iterations=1)
+        )
+
+        assert estimate.guidance is None
