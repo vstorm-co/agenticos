@@ -1,5 +1,5 @@
 ---
-source_sha: "2971c06097fa"
+source_sha: "c39334e82c1d"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -141,8 +141,10 @@ oba. Sprawdza to `POST /datasets/{id}/cases/twins`, z pytaniem w treści żądan
 **Import** czyta plik `.csv` albo `.jsonl` i dodaje wszystkie przypadki z niego
 jako jedną nową wersję. Import jest typu „wszystko albo nic”: jeśli jeden
 wiersz jest błędny, nie zostaje dodany żaden, a odmowa wymienia każdy błędny
-wiersz, żebyś mógł poprawić plik i spróbować ponownie. Plik ma najwyżej 10 MB,
-a dataset mieści najwyżej 10 000 przypadków. W konsoli **Import** najpierw
+wiersz, żebyś mógł poprawić plik i spróbować ponownie. Plik ma najwyżej 10 MB
+i 10 000 wierszy (`DATASET_IMPORT_MAX_BYTES`, `DATASET_IMPORT_MAX_ROWS`), a
+dataset mieści najwyżej 10 000 przypadków. Wartość zagnieżdżona zbyt głęboko,
+by ją odczytać, odrzuca swój wiersz. W konsoli **Import** najpierw
 wymienia kolumny i proponuje **Pobierz szablon** - plik CSV z każdą kolumną i
 jednym przypadkiem, który importuje się bez zmian; **Wybierz plik** otwiera
 wybór pliku.

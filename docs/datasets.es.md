@@ -1,5 +1,5 @@
 ---
-source_sha: "2971c06097fa"
+source_sha: "c39334e82c1d"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -141,8 +141,10 @@ los registros de acceso.
 **Importar** lee un archivo `.csv` o `.jsonl` y añade todos sus casos como una
 única versión nueva. La importación es todo o nada: si una fila no es válida, no
 se añade ninguna, y el rechazo nombra cada fila no válida para que puedas
-corregir el archivo y volver a intentarlo. Un archivo tiene como máximo 10 MB, y
-un dataset guarda como máximo 10.000 casos. En la consola, **Importar** primero
+corregir el archivo y volver a intentarlo. Un archivo tiene como máximo 10 MB y
+10.000 filas (`DATASET_IMPORT_MAX_BYTES`, `DATASET_IMPORT_MAX_ROWS`), y un
+dataset guarda como máximo 10.000 casos. Un valor anidado demasiado para leerlo
+rechaza su fila. En la consola, **Importar** primero
 enumera las columnas y ofrece **Download a template**, un CSV con todas las
 columnas y un caso que se importa tal cual; **Choose file** abre el selector de
 archivos.

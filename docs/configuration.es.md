@@ -1,5 +1,5 @@
 ---
-source_sha: "b67c12b7a802"
+source_sha: "59bd87468e64"
 ---
 
 # Configuración { #configuration }
@@ -948,6 +948,8 @@ Los casos de prueba sobre los que corren los evals. Consulta [Datasets](datasets
 | Variable | Por defecto | Descripción |
 | --- | --- | --- |
 | `DATASET_MAX_VERSION_ROWS_PER_ORG` | `5000000` | Cuántas revisiones de casos pueden guardar juntos los datasets de una organización. Cada caso añadido y cada edición es una revisión, guardada para las versiones que la contienen; una versión guarda solo lo que cambió, así que un dataset de 10.000 casos editado 500 veces guarda 10.500, no 5 millones. Añadir o editar por encima del límite se rechaza indicando cuántas hay guardadas; quitar un caso no guarda nada y siempre está permitido, y borrar los datasets que nadie necesita libera sus revisiones. El nombre es anterior a este significado: contaba cada caso de cada versión mientras las versiones copiaban sus casos. El límite es aproximado: cada cambio se comprueba por separado, así que cambios simultáneos en datasets distintos pueden superarlo un poco. Protege el almacenamiento; no sirve para facturar |
+| `DATASET_IMPORT_MAX_BYTES` | `10485760` | El archivo más grande que lee una importación de dataset (10 MB). Un archivo mayor se lee solo un byte más allá del límite y se rechaza por demasiado grande, nombrando el campo del archivo; divídelo en varias importaciones |
+| `DATASET_IMPORT_MAX_ROWS` | `10000` | Cuántas filas puede tener una importación de dataset. El archivo se lee fila a fila y se rechaza en la primera fila que supera el límite, así que un archivo de muchas filas pequeñas no cuesta más que uno en el límite. El techo propio de un dataset, 10.000 casos, sigue aplicándose a lo que añade una importación |
 
 ## Workspaces de los agents { #agent-workspaces }
 

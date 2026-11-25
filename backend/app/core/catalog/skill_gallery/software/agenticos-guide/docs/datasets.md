@@ -135,7 +135,9 @@ access logs.
 **Import** reads a `.csv` or a `.jsonl` file and adds every case in it as one
 new version. The import is all or nothing: if one row is invalid, no row is
 added, and the refusal names each invalid row so you can fix the file and try
-again. A file is at most 10 MB, and a dataset holds at most 10,000 cases.
+again. A file is at most 10 MB and 10,000 rows (`DATASET_IMPORT_MAX_BYTES`,
+`DATASET_IMPORT_MAX_ROWS`), and a dataset holds at most 10,000 cases. A value
+nested too deeply to read refuses its row.
 In the console, **Import** first lists the columns and offers **Download a
 template**, a CSV with every column and one case that imports as it is;
 **Choose file** opens the file picker.
