@@ -1,5 +1,5 @@
 ---
-source_sha: "05c37312ff1d"
+source_sha: "4a21e67c33ea"
 ---
 
 # Skille { #skills }
@@ -343,6 +343,14 @@ startem, ze wskazaniem datasetu, do którego trzeba dodać inne pytania.
   runy oceniły każdą odpowiedź na mniejszej liczbie odłożonych pytań, niż
   potrzeba do wyniku: jego wiersz mówi, ile wypadło lepiej i gorzej, i że to za
   mało, by mieć pewność.
+- Agent, którego własne pytania się nie zakończyły - ich run się nie powiódł albo
+  został zatrzymany, został odrzucony, albo sprawdzenie wygasło - po tym, jak
+  pytania skilla potwierdziły regresję, zostaje **gorszy**: zmianę nadal trzeba
+  przypiąć albo obejść forkiem. Agent, u którego pytania skilla nie potwierdziły
+  regresji, jest **nieznany**: jego wiersz mówi, że własne pytania się nie
+  zakończyły, a pytania skilla nie potwierdziły regresji - albo, gdy nie mogły
+  wystartować, dlaczego - a szczegóły zachowują wynik pytań skilla, więc
+  potwierdzenie go to decyzja podjęta na połowie sprawdzenia.
 
 Sprawdzenie, w którym nie da się sprawdzić żadnego agenta, i tak startuje i od
 razu się kończy, ze wszystkimi agentami nieznanymi, do potwierdzenia przez osobę. Okno mówi to przed startem i proponuje pytania testowe skilla albo ocenianie, którego brakuje jego pytaniom.

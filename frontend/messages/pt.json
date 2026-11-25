@@ -18536,7 +18536,8 @@
         "all_evidence": "Não verificado: todas as perguntas vieram das conversas a partir das quais a mudança foi aprendida.",
         "cancelled": "Não verificado: a verificação foi interrompida antes de as execuções terminarem.",
         "own_not_asked": "Não verificado: as perguntas próprias dele não foram feitas, e agora elas decidem o resultado.",
-        "too_few_questions": "Perguntas de teste insuficientes para verificar a mudança. {heldOut} perguntas foram verificadas."
+        "too_few_questions": "Perguntas de teste insuficientes para verificar a mudança. {heldOut} perguntas foram verificadas.",
+        "unfinished": "As suas próprias perguntas não terminaram. As perguntas do skill não confirmaram uma regressão, o que por si só não mostra que a alteração é segura para ele."
       },
       "skillSetOnly": "Verificado apenas nas perguntas da própria skill: não havia nenhuma própria no ponto em que ela era carregada.",
       "stage": {

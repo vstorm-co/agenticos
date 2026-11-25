@@ -329,6 +329,14 @@ the dataset to add other questions to.
   **unknown**, and a person acknowledges it before applying. So is one whose runs
   graded every answer on fewer held-out questions than a result needs: its row
   says how many came out better and worse, and that they are too few to be sure.
+- An agent whose own questions did not finish - their run failed or was
+  stopped, was refused, or the check expired - after the skill's questions
+  confirmed a regression stays **worse**: the change still has to be pinned or
+  forked around it. One the skill's questions did not confirm a regression on is
+  **unknown**: its row says its own questions did not finish and that the skill's
+  did not confirm a regression - or, when they could not start, why - and its details
+  keep what the skill's questions came to, so acknowledging it is a decision made
+  on half a check.
 
 A check where no agent can be checked still starts, and finishes at once with
 every agent unknown, for a person to acknowledge. The dialog says so before the

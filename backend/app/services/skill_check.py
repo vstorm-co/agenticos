@@ -968,15 +968,7 @@ class SkillCheckService:
                 else (isinstance(refused, BadRequestError) and _skipped(refused))
                 or UnknownReason.FAILED
             )
-            await skill_check_repo.update_agent(
-                self.db,
-                row=row,
-                values={
-                    "state": AgentState.UNKNOWN.value,
-                    "unknown_reason": reason.value,
-                    "verdict_version": SKILL_CHECK_VERDICT_VERSION,
-                },
-            )
+            await self._end_unjudged(ctx, check, row, reason)
             return
         column = "skill_set_run_id" if stage.kind == "skill_set" else "dataset_run_id"
         await skill_check_repo.update_agent(
@@ -994,9 +986,6 @@ class SkillCheckService:
         )
         if check is None or check.status != CheckStatus.RUNNING.value:
             return
-        if check.created_at < datetime.now(UTC) - STALE_AFTER:
-            await self._expire(check)
-            return
         try:
             ctx = await job_context(
                 self.db,
@@ -1007,6 +996,9 @@ class SkillCheckService:
         except AuthenticationError:
             # Started with a key revoked or expired since: no further stage runs on it.
             ctx = None
+        if check.created_at < datetime.now(UTC) - STALE_AFTER:
+            await self._expire(check, ctx)
+            return
         rows = await skill_check_repo.list_agents(
             self.db, [check.id], organization_id=organization_id
         )
@@ -1025,9 +1017,9 @@ class SkillCheckService:
         self, ctx: AuthContext, check: SkillCheck, row: SkillCheckAgent
     ) -> None:
         if row.dataset_version is not None and row.dataset_id is None:
-            # The agent's own dataset was deleted: a verdict from the skill's questions
-            # alone would pass for the check that was planned.
-            await self._unknown(row, UnknownReason.FAILED)
+            # The agent's own dataset was deleted: only a regression the skill's
+            # questions already confirmed is a verdict for the check that was planned.
+            await self._end_unjudged(ctx, check, row, UnknownReason.FAILED)
             return
         current = row.dataset_run_id or row.skill_set_run_id
         run = (
@@ -1037,12 +1029,12 @@ class SkillCheckService:
         )
         if current is None or run is None:
             # Deleting a dataset deletes its eval runs, so the stage has nothing to show.
-            await self._unknown(row, UnknownReason.FAILED)
+            await self._end_unjudged(ctx, check, row, UnknownReason.FAILED)
             return
         if EvalRunStatus(run.status) not in _SETTLED_RUNS:
             return
         if run.status != EvalRunStatus.COMPLETED.value:
-            await self._unknown(row, UnknownReason.FAILED)
+            await self._end_unjudged(ctx, check, row, UnknownReason.FAILED)
             return
         try:
             await self._carry_on(ctx, check, row, current)
@@ -1086,10 +1078,25 @@ class SkillCheckService:
             is AgentState.WORSE
         )
 
-    async def _judge(self, ctx: AuthContext, check: SkillCheck, row: SkillCheckAgent) -> None:
+    async def _judge(
+        self,
+        ctx: AuthContext,
+        check: SkillCheck,
+        row: SkillCheckAgent,
+        *,
+        unfinished: UnknownReason | None = None,
+    ) -> None:
         """An agent's result from every stage it ran, their held-out questions pooled, and
-        what each stage's questions came to on its own."""
-        runs: list[tuple[StageKind, UUID]] = [
+        what each stage's questions came to on its own.
+
+        Only stages whose run completed are judged. When a planned stage did not
+        finish - `unfinished` says why, or its run says it did not complete, or the
+        agent's own questions were planned and never asked - a regression the
+        finished stages confirmed still makes the agent worse; any other result
+        leaves it unknown, with what the finished stages counted. Read from the row
+        and its runs, so judging it again gives the same answer.
+        """
+        planned: list[tuple[StageKind, UUID]] = [
             (kind, run_id)
             for kind, run_id in (
                 ("skill_set", row.skill_set_run_id),
@@ -1097,6 +1104,12 @@ class SkillCheckService:
             )
             if run_id is not None
         ]
+        runs = [(kind, run_id) for kind, run_id in planned if await self._completed(ctx, run_id)]
+        if unfinished is None and (len(runs) < len(planned) or _own_unasked(row)):
+            unfinished = _unfinished_reason(row)
+        if not runs:
+            await self._unknown(row, unfinished or UnknownReason.FAILED)
+            return
         compared = [
             (kind, run_id, await self.evals.compare(ctx, run_id, holdout_minimum=False))
             for kind, run_id in runs
@@ -1121,6 +1134,8 @@ class SkillCheckService:
             # Its own questions were left for the regression the skill's showed; without
             # it they are what would decide the agent, and nothing asks them by itself.
             state, reason = AgentState.UNKNOWN, UnknownReason.OWN_NOT_ASKED
+        elif unfinished is not None and state is not AgentState.WORSE:
+            state, reason = AgentState.UNKNOWN, unfinished
         await skill_check_repo.update_agent(
             self.db,
             row=row,
@@ -1160,6 +1175,20 @@ class SkillCheckService:
             "eval_run_id": str(run_id),
             **counts.model_dump(),
         }
+
+    async def _completed(self, ctx: AuthContext, run_id: UUID) -> bool:
+        run = await eval_run_repo.get(self.db, run_id, organization_id=ctx.organization_id)
+        return run is not None and run.status == EvalRunStatus.COMPLETED.value
+
+    async def _end_unjudged(
+        self, ctx: AuthContext, check: SkillCheck, row: SkillCheckAgent, reason: UnknownReason
+    ) -> None:
+        """End an agent whose stage did not finish on the stages that did, as `_judge`
+        does, or unknown when the check's starter may not read them."""
+        try:
+            await self._judge(ctx, check, row, unfinished=reason)
+        except AuthorizationError, NotFoundError:
+            await self._unknown(row, UnknownReason.NO_ACCESS)
 
     async def _unknown(self, row: SkillCheckAgent, reason: UnknownReason) -> None:
         await skill_check_repo.update_agent(
@@ -1216,12 +1245,13 @@ class SkillCheckService:
             )
         return len(found)
 
-    async def _expire(self, check: SkillCheck) -> None:
-        """End a check whose agents never settled: their runs are stopped, the agents are
-        unknown, and the check is decided on.
+    async def _expire(self, check: SkillCheck, ctx: AuthContext | None) -> None:
+        """End a check whose agents never settled: their runs are stopped, each agent is
+        judged on the stages it finished, and the check is decided on.
 
         The platform ends its own runs here, so whether the starter may still read or
-        stop them does not matter - a check stuck on that is the loop expiry ends.
+        stop them does not matter - a check stuck on that is the loop expiry ends. A
+        starter who may no longer act leaves every unsettled agent unknown.
         """
         unsettled = [
             row
@@ -1232,7 +1262,10 @@ class SkillCheckService:
         ]
         await self._end_runs(check, unsettled, now=datetime.now(UTC))
         for row in unsettled:
-            await self._unknown(row, UnknownReason.FAILED)
+            if ctx is None:
+                await self._unknown(row, UnknownReason.FAILED)
+            else:
+                await self._end_unjudged(ctx, check, row, UnknownReason.FAILED)
         await self._settle(check)
 
     async def _end_runs(
@@ -2521,16 +2554,47 @@ def _skipped(refused: BadRequestError) -> UnknownReason | None:
     return _SKIPPED_FOR.get(str((refused.details or {}).get("reason")))
 
 
+def _own_unasked(row: SkillCheckAgent) -> bool:
+    """Whether the agent's own questions were planned after the skill's and never asked,
+    other than by a quick check that stopped at the skill's regression.
+
+    A thorough check plans the dataset without a version, so the dataset's id says it
+    was planned as much as a version does.
+    """
+    return (
+        row.skill_set_run_id is not None
+        and (row.dataset_id is not None or row.dataset_version is not None)
+        and row.dataset_run_id is None
+        and row.sample != SampleKind.OWN_NOT_ASKED.value
+    )
+
+
+_MEASURED = frozenset(
+    {UnknownReason.INCONCLUSIVE, UnknownReason.TOO_FEW_QUESTIONS, UnknownReason.OWN_NOT_ASKED}
+)
+"""Reasons a check reaches from the stages it measured, rather than a stage left unfinished."""
+
+
+def _unfinished_reason(row: SkillCheckAgent) -> UnknownReason:
+    """Why a stage of this row did not finish, as judging it the first time recorded it.
+
+    A row already unknown for an unfinished stage keeps that reason when judged again;
+    one judged worse kept none, and reads as failed.
+    """
+    if row.state == AgentState.UNKNOWN.value and row.unknown_reason is not None:
+        return UnknownReason(row.unknown_reason)
+    return UnknownReason.FAILED
+
+
 def _rejudged(row: SkillCheckAgent, eval_run_ids: Collection[UUID]) -> bool:
     """Whether a verdict on one of these runs changes what this agent's row says."""
     if not {row.skill_set_run_id, row.dataset_run_id} & set(eval_run_ids):
         return False
     state = AgentState(row.state)
     if state is AgentState.UNKNOWN:
-        return row.unknown_reason in (
-            UnknownReason.INCONCLUSIVE.value,
-            UnknownReason.TOO_FEW_QUESTIONS.value,
-            UnknownReason.OWN_NOT_ASKED.value,
+        # A stage the row was judged on is stored with its counts; one ended unjudged has none.
+        return bool(row.stages) or (
+            row.unknown_reason is not None and UnknownReason(row.unknown_reason) in _MEASURED
         )
     return state.settled
 
