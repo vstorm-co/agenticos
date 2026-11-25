@@ -525,17 +525,17 @@ TEST_DB_START :=
 TEST_DB_ENV :=
 endif
 
+.PHONY: ci-test-db-diagnostics
+
 # Only the workflow's ephemeral service container may use reduced durability.
 ci-test-db-configure:
 	@test "$(CI)" = true && test -n "$(POSTGRES_CONTAINER)"
 	# Parallel workers each run whole migration chains in one transaction and hold a
 	# lock per table and index; Postgres's default of 64 locks per transaction ran the
 	# shared lock table out ("out of shared memory", #232). The setting only applies at
-	# server start, and a service container takes no server flags and keeps its data on
-	# tmpfs, which a restart wipes - so an init script writes it into the fresh cluster.
-	printf '%s\n' '#!/bin/sh' 'echo "max_locks_per_transaction = 256" >> "$$PGDATA/postgresql.conf"' > "$${RUNNER_TEMP:-/tmp}/10-max-locks.sh"
-	chmod 0755 "$${RUNNER_TEMP:-/tmp}/10-max-locks.sh"
-	docker cp "$${RUNNER_TEMP:-/tmp}/10-max-locks.sh" "$(POSTGRES_CONTAINER):/docker-entrypoint-initdb.d/10-max-locks.sh"
+	# server start. Docker's disposable disk-backed volume preserves ALTER SYSTEM's
+	# configuration across this restart; entrypoint init scripts would not run again.
+	docker exec "$(POSTGRES_CONTAINER)" psql -U postgres -v ON_ERROR_STOP=1 -c 'ALTER SYSTEM SET max_locks_per_transaction = 256'
 	docker restart "$(POSTGRES_CONTAINER)"
 	@# TCP, not the socket: during init the entrypoint's temporary server listens on the socket only.
 	@for i in $$(seq 60); do docker exec "$(POSTGRES_CONTAINER)" pg_isready -q -h 127.0.0.1 -U postgres && exit 0; sleep 1; done; echo "Postgres did not come back after the restart" >&2; exit 1
@@ -545,6 +545,11 @@ ci-test-db-configure:
 	docker exec "$(POSTGRES_CONTAINER)" psql -U postgres -c 'SELECT pg_reload_conf()'
 	docker exec "$(POSTGRES_CONTAINER)" psql -U postgres -c 'SHOW fsync' -c 'SHOW synchronous_commit' -c 'SHOW full_page_writes' -c 'SHOW max_locks_per_transaction'
 	@test "$$(docker exec "$(POSTGRES_CONTAINER)" psql -U postgres -tAc 'SHOW max_locks_per_transaction')" = 256
+	$(MAKE) --no-print-directory ci-test-db-diagnostics
+
+ci-test-db-diagnostics:
+	@test "$(CI)" = true && test -n "$(POSTGRES_CONTAINER)"
+	bash scripts/ci_test_db_diagnostics.sh "$(POSTGRES_CONTAINER)"
 
 # The pinned ffmpeg build the media-inspection tests run; it writes `$GITHUB_PATH`.
 ci-media-inspector:

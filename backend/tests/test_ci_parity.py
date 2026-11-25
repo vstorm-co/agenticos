@@ -94,6 +94,8 @@ INSTALL_EXEMPT = frozenset(
 CI_ONLY_TARGETS = {
     # This disables durability only on CI's ephemeral database container.
     "ci-test-db-configure",
+    # Bounded storage measurements from the disposable service, including failures.
+    "ci-test-db-diagnostics",
     # Runner provisioning: a pinned ffmpeg onto `$GITHUB_PATH`, and a check that
     # the runner's Chromium exists. A laptop installs its own of both.
     "ci-media-inspector",
