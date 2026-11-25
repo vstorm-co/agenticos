@@ -840,6 +840,7 @@ class TestReading:
         ).all()
         totals = next(case for case in cases if "Total" in json.dumps(case.checks))
         totals.source, totals.source_conversation_id = "conversation", private.id
+        totals.from_conversation = True
         await db.flush()
         member = await _member(db, owner.organization_id)
 

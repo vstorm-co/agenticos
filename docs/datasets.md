@@ -680,7 +680,7 @@ itself something they may not learn. A grant widens access to one dataset and
 never changes a role. See [Permissions](permissions.md) for how scopes and
 grants combine.
 
-A case copied from a conversation keeps its text visible only to readers with `runs:view` or access to that source conversation. Other readers see metadata and a masked placeholder, in the latest and historical versions and in CSV/JSONL exports. A missing source stays masked. The duplicate-question check (`cases/twins`) never matches a masked case, and **Key coverage** leaves out key labels that only masked cases hold. A reader cannot edit masked text; metadata edits do not reveal it. Evals still execute the full stored revision.
+A case copied from a conversation keeps its text visible only to readers with `runs:view` or access to that source conversation. Other readers see metadata and a masked placeholder, in the latest and historical versions and in CSV/JSONL exports. A missing source stays masked, for a copied case and for one generated from a chat. The duplicate-question check (`cases/twins`) never matches a masked case, and **Key coverage** leaves out key labels that only masked cases hold. A reader cannot edit masked text; metadata edits do not reveal it. Evals still execute the full stored revision.
 
 Review answers, reviewer notes and grading evidence need `runs:view` and access to the answering agent. Without either, the outcome and status remain visible but answer text, reasons, rules and quotes are removed. Before Add to dataset copies another person's private conversation, the dialog names its owner and warns that dataset readers who can read runs will see its text.
 

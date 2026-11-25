@@ -212,9 +212,11 @@ async def test_a_masked_case_is_never_a_twin_of_a_guessed_question(db) -> None:
     assert (for_viewer.total, for_viewer.items) == (0, [])
 
 
+@pytest.mark.security
 async def test_cases_from_one_conversation_are_masked_together_and_once_it_is_gone(db) -> None:
     """Cases sharing a conversation are shown or hidden by one access check; nobody, and
-    then everybody once the conversation is deleted, reads a conversation case masked."""
+    then everybody once the conversation is deleted, reads a case from it masked - copied
+    or generated. A case generated from no chat is never masked."""
     owner = await _owner(db)
     as_viewer = replace(owner, role=OrgRoleName.VIEWER)
     service = DatasetService(db)
@@ -227,7 +229,12 @@ async def test_cases_from_one_conversation_are_masked_together_and_once_it_is_go
         content=DatasetCaseContent(input="Can I return a kettle?", reference_answer="Yes."),
         source_conversation_id=answer.conversation_id,
     )
-    await service.add_generated(owner, await service.lock_for_edit(owner, dataset.id), [drafted])
+    plain = GeneratedCase(
+        content=DatasetCaseContent(input="Do you sell kettles?", reference_answer="Yes.")
+    )
+    await service.add_generated(
+        owner, await service.lock_for_edit(owner, dataset.id), [drafted, plain]
+    )
 
     shown = (await service.list_cases(as_viewer, dataset.id)).items
     hidden = await service.case_reads(replace(owner, user_id=None), await _held(db, dataset.id))
@@ -237,12 +244,20 @@ async def test_cases_from_one_conversation_are_masked_together_and_once_it_is_go
         for read in await service.case_reads(as_viewer, await _held(db, dataset.id))
     }
 
-    assert [read.masked for read in shown] == [False, False]
-    assert [read.input for read in shown] == [copied.input, "Can I return a kettle?"]
-    assert [read.masked for read in hidden] == [True, True]
+    generated, unlinked = (read.case_id for read in shown[1:])
+    assert [read.masked for read in shown] == [False, False, False]
+    assert [read.input for read in shown] == [
+        copied.input,
+        "Can I return a kettle?",
+        "Do you sell kettles?",
+    ]
+    assert [read.masked for read in hidden] == [True, True, False]
     assert copied.input not in {read.input for read in hidden}
     assert gone[copied.case_id].masked
     assert gone[copied.case_id].input != copied.input
+    assert gone[generated].masked
+    assert gone[generated].input != "Can I return a kettle?"
+    assert not gone[unlinked].masked
 
 
 async def test_a_draft_from_another_organizations_message_is_attributed_to_nobody(db) -> None:

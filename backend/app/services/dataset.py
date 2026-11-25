@@ -823,8 +823,7 @@ class DatasetService:
         return {
             case.id
             for case in cases
-            if (case.source == CaseSource.CONVERSATION.value or case.source_conversation_id)
-            and case.source_conversation_id not in readable
+            if case.from_conversation and case.source_conversation_id not in readable
         }
 
     async def source_privacy(self, ctx: AuthContext, message_id: UUID) -> DatasetSourcePrivacy:
@@ -989,6 +988,7 @@ class DatasetService:
         **provenance: UUID | None,
     ) -> DatasetCase:
         identity = case_id or uuid.uuid4()
+        chat = ("source_run_id", "source_conversation_id", "source_message_id")
         return DatasetCase(
             id=uuid.uuid4(),
             dataset_id=dataset.id,
@@ -1001,6 +1001,8 @@ class DatasetService:
             asked_by_user_id=authorship.asked_by,
             history_author_ids=authorship.history_for(len(fields.get("history") or [])),
             noted_by_user_id=authorship.noted_by,
+            from_conversation=source is CaseSource.CONVERSATION
+            or any(provenance.get(link) is not None for link in chat),
             **fields,
             **provenance,
         )
@@ -1327,6 +1329,7 @@ class DatasetService:
             ),
             **provenance,
         )
+        revision.from_conversation = revision.from_conversation or current.from_conversation
         if data.input is None:
             # Still the placeholder an erasure left, so still not worth asking.
             revision.anonymised_at = current.anonymised_at
