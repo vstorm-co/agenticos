@@ -21,6 +21,7 @@ vault, so it is keyless, and clearing a key from a keyed row is refused: the end
 would otherwise be called bare by every collection naming it.
 """
 
+from collections.abc import Sequence
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -34,12 +35,15 @@ from app.core.exceptions import (
 )
 from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext, Perm
+from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.service_connection import ServiceConnection, ServiceConnectionKind
 from app.db.updates import writable
-from app.repositories import organization_secret_repo, service_connection_repo
+from app.repositories import knowledge_base_repo, organization_secret_repo, service_connection_repo
 from app.schemas.service_connection import ServiceConnectionCreate, ServiceConnectionUpdate
 from app.services.access import SECRET, resolve_access
+from app.services.embedding_probe_token import ProbeBinding, ProbePurpose, read_probe_token
+from app.services.embedding_resolution import identify_connection, public_address
 from app.services.rag import embedding_providers
 
 OCR_PROVIDER = "liteparse"
@@ -124,7 +128,7 @@ class ServiceConnectionService:
             AlreadyExistsError: If the new name is taken.
         """
         row = await self._editable(ctx, service_id)
-        changes = writable(data, over=ServiceConnection)
+        changes = writable(data, over=ServiceConnection, exclude={"probe_token", "unverified"})
         if "secret_id" in changes:
             new_key = changes["secret_id"]
             if new_key is None:
@@ -158,17 +162,48 @@ class ServiceConnectionService:
         if not changes:
             return row
         fields = sorted(changes)
+        previous = _address_and_key(row.base_url, row.secret_id)
+        new_base_url = changes.get("base_url", row.base_url)
+        new_secret_id = changes.get("secret_id", row.secret_id)
+        moves = row.kind == ServiceConnectionKind.EMBEDDING.value and (
+            new_base_url != row.base_url or new_secret_id != row.secret_id
+        )
+        affected = await knowledge_base_repo.list_by_endpoint(self.db, row.id) if moves else []
+        if moves and not data.unverified:
+            await self._require_tested(
+                ctx,
+                row,
+                token=data.probe_token,
+                base_url=new_base_url,
+                secret_id=new_secret_id,
+                keyed=row.requires_key or "secret_id" in changes,
+                affected=affected,
+            )
         if "secret_id" in changes:
             changes["requires_key"] = True
         updated = await service_connection_repo.update(self.db, row=row, update_data=changes)
+        details: dict[str, object]
+        if moves and data.unverified:
+            action = "service_connection.updated_unverified"
+            details = {
+                "previous": previous,
+                "new": _address_and_key(new_base_url, new_secret_id),
+                "knowledge_bases": [str(kb.id) for kb in affected],
+                "fields": fields,
+            }
+        else:
+            action = "service_connection.updated"
+            details = {"fields": fields}
+            if moves:
+                details["verified"] = True
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,
             organization_id=row.organization_id,
-            action="service_connection.updated",
+            action=action,
             target_type="service_connection",
             target_id=str(service_id),
-            details={"fields": fields},
+            details=details,
         )
         return updated
 
@@ -189,6 +224,45 @@ class ServiceConnectionService:
                 details={"secret_id": str(secret_id)},
             )
         return row
+
+    async def _require_tested(
+        self,
+        ctx: AuthContext,
+        row: ServiceConnection,
+        *,
+        token: str | None,
+        base_url: str,
+        secret_id: UUID | None,
+        keyed: bool,
+        affected: Sequence[KnowledgeBase],
+    ) -> None:
+        """Refuse a move of an embedding connection that no passing test vouches for.
+
+        The proof is bound to the address, the key (by id and by its current
+        value's generation) and every knowledge base using the connection right now,
+        so one attached since the test, or a key rotated since, voids it.
+
+        Raises:
+            BadRequestError: On `probe_token`.
+        """
+        claims = read_probe_token(token, ctx=ctx, purpose=ProbePurpose.CONNECTION_CHANGE)
+        identity = await identify_connection(
+            self.db,
+            row,
+            provider=row.provider,
+            base_url=base_url,
+            secret_id=secret_id,
+            requires_key=keyed,
+        )
+        claims.require_match(
+            ProbeBinding.of(
+                ProbePurpose.CONNECTION_CHANGE,
+                identity,
+                model=None,
+                dim=None,
+                knowledge_bases=affected,
+            )
+        )
 
     async def _check_key(
         self, ctx: AuthContext, secret_id: UUID, *, owner: UUID | None, provider: str
@@ -276,6 +350,14 @@ class ServiceConnectionService:
                 message="A service of that kind by that name already exists",
                 details={"name": name, "kind": kind},
             )
+
+
+def _address_and_key(base_url: str, secret_id: UUID | None) -> dict[str, str | None]:
+    """A connection's address and key as an audit entry keeps them: no query, no value."""
+    return {
+        "base_url": public_address(base_url),
+        "secret_id": None if secret_id is None else str(secret_id),
+    }
 
 
 def _check_provider_fits(*, kind: str, provider: str) -> None:

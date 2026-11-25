@@ -72,6 +72,7 @@ def service(monkeypatch: pytest.MonkeyPatch) -> KnowledgeBaseService:
         rag_document_repo, "table_holds_chunks_outside", AsyncMock(return_value=False)
     )
     monkeypatch.setattr(knowledge_base_repo, "create", AsyncMock(side_effect=_created))
+    monkeypatch.setattr("app.services.knowledge_base.record_audit", AsyncMock())
     monkeypatch.setattr(
         "app.services.collection_access.hold_name_within", AsyncMock(return_value=True)
     )
@@ -226,7 +227,9 @@ async def test_an_embedding_endpoint_can_be_set_or_explicitly_cleared(
     update = AsyncMock(return_value=held)
     monkeypatch.setattr(knowledge_base_repo, "update", update)
     _embedding_key_access(monkeypatch, visible=True)
-    await service.update(held.id, KnowledgeBaseUpdate(embedding_base_url=endpoint), ctx=_ctx())
+    await service.update(
+        held.id, KnowledgeBaseUpdate(embedding_base_url=endpoint, unverified=True), ctx=_ctx()
+    )
     assert update.call_args.kwargs["embedding_base_url"] == endpoint
     assert update.call_args.kwargs["set_embedding_base_url"] is True
 
@@ -300,7 +303,9 @@ async def test_changing_the_embedding_destination_requires_access_to_the_retaine
     update = AsyncMock()
     monkeypatch.setattr(knowledge_base_repo, "update", update)
     with pytest.raises(BadRequestError, match="not in this organization's vault"):
-        await service.update(held.id, KnowledgeBaseUpdate(embedding_base_url=endpoint), ctx=_ctx())
+        await service.update(
+            held.id, KnowledgeBaseUpdate(embedding_base_url=endpoint, unverified=True), ctx=_ctx()
+        )
     assert access.await_args.args[3] == Perm.SECRETS_VIEW
     update.assert_not_awaited()
 
@@ -370,7 +375,7 @@ async def test_moving_a_collection_checks_the_new_endpoint_serves_its_model(serv
     _embedding_key_access(monkeypatch, visible=True)
     await service.update(
         held.id,
-        KnowledgeBaseUpdate(embedding_base_url="https://eu.openrouter.ai/api/v1"),
+        KnowledgeBaseUpdate(embedding_base_url="https://eu.openrouter.ai/api/v1", unverified=True),
         ctx=_ctx(),
     )
     checked = embedding_providers.require_served_at
@@ -392,7 +397,9 @@ async def test_moving_a_collection_back_to_the_providers_address_asks_no_endpoin
     _holders(monkeypatch, [held])
     monkeypatch.setattr(knowledge_base_repo, "update", AsyncMock(return_value=held))
     _embedding_key_access(monkeypatch, visible=True)
-    await service.update(held.id, KnowledgeBaseUpdate(embedding_base_url=None), ctx=_ctx())
+    await service.update(
+        held.id, KnowledgeBaseUpdate(embedding_base_url=None, unverified=True), ctx=_ctx()
+    )
     checked = embedding_providers.require_served_at
     assert isinstance(checked, AsyncMock)
     checked.assert_not_awaited()

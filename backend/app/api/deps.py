@@ -2186,6 +2186,18 @@ def get_vectorstore(request: Request, embedder: EmbeddingSvc) -> BaseVectorStore
 
 VectorStoreSvc = Annotated[BaseVectorStore, Depends(get_vectorstore)]
 
+from app.services.embedding_probe import EmbeddingProbeService
+
+
+def get_embedding_probe_service(
+    db: DBSession, vector_store: VectorStoreSvc
+) -> EmbeddingProbeService:
+    """Create EmbeddingProbeService with the database session and the vector store."""
+    return EmbeddingProbeService(db, vector_store)
+
+
+EmbeddingProbeSvc = Annotated[EmbeddingProbeService, Depends(get_embedding_probe_service)]
+
 from app.services.case_generation import CaseGenerationService
 
 

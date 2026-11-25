@@ -15,6 +15,8 @@ from app.db.models.resource_grant import GrantLevel, Visibility
 from app.db.vector_tables import VectorScope
 from app.repositories.rag_document import CollectionCounts, CollectionScope, DeletedDocuments
 from app.schemas.knowledge_base import KnowledgeBaseCreate, KnowledgeBaseUpdate
+from app.services.embedding_probe_token import ProbeBinding, ProbePurpose, mint_probe_token
+from app.services.embedding_resolution import EmbeddingKeySource, TargetIdentity
 from app.services.ingestion_config import deployment_defaults
 from app.services.knowledge_base import KnowledgeBaseService, _with_counts
 from app.worker.jobs import BasePurge
@@ -115,15 +117,48 @@ def _service_connection(
         provider=provider,
         base_url="http://ollama:11434/v1",
         is_active=active,
+        secret_id=None,
+        requires_key=False,
     )
     row.name = "GPU box"
     return row
+
+
+def _probe_token_for(ctx: AuthContext, row: MagicMock | None, *, model: str, dim: int) -> str:
+    """The proof a passing test of this keyless connection and model would have left."""
+    identity = TargetIdentity(
+        provider="openai_compatible",
+        connection_id=None if row is None else row.id,
+        base_url="" if row is None else row.base_url,
+        secret_id=None,
+        key_generation=None,
+        key_organization_id=None,
+        key_source=EmbeddingKeySource.KEYLESS,
+    )
+    binding = ProbeBinding.of(
+        ProbePurpose.KB_CREATE, identity, model=model, dim=dim, knowledge_bases=()
+    )
+    return mint_probe_token(ctx, binding)[0]
 
 
 def _service_visible(row: MagicMock | None):
     """What the collection may name: the row, or nothing - another tenant's is nothing."""
     return patch(
         "app.repositories.service_connection_repo.get_visible", new=AsyncMock(return_value=row)
+    )
+
+
+@pytest.fixture(autouse=True)
+def _audit_is_not_what_these_test(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("app.services.knowledge_base.record_audit", AsyncMock())
+
+
+@pytest.fixture
+def no_siblings(monkeypatch: pytest.MonkeyPatch) -> None:
+    """For a test that moves a collection's embeddings: nobody else shares the name."""
+    monkeypatch.setattr(
+        "app.repositories.knowledge_base_repo.list_by_collection_name",
+        AsyncMock(return_value=[]),
     )
 
 
@@ -401,6 +436,7 @@ class TestKBAccessControl:
         """No vault, so no key - but a deployment-wide connection that needs none
         is reachable, which is the one way an app collection can embed through it."""
         service = _service_connection(provider="openai_compatible")
+        ctx = _ctx(app_admin=True)
         data = KnowledgeBaseCreate(
             name="Global KB",
             scope="app",
@@ -408,20 +444,18 @@ class TestKBAccessControl:
             embedding_model="corp-embed",
             embedding_provider="openai_compatible",
             embedding_endpoint_id=service.id,
+            probe_token=_probe_token_for(ctx, service, model="corp-embed", dim=1024),
         )
 
         with (
             _service_visible(service),
-            patch(
-                "app.services.knowledge_base.chosen_embedding",
-                return_value=("corp-embed", 1024),
-            ),
             patch("app.repositories.knowledge_base_repo.create", new=AsyncMock()) as created,
         ):
-            await KnowledgeBaseService(mock_db).create(data, ctx=_ctx(app_admin=True))
+            await KnowledgeBaseService(mock_db).create(data, ctx=ctx)
 
         assert created.call_args.kwargs["embedding_provider"] == "openai_compatible"
         assert created.call_args.kwargs["embedding_endpoint_id"] == service.id
+        assert created.call_args.kwargs["embedding_dim"] == 1024
 
     @pytest.mark.anyio
     @pytest.mark.parametrize(
@@ -438,25 +472,23 @@ class TestKBAccessControl:
     ):
         """The connection carries the address and the key; a key or an address on
         the collection would be a second one nothing sends."""
+        ctx = _ctx()
         data = KnowledgeBaseCreate(
             name="Custom",
             scope="org",
             collection_name="custom",
             embedding_model="corp-embed",
             embedding_provider="openai_compatible",
+            probe_token=_probe_token_for(ctx, None, model="corp-embed", dim=1024),
             **extra,
             **({} if field == "embedding_endpoint_id" else {"embedding_endpoint_id": uuid.uuid4()}),
         )
 
         with (
-            patch(
-                "app.services.knowledge_base.chosen_embedding",
-                return_value=("corp-embed", 1024),
-            ),
             patch("app.repositories.knowledge_base_repo.create", new=AsyncMock()) as created,
             pytest.raises(BadRequestError) as exc,
         ):
-            await KnowledgeBaseService(mock_db).create(data, ctx=_ctx())
+            await KnowledgeBaseService(mock_db).create(data, ctx=ctx)
 
         assert exc.value.details["fields"][0]["field"] == field
         created.assert_not_called()
@@ -1642,7 +1674,9 @@ class TestWhoServesTheEmbeddingModel:
         created.assert_not_called()
 
     @pytest.mark.anyio
-    async def test_an_existing_collection_moves_provider_and_key_together(self, mock_db):
+    async def test_an_existing_collection_moves_provider_and_key_together(
+        self, mock_db, no_siblings
+    ):
         kb = self._kb_row()
         secret = MagicMock(id=uuid.uuid4(), purpose="openai")
 
@@ -1660,7 +1694,9 @@ class TestWhoServesTheEmbeddingModel:
         ):
             await KnowledgeBaseService(mock_db).update(
                 kb.id,
-                KnowledgeBaseUpdate(embedding_provider="openai", embedding_secret_id=secret.id),
+                KnowledgeBaseUpdate(
+                    embedding_provider="openai", embedding_secret_id=secret.id, unverified=True
+                ),
                 ctx=_ctx(),
             )
 
@@ -1711,7 +1747,7 @@ class TestWhoServesTheEmbeddingModel:
             )
 
         assert updated.call_args.kwargs["embedding_secret_id"] is None
-        assert "clear_embedding_secret" not in updated.call_args.kwargs
+        assert updated.call_args.kwargs["clear_embedding_secret"] is False
 
     def _local_row(self, *, organization_id: uuid.UUID | None, secret_id: uuid.UUID | None = None):
         """A row on a model Ollama serves, at its width."""
@@ -1862,10 +1898,11 @@ class TestWhoServesTheEmbeddingModel:
         created.assert_not_called()
 
     @pytest.mark.anyio
-    async def test_moving_to_a_keyless_provider_leaves_the_old_key_unexamined(self, mock_db):
-        """The key stays on the row - there is no word for clearing it - and it
-        is not checked against a provider that will never see it. The resolver
-        leaves it sealed for the same reason."""
+    async def test_moving_to_a_keyless_provider_leaves_the_old_key_unexamined(
+        self, mock_db, no_siblings
+    ):
+        """A key the row holds is not checked against a provider that will never
+        see it, and the save clears it: the connection holds the key."""
         kb = self._local_row(organization_id=uuid.uuid4(), secret_id=uuid.uuid4())
         kb.embedding_provider = "openai"
         service = _service_connection(organization_id=kb.organization_id)
@@ -1880,7 +1917,11 @@ class TestWhoServesTheEmbeddingModel:
         ):
             await KnowledgeBaseService(mock_db).update(
                 kb.id,
-                KnowledgeBaseUpdate(embedding_provider="ollama", embedding_endpoint_id=service.id),
+                KnowledgeBaseUpdate(
+                    embedding_provider="ollama",
+                    embedding_endpoint_id=service.id,
+                    unverified=True,
+                ),
                 ctx=_ctx(),
             )
 
@@ -1910,7 +1951,7 @@ class TestWhoServesTheEmbeddingModel:
 
     @pytest.mark.anyio
     async def test_moving_back_onto_a_keyless_provider_reuses_the_service_the_row_holds(
-        self, mock_db
+        self, mock_db, no_siblings
     ):
         kb = self._local_row(organization_id=uuid.uuid4())
         kb.embedding_provider = "openai"
@@ -1925,7 +1966,9 @@ class TestWhoServesTheEmbeddingModel:
             ) as updated,
         ):
             await KnowledgeBaseService(mock_db).update(
-                kb.id, KnowledgeBaseUpdate(embedding_provider="ollama"), ctx=_ctx()
+                kb.id,
+                KnowledgeBaseUpdate(embedding_provider="ollama", unverified=True),
+                ctx=_ctx(),
             )
 
         assert updated.call_args.kwargs["embedding_provider"] == "ollama"

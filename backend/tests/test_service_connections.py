@@ -30,6 +30,7 @@ pytestmark = pytest.mark.anyio
 
 _ORG = uuid.uuid4()
 _REPO = "app.services.service_connection.service_connection_repo"
+_ATTACHED = "app.services.service_connection.knowledge_base_repo.list_by_endpoint"
 
 
 def _ctx(*, app_admin: bool = False, organization_id: uuid.UUID = _ORG) -> AuthContext:
@@ -286,8 +287,11 @@ class TestTheKeyAConnectionCarries:
             patch(_ACCESS, new=AsyncMock(return_value=True)),
             patch(f"{_REPO}.update", new=AsyncMock(return_value=row)) as update,
             patch(_AUDIT, new=AsyncMock()),
+            patch(_ATTACHED, new=AsyncMock(return_value=[])),
         ):
-            await _service().update(_ctx(), row.id, ServiceConnectionUpdate(secret_id=_SECRET_ID))
+            await _service().update(
+                _ctx(), row.id, ServiceConnectionUpdate(secret_id=_SECRET_ID, unverified=True)
+            )
 
         assert lookup.call_args.args[1] == _SECRET_ID
         assert update.call_args.kwargs["update_data"] == {
@@ -388,9 +392,14 @@ class TestTheKeyAConnectionCarries:
             patch(_ACCESS, new=AsyncMock(return_value=True)),
             patch(f"{_REPO}.update", new=AsyncMock(return_value=row)) as update,
             patch(_AUDIT, new=AsyncMock()),
+            patch(_ATTACHED, new=AsyncMock(return_value=[])),
         ):
             await _service().update(
-                _ctx(), row.id, ServiceConnectionUpdate(base_url="https://elsewhere.example.com/v1")
+                _ctx(),
+                row.id,
+                ServiceConnectionUpdate(
+                    base_url="https://elsewhere.example.com/v1", unverified=True
+                ),
             )
 
         update.assert_awaited_once()
@@ -415,7 +424,7 @@ class TestTheKeyAConnectionCarries:
             ServiceConnectionUpdate.model_validate({field: "openai_compatible"})
 
     async def test_editing_records_the_changed_field_names_only(self):
-        row = _row()
+        row = _row(kind="ocr", provider="liteparse")
         with (
             patch(f"{_REPO}.get_visible", new=AsyncMock(return_value=row)),
             patch(f"{_REPO}.get_by_name", new=AsyncMock(return_value=None)),
@@ -604,3 +613,215 @@ class TestTheRepositoryScopesEveryLookup:
 
         await service_connection_repo.delete(session, row=row)
         assert session.deleted == [row]
+
+
+_IDENTIFY = "app.services.service_connection.identify_connection"
+
+
+def _identity(row: MagicMock, *, base_url: str, generation: uuid.UUID | None = None):
+    from app.services.embedding_resolution import EmbeddingKeySource, TargetIdentity
+
+    keyed = generation is not None
+    return TargetIdentity(
+        provider=row.provider,
+        connection_id=row.id,
+        base_url=base_url,
+        secret_id=_SECRET_ID if keyed else None,
+        key_generation=generation,
+        key_organization_id=_ORG if keyed else None,
+        key_source=EmbeddingKeySource.CONNECTION if keyed else EmbeddingKeySource.KEYLESS,
+    )
+
+
+def _attached(*ids: uuid.UUID) -> list[MagicMock]:
+    return [MagicMock(id=kb_id, embedding_model="m", embedding_dim=4) for kb_id in ids]
+
+
+def _proof(ctx: AuthContext, identity, bases) -> str:
+    from app.services.embedding_probe_token import ProbeBinding, ProbePurpose, mint_probe_token
+
+    return mint_probe_token(
+        ctx,
+        ProbeBinding.of(
+            ProbePurpose.CONNECTION_CHANGE, identity, model=None, dim=None, knowledge_bases=bases
+        ),
+    )[0]
+
+
+class TestMovingAnEmbeddingConnection:
+    """Where a connection answers is where every collection naming it sends its text."""
+
+    _NEW = "http://other:11434/v1"
+
+    def _patches(self, row, bases):
+        return (
+            patch(f"{_REPO}.get_visible", new=AsyncMock(return_value=row)),
+            patch(f"{_REPO}.update", new=AsyncMock(return_value=row)),
+            patch(_AUDIT, new=AsyncMock()),
+            patch(_ATTACHED, new=AsyncMock(return_value=bases)),
+        )
+
+    @pytest.mark.security
+    @pytest.mark.parametrize(
+        "change", [{"base_url": "http://other:11434/v1"}, {"secret_id": _SECRET_ID}]
+    )
+    async def test_moving_without_a_test_or_override_is_refused_on_probe_token(self, change):
+        row = _row(provider="openai_compatible")
+        get, update, audit, attached = self._patches(row, [])
+        with (
+            get,
+            update as written,
+            audit,
+            attached,
+            patch(_KEY, new=AsyncMock(return_value=_secret())),
+            patch(_ACCESS, new=AsyncMock(return_value=True)),
+            pytest.raises(BadRequestError) as refused,
+        ):
+            await _service().update(_ctx(), row.id, ServiceConnectionUpdate(**change))
+
+        assert refused.value.details["fields"][0]["field"] == "probe_token"
+        written.assert_not_awaited()
+
+    async def test_a_passing_test_saves_the_move(self):
+        row = _row()
+        ctx = _ctx()
+        bases = _attached(uuid.uuid4())
+        token = _proof(ctx, _identity(row, base_url=self._NEW), bases)
+        get, update, audit, attached = self._patches(row, bases)
+        with get, update as written, audit as recorded, attached, patch(_IDENTIFY) as identify:
+            identify.return_value = _identity(row, base_url=self._NEW)
+            await _service().update(
+                ctx, row.id, ServiceConnectionUpdate(base_url=self._NEW, probe_token=token)
+            )
+
+        assert written.call_args.kwargs["update_data"] == {"base_url": self._NEW}
+        assert recorded.call_args.kwargs["action"] == "service_connection.updated"
+        assert recorded.call_args.kwargs["details"] == {"fields": ["base_url"], "verified": True}
+
+    @pytest.mark.security
+    async def test_a_base_attached_after_the_test_voids_the_connection_token(self):
+        row = _row()
+        ctx = _ctx()
+        token = _proof(ctx, _identity(row, base_url=self._NEW), _attached(uuid.uuid4()))
+        get, update, audit, attached = self._patches(row, _attached(uuid.uuid4(), uuid.uuid4()))
+        with (
+            get,
+            update as written,
+            audit,
+            attached,
+            patch(_IDENTIFY, new=AsyncMock(return_value=_identity(row, base_url=self._NEW))),
+            pytest.raises(BadRequestError) as refused,
+        ):
+            await _service().update(
+                ctx, row.id, ServiceConnectionUpdate(base_url=self._NEW, probe_token=token)
+            )
+
+        assert refused.value.details["fields"][0]["field"] == "probe_token"
+        written.assert_not_awaited()
+
+    @pytest.mark.security
+    async def test_a_key_rotated_after_the_test_voids_the_token(self):
+        row = _row(provider="openai_compatible", secret_id=_SECRET_ID, requires_key=True)
+        ctx = _ctx()
+        tested = _identity(row, base_url=self._NEW, generation=uuid.uuid4())
+        token = _proof(ctx, tested, [])
+        get, update, audit, attached = self._patches(row, [])
+        with (
+            get,
+            update,
+            audit,
+            attached,
+            patch(_KEY, new=AsyncMock(return_value=_secret())),
+            patch(_ACCESS, new=AsyncMock(return_value=True)),
+            patch(
+                _IDENTIFY,
+                new=AsyncMock(
+                    return_value=_identity(row, base_url=self._NEW, generation=uuid.uuid4())
+                ),
+            ),
+            pytest.raises(BadRequestError, match="changed since"),
+        ):
+            await _service().update(
+                ctx, row.id, ServiceConnectionUpdate(base_url=self._NEW, probe_token=token)
+            )
+
+    @pytest.mark.security
+    async def test_another_members_token_is_refused(self):
+        row = _row()
+        token = _proof(_ctx(), _identity(row, base_url=self._NEW), [])
+        get, update, audit, attached = self._patches(row, [])
+        with get, update, audit, attached, pytest.raises(BadRequestError, match="someone else"):
+            await _service().update(
+                _ctx(), row.id, ServiceConnectionUpdate(base_url=self._NEW, probe_token=token)
+            )
+
+    async def test_an_ollama_url_edit_now_needs_a_test(self):
+        row = _row(provider="ollama")
+        get, update, audit, attached = self._patches(row, [])
+        with get, update, audit, attached, pytest.raises(BadRequestError, match="Test these"):
+            await _service().update(_ctx(), row.id, ServiceConnectionUpdate(base_url=self._NEW))
+
+    async def test_an_ocr_connection_url_edit_needs_no_test(self):
+        row = _row(kind="ocr", provider="liteparse")
+        get, update, audit, attached = self._patches(row, [])
+        with get, update as written, audit, attached as listed:
+            await _service().update(_ctx(), row.id, ServiceConnectionUpdate(base_url=self._NEW))
+
+        written.assert_awaited_once()
+        listed.assert_not_awaited()
+
+    async def test_a_rename_or_pause_needs_no_test(self):
+        row = _row()
+        get, update, audit, attached = self._patches(row, [])
+        with (
+            get,
+            update as written,
+            audit,
+            attached,
+            patch(_REPO + ".get_by_name", new=AsyncMock(return_value=None)),
+        ):
+            await _service().update(
+                _ctx(), row.id, ServiceConnectionUpdate(name="Renamed", is_active=False)
+            )
+
+        written.assert_awaited_once()
+
+    @pytest.mark.security
+    async def test_an_unverified_connection_edit_is_audited_with_the_old_address(self):
+        row = _row(base_url="http://old.internal:11434/v1")
+        kb_id = uuid.uuid4()
+        get, update, audit, attached = self._patches(row, _attached(kb_id))
+        with get, update as written, audit as recorded, attached:
+            await _service().update(
+                _ctx(),
+                row.id,
+                ServiceConnectionUpdate(base_url=self._NEW, unverified=True),
+            )
+
+        written.assert_awaited_once()
+        assert recorded.call_args.kwargs["action"] == "service_connection.updated_unverified"
+        assert recorded.call_args.kwargs["details"] == {
+            "previous": {"base_url": "http://old.internal:11434/v1", "secret_id": None},
+            "new": {"base_url": self._NEW, "secret_id": None},
+            "knowledge_bases": [str(kb_id)],
+            "fields": ["base_url"],
+        }
+
+    @pytest.mark.security
+    async def test_an_unverified_edit_still_needs_the_new_key_to_be_viewable(self):
+        row = _row(provider="openai_compatible")
+        get, update, audit, attached = self._patches(row, [])
+        with (
+            get,
+            update as written,
+            audit,
+            attached,
+            patch(_KEY, new=AsyncMock(return_value=_secret())),
+            patch(_ACCESS, new=AsyncMock(return_value=False)),
+            pytest.raises(BadRequestError, match="not in this organization's vault"),
+        ):
+            await _service().update(
+                _ctx(), row.id, ServiceConnectionUpdate(secret_id=_SECRET_ID, unverified=True)
+            )
+
+        written.assert_not_awaited()

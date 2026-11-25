@@ -591,6 +591,15 @@ CALLS: tuple[Call, ...] = (
     # caller's scope and grants against the row - `readable_kb`/`writable_kb`.
     Call("GET", "/kb", Perm.COLLECTIONS_VIEW),
     Call("POST", "/kb", Perm.COLLECTIONS_EDIT, body={"name": "Docs", "scope": "org"}),
+    Call(
+        "POST",
+        "/kb/embedding-probe",
+        Perm.COLLECTIONS_EDIT,
+        body={
+            "embedding_endpoint_id": "00000000-0000-0000-0000-000000000001",
+            "embedding_model": "m",
+        },
+    ),
     # The exception under /kb/{kb_id}: the organization's integrations - every
     # base's, not this one's - which `/org/integrations` gates the same way, so
     # no grant on the base in the path could widen it (#2745).
@@ -668,6 +677,10 @@ CALLS: tuple[Call, ...] = (
         },
     ),
     Call("PATCH", "/service-connections/{service_id}", Perm.CONNECTIONS_MANAGE, body={}),
+    # A test spends embedding quota and writes nothing; it is `connections:manage`
+    # because it sends a base's text to the address under test.
+    Call("GET", "/service-connections/{service_id}/probe/estimate", Perm.CONNECTIONS_MANAGE),
+    Call("POST", "/service-connections/{service_id}/probe", Perm.CONNECTIONS_MANAGE, body={}),
     # The standalone ML services, all on one permission. `ml:invoke` is separate
     # from `agents:run` so that an integration which parses documents cannot also
     # spend the organization's model budget.
@@ -741,7 +754,15 @@ CALLS: tuple[Call, ...] = (
 # Planning validates caller-supplied content without reading resources or writing;
 # POST keeps the manifest out of query strings and access logs. Routine readiness
 # writes nothing either: POST carries up to 100 ids a query string would not.
-_READ_ONLY_POSTS = frozenset({"/solutions/plan", "/triggers/readiness"})
+_READ_ONLY_POSTS = frozenset(
+    {
+        "/solutions/plan",
+        "/triggers/readiness",
+        # An embedding test sends a few stored chunks out and stores nothing.
+        "/kb/embedding-probe",
+        "/service-connections/{service_id}/probe",
+    }
+)
 WRITE_CALLS: tuple[Call, ...] = tuple(
     call for call in CALLS if call.method != "GET" and call.path not in _READ_ONLY_POSTS
 )
@@ -1194,6 +1215,9 @@ RESOURCE_AWARE_SERVICES = (
     # through `readable_kb`, writes through `get_for_write`, both of which end
     # at `resolve_access` for org rows. Every per-KB route depends on it.
     deps.get_knowledge_base_service,
+    # The per-base embedding test resolves the base through `get_for_write`, the
+    # decision a save makes, so a test is available to exactly who may change it.
+    deps.get_embedding_probe_service,
     # A workspace is not a shared resource with grants, but the decision is the
     # same shape: the service scopes every read to what the caller is part of -
     # their own user-scoped files, their own conversations, the shared workspace of

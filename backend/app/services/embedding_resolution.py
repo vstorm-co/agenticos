@@ -38,8 +38,9 @@ row. So the source travels *with* the resolution, and both surfaces name it.
 """
 
 import logging
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from enum import StrEnum
+from urllib.parse import urlsplit
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -47,6 +48,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.secret_kinds import ApiKeySecret, SecretKind, unseal_secret
 from app.core.vault import VaultScope
 from app.db.models.knowledge_base import KnowledgeBase
+from app.db.models.service_connection import ServiceConnection
 from app.db.session import get_db_context
 from app.db.vector_tables import VectorScope
 from app.repositories import knowledge_base_repo, organization_secret_repo, service_connection_repo
@@ -254,6 +256,22 @@ async def embeddings_for_collection(
         )
 
 
+def public_address(url: str | None) -> str | None:
+    """An address as an audit entry may keep it: scheme, host, port and path.
+
+    A query string can carry a key (`?api-key=...`) and a netloc can carry a
+    password; neither is a setting anyone needs to read back.
+    """
+    if url is None:
+        return None
+    parts = urlsplit(url)
+    host = parts.hostname or ""
+    if ":" in host:
+        host = f"[{host}]"
+    port = f":{parts.port}" if parts.port is not None else ""
+    return f"{parts.scheme}://{host}{port}{parts.path}"
+
+
 @dataclass(frozen=True)
 class EmbeddingSettings:
     """What a collection - or a proposed change to one - says it embeds through."""
@@ -264,15 +282,29 @@ class EmbeddingSettings:
     base_url: str | None
     model: str
     # Only to name the collection in a log line; it decides nothing.
-    collection: str = ""
+    collection: str = field(default="", compare=False)
+
+    def for_audit(self) -> dict[str, str | None]:
+        """The settings an audit entry records: ids and names, an address without its query, no key."""
+        return {
+            "provider": self.provider,
+            "endpoint_id": None if self.endpoint_id is None else str(self.endpoint_id),
+            "secret_id": None if self.secret_id is None else str(self.secret_id),
+            "base_url": public_address(self.base_url),
+            "model": self.model,
+        }
 
     @classmethod
     def of(cls, kb: KnowledgeBase) -> EmbeddingSettings:
+        """What the row embeds through. A base reached through a connection has no key or
+        address of its own - the connection holds both - so a leftover on the row is not read."""
+        provider = embedding_providers.get(kb.embedding_provider)
+        own = provider is None or not provider.via_connection
         return cls(
             provider=kb.embedding_provider,
             endpoint_id=kb.embedding_endpoint_id,
-            secret_id=kb.embedding_secret_id,
-            base_url=kb.embedding_base_url,
+            secret_id=kb.embedding_secret_id if own else None,
+            base_url=kb.embedding_base_url if own else None,
             model=kb.embedding_model,
             collection=kb.collection_name,
         )
@@ -396,11 +428,39 @@ async def _connection_target(
         return _unresolved(settings.provider, EmbeddingKeySource.ENDPOINT_MISSING)
     if not row.is_active:
         return _unresolved(settings.provider, EmbeddingKeySource.ENDPOINT_PAUSED)
-    if not row.requires_key:
+    return await identify_connection(
+        db,
+        row,
+        provider=settings.provider,
+        base_url=row.base_url,
+        secret_id=row.secret_id,
+        requires_key=row.requires_key,
+        collection=settings.collection,
+    )
+
+
+async def identify_connection(
+    db: AsyncSession,
+    row: ServiceConnection,
+    *,
+    provider: str,
+    base_url: str,
+    secret_id: UUID | None,
+    requires_key: bool,
+    collection: str = "",
+) -> TargetIdentity:
+    """What embeddings through `row` would reach, with `base_url` and `secret_id` as given.
+
+    The row's own values for a stored connection; a proposed edit's for a test of
+    one - which is why the address and the key are arguments and not read from
+    `row`. Only the row's owner and id are taken from it. A keyed connection whose
+    key is not in its owner's vault resolves to the reason, never to a bare call.
+    """
+    if not requires_key:
         return TargetIdentity(
-            provider=settings.provider,
+            provider=provider,
             connection_id=row.id,
-            base_url=row.base_url,
+            base_url=base_url,
             secret_id=None,
             key_generation=None,
             key_organization_id=None,
@@ -408,21 +468,19 @@ async def _connection_target(
         )
     generation = (
         None
-        if row.secret_id is None or row.organization_id is None
+        if secret_id is None or row.organization_id is None
         else await organization_secret_repo.authorization_generation(
-            db, row.secret_id, organization_id=row.organization_id
+            db, secret_id, organization_id=row.organization_id
         )
     )
     if generation is None:
-        logger.warning(
-            "embedding_connection_key_missing", extra={"collection": settings.collection}
-        )
-        return _unresolved(settings.provider, EmbeddingKeySource.CONNECTION_KEY_MISSING)
+        logger.warning("embedding_connection_key_missing", extra={"collection": collection})
+        return _unresolved(provider, EmbeddingKeySource.CONNECTION_KEY_MISSING)
     return TargetIdentity(
-        provider=settings.provider,
+        provider=provider,
         connection_id=row.id,
-        base_url=row.base_url,
-        secret_id=row.secret_id,
+        base_url=base_url,
+        secret_id=secret_id,
         key_generation=generation,
         key_organization_id=row.organization_id,
         key_source=EmbeddingKeySource.CONNECTION,

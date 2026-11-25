@@ -7,6 +7,7 @@ import pytest
 
 from app.core.security import (
     create_access_token,
+    create_embedding_probe_token,
     create_refresh_token,
     get_password_hash,
     read_uuid_claim,
@@ -202,3 +203,39 @@ class TestRefreshToken:
         payload = verify_token(first)
         assert payload is not None
         assert payload["jti"]
+
+
+class TestEmbeddingProbeToken:
+    def test_the_token_names_its_audience_and_is_no_access_token(self):
+        subject, organization = uuid4(), uuid4()
+        token = create_embedding_probe_token(
+            subject=subject,
+            organization_id=organization,
+            purpose="kb_change",
+            fingerprint="f" * 64,
+            dim=768,
+            expires_in=timedelta(minutes=10),
+        )
+
+        payload = verify_token(token, audience=("kb_change",))
+
+        assert payload is not None
+        assert payload["type"] == "embedding_probe"
+        assert (payload["sub"], payload["org"]) == (str(subject), str(organization))
+        assert (payload["fp"], payload["dim"]) == ("f" * 64, 768)
+        assert verify_token(token) is None, "an audience the caller does not name is refused"
+
+    def test_a_deployment_wide_caller_has_no_organization_claim(self):
+        token = create_embedding_probe_token(
+            subject=uuid4(),
+            organization_id=None,
+            purpose="kb_create",
+            fingerprint="f" * 64,
+            dim=None,
+            expires_in=timedelta(minutes=10),
+        )
+
+        payload = verify_token(token, audience=("kb_create",))
+
+        assert payload is not None
+        assert payload["org"] is None

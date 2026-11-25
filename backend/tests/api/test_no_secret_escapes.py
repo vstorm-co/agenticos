@@ -74,6 +74,7 @@ _SECRET_WORDS = re.compile("secret|password|token|api_key|private_key")
 # promise about the value, and writing the promise down is the point - an
 # allowance nobody can explain is a hole.
 _PATTERN_ALLOWED: dict[str, str] = {
+    "probe_token": "a ten-minute signed proof that this caller's own Test passed for exactly these non-secret settings; it carries a fingerprint and a width, never a key or an address, and authenticates nothing (deps.py:628 refuses any non-access type)",
     "secret_sources": "vault row IDs mapped to authorization-generation UUIDs, never credential values",
     "review_token": "a metadata fingerprint binding a consent form to the reviewed snapshot, not an authentication credential",
     "secret_fields": "Mirage backend credential field names, never their values",
@@ -278,6 +279,11 @@ class TestNoSecretShapeIsReturned:
         named = {field for schema in components.values() for field in _properties(schema)}
 
         assert set(_PATTERN_ALLOWED) <= named
+
+    def test_the_embedding_test_result_is_reachable_so_its_token_is_swept(
+        self, document: dict[str, Any]
+    ) -> None:
+        assert "EmbeddingProbeResult" in _response_schema_names(document)
 
     def test_the_sweep_reaches_the_schemas_it_claims_to(self, document: dict[str, Any]) -> None:
         """A sweep that resolves nothing passes for the wrong reason.

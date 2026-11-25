@@ -229,6 +229,34 @@ def create_magic_link_token(
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 
+def create_embedding_probe_token(
+    *,
+    subject: UUID,
+    organization_id: UUID | None,
+    purpose: str,
+    fingerprint: str,
+    dim: int | None,
+    expires_in: timedelta,
+) -> str:
+    """A short-lived proof that one caller's embedding test passed for exact settings.
+
+    `aud` is the purpose the test was for, so a proof for one save is not read as
+    another's. `fp` is a digest of the settings that were tested and `dim` the
+    width that was measured; neither the address nor the key is in the token, and
+    it authenticates nothing - an access token is `type="access"` and this is not.
+    """
+    to_encode: dict[str, Any] = {
+        "exp": datetime.now(UTC) + expires_in,
+        "sub": str(subject),
+        "type": "embedding_probe",
+        "aud": purpose,
+        "org": None if organization_id is None else str(organization_id),
+        "fp": fingerprint,
+        "dim": dim,
+    }
+    return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+
+
 ArtifactTokenAudience = Literal["member", "public"]
 """Who an artifact content address was minted for: a signed-in member, or a public link."""
 

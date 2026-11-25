@@ -45,6 +45,7 @@ from app.services.rag.models import (
     DocumentInfo,
     DocumentPageChunk,
     SearchResult,
+    StoredChunk,
     VectorDocumentId,
 )
 from app.services.rag.overlay import active_overlay
@@ -229,6 +230,19 @@ class BaseVectorStore(ABC):
 
         `scope` confines the read to one base's rows, so a shared collection
         name does not expose another tenant's or base's chunks (#1684, #2537).
+        """
+
+    @abstractmethod
+    async def probe_chunks(
+        self, collection_name: str, scope: VectorScope, *, min_length: int, shortest: int
+    ) -> list[StoredChunk]:
+        """The stored chunks an embedding test re-embeds, with the vectors they were indexed at.
+
+        Within `scope` - the base's own rows, so a shared collection name never lends
+        another tenant's text to a test - the `shortest` chunks of at least
+        `min_length` characters, plus the longest chunk, once each. Ties break by
+        chunk id, so the same corpus gives the same pick. An unknown collection is
+        an empty list.
         """
 
     @abstractmethod
@@ -1509,6 +1523,36 @@ class PgVectorStore(BaseVectorStore):
         # metadata JSONB, and a `(metadata->>'page_num')::int` ORDER BY fails on
         # any row where the key is absent instead of sorting it first.
         return sorted(chunks, key=lambda chunk: (chunk.page_num, chunk.chunk_num))
+
+    async def probe_chunks(
+        self, collection_name: str, scope: VectorScope, *, min_length: int, shortest: int
+    ) -> list[StoredChunk]:
+        if not await self._collection_exists(collection_name):
+            return []
+        table = self._table(collection_name)
+        clause, params = _vector_scope_clause(scope)
+        # Built from literals only; every value is bound. The vector is read back as
+        # text (`[0.1,0.2]`, which is JSON) because it is compared in Python.
+        scoped = (
+            f"SELECT id, content, embedding::text AS vector FROM {table} "
+            f"WHERE {clause} AND content IS NOT NULL AND content <> '' "
+            "AND embedding IS NOT NULL"
+        )
+        async with self.async_session() as session:
+            result = await session.execute(
+                text(
+                    f"WITH scoped AS ({scoped}), "
+                    "short AS (SELECT * FROM scoped WHERE char_length(content) >= :min_len "
+                    "ORDER BY char_length(content), id LIMIT :shortest), "
+                    "longest AS (SELECT * FROM scoped "
+                    "ORDER BY char_length(content) DESC, id LIMIT 1) "
+                    "SELECT content, vector FROM (SELECT * FROM short UNION SELECT * FROM longest) "
+                    "AS picked ORDER BY char_length(content), id"
+                ),
+                {**params, "min_len": min_length, "shortest": shortest},
+            )
+            rows = result.fetchall()
+        return [StoredChunk(content=row[0], embedding=json.loads(row[1])) for row in rows]
 
     async def get_chunks_around(
         self,

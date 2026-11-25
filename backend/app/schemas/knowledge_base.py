@@ -31,9 +31,10 @@ class KnowledgeBaseCreate(AudienceChoice):
         default=None,
         max_length=128,
         description=(
-            "Which embedding model this collection indexes with. Frozen at "
-            "creation - the vector column is created at this model's width - "
-            "so it cannot be changed later. Omit for the deployment default."
+            "Which embedding model this collection indexes with. The vector column "
+            "is created at this model's width, so a later change to the model must "
+            "keep that width and is tested first (`PATCH /kb/{id}`). Required for a "
+            "new collection."
         ),
     )
     embedding_provider: str | None = Field(
@@ -41,9 +42,21 @@ class KnowledgeBaseCreate(AudienceChoice):
         max_length=32,
         description=(
             "Whose endpoint serves that model, from "
-            "`GET /rag/embedding-models`. Unlike the model this one can be "
-            "changed later. Required for a new collection; a knowledge base "
-            "joining a collection name already in use adopts that collection's."
+            "`GET /rag/embedding-models`. Required for a new collection; a "
+            "knowledge base joining a collection name already in use adopts "
+            "that collection's."
+        ),
+    )
+    probe_token: str | None = Field(
+        default=None,
+        max_length=2048,
+        description=(
+            "Required to create a collection on a provider that serves any model "
+            "(`openai_compatible`), whose vector width only a test can measure: the "
+            "`probe_token` that `POST /kb/embedding-probe` returned for this "
+            "connection and model, within ten minutes. The collection is created at "
+            "the width the test measured. Not used for any other provider, nor when "
+            "joining a collection that already exists."
         ),
     )
     embedding_secret_id: UUID | None = Field(
@@ -77,8 +90,7 @@ class KnowledgeBaseCreate(AudienceChoice):
         description=(
             "How documents put into this collection are parsed, chunked and "
             "described. Omit to inherit this deployment's defaults. The embedding "
-            "model is deliberately not here: it is recorded at creation and cannot "
-            "be changed afterwards."
+            "model is not part of it; it is chosen with `embedding_model`."
         ),
     )
 
@@ -86,12 +98,12 @@ class KnowledgeBaseCreate(AudienceChoice):
 class KnowledgeBaseUpdate(BaseSchema):
     """Schema for updating a Knowledge Base.
 
-    The embedding *model* is deliberately absent: the vector column was created
-    at its width and every stored vector is in its space. The provider and the
-    key that pays are here, because the same model served from somewhere else is
-    still the same model - which is what makes rotating a credential or moving
-    to an organization's own account something other than re-ingesting
-    everything.
+    The vector column was created at one width and every stored vector is in one
+    space, so a change to where or how the collection embeds - the provider, the
+    connection, the key, the endpoint or the model - could strand them. Such a
+    change is proven first: `probe_token` from a passing test of exactly these
+    settings, or `unverified` to save without one. Renaming, describing or
+    reconfiguring ingestion needs neither.
     """
 
     gap_drafter_agent_id: UUID | None = None
@@ -115,6 +127,16 @@ class KnowledgeBaseUpdate(BaseSchema):
             "model at its recorded width."
         ),
     )
+    embedding_model: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=128,
+        description=(
+            "Move the collection to another model, at the width its vectors already "
+            "have. Tested like any embedding change: a model of the same width is "
+            "still another space unless it answers with the same vectors."
+        ),
+    )
     embedding_secret_id: UUID | None = Field(
         default=None,
         description=(
@@ -135,6 +157,23 @@ class KnowledgeBaseUpdate(BaseSchema):
             "The service connection a keyless or custom provider is reached at from now on. Must "
             "be of kind `embedding` and for the provider the collection ends up "
             "on. Null leaves it alone."
+        ),
+    )
+    probe_token: str | None = Field(
+        default=None,
+        max_length=2048,
+        description=(
+            "Proof that a test of exactly these embedding settings passed, from "
+            "`POST /kb/{id}/embedding-probe`, within ten minutes. A change to the "
+            "provider, connection, key, endpoint or model needs this or `unverified`."
+        ),
+    )
+    unverified: bool = Field(
+        default=False,
+        description=(
+            "Save an embedding change without a passing test. Audited, with the "
+            "previous and new settings. Refused when another knowledge base shares the "
+            "collection and would be left on different settings."
         ),
     )
 

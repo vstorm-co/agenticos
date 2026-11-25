@@ -213,10 +213,12 @@ async def update(
     description: str | None = None,
     ingestion_config: dict[str, object] | None = None,
     embedding_provider: str | None = None,
+    embedding_model: str | None = None,
     embedding_secret_id: UUID | None = None,
     embedding_endpoint_id: UUID | None = None,
     embedding_base_url: str | None = None,
     set_embedding_base_url: bool = False,
+    clear_embedding_secret: bool = False,
 ) -> KnowledgeBase:
     """Apply what an update named, leaving what it did not alone.
 
@@ -234,6 +236,10 @@ async def update(
         db_kb.ingestion_config = ingestion_config
     if embedding_provider is not None:
         db_kb.embedding_provider = embedding_provider
+    if embedding_model is not None:
+        db_kb.embedding_model = embedding_model
+    if clear_embedding_secret:
+        db_kb.embedding_secret_id = None
     if embedding_secret_id is not None:
         db_kb.embedding_secret_id = embedding_secret_id
     if embedding_endpoint_id is not None:
@@ -243,6 +249,16 @@ async def update(
     await db.flush()
     await db.refresh(db_kb)
     return db_kb
+
+
+async def list_by_endpoint(db: AsyncSession, endpoint_id: UUID) -> list[KnowledgeBase]:
+    """Every knowledge base, of any organization, that embeds through one service connection."""
+    result = await db.execute(
+        select(KnowledgeBase)
+        .where(KnowledgeBase.embedding_endpoint_id == endpoint_id)
+        .order_by(KnowledgeBase.created_at, KnowledgeBase.id)
+    )
+    return list(result.scalars().all())
 
 
 async def delete(db: AsyncSession, kb_id: UUID) -> bool:

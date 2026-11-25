@@ -25,8 +25,10 @@ from app.services.embedding_resolution import (
     ResolvedEmbeddings,
     TargetIdentity,
     embeddings_for_collection,
+    identify_connection,
     identify_target,
     open_target,
+    public_address,
 )
 
 pytestmark = pytest.mark.anyio
@@ -759,3 +761,106 @@ async def test_regional_openrouter_embeddings_keep_the_selected_endpoint():
     assert resolved is not None
     assert resolved.base_url == "https://eu.openrouter.ai/api/v1"
     assert resolved.api_key == "sk-regional-test"
+
+
+class TestIdentifyingAProposedConnection:
+    """A test of an edit needs the identity the edit would have, not the stored row's."""
+
+    async def test_the_proposed_address_and_key_are_what_is_named(self) -> None:
+        row = MagicMock(id=uuid.uuid4(), organization_id=_ORG)
+        new_key = uuid.uuid4()
+
+        with patch(f"{_MODULE}.organization_secret_repo") as secrets:
+            secrets.authorization_generation = AsyncMock(return_value=_GENERATION)
+            identity = await identify_connection(
+                MagicMock(),
+                row,
+                provider="openai_compatible",
+                base_url="https://new.example/v1",
+                secret_id=new_key,
+                requires_key=True,
+            )
+
+        assert identity == TargetIdentity(
+            provider="openai_compatible",
+            connection_id=row.id,
+            base_url="https://new.example/v1",
+            secret_id=new_key,
+            key_generation=_GENERATION,
+            key_organization_id=_ORG,
+            key_source=EmbeddingKeySource.CONNECTION,
+        )
+
+    async def test_a_keyless_connection_names_no_key(self) -> None:
+        row = MagicMock(id=uuid.uuid4(), organization_id=_ORG)
+
+        identity = await identify_connection(
+            MagicMock(),
+            row,
+            provider="ollama",
+            base_url="http://ollama:11434/v1",
+            secret_id=None,
+            requires_key=False,
+        )
+
+        assert identity.key_source is EmbeddingKeySource.KEYLESS
+        assert identity.secret_id is None
+
+    @pytest.mark.security
+    @pytest.mark.parametrize("owner", [None, _ORG])
+    async def test_a_keyed_connection_whose_key_is_gone_is_never_called_bare(
+        self, owner: uuid.UUID | None
+    ) -> None:
+        row = MagicMock(id=uuid.uuid4(), organization_id=owner)
+
+        with patch(f"{_MODULE}.organization_secret_repo") as secrets:
+            secrets.authorization_generation = AsyncMock(return_value=None)
+            identity = await identify_connection(
+                MagicMock(),
+                row,
+                provider="openai_compatible",
+                base_url="https://x.example/v1",
+                secret_id=uuid.uuid4(),
+                requires_key=True,
+            )
+
+        assert identity.key_source is EmbeddingKeySource.CONNECTION_KEY_MISSING
+        assert identity.base_url == ""
+
+
+class TestWhatAnAuditEntryMayKeep:
+    @pytest.mark.security
+    @pytest.mark.parametrize(
+        ("url", "kept"),
+        [
+            ("https://api.example.com/v1?api-key=sk-123#frag", "https://api.example.com/v1"),
+            ("https://user:pass@gw.example.com:8443/v1", "https://gw.example.com:8443/v1"),
+            ("http://[::1]:11434/v1", "http://[::1]:11434/v1"),
+            (None, None),
+        ],
+    )
+    def test_an_address_loses_its_query_and_credentials(
+        self, url: str | None, kept: str | None
+    ) -> None:
+        assert public_address(url) == kept
+
+    @pytest.mark.security
+    def test_the_settings_an_entry_records_hold_ids_and_names_only(self) -> None:
+        endpoint, secret = uuid.uuid4(), uuid.uuid4()
+        settings = EmbeddingSettings(
+            provider="openrouter",
+            endpoint_id=endpoint,
+            secret_id=secret,
+            base_url="https://or.example/v1?api-key=sk-123",
+            model="m",
+        )
+
+        assert settings.for_audit() == {
+            "provider": "openrouter",
+            "endpoint_id": str(endpoint),
+            "secret_id": str(secret),
+            "base_url": "https://or.example/v1",
+            "model": "m",
+        }
+        empty = EmbeddingSettings("ollama", None, None, None, "m").for_audit()
+        assert (empty["endpoint_id"], empty["secret_id"], empty["base_url"]) == (None, None, None)

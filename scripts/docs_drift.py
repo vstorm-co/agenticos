@@ -113,6 +113,7 @@ TRIGGERS: tuple[tuple[str, str], ...] = (
     ("backend/app/services/ingestion_config.py", "docs/file-processing.md"),
     ("backend/app/services/service_connection.py", "docs/file-processing.md"),
     ("backend/app/api/routes/v1/service_connections.py", "docs/file-processing.md"),
+    ("backend/app/services/embedding_probe.py", "docs/file-processing.md"),
     ("backend/app/core/config.py", "docs/configuration.md"),
     ("backend/app/core/logging.py", "docs/data-protection.md"),
     ("backend/app/core/logfire_setup.py", "docs/data-protection.md"),

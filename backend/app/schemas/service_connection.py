@@ -95,6 +95,23 @@ class ServiceConnectionUpdate(BaseSchema):
             "delete it and register another."
         ),
     )
+    probe_token: str | None = Field(
+        default=None,
+        max_length=2048,
+        description=(
+            "Proof that a test of exactly this address and key passed against every "
+            "knowledge base using the connection, from `POST /service-connections/{id}/probe`, "
+            "within ten minutes. An embedding connection's `base_url` or `secret_id` change "
+            "needs this or `unverified`."
+        ),
+    )
+    unverified: bool = Field(
+        default=False,
+        description=(
+            "Save an address or key change without a passing test. Audited, with the "
+            "previous and new address."
+        ),
+    )
 
 
 class ServiceConnectionRead(BaseSchema, TimestampSchema):
