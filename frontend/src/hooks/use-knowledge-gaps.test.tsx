@@ -11,6 +11,7 @@ import {
   useDraftKnowledgeGap,
   useKnowledgeGap,
   useKnowledgeGapDraftEstimate,
+  useKnowledgeGapTopics,
   useKnowledgeGaps,
   useClassifyKnowledgeGaps,
   useRegroupKnowledgeGaps,
@@ -310,5 +311,56 @@ describe("useKnowledgeGapDraftEstimate", () => {
   it("asks nothing while it is not wanted", () => {
     renderHook(() => useKnowledgeGapDraftEstimate("t1", { enabled: false }), { wrapper });
     expect(apiClient.get).not.toHaveBeenCalled();
+  });
+});
+
+describe("useKnowledgeGapTopics", () => {
+  const stable = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const own = ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={stable}>{children}</QueryClientProvider>
+  );
+  afterEach(() => stable.clear());
+
+  it("reads each topic by its own id, whatever its status or how often it was asked", async () => {
+    vi.mocked(apiClient.get).mockImplementation(async (path: string) => ({
+      id: path.split("/").pop(),
+      status: path.endsWith("rare") ? "open" : "covered",
+    }));
+    const { result } = renderHook(() => useKnowledgeGapTopics(["rare", "documented"]), {
+      wrapper: own,
+    });
+    await waitFor(() => expect(result.current.topics).toHaveLength(2));
+    expect(apiClient.get).toHaveBeenCalledWith("/knowledge-gaps/rare");
+    expect(result.current.topics.map((topic) => topic.status)).toEqual(["open", "covered"]);
+    expect(result.current).toMatchObject({ skipped: 0, error: null, isLoading: false });
+  });
+
+  it("counts a topic removed or out of reach, and reports any other failure", async () => {
+    const gone = new ApiError(404, "Topic not found");
+    const refused = new ApiError(403, "Forbidden");
+    const broken = new ApiError(500, "Server error");
+    vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
+      if (path.endsWith("gone")) throw gone;
+      if (path.endsWith("refused")) throw refused;
+      if (path.endsWith("broken")) throw broken;
+      return { id: "kept", status: "open" };
+    });
+    const { result } = renderHook(
+      () => useKnowledgeGapTopics(["gone", "refused", "broken", "kept"]),
+      { wrapper: own },
+    );
+    await waitFor(() => expect(result.current.error).toBe(broken), { timeout: 4000 });
+    expect(result.current.skipped).toBe(2);
+    expect(result.current.topics.map((topic) => topic.id)).toEqual(["kept"]);
+
+    vi.mocked(apiClient.get).mockClear();
+    vi.mocked(apiClient.get).mockResolvedValue({ id: "again", status: "open" });
+    await act(() => result.current.refetch());
+    expect(
+      vi
+        .mocked(apiClient.get)
+        .mock.calls.map(([path]) => path)
+        .sort(),
+    ).toEqual(["/knowledge-gaps/broken", "/knowledge-gaps/gone", "/knowledge-gaps/refused"]);
   });
 });

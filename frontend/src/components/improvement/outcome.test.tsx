@@ -36,6 +36,9 @@ const state = vi.hoisted(() => ({
   topics: [] as Topic[],
   topicsError: null as Error | null,
   topicsLoading: false,
+  skipped: 0,
+  /** The ids each read of topics asked for. */
+  readIds: [] as string[][],
   evidenceTopics: ["t1", "t2", "t3"] as (string | null)[],
   compared: null as EvalComparison | null,
   comparisonError: null as Error | null,
@@ -51,12 +54,16 @@ const state = vi.hoisted(() => ({
   draft: vi.fn(),
 }));
 vi.mock("@/hooks/use-knowledge-gaps", () => ({
-  useKnowledgeGaps: () => ({
-    topics: state.topics,
-    error: state.topicsError,
-    isLoading: state.topicsLoading,
-    refetch: state.refetchTopics,
-  }),
+  useKnowledgeGapTopics: (ids: string[]) => {
+    state.readIds.push(ids);
+    return {
+      topics: state.topics.filter((item) => ids.includes(item.id)),
+      skipped: state.skipped,
+      error: state.topicsError,
+      isLoading: state.topicsLoading,
+      refetch: state.refetchTopics,
+    };
+  },
   useDraftKnowledgeGap: () => ({ mutate: state.draft, isPending: false }),
   useKnowledgeGapDraftEstimate: () => ({ estimate: { total_usd: "0.02" } }),
 }));
@@ -124,6 +131,8 @@ beforeEach(() => {
   state.topicsLoading = false;
   state.topics = [topic("t1"), topic("t2"), topic("t3", { can_edit: false }), topic("t9")];
   state.topicsError = null;
+  state.skipped = 0;
+  state.readIds = [];
   state.evidenceTopics = ["t1", "t2", "t3", null];
   state.environments = [];
   state.suites = [];
@@ -286,14 +295,46 @@ it("lists only this session's topics beside the changes and opens a draft inside
   expect(screen.queryByRole("button", { name: /Close draft/ })).not.toBeInTheDocument();
 });
 
-it("says nothing is missing, and offers to read the drafts again after a failure", async () => {
+it("says the topics could not be read, never that nothing is missing, and reads them again", async () => {
   state.topics = [];
-  state.topicsError = new Error("Forbidden");
+  state.topicsError = new Error("Server error");
   render(<KnowledgeDocuments session={SESSION} />);
-  expect(screen.getByText("Nothing is missing from the knowledge base.")).toBeInTheDocument();
+  expect(screen.getByText("Server error")).toBeInTheDocument();
+  expect(screen.queryByText("Nothing is missing from the knowledge base.")).not.toBeInTheDocument();
   await userEvent.click(screen.getByRole("button", { name: "Try reading again" }));
   expect(state.refetchTopics).toHaveBeenCalled();
   expect(state.refetchEvidence).toHaveBeenCalled();
+});
+
+it("says the knowledge base could not be read in the summary, not that nothing is missing", () => {
+  state.topics = [];
+  state.topicsError = new Error("Server error");
+  render(<ResultSummary session={SESSION} round={ROUND} />);
+  expect(
+    screen.getByRole("group", {
+      name: /In the knowledge base: what is missing could not be read\./,
+    }),
+  ).toBeInTheDocument();
+  expect(screen.queryByText(/nothing missing/)).not.toBeInTheDocument();
+});
+
+it("counts the session's topics it could not read, and points to the ones past what it reads", () => {
+  state.skipped = 2;
+  state.evidenceTopics = Array.from({ length: 55 }, (_, index) => `t${index + 1}`);
+  render(<KnowledgeDocuments session={SESSION} />);
+  expect(state.readIds.at(-1)).toHaveLength(50);
+  expect(
+    screen.getByText(
+      "2 topics this session found could not be read: they were removed, or you cannot see them.",
+    ),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByText(/5 more topics this session found are listed in the/),
+  ).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "agent's knowledge gaps" })).toHaveAttribute(
+    "href",
+    "/agents/a1?tab=gaps",
+  );
 });
 
 it("keeps a document set aside with Not now off the list, and says when that fails", async () => {
@@ -444,7 +485,9 @@ it("finds the session's open topics, drafted or not, and nobody else's", () => {
     topic("t9", { has_draft: false }),
   ];
   const { result } = renderHook(() => useSessionTopics(SESSION));
+  expect(state.readIds.at(-1)).toEqual(["t1", "t2", "t3"]);
   expect(result.current.topics.map((item) => item.id)).toEqual(["t1", "t2"]);
+  expect(result.current.added.map((item) => item.id)).toEqual(["t3"]);
   expect(result.current.error).toBeNull();
 });
 

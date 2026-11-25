@@ -17092,7 +17092,8 @@
       "title": "Sonuç",
       "better": "Güncellenen ajan {fixed} test sorusunu daha doğru yanıtladı.",
       "published": "{version, select, unknown {Değişiklikler yayımlandı.} other {{version}. sürüm olarak yayımlandı.}}",
-      "acceptedDraft": "Ajanın taslağına kaydedildi."
+      "acceptedDraft": "Ajanın taslağına kaydedildi.",
+      "topicsUnread": "Bilgi tabanında eksik bir şey olup olmadığı okunamadı."
     },
     "record": {
       "result": "Sonuç",
@@ -17118,7 +17119,10 @@
       "invalid": "Test sürümleri güvenilir biçimde karşılaştıramadı. Sonuç çıkarmadan önce testi inceleyin.",
       "noExamples": "Gösterilecek değişmiş yanıt yok. Tüm sorular için tam testi açın."
     },
-    "changedMore": "{count, plural, =1 {Değişen 1 yanıt daha kontrolde.} other {Değişen # yanıt daha kontrolde.}}"
+    "changedMore": "{count, plural, =1 {Değişen 1 yanıt daha kontrolde.} other {Değişen # yanıt daha kontrolde.}}",
+    "resultKnowledgeUnread": "Bilgi tabanında: eksik olanlar okunamadı.",
+    "topicsSkipped": "{count, plural, =1 {Bu oturumun bulduğu 1 konu okunamadı: kaldırıldı ya da onu göremiyorsunuz.} other {Bu oturumun bulduğu # konu okunamadı: kaldırıldılar ya da onları göremiyorsunuz.}}",
+    "topicsMore": "{count, plural, =1 {Bu oturumun bulduğu 1 konu daha <link>agent'ın bilgi boşluklarında</link> listeleniyor.} other {Bu oturumun bulduğu # konu daha <link>agent'ın bilgi boşluklarında</link> listeleniyor.}}"
   },
   "personalModelKeys": {
     "copilot": {
