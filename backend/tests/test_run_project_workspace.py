@@ -730,3 +730,17 @@ async def test_executor_tool_is_sequential_and_returns_controlled_refusals() -> 
     port.select_execution.assert_awaited_once_with("project")
     port.select_execution.side_effect = AuthorizationError(message="Project executor denied")
     assert await tool.function("project") == "Project executor denied"
+
+
+async def test_cleared_private_context_never_exposes_a_wider_raw_provider(
+    setup: SimpleNamespace,
+) -> None:
+    setup.selector.original_scope = "agent"
+    assert setup.selector.workspace.backend is setup.original.backend
+    await setup.selector.select(uuid4())
+    await setup.selector.select(None)
+    backend = setup.selector.workspace.backend
+    assert backend is setup.selector
+    with pytest.raises(WorkspaceUnavailableError, match="wider audience"):
+        await backend.write_bytes("leak.txt", b"private project reference")
+    assert not await setup.original.exists("leak.txt")
