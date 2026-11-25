@@ -3745,19 +3745,32 @@ class AgentRunnerService:
         `agents:run` key started must not mint, on resume, a credential with the
         owner's whole role. The key's scopes ride on the run (`key_scopes`) and
         narrow the rebuilt context as they narrowed the original one.
+
+        A run with no person - a visitor's with no publisher recorded, or one
+        whose starter was deleted after it parked - has nobody's authority, so it
+        continues with none, as it began. A run the publisher stood in for stays
+        a stand-in's, the publisher resuming it included: the conversation is a
+        visitor's.
         """
-        if existing_run is None or existing_run.user_id is None:
+        if existing_run is None:
             return ctx
+        if existing_run.user_id is None:
+            return None
         ceiling = (
             None
             if existing_run.key_scopes is None
             else frozenset(Perm(scope) for scope in existing_run.key_scopes if scope in Perm)
         )
         if existing_run.user_id == ctx.user_id:
+            own = (
+                replace(ctx, subject_is_publisher_fallback=True)
+                if existing_run.initiated_by_publisher_fallback
+                else ctx
+            )
             if ceiling is None:
-                return ctx
+                return own
             narrowed = ceiling if ctx.key_scopes is None else ceiling & ctx.key_scopes
-            return replace(ctx, key_scopes=narrowed)
+            return replace(own, key_scopes=narrowed)
         membership = await member_repo.get_active(
             self.db, organization_id=ctx.organization_id, user_id=existing_run.user_id
         )
