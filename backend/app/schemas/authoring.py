@@ -474,6 +474,13 @@ class HunkRead(BaseSchema):
     )
     applies: bool
     decided_at: datetime | None
+    contains_credential: bool = Field(
+        default=False,
+        description=(
+            "The text Accept would write quotes a credential. The texts are shown redacted, "
+            "and Accept is refused until a person edits the credential out"
+        ),
+    )
 
 
 class BatchRead(BaseSchema):

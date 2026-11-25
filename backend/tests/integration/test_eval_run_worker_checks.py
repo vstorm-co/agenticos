@@ -246,7 +246,7 @@ async def test_an_attempt_claimed_before_its_check_was_cancelled_leaves_the_canc
     await _demote(db, ctx)
 
     with patch.object(NotificationService, "eval_run_finished", new=AsyncMock()) as announced:
-        assert await worker._answer(working, claimed.id) is True
+        assert await worker._answer(claimed.id) is True
 
     run = await _stored(db, child.id)
     assert (run.status, run.error) == ("cancelled", None)

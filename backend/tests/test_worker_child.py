@@ -53,7 +53,7 @@ async def test_a_job_that_raises_is_retried_with_why() -> None:
 
     assert (reply.ok, reply.permanent) == (False, False)
     assert reply.error is not None
-    assert reply.error.startswith("RuntimeError: no")
+    assert reply.error.startswith("RuntimeError: its message is in the worker's log")
 
 
 async def test_the_child_says_ready_then_answers_a_line_per_request() -> None:

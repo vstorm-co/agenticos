@@ -138,6 +138,7 @@ from app.services.api_key import job_context
 from app.services.authoring import AuthoringService
 from app.services.authoring_evidence import EvidencePack
 from app.services.background_jobs import enqueue
+from app.services.dataset import redact_credentials
 from app.services.improvement_pipeline import ImprovementPipelineService
 from app.services.improvement_skills import SkillSeed
 from app.services.skill_agents import SkillAgentService
@@ -755,8 +756,8 @@ class SkillImprovementService:
             )
             problems.append(
                 SkillProblemRead(
-                    title=str(item.get("title", "")),
-                    summary=str(item.get("summary", "")),
+                    title=redact_credentials(str(item.get("title", "")))[0] or "",
+                    summary=redact_credentials(str(item.get("summary", "")))[0] or "",
                     runs=len(item.get("run_ids", [])),
                     agents=[
                         ProblemAgent(id=agent_id, name=agents[agent_id].name, runs=count)
@@ -765,7 +766,10 @@ class SkillImprovementService:
                     ],
                     hidden_agents=sum(1 for agent_id in per_agent if agent_id not in visible),
                     examples=[
-                        SkillProblemExample(run_id=UUID(quote["run_id"]), quote=quote["quote"])
+                        SkillProblemExample(
+                            run_id=UUID(quote["run_id"]),
+                            quote=redact_credentials(quote["quote"])[0] or "",
+                        )
                         for quote in item.get("evidence", [])
                         if UUID(quote["run_id"]) in shown
                     ],
@@ -1853,7 +1857,9 @@ class SkillImprovementService:
         *,
         base: SkillVersion | None = None,
     ) -> SkillCheckStart:
-        text = candidate_text(base or await self.base_of(run), await self._chosen(ctx, iteration))
+        chosen = await self._chosen(ctx, iteration)
+        authoring_hunks.refuse_quoted_credentials(chosen)
+        text = candidate_text(base or await self.base_of(run), chosen)
         if text is None:
             raise refused_field(
                 "hunk_ids",
@@ -2530,9 +2536,9 @@ class SkillImprovementService:
             origin=hunk.origin,
             status=hunk.status,
             old_text=hunk.old_text,
-            new_text=hunk.new_text,
-            edited_text=hunk.edited_text,
-            accepted_text=hunk.accepted_text,
+            new_text=redact_credentials(hunk.new_text)[0] or hunk.new_text,
+            edited_text=redact_credentials(hunk.edited_text)[0],
+            accepted_text=redact_credentials(hunk.accepted_text)[0],
             context_before=hunk.context_before,
             context_after=hunk.context_after,
             capability_id=None,
@@ -2540,13 +2546,13 @@ class SkillImprovementService:
             base_name=None,
             base_description=hunk.base_description,
             new_name=None,
-            new_description=hunk.new_description,
-            rationale=hunk.rationale,
-            expected_effect=hunk.expected_effect,
+            new_description=redact_credentials(hunk.new_description)[0],
+            rationale=redact_credentials(hunk.rationale)[0] or hunk.rationale,
+            expected_effect=redact_credentials(hunk.expected_effect)[0] or hunk.expected_effect,
             evidence=[
                 EvidenceItemRead(
                     run_id=UUID(item["run_id"]),
-                    quote=item.get("quote"),
+                    quote=redact_credentials(item.get("quote"))[0],
                     source=item.get("source"),
                     number=item.get("number"),
                 )
@@ -2558,6 +2564,7 @@ class SkillImprovementService:
             applies=description
             or authoring_hunks.apply_text(base.content, hunk, hunk.new_text) is not None,
             decided_at=hunk.decided_at,
+            contains_credential=authoring_hunks.hunk_quotes_credential(hunk),
         )
 
     async def _at_changes(

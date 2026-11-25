@@ -27,10 +27,12 @@ from app.core.audit import record_audit
 from app.core.exceptions import (
     AlreadyExistsError,
     AuthorizationError,
+    BadRequestError,
     ConcurrentChangeError,
     NotFoundError,
 )
 from app.core.permissions import AuthContext, Perm
+from app.core.redaction import holds_credential
 from app.db.models.context import ContextFile, ContextMode
 from app.db.models.context_proposal import ContextProposal
 from app.db.models.resource_grant import Visibility
@@ -42,6 +44,7 @@ from app.schemas.resource_usage import AgentUsage, ProposalDecision, ReachedAgen
 from app.services import proposal_reach, skill_library
 from app.services.access import CONTEXT, accessible_ids, resolve_access
 from app.services.context import ContextService
+from app.services.dataset import redact_credentials
 from app.services.notifications import NotificationService
 from app.services.resource_usage import agents_using
 
@@ -50,6 +53,11 @@ logger = logging.getLogger(__name__)
 
 _PRODUCT_CONTEXT = "agenticos-product-map"
 _PRODUCT_CONTEXT_DESCRIPTION = "Choose the right AgenticOS feature for a task."
+
+
+def context_quotes_credential(proposal: ContextProposal) -> bool:
+    """Whether a proposed context file change would write a credential into the file."""
+    return holds_credential([proposal.description, proposal.content])
 
 
 class ContextProposalService:
@@ -216,8 +224,9 @@ class ContextProposalService:
             id=proposal.id,
             context_id=proposal.context_id,
             context_name=file.name,
-            description=proposal.description,
-            content=proposal.content,
+            description=redact_credentials(proposal.description)[0],
+            content=redact_credentials(proposal.content)[0] or proposal.content,
+            contains_credential=context_quotes_credential(proposal),
             current_description=file.description,
             current_content=file.content,
             status=proposal.status,
@@ -297,6 +306,11 @@ class ContextProposalService:
         """
         proposal, file = await self._get(ctx, proposal_id, perm=Perm.CONTEXT_EDIT)
         self._refuse_second_decision(proposal, decision.revision)
+        if context_quotes_credential(proposal):
+            raise BadRequestError(
+                message="This change quotes a credential; discard it and edit the file by hand",
+                details={"proposal_id": proposal.id},
+            )
         # Locking re-reads the row into `file`: an edit committed meanwhile is seen.
         await context_repo.lock(self.db, file.id, organization_id=ctx.organization_id)
         if file.updated_at != proposal.base_updated_at:

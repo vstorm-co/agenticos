@@ -1,5 +1,5 @@
 ---
-source_sha: "5a321e5b8ad8"
+source_sha: "d81e3c2978bf"
 title: "Runy ewaluacji"
 description: "Run ewaluacji odpowiada na każdy przypadek datasetu wersją agenta albo jego wersją roboczą, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -227,6 +227,11 @@ pojedynczego runa wskazuje run ewaluacji i przypadek, na który odpowiadał
 (`eval_case`), czytającemu, który może widzieć dataset. Działa jako osoba, która
 uruchomiła ewaluację, z jej obecną rolą, i nie czyta ani nie zapisuje jej osobistej pamięci.
 
+Ta rola jest odczytywana ponownie przed każdym przypadkiem. Gdy osoba, która
+uruchomiła ewaluację, opuściła organizację, straciła dostęp do agenta albo
+datasetu albo jej klucz został unieważniony, run kończy się błędem, zanim
+odpowie na kolejny przypadek.
+
 Każdy przypadek działa **w izolacji**, jak opisują [Środowiska](environments.md):
 narzędzie z testowym połączeniem w środowisku runa działa na nim, narzędzie, o
 którym wiadomo, że tylko czyta, działa na zwykłym połączeniu, a wszystko, co
@@ -352,6 +357,11 @@ każde ocenianie jako tyle żądań, ile kroków ma sędzia. Sędzia startuje z
 temperaturą 0, więc ta sama odpowiedź jest oceniana tak samo dwa razy, a jego
 strona ostrzega, gdy ktoś ją podniesie.
 
+Znaleziony fragment widzi tylko czytający, który może zobaczyć odpowiedź i
+czytać bazę wiedzy, z której pochodzi, a dane uwierzytelniające są w nim
+redagowane, zanim zostanie zapisany. Fragmentu, który nie wskazuje swojej bazy
+wiedzy, nie widzi nikt, bo mógł pochodzić z czyjejś osobistej bazy wiedzy.
+
 Zakończony run zachowuje werdykt, liczniki i odsetki zaliczeń swojego
 pierwszego kandydata jako `outcome`, więc lista odczytuje je bez ponownego
 porównywania każdego runa. Jest porównywany ponownie, gdy od tego czasu osoba
@@ -387,6 +397,8 @@ Nazwy kryteriów, oceny poszczególnych kryteriów i przypisania do skilli wymag
 Zapisane źródła skilli używają stałych ID: zmiana nazwy zachowuje tożsamość skilla, a jego usunięcie i ponowne użycie nazwy nie przywraca dostępu do dawnych dowodów. Szczegóły kryteriów sesji wskazujące skill bez jego pierwotnego ID również pozostają ukryte. Opcjonalna nazwa wyświetlana skilla nie nadaje dostępu: pierwotne ID jest sprawdzane również bez etykiety.
 
 Interaktywne odczyty porównań dopuszczają do 30 żądań na osobę i 60 na organizację na minutę, z jednym wykonywanym porównaniem na organizację jednocześnie. Konsola i API współdzielą te limity. Nadmiarowe lub równoległe żądania zwracają HTTP 429 z `Retry-After`; klient powinien odczekać przed ponowieniem. Wspólny Redis koordynuje workery, a podczas awarii każdy worker zachowuje lokalny limit. Ręczne zmiany oceny odpowiedzi pochodzących z ewaluacji korzystają z tego samego budżetu i blokady, po sprawdzeniu dostępu do datasetu, a przed zmianą oceny lub zapisanych wyników.
+
+Odczyt runu porównuje go ponownie tylko wtedy, gdy ktoś zdecydował o jednej z jego ocen po zapisaniu werdyktu, i to porównanie korzysta z tej samej blokady i budżetu. Gdy blokada jest zajęta, lista runów oraz informacja w Builderze, czy zmianę modelu można zaakceptować, pokazują werdykt każdego runu w zapisanej postaci, a odczyt pojedynczego runu zwraca 429. Sama akceptacja zmiany nadal porównuje. Sprawdzenie na suicie ewaluacji przechowuje werdykt suity razem z werdyktem runu, więc kolejny odczyt niczego nie porównuje.
 
 Odczyt wymaga `runs:view` przed zajęciem blokady współbieżności lub zużyciem limitu. Aktywne porównania odnawiają blokady; wygaśnięcie po 120 sekundach zwalnia blokady procesów, które przestały działać. Błąd odnowienia w Redisie jest logowany i pozostawia lokalną blokadę workera.
 

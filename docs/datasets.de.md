@@ -1,5 +1,5 @@
 ---
-source_sha: "3af26d301af7"
+source_sha: "078ddddaa358"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -343,6 +343,15 @@ das ein Modell liest oder ein Export enthält, auch für die Argumente eines
 erwarteten Tool-Aufrufs, und für jeden Weg, auf dem ein Fall hinzukommt. Der
 Audit-Eintrag der Änderung hält fest, wie viele Werte geschwärzt wurden, nie die
 Werte selbst.
+
+Erkannt werden die API-Schlüssel und Tokens der Anbieter und Dienste, mit denen
+die Plattform arbeitet, JWTs und private Schlüssel, ein in eine Adresse
+geschriebenes Passwort (`postgres://user:password@host`), ein Schlüssel oder
+Passwort in einem Query-String oder Formularinhalt (`?api_key=`, `token=`,
+`password=`) und ein `Authorization`-Header vom Typ Basic oder Bearer. Derselbe
+Detektor bereinigt, was der Helfer einer Verbesserung liest, was der
+Klassifikator für Wissenslücken liest, und die Nachrichten eines Agents, wenn
+sein Guardrail Geheimnisse schwärzt.
 
 Eine Generierung schwärzt außerdem die Fragen und Abschnitte, die sie dem
 Generator übergibt, bevor sie an das Modell gehen, und nimmt aus den Fragen und
@@ -773,6 +782,8 @@ zusammenwirken, steht unter [Berechtigungen](permissions.md).
 Den Text eines aus einer Unterhaltung kopierten Falls sehen nur Leser mit `runs:view` oder Zugriff auf die Quellunterhaltung. Andere sehen Metadaten und einen Platzhalter, sowohl in aktuellen und historischen Versionen als auch in CSV/JSONL-Exporten. Eine fehlende Quelle gibt den Text nicht frei. Verborgener Text kann nicht bearbeitet und durch Metadatenänderungen nicht offengelegt werden. Evals führen weiterhin die vollständige gespeicherte Revision aus.
 
 Antworten, Prüfungsnotizen und Bewertungsbelege benötigen `runs:view` und Zugriff auf den antwortenden Agenten. Fehlt eines davon, bleiben Ergebnis und Status sichtbar, aber Antworttext, Begründungen, Regeln und Zitate werden entfernt. Vor dem Kopieren einer fremden privaten Unterhaltung nennt der Dialog deren Eigentümer und warnt, dass Dataset-Leser mit Leserecht für Runs den Text sehen werden.
+
+Die Wissensstellen des Bewerters werden mit der Antwort entfernt. Wer die Antwort sieht, bekommt eine Stelle nur aus einer Wissensbasis, die er lesen darf; siehe [Eval-Runs](evals.md).
 
 Eine Entscheidung über die Antwort eines Eval-Runs oder ihre neue Bewertung erfordert ebenfalls `runs:view` und Zugriff auf den antwortenden Agenten, weil sie die auf diesem Run aufbauenden Urteile ändert: Wer die Antwort nicht sehen kann, bekommt keines von beiden angeboten, und die API lehnt beides mit `403` ab.
 

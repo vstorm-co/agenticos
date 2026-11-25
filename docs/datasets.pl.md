@@ -1,5 +1,5 @@
 ---
-source_sha: "3af26d301af7"
+source_sha: "078ddddaa358"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -323,6 +323,14 @@ platforma zastępuje każdy rozpoznany klucz API albo token znacznikiem, np.
 które trafia do eksportu, także argumentów oczekiwanego wywołania narzędzia, i
 każdej drogi dodania przypadku. Wpis audytu dla zmiany zapisuje, ile wartości
 zredagowano, nigdy same wartości.
+
+Rozpoznaje klucze API i tokeny dostawców i usług, z którymi platforma
+współpracuje, JWT i klucze prywatne, hasło wpisane w adres
+(`postgres://user:password@host`), klucz albo hasło w query stringu lub treści
+formularza (`?api_key=`, `token=`, `password=`) oraz nagłówek `Authorization`
+typu Basic albo Bearer. Ten sam detektor czyści to, co czyta pomocnik
+ulepszania, to, co czyta klasyfikator luk w wiedzy, oraz wiadomości agenta,
+gdy jego guardrail redaguje sekrety.
 
 Generowanie redaguje też pytania i fragmenty przekazywane generatorowi, zanim
 trafią do modelu, i usuwa z pytań i komentarzy ludzi dane osobowe, które
@@ -726,6 +734,8 @@ granty, opisuje strona [Uprawnienia](permissions.md).
 Tekst przypadku skopiowanego z rozmowy widzą tylko czytelnicy z `runs:view` lub dostępem do rozmowy źródłowej. Pozostali widzą metadane i placeholder, zarówno w najnowszej i historycznych wersjach, jak i eksportach CSV/JSONL. Brak źródła nie odsłania tekstu. Czytelnik nie może edytować ukrytej treści, a zmiana metadanych jej nie ujawnia. Ewaluacje nadal wykonują pełną zapisaną rewizję.
 
 Odpowiedzi, notatki recenzenta i dowody oceny w przeglądzie wymagają `runs:view` oraz dostępu do odpowiadającego agenta. Bez któregoś z nich pozostają wynik i status, ale tekst odpowiedzi, uzasadnienia, reguły i cytaty są usuwane. Przed dodaniem cudzej prywatnej rozmowy dialog wskazuje jej właściciela i ostrzega, że czytelnicy datasetu mogący odczytywać runy zobaczą jej tekst.
+
+Fragmenty baz wiedzy znalezione przez sędziego są usuwane razem z odpowiedzią. Czytający, który widzi odpowiedź, dostaje fragment tylko z bazy wiedzy, którą może czytać; zobacz [Runy ewaluacji](evals.md).
 
 Decyzja w sprawie odpowiedzi runu ewaluacji albo jej nowa ocena również wymaga `runs:view` i dostępu do odpowiadającego agenta, bo zmienia werdykty zbudowane na tym runie: czytający, który nie widzi odpowiedzi, nie dostaje żadnej z tych opcji, a API odrzuca je z `403`.
 

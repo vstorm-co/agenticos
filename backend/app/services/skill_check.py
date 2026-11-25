@@ -126,6 +126,7 @@ from app.services.improvement_states import criterion_details, family_details
 from app.services.notifications import NotificationService
 from app.services.scoring import ScoringService
 from app.services.skill_agents import LineAgent, SkillAgentService
+from app.services.skill_proposal import PROPOSAL_QUOTES_CREDENTIAL, proposal_quotes_credential
 from app.services.skill_versions import SkillVersionService, manifest_of
 
 logger = logging.getLogger(__name__)
@@ -288,6 +289,10 @@ class SkillCheckService:
             )
         if proposal.fork_id != data.fork_id:
             raise refused_field("fork_id", "The proposal is for another line of this skill")
+        if proposal_quotes_credential(proposal):
+            raise BadRequestError(
+                message=PROPOSAL_QUOTES_CREDENTIAL, details={"proposal_id": proposal.id}
+            )
         return _proposal_candidate(proposal), proposal, proposal.fork_id
 
     async def _served(

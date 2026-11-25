@@ -241,6 +241,22 @@ class TestTheSeed:
         assert seed.problems == ["It says ninety days"]
         assert seed.quotes == ["Quoted for It says ninety days"]
 
+    @pytest.mark.security
+    async def test_a_kept_problem_reaches_the_card_and_the_seed_redacted(self, db):
+        ctx = await _owner(db)
+        skill = await _skill(db, ctx)
+        agent = await _serving(db, ctx, "Clerk", _spec(skill))
+        run = await _session(db, ctx, agent)
+        await _found(db, ctx, run, skill, "Fails on postgres://app:Kanar3kSeed@db/app")
+        service = ImprovementPipelineService(db)
+
+        card = await service.skills(ctx, agent.id, run.id)
+        seed = await service.skill_seed(ctx, run.id, skill.id)
+
+        shown = card.model_dump_json() + " ".join([*seed.problems, *seed.quotes])
+        assert "Kanar3kSeed" not in shown
+        assert shown.count("[redacted:url_credentials]") == 4
+
     async def test_the_line_is_the_one_the_sessions_version_read_after_a_republish(self, db):
         ctx = await _owner(db)
         skill = await _skill(db, ctx)

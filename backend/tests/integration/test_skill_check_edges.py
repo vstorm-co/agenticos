@@ -179,6 +179,40 @@ class TestWhatCannotBeChecked:
                 SkillCheckStart(proposal_id=proposal.id, fork_id=lab.fork_id),
             )
 
+    @pytest.mark.security
+    async def test_a_proposal_quoting_a_credential_is_never_checked(self, db):
+        lab = await _lab(db)
+        proposal = await _proposal(db, lab)
+        proposal.content = "An order number counts. Use postgres://app:Kanar3kCheck@db/app."
+        await db.flush()
+        datasets = DatasetService(db)
+        dataset = await datasets.create(lab.ctx, DatasetCreate(name="leaky-cases"))
+        await datasets.add_case(
+            lab.ctx,
+            dataset.id,
+            DatasetCaseCreate(input="Q", checks=[{"type": "contains", "value": "x"}]),
+        )
+        authoring = AuthoringService(db)
+        body = ProposalCheck(dataset_id=dataset.id, agent_id=lab.a.id, proposal_id=proposal.id)
+
+        with pytest.raises(BadRequestError, match="quotes a credential"):
+            await SkillCheckService(db).start(
+                lab.ctx, lab.skill.id, SkillCheckStart(proposal_id=proposal.id)
+            )
+        for attempt in (authoring.estimate_skill_check, authoring.check_skill):
+            with pytest.raises(BadRequestError, match="quotes a credential"):
+                await attempt(lab.ctx, lab.skill.id, body)
+
+        checks = await db.scalar(
+            select(func.count()).select_from(SkillCheck).where(SkillCheck.skill_id == lab.skill.id)
+        )
+        runs = await db.scalar(
+            select(func.count())
+            .select_from(EvalRun)
+            .where(EvalRun.organization_id == lab.ctx.organization_id)
+        )
+        assert (checks, runs) == (0, 0)
+
     async def test_a_proposal_written_against_an_older_version_is_refused(self, db, monkeypatch):
         lab = await _lab(db)
         FakeEvals().install(monkeypatch)

@@ -13,6 +13,8 @@
   evidence and no budget each refuse before anything is written.
 """
 
+import asyncio
+import contextvars
 import json
 import re
 import uuid
@@ -36,15 +38,17 @@ from app.core.exceptions import (
     ConcurrentChangeError,
     NotFoundError,
     PaymentRequiredError,
+    RateLimitError,
 )
 from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_run import AgentRun, RunSurface
 from app.db.models.api_key import ApiKey
 from app.db.models.authoring import AuthoringRequest, SpecProposalBatch
+from app.db.models.case_score import CaseScore
 from app.db.models.conversation import Conversation, Message
 from app.db.models.dataset import Dataset, DatasetCase
-from app.db.models.eval_run import EvalRun, EvalRunArm
+from app.db.models.eval_run import EvalRun, EvalRunArm, EvalRunCase
 from app.db.models.eval_suite import EvalSuite, EvalSuiteResult
 from app.db.models.message_rating import MessageRating
 from app.db.models.notification import Notification
@@ -52,12 +56,20 @@ from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.skill import Skill
 from app.db.models.skill_proposal import SkillProposal
 from app.db.models.user import User
-from app.repositories import authoring_repo, eval_suite_repo, skill_usage_repo
+from app.repositories import (
+    authoring_repo,
+    conversation_repo,
+    eval_run_repo,
+    eval_suite_repo,
+    skill_usage_repo,
+)
 from app.schemas.api_key import ApiKeyCreate
 from app.schemas.authoring import AuthoringStart, FileWaiting, HunkDecision, ProposalCheck
-from app.schemas.dataset import DatasetCaseCreate, DatasetCreate
-from app.schemas.scoring import DatasetScoring
+from app.schemas.dataset import DatasetCaseCreate, DatasetCreate, DatasetRead
+from app.schemas.eval_run import EvalRunRead
+from app.schemas.scoring import CaseVerdict, DatasetScoring
 from app.schemas.skill_usage import SkillUseRecord
+from app.services import rate_limit
 from app.services.agent_registry import AgentRegistryService
 from app.services.agent_runner import AgentRunnerService
 from app.services.api_key import KEY_GONE, ApiKeyService
@@ -68,6 +80,7 @@ from app.services.eval_run import EvalRunService, scoring_hash
 from app.services.eval_run_worker import EvalRunWorker
 from app.services.eval_suite import EvalSuiteService
 from app.services.model_profile import ModelProfileService
+from app.services.scoring import ScoringService
 from app.services.system_agent_runner import SystemAgentRunner
 from tests.integration._keys import provider_key
 
@@ -304,6 +317,18 @@ class Improver:
         return json.dumps(answer), run
 
 
+class QuotingImprover(Improver):
+    """Quotes the first reader comment exactly as its prompt showed it."""
+
+    def _answer(self, prompt: str) -> dict[str, Any]:
+        answer = super()._answer(prompt)
+        said = re.search(r"^Reader comment: (.+)$", prompt, flags=re.MULTILINE)
+        if said and "instructions" in answer:
+            run_id = _RUN.findall(prompt)[0]
+            answer["instructions"][0]["evidence"] = [{"run_id": run_id, "quote": said.group(1)}]
+        return answer
+
+
 def _answering(model: Improver):
     async def execute(runner: Any, *args: Any, **kwargs: Any):
         return await model.execute(runner, *args, **kwargs)
@@ -389,6 +414,147 @@ class TestImprove:
             .all()
         )
         assert {row.surface for row in improver_runs} == {"eval"}
+
+    @pytest.mark.security
+    async def test_credentials_in_the_evidence_reach_neither_the_improver_nor_its_hunks(self, db):
+        ctx, agent, run = await _setup(db)
+        password, key = "Kanar3k-DSN-pass", "Kanar3kQueryKey42"
+        comment = f"It broke on postgres://app:{password}@db.internal/app"
+        rating = await db.scalar(
+            select(MessageRating).join(Message).where(Message.run_id == run.id)
+        )
+        assert rating is not None
+        rating.comment = comment
+        answer = await db.scalar(
+            select(Message).where(Message.run_id == run.id, Message.role == "assistant")
+        )
+        assert answer is not None
+        await conversation_repo.create_tool_call(
+            db,
+            message_id=answer.id,
+            tool_call_id="call-fetch",
+            tool_name="fetch",
+            args={"url": f"https://api.example.com/v1/orders?api_key={key}&page=2"},
+            started_at=datetime.now(UTC),
+        )
+        await db.flush()
+        model = QuotingImprover(db)
+
+        request = await _improve(db, ctx, agent, model)
+
+        assert request.status == "completed", request.error
+        assert all(password not in prompt and key not in prompt for prompt in model.prompts)
+        assert "[redacted:url_credentials]" in model.prompts[0]
+        assert "[redacted:query_secret]" in model.prompts[0]
+        read = await AuthoringService(db).for_agent(ctx, agent.id)
+        assert read.batch is not None
+        [quote] = [item.quote for item in read.batch.hunks[0].evidence]
+        assert quote is not None and "[redacted:url_credentials]" in quote
+        assert password not in read.model_dump_json()
+
+    @pytest.mark.security
+    async def test_a_kept_suggestion_is_read_with_its_credentials_redacted(self, db):
+        ctx, agent, _ = await _setup(db)
+        request = await _improve(db, ctx, agent, Improver(db))
+        leaked = "postgres://app:Kanar3kKept@db/app"
+        batch = await authoring_repo.get_open_batch(
+            db, organization_id=ctx.organization_id, agent_id=agent.id
+        )
+        assert batch is not None
+        batch.expected_effect = f"Stops printing {leaked}"
+        hunks = await authoring_repo.list_hunks(
+            db, organization_id=ctx.organization_id, batch_id=batch.id
+        )
+        for hunk in hunks:
+            hunk.rationale = f"Readers saw {leaked}"
+            hunk.expected_effect = f"No more {leaked}"
+        request.report = {**(request.report or {}), "summary": f"It printed {leaked}"}
+        await db.flush()
+
+        read = await AuthoringService(db).for_agent(ctx, agent.id)
+
+        shown = read.model_dump_json()
+        assert "Kanar3kKept" not in shown
+        assert "[redacted:url_credentials]" in shown
+
+    @pytest.mark.security
+    async def test_a_kept_change_quoting_a_credential_is_shown_redacted_and_refused_until_edited(
+        self, db
+    ):
+        ctx, agent, _ = await _setup(db)
+        await _improve(db, ctx, agent, Improver(db))
+        service = AuthoringService(db)
+        before = (await service.for_agent(ctx, agent.id)).batch
+        assert before is not None
+        instruction = next(hunk for hunk in before.hunks if hunk.kind == "instructions")
+        stored = await authoring_repo.get_hunk(
+            db, instruction.id, organization_id=ctx.organization_id
+        )
+        assert stored is not None
+        stored.new_text = "Be brief. Connect with postgres://app:Kanar3kAccept@db/app."
+        await db.flush()
+
+        after = (await service.for_agent(ctx, agent.id)).batch
+        assert after is not None
+        shown = next(hunk for hunk in after.hunks if hunk.id == stored.id)
+        with pytest.raises(BadRequestError, match="quotes a credential"):
+            await service.decide(ctx, agent.id, stored.id, HunkDecision(action="accept"))
+        decided = await service.decide(
+            ctx,
+            agent.id,
+            stored.id,
+            HunkDecision(action="accept", text="Be brief. Refunds take 30 days."),
+        )
+
+        assert shown.contains_credential
+        assert "Kanar3kAccept" not in shown.new_text
+        assert "[redacted:url_credentials]" in shown.new_text
+        written = str(decided.draft_spec["instructions"])
+        assert "Refunds take 30 days." in written and "Kanar3kAccept" not in written
+
+    @pytest.mark.security
+    async def test_every_kind_of_change_quoting_a_credential_is_flagged_refused_and_unchecked(
+        self, db
+    ):
+        ctx, agent, _ = await _setup(db)
+        await _improve(db, ctx, agent, Improver(db))
+        leaked = "postgres://app:Kanar3kKinds@db/app"
+        service = AuthoringService(db)
+        before = (await service.for_agent(ctx, agent.id)).batch
+        assert before is not None
+        instruction, tool = before.hunks
+        stored_tool = await authoring_repo.get_hunk(
+            db, tool.id, organization_id=ctx.organization_id
+        )
+        stored_instruction = await authoring_repo.get_hunk(
+            db, instruction.id, organization_id=ctx.organization_id
+        )
+        assert stored_tool is not None and stored_instruction is not None
+        stored_tool.new_description = f"Read the time from {leaked}."
+        await db.flush()
+        runs_before = await db.scalar(select(func.count()).select_from(EvalRun))
+
+        with pytest.raises(BadRequestError, match="quotes a credential"):
+            await service.check(ctx, agent.id, ProposalCheck(dataset_id=uuid.uuid4()))
+        with pytest.raises(BadRequestError, match="quotes a credential"):
+            await service.decide(ctx, agent.id, stored_tool.id, HunkDecision(action="accept"))
+        stored_instruction.new_value = {
+            "name": "vault",
+            "description": "Vault access",
+            "content": f"Connect to {leaked}",
+        }
+        stored_instruction.kind = "create_skill"
+        await db.flush()
+        with pytest.raises(BadRequestError, match="quotes a credential"):
+            await service.decide(
+                ctx, agent.id, stored_instruction.id, HunkDecision(action="accept")
+            )
+        after = (await service.for_agent(ctx, agent.id)).batch
+
+        assert await db.scalar(select(func.count()).select_from(EvalRun)) == runs_before
+        assert after is not None
+        assert all(hunk.contains_credential for hunk in after.hunks)
+        assert "Kanar3kKinds" not in after.model_dump_json()
 
     async def test_a_large_body_of_evidence_is_digested_before_the_proposal(self, db, monkeypatch):
         ctx, agent, _ = await _setup(db)
@@ -838,15 +1004,26 @@ class TestCheck:
         suite.name, suite.min_pass_rate = "renamed", Decimal("0")
         await db.flush()
         await _finish_eval(db, ctx, started.id, answer="Refunds take 90 days.")
-        with patch.object(
-            evals,
-            "criterion_batches",
-            side_effect=AssertionError("run reads must not aggregate criteria"),
-        ) as criterion_reads:
+        with (
+            patch.object(
+                evals,
+                "criterion_batches",
+                side_effect=AssertionError("run reads must not aggregate criteria"),
+            ) as criterion_reads,
+            patch.object(
+                EvalRunService,
+                "_comparison",
+                autospec=True,
+                side_effect=EvalRunService._comparison,
+            ) as compared,
+        ):
             judged = await evals.get(ctx, started.id)
             repeated = await evals.get(ctx, started.id)
+            await evals.get(ctx, started.id)
         criterion_reads.assert_not_called()
         assert repeated.suite_check == judged.suite_check
+        # The run's verdict and the suite's, each compared once and then read as kept.
+        assert compared.call_count == 2
         await eval_suite_repo.delete_suite(db, suite=suite)
         gone = await evals.get(ctx, started.id)
         by_dataset = await service.check(ctx, agent.id, ProposalCheck(dataset_id=dataset.id))
@@ -866,6 +1043,67 @@ class TestCheck:
         assert (await db.execute(select(func.count()).select_from(Notification))).scalar() == 0
 
     @pytest.mark.security
+    async def test_a_reviewed_check_compares_again_only_with_the_comparison_admission(self, db):
+        ctx, agent, dataset, started = await _finished_suite_check(db)
+        evals = EvalRunService(db)
+        async with _another_request_comparing(ctx):
+            unjudged = await evals.get(ctx, started.id, admission="keep")
+        first = await evals.get(ctx, started.id)
+        assert unjudged.suite_check is not None and unjudged.suite_check.status is None
+        assert first.suite_check is not None and first.suite_check.status == "failed"
+        score = await db.scalar(
+            select(CaseScore)
+            .join(EvalRunCase, EvalRunCase.case_score_id == CaseScore.id)
+            .join(EvalRunArm, EvalRunArm.id == EvalRunCase.arm_id)
+            .where(EvalRunCase.eval_run_id == started.id, EvalRunArm.role == "candidate")
+        )
+        assert score is not None
+        await ScoringService(db).set_verdict(ctx, dataset.id, score.id, CaseVerdict(passed=True))
+        async with _another_request_comparing(ctx):
+            with pytest.raises(RateLimitError):
+                await evals.get(ctx, started.id, admission="refuse")
+            kept = await evals.get(ctx, started.id, admission="keep")
+            listed = await evals.list_for_agent(ctx, agent.id)
+        again = await evals.get(ctx, started.id)
+
+        assert started.id in {run.id for run in listed.items}
+        assert kept.suite_check is not None and kept.suite_check.status == "failed"
+        assert again.suite_check is not None and again.suite_check.status == "inconclusive"
+
+    @pytest.mark.security
+    async def test_a_suite_verdict_due_on_its_own_takes_the_comparison_admission(
+        self, db, monkeypatch
+    ):
+        ctx, _, _, started = await _finished_suite_check(db)
+        evals = EvalRunService(db)
+        first = await evals.get(ctx, started.id, admission="refuse")
+        assert first.suite_check is not None and first.suite_check.status == "failed"
+        run = await db.get(EvalRun, started.id)
+        assert run is not None and run.suite_check is not None
+        run.suite_check = {**run.suite_check, "judged": None}
+        await db.flush()
+
+        async with _another_request_comparing(ctx):
+            with pytest.raises(RateLimitError):
+                await evals.get(ctx, started.id, admission="refuse")
+            kept = await evals.get(ctx, started.id, admission="keep")
+        assert kept.suite_check is not None and kept.suite_check.status is None
+
+        lock = eval_run_repo.lock
+
+        async def decided_meanwhile(session, run_id, **kwargs):
+            await session.execute(
+                update(EvalRun).where(EvalRun.id == run_id).values(outcome_at=datetime.now(UTC))
+            )
+            return await lock(session, run_id, **kwargs)
+
+        monkeypatch.setattr(eval_run_repo, "lock", decided_meanwhile)
+        judged = await evals.get(ctx, started.id)
+        await db.refresh(run)
+
+        assert judged.suite_check is not None and judged.suite_check.status == "failed"
+        assert run.suite_check is not None and run.suite_check["judged"] is None
+
     async def test_another_organizations_suite_and_its_checks_read_as_missing(self, db):
         ctx, agent, _ = await _setup(db)
         await _improve(db, ctx, agent, Improver(db))
@@ -1359,6 +1597,59 @@ async def test_an_agent_never_published_has_nothing_to_verify_against(db):
     )
 
     assert estimate.reason == "no_draft_change" and estimate.calls == 0
+
+
+async def _finished_suite_check(
+    db: AsyncSession,
+) -> tuple[AuthContext, Agent, DatasetRead, EvalRunRead]:
+    """A check of an agent's suggestions on a one-question suite, finished and failed."""
+    ctx, agent, _ = await _setup(db)
+    await _improve(db, ctx, agent, Improver(db))
+    datasets = DatasetService(db)
+    dataset = await datasets.create(ctx, DatasetCreate(name="refunds"))
+    await datasets.add_case(
+        ctx,
+        dataset.id,
+        DatasetCaseCreate(input="Q0", checks=[{"type": "contains", "value": "30 days"}]),
+    )
+    await db.execute(
+        update(DatasetCase)
+        .where(DatasetCase.dataset_id == dataset.id)
+        .values(improvement_partition="holdout")
+    )
+    suite = await eval_suite_repo.create(
+        db,
+        organization_id=ctx.organization_id,
+        suite=EvalSuite(
+            agent_id=agent.id,
+            dataset_id=dataset.id,
+            owner_user_id=ctx.user_id,
+            name="nightly",
+            min_pass_rate=Decimal("0.9"),
+        ),
+    )
+    started = await AuthoringService(db).check(ctx, agent.id, ProposalCheck(suite_id=suite.id))
+    await _finish_eval(db, ctx, started.id, answer="Refunds take 90 days.")
+    return ctx, agent, dataset, started
+
+
+@asynccontextmanager
+async def _another_request_comparing(ctx: AuthContext) -> AsyncIterator[None]:
+    """Hold the organization's comparison claim as another request would, in its own context."""
+    holding, release = asyncio.Event(), asyncio.Event()
+
+    async def hold() -> None:
+        async with rate_limit.eval_computation(ctx):
+            holding.set()
+            await release.wait()
+
+    held = asyncio.create_task(hold(), context=contextvars.Context())
+    await holding.wait()
+    try:
+        yield
+    finally:
+        release.set()
+        await held
 
 
 async def _finish_eval(db: AsyncSession, ctx: AuthContext, run_id: uuid.UUID, *, answer: str):
