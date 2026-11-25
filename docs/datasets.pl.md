@@ -1,5 +1,5 @@
 ---
-source_sha: "4af43947ccea"
+source_sha: "e021ea60b048"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -508,6 +508,11 @@ Sędzia dostaje notatkę przypadku jako powód, dla którego przypadek istnieje,
 jego wcześniejsze tury i pytanie, odpowiedź wzorcową, gdy jest oceniana,
 kontrprzykład, każde wywołanie narzędzia wykonane przez agenta - z argumentami i
 informacją, czy izolowany run je zablokował - oraz odpowiedź.
+
+Każda z tych części jest w prompcie sędziego ogrodzona, więc jej tekst nie może
+zamknąć własnej sekcji i udawać słów samego promptu. Prompt kończy się zasadą,
+że ogrodzony tekst się ocenia, a nie wykonuje, i własne instrukcje datasetu nie
+mogą tej zasady zastąpić.
 
 Przypadek z kontrprzykładem jest zawsze oceniany także według wymaganego
 kryterium **counter-example**: odpowiedź nie może powtarzać znanej złej

@@ -1,5 +1,5 @@
 ---
-source_sha: "4af43947ccea"
+source_sha: "e021ea60b048"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -541,6 +541,12 @@ Der Bewerter erhält die Notiz des Falls als Grund, warum es den Fall gibt, sein
 früheren Züge und die Frage, die Referenzantwort, wenn sie bewertet wird, das
 Gegenbeispiel, jeden Tool-Aufruf des Agenten - mit seinen Argumenten und ob ein
 isolierter Run ihn blockiert hat - und die Antwort.
+
+Jeder dieser Teile steht im Prompt des Bewerters in einem eigenen Zaun, sodass
+sein Text den eigenen Abschnitt nicht schließen und sich als Worte des Prompts
+ausgeben kann. Der Prompt endet mit der Regel, dass eingezäunter Text bewertet
+und nie befolgt wird, und die eigenen Anweisungen des Datasets können diese
+Regel nicht ersetzen.
 
 Ein Fall mit Gegenbeispiel wird immer auch nach dem erforderlichen Kriterium
 **counter-example** bewertet: Die Antwort darf die bekannte schlechte Antwort

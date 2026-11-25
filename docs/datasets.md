@@ -488,6 +488,11 @@ and question, the reference answer when it is graded, the counter-example,
 every tool call the agent made - its arguments, and whether an isolated run
 blocked it - and the answer.
 
+Each of these is fenced in the judge's prompt, so text in it cannot close its
+own section and read as the prompt's own words. The prompt ends on the rule that
+fenced text is graded, never obeyed, and the dataset's own instructions cannot
+replace that rule.
+
 A case with a counter-example is always graded on a required **counter-example**
 criterion as well: the answer must not repeat the known bad answer, and the
 judge is asked to quote what sets the answer apart from it. It is graded
