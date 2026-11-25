@@ -1,5 +1,5 @@
 ---
-source_sha: "f75050767f96"
+source_sha: "098e6e8f0554"
 ---
 
 # Skills { #skills }
@@ -926,6 +926,10 @@ Linie - main oder den in den Chips gewählten Fork - in denselben fünf Schritte
 das [Verbessern eines Agents](authoring.md#the-improve-wizard): Verstehen, Änderungen, Prüfung,
 Ergebnis und Annehmen. Sie hält nach Verstehen, nach Änderungen und beim Ergebnis
 für Sie an und ändert nichts, bevor Sie annehmen.
+
+Eine vorgeschlagene Änderung der Beschreibung des Skills zeigt die alte und die
+neue Beschreibung, wie eine Änderung seines Textes. Eine Änderung ohne Text zum
+Anzeigen wird weggelassen, und eine gewählte wird vor der Prüfung abgelehnt.
 
 Eine Sitzung, die aus dem Improve eines Agents geöffnet wird, beginnt mit den
 Problemen, die diese Sitzung gemeldet hat. Nur ein Problem, das eine Zeile des
