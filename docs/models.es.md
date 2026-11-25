@@ -1,5 +1,5 @@
 ---
-source_sha: "7aff586c0beb"
+source_sha: "df7b5d085f04"
 ---
 
 # Modelos y providers { #models-and-providers }
@@ -876,7 +876,9 @@ lectura y escritura de caché son opcionales; si quedan vacías, usan la de entr
 Un cero explícito es un precio. La API utiliza `custom_pricing`: omitirlo en una
 actualización conserva el ajuste; enviar `null` restaura el precio automático.
 
-Cambiar o restablecer los precios requiere `budgets:manage`, además de gestionar las conexiones de modelos. Ese permiso también se requiere al cambiar la clave o el endpoint de un perfil con precios personalizados. Los perfiles de suscripción admiten los mismos precios opcionales por token: miden el consumo del presupuesto, no la cuota de la suscripción. Cuando las tarifas personalizadas sustituyen el coste contable, los importes originales del proveedor permanecen en los metadatos de uso.
+Cambiar o restablecer los precios requiere `budgets:manage`, además de gestionar las conexiones de modelos. Ese permiso también se requiere al cambiar la clave, el endpoint, `extra_body` o `extra_headers` de un perfil con precios personalizados: esos ajustes pueden cambiar el modelo o la cuenta que paga. Otros ajustes de generación, como la temperatura, conservan sus permisos actuales.
+
+Los perfiles de suscripción admiten los mismos precios opcionales por token: miden el consumo del presupuesto, no la cuota de la suscripción. Cuando las tarifas personalizadas sustituyen el coste contable, los importes originales del proveedor permanecen en los metadatos de uso.
 
 Las tarifas propias tienen prioridad sobre el catálogo y la factura del proveedor.
 Se aplican las del perfil que realmente responde, incluidos fallbacks, delegaciones
@@ -885,8 +887,10 @@ Las estimaciones usan estas tarifas cuando antes usaban el catálogo; las basada
 en ejecuciones históricas siguen utilizando sus costes registrados.
 
 Cambiar una tarifa afecta al uso resuelto posteriormente y no modifica costes
-históricos de ejecuciones o mensajes. Los recuentos de tokens inválidos siguen
-parcialmente tarifados. El modo automático conserva el catálogo y las facturas
+históricos de ejecuciones o mensajes. Los recuentos de tokens inválidos o el uso
+omitido mantienen una tarifa parcial. Se conservan los subtotales conocidos, y un
+presupuesto activo en dólares impide nuevas peticiones tras un uso incompleto
+con tarifas propias. El modo automático conserva el catálogo y las facturas
 del proveedor. El formulario muestra tarifas orientativas del nivel básico cuando
 están disponibles; la factura real se conoce después de la petición. Estas tarifas
 no configuran voz realtime ni generación de imágenes, audio o vídeo por unidad.

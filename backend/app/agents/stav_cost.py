@@ -21,6 +21,7 @@ from pydantic_ai.settings import ModelSettings
 from pydantic_ai.tools import RunContext
 from pydantic_ai.usage import RequestUsage
 
+from app.agents.stream_usage import final_stream_usage
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -146,6 +147,6 @@ class StavCostModel(WrapperModel):
                 try:
                     yield stream
                 finally:
-                    capture.apply(stream.usage)
+                    capture.apply(final_stream_usage(stream))
         finally:
             _active.reset(token)

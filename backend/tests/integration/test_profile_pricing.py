@@ -5,7 +5,7 @@ from uuid import uuid4
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import NotFoundError
+from app.core.exceptions import AuthorizationError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.organization import Organization
 from app.db.models.user import User
@@ -25,6 +25,54 @@ async def tenant(db: AsyncSession) -> AuthContext:
     db.add(org)
     await db.flush()
     return AuthContext(user_id=owner.id, organization_id=org.id, role=OrgRoleName.OWNER)
+
+
+@pytest.mark.parametrize("setting", ["extra_body", "extra_headers"])
+async def test_only_budget_authority_can_rebind_transport_settings_of_a_saved_priced_profile(
+    db: AsyncSession,
+    setting: str,
+) -> None:
+    ctx = await tenant(db)
+    builder = AuthContext(
+        user_id=ctx.user_id, organization_id=ctx.organization_id, role=OrgRoleName.BUILDER
+    )
+    rates = TokenPricing(input="0", output="0")
+    profile = await credential_repo.create_profile(
+        db,
+        organization_id=ctx.organization_id,
+        label="Negotiated",
+        provider="ollama",
+        model="alias",
+        secret_id=None,
+        base_url="http://localhost:11434/v1",
+        runs_without_key=True,
+        custom_pricing=rates.model_dump(mode="json"),
+    )
+    transport = (
+        {"model": "expensive-model"}
+        if setting == "extra_body"
+        else {"Authorization": "Bearer replacement-test-key"}
+    )
+    service = ModelProfileService(db)
+    changes = ModelProfileUpdate(params={setting: transport})
+    with pytest.raises(AuthorizationError, match="budgets:manage"):
+        await service.update_profile(builder, profile.id, changes)
+    await db.refresh(profile)
+    assert profile.params == {} and profile.custom_pricing == rates.model_dump(mode="json")
+
+    await service.update_profile(ctx, profile.id, changes)
+    await service.update_profile(
+        builder, profile.id, ModelProfileUpdate(params={setting: transport, "temperature": 0.5})
+    )
+    with pytest.raises(AuthorizationError, match="budgets:manage"):
+        await service.update_profile(builder, profile.id, ModelProfileUpdate(params={}))
+    await db.refresh(profile)
+    assert profile.params == {setting: transport, "temperature": 0.5}
+
+    await service.update_profile(ctx, profile.id, ModelProfileUpdate(custom_pricing=None))
+    await service.update_profile(builder, profile.id, ModelProfileUpdate(params={}))
+    await db.refresh(profile)
+    assert profile.params == {} and profile.custom_pricing is None
 
 
 async def test_prices_persist_resolve_and_return_to_automatic_without_affecting_another_profile(

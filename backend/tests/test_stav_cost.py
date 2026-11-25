@@ -77,9 +77,12 @@ def _responses(usage: dict[str, object]) -> dict[str, object]:
     }
 
 
-def _wire(api: str, stream: bool, usage: dict[str, object]) -> httpx2.Response:
+def _wire(api: str, stream: bool, usage: dict[str, object] | None) -> httpx2.Response:
     if not stream:
-        return httpx2.Response(200, json=_chat(usage) if api == "chat" else _responses(usage))
+        response = _chat(usage or {}) if api == "chat" else _responses(usage or {})
+        if usage is None:
+            response.pop("usage")
+        return httpx2.Response(200, json=response)
     if api == "chat":
         events = [
             {
@@ -101,11 +104,13 @@ def _wire(api: str, stream: bool, usage: dict[str, object]) -> httpx2.Response:
                 "created": 1,
                 "model": MODEL,
                 "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}],
-                "usage": _chat(usage)["usage"],
+                "usage": _chat(usage)["usage"] if usage is not None else None,
             },
         ]
     else:
-        response = _responses(usage)
+        response = _responses(usage or {})
+        if usage is None:
+            response["usage"] = None
         events = [
             {
                 "type": "response.created",
@@ -140,6 +145,96 @@ def _wire(api: str, stream: bool, usage: dict[str, object]) -> httpx2.Response:
         ]
     body = "".join(f"data: {json.dumps(event)}\n\n" for event in events) + "data: [DONE]\n\n"
     return httpx2.Response(200, content=body, headers={"content-type": "text/event-stream"})
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("api", ["chat", "responses"])
+@pytest.mark.parametrize("stream", [False, True])
+@pytest.mark.parametrize("reported_bill", [False, True])
+async def test_custom_pricing_cannot_enforce_a_budget_after_the_provider_omits_usage(
+    api: Literal["chat", "responses"],
+    stream: bool,
+    reported_bill: bool,
+) -> None:
+    from app.core.exceptions import BadRequestError
+    from app.schemas.token_pricing import TokenPricing
+
+    requests = 0
+
+    def respond(request: httpx2.Request) -> httpx2.Response:
+        nonlocal requests
+        requests += 1
+        response = _wire(api, stream, None)
+        if reported_bill:
+            response.headers.update({"x-stav-cost": "0.5", "x-stav-cost-currency": "USD"})
+        return response
+
+    ledger = SpendLedger()
+    guard = BudgetGuard(
+        ledger=ledger, provider="stav", limits=[SpendLimit(BudgetScope.RUN, Decimal("1"))]
+    )
+    credential = ResolvedCredential(
+        provider="stav",
+        secret=ApiKeySecret(api_key="sk_stav_test"),
+        api=api,
+        custom_pricing=TokenPricing(input="2", output="8"),
+    )
+    async with httpx2.AsyncClient(transport=httpx2.MockTransport(respond)) as transport:
+        with patch.object(_StavProvider, "_get_http_client", return_value=transport):
+            model = build_model(credential, MODEL)
+        async with Agent(model, capabilities=[guard]) as agent:
+            if stream:
+                async with agent.run_stream("hello") as result:
+                    await result.get_output()
+                response = result.all_messages()[-1]
+            else:
+                response = (await agent.run("hello")).response
+            assert ledger.has_unpriced_models
+            assert ledger.entries[0].custom_pricing
+            assert response.usage.unmeasured_requests == 1
+            if reported_bill:
+                assert response.usage.provider_reported_cost["amount"] == "0.5"
+            assert not await guard.can_afford_next_request()
+            with pytest.raises(BadRequestError, match="incomplete"):
+                if stream:
+                    async with agent.run_stream("again"):
+                        pytest.fail("The incomplete cost must refuse before opening a stream")
+                else:
+                    await agent.run("again")
+    assert requests == 1
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("api", ["chat", "responses"])
+async def test_interrupted_custom_stream_without_usage_retains_the_bill_and_partial_marker(
+    api: Literal["chat", "responses"],
+) -> None:
+    from app.schemas.token_pricing import TokenPricing
+
+    def respond(request: httpx2.Request) -> httpx2.Response:
+        response = _wire(api, True, None)
+        response.headers.update({"x-stav-cost": "0.5", "x-stav-cost-currency": "USD"})
+        return response
+
+    credential = ResolvedCredential(
+        provider="stav",
+        secret=ApiKeySecret(api_key="sk_stav_test"),
+        api=api,
+        custom_pricing=TokenPricing(input="2", output="8"),
+    )
+    async with httpx2.AsyncClient(transport=httpx2.MockTransport(respond)) as transport:
+        with patch.object(_StavProvider, "_get_http_client", return_value=transport):
+            model = build_model(credential, MODEL)
+        async with model:
+            async with model.request_stream(
+                [ModelRequest(parts=[UserPromptPart("hello")])], None, ModelRequestParameters()
+            ) as stream:
+                await anext(stream.__aiter__())
+            assert stream.usage.unmeasured_requests == 1
+            assert stream.get().state == "incomplete"
+            assert stream.usage.provider_reported_cost["amount"] == "0.5"
+            entry = SpendLedger().record(MODEL, stream.usage, "stav")
+            assert entry.custom_pricing and not entry.priced
 
 
 @pytest.mark.anyio

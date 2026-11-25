@@ -30,13 +30,14 @@ class TokenPricing(BaseSchema):
     cache_write: TokenRate | None = None
 
     def cost(self, usage: RequestUsage | RunUsage) -> Decimal | None:
+        """Price measured tokens, retaining a subtotal when some usage is missing."""
         counts = (
             usage.input_tokens,
             usage.output_tokens,
             usage.cache_read_tokens,
             usage.cache_write_tokens,
         )
-        if any(count < 0 for count in counts):
+        if any(count < 0 for count in counts) or (usage.unmeasured_requests and not any(counts)):
             return None
         ordinary = usage.input_tokens - usage.cache_read_tokens - usage.cache_write_tokens
         if ordinary < 0:

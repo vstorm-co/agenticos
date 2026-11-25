@@ -7,7 +7,7 @@ import pytest
 from pydantic import ValidationError
 from pydantic_ai import Agent
 from pydantic_ai.exceptions import ModelHTTPError
-from pydantic_ai.messages import ModelResponse, TextPart
+from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart
 from pydantic_ai.models import ModelRequestParameters
 from pydantic_ai.models.fallback import FallbackModel
 from pydantic_ai.models.function import FunctionModel
@@ -26,6 +26,7 @@ from app.agents.capabilities.budget import (
 )
 from app.agents.model_resolver import ResolvedCredential, build_model
 from app.agents.profile_pricing import ProfilePricingModel, catalog_token_pricing
+from app.core.exceptions import BadRequestError
 from app.core.secret_kinds import NoSecret
 from app.schemas.model_profile import ModelProfileCreate, ModelProfileUpdate
 from app.schemas.token_pricing import TokenPricing
@@ -136,6 +137,58 @@ async def test_custom_cost_is_the_amount_that_exhausts_the_budget():
     with pytest.raises(BudgetExceeded):
         await agent.run("again")
     assert len(ledger.entries) == 1
+
+
+@pytest.mark.parametrize("rates", [RATES, TokenPricing(input=0, output=0)])
+async def test_omitted_usage_is_partial_and_refuses_the_next_capped_request(
+    rates: TokenPricing,
+) -> None:
+    def missing_usage(messages: list[ModelMessage], info: object) -> ModelResponse:
+        return ModelResponse(parts=[TextPart("answer")], usage=RequestUsage(unmeasured_requests=1))
+
+    ledger = SpendLedger()
+    guard = BudgetGuard(ledger=ledger, limits=[SpendLimit(BudgetScope.RUN, Decimal("1"))])
+    model = ProfilePricingModel(FunctionModel(missing_usage), rates, None)
+    async with Agent(model, capabilities=[guard]) as agent:
+        await agent.run("hi")
+        assert ledger.has_unpriced_models
+        assert ledger.entries[0].custom_pricing
+        assert not await guard.can_afford_next_request()
+        with pytest.raises(BadRequestError, match="incomplete"):
+            await agent.run("again")
+    assert len(ledger.entries) == 1
+
+
+def test_partly_unmeasured_custom_usage_retains_its_known_subtotal() -> None:
+    usage = RequestUsage(input_tokens=1_000_000, unmeasured_requests=1)
+    priced().apply(usage)
+    ledger = SpendLedger()
+    entry = ledger.record("alias", usage, "ollama")
+    assert entry.cost_usd == Decimal("2")
+    assert entry.custom_pricing and not entry.priced
+
+
+@pytest.mark.parametrize("input_tokens, expected", [(0, "0"), (1_000_000, "2")])
+async def test_nested_unmeasured_custom_usage_keeps_its_subtotal_and_budget_refusal(
+    input_tokens: int,
+    expected: str,
+) -> None:
+    total = RunUsage()
+    before = usage_counts(total)
+    request = RequestUsage(input_tokens=input_tokens, unmeasured_requests=1)
+    priced().apply(request)
+    total.incr(request)
+    total.requests += 1
+    delta = usage_delta(before, total)
+    assert delta is not None and delta.unmeasured_requests == 1
+    ledger = SpendLedger()
+    entry = ledger.record("alias", delta, "ollama")
+    assert entry.cost_usd == Decimal(expected)
+    assert entry.custom_pricing and not entry.priced
+    guard = BudgetGuard(ledger=ledger, limits=[SpendLimit(BudgetScope.RUN, Decimal("10"))])
+    assert not await guard.can_afford_next_request()
+    with pytest.raises(BadRequestError, match="incomplete"):
+        await guard.assert_within_budget()
 
 
 async def test_streamed_usage_is_priced_before_it_reaches_the_guard():

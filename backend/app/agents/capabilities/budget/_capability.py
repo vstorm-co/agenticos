@@ -821,6 +821,7 @@ class UsageSnapshot:
     reported_requests: int
     profile_priced_requests: int = 0
     profile_unpriced_requests: int = 0
+    unmeasured_requests: int = 0
 
 
 def usage_counts(usage: RunUsage) -> UsageSnapshot:
@@ -840,6 +841,7 @@ def usage_counts(usage: RunUsage) -> UsageSnapshot:
         reported_requests=_reported_requests(usage),
         profile_priced_requests=_profile_requests(usage, "profile_priced_requests"),
         profile_unpriced_requests=_profile_requests(usage, "profile_unpriced_requests"),
+        unmeasured_requests=usage.unmeasured_requests,
     )
 
 
@@ -868,6 +870,7 @@ def usage_delta(before: UsageSnapshot, usage: RunUsage) -> RunUsage | None:
         cache_read_tokens=after.cache_read_tokens - before.cache_read_tokens,
         cache_write_tokens=after.cache_write_tokens - before.cache_write_tokens,
         requests=after.requests - before.requests,
+        unmeasured_requests=after.unmeasured_requests - before.unmeasured_requests,
         cost=cost,
     )
     if reported_requests > 0:

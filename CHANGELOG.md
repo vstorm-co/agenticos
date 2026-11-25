@@ -37,6 +37,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Prevent model editors from changing raw request routing or credentials on custom-priced profiles without budget authority. Keep omitted token usage partially priced, including streams and nested calls, and stop further capped requests while retaining known cost subtotals.
+
 - Keep creator consent on routines whose environment a publish, rollback or promotion does not change. Re-promoting the same version leaves their consent intact.
 
 - Keep resources of disabled capabilities out of agent execution, setup instructions and routine source/action consent. Reopen consent dialogs with a fresh review.
