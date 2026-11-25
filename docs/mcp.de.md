@@ -1,5 +1,5 @@
 ---
-source_sha: "8580321f0fe0"
+source_sha: "4e97f249e052"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -535,19 +535,22 @@ was ein gewöhnlicher Client vom Resolver bekommt, ohne DNS ein zweites Mal zu
 fragen. Ein Name, der mit einer öffentlichen und einer privaten Adresse antwortet,
 wird **ganz** abgelehnt statt auf seine öffentliche Hälfte eingegrenzt.
 
-Zwei Ränder bleiben, beide schmal und beide gewollt:
+Die **Consent-URL** wird geprüft und dann dem Browser übergeben, der den Namen
+selbst auflöst. Diese Browser-Verbindung wird vom Server nicht gepinnt.
 
-- Die **Consent-URL** wird geprüft und dann einem Browser übergeben, der sie
-  selbst auflöst. Es gibt nichts zu pinnen.
-- Die **eigene URL der Connection** wird beim Speichern geprüft und erneut
-  aufgelöst, wenn ein Agent läuft — vom Betreiber getippt, sie neu zu binden
-  heißt also, der Betreiber zu sein. Ein gelisteter
-  Host (`OUTBOUND_PRIVATE_ALLOWLIST` oder `MCP_ALLOWED_HOSTS`) wird ebenfalls
-  aufgelöst und jede Antwort geprüft: Eine private Antwort geht nur für einen Host
-  durch, den die Liste zulässt, eine Loopback- oder Metadaten-Antwort nie, und ein
-  per Namen gelisteter Host, der noch nicht aufgelöst wird, kann trotzdem
-  gespeichert werden. Die OAuth-Anfragen einer Connection, deren eigener Host gelistet ist, dürfen die
-  gelisteten Hosts erreichen, gepinnt wie jeder andere Schritt.
+Die **eigene URL der Connection** wird beim Speichern geprüft. Jede HTTP- oder
+SSE-Anfrage wird erneut geprüft und verbindet sich mit einer zugelassenen Adresse.
+Persönliche Connections werden von Mitgliedern kontrolliert, nicht vom Betreiber.
+Ein erneuter Verbindungsaufbau wiederholt die Prüfung. SDK-Weiterleitungen behalten
+den Origin des Endpunkts (oder einen zulässigen HTTPS-Wechsel) und die Methode.
+Ein Tool-POST mit ungewissem Ergebnis wird nicht wiederholt.
+
+Nur die Betreiberlisten `OUTBOUND_PRIVATE_ALLOWLIST` und `MCP_ALLOWED_HOSTS`
+erlauben private Hosts. Jede DNS-Antwort wird geprüft; Loopback-, Link-Local- und
+Metadaten-Adressen bleiben gesperrt. Ein gelisteter, noch nicht auflösbarer Name
+kann gespeichert werden, muss sich aber vor der Verbindung sicher auflösen.
+Eine öffentliche Connection erhält durch Weiterleitungen oder OAuth-Metadaten
+des Servers keine privaten Ausnahmen.
 
 Nichts, was ein _Modell_ wählt, erreicht diese Prüfung überhaupt, und das soll auch
 so sein: Eine URL, die ein Agent ausgewählt hat, gehört zu Pydantic AIs

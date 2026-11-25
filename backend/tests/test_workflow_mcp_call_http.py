@@ -1,7 +1,9 @@
 """Workflow deadlines over real Streamable HTTP, with silent JSON tool responses."""
 
 import asyncio
+import ipaddress
 import socket
+import struct
 from collections.abc import AsyncIterator, Generator
 from contextlib import contextmanager, suppress
 from dataclasses import dataclass, field
@@ -14,7 +16,11 @@ import uvicorn
 from fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 
+from app.agents import mcp_http
 from app.agents.mcp import CONNECT_TIMEOUT_SECS
+from app.core.config import settings
+from app.core.pinned_http import PinnedAsyncClient
+from app.core.sanitize import PrivateAllowlist
 from app.workflows.contracts.results import Failed, Uncertain
 from app.workflows.nodes.mcp_call import _handler as node
 
@@ -35,14 +41,36 @@ class _Endpoint:
     attempts: int = 0
 
 
+def _private_interface() -> str:
+    import fcntl
+
+    networks = tuple(
+        ipaddress.ip_network(value) for value in ("10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16")
+    )
+    # SIOCGIFADDR reads this namespace's interface configuration; it sends no packets.
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:
+        for _index, name in socket.if_nameindex():
+            try:
+                configured = fcntl.ioctl(probe.fileno(), 0x8915, struct.pack("256s", name.encode()))
+            except OSError:
+                continue
+            address = ipaddress.IPv4Address(configured[20:24])
+            if any(address in network for network in networks):
+                return str(address)
+    raise RuntimeError("The real MCP HTTP fixture requires a local RFC1918 IPv4 interface.")
+
+
 @pytest.fixture
-async def endpoint() -> AsyncIterator[_Endpoint]:
+async def endpoint(monkeypatch: pytest.MonkeyPatch) -> AsyncIterator[_Endpoint]:
+    address = _private_interface()
+    # Exercise the deployment's exact-host exception, keeping loopback forbidden.
+    monkeypatch.setattr(settings, "MCP_ALLOWED_HOSTS", [address])
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listener:
-        listener.bind(("127.0.0.1", 0))
+        listener.bind((address, 0))
         listener.listen()
         port = listener.getsockname()[1]
         assert isinstance(port, int)
-        state = _Endpoint(f"http://127.0.0.1:{port}/mcp")
+        state = _Endpoint(f"http://{address}:{port}/mcp")
         mcp = FastMCP("Silent slow tools")
 
         async def answer(delay_seconds: float) -> dict[str, bool]:
@@ -55,7 +83,12 @@ async def endpoint() -> AsyncIterator[_Endpoint]:
         mcp.tool(answer, name="slow_write", annotations=ToolAnnotations(read_only_hint=False))
         server = _Server(
             uvicorn.Config(
-                mcp.http_app(path="/mcp", json_response=True, stateless_http=True),
+                mcp.http_app(
+                    path="/mcp",
+                    json_response=True,
+                    stateless_http=True,
+                    allowed_hosts=[address, f"{address}:*"],
+                ),
                 log_level="critical",
                 access_log=False,
                 lifespan="on",
@@ -104,19 +137,24 @@ async def test_a_silent_six_second_tool_finishes_with_a_ninety_second_deadline(
     endpoint: _Endpoint,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    import mcp.client.streamable_http as transport
-
-    create_client = transport.create_mcp_http_client
+    create_client = mcp_http.PinnedAsyncClient
     clients: list[httpx2.AsyncClient] = []
 
     def checked_client(
-        *, headers: dict[str, str] | None, timeout: httpx2.Timeout
-    ) -> httpx2.AsyncClient:
-        client = create_client(headers=headers, timeout=timeout)
+        *,
+        timeout: httpx2.Timeout,
+        private_allowlist: PrivateAllowlist,
+        allowlist_origin: str | None = None,
+    ) -> PinnedAsyncClient:
+        client = create_client(
+            timeout=timeout,
+            private_allowlist=private_allowlist,
+            allowlist_origin=allowlist_origin,
+        )
         clients.append(client)
         return client
 
-    monkeypatch.setattr(transport, "create_mcp_http_client", checked_client)
+    monkeypatch.setattr(mcp_http, "PinnedAsyncClient", checked_client)
     result = await _call(endpoint, timeout=90)
     assert isinstance(result, node.McpCallOutput)
     assert result.structured == {"ok": True}

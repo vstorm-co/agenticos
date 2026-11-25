@@ -250,7 +250,10 @@ class TestTransportSelection:
         calls: list = []
         import mcp.client.sse as sse_mod
 
-        def sse_client(url, headers=None, timeout=None):
+        def sse_client(url, headers=None, timeout=None, httpx_client_factory=None):
+            from app.agents.mcp_http import McpHttpClientFactory
+
+            assert isinstance(httpx_client_factory, McpHttpClientFactory)
             calls.append(("sse", url, headers, timeout))
             return _acm(("sse-read", "sse-write"))
 
@@ -7306,6 +7309,31 @@ async def test_platform_adapter_does_not_reclassify_unexpected_failures(content)
     call = AsyncMock(side_effect=error)
     with pytest.raises(ToolFailed):
         await _platform_domain_result(MagicMock(), call, "test", {})
+
+
+@pytest.mark.anyio
+@pytest.mark.security
+async def test_platform_adapter_keeps_a_controlled_refusal_readable_without_retrying() -> None:
+    import json
+
+    from pydantic_ai.exceptions import ToolFailed
+
+    from app.agents.mcp import _platform_domain_result
+
+    refusal = {
+        "error": {
+            "status": 403,
+            "code": "AUTHORIZATION_ERROR",
+            "message": "This operation requires workflow access",
+            "details": {"required_permission": "workflows:view"},
+        }
+    }
+    call = AsyncMock(side_effect=ToolFailed(json.dumps(refusal)))
+
+    result = await _platform_domain_result(MagicMock(), call, "list_workflow_nodes", {})
+
+    assert result == refusal
+    call.assert_awaited_once_with("list_workflow_nodes", {})
 
 
 @pytest.mark.anyio

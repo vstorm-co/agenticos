@@ -58,6 +58,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Security
 
+- Remote MCP HTTP and SSE sessions validate DNS at every connection and dial only admitted addresses, preserving TLS identity and operator-approved private hosts. Session-owned clients close on failure, cancellation and reconnect; personal connection URLs cannot bypass the deployment's network policy after being saved.
 - Magic links redeem once and expire after credential or email changes. Cookie-authenticated private WebSockets require an exact trusted console Origin. The global body ceiling counts streamed bytes before parsers can buffer them. OAuth token refusals log only status, endpoint origin and allowlisted error codes.
 - Signed agent-trigger webhooks now deduplicate on authenticated signature material in PostgreSQL, so changing or omitting an unsigned delivery ID, restarting Redis or waiting out the old cache cannot repeat a privileged run. Workflow webhooks retain the same signed-copy identity for the exposure lifetime instead of reopening it after 24 hours; fresh timestamp-signed requests remain distinct.
 - Separate MCP connection use from administration on existing paths. Use grants continue to authorize agent/workflow binding, while editing, deleting, probing, reading call logs and changing sharing require management authority or an edit grant within the existing route gates. Existing role scopes and published-agent delegation remain in place; no grants are promoted and no new discovery endpoint is added.
