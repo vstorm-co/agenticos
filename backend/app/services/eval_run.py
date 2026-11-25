@@ -1998,7 +1998,7 @@ class EvalRunService:
         return run
 
     async def get(
-        self, ctx: AuthContext, run_id: UUID, *, interactive: bool = False
+        self, ctx: AuthContext, run_id: UUID, *, admission: Admission = "none"
     ) -> EvalRunRead:
         """One run, and - for a run of the draft - whether the draft changed since.
 
@@ -2007,19 +2007,19 @@ class EvalRunService:
         they would make: the draft changed since once neither the draft nor the
         draft with the suggestions still waiting is what it checked.
 
-        An `interactive` read - a person's, through the API - compares again only
-        under the organization's comparison admission, and is refused while it is
-        taken. The platform's own reads, a job settling a session say, compare as
-        they need.
+        A person's read compares again only under the organization's comparison
+        admission: through the API it is refused while the admission is taken
+        (`refuse`), and a page that only shows the run keeps the verdicts it has
+        (`keep`). The platform's own reads, a job settling a session say, compare
+        as they need (`none`).
 
         Raises:
-            RateLimitError: `interactive`, a comparison is due and the admission is taken.
+            RateLimitError: `refuse`, a comparison is due and the admission is taken.
         """
         run = await self._readable(ctx, run_id)
-        admission: Admission = "refuse" if interactive else "none"
         read = (await self._reads(ctx, [run], admission=admission))[0]
         if run.suite_check is not None:
-            suite_check = await self._suite_check(ctx, run, read, limited=interactive)
+            suite_check = await self._suite_check(ctx, run, read, admission=admission)
             read = read.model_copy(update={"suite_check": suite_check})
         checked = read.proposal_check is not None and read.proposal_check.kind == "agent"
         tested = next(
@@ -2052,13 +2052,18 @@ class EvalRunService:
         return authoring_hunks.projection(draft, hunks)[0]
 
     async def _suite_check(
-        self, ctx: AuthContext, run: EvalRun, read: EvalRunRead, *, limited: bool = False
+        self, ctx: AuthContext, run: EvalRun, read: EvalRunRead, *, admission: Admission = "none"
     ) -> EvalSuiteCheckRead:
         """The suite's verdict on a completed check, judged as the suite judges its own runs.
 
         The threshold is the one kept when the check started. Only a run that
-        completed is judged; nothing is written, so the check stays out of the
-        suite's history and notifies nobody.
+        completed is judged; nothing is written to the suite, so the check stays
+        out of its history and notifies nobody. Judging again takes the comparison
+        admission as `get` does; while it is taken, `keep` shows the verdict kept
+        on the run, or none when the run has not been judged yet.
+
+        Raises:
+            RateLimitError: `refuse`, the verdict is due and the admission is taken.
         """
         check = EvalSuiteCheck.model_validate(run.suite_check)
         suite = await eval_suite_repo.get(
@@ -2074,11 +2079,17 @@ class EvalRunService:
             return verdict
         judged = check.judged
         if judged is None or run.outcome_at is None or judged.outcome_at != run.outcome_at:
-            if limited:
-                async with rate_limit.eval_computation(ctx):
-                    judged = await self._judge_suite(ctx, run, read, check)
-            else:
+            if admission == "none":
                 judged = await self._judge_suite(ctx, run, read, check)
+            else:
+                try:
+                    async with rate_limit.eval_computation(ctx):
+                        judged = await self._judge_suite(ctx, run, read, check)
+                except RateLimitError:
+                    if admission == "refuse":
+                        raise
+                    if judged is None:
+                        return verdict
         return verdict.model_copy(update={"status": judged.status, "reasons": judged.reasons})
 
     async def _judge_suite(

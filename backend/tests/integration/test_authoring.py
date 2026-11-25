@@ -883,7 +883,6 @@ class TestCheck:
         assert (await db.execute(select(func.count()).select_from(Notification))).scalar() == 0
 
     @pytest.mark.security
-    @pytest.mark.security
     async def test_a_reviewed_check_compares_again_only_with_the_comparison_admission(self, db):
         ctx, agent, _ = await _setup(db)
         await _improve(db, ctx, agent, Improver(db))
@@ -913,7 +912,10 @@ class TestCheck:
         started = await AuthoringService(db).check(ctx, agent.id, ProposalCheck(suite_id=suite.id))
         await _finish_eval(db, ctx, started.id, answer="Refunds take 90 days.")
         evals = EvalRunService(db)
+        async with _another_request_comparing(ctx):
+            unjudged = await evals.get(ctx, started.id, admission="keep")
         first = await evals.get(ctx, started.id)
+        assert unjudged.suite_check is not None and unjudged.suite_check.status is None
         assert first.suite_check is not None and first.suite_check.status == "failed"
         score = await db.scalar(
             select(CaseScore)
@@ -923,25 +925,15 @@ class TestCheck:
         )
         assert score is not None
         await ScoringService(db).set_verdict(ctx, dataset.id, score.id, CaseVerdict(passed=True))
-        holding, release = asyncio.Event(), asyncio.Event()
-
-        async def another_comparison() -> None:
-            async with rate_limit.eval_computation(ctx):
-                holding.set()
-                await release.wait()
-
-        held = asyncio.create_task(another_comparison(), context=contextvars.Context())
-        await holding.wait()
-        try:
+        async with _another_request_comparing(ctx):
             with pytest.raises(RateLimitError):
-                await evals.get(ctx, started.id, interactive=True)
+                await evals.get(ctx, started.id, admission="refuse")
+            kept = await evals.get(ctx, started.id, admission="keep")
             listed = await evals.list_for_agent(ctx, agent.id)
-        finally:
-            release.set()
-            await held
         again = await evals.get(ctx, started.id)
 
         assert started.id in {run.id for run in listed.items}
+        assert kept.suite_check is not None and kept.suite_check.status == "failed"
         assert again.suite_check is not None and again.suite_check.status == "inconclusive"
 
     async def test_another_organizations_suite_and_its_checks_read_as_missing(self, db):
@@ -1437,6 +1429,25 @@ async def test_an_agent_never_published_has_nothing_to_verify_against(db):
     )
 
     assert estimate.reason == "no_draft_change" and estimate.calls == 0
+
+
+@asynccontextmanager
+async def _another_request_comparing(ctx: AuthContext) -> AsyncIterator[None]:
+    """Hold the organization's comparison claim as another request would, in its own context."""
+    holding, release = asyncio.Event(), asyncio.Event()
+
+    async def hold() -> None:
+        async with rate_limit.eval_computation(ctx):
+            holding.set()
+            await release.wait()
+
+    held = asyncio.create_task(hold(), context=contextvars.Context())
+    await holding.wait()
+    try:
+        yield
+    finally:
+        release.set()
+        await held
 
 
 async def _finish_eval(db: AsyncSession, ctx: AuthContext, run_id: uuid.UUID, *, answer: str):

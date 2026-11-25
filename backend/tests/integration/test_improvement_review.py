@@ -1,9 +1,5 @@
 """Human review updates the wizard's verdict without another paid run or publication."""
 
-import asyncio
-import contextvars
-from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
 from unittest.mock import patch
 from uuid import uuid4
 
@@ -16,10 +12,10 @@ from app.db.models.eval_run import EvalRun, EvalRunArm, EvalRunCase
 from app.db.models.organization import OrganizationMember
 from app.repositories import improvement_repo
 from app.schemas.scoring import CaseVerdict, RescoreRequest
-from app.services import rate_limit
 from app.services.eval_run import EvalRunService
 from app.services.improvement_pipeline import ImprovementPipelineService
 from app.services.scoring import ScoringService, ungraded
+from tests.integration.test_authoring import _another_request_comparing
 from tests.integration.test_authoring import _environment as _environment
 from tests.integration.test_improvement_pipeline import _ready_proposal
 
@@ -38,25 +34,6 @@ async def _scores(db, check_id):
             )
         ).all()
     )
-
-
-@asynccontextmanager
-async def _another_request_comparing(ctx) -> AsyncIterator[None]:
-    """Hold the organization's comparison claim as another request would, in its own context."""
-    holding, release = asyncio.Event(), asyncio.Event()
-
-    async def hold() -> None:
-        async with rate_limit.eval_computation(ctx):
-            holding.set()
-            await release.wait()
-
-    held = asyncio.create_task(hold(), context=contextvars.Context())
-    await holding.wait()
-    try:
-        yield
-    finally:
-        release.set()
-        await held
 
 
 async def test_review_and_undo_refresh_the_current_round_without_running_or_publishing(db):

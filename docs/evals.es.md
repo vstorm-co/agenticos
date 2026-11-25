@@ -1,5 +1,5 @@
 ---
-source_sha: "1ad1448905af"
+source_sha: "d85bb6bf5203"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -386,7 +386,7 @@ Las fuentes de skills guardadas usan ID estables: cambiar el nombre conserva su 
 
 Las lecturas interactivas de comparaciones permiten hasta 30 solicitudes por persona y 60 por organización por minuto, con una comparación en ejecución por organización. La consola y la API comparten estos límites. Las solicitudes excesivas o simultáneas reciben HTTP 429 con `Retry-After`; los clientes deben esperar antes de reintentar. Redis compartido coordina los workers; durante una caída se conserva un límite local por worker. Los cambios manuales de veredicto en respuestas de evaluaciones comparten el mismo presupuesto y bloqueo, después de autorizar el acceso al dataset y antes de modificar la calificación o los resultados guardados.
 
-Leer un run lo compara de nuevo solo cuando una persona decidió una de sus calificaciones después de guardarse su veredicto, y esa comparación usa el mismo bloqueo y presupuesto. Mientras el bloqueo está ocupado, una lista de runs muestra el veredicto de cada run tal como se guardó, y leer un run por sí solo responde 429. Una comprobación sobre una suite de evaluación guarda el veredicto de la suite junto con el del run, de modo que volver a leerla no compara nada.
+Leer un run lo compara de nuevo solo cuando una persona decidió una de sus calificaciones después de guardarse su veredicto, y esa comparación usa el mismo bloqueo y presupuesto. Mientras el bloqueo está ocupado, una lista de runs y el aviso del Builder sobre si se puede aceptar un cambio de modelo muestran el veredicto de cada run tal como se guardó, y leer un run por sí solo responde 429. Aceptar el cambio sigue comparando. Una comprobación sobre una suite de evaluación guarda el veredicto de la suite junto con el del run, de modo que volver a leerla no compara nada.
 
 Los lectores necesitan `runs:view` antes de ocupar la exclusión o consumir cuota. Las comparaciones activas renuevan sus bloqueos; la caducidad de 120 segundos recupera los de procesos caídos. Un fallo de renovación en Redis se registra y mantiene el bloqueo local del worker.
 

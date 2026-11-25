@@ -116,7 +116,7 @@ from app.services.authoring_config import ConfigurationService
 from app.services.authoring_evidence import EvidencePack, EvidenceService
 from app.services.background_jobs import enqueue
 from app.services.context import ContextService
-from app.services.eval_run import EvalRunService, spec_hash
+from app.services.eval_run import Admission, EvalRunService, spec_hash
 from app.services.eval_suite import EvalSuiteService
 from app.services.model_profile import ModelProfileService
 from app.services.skills import SkillService, improver_skill_chars
@@ -944,6 +944,7 @@ class AuthoringService:
                     ],
                 )[0],
                 skills=authoring_hunks.projected_skills(selected),
+                admission="keep",
             )
             for hunk in waiting
             if _changes_model(hunk)
@@ -992,6 +993,7 @@ class AuthoringService:
         combination: AgentSpec,
         *,
         skills: Mapping[UUID, SkillBody] | None = None,
+        admission: Admission = "none",
     ) -> str | None:
         """Why a change of model may not be accepted yet, or `None` when it may.
 
@@ -1002,13 +1004,17 @@ class AuthoringService:
         until a check ran the model, `check_outdated` when the checks that did
         measured something else, `inconclusive` when it decided nothing,
         `regression` when it broke cases, `crashed` when the agent crashed.
+
+        Showing the gate reads each check with `admission` `keep`, so it keeps the
+        verdict a check has while another request compares; Accept compares as it
+        needs, so it never rests on a verdict a person's decision has since changed.
         """
         evals = EvalRunService(self.db)
         wanted = spec_hash(combination, skills)
         ran_model = False
         for run_id in reversed(batch.check_eval_run_ids):
             try:
-                run = await evals.get(ctx, run_id)
+                run = await evals.get(ctx, run_id, admission=admission)
             except AuthorizationError, NotFoundError:
                 continue
             candidate = next((arm for arm in run.arms if arm.role == ArmRole.CANDIDATE), None)
