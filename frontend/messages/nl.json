@@ -15466,7 +15466,7 @@
     "versionChange": "v{number} · {change, select, add {toegevoegd} edit {bewerkt} remove {verwijderd} import {geïmporteerd} generate {geaccepteerd uit concepten} other {gewijzigd}}: {count, plural, =1 {1 testgeval} other {# testgevallen}}",
     "importFile": "Kies een CSV- of JSONL-bestand om te importeren",
     "importTitle": "Testgevallen importeren",
-    "importBody": "Een CSV- of JSONL-bestand van hoogstens 10 MB, in UTF-8, met één testgeval per rij of regel. Alleen input is verplicht, en een lege cel laat een veld leeg. Het bestand wordt de volgende versie van de dataset; als één rij wordt geweigerd, wordt er niets geïmporteerd.",
+    "importBody": "Een CSV- of JSONL-bestand van hoogstens {megabytes, number} MB, in UTF-8, met één testgeval per rij of regel. Alleen input is verplicht, en een lege cel laat een veld leeg. Het bestand wordt de volgende versie van de dataset; als één rij wordt geweigerd, wordt er niets geïmporteerd.",
     "importColumn": {
       "input": "Het bericht waarop de agent wordt getest.",
       "history": "De beurten ervoor, als JSON-lijst met role en content.",

@@ -20,12 +20,14 @@ import { useDatasetFiles } from "./use-dataset-files";
 export function CasesToolbar({
   datasetId,
   disabled = false,
+  importMaxBytes,
   onAdd,
   onImport,
   onGenerate,
 }: {
   datasetId: string;
   disabled?: boolean;
+  importMaxBytes: number;
   onAdd: () => void;
   onImport: (file: File) => Promise<unknown>;
   onGenerate: () => void;
@@ -81,6 +83,7 @@ export function CasesToolbar({
         open={importing}
         onOpenChange={setImporting}
         onChoose={() => picker.current?.click()}
+        maxBytes={importMaxBytes}
       />
     </div>
   );

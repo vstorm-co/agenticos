@@ -15191,7 +15191,7 @@
     "versionChange": "v{number} · {change, select, add {ajouté} edit {modifié} remove {retiré} import {importé} generate {accepté depuis les ébauches} other {modifié}} {count, plural, =1 {1 cas} other {# cas}}",
     "importFile": "Choisissez un fichier CSV ou JSONL à importer",
     "importTitle": "Importer des cas",
-    "importBody": "Un fichier CSV ou JSONL de 10 Mo au plus, en UTF-8, avec un cas par ligne. Seule l’entrée est obligatoire, et une cellule vide laisse un champ vide. Le fichier devient la version suivante du dataset ; si une ligne est refusée, rien n’est importé.",
+    "importBody": "Un fichier CSV ou JSONL de {megabytes, number} Mo au plus, en UTF-8, avec un cas par ligne. Seule l’entrée est obligatoire, et une cellule vide laisse un champ vide. Le fichier devient la version suivante du dataset ; si une ligne est refusée, rien n’est importé.",
     "importColumn": {
       "input": "Le message sur lequel l’agent est testé.",
       "history": "Les tours précédents, sous forme de liste JSON de rôle et de contenu.",

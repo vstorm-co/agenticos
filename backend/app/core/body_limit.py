@@ -63,7 +63,8 @@ def max_body_bytes() -> int:
         settings.EMBED_MAX_UPLOAD_SIZE_MB,
         settings.ML_MAX_UPLOAD_SIZE_MB,
     )
-    return largest_mb * 1024 * 1024 + _ENVELOPE_ALLOWANCE
+    largest = max(largest_mb * 1024 * 1024, settings.DATASET_IMPORT_MAX_BYTES)
+    return largest + _ENVELOPE_ALLOWANCE
 
 
 class BodySizeLimitMiddleware:

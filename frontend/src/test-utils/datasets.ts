@@ -5,6 +5,7 @@ export function datasetFixture(overrides: Partial<Dataset> = {}): Dataset {
   const count = overrides.case_count ?? 2;
   return {
     id: "d1",
+    import_max_bytes: 10_485_760,
     name: "Returns",
     description: null,
     visibility: "org",

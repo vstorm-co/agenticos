@@ -17,7 +17,7 @@ from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.core.exceptions import (
@@ -32,6 +32,7 @@ from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.agent import Agent
 from app.db.models.agent_run import AgentRun
 from app.db.models.authoring import AuthoringRequest, AuthoringStatus, HunkKind
+from app.db.models.background_job import BackgroundJob
 from app.db.models.organization import OrganizationMember
 from app.db.models.skill import Skill
 from app.db.models.skill_check import (
@@ -44,9 +45,10 @@ from app.db.models.skill_check import (
     SkillCheck,
     SkillCheckAgent,
 )
-from app.db.models.skill_improvement import SkillImprovementRun
+from app.db.models.skill_improvement import SkillImprovementIteration, SkillImprovementRun
 from app.repositories import (
     authoring_repo,
+    improvement_repo,
     skill_check_repo,
     skill_improvement_repo,
     skill_repo,
@@ -99,6 +101,8 @@ from tests.integration.test_skill_bindings import (
 pytestmark = pytest.mark.anyio
 
 _PRICE = Decimal("0.05")
+_ESTIMATE_PACK = AuthoringService.estimate_pack
+"""The real pricing, which asks whether the session's helper can still run."""
 _CONVERSATION = uuid.uuid4()
 _BODY = "Refunds take 14 days.\nAlways ask for the order number.\nBe polite."
 
@@ -2740,6 +2744,144 @@ class TestAChosenHelper:
             await service.start(ctx, skill.id, _start(improver_agent_id=uuid.uuid4()))
         with pytest.raises(NotFoundError):
             await service.start(blind, skill.id, _start(improver_agent_id=helper.id))
+
+
+class TestARefusedStep:
+    """A step refused by its helper, its evidence or its spending limit ends where a
+    person sees why, instead of raising in a job that is queued again every minute."""
+
+    async def _archived_helper(self, db, monkeypatch):
+        ctx = await _owner(db)
+        helper = await _published(
+            db, ctx, name="Strict helper", spec={"name": "Strict helper"}, kind="improver"
+        )
+        skill = await _skill_on_main(db, ctx)
+        service = SkillImprovementService(db)
+        read = await service.start(ctx, skill.id, _start(improver_agent_id=helper.id))
+        priced = AuthoringService.estimate_pack
+        helper.status = "archived"
+        await db.flush()
+        monkeypatch.setattr(AuthoringService, "estimate_pack", _ESTIMATE_PACK)
+        await service.advance(read.id, ctx.organization_id)
+        return ctx, helper, skill, service, read, priced
+
+    async def test_an_archived_helper_fails_the_step_and_nothing_is_asked_again(
+        self, db, evidence, monkeypatch
+    ):
+        ctx, _, _, service, read, _ = await self._archived_helper(db, monkeypatch)
+        run = await _row(db, read)
+        assert (run.status, run.stop_reason) == ("failed", "proposal")
+        assert run.error is not None and "archived" in run.error
+        queued = await db.scalar(
+            select(func.count())
+            .select_from(BackgroundJob)
+            .where(BackgroundJob.kind == "advance-skill-improvement")
+        )
+
+        await service.advance(read.id, ctx.organization_id)
+
+        assert (await _row(db, read)).status == "failed"
+        assert queued == await db.scalar(
+            select(func.count())
+            .select_from(BackgroundJob)
+            .where(BackgroundJob.kind == "advance-skill-improvement")
+        )
+
+    async def test_a_retry_with_a_helper_that_runs_takes_the_step_once(
+        self, db, evidence, monkeypatch
+    ):
+        ctx, helper, skill, service, read, priced = await self._archived_helper(db, monkeypatch)
+        iterations = await db.scalar(
+            select(func.count())
+            .select_from(SkillImprovementIteration)
+            .where(SkillImprovementIteration.run_id == read.id)
+        )
+        helper.status = "published"
+        await db.flush()
+        monkeypatch.setattr(AuthoringService, "estimate_pack", priced)
+
+        retried = await service.retry(ctx, skill.id, read.id)
+        await service.advance(read.id, ctx.organization_id)
+
+        run = await _row(db, read)
+        assert (retried.status, retried.stage, run.error) == ("running", "analyzing", None)
+        requests = await db.scalars(
+            select(AuthoringRequest).where(AuthoringRequest.skill_improvement_run_id == read.id)
+        )
+        assert [request.id for request in requests] == [run.analysis_request_id]
+        assert iterations == await db.scalar(
+            select(func.count())
+            .select_from(SkillImprovementIteration)
+            .where(SkillImprovementIteration.run_id == read.id)
+        )
+
+    @pytest.mark.security
+    async def test_an_organization_out_of_budget_after_the_start_stops_the_step(self, db, evidence):
+        """What the improver or the organization has left is checked again at each step,
+        not only when the session started."""
+        ctx = await _owner(db)
+        skill = await _skill_on_main(db, ctx)
+        service = SkillImprovementService(db)
+        read = await service.start(ctx, skill.id, _start())
+        evidence["affordable"] = False
+
+        await service.advance(read.id, ctx.organization_id)
+
+        run = await _row(db, read)
+        assert (run.status, run.stop_reason, run.analysis_request_id) == (
+            "stopped",
+            "budget",
+            None,
+        )
+
+    @pytest.mark.security
+    async def test_a_spending_limit_refused_mid_step_stops_the_session_on_its_budget(
+        self, db, evidence, monkeypatch
+    ):
+        ctx = await _owner(db)
+        skill = await _skill_on_main(db, ctx)
+        service = SkillImprovementService(db)
+        read = await service.start(ctx, skill.id, _start())
+
+        async def unaffordable(self, ctx, pack, *, improver_agent_id=None):
+            raise PaymentRequiredError(message="The organization's spending limit is reached")
+
+        monkeypatch.setattr(AuthoringService, "estimate_pack", unaffordable)
+        await service.advance(read.id, ctx.organization_id)
+
+        run = await _row(db, read)
+        assert (run.status, run.stop_reason, run.error) == ("stopped", "budget", None)
+
+    async def test_a_handed_over_session_whose_dataset_is_gone_hands_over_nothing(self, db):
+        """A session keeps its dataset's id when the dataset is deleted, and reading its
+        evidence is then refused as not found."""
+        ctx = await _owner(db)
+        skill = await _skill_on_main(db, ctx)
+        agent = await _published(db, ctx, name="Quoter", spec={"name": "Quoter"})
+        session = await improvement_repo.create_run(
+            db,
+            organization_id=ctx.organization_id,
+            agent_id=agent.id,
+            created_by_user_id=ctx.user_id,
+            created_by_api_key_id=None,
+            base_version_id=None,
+            base_draft_hash="a" * 64,
+            dataset_id=uuid.uuid4(),
+            dataset_version=1,
+            suite_id=None,
+            suite_hash=None,
+            scoring_hash="s" * 64,
+            window_days=30,
+            estimate_usd=Decimal("0.04"),
+            budget_usd=Decimal("0.04"),
+            max_iterations=3,
+        )
+        with pytest.raises(NotFoundError):
+            await EvidenceService(db).for_improvement(ctx, session.id)
+
+        handed = await EvidenceService(db).for_skill_handoff(ctx, skill.id, session.id)
+
+        assert handed == []
 
 
 class TestADecisionBesideTheSkillsDelete:

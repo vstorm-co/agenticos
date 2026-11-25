@@ -106,6 +106,7 @@ export function DatasetHeader({
                 open={importing}
                 onOpenChange={setImporting}
                 onChoose={() => picker.current?.click()}
+                maxBytes={dataset.import_max_bytes}
               />
             </>
           )}

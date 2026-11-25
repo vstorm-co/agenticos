@@ -15582,7 +15582,7 @@
     "versionChange": "v{number} · {change, select, add {added} edit {edited} remove {removed} import {imported} generate {accepted from drafts} other {changed}} {count, plural, =1 {1 case} other {# cases}}",
     "importFile": "Choose a CSV or JSONL file to import",
     "importTitle": "Import cases",
-    "importBody": "A CSV or JSONL file of up to 10 MB, in UTF-8, with one case per row or line. Only input is required, and an empty cell leaves a field empty. The file becomes the dataset's next version; if one row is refused, nothing is imported.",
+    "importBody": "A CSV or JSONL file of up to {megabytes, number} MB, in UTF-8, with one case per row or line. Only input is required, and an empty cell leaves a field empty. The file becomes the dataset's next version; if one row is refused, nothing is imported.",
     "importColumn": {
       "input": "The message the agent is tested on.",
       "history": "The turns before it, as a JSON list of role and content.",

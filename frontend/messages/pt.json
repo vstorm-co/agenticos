@@ -15466,7 +15466,7 @@
     "versionChange": "v{number} · {change, select, add {adicionado} edit {editado} remove {removido} import {importado} generate {aceito dos rascunhos} other {alterado}} {count, plural, =1 {1 caso} other {# casos}}",
     "importFile": "Escolha um arquivo CSV ou JSONL para importar",
     "importTitle": "Importar casos",
-    "importBody": "Um arquivo CSV ou JSONL de até 10 MB, em UTF-8, com um caso por linha. Apenas input é obrigatório, e uma célula vazia deixa o campo vazio. O arquivo se torna a próxima versão da base de dados; se uma linha for recusada, nada é importado.",
+    "importBody": "Um arquivo CSV ou JSONL de até {megabytes, number} MB, em UTF-8, com um caso por linha. Apenas input é obrigatório, e uma célula vazia deixa o campo vazio. O arquivo se torna a próxima versão da base de dados; se uma linha for recusada, nada é importado.",
     "importColumn": {
       "input": "A mensagem com que o agente será testado.",
       "history": "As mensagens anteriores, como uma lista JSON de role e content.",

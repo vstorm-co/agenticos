@@ -15355,7 +15355,7 @@
     "versionChange": "v{number} · {change, select, add {dodano} edit {zmieniono} remove {usunięto} import {zaimportowano} generate {zaakceptowano z propozycji} other {zmieniono}} {count, plural, one {1 przypadek} few {# przypadki} many {# przypadków} other {# przypadku}}",
     "importFile": "Wybierz plik CSV lub JSONL do importu",
     "importTitle": "Import przypadków",
-    "importBody": "Plik CSV lub JSONL do 10 MB, w UTF-8, z jednym przypadkiem na wiersz lub linię. Wymagane jest tylko input, a pusta komórka zostawia pole puste. Plik staje się następną wersją datasetu; jeśli jeden wiersz zostanie odrzucony, nic nie jest importowane.",
+    "importBody": "Plik CSV lub JSONL do {megabytes, number} MB, w UTF-8, z jednym przypadkiem na wiersz lub linię. Wymagane jest tylko input, a pusta komórka zostawia pole puste. Plik staje się następną wersją datasetu; jeśli jeden wiersz zostanie odrzucony, nic nie jest importowane.",
     "importColumn": {
       "input": "Wiadomość, na której testowany jest agent.",
       "history": "Wcześniejsze tury, jako lista JSON z rolą i treścią.",

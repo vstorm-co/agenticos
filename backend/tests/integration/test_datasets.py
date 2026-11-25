@@ -15,6 +15,7 @@ import asyncio
 import contextlib
 import csv
 import io
+import time
 import uuid
 from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock
@@ -24,6 +25,7 @@ from sqlalchemy import ColumnElement, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
+from app.core.config import settings
 from app.core.exceptions import (
     AlreadyExistsError,
     AuthorizationError,
@@ -45,14 +47,17 @@ from app.repositories import dataset_repo, project_repo
 from app.repositories._visibility import reached_by_scope, shared_with_caller, visible_to_caller
 from app.schemas.dataset import (
     AnswerAs,
+    DatasetCaseContent,
     DatasetCaseCreate,
     DatasetCaseFromMessage,
     DatasetCaseUpdate,
     DatasetCreate,
+    DatasetFileFormat,
     DatasetList,
     DatasetUpdate,
 )
 from app.services import dataset as dataset_service
+from app.services import dataset_files
 from app.services.access import _scope_allows
 from app.services.conversation import ConversationService
 from app.services.dataset import DatasetService
@@ -528,6 +533,51 @@ async def test_a_hundred_csv_rows_import_as_one_version_and_export_unchanged(db)
         select(DatasetCase.source).where(DatasetCase.dataset_id == dataset.id)
     )
     assert set(sources) == {"import"}
+
+
+async def test_an_import_is_parsed_without_holding_the_event_loop(
+    db, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A large file is CPU work for seconds; the API keeps answering meanwhile."""
+    ctx = await _owner(db)
+    service = DatasetService(db)
+    dataset = await service.create(ctx, DatasetCreate(name="slow-import"))
+    parse = dataset_files.parse
+
+    def slow(content: bytes, fmt: DatasetFileFormat) -> list[DatasetCaseContent]:
+        time.sleep(0.3)
+        return parse(content, fmt)
+
+    monkeypatch.setattr(dataset_files, "parse", slow)
+    ticks = 0
+
+    async def ticking() -> None:
+        nonlocal ticks
+        while True:
+            await asyncio.sleep(0.01)
+            ticks += 1
+
+    ticker = asyncio.create_task(ticking())
+    try:
+        version = await service.import_cases(
+            ctx, dataset.id, content=b"input,reference_answer\nq,a\n", filename="a.csv", fmt=None
+        )
+    finally:
+        ticker.cancel()
+
+    assert version.case_count == 1
+    assert ticks >= 10
+
+
+async def test_a_dataset_says_how_large_a_file_its_import_accepts(
+    db, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(settings, "DATASET_IMPORT_MAX_BYTES", 2 * 1024 * 1024)
+    ctx = await _owner(db)
+    service = DatasetService(db)
+    dataset = await service.create(ctx, DatasetCreate(name="sized"))
+
+    assert (await service.read(ctx, dataset.id)).import_max_bytes == 2 * 1024 * 1024
 
 
 async def test_exporting_an_empty_dataset_is_the_header_alone_and_is_audited(db) -> None:
