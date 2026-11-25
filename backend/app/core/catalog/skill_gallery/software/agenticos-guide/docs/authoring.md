@@ -43,9 +43,10 @@ a test from the Builder's test panel, nor a delegate's run.
 
 The built-in assistant has no tools. A helper agent picked in its place may bind
 `thinking`, `knowledge`, `context` or `skills` and nothing that reaches further, and one that
-searches is given the knowledge bases of the agent it improves. Its instructions
-are the dataset's improvement instructions, or the built-in ones - never those of
-its own published version.
+searches is given the knowledge bases of the agent it improves. Improving an
+agent, its instructions are the dataset's improvement instructions, or the
+built-in ones - never those of its own published version. A skill's Improve
+session runs it as published, with its own instructions.
 
 **It learns from training cases only.** Alongside rated chat runs, the assistant reads failed training answers, confirmed regressions, judge reasoning and Review notes from accessible [datasets](datasets.md). It receives training pass rates by tag and judge criterion, plus fixed and broken counts. Holdout questions, answers and grades never enter its prompt. Judge runs and the assistant's own runs remain excluded.
 

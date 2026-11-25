@@ -1,5 +1,5 @@
 ---
-source_sha: "70275d29e9ff"
+source_sha: "82ddec58b5e8"
 ---
 
 # Skills { #skills }
@@ -953,8 +953,9 @@ der Agent bleibt an diese Kriterien gebunden - siehe [Wenn der Fehler in einem
 Skill liegt](authoring.md#when-the-fault-is-in-a-skill).
 
 Was eine Sitzung schreibt - Titel und Zusammenfassung jedes Problems und den
-vorgeschlagenen Text -, stammt aus allen Antworten, die ihr Starter lesen konnte,
-und jeder, der die Sitzung lesen darf (`runs:view` und Zugriff auf den Skill),
+vorgeschlagenen Text -, stammt aus allen Antworten, die die Person lesen konnte, als
+die sie läuft (wer sie gestartet oder ihren letzten Schritt ausgeführt hat), und
+jeder, der die Sitzung lesen darf (`runs:view` und Zugriff auf den Skill),
 liest es. Nur Zitate und Agent-Namen folgen dem Zugriff des Lesenden: Ein Zitat
 aus einem Agent, den er nicht sieht, und der Name dieses Agents werden gezählt
 statt gezeigt.

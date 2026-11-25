@@ -1,5 +1,5 @@
 ---
-source_sha: "72259d603abf"
+source_sha: "e2bde210e1fa"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las herramientas, la configuración, los skills y los archivos de contexto de un agent. Una persona decide cada uno."
 ---
@@ -44,9 +44,10 @@ del panel de pruebas del Builder ni el run de un delegado.
 
 El asistente integrado no tiene herramientas. Un agent auxiliar elegido en su
 lugar puede vincular `thinking`, `knowledge`, `context` o `skills` y nada que llegue más
-lejos, y uno que busca recibe las bases de conocimiento del agent que mejora. Sus
-instrucciones son las de mejora de los ajustes del dataset, o las integradas -
-nunca las de su propia versión publicada.
+lejos, y uno que busca recibe las bases de conocimiento del agent que mejora. Al mejorar
+un agent, sus instrucciones son las de mejora de los ajustes del dataset, o las
+integradas - nunca las de su propia versión publicada. Una sesión de Improve de
+un skill lo ejecuta tal como está publicado, con sus propias instrucciones.
 
 **Aprende solo de casos de entrenamiento.** Además de chats valorados, el asistente lee respuestas de entrenamiento fallidas, regresiones confirmadas, razones del juez y notas de Review de [datasets](datasets.md) accesibles. Recibe tasas de acierto de entrenamiento por etiqueta y criterio del juez, y cantidades de fallos corregidos y nuevos. Las preguntas de control, respuestas y puntuaciones nunca entran en su prompt. Los runs del juez y del propio asistente siguen excluidos.
 

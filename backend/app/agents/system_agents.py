@@ -188,8 +188,8 @@ IMPROVER = SystemAgentDef(
     description=(
         "Reads an agent's ratings and run outcomes and proposes changes to its "
         "instructions, tools, configuration, skills and context files. A person "
-        "accepts or dismisses every change. A dataset's improvement settings choose "
-        "the instructions it works with."
+        "accepts or dismisses every change. On an agent it works with a dataset's "
+        "improvement instructions; on a skill, with its own."
     ),
     instructions=(
         "You improve AI agents from evidence. You are given what readers said about an "

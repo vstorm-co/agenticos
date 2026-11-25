@@ -1,5 +1,5 @@
 ---
-source_sha: "70275d29e9ff"
+source_sha: "82ddec58b5e8"
 ---
 
 # Skille { #skills }
@@ -879,8 +879,9 @@ agent nadal odpowiada za te kryteria - zobacz [Gdy błąd jest w
 skillu](authoring.md#when-the-fault-is-in-a-skill).
 
 To, co sesja pisze - tytuł i podsumowanie każdego problemu oraz proponowany
-tekst - powstaje ze wszystkich odpowiedzi, które mógł przeczytać ten, kto ją
-rozpoczął, i czyta to każdy, kto może czytać sesję (`runs:view` i dostęp do
+tekst - powstaje ze wszystkich odpowiedzi, które mogła przeczytać osoba, jako
+która działa (ta, która ją rozpoczęła, albo ta, która wykonała jej ostatni
+krok), i czyta to każdy, kto może czytać sesję (`runs:view` i dostęp do
 skilla). Tylko cytaty i nazwy agentów idą za dostępem czytającego: cytat z
 agenta, którego nie widzi, i nazwa tego agenta są policzone zamiast pokazane.
 

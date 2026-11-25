@@ -853,8 +853,8 @@ problem is advice, and the agent stays held to those criteria - see [When the
 fault is in a skill](authoring.md#when-the-fault-is-in-a-skill).
 
 What a session writes - each problem's title and summary, and the text it
-proposes - is drawn from every answer its starter could read, and everyone who
-may read the session (`runs:view` and access to the skill) reads it. Only quotes
+proposes - is drawn from every answer the person it runs as could read (its
+starter, or whoever took its latest step), and everyone who may read the session (`runs:view` and access to the skill) reads it. Only quotes
 and agent names follow the reader's own access: a quote from an agent they
 cannot see, and that agent's name, are counted instead of shown.
 

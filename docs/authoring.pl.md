@@ -1,5 +1,5 @@
 ---
-source_sha: "72259d603abf"
+source_sha: "e2bde210e1fa"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -45,9 +45,10 @@ test z panelu testowego Buildera ani run delegata.
 
 Wbudowany asystent nie ma narzędzi. Agent pomocniczy wybrany w jego miejsce może
 podpiąć `thinking`, `knowledge`, `context` albo `skills` i nic, co sięga dalej, a taki, który
-wyszukuje, dostaje bazy wiedzy poprawianego agenta. Jego instrukcje to instrukcje
-poprawiania z ustawień datasetu albo wbudowane - nigdy te z jego własnej
-opublikowanej wersji.
+wyszukuje, dostaje bazy wiedzy poprawianego agenta. Przy poprawianiu agenta jego instrukcje to
+instrukcje poprawiania z ustawień datasetu albo wbudowane - nigdy te z jego
+własnej opublikowanej wersji. Sesja Popraw skilla uruchamia go tak, jak jest
+opublikowany, z jego własnymi instrukcjami.
 
 **Uczy się wyłącznie na przypadkach treningowych.** Oprócz ocenionych rozmów asystent czyta błędne odpowiedzi treningowe, potwierdzone regresje, uzasadnienia sędziego i notatki przeglądu z dostępnych [datasetów](datasets.md). Dostaje skuteczność treningu według tagów i kryteriów sędziego oraz liczby napraw i regresji. Pytania kontrolne, odpowiedzi i oceny nigdy nie trafiają do jego promptu. Runy sędziego i samego asystenta nadal są pomijane.
 
