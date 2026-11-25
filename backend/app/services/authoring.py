@@ -297,8 +297,7 @@ class AuthoringService:
             session = await improvement_repo.get_run(
                 self.db, session_id, organization_id=ctx.organization_id
             )
-            if session is None:
-                continue
+            assert session is not None, "deleting a session sets the links to it to null"
             dataset = await dataset_repo.get(
                 self.db, session.dataset_id, organization_id=ctx.organization_id
             )
