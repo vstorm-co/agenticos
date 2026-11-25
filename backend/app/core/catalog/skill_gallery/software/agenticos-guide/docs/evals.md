@@ -210,6 +210,10 @@ names the eval run and case it answered (`eval_case`), for a reader who may see
 the dataset. It runs as the person who started the eval, with their current role,
 and does not read or write their personal memory.
 
+That role is read again before each case. When the starter has left the
+organization, lost access to the agent or the dataset, or had their key revoked,
+the run fails before it answers another case.
+
 Each case runs **isolated**, as [Environments](https://vstorm-co.github.io/agenticos/environments/) describes: a
 tool with a test connection on the run's environment runs against it, a tool
 known to only read runs on the normal connection, and anything that writes without
@@ -365,6 +369,8 @@ Criterion names, per-criterion grades and skill attributions require `runs:view`
 Stored skill sources use stable IDs: renaming a skill preserves its identity, while deleting it and reusing its name never restores access to old evidence. Session criterion details with a named skill but no original skill ID are hidden as well. The optional displayed skill name never grants access: the original ID is still checked when its label is absent.
 
 Interactive comparison reads allow up to 30 requests per person and 60 per organization per minute, with one comparison executing per organization at a time. Console and API requests share these limits. Excess or overlapping requests return HTTP 429 with `Retry-After`; clients should wait before retrying. Shared Redis coordinates workers, with a local per-worker floor during an outage. Manual verdict updates for eval-backed scores use the same budget and claim, after dataset authorization and before changing the score or cached results.
+
+Reading a run compares it again only when a person decided one of its scores since its verdict was kept, and that comparison takes the same claim and budget. While the claim is taken, a list of runs and the Builder's note on whether a change of model may be accepted show each run's verdict as it was kept, and reading the run on its own returns 429. Accepting the change still compares. A check on an eval suite keeps the suite's verdict with the run's own, so reading it again compares nothing.
 
 Readers need `runs:view` before claiming concurrency or spending quota. Active comparisons renew their claims; the 120-second expiry recovers crashed holders. A failed Redis renewal logs the failure and retains the per-worker floor.
 

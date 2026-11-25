@@ -12,10 +12,10 @@ from app.db.models.eval_run import EvalRun, EvalRunArm, EvalRunCase
 from app.db.models.organization import OrganizationMember
 from app.repositories import improvement_repo
 from app.schemas.scoring import CaseVerdict, RescoreRequest
-from app.services import rate_limit
 from app.services.eval_run import EvalRunService
 from app.services.improvement_pipeline import ImprovementPipelineService
 from app.services.scoring import ScoringService, ungraded
+from tests.integration.test_authoring import _another_request_comparing
 from tests.integration.test_authoring import _environment as _environment
 from tests.integration.test_improvement_pipeline import _ready_proposal
 
@@ -161,7 +161,7 @@ async def test_eval_verdict_admission_precedes_writes_and_a_dataset_grant_alone_
     child = await db.get(EvalRun, check_id)
     cached = child.outcome
     service = ScoringService(db)
-    async with rate_limit.eval_computation(ctx):
+    async with _another_request_comparing(ctx):
         with pytest.raises(RateLimitError):
             await service.set_verdict(ctx, ready.dataset_id, score.id, CaseVerdict(passed=False))
         await db.refresh(score)
@@ -210,7 +210,7 @@ async def test_grading_an_eval_answer_again_takes_admission_and_settles_the_sess
     scores = await _ungraded_candidate(db, check_id, answer="Returns are not accepted.")
     wanted = RescoreRequest(score_ids=[score.id for score in scores])
     service = ScoringService(db)
-    async with rate_limit.eval_computation(ctx):
+    async with _another_request_comparing(ctx):
         with pytest.raises(RateLimitError):
             await service.rescore(ctx, ready.dataset_id, wanted)
     for score in scores:

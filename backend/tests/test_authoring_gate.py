@@ -54,7 +54,7 @@ def _run(
 async def _gate(monkeypatch, mock_db_session, runs: list[Any], *, model: str = MODEL) -> str | None:
     by_id = {uuid.uuid4(): run for run in runs}
 
-    async def get(_self: Any, _ctx: Any, run_id: uuid.UUID) -> Any:
+    async def get(_self: Any, _ctx: Any, run_id: uuid.UUID, **_read: Any) -> Any:
         found = by_id[run_id]
         if isinstance(found, Exception):
             raise found
