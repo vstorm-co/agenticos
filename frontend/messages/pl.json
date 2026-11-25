@@ -1682,6 +1682,8 @@
     "approvalRememberChat": "Zezwalaj na ten tool w tej rozmowie",
     "approvalRememberAgent": "Zawsze zezwalaj na ten tool dla tego agenta",
     "approvalNeedsTheRun": "Zatwierdzić to może tylko osoba, która widzi run. Możesz to odrzucić.",
+    "approvalOthersWait": "Twoja odpowiedź dotyczy tylko Twoich wywołań platformy. Pozostałe czekają na kogoś, kto może decydować o zatwierdzeniach.",
+    "approvalNeedsItsPerson": "Zatwierdzić to może tylko osoba, w której imieniu działa ten run. Możesz to odrzucić.",
     "approvalRememberedTitle": "Zapamiętane akceptacje tooli",
     "approvalRememberedEmpty": "Brak zapamiętanych akceptacji.",
     "approvalRememberForget": "Pytaj ponownie",
@@ -1742,7 +1744,8 @@
     "queuedPaused": "Kolejka wstrzymana",
     "resumeQueue": "Wznów kolejkę",
     "routineHistoryReadOnly": "To historia rutyny tylko do odczytu. Zrób fork odpowiedzi, aby kontynuować w nowym chacie.",
-    "routineContinueChat": "Kontynuuj w nowym chacie"
+    "routineContinueChat": "Kontynuuj w nowym chacie",
+    "approvalNeedsItsAdminPerson": "Może to zatwierdzić tylko osoba, w której imieniu działa run, zalogowana jako administrator aplikacji. Możesz odrzucić."
   },
   "errors": {
     "authorizationFailed": "Autoryzacja nie powiodła się",
@@ -3335,6 +3338,7 @@
       "askedFor": "Dla {email}",
       "contentHidden": "To, co to wywołanie cytuje ze swojego runu, widzą tylko osoby, które mogą zobaczyć ten run.",
       "approveNeedsTheRun": "Zatwierdzić to może tylko osoba, która widzi run. Możesz to odrzucić.",
+      "approveNeedsItsPerson": "Zatwierdzić to może tylko osoba, w której imieniu działa ten run. Możesz to odrzucić.",
       "account": "Konto: {account}",
       "openTheRun": "Otwórz run",
       "decidedByWhom": "przez {email}",
@@ -3464,7 +3468,8 @@
       "inputTokenCacheRead": "Odczyt cache",
       "inputTokenCacheWrite": "Zapis cache",
       "inputTokenHint": "Suma zapisanych zapytań modelu. Tokeny cache są częścią wejścia, a nie dodatkową pozycją.",
-      "systemRoleChannelDecision": "Decyzja o dołączeniu do kanału (system)"
+      "systemRoleChannelDecision": "Decyzja o dołączeniu do kanału (system)",
+      "approveNeedsItsAdminPerson": "Może to zatwierdzić tylko osoba, w której imieniu działa run, zalogowana jako administrator aplikacji. Możesz odrzucić."
     },
     "sandboxes": {
       "noAccess": "Brak dostępu do połączeń sandboxów",
@@ -17573,6 +17578,7 @@
     "startDataset": "Dataset",
     "startDatasetHint": "Wybierz przypadki, na których sprawdzimy odpowiedzi agenta.",
     "analysisEstimate": "Szacowany koszt analizy",
+    "permissionRuns": "Odczyt sesji Improve wymaga runs:view, którego ta rola nie ma. Poproś właściciela organizacji o dostęp.",
     "startCostHint": "Najpierw analiza. Każda kolejna próba ma osobną wycenę, około {cost}, w ramach limitu sesji.",
     "comparisonInvalid": "Tych wyników nie można porównać. Sprawdź poszczególne odpowiedzi bez uznawania różnic za poprawę lub regresję.",
     "skills": {

@@ -5,7 +5,7 @@ from decimal import Decimal
 from typing import Literal
 from uuid import UUID
 
-from pydantic import Field, model_validator
+from pydantic import ConfigDict, Field, model_validator
 
 from app.db.models.improvement import (
     DroppedHunk,
@@ -379,6 +379,15 @@ class NextStepBlocked(BaseSchema):
         "to measure its check, and the session's questions are fixed"
     )
     needed: int = Field(ge=1, description="How many more such questions the check needs")
+
+
+class ImprovementStopRead(BaseSchema):
+    """Only acknowledgement of a stop when its caller cannot read session details."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    id: UUID
+    status: ImprovementStatus
 
 
 class ImprovementRead(BaseSchema):

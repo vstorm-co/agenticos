@@ -325,7 +325,7 @@ CALLS: tuple[Call, ...] = (
     # How close the organization is to its agent limit: only a caller who can
     # create an agent has a use for it.
     Call("GET", "/agents/ceiling", Perm.AGENTS_EDIT),
-    Call("GET", "/agents/import-destinations", Perm.AGENTS_EDIT, query={"kind": "agent"}),
+    Call("GET", "/agents/import-destinations", Perm.AGENTS_EDIT, query="?kind=agent"),
     Call("POST", "/agents/import-preview", Perm.AGENTS_EDIT, body={"text": "{}"}),
     Call(
         "POST",

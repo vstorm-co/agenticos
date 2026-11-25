@@ -2681,6 +2681,8 @@
     "approvalRememberChat": "Dieses Tool in diesem Chat erlauben",
     "approvalRememberAgent": "Dieses Tool für diesen Agenten immer erlauben",
     "approvalNeedsTheRun": "Freigeben kann das nur, wer den Run sehen kann. Sie können es ablehnen.",
+    "approvalOthersWait": "Ihre Antwort gilt nur für Ihre eigenen Plattformaufrufe. Die anderen warten auf jemanden, der über Freigaben entscheiden darf.",
+    "approvalNeedsItsPerson": "Freigeben kann das nur die Person, für die dieser Run handelt. Sie können es ablehnen.",
     "approvalRememberedTitle": "Gespeicherte Tool-Freigaben",
     "approvalRememberedEmpty": "Keine gespeicherten Freigaben.",
     "approvalRememberForget": "Erneut fragen",
@@ -2741,7 +2743,8 @@
     "queuedPaused": "Warteschlange pausiert",
     "resumeQueue": "Warteschlange fortsetzen",
     "routineHistoryReadOnly": "Dieser Routineverlauf ist schreibgeschützt. Verzweige eine Antwort, um in einem neuen Chat fortzufahren.",
-    "routineContinueChat": "In neuem Chat fortfahren"
+    "routineContinueChat": "In neuem Chat fortfahren",
+    "approvalNeedsItsAdminPerson": "Nur die Person, für die dieser Run handelt, angemeldet als Anwendungsadministrator, kann dies freigeben. Du kannst es ablehnen."
   },
   "approvalFeedback": {
     "savedApproval": "Bereits genehmigt: {action}",
@@ -7452,6 +7455,7 @@
       "askedFor": "Für {email}",
       "contentHidden": "Was dieser Aufruf aus seinem Run zitiert, sehen nur Personen, die diesen Run sehen können.",
       "approveNeedsTheRun": "Freigeben kann das nur, wer den Run sehen kann. Sie können es ablehnen.",
+      "approveNeedsItsPerson": "Freigeben kann das nur die Person, für die dieser Run handelt. Sie können es ablehnen.",
       "account": "Konto: {account}",
       "openTheRun": "Run öffnen",
       "decidedByWhom": "von {email}",
@@ -7581,7 +7585,8 @@
       "inputTokenCacheRead": "Cache gelesen",
       "inputTokenCacheWrite": "Cache geschrieben",
       "inputTokenHint": "Summe der erfassten Modellanfragen. Cache-Token sind im Input enthalten und werden nicht zusätzlich gezählt.",
-      "systemRoleChannelDecision": "Entscheidung zur Kanalteilnahme (System)"
+      "systemRoleChannelDecision": "Entscheidung zur Kanalteilnahme (System)",
+      "approveNeedsItsAdminPerson": "Nur die Person, für die dieser Run handelt, angemeldet als Anwendungsadministrator, kann dies freigeben. Du kannst es ablehnen."
     },
     "sandboxes": {
       "noAccess": "Kein Zugriff auf Sandbox-Verbindungen",
@@ -17486,6 +17491,7 @@
     "startDataset": "Dataset",
     "startDatasetHint": "Wählen Sie die Fälle zur Prüfung der Antworten dieses Agents.",
     "analysisEstimate": "Geschätzte Analysekosten",
+    "permissionRuns": "Eine Improve-Sitzung zu lesen braucht runs:view, das diese Rolle nicht hat. Bitten Sie einen Owner der Organisation um Zugriff.",
     "startCostHint": "Zuerst kommt die Analyse. Jeder weitere Versuch wird separat geschätzt, etwa {cost}, innerhalb des Sitzungslimits.",
     "comparisonInvalid": "Diese Ergebnisse sind nicht vergleichbar. Prüfe die einzelnen Antworten, ohne Unterschiede als Verbesserungen oder Regressionen zu werten.",
     "skills": {

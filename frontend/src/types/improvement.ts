@@ -193,6 +193,12 @@ export interface ImprovementIteration {
   /** A search attempt's progress and the variants it found. */
   variant_search?: VariantSearch | null;
 }
+/** A successful stop without permission to read the session's evidence or metadata. */
+export interface ImprovementStopReceipt {
+  id: string;
+  status: ImprovementStatus;
+}
+
 export interface Improvement {
   published_version_id?: string | null;
   published_version?: number | null;

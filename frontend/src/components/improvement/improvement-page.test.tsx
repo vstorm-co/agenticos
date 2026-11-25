@@ -794,7 +794,9 @@ it("tells someone who may not publish why, and still lets them keep a draft", as
 it("refuses with a reason and a way back to the agent", () => {
   state.runs = false;
   render(<ImprovementPage agentId="a1" sessionId="s1" />);
-  expect(screen.getByRole("alert")).toHaveTextContent(/viewing runs are required/);
+  expect(screen.getByRole("alert")).toHaveTextContent(
+    "Reading an Improve session needs runs:view, which this role does not hold.",
+  );
   expect(screen.getByRole("link", { name: "Open the agent" })).toHaveAttribute(
     "href",
     "/agents/a1",

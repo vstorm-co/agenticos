@@ -2681,6 +2681,8 @@
     "approvalRememberChat": "Deze tool toestaan in deze chat",
     "approvalRememberAgent": "Deze tool altijd toestaan voor deze agent",
     "approvalNeedsTheRun": "Alleen iemand die de run kan zien, kan dit goedkeuren. Je kunt het afwijzen.",
+    "approvalOthersWait": "Je antwoord geldt alleen voor je eigen platformaanroepen. De andere wachten op iemand die over goedkeuringen mag beslissen.",
+    "approvalNeedsItsPerson": "Alleen de persoon voor wie deze run handelt, kan dit goedkeuren. Je kunt het afwijzen.",
     "approvalRememberedTitle": "Onthouden toolgoedkeuringen",
     "approvalRememberedEmpty": "Geen onthouden goedkeuringen.",
     "approvalRememberForget": "Opnieuw vragen",
@@ -2741,7 +2743,8 @@
     "queuedPaused": "Wachtrij gepauzeerd",
     "resumeQueue": "Wachtrij hervatten",
     "routineHistoryReadOnly": "Dit is een alleen-lezen routinegeschiedenis. Fork een antwoord om verder te gaan in een nieuwe chat.",
-    "routineContinueChat": "Verder in een nieuwe chat"
+    "routineContinueChat": "Verder in een nieuwe chat",
+    "approvalNeedsItsAdminPerson": "Alleen de persoon namens wie deze run werkt, aangemeld als applicatiebeheerder, kan dit goedkeuren. Je kunt het afwijzen."
   },
   "approvalFeedback": {
     "savedApproval": "Al goedgekeurd: {action}",
@@ -8064,6 +8067,7 @@
       "askedFor": "Voor {email}",
       "contentHidden": "Wat deze aanroep uit zijn run citeert, wordt alleen getoond aan mensen die die run kunnen zien.",
       "approveNeedsTheRun": "Alleen iemand die de run kan zien, kan dit goedkeuren. Je kunt het afwijzen.",
+      "approveNeedsItsPerson": "Alleen de persoon voor wie deze run handelt, kan dit goedkeuren. Je kunt het afwijzen.",
       "account": "Account: {account}",
       "openTheRun": "De run openen",
       "decidedByWhom": "door {email}",
@@ -8193,7 +8197,8 @@
       "inputTokenCacheRead": "Gelezen uit cache",
       "inputTokenCacheWrite": "Geschreven naar cache",
       "inputTokenHint": "Totalen over de vastgelegde modelverzoeken. Cachetokens zitten in de invoer, ze worden er niet bij opgeteld.",
-      "systemRoleChannelDecision": "Beslissing over deelname aan een kanaal (systeem)"
+      "systemRoleChannelDecision": "Beslissing over deelname aan een kanaal (systeem)",
+      "approveNeedsItsAdminPerson": "Alleen de persoon namens wie deze run werkt, aangemeld als applicatiebeheerder, kan dit goedkeuren. Je kunt het afwijzen."
     },
     "sandboxes": {
       "noAccess": "Geen toegang tot sandboxkoppelingen",
@@ -17684,6 +17689,7 @@
     "startDataset": "Dataset",
     "startDatasetHint": "Kies de testgevallen waarmee de antwoorden van deze agent worden gecontroleerd.",
     "analysisEstimate": "Geschatte kosten van de analyse",
+    "permissionRuns": "Een Improve-sessie lezen vereist runs:view, en die heeft deze rol niet. Vraag een eigenaar van de organisatie om toegang.",
     "startCostHint": "De analyse komt eerst. Elke latere poging wordt apart geschat, rond {cost}, binnen de sessielimiet.",
     "comparisonInvalid": "Deze resultaten kunnen niet worden vergeleken. Review de afzonderlijke antwoorden zonder verschillen als verbeteringen of regressies te beschouwen.",
     "skills": {

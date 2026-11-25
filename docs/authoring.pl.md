@@ -1,5 +1,5 @@
 ---
-source_sha: "c54032da48d1"
+source_sha: "3cb0f8a279a6"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -381,6 +381,8 @@ postoju albo na wyniku przez siedem dni zamyka się jako nieaktualna, z powodem
 gotową, zatrzymaną albo nieudaną - więc rozpoczęcie kolejnej zwraca `409`,
 dopóki otwarta się nie zakończy. Twórca lub administrator organizacji może
 wysłać żądanie do `/{run_id}/cancel`.
+
+Zatrzymanie nie wymaga `runs:view`. Bez tego uprawnienia odpowiedź zawiera tylko `id` i `status`, bez budżetu, datasetu, postępu ani metadanych błędu.
 
 Osoba, która wykonała ostatni krok, dostaje powiadomienie na każdym postoju i
 przy każdym zakończeniu: przeczytana analiza, zmiany gotowe do przejrzenia,

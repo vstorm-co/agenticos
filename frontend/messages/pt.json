@@ -2681,6 +2681,8 @@
     "approvalRememberChat": "Permitir esta ferramenta neste chat",
     "approvalRememberAgent": "Sempre permitir esta ferramenta para este agente",
     "approvalNeedsTheRun": "Somente alguém que possa ver a execução pode aprovar isso. Você pode rejeitar.",
+    "approvalOthersWait": "Sua resposta vale apenas para as suas próprias chamadas à plataforma. As outras aguardam alguém que possa decidir aprovações.",
+    "approvalNeedsItsPerson": "Somente a pessoa em nome de quem esta execução age pode aprovar isto. Você pode rejeitar.",
     "approvalRememberedTitle": "Aprovações de ferramentas lembradas",
     "approvalRememberedEmpty": "Nenhuma aprovação lembrada.",
     "approvalRememberForget": "Perguntar novamente",
@@ -2741,7 +2743,8 @@
     "queuedPaused": "Fila pausada",
     "resumeQueue": "Retomar fila",
     "routineHistoryReadOnly": "Este é um histórico de rotina somente leitura. Bifurque uma resposta para continuar em um novo chat.",
-    "routineContinueChat": "Continuar em um novo chat"
+    "routineContinueChat": "Continuar em um novo chat",
+    "approvalNeedsItsAdminPerson": "Somente a pessoa em nome de quem esta execução atua, conectada como administradora da aplicação, pode aprovar. Você pode rejeitar."
   },
   "approvalFeedback": {
     "savedApproval": "Já aprovada: {action}",
@@ -8064,6 +8067,7 @@
       "askedFor": "Para {email}",
       "contentHidden": "O que esta chamada cita da sua execução é mostrado somente para quem pode ver essa execução.",
       "approveNeedsTheRun": "Somente quem pode ver a execução pode aprovar isto. Você pode rejeitar.",
+      "approveNeedsItsPerson": "Somente a pessoa em nome de quem esta execução age pode aprovar isto. Você pode rejeitar.",
       "account": "Conta: {account}",
       "openTheRun": "Abrir a execução",
       "decidedByWhom": "por {email}",
@@ -8193,7 +8197,8 @@
       "inputTokenCacheRead": "Leitura do cache",
       "inputTokenCacheWrite": "Escrita no cache",
       "inputTokenHint": "Totais das requisições de modelo registradas. Os tokens de cache estão incluídos na entrada, não somados a ela.",
-      "systemRoleChannelDecision": "Decisão de participação no canal (sistema)"
+      "systemRoleChannelDecision": "Decisão de participação no canal (sistema)",
+      "approveNeedsItsAdminPerson": "Somente a pessoa em nome de quem esta execução atua, conectada como administradora da aplicação, pode aprovar. Você pode rejeitar."
     },
     "sandboxes": {
       "noAccess": "Sem acesso às conexões de sandbox",
@@ -17684,6 +17689,7 @@
     "startDataset": "Dataset",
     "startDatasetHint": "Escolha os casos usados para verificar as respostas deste agente.",
     "analysisEstimate": "Custo estimado da análise",
+    "permissionRuns": "Ler uma sessão do Improve requer runs:view, que esta função não tem. Peça acesso a um proprietário da organização.",
     "startCostHint": "A análise vem primeiro. Cada tentativa seguinte é estimada separadamente, em torno de {cost}, dentro do limite da sessão.",
     "comparisonInvalid": "Estes resultados não podem ser comparados. Revise as respostas individuais sem tratar as diferenças como correções ou regressões.",
     "skills": {

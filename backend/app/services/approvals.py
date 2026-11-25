@@ -152,6 +152,8 @@ def may_approve(
     """Whether an approval from `ctx` would be accepted, so a surface offers Approve."""
     if always_asks and content_hidden:
         return False
+    if tool_id == "agenticos_change_deployment" and not ctx.is_app_admin:
+        return False
     if runs_as_its_person(tool_id, always_asks=always_asks):
         return answers_for(ctx, person_id) and (
             ctx.has(Perm.APPROVALS_DECIDE)

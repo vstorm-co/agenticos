@@ -126,6 +126,7 @@ from app.schemas.improvement import (
     ImprovementSelection,
     ImprovementSkills,
     ImprovementStart,
+    ImprovementStopRead,
     ImprovementTarget,
     KnowledgeAdded,
     KnowledgeCheckConsent,
@@ -1228,13 +1229,9 @@ class ImprovementPipelineService:
     async def _read(
         self, ctx: AuthContext, run: ImprovementRun, *, noise: bool = True
     ) -> ImprovementRead:
+        self._require_runs(ctx)
         result = ImprovementRead.model_validate(run)
         result.can_discard = ctx.user_id == run.created_by_user_id or ctx.has(Perm.ORG_SETTINGS)
-        if not ctx.has(Perm.RUNS_VIEW):
-            # Only a stop reaches here without runs:view: it may end a session, and
-            # learns no more of it than its status.
-            result.error = None
-            return result
         iterations = await improvement_repo.list_iterations(
             self.db, organization_id=ctx.organization_id, run_id=run.id
         )
@@ -1494,7 +1491,9 @@ class ImprovementPipelineService:
         value = details.get(key)
         return value if isinstance(value, str) else None
 
-    async def cancel(self, ctx: AuthContext, agent_id: UUID, run_id: UUID) -> ImprovementRead:
+    async def cancel(
+        self, ctx: AuthContext, agent_id: UUID, run_id: UUID
+    ) -> ImprovementRead | ImprovementStopRead:
         run = await self._row(ctx, agent_id, run_id, lock=True, settled=Status.CANCELLED)
         if ctx.subject_id != run.created_by_user_id and not ctx.has(Perm.ORG_SETTINGS):
             raise AuthorizationError(
@@ -1508,6 +1507,8 @@ class ImprovementPipelineService:
                 rules.Transition(Status.CANCELLED, Stage(run.stage) if run.stage else None),
                 actor_user_id=ctx.subject_id,
             )
+        if not ctx.has(Perm.RUNS_VIEW):
+            return ImprovementStopRead(id=run.id, status=Status(run.status))
         return await self._read(ctx, run)
 
     async def finish(
