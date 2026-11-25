@@ -1,5 +1,5 @@
 ---
-source_sha: "11d42313d5f2"
+source_sha: "a37032cd6c51"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las herramientas, la configuración, los skills y los archivos de contexto de un agent. Una persona decide cada uno."
 ---
@@ -157,7 +157,9 @@ Se excluyen copias de preguntas de entrenamiento o evidencia mediante el texto n
 
 Una sesión de mejora fija la versión del dataset y las identidades de los chats fuente. Un intento posterior aprende de los resultados de entrenamiento de su propio reparto, así que una pregunta que un intento apartó puede ayudar a escribir el siguiente; nuevos chats y casos no cambian lo que mide la sesión. Los intentos medidos con preguntas distintas se comparan por lo que cambió cada uno frente a su propia base, no por su tasa de aprobados.
 
-Un intento posterior aprende de las respuestas que dio el propio agente - las de su borrador, de la base de la última comprobación -, nunca de la versión propuesta por un intento anterior, que el borrador no contiene. También lee lo que cambió cada intento anterior: su veredicto, los criterios que se movieron en las preguntas de las que aprendió, y solo cuántas preguntas apartadas arregló y rompió. El contexto de intentos anteriores incluye extractos limitados de un máximo de seis intentos medidos recientes, para que los cambios largos de instrucciones o del contenido de una skill no llenen el prompt de la siguiente propuesta.
+Un intento posterior aprende de las respuestas que dio el propio agente - las de su borrador, de la base de la última comprobación -, nunca de una versión solo propuesta, que el borrador no contiene: la de un intento anterior, la que mide una comprobación de conocimiento o una que sirve un cambio de skill o de archivo de contexto.
+
+También lee lo que cambió cada intento anterior: su veredicto, los criterios que se movieron en las preguntas de las que aprendió, y solo cuántas preguntas apartadas arregló y rompió. El contexto de intentos anteriores incluye extractos limitados de un máximo de seis intentos medidos recientes, para que los cambios largos de instrucciones o del contenido de una skill no llenen el prompt de la siguiente propuesta.
 
 Una comprobación cuenta como la prueba del draft en cuanto el draft es
 exactamente lo que comprobó - cada sugerencia comprobada aceptada y nada más
@@ -372,9 +374,9 @@ resultado como una pista de que otro intento probablemente no ayudará, no como
 una parada.
 
 Quien puede empezar una sesión del agente - permiso de edición, `runs:view` y la
- - puede también dar su siguiente paso o volver a
-intentarlo. La sesión registra quién lo hizo, y los pasos siguientes se ejecutan
-con los permisos y la credencial actuales de esa persona, así que una sesión que
+ - puede también dar su siguiente paso, volver a
+intentarlo o confirmar una de sus comprobaciones de pago: de los cambios elegidos, de un borrador de conocimiento o de lo que hizo cada cambio. La sesión registra quién lo hizo, y los pasos siguientes se ejecutan
+con los permisos y la credencial actuales de esa persona y quedan registrados a su nombre, así que una sesión que
 empezó el Architect se puede continuar en la consola.
 
 El worker comprueba antes de
