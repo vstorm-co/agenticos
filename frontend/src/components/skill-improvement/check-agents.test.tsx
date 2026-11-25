@@ -106,21 +106,36 @@ describe("CheckAgents", () => {
   });
 
   it("says an agent its own questions left unknown after the skill's showed no regression", () => {
+    const judged = { compared: 4, fixed: 1, broken: 0, unchanged: 3, unknown: 0 };
+    const skillSet = (counts: typeof judged | null, run: string) => [
+      { ...checkAgent("x", "unknown").stages[0]!, eval_run_id: run, counts },
+    ];
     render(
       <CheckAgents
         check={skillCheck({
           agents: [
-            checkAgent("Quotes", "unknown", { unknown_reason: "failed" }),
-            checkAgent("Orders", "unknown", { unknown_reason: "failed", stages: [] }),
+            checkAgent("Quotes", "unknown", {
+              unknown_reason: "failed",
+              stages: skillSet(judged, "run-quotes"),
+            }),
+            checkAgent("Orders", "unknown", {
+              unknown_reason: "failed",
+              stages: skillSet(null, "run-orders"),
+            }),
+            checkAgent("Kiosk", "unknown", {
+              unknown_reason: "cancelled",
+              stages: skillSet(null, "run-kiosk"),
+            }),
           ],
         })}
       />,
     );
 
-    expect(
-      screen.getByText(catalog.skillImprovement.agents.unknown.unfinished),
-    ).toBeInTheDocument();
+    expect(screen.getAllByText(catalog.skillImprovement.agents.unknown.unfinished)).toHaveLength(1);
     expect(screen.getByText("Not checked: its check failed.")).toBeInTheDocument();
+    expect(
+      screen.getByText("Not checked: the check was stopped before its runs finished."),
+    ).toBeInTheDocument();
   });
 
   it("says an agent had too few questions to be sure, with what they showed", async () => {

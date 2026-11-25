@@ -52,15 +52,13 @@ const reasonOf = (row: SkillCheckAgent): UnknownReason | "other" | null =>
     ? row.unknown_reason
     : "other";
 
-/** Reasons the check reached from the stages it measured, rather than a stage left unfinished. */
-const MEASURED: (UnknownReason | null)[] = ["inconclusive", "too_few_questions", "own_not_asked"];
-
-/** Unknown after a stage that finished without a regression, because a later one did not
- * finish: acknowledging it applies a change only part of its check has seen. */
+/** Unknown because its own questions did not finish after the skill's were judged - a stage
+ * carries counts only once judged - without a regression: acknowledging it applies a change
+ * only part of its check has seen. */
 const unfinished = (row: SkillCheckAgent): boolean =>
   row.state === "unknown" &&
-  row.stages.some((stage) => stage.eval_run_id !== null) &&
-  !MEASURED.includes(row.unknown_reason);
+  row.unknown_reason === "failed" &&
+  row.stages.some((stage) => stage.kind === "skill_set" && stage.counts !== null);
 
 const byName = (a: SkillCheckAgent, b: SkillCheckAgent) => a.agent.name.localeCompare(b.agent.name);
 
