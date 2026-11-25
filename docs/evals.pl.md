@@ -1,5 +1,5 @@
 ---
-source_sha: "76ac5bb3504a"
+source_sha: "f5dfc2d9da4b"
 title: "Runy ewaluacji"
 description: "Run ewaluacji odpowiada na każdy przypadek datasetu wersją agenta albo jego wersją roboczą, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -227,12 +227,20 @@ pojedynczego runa wskazuje run ewaluacji i przypadek, na który odpowiadał
 (`eval_case`), czytającemu, który może widzieć dataset. Działa jako osoba, która
 uruchomiła ewaluację, z jej obecną rolą, i nie czyta ani nie zapisuje jej osobistej pamięci.
 
-Każdy przypadek działa **w izolacji**, jak opisują [Środowiska](environments.md):
-narzędzie z testowym połączeniem w środowisku runa działa na nim, narzędzie, o
-którym wiadomo, że tylko czyta, działa na zwykłym połączeniu, a wszystko, co
-zapisuje bez testowego połączenia, nie jest wykonywane - wywołanie i jego
-argumenty są zachowywane jako zamierzone wywołanie, które ocenianie trajektorii
-nadal ocenia.
+Każdy przypadek działa **w izolacji**, jak opisują
+[Środowiska](environments.md#in-an-eval): narzędzie z testowym połączeniem w
+środowisku runa działa na nim, odczyt własnych danych tego wdrożenia działa na
+zwykłym połączeniu, a wszystko, co zapisuje albo czyta spoza wdrożenia, nie jest
+wykonywane - wywołanie i jego argumenty są zachowywane jako zamierzone
+wywołanie, które ocenianie trajektorii nadal ocenia.
+
+Dotyczy to także sieci. **Ewaluacja agenta, który pobiera strony, przeszukuje
+sieć albo deleguje do agenta innego systemu, nie robi niczego z tego na żywo**:
+model dowiaduje się, że narzędzie nie jest dostępne w runie w izolacji, i
+odpowiada bez niego. Przypadek, na który odpowiada się z nagrania, opisany
+niżej, nadal dostaje to, co pobrał oryginalny run. Sędziego to nie dotyczy:
+czyta tylko bazy wiedzy, pliki kontekstowe i skille, które przekazuje mu
+platforma, a wszystkie one zostają w środku.
 
 Każda izolowana próba korzysta z tymczasowego workspace przypisanego do własnego
 runu, nawet gdy agent zwykle współdzieli pliki według rozmowy, użytkownika lub

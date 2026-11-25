@@ -1,5 +1,5 @@
 ---
-source_sha: "ae26ea67fe6f"
+source_sha: "46c8e4d83437"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -649,11 +649,21 @@ die Produktion wird nie stattdessen erreicht.
 
 In einem Eval wird jeder Aufruf einer Produktionsverbindung angehalten und mit
 seinen Argumenten aufgezeichnet statt ausgeführt. Die einzige Ausnahme ist ein
-Tool, das der Server mit `readOnlyHint` markiert, auf einer Verbindung, die
-dieser Markierung vertraut. Die Markierung ist die eigene Angabe des Servers,
-deshalb ist das Vertrauen auf jeder Verbindung aus. Eingeschaltet wird es im
-Dialog **Tools** der Verbindung. Der Dialog nennt, wie viele Tools die
-Markierung beanspruchen, und die Änderung wird mit dieser Zahl im Audit erfasst.
+Tool, das der Server sowohl mit `readOnlyHint: true` als auch mit
+`openWorldHint: false` markiert - es liest nur und erreicht nichts jenseits
+dieses Servers -, auf einer Verbindung, die diesen Markierungen vertraut. Ein
+Tool, das nur liest, aber `openWorldHint` weglässt oder auf true setzt, wird mit
+dem Grund `external` angehalten: Ein Open-World-Tool wie eine Websuche gibt
+seine Argumente an alles weiter, was es erreicht, und ein Eval führt Text aus,
+den noch niemand geprüft hat.
+
+Beide Markierungen sind die eigene Angabe des Servers, und **ihnen zu vertrauen
+ist die Entscheidung des Betreibers**: Das Vertrauen ist auf jeder Verbindung
+aus, und nichts auf dieser Seite prüft, was ein Server über sich selbst sagt.
+Schalten Sie es nur für einen Server ein, von dem Sie wissen, dass er sein
+eigenes System erreicht und sonst nichts. Eingeschaltet wird es im Dialog
+**Tools** der Verbindung. Der Dialog nennt, wie viele Tools angeben, nur zu
+lesen, und die Änderung wird mit dieser Zahl im Audit erfasst.
 
 ### Einen aus dem Builder heraus verbinden { #connecting-one-from-the-builder }
 

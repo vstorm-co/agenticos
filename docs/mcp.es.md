@@ -1,5 +1,5 @@
 ---
-source_sha: "ae26ea67fe6f"
+source_sha: "46c8e4d83437"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -640,11 +640,19 @@ ese turno y nunca se llega a producción en su lugar.
 
 En un eval, cada llamada a una conexión de producción se retiene y se registra con
 sus argumentos en lugar de ejecutarse. La única excepción es una herramienta que
-el servidor marca con `readOnlyHint`, en una conexión que confía en esa marca. La
-marca es una afirmación del propio servidor, así que la confianza está
-desactivada en todas las conexiones. Se activa en el diálogo **Tools** de la
-conexión. El diálogo indica cuántas herramientas declaran la marca, y el cambio
-queda en la auditoría con ese número.
+el servidor marca a la vez con `readOnlyHint: true` y `openWorldHint: false` —
+solo lee, y no llega a nada más allá de ese servidor — en una conexión que confía
+en esas marcas. Una herramienta que solo lee pero omite `openWorldHint`, o lo
+pone en true, se retiene con el motivo `external`: una herramienta de mundo
+abierto, como una búsqueda web, pasa sus argumentos a lo que sea que alcance, y
+un eval ejecuta texto que nadie ha revisado todavía.
+
+Ambas marcas son una afirmación del propio servidor, y **confiar en ellas es
+decisión del operador**: la confianza está desactivada en todas las conexiones,
+y nada de este lado comprueba lo que un servidor dice de sí mismo. Actívala solo
+para un servidor que sepas que llega a su propio sistema y a nada más. Se activa
+en el diálogo **Tools** de la conexión. El diálogo indica cuántas herramientas
+afirman ser de solo lectura, y el cambio queda en la auditoría con ese número.
 
 ### Conectar uno desde el Builder { #connecting-one-from-the-builder }
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "ae26ea67fe6f"
+source_sha: "46c8e4d83437"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -620,10 +620,19 @@ produkcję.
 
 W evalu każde wywołanie połączenia produkcyjnego jest wstrzymywane i zapisywane z
 argumentami zamiast wykonywane. Jedyny wyjątek to narzędzie, które serwer oznacza
-`readOnlyHint`, na połączeniu z włączonym zaufaniem do tego oznaczenia.
-Oznaczenie to deklaracja samego serwera, więc zaufanie jest wyłączone na każdym
-połączeniu. Włącza się je w oknie **Tools** połączenia. Okno podaje, ile narzędzi
-deklaruje oznaczenie, a zmiana trafia do audytu razem z tą liczbą.
+jednocześnie `readOnlyHint: true` i `openWorldHint: false` — tylko czyta i nie
+sięga do niczego poza tym serwerem — na połączeniu z włączonym zaufaniem do tych
+oznaczeń. Narzędzie, które tylko czyta, ale pomija `openWorldHint` albo ustawia
+je na true, jest wstrzymywane z powodem `external`: narzędzie otwartego świata,
+takie jak wyszukiwarka internetowa, przekazuje swoje argumenty wszystkiemu, do
+czego sięga, a eval uruchamia tekst, którego nikt jeszcze nie przejrzał.
+
+Oba oznaczenia to deklaracja samego serwera, a **zaufanie do nich to decyzja
+operatora**: jest wyłączone na każdym połączeniu i nic po tej stronie nie
+sprawdza, co serwer mówi o sobie. Włącz je tylko dla serwera, o którym wiesz, że
+sięga do własnego systemu i do niczego więcej. Włącza się je w oknie **Tools**
+połączenia. Okno podaje, ile narzędzi deklaruje, że tylko czyta, a zmiana trafia
+do audytu razem z tą liczbą.
 
 ### Podłączenie serwera z poziomu Buildera { #connecting-one-from-the-builder }
 

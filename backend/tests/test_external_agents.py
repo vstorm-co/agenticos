@@ -10,6 +10,7 @@ import pytest
 from pydantic import SecretStr, ValidationError
 from sqlalchemy.exc import IntegrityError
 
+from app.agents.isolation import RunIsolation
 from app.agents.spec import AgentSpec, ExternalAgentRef
 from app.core.exceptions import (
     AlreadyExistsError,
@@ -421,7 +422,7 @@ class TestDelegatingToOne:
                 return_value={secret_id: ApiKeySecret(api_key=SecretStr("remote-key"))}
             )
         )
-        delegation = MagicMock(ctx=CTX)
+        delegation = MagicMock(ctx=CTX, isolation=None)
         with (
             patch(
                 "app.services.agent_runner.external_agent_repo.get_many",
@@ -441,6 +442,31 @@ class TestDelegatingToOne:
             "card_url": row.card_url,
             "bearer": "remote-key",
         }
+
+    @pytest.mark.security
+    async def test_an_isolated_run_unseals_no_key_and_sends_no_task(self) -> None:
+        """An eval answering with a remote delegate would hand it a real task."""
+        row = _row(secret_id=uuid.uuid4(), slug="reviewer")
+        runner = AgentRunnerService(MagicMock())
+        runner.secrets = MagicMock(resolve_for_bindings=AsyncMock())
+        send = AsyncMock()
+        with (
+            patch(
+                "app.services.agent_runner.external_agent_repo.get_many",
+                AsyncMock(return_value={row.id: row}),
+            ),
+            patch("app.agents.a2a_delegate.send_message", send),
+        ):
+            (resolved,) = await runner._resolve_external(
+                MagicMock(ctx=CTX, isolation=RunIsolation()),
+                [ExternalAgentRef(external_agent_id=row.id)],
+            )
+            answer = await resolved.build().run("Review clause 4")
+
+        runner.secrets.resolve_for_bindings.assert_not_awaited()
+        send.assert_not_awaited()
+        assert (resolved.name, resolved.remote) == ("reviewer", True)
+        assert "not sent" in answer.output
 
     async def test_the_remote_agents_join_the_delegates_the_tree_resolves(self) -> None:
         ref = ExternalAgentRef(external_agent_id=uuid.uuid4())

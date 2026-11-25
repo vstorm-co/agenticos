@@ -1,5 +1,5 @@
 ---
-source_sha: "48eead872cf1"
+source_sha: "5a2216d435b2"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -215,7 +215,7 @@ einen Spec ab, der diese Capability zu führen versucht — siehe
 ## Was ein Eval ausführt { #what-an-eval-runs }
 
 Ein Eval führt den Agent wirklich aus, also führt es ein Tool nur aus, wenn das
-Tool außerhalb des Runs nichts ändert oder eine Testverbindung der
+Tool die eigenen Daten dieses Deployments liest oder eine Testverbindung der
 [Umgebung](../environments.md#in-an-eval) erreicht. Jede Capability erklärt,
 welche ihrer Tools nur lesen — `read_only`, neben `side_effecting` —, und ein
 Tool, das nichts erklärt, schreibt. Dies sind die Tools, die schreiben und die
@@ -233,11 +233,39 @@ ein Eval anhält und aufzeichnet:
 | `sandbox` | `write_file`, `edit_file`, `execute`, `select_project_workspace` |
 | `visuals` | `draw`, `revise_visual`, `read_visual` |
 
-Jedes andere Tool oben liest nur. Delegieren zählt als Lesen: Die eigenen Tools
-eines Delegaten unterliegen ihren eigenen Erklärungen. `side_effecting` und
-`read_only` beantworten verschiedene Fragen: Das erste ist, wonach die Freigabe
-standardmäßig fragt, das zweite, was ein Eval ausführen darf, und ein nicht
-erklärtes Tool ist beim ersten ungesperrt und beim zweiten blockiert.
+Jedes andere Tool oben liest nur, aber Lesen reicht nicht, um in einem Eval zu
+laufen. Ein Eval führt Text aus, den noch niemand geprüft hat — die Varianten
+von Improve, eine Skill-Änderung in Prüfung —, und ein Lesezugriff kann
+trotzdem aus dem Deployment hinaustragen, was das Modell in ihn hineinlegt.
+Deshalb führt ein Eval einen Lesezugriff nur aus, wenn er auf einer
+festgeschriebenen Liste von Lesezugriffen steht, die drinnen bleiben
+(`LIVE_IN_ISOLATION` in `app/agents/isolation.py`), und hält diese an und
+zeichnet sie mit dem Grund `external` auf:
+
+| id | Tools, die nur lesen und trotzdem angehalten werden |
+| --- | --- |
+| `artifacts` | `preview_artifact` |
+| `channel_actions` | `list_chat_connections`, `find_chat_channels`, `read_chat_messages` |
+| `channel_tools` | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history`, `send_channel_file` |
+| `sandbox` | `select_project_workspace` |
+| `web_fetch` | `web_fetch`, unabhängig von seinen `allowed_domains` |
+| `web_research` | `web_search` |
+
+Ein Binding von `web_fetch` oder `web_research`, das den Aufruf an den
+Modell-Provider übergibt (`native`, oder `auto` bei einem Abruf), wird in einem
+Eval mit der eigenen Methode dieses Deployments gebaut, sodass der Aufruf den
+Wächter erreicht und angehalten wird. Ein Tool, das der Registry hinzugefügt
+wird, wird angehalten, bis es auf die Liste gesetzt wird.
+
+Delegation bleibt auf der Liste: Ein Delegat dieses Deployments läuft unter
+derselben Isolation, und seine eigenen Tools unterliegen ihren eigenen
+Erklärungen. Ein Delegat, der der Agent eines anderen Systems ist
+([A2A](#remote-agents)), nicht: Eine Aufgabe für ihn wird mit dem Grund
+`external` angehalten, und der Delegat selbst wird ohne seinen Endpunkt und
+ohne seinen Schlüssel gebaut. `side_effecting` und `read_only` beantworten
+verschiedene Fragen: Das erste ist, wonach die Freigabe standardmäßig fragt, das
+zweite, ob ein Tool überhaupt etwas ändert, und ein nicht erklärtes Tool ist
+beim ersten ungesperrt und beim zweiten blockiert.
 
 Eine Umgebung kann den Vault-Schlüssel einer Capability gegen einen Testschlüssel
 tauschen, aber ein getauschter Schlüssel macht einen Schreibvorgang nicht von
@@ -2623,6 +2651,15 @@ läuft durch die Adressprüfungen des Deployments, sodass weder eine Karte noch 
 Endpunkt die Plattform auf ihr eigenes Netz richten kann. Das Veröffentlichen lehnt
 einen Verweis auf eine nicht vorhandene Registrierung ab, und ein Run, dessen
 Registrierung inzwischen entfernt wurde, scheitert und nennt sie.
+
+Ein [Eval](#what-an-eval-runs), und jeder andere isolierte Run, sendet einem
+Remote Agent nichts. Eine Aufgabe für ihn wird angehalten und mit dem Grund
+`external` aufgezeichnet, und das Modell erfährt, dass der Agent in einem
+isolierten Run nicht verfügbar ist. Der Delegat wird ohne seinen Endpunkt
+gebaut, und sein Schlüssel wird nicht entsiegelt, sodass auch ein Aufruf, der
+ihn auf anderem Weg erreichte, nicht hinausgelangen könnte. Das gilt auf jeder
+Ebene des Delegationsbaums: Ein Delegat dieses Deployments, der an einen Remote
+Agent delegiert, wird genauso angehalten.
 
 Was eine Delegation kostet und welche Run-Zeile sie festhält, steht unter
 [Governance](../governance.md#delegation-spends-the-parents-budget). Wer an wen

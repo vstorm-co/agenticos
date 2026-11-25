@@ -197,8 +197,8 @@ tries to carry it — see [Chat channel lookup](#chat-channel-lookup).
 
 ## What an eval runs
 
-An eval runs the agent for real, so it executes a tool only when the tool
-changes nothing outside the run, or reaches a test connection of the
+An eval runs the agent for real, so it executes a tool only when the tool reads
+this deployment's own data, or reaches a test connection of the
 [environment](../environments.md#in-an-eval). Each capability declares which of
 its tools only read — `read_only`, beside `side_effecting` — and a tool that
 declares nothing writes. These are the tools that write, and that an eval holds
@@ -216,10 +216,34 @@ and records:
 | `sandbox` | `write_file`, `edit_file`, `execute`, `select_project_workspace` |
 | `visuals` | `draw`, `revise_visual`, `read_visual` |
 
-Every other tool above only reads. Delegation counts as reading: a delegate's
-own tools are held to their own declarations. `side_effecting` and `read_only`
-answer different questions: the first is what approval asks about by default,
-the second what an eval may run, and an undeclared tool is ungated by the first
+Every other tool above only reads, but reading is not enough to run in an eval.
+An eval runs text nobody has reviewed yet — Improve's variants, a skill change
+under check — and a read can still carry what the model puts into it out of the
+deployment. So an eval runs a read only when it is on a written list of reads
+that stay inside (`LIVE_IN_ISOLATION` in `app/agents/isolation.py`), and holds
+these, recorded with the reason `external`:
+
+| id | Tools that only read and are still held |
+|---|---|
+| `artifacts` | `preview_artifact` |
+| `channel_actions` | `list_chat_connections`, `find_chat_channels`, `read_chat_messages` |
+| `channel_tools` | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history`, `send_channel_file` |
+| `sandbox` | `select_project_workspace` |
+| `web_fetch` | `web_fetch`, whatever its `allowed_domains` |
+| `web_research` | `web_search` |
+
+A binding of `web_fetch` or `web_research` that hands the call to the model
+provider (`native`, or `auto` for a fetch) is built with this deployment's own
+method in an eval, so the call reaches the guard and is held. A tool added to
+the registry is held until it is put on the list.
+
+Delegation stays on the list: a delegate of this deployment runs under the same
+isolation, and its own tools are held to their own declarations. A delegate that
+is another system's agent ([A2A](#remote-agents)) is not: a task for it is held
+with the reason `external`, and the delegate itself is built without its
+endpoint or its key. `side_effecting` and `read_only` answer different
+questions: the first is what approval asks about by default, the second whether
+a tool changes anything at all, and an undeclared tool is ungated by the first
 and blocked by the second.
 
 An environment can swap a capability's vault key for a test one, but a swapped
@@ -2351,6 +2375,14 @@ cost says it is partial. Every request goes through the deployment's address
 checks, so a card or an endpoint cannot point the platform at its own network.
 Publishing refuses a reference to a registration that does not exist, and a run
 whose registration was removed since fails naming it.
+
+An [eval](#what-an-eval-runs), and every other isolated run, sends a remote agent
+nothing. A task for one is held and recorded with the reason `external`, and the
+model is told the agent is not available in an isolated run. The delegate is
+built without its endpoint, and its key is not unsealed, so a call that reached
+it some other way could not leave either. This holds at every level of the
+delegation tree: a delegate of this deployment that delegates to a remote agent
+is held the same way.
 
 For what a delegation costs and which run row records it, see
 [Governance](../governance.md#delegation-spends-the-parents-budget). For who may

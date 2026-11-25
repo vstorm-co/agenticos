@@ -212,7 +212,7 @@ describe("whether evals believe the server's read-only mark", () => {
     (typeof TOOLS)[number],
   ];
   const MARKED = [{ ...search, read_only: true }, { ...fetch, read_only: true }, upload];
-  const trust = "Let evals call tools this server marks read-only";
+  const trust = "Let evals call tools this server marks read-only and closed-world";
 
   it("is offered only where the connection carries the choice", () => {
     render(<Harness tools={MARKED} />);
@@ -224,7 +224,7 @@ describe("whether evals believe the server's read-only mark", () => {
     render(<Harness tools={MARKED} trustReadOnlyHints={false} />);
 
     expect(screen.getByRole("switch", { name: trust })).not.toBeChecked();
-    expect(screen.getByText(/2 tools here claim it\./)).toBeInTheDocument();
+    expect(screen.getByText(/2 tools here claim to be read-only\./)).toBeInTheDocument();
   });
 
   it("is part of what Save sends, not a setting that takes effect alone", async () => {

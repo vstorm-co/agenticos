@@ -185,14 +185,29 @@ audit entry records how many overrides there are, not what they hold.
 
 An eval runs the agent for real, so its tools would act for real: an agent that
 sends e-mail would send one per case. A run started **isolated** — which is how
-an eval runs — executes a tool only when that is safe:
+an eval runs, and how Improve answers with text nobody has accepted yet —
+executes a tool only when that is safe:
 
 | The tool | What happens |
 |---|---|
 | Reaches a test MCP connection of the environment | Runs, against the test system |
-| Only reads | Runs on the normal connection |
+| Reads this deployment's own data: knowledge search, context files, skills, memory, the run's plan and workspace, delegation to this deployment's agents | Runs on the normal connection |
+| Reads from outside the deployment: a web page, a web search, another system's agent, a chat platform, an MCP server that does not declare a closed world | **Not executed.** Recorded with its arguments; the model is told it is not available in an isolated run |
 | Writes, on a test vault key | Runs only if its capability declares that the key alone picks the target; otherwise **not executed** and recorded |
 | Writes, with no test connection | **Not executed.** Recorded as an intended call, with its arguments |
+
+A read from outside is held although it changes nothing, because a URL, a search
+query or a task for another system's agent carries whatever the model puts into
+it. An isolated run executes text nobody has reviewed yet — the variants an
+Improve search writes, a skill change under check — so such a read is a way to
+send out what the agent can read.
+
+**So an eval of an agent that uses the web does not fetch pages or search live**, and its answers can differ from production's
+for that reason. A case answered [from its recording](#in-an-eval) still gets the
+pages and results the original run read: replaying them sends nothing. A
+`web_fetch` or `web_research` binding set to the model provider's own fetch or
+search is built with this deployment's in an isolated run, so its calls are held
+like any other.
 
 A test key stands in for a credential, but a URL or host in the capability's
 config can still point the writes at production. So a swapped key lets a
@@ -200,12 +215,16 @@ capability write in an eval only when the capability declares
 `test_key_isolates`, and the [catalog](reference/capabilities.md#what-an-eval-runs)
 lists which do.
 
-An MCP tool counts as reading only when its server marks it `readOnlyHint` and
-the connection is set to trust that mark; by default it is not, because the mark
-is the server's own claim. A capability's tool declares it in the registry, and the
-[catalog](reference/capabilities.md#what-an-eval-runs) lists which do. **A tool
-that declares nothing writes.** The model is told the call was not sent, and
-the intended call is kept with the run for scoring.
+An MCP tool runs on a production connection only when its server marks it
+`readOnlyHint: true` and `openWorldHint: false` — it only reads, and reaches
+nothing beyond that server — and the connection is set to trust those marks. By
+default it is not, because the marks are the server's own claim; trusting them
+is the operator's decision ([MCP](mcp.md#in-a-test-environment-and-in-an-eval)).
+A server that says nothing about its world is taken to reach the open one. A
+capability's tool is run only when it is on the list the
+[catalog](reference/capabilities.md#what-an-eval-runs) gives. **A tool that
+declares nothing writes.** The model is told the call was not sent, and the
+intended call is kept with the run for scoring.
 
 An isolated run can also be answered from the recording of the run a case was
 taken from - the calls its transcript kept. A call is matched by its tool, its

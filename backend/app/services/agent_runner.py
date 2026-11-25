@@ -104,7 +104,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents import prompt_variables
-from app.agents.a2a_delegate import a2a_delegate
+from app.agents.a2a_delegate import a2a_delegate, held_a2a_delegate
 from app.agents.ask_user import (
     QUESTION_DEFERRED_KIND,
     QuestionItem,
@@ -6107,6 +6107,9 @@ class AgentRunnerService:
         a pin to a vanished version does: delegating to "whatever is there now"
         is not what was published. Its credential is unsealed now, like every
         secret a run holds, and goes nowhere but its own endpoint.
+
+        An isolated run unseals nothing and builds each one held: the task would
+        leave the deployment, and the remote side is held to no isolation.
         """
         ctx = delegation.ctx
         rows = await external_agent_repo.get_many(
@@ -6118,8 +6121,9 @@ class AgentRunnerService:
                 message="A remote agent this agent delegates to is no longer registered",
                 details={"external_agent_ids": missing},
             )
+        held = delegation.isolation is not None
         secret_ids = [row.secret_id for row in rows.values() if row.secret_id is not None]
-        secrets = await self.secrets.resolve_for_bindings(ctx, secret_ids)
+        secrets = {} if held else await self.secrets.resolve_for_bindings(ctx, secret_ids)
         resolved: list[ResolvedSubagent] = []
         for ref in refs:
             row = rows[ref.external_agent_id]
@@ -6129,13 +6133,16 @@ class AgentRunnerService:
                 ResolvedSubagent(
                     name=row.slug,
                     description=row.description or row.name,
-                    build=a2a_delegate(
+                    build=held_a2a_delegate(handle=row.slug)
+                    if held
+                    else a2a_delegate(
                         handle=row.slug,
                         endpoint=row.endpoint_url,
                         card_url=row.card_url,
                         bearer=bearer,
                     ),
                     preferred_mode=ref.preferred_mode,
+                    remote=True,
                 )
             )
         return resolved

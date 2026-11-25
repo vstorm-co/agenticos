@@ -123,6 +123,12 @@ class ResolvedSubagent:
     first rather than the one this delegate is bound to (#2537). A tuple of pairs
     rather than a mapping so the frozen dataclass stays hashable.
     """
+    remote: bool = False
+    """Whether this delegate is another system's agent, reached over the network.
+
+    An isolated run holds a delegation to one: the task would leave the
+    deployment, and nothing on the other side is held to the run's isolation.
+    """
 
 
 class DynamicSpecialistBuilder(Protocol):
@@ -680,3 +686,8 @@ class SubagentRuntime:
     def named(self, name: str) -> ResolvedSubagent | None:
         """The delegate the model addressed, or `None` if it invented a name."""
         return next((entry for entry in self.subagents if entry.name == name), None)
+
+    @property
+    def remote_names(self) -> frozenset[str]:
+        """The names of the delegates that are other systems' agents."""
+        return frozenset(entry.name for entry in self.subagents if entry.remote)
