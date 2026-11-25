@@ -111,6 +111,32 @@ async def test_a_call_to_the_resume_link_hands_its_body_on_and_the_run_goes_on(
     assert finished.output["text"].startswith(settings.PUBLIC_BASE_URL.rstrip("/"))
 
 
+async def test_resume_link_targets_the_nested_wait_without_overwriting_the_interpreter(
+    engine: AsyncEngine,
+):
+    graph, _link, wait = _waiting_for_a_call()
+    script = wait.model_copy(
+        update={
+            "definition_id": "code.python.actions",
+            "config": {
+                "code": "response = wait_for_callback()\nresponse['body']",
+                "actions": {"wait_for_callback": {"type": "flow.wait", "config": wait.config}},
+            },
+        }
+    )
+    graph = graph.model_copy(
+        update={"nodes": tuple(script if node.id == wait.id else node for node in graph.nodes)}
+    )
+    seeded = await seed_run(engine, graph)
+    assert (await drive(seeded)).status == "running"
+    assert await _resume(seeded, b'{"ticket": 41}') == 1
+    with pytest.raises(WorkflowNotWaitingError):
+        await _resume(seeded, b'{"ticket": 42}')
+    ended = await drive(seeded)
+    assert ended.status == "succeeded", ended.error
+    assert ended.output["structured"]["result"] == {"ticket": 41}
+
+
 async def test_an_empty_call_resumes_with_an_empty_body(engine: AsyncEngine):
     seeded, _wait = await _parked(engine)
 

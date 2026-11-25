@@ -42,6 +42,7 @@ describe("summarizeNodeRuns", () => {
       row({ status: "succeeded" }),
       row({ status: "failed", attempts: 3, error: { code: "BAD", message: "m" } }),
       row({ status: "skipped" }),
+      row({ status: "failed", scope_path: [{ action: "lookup", index: 0 }] }),
       row({ node_instance_id: "B", status: "running" }),
     ]);
     expect(summary.get("A")).toEqual({

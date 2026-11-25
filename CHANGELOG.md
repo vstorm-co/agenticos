@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- Call configured workflow actions from a Python block without a model or a canvas step for each call. Each call keeps its own execution record and approval.
+
 ## [1.93.0] - 2026-11-24
 
 ### Added

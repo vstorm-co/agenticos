@@ -1,5 +1,5 @@
 ---
-source_sha: "c74fb3dc560a"
+source_sha: "b22f35bb0f1b"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -1408,7 +1408,13 @@ Las salidas del sandbox también se limitan durante su descarga en streaming. Un
 
 ## Python { #python }
 
-Dos nodos ejecutan Python, para dos tipos de trabajo.
+**Python con acciones** (`code.python.actions`) ejecuta tu script sin un modelo. Vincula cada acción una vez con un nombre de Python y configura sus recursos. Pasa los campos de entrada como argumentos con nombre; la función devuelve el mismo objeto de salida que el paso del lienzo. También puedes pasar los campos que la acción permite vincular, como un nombre de archivo o una URL. Las credenciales y los permisos no cambian.
+
+Por ejemplo, si vinculas la comparación de textos como `compare`, la expresión `compare(a=args["expected"], b=args["actual"])["score"]` pasa solo la puntuación de similitud al siguiente paso como `result`.
+
+Para llamar a una herramienta MCP, selecciona una vez la conexión y la herramienta. Si la función se llama `lookup`, usa `lookup(arguments={"hostname": "leaf-01"})` y lee el campo `structured` o `text`. Si falla una acción, se aplica la política de errores del paso de Python, no una cláusula `except` del script. Usa un resultado, como la decisión de aprobación, para las bifurcaciones previstas.
+
+Las llamadas se ejecutan en orden, hasta 100 por script. El intérprete guarda su posición antes de cada llamada (hasta 512 KiB de estado). La aprobación se aplica solo a esa llamada. Si no se conoce el resultado de una escritura, se aplican las reglas de recuperación de la acción. Al reintentar una ejecución fallida, se reutilizan las llamadas completadas con los mismos argumentos, sin repetir automáticamente una escritura no confirmada. Los disparadores, las bifurcaciones y los dos pasos de finalización permanecen en el lienzo.
 
 `code.python.simple` ejecuta un script corto en el sandbox de Monty, que no tiene
 sistema de archivos, ni red, y tiene una biblioteca estándar pequeña. El script lee los

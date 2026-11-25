@@ -6408,6 +6408,7 @@
       "runOutputNone": "Esta execução terminou sem uma saída.",
       "runStepList": "Etapas",
       "runLogsFailed": "Não foi possível ler os registros gerados pelas etapas.",
+      "runPythonCall": "Chamada {index}: {name}",
       "runStepIteration": "Iteração {index}",
       "runAttempts": "{count} tentativas",
       "triggers": "Gatilho",
@@ -12081,6 +12082,18 @@
       "badMethod": "Uma etapa HTTP envia GET, POST, PUT, PATCH ou DELETE.",
       "unclosedQuote": "Uma aspa no comando nunca é fechada."
     },
+    "pythonActions": "Funções disponíveis",
+    "pythonActionsHint": "Associe uma ação uma vez e chame a função no script com argumentos nomeados.",
+    "pythonSelectAction": "Selecione uma ação",
+    "pythonInsertCall": "Inserir chamada de função",
+    "pythonInvalidName": "Use um identificador Python único, que não seja uma palavra reservada nem um nome interno.",
+    "pythonFunctionName": "Nome da função Python",
+    "pythonBindAction": "Associar ação",
+    "pythonActionUnavailable": "Ação indisponível",
+    "pythonRemoveAction": "Remover {name}",
+    "pythonToolArguments": "Esquema dos argumentos da ferramenta",
+    "pythonOverrideFields": "Substituições opcionais: {fields}. Omita esses argumentos para usar os valores configurados.",
+    "pythonResultFields": "Campos do resultado: {fields}",
     "codeArgKeys": "Chaves de args",
     "codeKeysHint": "Tab aumenta o recuo e Shift+Tab o diminui. Pressione Esc e depois Tab para sair do editor.",
     "validationConfigNotSet": "Obrigatório.",
@@ -18832,6 +18845,10 @@
         "name": "Python em um sandbox",
         "description": "Execute Python completo com os arquivos da execução como uma tarefa durável no host de sandbox da organização, sem credenciais da plataforma dentro dele."
       },
+      "code_python_actions": {
+        "name": "Python com ações",
+        "description": "Escreva código Python que chama as ações do fluxo de trabalho associadas a nomes."
+      },
       "code_python_simple": {
         "name": "Script Python",
         "description": "Calcule um valor JSON com um script Python curto no sandbox Monty, sem arquivos, sem rede e com uma biblioteca padrão reduzida."
@@ -19458,6 +19475,29 @@
           },
           "files__items__byte_size": {
             "title": "Tamanho em bytes"
+          }
+        }
+      },
+      "code_python_actions": {
+        "config": {
+          "code": {
+            "title": "Código",
+            "description": "Leia os valores vinculados como `args`; a última expressão é o resultado."
+          },
+          "timeout_seconds": {
+            "title": "Tempo limite (segundos)"
+          },
+          "max_memory_mb": {
+            "title": "Memória máxima (MB)"
+          },
+          "actions": {
+            "title": "Ações",
+            "description": "Nomes das funções Python e versões das ações do fluxo de trabalho que elas chamam."
+          }
+        },
+        "input": {
+          "args": {
+            "title": "Args"
           }
         }
       },

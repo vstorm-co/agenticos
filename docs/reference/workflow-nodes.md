@@ -1342,7 +1342,13 @@ Sandbox output is also capped while streaming it from the host. A file that grow
 
 ## Python { #python }
 
-Two nodes run Python, for two kinds of work.
+**Python with actions** (`code.python.actions`) runs your script without a model. Bind each action once under a Python name and configure its resources. Pass the action's input fields as keyword arguments; the function returns the same output object as its canvas step. You can also pass data fields that the action marks as bindable, such as a filename or URL. Its credentials and permissions do not change.
+
+For example, bind **Compare texts** as `compare`. The expression `compare(a=args["expected"], b=args["actual"])["score"]` passes just the similarity score to the next step as `result`.
+
+For **Call an MCP tool**, select the connection and tool once. If the function name is `lookup`, call `lookup(arguments={"hostname": "leaf-01"})` and read its `structured` or `text` field. An action failure follows the Python step's workflow error policy, not a Python `except` clause. Use a normal result, such as an approval decision, for branches you expect.
+
+Calls run in order, up to 100 per script. The interpreter saves its place before each call (up to 512 KiB of interpreter state). An approval belongs to that call, not the entire script. A write whose outcome is unknown follows the action's own recovery rules. Retrying a failed run reuses completed calls with matching arguments; it does not silently repeat an unconfirmed write. Triggers, graph routing and both Finish steps stay on the canvas.
 
 `code.python.simple` runs a short script in the Monty sandbox, which has no
 filesystem, no network and a small standard library. The script reads the bound

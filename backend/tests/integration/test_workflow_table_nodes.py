@@ -794,3 +794,39 @@ async def test_record_exists_resolves_a_saved_select_operand_by_label_or_id(
     run = await drive(await _run(engine, member, graph))
     assert run.status == WorkflowRunStatus.SUCCEEDED.value, run.error
     assert run.output is not None and run.output["structured"]["exists"] is True
+
+
+async def test_python_loop_writes_and_reads_two_distinct_records(engine: AsyncEngine):
+    member, table = await _world(engine)
+    entry, output = _node("core.input"), _node("core.output")
+    script = _node(
+        "code.python.actions",
+        {
+            "actions": {
+                "save_lead": {"type": "table.record.create", "config": _pin(table)},
+                "find_lead": {"type": "table.record.get", "config": _pin(table)},
+            },
+            "code": (
+                "scores = []\n"
+                "for lead in args['leads']:\n"
+                "    record = save_lead(values=lead, external_id=lead['Email'])\n"
+                "    found = find_lead(record_id=record['record_id'])\n"
+                "    scores.append(found['record']['fields']['Score'])\n"
+                "scores"
+            ),
+        },
+    )
+    graph = WorkflowGraph(
+        entry_node_id=entry.id,
+        nodes=(entry, script, output),
+        edges=_chain(entry, script, output),
+        bindings=(
+            _bind(script, "args", _ref(entry, "payload")),
+            _bind(output, "structured", _ref(script)),
+        ),
+    )
+    leads = [{"Email": "one@example.org", "Score": 13}, {"Email": "two@example.org", "Score": 27}]
+    run = await drive(await _run(engine, member, graph, {"leads": leads}))
+    assert run.status == WorkflowRunStatus.SUCCEEDED.value, run.error
+    assert run.output["structured"]["result"] == [13, 27]
+    assert {row.external_id for row in await _records(engine)} == {lead["Email"] for lead in leads}

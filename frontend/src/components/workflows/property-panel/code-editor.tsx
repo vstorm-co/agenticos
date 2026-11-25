@@ -8,6 +8,7 @@ import {
   useRef,
   useState,
   type KeyboardEvent,
+  type ReactElement,
   type UIEvent,
 } from "react";
 import { useTranslations } from "next-intl";
@@ -24,6 +25,7 @@ import {
   newline,
   typePair,
 } from "@/lib/workflows/code-editing";
+import { NativeSelect } from "@/components/ui/native-select";
 import { cn } from "@/lib/utils";
 
 // The set the chat's fenced blocks use, so the colours are the same `hljs-*`
@@ -55,6 +57,7 @@ export function CodeEditor({
   placeholder,
   disabled,
   argKeys,
+  actionCalls,
 }: {
   id: string;
   language: CodeLanguage;
@@ -63,6 +66,7 @@ export function CodeEditor({
   label: string;
   placeholder?: string;
   disabled?: boolean;
+  actionCalls?: readonly ReactElement[];
   /** The keys of the bound `args`, offered as a key is typed. */
   argKeys: readonly string[];
 }) {
@@ -268,6 +272,30 @@ export function CodeEditor({
             </li>
           ))}
         </ul>
+      )}
+      {actionCalls && actionCalls.length > 0 && (
+        <NativeSelect
+          aria-label={t("pythonInsertCall")}
+          value=""
+          disabled={disabled}
+          onChange={(event) => {
+            const call = event.target.value;
+            const target = area.current;
+            if (!target || !call) return;
+            const { selectionStart: start, selectionEnd: end } = target;
+            const replacement = call.indexOf("...");
+            const cursor = start + (replacement >= 0 ? replacement : call.length);
+            target.focus();
+            apply({
+              text: value.slice(0, start) + call + value.slice(end),
+              start: cursor,
+              end: cursor + (replacement >= 0 ? 3 : 0),
+            });
+          }}
+        >
+          <option value="">{t("pythonInsertCall")}</option>
+          {actionCalls}
+        </NativeSelect>
       )}
       <p className="text-muted-foreground text-xs">{t("codeKeysHint")}</p>
     </div>

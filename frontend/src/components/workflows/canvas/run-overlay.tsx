@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useMemo } from "react";
 
+import { pythonCallOf } from "@/lib/workflows/step-data";
 import type { NodeRunStatus, WorkflowNodeRunRead } from "@/lib/workflows/types";
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 
@@ -52,6 +53,7 @@ const SEVERITY: NodeRunStatus[] = [
 export function summarizeNodeRuns(rows: WorkflowNodeRunRead[]): Map<string, NodeRunSummary> {
   const byNode = new Map<string, NodeRunSummary>();
   for (const row of rows) {
+    if (pythonCallOf(row)) continue;
     const current = byNode.get(row.node_instance_id);
     if (current === undefined) {
       byNode.set(row.node_instance_id, {

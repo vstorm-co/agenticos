@@ -63,15 +63,22 @@ function rowData(runId: string, row: WorkflowNodeRunRead): StepData | null {
 export function stepDataOf(runId: string, rows: WorkflowNodeRunRead[]): Record<Uuid, StepData> {
   const data: Record<Uuid, StepData> = {};
   for (const row of rows) {
+    if (pythonCallOf(row)) continue;
     const done = rowData(runId, row);
     if (done !== null) data[row.node_instance_id] = done;
   }
   return data;
 }
 
+/** Child calls share the graph step's instance id but have results and decisions of their own. */
+export function pythonCallOf(row: WorkflowNodeRunRead) {
+  const scope = row.scope_path?.at(-1);
+  return scope && "action" in scope ? scope : null;
+}
+
 /** The loop iteration a row ran in, as its item index in each enclosing loop. */
 export function iterationOf(row: WorkflowNodeRunRead): number[] {
-  return row.scope_path.map((scope) => scope.index);
+  return row.scope_path.filter((scope) => "loop_node_id" in scope).map((scope) => scope.index);
 }
 
 /** Where one step's data in one loop iteration is kept. */
@@ -90,6 +97,7 @@ export function iterationDataOf(
 ): Record<string, StepData> {
   const data: Record<string, StepData> = {};
   for (const row of rows) {
+    if (pythonCallOf(row)) continue;
     data[iterationKey(row.node_instance_id, iterationOf(row))] = rowData(runId, row) ?? {
       output: null,
       error: null,

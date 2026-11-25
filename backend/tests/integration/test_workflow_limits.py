@@ -356,6 +356,37 @@ async def _ran(
 
 
 class TestTheFigures:
+    async def test_python_call_cost_belongs_to_its_step_but_is_not_an_extra_run(self, db, owner):
+        workflow, graph = await _two_step(db, owner)
+        run = await _ran(db, owner, workflow, status="failed", seconds=8, cost="0")
+        child = NodeRun(
+            organization_id=run.organization_id,
+            workflow_run_id=run.id,
+            node_instance_id=graph.entry_node_id,
+            scope_path=[{"action": "lookup", "index": 0}],
+            status="failed",
+            started_at=run.started_at,
+            ended_at=run.started_at,
+        )
+        db.add(child)
+        await db.flush()
+        db.add(
+            NodeAttempt(
+                organization_id=run.organization_id,
+                node_run_id=child.id,
+                attempt_no=1,
+                idempotency_key="child",
+                status="failed",
+                cost=Decimal("0.75"),
+                started_at=run.started_at,
+            )
+        )
+        await db.flush()
+        (row,) = await workflow_run_repo.step_figures(
+            db, organization_id=run.organization_id, workflow_id=workflow.id, since=run.started_at
+        )
+        assert (row.runs, row.failed, row.avg_seconds, row.cost) == (1, 1, 8, Decimal("0.75"))
+
     async def test_real_runs_over_the_window_by_status_day_and_step(self, db, owner):
         workflow, graph = await _two_step(db, owner)
         await _ran(db, owner, workflow, status="succeeded", seconds=2, cost="0.01")

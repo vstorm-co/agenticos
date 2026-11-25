@@ -6524,6 +6524,7 @@
       "runOutputNone": "This run ended without an output.",
       "runStepList": "Steps",
       "runLogsFailed": "The lines the steps logged could not be read.",
+      "runPythonCall": "Call {index}: {name}",
       "runStepIteration": "Iteration {index}",
       "runAttempts": "{count} tries",
       "triggers": "Trigger",
@@ -12197,6 +12198,18 @@
       "badMethod": "An HTTP step sends GET, POST, PUT, PATCH or DELETE.",
       "unclosedQuote": "A quote in the command is never closed."
     },
+    "pythonActions": "Available functions",
+    "pythonActionsHint": "Bind an action once, then call its function in your script with keyword arguments.",
+    "pythonSelectAction": "Select an action",
+    "pythonInsertCall": "Insert function call",
+    "pythonInvalidName": "Use a unique Python identifier, not a keyword or built-in name.",
+    "pythonFunctionName": "Python function name",
+    "pythonBindAction": "Bind action",
+    "pythonActionUnavailable": "Action unavailable",
+    "pythonRemoveAction": "Remove {name}",
+    "pythonToolArguments": "Tool argument schema",
+    "pythonOverrideFields": "Optional overrides: {fields}. Omit them to use the configured values.",
+    "pythonResultFields": "Result fields: {fields}",
     "codeArgKeys": "Keys of args",
     "codeKeysHint": "Tab indents and Shift+Tab outdents. Press Esc, then Tab, to leave the editor.",
     "validationConfigNotSet": "Required.",
@@ -18948,6 +18961,10 @@
         "name": "Python in a sandbox",
         "description": "Run full Python with the run's files as a durable job on the organization's sandbox host, with no platform credentials inside it."
       },
+      "code_python_actions": {
+        "name": "Python with actions",
+        "description": "Write Python that calls the workflow actions you bind by name."
+      },
       "code_python_simple": {
         "name": "Python script",
         "description": "Compute a JSON value with a short Python script in the Monty sandbox - no files, no network, a small standard library."
@@ -19574,6 +19591,29 @@
           },
           "files__items__byte_size": {
             "title": "Byte Size"
+          }
+        }
+      },
+      "code_python_actions": {
+        "config": {
+          "code": {
+            "title": "Code",
+            "description": "Read the bound values as `args`; the last expression is the result."
+          },
+          "timeout_seconds": {
+            "title": "Timeout Seconds"
+          },
+          "max_memory_mb": {
+            "title": "Max Memory Mb"
+          },
+          "actions": {
+            "title": "Actions",
+            "description": "Python function names and the versioned workflow actions they call."
+          }
+        },
+        "input": {
+          "args": {
+            "title": "Args"
           }
         }
       },

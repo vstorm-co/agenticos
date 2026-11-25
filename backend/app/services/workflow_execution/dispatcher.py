@@ -47,8 +47,8 @@ from collections.abc import Callable
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import Any, Literal, TypeGuard
-from uuid import UUID, uuid4
+from typing import TYPE_CHECKING, Any, Literal, TypeGuard
+from uuid import UUID, uuid4, uuid5
 
 from pydantic import BaseModel, ConfigDict, JsonValue, RootModel
 from pydantic import ValidationError as PydanticValidationError
@@ -94,12 +94,14 @@ from app.services.workflow_execution import (
     failure,
     questions,
     quick_log,
+    script_calls,
 )
 from app.services.workflow_execution.exceptions import (
     InvalidBindingError,
     NodeDefinitionMissingError,
     NodeHandlerMissingError,
     PrincipalRevokedError,
+    ScriptActionUnavailableError,
     WorkflowDispatchRefusedError,
     WorkflowFileQuotaError,
     WorkflowGraphUnresolvableError,
@@ -129,6 +131,7 @@ from app.workflows.contracts.results import (
     Waiting,
     WorkflowError,
 )
+from app.workflows.contracts.script import ScriptActionRequest, ScriptResume
 from app.workflows.files import import_output_files
 from app.workflows.graph.errors import GraphValidationError
 from app.workflows.graph.joins import JoinVerdict, WireState, evaluate_join
@@ -152,6 +155,9 @@ from app.workflows.nodes.control_foreach import (
 from app.workflows.nodes.logic_merge._handler import LogicMergeConfig, branch_keys
 from app.workflows.nodes.loop_item import LoopItemOutput
 from app.workflows.triggers import CHAT, WEBHOOK_RESPOND, entry_graph
+
+if TYPE_CHECKING:
+    from app.workflows.python_actions import ActionBinding
 
 logger = logging.getLogger(__name__)
 
@@ -680,9 +686,62 @@ class _ResolvedCall:
     arrived_output: dict[str, Any] | None
     stands_in: StandIn | None = None
     arrived_branches: dict[str, dict[str, Any] | None] | None = None
+    script_resume: ScriptResume | None = None
 
 
-async def _resolve_call(db: AsyncSession, *, run: WorkflowRun, node_run: NodeRun) -> _ResolvedCall:
+def _script_binding(node: NodeInstance, alias: str) -> ActionBinding:
+    # Import after the node registry has finished loading its builtins.
+    from app.workflows.python_actions import PythonActionsConfig
+
+    try:
+        return PythonActionsConfig.model_validate(node.config).actions[alias]
+    except (ValueError, KeyError) as exc:
+        raise InvalidBindingError(node_instance_id=node.id, field="actions") from exc
+
+
+async def _script_action_call(
+    db: AsyncSession,
+    run: WorkflowRun,
+    child: NodeRun,
+    graph: WorkflowGraph,
+    node: NodeInstance,
+    alias: str,
+    auth: AuthContext,
+) -> _ResolvedCall:
+    binding = _script_binding(node, alias)
+    definition = binding.definition()
+    if definition.handler is None:
+        raise NodeHandlerMissingError(node_id=definition.id, version=definition.version)
+    try:
+        request = await script_calls.pending_request(db, run, child)
+        config, values = binding.resolve_call(request.inputs)
+    except ValueError as exc:
+        raise InvalidBindingError(node_instance_id=node.id, field="action_inputs") from exc
+    if (
+        config is not None
+        and definition.resource_check is not None
+        and await definition.resource_check(db, auth, config)
+    ):
+        raise ScriptActionUnavailableError(details={"action": alias})
+    # workflow.run owns its own cross-run recovery: it finds and retries
+    # the original child workflow instead of starting another copy.
+    unknown_write = definition.effect_kind == "write" and definition.id != "workflow.run"
+    known = await script_calls.retry_output(db, run, child, writes=unknown_write)
+    return _ResolvedCall(
+        graph,
+        node,
+        definition,
+        definition.handler if known is None else _handing_on(known),
+        config,
+        values,
+        None,
+        stands_in=None if known is None else "reused",
+    )
+
+
+async def _resolve_call(
+    db: AsyncSession, *, run: WorkflowRun, node_run: NodeRun, auth: AuthContext
+) -> _ResolvedCall:
     """Resolve the node `node_run` names: its graph, definition, handler and bindings.
 
     Raises:
@@ -692,6 +751,9 @@ async def _resolve_call(db: AsyncSession, *, run: WorkflowRun, node_run: NodeRun
     node = graph.node_by_id.get(node_run.node_instance_id)
     if node is None:
         raise WorkflowGraphUnresolvableError(run_id=run.id)
+    alias = script_calls.child_alias(node_run)
+    if alias is not None:
+        return await _script_action_call(db, run, node_run, graph, node, alias, auth)
     try:
         definition = _registry.get(node.definition_id, node.definition_version)
     except BadRequestError as exc:
@@ -772,11 +834,31 @@ async def _resolve_call(db: AsyncSession, *, run: WorkflowRun, node_run: NodeRun
             arrived_branches = dict.fromkeys(keys.values())
             for edge, carried in await arrivals.arrived_by_wire(node.id):
                 arrived_branches[keys[(edge.source_node_id, edge.source_port)]] = carried
+    handler = definition.handler
+    resume = None
+    if definition.id == "code.python.actions" and node_run.resume_payload is not None:
+        if "child_error" in node_run.resume_payload:
+            error = WorkflowError.model_validate(node_run.resume_payload["child_error"])
+
+            async def child_failed(
+                _config: BaseModel | None, _inputs: BaseModel | None
+            ) -> NodeResult:
+                return Failed(error=error.model_copy(update={"retryable": False}))
+
+            handler = child_failed
+        else:
+            try:
+                resume = await script_calls.resume(db, run, node_run)
+            except PydanticValidationError as exc:
+                raise InvalidBindingError(
+                    node_instance_id=node.id, field="action_checkpoint"
+                ) from exc
     return _ResolvedCall(
         graph=graph,
         node=node,
         definition=definition,
-        handler=definition.handler,
+        handler=handler,
+        script_resume=resume,
         config=config_obj,
         input=input_obj,
         arrived_output=arrived_output,
@@ -976,7 +1058,7 @@ async def begin_attempt(
 
     try:
         auth = await _principal_context(db, run)
-        call = await _resolve_call(db, run=run, node_run=node_run)
+        call = await _resolve_call(db, run=run, node_run=node_run, auth=auth)
     except WorkflowDispatchRefusedError as exc:
         # Deterministic: every future attempt would fail the same way, before
         # any `NodeAttempt` exists to record it. Left to propagate, the claim
@@ -1060,12 +1142,18 @@ async def begin_attempt(
         node_run_id=node_run.id,
         payload={"attempt_no": attempt_no, "node_definition": definition.id},
     )
+    # Inline agents are owned by workflow + node. Two aliases on one script
+    # must not update the same hidden agent's configuration.
+    alias = script_calls.child_alias(node_run)
+    owns_agent = definition.id == "agent.run" or definition.category == "model"
+    context_id = uuid5(node.id, alias) if alias is not None and owns_agent else node.id
     dispatch_context = context.DispatchContext(
         organization_id=run.organization_id,
         workflow_run_id=run.id,
         node_run_id=node_run.id,
-        node_instance_id=node.id,
+        node_instance_id=context_id,
         attempt_no=attempt_no,
+        script_resume=call.script_resume,
         auth=auth,
         resumed_agent_run_id=node_run.waiting_agent_run_id,
         claim=claim if claim is not None else context.ClaimState(),
@@ -1352,6 +1440,9 @@ async def _close_late_node(
         await events.append(
             db, run=run, kind=events.EventKind.NODE_COMPLETED, node_run_id=node_run.id
         )
+        # A nested call is not its parent's configured quick-log action.
+        if script_calls.child_alias(node_run) is not None:
+            return
         graph = await _graph_or_none(db, run)
         if graph is not None and stands_in in (None, "pinned"):
             await quick_log.log_completed(
@@ -1624,7 +1715,15 @@ def _persistable_outcome(outcome: HandlerOutcome) -> tuple[HandlerOutcome, dict[
     try:
         # Check repeated model fields before model_dump materializes their copies.
         _outcome_payloads_fit((outcome.result, outcome.run_output, outcome.webhook_response))
-        serialized: dict[str, JsonValue] = outcome.result.model_dump(mode="json")
+        result = outcome.result
+        serialized: dict[str, JsonValue] = result.model_dump(mode="json")
+        if isinstance(result, ScriptActionRequest):
+            # Validate the full private checkpoint but never write it into
+            # attempt history or an event. Only the waiting envelope is public.
+            jsonb_value_fits(serialized)
+            serialized = Waiting(reason=result.reason, resume_token=result.resume_token).model_dump(
+                mode="json"
+            )
         jsonb_value_fits(serialized)
         jsonb_value_fits(outcome.run_output)
         jsonb_value_fits(outcome.webhook_response)
@@ -1891,6 +1990,8 @@ async def _settle_loaded(
         return await _settle_failed(
             db, run=run, node_run=node_run, attempt=attempt, result=result, now=now
         )
+    if isinstance(result, ScriptActionRequest):
+        return await _park_script(db, run, node_run, result, now)
     if isinstance(result, Waiting):
         await _settle_waiting(
             db,
@@ -2023,7 +2124,12 @@ async def resolve_needs_attention(
     graph = await _graph_or_none(db, run)
     node = graph.node_by_id.get(node_run.node_instance_id) if graph is not None else None
     routed = choice == "use_error_route"
-    if routed and (node is None or not (node.routes_errors or _loop_of(node_run.scope_path))):
+    scope = (
+        node_run.scope_path[:-1]
+        if script_calls.child_alias(node_run) is not None
+        else node_run.scope_path
+    )
+    if routed and (node is None or not (node.routes_errors or _loop_of(scope))):
         raise refuse("no_error_route")
     error = WorkflowError(
         code=STEP_MARKED_FAILED,
@@ -2085,7 +2191,12 @@ async def _use_late_result(
         raise WorkflowStepNotResolvableError(
             run_id=run.id, node_run_id=node_run.id, reason="no_late_result"
         )
-    definition = _registry.get(node.definition_id, node.definition_version)
+    alias = script_calls.child_alias(node_run)
+    definition = (
+        _script_binding(node, alias).definition()
+        if alias is not None
+        else _registry.get(node.definition_id, node.definition_version)
+    )
     # The dispatcher's own record of a try, like a loop's collected results: no handler
     # ran, so it has no retry guarantee and shows as no try of the step.
     own = await workflow_run_repo.create_attempt(
@@ -2220,6 +2331,12 @@ async def _settle_completed(
         },
     )
     await events.append(db, run=run, kind=events.EventKind.NODE_COMPLETED, node_run_id=node_run.id)
+    if script_calls.child_alias(node_run) is not None:
+        parent = await script_calls.parent_of(db, run, node_run)
+        await dispatch_queue.queue_dispatch(db, run=run, node_run_id=parent.id)
+        return [(run.id, parent.id)]
+    if definition.id == "code.python.actions" and node_run.resume_payload is not None:
+        await _replace_script_state(db, run, node_run, None)
     graph = await _graph_or_none(db, run)
     # A step switched off, or one a retry run reuses, did nothing to log.
     if graph is not None and stands_in in (None, "pinned"):
@@ -2239,6 +2356,79 @@ async def _settle_completed(
         scope_path=node_run.scope_path,
         graph=graph,
     )
+
+
+async def _replace_script_state(
+    db: AsyncSession,
+    run: WorkflowRun,
+    parent: NodeRun,
+    state: dict[str, JsonValue] | None,
+) -> WorkflowError | None:
+    """Account only the currently retained private cursor, not every previous VM snapshot."""
+    previous_size = (
+        json_byte_size(parent.resume_payload, limit=2**63 - 1) if parent.resume_payload else 0
+    )
+    size = json_byte_size(state, limit=2**63 - 1) if state else 0
+    delta = size - previous_size
+    if delta > 0:
+        refusal = await _reserve_inline_result(db, run, delta)
+        if refusal is not None:
+            return refusal
+    elif delta < 0:
+        await workflow_run_repo.update_run(
+            db, run=run, update_data={"inline_result_bytes": run.inline_result_bytes + delta}
+        )
+    await workflow_run_repo.update_node_run(
+        db, node_run=parent, update_data={"resume_payload": state}
+    )
+    return None
+
+
+async def _park_script(
+    db: AsyncSession,
+    run: WorkflowRun,
+    parent: NodeRun,
+    request: ScriptActionRequest,
+    now: datetime,
+) -> list[tuple[UUID, UUID]]:
+    """Commit the VM state, child row and child's dispatch as one fenced transition."""
+    limit = settings.WORKFLOW_RUN_MAX_NODE_RUNS
+    if await workflow_run_repo.count_node_runs(db, workflow_run_id=run.id) >= limit:
+        error = WorkflowError(
+            code="NODE_RUN_LIMIT",
+            message=f"This run would take more than {limit} steps",
+            bypassable=False,
+        )
+    else:
+        error = await _replace_script_state(db, run, parent, request.model_dump(mode="json"))
+    if error is not None:
+        await _fail_node_and_run(db, run=run, node_run=parent, error=error, now=now)
+        return []
+    child = await workflow_run_repo.create_node_run(
+        db,
+        organization_id=run.organization_id,
+        workflow_run_id=run.id,
+        node_instance_id=parent.node_instance_id,
+        scope_path=script_calls.child_scope(parent, request),
+    )
+    await workflow_run_repo.update_node_run(
+        db,
+        node_run=parent,
+        update_data={
+            "status": NodeRunStatus.WAITING.value,
+            "waiting_reason": WaitingReason.EXTERNAL_EVENT.value,
+            "resume_token": str(parent.id),
+        },
+    )
+    await events.append(
+        db,
+        run=run,
+        kind=events.EventKind.NODE_WAITING,
+        node_run_id=parent.id,
+        payload={"reason": request.reason, "action": request.alias, "index": request.index},
+    )
+    await dispatch_queue.queue_dispatch(db, run=run, node_run_id=child.id)
+    return [(run.id, child.id)]
 
 
 async def _settle_waiting(
@@ -2461,6 +2651,19 @@ async def _fail_for_good(
     Anything else fails the run. A failure that is not `bypassable` - revoked
     access, a spent budget - ends the run however the graph is wired.
     """
+    if script_calls.child_alias(node_run) is not None:
+        parent = await script_calls.parent_of(db, run, node_run)
+        await _end_node(
+            db, run=run, node_run=node_run, status=NodeRunStatus.FAILED, now=now, error=error
+        )
+        refusal = await _replace_script_state(
+            db, run, parent, {"child_error": error.model_dump(mode="json")}
+        )
+        if refusal is not None:
+            await _fail_node_and_run(db, run=run, node_run=parent, now=now, error=refusal)
+            return []
+        await dispatch_queue.queue_dispatch(db, run=run, node_run_id=parent.id)
+        return [(run.id, parent.id)]
     node = graph.node_by_id.get(node_run.node_instance_id) if graph is not None else None
     if graph is not None and node is not None:
         # Only a failure that leaves by the `error` port follows the log's `outputs`.

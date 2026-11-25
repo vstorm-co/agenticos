@@ -1,5 +1,5 @@
 ---
-source_sha: "c74fb3dc560a"
+source_sha: "b22f35bb0f1b"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -1453,7 +1453,13 @@ Sandbox-Ausgaben werden auch beim Streaming vom Host begrenzt. Eine nach der Mes
 
 ## Python { #python }
 
-Zwei Knoten führen Python aus, für zwei Arten von Arbeit.
+**Python mit Aktionen** (`code.python.actions`) führt dein Skript ohne Modell aus. Binde jede Aktion einmal unter einem Python-Namen ein und konfiguriere ihre Ressourcen. Übergib die Eingabefelder als Schlüsselwortargumente. Die Funktion liefert dasselbe Ausgabeobjekt wie der Schritt auf der Arbeitsfläche. Auch bindbare Datenfelder wie Dateiname oder URL kannst du übergeben. Zugangsdaten und Berechtigungen ändern sich dadurch nicht.
+
+Bindest du beispielsweise den Textvergleich als `compare` ein, gibt `compare(a=args["expected"], b=args["actual"])["score"]` nur den Ähnlichkeitswert als `result` an den nächsten Schritt weiter.
+
+Für einen MCP-Aufruf wählst du Verbindung und Tool einmal aus. Heißt die Funktion `lookup`, rufst du `lookup(arguments={"hostname": "leaf-01"})` auf und liest das Feld `structured` oder `text`. Schlägt eine Aktion fehl, gilt die Fehlerbehandlung des Workflow-Schritts, nicht eine Python-`except`-Klausel. Für erwartete Verzweigungen verwendest du ein Ergebnis wie die Freigabeentscheidung.
+
+Ein Skript führt bis zu 100 Aufrufe nacheinander aus. Vor jedem Aufruf speichert der Interpreter seine Position (bis zu 512 KiB Zustand). Eine Freigabe gilt nur für diesen Aufruf. Bei einem Schreibvorgang mit ungewissem Ausgang gelten die Wiederherstellungsregeln der Aktion. Beim erneuten Versuch nutzt der Lauf abgeschlossene Aufrufe mit denselben Argumenten und wiederholt einen unbestätigten Schreibvorgang nicht stillschweigend. Auslöser, Verzweigungen und beide Abschlussschritte bleiben auf der Arbeitsfläche.
 
 `code.python.simple` führt ein kurzes Skript in der Monty-Sandbox aus, die kein
 Dateisystem, kein Netzwerk und nur eine kleine Standardbibliothek hat. Das Skript liest

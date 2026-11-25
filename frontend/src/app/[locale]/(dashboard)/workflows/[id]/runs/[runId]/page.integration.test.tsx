@@ -325,6 +325,74 @@ describe("the step list", () => {
     expect(store.stepData["a"]?.output).toEqual({ item: 1 });
   });
 
+  it("inspects a Python action result separately from its step and loop iteration", async () => {
+    seed({ status: "succeeded" }, "succeeded");
+    vi.mocked(runsApi.getWorkflowRunGraph).mockResolvedValue({
+      entry_node_id: "a",
+      nodes: [
+        {
+          id: "a",
+          definition_id: "code.python.actions",
+          definition_version: 1,
+          layout: { x: 0, y: 0 },
+          config: { actions: { lookup: { type: "workflow.run", config: { workflow_id: "wf" } } } },
+        },
+      ],
+      scopes: [],
+      edges: [],
+      bindings: [],
+    });
+    const parent = {
+      ...step("succeeded"),
+      scope_path: [{ loop_node_id: "loop", index: 1 }],
+      output: { result: "parent value" },
+    };
+    const call = {
+      ...parent,
+      id: "child",
+      scope_path: [...parent.scope_path, { action: "lookup", index: 0 }],
+      output: { text: "tool value", run_id: "child-run" },
+      approval: { status: "approved" as const, decided_by_name: "Reviewer", decided_at: null },
+    };
+    vi.mocked(runsApi.listWorkflowRunNodes).mockResolvedValue({ items: [parent, call], total: 2 });
+    await renderPage();
+    fireEvent.click(await screen.findByText("Call 1: lookup"));
+    expect(screen.getByText(/tool value/)).toBeVisible();
+    expect(screen.getByText(/Reviewer/)).toBeVisible();
+    expect(screen.getByRole("link", { name: /Open run/ })).toHaveAttribute(
+      "href",
+      "/workflows/wf/runs/child-run",
+    );
+    expect(screen.getByText("1 of 1")).toBeVisible();
+    expect(screen.getAllByText("Iteration 2")).toHaveLength(1);
+    const store = useWorkflowEditorStore.getState();
+    expect(store.iterationData["a/1"]?.output).toEqual(parent.output);
+    expect(store.stepData["a"]?.output).toEqual(parent.output);
+  });
+
+  it("resolves the actual call, without offering a loop error route for a call outside a loop", async () => {
+    seed({}, "waiting");
+    vi.mocked(runsApi.listWorkflowRunNodes).mockResolvedValue({
+      items: [
+        step("waiting"),
+        {
+          ...step("needs_attention"),
+          id: "child",
+          scope_path: [{ action: "notify", index: 0 }],
+        },
+      ],
+      total: 2,
+    });
+    await renderPage();
+    fireEvent.click(await screen.findByRole("button", { name: "Resolve" }));
+    expect(screen.getByRole("heading", { name: /notify/ })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Take its error route" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Run it again" }));
+    await waitFor(() =>
+      expect(runsApi.resolveWorkflowRunStep).toHaveBeenCalledWith("r1", "child", "run_again"),
+    );
+  });
+
   it("leaves steps that never started out of the list and the count", async () => {
     seed({ status: "succeeded" }, "succeeded");
     vi.mocked(runsApi.listWorkflowRunNodes).mockResolvedValue({

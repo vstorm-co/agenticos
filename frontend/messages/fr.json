@@ -6292,6 +6292,7 @@
       "runOutputNone": "Ce run s’est terminé sans sortie.",
       "runStepList": "Étapes",
       "runLogsFailed": "Les lignes consignées par les étapes n’ont pas pu être lues.",
+      "runPythonCall": "Appel {index} : {name}",
       "runStepIteration": "Itération {index}",
       "runAttempts": "{count} essais",
       "triggers": "Déclencheur",
@@ -11843,6 +11844,18 @@
       "badMethod": "Une étape HTTP envoie GET, POST, PUT, PATCH ou DELETE.",
       "unclosedQuote": "Un guillemet de la commande n’est jamais fermé."
     },
+    "pythonActions": "Fonctions disponibles",
+    "pythonActionsHint": "Associez une action une seule fois, puis appelez sa fonction dans le script avec des arguments nommés.",
+    "pythonSelectAction": "Sélectionner une action",
+    "pythonInsertCall": "Insérer un appel de fonction",
+    "pythonInvalidName": "Utilisez un identifiant Python unique, différent des mots-clés et des noms prédéfinis.",
+    "pythonFunctionName": "Nom de la fonction Python",
+    "pythonBindAction": "Associer l’action",
+    "pythonActionUnavailable": "Action indisponible",
+    "pythonRemoveAction": "Supprimer {name}",
+    "pythonToolArguments": "Schéma des arguments de l’outil",
+    "pythonOverrideFields": "Valeurs modifiables : {fields}. Omettez ces arguments pour utiliser les valeurs configurées.",
+    "pythonResultFields": "Champs du résultat : {fields}",
     "codeArgKeys": "Clés de args",
     "codeKeysHint": "Tab indente et Maj+Tab désindente. Appuyez sur Échap, puis Tab, pour quitter l’éditeur.",
     "validationConfigNotSet": "Obligatoire.",
@@ -18254,6 +18267,10 @@
         "name": "Python dans une sandbox",
         "description": "Exécute du Python complet avec les fichiers du run, comme job durable sur l’hôte sandbox de l’organisation, sans aucun identifiant de la plateforme à l’intérieur."
       },
+      "code_python_actions": {
+        "name": "Python avec actions",
+        "description": "Écrivez du code Python qui appelle les actions du workflow associées à des noms."
+      },
       "code_python_simple": {
         "name": "Script Python",
         "description": "Calcule une valeur JSON avec un court script Python dans la sandbox Monty - sans fichiers, sans réseau, avec une petite bibliothèque standard."
@@ -18880,6 +18897,29 @@
           },
           "files__items__byte_size": {
             "title": "Taille en octets"
+          }
+        }
+      },
+      "code_python_actions": {
+        "config": {
+          "code": {
+            "title": "Code",
+            "description": "Lisez les valeurs liées dans `args` ; la dernière expression est le résultat."
+          },
+          "timeout_seconds": {
+            "title": "Délai en secondes"
+          },
+          "max_memory_mb": {
+            "title": "Mémoire max. (Mo)"
+          },
+          "actions": {
+            "title": "Actions",
+            "description": "Noms des fonctions Python et versions des actions du workflow qu’elles appellent."
+          }
+        },
+        "input": {
+          "args": {
+            "title": "Args"
           }
         }
       },

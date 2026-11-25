@@ -11,6 +11,7 @@ import itertools
 import json
 import uuid
 from collections.abc import Iterator
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
@@ -22,16 +23,30 @@ from pydantic_ai.workspaces import FileEntry, WorkspaceError
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
+from app.core.background import discard_deferred
 from app.core.exceptions import BadRequestError
+from app.db.models.mcp_connection import McpConnection
+from app.db.models.workflow import Workflow
+from app.db.models.workflow_approval import WorkflowApproval
 from app.db.models.workflow_file import WorkflowFile
-from app.db.models.workflow_run import DispatchOutbox, ResourceRef, WorkflowRun, WorkflowRunStatus
+from app.db.models.workflow_run import (
+    DispatchOutbox,
+    NodeRun,
+    ResourceRef,
+    WorkflowRun,
+    WorkflowRunStatus,
+)
+from app.repositories import workflow_run as workflow_run_repo
 from app.schemas.sandbox_connection import SandboxConnectionCreate
 from app.services.file_storage import LocalFileStorage
+from app.services.workflow_execution.approvals import WorkflowApprovalService, wake_approval_step
+from app.services.workflow_execution.facade import WorkflowExecutionService
 from app.workflows.contracts.io import Binding, FileRef, LiteralValue, NodeOutputRef
 from app.workflows.graph.model import Edge, NodeInstance, NodePosition, WorkflowGraph
 from app.workflows.nodes import _sandbox_job as job
 from app.workflows.nodes.code_javascript_sandbox import _handler as js_node
 from app.workflows.nodes.code_python_sandbox import _handler as sandbox_node
+from app.workflows.nodes.mcp_call import _handler as mcp_node
 from tests.integration.workflow_run_support import SeededRun, drive, seed_member, seed_run
 
 pytestmark = pytest.mark.anyio
@@ -128,6 +143,245 @@ class TestTheMontyScript:
 
         result = await _handler.handle(None, None)
         assert result.error.code == "PYTHON_NOT_CONFIGURED"
+
+
+class TestPythonWithActions:
+    async def test_a_script_can_compute_the_filename_for_each_native_file_action(
+        self, engine: AsyncEngine
+    ):
+        step = _node(
+            "code.python.actions",
+            {
+                "actions": {"write_note": {"type": "convert.text_to_file"}},
+                "code": "for case in args['cases']:\n write_note(filename=case + '.txt', text=case)\nlen(args['cases'])",
+            },
+        )
+        seeded = await seed_run(
+            engine, _chain(step, _literal(step, "args", {"cases": ["case-1", "case-2"]}))
+        )
+        run = await drive(seeded)
+        assert run.status == WorkflowRunStatus.SUCCEEDED.value, run.error
+        assert run.output["structured"]["result"] == 2
+        async with seeded.factory() as db:
+            names = await db.scalars(
+                select(WorkflowFile.filename).where(WorkflowFile.workflow_run_id == run.id)
+            )
+            assert sorted(names) == ["case-1.txt", "case-2.txt"]
+
+    async def test_an_action_result_can_drive_the_next_call(self, engine: AsyncEngine):
+        step = _node(
+            "code.python.actions",
+            {
+                "actions": {"echo": {"type": "debug.echo"}},
+                "code": "value = args['text']\nfor i in range(4):\n value = echo(message=value + str(i))['echoed']\nvalue",
+            },
+        )
+        seeded = await seed_run(engine, _chain(step, _literal(step, "args", {"text": "start"})))
+        run = await drive(seeded)
+        assert run.status == WorkflowRunStatus.SUCCEEDED.value, run.error
+        assert run.output["structured"] == {"result": "start0123", "stdout": ""}
+        async with seeded.factory() as db:
+            rows = (
+                await db.scalars(
+                    select(NodeRun).where(
+                        NodeRun.workflow_run_id == run.id, NodeRun.node_instance_id == step.id
+                    )
+                )
+            ).all()
+        children = sorted(
+            (row for row in rows if row.scope_path), key=lambda r: r.scope_path[-1]["index"]
+        )
+        assert [row.scope_path[-1]["action"] for row in children] == ["echo"] * 4
+        assert [row.scope_path[-1]["index"] for row in children] == [0, 1, 2, 3]
+        assert all(row.status == "succeeded" for row in children)
+
+    async def test_each_iteration_waits_for_its_own_decision(self, engine: AsyncEngine):
+        step = _node(
+            "code.python.actions",
+            {
+                "actions": {
+                    "review": {"type": "human.approval", "config": {"title": "Review this item?"}}
+                },
+                "code": "[review(details=item)['decision'] for item in args['items']]",
+            },
+        )
+        seeded = await seed_run(
+            engine, _chain(step, _literal(step, "args", {"items": ["first", "second"]}))
+        )
+        ids = set()
+        for item, approved in [("first", True), ("second", False)]:
+            run = await drive(seeded)
+            assert run.status == WorkflowRunStatus.WAITING_APPROVAL.value, run.error
+            async with seeded.factory() as db:
+                request = (
+                    await db.scalars(
+                        select(WorkflowApproval).where(
+                            WorkflowApproval.workflow_run_id == run.id,
+                            WorkflowApproval.status == "pending",
+                        )
+                    )
+                ).one()
+                assert request.details == item
+                assert request.node_run_id not in ids
+                ids.add(request.node_run_id)
+                await WorkflowApprovalService(db).decide(seeded.ctx, request.id, approved=approved)
+                await db.commit()
+                discard_deferred(db)
+            # As in a reconciler wake after a worker restart.
+            await wake_approval_step(request.node_run_id, organization_id=seeded.org.id)
+        run = await drive(seeded)
+        assert run.status == WorkflowRunStatus.SUCCEEDED.value, run.error
+        assert run.output["structured"]["result"] == ["approved", "rejected"]
+
+    async def test_retry_reuses_an_approved_action_instead_of_repeating_it(
+        self, engine: AsyncEngine
+    ):
+        step = _node(
+            "code.python.actions",
+            {
+                "actions": {"review": {"type": "human.approval", "config": {"title": "Check?"}}},
+                "code": "review(details='item')\n1 / 0",
+            },
+        )
+        seeded = await seed_run(engine, _chain(step))
+        assert (await drive(seeded)).status == WorkflowRunStatus.WAITING_APPROVAL.value
+        async with seeded.factory() as db:
+            request = (
+                await db.scalars(
+                    select(WorkflowApproval).where(
+                        WorkflowApproval.workflow_run_id == seeded.run.id
+                    )
+                )
+            ).one()
+            await WorkflowApprovalService(db).decide(seeded.ctx, request.id, approved=True)
+            await db.commit()
+            discard_deferred(db)
+        await wake_approval_step(request.node_run_id, organization_id=seeded.org.id)
+        assert await _failed_code(seeded) == "PYTHON_ERROR"
+        async with seeded.factory() as db:
+            retry = await WorkflowExecutionService(db).retry(seeded.ctx, seeded.run.id)
+            await db.commit()
+            retry_row = await db.get(WorkflowRun, retry.id)
+            assert retry_row is not None
+        assert await _failed_code(replace(seeded, run=retry_row)) == "PYTHON_ERROR"
+        async with seeded.factory() as db:
+            assert not (
+                await db.scalars(
+                    select(WorkflowApproval).where(WorkflowApproval.workflow_run_id == retry.id)
+                )
+            ).all()
+
+        # Failed retries are retryable again. Removing their source before
+        # the retry itself expires would silently turn old writes into new ones.
+        async with seeded.factory() as db:
+            workflow = await db.get(Workflow, seeded.run.workflow_id)
+            assert workflow is not None
+            workflow.settings = {"run_retention_days": 1}
+            now = datetime.now(UTC)
+            await db.execute(
+                update(WorkflowRun)
+                .where(WorkflowRun.id == seeded.run.id)
+                .values(ended_at=now - timedelta(days=3))
+            )
+            await db.commit()
+            assert await workflow_run_repo.take_expired_runs(db, now=now, limit=10) == []
+
+    async def test_a_lost_reply_after_an_approved_mcp_write_needs_attention(
+        self, engine: AsyncEngine, monkeypatch: pytest.MonkeyPatch
+    ):
+        connection_id = uuid.uuid4()
+        step = _node(
+            "code.python.actions",
+            {
+                "actions": {
+                    "create_ticket": {
+                        "type": "mcp.call",
+                        "config": {
+                            "connection_id": str(connection_id),
+                            "tool": "create",
+                            "approval": "all",
+                        },
+                    }
+                },
+                "code": "create_ticket(arguments={'title': 'Investigate'})",
+            },
+        )
+        seeded = await seed_run(engine, _chain(step))
+        async with seeded.factory() as db:
+            db.add(
+                McpConnection(
+                    id=connection_id,
+                    organization_id=seeded.org.id,
+                    scope="org",
+                    name="tickets",
+                    url="https://tickets.example.test/mcp",
+                    last_tools=[{"name": "create"}],
+                    allowed_tools=["create"],
+                )
+            )
+            await db.commit()
+        # Only the external transport is simulated. The connection, request,
+        # approval decision, attempt and needs-attention state are real DB rows.
+        session = AsyncMock()
+        session.call_tool.side_effect = TimeoutError()
+        transport = MagicMock()
+        transport.return_value.__aenter__.return_value = session
+        monkeypatch.setattr(mcp_node, "mcp_session", transport)
+        assert (await drive(seeded)).status == WorkflowRunStatus.WAITING_APPROVAL.value
+        session.call_tool.assert_not_awaited()
+        async with seeded.factory() as db:
+            request = (
+                await db.scalars(
+                    select(WorkflowApproval).where(
+                        WorkflowApproval.workflow_run_id == seeded.run.id
+                    )
+                )
+            ).one()
+            await WorkflowApprovalService(db).decide(seeded.ctx, request.id, approved=True)
+            await db.commit()
+            discard_deferred(db)
+        await wake_approval_step(request.node_run_id, organization_id=seeded.org.id)
+        assert (await drive(seeded)).status == WorkflowRunStatus.NEEDS_ATTENTION.value
+        assert (await drive(seeded)).status == WorkflowRunStatus.NEEDS_ATTENTION.value
+        session.call_tool.assert_awaited_once_with("create", {"title": "Investigate"})
+
+    async def test_a_failed_child_fails_the_parent_with_the_native_error(self, engine: AsyncEngine):
+        step = _node(
+            "code.python.actions",
+            {
+                "actions": {
+                    "reject": {
+                        "type": "error.raise",
+                        "config": {"code": "CASE_CLOSED", "message": "Already closed"},
+                    }
+                },
+                "code": "reject()",
+            },
+        )
+        seeded = await seed_run(engine, _chain(step))
+        assert await _failed_code(seeded) == "CASE_CLOSED"
+        async with seeded.factory() as db:
+            rows = (
+                await db.scalars(
+                    select(NodeRun).where(
+                        NodeRun.workflow_run_id == seeded.run.id,
+                        NodeRun.node_instance_id == step.id,
+                    )
+                )
+            ).all()
+            assert len(rows) == 2 and all(row.status == "failed" for row in rows)
+
+    async def test_an_invalid_child_input_fails_the_parent(self, engine: AsyncEngine):
+        step = _node(
+            "code.python.actions",
+            {
+                "actions": {"compare": {"type": "text.compare"}},
+                "code": "compare(a='missing b')",
+            },
+        )
+        run = await drive(await seed_run(engine, _chain(step)))
+        assert run.status == WorkflowRunStatus.FAILED.value
+        assert run.error is not None
 
 
 class _Session:

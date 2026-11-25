@@ -6408,6 +6408,7 @@
       "runOutputNone": "Deze run eindigde zonder uitvoer.",
       "runStepList": "Stappen",
       "runLogsFailed": "De regels die de stappen logden, konden niet worden gelezen.",
+      "runPythonCall": "Aanroep {index}: {name}",
       "runStepIteration": "Iteratie {index}",
       "runAttempts": "{count} pogingen",
       "triggers": "Trigger",
@@ -12081,6 +12082,18 @@
       "badMethod": "Een HTTP-stap verstuurt GET, POST, PUT, PATCH of DELETE.",
       "unclosedQuote": "Een aanhalingsteken in het commando wordt nooit gesloten."
     },
+    "pythonActions": "Beschikbare functies",
+    "pythonActionsHint": "Koppel een actie één keer en roep de functie daarna in je script aan met benoemde argumenten.",
+    "pythonSelectAction": "Selecteer een actie",
+    "pythonInsertCall": "Functieaanroep invoegen",
+    "pythonInvalidName": "Gebruik een unieke Python-naam die geen sleutelwoord of ingebouwde naam is.",
+    "pythonFunctionName": "Naam van de Python-functie",
+    "pythonBindAction": "Actie koppelen",
+    "pythonActionUnavailable": "Actie niet beschikbaar",
+    "pythonRemoveAction": "{name} verwijderen",
+    "pythonToolArguments": "Schema van toolargumenten",
+    "pythonOverrideFields": "Optioneel te overschrijven: {fields}. Laat deze argumenten weg om de ingestelde waarden te gebruiken.",
+    "pythonResultFields": "Resultaatvelden: {fields}",
     "codeArgKeys": "Sleutels van args",
     "codeKeysHint": "Tab springt in en Shift+Tab springt terug. Druk op Esc en dan op Tab om de editor te verlaten.",
     "validationConfigNotSet": "Verplicht.",
@@ -18832,6 +18845,10 @@
         "name": "Python in een sandbox",
         "description": "Voer volledige Python uit met de bestanden van de run als duurzame taak op de sandboxhost van de organisatie, zonder platforminloggegevens erin."
       },
+      "code_python_actions": {
+        "name": "Python met acties",
+        "description": "Schrijf Python-code die de aan namen gekoppelde workflowacties aanroept."
+      },
       "code_python_simple": {
         "name": "Python-script",
         "description": "Bereken een JSON-waarde met een kort Python-script in de Monty-sandbox - geen bestanden, geen netwerk, een kleine standaardbibliotheek."
@@ -19458,6 +19475,29 @@
           },
           "files__items__byte_size": {
             "title": "Grootte in bytes"
+          }
+        }
+      },
+      "code_python_actions": {
+        "config": {
+          "code": {
+            "title": "Code",
+            "description": "Lees de gebonden waarden als `args`; de laatste expressie is het resultaat."
+          },
+          "timeout_seconds": {
+            "title": "Time-out in seconden"
+          },
+          "max_memory_mb": {
+            "title": "Max. geheugen in MB"
+          },
+          "actions": {
+            "title": "Acties",
+            "description": "Python-functienamen en de versies van de workflowacties die ze aanroepen."
+          }
+        },
+        "input": {
+          "args": {
+            "title": "Argumenten"
           }
         }
       },

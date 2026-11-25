@@ -19,6 +19,7 @@ import {
 import { AnswerFormatForm } from "@/components/agents/answer-format-form";
 import { CodeEditor } from "@/components/workflows/property-panel/code-editor";
 import { argKeysOf } from "@/components/workflows/property-panel/code-keys";
+import { PythonActions, pythonCallOptions } from "./python-actions";
 import { CurlImport } from "@/components/workflows/property-panel/curl-import";
 import type { CodeLanguage } from "@/lib/workflows/code-editing";
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
@@ -157,6 +158,7 @@ const FILTER_ONLY_TABLE_STEPS: ReadonlySet<string> = new Set([
 
 /** Optional in the API does not mean secondary in a person's task. */
 const PRIMARY_CONFIG: Readonly<Record<string, readonly string[]>> = {
+  "code.python.actions": ["actions"],
   "http.request": ["method", "auth", "headers"],
   "http.upload": ["method", "auth", "headers"],
   "http.download": ["auth", "headers"],
@@ -200,6 +202,8 @@ const PRIMARY_INPUT: Readonly<Record<string, readonly string[]>> = {
 
 /** Everything a recursive field needs beyond its own schema, value and path. */
 interface FieldCtx {
+  /** Static configuration for one function called by Python, never a graph binding. */
+  actionAlias?: string;
   node: NodeInstance;
   graph: WorkflowGraph;
   catalog: NodeCatalog;
@@ -563,7 +567,7 @@ function ConfigLeaf({
     );
   }
 
-  if (isBindable(schema)) {
+  if (!ctx.actionAlias && isBindable(schema)) {
     return (
       <BindingField
         targetNodeId={ctx.node.id}
@@ -586,7 +590,7 @@ function ConfigLeaf({
     <SchemaForm
       schema={singleFieldSchema(name, schema, required)}
       value={value === undefined ? {} : { [name]: value }}
-      idPrefix={`cfg-${field.replace(/[^a-zA-Z0-9]+/g, "-")}`}
+      idPrefix={`cfg-${ctx.actionAlias ? ctx.actionAlias + "-" : ""}${field.replace(/[^a-zA-Z0-9]+/g, "-")}`}
       disabled={ctx.disabled}
       errors={error === undefined ? undefined : { [name]: error }}
       onChange={(next) => onChange(next[name])}
@@ -650,7 +654,7 @@ function ConfigCode({
 }) {
   const stepData = useWorkflowEditorStore((state) => state.stepData);
   const field = bindingFieldPath(path);
-  const id = `cfg-${field.replace(/[^a-zA-Z0-9]+/g, "-")}`;
+  const id = `cfg-${ctx.actionAlias ? ctx.actionAlias + "-" : ""}${field.replace(/[^a-zA-Z0-9]+/g, "-")}`;
   const error = ctx.errors.get(field);
   const label = labelOf(schema, name);
   const description = schema["description"];
@@ -670,7 +674,12 @@ function ConfigCode({
         onChange={(next) => onChange(next === "" ? undefined : next)}
         placeholder={typeof placeholder === "string" ? placeholder : undefined}
         disabled={ctx.disabled}
-        argKeys={argKeysOf(ctx.graph, ctx.catalog, stepData, ctx.node.id)}
+        actionCalls={
+          ctx.node.definition_id === "code.python.actions"
+            ? pythonCallOptions(ctx.catalog, record(ctx.node.config.actions))
+            : undefined
+        }
+        argKeys={ctx.actionAlias ? [] : argKeysOf(ctx.graph, ctx.catalog, stepData, ctx.node.id)}
       />
       {typeof description === "string" && !hinted && (
         <p className="text-muted-foreground text-xs">{description}</p>
@@ -1283,7 +1292,9 @@ function NodeFields({
   upsertBinding,
   removeBinding,
   toolSchema,
+  actionAlias,
 }: NodeFormProps & {
+  actionAlias?: string;
   /** An MCP tool's argument schema, drawn as one field per argument; null elsewhere. */
   toolSchema: Record<string, unknown> | null;
 }) {
@@ -1293,6 +1304,7 @@ function NodeFields({
   const [revealed, setRevealed] = useState<ReadonlySet<string> | null>(null);
   const allShown = revealed !== null;
   const ctx: FieldCtx = {
+    actionAlias,
     node,
     graph,
     catalog,
@@ -1343,7 +1355,7 @@ function NodeFields({
   }
 
   const configSchema = definition.config_schema;
-  const inputSchema = definition.input_schema;
+  const inputSchema = actionAlias ? null : definition.input_schema;
   const configFields =
     configSchema === null ? [] : objectFields(configSchema, defsOf(configSchema));
   // An MCP tool's arguments, once its schema is known, are one field per
@@ -1489,7 +1501,7 @@ function NodeFields({
       {definition.id === DATA_VALUE && (
         <p className="text-muted-foreground text-xs">{t("dataValueSetOnce")}</p>
       )}
-      {definition.id === HTTP_REQUEST && (
+      {!actionAlias && definition.id === HTTP_REQUEST && (
         <CurlImport
           node={node}
           disabled={disabled ?? false}
@@ -1511,7 +1523,50 @@ function NodeFields({
         ) : (
           // Named for the dialog, which says a missing value once its field was left.
           <div key={`config:${entry.name}`} data-field={entry.name}>
-            {agentStep && entry.name === AGENT_SOURCE ? (
+            {definition.id === "code.python.actions" && entry.name === "actions" ? (
+              <PythonActions
+                schema={entry.schema}
+                catalog={catalog}
+                value={record(node.config.actions)}
+                disabled={disabled}
+                onChange={(actions) => updateNodeConfig(node.id, { ...node.config, actions })}
+                renderConfig={(alias, action, config, change) => (
+                  <NodeFields
+                    key={alias}
+                    definition={action}
+                    node={{
+                      ...node,
+                      definition_id: action.id,
+                      definition_version: action.version,
+                      config,
+                    }}
+                    graph={graph}
+                    catalog={catalog}
+                    bindings={[]}
+                    errors={
+                      new Map(
+                        [...errors]
+                          .map(
+                            ([key, error]) =>
+                              [key.replace(/^config[./]/, "").replaceAll(".", "/"), error] as const,
+                          )
+                          .filter(([key]) => key.startsWith(`actions/${alias}/config/`))
+                          .map(([key, error]) => [
+                            key.slice(`actions/${alias}/config/`.length),
+                            error,
+                          ]),
+                      )
+                    }
+                    disabled={disabled}
+                    updateNodeConfig={(_, next) => change(next)}
+                    upsertBinding={upsertBinding}
+                    removeBinding={removeBinding}
+                    toolSchema={null}
+                    actionAlias={alias}
+                  />
+                )}
+              />
+            ) : agentStep && entry.name === AGENT_SOURCE ? (
               <AgentSourceField
                 config={node.config}
                 error={ctx.errors.get(AGENT_SOURCE) ?? ctx.errors.get(AGENT_INLINE)}

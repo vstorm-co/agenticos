@@ -3975,6 +3975,7 @@
       "runOutputNone": "Ten run zakończył się bez wyniku.",
       "runStepList": "Kroki",
       "runLogsFailed": "Nie udało się odczytać wierszy zapisanych przez kroki.",
+      "runPythonCall": "Wywołanie {index}: {name}",
       "runStepIteration": "Iteracja {index}",
       "runAttempts": "{count, plural, one {# próba} few {# próby} many {# prób} other {# próby}}",
       "triggers": "Wyzwalacz",
@@ -12343,6 +12344,18 @@
       "badMethod": "Krok HTTP wysyła GET, POST, PUT, PATCH albo DELETE.",
       "unclosedQuote": "Cudzysłów w poleceniu nie został zamknięty."
     },
+    "pythonActions": "Dostępne funkcje",
+    "pythonActionsHint": "Przypisz akcję raz, a potem wywołuj jej funkcję w skrypcie z argumentami nazwanymi.",
+    "pythonSelectAction": "Wybierz akcję",
+    "pythonInsertCall": "Wstaw wywołanie funkcji",
+    "pythonInvalidName": "Użyj unikatowego identyfikatora Pythona, który nie jest słowem kluczowym ani nazwą wbudowaną.",
+    "pythonFunctionName": "Nazwa funkcji Pythona",
+    "pythonBindAction": "Przypisz akcję",
+    "pythonActionUnavailable": "Akcja niedostępna",
+    "pythonRemoveAction": "Usuń {name}",
+    "pythonToolArguments": "Schemat argumentów narzędzia",
+    "pythonOverrideFields": "Opcjonalne nadpisania: {fields}. Pomiń te argumenty, aby użyć skonfigurowanych wartości.",
+    "pythonResultFields": "Pola wyniku: {fields}",
     "codeArgKeys": "Klucze args",
     "codeKeysHint": "Tab wcina, a Shift+Tab cofa wcięcie. Naciśnij Esc, a potem Tab, by opuścić edytor.",
     "validationConfigNotSet": "Pole wymagane.",
@@ -18721,6 +18734,10 @@
         "name": "Python w sandboksie",
         "description": "Uruchom pełnego Pythona z plikami runa jako trwałe zadanie na hoście sandboksa organizacji, bez żadnych poświadczeń platformy w środku."
       },
+      "code_python_actions": {
+        "name": "Python z akcjami",
+        "description": "Pisz kod w Pythonie wywołujący akcje przepływu przypisane do nazw."
+      },
       "code_python_simple": {
         "name": "Skrypt w Pythonie",
         "description": "Oblicz wartość JSON krótkim skryptem w Pythonie w sandboksie Monty - bez plików, bez sieci, z małą biblioteką standardową."
@@ -19347,6 +19364,29 @@
           },
           "files__items__byte_size": {
             "title": "Rozmiar w bajtach"
+          }
+        }
+      },
+      "code_python_actions": {
+        "config": {
+          "code": {
+            "title": "Kod",
+            "description": "Odczytaj powiązane wartości jako `args`; ostatnie wyrażenie jest wynikiem."
+          },
+          "timeout_seconds": {
+            "title": "Limit czasu (sekundy)"
+          },
+          "max_memory_mb": {
+            "title": "Maks. pamięć (MB)"
+          },
+          "actions": {
+            "title": "Akcje",
+            "description": "Nazwy funkcji Pythona i wersje akcji przepływu, które te funkcje wywołują."
+          }
+        },
+        "input": {
+          "args": {
+            "title": "Argumenty"
           }
         }
       },

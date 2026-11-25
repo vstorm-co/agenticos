@@ -8264,6 +8264,7 @@
       "runOutputNone": "Dieser Run endete ohne Output.",
       "runStepList": "Schritte",
       "runLogsFailed": "Die von den Schritten protokollierten Zeilen konnten nicht gelesen werden.",
+      "runPythonCall": "Aufruf {index}: {name}",
       "runStepIteration": "Iteration {index}",
       "runAttempts": "{count, plural, one {# Versuch} other {# Versuche}}",
       "triggers": "Auslöser",
@@ -11883,6 +11884,18 @@
       "badMethod": "Ein HTTP-Schritt sendet GET, POST, PUT, PATCH oder DELETE.",
       "unclosedQuote": "Ein Anführungszeichen im Befehl wird nie geschlossen."
     },
+    "pythonActions": "Verfügbare Funktionen",
+    "pythonActionsHint": "Binde eine Aktion einmal und rufe ihre Funktion dann im Skript mit Schlüsselwortargumenten auf.",
+    "pythonSelectAction": "Aktion auswählen",
+    "pythonInsertCall": "Funktionsaufruf einfügen",
+    "pythonInvalidName": "Verwende einen eindeutigen Python-Bezeichner, kein Schlüsselwort und keinen eingebauten Namen.",
+    "pythonFunctionName": "Python-Funktionsname",
+    "pythonBindAction": "Aktion binden",
+    "pythonActionUnavailable": "Aktion nicht verfügbar",
+    "pythonRemoveAction": "{name} entfernen",
+    "pythonToolArguments": "Schema der Werkzeugargumente",
+    "pythonOverrideFields": "Optionale Überschreibungen: {fields}. Ohne diese Argumente gelten die konfigurierten Werte.",
+    "pythonResultFields": "Ergebnisfelder: {fields}",
     "codeArgKeys": "Schlüssel von args",
     "codeKeysHint": "Tab rückt ein, Shift+Tab rückt aus. Drücke Esc und dann Tab, um den Editor zu verlassen.",
     "validationConfigNotSet": "Erforderlich.",
@@ -18634,6 +18647,10 @@
         "name": "Python in einer Sandbox",
         "description": "Vollständiges Python mit den Dateien des Runs als dauerhaften Job auf dem Sandbox-Host der Organisation ausführen, ohne Zugangsdaten der Plattform darin."
       },
+      "code_python_actions": {
+        "name": "Python mit Aktionen",
+        "description": "Schreibe Python-Code, der die an Namen gebundenen Workflow-Aktionen aufruft."
+      },
       "code_python_simple": {
         "name": "Python-Skript",
         "description": "Einen JSON-Wert mit einem kurzen Python-Skript in der Monty-Sandbox berechnen – ohne Dateien, ohne Netzwerk, mit einer kleinen Standardbibliothek."
@@ -19260,6 +19277,29 @@
           },
           "files__items__byte_size": {
             "title": "Größe in Bytes"
+          }
+        }
+      },
+      "code_python_actions": {
+        "config": {
+          "code": {
+            "title": "Code",
+            "description": "Lesen Sie die gebundenen Werte als `args`; der letzte Ausdruck ist das Ergebnis."
+          },
+          "timeout_seconds": {
+            "title": "Timeout (Sekunden)"
+          },
+          "max_memory_mb": {
+            "title": "Max. Speicher (MB)"
+          },
+          "actions": {
+            "title": "Aktionen",
+            "description": "Namen der Python-Funktionen und die versionierten Workflow-Aktionen, die sie aufrufen."
+          }
+        },
+        "input": {
+          "args": {
+            "title": "Argumente"
           }
         }
       },

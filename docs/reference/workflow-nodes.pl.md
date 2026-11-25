@@ -1,5 +1,5 @@
 ---
-source_sha: "c74fb3dc560a"
+source_sha: "b22f35bb0f1b"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -1385,7 +1385,13 @@ Wyniki sandboxa są ograniczane także podczas strumieniowego pobierania z hosta
 
 ## Python { #python }
 
-Dwa węzły uruchamiają Pythona, do dwóch rodzajów pracy.
+**Python z akcjami** (`code.python.actions`) uruchamia skrypt bez modelu. Powiąż każdą akcję raz z nazwą w Pythonie i skonfiguruj jej zasoby. Przekaż pola wejściowe jako argumenty nazwane; funkcja zwróci taki sam obiekt jak odpowiedni krok na kanwie. Możesz też przekazać pola danych, które akcja pozwala powiązać, np. nazwę pliku lub adres URL. Dane uwierzytelniające i uprawnienia pozostają bez zmian.
+
+Jeśli na przykład powiążesz porównywanie tekstów z nazwą `compare`, wyrażenie `compare(a=args["expected"], b=args["actual"])["score"]` przekaże do następnego kroku tylko wynik podobieństwa jako `result`.
+
+Aby wywołać narzędzie MCP, wybierz raz połączenie i narzędzie. Jeśli funkcja ma nazwę `lookup`, wywołaj `lookup(arguments={"hostname": "leaf-01"})` i odczytaj pole `structured` lub `text`. Jeśli akcja się nie powiedzie, obowiązują zasady obsługi błędów kroku Pythona, a nie klauzula `except` w skrypcie. Do przewidzianych rozgałęzień użyj wyniku, na przykład decyzji o zatwierdzeniu.
+
+Skrypt wykonuje kolejno do 100 wywołań. Przed każdym wywołaniem interpreter zapisuje swoją pozycję (do 512 KiB stanu). Zatwierdzenie dotyczy tylko tego wywołania. Jeśli nie wiadomo, czy zapis się powiódł, obowiązują reguły odzyskiwania danej akcji. Ponowienie nieudanego runa wykorzystuje wyniki zakończonych wywołań z tymi samymi argumentami i nie powtarza automatycznie niepotwierdzonego zapisu. Wyzwalacze, rozgałęzienia i oba kroki końcowe pozostają na kanwie.
 
 `code.python.simple` uruchamia krótki skrypt w sandboxie Monty, który nie ma systemu
 plików, sieci i ma małą bibliotekę standardową. Skrypt czyta powiązane wartości jako

@@ -1243,6 +1243,18 @@
       "badMethod": "Bir HTTP adımı GET, POST, PUT, PATCH veya DELETE gönderir.",
       "unclosedQuote": "Komutta açılan bir tırnak kapatılmamış."
     },
+    "pythonActions": "Kullanılabilir işlevler",
+    "pythonActionsHint": "Bir eylemi bir kez bağlayın, ardından işlevini betiğinizde adlandırılmış argümanlarla çağırın.",
+    "pythonSelectAction": "Bir eylem seçin",
+    "pythonInsertCall": "İşlev çağrısı ekle",
+    "pythonInvalidName": "Anahtar sözcük veya yerleşik ad olmayan benzersiz bir Python tanımlayıcısı kullanın.",
+    "pythonFunctionName": "Python işlev adı",
+    "pythonBindAction": "Eylemi bağla",
+    "pythonActionUnavailable": "Eylem kullanılamıyor",
+    "pythonRemoveAction": "{name} işlevini kaldır",
+    "pythonToolArguments": "Araç argümanlarının şeması",
+    "pythonOverrideFields": "İsteğe bağlı geçersiz kılmalar: {fields}. Yapılandırılan değerleri kullanmak için bu argümanları atlayın.",
+    "pythonResultFields": "Sonuç alanları: {fields}",
     "codeArgKeys": "args anahtarları",
     "codeKeysHint": "Tab girinti ekler, Shift+Tab girintiyi azaltır. Düzenleyiciden çıkmak için Esc, ardından Tab tuşuna basın.",
     "created": "Workflow oluşturuldu",
@@ -4132,6 +4144,7 @@
       "runOutputNone": "Bu run çıktı üretmeden sona erdi.",
       "runStepList": "Adımlar",
       "runLogsFailed": "Adımların yazdığı log satırları okunamadı.",
+      "runPythonCall": "Çağrı {index}: {name}",
       "runStepIteration": "Yineleme {index}",
       "runAttempts": "{count} deneme",
       "triggers": "Tetikleyici",
@@ -14304,6 +14317,10 @@
         "name": "Sandbox’ta Python",
         "description": "Tam Python’u run’ın dosyalarıyla, kuruluşun sandbox sunucusunda kalıcı bir iş olarak çalıştırın; içinde hiçbir platform kimlik bilgisi bulunmaz."
       },
+      "code_python_actions": {
+        "name": "Eylemlerle Python",
+        "description": "Adlara bağladığınız iş akışı eylemlerini çağıran Python kodu yazın."
+      },
       "code_python_simple": {
         "name": "Python betiği",
         "description": "Monty sandbox’ında kısa bir Python betiğiyle bir JSON değeri hesaplayın - dosya yok, ağ yok, küçük bir standart kütüphane."
@@ -14930,6 +14947,29 @@
           },
           "files__items__byte_size": {
             "title": "Bayt cinsinden boyut"
+          }
+        }
+      },
+      "code_python_actions": {
+        "config": {
+          "code": {
+            "title": "Kod",
+            "description": "Bağlanan değerleri `args` olarak okuyun; son ifade sonuçtur."
+          },
+          "timeout_seconds": {
+            "title": "Zaman aşımı (saniye)"
+          },
+          "max_memory_mb": {
+            "title": "En fazla bellek (MB)"
+          },
+          "actions": {
+            "title": "Eylemler",
+            "description": "Python işlev adları ve bu işlevlerin çağırdığı sürümlü iş akışı eylemleri."
+          }
+        },
+        "input": {
+          "args": {
+            "title": "Argümanlar"
           }
         }
       },
