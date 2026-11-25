@@ -41,6 +41,8 @@ _DESCENDANTS = (
     load_revision("0350_room_mention_requests"),
     load_revision("0351_room_message_reactions"),
     load_revision("0352_room_thread_state"),
+    # Adds columns to `room_threads`, which rebuilding 0352 alone would lose.
+    load_revision("0358_room_thread_context"),
 )
 assert tuple(migration.down_revision for migration in _DESCENDANTS[:2]) == (
     _MIGRATION.revision,
@@ -52,6 +54,7 @@ assert tuple(migration.down_revision for migration in _DESCENDANTS[3:]) == (
     "0349_room_participants",
     "0350_room_mention_requests",
     "0351_room_message_reactions",
+    "0356_trigger_webhook_receipts",
 )
 _TABLES = (
     "browser_credential_policies",

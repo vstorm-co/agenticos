@@ -263,13 +263,17 @@ describe("the other room thread context reads", () => {
       (["before", "after"] as const).map((when) => [read, when] as const),
     ),
   )("fails the %s read when the identity changes %s the request", async (read, when) => {
-    mocks.current.mockReturnValue(false);
-    if (when === "after") mocks.current.mockReturnValueOnce(true);
-    mocks[read].mockResolvedValue({ items: [], nextCursor: null });
+    mocks.current.mockReturnValue(when === "after");
+    // The identity moves on while the request is in flight, not before it starts.
+    mocks[read].mockImplementation(async () => {
+      mocks.current.mockReturnValue(false);
+      return { items: [], nextCursor: null };
+    });
     const { result } = renderHook(() => useRead(read), { wrapper });
     await waitFor(() =>
       expect(result.current.error?.message).toBe("ROOM_THREAD_CONTEXT_SCOPE_CHANGED"),
     );
+    expect(mocks[read]).toHaveBeenCalledTimes(when === "after" ? 1 : 0);
   });
 
   it("returns the source conversation and skips it when there is none", async () => {
