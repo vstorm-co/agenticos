@@ -179,10 +179,13 @@ export function ChangePreview({
         : hunk.kind === "tool_override"
           ? ts("tool", { tool: hunk.tool_id ?? "" })
           : t("configuration");
+  const description = hunk.kind === "skill_description";
   const before =
     hunk.kind === "tool_override"
       ? [hunk.base_name ?? hunk.tool_id, hunk.base_description].filter(Boolean).join("\n")
-      : hunk.old_text;
+      : description
+        ? hunk.old_text || (hunk.base_description ?? "")
+        : hunk.old_text;
   const after =
     hunk.kind === "tool_override"
       ? [
@@ -191,7 +194,9 @@ export function ChangePreview({
         ]
           .filter(Boolean)
           .join("\n")
-      : hunk.new_text;
+      : description
+        ? hunk.new_text || (hunk.new_description ?? "")
+        : hunk.new_text;
   const reasons = (
     <>
       <div>
