@@ -12,6 +12,7 @@ from pydantic_ai.settings import ModelSettings
 from pydantic_ai.tools import RunContext
 from pydantic_ai.usage import RequestUsage
 
+from app.agents.stream_usage import final_stream_usage
 from app.schemas.token_pricing import TokenPricing
 
 
@@ -35,7 +36,8 @@ class ProfilePricingModel(WrapperModel):
             setattr(usage, "provider_reported_requests", 0)  # noqa: B010 - overridden bills must not count twice
         # RequestUsage supports arbitrary serialized metadata and integer counters.
         setattr(usage, "profile_priced_requests", int(cost is not None))  # noqa: B010 - SDK usage counter
-        setattr(usage, "profile_unpriced_requests", int(cost is None))  # noqa: B010 - SDK usage counter
+        incomplete = cost is None or usage.unmeasured_requests > 0
+        setattr(usage, "profile_unpriced_requests", int(incomplete))  # noqa: B010 - SDK usage counter
         provenance = {
             "profile_id": str(self.profile_id) if self.profile_id else None,
             "rates": self.pricing.model_dump(mode="json"),
@@ -67,8 +69,11 @@ class ProfilePricingModel(WrapperModel):
             async with self.wrapped.request_stream(
                 messages, model_settings, model_request_parameters, run_context
             ) as stream:
-                finalizers.callback(lambda: self.apply(stream.usage))
+                finalizers.callback(self._finalize_stream, stream)
                 yield stream
+
+    def _finalize_stream(self, stream: StreamedResponse) -> None:
+        self.apply(final_stream_usage(stream))
 
 
 def catalog_token_pricing(provider: str, model: str) -> TokenPricing | None:

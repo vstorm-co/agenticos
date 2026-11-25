@@ -827,7 +827,9 @@ are optional and inherit the input rate when empty. An explicit zero is a price.
 The API exposes the same document as `custom_pricing`; omit it to keep the saved
 setting on update, or send `null` to restore automatic pricing.
 
-Changing or restoring prices requires `budgets:manage`, in addition to model connection management. That permission also applies when changing the key or endpoint of a profile with custom prices. Subscription profiles support the same optional token prices; these measure budget usage, not subscription allowance. Original provider bills remain available in usage metadata when custom rates override accounting.
+Changing or restoring prices requires `budgets:manage`, in addition to model connection management. That permission also applies when changing the key, endpoint, `extra_body` or `extra_headers` of a profile with custom prices: raw request settings can change which model runs or which account pays. Other generation settings, such as temperature, retain their existing permissions.
+
+Subscription profiles support the same optional token prices; these measure budget usage, not subscription allowance. Original provider bills remain available in usage metadata when custom rates override accounting.
 
 Custom rates take precedence over catalog prices and provider-reported bills.
 They follow the profile that actually answers, including fallbacks, delegates
@@ -836,7 +838,9 @@ Estimates use the profile's rates when they would otherwise use catalog prices;
 estimates based on historical runs remain based on those recorded costs.
 
 Changing a price affects newly resolved usage without rewriting historical run
-or message costs. Invalid token counts remain partially priced. Automatic mode
+or message costs. Invalid token counts or omitted usage remain partially priced;
+known subtotals are retained, and an active dollar budget refuses further requests
+after incomplete custom-priced usage. Automatic mode
 preserves the existing catalog and provider-bill resolution. The form shows
 indicative base-tier catalog rates where available; a provider's actual bill is
 known only after the request. Custom prices do not configure realtime voice or

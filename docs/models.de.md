@@ -1,5 +1,5 @@
 ---
-source_sha: "ba65dd3ce9cf"
+source_sha: "f37df64b435d"
 ---
 
 # Modelle und Provider { #models-and-providers }
@@ -905,7 +905,9 @@ Eingabepreis. Eine ausdrückliche Null ist ein Preis. Die API verwendet dafür
 `custom_pricing`: Auslassen beim Aktualisieren behält die Einstellung bei,
 `null` stellt die automatische Preisermittlung wieder her.
 
-Das Ändern oder Zurücksetzen von Preisen erfordert neben der Verwaltung von Modellverbindungen auch `budgets:manage`. Diese Berechtigung ist auch erforderlich, wenn sich Schlüssel oder Endpunkt eines Profils mit eigenen Preisen ändern. Abonnementprofile unterstützen dieselben optionalen Tokenpreise; diese messen den Budgetverbrauch, nicht das Abonnementkontingent. Wenn eigene Preise die Abrechnung ersetzen, bleiben die ursprünglichen Anbieterbeträge in den Nutzungsmetadaten erhalten.
+Das Ändern oder Zurücksetzen von Preisen erfordert neben der Verwaltung von Modellverbindungen auch `budgets:manage`. Diese Berechtigung gilt auch für Änderungen an Schlüssel, Endpunkt, `extra_body` oder `extra_headers` eines Profils mit eigenen Preisen: Rohe Anforderungseinstellungen können Modell oder zahlendes Konto wechseln. Andere Generierungseinstellungen wie die Temperatur behalten ihre bisherigen Berechtigungen.
+
+Abonnementprofile unterstützen dieselben optionalen Tokenpreise; diese messen den Budgetverbrauch, nicht das Abonnementkontingent. Wenn eigene Preise die Abrechnung ersetzen, bleiben die ursprünglichen Anbieterbeträge in den Nutzungsmetadaten erhalten.
 
 Eigene Preise haben Vorrang vor Katalogpreisen und Anbieterrechnungen.
 Es gelten die Preise des tatsächlich antwortenden Profils, auch bei Fallbacks,
@@ -914,7 +916,9 @@ einmal berechnet. Schätzungen verwenden Profilpreise, wo sie sonst den Katalog
 verwenden würden; historische Schätzungen verwenden weiterhin gespeicherte Kosten.
 
 Preisänderungen gelten für neu aufgelöste Nutzung und ändern keine historischen
-Run- oder Nachrichtenkosten. Ungültige Tokenzahlen bleiben teilweise bepreist.
+Run- oder Nachrichtenkosten. Ungültige Tokenzahlen oder fehlende Nutzungsdaten
+bleiben teilweise bepreist. Bekannte Teilbeträge bleiben erhalten; nach unvollständiger
+Nutzung mit eigenen Preisen lehnt ein aktives Dollarbudget weitere Anfragen ab.
 Der automatische Modus behält Katalog und Anbieterrechnungen bei. Das Formular
 zeigt verfügbare Richtpreise der Basisstufe; die tatsächliche Anbieterrechnung
 ist erst nach der Anfrage bekannt. Eigene Preise konfigurieren weder Realtime-

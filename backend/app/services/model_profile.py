@@ -559,7 +559,8 @@ class ModelProfileService:
                 provider.
             AlreadyExistsError: If the new label is taken.
             AuthorizationError: If prices are changed or reset, or a profile with custom
-                prices is moved to a different key or endpoint, without budgets:manage.
+                prices is moved to a different key, endpoint or raw request settings,
+                without budgets:manage.
         """
         can_manage_budgets = ctx.has(Perm.BUDGETS_MANAGE)
         if "custom_pricing" in changes.model_fields_set and not can_manage_budgets:
@@ -631,7 +632,16 @@ class ModelProfileService:
         if (
             not can_manage_budgets
             and profile.custom_pricing is not None
-            and update_data.keys() & {"secret_id", "base_url", "runs_without_key"}
+            and (
+                update_data.keys() & {"secret_id", "base_url", "runs_without_key"}
+                or (
+                    changes.params is not None
+                    and any(
+                        profile.params.get(setting) != changes.params.get(setting)
+                        for setting in ("extra_body", "extra_headers")
+                    )
+                )
+            )
         ):
             raise AuthorizationError(
                 message="Changing the connection for a custom-priced model requires budgets:manage",

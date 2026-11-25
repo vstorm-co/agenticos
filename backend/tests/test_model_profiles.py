@@ -921,6 +921,43 @@ _STORED = object()
 class TestEditingAProfileInPlace:
     """A key or endpoint change keeps the id every agent names (#2478)."""
 
+    @pytest.mark.anyio
+    @pytest.mark.security
+    @pytest.mark.parametrize("setting", ["extra_body", "extra_headers"])
+    @pytest.mark.parametrize("scoped_key", [False, True])
+    async def test_changing_priced_transport_settings_requires_budget_authority(
+        self, setting: str, scoped_key: bool
+    ) -> None:
+        ctx = AuthContext(
+            user_id=uuid.uuid4(),
+            organization_id=uuid.uuid4(),
+            role=OrgRoleName.OWNER if scoped_key else OrgRoleName.BUILDER,
+            key_scopes=frozenset({Perm.CONNECTIONS_MANAGE.value}) if scoped_key else None,
+        )
+        profile = _profile(ctx, api="chat")
+        profile.custom_pricing = {"input": "0", "output": "0"}
+        transport = (
+            {"model": "expensive-model"}
+            if setting == "extra_body"
+            else {"Authorization": "Bearer replacement-test-key"}
+        )
+        with pytest.raises(AuthorizationError, match="budgets:manage"):
+            await self._update(ctx, profile, {"params": {setting: transport}})
+
+        profile.params = {setting: transport}
+        with pytest.raises(AuthorizationError, match="budgets:manage"):
+            await self._update(ctx, profile, {"params": {}})
+
+        _, update, _, _ = await self._update(
+            ctx, profile, {"params": {setting: transport, "temperature": 0.5}}
+        )
+        assert update.await_args.kwargs["update_data"] == {
+            "params": {setting: transport, "temperature": 0.5}
+        }
+
+        _, update, _, _ = await self._update(_ctx(ctx.organization_id), profile, {"params": {}})
+        assert update.await_args.kwargs["update_data"] == {"params": {}}
+
     async def _update(self, ctx, profile, changes, *, secret=_STORED, visible=True, taken=None):
         if secret is _STORED:
             # The key the profile already has, visible to the caller unless a test

@@ -1,5 +1,5 @@
 ---
-source_sha: "ba65dd3ce9cf"
+source_sha: "f37df64b435d"
 ---
 
 # Modele i providery { #models-and-providers }
@@ -852,7 +852,9 @@ cache są opcjonalne; puste dziedziczą cenę wejścia. Jawne zero jest ceną.
 API udostępnia ten sam dokument jako `custom_pricing`: pominięcie przy aktualizacji
 zachowuje ustawienie, a `null` przywraca wycenę automatyczną.
 
-Zmiana cen lub przywrócenie cen automatycznych wymaga `budgets:manage` oraz uprawnienia do zarządzania połączeniami modeli. To uprawnienie jest też wymagane przy zmianie klucza lub endpointu profilu z własnymi cenami. Profile subskrypcji obsługują te same opcjonalne ceny tokenów: służą do rozliczania budżetu, a nie limitu subskrypcji. Gdy własne ceny zastępują koszt w rozliczeniach, pierwotny rachunek dostawcy pozostaje w metadanych użycia.
+Zmiana cen lub przywrócenie cen automatycznych wymaga `budgets:manage` oraz uprawnienia do zarządzania połączeniami modeli. To uprawnienie jest też wymagane przy zmianie klucza, endpointu, `extra_body` lub `extra_headers` profilu z własnymi cenami: surowe ustawienia żądania mogą podmienić model lub konto obciążane kosztami. Pozostałe ustawienia generowania, np. temperatura, zachowują dotychczasowe uprawnienia.
+
+Profile subskrypcji obsługują te same opcjonalne ceny tokenów: służą do rozliczania budżetu, a nie limitu subskrypcji. Gdy własne ceny zastępują koszt w rozliczeniach, pierwotny rachunek dostawcy pozostaje w metadanych użycia.
 
 Własne stawki mają pierwszeństwo przed katalogiem i rachunkiem dostawcy.
 Podążają za profilem, który faktycznie odpowiada, również w fallbackach,
@@ -861,8 +863,10 @@ znormalizowanego zużycia. Estymacje korzystają ze stawek profilu tam, gdzie
 wcześniej używały katalogu. Estymacje historyczne nadal używają zapisanych kosztów.
 
 Zmiana ceny obejmuje nowo rozwiązywane użycie i nie nadpisuje historycznych
-kosztów wykonań ani wiadomości. Błędne liczniki tokenów pozostają częściowo
-wycenione. Tryb automatyczny zachowuje dotychczasowy katalog i rachunki dostawcy.
+kosztów wykonań ani wiadomości. Błędne liczniki tokenów lub brak danych o zużyciu
+oznaczają częściową wycenę. Znana część kosztów pozostaje zapisana, a aktywny budżet
+w dolarach blokuje dalsze żądania po niepełnym użyciu wycenianym własnymi stawkami.
+Tryb automatyczny zachowuje dotychczasowy katalog i rachunki dostawcy.
 Formularz pokazuje orientacyjne stawki podstawowego progu, jeśli są dostępne;
 faktyczny rachunek dostawcy jest znany po żądaniu. Własny cennik nie konfiguruje
 głosu realtime ani generowania obrazów, audio i wideo rozliczanego jednostkowo.
