@@ -90,6 +90,7 @@ async def test_a_withdrawn_authoring_job_fails_its_request(db) -> None:
     await db.refresh(request)
     assert request.status == AuthoringStatus.FAILED.value
     assert request.error == "The request was cancelled before it started. Try again."
+    assert request.error_code == "withdrawn"
     assert request.finished_at is not None and request.finished_at >= before
 
 
@@ -126,6 +127,7 @@ async def test_a_request_its_worker_still_holds_is_refused_at_once_not_waited_on
                     request.id,
                     organization_id=org.id,
                     error="Stopped.",
+                    error_code="stalled",
                     now=datetime.now(UTC),
                 )
     # lock_not_available: refused for the lock, not for anything else the database disliked.

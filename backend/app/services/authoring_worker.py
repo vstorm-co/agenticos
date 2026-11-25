@@ -70,6 +70,7 @@ from app.repositories import (
 from app.schemas.authoring import (
     MAX_REJECTED,
     SKILL_PROBLEM,
+    AuthoringFailure,
     ContextImprovement,
     EvidenceQuote,
     FieldChange,
@@ -99,6 +100,7 @@ from app.services.authoring_evidence import (
 )
 from app.services.improvement_pipeline import EarlierAttempt, ImprovementPipelineService
 from app.services.skills import SKILL_BODY_CHARS, SkillService
+from app.services.step_failure import failure_code
 from app.services.system_agent_runner import SystemAgentRunner
 
 logger = logging.getLogger(__name__)
@@ -107,11 +109,15 @@ type Sessions = Callable[[], AbstractAsyncContextManager[AsyncSession]]
 
 
 class Stopped(Exception):
-    """A request that cannot go on, with the reason the person reads."""
+    """A request that cannot go on, with the reason the person reads and its code."""
 
-    def __init__(self, reason: str) -> None:
+    def __init__(
+        self, code: AuthoringFailure, reason: str, params: dict[str, int] | None = None
+    ) -> None:
         super().__init__(reason)
+        self.code: AuthoringFailure = code
         self.reason = reason
+        self.params = params
 
 
 def tool_catalog(spec: AgentSpec) -> list[tuple[str, str, str, str]]:
@@ -687,7 +693,7 @@ class AuthoringRun:
         # Authority is read as it is now: what the starter could do when they
         # asked may have been taken away while the request waited.
         if not self.ctx.has(Perm.RUNS_VIEW):
-            raise Stopped("Whoever started this may no longer read runs.")
+            raise Stopped("no_runs_view", "Whoever started this may no longer read runs.")
         if self.request.skill_improvement_run_id is not None:
             await self._skill_session()
         elif self.request.target == AuthoringTarget.SKILL.value:
@@ -706,7 +712,8 @@ class AuthoringRun:
             # uncited summaries and the helper's own recorded model requests.
             await personal_data_repo.forget_knowledge_runs(self.db, self.run_ids)
             raise Stopped(
-                "An evidence source was erased while the assistant worked. Start again with current evidence."
+                "evidence_erased",
+                "An evidence source was erased while the assistant worked. Start again with current evidence.",
             )
         return retained
 
@@ -721,13 +728,13 @@ class AuthoringRun:
         if agent is not None and not await resolve_access(
             self.db, self.ctx, agent, Perm.AGENTS_EDIT, resource_type=AGENT
         ):
-            raise Stopped("Whoever started this may no longer edit the agent.")
+            raise Stopped("no_edit_agent", "Whoever started this may no longer edit the agent.")
         return agent
 
     async def _improve_agent(self) -> None:
         agent = await self._target_agent()
         if agent is None:
-            raise Stopped("The agent is gone.")
+            raise Stopped("agent_gone", "The agent is gone.")
         spec = AgentSpec.model_validate(agent.draft_spec)
         self.knowledge_base_ids = list(spec.collection_ids)
         note: str | None = None
@@ -819,7 +826,9 @@ class AuthoringRun:
             )
         )
         if agent is None or version is None:
-            raise Stopped("The agent has no published version to compare with.")
+            raise Stopped(
+                "no_published_version", "The agent has no published version to compare with."
+            )
         published = AgentSpec.model_validate(version.spec)
         draft = AgentSpec.model_validate(agent.draft_spec)
         self.knowledge_base_ids = list(draft.collection_ids)
@@ -870,11 +879,11 @@ class AuthoringRun:
             else await skill_repo.get(self.db, skill_id, organization_id=org)
         )
         if skill is None:
-            raise Stopped("The skill is gone.")
+            raise Stopped("skill_gone", "The skill is gone.")
         if not await resolve_access(
             self.db, self.ctx, skill, Perm.SKILLS_EDIT, resource_type=SKILL
         ):
-            raise Stopped("Whoever started this may no longer edit the skill.")
+            raise Stopped("no_edit_skill", "Whoever started this may no longer edit the skill.")
         pack = await self.evidence.for_skill(
             self.ctx, skill.id, window_days=self.request.window_days
         )
@@ -959,12 +968,13 @@ class AuthoringRun:
             ImprovementStatus.RUNNING.value,
             ImprovementStage.PROPOSING.value,
         ):
-            raise Stopped("The improvement session moved on.")
+            raise Stopped("session_moved_on", "The improvement session moved on.")
         try:
             await merges.fill_conflicts(merge, answer.texts)
         except ValueError as exc:
             raise Stopped(
-                "The assistant did not answer every conflict; settle them at Changes."
+                "conflicts_unanswered",
+                "The assistant did not answer every conflict; settle them at Changes.",
             ) from exc
         await self._finish({"proposed": len(answer.texts)})
 
@@ -979,7 +989,7 @@ class AuthoringRun:
             self.db, self.request.skill_improvement_run_id, organization_id=org
         )
         if session is None or not ImprovementStatus(session.status).active:
-            raise Stopped("The improvement session stopped.")
+            raise Stopped("session_stopped", "The improvement session stopped.")
         sessions = SkillImprovementService(self.db)
         line = await sessions.line_for_session(self.ctx, session)
         base = await sessions.base_of(session)
@@ -987,7 +997,7 @@ class AuthoringRun:
         if not await resolve_access(
             self.db, self.ctx, skill, Perm.SKILLS_EDIT, resource_type=SKILL
         ):
-            raise Stopped("Whoever started this may no longer edit the skill.")
+            raise Stopped("no_edit_skill", "Whoever started this may no longer edit the skill.")
         if session.purpose != SkillImprovementPurpose.IMPROVE.value:
             await self._merge_conflicts(session)
             return
@@ -1133,11 +1143,13 @@ class AuthoringRun:
             else await context_repo.get(self.db, context_id, organization_id=org)
         )
         if file is None:
-            raise Stopped("The context file is gone.")
+            raise Stopped("context_gone", "The context file is gone.")
         if not await resolve_access(
             self.db, self.ctx, file, Perm.CONTEXT_EDIT, resource_type=CONTEXT
         ):
-            raise Stopped("Whoever started this may no longer edit the context file.")
+            raise Stopped(
+                "no_edit_context", "Whoever started this may no longer edit the context file."
+            )
         pack = await self.evidence.for_context(
             self.ctx, file.id, window_days=self.request.window_days
         )
@@ -1189,14 +1201,17 @@ class AuthoringRun:
         self.request.evidence = pack.summary()
         if not pack.runs and pack.unknown_runs:
             raise Stopped(
+                "unknown_skill_use",
                 "No run in this window is known to have used the skill. "
                 f"{pack.unknown_runs} rated-down or failed runs are from before uses were "
-                "recorded, so whether they used it is unknown."
+                "recorded, so whether they used it is unknown.",
+                {"runs": pack.unknown_runs},
             )
         if not pack.runs:
             raise Stopped(
+                "no_evidence",
                 "Nothing to learn from yet: no run in this window was rated or failed. "
-                "Widen the window, or come back once people have rated some answers."
+                "Widen the window, or come back once people have rated some answers.",
             )
 
     def _new_skill_hunks(
@@ -1507,7 +1522,7 @@ class AuthoringRun:
                 self.db, self.request.improvement_run_id, organization_id=self.ctx.organization_id
             )
             if session is None or not ImprovementStatus(session.status).active:
-                raise Stopped("The improvement session stopped.")
+                raise Stopped("session_stopped", "The improvement session stopped.")
             previous = await authoring_repo.batch_for_request(
                 self.db, self.request.id, organization_id=self.ctx.organization_id
             )
@@ -1663,10 +1678,12 @@ class AuthoringWorker:
                     api_key_id=request.created_by_api_key_id,
                 )
             except AuthenticationError as refused:
-                await self._fail(db, request, refused.message)
+                await self._fail(db, request, refused.message, "key_revoked")
                 return
             if ctx is None:
-                await self._fail(db, request, "Whoever started this is no longer a member.")
+                await self._fail(
+                    db, request, "Whoever started this is no longer a member.", "not_a_member"
+                )
                 return
             await authoring_repo.update_request(
                 db,
@@ -1676,23 +1693,33 @@ class AuthoringWorker:
             try:
                 await AuthoringRun(db, ctx, request).execute()
             except Stopped as exc:
-                await self._fail(db, request, exc.reason)
+                await self._fail(db, request, exc.reason, exc.code, exc.params)
             except AppException as exc:
-                await self._fail(db, request, exc.message)
+                await self._fail(db, request, exc.message, failure_code(exc))
             except Exception:
                 logger.exception("authoring_request_failed", extra={"request": str(request.id)})
-                await self._fail(db, request, "The assistant stopped unexpectedly. Try again.")
+                await self._fail(
+                    db, request, "The assistant stopped unexpectedly. Try again.", "unexpected"
+                )
             else:
                 await _wake_session(db, request)
 
     @staticmethod
-    async def _fail(db: AsyncSession, request: AuthoringRequest, error: str) -> None:
+    async def _fail(
+        db: AsyncSession,
+        request: AuthoringRequest,
+        error: str,
+        code: AuthoringFailure,
+        params: dict[str, int] | None = None,
+    ) -> None:
         await authoring_repo.update_request(
             db,
             request=request,
             values={
                 "status": AuthoringStatus.FAILED.value,
                 "error": error,
+                "error_code": code,
+                "error_params": params,
                 "evidence": request.evidence,
                 "finished_at": datetime.now(UTC),
             },
