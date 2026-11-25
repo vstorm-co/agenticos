@@ -32,7 +32,7 @@ from app.schemas.dataset import (
     DatasetVersionList,
     DatasetVersionRead,
 )
-from app.services.dataset_files import MAX_IMPORT_BYTES
+from app.services import dataset_files
 from app.services.exporting import ExportResult
 
 pytestmark = pytest.mark.anyio
@@ -210,9 +210,32 @@ async def test_an_upload_is_read_only_one_byte_past_the_limit(
     async with client() as http:
         await http.post(
             _url(f"/{_DATASET.id}/import"),
-            files={"file": ("big.csv", b"x" * (MAX_IMPORT_BYTES + 10), "text/csv")},
+            files={
+                "file": ("big.csv", b"x" * (settings.DATASET_IMPORT_MAX_BYTES + 10), "text/csv")
+            },
         )
-    assert len(service.import_cases.await_args.kwargs["content"]) == MAX_IMPORT_BYTES + 1
+    assert len(service.import_cases.await_args.kwargs["content"]) == (
+        settings.DATASET_IMPORT_MAX_BYTES + 1
+    )
+
+
+async def test_an_upload_past_the_limit_is_a_bad_request_naming_the_file(
+    client: OpenClient, service: MagicMock
+) -> None:
+    """The byte past the limit is the service's to refuse, as a domain 400 - not a 413 or
+    a 500 from a request the server gave up reading."""
+    service.import_cases.side_effect = lambda *_, content, **__: dataset_files.parse(content, "csv")
+    async with client() as http:
+        response = await http.post(
+            _url(f"/{_DATASET.id}/import"),
+            files={
+                "file": ("big.csv", b"x" * (settings.DATASET_IMPORT_MAX_BYTES + 10), "text/csv")
+            },
+        )
+    assert response.status_code == 400
+    assert response.json()["error"]["details"]["fields"] == [
+        {"field": "file", "message": "An import is at most 10 MB; split the file"}
+    ]
 
 
 @pytest.mark.parametrize(("fmt", "media"), [("csv", "text/csv"), ("jsonl", "application/x-ndjson")])

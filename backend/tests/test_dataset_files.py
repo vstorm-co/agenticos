@@ -11,10 +11,11 @@ from datetime import UTC, datetime
 
 import pytest
 
+from app.core.config import settings
 from app.core.exceptions import BadRequestError
 from app.db.models.dataset import DatasetCase
 from app.services import dataset_files
-from app.services.dataset_files import COLUMNS, MAX_IMPORT_BYTES, format_of, parse, render
+from app.services.dataset_files import COLUMNS, format_of, parse, render
 
 HEADER = ",".join(COLUMNS)
 CHECK = '"[{""type"": ""contains"", ""value"": ""x""}]"'
@@ -163,16 +164,52 @@ class TestRefusals:
 
     def test_a_file_that_is_not_utf8_or_too_large_is_refused(self) -> None:
         assert "UTF-8" in _refusal(b"input\n\xff\xfe\n").message
-        assert "MB" in _refusal(b"x" * (MAX_IMPORT_BYTES + 1)).message
+        assert "10 MB" in _refusal(b"x" * (settings.DATASET_IMPORT_MAX_BYTES + 1)).message
 
     def test_malformed_csv_is_refused(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        default = csv.field_size_limit()
-        monkeypatch.setattr(dataset_files, "_CELL_LIMIT", 8)
+        limit = csv.field_size_limit
+        default = limit()
+        monkeypatch.setattr(csv, "field_size_limit", lambda _cells: limit(8))
         try:
             refusal = _refusal('input\n"' + "x" * 9 + '"\n')
         finally:
-            csv.field_size_limit(default)
+            limit(default)
         assert "not valid CSV" in refusal.message
+
+    def test_a_file_past_the_row_limit_is_refused_before_its_later_rows_are_read(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A bad row far past the limit is never reached: the refusal is the limit's."""
+        monkeypatch.setattr(settings, "DATASET_IMPORT_MAX_ROWS", 5)
+        rows = ["input,order_mode"] + ["q,any"] * 40 + ["q,sideways"]
+
+        refusal = _refusal("\n".join(rows) + "\n")
+
+        assert refusal.details["fields"] == [
+            {"field": "file", "message": "An import holds at most 5 rows; split the file"}
+        ]
+
+    def test_a_file_at_the_row_limit_imports(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(settings, "DATASET_IMPORT_MAX_ROWS", 3)
+
+        assert len(parse(b"input,reference_answer\na,x\nb,y\nc,z\n", "csv")) == 3
+
+    @pytest.mark.parametrize("fmt", ["csv", "jsonl"])
+    def test_a_value_nested_too_deeply_is_a_refused_row_not_a_crash(self, fmt: str) -> None:
+        deep = "[" * 100_000 + "]" * 100_000
+        content = (
+            f'input,reference_answer,history\nok,a,\nq,a,"{deep}"\n'
+            if fmt == "csv"
+            else '{"input": "ok", "reference_answer": "a"}\n{"input": "q", "history": '
+            + deep
+            + "}\n"
+        )
+
+        refusal = _refusal(content, fmt)
+
+        assert refusal.details["refused_rows"] == 1
+        assert refusal.details["fields"][0]["field"] == "rows.2"
+        assert "nested too deeply" in refusal.details["fields"][0]["message"]
 
     def test_jsonl_lines_that_are_not_case_objects_are_refused(self) -> None:
         refusal = _refusal(

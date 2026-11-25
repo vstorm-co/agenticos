@@ -252,6 +252,12 @@ class Settings(BaseSettings):
     # stores only what it changed, and removing a case stores nothing, so only an
     # add or an edit past the limit is refused. The name predates that.
     DATASET_MAX_VERSION_ROWS_PER_ORG: int = Field(default=5_000_000, gt=0)
+    # The largest file a dataset import reads, whole, before parsing a row. Ten
+    # thousand cases of ordinary length fit with room to spare.
+    DATASET_IMPORT_MAX_BYTES: int = Field(default=10 * 1024 * 1024, gt=0)
+    # The rows one import may hold; parsing stops at the first row past it. A dataset's
+    # own ceiling of 10,000 cases still applies to what an import adds.
+    DATASET_IMPORT_MAX_ROWS: int = Field(default=10_000, gt=0)
     # Where artifact content is served from. Unset, it is the API's own public
     # address, and isolation rests on the `sandbox` policy every content
     # response carries, which gives the page an opaque origin. Set to a host on
