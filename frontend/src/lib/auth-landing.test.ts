@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   goToDestination,
+  isSignInPage,
   postRegistrationDestination,
   postSignInDestination,
 } from "./auth-landing";
@@ -11,6 +12,34 @@ describe("postSignInDestination", () => {
   it("defaults to the conversation workspace", () => {
     expect(postSignInDestination()).toBe(ROUTES.CHAT);
     expect(postSignInDestination(null)).toBe(ROUTES.CHAT);
+  });
+
+  // Signing out and in again in the same tab: the guard had already moved to
+  // the login page and handed it `returnTo=/login`, and a fresh session sent
+  // back there waited on "Logging in..." until the app was restarted.
+  it.each([
+    "/login",
+    "/lo%67in",
+    "/%72egister",
+    "/%70l/login",
+    "/pl/reset%2dpassword",
+    "/login?returnTo=%2Flogin",
+    "/login/",
+    "/vi/login",
+    "/register",
+    "/forgot-password",
+    "/reset-password?token=t",
+    "/magic-link-sent",
+  ])("never sends a fresh session back to a sign-in page: %s", (path) => {
+    expect(isSignInPage(path)).toBe(true);
+    expect(postSignInDestination(path)).toBe(ROUTES.CHAT);
+  });
+
+  it("still honours pages that only look alike", () => {
+    expect(isSignInPage("/settings/sign-ins")).toBe(false);
+    expect(isSignInPage("/%E0%A4%A")).toBe(false);
+    expect(postSignInDestination("/agents/%6cogin-helper")).toBe("/agents/%6cogin-helper");
+    expect(postSignInDestination("/agents/login-helper")).toBe("/agents/login-helper");
   });
 
   it("honours a same-origin path, query and fragment included", () => {

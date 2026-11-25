@@ -50,6 +50,14 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Keep an unsent chat draft when a response finishes during a press on Stop.
+  Keyboard users retain focus on Stop after sending from its button.
+- Return fresh sign-ins to chat instead of a sign-in page, including encoded
+  and localized return paths. Repeated sign-out and sign-in no longer stalls.
+- Declare and translate microphone permission for iPhone dictation and voice
+  calls. Deliver app-icon quick actions to the connected iOS scene; cold-start
+  shortcut delivery remains outside this fix.
+
 - A chat whose connection dropped mid-answer - a phone locked while an agent
   worked - now shows the answer once the turn lands, and the "connection
   dropped" notice goes away. The half-written answer used to be kept in place
