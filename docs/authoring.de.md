@@ -1,5 +1,5 @@
 ---
-source_sha: "efcf8f8ad81e"
+source_sha: "452644ae3cf2"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -228,6 +228,14 @@ hinzufügt. Er erweitert nie, was ohne einen Menschen läuft:
   Assistent nicht sehen kann, als schreibendes.
 - Freigaben werden nur strenger: Ein Vorschlag kann eine Capability oder ein
   Tool zuerst fragen lassen, nie aufhören lassen zu fragen.
+- Eine Capability, die er hinzufügt, setzt nur ihre Einstellungen und Freigaben,
+  die ihre Tools zuerst fragen lassen: nie einen anderen Namen oder eine andere
+  Beschreibung für ein Tool, die das Modell des Agent lesen würde, keinen
+  Schlüssel und keine ausgeschaltete Bindung. Ein Vorschlag, der etwas davon
+  enthält, wird nicht erfasst, und ein früher gespeicherter wird bei
+  **Annehmen** abgelehnt. Die Karte zeigt die ganze Bindung, die er schreibt,
+  und schreibt jedes Zeichen aus, das nichts zeichnet oder den Text darum
+  umordnet, etwa `\u{202E}`.
 
 Einen Vorschlag, der eine Wissensbasis, eine Context-Datei, ein Modellprofil
 oder einen MCP-Server bindet oder den Agent mehr MCP-Tools aufrufen lässt, nimmt

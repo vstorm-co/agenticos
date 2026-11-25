@@ -1,5 +1,5 @@
 ---
-source_sha: "efcf8f8ad81e"
+source_sha: "452644ae3cf2"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las herramientas, la configuración, los skills y los archivos de contexto de un agent. Una persona decide cada uno."
 ---
@@ -221,6 +221,13 @@ Nunca amplía lo que se ejecuta sin una persona:
   cuenta como una que escribe.
 - La aprobación solo se endurece: una sugerencia puede hacer que una capability
   o una herramienta pregunte antes, nunca que deje de preguntar.
+- Una capability que añade solo fija sus ajustes y aprobaciones que hacen que sus
+  herramientas pregunten antes: nunca otro nombre u otra descripción de una
+  herramienta, que leería el modelo del agent, una clave ni una vinculación
+  desactivada. Una sugerencia que lleve algo de eso no se registra, y una
+  guardada antes se rechaza al pulsar **Aceptar**. La tarjeta muestra toda la
+  vinculación que escribe, con cada carácter que no dibuja nada o reordena el
+  texto a su alrededor escrito de forma visible, como `\u{202E}`.
 
 Una sugerencia que vincula una base de conocimiento, un archivo de contexto, un
 perfil de modelo o un servidor MCP, o que deja al agent llamar a más herramientas
