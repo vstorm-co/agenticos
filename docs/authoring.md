@@ -90,7 +90,8 @@ character other than a newline or a tab, a bidirectional control, a Unicode tag
 character - is not recorded, and one stored before is refused at **Accept**; so
 is such a proposal for a skill or a context file, a search variant and a
 person's own wording. Zero-width characters are let through, and every diff
-writes each one out by its code and says so.
+writes each one out by its code and says so. A Windows line break or a lone
+carriage return is read as a newline and stored as one.
 
 A suggestion anchors on where its passage sat and what surrounded it, not on the
 text alone, so a line that appears twice is changed where it was meant to be. If

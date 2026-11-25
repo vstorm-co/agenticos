@@ -1,5 +1,5 @@
 ---
-source_sha: "2a83c32d5bcd"
+source_sha: "035a0af9c3f1"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -92,7 +92,8 @@ inny niż nowa linia albo tabulator, znak sterujący kierunkiem tekstu, znak tag
 Unicode - nie jest zapisywana, a zapisana wcześniej jest odrzucana przy
 **Przyjmij**; tak samo taka propozycja dla skilla albo pliku kontekstowego,
 wariant wyszukiwania i własne sformułowanie człowieka. Znaki zerowej szerokości
-przechodzą, a każdy diff wypisuje je kodem i o tym mówi.
+przechodzą, a każdy diff wypisuje je kodem i o tym mówi. Koniec wiersza z Windows
+albo samotny powrót karetki jest czytany jako nowa linia i tak zapisywany.
 
 Sugestia jest zakotwiczona w miejscu, w którym był jej fragment, i w tym, co go
 otaczało, a nie w samym tekście, więc linia, która występuje dwa razy, jest

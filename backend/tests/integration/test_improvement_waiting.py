@@ -333,6 +333,29 @@ async def test_an_edit_at_changes_is_what_the_check_measures_and_what_accept_wri
 
 
 @pytest.mark.security
+async def test_an_edit_sent_with_windows_line_breaks_is_taken_and_kept_with_newlines(db):
+    """A line break is a character a person sees: a reword whose body a client wrote with
+    Windows line breaks is not refused as hiding characters, and is stored with newlines."""
+    from app.schemas.improvement import ChangeEdit
+
+    ctx, agent, waiting = await _at_changes(db)
+    service = ImprovementPipelineService(db)
+    hunks = await authoring_repo.list_hunks(
+        db, organization_id=ctx.organization_id, batch_id=waiting.iterations[0].batch_id
+    )
+    hunk = next(hunk for hunk in hunks if hunk.kind == "instructions")
+    body = '{"edited_text": "Answer briefly.\\r\\nCite the policy.\\rSign off."}'
+
+    edited = await service.edit_change(
+        ctx, agent.id, waiting.id, hunk.id, ChangeEdit.model_validate_json(body)
+    )
+
+    assert edited.edited_text == "Answer briefly.\nCite the policy.\nSign off."
+    await db.refresh(hunk)
+    assert hunk.edited_text == "Answer briefly.\nCite the policy.\nSign off."
+
+
+@pytest.mark.security
 async def test_a_change_is_edited_only_at_the_stop_by_whoever_may_continue_and_only_its_text(db):
     from app.schemas.improvement import ChangeEdit
 

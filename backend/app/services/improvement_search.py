@@ -46,7 +46,7 @@ from app.agents.spec import AgentSpec
 from app.agents.system_agents import IMPROVER
 from app.core.config import settings
 from app.core.exceptions import AppException, AuthenticationError
-from app.core.hidden_text import holds_refused
+from app.core.hidden_text import Proposed, holds_refused
 from app.core.permissions import AuthContext
 from app.db.models.agent import Agent, AgentStatus
 from app.db.models.agent_run import RunStatus, RunSurface
@@ -133,7 +133,7 @@ type SearchEnd = Literal[
 class InstructionVariant(BaseModel):
     """One complete rewrite of the instructions."""
 
-    instructions: str = Field(min_length=1, max_length=MAX_VARIANT_CHARS)
+    instructions: Proposed = Field(min_length=1, max_length=MAX_VARIANT_CHARS)
     rationale: str = Field(default="", max_length=1000)
 
 

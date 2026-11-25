@@ -1,5 +1,5 @@
 ---
-source_sha: "2a83c32d5bcd"
+source_sha: "035a0af9c3f1"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -94,7 +94,8 @@ Schreibrichtung, ein Unicode-Tag-Zeichen -, wird nicht erfasst, und ein früher
 gespeicherter wird bei **Annehmen** abgelehnt; ebenso ein solcher Vorschlag für
 einen Skill oder eine Context-Datei, eine Suchvariante und die eigene
 Formulierung einer Person. Zeichen ohne Breite werden durchgelassen, und jeder
-Diff schreibt sie mit ihrem Code aus und sagt das.
+Diff schreibt sie mit ihrem Code aus und sagt das. Ein Windows-Zeilenende oder ein
+einzelner Wagenrücklauf gilt als Zeilenumbruch und wird so gespeichert.
 
 Ein Vorschlag verankert sich daran, wo seine Passage stand und was sie umgab,
 nicht am Text allein, sodass eine Zeile, die zweimal vorkommt, dort geändert

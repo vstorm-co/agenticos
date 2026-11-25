@@ -1,5 +1,5 @@
 ---
-source_sha: "2a83c32d5bcd"
+source_sha: "035a0af9c3f1"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las herramientas, la configuración, los skills y los archivos de contexto de un agent. Una persona decide cada uno."
 ---
@@ -92,7 +92,8 @@ dirección del texto, un carácter de etiqueta Unicode - no se registra, y una
 guardada antes se rechaza al pulsar **Aceptar**; lo mismo una propuesta así para
 un skill o un archivo de contexto, una variante de búsqueda y la redacción propia
 de una persona. Los caracteres de ancho cero se dejan pasar, y cada diff los
-escribe con su código y lo indica.
+escribe con su código y lo indica. Un fin de línea de Windows o un retorno de carro
+suelto se guarda como salto de línea.
 
 Una sugerencia se ancla en dónde estaba su fragmento y en lo que lo rodeaba, no
 solo en el texto, así que una línea que aparece dos veces se cambia donde se

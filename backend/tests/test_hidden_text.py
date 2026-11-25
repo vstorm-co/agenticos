@@ -6,14 +6,29 @@ import pytest
 from pydantic import ValidationError
 
 from app.agents.spec import AgentSpec
-from app.core.hidden_text import holds_refused, refused_characters, visible
+from app.core.hidden_text import (
+    holds_refused,
+    refused_characters,
+    unix_newlines,
+    unix_newlines_in,
+    visible,
+)
 from app.db.models.authoring import HunkKind, SpecProposalHunk
 from app.db.models.skill_version import SkillVersion
-from app.schemas.authoring import HunkDecision
+from app.schemas.authoring import (
+    ContextImprovement,
+    FieldChange,
+    HunkDecision,
+    InstructionChange,
+    NewSkillChange,
+    SkillImprovement,
+    ToolChange,
+)
 from app.schemas.improvement import ChangeEdit
+from app.schemas.skill_improvement import MergeTexts, SkillBodyEdit, SkillEdits
 from app.schemas.skill_merge import MergeDescriptionEdit, MergePartEdit
 from app.services import authoring_fields
-from app.services.improvement_search import usable_variant
+from app.services.improvement_search import InstructionVariant, usable_variant
 from app.services.skill_improvement import filtered
 
 pytestmark = pytest.mark.security
@@ -65,6 +80,101 @@ def test_a_person_s_edit_carrying_one_is_refused_on_its_field(build):
     with pytest.raises(ValidationError):
         build(f"Refunds take 30 days.{TAG}")
     build("Refunds take 30​ days.")
+
+
+WINDOWS = "Refunds take 30 days.\r\nAsk for the receipt.\rThen refund."
+UNIX = "Refunds take 30 days.\nAsk for the receipt.\nThen refund."
+
+
+def test_windows_and_lone_carriage_return_line_breaks_are_written_as_newlines():
+    assert unix_newlines(WINDOWS) == UNIX
+    assert unix_newlines("\r\r\n") == "\n\n"
+    assert unix_newlines_in({WINDOWS: [WINDOWS, 3, None, True]}) == {UNIX: [UNIX, 3, None, True]}
+    assert visible(WINDOWS) == UNIX
+
+
+@pytest.mark.parametrize(
+    ("build", "read"),
+    [
+        (lambda text: ChangeEdit(edited_text=text), lambda made: made.edited_text),
+        (lambda text: HunkDecision(action="accept", text=text), lambda made: made.text),
+        (
+            lambda text: HunkDecision(action="accept", value={"description": text}),
+            lambda made: made.value["description"],
+        ),
+        (lambda text: MergeDescriptionEdit(result=text), lambda made: made.result),
+        (lambda text: MergePartEdit(result=text), lambda made: made.result),
+    ],
+    ids=["reword", "accept-text", "accept-value", "merge-description", "merge-part"],
+)
+def test_a_person_s_edit_with_windows_line_breaks_is_kept_with_newlines(build, read):
+    assert read(build(WINDOWS)) == UNIX
+
+
+@pytest.mark.parametrize(
+    ("build", "read"),
+    [
+        (
+            lambda text: InstructionChange(old_text="", new_text=text, rationale="r"),
+            lambda made: [made.new_text],
+        ),
+        (
+            lambda text: ToolChange(
+                capability_id="web", tool_id="fetch", name=text, description=text, rationale="r"
+            ),
+            lambda made: [made.name, made.description],
+        ),
+        (
+            lambda text: FieldChange(
+                path="description", op="set", value=[text], rationale="r", expected_effect="e"
+            ),
+            lambda made: made.value,
+        ),
+        (
+            lambda text: NewSkillChange(name=text, description=text, content=text, rationale="r"),
+            lambda made: [made.name, made.description, made.content],
+        ),
+        (
+            lambda text: SkillImprovement(
+                summary="s", expected_effect="e", description=text, content=text, rationale="r"
+            ),
+            lambda made: [made.description, made.content],
+        ),
+        (
+            lambda text: ContextImprovement(
+                summary="s", expected_effect="e", description=text, content=text, rationale="r"
+            ),
+            lambda made: [made.description, made.content],
+        ),
+        (
+            lambda text: SkillEdits(
+                summary="s",
+                expected_effect="e",
+                edits=[SkillBodyEdit(old_text="", new_text=text, rationale="r")],
+                description=text,
+            ),
+            lambda made: [made.edits[0].new_text, made.description],
+        ),
+        (lambda text: MergeTexts(texts=[text]), lambda made: made.texts),
+        (lambda text: InstructionVariant(instructions=text), lambda made: [made.instructions]),
+    ],
+    ids=[
+        "instructions",
+        "tool",
+        "field",
+        "new-skill",
+        "skill",
+        "context",
+        "skill-edits",
+        "merge",
+        "search-variant",
+    ],
+)
+def test_a_proposal_with_windows_line_breaks_is_judged_and_kept_with_newlines(build, read):
+    texts = read(build(WINDOWS))
+
+    assert texts == [UNIX] * len(texts)
+    assert not holds_refused(texts)
 
 
 def test_a_field_change_carrying_one_is_neither_staged_nor_accepted():
