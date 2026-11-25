@@ -177,10 +177,10 @@ export function SkillAccept({
           loading={busy}
           onClick={() =>
             void decide(async () => {
-              if (!session.main_alone_check) return;
+              const alone = session.main_alone_check!;
               const done = await returnToMain.mutateAsync({
-                checkId: session.main_alone_check.id,
-                resultHash: session.main_alone_check.result_hash,
+                checkId: alone.id,
+                resultHash: alone.result_hash,
                 acknowledgeUnknown: aloneAcknowledged,
               });
               onReturned?.(done.returned);

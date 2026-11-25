@@ -153,13 +153,14 @@ function Session({
   );
   const offersCheck = session.offer_automatic_check === true;
   async function accept(publish: boolean) {
-    if (!chosen?.candidate_spec_hash || !chosen.result_hash) return;
+    // Accepting is enabled only by a confirmation of `reviewed`, which needs both fingerprints.
+    const attempt = chosen!;
     try {
       await actions.finish.mutateAsync({
         confirmed: true,
-        attempt: chosen.number,
-        candidate_spec_hash: chosen.candidate_spec_hash,
-        result_hash: chosen.result_hash,
+        attempt: attempt.number,
+        candidate_spec_hash: attempt.candidate_spec_hash!,
+        result_hash: attempt.result_hash!,
         publish,
         publish_unmeasured_edits: publish && releasesUnmeasured,
         automatic_check: offersCheck && automatic,
