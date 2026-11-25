@@ -300,6 +300,14 @@ such as a MinIO container, needs its host listed in
 [`OUTBOUND_PRIVATE_ALLOWLIST`](../configuration.md#project-settings). The
 operator's `S3_RAG_ENDPOINT` is not checked.
 
+For a source's own endpoint, each new SDK connection checks DNS again and uses
+an approved numeric address. TLS certificates, SNI, HTTP Host and AWS signatures
+keep the original hostname. Deployment proxies must honor the numeric CONNECT
+or absolute request target. If an AWS profile selects virtual-host addressing,
+authorize each actual private bucket hostname (for example `bucket.minio`) or
+an appropriate operator-approved suffix/network; listing `minio` alone does not
+authorize `bucket.minio`.
+
 ### 2. S3 connector config fields
 
 | Field | Type | Required | Default | Description |
