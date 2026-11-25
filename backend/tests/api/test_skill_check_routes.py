@@ -65,6 +65,7 @@ def _check(**overrides: Any) -> SkillCheckRead:
         **_estimate().model_dump(),
         "id": CHECK,
         "skill_id": SKILL,
+        "result_hash": "e" * 64,
         "source": "proposal",
         "status": "done",
         "verdict": "passed",

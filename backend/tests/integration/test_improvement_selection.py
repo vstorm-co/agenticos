@@ -17,7 +17,6 @@ from app.db.models.skill import Skill
 from app.repositories import authoring_repo, improvement_repo
 from app.schemas.improvement import (
     AttributionConsent,
-    ImprovementFinish,
     ImprovementSelection,
     SelectionConsent,
 )
@@ -26,7 +25,7 @@ from app.services.eval_run_worker import EvalRunWorker
 from app.services.improvement_pipeline import ImprovementPipelineService
 from tests.integration.test_authoring import _environment as _environment
 from tests.integration.test_authoring import _sessions
-from tests.integration.test_improvement_pipeline import Answers, _ready_proposal
+from tests.integration.test_improvement_pipeline import Answers, _ready_proposal, reviewed
 from tests.integration.test_improvement_rounds import RoundAnswers, _two_rounds
 
 pytestmark = [pytest.mark.anyio, pytest.mark.usefixtures("_environment")]
@@ -110,7 +109,7 @@ async def test_only_selected_changes_are_checked_and_accepted_without_dismissing
         ctx,
         agent.id,
         ready.id,
-        ImprovementFinish(confirmed=True, publish=False, automatic_check=False),
+        await reviewed(db, ctx, agent.id, ready.id, publish=False, automatic_check=False),
     )
     assert result.session.status == "accepted"
     assert "30 days" in AgentSpec.model_validate(agent.draft_spec).instructions
@@ -254,7 +253,7 @@ async def test_later_suggestions_are_not_silently_included_in_the_measured_candi
         ctx,
         agent.id,
         ready.id,
-        ImprovementFinish(confirmed=True, publish=False, automatic_check=False),
+        await reviewed(db, ctx, agent.id, ready.id, publish=False, automatic_check=False),
     )
     assert result.session.status == "accepted"
     assert "30 days" in AgentSpec.model_validate(agent.draft_spec).instructions

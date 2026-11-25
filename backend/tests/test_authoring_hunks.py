@@ -566,6 +566,27 @@ def test_the_improver_reads_each_skill_by_its_line_and_only_used_bodies():
     assert _skills_section(spec, [], set()) == ""
 
 
+def test_a_candidate_hashes_the_same_whether_its_row_was_gated_or_not():
+    """Accept compares the projection with the hash its check stored; a stored add with or
+    without its tools' approvals projects to one spec, so the read's gated value and the
+    row it came from cannot disagree about what was measured."""
+    from app.services.authoring_fields import as_accepted
+    from app.services.eval_run import spec_hash
+
+    spec = AgentSpec(name="Clerk", instructions="Answer.")
+    raw = _hunk(kind="spec_field", path="capabilities", op="add", new_value={"id": "artifacts"})
+    shown = _hunk(
+        kind="spec_field",
+        path="capabilities",
+        op="add",
+        new_value=as_accepted("capabilities", "add", {"id": "artifacts"}),
+    )
+
+    assert spec_hash(hunks.projection(spec, [raw])[0]) == spec_hash(
+        hunks.projection(spec, [shown])[0]
+    )
+
+
 def test_a_person_s_wording_keeps_its_whitespace_as_typed():
     """Whitespace at either end of a passage is part of it: a trailing newline keeps the
     next line on its own line."""

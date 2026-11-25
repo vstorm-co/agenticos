@@ -17,7 +17,6 @@ from app.schemas.improvement import (
     AttributionConsent,
     ContinuationConsent,
     ImprovementContinue,
-    ImprovementFinish,
     ImprovementStart,
     NextStepBlocked,
     TryAgainBlocked,
@@ -29,7 +28,7 @@ from app.services.improvement_pipeline import ImprovementPipelineService
 from tests.integration.test_authoring import Improver, _answering, _sessions, _setup
 from tests.integration.test_authoring import _environment as _environment
 from tests.integration.test_eval_suites import Model, _dataset
-from tests.integration.test_improvement_pipeline import _next_step
+from tests.integration.test_improvement_pipeline import _next_step, reviewed
 
 pytestmark = [pytest.mark.anyio, pytest.mark.usefixtures("_environment")]
 
@@ -171,9 +170,11 @@ async def test_a_stopped_attempt_is_selected_and_accepted_in_one_call(db):
     assert (await service.read(ctx, agent.id, started.id)).status == "stopped"
 
     with pytest.raises(BadRequestError, match="checked round"):
-        await service.finish(ctx, agent.id, started.id, ImprovementFinish(confirmed=True))
+        await service.finish(
+            ctx, agent.id, started.id, await reviewed(db, ctx, agent.id, started.id)
+        )
     result = await service.finish(
-        ctx, agent.id, started.id, ImprovementFinish(confirmed=True, round=1)
+        ctx, agent.id, started.id, await reviewed(db, ctx, agent.id, started.id, round=1)
     )
 
     assert result.session.status == "accepted"
@@ -570,3 +571,61 @@ async def test_attribution_refuses_a_changed_base_and_an_exhausted_session_budge
         await service.select_round(ctx, agent.id, started.id, 1)
     with pytest.raises(ConcurrentChangeError, match="stale"):
         await service.estimate_attribution(ctx, agent.id, started.id, 2)
+
+
+@pytest.mark.security
+async def test_accepting_refuses_an_attempt_other_than_the_one_reviewed(db):
+    """A colleague chose another attempt after this person reviewed one: the acceptance
+    names the attempt and its measurement it was shown, and is refused for the other."""
+    ctx, agent, started, _, _ = await _two_rounds(db)
+    service = ImprovementPipelineService(db)
+    shown = await reviewed(db, ctx, agent.id, started.id)
+    assert shown.attempt == 2
+    await service.select_round(ctx, agent.id, started.id, 1)
+    before = dict(agent.draft_spec)
+
+    with pytest.raises(ConcurrentChangeError, match="Refresh the session") as refused:
+        await service.finish(ctx, agent.id, started.id, shown)
+    with pytest.raises(ConcurrentChangeError, match="Refresh the session"):
+        await service.finish(
+            ctx,
+            agent.id,
+            started.id,
+            shown.model_copy(update={"attempt": 1, "candidate_spec_hash": "f" * 64}),
+        )
+
+    assert refused.value.details == {"attempt": 1, "reviewed_attempt": 2}
+    assert agent.draft_spec == before
+    accepted = await service.finish(
+        ctx, agent.id, started.id, await reviewed(db, ctx, agent.id, started.id)
+    )
+    assert accepted.session.best_iteration_id == accepted.session.iterations[0].id
+
+
+@pytest.mark.security
+async def test_accepting_refuses_an_attempt_judged_again_since_it_was_reviewed(db):
+    """A review of a case judges the attempt again in place, keeping its number and its
+    candidate: the acceptance given on the result as it read before is refused."""
+    ctx, agent, started, _, _ = await _two_rounds(db)
+    service = ImprovementPipelineService(db)
+    shown = await reviewed(db, ctx, agent.id, started.id)
+    rounds = await improvement_repo.list_iterations(
+        db, organization_id=ctx.organization_id, run_id=started.id
+    )
+    chosen = next(item for item in rounds if item.number == shown.attempt)
+    await improvement_repo.update_iteration(
+        db,
+        iteration=chosen,
+        values={"verdict_detail": {**(chosen.verdict_detail or {}), "broken": 1}},
+    )
+    before = dict(agent.draft_spec)
+
+    with pytest.raises(ConcurrentChangeError, match="Refresh the session") as refused:
+        await service.finish(ctx, agent.id, started.id, shown)
+
+    assert refused.value.details == {"attempt": shown.attempt, "reviewed_attempt": shown.attempt}
+    assert agent.draft_spec == before
+    accepted = await service.finish(
+        ctx, agent.id, started.id, await reviewed(db, ctx, agent.id, started.id)
+    )
+    assert accepted.session.best_iteration_id == chosen.id
