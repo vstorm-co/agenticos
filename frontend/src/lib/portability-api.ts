@@ -1,8 +1,11 @@
 import { apiClient } from "@/lib/api-client";
 import { saveBlob } from "@/lib/file-access";
 
+export type BundleRootKind = "agent" | "workflow";
+export type BundlePath = (string | number)[];
+
 export interface BundleReference {
-  path: (string | number)[];
+  path: BundlePath;
   target: string;
   is_key: boolean;
   destination_field: "id" | "version_number";
@@ -51,30 +54,44 @@ export interface ImportReceipt {
   created: Record<string, string>;
   reused: Record<string, string>;
   skipped: string[];
+  omitted_bindings?: Record<string, BundlePath[]>;
 }
 
-export const previewAgentExport = (id: string) =>
-  apiClient.get<BundlePreview>(`/agents/${id}/export-preview`);
+export const previewResourceExport = (kind: BundleRootKind, id: string) =>
+  apiClient.get<BundlePreview>(
+    `/${kind === "agent" ? "agents" : "workflows"}/${id}/export-preview`,
+  );
 
-export const previewAgentImport = (text: string) =>
-  apiClient.post<BundlePreview>("/agents/import-preview", { text });
+export const previewResourceImport = (kind: BundleRootKind, text: string) =>
+  apiClient.post<BundlePreview>(
+    kind === "agent" ? "/agents/import-preview" : "/workflows/bundle-import-preview",
+    { text },
+  );
 
-export const importAgentBundle = (data: {
+export interface BundleImportRequest {
   operation_id: string;
   bundle: ResourceBundle;
   choices: Record<string, ImportChoice>;
-}) => apiClient.post<ImportReceipt>("/agents/import", data);
+}
 
-export async function downloadAgentExport(
+export const importResourceBundle = (kind: BundleRootKind, data: BundleImportRequest) =>
+  apiClient.post<ImportReceipt>(
+    kind === "agent" ? "/agents/import" : "/workflows/bundle-import",
+    data,
+  );
+
+export async function downloadResourceExport(
+  kind: BundleRootKind,
   id: string,
   fileFormat: "yaml" | "json",
   resources: Record<string, string[]>,
 ): Promise<void> {
-  const response = await apiClient.raw(`/agents/${id}/export`, {
+  const path = kind === "agent" ? `/agents/${id}/export` : `/workflows/${id}/bundle-export`;
+  const response = await apiClient.raw(path, {
     method: "POST",
     body: { file_format: fileFormat, resources },
   });
-  saveBlob(await response.blob(), `agent-${id}.${fileFormat}`);
+  saveBlob(await response.blob(), `${kind}-${id}.${fileFormat}`);
 }
 
 export interface ImportDestinationQuery {
@@ -130,10 +147,11 @@ export const startBundleExport = (
   rootId: string,
   resources: Record<string, string[]>,
   requestId: string,
+  rootKind: BundleRootKind = "agent",
 ) =>
   apiClient.post<TransferOperation>("/portability/exports", {
     request_id: requestId,
-    root_kind: "agent",
+    root_kind: rootKind,
     root_id: rootId,
     resources,
   });

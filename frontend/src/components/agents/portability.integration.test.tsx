@@ -5,32 +5,33 @@ import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { BundlePreview, TransferOperation } from "@/lib/portability-api";
 import {
-  downloadAgentExport,
+  downloadResourceExport,
   downloadBundleTransfer,
+  getBundleTransfer,
   startBundleExport,
   startBundleUpload,
   uploadBundleFile,
   applyBundleTransfer,
-  importAgentBundle,
+  importResourceBundle,
   listImportDestinations,
-  previewAgentExport,
-  previewAgentImport,
+  previewResourceExport,
+  previewResourceImport,
 } from "@/lib/portability-api";
 import { ExportAgentDialog } from "./export-dialog";
 import { ImportAgentDialog } from "./import-dialog";
 
 vi.mock("@/lib/portability-api", () => ({
-  downloadAgentExport: vi.fn(),
+  downloadResourceExport: vi.fn(),
   downloadBundleTransfer: vi.fn(),
   startBundleExport: vi.fn(),
   startBundleUpload: vi.fn(),
   uploadBundleFile: vi.fn(),
   getBundleTransfer: vi.fn(),
   applyBundleTransfer: vi.fn(),
-  importAgentBundle: vi.fn(),
+  importResourceBundle: vi.fn(),
   listImportDestinations: vi.fn(),
-  previewAgentExport: vi.fn(),
-  previewAgentImport: vi.fn(),
+  previewResourceExport: vi.fn(),
+  previewResourceImport: vi.fn(),
 }));
 const push = vi.fn();
 vi.mock("@/hooks/use-console-router", () => ({ useConsoleRouter: () => ({ push }) }));
@@ -101,9 +102,10 @@ beforeEach(() => {
     total: 2,
     searchable: true,
   });
-  vi.mocked(previewAgentExport).mockResolvedValue(preview);
-  vi.mocked(previewAgentImport).mockResolvedValue(preview);
-  vi.mocked(downloadAgentExport).mockResolvedValue();
+  vi.mocked(previewResourceExport).mockResolvedValue(preview);
+  vi.mocked(previewResourceImport).mockResolvedValue(preview);
+  vi.mocked(downloadResourceExport).mockResolvedValue();
+  vi.mocked(getBundleTransfer).mockResolvedValue(transferRow());
 });
 
 describe("agent portability", () => {
@@ -124,7 +126,7 @@ describe("agent portability", () => {
     await userEvent.click(screen.getByRole("option", { name: "JSON" }));
     await userEvent.click(screen.getByRole("button", { name: "Download" }));
     await waitFor(() =>
-      expect(downloadAgentExport).toHaveBeenCalledWith("source", "json", {
+      expect(downloadResourceExport).toHaveBeenCalledWith("agent", "source", "json", {
         "agent/root": ["definition"],
         "context/policy": [],
         "secret/key": [],
@@ -133,20 +135,20 @@ describe("agent portability", () => {
   });
 
   it("keeps a failed export visible and allows retrying", async () => {
-    vi.mocked(downloadAgentExport).mockRejectedValueOnce(new Error("Download failed"));
+    vi.mocked(downloadResourceExport).mockRejectedValueOnce(new Error("Download failed"));
     const close = vi.fn();
     render(<ExportAgentDialog agentId="source" open onOpenChange={close} />, { wrapper: Wrapper });
     await screen.findByText("Policy");
     await userEvent.click(screen.getByRole("button", { name: "Download" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Download failed");
     await userEvent.click(screen.getByRole("button", { name: "Download" }));
-    await waitFor(() => expect(downloadAgentExport).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(downloadResourceExport).toHaveBeenCalledTimes(2));
     await userEvent.click(screen.getByText("Close", { selector: "button" }));
   });
 
   it("reviews mappings, renames only the new root, and retries with the same operation identity", async () => {
-    vi.mocked(importAgentBundle).mockRejectedValueOnce(new Error("Connection lost"));
-    vi.mocked(importAgentBundle).mockResolvedValueOnce({
+    vi.mocked(importResourceBundle).mockRejectedValueOnce(new Error("Connection lost"));
+    vi.mocked(importResourceBundle).mockResolvedValueOnce({
       roots: { "agent/root": "new-agent" },
       created: { "agent/root": "new-agent" },
       reused: { "context/policy": "destination-policy" },
@@ -167,8 +169,8 @@ describe("agent portability", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Connection lost");
     await userEvent.click(screen.getByRole("button", { name: "Import private drafts" }));
     await screen.findByText("Import complete");
-    const first = vi.mocked(importAgentBundle).mock.calls[0]?.[0];
-    const second = vi.mocked(importAgentBundle).mock.calls[1]?.[0];
+    const first = vi.mocked(importResourceBundle).mock.calls[0]?.[1];
+    const second = vi.mocked(importResourceBundle).mock.calls[1]?.[1];
     expect(first?.operation_id).toBe(second?.operation_id);
     expect(first?.choices).toEqual({
       "agent/root": { action: "create", name: "Researcher copy" },
@@ -181,7 +183,7 @@ describe("agent portability", () => {
   });
 
   it("reads a file and keeps it editable when the preview is refused", async () => {
-    vi.mocked(previewAgentImport).mockRejectedValueOnce(new Error("Invalid configuration"));
+    vi.mocked(previewResourceImport).mockRejectedValueOnce(new Error("Invalid configuration"));
     render(<ImportAgentDialog open onOpenChange={vi.fn()} />, { wrapper: Wrapper });
     const file = new File(["name: From file"], "agent.yaml", { type: "application/yaml" });
     await userEvent.upload(
@@ -193,7 +195,7 @@ describe("agent portability", () => {
     expect(screen.getByRole("textbox", { name: "Or paste the configuration" })).toHaveValue(
       "name: From file",
     );
-    expect(vi.mocked(previewAgentImport).mock.calls[0]?.[0]).toBe("name: From file");
+    expect(vi.mocked(previewResourceImport).mock.calls[0]?.[1]).toBe("name: From file");
   });
 
   it("refuses an oversized or unreadable file before requesting a preview", async () => {
@@ -207,12 +209,12 @@ describe("agent portability", () => {
     vi.spyOn(unreadable, "text").mockRejectedValueOnce(new Error("Read error"));
     await userEvent.upload(input, unreadable);
     expect(await screen.findByRole("alert")).toHaveTextContent("could not be read");
-    expect(previewAgentImport).not.toHaveBeenCalled();
+    expect(previewResourceImport).not.toHaveBeenCalled();
   });
 
   it("keeps loading and failed export states explicit instead of offering an empty file", async () => {
     const request = Promise.withResolvers<BundlePreview>();
-    vi.mocked(previewAgentExport).mockReturnValue(request.promise);
+    vi.mocked(previewResourceExport).mockReturnValue(request.promise);
     const close = vi.fn();
     render(<ExportAgentDialog agentId="source" open onOpenChange={close} />, { wrapper: Wrapper });
     expect(screen.getByRole("status")).toHaveTextContent("Loading dependencies");
@@ -221,11 +223,11 @@ describe("agent portability", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Dependencies unavailable");
     await userEvent.click(screen.getByText("Close", { selector: "button" }));
     expect(close).toHaveBeenCalledWith(false);
-    expect(downloadAgentExport).not.toHaveBeenCalled();
+    expect(downloadResourceExport).not.toHaveBeenCalled();
   });
 
   it("allows changing a mapping without modifying the uploaded definition", async () => {
-    vi.mocked(importAgentBundle).mockResolvedValue({
+    vi.mocked(importResourceBundle).mockResolvedValue({
       roots: { "agent/root": "copy" },
       created: {},
       reused: {},
@@ -251,7 +253,7 @@ describe("agent portability", () => {
     await userEvent.click(await screen.findByRole("option", { name: "Chosen policy" }));
     await userEvent.click(screen.getByRole("button", { name: "Import private drafts" }));
     await screen.findByText("Import complete");
-    expect(vi.mocked(importAgentBundle).mock.calls[0]?.[0].choices["context/policy"]).toEqual({
+    expect(vi.mocked(importResourceBundle).mock.calls[0]?.[1].choices["context/policy"]).toEqual({
       action: "reuse",
       destination_id: "chosen-policy",
     });
@@ -281,7 +283,7 @@ describe("agent portability", () => {
 
   it("does not discard a pending review when Escape is pressed", async () => {
     const request = Promise.withResolvers<BundlePreview>();
-    vi.mocked(previewAgentImport).mockReturnValue(request.promise);
+    vi.mocked(previewResourceImport).mockReturnValue(request.promise);
     const close = vi.fn();
     render(<ImportAgentDialog open onOpenChange={close} />, { wrapper: Wrapper });
     fireEvent.change(screen.getByRole("textbox", { name: "Or paste the configuration" }), {
@@ -294,7 +296,7 @@ describe("agent portability", () => {
     await screen.findByRole("group", { name: "Researcher" });
   });
   it("keeps an incomplete receipt visible instead of navigating to an invented draft", async () => {
-    vi.mocked(importAgentBundle).mockResolvedValue({
+    vi.mocked(importResourceBundle).mockResolvedValue({
       roots: {},
       created: {},
       reused: {},
@@ -313,7 +315,7 @@ describe("agent portability", () => {
     expect(push).not.toHaveBeenCalled();
   });
   it("selects export content from metadata without downloading linked bodies for the dialog", async () => {
-    vi.mocked(previewAgentExport).mockResolvedValue({
+    vi.mocked(previewResourceExport).mockResolvedValue({
       ...preview,
       bundle: {
         ...preview.bundle,
@@ -335,7 +337,7 @@ describe("agent portability", () => {
     expect(await screen.findByRole("checkbox", { name: /Policy/ })).toBeChecked();
     await userEvent.click(screen.getByRole("button", { name: "Download" }));
     await waitFor(() =>
-      expect(downloadAgentExport).toHaveBeenCalledWith("source", "yaml", {
+      expect(downloadResourceExport).toHaveBeenCalledWith("agent", "source", "yaml", {
         "agent/root": ["definition"],
         "context/policy": ["definition"],
         "secret/key": [],
@@ -360,7 +362,7 @@ describe("agent portability", () => {
       source_parent_id: "source-skill",
       source_version: "3",
     };
-    vi.mocked(previewAgentImport).mockResolvedValue({
+    vi.mocked(previewResourceImport).mockResolvedValue({
       bundle: { ...preview.bundle, resources: [preview.bundle.resources[0]!, owner, version] },
       options: [
         preview.options[0]!,
@@ -429,6 +431,9 @@ const transferRow = (patch: Partial<TransferOperation> = {}): TransferOperation 
 });
 
 it("queues a ZIP export, then downloads the ready private transfer", async () => {
+  vi.mocked(getBundleTransfer).mockResolvedValue(
+    transferRow({ direction: "export", status: "ready", can_download: true }),
+  );
   vi.mocked(startBundleExport).mockResolvedValue(
     transferRow({ direction: "export", status: "ready", can_download: true }),
   );
@@ -444,7 +449,7 @@ it("queues a ZIP export, then downloads the ready private transfer", async () =>
   await waitFor(() =>
     expect(downloadBundleTransfer).toHaveBeenCalledWith("transfer", expect.anything()),
   );
-  expect(downloadAgentExport).not.toHaveBeenCalled();
+  expect(downloadResourceExport).not.toHaveBeenCalled();
 });
 
 it("uploads ZIP bytes, reviews the manifest, and applies only the reviewed choices", async () => {
@@ -471,11 +476,11 @@ it("uploads ZIP bytes, reviews the manifest, and applies only the reviewed choic
   await userEvent.click(screen.getByRole("button", { name: "Review dependencies" }));
   await screen.findByRole("group", { name: "Policy" });
   expect(uploadBundleFile).toHaveBeenCalledWith("transfer", file);
-  expect(previewAgentImport).not.toHaveBeenCalled();
+  expect(previewResourceImport).not.toHaveBeenCalled();
   await userEvent.click(screen.getByRole("button", { name: "Import private drafts" }));
   await screen.findByText("Import complete");
   expect(vi.mocked(applyBundleTransfer).mock.calls[0]?.slice(0, 2)).toEqual(["transfer", 1]);
-  expect(importAgentBundle).not.toHaveBeenCalled();
+  expect(importResourceBundle).not.toHaveBeenCalled();
 });
 
 it("rejects an oversized ZIP before ticket creation", async () => {

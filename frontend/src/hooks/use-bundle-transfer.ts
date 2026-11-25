@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -10,41 +10,66 @@ import {
   startBundleUpload,
   uploadBundleFile,
   type ImportChoice,
+  type BundleRootKind,
   type TransferOperation,
 } from "@/lib/portability-api";
+import {
+  readTransferSession,
+  subscribeTransferSessions,
+  transferSessionKey,
+  writeTransferSession,
+} from "@/lib/transfer-session";
+import { invalidateImportedResources } from "@/lib/bundle-cache";
 import { qk } from "@/lib/query-keys";
 import { useAuthStore, useOrgStore } from "@/stores";
 
-/** Transfer IDs stay on the server; polling never starts another worker job. */
-export function useBundleTransfer(enabled: boolean) {
+/** Restore only an owner-scoped operation ID; polling never starts another worker job. */
+export function useBundleTransfer(enabled: boolean, scope?: string) {
   const t = useTranslations("portability");
-  const [id, setId] = useState<string | null>(null);
+  const [selected, setSelected] = useState<{ owner: string | null; id: string | null }>({
+    owner: null,
+    id: null,
+  });
   const client = useQueryClient();
   const user = useAuthStore((state) => state.user?.id ?? null);
   const org = useOrgStore((state) => state.activeOrgId);
+  const storageKey = transferSessionKey(org, user, scope);
+  const owner = storageKey ?? JSON.stringify([org, user]);
+  const savedId = useSyncExternalStore(
+    subscribeTransferSessions,
+    () => readTransferSession(storageKey),
+    () => null,
+  );
+  const id = selected.owner === owner ? selected.id : savedId;
   const key = (identity: string | null) => qk.portability.transfer(org, user, identity);
   const remember = async (row: TransferOperation) => {
     await client.cancelQueries({ queryKey: key(row.id) });
     client.setQueryData(key(row.id), row);
-    setId(row.id);
+    writeTransferSession(storageKey, row.id);
+    setSelected({ owner, id: row.id });
   };
   const transfer = useQuery({
     queryKey: key(id),
-    queryFn: ({ signal }) => {
+    queryFn: async ({ signal }) => {
       if (!id) throw new Error(t("noTransferSelected"));
       return getBundleTransfer(id, signal);
     },
     enabled: enabled && id !== null,
-    staleTime: Infinity,
+    staleTime: 0,
+    retry: false,
     refetchInterval: (query) =>
-      ["queued", "running"].includes(query.state.data?.status ?? "") ? 1000 : false,
+      query.state.status !== "error" &&
+      ["queued", "running"].includes(query.state.data?.status ?? "")
+        ? 1000
+        : false,
   });
   const exportZip = useMutation({
     mutationFn: (data: {
       rootId: string;
       resources: Record<string, string[]>;
       requestId: string;
-    }) => startBundleExport(data.rootId, data.resources, data.requestId),
+      rootKind?: BundleRootKind;
+    }) => startBundleExport(data.rootId, data.resources, data.requestId, data.rootKind),
     onSuccess: remember,
   });
   const uploadZip = useMutation({
@@ -64,17 +89,27 @@ export function useBundleTransfer(enabled: boolean) {
     },
     onSuccess: async (row) => {
       await remember(row);
-      void client.invalidateQueries({ queryKey: qk.agents.all() });
     },
   });
   const reset = () => {
-    setId(null);
+    writeTransferSession(storageKey, null);
+    setSelected({ owner, id: null });
     exportZip.reset();
     uploadZip.reset();
     apply.reset();
   };
+  const accepted = transfer.isFetchedAfterMount && !transfer.isError;
+  const invalidatedReceipt = useRef<string | null>(null);
+  const receipt = accepted ? transfer.data?.receipt : null;
+  useEffect(() => {
+    if (receipt && id && invalidatedReceipt.current !== id) {
+      invalidatedReceipt.current = id;
+      void invalidateImportedResources(client, receipt);
+    }
+  }, [client, id, receipt]);
   return {
-    transfer,
+    restoreFailed: id !== null && transfer.isError,
+    transfer: { ...transfer, data: accepted ? transfer.data : undefined },
     exportZip,
     uploadZip,
     apply,
@@ -83,7 +118,8 @@ export function useBundleTransfer(enabled: boolean) {
       exportZip.isPending ||
       uploadZip.isPending ||
       apply.isPending ||
-      ["queued", "running"].includes(transfer.data?.status ?? ""),
+      transfer.isFetching ||
+      (accepted && ["queued", "running"].includes(transfer.data?.status ?? "")),
     error: transfer.error ?? exportZip.error ?? uploadZip.error ?? apply.error,
   };
 }

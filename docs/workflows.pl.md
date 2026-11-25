@@ -1,5 +1,5 @@
 ---
-source_sha: "5ee688f65deb"
+source_sha: "6bad529c4682"
 ---
 
 # Workflows { #workflows }
@@ -64,14 +64,11 @@ Historia uruchomień domyślnie wypełnia dostępną przestrzeń strony, bez prz
 
 Paginacja historii uruchomień jest na dole panelu. Szczegóły runu mają zwarty pasek podsumowania, canvas wypełniającą obszar pracy oraz jeden panel boczny z krokami, wynikiem i dostępnymi plikami. Kliknięcie kroku otwiera jego zapisane dane. Import pliku i wklejanie JSON mają osobne zakładki; JSON ma pole kodu i formatowanie, które zgłasza błąd bez usuwania treści.
 
-**Export workflow** w menu **More** w nagłówku edytora eksportuje szkic jako plik
-`.workflow.json`. Plik nie zawiera żadnych identyfikatorów tego wdrożenia: każdy
-agent, tabela, sekret, członek, bot czy workflow wybrany w kroku zostaje pominięty
-i wymieniony, przypięte dane testowe też, podobnie jak workflow błędów. Nigdy nie
-zawiera wartości sekretu. **Import** na liście tworzy z takiego pliku nowy szkic,
-usuwa identyfikatory, które plik zrobiony ręcznie jeszcze zawiera, i wymienia
-każdy krok i pole do ponownego wybrania przed publikacją. Plik z krokiem, którego
-to wdrożenie nie ma, zostaje odrzucony i nic nie powstaje.
+**Eksportuj workflow** w menu **Więcej** otwiera pakiet z wyborem zasobów. Wybierz powiązane definicje, a w ZIP także oryginały dokumentów bazy wiedzy lub przetworzony tekst. **Importuj** na liście workflow pokazuje zależności przed utworzeniem prywatnych szkiców. Pomijane powiązania są widoczne przed importem i w jego wyniku; opublikowaną wersję delegata wybiera się dla agenta docelowego.
+
+**Eksportuj starszy plik workflow** zachowuje format `.workflow.json`: bez identyfikatorów zasobów, przypiętych wyników testów i workflow obsługi błędów. **Importuj starszy plik workflow** zachowuje dotychczasowy proces i listę zasobów do ponownego wyboru przed publikacją. Nieobsługiwane typy kroków są odrzucane bez utworzenia workflow.
+
+Karta przeglądarki może przywrócić transfer po odświeżeniu dla tej samej zalogowanej osoby i organizacji. Session storage przechowuje wyłącznie identyfikator operacji. Serwer ponownie sprawdza dostęp przed pokazaniem wyniku. Po przerwanym wysyłaniu trzeba ponownie wybrać oryginalny ZIP i przesłać go od początku; przeglądarka nie zapisuje pliku ani pozycji wysyłania. Wygasły lub niedostępny transfer można rozpocząć od nowa.
 
 ### Wyszukiwanie, nazywanie i wycofywanie workflow { #finding-naming-and-retiring-a-workflow }
 

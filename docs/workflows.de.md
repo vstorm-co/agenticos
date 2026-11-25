@@ -1,5 +1,5 @@
 ---
-source_sha: "5ee688f65deb"
+source_sha: "6bad529c4682"
 ---
 
 # Workflows { #workflows }
@@ -68,15 +68,11 @@ Die Run-Historie füllt den verfügbaren Seitenbereich automatisch, ohne zusätz
 
 Die Seitennavigation der Run-Historie steht am unteren Panelrand. Run-Details bieten eine kompakte Zusammenfassung, eine Canvas über den Arbeitsbereich und ein Seitenpanel für Steps, Output und verfügbare Dateien. Ein Klick auf einen Schritt öffnet seine gespeicherten Daten. Dateiimport und eingefügtes JSON haben eigene Tabs; das JSON-Codefeld bietet Formatierung und behält ungültige Eingaben bei einer Fehlermeldung.
 
-**Export workflow** unter **More** in der Kopfzeile des Editors exportiert den Entwurf als
-`.workflow.json`-Datei. Die Datei enthält keine IDs dieses Deployments: Jeder
-Agent, jede Tabelle, jedes Secret, Mitglied, jeder Bot oder Workflow, den ein
-Schritt gewählt hat, wird weggelassen und aufgeführt, angeheftete Testdaten werden
-weggelassen und ebenso der Fehler-Workflow. Sie enthält nie den Wert eines Secrets.
-**Import** in der Liste macht aus einer solchen Datei einen neuen Entwurf, nimmt
-jede ID heraus, die eine von Hand erstellte noch nennt, und führt jeden Schritt und
-jedes Feld auf, das vor dem Veröffentlichen neu zu wählen ist. Eine Datei mit
-einem Schritt, den dieses Deployment nicht hat, wird abgelehnt, und nichts entsteht.
+**Workflow exportieren** unter **Mehr** öffnet ein auswählbares Ressourcenpaket. Verknüpfte Definitionen auswählen und mit ZIP zusätzlich Originaldokumente oder verarbeiteten Text der Wissensbasis einschließen. **Importieren** in der Workflow-Liste prüft diese Abhängigkeiten vor dem Erstellen privater Entwürfe. Ausgelassene Bindungen erscheinen vor dem Import und im Ergebnis; veröffentlichte Delegiertenversionen werden unter ihrem Zielagenten gewählt.
+
+**Ältere Workflow-Datei exportieren** behält das Format `.workflow.json`: ohne Ressourcen-IDs, angeheftete Testergebnisse und Fehler-Workflow. **Ältere Workflow-Datei importieren** behält den bisherigen Ablauf und listet neu zu wählende Ressourcen vor der Veröffentlichung auf. Nicht unterstützte Schritttypen werden ohne Erstellung abgelehnt.
+
+Der Tab kann eine Übertragung nach dem Neuladen für dieselbe angemeldete Person und Organisation wiederherstellen. Nur die Operations-ID wird im Sitzungsspeicher gespeichert. Vor der Ergebnisanzeige prüft der Server den Zugriff erneut. Ein unterbrochener Upload benötigt die ursprüngliche ZIP erneut und beginnt von vorn; Dateibytes und Upload-Positionen werden nicht im Browser gespeichert. Abgelaufene oder unzugängliche Übertragungen bieten einen Neustart.
 
 ### Workflows finden, benennen und stilllegen { #finding-naming-and-retiring-a-workflow }
 

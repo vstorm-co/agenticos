@@ -1,5 +1,5 @@
 ---
-source_sha: "5ee688f65deb"
+source_sha: "6bad529c4682"
 ---
 
 # Workflows { #workflows }
@@ -66,11 +66,11 @@ El historial ocupa automáticamente el espacio disponible de la página, sin un 
 
 La paginación del historial está al pie del panel. Los detalles de un run tienen un resumen compacto, una canvas que ocupa el espacio de trabajo y un panel lateral con Steps, Output y archivos disponibles. Pulsa un paso para consultar sus datos guardados. Importar un archivo y pegar JSON tienen pestañas separadas; el campo de código JSON ofrece formato y conserva el contenido si no es válido.
 
-**Export workflow**, en **More** en la cabecera del editor, exporta el borrador como un
-archivo `.workflow.json`. El archivo no lleva ningún id de este despliegue: cada
-agent, tabla, secreto, miembro, bot o workflow que eligió un paso queda fuera y
-listado, los datos de prueba fijados quedan fuera y también el workflow de errores.
-Nunca contiene el valor de un secreto.
+**Exportar workflow**, en **Más**, abre un paquete de recursos seleccionable. Elige las definiciones vinculadas y usa ZIP para incluir originales o texto procesado de bases de conocimiento. **Importar** en la lista revisa las dependencias antes de crear borradores privados. Los vínculos omitidos aparecen antes de importar y en el resultado; las versiones publicadas de delegados se eligen bajo su agente de destino.
+
+**Exportar archivo antiguo de workflow** conserva `.workflow.json`: sin identificadores de recursos, resultados de prueba fijados ni flujo de error. **Importar archivo antiguo de workflow** mantiene el proceso anterior y enumera los recursos que deben seleccionarse de nuevo antes de publicar. Los tipos de paso no admitidos se rechazan sin crear el flujo.
+
+La pestaña puede restaurar una transferencia tras recargar para la misma persona y organización. Solo guarda el identificador de operación en el almacenamiento de sesión. El servidor comprueba de nuevo el acceso antes de mostrar el resultado. Una carga interrumpida requiere elegir de nuevo el ZIP original y enviarlo desde el principio; el navegador no guarda archivos ni posiciones de carga. Las transferencias caducadas o inaccesibles permiten empezar de nuevo.
 
 **Import** en la lista crea un borrador nuevo
 a partir de ese archivo, quita cualquier id que uno hecho a mano todavía nombre, y

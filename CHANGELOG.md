@@ -21,6 +21,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Resource transfer dialogs select workflow dependencies and knowledge-base file layers, review omitted bindings and restore owner-scoped operations after a refresh. Completed imports refresh their new resource catalogs; existing workflow file formats remain available.
+
 - Selective workflow resource bundles share the agent import/export review, dependency mapping and resumable ZIP transfers. Imports create private drafts, map delegates to explicitly selected published versions, refresh reused table schemas and report omitted bindings without activating triggers.
 
 - Per-role console navigation, an optional simple-assistant preset, a permission-filtered navigation preview and membership-owned menu choices. Deployment and organization controls can hide optional product prompts without changing resource access or operational notices.
