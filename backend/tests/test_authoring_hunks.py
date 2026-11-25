@@ -502,3 +502,20 @@ def test_the_improver_reads_each_skill_by_its_line_and_only_used_bodies():
     assert "- billing (a fork)" in section
     assert "Body of returns" in section and "Body of shipping" not in section
     assert _skills_section(spec, [], set()) == ""
+
+
+def test_a_person_s_wording_keeps_its_whitespace_as_typed():
+    """Whitespace at either end of a passage is part of it: a trailing newline keeps the
+    next line on its own line."""
+    from app.schemas.authoring import HunkDecision
+    from app.schemas.improvement import ChangeEdit
+
+    accepted = HunkDecision(action="accept", text="Cite the refund policy.\n")
+    edited = ChangeEdit(edited_text="  Cite the refund policy.\n")
+
+    assert accepted.text == "Cite the refund policy.\n"
+    assert edited.edited_text == "  Cite the refund policy.\n"
+    hunk = _anchored(BASE, _change(new="Cite the policy.\n", after="refunds.\n"))
+    assert hunks.apply_text(BASE, hunk, accepted.text) == (
+        "Be brief.\nAnswer refunds.\nCite the refund policy.\nBe brief.\nHand off to a human."
+    )
