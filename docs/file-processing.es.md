@@ -1,5 +1,5 @@
 ---
-source_sha: "005243bcfd1b"
+source_sha: "50f9a9cd89ab"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -733,7 +733,8 @@ Qué hace un Test:
   comparan con los almacenados; pasa si la similitud coseno más baja es **0,995 o más** y
   las anchuras coinciden exactamente.
 - Si la primera comparación falla, se **repite una vez** antes de que el Test falle.
-- Una base de conocimiento sin nada almacenado pasa sin ninguna llamada. Una conexión
+- Una base de conocimiento sin nada almacenado no tiene fragmentos que comparar, así que una
+  llamada con un texto fijo comprueba solo su anchura, fijada al crearla. Una conexión
   compartida por varias bases de conocimiento prueba cada una, en su propio ámbito, y el
   resultado nombra todas.
 - Antes de ejecutarse, el diálogo muestra el número de **sondeos**, cada uno una llamada de embedding facturada

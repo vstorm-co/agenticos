@@ -1,5 +1,5 @@
 ---
-source_sha: "005243bcfd1b"
+source_sha: "50f9a9cd89ab"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -765,7 +765,8 @@ Was ein Test tut:
   **0,995 oder höher** ist und die Breiten exakt übereinstimmen.
 - Schlägt der erste Vergleich fehl, wird er **einmal wiederholt**, bevor der Test
   fehlschlägt.
-- Eine Wissensbasis ohne Gespeichertes besteht ohne Aufruf. Eine Verbindung, die mehrere
+- Eine Wissensbasis ohne Gespeichertes hat keinen Abschnitt zum Vergleichen, daher prüft
+  ein Aufruf mit einem festen Text nur ihre Breite, die beim Anlegen festgelegt wurde. Eine Verbindung, die mehrere
   Wissensbasen teilen, testet jede davon in ihrem eigenen Scope, und das Ergebnis nennt
   jede einzelne.
 - Vor dem Start zeigt der Dialog die Zahl der **Proben**, jede ein abgerechneter Embedding-Aufruf

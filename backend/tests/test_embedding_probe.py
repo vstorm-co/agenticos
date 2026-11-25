@@ -228,9 +228,10 @@ class TestRefusalsSpendNothing:
         monkeypatch.setattr(probe, "assert_organization_within_budget", budget)
         kb = _kb()
 
-        result = await _service(_store(), kb).probe_kb_change(
-            _ctx(), kb.id, KbEmbeddingProbeRequest()
-        )
+        with patch(_EMBED, new=AsyncMock(return_value=[0.5, 0.5])):
+            result = await _service(_store(), kb).probe_kb_change(
+                _ctx(), kb.id, KbEmbeddingProbeRequest()
+            )
 
         assert result.passed
         budget.assert_not_awaited()
@@ -317,19 +318,52 @@ class TestRefusalsSpendNothing:
 
 
 class TestAProbeOfAKnowledgeBase:
-    async def test_a_base_with_no_chunks_passes_with_no_call_and_a_token(
+    async def test_a_base_with_no_chunks_passes_on_one_call_at_its_own_width(
         self, identity: TargetIdentity
     ) -> None:
         kb = _kb()
 
-        with patch(_EMBED, new=AsyncMock()) as embed:
+        with patch(_EMBED, new=AsyncMock(return_value=[0.5, 0.5])) as embed:
             result = await _service(_store(), kb).probe_kb_change(
                 _ctx(), kb.id, KbEmbeddingProbeRequest()
             )
 
-        embed.assert_not_awaited()
-        assert (result.passed, result.calls, result.outcome) == (True, 0, "no_chunks")
+        assert embed.await_args.kwargs["text"] == probe.PROBE_WIDTH_TEXT
+        assert (result.passed, result.calls, result.outcome) == (True, 1, "no_chunks")
         assert result.probe_token is not None
+
+    async def test_a_base_with_no_chunks_refuses_a_model_of_another_width(
+        self, identity: TargetIdentity
+    ) -> None:
+        kb = _kb()
+
+        with patch(_EMBED, new=AsyncMock(return_value=[0.1, 0.2, 0.3])):
+            result = await _service(_store(), kb).probe_kb_change(
+                _ctx(), kb.id, KbEmbeddingProbeRequest()
+            )
+
+        assert (result.passed, result.outcome, result.calls) == (False, "wrong_width", 1)
+        assert result.probe_token is None
+
+    async def test_a_base_with_no_chunks_retries_once_when_the_endpoint_fails(
+        self, identity: TargetIdentity
+    ) -> None:
+        kb = _kb()
+
+        with patch(_EMBED, new=AsyncMock(side_effect=EmbeddingProbeError("unreachable"))) as embed:
+            result = await _service(_store(), kb).probe_kb_change(
+                _ctx(), kb.id, KbEmbeddingProbeRequest()
+            )
+
+        assert embed.await_count == probe.PROBE_ATTEMPTS
+        assert (result.passed, result.outcome, result.calls) == (False, "unreachable", 2)
+
+    async def test_an_empty_base_is_estimated_at_one_call(self, identity: TargetIdentity) -> None:
+        kb = _kb()
+
+        estimate = await _service(_store(), kb).estimate_kb_change(_ctx(), kb.id)
+
+        assert (estimate.calls, estimate.max_calls) == (1, probe.PROBE_ATTEMPTS)
 
     async def test_same_vectors_pass_and_mint_a_token_bound_to_the_tested_values(
         self, identity: TargetIdentity

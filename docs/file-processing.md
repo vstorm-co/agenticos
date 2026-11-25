@@ -687,7 +687,8 @@ What a Test does:
   settings. The vectors are normalized and compared with the stored ones; it passes if the
   lowest cosine similarity is **0.995 or higher** and the widths match exactly.
 - If the first comparison fails it is **repeated once** before the Test fails.
-- A knowledge base with nothing stored passes with no call. A connection shared by several
+- A knowledge base with nothing stored has no chunk to compare, so one call on a fixed
+  text checks only its width, which was fixed when it was created. A connection shared by several
   knowledge bases tests each of them, in its own scope, and the result names every one.
 - Before it runs, the dialog shows the number of **probes**, each one billed embedding call (`GET .../estimate`), and
   twice that is the most it can make. Failure is a normal answer, not an error, naming the

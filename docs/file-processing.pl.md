@@ -1,5 +1,5 @@
 ---
-source_sha: "005243bcfd1b"
+source_sha: "50f9a9cd89ab"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -721,7 +721,8 @@ Co robi Test:
   dokładnie równe.
 - Jeśli pierwsze porównanie się nie powiedzie, jest **powtarzane raz**, zanim Test
   zawiedzie.
-- Baza wiedzy bez niczego zapisanego przechodzi bez wywołania. Połączenie współdzielone
+- Baza wiedzy bez niczego zapisanego nie ma fragmentu do porównania, więc jedno wywołanie
+  na stałym tekście sprawdza tylko jej szerokość, ustaloną przy tworzeniu. Połączenie współdzielone
   przez kilka baz wiedzy testuje każdą z nich, w jej własnym zakresie, a wynik wymienia
   każdą.
 - Przed uruchomieniem okno pokazuje liczbę **prób**, z których każda jest płatnym wywołaniem embeddingu (`GET .../estimate`), a

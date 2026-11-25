@@ -260,7 +260,8 @@ class EmbeddingProbeService:
     async def _estimate(self, bases: Sequence[KnowledgeBase]) -> EmbeddingProbeEstimate:
         calls = 0
         for kb in bases:
-            calls += len(await self._sample(kb))
+            # A base with nothing stored still costs one call: its width is checked.
+            calls += len(await self._sample(kb)) or 1
         return EmbeddingProbeEstimate(
             calls=calls, max_calls=calls * PROBE_ATTEMPTS, knowledge_bases=len(bases)
         )
@@ -318,7 +319,7 @@ class EmbeddingProbeService:
     async def _probe_base(self, item: _Pending, target: EmbeddingTarget) -> KnowledgeBaseProbeRead:
         chunks = await self._sample(item.kb)
         if not chunks:
-            return _read(item.kb, ProbeOutcome.NO_CHUNKS, None, 0)
+            return await self._probe_width(item, target)
         calls = 0
         outcome, cosine = ProbeOutcome.VECTORS_DIFFER, None
         for _ in range(PROBE_ATTEMPTS):
@@ -327,6 +328,36 @@ class EmbeddingProbeService:
             if outcome is ProbeOutcome.PASSED:
                 break
         return _read(item.kb, outcome, cosine, calls)
+
+    async def _probe_width(self, item: _Pending, target: EmbeddingTarget) -> KnowledgeBaseProbeRead:
+        """A base with no stored chunk: nothing to compare, but its width is fixed.
+
+        The vector column was sized at creation, so a model answering at another
+        width would refuse the base's first upload. One request on a fixed text
+        settles it; it is repeated once only when the endpoint itself failed.
+        """
+        calls = 0
+        outcome = ProbeOutcome.UNREACHABLE
+        for _ in range(PROBE_ATTEMPTS):
+            calls += 1
+            try:
+                vector = await embed_for_probe(
+                    base_url=target.identity.base_url,
+                    api_key=target.api_key,
+                    keyless=target.keyless,
+                    model=item.model,
+                    text=PROBE_WIDTH_TEXT,
+                )
+            except EmbeddingProbeError as error:
+                outcome = ProbeOutcome(error.outcome)
+                continue
+            outcome = (
+                ProbeOutcome.NO_CHUNKS
+                if len(vector) == item.kb.embedding_dim
+                else ProbeOutcome.WRONG_WIDTH
+            )
+            break
+        return _read(item.kb, outcome, None, calls)
 
     async def _attempt(
         self, item: _Pending, target: EmbeddingTarget, chunks: list[StoredChunk]
