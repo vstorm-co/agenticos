@@ -18,7 +18,12 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
-from app.core.exceptions import AlreadyExistsError, AuthorizationError, ConcurrentChangeError
+from app.core.exceptions import (
+    AlreadyExistsError,
+    AuthorizationError,
+    BadRequestError,
+    ConcurrentChangeError,
+)
 from app.core.permissions import ROLE_PERMS, AuthContext, OrgRoleName, Perm, Scope
 from app.db.models.agent import Agent, AgentVersion
 from app.db.models.audit_log import AppAdminAuditLog
@@ -660,3 +665,51 @@ async def test_a_skill_run_whose_pending_proposal_was_decided_proposes_anew(db, 
 
     rows = (await db.scalars(select(SkillProposal).where(SkillProposal.skill_id == skill.id))).all()
     assert len(rows) == 2
+
+
+@pytest.mark.security
+async def test_a_proposal_quoting_a_credential_is_shown_redacted_and_never_applied(db):
+    ctx, _, skill = await _opened(db, content="Refunds take 90 days.")
+    leaked = "postgres://app:Kanar3kProposal@db/app"
+    skill_proposal = SkillProposal(
+        organization_id=ctx.organization_id,
+        skill_id=skill.id,
+        name="refunds",
+        description="Refunds",
+        content=f"Refunds take 30 days. Use {leaked}.",
+        resources={},
+    )
+    file = ContextFile(
+        organization_id=ctx.organization_id,
+        owner_user_id=ctx.user_id,
+        visibility="org",
+        name="returns",
+        description="Returns",
+        content="Returns take 90 days.",
+        mode="inject",
+    )
+    db.add_all([skill_proposal, file])
+    await db.flush()
+    context_proposal = ContextProposal(
+        organization_id=ctx.organization_id,
+        context_id=file.id,
+        base_updated_at=file.updated_at,
+        description="Returns",
+        content=f"Returns take 30 days. Use {leaked}.",
+    )
+    db.add(context_proposal)
+    await db.flush()
+    skills, contexts = SkillProposalService(db), ContextProposalService(db)
+
+    skill_read = await skills.read(ctx, skill_proposal.id)
+    context_read = await contexts.read(ctx, context_proposal.id)
+    with pytest.raises(BadRequestError, match="quotes a credential"):
+        await skills.apply(ctx, skill_proposal.id, ProposalDecision(revision=1))
+    with pytest.raises(BadRequestError, match="quotes a credential"):
+        await contexts.apply(ctx, context_proposal.id, ProposalDecision(revision=1))
+
+    for read in (skill_read, context_read):
+        assert read.contains_credential and "Kanar3kProposal" not in read.content
+    await db.refresh(skill)
+    await db.refresh(file)
+    assert (skill.content, file.content) == ("Refunds take 90 days.", "Returns take 90 days.")

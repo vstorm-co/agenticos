@@ -51,6 +51,7 @@ from app.core.exceptions import (
     PaymentRequiredError,
 )
 from app.core.permissions import AuthContext, Perm
+from app.core.redaction import holds_credential
 from app.db.models.agent import Agent, AgentStatus
 from app.db.models.authoring import (
     AuthoringKind,
@@ -117,7 +118,7 @@ from app.services.authoring_config import ConfigurationService
 from app.services.authoring_evidence import EvidencePack, EvidenceService
 from app.services.background_jobs import enqueue
 from app.services.context import ContextService
-from app.services.dataset import quotes_credential, redact_credentials, redact_json
+from app.services.dataset import redact_credentials, redact_json
 from app.services.eval_run import EvalRunService, spec_hash
 from app.services.eval_suite import EvalSuiteService
 from app.services.model_profile import ModelProfileService
@@ -1066,12 +1067,12 @@ class AuthoringService:
             tool_id=hunk.tool_id,
             base_name=hunk.base_name,
             base_description=hunk.base_description,
-            new_name=hunk.new_name,
-            new_description=hunk.new_description,
+            new_name=redact_credentials(hunk.new_name)[0],
+            new_description=redact_credentials(hunk.new_description)[0],
             path=hunk.path,
             op=hunk.op,
             base_value=hunk.base_value,
-            new_value=hunk.new_value,
+            new_value=redact_json(hunk.new_value)[0],
             accepted_value=hunk.accepted_value,
             effect=hunk.effect,
             names={key: name for key, name in names.items() if _refers_to(hunk, key)},
@@ -1090,7 +1091,7 @@ class AuthoringService:
             evidence_dropped=hunk.evidence_dropped,
             applies=authoring_hunks.applies(spec, hunk),
             decided_at=hunk.decided_at,
-            contains_credential=quotes_credential(hunk.edited_text or hunk.new_text),
+            contains_credential=authoring_hunks.hunk_quotes_credential(hunk),
         )
 
     async def _locked(self, ctx: AuthContext, agent: Agent) -> Agent:
@@ -1136,6 +1137,17 @@ class AuthoringService:
         batch = await self._open_batch_of(ctx, agent, hunk.batch_id)
         spec = AgentSpec.model_validate(agent.draft_spec)
         written: AgentSpec | None = None
+        if decision.action == "accept":
+            supplied = decision.text if decision.text is not None else decision.value
+            quoted = (
+                authoring_hunks.hunk_quotes_credential(hunk)
+                if supplied is None
+                else holds_credential(supplied)
+            )
+            if quoted:
+                raise BadRequestError(
+                    message=authoring_hunks.QUOTES_CREDENTIAL, details={"hunk_id": hunk.id}
+                )
         if decision.action == "accept" and hunk.kind == HunkKind.CREATE_SKILL.value:
             if not ctx.has(Perm.SKILLS_EDIT):
                 raise AuthorizationError(message="Creating this skill requires skills:edit")
@@ -1359,11 +1371,6 @@ class AuthoringService:
                 raise self._stale()
             return applied[0], {"accepted_override": applied[1]}
         replacement = text if text is not None else hunk.edited_text or hunk.new_text
-        if quotes_credential(replacement):
-            raise BadRequestError(
-                message="This change quotes a credential; reject it or edit the text",
-                details={"hunk_id": hunk.id},
-            )
         written = authoring_hunks.apply(spec, hunk, text=replacement)
         if written is None:
             raise self._stale()
@@ -1534,6 +1541,7 @@ class AuthoringService:
                 message="No suggestion is waiting to be checked",
                 details={"agent_id": agent.id},
             )
+        authoring_hunks.refuse_quoted_credentials(pending)
         projected, skipped = authoring_hunks.projection(
             AgentSpec.model_validate(agent.draft_spec), pending
         )

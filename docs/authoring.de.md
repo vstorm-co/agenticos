@@ -1,5 +1,5 @@
 ---
-source_sha: "6244e5e8b0f3"
+source_sha: "977dec5cd1f1"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -638,7 +638,9 @@ Manuelle Tests und die Erstellung von Testfragen benachrichtigen die anfordernde
 
 Der Schritt Verstehen zeigt eine begrenzte Quellenstichprobe, die gespeicherte Ursache, Antwort, Bewertungskommentare und einen Gesprächslink. Unbekannte Ursachen bleiben ausdrücklich unklassifiziert. Der Schritt Testfragen liest die angeheftete Fragenversion der Sitzung und kennzeichnet Trainingsfragen sowie zurückgehaltene Fragen. Heute zeigt die Ausgangsmessung erst nach einem erfolgreich abgeschlossenen Test; teilweise oder fehlgeschlagene Tests gelten nicht als gemessener Ausgangswert. Quellenansichten erfordern `runs:view`, prüfen den aktuellen Zugriff auf Wissensbasen und entfernen Zugangsdaten aus jedem Textfeld.
 
-Die Belege, die das Modell des Helfers erhält - Fragen, Antworten, Bewertungskommentare, Argumente von Tool-Aufrufen und Fehler -, werden ebenso geschwärzt, bevor sie hinausgehen, sodass auch die Zitate geschwärzt sind, die eine Änderung behält. Früher gespeicherte Zitate und Zusammenfassungen werden bei jedem Lesen geschwärzt. Eine Änderung, deren Text Zugangsdaten zitiert, wird geschwärzt angezeigt und mit `contains_credential` markiert; Annehmen oder eine Prüfung wird abgelehnt, bis eine Person die Zugangsdaten aus dem Text entfernt.
+Die Belege, die das Modell des Helfers erhält - Fragen, Antworten, Bewertungskommentare, Argumente von Tool-Aufrufen und Fehler -, werden ebenso geschwärzt, bevor sie hinausgehen, sodass auch die Zitate geschwärzt sind, die eine Änderung behält. Früher gespeicherte Zitate und Zusammenfassungen werden bei jedem Lesen geschwärzt.
+
+Alles, was ein Vorschlag schreiben würde und Zugangsdaten zitiert - Anweisungs- oder Skill-Text, Name oder Beschreibung eines Tools, der Wert eines Felds, ein neuer Skill, eine vorgeschlagene Kontextdatei oder ein Skill-Text -, wird geschwärzt angezeigt und mit `contains_credential` markiert; Annehmen, Anwenden oder eine Prüfung wird abgelehnt. Eine vorgeschlagene Passage lässt sich ohne die Zugangsdaten bearbeiten und annehmen; eine vorgeschlagene Datei oder ein Skill-Text wird verworfen und die Änderung von Hand gemacht.
 
 
 Der Annahmeschritt nennt die nächste Versionsnummer und wiederholt das gemessene Ergebnis der ausgewählten Runde. Die automatische Prüfung wird nur für Agenten ohne Prüfungssuite angeboten. Eine Veröffentlichung speichert Versionsidentität und Nummer in der Sitzung: Nach erneutem Öffnen führt der Abschluss weiterhin zu dieser Veröffentlichung. Alte Sitzungen ohne diese Verknüpfung zeigen ihren Zustand, ohne eine Version zu erraten. Ein Lesefehler bei Vorschlägen bietet einen erneuten Versuch; ersetzte Vorschläge bleiben nicht endlos im Ladezustand. Geschützte folgende Umgebungen warten auf ihre Prüfungen, fixierte behalten ihre aktuelle Version.

@@ -200,11 +200,6 @@ def redact_credentials(text: str | None) -> tuple[str | None, int]:
     return verdict.replacement, verdict.replacement.count("[redacted:")
 
 
-def quotes_credential(text: str | None) -> bool:
-    """Whether the shared detector finds a credential in `text`."""
-    return redact_credentials(text)[1] > 0
-
-
 def redact_json(value: JsonValue) -> tuple[JsonValue, int]:
     """Every string in `value` redacted as :func:`redact_credentials` redacts text, and how many were."""
     if isinstance(value, str):

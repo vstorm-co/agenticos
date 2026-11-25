@@ -138,7 +138,7 @@ from app.services.api_key import job_context
 from app.services.authoring import AuthoringService
 from app.services.authoring_evidence import EvidencePack
 from app.services.background_jobs import enqueue
-from app.services.dataset import quotes_credential, redact_credentials
+from app.services.dataset import redact_credentials
 from app.services.improvement_pipeline import ImprovementPipelineService
 from app.services.improvement_skills import SkillSeed
 from app.services.skill_agents import SkillAgentService
@@ -293,13 +293,6 @@ def merge_outcomes(
         found.append("return_to_main")
     found.append(CheckOutcome.DISCARD)
     return found
-
-
-def _quotes_credential(hunk: SpecProposalHunk) -> bool:
-    """Whether the text a change would write into the skill quotes a credential."""
-    if hunk.kind == HunkKind.SKILL_DESCRIPTION.value:
-        return quotes_credential(hunk.edited_text or hunk.new_description)
-    return quotes_credential(hunk.edited_text or hunk.new_text)
 
 
 def candidate_text(base: SkillVersion, hunks: Sequence[SpecProposalHunk]) -> tuple[str, str] | None:
@@ -1865,11 +1858,7 @@ class SkillImprovementService:
         base: SkillVersion | None = None,
     ) -> SkillCheckStart:
         chosen = await self._chosen(ctx, iteration)
-        if any(_quotes_credential(hunk) for hunk in chosen):
-            raise refused_field(
-                "hunk_ids",
-                "A chosen change quotes a credential; leave it out or edit the text",
-            )
+        authoring_hunks.refuse_quoted_credentials(chosen)
         text = candidate_text(base or await self.base_of(run), chosen)
         if text is None:
             raise refused_field(
@@ -2575,7 +2564,7 @@ class SkillImprovementService:
             applies=description
             or authoring_hunks.apply_text(base.content, hunk, hunk.new_text) is not None,
             decided_at=hunk.decided_at,
-            contains_credential=_quotes_credential(hunk),
+            contains_credential=authoring_hunks.hunk_quotes_credential(hunk),
         )
 
     async def _at_changes(

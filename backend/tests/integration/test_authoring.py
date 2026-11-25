@@ -499,6 +499,50 @@ class TestImprove:
         written = str(decided.draft_spec["instructions"])
         assert "Refunds take 30 days." in written and "Kanar3kAccept" not in written
 
+    @pytest.mark.security
+    async def test_every_kind_of_change_quoting_a_credential_is_flagged_refused_and_unchecked(
+        self, db
+    ):
+        ctx, agent, _ = await _setup(db)
+        await _improve(db, ctx, agent, Improver(db))
+        leaked = "postgres://app:Kanar3kKinds@db/app"
+        service = AuthoringService(db)
+        before = (await service.for_agent(ctx, agent.id)).batch
+        assert before is not None
+        instruction, tool = before.hunks
+        stored_tool = await authoring_repo.get_hunk(
+            db, tool.id, organization_id=ctx.organization_id
+        )
+        stored_instruction = await authoring_repo.get_hunk(
+            db, instruction.id, organization_id=ctx.organization_id
+        )
+        assert stored_tool is not None and stored_instruction is not None
+        stored_tool.new_description = f"Read the time from {leaked}."
+        await db.flush()
+        runs_before = await db.scalar(select(func.count()).select_from(EvalRun))
+
+        with pytest.raises(BadRequestError, match="quotes a credential"):
+            await service.check(ctx, agent.id, ProposalCheck(dataset_id=uuid.uuid4()))
+        with pytest.raises(BadRequestError, match="quotes a credential"):
+            await service.decide(ctx, agent.id, stored_tool.id, HunkDecision(action="accept"))
+        stored_instruction.new_value = {
+            "name": "vault",
+            "description": "Vault access",
+            "content": f"Connect to {leaked}",
+        }
+        stored_instruction.kind = "create_skill"
+        await db.flush()
+        with pytest.raises(BadRequestError, match="quotes a credential"):
+            await service.decide(
+                ctx, agent.id, stored_instruction.id, HunkDecision(action="accept")
+            )
+        after = (await service.for_agent(ctx, agent.id)).batch
+
+        assert await db.scalar(select(func.count()).select_from(EvalRun)) == runs_before
+        assert after is not None
+        assert all(hunk.contains_credential for hunk in after.hunks)
+        assert "Kanar3kKinds" not in after.model_dump_json()
+
     async def test_a_large_body_of_evidence_is_digested_before_the_proposal(self, db, monkeypatch):
         ctx, agent, _ = await _setup(db)
         for _ in range(6):

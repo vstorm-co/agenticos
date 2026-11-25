@@ -27,10 +27,12 @@ from app.core.audit import record_audit
 from app.core.exceptions import (
     AlreadyExistsError,
     AuthorizationError,
+    BadRequestError,
     ConcurrentChangeError,
     NotFoundError,
 )
 from app.core.permissions import AuthContext, Perm
+from app.core.redaction import holds_credential
 from app.db.models.context import ContextFile, ContextMode
 from app.db.models.context_proposal import ContextProposal
 from app.db.models.resource_grant import Visibility
@@ -42,6 +44,7 @@ from app.schemas.resource_usage import AgentUsage, ProposalDecision, ReachedAgen
 from app.services import proposal_reach, skill_library
 from app.services.access import CONTEXT, accessible_ids, resolve_access
 from app.services.context import ContextService
+from app.services.dataset import redact_credentials
 from app.services.notifications import NotificationService
 from app.services.resource_usage import agents_using
 
@@ -216,8 +219,9 @@ class ContextProposalService:
             id=proposal.id,
             context_id=proposal.context_id,
             context_name=file.name,
-            description=proposal.description,
-            content=proposal.content,
+            description=redact_credentials(proposal.description)[0],
+            content=redact_credentials(proposal.content)[0] or proposal.content,
+            contains_credential=holds_credential([proposal.description, proposal.content]),
             current_description=file.description,
             current_content=file.content,
             status=proposal.status,
@@ -297,6 +301,11 @@ class ContextProposalService:
         """
         proposal, file = await self._get(ctx, proposal_id, perm=Perm.CONTEXT_EDIT)
         self._refuse_second_decision(proposal, decision.revision)
+        if holds_credential([proposal.description, proposal.content]):
+            raise BadRequestError(
+                message="This change quotes a credential; discard it and edit the file by hand",
+                details={"proposal_id": proposal.id},
+            )
         # Locking re-reads the row into `file`: an edit committed meanwhile is seen.
         await context_repo.lock(self.db, file.id, organization_id=ctx.organization_id)
         if file.updated_at != proposal.base_updated_at:
