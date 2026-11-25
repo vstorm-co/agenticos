@@ -1,5 +1,5 @@
 ---
-source_sha: "dce334aed524"
+source_sha: "005243bcfd1b"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -724,7 +724,7 @@ Co robi Test:
 - Baza wiedzy bez niczego zapisanego przechodzi bez wywołania. Połączenie współdzielone
   przez kilka baz wiedzy testuje każdą z nich, w jej własnym zakresie, a wynik wymienia
   każdą.
-- Przed uruchomieniem okno pokazuje liczbę **płatnych wywołań** (`GET .../estimate`), a
+- Przed uruchomieniem okno pokazuje liczbę **prób**, z których każda jest płatnym wywołaniem embeddingu (`GET .../estimate`), a
   dwukrotność to najwięcej, ile Test może wykonać. Porażka to zwykła odpowiedź, nie błąd;
   wskazuje przyczynę dla każdej bazy wiedzy: `unreachable`, `key_refused`,
   `model_unknown`, `wrong_width` albo `vectors_differ`.

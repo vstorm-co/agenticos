@@ -10,6 +10,7 @@ import {
   useEndpointEmbeddingModels,
 } from "@/components/kb/embedding-picker";
 import { ProbeResult } from "@/components/kb/probe-result";
+import { ProbeTestButton, WhyDisabled } from "@/components/kb/probe-test-button";
 import { UnverifiedSaveDialog } from "@/components/kb/unverified-save-dialog";
 import {
   Button,
@@ -133,6 +134,15 @@ export function EmbeddingDialog({
     baseUrl: baseUrl.trim(),
     model: custom ? typedModel : null,
   });
+  // What the disabled Save says on hover; an unchanged form needs no reason.
+  const saveBlockedBy =
+    !moved || endpointLacksModel
+      ? null
+      : incomplete
+        ? t("blockedMissingSettings")
+        : gate.token === null
+          ? t("blockedRunTest")
+          : null;
   const { data: estimate, error: estimateError } = useQuery({
     queryKey: qk.kb.probeEstimate(kb.id),
     queryFn: () => estimateKbProbe(kb.id),
@@ -264,32 +274,6 @@ export function EmbeddingDialog({
                 )}
                 {moved && (
                   <div className="space-y-2">
-                    <div className="flex flex-wrap items-center gap-3">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        disabled={
-                          gate.status === "testing" ||
-                          checking ||
-                          endpointLacksModel ||
-                          estimate === undefined ||
-                          incomplete
-                        }
-                        onClick={runTest}
-                      >
-                        {gate.status === "testing" ? t("testingSettings") : t("testSettings")}
-                      </Button>
-                      {estimate ? (
-                        <span className="text-muted-foreground text-xs">
-                          {t("testCost", { count: estimate.calls })}
-                        </span>
-                      ) : estimateError ? (
-                        <span className="text-destructive text-xs">
-                          {getErrorMessage(estimateError, tErrors, t("testCostUnavailable"))}
-                        </span>
-                      ) : null}
-                    </div>
                     <p className="text-muted-foreground text-xs">{t("testRetryNote")}</p>
                     {gate.result && <ProbeResult result={gate.result} />}
                     {gate.status === "failed" && (
@@ -302,6 +286,26 @@ export function EmbeddingDialog({
           </fieldset>
         </div>
         <DialogFooter>
+          {moved && (
+            <div className="mr-auto flex flex-wrap items-center gap-2">
+              <ProbeTestButton
+                status={gate.status}
+                disabled={
+                  isSaving || checking || endpointLacksModel || estimate === undefined || incomplete
+                }
+                onClick={runTest}
+              />
+              {estimate ? (
+                <span className="text-muted-foreground text-xs">
+                  {t("testCost", { count: estimate.calls })}
+                </span>
+              ) : estimateError ? (
+                <span className="text-destructive text-xs">
+                  {getErrorMessage(estimateError, tErrors, t("testCostUnavailable"))}
+                </span>
+              ) : null}
+            </div>
+          )}
           <Button
             type="button"
             variant="outline"
@@ -320,13 +324,15 @@ export function EmbeddingDialog({
               {t("saveWithoutTest")}
             </Button>
           )}
-          <Button
-            type="button"
-            onClick={() => save(gate.token === null ? {} : { probe_token: gate.token })}
-            disabled={!moved || isSaving || checking || endpointLacksModel || gate.token === null}
-          >
-            {isSaving ? t("saving") : t("save")}
-          </Button>
+          <WhyDisabled reason={isSaving || checking ? null : saveBlockedBy}>
+            <Button
+              type="button"
+              onClick={() => save(gate.token === null ? {} : { probe_token: gate.token })}
+              disabled={!moved || isSaving || checking || endpointLacksModel || gate.token === null}
+            >
+              {isSaving ? t("saving") : t("save")}
+            </Button>
+          </WhyDisabled>
         </DialogFooter>
         <UnverifiedSaveDialog
           open={confirming}

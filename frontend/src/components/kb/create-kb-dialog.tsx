@@ -37,6 +37,7 @@ import {
 import { IngestionSettings, ParserCards } from "@/components/kb/ingestion-settings";
 import { ProviderRow } from "@/components/vault/provider-row";
 import { ProbeResult } from "@/components/kb/probe-result";
+import { ProbeTestButton, WhyDisabled } from "@/components/kb/probe-test-button";
 import { useProbeGate } from "@/hooks/use-probe-gate";
 import { probeNewEmbedding } from "@/lib/embedding-probe-api";
 import { useKnowledgeBases } from "@/hooks";
@@ -122,6 +123,16 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
     name.trim().length > 0 &&
     Object.keys(localProblems).length === 0 &&
     (!custom || gate.token !== null);
+  // What the disabled Create says on hover.
+  const settingsMissing =
+    name.trim().length === 0 ||
+    Object.keys(localProblems).length > 0 ||
+    (custom && (embeddingEndpointId === null || typedModel === ""));
+  const createBlockedBy = settingsMissing
+    ? t("blockedMissingSettings")
+    : custom && gate.token === null
+      ? t("blockedRunTest")
+      : null;
   // The parsing details open themselves when they hold something required -
   // LlamaParse's key - or something refused, and never close themselves: a
   // fold shutting the moment its last problem is fixed takes the field being
@@ -307,33 +318,7 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
                       allowFreeModel
                       idPrefix="kb-new-embedding"
                     />
-                    {custom && (
-                      <div className="space-y-2">
-                        <div className="flex flex-wrap items-center gap-3">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            disabled={
-                              gate.status === "testing" ||
-                              embeddingEndpointId === null ||
-                              typedModel === ""
-                            }
-                            onClick={runTest}
-                          >
-                            {gate.status === "testing" ? t("testingSettings") : t("testSettings")}
-                          </Button>
-                          <span className="text-muted-foreground text-xs">
-                            {t("testCost", { count: 1 })}
-                          </span>
-                        </div>
-                        {gate.result ? (
-                          <ProbeResult result={gate.result} />
-                        ) : (
-                          <p className="text-muted-foreground text-xs">{t("testBeforeCreating")}</p>
-                        )}
-                      </div>
-                    )}
+                    {custom && gate.result && <ProbeResult result={gate.result} />}
                     {(errors.embedding_provider ??
                       errors.embedding_secret_id ??
                       errors.embedding_endpoint_id ??
@@ -468,6 +453,16 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
           </div>
 
           <DialogFooter>
+            {custom && (
+              <div className="mr-auto flex flex-wrap items-center gap-2">
+                <ProbeTestButton
+                  status={gate.status}
+                  disabled={isSubmitting || embeddingEndpointId === null || typedModel === ""}
+                  onClick={runTest}
+                />
+                <span className="text-muted-foreground text-xs">{t("testCost", { count: 1 })}</span>
+              </div>
+            )}
             <Button
               type="button"
               variant="outline"
@@ -476,13 +471,15 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
             >
               {t("cancel")}
             </Button>
-            <Button
-              type="submit"
-              disabled={!canSubmit || isSubmitting || checkingEndpoint}
-              data-tour="kb-dialog-create"
-            >
-              {isSubmitting ? t("creating") : t("create")}
-            </Button>
+            <WhyDisabled reason={isSubmitting || checkingEndpoint ? null : createBlockedBy}>
+              <Button
+                type="submit"
+                disabled={!canSubmit || isSubmitting || checkingEndpoint}
+                data-tour="kb-dialog-create"
+              >
+                {isSubmitting ? t("creating") : t("create")}
+              </Button>
+            </WhyDisabled>
           </DialogFooter>
         </form>
       </DialogContent>

@@ -4350,7 +4350,7 @@
     "editServer": "Server bearbeiten",
     "testSettings": "Testen",
     "testingSettings": "Wird getestet …",
-    "testCost": "{count, plural, =0 {Keine abgerechneten Aufrufe} one {# abgerechneter Aufruf} other {# abgerechnete Aufrufe}}",
+    "testCost": "{count, plural, =0 {Keine Proben} one {# Probe} other {# Proben}}",
     "testRetryNote": "Schlägt der erste Vergleich fehl, wird er einmal wiederholt.",
     "probePassed": "{count, plural, =0 {Noch nichts gespeichert, also kann nichts brechen} one {# Wissensbasis behält ihre Vektoren} other {# Wissensbasen behalten ihre Vektoren}}",
     "probeOutcome": {
@@ -4372,9 +4372,11 @@
     "customModel": "Modell",
     "customModelHint": "Der Modellname genau so, wie der Endpunkt ihn erwartet.",
     "measuredWidth": "{dim, plural, one {Gemessene Breite: # Dimension} other {Gemessene Breite: # Dimensionen}}",
-    "testBeforeCreating": "Teste das Modell, bevor du die Wissensbasis erstellst.",
     "modelTestedAgainstStored": "Modell, mit dem die gespeicherten Vektoren erzeugt wurden. Ein anderes Modell ist erlaubt, wird aber gegen die gespeicherten Chunks getestet.",
-    "testCostUnavailable": "Die Zahl der abgerechneten Aufrufe des Tests konnte nicht gelesen werden."
+    "testCostUnavailable": "Wie viele Proben der Test macht, ließ sich nicht lesen.",
+    "tested": "Getestet",
+    "blockedMissingSettings": "Fülle zuerst die fehlenden Einstellungen aus.",
+    "blockedRunTest": "Führe zuerst den Test aus; Speichern wird frei, sobald er besteht."
   },
   "knowledgeBases": {
     "active": "Aktiv",

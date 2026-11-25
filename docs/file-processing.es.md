@@ -1,5 +1,5 @@
 ---
-source_sha: "dce334aed524"
+source_sha: "005243bcfd1b"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -736,7 +736,7 @@ Qué hace un Test:
 - Una base de conocimiento sin nada almacenado pasa sin ninguna llamada. Una conexión
   compartida por varias bases de conocimiento prueba cada una, en su propio ámbito, y el
   resultado nombra todas.
-- Antes de ejecutarse, el diálogo muestra el número de **llamadas facturadas**
+- Antes de ejecutarse, el diálogo muestra el número de **sondeos**, cada uno una llamada de embedding facturada
   (`GET .../estimate`), y el doble es lo máximo que puede hacer. El fallo es una respuesta
   normal, no un error, y nombra la causa por base de conocimiento: `unreachable`,
   `key_refused`, `model_unknown`, `wrong_width` o `vectors_differ`.

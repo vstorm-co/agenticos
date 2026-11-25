@@ -1,5 +1,5 @@
 ---
-source_sha: "dce334aed524"
+source_sha: "005243bcfd1b"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -768,7 +768,7 @@ Was ein Test tut:
 - Eine Wissensbasis ohne Gespeichertes besteht ohne Aufruf. Eine Verbindung, die mehrere
   Wissensbasen teilen, testet jede davon in ihrem eigenen Scope, und das Ergebnis nennt
   jede einzelne.
-- Vor dem Start zeigt der Dialog die Zahl der **abgerechneten Aufrufe**
+- Vor dem Start zeigt der Dialog die Zahl der **Proben**, jede ein abgerechneter Embedding-Aufruf
   (`GET .../estimate`); das Doppelte davon ist das Höchste, was er machen kann. Ein
   Fehlschlag ist eine normale Antwort, kein Fehler, und nennt die Ursache je
   Wissensbasis: `unreachable`, `key_refused`, `model_unknown`, `wrong_width` oder

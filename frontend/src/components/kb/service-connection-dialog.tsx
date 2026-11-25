@@ -24,6 +24,7 @@ import {
   Switch,
 } from "@/components/ui";
 import { ProbeResult } from "@/components/kb/probe-result";
+import { ProbeTestButton, WhyDisabled } from "@/components/kb/probe-test-button";
 import { ServiceConnectionIcon } from "@/components/kb/service-connection-icon";
 import { UnverifiedSaveDialog } from "@/components/kb/unverified-save-dialog";
 import { InlineSecret } from "@/components/vault/inline-secret";
@@ -198,7 +199,15 @@ export function ServiceConnectionDialog({
 
   const unchanged = editing && Object.keys(changes()).length === 0;
   const blocked = needsTest && gate.token === null;
-  const testingNow = gate.status === "testing";
+  // What the disabled Save or Register says on hover; an unchanged form needs no reason.
+  const submitBlockedBy =
+    name.trim() === "" || trimmedUrl === ""
+      ? t("blockedMissingSettings")
+      : unchanged
+        ? null
+        : blocked
+          ? t("blockedRunTest")
+          : null;
 
   return (
     <Dialog open={open} onOpenChange={(next) => (next ? onOpenChange(true) : close())}>
@@ -341,26 +350,6 @@ export function ServiceConnectionDialog({
           )}
           {needsTest && (
             <div className="space-y-2">
-              <div className="flex flex-wrap items-center gap-3">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={testingNow || saving || estimate === undefined}
-                  onClick={runTest}
-                >
-                  {testingNow ? t("testingSettings") : t("testSettings")}
-                </Button>
-                {estimate ? (
-                  <span className="text-muted-foreground text-xs">
-                    {t("testCost", { count: estimate.calls })}
-                  </span>
-                ) : estimateError ? (
-                  <span className="text-destructive text-xs">
-                    {getErrorMessage(estimateError, tErrors, t("testCostUnavailable"))}
-                  </span>
-                ) : null}
-              </div>
               <p className="text-muted-foreground text-xs">{t("testRetryNote")}</p>
               {gate.result && <ProbeResult result={gate.result} />}
               {gate.status === "failed" && (
@@ -373,6 +362,24 @@ export function ServiceConnectionDialog({
           )}
         </div>
         <DialogFooter>
+          {needsTest && (
+            <div className="mr-auto flex flex-wrap items-center gap-2">
+              <ProbeTestButton
+                status={gate.status}
+                disabled={saving || estimate === undefined}
+                onClick={runTest}
+              />
+              {estimate ? (
+                <span className="text-muted-foreground text-xs">
+                  {t("testCost", { count: estimate.calls })}
+                </span>
+              ) : estimateError ? (
+                <span className="text-destructive text-xs">
+                  {getErrorMessage(estimateError, tErrors, t("testCostUnavailable"))}
+                </span>
+              ) : null}
+            </div>
+          )}
           <Button type="button" variant="outline" onClick={close}>
             {t("cancel")}
           </Button>
@@ -386,21 +393,23 @@ export function ServiceConnectionDialog({
               {t("saveWithoutTest")}
             </Button>
           )}
-          <Button
-            type="button"
-            onClick={() =>
-              submit(needsTest && gate.token !== null ? { probe_token: gate.token } : {})
-            }
-            disabled={saving || blocked || unchanged || name.trim() === "" || trimmedUrl === ""}
-          >
-            {editing
-              ? saving
-                ? t("saving")
-                : t("save")
-              : saving
-                ? t("registering")
-                : t("register")}
-          </Button>
+          <WhyDisabled reason={saving ? null : submitBlockedBy}>
+            <Button
+              type="button"
+              onClick={() =>
+                submit(needsTest && gate.token !== null ? { probe_token: gate.token } : {})
+              }
+              disabled={saving || blocked || unchanged || name.trim() === "" || trimmedUrl === ""}
+            >
+              {editing
+                ? saving
+                  ? t("saving")
+                  : t("save")
+                : saving
+                  ? t("registering")
+                  : t("register")}
+            </Button>
+          </WhyDisabled>
         </DialogFooter>
         <UnverifiedSaveDialog
           open={confirming}

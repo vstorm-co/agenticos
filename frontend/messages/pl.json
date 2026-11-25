@@ -2152,7 +2152,7 @@
     "editServer": "Edytuj serwer",
     "testSettings": "Testuj",
     "testingSettings": "Testowanie…",
-    "testCost": "{count, plural, =0 {Brak płatnych wywołań} one {# płatne wywołanie} few {# płatne wywołania} many {# płatnych wywołań} other {# płatnego wywołania}}",
+    "testCost": "{count, plural, =0 {Brak prób} one {# próba} few {# próby} many {# prób} other {# próby}}",
     "testRetryNote": "Jeśli pierwsze porównanie się nie powiedzie, jest powtarzane raz.",
     "probePassed": "{count, plural, =0 {Nic jeszcze nie zapisano, więc nic nie może się zepsuć} one {# baza wiedzy zachowuje swoje wektory} few {# bazy wiedzy zachowują swoje wektory} many {# baz wiedzy zachowuje swoje wektory} other {# bazy wiedzy zachowuje swoje wektory}}",
     "probeOutcome": {
@@ -2174,9 +2174,11 @@
     "customModel": "Model",
     "customModelHint": "Nazwa modelu dokładnie taka, jakiej oczekuje punkt końcowy.",
     "measuredWidth": "{dim, plural, one {Zmierzona szerokość: # wymiar} few {Zmierzona szerokość: # wymiary} many {Zmierzona szerokość: # wymiarów} other {Zmierzona szerokość: # wymiaru}}",
-    "testBeforeCreating": "Przetestuj model przed utworzeniem bazy wiedzy.",
     "modelTestedAgainstStored": "Model, którym utworzono zapisane wektory. Inny model jest dozwolony, ale testowany na zapisanych chunkach.",
-    "testCostUnavailable": "Nie udało się odczytać liczby płatnych wywołań testu."
+    "testCostUnavailable": "Nie udało się odczytać, ile prób wykona test.",
+    "tested": "Przetestowano",
+    "blockedMissingSettings": "Najpierw uzupełnij brakujące ustawienia.",
+    "blockedRunTest": "Najpierw uruchom test; zapis odblokuje się, gdy test przejdzie."
   },
   "legal": {
     "eyebrow": "Dokumenty",

@@ -4350,7 +4350,7 @@
     "editServer": "Edit server",
     "testSettings": "Test",
     "testingSettings": "Testing…",
-    "testCost": "{count, plural, =0 {No billed calls} one {# billed call} other {# billed calls}}",
+    "testCost": "{count, plural, =0 {No probes} one {# probe} other {# probes}}",
     "testRetryNote": "If the first comparison fails it is repeated once.",
     "probePassed": "{count, plural, =0 {Nothing stored yet, so nothing can break} one {# knowledge base keeps its vectors} other {# knowledge bases keep their vectors}}",
     "probeOutcome": {
@@ -4372,9 +4372,11 @@
     "customModel": "Model",
     "customModelHint": "The model name exactly as the endpoint expects it.",
     "measuredWidth": "{dim, plural, one {Measured width: # dimension} other {Measured width: # dimensions}}",
-    "testBeforeCreating": "Test the model before creating the knowledge base.",
     "modelTestedAgainstStored": "Model the stored vectors were made with. A different model is allowed but is tested against the stored chunks.",
-    "testCostUnavailable": "Could not read how many billed calls the test makes."
+    "testCostUnavailable": "Could not read how many probes the test makes.",
+    "tested": "Tested",
+    "blockedMissingSettings": "Fill in the missing settings first.",
+    "blockedRunTest": "Run the test first; saving unlocks once it passes."
   },
   "knowledgeBases": {
     "active": "Active",

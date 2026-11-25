@@ -345,12 +345,12 @@ describe("ServiceConnections", () => {
 
     const save = () => screen.getByRole("button", { name: "Save" });
 
-    it("says how many billed calls the test makes before it runs", async () => {
+    it("says how many probes the test makes before it runs", async () => {
       await openEdit();
       await userEvent.clear(screen.getByLabelText("Address"));
       await userEvent.type(screen.getByLabelText("Address"), "http://ollama-2:11434/v1");
 
-      expect(await screen.findByText("3 billed calls")).toBeVisible();
+      expect(await screen.findByText("3 probes")).toBeVisible();
       expect(apiClient.post).not.toHaveBeenCalled();
     });
 
@@ -450,7 +450,7 @@ describe("ServiceConnections", () => {
       await userEvent.clear(screen.getByLabelText("Address"));
       await userEvent.type(screen.getByLabelText("Address"), "http://ollama-2:11434/v1");
 
-      await screen.findByText("3 billed calls");
+      await screen.findByText("3 probes");
       expect(screen.getByRole("button", { name: "Test" })).toBeEnabled();
     });
 

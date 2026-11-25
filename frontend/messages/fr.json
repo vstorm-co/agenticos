@@ -4257,7 +4257,7 @@
     "editServer": "Modifier le serveur",
     "testSettings": "Tester",
     "testingSettings": "Test en cours…",
-    "testCost": "{count, plural, =0 {Aucun appel facturé} one {# appel facturé} other {# appels facturés}}",
+    "testCost": "{count, plural, =0 {Aucune sonde} one {# sonde} other {# sondes}}",
     "testRetryNote": "Si la première comparaison échoue, elle est répétée une fois.",
     "probePassed": "{count, plural, =0 {Rien n’est encore stocké, donc rien ne peut casser} one {# base de connaissances conserve ses vecteurs} other {# bases de connaissances conservent leurs vecteurs}}",
     "probeOutcome": {
@@ -4279,9 +4279,11 @@
     "customModel": "Modèle",
     "customModelHint": "Le nom du modèle exactement comme le point d’accès l’attend.",
     "measuredWidth": "{dim, plural, one {Largeur mesurée : # dimension} other {Largeur mesurée : # dimensions}}",
-    "testBeforeCreating": "Testez le modèle avant de créer la base de connaissances.",
     "modelTestedAgainstStored": "Modèle avec lequel les vecteurs stockés ont été créés. Un autre modèle est permis, mais il est testé sur les segments stockés.",
-    "testCostUnavailable": "Impossible de lire le nombre d’appels facturés du test."
+    "testCostUnavailable": "Impossible de lire combien de sondes le test effectue.",
+    "tested": "Testé",
+    "blockedMissingSettings": "Complétez d'abord les paramètres manquants.",
+    "blockedRunTest": "Lancez d'abord le test ; l'enregistrement se débloque dès qu'il réussit."
   },
   "knowledgeBases": {
     "active": "Active",

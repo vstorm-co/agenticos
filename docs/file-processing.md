@@ -689,7 +689,7 @@ What a Test does:
 - If the first comparison fails it is **repeated once** before the Test fails.
 - A knowledge base with nothing stored passes with no call. A connection shared by several
   knowledge bases tests each of them, in its own scope, and the result names every one.
-- Before it runs, the dialog shows the number of **billed calls** (`GET .../estimate`), and
+- Before it runs, the dialog shows the number of **probes**, each one billed embedding call (`GET .../estimate`), and
   twice that is the most it can make. Failure is a normal answer, not an error, naming the
   cause per knowledge base: `unreachable`, `key_refused`, `model_unknown`, `wrong_width` or
   `vectors_differ`.
