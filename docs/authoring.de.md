@@ -1,5 +1,5 @@
 ---
-source_sha: "423d6b25c588"
+source_sha: "c926420bac25"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -32,7 +32,7 @@ Im Agent Builder enthält **Bauen** die Konfiguration und **Test** öffnet das i
 
 ## Was er liest { #what-it-reads }
 
-Der Assistent hat keine Tools. Was er liest, wird für ihn zusammengestellt, aus
+Was der Assistent liest, wird für ihn zusammengestellt, aus
 den Runs des Agents der letzten 30 Tage:
 
 - negativ bewertete Antworten, die mit Kommentar zuerst;
@@ -43,6 +43,15 @@ den Runs des Agents der letzten 30 Tage:
 Ein unbewerteter, erfolgreicher Run sagt nichts aus und wird nicht gelesen.
 Ebenso wenig ein Test aus dem Testpanel des Builders oder der Run eines
 Delegierten.
+
+Der eingebaute Assistent hat keine Tools. Ein an seiner Stelle gewählter
+Hilfsagent darf `thinking`, `knowledge`, `context` oder `skills` binden und nichts, das
+weiter reicht; einer, der sucht, bekommt die Wissensdatenbanken des Agents, den
+er verbessert. Beim Verbessern eines Agents sind seine Anweisungen die
+Verbesserungsanweisungen aus den Einstellungen des Datasets oder die
+eingebauten - nie die seiner eigenen veröffentlichten Version. Eine
+Verbessern-Sitzung eines Skills führt ihn so aus, wie er veröffentlicht ist, mit
+seinen eigenen Anweisungen.
 
 **Er lernt nur aus Trainingsfällen.** Neben bewerteten Chats liest der Assistent fehlgeschlagene Trainingsantworten, bestätigte Regressionen, Bewerterbegründungen und Prüfungsnotizen aus zugänglichen [Datasets](datasets.md). Er erhält Trainingsquoten nach Tag und Bewerterkriterium sowie die Anzahl behobener und neuer Fehler. Kontrollfragen, Antworten und Bewertungen gelangen nie in seinen Prompt. Runs des Bewerters und des Assistenten bleiben ausgeschlossen.
 
@@ -323,7 +332,7 @@ Die Aufbewahrung der Aktivität erhält die Gesamtkosten gelöschter bezahlter R
 | Einen Vorschlag anzunehmen, der etwas bindet oder erreicht | Zusätzlich den Zugriff, es von Hand zu binden |
 | Eine Skill-Änderung anzuwenden oder zu verwerfen | `skills:edit` am Skill und `runs:view` |
 | Eine Änderung an einer Context-Datei anzuwenden oder zu verwerfen | `context:edit` an der Datei und `runs:view` |
-| Mit Evals zu prüfen | Was ein [Eval Run](evals.md#access) braucht, und Bearbeitungsrechte am Agent |
+| Mit Evals zu prüfen | Was ein [Eval Run](evals.md#access) braucht, und Bearbeitungsrechte am Agent; bei einer Änderung an einem Skill oder einer Kontextdatei Bearbeitungsrechte am Skill oder an der Datei und Ausführungsrechte am Agent, auf dem sie geprüft wird |
 
 Grants zählen: Ein Mitglied mit einem Bearbeitungs-Grant an einem Agent darf
 diesen Agent verbessern.

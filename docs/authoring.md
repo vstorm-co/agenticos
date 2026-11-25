@@ -31,7 +31,7 @@ In Agent Builder, **Build** contains the configuration and **Test** opens the in
 
 ## What it reads { #what-it-reads }
 
-The assistant has no tools. What it reads is gathered for it, from the last 30
+What the assistant reads is gathered for it, from the last 30
 days of the agent's runs:
 
 - answers people rated down, with their comments first;
@@ -40,6 +40,13 @@ days of the agent's runs:
 
 An unrated run that succeeded says nothing either way and is not read. Neither is
 a test from the Builder's test panel, nor a delegate's run.
+
+The built-in assistant has no tools. A helper agent picked in its place may bind
+`thinking`, `knowledge`, `context` or `skills` and nothing that reaches further, and one that
+searches is given the knowledge bases of the agent it improves. Improving an
+agent, its instructions are the dataset's improvement instructions, or the
+built-in ones - never those of its own published version. A skill's Improve
+session runs it as published, with its own instructions.
 
 **It learns from training cases only.** Alongside rated chat runs, the assistant reads failed training answers, confirmed regressions, judge reasoning and Review notes from accessible [datasets](datasets.md). It receives training pass rates by tag and judge criterion, plus fixed and broken counts. Holdout questions, answers and grades never enter its prompt. Judge runs and the assistant's own runs remain excluded.
 
@@ -298,7 +305,7 @@ Activity retention keeps the combined cost of a session’s deleted paid runs, w
 | Accept a suggestion that binds or reaches something | Also the access to bind it by hand |
 | Apply or discard a skill change | `skills:edit` on the skill and `runs:view` |
 | Apply or discard a context file change | `context:edit` on the file and `runs:view` |
-| Check with evals | What an [eval run](evals.md#access) needs, and edit access to the agent |
+| Check with evals | What an [eval run](evals.md#access) needs, and edit access to the agent; for a skill or context file change, edit access to the skill or file and run access to the agent it is checked on |
 
 Grants count: a member with an edit grant on one agent may improve that agent.
 
