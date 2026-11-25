@@ -1,5 +1,5 @@
 ---
-source_sha: "453391bcf878"
+source_sha: "cc7905d290d4"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -1396,6 +1396,8 @@ Aby wywołać narzędzie MCP, wybierz raz połączenie i narzędzie. Jeśli funk
 Skrypt wykonuje kolejno do 100 wywołań. Przed każdym wywołaniem interpreter zapisuje swoją pozycję (do 512 KiB stanu). Zatwierdzenie dotyczy tylko tego wywołania. Jeśli nie wiadomo, czy zapis się powiódł, obowiązują reguły odzyskiwania danej akcji. Ponowienie nieudanego runa wykorzystuje wyniki zakończonych wywołań z tymi samymi argumentami i nie powtarza automatycznie niepotwierdzonego zapisu. Wyzwalacze, rozgałęzienia i oba kroki końcowe pozostają na kanwie.
 
 Odczyt zapisanego wyniku nie rezerwuje budżetu. Jeśli przy ponowieniu zmienią się argumenty tej samej akcji bez skutków ubocznych lub tego samego żądania HTTP GET, wywołanie wykona się ponownie z nowymi wartościami. Nieudany zapis można ponowić w nowym przebiegu, jeśli dla każdej wcześniejszej próby odnotowano, że niczego nie wysłano. Przekroczenie czasu oczekiwania po wysłaniu lub brak takiego potwierdzenia dla starszej próby wyklucza automatyczne powtórzenie.
+
+Wstrzymany krok **Python z akcjami** można wznowić tylko przy użyciu wersji Monty, która zapisała jego stan. Przed wdrożeniem wydania zmieniającego przypiętą wersję `pydantic-monty` poczekaj, aż wstrzymane skrypty zakończą się na starej wersji. Jeśli skrypt nadal jest wstrzymany w chwili zmiany, zakończy się błędem `PYTHON_CHECKPOINT_INVALID`. W widoku runa użyj opcji ponowienia od nieudanego kroku.
 
 `code.python.simple` uruchamia krótki skrypt w sandboxie Monty, który nie ma systemu
 plików, sieci i ma małą bibliotekę standardową. Skrypt czyta powiązane wartości jako

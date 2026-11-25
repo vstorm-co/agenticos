@@ -74,7 +74,7 @@ async def test_clips_prints_across_segments():
 
 
 @pytest.mark.parametrize("damage", ["runtime", "digest", "alias", "encoding"])
-async def test_invalid_checkpoint_does_not_restart_the_script(damage: str):
+async def test_invalid_checkpoint_does_not_restart_the_script(damage: str) -> None:
     code = "echo(message='first')"
     first = await segment(code)
     assert isinstance(first, ScriptActionRequest)
@@ -97,6 +97,12 @@ async def test_invalid_checkpoint_does_not_restart_the_script(damage: str):
     assert result.error.code == "PYTHON_CHECKPOINT_INVALID"
     assert result.error.bypassable is False
     assert not result.error.retryable
+    if damage == "runtime":
+        assert result.error.message == (
+            "The checkpoint was saved by another interpreter version. Use Retry from failed step."
+        )
+    else:
+        assert "another interpreter version" not in result.error.message
 
 
 async def test_call_limit_stops_before_the_next_action(monkeypatch):

@@ -60,14 +60,14 @@ def _json_output(value: object) -> JsonValue:
     return value
 
 
-def _decode(checkpoint: str) -> bytes:
+def _decode(checkpoint: str) -> tuple[str, bytes]:
     runtime, digest, encoded = checkpoint.split(":", 2)
-    if runtime != _RUNTIME or len(encoded) > 4 * ((_MAX_SNAPSHOT + 2) // 3):
+    if len(encoded) > 4 * ((_MAX_SNAPSHOT + 2) // 3):
         raise ValueError("Incompatible checkpoint")
     raw = base64.b64decode(encoded, validate=True)
     if hashlib.sha256(raw).hexdigest() != digest:
         raise ValueError("Damaged checkpoint")
-    return raw
+    return runtime, raw
 
 
 async def _segment(
@@ -89,7 +89,13 @@ async def _segment(
         )
     else:
         try:
-            raw = _decode(saved.checkpoint)
+            runtime, raw = _decode(saved.checkpoint)
+            if runtime != _RUNTIME:
+                return _failed(
+                    "PYTHON_CHECKPOINT_INVALID",
+                    "The checkpoint was saved by another interpreter version. Use Retry from failed step.",
+                    bypassable=False,
+                )
             progress = await session.load_snapshot(raw, print_callback=capture)
         except MontyCrashedError:
             # Losing the local worker is not evidence of a damaged checkpoint.

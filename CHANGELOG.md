@@ -26,6 +26,7 @@ Two things are versioned separately from this file and worth knowing about:
 ### Upgrading
 
 - Apply `backend/alembic/versions/0365_attempt_receipt_only.py` before starting updated workers. Existing attempts keep their conservative retry behavior.
+- Before deploying a release that changes the pinned `pydantic-monty` version, let paused **Python with actions** steps finish on the old version. A step still paused at the change fails to resume with `PYTHON_CHECKPOINT_INVALID`; use **Retry from failed step**. No drain is needed for this issue when the Monty version stays the same.
 
 ## [1.93.0] - 2026-11-24
 

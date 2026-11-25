@@ -1,5 +1,5 @@
 ---
-source_sha: "453391bcf878"
+source_sha: "cc7905d290d4"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -1419,6 +1419,8 @@ Para llamar a una herramienta MCP, selecciona una vez la conexión y la herramie
 Las llamadas se ejecutan en orden, hasta 100 por script. El intérprete guarda su posición antes de cada llamada (hasta 512 KiB de estado). La aprobación se aplica solo a esa llamada. Si no se conoce el resultado de una escritura, se aplican las reglas de recuperación de la acción. Al reintentar una ejecución fallida, se reutilizan las llamadas completadas con los mismos argumentos, sin repetir automáticamente una escritura no confirmada. Los disparadores, las bifurcaciones y los dos pasos de finalización permanecen en el lienzo.
 
 Reutilizar un resultado guardado no reserva presupuesto. Si la misma acción pura o petición HTTP GET recibe argumentos distintos al reintentar, se ejecuta de nuevo con los nuevos valores. Una escritura fallida puede volver a ejecutarse si todos los intentos anteriores registraron que se detuvieron antes del envío. No se repite automáticamente si se agotó el tiempo de espera después del envío o si falta esa prueba en un intento anterior.
+
+Un paso **Python con acciones** en pausa solo puede reanudarse con la versión de Monty que guardó su estado. Antes de desplegar una versión que cambie la versión fijada de `pydantic-monty`, deja que los scripts en pausa terminen con la versión anterior. Si un script sigue en pausa al hacer el cambio, falla con `PYTHON_CHECKPOINT_INVALID`. En la ejecución, usa la opción para reintentar desde el paso fallido.
 
 `code.python.simple` ejecuta un script corto en el sandbox de Monty, que no tiene
 sistema de archivos, ni red, y tiene una biblioteca estándar pequeña. El script lee los

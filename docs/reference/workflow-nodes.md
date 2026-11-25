@@ -1354,6 +1354,8 @@ Calls run in order, up to 100 per script. The interpreter saves its place before
 
 Replaying a stored result reserves no budget. If a pure action or an HTTP GET receives different arguments on retry, the same bound action runs again with the new values. A failed write can run in a new retry if every prior attempt recorded that it stopped before sending. A timeout after sending, or an older attempt without that evidence, is not safe to repeat automatically.
 
+A paused **Python with actions** step can only resume with the Monty version that saved it. Before deploying a release that changes the pinned `pydantic-monty` version, let paused scripts finish on the old version. If a script was still paused at the change, it fails with `PYTHON_CHECKPOINT_INVALID`. Use **Retry from failed step** on the run.
+
 `code.python.simple` runs a short script in the Monty sandbox, which has no
 filesystem, no network and a small standard library. The script reads the bound
 values as `args`, and its last expression is the step's `result`, which must be a
