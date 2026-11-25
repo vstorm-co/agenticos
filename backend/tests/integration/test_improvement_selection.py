@@ -260,3 +260,46 @@ async def test_later_suggestions_are_not_silently_included_in_the_measured_candi
     assert "30 days" in AgentSpec.model_validate(agent.draft_spec).instructions
     assert "verbose" not in AgentSpec.model_validate(agent.draft_spec).instructions
     assert later.status == "pending"
+
+
+async def test_a_selection_check_runs_and_is_logged_as_whoever_confirmed_it(db):
+    """Whoever may start a session confirms a check of chosen changes; the check and the
+    steps after it run as them, and the log names them rather than the requester."""
+    from app.core.permissions import OrgRoleName
+    from app.db.models.audit_log import AppAdminAuditLog
+    from app.services import improvement_pipeline
+    from tests.integration.test_eval_suites import _member
+
+    ctx, agent, ready = await _ready_proposal(db)
+    builder = await _member(db, ctx, OrgRoleName.BUILDER)
+    service = ImprovementPipelineService(db)
+    chosen = await _consent(service, builder, agent, ready, [(await _hunks(db, ctx, ready))[0].id])
+    logged = select(AppAdminAuditLog).where(AppAdminAuditLog.target_id == str(ready.id))
+    before = {entry.id for entry in await db.scalars(logged)}
+
+    await service.check_selection(builder, agent.id, ready.id, 1, chosen)
+    row = await db.get(ImprovementRun, ready.id)
+    assert row is not None
+    assert (row.actor_user_id, row.actor_api_key_id) == (builder.user_id, None)
+
+    seen: list[tuple[object, object]] = []
+    real = improvement_pipeline.job_context
+
+    async def acting(db, *, organization_id, user_id, api_key_id):
+        seen.append((user_id, api_key_id))
+        return await real(
+            db, organization_id=organization_id, user_id=user_id, api_key_id=api_key_id
+        )
+
+    with patch.object(improvement_pipeline, "job_context", acting):
+        await service.advance(ready.id, ctx.organization_id)
+
+    assert seen == [(builder.user_id, None)]
+    read = await service.read(ctx, agent.id, ready.id)
+    [check_id] = read.iterations[0].eval_run_ids
+    check = await db.get(EvalRun, check_id)
+    assert check is not None and check.created_by_user_id == builder.user_id
+    since = [entry for entry in await db.scalars(logged) if entry.id not in before]
+    assert "improvement.selection_confirmed" in {entry.action for entry in since}
+    assert len(since) > 1
+    assert {entry.actor_user_id for entry in since} == {builder.user_id}

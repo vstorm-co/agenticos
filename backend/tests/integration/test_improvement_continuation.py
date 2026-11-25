@@ -8,7 +8,6 @@ from sqlalchemy import func, select
 
 from app.agents.spec import AgentSpec
 from app.core.exceptions import (
-    AuthorizationError,
     BadRequestError,
     ConcurrentChangeError,
     PaymentRequiredError,
@@ -168,7 +167,10 @@ async def test_changed_quotes_and_insufficient_limits_start_no_paid_work(db):
     )
 
 
-async def test_a_different_key_takes_the_session_over_but_not_the_requesters_rechecks(db):
+@pytest.mark.parametrize("step", ["try_again", "selection_check"])
+async def test_a_different_key_takes_the_session_over_with_any_step_it_confirms(db, step):
+    """A session started with one credential - the Architect's per-run key - is taken
+    further with another, paid checks included, and runs as the one that confirmed."""
     from tests.integration.test_improvement_selection import _consent as selection_consent
     from tests.integration.test_improvement_selection import _hunks
 
@@ -194,13 +196,14 @@ async def test_a_different_key_takes_the_session_over_but_not_the_requesters_rec
     keyed = await ApiKeyService(db).context_for_key(key.id, organization_id=ctx.organization_id)
     read = await service.read(keyed, agent.id, ready.id)
     assert read.can_restart and read.can_discard
-    chosen = await selection_consent(
-        service, ctx, agent, ready, [(await _hunks(db, ctx, ready))[0].id]
-    )
-    with pytest.raises(AuthorizationError, match="original account and credentials"):
-        await service.check_selection(keyed, agent.id, ready.id, 1, chosen)
-    continued = await service.continue_run(keyed, agent.id, ready.id, consent)
-    assert continued.status == "running"
+    if step == "try_again":
+        taken = await service.continue_run(keyed, agent.id, ready.id, consent)
+    else:
+        chosen = await selection_consent(
+            service, keyed, agent, ready, [(await _hunks(db, ctx, ready))[0].id]
+        )
+        taken = await service.check_selection(keyed, agent.id, ready.id, 1, chosen)
+    assert taken.status == "running"
     assert (row.actor_user_id, row.actor_api_key_id) == (ctx.user_id, key.id)
 
 
