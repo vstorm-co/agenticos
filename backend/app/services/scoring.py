@@ -26,7 +26,6 @@ from typing import Any
 from uuid import UUID
 
 from pydantic import ValidationError
-from pydantic_ai_harness.guardrails.detectors import redact_secrets
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.spec import AgentSpec
@@ -43,6 +42,7 @@ from app.core.exceptions import (
 )
 from app.core.field_errors import field_problems, refused_field
 from app.core.permissions import AuthContext, Perm, Scope
+from app.core.redaction import redact_secrets
 from app.db.locks import LockScope, hold_subject
 from app.db.models.agent import Agent, AgentKind
 from app.db.models.agent_run import AgentRun, RunStatus

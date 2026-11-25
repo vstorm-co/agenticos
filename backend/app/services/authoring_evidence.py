@@ -43,6 +43,7 @@ from app.schemas.authoring import (
 from app.schemas.scoring import ScorerResult
 from app.services.access import AGENT, DATASET, accessible_ids
 from app.services.conversation import ConversationService
+from app.services.dataset import redact_credentials
 from app.services.eval_comparison import Attempt, Outcome
 from app.services.scorers import MAX_MISSING_NAMED, missing_keys
 
@@ -63,6 +64,15 @@ _SPACE = re.compile(r"\s+")
 
 def _clip(text: str, limit: int) -> str:
     return text if len(text) <= limit else f"{text[:limit]} [...]"
+
+
+def _shown(text: str, limit: int) -> str:
+    """Text a person or a tool wrote, as the assistant is shown and may quote it.
+
+    Redacted before it is cut, so a cut cannot leave half a key the detector no
+    longer recognises.
+    """
+    return _clip(redact_credentials(text)[0] or text, limit)
 
 
 def _normal(text: str) -> str:
@@ -126,7 +136,7 @@ class PackedRun:
         return [
             f"{grade.scorer}/{grade.name}"
             + (f" (family: {grade.family})" if grade.family else "")
-            + f": {_clip(grade.reason, _TURN_CHARS)}"
+            + f": {_shown(grade.reason, _TURN_CHARS)}"
             for grade in self.grades
         ]
 
@@ -302,7 +312,7 @@ def _calls(messages: Sequence[Message]) -> list[str]:
     for message in messages:
         for call in message.tool_calls:
             args = json.dumps(call.args, ensure_ascii=False, sort_keys=True, default=str)
-            calls.append(f"{call.tool_name}({_clip(args, _ARGS_CHARS)})")
+            calls.append(f"{call.tool_name}({_shown(args, _ARGS_CHARS)})")
     return calls
 
 
@@ -514,12 +524,12 @@ class EvidenceService:
             note = None if row.score is None else row.score.human_note
             if settled is not False and not note and flip != "regression":
                 continue
-            comments = [f"Review note: {_clip(note, _TURN_CHARS)}"] if note else []
+            comments = [f"Review note: {_shown(note, _TURN_CHARS)}"] if note else []
             baseline_answer = (
                 before[row.arm.eval_run_id].get(row.case.case_id) if compared else None
             )
             if baseline_answer is not None:
-                comments.append(f"Baseline answer: {_clip(baseline_answer, _TURN_CHARS)}")
+                comments.append(f"Baseline answer: {_shown(baseline_answer, _TURN_CHARS)}")
             if flip in {"fixed", "regression"}:
                 comments.append(f"Confirmed {flip} in a train-part eval")
             people = {
@@ -553,12 +563,12 @@ class EvidenceService:
                     evidence_kind="train_eval",
                     comments=comments,
                     grades=tuple(results),
-                    prompt=_clip(row.case.input, _TURN_CHARS),
-                    answer=_clip(row.attempt.answer or "", _TURN_CHARS),
+                    prompt=_shown(row.case.input, _TURN_CHARS),
+                    answer=_shown(row.attempt.answer or "", _TURN_CHARS),
                     calls=[],
                     error=None
                     if row.attempt.error is None
-                    else _clip(row.attempt.error, _TURN_CHARS),
+                    else _shown(row.attempt.error, _TURN_CHARS),
                     people=frozenset(people),
                 )
             )
@@ -763,11 +773,11 @@ class EvidenceService:
                     conversation_id=row.run.conversation_id,
                     status=row.run.status,
                     rating=row.rating,
-                    comments=[_clip(comment, _TURN_CHARS) for comment in row.comments],
-                    prompt=_clip(asked, _TURN_CHARS),
-                    answer=_clip(answered, _TURN_CHARS),
+                    comments=[_shown(comment, _TURN_CHARS) for comment in row.comments],
+                    prompt=_shown(asked, _TURN_CHARS),
+                    answer=_shown(answered, _TURN_CHARS),
                     calls=_calls(messages),
-                    error=None if row.run.error is None else _clip(row.run.error, _TURN_CHARS),
+                    error=None if row.run.error is None else _shown(row.run.error, _TURN_CHARS),
                     people=frozenset(
                         [
                             *row.commenters,

@@ -1,5 +1,5 @@
 ---
-source_sha: "73654d50ca33"
+source_sha: "4af43947ccea"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -325,6 +325,15 @@ marcador como `[redacted:github_token]`. Esto se aplica a cada campo que lee un
 modelo o que lleva una exportación, incluidos los argumentos de una llamada a
 herramienta esperada, y a cada forma de añadir un caso. La entrada de auditoría
 del cambio registra cuántos valores se ocultaron, nunca los valores.
+
+Reconoce las claves de API y los tokens de los proveedores y servicios con los
+que trabaja la plataforma, los JWT y las claves privadas, una contraseña escrita
+en una dirección (`postgres://user:password@host`), una clave o contraseña en
+una query string o en el cuerpo de un formulario (`?api_key=`, `token=`,
+`password=`) y una cabecera `Authorization` de tipo Basic o Bearer. El mismo
+detector limpia lo que lee el asistente de una mejora, lo que lee el
+clasificador de lagunas de conocimiento y los mensajes de un agent cuando su
+guardrail oculta secretos.
 
 Una generación también oculta las credenciales de las preguntas y los
 fragmentos que entrega al generador, antes de que salgan hacia el modelo, y

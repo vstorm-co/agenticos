@@ -20,7 +20,6 @@ from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import JsonValue, ValidationError
-from pydantic_ai_harness.guardrails.detectors import redact_secrets
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -40,6 +39,7 @@ from app.core.exceptions import (
 from app.core.exceptions import ValidationError as InvalidCaseError
 from app.core.field_errors import field_problems, refused_field
 from app.core.permissions import AuthContext, Perm, Scope
+from app.core.redaction import redact_secrets
 from app.db.locks import LockScope, hold_subject
 from app.db.models.case_generation import CaseOrigin
 from app.db.models.conversation import Message

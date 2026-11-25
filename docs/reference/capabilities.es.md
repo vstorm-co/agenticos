@@ -1,5 +1,5 @@
 ---
-source_sha: "48eead872cf1"
+source_sha: "6b7dd41c2549"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -3047,7 +3047,7 @@ los selecciona y los parametriza en lugar de llevar una guarda en Python.
 
 | Configuración | Valor por defecto |  |
 | --- | --- | --- |
-| `redact_secrets_*` | `false` | limpia claves de API, tokens, JWT y bloques PEM |
+| `redact_secrets_*` | `false` | limpia claves de API, tokens, JWT, bloques PEM, contraseñas en direcciones, claves en query strings y formularios y cabeceras de autorización Basic y Bearer |
 | `redact_pii_*` | `false` | limpia correos, números de teléfono (válidos en su plan de numeración), IBAN (mod-97), tarjetas (Luhn) y el SSN de EE. UU. |
 | `blocked_keywords_*` | `""` | términos separados por comas o saltos de línea; una coincidencia termina el run |
 | `phone_regions` | `"US, GB, DE, PL"` | códigos ISO 3166, separados por comas o saltos de línea, cuyos formatos nacionales de teléfono lee la censura de PII, como mucho 16 |

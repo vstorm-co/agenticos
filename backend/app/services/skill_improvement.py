@@ -138,6 +138,7 @@ from app.services.api_key import job_context
 from app.services.authoring import AuthoringService
 from app.services.authoring_evidence import EvidencePack
 from app.services.background_jobs import enqueue
+from app.services.dataset import redact_credentials
 from app.services.improvement_pipeline import ImprovementPipelineService
 from app.services.improvement_skills import SkillSeed
 from app.services.skill_agents import SkillAgentService
@@ -755,8 +756,8 @@ class SkillImprovementService:
             )
             problems.append(
                 SkillProblemRead(
-                    title=str(item.get("title", "")),
-                    summary=str(item.get("summary", "")),
+                    title=redact_credentials(str(item.get("title", "")))[0] or "",
+                    summary=redact_credentials(str(item.get("summary", "")))[0] or "",
                     runs=len(item.get("run_ids", [])),
                     agents=[
                         ProblemAgent(id=agent_id, name=agents[agent_id].name, runs=count)
@@ -765,7 +766,10 @@ class SkillImprovementService:
                     ],
                     hidden_agents=sum(1 for agent_id in per_agent if agent_id not in visible),
                     examples=[
-                        SkillProblemExample(run_id=UUID(quote["run_id"]), quote=quote["quote"])
+                        SkillProblemExample(
+                            run_id=UUID(quote["run_id"]),
+                            quote=redact_credentials(quote["quote"])[0] or "",
+                        )
                         for quote in item.get("evidence", [])
                         if UUID(quote["run_id"]) in shown
                     ],
@@ -2546,7 +2550,7 @@ class SkillImprovementService:
             evidence=[
                 EvidenceItemRead(
                     run_id=UUID(item["run_id"]),
-                    quote=item.get("quote"),
+                    quote=redact_credentials(item.get("quote"))[0],
                     source=item.get("source"),
                     number=item.get("number"),
                 )

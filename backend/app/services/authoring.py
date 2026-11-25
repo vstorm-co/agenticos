@@ -116,6 +116,7 @@ from app.services.authoring_config import ConfigurationService
 from app.services.authoring_evidence import EvidencePack, EvidenceService
 from app.services.background_jobs import enqueue
 from app.services.context import ContextService
+from app.services.dataset import redact_credentials
 from app.services.eval_run import EvalRunService, spec_hash
 from app.services.eval_suite import EvalSuiteService
 from app.services.model_profile import ModelProfileService
@@ -1079,7 +1080,7 @@ class AuthoringService:
             evidence=[
                 EvidenceItemRead(
                     run_id=UUID(item["run_id"]),
-                    quote=item.get("quote"),
+                    quote=redact_credentials(item.get("quote"))[0],
                     source=item.get("source"),
                     number=item.get("number"),
                 )

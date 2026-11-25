@@ -1,5 +1,8 @@
 """The credentials the platform recognises in text, and the text it leaves alone."""
 
+import ast
+from pathlib import Path
+
 import pytest
 
 from app.core.redaction import redact_secrets
@@ -70,3 +73,18 @@ def test_a_vendor_key_in_a_query_keeps_its_own_label() -> None:
     redacted = _redacted("https://x.test/?api_key=sk-proj-" + "A1b2" * 10)
 
     assert redacted == "https://x.test/?api_key=[redacted:openai_key]"
+
+
+def test_only_the_platform_detector_is_built_from_the_harness_secret_patterns() -> None:
+    app = Path(__file__).resolve().parents[1] / "app"
+    builders = sorted(
+        path.relative_to(app).as_posix()
+        for path in app.rglob("*.py")
+        if "guardrails.detectors" in (source := path.read_text())
+        for node in ast.walk(ast.parse(source))
+        if isinstance(node, ast.ImportFrom)
+        and node.module == "pydantic_ai_harness.guardrails.detectors"
+        and {alias.name for alias in node.names} & {"redact_secrets", "secret_data"}
+    )
+
+    assert builders == ["core/redaction.py"]

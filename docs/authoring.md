@@ -586,5 +586,7 @@ Manual tests and test-question generation notify their requester when they finis
 
 The wizard’s Understand step shows the bounded source sample, recorded cause, answer, reader comments and a conversation link. Unknown causes stay explicitly unclassified. The Test set step reads the session’s pinned question version, with training and held-out questions identified. Today shows the baseline only after a successful completed check; partial or failed checks never appear as a measured baseline. Source previews require `runs:view`, recheck current knowledge-base visibility and redact credentials in every text field.
 
+The evidence the helper's model is sent - questions, answers, reader comments, tool-call arguments and errors - is redacted the same way before it leaves, so the quotes a change keeps are redacted too. Quotes and summaries kept before this redaction are redacted again whenever they are read.
+
 
 The Accept screen names the next version and repeats the selected round’s measured result. The automatic-check offer appears only when the agent has no suite. Publishing records the version identity and number on the session, so reopening Done links to that publication even after a later publish. Old sessions without this pin show their stored state without guessing a version. A failed suggestions read offers a retry; replaced suggestions are unavailable rather than indefinitely loading. Guarded followers wait for their checks and pinned environments stay on their current version.
