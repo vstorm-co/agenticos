@@ -3363,7 +3363,11 @@ class ImprovementPipelineService:
     async def _holdout_share(self, ctx: AuthContext, dataset_id: UUID) -> Decimal:
         """The dataset's held-out share now, which a session pins when it starts."""
         dataset = await dataset_repo.get(self.db, dataset_id, organization_id=ctx.organization_id)
-        assert dataset is not None, "the estimate read the dataset"
+        if dataset is None:
+            raise NotFoundError(
+                message="The dataset was deleted while the session was starting",
+                details={"dataset_id": dataset_id},
+            )
         return dataset.improvement_holdout_share
 
     async def _split_cases(self, run: ImprovementRun) -> tuple[Decimal, list[UUID]]:
