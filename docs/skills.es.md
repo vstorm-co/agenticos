@@ -1,5 +1,5 @@
 ---
-source_sha: "cbdc4136f927"
+source_sha: "960146b2ea8b"
 ---
 
 # Skills { #skills }
@@ -932,6 +932,10 @@ Lo que ofrece Aceptar depende del resultado:
   preguntas de prueba**, al lado, escribe las preguntas propias del skill a partir
   de respuestas en las que los agents lo cargaron, para poder comprobarlos la
   próxima vez.
+
+Cada decisión nombra la comprobación que la persona revisó - su `check_id`, o la
+de main solo al volver a main - y se rechaza con `409` cuando la sesión tiene
+otro resultado: lea la sesión de nuevo y revíselo.
 
 Cuando la línea recibe una versión nueva, o cambian sus agents, después de la
 comprobación, el resultado deja de valer y ofrece **Check again** en lugar de

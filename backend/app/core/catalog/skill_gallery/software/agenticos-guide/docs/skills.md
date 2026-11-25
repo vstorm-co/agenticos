@@ -882,6 +882,10 @@ What Accept offers comes from the result:
   test questions** beside them writes the skill's own questions from answers
   where agents loaded it, so they can be checked next time.
 
+Each decision names the check the person reviewed - its `check_id`, or the
+main-alone check's for returning to main - and is refused with `409` when the
+session holds another result: read the session again and review it.
+
 When the line gets a new version, or its agents change, after the check, the
 result no longer holds and offers **Check again** in place of applying: the same
 chosen changes, measured on the line as it is now, at a price shown first.
