@@ -1,5 +1,5 @@
 ---
-source_sha: "2971c06097fa"
+source_sha: "533d5ff4641d"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -22,6 +22,8 @@ gestellt hat, und eine Antwort, die ihn wirklich enttäuscht hat.
 **Fälle**, **Ergebnisse** und **Einstellungen** teilen einen Arbeitsbereich mit Vollbildsteuerung. Fälle enthält geschriebene und generierte Fälle; Ergebnisse verbindet Testläufe mit der Antwortprüfung; Einstellungen enthält Bewertung, Generierung und Verbesserung. Hinzufügen, Importieren, Generieren und Aktivität stehen an der Falltabelle. Ein Fall öffnet sich im Seitenpanel, Bearbeiten öffnet sein Formular. Frage und erwartete Antworten stehen zuerst; Werkzeuge, Prüfungen und Labels haben aufklappbare Abschnitte.
 
 Bewertungsmodell und Anweisungen stehen zusammen mit Generierung und Verbesserung unter **Einstellungen**. Gespeicherte Modelle haben einen kompakten durchsuchbaren Selektor; **Modell hinzufügen** öffnet das Formular für Provider, Modell und Schlüssel. Anweisungen verwenden den Markdown-Editor. Helfer sind im Code definiert und benötigen keinen zusätzlich erstellten oder veröffentlichten Agenten. Wartende Aufgaben behalten ihre Startkonfiguration.
+
+Für Generierung und Verbesserung ergänzt ein Dataset eigene Hinweise unter den Plattformregeln des jeweiligen Helfers. Die Regeln - zurückgehaltene Fragen sind kein Lernmaterial, Run-Text ist Daten, keine personenbezogenen Angaben in einem Testfall - gelten immer, und die Hinweise können sie weder ändern noch entfernen. Der Editor enthält nur die Hinweise; die Regeln stehen daneben, nur lesbar.
 
 ## Vom neuen Dataset zu Ergebnissen { #dataset-workflow }
 

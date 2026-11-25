@@ -1,5 +1,5 @@
 ---
-source_sha: "efcf8f8ad81e"
+source_sha: "eda75a1f5728"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las herramientas, la configuración, los skills y los archivos de contexto de un agent. Una persona decide cada uno."
 ---
@@ -28,7 +28,7 @@ Hace tres cosas:
 
 En Agent Builder, **Build** contiene la configuración y **Test** abre el panel interactivo del borrador. Abre **Evals** para comparar un borrador con una versión publicada en un dataset o iniciar **Improve**. La estimación aparece antes de la ejecución. El antiguo endpoint de verificación basada en evidencias sigue disponible por compatibilidad de API.
 
-**Improve** abre una sesión de mejora. El modelo y las instrucciones pertenecen a **Settings** del dataset elegido; los ayudantes tienen valores definidos en código y no tienen página editable en el catálogo. El diálogo para mejorar un archivo de contexto elige un modelo directamente. Se conservan controles de budget y registros en Activity.
+**Improve** abre una sesión de mejora. El modelo y las posibles orientaciones del dataset pertenecen a **Settings** del dataset elegido; las orientaciones se añaden bajo las reglas de la plataforma para el ayudante y nunca las sustituyen; los ayudantes tienen valores definidos en código y no tienen página editable en el catálogo. El diálogo para mejorar un archivo de contexto elige un modelo directamente. Se conservan controles de budget y registros en Activity.
 
 ## Qué lee { #what-it-reads }
 
@@ -151,11 +151,11 @@ de suite, no avisa a nadie, y Aceptar se guía por el veredicto del propio run.
 Un cambio de skill o de contexto comprobado en una suite del agente en el que
 funciona recibe lo mismo.
 
-Cada caso tiene una asignación fija a entrenamiento o control, conservada entre versiones del dataset. Los ajustes del dataset eligen la proporción de control solo para casos futuros (50% por defecto). Las comprobaciones de sugerencias miden solo casos de control; una sesión de mejora reparte de nuevo las preguntas para cada uno de sus intentos, en la misma proporción, y mide cada intento en su propia parte de control. Ambas requieren al menos cinco preguntas de control evaluables.
+Cada caso tiene una asignación fija a entrenamiento o control, conservada entre versiones del dataset. Los ajustes del dataset eligen la proporción de control solo para casos futuros (50% por defecto); todas las preguntas de prueba propias de un skill son de control, y su proporción no puede bajarse. Las comprobaciones de sugerencias miden solo casos de control; una sesión de mejora reparte de nuevo las preguntas para cada uno de sus intentos, con la proporción que tenía el dataset cuando empezó la sesión, y mide cada intento en su propia parte de control. Ambas requieren al menos cinco preguntas de control evaluables.
 
 Se excluyen copias de preguntas de entrenamiento o evidencia mediante el texto normalizado y la identidad del run de origen, incluso si se introducen a mano o se generan. Bajo el mínimo, la sesión se detiene con `no_data` o rechaza el paso que probaría demasiado pocas, e indica cuántas preguntas añadir. El run identifica ambas partes y las copias excluidas. Las suites normales y las puertas de promoción siguen contando todos los casos.
 
-Una sesión de mejora fija la versión del dataset y las identidades de los chats fuente. Un intento posterior aprende de los resultados de entrenamiento de su propio reparto, así que una pregunta que un intento apartó puede ayudar a escribir el siguiente; nuevos chats y casos no cambian lo que mide la sesión. Los intentos medidos con preguntas distintas se comparan por lo que cambió cada uno frente a su propia base, no por su tasa de aprobados.
+Una sesión de mejora fija la versión del dataset, la proporción de control y las identidades de los chats fuente. Un intento posterior aprende de los resultados de entrenamiento de su propio reparto, así que una pregunta que un intento apartó puede ayudar a escribir el siguiente; ni nuevos chats, ni nuevos casos, ni un cambio de la proporción de control cambian lo que mide la sesión. Los intentos medidos con preguntas distintas se comparan por lo que cambió cada uno frente a su propia base, no por su tasa de aprobados.
 
 Un intento posterior aprende de las respuestas que dio el propio agente - las de su borrador, de la base de la última comprobación -, nunca de la versión propuesta por un intento anterior, que el borrador no contiene. También lee lo que cambió cada intento anterior: su veredicto, los criterios que se movieron en las preguntas de las que aprendió, y solo cuántas preguntas apartadas arregló y rompió. El contexto de intentos anteriores incluye extractos limitados de un máximo de seis intentos medidos recientes, para que los cambios largos de instrucciones o del contenido de una skill no llenen el prompt de la siguiente propuesta.
 
@@ -456,7 +456,7 @@ Una línea sobre los pasos da el estado de la sesión - **Working** mientras un 
 
 Un paso se abre cuando tiene trabajo que mostrar o una decisión que pedir. La página sigue el paso en el que está la sesión y, tras abrir otro, **Go to the current step** vuelve a él. En una parada, el pie lleva el siguiente paso con su precio, por ejemplo **Next step: write the changes · about $0.04**; nada se gasta antes de pulsarlo. Si el precio cambió desde que se mostró, el pie lo dice - **The price changed to about $0.05. Press again to go on.** - y, cuando el paso cuesta más de lo que le queda a la sesión, permite subir su límite allí mismo.
 
-**Inicio.** Improve abre un diálogo sobre el Agent Builder. Elige el dataset en el formulario principal; el conjunto de pruebas propio del agent aparece seleccionado cuando existe. Los contadores de feedback resumen las evidencias. Si no hay un conjunto adecuado, **Write test questions for me** estima primero crear preguntas a partir de respuestas valoradas y temas sin ejemplos, antes de escribir nada.
+**Inicio.** Improve abre un diálogo sobre el Agent Builder. Elige el dataset en el formulario principal; el conjunto de pruebas propio del agent aparece seleccionado cuando existe. Los contadores de feedback resumen las evidencias. Si no hay un conjunto adecuado, **Write test questions for me** estima primero crear preguntas a partir de respuestas valoradas y temas sin ejemplos, antes de escribir nada. Cuando el dataset tiene orientaciones para el ayudante de mejora, el diálogo las muestra con quién las cambió por última vez: un miembro por su nombre, y quien se fue como antiguo miembro.
 
 El coste del análisis y el límite de gasto de toda la sesión aparecen antes de **Start improving**. Cada paso posterior tiene su propia estimación y espera tu decisión. **Show details** contiene el límite de gasto, la distribución de preguntas, la prueba actual y un enlace a los ajustes del ayudante en el dataset. La sesión en curso abre su propia página después de iniciarla. Cerrar la configuración vuelve al agent; los enlaces existentes `/improve/new` abren el mismo diálogo.
 

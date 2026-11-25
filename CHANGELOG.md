@@ -54,6 +54,13 @@ Two things are versioned separately from this file and worth knowing about:
 ### Fixed
 
 - Keep externally authored Improve and eval text under an explicit untrusted-data envelope instead of incorporating it into platform instructions or decision summaries.
+- Keep an Improve session's held-out share fixed across attempts, even after
+  dataset settings change. Skill test sets keep every question held out.
+- Show dataset helper guidance and its author before starting Improve. Retain
+  platform helper rules alongside dataset-specific guidance and show those
+  rules read-only in dataset settings.
+- Show the full binding of a proposed capability addition or removal, with an
+  explicit warning and visible codes for hidden or text-reordering characters.
 
 - A chat whose connection dropped mid-answer - a phone locked while an agent
   worked - now shows the answer once the turn lands, and the "connection
@@ -77,6 +84,12 @@ Two things are versioned separately from this file and worth knowing about:
   SDK 2.x namespace migration.
 
 ### Upgrading
+
+- Apply `0366_improvement_holdout_share.py` with API admission and background
+  workers paused, then restart both on the updated code. Existing Improve
+  sessions receive their dataset's current share (0.5 if the dataset is gone);
+  skill test sets are repaired to hold out every question. Downgrade removes
+  the pinned-share column but intentionally keeps that test-set repair.
 
 - Apply `0368_password_sign_in_policy.py`. Local sign-in stays enabled until an
   administrator disables it. The console's provider filter now defaults to all

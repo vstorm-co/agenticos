@@ -17184,6 +17184,12 @@
       "exactChange": "Tam metni karşılaştır",
       "invalid": "Test sürümleri güvenilir biçimde karşılaştıramadı. Sonuç çıkarmadan önce testi inceleyin.",
       "noExamples": "Gösterilecek değişmiş yanıt yok. Tüm sorular için tam testi açın."
+    },
+    "guidance": {
+      "title": "Yardımcı için dataset rehberi",
+      "hint": "Yardımcı bunu, her zaman geçerli olan platform kurallarının altında okur. Bu dataset'i düzenleyen kişi yazmıştır.",
+      "changed": "{who, select, named {Son değiştiren: {name}.} former {Son değiştiren: eski bir üye.} other {}}",
+      "changedOn": "{who, select, named {Son değiştiren: {name}, {date}.} former {Son değiştiren: eski bir üye, {date}.} other {Son değişiklik: {date}.}}"
     }
   },
   "personalModelKeys": {
@@ -17205,6 +17211,9 @@
   "authoring": {
     "describe": {
       "open": "{name} ile oluştur"
+    },
+    "diff": {
+      "hidden": "Bu değişiklik hiçbir şey çizmeyen veya metni yeniden sıralayan karakterler içeriyor. Her biri koduyla yazılı olarak gösteriliyor."
     }
   },
   "consoleExperience": {
@@ -17490,5 +17499,12 @@
     "zipTooLarge": "ZIP paketleri 512 MiB boyutunu aşamaz.",
     "noTransferSelected": "Aktarım seçilmedi",
     "noReviewedTransfer": "İncelenmiş bir aktarım seçilmedi"
+  },
+  "datasets": {
+    "helpers": {
+      "guidance": "Veri kümesine özgü yönlendirme",
+      "guidanceHint": "Bu yardımcı için platform kurallarının altına eklenir. Kurallar her zaman geçerlidir; yönlendirme bunları değiştiremez veya kaldıramaz.",
+      "platformRules": "Platform kuralları (salt okunur)"
+    }
   }
 }

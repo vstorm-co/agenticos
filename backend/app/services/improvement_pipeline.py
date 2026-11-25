@@ -25,7 +25,7 @@ from app.agents.capabilities.knowledge._capability import KnowledgeConfig
 from app.agents.capabilities.skills import SkillBody
 from app.agents.factory import DEFAULT_MAX_STEPS
 from app.agents.spec import AgentSpec
-from app.agents.system_agents import IMPROVER, refuse_system_agent
+from app.agents.system_agents import refuse_system_agent
 from app.core.audit import record_audit
 from app.core.background import spawn_after_commit
 from app.core.config import settings
@@ -80,6 +80,7 @@ from app.repositories import (
     improvement_repo,
     knowledge_base_repo,
     knowledge_gap_repo,
+    member_repo,
     organization_repo,
     skill_repo,
     skill_usage_repo,
@@ -112,6 +113,7 @@ from app.schemas.improvement import (
     ContinuationEstimate,
     EvidenceGrade,
     EvidenceSkill,
+    HelperGuidance,
     ImprovementAwaiting,
     ImprovementContinue,
     ImprovementDiscard,
@@ -205,6 +207,7 @@ class Inputs:
     suite: EvalSuiteRead | None
     judge_version_id: UUID | None
     base_version_id: UUID | None
+    holdout_share: Decimal
     helper_settings: DatasetHelper = field(default_factory=DatasetHelper)
 
     @property
@@ -398,10 +401,7 @@ class ImprovementPipelineService:
         )
         helper = DatasetHelpers.model_validate(dataset.helper_settings or {}).improver
         helper = helper.model_copy(
-            update={
-                "model_profile_id": helper.model_profile_id or draft.model_profile_id,
-                "instructions": helper.instructions or IMPROVER.instructions,
-            }
+            update={"model_profile_id": helper.model_profile_id or draft.model_profile_id}
         )
         return Inputs(
             agent,
@@ -413,6 +413,7 @@ class ImprovementPipelineService:
             if checked.judge_pinned
             else (judge.current_version_id if judge else None),
             None if version is None else version.id,
+            dataset.improvement_holdout_share,
             helper,
         )
 
@@ -698,6 +699,7 @@ class ImprovementPipelineService:
             where=RunFilter(agent_id=inputs.agent.id),
         )
         return ImprovementEstimate(
+            guidance=await self._guidance(ctx, inputs.helper_settings),
             proposal_usd=proposal.estimate_usd,
             knowledge_usd=total,
             eval_usd=full_eval,
@@ -719,6 +721,30 @@ class ImprovementPipelineService:
             and check.affordable
             and (org_left is None or total <= org_left),
             reason=proposal.reason,
+        )
+
+    async def _guidance(self, ctx: AuthContext, helper: DatasetHelper) -> HelperGuidance | None:
+        """The dataset's guidance for the improver, named by a current member's name alone.
+
+        A person who left, or whose id is not a member here, is a former member: an
+        email address is never shown, and nobody outside the organization is named.
+        """
+        if not helper.instructions:
+            return None
+        author = helper.instructions_updated_by
+        member = (
+            None
+            if author is None
+            else await member_repo.get_active(
+                self.db, organization_id=ctx.organization_id, user_id=author
+            )
+        )
+        user = None if member is None else await user_repo.get_by_id(self.db, member.user_id)
+        return HelperGuidance(
+            text=helper.instructions,
+            updated_at=helper.instructions_updated_at,
+            updated_by_name=None if user is None else user.full_name,
+            updated_by_former_member=author is not None and member is None,
         )
 
     async def _evidence(
@@ -770,6 +796,7 @@ class ImprovementPipelineService:
                 base_draft_hash=inputs.pins.draft_hash,
                 dataset_id=inputs.request.dataset_id,
                 dataset_version=inputs.request.dataset_version or 1,
+                holdout_share=inputs.holdout_share,
                 suite_id=data.suite_id,
                 suite_hash=inputs.suite_hash,
                 scoring_hash=inputs.current_scoring_hash,
@@ -3329,14 +3356,11 @@ class ImprovementPipelineService:
         )
 
     async def _split_cases(self, run: ImprovementRun) -> tuple[Decimal, list[UUID]]:
-        """The share a new attempt keeps aside, and the pinned questions it draws them from."""
-        dataset = await dataset_repo.get(
-            self.db, run.dataset_id, organization_id=run.organization_id
-        )
+        """The share the session started with, and the pinned questions an attempt draws from."""
         version = await dataset_repo.get_version(
             self.db, run.dataset_id, run.dataset_version, organization_id=run.organization_id
         )
-        assert dataset is not None and version is not None, "the quote checked the pinned set"
+        assert version is not None, "the quote checked the pinned set"
         cases = [
             case.case_id
             for case in await dataset_repo.list_cases(
@@ -3344,7 +3368,7 @@ class ImprovementPipelineService:
             )
             if case.anonymised_at is None
         ]
-        return dataset.improvement_holdout_share, cases
+        return run.holdout_share, cases
 
     async def _next_draw(
         self, ctx: AuthContext, inputs: Inputs, run: ImprovementRun, number: int

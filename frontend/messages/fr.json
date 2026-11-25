@@ -15524,6 +15524,9 @@
       "number": "Numéro du cas"
     },
     "helpers": {
+      "guidance": "Consignes propres au dataset",
+      "guidanceHint": "Ajoutées sous les règles de la plateforme pour cet assistant. Les règles s’appliquent toujours ; les consignes ne peuvent ni les modifier ni les supprimer.",
+      "platformRules": "Règles de la plateforme (lecture seule)",
       "generatorTitle": "Génération de cas",
       "generatorDescription": "Choisissez le modèle et les instructions utilisés pour rédiger des cas pour ce dataset. Les cas générés attendent votre approbation.",
       "improverTitle": "Amélioration de l’agent",
@@ -16580,7 +16583,8 @@
       "view": "Comment afficher la modification",
       "unified": "Unifié",
       "split": "Côte à côte",
-      "showUnchanged": "{count, plural, one {Afficher # ligne inchangée} other {Afficher # lignes inchangées}}"
+      "showUnchanged": "{count, plural, one {Afficher # ligne inchangée} other {Afficher # lignes inchangées}}",
+      "hidden": "Cette modification contient des caractères qui n’affichent rien ou réordonnent le texte. Chacun est écrit par son code."
     },
     "instructionsEditor": {
       "current": "Instructions actuelles",
@@ -17277,6 +17281,12 @@
     "startDataset": "Dataset",
     "startDatasetHint": "Choisissez les cas utilisés pour vérifier les réponses de cet agent.",
     "analysisEstimate": "Coût estimé de l’analyse",
+    "guidance": {
+      "title": "Consignes du dataset pour l’assistant",
+      "hint": "L’assistant les lit sous les règles de la plateforme, qui s’appliquent toujours. Elles ont été écrites par une personne qui modifie ce dataset.",
+      "changed": "{who, select, named {Dernière modification par {name}.} former {Dernière modification par un ancien membre.} other {}}",
+      "changedOn": "{who, select, named {Dernière modification par {name} le {date}.} former {Dernière modification par un ancien membre le {date}.} other {Dernière modification le {date}.}}"
+    },
     "startCostHint": "L’analyse vient en premier. Chaque tentative suivante est estimée séparément, autour de {cost}, dans la limite de la session.",
     "comparisonInvalid": "Ces résultats ne peuvent pas être comparés. Examinez les réponses individuelles sans considérer les différences comme des corrections ou des régressions.",
     "skills": {
