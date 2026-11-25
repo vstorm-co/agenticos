@@ -176,6 +176,26 @@ describe("a field change", () => {
     expect(screen.getByText(diffLine(/"description": "Always publish"/))).toBeInTheDocument();
   });
 
+  it("shows every approval Accept writes for an added capability's tools", () => {
+    const writes = ["publish_artifact", "export_artifact", "share_artifact"];
+    card(
+      field({
+        path: "capabilities",
+        op: "add",
+        new_value: {
+          id: "artifacts",
+          config: {},
+          approval: "default",
+          tool_approval: Object.fromEntries(writes.map((tool) => [tool, "required"])),
+        },
+        names: { artifacts: "Apps" },
+      }),
+    );
+    for (const tool of writes) {
+      expect(screen.getByText(diffLine(new RegExp(`"${tool}": "required"`)))).toBeInTheDocument();
+    }
+  });
+
   it("writes out what would draw nothing or reorder the text it is written into", () => {
     card(
       field({

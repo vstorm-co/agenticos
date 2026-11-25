@@ -1087,7 +1087,7 @@ class AuthoringService:
             path=hunk.path,
             op=hunk.op,
             base_value=hunk.base_value,
-            new_value=hunk.new_value,
+            new_value=authoring_fields.as_accepted(hunk.path or "", hunk.op or "", hunk.new_value),
             accepted_value=hunk.accepted_value,
             effect=hunk.effect,
             names={key: name for key, name in names.items() if _refers_to(hunk, key)},

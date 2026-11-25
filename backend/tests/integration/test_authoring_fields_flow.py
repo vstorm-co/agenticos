@@ -409,6 +409,33 @@ async def test_an_added_capability_carrying_more_than_its_card_shows_is_never_wr
     assert [(hunk.status, hunk.applies) for hunk in batch.hunks] == [("pending", False)]
 
 
+@pytest.mark.security
+async def test_an_added_capability_reads_as_the_binding_accept_writes(db):
+    """A row stored before its writing tools were gated reads with them asking for
+    approval, as Accept writes it, so the card shows the very binding the draft gets."""
+    ctx, agent, run = await _setup(db)
+    run_id = str(run.id)
+    model = _improver(db, run_id, [_change(run_id, "capabilities", "add", {"id": "artifacts"})])
+    await _improve(db, ctx, agent, model)
+    (row,) = list(
+        await db.scalars(select(SpecProposalHunk).where(SpecProposalHunk.path.is_not(None)))
+    )
+    row.new_value = {"id": "artifacts"}
+    await db.flush()
+    service = AuthoringService(db)
+
+    batch = (await service.for_agent(ctx, agent.id)).batch
+    assert batch is not None
+    (shown,) = batch.hunks
+    assert shown.new_value["tool_approval"] == dict.fromkeys(
+        ("publish_artifact", "export_artifact", "share_artifact"), "required"
+    )
+    await service.decide(ctx, agent.id, row.id, HunkDecision(action="accept"))
+
+    assert row.accepted_value == shown.new_value
+    assert agent.draft_spec["capabilities"][-1] == shown.new_value
+
+
 async def test_a_dismissed_field_change_is_not_proposed_again_and_says_so(db):
     ctx, agent, run = await _setup(db)
     run_id = str(run.id)
