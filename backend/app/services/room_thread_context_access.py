@@ -238,13 +238,10 @@ class RoomThreadContextAccessService:
                 unreadable.add(root_id)
                 continue
 
+            # A closure that survived the walk visited, and so validated, every source.
             for source_id in source_ids:
-                source = conversations.get(source_id)
-                if source is None or source.organization_id != organization_id:
-                    unreadable.add(root_id)
-                    break
                 if not await self._direct_readable(
-                    source,
+                    conversations[source_id],
                     user_id,
                     actor=actor,
                     cache=direct_permissions,

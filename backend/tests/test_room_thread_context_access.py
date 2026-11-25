@@ -524,3 +524,120 @@ async def test_active_member_query_excludes_inactive_users_and_returns_current_a
     sql = str(statement)
     assert "organization_members.organization_id" in sql
     assert "users.is_active IS true" in sql
+
+
+def graph(monkeypatch, destination, edges, rows):
+    """Serve a context-source graph through the two closure queries."""
+    repo = room_thread_context_access_module.room_thread_context_access_repo
+    known = {row.id: row for row in [destination, *rows]}
+
+    async def find_edges(_db, *, organization_id, destination_ids=None):
+        return [e for e in edges if destination_ids is None or e[0] in destination_ids]
+
+    async def find_conversations(_db, *, organization_id, conversation_ids):
+        return {key: known[key] for key in conversation_ids if key in known}
+
+    monkeypatch.setattr(repo, "external_context_edges", AsyncMock(side_effect=find_edges))
+    monkeypatch.setattr(repo, "conversations_by_ids", AsyncMock(side_effect=find_conversations))
+    return repo
+
+
+async def test_another_actor_cannot_vouch_for_a_user(service):
+    organization_id = uuid4()
+    actor = AuthContext(user_id=uuid4(), organization_id=organization_id, role="member")
+    destination = conversation(organization_id, room_visibility="private")
+
+    assert not await service.can_read_sources(destination, uuid4(), actor)
+
+    service._may_read_direct.assert_not_awaited()
+
+
+async def test_responder_closure_needs_a_room_destination(service):
+    with pytest.raises(AuthorizationError):
+        await service.assert_responder_visible(
+            destination=conversation(uuid4()), responder_agent_id=uuid4()
+        )
+
+
+async def test_responder_closure_refuses_an_edge_it_did_not_ask_for(service, monkeypatch):
+    organization_id = uuid4()
+    destination = conversation(organization_id, room_visibility="private")
+    repo = room_thread_context_access_module.room_thread_context_access_repo
+    monkeypatch.setattr(
+        repo, "external_context_edges", AsyncMock(return_value=[(uuid4(), uuid4())])
+    )
+
+    with pytest.raises(AuthorizationError):
+        await service.assert_responder_visible(destination=destination, responder_agent_id=uuid4())
+
+    repo.agent_ids.assert_not_awaited()
+
+
+async def test_responder_closure_checks_a_shared_source_once_across_a_cycle(service, monkeypatch):
+    organization_id = uuid4()
+    destination = conversation(organization_id, room_visibility="private")
+    first, second = (conversation(organization_id, room_visibility="private") for _ in range(2))
+    responder = uuid4()
+    repo = graph(
+        monkeypatch,
+        destination,
+        [(destination.id, first.id), (first.id, second.id), (second.id, first.id)],
+        [first, second],
+    )
+    repo.agent_ids.return_value = {responder}
+
+    await service.assert_responder_visible(destination=destination, responder_agent_id=responder)
+
+    assert repo.agent_ids.await_count == 2
+
+
+@pytest.mark.parametrize(
+    ("case", "readable"),
+    [("cycle", True), ("too-many", False), ("missing", False), ("too-deep", False)],
+)
+async def test_search_hides_a_room_whose_source_closure_cannot_be_proved(
+    service, monkeypatch, case, readable
+):
+    organization_id = uuid4()
+    destination = conversation(organization_id, room_visibility="private")
+    first, second = (conversation(organization_id, room_visibility="private") for _ in range(2))
+    edges = [(destination.id, first.id), (first.id, second.id)]
+    rows = [first, second]
+    if case == "cycle":
+        edges += [(second.id, destination.id), (destination.id, second.id)]
+    elif case == "too-many":
+        monkeypatch.setattr(room_thread_context_access_module, "MAX_CONTEXT_SOURCE_NODES", 2)
+    elif case == "missing":
+        rows = [first]
+    else:
+        monkeypatch.setattr(room_thread_context_access_module, "MAX_CONTEXT_SOURCE_DEPTH", 1)
+    graph(monkeypatch, destination, edges, rows)
+
+    unreadable = await service.unreadable_destinations(organization_id, uuid4())
+
+    assert (destination.id not in unreadable) is readable
+
+
+async def test_search_stops_walking_once_the_node_limit_is_reached(service, monkeypatch):
+    organization_id = uuid4()
+    destination = conversation(organization_id, room_visibility="private")
+    source = conversation(organization_id, room_visibility="private")
+    graph(monkeypatch, destination, [(destination.id, source.id)], [source])
+    monkeypatch.setattr(room_thread_context_access_module, "MAX_CONTEXT_SOURCE_NODES", 0)
+
+    unreadable = await service.unreadable_destinations(organization_id, uuid4())
+
+    assert unreadable == {destination.id}
+    service._may_read_direct.assert_not_awaited()
+
+
+async def test_an_actor_without_a_user_cannot_import_context(service):
+    organization_id = uuid4()
+    destination = conversation(organization_id, room_visibility="private")
+    source = conversation(organization_id, room_visibility="private")
+    actor = AuthContext(user_id=None, organization_id=organization_id, role="member")
+
+    with pytest.raises(AuthorizationError):
+        await service.assert_visible(destination=destination, source=source, actor=actor)
+
+    service._may_read.assert_not_awaited()

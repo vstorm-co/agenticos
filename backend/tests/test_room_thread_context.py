@@ -677,3 +677,112 @@ async def test_cross_room_final_authority_refusal_saves_failure_without_answer()
     record.assert_awaited_once()
     assert record.await_args.kwargs["answer"] == ""
     assert record.await_args.kwargs["tool_calls"] == []
+
+
+@pytest.mark.parametrize("status", ["completed", "refused"])
+async def test_a_finished_imported_context_thread_is_announced_only_when_it_answers(
+    status: str,
+) -> None:
+    service = AgentRunnerService(_db())
+    conversation_id, root = uuid4(), uuid4()
+    prepared = _prepared(conversation_id=conversation_id)
+    prepared.admitted_as.thread_root_message_id = root
+    prepared.built.capabilities = ()
+    result = MagicMock(output="done")
+    result.all_messages.return_value = [ModelResponse(parts=[TextPart("done")])]
+    result.new_messages.return_value = []
+
+    @asynccontextmanager
+    async def fresh_session() -> AsyncIterator[object]:
+        yield object()
+
+    check = AsyncMock(side_effect=None if status == "completed" else RuntimeError("revoked"))
+    conversations, _ = conversation_store()
+    with (
+        patch.object(service, "_answer", AsyncMock(return_value=result)),
+        patch.object(service, "finish", AsyncMock()),
+        patch.object(service.transcript, "record", AsyncMock(return_value=uuid4())),
+        patch("app.services.agent_runner.ConversationService", return_value=conversations),
+        patch("app.services.agent_runner.hold_subject", AsyncMock()),
+        patch("app.services.agent_runner.get_db_context", return_value=fresh_session()),
+        patch("app.services.room_thread.RoomThreadService._announce_thread_changed") as announce,
+    ):
+        run = service._run(
+            prepared,
+            user_prompt=None,
+            said=None,
+            message_history=None,
+            deferred_tool_results=None,
+            result_authority_check=check,
+            result_context_conversation_ids=(conversation_id,),
+        )
+        if status == "completed":
+            await run
+            announce.assert_called_once_with(conversation_id, root)
+        else:
+            with pytest.raises(AuthorizationError):
+                await run
+            announce.assert_not_called()
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("source", ["external", "same-room", "none"])
+async def test_resume_rechecks_authority_over_every_room_it_imported_from(source: str) -> None:
+    ctx = _ctx()
+    assert ctx.user_id is not None
+    conversation_id, root, external = uuid4(), uuid4(), uuid4()
+    run = paused_room_run(
+        conversation_id=conversation_id,
+        root=root,
+        user_id=ctx.user_id,
+        organization_id=ctx.organization_id,
+    )
+    source_id = {"external": external, "same-room": conversation_id, "none": None}[source]
+    thread = (
+        None if source_id is None else SimpleNamespace(context_source_conversation_id=source_id)
+    )
+    service = AgentRunnerService(_db())
+    segment = AsyncMock(
+        return_value=RunSegment(output="continued", run=run, tool_calls=[], settled={})
+    )
+    with (
+        build_inputs(service, ctx) as given,
+        patch(
+            "app.services.agent_runner.agent_run_repo.claim_parked_run", AsyncMock(return_value=run)
+        ),
+        patch(
+            "app.services.agent_runner.agent_run_repo.list_approvals_for_run",
+            AsyncMock(return_value=[]),
+        ),
+        patch("app.services.agent_runner.agent_run_repo.mark_running", AsyncMock()),
+        patch(
+            "app.services.agent_runner.conversation_repo.room_thread_for_run",
+            AsyncMock(return_value=root),
+        ),
+        patch(
+            "app.services.agent_runner.conversation_repo.has_imported_thread_context",
+            AsyncMock(return_value=True),
+        ),
+        patch(
+            "app.services.agent_runner.room_thread_repo.get_thread",
+            AsyncMock(return_value=thread),
+        ),
+        patch(
+            "app.services.room_submission.RoomSubmissionService.resume_authority",
+            AsyncMock(return_value=ctx),
+        ),
+        patch.object(service, "_parked_spec", AsyncMock(return_value=(given.agent, given.spec))),
+        patch.object(service, "_run", segment),
+        patch("app.services.agent_runner._require_history_provenance"),
+    ):
+        given.agent.id = run.agent_id
+        given.agent.current_version_id = run.agent_version_id
+        run.paused_state["history_provenance"] = _history_provenance(
+            run.agent_id, given.spec, _resolved_model("test"), ctx.user_id
+        ).model_dump(mode="json")
+        await service.resume(ctx, run.id)
+    passed = segment.await_args.kwargs
+    assert passed["result_context_conversation_ids"] == (
+        (conversation_id, external) if source == "external" else (conversation_id,)
+    )
+    assert passed["result_authority_check"] is not None

@@ -248,3 +248,64 @@ async def test_candidates_offer_live_rows_to_replace_a_stale_snapshot(
     assert result.source_conversation_id == source.id
     assert result.total == len(live_messages)
     assert [message.id for message in result.items] == [message.id for message in live_messages]
+
+
+@pytest.mark.security
+@pytest.mark.parametrize(
+    ("missing", "error"), [("context", NotFoundError), ("ordinals", ConflictError)]
+)
+async def test_candidates_need_a_selected_context_with_boundaries(
+    monkeypatch: pytest.MonkeyPatch,
+    mock_db_session: AsyncMock,
+    missing: str,
+    error: type[Exception],
+) -> None:
+    organization_id = uuid4()
+    destination = _conversation(organization_id)
+    actor = _actor(organization_id)
+    root = SimpleNamespace(id=uuid4(), author_user_id=actor.user_id)
+    service = _service(
+        monkeypatch, mock_db_session, destination=destination, root=root, actor=actor
+    )
+    monkeypatch.setattr(service.threads, "_can_manage", AsyncMock(return_value=True))
+    row = _saved_context(destination, destination, root.id)
+    row.context_first_ordinal = None
+    saved = None if missing == "context" else (row, destination)
+    monkeypatch.setattr(service, "_context", AsyncMock(return_value=saved))
+    candidates = AsyncMock()
+    monkeypatch.setattr(thread_repo, "context_candidates", candidates)
+
+    with pytest.raises(error):
+        await service.candidates(actor, destination.id, root.id)
+
+    candidates.assert_not_awaited()
+
+
+async def test_a_moved_range_leaves_a_stub_and_an_incomplete_one_does_not(
+    monkeypatch: pytest.MonkeyPatch, mock_db_session: AsyncMock
+) -> None:
+    organization_id = uuid4()
+    destination = _conversation(organization_id)
+    actor = _actor(organization_id)
+    service = RoomThreadContextReadService(mock_db_session)
+    monkeypatch.setattr(
+        service.conversations, "get_conversation", AsyncMock(return_value=destination)
+    )
+    moved = _saved_context(destination, destination, uuid4())
+    incomplete = _saved_context(destination, destination, uuid4())
+    incomplete.context_last_ordinal = None
+    monkeypatch.setattr(
+        conversation_repo,
+        "moved_thread_stubs",
+        AsyncMock(return_value=[(moved, "Pricing"), (incomplete, "Broken")]),
+    )
+
+    stubs = await service.moved_stubs(
+        actor, destination.id, page_message_ids=[], before=None, latest=True
+    )
+
+    assert [(stub.root_message_id, stub.title, stub.message_count) for stub in stubs] == [
+        (moved.root_message_id, "Pricing", 2)
+    ]
+    assert (stubs[0].first_ordinal, stubs[0].last_ordinal) == (10, 20)
+    assert stubs[0].source_conversation_id == destination.id
