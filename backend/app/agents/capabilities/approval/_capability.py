@@ -292,11 +292,15 @@ class ApprovalGate(AbstractCapability[AgentDeps]):
         asked = to_jsonable_python(args)
         # Only a capability's own tool is named or described, so an MCP tool sharing
         # a name with one under `ASK_ALL` is never handed a describer written for
-        # another tool. The platform's own tools are described by their reserved name.
+        # another tool. The platform's own tools are described only when the platform
+        # binding marked them so - a connection may be named after the platform too.
         owned = capability_id is not None
-        describer = (
-            self.describers.get(tool_def.name) if owned else platform_describer(tool_def.name)
-        )
+        if owned:
+            describer = self.describers.get(tool_def.name)
+        elif (tool_def.metadata or {}).get(PLATFORM_TOOL) is True:
+            describer = platform_describer(tool_def.name)
+        else:
+            describer = None
         decision = await ask(
             ApprovalRequest(
                 capability_id=capability_id,
