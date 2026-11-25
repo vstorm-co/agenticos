@@ -6,6 +6,7 @@ import time
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from decimal import Decimal
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
@@ -243,8 +244,93 @@ async def _run(
             connect_seconds=connect_seconds,
         )
         held.append(session)
-        await asyncio.wait_for(session.run(), timeout=deadline)
+        await _await_call(session, socket, deadline)
     return hung, repo
+
+
+def _frame_kind(frame: object) -> str:
+    """Name a queued FakeSocket frame by protocol type only, never by content."""
+    if isinstance(frame, float):
+        return "pause"
+    if isinstance(frame, Exception):
+        return "exception"
+    if isinstance(frame, dict):
+        kind = frame.get("type")
+        return f"dict:{kind}" if isinstance(kind, str) else "dict"
+    try:
+        kind = json.loads(frame).get("type")
+    except ValueError, TypeError, AttributeError:
+        return "text"
+    return f"text:{kind}" if isinstance(kind, str) else "text"
+
+
+def _stack_of(task: asyncio.Task[object]) -> str:
+    frames = [
+        f"{Path(frame.f_code.co_filename).name}:{frame.f_lineno}:{frame.f_code.co_name}"
+        for frame in task.get_stack()
+    ]
+    return " <- ".join(frames) or "no frames"
+
+
+def _timeout_report(
+    session: VoiceCallSession,
+    socket: object,
+    tasks: set[asyncio.Task[object]],
+    max_gap: float,
+    deadline: float,
+) -> str:
+    """Evidence for a hung call: file, line and function only; no locals, ids or frame bodies."""
+    scope = session._scope
+    reason = session._reason
+    kinds = [_frame_kind(frame) for frame in getattr(socket, "_frames", [])]
+    unfinished = [task for task in tasks if not task.done()]
+    # Task names can embed dynamic text, so a stable ordinal labels each task instead.
+    stacks = "\n".join(f"  - task-{n}: {_stack_of(task)}" for n, task in enumerate(unfinished, 1))
+    return (
+        f"VoiceCallSession.run did not finish within {deadline}s\n"
+        f"end_reason={reason.value if reason is not None else None}\n"
+        f"scope_cancelled={scope is not None and bool(scope.cancel_called)}\n"
+        f"socket_frames_remaining={len(kinds)} kinds={kinds}\n"
+        f"max_event_loop_gap_ms={max_gap * 1000:.1f}\n"
+        f"unfinished_tasks={len(unfinished)}\n{stacks}"
+    )
+
+
+async def _await_call(session: VoiceCallSession, socket: object, deadline: float) -> None:
+    """Wait for the call with a hard deadline, snapshotting evidence before anything unwinds.
+
+    wait_for would cancel the call first and lose what it was stuck on.
+    """
+    before = asyncio.all_tasks()
+    gap = 0.0
+
+    async def tick() -> None:
+        nonlocal gap
+        last = time.monotonic()
+        while True:
+            await asyncio.sleep(0.01)
+            now = time.monotonic()
+            gap = max(gap, now - last)
+            last = now
+
+    call = asyncio.create_task(session.run(), name="voice-call-run")
+    ticker = asyncio.create_task(tick(), name="voice-call-ticker")
+    try:
+        done, _ = await asyncio.wait({call}, timeout=deadline)
+        if call in done:
+            call.result()
+            return
+        mine = asyncio.all_tasks() - before - {ticker, asyncio.current_task()}
+        report = _timeout_report(session, socket, mine, gap, deadline)
+        call.cancel()
+        await asyncio.gather(call, return_exceptions=True)
+        raise TimeoutError(report)
+    finally:
+        ticker.cancel()
+        await asyncio.gather(ticker, return_exceptions=True)
+        if not call.done():
+            call.cancel()
+            await asyncio.gather(call, return_exceptions=True)
 
 
 @pytest.mark.parametrize(
@@ -1704,3 +1790,49 @@ async def test_a_current_voice_snapshot_opens_the_provider():
         await _run(FakeSocket([_START]), started, seed=AsyncMock(return_value=history))
     assert check.await_args.args[1:] == (started.conversation_id, history)
     assert started.prepared.realtime.call_args.kwargs["message_history"] is history
+
+
+async def test_a_call_that_ends_normally_returns_inside_its_deadline():
+    socket = FakeSocket([_START, json.dumps({"type": "end"})])
+    began = time.monotonic()
+
+    hung, repo = await _run(socket, _started(FakeRealtime(hold=True)))
+
+    assert time.monotonic() - began < 5.0
+    assert repo.end.await_args.kwargs["reason"] is VoiceEndReason.USER
+    hung.assert_awaited()
+
+
+async def test_a_stuck_call_times_out_at_its_deadline_with_a_sanitized_report():
+    socket = FakeSocket([_START])
+    began = time.monotonic()
+
+    with pytest.raises(TimeoutError) as caught:
+        await _run(socket, _started(FakeRealtime(hold=True)))
+
+    elapsed = time.monotonic() - began
+    report = str(caught.value)
+    assert 4.9 <= elapsed < 20.0
+    assert "did not finish within 5.0s" in report
+    assert "unfinished_tasks=" in report and "  - task-1: " in report and "session.py:" in report
+    assert "socket_frames_remaining=0 kinds=[]" in report
+    assert "end_reason=None" in report
+    assert "scope_cancelled=False" in report
+    assert "max_event_loop_gap_ms=" in report
+    assert _SECRET_VALUE not in report
+    assert "v=0" not in report and "sdp_offer" not in report
+
+
+def test_the_timeout_report_names_remaining_frames_by_type_only():
+    frames = [
+        _START,
+        json.dumps({"type": "end", "secret": _SECRET_VALUE}),
+        {"type": "websocket.receive", "text": "x"},
+        0.1,
+        "not json",
+    ]
+
+    kinds = [_frame_kind(frame) for frame in frames]
+
+    assert kinds == ["text:start", "text:end", "dict:websocket.receive", "pause", "text"]
+    assert _SECRET_VALUE not in " ".join(kinds)
