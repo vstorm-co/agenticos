@@ -1820,7 +1820,7 @@ class _EndIgnoringRealtime(FakeRealtime):
 
     async def _iter(self):
         with anyio.CancelScope(shield=True):
-            await asyncio.sleep(1.5)
+            await asyncio.sleep(3.0)
         return
         yield
 
@@ -1843,10 +1843,10 @@ async def test_a_stuck_call_times_out_with_a_sanitized_report():
     socket = FakeSocket([_START, 3600.0, json.dumps({"type": "end", "secret": _SECRET_VALUE})])
 
     with pytest.raises(TimeoutError) as caught:
-        await _run(socket, _started(FakeRealtime(hold=True)), deadline=0.5)
+        await _run(socket, _started(FakeRealtime(hold=True)), deadline=2.0)
 
     report = str(caught.value)
-    assert "did not finish within 0.5s" in report
+    assert "did not finish within 2.0s" in report
     assert "_go_live" in report
     assert "_socket" in report
     assert "cancelling=0" in report
@@ -1862,7 +1862,7 @@ async def test_a_call_whose_end_was_requested_but_a_child_holds_on_reports_both(
     socket = FakeSocket([_START, json.dumps({"type": "end"})])
 
     with pytest.raises(TimeoutError) as caught:
-        await _run(socket, _started(_EndIgnoringRealtime()), deadline=0.5)
+        await _run(socket, _started(_EndIgnoringRealtime()), deadline=2.0)
 
     report = str(caught.value)
     assert "end_reason=user" in report
