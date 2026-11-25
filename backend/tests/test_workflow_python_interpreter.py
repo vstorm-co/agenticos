@@ -5,6 +5,7 @@ from functools import partial
 from unittest.mock import AsyncMock, Mock, patch
 from uuid import uuid4
 
+import anyio
 import pytest
 from pydantic_monty import AsyncFutureSnapshot, AsyncMonty, AsyncMontySession
 
@@ -18,8 +19,12 @@ from app.workflows.python_actions import PythonActionsConfig
 pytestmark = pytest.mark.anyio
 
 
-async def segment(code: str, *, resume: ScriptResume | None = None) -> NodeResult:
-    config = PythonActionsConfig(code=code, actions={"echo": {"type": "debug.echo"}})
+async def segment(
+    code: str, *, resume: ScriptResume | None = None, timeout_seconds: float = 10
+) -> NodeResult:
+    config = PythonActionsConfig(
+        code=code, actions={"echo": {"type": "debug.echo"}}, timeout_seconds=timeout_seconds
+    )
     with patch.object(
         context, "current", return_value=Mock(node_run_id=uuid4(), script_resume=resume)
     ):
@@ -45,6 +50,41 @@ async def test_the_interpreter_continues_the_loop_in_a_new_session_after_each_ca
     assert isinstance(result, Completed)
     assert result.output.result == ["1", "2"]
     assert result.output.stdout == "1\n2\n"
+
+
+@pytest.mark.parametrize("second_segment_seconds", [0, 0.35], ids=["paused", "over-budget"])
+async def test_feed_timeout_carries_across_checkpoints_without_charging_the_pause(
+    second_segment_seconds: float,
+) -> None:
+    budget = 0.5
+    code = (
+        "import time\n"
+        "def busy_for(seconds):\n"
+        "    until = time.monotonic() + seconds\n"
+        "    while time.monotonic() < until:\n"
+        "        pass\n"
+        "busy_for(0.35)\n"
+        "echo()\n"
+        f"busy_for({second_segment_seconds})\n"
+        "42"
+    )
+    first = await segment(code, timeout_seconds=budget)
+    assert isinstance(first, ScriptActionRequest)
+    await anyio.sleep(budget)
+    outcome = await segment(
+        code,
+        timeout_seconds=budget,
+        resume=ScriptResume(
+            checkpoint=first.checkpoint, index=0, alias="echo", stdout=first.stdout, output={}
+        ),
+    )
+    if second_segment_seconds:
+        assert isinstance(outcome, Failed)
+        assert outcome.error.code == "PYTHON_ERROR"
+        assert "feed time limit exceeded" in outcome.error.message
+    else:
+        assert isinstance(outcome, Completed)
+        assert outcome.output.result == 42
 
 
 @pytest.mark.parametrize(

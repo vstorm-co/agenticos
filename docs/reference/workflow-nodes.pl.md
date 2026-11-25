@@ -1,5 +1,5 @@
 ---
-source_sha: "cc7905d290d4"
+source_sha: "1b7c73e09d28"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -1397,7 +1397,27 @@ Skrypt wykonuje kolejno do 100 wywołań. Przed każdym wywołaniem interpreter 
 
 Odczyt zapisanego wyniku nie rezerwuje budżetu. Jeśli przy ponowieniu zmienią się argumenty tej samej akcji bez skutków ubocznych lub tego samego żądania HTTP GET, wywołanie wykona się ponownie z nowymi wartościami. Nieudany zapis można ponowić w nowym przebiegu, jeśli dla każdej wcześniejszej próby odnotowano, że niczego nie wysłano. Przekroczenie czasu oczekiwania po wysłaniu lub brak takiego potwierdzenia dla starszej próby wyklucza automatyczne powtórzenie.
 
+Limit czasu obejmuje łączny czas wykonywania kodu Pythona we wszystkich częściach skryptu. Oczekiwanie na akcję, zatwierdzenie lub odpowiedź nie wlicza się do limitu. Limit pamięci ogranicza rozmiar sterty interpretera podczas wykonywania kodu.
+
 Wstrzymany krok **Python z akcjami** można wznowić tylko przy użyciu wersji Monty, która zapisała jego stan. Przed wdrożeniem wydania zmieniającego przypiętą wersję `pydantic-monty` poczekaj, aż wstrzymane skrypty zakończą się na starej wersji. Jeśli skrypt nadal jest wstrzymany w chwili zmiany, zakończy się błędem `PYTHON_CHECKPOINT_INVALID`. W widoku runa użyj opcji ponowienia od nieudanego kroku.
+
+| Co się stało | Wynik |
+|---|---|
+| Wywołanie używa niepowiązanej funkcji lub metody obiektu | `PYTHON_ACTION_UNKNOWN` |
+| Wywołanie używa argumentów pozycyjnych lub wartości, które nie są danymi JSON | `PYTHON_ACTION_ARGUMENTS` |
+| Argumenty nazwane nie pasują do powiązanej akcji | `INVALID_BINDING` |
+| Skrypt czeka na kilka wywołań naraz | `PYTHON_ACTION_ASYNC` |
+| Skrypt wykonuje 101. wywołanie | `PYTHON_ACTION_LIMIT` |
+| Argumenty wywołania przekraczają limit bajtów danych osadzonych | `PYTHON_ACTION_INPUT_TOO_LARGE` |
+| Stan interpretera przy wywołaniu przekracza 512 KiB | `PYTHON_CHECKPOINT_TOO_LARGE` |
+| Interpreter nie może przywrócić zapisanego stanu | `PYTHON_CHECKPOINT_INVALID`, nie można pominąć |
+| Powiązana akcja lub jej zasoby nie są już dostępne dla tego uruchomienia | `SCRIPT_ACTION_UNAVAILABLE`, uruchomienie się kończy |
+| Ponowienie nie może wykazać, że wcześniejszy zapis nie został wysłany | `SCRIPT_ACTION_RETRY_UNSAFE`, uruchomienie się kończy |
+| Skrypt wyczerpuje limit czasu lub pamięci Pythona | `PYTHON_ERROR` |
+
+::: app.workflows.python_actions.PythonActionsConfig
+    options:
+      show_bases: false
 
 `code.python.simple` uruchamia krótki skrypt w sandboxie Monty, który nie ma systemu
 plików, sieci i ma małą bibliotekę standardową. Skrypt czyta powiązane wartości jako

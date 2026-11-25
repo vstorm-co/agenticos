@@ -58,6 +58,30 @@ describe("summarizeNodeRuns", () => {
     expect(summary.get("B")?.status).toBe("running");
   });
 
+  it("shows a running call and gives a child decision priority in either order", () => {
+    const parent = row({ status: "waiting" });
+    const running = row({
+      status: "running",
+      scope_path: [{ action: "lookup", index: 0 }],
+      started_at: "2026-11-10T10:00:01Z",
+    });
+    const attention = row({
+      status: "needs_attention",
+      scope_path: [{ action: "notify", index: 1 }],
+    });
+    expect(summarizeNodeRuns([parent, running]).get("A")).toMatchObject({
+      status: "running",
+      startedAt: running.started_at,
+      runs: 1,
+    });
+    expect(summarizeNodeRuns([parent, running, attention]).get("A")?.status).toBe(
+      "needs_attention",
+    );
+    expect(summarizeNodeRuns([parent, attention, running]).get("A")?.status).toBe(
+      "needs_attention",
+    );
+  });
+
   it("surfaces a child that needs a decision without counting its attempts, output, or time", () => {
     const child = row({
       status: "needs_attention",

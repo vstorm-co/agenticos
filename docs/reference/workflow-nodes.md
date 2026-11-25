@@ -1354,7 +1354,27 @@ Calls run in order, up to 100 per script. The interpreter saves its place before
 
 Replaying a stored result reserves no budget. If a pure action or an HTTP GET receives different arguments on retry, the same bound action runs again with the new values. A failed write can run in a new retry if every prior attempt recorded that it stopped before sending. A timeout after sending, or an older attempt without that evidence, is not safe to repeat automatically.
 
+The timeout caps total Python execution time across all segments of a script. Time spent waiting for an action, approval or reply does not count. The memory limit caps the interpreter's heap while it runs.
+
 A paused **Python with actions** step can only resume with the Monty version that saved it. Before deploying a release that changes the pinned `pydantic-monty` version, let paused scripts finish on the old version. If a script was still paused at the change, it fails with `PYTHON_CHECKPOINT_INVALID`. Use **Retry from failed step** on the run.
+
+| What happened | Result |
+|---|---|
+| A call names an unbound function or an object method | `PYTHON_ACTION_UNKNOWN` |
+| A call uses positional arguments or values that are not JSON | `PYTHON_ACTION_ARGUMENTS` |
+| Keyword arguments do not match the bound action | `INVALID_BINDING` |
+| Several calls are awaited at once | `PYTHON_ACTION_ASYNC` |
+| The script makes a 101st call | `PYTHON_ACTION_LIMIT` |
+| The call arguments exceed the inline byte limit | `PYTHON_ACTION_INPUT_TOO_LARGE` |
+| The interpreter state at a call exceeds 512 KiB | `PYTHON_CHECKPOINT_TOO_LARGE` |
+| The interpreter cannot restore a saved checkpoint | `PYTHON_CHECKPOINT_INVALID`, never bypassed |
+| A bound action or its resources are no longer available to the run | `SCRIPT_ACTION_UNAVAILABLE`, the run ends |
+| A retry cannot prove an earlier write was not sent | `SCRIPT_ACTION_RETRY_UNSAFE`, the run ends |
+| The script exhausts its Python time or memory limit | `PYTHON_ERROR` |
+
+::: app.workflows.python_actions.PythonActionsConfig
+    options:
+      show_bases: false
 
 `code.python.simple` runs a short script in the Monty sandbox, which has no
 filesystem, no network and a small standard library. The script reads the bound

@@ -71,9 +71,20 @@ export function stepDataOf(runId: string, rows: WorkflowNodeRunRead[]): Record<U
 }
 
 /** Child calls share the graph step's instance id but have results and decisions of their own. */
-export function pythonCallOf(row: WorkflowNodeRunRead) {
-  const scope = row.scope_path?.at(-1);
+export function pythonCallOf(row: WorkflowNodeRunRead): { action: string; index: number } | null {
+  const scope = row.scope_path.at(-1);
   return scope && "action" in scope ? scope : null;
+}
+
+/** Show active work on behalf of a script without overriding a terminal state or a decision. */
+export function statusWithPythonCall(
+  parent: WorkflowNodeRunRead["status"],
+  call: WorkflowNodeRunRead["status"],
+): WorkflowNodeRunRead["status"] {
+  if (parent === "waiting" || parent === "pending" || parent === "running") {
+    if (call === "needs_attention" || call === "running") return call;
+  }
+  return parent;
 }
 
 /** The loop iteration a row ran in, as its item index in each enclosing loop. */

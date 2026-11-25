@@ -16,8 +16,8 @@ vi.mock("@/hooks", () => ({
   useWorkflowRun: () => ({
     run: { id: "run-1", status: watched.status },
     nodes: [
-      { node_instance_id: "a", status: "succeeded", attempts: 1, error: null },
-      { node_instance_id: "b", status: "running", attempts: 1, error: null },
+      { node_instance_id: "a", status: "succeeded", attempts: 1, error: null, scope_path: [] },
+      { node_instance_id: "b", status: "running", attempts: 1, error: null, scope_path: [] },
       {
         node_instance_id: "b",
         status: "succeeded",

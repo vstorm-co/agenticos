@@ -7,6 +7,7 @@ import { Trash2 } from "lucide-react";
 import { Button, Input, Label } from "@/components/ui";
 import { JsonView } from "@/components/ui/json-view";
 import { NativeDisclosure } from "@/components/ui/native-disclosure";
+import { HIDDEN_CATEGORIES } from "@/components/workflows/node-visuals";
 import { useMcpToolSchema } from "@/components/workflows/pickers/mcp-tool-picker";
 import { NativeSelect } from "@/components/ui/native-select";
 import type { NodeCatalog, NodeDefinition } from "@/lib/workflows/types";
@@ -130,7 +131,9 @@ export function PythonActions({
   const [alias, setAlias] = useState("");
   const ownSelection = useState<string | null>(null);
   const [editing, setEditing] = editingAction ?? ownSelection;
-  const available = catalog.items.filter((action) => action.python_callable);
+  const available = catalog.items.filter(
+    (action) => action.python_callable && !HIDDEN_CATEGORIES.has(action.category),
+  );
   const keyOf = (action: NodeDefinition) => `${action.id}@${action.version}`;
   const selected = available.find((action) => keyOf(action) === selection);
   const names = isRecord(schema.propertyNames) ? schema.propertyNames : {};

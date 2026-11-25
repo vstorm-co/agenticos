@@ -96,6 +96,7 @@ async def _segment(
                     "The checkpoint was saved by another interpreter version. Use Retry from failed step.",
                     bypassable=False,
                 )
+            # Monty restores the feed's elapsed execution time, not time spent parked.
             progress = await session.load_snapshot(raw, print_callback=capture)
         except MontyCrashedError:
             # Losing the local worker is not evidence of a damaged checkpoint.

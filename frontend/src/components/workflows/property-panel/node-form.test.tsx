@@ -807,7 +807,12 @@ describe("NodeForm sections", () => {
       input_schema: { type: "object", properties: { arguments: { type: "object" } } },
       output_schema: { type: "object", properties: { text: { type: "string" } } },
     });
-    const catalog = makeCatalog([script, mcp, makeDefinition({ id: "trigger.manual" })]);
+    const catalog = makeCatalog([
+      script,
+      mcp,
+      makeDefinition({ id: "trigger.manual" }),
+      makeDefinition({ id: "debug.echo", name: "Echo", category: "debug", python_callable: true }),
+    ]);
     const save = vi.fn();
     function Form() {
       const [config, setConfig] = useState<Record<string, unknown>>({
@@ -833,6 +838,7 @@ describe("NodeForm sections", () => {
     }
     render(<Form />);
     const choices = screen.getByLabelText("Available functions");
+    expect(screen.queryByRole("option", { name: /Echo/ })).toBeNull();
     expect(screen.queryByRole("option", { name: /trigger.manual/ })).toBeNull();
     await userEvent.selectOptions(choices, "mcp.call@2");
     const name = screen.getByLabelText("Python function name");

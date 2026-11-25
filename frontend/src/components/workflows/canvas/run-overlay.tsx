@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useMemo } from "react";
 
-import { pythonCallOf } from "@/lib/workflows/step-data";
+import { pythonCallOf, statusWithPythonCall } from "@/lib/workflows/step-data";
 import type { NodeRunStatus, WorkflowNodeRunRead } from "@/lib/workflows/types";
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 
@@ -52,10 +52,10 @@ const SEVERITY: NodeRunStatus[] = [
 /** Fold a run's node rows into one summary per node instance. */
 export function summarizeNodeRuns(rows: WorkflowNodeRunRead[]): Map<string, NodeRunSummary> {
   const byNode = new Map<string, NodeRunSummary>();
-  const childAttention = new Set<string>();
+  const calls: WorkflowNodeRunRead[] = [];
   for (const row of rows) {
     if (pythonCallOf(row)) {
-      if (row.status === "needs_attention") childAttention.add(row.node_instance_id);
+      calls.push(row);
       continue;
     }
     const current = byNode.get(row.node_instance_id);
@@ -89,10 +89,13 @@ export function summarizeNodeRuns(rows: WorkflowNodeRunRead[]): Map<string, Node
       startedAt: row.status === "running" ? row.started_at : current.startedAt,
     });
   }
-  for (const id of childAttention) {
-    const summary = byNode.get(id);
-    if (summary && ["running", "pending", "waiting"].includes(summary.status)) {
-      summary.status = "needs_attention";
+  for (const call of calls) {
+    const summary = byNode.get(call.node_instance_id);
+    if (!summary) continue;
+    const status = statusWithPythonCall(summary.status, call.status);
+    if (status !== summary.status) {
+      summary.status = status;
+      summary.startedAt = status === "running" ? call.started_at : null;
     }
   }
   return byNode;

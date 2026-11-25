@@ -1,5 +1,5 @@
 ---
-source_sha: "cc7905d290d4"
+source_sha: "1b7c73e09d28"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -1465,7 +1465,27 @@ Ein Skript führt bis zu 100 Aufrufe nacheinander aus. Vor jedem Aufruf speicher
 
 Die Wiederverwendung eines gespeicherten Ergebnisses reserviert kein Budget. Erhält dieselbe reine Aktion oder derselbe HTTP-GET-Aufruf beim erneuten Versuch andere Argumente, wird sie bzw. er mit den neuen Werten ausgeführt. Bei einem neuen Versuch darf ein fehlgeschlagener Schreibvorgang erneut laufen, wenn für jeden vorherigen Versuch feststeht, dass nichts gesendet wurde. Nach einer Zeitüberschreitung beim Warten auf die Antwort oder bei einem älteren Versuch ohne diesen Nachweis wird nicht automatisch erneut gesendet.
 
+Das Zeitlimit gilt für die gesamte Python-Ausführungszeit über alle Abschnitte eines Skripts hinweg. Wartezeit auf eine Aktion, Freigabe oder Antwort zählt nicht. Das Speicherlimit begrenzt den Heap des Interpreters während der Ausführung.
+
 Ein pausierter Schritt **Python mit Aktionen** lässt sich nur mit der Monty-Version fortsetzen, die seinen Zustand gespeichert hat. Bevor du eine Version mit einer anderen festgelegten `pydantic-monty`-Version bereitstellst, lass pausierte Skripte unter der alten Version zu Ende laufen. Ist ein Skript beim Wechsel noch pausiert, schlägt es mit `PYTHON_CHECKPOINT_INVALID` fehl. Wähle beim Lauf die Option zum Wiederholen ab dem fehlgeschlagenen Schritt.
+
+| Was passiert ist | Ergebnis |
+|---|---|
+| Ein Aufruf verwendet eine nicht gebundene Funktion oder eine Objektmethode | `PYTHON_ACTION_UNKNOWN` |
+| Ein Aufruf verwendet Positionsargumente oder Werte, die kein JSON sind | `PYTHON_ACTION_ARGUMENTS` |
+| Die Schlüsselwortargumente passen nicht zur gebundenen Aktion | `INVALID_BINDING` |
+| Das Skript wartet gleichzeitig auf mehrere Aufrufe | `PYTHON_ACTION_ASYNC` |
+| Das Skript startet einen 101. Aufruf | `PYTHON_ACTION_LIMIT` |
+| Die Aufrufargumente überschreiten das Byte-Limit für Inline-Daten | `PYTHON_ACTION_INPUT_TOO_LARGE` |
+| Der Interpreterzustand eines Aufrufs überschreitet 512 KiB | `PYTHON_CHECKPOINT_TOO_LARGE` |
+| Der Interpreter kann einen gespeicherten Zustand nicht wiederherstellen | `PYTHON_CHECKPOINT_INVALID`, wird nie umgangen |
+| Eine gebundene Aktion oder ihre Ressourcen stehen dem Lauf nicht mehr zur Verfügung | `SCRIPT_ACTION_UNAVAILABLE`, der Lauf endet |
+| Bei einer Wiederholung lässt sich nicht nachweisen, dass ein früherer Schreibvorgang nicht gesendet wurde | `SCRIPT_ACTION_RETRY_UNSAFE`, der Lauf endet |
+| Das Skript erreicht sein Python-Zeit- oder Speicherlimit | `PYTHON_ERROR` |
+
+::: app.workflows.python_actions.PythonActionsConfig
+    options:
+      show_bases: false
 
 `code.python.simple` führt ein kurzes Skript in der Monty-Sandbox aus, die kein
 Dateisystem, kein Netzwerk und nur eine kleine Standardbibliothek hat. Das Skript liest

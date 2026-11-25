@@ -66,6 +66,7 @@ import { JsonView } from "@/components/ui/json-view";
 import { isRecord } from "@/components/workflows/property-panel/schema-model";
 import {
   pythonCallOf,
+  statusWithPythonCall,
   iterationDataOf,
   iterationOf,
   stepDataOf,
@@ -484,7 +485,14 @@ export default function WorkflowRunPage({ params }: PageProps) {
                       </span>
                     </span>
                     <NodeRunStatusLabel
-                      status={node.status}
+                      status={
+                        callsByStep
+                          .get(stepKey(node))
+                          ?.reduce(
+                            (current, { row }) => statusWithPythonCall(current, row.status),
+                            node.status,
+                          ) ?? node.status
+                      }
                       switchedOff={
                         graph?.nodes.find((step) => step.id === node.node_instance_id)?.disabled ===
                         true

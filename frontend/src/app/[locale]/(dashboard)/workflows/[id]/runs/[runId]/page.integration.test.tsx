@@ -370,6 +370,19 @@ describe("the step list", () => {
     expect(store.stepData["a"]?.output).toEqual(parent.output);
   });
 
+  it("shows the waiting script step as running while its action runs", async () => {
+    seed({}, "waiting");
+    vi.mocked(runsApi.listWorkflowRunNodes).mockResolvedValue({
+      items: [
+        step("waiting"),
+        { ...step("running"), id: "child", scope_path: [{ action: "lookup", index: 0 }] },
+      ],
+      total: 2,
+    });
+    await renderPage();
+    expect(await screen.findByRole("button", { name: /running/i })).toBeVisible();
+  });
+
   it("resolves the actual call, without offering a loop error route for a call outside a loop", async () => {
     seed({}, "waiting");
     vi.mocked(runsApi.listWorkflowRunNodes).mockResolvedValue({

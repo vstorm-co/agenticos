@@ -1,5 +1,5 @@
 ---
-source_sha: "cc7905d290d4"
+source_sha: "1b7c73e09d28"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -1420,7 +1420,27 @@ Las llamadas se ejecutan en orden, hasta 100 por script. El intérprete guarda s
 
 Reutilizar un resultado guardado no reserva presupuesto. Si la misma acción pura o petición HTTP GET recibe argumentos distintos al reintentar, se ejecuta de nuevo con los nuevos valores. Una escritura fallida puede volver a ejecutarse si todos los intentos anteriores registraron que se detuvieron antes del envío. No se repite automáticamente si se agotó el tiempo de espera después del envío o si falta esa prueba en un intento anterior.
 
+El tiempo límite abarca toda la ejecución de Python a lo largo de todos los segmentos del script. La espera de una acción, una aprobación o una respuesta no cuenta. El límite de memoria restringe la memoria dinámica del intérprete mientras se ejecuta.
+
 Un paso **Python con acciones** en pausa solo puede reanudarse con la versión de Monty que guardó su estado. Antes de desplegar una versión que cambie la versión fijada de `pydantic-monty`, deja que los scripts en pausa terminen con la versión anterior. Si un script sigue en pausa al hacer el cambio, falla con `PYTHON_CHECKPOINT_INVALID`. En la ejecución, usa la opción para reintentar desde el paso fallido.
+
+| Qué ocurrió | Resultado |
+|---|---|
+| Una llamada usa una función no vinculada o un método de un objeto | `PYTHON_ACTION_UNKNOWN` |
+| Una llamada usa argumentos posicionales o valores que no son JSON | `PYTHON_ACTION_ARGUMENTS` |
+| Los argumentos por nombre no coinciden con la acción vinculada | `INVALID_BINDING` |
+| El script espera varias llamadas a la vez | `PYTHON_ACTION_ASYNC` |
+| El script hace una llamada número 101 | `PYTHON_ACTION_LIMIT` |
+| Los argumentos de la llamada superan el límite de bytes de los datos en línea | `PYTHON_ACTION_INPUT_TOO_LARGE` |
+| El estado del intérprete en una llamada supera los 512 KiB | `PYTHON_CHECKPOINT_TOO_LARGE` |
+| El intérprete no puede restaurar un estado guardado | `PYTHON_CHECKPOINT_INVALID`, nunca se omite |
+| Una acción vinculada o sus recursos ya no están disponibles para la ejecución | `SCRIPT_ACTION_UNAVAILABLE`, la ejecución termina |
+| Un reintento no puede demostrar que no se envió una escritura anterior | `SCRIPT_ACTION_RETRY_UNSAFE`, la ejecución termina |
+| El script agota su límite de tiempo o de memoria de Python | `PYTHON_ERROR` |
+
+::: app.workflows.python_actions.PythonActionsConfig
+    options:
+      show_bases: false
 
 `code.python.simple` ejecuta un script corto en el sandbox de Monty, que no tiene
 sistema de archivos, ni red, y tiene una biblioteca estándar pequeña. El script lee los
