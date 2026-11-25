@@ -184,7 +184,13 @@ describe("uploadPath", () => {
 });
 
 it("queues a sandbox transfer and reports a refused transfer without dropping the project", async () => {
-  const { result } = renderHook(() => useProject("p-1"), { wrapper });
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const invalidate = vi.spyOn(client, "invalidateQueries");
+  const { result } = renderHook(() => useProject("p-1"), {
+    wrapper: ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    ),
+  });
   await waitFor(() => expect(result.current.project).toEqual(PROJECT));
   vi.mocked(api.moveProjectWorkspace).mockResolvedValue({
     job_id: "j",
@@ -196,6 +202,7 @@ it("queues a sandbox transfer and reports a refused transfer without dropping th
   });
   await act(() => result.current.moveWorkspace.mutateAsync("cloud"));
   expect(api.moveProjectWorkspace).toHaveBeenCalledWith("p-1", "cloud");
+  expect(invalidate).toHaveBeenCalledWith({ queryKey: ["conversation-workspace"] });
   vi.mocked(api.moveProjectWorkspace).mockRejectedValue(new Error("active run"));
   await act(async () => {
     await result.current.moveWorkspace.mutateAsync("cloud").catch(() => undefined);

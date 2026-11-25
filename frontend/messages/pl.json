@@ -609,7 +609,16 @@
       "readNoticeBody": "Spróbuj ponownie sprawdzić połączenie z plikami. Z rozmowy nadal możesz korzystać.",
       "connectionSettings": "Połączenia sandboxów",
       "technicalDetails": "Szczegóły techniczne",
-      "zipFailed": "Nie udało się pobrać folderu."
+      "zipFailed": "Nie udało się pobrać folderu.",
+      "fileLocation": "Lokalizacja plików",
+      "chooseLocation": "Wybierz lokalizację plików",
+      "agentLocation": "Pliki agenta · {name}",
+      "projectLocation": "Pliki projektu · {name}",
+      "locationUnavailable": "Ta lokalizacja plików nie jest już dostępna. Wybierz inną.",
+      "locationsTruncated": "Niektóre lokalizacje plików pominięto na tej liście.",
+      "filesTruncated": "Ta lista plików jest niepełna.",
+      "loading": "Ładowanie plików…",
+      "retry": "Spróbuj ponownie"
     },
     "generateShareLink": "Wygeneruj link do udostępnienia",
     "helpful": "Pomocne",

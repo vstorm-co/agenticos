@@ -1607,7 +1607,16 @@
       "readNoticeBody": "Versuche erneut, die Dateiverbindung zu prüfen. Du kannst den Chat weiterhin nutzen.",
       "connectionSettings": "Sandbox-Verbindungen",
       "technicalDetails": "Technische Details",
-      "zipFailed": "Der Ordner konnte nicht heruntergeladen werden."
+      "zipFailed": "Der Ordner konnte nicht heruntergeladen werden.",
+      "fileLocation": "Dateispeicherort",
+      "chooseLocation": "Dateispeicherort auswählen",
+      "agentLocation": "Agent-Dateien · {name}",
+      "projectLocation": "Projektdateien · {name}",
+      "locationUnavailable": "Dieser Dateispeicherort ist nicht mehr verfügbar. Wählen Sie einen anderen.",
+      "locationsTruncated": "Einige Dateispeicherorte fehlen in dieser Liste.",
+      "filesTruncated": "Diese Dateiliste ist unvollständig.",
+      "loading": "Dateien werden geladen…",
+      "retry": "Erneut versuchen"
     },
     "generateShareLink": "Freigabelink erzeugen",
     "helpful": "Hilfreich",

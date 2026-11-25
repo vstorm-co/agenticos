@@ -1607,7 +1607,16 @@
       "readNoticeBody": "Tente novamente para verificar a conexão do arquivo. Você pode continuar usando esta conversa.",
       "connectionSettings": "Conexões do Sandbox",
       "technicalDetails": "Detalhes técnicos",
-      "zipFailed": "Não foi possível baixar a pasta."
+      "zipFailed": "Não foi possível baixar a pasta.",
+      "fileLocation": "Localização dos ficheiros",
+      "chooseLocation": "Escolher uma localização",
+      "agentLocation": "Ficheiros do agente · {name}",
+      "projectLocation": "Ficheiros do projeto · {name}",
+      "locationUnavailable": "Esta localização já não está disponível. Escolha outra.",
+      "locationsTruncated": "Algumas localizações foram omitidas desta lista.",
+      "filesTruncated": "Esta lista de ficheiros está incompleta.",
+      "loading": "A carregar ficheiros…",
+      "retry": "Tentar novamente"
     },
     "generateShareLink": "Gerar link de compartilhamento",
     "helpful": "Útil",
