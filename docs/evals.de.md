@@ -1,5 +1,5 @@
 ---
-source_sha: "5a321e5b8ad8"
+source_sha: "4fe820a92a3a"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Entwurf, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -241,6 +241,11 @@ den Fall, den er beantwortet hat (`eval_case`), für eine lesende Person, die
 das Dataset sehen darf. Er läuft als die Person, die den Eval gestartet hat,
 mit ihrer aktuellen Rolle, und liest oder schreibt nicht ihr persönliches
 Gedächtnis.
+
+Diese Rolle wird vor jedem Fall erneut gelesen. Hat die startende Person die
+Organisation verlassen, den Zugriff auf den Agent oder das Dataset verloren oder
+wurde ihr Schlüssel widerrufen, schlägt der Run fehl, bevor er einen weiteren
+Fall beantwortet.
 
 Jeder Fall läuft **isoliert**, wie [Umgebungen](environments.md) beschreibt:
 Ein Tool mit einer Testverbindung in der Umgebung des Runs läuft gegen diese,

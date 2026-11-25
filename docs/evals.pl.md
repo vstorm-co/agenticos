@@ -1,5 +1,5 @@
 ---
-source_sha: "5a321e5b8ad8"
+source_sha: "4fe820a92a3a"
 title: "Runy ewaluacji"
 description: "Run ewaluacji odpowiada na każdy przypadek datasetu wersją agenta albo jego wersją roboczą, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -226,6 +226,11 @@ runów go pomija, gdy się o to poprosi (`?exclude_surface=eval`). Odczyt
 pojedynczego runa wskazuje run ewaluacji i przypadek, na który odpowiadał
 (`eval_case`), czytającemu, który może widzieć dataset. Działa jako osoba, która
 uruchomiła ewaluację, z jej obecną rolą, i nie czyta ani nie zapisuje jej osobistej pamięci.
+
+Ta rola jest odczytywana ponownie przed każdym przypadkiem. Gdy osoba, która
+uruchomiła ewaluację, opuściła organizację, straciła dostęp do agenta albo
+datasetu albo jej klucz został unieważniony, run kończy się błędem, zanim
+odpowie na kolejny przypadek.
 
 Każdy przypadek działa **w izolacji**, jak opisują [Środowiska](environments.md):
 narzędzie z testowym połączeniem w środowisku runa działa na nim, narzędzie, o

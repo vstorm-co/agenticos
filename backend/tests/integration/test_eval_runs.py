@@ -2041,6 +2041,41 @@ async def test_cases_narrow_by_tag(db) -> None:
 
 
 @pytest.mark.security
+async def test_a_manual_eval_answers_no_case_after_its_starter_leaves(db) -> None:
+    ctx = await _owner(db)
+    starter = await _member(db, ctx, OrgRoleName.ADMIN)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=3)
+    service = EvalRunService(db)
+    started = await service.start(starter, agent.id, EvalRunRequest(dataset_id=dataset.id))
+    model = Model(db)
+
+    async def execute(runner, *args, **kwargs):
+        answered = await model.execute(runner, *args, **kwargs)
+        if len(model.calls) == 1:
+            await db.execute(
+                delete(OrganizationMember).where(
+                    OrganizationMember.organization_id == ctx.organization_id,
+                    OrganizationMember.user_id == starter.user_id,
+                )
+            )
+            await db.flush()
+        return answered
+
+    with patch.object(AgentRunnerService, "execute", new=execute):
+        await EvalRunWorker(
+            started.id, ctx.organization_id, sessions=_sessions(db), sleep=AsyncMock()
+        ).run()
+
+    run = await service.get(ctx, started.id)
+    assert len(model.calls) == 1
+    assert (run.status, run.error) == (
+        "failed",
+        "Whoever started this eval may no longer run its agent or its dataset.",
+    )
+
+
+@pytest.mark.security
 async def test_a_budget_stop_leaves_a_run_another_worker_already_ended(db) -> None:
     ctx = await _owner(db)
     agent, _ = await _agent(db, ctx)
@@ -2230,7 +2265,7 @@ async def test_an_attempt_gone_with_its_run_stops_the_drainer(db) -> None:
     ctx = await _owner(db)
     worker = EvalRunWorker(uuid.uuid4(), ctx.organization_id, sessions=_sessions(db))
 
-    assert await worker._answer(ctx, uuid.uuid4()) is True
+    assert await worker._answer(uuid.uuid4()) is True
 
 
 async def _decide(db: AsyncSession, run_id, prompt: str, *, passed: bool) -> None:
@@ -3323,7 +3358,7 @@ async def test_a_run_cancelled_before_its_reruns_queues_none(db) -> None:
     with patch.object(AgentRunnerService, "execute", new=execute):
         started = await worker._begin()
         assert started is not None
-        await worker._wave(started)
+        await worker._wave()
     await service.cancel(ctx, v7.id)
 
     assert await worker._queue_reruns(started) is False
@@ -4290,7 +4325,7 @@ async def test_a_run_a_person_cancelled_keeps_its_outcome_when_its_worker_then_f
     service = EvalRunService(db)
     started = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
 
-    async def cancelled_then_broken(_ctx: AuthContext) -> None:
+    async def cancelled_then_broken() -> None:
         await service.cancel(ctx, started.id)
         raise TimeoutError
 
@@ -4332,7 +4367,7 @@ async def test_an_attempt_deleted_before_its_answer_is_linked_records_nothing(db
         patch.object(AgentRunnerService, "execute", new=execute),
         caplog.at_level("WARNING", logger="app.services.eval_run_worker"),
     ):
-        assert await worker._answer(working, claimed.id) is False
+        assert await worker._answer(claimed.id) is False
 
     assert len(model.calls) == 1
     assert await db.scalar(select(func.count()).select_from(EvalRunCase)) == 0

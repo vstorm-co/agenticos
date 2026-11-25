@@ -1,5 +1,5 @@
 ---
-source_sha: "5a321e5b8ad8"
+source_sha: "4fe820a92a3a"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -220,6 +220,10 @@ historial de runs lo omite cuando se le pide (`?exclude_surface=eval`). Su
 lectura individual nombra el eval run y el caso al que respondió (`eval_case`),
 para un lector que pueda ver el dataset. Se ejecuta como la persona que inició
 el eval, con su rol actual, y no lee ni escribe su memoria personal.
+
+Ese rol se vuelve a leer antes de cada caso. Si quien inició el eval ha dejado
+la organización, ha perdido el acceso al agent o al dataset, o se ha revocado su
+clave, el run falla antes de responder otro caso.
 
 Cada caso se ejecuta **aislado**, como describe [Entornos](environments.md):
 una herramienta con una conexión de prueba en el entorno del run se ejecuta

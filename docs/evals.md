@@ -210,6 +210,10 @@ names the eval run and case it answered (`eval_case`), for a reader who may see
 the dataset. It runs as the person who started the eval, with their current role,
 and does not read or write their personal memory.
 
+That role is read again before each case. When the starter has left the
+organization, lost access to the agent or the dataset, or had their key revoked,
+the run fails before it answers another case.
+
 Each case runs **isolated**, as [Environments](environments.md) describes: a
 tool with a test connection on the run's environment runs against it, a tool
 known to only read runs on the normal connection, and anything that writes without
