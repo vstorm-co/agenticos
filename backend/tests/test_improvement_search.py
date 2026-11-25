@@ -78,6 +78,12 @@ def test_every_variant_is_scored_on_the_same_draw_of_training_questions():
     assert sorted(draw_questions(cases[:5], size=12, seed=7), key=str) == sorted(cases[:5], key=str)
 
 
+def test_a_variant_an_erasure_emptied_is_never_a_winner():
+    emptied, kept = _variant(1, 0.9, text=""), _variant(2, 0.7, text="Refund one charge.")
+
+    assert winner([emptied, kept], 0.5) == [kept]
+
+
 def test_a_case_scores_the_share_of_its_required_checks_that_passed():
     assert case_share([_result("pass"), _result("fail"), _result("pass", required=False)]) == 0.5
     assert case_share([_result("skipped"), _result("fail", required=False)]) is None

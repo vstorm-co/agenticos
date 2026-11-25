@@ -6,7 +6,12 @@ import { SetUpGrading } from "./set-up-grading";
 
 describe("SetUpGrading", () => {
   it("links each dataset the agents were to be asked once, and names none it may not see", () => {
-    const hidden = { ...checkAgent().stages[0]!, dataset_id: "d-9", dataset_name: null };
+    const hidden = {
+      ...checkAgent().stages[0]!,
+      dataset_id: null,
+      dataset_name: null,
+      eval_run_id: null,
+    };
     render(
       <SetUpGrading
         agents={[checkAgent({ name: "A" }), checkAgent({ name: "B", stages: [hidden] })]}

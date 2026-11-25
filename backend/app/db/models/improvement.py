@@ -579,7 +579,10 @@ class ImprovementSearchVariant(Base):
     """One variant of an agent's instructions a search attempt tried on training questions.
 
     Holds the variant's text and its score - the share of required checks its
-    answers passed - never a question's or an answer's text.
+    answers passed - never a question's or an answer's text. The text and its
+    rationale are written from the dataset's training questions and reference
+    answers, so they can repeat what a case holds: erasing a person whose words
+    are in that dataset empties both and keeps the score.
     """
 
     __tablename__ = "improvement_search_variants"

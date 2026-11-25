@@ -230,7 +230,8 @@ def winner(
     """The scored variants that beat the starting instructions, best first.
 
     Ties go to the shorter text. With no score for the starting instructions
-    nothing can be shown to beat them, so there is none.
+    nothing can be shown to beat them, so there is none. A variant whose text an
+    erasure emptied keeps its score and is never one.
     """
     if seed_score is None:
         return []
@@ -238,6 +239,7 @@ def winner(
         v
         for v in variants
         if v.generation > 0
+        and v.instructions
         and v.status == SearchVariantStatus.SCORED.value
         and v.train_score is not None
         and v.train_score > seed_score

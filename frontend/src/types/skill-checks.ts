@@ -45,8 +45,8 @@ export interface SkillCheckStart {
 
 export interface CheckStage {
   kind: "skill_set" | "dataset_sample" | "dataset";
-  dataset_id: string;
-  /** Null for a dataset the reader may not see. */
+  /** Null, with its name and eval run, for a dataset the reader may not see. */
+  dataset_id: string | null;
   dataset_name: string | null;
   cases: number;
   eval_run_id: string | null;

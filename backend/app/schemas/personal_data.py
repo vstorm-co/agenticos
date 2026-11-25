@@ -389,6 +389,15 @@ class PersonalDataPurge(BaseModel):
     case_copies: int = Field(
         description="Eval attempts and scores of those revisions, cleared of what they recorded."
     )
+    search_variants: int = Field(
+        default=0,
+        description="Improve search variants written over a dataset holding those revisions, "
+        "cleared of their text.",
+    )
+    attempt_notes: int = Field(
+        default=0,
+        description="Notes on the attempts of Improve sessions they started or last continued.",
+    )
     history_turns: int = Field(
         description="Cases asked by somebody else whose earlier turns held theirs, now replaced."
     )
