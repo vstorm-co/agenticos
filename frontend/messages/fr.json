@@ -7814,6 +7814,7 @@
       "codeRuns": "{count, plural, =1 {1 script} other {# scripts}}",
       "codeRunCalls": "{count, plural, =0 {Il n’a appelé aucun outil} =1 {Il a fait 1 appel d’outil} other {Il a fait # appels d’outils}}",
       "codeRunOmittedCalls": "{count, plural, =1 {et 1 appel de plus, non listé} other {et # appels de plus, non listés}}",
+      "codeCallState": "{status, select, held {{reason, select, writes {non exécuté (aurait écrit des données)} external {non exécuté (aurait atteint l’extérieur)} needs_approval {non exécuté (exige une approbation)} other {non exécuté}}} replayed {d’après l’enregistrement} divergent {absent de l’enregistrement} other {Inconnu}}",
       "cacheBust": "invalidation du cache",
       "cacheExpired": "cache expiré",
       "cacheBustDetail": "{missed, number} tokens en cache non relus depuis le cache - quelque chose avant eux dans le prompt a changé",

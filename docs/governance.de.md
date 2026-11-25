@@ -1,5 +1,5 @@
 ---
-source_sha: "6ee0a9347a24"
+source_sha: "a7aacd6a81ea"
 ---
 
 # Governance { #governance }
@@ -1568,6 +1568,8 @@ Zeichnungen) bleiben nativ. Sitzungen, die vor jedem Tool fragen, und Routine-Ru
 behalten ihre bisherige Richtlinie für native Tools. Die Run-Ansicht zeigt jedes
 Skript einmal mit seinen Aufrufen und deren Freigabe- oder Ausführungsstatus
 über alle Fortsetzungen hinweg.
+In einem isolierten Run zeigt sie auch, welche Aufrufe zurückgehalten wurden (und
+warum), aus der Aufzeichnung beantwortet wurden oder in ihr fehlten.
 
 ### Berichte { #reporting }
 

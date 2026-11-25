@@ -7318,6 +7318,7 @@
       "codeRuns": "{count, plural, =1 {1 Skript} other {# Skripte}}",
       "codeRunCalls": "{count, plural, =0 {Es hat kein Tool aufgerufen} =1 {Es hat 1 Tool aufgerufen} other {Es hat # Tools aufgerufen}}",
       "codeRunOmittedCalls": "{count, plural, =1 {und 1 weiterer Aufruf, nicht aufgeführt} other {und # weitere Aufrufe, nicht aufgeführt}}",
+      "codeCallState": "{status, select, held {{reason, select, writes {nicht ausgeführt (hätte Daten geschrieben)} external {nicht ausgeführt (hätte nach außen gegriffen)} needs_approval {nicht ausgeführt (braucht eine Freigabe)} other {nicht ausgeführt}}} replayed {aus Aufzeichnung} divergent {nicht in der Aufzeichnung} other {Unbekannt}}",
       "cacheBust": "Cache gebrochen",
       "cacheExpired": "Cache abgelaufen",
       "cacheBustDetail": "{missed, number} gecachte Tokens nicht aus dem Cache gelesen - davor im Prompt hat sich etwas geändert",
