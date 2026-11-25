@@ -19,10 +19,10 @@ import re
 import shutil
 import uuid
 from abc import ABC, abstractmethod
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from functools import partial
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, BinaryIO
+from typing import IO, TYPE_CHECKING, Any, BinaryIO
 
 from app.core.blocking import (
     create_cancel_safe,
@@ -545,7 +545,7 @@ def _open_at(file_path: Path, start: int) -> BinaryIO:
     return handle
 
 
-async def _read_span(handle: BinaryIO, length: int) -> AsyncIterator[bytes]:
+async def _read_span(handle: BinaryIO, length: int) -> AsyncGenerator[bytes]:
     """`length` bytes from an open file, a chunk at a time, closing it however
     the iteration ends - a player that seeks away abandons the stream mid-way."""
     remaining = length
@@ -568,13 +568,25 @@ class BaseFileStorage(ABC):
         """Save file and return storage path/key."""
 
     @abstractmethod
-    async def save_stream(self, user_id: str, filename: str, source: BinaryIO) -> str:
+    async def save_stream(self, user_id: str, filename: str, source: IO[bytes]) -> str:
         """Save a seekable stream without loading the complete object into memory.
 
         Reads from the current position. The caller keeps ownership of `source`
         and must keep it open until this method completes, including cancellation
         cleanup. Returns the same opaque storage path as `save`.
         """
+
+    async def save_stream_at(self, storage_path: str, source: IO[bytes]) -> None:
+        """Write a seekable stream at a uniquely reserved, journaled path.
+
+        The caller must reserve a fresh path before writing and own its cleanup.
+        No other writer may use it. Cancellation removes this writer's object;
+        process termination is recovered through the caller's persisted prefix.
+        The stream remains caller-owned, as with `save_stream`.
+        """
+        raise NotImplementedError(
+            f"{type(self).__name__} cannot stream to a caller-chosen path"
+        )  # pragma: no cover - both supported backends implement it
 
     @abstractmethod
     async def load(self, storage_path: str) -> bytes:
@@ -633,7 +645,7 @@ class BaseFileStorage(ABC):
             f"{type(self).__name__} cannot delete a prefix"
         )  # pragma: no cover - every backend in this codebase implements it
 
-    async def open_stream(self, storage_path: str) -> AsyncIterator[bytes]:
+    async def open_stream(self, storage_path: str) -> AsyncGenerator[bytes]:
         """The file's bytes in chunks, for a caller that must not hold it whole.
 
         The default reads it whole and yields one chunk, which is right for a
@@ -650,7 +662,7 @@ class BaseFileStorage(ABC):
         """
         data = await self.load(storage_path)
 
-        async def _one() -> AsyncIterator[bytes]:
+        async def _one() -> AsyncGenerator[bytes]:
             yield data
 
         return _one()
@@ -672,7 +684,7 @@ class BaseFileStorage(ABC):
             f"{type(self).__name__} cannot measure a file"
         )  # pragma: no cover - every backend in this codebase implements it
 
-    async def open_range(self, storage_path: str, start: int, end: int) -> AsyncIterator[bytes]:
+    async def open_range(self, storage_path: str, start: int, end: int) -> AsyncGenerator[bytes]:
         """Bytes `start` to `end` of the file, inclusive, in bounded chunks.
 
         The read a media player's `Range` request needs (#2310). A generated
@@ -760,20 +772,23 @@ class LocalFileStorage(BaseFileStorage):
         await write_bytes_cancel_safe(file_path, data)
         return f"{safe_user}/{storage_name}"
 
-    async def save_stream(self, user_id: str, filename: str, source: BinaryIO) -> str:
+    async def save_stream(self, user_id: str, filename: str, source: IO[bytes]) -> str:
         safe_owner = _sanitize_filename(user_id)
         path = f"{safe_owner}/{make_storage_filename(filename)}"
-        destination = self._resolve_safe_path(path)
+        await self.save_stream_at(path, source)
+        return path
+
+    async def save_stream_at(self, storage_path: str, source: IO[bytes]) -> None:
+        destination = self._resolve_safe_path(storage_path)
         await create_cancel_safe(
             self._copy_stream_blocking,
             partial(destination.unlink, missing_ok=True),
             destination,
             source,
         )
-        return path
 
     @staticmethod
-    def _copy_stream_blocking(destination: Path, source: BinaryIO) -> None:
+    def _copy_stream_blocking(destination: Path, source: IO[bytes]) -> None:
         destination.parent.mkdir(parents=True, exist_ok=True)
         created = False
         try:
@@ -839,7 +854,10 @@ class LocalFileStorage(BaseFileStorage):
         file_path = self._resolve_safe_path(storage_path)
         return await run_blocking(os.path.getsize, file_path)
 
-    async def open_range(self, storage_path: str, start: int, end: int) -> AsyncIterator[bytes]:
+    async def open_stream(self, storage_path: str) -> AsyncGenerator[bytes]:
+        return await self.open_range(storage_path, 0, await self.size(storage_path) - 1)
+
+    async def open_range(self, storage_path: str, start: int, end: int) -> AsyncGenerator[bytes]:
         """The span off disk, a chunk at a time, on the file pool."""
         file_path = self._resolve_safe_path(storage_path)
         handle = await run_blocking(_open_at, file_path, start)
@@ -879,7 +897,7 @@ class LocalFileStorage(BaseFileStorage):
 class _BorrowedUploadStream:
     """The S3 transfer may close its handle, while the caller owns the source."""
 
-    def __init__(self, source: BinaryIO) -> None:
+    def __init__(self, source: IO[bytes]) -> None:
         self.source = source
 
     def read(self, size: int = -1) -> bytes:
@@ -980,15 +998,18 @@ class S3FileStorage(BaseFileStorage):
         await create_cancel_safe(self._put_blocking, partial(self._delete_blocking, key), key, data)
         return storage_path
 
-    async def save_stream(self, user_id: str, filename: str, source: BinaryIO) -> str:
+    async def save_stream(self, user_id: str, filename: str, source: IO[bytes]) -> str:
         path = f"{_sanitize_filename(user_id)}/{make_storage_filename(filename)}"
-        key = self._key(path)
+        await self.save_stream_at(path, source)
+        return path
+
+    async def save_stream_at(self, storage_path: str, source: IO[bytes]) -> None:
+        key = self._key(storage_path)
         await create_cancel_safe(
             self._upload_stream_blocking, partial(self._delete_blocking, key), key, source
         )
-        return path
 
-    def _upload_stream_blocking(self, key: str, source: BinaryIO) -> None:
+    def _upload_stream_blocking(self, key: str, source: IO[bytes]) -> None:
         from boto3.s3.transfer import TransferConfig
 
         # s3transfer owns/closes its input wrapper. It must not take ownership
@@ -1096,7 +1117,7 @@ class S3FileStorage(BaseFileStorage):
             return False
         return await run_blocking(self._head_blocking, key) is not None
 
-    async def open_stream(self, storage_path: str) -> AsyncIterator[bytes]:
+    async def open_stream(self, storage_path: str) -> AsyncGenerator[bytes]:
         """One object, in bounded chunks, never held whole in this process.
 
         A knowledge-base document can be 50 MB, and the route serving it has no
@@ -1117,7 +1138,7 @@ class S3FileStorage(BaseFileStorage):
             raise FileNotFoundError(f"File not found: {key}")
         return length
 
-    async def open_range(self, storage_path: str, start: int, end: int) -> AsyncIterator[bytes]:
+    async def open_range(self, storage_path: str, start: int, end: int) -> AsyncGenerator[bytes]:
         """A ranged `GetObject`, read in bounded chunks.
 
         The store sends only the span, so neither the object nor the part of it
@@ -1141,7 +1162,7 @@ class S3FileStorage(BaseFileStorage):
             raise
         return response["Body"]
 
-    async def _chunks(self, body: Any) -> AsyncIterator[bytes]:
+    async def _chunks(self, body: Any) -> AsyncGenerator[bytes]:
         """Read the open body a chunk at a time, on the file pool.
 
         `body.read(n)` is a blocking socket read, so it belongs off the loop for

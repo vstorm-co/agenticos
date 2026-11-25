@@ -106,3 +106,27 @@ async def test_s3_transfer_keeps_encryption_bounded_multipart_and_borrowed_owner
     assert path.startswith("one/")
     assert received == b"source content"
     assert not source.closed
+
+
+async def test_journaled_stream_paths_are_exact_and_contained(tmp_path: Path) -> None:
+    storage = LocalFileStorage(str(tmp_path))
+    source = _BoundedSource(b"bundle content")
+    reserved = "portability/operation/staging/attempt/output.zip"
+    await storage.save_stream_at(reserved, source)
+    assert await storage.load(reserved) == b"bundle content"
+    assert not source.closed
+    with pytest.raises(ValueError, match="escapes"):
+        await storage.save_stream_at("../outside.zip", BytesIO(b"no"))
+    assert await storage.delete_prefix("portability/operation") == 1
+
+
+async def test_s3_reserved_stream_path_is_not_replaced_with_a_random_key() -> None:
+    client = MagicMock()
+    storage = S3FileStorage(client, "files", prefix="deployment")
+    source = BytesIO(b"bytes")
+    await storage.save_stream_at("portability/operation/staging/result.zip", source)
+    assert (
+        client.upload_fileobj.call_args.args[2]
+        == "deployment/portability/operation/staging/result.zip"
+    )
+    assert not source.closed

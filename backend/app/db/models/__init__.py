@@ -1,6 +1,7 @@
 """Database models."""
 
 # ruff: noqa: I001, RUF022 - Imports structured for Jinja2 template conditionals
+from app.db.models.portability_operation import PortabilityOperation
 from app.db.models.solution_installation import SolutionInstallation
 from app.db.models.task_board import TaskBoard, TaskLink
 from app.db.models.project_tracking import ProjectTracking
@@ -231,6 +232,7 @@ __all__ = [
     "ProjectResource",
     "PersonalContextCache",
     "SolutionInstallation",
+    "PortabilityOperation",
     "TaskBoard",
     "TaskLink",
     "PhoneCall",

@@ -42,7 +42,7 @@ async def test_preview_download_and_import_are_one_typed_contract(
     service.export_agent = AsyncMock(return_value=preview)
     service.download_agent = AsyncMock(return_value=b"portable file")
     service.preview_document = AsyncMock(return_value=preview)
-    service.import_bundle = AsyncMock(
+    service.import_agent = AsyncMock(
         return_value=BundleImportRead(
             roots={bundle.roots[0]: created},
             created={bundle.roots[0]: created},
@@ -76,7 +76,7 @@ async def test_preview_download_and_import_are_one_typed_contract(
     )
     assert imported.status_code == 201
     assert imported.json()["roots"][bundle.roots[0]] == str(created)
-    assert service.import_bundle.await_args.args[0] == ctx
+    assert service.import_agent.await_args.args[0] == ctx
 
 
 async def test_collection_import_permission_is_checked_before_the_service(

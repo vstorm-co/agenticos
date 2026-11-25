@@ -747,11 +747,11 @@ async def test_workspace_progress_and_activation_reject_expired_cancelled_and_re
         assert await job_repo.workspace_move_progress(
             db, job_id, attempt=1, result={"copied_files": 2}
         )
-        assert await job_repo.lock_workspace_attempt(db, job_id, attempt=1) is not None
+        assert await job_repo.lock_attempt(db, job_id, attempt=1) is not None
         assert not await job_repo.workspace_move_progress(
             db, job_id, attempt=2, result={"copied_files": 100}
         )
-        assert await job_repo.lock_workspace_attempt(db, job_id, attempt=2) is None
+        assert await job_repo.lock_attempt(db, job_id, attempt=2) is None
     for status, expires in (("cancelled", LEASE), ("running", EXPIRED)):
         async with sessions() as db, db.begin():
             job = await db.get(BackgroundJob, job_id)
@@ -761,5 +761,5 @@ async def test_workspace_progress_and_activation_reject_expired_cancelled_and_re
             assert not await job_repo.workspace_move_progress(
                 db, job_id, attempt=1, result={"copied_files": 100}
             )
-            assert await job_repo.lock_workspace_attempt(db, job_id, attempt=1) is None
+            assert await job_repo.lock_attempt(db, job_id, attempt=1) is None
             assert (await db.get(BackgroundJob, job_id)).result == {"copied_files": 2}

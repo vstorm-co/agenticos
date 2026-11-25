@@ -112,7 +112,7 @@ function describingHeaders(source: Headers): Headers {
  * at a new place needs no argument to keep in sync with the directory it sits
  * in - the one thing that would silently send a route to the wrong endpoint.
  */
-export function platformProxy(): ProxyHandlers {
+export function platformProxy(options: { streamRequest?: boolean } = {}): ProxyHandlers {
   const forward: Handler = async (request) => {
     const accessToken = request.cookies.get(ACCESS_TOKEN_COOKIE)?.value;
     if (!accessToken) {
@@ -130,26 +130,33 @@ export function platformProxy(): ProxyHandlers {
     // `application/json` makes FastAPI reject the body it was just handed.
     const contentType = request.headers.get("content-type");
 
-    const response = await fetch(url, {
+    const streaming = options.streamRequest && WITH_BODY.has(request.method);
+    const declaredLength = request.headers.get("content-length");
+    const init: RequestInit & { duplex?: "half" } = {
       method: request.method,
       headers: {
         Authorization: `Bearer ${accessToken}`,
         ...(contentType ? { "Content-Type": contentType } : {}),
+        ...(streaming && declaredLength ? { "Content-Length": declaredLength } : {}),
         ...(organizationId ? { [ORG_HEADER]: organizationId } : {}),
         ...(consoleTab ? { [CONSOLE_TAB_HEADER]: consoleTab } : {}),
       },
-      // Bytes, not text, and buffered rather than streamed. Reading the body as
-      // an ArrayBuffer keeps a PDF's bytes intact, and keeping it buffered is
-      // deliberate: a streamed request body cannot be replayed, so undici cannot
-      // follow the 307 FastAPI answers on a trailing-slash mismatch, and it
-      // drops `Content-Length`, which is the header `BodySizeLimitMiddleware`
-      // reads to reject an oversized upload early. The response is where
-      // streaming pays and costs nothing (below); the request is not.
-      body: WITH_BODY.has(request.method) ? await request.arrayBuffer() : undefined,
+      // Most routes retain bytes for FastAPI's trailing-slash redirect. Bundle
+      // routes have exact canonical paths and stream large bodies instead;
+      // redirects must never replay an ambiguously submitted upload.
+      body: streaming
+        ? request.body
+        : WITH_BODY.has(request.method)
+          ? await request.arrayBuffer()
+          : undefined,
+      ...(streaming
+        ? { duplex: "half" as const, redirect: "manual" as const, signal: request.signal }
+        : {}),
       // A proxy must never serve a cached answer: the reply depends on the
       // caller's role and on rows that change under them.
       cache: "no-store",
-    });
+    };
+    const response = await fetch(url, init);
 
     // The backend's own body stream, passed through rather than buffered: a 204
     // carries a null body and stays empty, an error body reaches the client

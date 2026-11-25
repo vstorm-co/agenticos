@@ -41,6 +41,8 @@ class LockScope(IntEnum):
     CONVERSATION_FORK_STORAGE_PER_ORG = 31
     CONNECTED_ACCOUNTS = 25
     MCP_OAUTH_CLIENTS_PER_ORG = 39
+    #: Resumable transfers serialize request replay and open-operation ceilings.
+    PORTABILITY_PER_OWNER = 40
     ORGANIZATIONS_PER_USER = 1
     #: How many agents one organization may hold.
     AGENTS_PER_ORGANIZATION = 2

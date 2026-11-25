@@ -21121,7 +21121,7 @@
     "importCompleteHint": "Vos brouillons privés sont prêts à être vérifiés. Rien n’a été publié ni exécuté.",
     "importTitle": "Importer un agent",
     "mappingHint": "Choisissez ce qu’il faut créer, réutiliser ou ignorer. Les ressources existantes ne sont jamais écrasées.",
-    "importDescription": "Importez une configuration AgenticOS YAML ou JSON, ou collez-la ci-dessous.",
+    "importDescription": "Importez une archive ZIP AgenticOS, une configuration YAML ou JSON, ou collez une configuration ci-dessous.",
     "fileTooLarge": "Les fichiers de configuration ne doivent pas dépasser 4 MiB.",
     "readError": "Impossible de lire le fichier. Sélectionnez-le à nouveau.",
     "importCounts": "Créés : {created} · réutilisés : {reused} · ignorés : {skipped}",
@@ -21131,7 +21131,7 @@
     "skip": "Ignorer cette ressource",
     "newName": "Nom de la nouvelle copie",
     "skipHint": "Les liens vers cette ressource seront supprimés du brouillon importé.",
-    "chooseFile": "Choisir un fichier YAML ou JSON",
+    "chooseFile": "Choisir un fichier ZIP, YAML ou JSON",
     "pasteConfiguration": "Ou coller la configuration",
     "openDraft": "Ouvrir le brouillon",
     "back": "Retour",
@@ -21148,6 +21148,12 @@
     "noDestinations": "Aucune ressource correspondante.",
     "previousDestinations": "Ressources précédentes",
     "nextDestinations": "Ressources suivantes",
-    "chooseExistingOwner": "Choisissez d’abord un agent ou un Skill existant pour sélectionner sa version ou son fork."
+    "chooseExistingOwner": "Choisissez d’abord un agent ou un Skill existant pour sélectionner sa version ou son fork.",
+    "zipFormat": "ZIP · avec fichiers",
+    "transferWorking": "Préparation du transfert en arrière-plan…",
+    "transferFailed": "Le transfert a échoué. Vérifiez la configuration et lancez un nouveau transfert.",
+    "zipTooLarge": "Les archives ZIP ne doivent pas dépasser 512 Mio.",
+    "noTransferSelected": "Aucun transfert sélectionné",
+    "noReviewedTransfer": "Aucun transfert vérifié sélectionné"
   }
 }

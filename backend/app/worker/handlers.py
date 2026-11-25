@@ -31,10 +31,11 @@ def ingest() -> Handlers:
     only the parsing and embedding stack - not the agent runtime the other pools
     need - is a quarter of its memory and half its start-up (#2229).
     """
-    from app.worker.tasks import project_tasks, rag_tasks
+    from app.worker.tasks import portability_tasks, project_tasks, rag_tasks
 
     return by_kind(
         [
+            Handler(jobs.PORTABLE_TRANSFER, portability_tasks.portable_transfer),
             Handler(jobs.MOVE_PROJECT_WORKSPACE, project_tasks.move_project_workspace),
             Handler(jobs.INGEST_DOCUMENT, rag_tasks.ingest_document),
             Handler(jobs.SYNC_COLLECTION, rag_tasks.sync_collection),
@@ -67,6 +68,7 @@ def production() -> Handlers:
         mcp_tasks,
         memory_tasks,
         notification_tasks,
+        portability_tasks,
         proactive_tasks,
         rag_tasks,
         report_tasks,
@@ -149,6 +151,7 @@ def production() -> Handlers:
             Handler(jobs.SWEEP_RAG_SCRATCH, _each_tick(teardown_tasks.sweep_rag_scratch)),
             Handler(jobs.APPLY_RETENTION, _each_tick(rag_tasks.apply_retention)),
             Handler(jobs.SWEEP_NOTIFICATIONS, _each_tick(notification_tasks.sweep_notifications)),
+            Handler(jobs.SWEEP_PORTABLE_TRANSFERS, _each_tick(portability_tasks.sweep_transfers)),
             Handler(jobs.SWEEP_BACKGROUND_JOBS, _each_tick(sweep_background_jobs)),
             Handler(jobs.CONSOLIDATE_MEMORY, _each_tick(memory_tasks.consolidate_memory)),
             Handler(jobs.EXTRACT_MEMORY, memory_tasks.extract_memory),
@@ -208,11 +211,15 @@ def _settlers() -> dict[str, Settler]:
         conversation_tasks,
         eval_tasks,
         key_coverage_tasks,
+        portability_tasks,
         project_tasks,
         rag_tasks,
     )
 
     return {
+        jobs.PORTABLE_TRANSFER.kind: _settler(
+            jobs.PORTABLE_TRANSFER, portability_tasks.settle_transfer
+        ),
         jobs.RUN_CONVERSATION_TASK.kind: _settler(
             jobs.RUN_CONVERSATION_TASK, conversation_tasks.settle_lost_task
         ),

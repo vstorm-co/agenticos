@@ -21,6 +21,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Export selected agent dependencies as YAML, JSON or ZIP, then review which
+  resources to copy, reuse or skip during import. Context and exact Skill
+  snapshots retain their text and files. Private ZIP transfers run as durable,
+  expiring worker jobs; imports never publish or run agents.
+
 - Switch Chats between the default project grouping and a flat, most-recent-first
   list. The preference persists per user, and server pagination does not pin
   old favourites above recent activity in flat mode.
@@ -43,6 +48,10 @@ Two things are versioned separately from this file and worth knowing about:
   SDK 2.x namespace migration.
 
 ### Upgrading
+
+- Apply `0367_portability_operations.py` for private transfer journals and run
+  the updated worker for ZIP preparation, import and expiry cleanup. Preserve
+  the proxy's dedicated 512 MiB upload allowance on both hosts.
 
 - Apply `0365_project_resources.py` and `0366_shared_mcp_oauth_clients.py` to add
   resource links and the unique organization MCP OAuth client identity. Existing

@@ -17325,7 +17325,7 @@
     "importCompleteHint": "Özel taslaklarınız incelenmeye hazır. Hiçbir şey yayımlanmadı veya çalıştırılmadı.",
     "importTitle": "Ajan içe aktar",
     "mappingHint": "Nelerin oluşturulacağını, yeniden kullanılacağını veya atlanacağını seçin. Mevcut kaynakların üzerine yazılmaz.",
-    "importDescription": "AgenticOS YAML veya JSON yapılandırmasını yükleyin ya da aşağıya yapıştırın.",
+    "importDescription": "Bir AgenticOS ZIP paketi, YAML veya JSON yapılandırması yükleyin ya da aşağıya bir yapılandırma yapıştırın.",
     "fileTooLarge": "Yapılandırma dosyaları 4 MiB boyutunu aşmamalıdır.",
     "readError": "Dosya okunamadı. Yeniden seçin.",
     "importCounts": "Oluşturulan: {created} · yeniden kullanılan: {reused} · atlanan: {skipped}",
@@ -17335,7 +17335,7 @@
     "skip": "Bu kaynağı atla",
     "newName": "Yeni kopyanın adı",
     "skipHint": "Bu kaynağa yapılan bağlantılar içe aktarılan taslaktan kaldırılacaktır.",
-    "chooseFile": "YAML veya JSON dosyası seçin",
+    "chooseFile": "ZIP, YAML veya JSON dosyası seçin",
     "pasteConfiguration": "Veya yapılandırmayı yapıştırın",
     "openDraft": "Taslağı aç",
     "back": "Geri",
@@ -17352,6 +17352,12 @@
     "noDestinations": "Eşleşen kaynak yok.",
     "previousDestinations": "Önceki kaynaklar",
     "nextDestinations": "Sonraki kaynaklar",
-    "chooseExistingOwner": "Sürümünü veya çatallamasını seçmek için önce mevcut bir hedef ajan veya Skill seçin."
+    "chooseExistingOwner": "Sürümünü veya çatallamasını seçmek için önce mevcut bir hedef ajan veya Skill seçin.",
+    "zipFormat": "ZIP · dosyalar dahil",
+    "transferWorking": "Aktarım arka planda hazırlanıyor…",
+    "transferFailed": "Aktarım başarısız oldu. Yapılandırmayı kontrol edip yeni bir aktarım başlatın.",
+    "zipTooLarge": "ZIP paketleri 512 MiB boyutunu aşamaz.",
+    "noTransferSelected": "Aktarım seçilmedi",
+    "noReviewedTransfer": "İncelenmiş bir aktarım seçilmedi"
   }
 }

@@ -21565,7 +21565,7 @@
     "importCompleteHint": "Ihre privaten Entwürfe sind zur Prüfung bereit. Nichts wurde veröffentlicht oder ausgeführt.",
     "importTitle": "Agent importieren",
     "mappingHint": "Wählen Sie Erstellen, Wiederverwenden oder Überspringen. Bestehende Ressourcen werden nie überschrieben.",
-    "importDescription": "Laden Sie eine AgenticOS-Konfiguration als YAML oder JSON hoch oder fügen Sie sie unten ein.",
+    "importDescription": "Laden Sie ein AgenticOS-ZIP-Paket oder eine YAML-/JSON-Konfiguration hoch oder fügen Sie die Konfiguration unten ein.",
     "fileTooLarge": "Konfigurationsdateien dürfen 4 MiB nicht überschreiten.",
     "readError": "Die Datei konnte nicht gelesen werden. Wählen Sie sie erneut.",
     "importCounts": "Erstellt: {created} · wiederverwendet: {reused} · übersprungen: {skipped}",
@@ -21575,7 +21575,7 @@
     "skip": "Diese Ressource überspringen",
     "newName": "Name der neuen Kopie",
     "skipHint": "Verknüpfungen mit dieser Ressource werden aus dem importierten Entwurf entfernt.",
-    "chooseFile": "YAML- oder JSON-Datei auswählen",
+    "chooseFile": "ZIP-, YAML- oder JSON-Datei auswählen",
     "pasteConfiguration": "Oder Konfiguration einfügen",
     "openDraft": "Entwurf öffnen",
     "back": "Zurück",
@@ -21592,6 +21592,12 @@
     "noDestinations": "Keine passenden Ressourcen.",
     "previousDestinations": "Vorherige Ressourcen",
     "nextDestinations": "Weitere Ressourcen",
-    "chooseExistingOwner": "Wähle zuerst einen bestehenden Zielagenten oder Skill, um dessen Version oder Fork auszuwählen."
+    "chooseExistingOwner": "Wähle zuerst einen bestehenden Zielagenten oder Skill, um dessen Version oder Fork auszuwählen.",
+    "zipFormat": "ZIP · mit Dateien",
+    "transferWorking": "Die Übertragung wird im Hintergrund vorbereitet…",
+    "transferFailed": "Die Übertragung ist fehlgeschlagen. Prüfen Sie die Konfiguration und starten Sie eine neue Übertragung.",
+    "zipTooLarge": "ZIP-Pakete dürfen 512 MiB nicht überschreiten.",
+    "noTransferSelected": "Keine Übertragung ausgewählt",
+    "noReviewedTransfer": "Keine geprüfte Übertragung ausgewählt"
   }
 }

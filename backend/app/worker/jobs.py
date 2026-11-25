@@ -64,6 +64,12 @@ class RevertCodingTask(Payload):
     api_key_id: UUID | None = None
 
 
+class PortableTransferPayload(Payload):
+    operation_id: UUID
+    organization_id: UUID
+    revision: int = Field(ge=1)
+
+
 class MoveProjectWorkspacePayload(Payload):
     transfer_id: UUID
     project_id: UUID
@@ -947,6 +953,25 @@ REVERT_CODING_TASK = Task(
     priority=Priority.INTERACTIVE,
 )
 
+PORTABLE_TRANSFER = Task(
+    kind="portable-transfer",
+    payload_type=PortableTransferPayload,
+    pool=Pool.INGEST,
+    max_attempts=1,
+    timeout=timedelta(minutes=30),
+    priority=Priority.INTERACTIVE,
+    retry_refusal="Start a new transfer; an expired upload or a reviewed import must not be replayed implicitly",
+)
+
+SWEEP_PORTABLE_TRANSFERS = Task(
+    kind="sweep-portable-transfers",
+    payload_type=Tick,
+    pool=Pool.SYSTEM,
+    max_attempts=1,
+    timeout=timedelta(minutes=5),
+    priority=Priority.BULK,
+)
+
 MOVE_PROJECT_WORKSPACE = Task(
     retry_refusal="Start a new transfer in the project's sandbox settings; retired transfer copies cannot be reused",
     kind="move-project-workspace",
@@ -1036,6 +1061,8 @@ TASKS: dict[str, TaskKind] = {
         DELIVER_CHANNEL_HANDBACK,
         ROUTINE_CHAT_ANSWER,
         MOVE_PROJECT_WORKSPACE,
+        PORTABLE_TRANSFER,
+        SWEEP_PORTABLE_TRANSFERS,
         REVERT_CODING_TASK,
         INGEST_DOCUMENT,
         SYNC_COLLECTION,

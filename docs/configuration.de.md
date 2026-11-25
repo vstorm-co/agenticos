@@ -1,5 +1,5 @@
 ---
-source_sha: "b67c12b7a802"
+source_sha: "aba44374cf5b"
 ---
 
 # Konfiguration { #configuration }
@@ -128,6 +128,8 @@ nötig, um Uploads über dem Standard von 1 MiB zu erlauben: Die Vorlage setzt
 der Konsole. Konsolenseiten, Authentifizierung und gewöhnliches JSON behalten
 die Grenze von 1 MiB. Erhöhen Sie beide Upload-Grenzen mit dem größten Upload-Limit. Siehe [Nginx-Deployment](deploy.md#option-b-nginx).
 Die Compose-Dateien starten uvicorn ohne eigene Body-Grenze.
+
+Portable ZIP-Uploads haben auf beiden Hosts eine eigene Grenze von 512 MiB. Die Konsole streamt `/api/portability/{id}/upload` zur API, ohne das Archiv in Next.js zu puffern. Transfersteuerung erlaubt 4 MiB; Textimporte erlauben 25 MiB für die JSON-Zeichenkettenhülle, während das dekodierte Dokument auf 4 MiB begrenzt bleibt. Behalten Sie diese gezielten Locations beim Ersetzen der Proxy-Konfiguration bei.
 
 ## Authentifizierung { #authentication }
 

@@ -150,7 +150,7 @@ async def preview_agent_import(
 )
 async def import_agent_bundle(data: BundleImportCreate, service: PortabilitySvc, ctx: Auth) -> Any:
     """Create the reviewed private drafts; repeat the same operation ID to replay its receipt."""
-    return await service.import_bundle(ctx, data)
+    return await service.import_agent(ctx, data)
 
 
 @router.get("/{agent_id}/export-preview", response_model=BundlePreview)

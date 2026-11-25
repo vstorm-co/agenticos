@@ -790,3 +790,25 @@ describe("every endpoint the client calls is proxied", () => {
     expect(unrouted).toEqual([]);
   });
 });
+
+it("streams transfer bodies with the same authority and refuses redirect replay", async () => {
+  const backend = backendReplies("{}");
+  const source = request("/api/portability/operation/upload", {
+    method: "PUT",
+    body: new Uint8Array([0, 255, 1]),
+    headers: {
+      "content-type": "application/zip",
+      "content-length": "3",
+      "X-Organization-Id": "org",
+    },
+  });
+  const buffered = vi.spyOn(source, "arrayBuffer");
+  await platformProxy({ streamRequest: true }).PUT(source);
+  expect(buffered).not.toHaveBeenCalled();
+  const call = backend.forwarded();
+  expect(call.init.body).toBe(source.body);
+  expect(call.init.redirect).toBe("manual");
+  expect(call.init.headers["Content-Length"]).toBe("3");
+  expect(call.init.headers.Authorization).toBe("Bearer tok");
+  expect(call.init.headers["X-Organization-Id"]).toBe("org");
+});

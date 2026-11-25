@@ -179,3 +179,30 @@ class TestWhatItDoesNotTouch:
             response = await client.get("/api/v1/health")
 
         assert response.status_code == 200
+
+
+async def test_portable_zip_allowance_does_not_widen_other_routes() -> None:
+    from starlette.responses import Response
+    from starlette.types import Receive, Scope, Send
+
+    async def accepted(scope: Scope, receive: Receive, send: Send) -> None:
+        await Response(status_code=204)(scope, receive, send)
+
+    transport = ASGITransport(app=BodySizeLimitMiddleware(accepted))
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        upload = "/api/v1/portability/operation/upload"
+        assert (
+            await client.put(
+                upload, headers={"content-length": str(512 * 1024 * 1024)}, content=b""
+            )
+        ).status_code == 204
+        over = await client.put(
+            upload, headers={"content-length": str(512 * 1024 * 1024 + 1)}, content=b""
+        )
+        assert over.status_code == 413 and over.json()["error"]["details"]["limit_mb"] == 512
+        ordinary = await client.post(
+            "/api/v1/portability/operation/apply",
+            headers={"content-length": str(512 * 1024 * 1024)},
+            content=b"",
+        )
+        assert ordinary.status_code == 413

@@ -1,5 +1,5 @@
 ---
-source_sha: "0efa3a5b6024"
+source_sha: "610a5900fd15"
 ---
 
 # Koncepcje { #concepts }
@@ -86,6 +86,31 @@ Spec trzyma się dwóch reguł i to właśnie one czynią go użytecznym.
     poza specem: eksport speca nie emituje żadnych categories ani tagów, import
     zostawia istniejące categories i tagi celu bez zmian (plik żadnych nie niesie,
     więc ich nie czyści ani nie nadpisuje), a jedynie klon startuje bez tagów.
+
+## Eksport i import { #export-and-import }
+
+W menu działań agenta **Eksportuj agenta** pozwala wybrać powiązane definicje
+i treści. YAML i JSON służą do małych konfiguracji; ZIP przenosi tekst Context
+i pliki Skills do weryfikowanych zasobów archiwum. **Importuj agenta** w katalogu
+pokazuje zależności przed utworzeniem nowego szkicu. Dla każdej wybierz utworzenie
+kopii, użycie istniejącego zasobu albo pominięcie. Istniejące zasoby nie są
+nadpisywane. Pominięcie zależności usuwa jej powiązania ze szkicu.
+
+Kopiowanie obejmuje obecnie Context, dokładne wersje i forki Skills, profile
+modeli oraz prywatne, wyłączone konfiguracje MCP. Bazy wiedzy, połączenia sandbox
+i sekrety Vault pozostają referencjami wymagającymi wskazania zasobu docelowego.
+Wartości sekretów, zgody OAuth, udostępnienia i aktywne publikacje nie są
+przenoszone. Adresy URL z nieprzezroczystymi parametrami i własne nagłówki
+transportowe również wymagają konfiguracji docelowej. Przed udostępnieniem
+eksportu przejrzyj instrukcje i zawartość plików.
+
+Pliki konfiguracji tekstowej mają limit 4 MiB. ZIP ma limit 512 MiB po przesłaniu,
+2 GiB po rozpakowaniu, manifest 4 MiB i limit 16 MiB na pojedynczy zasób tekstowy.
+Przygotowanie ZIP i zastosowanie zatwierdzonego mapowania wykonują trwałe zadania
+workera. Uploady, prywatne archiwa i dzienniki transferu wygasają po 24 godzinach;
+usuwa je worker. API pozwala ponownie odpytywać tę samą operację po przerwaniu.
+Ponowne otwarcie konsoli po przeładowaniu nie przywraca jej jeszcze automatycznie.
+Import nie publikuje, nie uruchamia agenta ani płatnego indeksowania wiedzy.
 
 ## Wersja { #version }
 

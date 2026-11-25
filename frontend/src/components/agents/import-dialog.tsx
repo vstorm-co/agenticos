@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, CheckCircle2, Upload } from "lucide-react";
 import { useTranslations } from "next-intl";
 import {
@@ -21,6 +21,7 @@ import {
 } from "@/components/ui";
 import { ImportDestinationPicker } from "./import-destination-picker";
 import { CodeArea } from "@/components/ui/code-area";
+import { useBundleTransfer } from "@/hooks/use-bundle-transfer";
 import { useAgentImport } from "@/hooks/use-portability";
 import { useConsoleRouter } from "@/hooks/use-console-router";
 import { getErrorMessage } from "@/lib/api-error";
@@ -62,9 +63,21 @@ export function ImportAgentDialog({
   const [document, setDocument] = useState<BundlePreview | null>(null);
   const [choices, setChoices] = useState<Record<string, ImportChoice>>({});
   const [operationId, setOperationId] = useState(() => crypto.randomUUID());
-  const [receipt, setReceipt] = useState<ImportReceipt | null>(null);
+  const [inlineReceipt, setReceipt] = useState<ImportReceipt | null>(null);
+  const [zipFile, setZipFile] = useState<File | null>(null);
+  const zip = useBundleTransfer(open);
+  const reviewedZip = useRef<string | null>(null);
+  const receipt = inlineReceipt ?? zip.transfer.data?.receipt ?? null;
+  useEffect(() => {
+    const row = zip.transfer.data;
+    if (row?.status === "review" && row.preview && reviewedZip.current !== row.id) {
+      reviewedZip.current = row.id;
+      setDocument(row.preview);
+      setChoices(initialChoices(row.preview));
+    }
+  }, [zip.transfer.data]);
   const [problem, setProblem] = useState<string | null>(null);
-  const busy = preview.isPending || apply.isPending;
+  const busy = preview.isPending || apply.isPending || zip.busy;
   const reusedOwners = new Map(
     document?.bundle.resources.flatMap((resource) => {
       const choice = choices[resource.key];
@@ -90,6 +103,9 @@ export function ImportAgentDialog({
     if (busy) return;
     if (!next) {
       setText("");
+      setZipFile(null);
+      zip.reset();
+      reviewedZip.current = null;
       setFileName(null);
       setDocument(null);
       setChoices({});
@@ -102,6 +118,21 @@ export function ImportAgentDialog({
     onOpenChange(next);
   };
   const readFile = async (file: File) => {
+    zip.reset();
+    reviewedZip.current = null;
+    setOperationId(crypto.randomUUID());
+    if (file.name.toLowerCase().endsWith(".zip")) {
+      if (file.size > 512 * 1024 * 1024) {
+        setProblem(t("zipTooLarge"));
+        return;
+      }
+      setZipFile(file);
+      setFileName(file.name);
+      setText("");
+      setProblem(null);
+      return;
+    }
+    setZipFile(null);
     if (file.size > 4 * 1024 * 1024) {
       setProblem(t("fileTooLarge"));
       return;
@@ -116,6 +147,10 @@ export function ImportAgentDialog({
   };
   const review = () => {
     setProblem(null);
+    if (zipFile) {
+      zip.uploadZip.mutate({ file: zipFile, requestId: operationId });
+      return;
+    }
     preview.mutate(text, {
       onSuccess: (data) => {
         setDocument(data);
@@ -125,6 +160,10 @@ export function ImportAgentDialog({
     });
   };
   const submit = () => {
+    if (zipFile) {
+      zip.apply.mutate(choices);
+      return;
+    }
     if (document)
       apply.mutate(
         { operation_id: operationId, bundle: document.bundle, choices },
@@ -133,8 +172,9 @@ export function ImportAgentDialog({
   };
   const error =
     problem ??
-    (preview.error || apply.error
-      ? getErrorMessage(preview.error ?? apply.error, tErrors, t("operationError"))
+    (zip.transfer.data?.status === "failed" ? t("transferFailed") : null) ??
+    (preview.error || apply.error || zip.error
+      ? getErrorMessage(preview.error ?? apply.error ?? zip.error, tErrors, t("operationError"))
       : null);
   return (
     <Dialog open={open} onOpenChange={close}>
@@ -279,7 +319,7 @@ export function ImportAgentDialog({
               <Input
                 ref={fileInput}
                 type="file"
-                accept=".yaml,.yml,.json,application/json,application/yaml"
+                accept=".yaml,.yml,.json,.zip,application/json,application/yaml,application/zip"
                 className="sr-only"
                 aria-label={t("chooseFile")}
                 onChange={(event) => {
@@ -291,7 +331,11 @@ export function ImportAgentDialog({
               <CodeArea
                 id={`${id}-text`}
                 value={text}
-                onChange={setText}
+                onChange={(value) => {
+                  setText(value);
+                  setZipFile(null);
+                  setFileName(null);
+                }}
                 name="agent.yaml"
                 aria-label={t("pasteConfiguration")}
                 placeholder={t("pasteConfiguration")}
@@ -299,6 +343,11 @@ export function ImportAgentDialog({
                 maxLength={4 * 1024 * 1024}
               />
             </>
+          )}
+          {zip.busy && (
+            <p role="status" className="text-muted-foreground text-sm">
+              {t("transferWorking")}
+            </p>
           )}
           {error && (
             <p role="alert" className="text-destructive text-sm">
@@ -330,6 +379,9 @@ export function ImportAgentDialog({
                 onClick={() => {
                   if (document) {
                     setDocument(null);
+                    zip.reset();
+                    reviewedZip.current = null;
+                    setOperationId(crypto.randomUUID());
                     apply.reset();
                   } else close(false);
                 }}
@@ -338,7 +390,7 @@ export function ImportAgentDialog({
                 {document ? t("back") : t("close")}
               </Button>
               <Button
-                disabled={busy || !text.trim() || Boolean(incomplete)}
+                disabled={busy || (!text.trim() && !zipFile) || Boolean(incomplete)}
                 onClick={document ? submit : review}
               >
                 {busy ? t("working") : document ? t("importDrafts") : t("review")}

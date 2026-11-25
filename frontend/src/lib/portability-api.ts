@@ -101,3 +101,67 @@ export const listImportDestinations = (query: ImportDestinationQuery) => {
   if (query.parent_id) params.set("parent_id", query.parent_id);
   return apiClient.get<ImportDestinationList>(`/agents/import-destinations?${params}`);
 };
+
+export interface TransferOperation {
+  id: string;
+  request_id: string;
+  direction: "export" | "import";
+  phase: "prepare" | "apply";
+  status:
+    | "awaiting_upload"
+    | "queued"
+    | "running"
+    | "review"
+    | "needs_bindings"
+    | "ready"
+    | "failed"
+    | "expired";
+  revision: number;
+  completed_bytes: number;
+  total_bytes: number;
+  expires_at: string;
+  error_code: string | null;
+  preview: BundlePreview | null;
+  receipt: ImportReceipt | null;
+  can_download: boolean;
+}
+
+export const startBundleExport = (
+  rootId: string,
+  resources: Record<string, string[]>,
+  requestId: string,
+) =>
+  apiClient.post<TransferOperation>("/portability/exports", {
+    request_id: requestId,
+    root_kind: "agent",
+    root_id: rootId,
+    resources,
+  });
+
+export const startBundleUpload = (file: File, requestId: string) =>
+  apiClient.post<TransferOperation>("/portability/uploads", {
+    request_id: requestId,
+    filename: file.name,
+    size_bytes: file.size,
+  });
+
+export const uploadBundleFile = (id: string, file: File) =>
+  apiClient.put<TransferOperation>(`/portability/${id}/upload`, file);
+
+export const getBundleTransfer = (id: string, signal?: AbortSignal) =>
+  apiClient.get<TransferOperation>(`/portability/${id}`, { signal });
+
+export const applyBundleTransfer = (
+  id: string,
+  revision: number,
+  choices: Record<string, ImportChoice>,
+) =>
+  apiClient.post<TransferOperation>(`/portability/${id}/apply`, {
+    expected_revision: revision,
+    choices,
+  });
+
+export async function downloadBundleTransfer(id: string): Promise<void> {
+  const response = await apiClient.raw(`/portability/${id}/download`, { method: "GET" });
+  saveBlob(await response.blob(), `agenticos-${id}.zip`);
+}

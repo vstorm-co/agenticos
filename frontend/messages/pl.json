@@ -21652,7 +21652,7 @@
     "importCompleteHint": "Prywatne szkice są gotowe do sprawdzenia. Niczego nie opublikowano ani nie uruchomiono.",
     "importTitle": "Importuj agenta",
     "mappingHint": "Wybierz, co utworzyć, wykorzystać ponownie lub pominąć. Istniejące zasoby nie zostaną nadpisane.",
-    "importDescription": "Wgraj konfigurację AgenticOS w YAML lub JSON albo wklej ją poniżej.",
+    "importDescription": "Prześlij pakiet ZIP AgenticOS, konfigurację YAML lub JSON albo wklej konfigurację poniżej.",
     "fileTooLarge": "Plik konfiguracji nie może przekraczać 4 MiB.",
     "readError": "Nie udało się odczytać pliku. Wybierz go ponownie.",
     "importCounts": "Utworzono: {created} · użyto ponownie: {reused} · pominięto: {skipped}",
@@ -21662,7 +21662,7 @@
     "skip": "Pomiń ten zasób",
     "newName": "Nazwa nowej kopii",
     "skipHint": "Powiązania z tym zasobem zostaną usunięte z importowanego szkicu.",
-    "chooseFile": "Wybierz plik YAML lub JSON",
+    "chooseFile": "Wybierz plik ZIP, YAML lub JSON",
     "pasteConfiguration": "Lub wklej konfigurację",
     "openDraft": "Otwórz szkic",
     "back": "Wstecz",
@@ -21679,6 +21679,12 @@
     "noDestinations": "Brak pasujących zasobów.",
     "previousDestinations": "Poprzednie zasoby",
     "nextDestinations": "Następne zasoby",
-    "chooseExistingOwner": "Najpierw wybierz istniejącego agenta lub Skill, aby wskazać jego wersję lub fork."
+    "chooseExistingOwner": "Najpierw wybierz istniejącego agenta lub Skill, aby wskazać jego wersję lub fork.",
+    "zipFormat": "ZIP · zawiera pliki",
+    "transferWorking": "Przygotowywanie transferu w tle…",
+    "transferFailed": "Transfer nie powiódł się. Sprawdź konfigurację i rozpocznij nowy transfer.",
+    "zipTooLarge": "Pakiety ZIP nie mogą przekraczać 512 MiB.",
+    "noTransferSelected": "Nie wybrano transferu",
+    "noReviewedTransfer": "Nie wybrano przejrzanego transferu"
   }
 }

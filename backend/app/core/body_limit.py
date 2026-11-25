@@ -87,9 +87,10 @@ class BodySizeLimitMiddleware:
             return
 
         declared = _declared_length(scope)
-        limit = max_body_bytes()
+        path = str(scope.get("path", ""))
+        bundle_upload = path.startswith("/api/v1/portability/") and path.endswith("/upload")
+        limit = 512 * 1024 * 1024 if bundle_upload else max_body_bytes()
         if declared is not None and declared > limit:
-            path = str(scope.get("path", ""))
             logger.warning(
                 "request_body_too_large",
                 extra={"declared_bytes": declared, "limit_bytes": limit, "path": path},
@@ -100,7 +101,9 @@ class BodySizeLimitMiddleware:
                     "error": {
                         "code": "REQUEST_TOO_LARGE",
                         "message": "That request is too large.",
-                        "details": {"limit_mb": settings.MAX_UPLOAD_SIZE_MB},
+                        "details": {
+                            "limit_mb": 512 if bundle_upload else settings.MAX_UPLOAD_SIZE_MB
+                        },
                     }
                 },
                 headers=_widget_cors(scope, path),

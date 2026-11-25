@@ -876,9 +876,7 @@ def _finished_unless_queued() -> ColumnElement[datetime | None]:
     )
 
 
-async def lock_workspace_attempt(
-    db: AsyncSession, job_id: UUID, *, attempt: int
-) -> BackgroundJob | None:
+async def lock_attempt(db: AsyncSession, job_id: UUID, *, attempt: int) -> BackgroundJob | None:
     """Fence activation against cancellation, takeover and an expired lease."""
     result = await db.execute(
         select(BackgroundJob)

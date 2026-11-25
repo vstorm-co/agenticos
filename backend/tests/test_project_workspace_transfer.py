@@ -91,7 +91,7 @@ async def transfer(monkeypatch):
     monkeypatch.setattr(module, "SandboxWorkspaceService", lambda _db: workspaces)
     monkeypatch.setattr(module.project_repo, "get", AsyncMock(return_value=project))
     monkeypatch.setattr(module.job_repo, "get", AsyncMock(return_value=job))
-    monkeypatch.setattr(module.job_repo, "lock_workspace_attempt", AsyncMock(return_value=job))
+    monkeypatch.setattr(module.job_repo, "lock_attempt", AsyncMock(return_value=job))
     monkeypatch.setattr(module, "resolve_access", AsyncMock(return_value=True))
     monkeypatch.setattr(
         module.SandboxConnectionService,
@@ -154,7 +154,7 @@ async def test_failures_never_activate_or_retire_the_source(transfer, monkeypatc
     elif failure == "verify":
         monkeypatch.setattr(transfer.target, "read_bytes", AsyncMock(return_value=b"corrupt"))
     elif failure == "lease":
-        module.job_repo.lock_workspace_attempt.return_value = None
+        module.job_repo.lock_attempt.return_value = None
     elif failure == "flush":
         transfer.workspaces.close.side_effect = [
             SimpleNamespace(error=OSError("flush failed")),

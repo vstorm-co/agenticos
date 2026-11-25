@@ -1,5 +1,5 @@
 ---
-source_sha: "b67c12b7a802"
+source_sha: "aba44374cf5b"
 ---
 
 # Configuración { #configuration }
@@ -130,6 +130,8 @@ ordinario conservan el límite de 1 MiB. Sube ambos límites de carga al aumenta
 el mayor ajuste. Consulta el
 [despliegue con Nginx](deploy.md#option-b-nginx). Compose ejecuta uvicorn sin
 un límite de cuerpo propio.
+
+Las cargas de ZIP portables tienen un límite independiente de 512 MiB en ambos hosts. La consola transmite `/api/portability/{id}/upload` a la API sin almacenar todo el archivo en Next.js. Las solicitudes de control admiten 4 MiB y las de importación de texto 25 MiB para el envoltorio de cadena JSON; el documento decodificado mantiene el límite de 4 MiB. Conserva estas ubicaciones específicas al sustituir la configuración del proxy.
 
 ## Autenticación { #authentication }
 

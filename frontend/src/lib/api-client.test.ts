@@ -717,3 +717,12 @@ describe("uploading with progress", () => {
     expect(FakeXhr.instances).toHaveLength(0);
   });
 });
+
+it("sends ZIP bytes without JSON encoding and keeps organization authority", async () => {
+  useOrgStore.setState({ activeOrgId: "organization" });
+  const file = new File([new Uint8Array([0, 255, 1])], "agent.zip", { type: "application/zip" });
+  await apiClient.put("/portability/id/upload", file);
+  expect(fetchMock.mock.calls[0]?.[1].body).toBe(file);
+  expect(fetchMock.mock.calls[0]?.[1].headers["Content-Type"]).toBe("application/zip");
+  expect(fetchMock.mock.calls[0]?.[1].headers["X-Organization-Id"]).toBe("organization");
+});

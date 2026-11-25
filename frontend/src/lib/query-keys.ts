@@ -10,6 +10,10 @@ import type { LogQuery, RunHistoryQuery } from "@/lib/workflows/types";
 import type { SharingResourceType } from "@/types/sharing";
 
 export const qk = {
+  portability: {
+    transfer: (org: string | null, user: string | null, id: string | null) =>
+      ["portability", org, user, id] as const,
+  },
   consoleExperience: {
     all: () => ["console-experience"] as const,
     member: (org: string | null, user: string | null) => ["console-experience", org, user] as const,

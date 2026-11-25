@@ -3,9 +3,14 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { BundlePreview } from "@/lib/portability-api";
+import type { BundlePreview, TransferOperation } from "@/lib/portability-api";
 import {
   downloadAgentExport,
+  downloadBundleTransfer,
+  startBundleExport,
+  startBundleUpload,
+  uploadBundleFile,
+  applyBundleTransfer,
   importAgentBundle,
   listImportDestinations,
   previewAgentExport,
@@ -16,6 +21,12 @@ import { ImportAgentDialog } from "./import-dialog";
 
 vi.mock("@/lib/portability-api", () => ({
   downloadAgentExport: vi.fn(),
+  downloadBundleTransfer: vi.fn(),
+  startBundleExport: vi.fn(),
+  startBundleUpload: vi.fn(),
+  uploadBundleFile: vi.fn(),
+  getBundleTransfer: vi.fn(),
+  applyBundleTransfer: vi.fn(),
   importAgentBundle: vi.fn(),
   listImportDestinations: vi.fn(),
   previewAgentExport: vi.fn(),
@@ -174,7 +185,7 @@ describe("agent portability", () => {
     render(<ImportAgentDialog open onOpenChange={vi.fn()} />, { wrapper: Wrapper });
     const file = new File(["name: From file"], "agent.yaml", { type: "application/yaml" });
     await userEvent.upload(
-      screen.getByLabelText("Choose a YAML or JSON file", { selector: "input" }),
+      screen.getByLabelText("Choose a ZIP, YAML or JSON file", { selector: "input" }),
       file,
     );
     await userEvent.click(screen.getByRole("button", { name: "Review dependencies" }));
@@ -187,7 +198,7 @@ describe("agent portability", () => {
 
   it("refuses an oversized or unreadable file before requesting a preview", async () => {
     render(<ImportAgentDialog open onOpenChange={vi.fn()} />, { wrapper: Wrapper });
-    const input = screen.getByLabelText("Choose a YAML or JSON file", { selector: "input" });
+    const input = screen.getByLabelText("Choose a ZIP, YAML or JSON file", { selector: "input" });
     const oversized = new File(["content"], "huge.json", { type: "application/json" });
     Object.defineProperty(oversized, "size", { value: 5 * 1024 * 1024 });
     await userEvent.upload(input, oversized);
@@ -250,9 +261,9 @@ describe("agent portability", () => {
   it("returns to the editable file and handles file-picker cancellation", async () => {
     const close = vi.fn();
     render(<ImportAgentDialog open onOpenChange={close} />, { wrapper: Wrapper });
-    const input = screen.getByLabelText("Choose a YAML or JSON file", { selector: "input" });
+    const input = screen.getByLabelText("Choose a ZIP, YAML or JSON file", { selector: "input" });
     const pick = vi.spyOn(input, "click");
-    await userEvent.click(screen.getByRole("button", { name: "Choose a YAML or JSON file" }));
+    await userEvent.click(screen.getByRole("button", { name: "Choose a ZIP, YAML or JSON file" }));
     expect(pick).toHaveBeenCalledOnce();
     fireEvent.change(input, { target: { files: [] } });
     fireEvent.change(screen.getByRole("textbox", { name: "Or paste the configuration" }), {
@@ -398,4 +409,91 @@ describe("agent portability", () => {
       expect.objectContaining({ kind: "skill_version", parent_id: "chosen-policy" }),
     );
   });
+});
+
+const transferRow = (patch: Partial<TransferOperation> = {}): TransferOperation => ({
+  id: "transfer",
+  request_id: "request",
+  direction: "import",
+  phase: "prepare",
+  status: "review",
+  revision: 1,
+  completed_bytes: 20,
+  total_bytes: 20,
+  expires_at: "2026-11-26T12:00:00Z",
+  error_code: null,
+  preview,
+  receipt: null,
+  can_download: false,
+  ...patch,
+});
+
+it("queues a ZIP export, then downloads the ready private transfer", async () => {
+  vi.mocked(startBundleExport).mockResolvedValue(
+    transferRow({ direction: "export", status: "ready", can_download: true }),
+  );
+  vi.mocked(downloadBundleTransfer).mockResolvedValue();
+  render(<ExportAgentDialog agentId="source" open onOpenChange={vi.fn()} />, { wrapper: Wrapper });
+  await screen.findByText("Researcher");
+  await userEvent.click(screen.getByRole("combobox", { name: "File format" }));
+  await userEvent.click(screen.getByRole("option", { name: "ZIP · includes files" }));
+  await userEvent.click(screen.getByRole("button", { name: /^Download$/ }));
+  await waitFor(() => expect(startBundleExport).toHaveBeenCalled());
+  await waitFor(() => expect(screen.getByRole("button", { name: /^Download$/ })).toBeEnabled());
+  await userEvent.click(screen.getByRole("button", { name: /^Download$/ }));
+  await waitFor(() =>
+    expect(downloadBundleTransfer).toHaveBeenCalledWith("transfer", expect.anything()),
+  );
+  expect(downloadAgentExport).not.toHaveBeenCalled();
+});
+
+it("uploads ZIP bytes, reviews the manifest, and applies only the reviewed choices", async () => {
+  vi.mocked(startBundleUpload).mockResolvedValue(
+    transferRow({ status: "awaiting_upload", preview: null }),
+  );
+  vi.mocked(uploadBundleFile).mockResolvedValue(transferRow());
+  const receipt = {
+    roots: { "agent/root": "new-agent" },
+    created: { "agent/root": "new-agent" },
+    reused: {},
+    skipped: [],
+  };
+  vi.mocked(applyBundleTransfer).mockResolvedValue(
+    transferRow({ phase: "apply", status: "ready", revision: 2, receipt }),
+  );
+  render(<ImportAgentDialog open onOpenChange={vi.fn()} />, { wrapper: Wrapper });
+  const file = new File(["zip bytes"], "researcher.zip", { type: "application/zip" });
+  fireEvent.change(
+    screen.getByLabelText("Choose a ZIP, YAML or JSON file", { selector: "input" }),
+    { target: { files: [file] } },
+  );
+  await screen.findByText("researcher.zip");
+  await userEvent.click(screen.getByRole("button", { name: "Review dependencies" }));
+  await screen.findByRole("group", { name: "Policy" });
+  expect(uploadBundleFile).toHaveBeenCalledWith("transfer", file);
+  expect(previewAgentImport).not.toHaveBeenCalled();
+  await userEvent.click(screen.getByRole("button", { name: "Import private drafts" }));
+  await screen.findByText("Import complete");
+  expect(vi.mocked(applyBundleTransfer).mock.calls[0]?.slice(0, 2)).toEqual(["transfer", 1]);
+  expect(importAgentBundle).not.toHaveBeenCalled();
+});
+
+it("rejects an oversized ZIP before ticket creation", async () => {
+  render(<ImportAgentDialog open onOpenChange={vi.fn()} />, { wrapper: Wrapper });
+  const file = new File(["x"], "large.zip");
+  Object.defineProperty(file, "size", { value: 512 * 1024 * 1024 + 1 });
+  fireEvent.change(
+    screen.getByLabelText("Choose a ZIP, YAML or JSON file", { selector: "input" }),
+    { target: { files: [file] } },
+  );
+  expect(await screen.findByRole("alert")).toHaveTextContent("512 MiB");
+  expect(startBundleUpload).not.toHaveBeenCalled();
+});
+
+it("closes export with Escape when no operation is running", async () => {
+  const close = vi.fn();
+  render(<ExportAgentDialog agentId="source" open onOpenChange={close} />, { wrapper: Wrapper });
+  await screen.findByText("Researcher");
+  await userEvent.keyboard("{Escape}");
+  expect(close).toHaveBeenCalledWith(false);
 });

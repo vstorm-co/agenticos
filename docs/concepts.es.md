@@ -1,5 +1,5 @@
 ---
-source_sha: "0efa3a5b6024"
+source_sha: "610a5900fd15"
 ---
 
 # Conceptos { #concepts }
@@ -89,6 +89,34 @@ El spec cumple dos reglas, y son las que lo hacen útil.
     importar uno deja las categories y los tags existentes del destino sin cambios
     (el fichero no lleva ninguno, así que ni los borra ni los sobrescribe), y solo
     un clon arranca sin tags.
+
+## Exportación e importación { #export-and-import }
+
+En el menú de acciones del agente, **Exportar agente** permite elegir las
+definiciones y los contenidos vinculados. YAML y JSON contienen configuraciones
+pequeñas; ZIP guarda el texto de Context y los archivos de Skills como recursos
+verificados del archivo. **Importar agente**, en el catálogo, revisa las
+dependencias antes de crear un borrador. Para cada una, elige crear una copia,
+utilizar un recurso existente u omitirla. Los recursos existentes nunca se
+sobrescriben. Omitir una dependencia elimina sus vínculos del borrador.
+
+Actualmente se copian Context, versiones exactas y forks de Skills, perfiles de
+modelo y configuraciones MCP privadas desactivadas. Las bases de conocimiento,
+las conexiones sandbox y los secretos de Vault permanecen como referencias que
+requieren elegir un destino. No se transfieren valores secretos, consentimientos
+OAuth, permisos compartidos ni publicaciones activas. Las URL con parámetros
+opacos y las cabeceras de transporte personalizadas también requieren
+configuración en el destino. Revisa las instrucciones y los archivos antes de
+compartir una exportación.
+
+Las configuraciones de texto tienen un límite de 4 MiB. Los ZIP admiten 512 MiB
+comprimidos, 2 GiB descomprimidos, un manifiesto de 4 MiB y 16 MiB por recurso de
+texto. La preparación del ZIP y la aplicación revisada se ejecutan como trabajos
+duraderos del worker. Las cargas, los archivos privados y los registros de
+transferencia caducan a las 24 horas; el worker los elimina. La API permite
+consultar la misma operación después de una interrupción. Al recargar, la consola
+todavía no restaura esa operación automáticamente. Importar nunca publica,
+ejecuta un agente ni inicia una indexación de conocimiento de pago.
 
 ## Versión { #version }
 

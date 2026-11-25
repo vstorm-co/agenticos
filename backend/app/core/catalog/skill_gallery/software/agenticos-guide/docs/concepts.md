@@ -83,6 +83,30 @@ The spec keeps two rules, and they are what make it useful.
     (the file carries none, so it neither clears nor overwrites them), and only a
     clone starts untagged.
 
+## Export and import
+
+In the agent's actions menu, **Export agent** lets you choose linked definitions
+and content. YAML and JSON carry small configurations; ZIP moves Context text
+and Skill files into verified archive assets. **Import agent** on the catalog
+reviews the dependencies before creating a new draft. Choose **Create a copy**,
+**Use an existing resource**, or **Skip** for each dependency. Existing resources
+are never overwritten. Skipping a dependency removes its bindings from the draft.
+
+Copies currently include Context, exact Skill snapshots and forks, model profiles
+and private disabled MCP configurations. Knowledge bases, sandbox connections and
+Vault secrets remain references requiring a destination choice. No secret values,
+OAuth grants, resource sharing or active publication are transferred. URLs with
+opaque parameters and custom transport headers also require destination setup.
+Review instructions and file contents before sharing an export.
+
+Text configuration files are limited to 4 MiB. ZIP uploads are limited to 512 MiB,
+2 GiB expanded, with a 4 MiB manifest and a 16 MiB limit per text asset. ZIP
+preparation and reviewed application run as durable worker jobs. Uploads, private
+archives and transfer journals expire after 24 hours; a worker removes them.
+The transfer API can poll the same operation after interruption. Reopening the
+console after a reload does not yet restore that operation automatically.
+Imports never publish, run an agent or start paid knowledge indexing.
+
 ## Version
 
 **A frozen spec.**

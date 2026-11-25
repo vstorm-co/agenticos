@@ -21763,7 +21763,7 @@
     "importCompleteHint": "Uw privéconcepten zijn klaar om te controleren. Er is niets gepubliceerd of uitgevoerd.",
     "importTitle": "Agent importeren",
     "mappingHint": "Kies wat u wilt maken, hergebruiken of overslaan. Bestaande bronnen worden nooit overschreven.",
-    "importDescription": "Upload een AgenticOS-configuratie in YAML of JSON, of plak deze hieronder.",
+    "importDescription": "Upload een AgenticOS-ZIP-bundel, YAML- of JSON-configuratie, of plak hieronder een configuratie.",
     "fileTooLarge": "Configuratiebestanden mogen niet groter zijn dan 4 MiB.",
     "readError": "Het bestand kon niet worden gelezen. Kies het opnieuw.",
     "importCounts": "Gemaakt: {created} · hergebruikt: {reused} · overgeslagen: {skipped}",
@@ -21773,7 +21773,7 @@
     "skip": "Deze bron overslaan",
     "newName": "Naam van de nieuwe kopie",
     "skipHint": "Koppelingen naar deze bron worden uit het geïmporteerde concept verwijderd.",
-    "chooseFile": "Kies een YAML- of JSON-bestand",
+    "chooseFile": "Kies een ZIP-, YAML- of JSON-bestand",
     "pasteConfiguration": "Of plak de configuratie",
     "openDraft": "Concept openen",
     "back": "Terug",
@@ -21790,6 +21790,12 @@
     "noDestinations": "Geen overeenkomende resources.",
     "previousDestinations": "Vorige resources",
     "nextDestinations": "Volgende resources",
-    "chooseExistingOwner": "Kies eerst een bestaande doelagent of Skill om de versie of fork te selecteren."
+    "chooseExistingOwner": "Kies eerst een bestaande doelagent of Skill om de versie of fork te selecteren.",
+    "zipFormat": "ZIP · inclusief bestanden",
+    "transferWorking": "De overdracht wordt op de achtergrond voorbereid…",
+    "transferFailed": "De overdracht is mislukt. Controleer de configuratie en start een nieuwe overdracht.",
+    "zipTooLarge": "ZIP-bundels mogen niet groter zijn dan 512 MiB.",
+    "noTransferSelected": "Geen overdracht geselecteerd",
+    "noReviewedTransfer": "Geen gecontroleerde overdracht geselecteerd"
   }
 }

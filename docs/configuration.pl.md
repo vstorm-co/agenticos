@@ -1,5 +1,5 @@
 ---
-source_sha: "b67c12b7a802"
+source_sha: "aba44374cf5b"
 ---
 
 # Konfiguracja { #configuration }
@@ -126,6 +126,8 @@ uwierzytelnianie i zwykły JSON zachowują limit 1 MiB. Podnoś oba limity uploa
 razem z największym ustawieniem.
 Zobacz [wdrożenie z Nginx](deploy.md#option-b-nginx). Pliki Compose uruchamiają
 uvicorn bez własnego limitu treści żądania.
+
+Uploady przenośnych pakietów ZIP mają osobny limit 512 MiB na obu hostach. Konsola przesyła `/api/portability/{id}/upload` do API strumieniowo, bez buforowania archiwum w Next.js. Żądania sterujące transferem mają limit 4 MiB, a import tekstu 25 MiB na opakowanie ciągu JSON; zdekodowany dokument nadal ma limit 4 MiB. Zachowaj te osobne lokalizacje przy zmianie konfiguracji proxy.
 
 ## Uwierzytelnianie { #authentication }
 

@@ -123,6 +123,8 @@ Raise both upload allowances when raising
 the largest upload setting. See [Nginx deployment](deploy.md#option-b-nginx).
 The Compose files run uvicorn without its own body limit.
 
+Portable ZIP uploads have a separate 512 MiB allowance on both hosts. The console streams `/api/portability/{id}/upload` to the API without buffering the archive in Next.js. Transfer control requests allow 4 MiB, and text import requests allow 25 MiB for JSON string framing while the decoded document still has a 4 MiB limit. Keep these scoped locations when replacing the proxy configuration.
+
 ## Authentication
 
 ### JWT

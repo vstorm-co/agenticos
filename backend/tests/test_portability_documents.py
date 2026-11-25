@@ -350,3 +350,11 @@ def test_portable_model_settings_keep_generation_parameters_but_not_transport_cr
             model="test",
             base_url="https://models.example.test/?custom=PRIVATE",
         )
+
+
+def test_agent_import_boundary_refuses_other_or_multiple_roots() -> None:
+    from app.services.portability.contracts import require_agent_root
+
+    resource = BundleResource(key="context/root", kind=BundleResourceKind.CONTEXT, name="Context")
+    with pytest.raises(BadRequestError, match="exactly one agent"):
+        require_agent_root(ResourceBundle(roots=(resource.key,), resources=(resource,)))

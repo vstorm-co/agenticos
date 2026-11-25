@@ -1,6 +1,9 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
+import { useMutation } from "@tanstack/react-query";
+import { useBundleTransfer } from "@/hooks/use-bundle-transfer";
+import { downloadBundleTransfer } from "@/lib/portability-api";
 import { Download, FileText, Link2, ShieldCheck } from "lucide-react";
 import { useTranslations } from "next-intl";
 import {
@@ -37,9 +40,27 @@ export function ExportAgentDialog({
   const id = useId();
   const { preview, download } = useAgentExport(agentId, open);
   const [excluded, setExcluded] = useState<Set<string>>(new Set());
-  const [format, setFormat] = useState<"yaml" | "json">("yaml");
+  const [format, setFormat] = useState<"yaml" | "json" | "zip">("yaml");
+  const [requestId, setRequestId] = useState(() => crypto.randomUUID());
+  const zip = useBundleTransfer(open);
+  const zipDownload = useMutation({ mutationFn: downloadBundleTransfer });
+  const downloaded = useRef<string | null>(null);
+  const downloadZip = zipDownload.mutate;
+  useEffect(() => {
+    const row = zip.transfer.data;
+    if (row?.can_download && downloaded.current !== row.id) {
+      downloaded.current = row.id;
+      downloadZip(row.id);
+    }
+  }, [zip.transfer.data, downloadZip]);
+  const busy = download.isPending || zip.busy || zipDownload.isPending;
+  const resetZip = () => {
+    zip.reset();
+    zipDownload.reset();
+    setRequestId(crypto.randomUUID());
+  };
   const data = preview.data;
-  const error = preview.error ?? download.error;
+  const error = preview.error ?? download.error ?? zip.error ?? zipDownload.error;
   const submit = data
     ? () => {
         const resources = Object.fromEntries(
@@ -50,11 +71,19 @@ export function ExportAgentDialog({
               : (data.options.find((option) => option.key === item.key)?.layers ?? item.included),
           ]),
         );
-        download.mutate({ format, resources });
+        if (format === "zip") {
+          if (zip.transfer.data?.can_download) zipDownload.mutate(zip.transfer.data.id);
+          else zip.exportZip.mutate({ rootId: agentId, resources, requestId });
+        } else download.mutate({ format, resources });
       }
     : undefined;
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      open={open}
+      onOpenChange={(value) => {
+        if (!busy) onOpenChange(value);
+      }}
+    >
       <DialogContent className={`${DIALOG_FORM} ${DIALOG_COLUMN}`}>
         <DialogHeader>
           <DialogTitle>{t("exportTitle")}</DialogTitle>
@@ -83,15 +112,16 @@ export function ExportAgentDialog({
                       <Checkbox
                         id={`${id}-${index}`}
                         checked={!excluded.has(item.key)}
-                        disabled={root || download.isPending}
-                        onCheckedChange={(checked) =>
+                        disabled={root || busy}
+                        onCheckedChange={(checked) => {
+                          resetZip();
                           setExcluded((previous) => {
                             const next = new Set(previous);
                             if (checked) next.delete(item.key);
                             else next.add(item.key);
                             return next;
-                          })
-                        }
+                          });
+                        }}
                       />
                     ) : (
                       <Link2 className="text-muted-foreground size-4 shrink-0" aria-hidden="true" />
@@ -124,7 +154,11 @@ export function ExportAgentDialog({
             <Label htmlFor={`${id}-format`}>{t("format")}</Label>
             <Select
               value={format}
-              onValueChange={(value) => setFormat(value === "json" ? "json" : "yaml")}
+              disabled={busy}
+              onValueChange={(value) => {
+                resetZip();
+                setFormat(value === "zip" ? "zip" : value === "json" ? "json" : "yaml");
+              }}
             >
               <SelectTrigger id={`${id}-format`}>
                 <SelectValue />
@@ -132,9 +166,20 @@ export function ExportAgentDialog({
               <SelectContent>
                 <SelectItem value="yaml">YAML</SelectItem>
                 <SelectItem value="json">JSON</SelectItem>
+                <SelectItem value="zip">{t("zipFormat")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
+          {zip.busy && (
+            <p role="status" className="text-muted-foreground text-sm">
+              {t("transferWorking")}
+            </p>
+          )}
+          {zip.transfer.data?.status === "failed" && (
+            <p role="alert" className="text-destructive text-sm">
+              {t("transferFailed")}
+            </p>
+          )}
           {error && (
             <p role="alert" className="text-destructive text-sm">
               {getErrorMessage(error, tErrors, t("operationError"))}
@@ -142,12 +187,12 @@ export function ExportAgentDialog({
           )}
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" disabled={busy} onClick={() => onOpenChange(false)}>
             {t("close")}
           </Button>
-          <Button disabled={!data || download.isPending} onClick={submit}>
+          <Button disabled={!data || busy} onClick={submit}>
             <Download className="size-4" />
-            {download.isPending ? t("downloading") : t("download")}
+            {busy ? t("downloading") : t("download")}
           </Button>
         </DialogFooter>
       </DialogContent>

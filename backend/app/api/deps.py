@@ -813,7 +813,7 @@ def get_agent_registry_service(db: DBSession) -> AgentRegistryService:
 
 AgentRegistrySvc = Annotated[AgentRegistryService, Depends(get_agent_registry_service)]
 
-from app.services.portability import PortabilityService
+from app.services.portability import PortabilityService, PortableTransferService
 
 
 def get_portability_service(db: DBSession) -> PortabilityService:
@@ -821,6 +821,14 @@ def get_portability_service(db: DBSession) -> PortabilityService:
 
 
 PortabilitySvc = Annotated[PortabilityService, Depends(get_portability_service)]
+
+
+def get_portable_transfer_service(db: DBSession) -> PortableTransferService:
+    return PortableTransferService(db)
+
+
+PortableTransferSvc = Annotated[PortableTransferService, Depends(get_portable_transfer_service)]
+
 
 from app.services.system_agents import SystemAgentService as EvalHelperService
 

@@ -2,6 +2,8 @@
 
 import hashlib
 import json
+from collections.abc import Awaitable, Callable
+from pathlib import Path
 from uuid import UUID
 
 from pydantic import JsonValue, ValidationError
@@ -34,6 +36,7 @@ from app.services.agent_registry import AgentRegistryService
 from app.services.context import ContextService
 from app.services.mcp_connection import McpConnectionService
 from app.services.model_profile import ModelProfileService
+from app.services.portability.archive import BundleLimits
 from app.services.portability.content import (
     ContextContent,
     ImportedSkillResourceUpdate,
@@ -50,6 +53,7 @@ from app.services.portability.contracts import (
     definition_model,
     owner_key,
     references_for,
+    require_agent_root,
     verify_references,
 )
 from app.services.portability.destinations import BundleDestinations
@@ -59,6 +63,7 @@ from app.services.portability.documents import (
     parse_document,
     select_content,
 )
+from app.services.portability.file_bundle import externalize_text
 from app.services.portability.mapping import rebind_definition
 from app.services.portability.snapshots import agent_snapshot
 from app.services.portability.sources import BundleSources, agent_spec_from_source
@@ -82,6 +87,7 @@ _READABLE = frozenset(
 )
 
 MAX_EXPORT_RESOURCES = 500
+MAX_EXPORT_ASSET_BYTES = BundleLimits().expanded_bytes
 
 
 class PortabilityService:
@@ -95,11 +101,25 @@ class PortabilityService:
         return await BundleDestinations(self.db).list(ctx, query)
 
     async def preview_document(self, ctx: AuthContext, text: str) -> BundlePreview:
-        return await self.preview_import(ctx, parse_document(text))
+        bundle = parse_document(text)
+        require_agent_root(bundle)
+        return await self.preview_import(ctx, bundle)
 
     async def download_agent(
         self, ctx: AuthContext, agent_id: UUID, selection: BundleDownloadCreate
     ) -> bytes:
+        bundle, _ = await self.selected_agent(ctx, agent_id, selection)
+        return document_bytes(bundle, selection.file_format)
+
+    async def selected_agent(
+        self,
+        ctx: AuthContext,
+        agent_id: UUID,
+        selection: BundleDownloadCreate,
+        *,
+        asset_directory: Path | None = None,
+    ) -> tuple[ResourceBundle, dict[str, Path]]:
+        """Load selected bodies one resource at a time; ZIP content is staged immediately."""
         preview = await self.export_agent(ctx, agent_id, metadata_only=True)
         available = {option.key: option.layers for option in preview.options}
         if not set(selection.resources).issubset(available):
@@ -107,6 +127,8 @@ class PortabilityService:
         if any(not layers.issubset(available[key]) for key, layers in selection.resources.items()):
             raise BadRequestError(message="The selected content is not available in this export")
         resources = []
+        assets = []
+        files: dict[str, Path] = {}
         inline_bytes = 0
         for item in preview.bundle.resources:
             if selection.resources.get(item.key):
@@ -121,15 +143,46 @@ class PortabilityService:
                         message="Export dependencies changed; review the selection again"
                     )
                 item = loaded.model_copy(update={"references": references})
+                if asset_directory is not None:
+                    from app.core.blocking import run_blocking_settled
+
+                    single = ResourceBundle.model_construct(
+                        roots=(item.key,), resources=(item,), assets=()
+                    )
+                    staged, paths = await run_blocking_settled(
+                        externalize_text, single, asset_directory
+                    )
+                    item = staged.resources[0]
+                    assets.extend(staged.assets)
+                    files.update(paths)
+                    if (
+                        sum({asset.sha256: asset.size_bytes for asset in assets}.values())
+                        > MAX_EXPORT_ASSET_BYTES
+                    ):
+                        raise BadRequestError(
+                            message="This export exceeds the 2 GiB expanded bundle limit"
+                        )
                 inline_bytes += len(json.dumps(item.definition, ensure_ascii=False).encode("utf-8"))
                 if inline_bytes > MAX_DOCUMENT_BYTES:
                     raise BadRequestError(
                         message="This configuration exceeds 4 MiB; use a ZIP bundle"
                     )
             resources.append(item)
-        bundle = preview.bundle.model_copy(update={"resources": tuple(resources)})
+        bundle = preview.bundle.model_copy(
+            update={"resources": tuple(resources), "assets": tuple(assets)}
+        )
         verify_references(bundle)
-        return document_bytes(select_content(bundle, selection), selection.file_format)
+        # Text layers are represented by assets in ZIPs, and belong to the selected
+        # resource definition. YAML/JSON preserve the existing inline contract.
+        choices = selection.model_copy(
+            update={
+                "resources": {
+                    item.key: item.included if selection.resources.get(item.key) else frozenset()
+                    for item in bundle.resources
+                }
+            }
+        )
+        return select_content(bundle, choices), files
 
     async def export_agent(
         self, ctx: AuthContext, agent_id: UUID, *, metadata_only: bool = False
@@ -229,8 +282,22 @@ class PortabilityService:
             and ctx.has(Perm(CREATE_PERMISSIONS[item.kind])),
         ), loaded
 
+    async def import_agent(
+        self,
+        ctx: AuthContext,
+        request: BundleImportCreate,
+        *,
+        hydrate: Callable[[BundleResource], Awaitable[BundleResource]] | None = None,
+    ) -> BundleImportRead:
+        require_agent_root(request.bundle)
+        return await self.import_bundle(ctx, request, hydrate=hydrate)
+
     async def import_bundle(
-        self, ctx: AuthContext, request: BundleImportCreate
+        self,
+        ctx: AuthContext,
+        request: BundleImportCreate,
+        *,
+        hydrate: Callable[[BundleResource], Awaitable[BundleResource]] | None = None,
     ) -> BundleImportRead:
         """Create private resources in one transaction; retry replays the receipt.
 
@@ -239,7 +306,7 @@ class PortabilityService:
         """
         if ctx.subject_id is None or not ctx.has(Perm.AGENTS_EDIT):
             raise AuthorizationError(message="Importing an agent requires agents:edit")
-        if request.bundle.assets:
+        if request.bundle.assets and hydrate is None:
             raise BadRequestError(
                 message="This endpoint accepts inline configurations; binary assets require a complete bundle upload"
             )
@@ -305,7 +372,8 @@ class PortabilityService:
                             message="You may not create this resource type",
                             details={"kind": resource.kind.value},
                         )
-                    rebound = rebind_definition(resource, resolved, omit=agent_omissions(resource))
+                    content = await hydrate(resource) if hydrate is not None else resource
+                    rebound = rebind_definition(content, resolved, omit=agent_omissions(resource))
                     definition = rebound.definition
                     if choice.name is not None:
                         definition = {

@@ -3,6 +3,12 @@ import { apiClient } from "./api-client";
 import { saveBlob } from "./file-access";
 import {
   downloadAgentExport,
+  downloadBundleTransfer,
+  startBundleExport,
+  startBundleUpload,
+  uploadBundleFile,
+  getBundleTransfer,
+  applyBundleTransfer,
   importAgentBundle,
   listImportDestinations,
   previewAgentExport,
@@ -10,7 +16,9 @@ import {
 } from "./portability-api";
 import type { ResourceBundle } from "./portability-api";
 
-vi.mock("./api-client", () => ({ apiClient: { get: vi.fn(), post: vi.fn(), raw: vi.fn() } }));
+vi.mock("./api-client", () => ({
+  apiClient: { get: vi.fn(), post: vi.fn(), put: vi.fn(), raw: vi.fn() },
+}));
 vi.mock("./file-access", () => ({ saveBlob: vi.fn() }));
 
 beforeEach(() => vi.clearAllMocks());
@@ -77,4 +85,44 @@ it("requests paginated authorized destination names, including an explicit versi
   expect(apiClient.get).toHaveBeenLastCalledWith(
     "/agents/import-destinations?kind=skill_version&search=&skip=0&limit=25&parent_id=owner-id",
   );
+});
+
+it("uses ticketed binary upload and server-side review without embedding the ZIP in JSON", async () => {
+  const row = { id: "transfer" };
+  vi.mocked(apiClient.get).mockResolvedValue(row);
+  vi.mocked(apiClient.post).mockResolvedValue(row);
+  vi.mocked(apiClient.put).mockResolvedValue(row);
+  const file = new File(["bytes"], "agent.zip", { type: "application/zip" });
+  expect(await startBundleUpload(file, "request")).toBe(row);
+  expect(apiClient.post).toHaveBeenLastCalledWith("/portability/uploads", {
+    request_id: "request",
+    filename: "agent.zip",
+    size_bytes: 5,
+  });
+  expect(await uploadBundleFile("transfer", file)).toBe(row);
+  expect(apiClient.put).toHaveBeenCalledWith("/portability/transfer/upload", file);
+  const signal = new AbortController().signal;
+  expect(await getBundleTransfer("transfer", signal)).toBe(row);
+  expect(apiClient.get).toHaveBeenLastCalledWith("/portability/transfer", { signal });
+  expect(await applyBundleTransfer("transfer", 4, {})).toBe(row);
+  expect(apiClient.post).toHaveBeenLastCalledWith("/portability/transfer/apply", {
+    expected_revision: 4,
+    choices: {},
+  });
+  expect(await startBundleExport("agent", { "agent/root": ["definition"] }, "request")).toBe(row);
+  expect(apiClient.post).toHaveBeenLastCalledWith("/portability/exports", {
+    request_id: "request",
+    root_kind: "agent",
+    root_id: "agent",
+    resources: { "agent/root": ["definition"] },
+  });
+});
+
+it("saves the ZIP download only after an authorized successful response", async () => {
+  vi.mocked(apiClient.raw).mockResolvedValue(new Response("archive"));
+  await downloadBundleTransfer("transfer");
+  expect(apiClient.raw).toHaveBeenCalledWith("/portability/transfer/download", { method: "GET" });
+  const [blob, name] = vi.mocked(saveBlob).mock.calls[0] ?? [];
+  expect(await blob?.text()).toBe("archive");
+  expect(name).toBe("agenticos-transfer.zip");
 });

@@ -151,3 +151,9 @@ def agent_omissions(resource: BundleResource) -> dict[BundlePath, BundlePath]:
                     omit[path] = path[: index + 2]
                     break
     return omit
+
+
+def require_agent_root(bundle: ResourceBundle) -> None:
+    by_key = {resource.key: resource for resource in bundle.resources}
+    if len(bundle.roots) != 1 or by_key[bundle.roots[0]].kind != BundleResourceKind.AGENT:
+        raise BadRequestError(message="This importer requires exactly one agent root")

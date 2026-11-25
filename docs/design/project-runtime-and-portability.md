@@ -45,10 +45,20 @@ Imports are transactional and replay an operation receipt after a retry; they ne
 run or index anything. A local cross-organization import/export round trip has
 been exercised through the real UI and database.
 
-This is not yet the complete portability implementation. Binary/large bundles,
-full knowledge-base content, advanced workflow bundles, durable transfer
-operations and the runtime separation below are still implementation work. The
-PR remains a draft until that scope is complete.
+ZIP transfers now have durable owner-scoped journals, queued preparation and
+reviewed apply jobs. The journal and queue admission commit together. Current
+membership/API-key authority is rebuilt for execution; final database writes are
+fenced against queue cancellation and lease loss. Download checks resource access
+again. Exact Context text and Skill files are content-addressed ZIP assets,
+verified before destination creation, and hydrated one resource at a time.
+Temporary objects and journals expire after 24 hours and are removed by a worker
+sweep. The API supports polling the same operation after interruption; reopening
+a modal after a browser reload does not yet restore its operation automatically.
+
+This is not yet the complete portability implementation. Full knowledge-base
+content, advanced workflow bundles, manually published delegate-version bindings,
+and the runtime separation below are still implementation work. The PR remains
+a draft until that scope is complete.
 
 ## Invariants
 
