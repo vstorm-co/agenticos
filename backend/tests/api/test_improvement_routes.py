@@ -67,7 +67,13 @@ _HASH = "a" * 64
         ("POST", f"{_ONE}/rounds/1/attribution/estimate", "estimate_attribution", None, True),
         ("POST", f"{_ONE}/rounds/1/attribution", "start_attribution", _CONSENT, True),
         ("POST", f"{_ONE}/retry", "retry", None, False),
-        ("POST", f"{_ONE}/finish", "finish", {"confirmed": True}, False),
+        (
+            "POST",
+            f"{_ONE}/finish",
+            "finish",
+            {"confirmed": True, "attempt": 1, "candidate_spec_hash": "a" * 64},
+            False,
+        ),
         ("POST", f"{_ONE}/continue/estimate", "estimate_continuation", {"budget_usd": "5"}, False),
         (
             "POST",

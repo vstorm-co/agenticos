@@ -30,6 +30,7 @@ from app.schemas.eval_run import EvalRunEstimate
 from app.schemas.improvement import (
     ContinuationConsent,
     ImprovementContinue,
+    ImprovementFinish,
     ImprovementRead,
     ImprovementStart,
     ImprovementTarget,
@@ -53,6 +54,28 @@ from tests.integration.test_authoring import (
 from tests.integration.test_eval_suites import Model, _dataset, _owner
 
 pytestmark = [pytest.mark.anyio, pytest.mark.usefixtures("_environment")]
+
+
+async def reviewed(
+    db: AsyncSession, ctx: AuthContext, agent_id: UUID, run_id: UUID, **values: Any
+) -> ImprovementFinish:
+    """An acceptance of the attempt the session holds, as a person reviewing it reads it."""
+    session = await ImprovementPipelineService(db).read(ctx, agent_id, run_id)
+    number = values.get("round")
+    chosen = next(
+        (
+            item
+            for item in session.iterations
+            if (item.number == number if number else item.id == session.best_iteration_id)
+        ),
+        None,
+    )
+    return ImprovementFinish(
+        confirmed=True,
+        attempt=1 if chosen is None else chosen.number,
+        candidate_spec_hash=(chosen and chosen.candidate_spec_hash) or "0" * 64,
+        **values,
+    )
 
 
 async def _started(db: AsyncSession):
@@ -421,7 +444,6 @@ async def test_failed_paid_attempt_does_not_spend_the_confirming_measurement(db)
 
 
 async def test_confirmed_finish_accepts_and_publishes_through_normal_path(db):
-    from app.schemas.improvement import ImprovementFinish
     from app.services.eval_suite import EvalSuiteService
 
     ctx, agent, ready = await _ready_proposal(db)
@@ -432,7 +454,7 @@ async def test_confirmed_finish_accepts_and_publishes_through_normal_path(db):
         ctx,
         agent.id,
         ready.id,
-        ImprovementFinish(confirmed=True, publish=True, automatic_check=True),
+        await reviewed(db, ctx, agent.id, ready.id, publish=True, automatic_check=True),
     )
     assert result.session.status == "published"
     reopened = await ImprovementPipelineService(db).read(ctx, agent.id, ready.id)
@@ -447,17 +469,16 @@ async def test_confirmed_finish_accepts_and_publishes_through_normal_path(db):
     assert suites.items[0].threshold.max_confirmed_regressions == 0
     with pytest.raises(ConcurrentChangeError):
         await ImprovementPipelineService(db).finish(
-            ctx, agent.id, ready.id, ImprovementFinish(confirmed=True, publish=True)
+            ctx, agent.id, ready.id, await reviewed(db, ctx, agent.id, ready.id, publish=True)
         )
 
 
 async def test_keep_as_draft_never_publishes(db):
-    from app.schemas.improvement import ImprovementFinish
 
     ctx, agent, ready = await _ready_proposal(db)
     before = agent.current_version_id
     result = await ImprovementPipelineService(db).finish(
-        ctx, agent.id, ready.id, ImprovementFinish(confirmed=True)
+        ctx, agent.id, ready.id, await reviewed(db, ctx, agent.id, ready.id)
     )
     assert result.session.status == "accepted"
     assert result.version_id is None and agent.current_version_id == before
@@ -972,7 +993,6 @@ async def test_waiting_session_tracks_human_accept_undo_dismiss_and_publish(db):
 
 async def test_existing_suite_is_not_offered_or_duplicated_on_finish(db):
     from app.schemas.eval_suite import EvalSuiteCreate
-    from app.schemas.improvement import ImprovementFinish
     from app.services.eval_suite import EvalSuiteService
 
     ctx, agent, ready = await _ready_proposal(db)
@@ -984,7 +1004,7 @@ async def test_existing_suite_is_not_offered_or_duplicated_on_finish(db):
     reopened = await service.read(ctx, agent.id, ready.id)
     assert not reopened.offer_automatic_check
     await service.finish(
-        ctx, agent.id, ready.id, ImprovementFinish(confirmed=True, automatic_check=True)
+        ctx, agent.id, ready.id, await reviewed(db, ctx, agent.id, ready.id, automatic_check=True)
     )
     assert [s.id for s in (await suites.list_for_agent(ctx, agent.id)).items] == [existing.id]
 

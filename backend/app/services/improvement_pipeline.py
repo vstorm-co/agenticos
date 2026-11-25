@@ -1232,6 +1232,7 @@ class ImprovementPipelineService:
                 self.db, agent_id=run.agent_id, organization_id=run.organization_id
             )
             result.next_version = 1 if latest is None else latest.version + 1
+            result.unmeasured_draft_edits = await self._unmeasured_draft_edits(run)
             suites = await EvalSuiteService(self.db).list_for_agent(ctx, run.agent_id)
             result.offer_automatic_check = not suites.items
         result.can_restart = await self._may_continue(ctx, run)
@@ -1530,6 +1531,17 @@ class ImprovementPipelineService:
                 message="Wait for this session's checks to finish, or stop the session"
             )
         selected, hunks = await self._measured_selection(run)
+        if (
+            selected.number != data.attempt
+            or selected.candidate_spec_hash != data.candidate_spec_hash
+        ):
+            raise ConcurrentChangeError(
+                message=(
+                    "The attempt waiting to be accepted changed since you reviewed it. "
+                    "Refresh the session and review it again."
+                ),
+                details={"attempt": selected.number, "reviewed_attempt": data.attempt},
+            )
         for hunk in hunks:
             if hunk.status == HunkStatus.PENDING:
                 refuse_never_accepted(hunk)
@@ -1543,7 +1555,20 @@ class ImprovementPipelineService:
             != selected.candidate_spec_hash
         ):
             raise ConcurrentChangeError(
-                message="The selected changes differ from the checked candidate; check them again"
+                message=(
+                    "The draft changed since this attempt was measured. Refresh the session "
+                    "and check the changes again before accepting them."
+                )
+            )
+        if (
+            data.publish
+            and not data.publish_unmeasured_edits
+            and await self._unmeasured_draft_edits(run)
+        ):
+            raise refused_field(
+                "publish_unmeasured_edits",
+                "The draft held edits before this session started, which it did not measure. "
+                "Confirm them to publish, or keep the changes as a draft.",
             )
         for hunk in hunks:
             if hunk.status == HunkStatus.PENDING:
@@ -1607,6 +1632,21 @@ class ImprovementPipelineService:
             session=await self._read(ctx, run),
             version_id=None if version is None else version.id,
             version=None if version is None else version.version,
+        )
+
+    async def _unmeasured_draft_edits(self, run: ImprovementRun) -> bool:
+        """Whether the draft differed from its published base when the session started.
+
+        Such edits are in both sides of every check, so they were never measured as a
+        change, and publishing the accepted attempt releases them with it.
+        """
+        if run.base_version_id is None:
+            return True
+        base = await agent_repo.get_version(
+            self.db, run.base_version_id, organization_id=run.organization_id
+        )
+        return base is None or spec_hash(AgentSpec.model_validate(base.spec)) != (
+            run.base_draft_hash
         )
 
     @staticmethod

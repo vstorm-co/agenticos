@@ -405,6 +405,13 @@ class ImprovementRead(BaseSchema):
     published_version_id: UUID | None = None
     published_version: int | None = None
     next_version: int | None = None
+    unmeasured_draft_edits: bool = Field(
+        default=False,
+        description=(
+            "The draft differed from the version it is based on before the session "
+            "started; publishing releases those edits too, which no check measured"
+        ),
+    )
     offer_automatic_check: bool = False
     can_restart: bool = False
     can_discard: bool = False
@@ -524,8 +531,28 @@ class AttributionConsent(BaseSchema):
 
 
 class ImprovementFinish(BaseSchema):
+    """Accepting the attempt a person reviewed, bound to what they saw.
+
+    `attempt` and `candidate_spec_hash` are the attempt's number and its
+    `ImprovementIterationRead.candidate_spec_hash` as the reviewer read them; the
+    session must still hold exactly that attempt, measured as it was, or the
+    request is refused with 409.
+    """
+
     confirmed: Literal[True]
+    attempt: int = Field(ge=1, le=10, description="The number of the attempt that was reviewed")
+    candidate_spec_hash: str = Field(
+        pattern=r"^[0-9a-f]{64}$",
+        description="The reviewed attempt's `candidate_spec_hash`, from the session's read",
+    )
     publish: bool = False
+    publish_unmeasured_edits: bool = Field(
+        default=False,
+        description=(
+            "Publish although the draft held edits before the session started, which "
+            "it never measured; required with `publish` when `unmeasured_draft_edits`"
+        ),
+    )
     automatic_check: bool = False
     round: int | None = Field(
         default=None,
