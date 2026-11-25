@@ -19,6 +19,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- The iPhone app no longer closes when the microphone is used - dictating a message
+  or calling an agent. It now declares `NSMicrophoneUsageDescription`, without which iOS
+  ends an app the moment it asks for the microphone.
+
 ## [1.93.0] - 2026-11-24
 
 ### Added
