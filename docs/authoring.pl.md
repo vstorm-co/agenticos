@@ -1,5 +1,5 @@
 ---
-source_sha: "efcf8f8ad81e"
+source_sha: "4ead3cbff191"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -482,7 +482,7 @@ Zakończona sesja - zachowana jako wersja robocza, opublikowana, odrzucona, anul
 
 Sesja czekająca na Ciebie, na wyniku, zatrzymana albo zakończona błędem pozostaje otwarta: **Popraw** i jej wpis w historii prowadzą do niej, żeby wykonać następny krok, podnieść limit i kontynuować, wybrać próbę, ponowić nieudany krok albo ją odrzucić.
 
-API odpowiada `409` na każdą zmianę zakończonej sesji, poza powtórzeniem anulowania albo odrzucenia, które ją zakończyło. `GET /{run_id}/changes` zwraca zmiany zmierzone w wybranej próbie. Odczyt sesji wymaga dostępu do odczytu agenta i `runs:view`; zmiana albo rozpoczęcie sesji wymaga też prawa edycji agenta.
+API odpowiada `409` na każdą zmianę zakończonej sesji, poza powtórzeniem anulowania albo odrzucenia, które ją zakończyło. `GET /{run_id}/changes` zwraca zmiany zmierzone w wybranej próbie. Odczyt sesji wymaga dostępu do odczytu agenta i `runs:view`; zmiana albo rozpoczęcie sesji wymaga też prawa edycji agenta. Jej zmiany i sugestie, które zostawia w Builderze, powstają z pytań datasetu, więc ich odczyt wymaga też dostępu do odczytu datasetu.
 
 #### Pytanie Architekta { #asking-the-architect }
 

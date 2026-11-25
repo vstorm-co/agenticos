@@ -1178,10 +1178,15 @@ class ImprovementPipelineService:
         self, ctx: AuthContext, agent_id: UUID, run_id: UUID, *, attempt: int | None = None
     ) -> list[HunkRead]:
         """The changes the session's chosen round measured, wherever their batch is now; with
-        `attempt`, every change that attempt proposed, tested or not."""
+        `attempt`, every change that attempt proposed, tested or not.
+
+        Raises:
+            AuthorizationError: The caller may not view the session's dataset.
+        """
         agent = await self.registry.get(ctx, agent_id)
         self.authoring._require_runs_view(ctx)
         run = await self._row(ctx, agent_id, run_id)
+        await self.authoring.require_session_datasets(ctx, [run.id])
         rounds = await improvement_repo.list_iterations(
             self.db, organization_id=ctx.organization_id, run_id=run.id
         )

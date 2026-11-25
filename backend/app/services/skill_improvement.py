@@ -49,7 +49,7 @@ from app.core.exceptions import (
     PaymentRequiredError,
 )
 from app.core.field_errors import refused_field
-from app.core.permissions import AuthContext, Perm
+from app.core.permissions import AuthContext, Perm, Scope
 from app.db.models.authoring import (
     AuthoringKind,
     AuthoringRequest,
@@ -745,7 +745,9 @@ class SkillImprovementService:
         visible = await accessible_ids(
             self.db, ctx, list(agents.values()), Perm.AGENTS_VIEW, resource_type=AGENT
         )
-        shown = {run_id for run_id, agent_id in owners.items() if agent_id in visible}
+        shown = await self._without_eval_answers(
+            ctx, {run_id for run_id, agent_id in owners.items() if agent_id in visible}
+        )
         problems: list[SkillProblemRead] = []
         for item in found:
             if item.get("cause") != "skill":
@@ -2509,7 +2511,8 @@ class SkillImprovementService:
         return timeline
 
     async def _shown_runs(self, ctx: AuthContext, run_ids: set[UUID]) -> set[UUID]:
-        """The runs a reader may see quoted: those of agents they may view."""
+        """The runs a reader may see quoted: those of agents they may view, less the eval
+        answers a reader of fewer than every dataset may not."""
         owners = await agent_run_repo.agents_of_runs(
             self.db, list(run_ids), organization_id=ctx.organization_id
         )
@@ -2519,7 +2522,21 @@ class SkillImprovementService:
         visible = await accessible_ids(
             self.db, ctx, list(agents.values()), Perm.AGENTS_VIEW, resource_type=AGENT
         )
-        return {run_id for run_id, agent_id in owners.items() if agent_id in visible}
+        return await self._without_eval_answers(
+            ctx, {run_id for run_id, agent_id in owners.items() if agent_id in visible}
+        )
+
+    async def _without_eval_answers(self, ctx: AuthContext, run_ids: set[UUID]) -> set[UUID]:
+        """These runs, less the eval answers when the reader may not view every dataset.
+
+        An eval answer quotes a dataset's question, and a run does not record which
+        dataset it answered.
+        """
+        if ctx.scope_for(Perm.DATASETS_VIEW) is Scope.ALL:
+            return run_ids
+        return run_ids - await agent_run_repo.eval_answers(
+            self.db, list(run_ids), organization_id=ctx.organization_id
+        )
 
     @staticmethod
     def _hunk(hunk: SpecProposalHunk, base: SkillVersion, shown: set[UUID]) -> HunkRead:

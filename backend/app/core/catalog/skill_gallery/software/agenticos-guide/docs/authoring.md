@@ -466,7 +466,7 @@ A finished session - kept as a draft, published, discarded, cancelled, or closed
 
 A session waiting for you, at its result, stopped or failed is still open: **Improve** and its entry in the history take you back to it, to take its next step, raise its limit and continue, choose an attempt, retry the failed step or discard it.
 
-The API answers any change to a finished session with `409`, except repeating the cancel or discard that ended it. `GET /{run_id}/changes` reads the changes its chosen attempt measured. Reading a session needs read access to the agent and `runs:view`; changing or starting one also needs edit access to the agent.
+The API answers any change to a finished session with `409`, except repeating the cancel or discard that ended it. `GET /{run_id}/changes` reads the changes its chosen attempt measured. Reading a session needs read access to the agent and `runs:view`; changing or starting one also needs edit access to the agent. Its changes, and the suggestions it leaves in the Builder, are written from the dataset's questions, so reading them also needs read access to the dataset.
 
 #### Asking the Architect { #asking-the-architect }
 

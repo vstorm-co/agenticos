@@ -296,7 +296,7 @@ from app.core.exceptions import (
     RunExecutionError,
     RunFailedError,
 )
-from app.core.permissions import AuthContext, Perm
+from app.core.permissions import AuthContext, Perm, Scope
 from app.core.secret_kinds import ApiKeySecret, StorableSecret
 from app.core.tool_identity import ToolIdentity
 from app.core.update_gate import require_admission
@@ -9636,6 +9636,10 @@ class AgentRunnerService:
         the agent was given no tools and no prompt, which of the runs somebody
         opens is the most misleading thing it could say.
 
+        An eval answer and a platform agent's run were sent dataset cases, so a
+        reader without view access to every dataset gets their record without
+        `messages` and `transcript`.
+
         Raises:
             NotFoundError: The run is not in the caller's organization, or
                 nothing was recorded for it.
@@ -9655,7 +9659,30 @@ class AgentRunnerService:
             raise NotFoundError(
                 message="Nothing was recorded for this run", details={"run_id": str(run_id)}
             )
-        return manifest
+        if await self._may_read_case_text(ctx, run):
+            return manifest
+        return RunManifest(
+            id=manifest.id,
+            run_id=manifest.run_id,
+            organization_id=manifest.organization_id,
+            payload={**manifest.payload, "messages": [], "transcript": []},
+            truncated=manifest.truncated,
+            created_at=manifest.created_at,
+        )
+
+    async def _may_read_case_text(self, ctx: AuthContext, run: AgentRun) -> bool:
+        """Whether the caller may read what this run was sent from datasets.
+
+        An eval answer was sent a case's question, and the judge, the improver and
+        the other platform agents are sent cases and answers. A run records no
+        dataset, so this needs view access to every dataset.
+        """
+        if ctx.scope_for(Perm.DATASETS_VIEW) is Scope.ALL:
+            return True
+        if run.surface == RunSurface.EVAL.value:
+            return False
+        agent = await agent_repo.get(self.db, run.agent_id, organization_id=ctx.organization_id)
+        return agent is not None and agent.kind == AgentKind.AGENT.value
 
     async def transcript_ratings(
         self, ctx: AuthContext, message_ids: list[UUID]
