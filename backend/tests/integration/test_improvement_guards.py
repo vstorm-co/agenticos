@@ -60,7 +60,7 @@ async def test_a_creator_without_runs_view_stops_a_session_and_learns_only_its_s
     ctx, agent, _, session = await _started(db)
     row = await db.get(ImprovementRun, session.id)
     assert row is not None
-    row.error = "Private provider details"
+    row.error, row.error_code, row.error_params = "Private details", "refused", {"missing": 1}
     await db.flush()
     demoted = replace(ctx, key_scopes=frozenset({Perm.AGENTS_VIEW}))
 
@@ -68,7 +68,7 @@ async def test_a_creator_without_runs_view_stops_a_session_and_learns_only_its_s
 
     assert stopped.status == "cancelled"
     assert stopped.iterations == [] and stopped.timeline == []
-    assert stopped.error is None
+    assert (stopped.error, stopped.error_code, stopped.error_params) == (None, None, None)
 
 
 @pytest.mark.security

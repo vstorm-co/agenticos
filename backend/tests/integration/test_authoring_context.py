@@ -375,12 +375,12 @@ async def test_the_worker_stops_on_a_file_gone_or_out_of_the_starters_reach(db):
         await AuthoringWorker(lost.id, ctx.organization_id, sessions=_sessions(db)).run()
 
     errors = {
-        request.id: request.error
+        request.id: (request.error, request.error_code)
         for request in await db.scalars(
             select(AuthoringRequest).where(AuthoringRequest.id.in_([gone.id, lost.id]))
         )
     }
     assert errors == {
-        gone.id: "The context file is gone.",
-        lost.id: "Whoever started this may no longer edit the context file.",
+        gone.id: ("The context file is gone.", "context_gone"),
+        lost.id: ("Whoever started this may no longer edit the context file.", "no_edit_context"),
     }

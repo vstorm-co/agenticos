@@ -182,6 +182,7 @@ from app.services.improvement_states import (
 from app.services.knowledge_gaps import KnowledgeGapService, draft_fingerprint
 from app.services.model_outputs import model_outputs
 from app.services.notifications import NotificationService
+from app.services.step_failure import failure_code
 from app.worker.jobs import (
     ADVANCE_IMPROVEMENT,
     CLASSIFY_GAPS,
@@ -1260,7 +1261,7 @@ class ImprovementPipelineService:
         if not ctx.has(Perm.RUNS_VIEW):
             # Only a stop reaches here without runs:view: it may end a session, and
             # learns no more of it than its status.
-            result.error = None
+            result.error = result.error_code = result.error_params = None
             return result
         iterations = await improvement_repo.list_iterations(
             self.db, organization_id=ctx.organization_id, run_id=run.id
@@ -1780,6 +1781,8 @@ class ImprovementPipelineService:
             values={
                 "status": Status.RUNNING.value,
                 "error": None,
+                "error_code": None,
+                "error_params": None,
                 "stop_reason": None,
                 "finished_at": None,
                 "actor_user_id": ctx.subject_id,
@@ -2147,6 +2150,8 @@ class ImprovementPipelineService:
                 "iteration": quote.number,
                 "budget_usd": data.budget_usd,
                 "error": None,
+                "error_code": None,
+                "error_params": None,
                 "actor_user_id": ctx.subject_id,
                 "actor_api_key_id": ctx.api_key_id,
             },
@@ -2308,6 +2313,7 @@ class ImprovementPipelineService:
                         values={
                             "status": AuthoringStatus.FAILED.value,
                             "error": "The improvement session stopped.",
+                            "error_code": "session_stopped",
                             "finished_at": datetime.now(UTC),
                         },
                     )
@@ -2834,7 +2840,15 @@ class ImprovementPipelineService:
                 ),
             )
         except AppException as exc:
-            await improvement_repo.update_run(self.db, run=run, values={"error": exc.message})
+            await improvement_repo.update_run(
+                self.db,
+                run=run,
+                values={
+                    "error": exc.message,
+                    "error_code": failure_code(exc),
+                    "error_params": None,
+                },
+            )
             await self._move(
                 run,
                 rules.Transition(
@@ -2886,9 +2900,15 @@ class ImprovementPipelineService:
                     self.db,
                     run=run,
                     values={
-                        "error": f"Add {needed} more held-out test questions to measure a change"
-                        if needed
-                        else "No rated chat runs or training failures are available yet",
+                        "error": f"Add {needed} more held-out test questions to measure a change",
+                        "error_code": "too_few_held_out",
+                        "error_params": {"missing": needed},
+                    }
+                    if needed
+                    else {
+                        "error": "No rated chat runs or training failures are available yet",
+                        "error_code": "no_evidence",
+                        "error_params": None,
                     },
                 )
             if transition.status.active:
@@ -3053,7 +3073,9 @@ class ImprovementPipelineService:
                     run=run,
                     values={
                         "error": f"A search needs at least {MIN_TRAIN_QUESTIONS} training "
-                        "questions for this attempt"
+                        "questions for this attempt",
+                        "error_code": "search_too_few_training",
+                        "error_params": {"minimum": MIN_TRAIN_QUESTIONS},
                     },
                 )
                 await self._move(
@@ -4152,6 +4174,8 @@ class ImprovementPipelineService:
             values={
                 "iteration": number,
                 "error": None,
+                "error_code": None,
+                "error_params": None,
             },
         )
         await self._audit(

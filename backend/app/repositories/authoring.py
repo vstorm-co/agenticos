@@ -34,6 +34,7 @@ if TYPE_CHECKING:
     from app.db.models.case_score import CaseScore
     from app.db.models.dataset import Dataset, DatasetCase
     from app.db.models.eval_run import EvalRunArm, EvalRunCase
+    from app.schemas.authoring import AuthoringFailure
 
 
 async def create_request(
@@ -146,7 +147,13 @@ async def update_request(
 
 
 async def fail_unfinished(
-    db: AsyncSession, request_id: UUID, *, organization_id: UUID, error: str, now: datetime
+    db: AsyncSession,
+    request_id: UUID,
+    *,
+    organization_id: UUID,
+    error: str,
+    error_code: AuthoringFailure,
+    now: datetime,
 ) -> bool:
     """Fail a request still queued or running. `False` when it had already ended, which keeps its outcome.
 
@@ -173,7 +180,13 @@ async def fail_unfinished(
                 (AuthoringStatus.QUEUED.value, AuthoringStatus.RUNNING.value)
             ),
         )
-        .values(status=AuthoringStatus.FAILED.value, error=error, finished_at=now)
+        .values(
+            status=AuthoringStatus.FAILED.value,
+            error=error,
+            error_code=error_code,
+            error_params=None,
+            finished_at=now,
+        )
         .returning(AuthoringRequest.id)
     )
     return result.scalar_one_or_none() is not None
