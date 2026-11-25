@@ -126,6 +126,24 @@ class TestTheLog:
             (AGENT, (KB_A,)),
         ]
 
+    def test_a_kept_passage_names_the_bases_of_the_collection_that_returned_it(self):
+        log = KnowledgeSearchLog(
+            agent_id=AGENT, collections={"kb_a": (KB_A,), "kb_b": (KB_B,)}, found=[]
+        )
+        returned = [
+            SearchResult(content="from b", score=0.9, metadata={"collection": "kb_b"}),
+            SearchResult(content="from a", score=0.8, metadata={"collection": "kb_a"}),
+            SearchResult(content="from nowhere", score=0.7),
+        ]
+
+        log.record("q", ["kb_a", "kb_b"], returned)
+
+        assert [(found.quote, found.knowledge_base_ids) for found in log.found or []] == [
+            ("from b", (KB_B,)),
+            ("from a", (KB_A,)),
+            ("from nowhere", ()),
+        ]
+
 
 class TestTheSearchReportsWhatItFound:
     async def test_a_search_that_ran_reports_its_collections_and_results(self):

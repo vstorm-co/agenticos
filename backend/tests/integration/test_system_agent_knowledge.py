@@ -108,7 +108,10 @@ class Script:
         self.searched.append(names)
         if on_results is not None and names:
             found = SearchResult(
-                content=PASSAGE, score=1.0, similarity=0.9, metadata={"filename": "refunds.md"}
+                content=PASSAGE,
+                score=1.0,
+                similarity=0.9,
+                metadata={"filename": "refunds.md", "collection": names[0]},
             )
             on_results(names, [found])
         return f"refunds.md: {PASSAGE}"
@@ -210,7 +213,9 @@ class TestEachKind:
 
         assert SEARCH in script.tools[0]
         assert script.searched == [[mine.collection_name]]
-        assert result.found == [FoundPassage(source="refunds.md", quote=PASSAGE)]
+        assert result.found == [
+            FoundPassage(source="refunds.md", quote=PASSAGE, knowledge_base_ids=(mine.id,))
+        ]
 
     async def test_one_that_does_not_search_is_offered_no_search(
         self, db, script: Script, definition: SystemAgentDef
@@ -339,7 +344,12 @@ class TestAJudgeThatSearches:
         judged = [result for result in evaluation.results if result.judge_run_id is not None]
         assert judged
         assert all(
-            result.knowledge == [KnowledgeFinding(source="refunds.md", quote=PASSAGE)]
+            result.knowledge
+            == [
+                KnowledgeFinding(
+                    source="refunds.md", quote=PASSAGE, knowledge_base_ids=[handbook.id]
+                )
+            ]
             for result in judged
         )
 

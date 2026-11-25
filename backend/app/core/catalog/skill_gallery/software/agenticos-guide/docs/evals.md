@@ -327,6 +327,11 @@ the estimate prices each grading at the judge's steps. A judge starts at
 temperature 0, so the same answer is graded the same way twice, and its page
 warns when that is raised.
 
+A passage it found is shown only to a reader who may see the answer and read
+the knowledge base it came from, and credentials in it are redacted before it is
+kept. A passage that does not name its knowledge base is shown only to a reader
+of every collection.
+
 A finished run keeps its first candidate's verdict, counts and pass rates as
 `outcome`, so a listing reads them without comparing every run again. It is
 compared again when a person has decided one of the scores it rests on since,

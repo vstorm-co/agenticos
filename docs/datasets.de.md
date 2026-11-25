@@ -1,5 +1,5 @@
 ---
-source_sha: "73654d50ca33"
+source_sha: "e3f4001f7981"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -767,6 +767,8 @@ zusammenwirken, steht unter [Berechtigungen](permissions.md).
 Den Text eines aus einer Unterhaltung kopierten Falls sehen nur Leser mit `runs:view` oder Zugriff auf die Quellunterhaltung. Andere sehen Metadaten und einen Platzhalter, sowohl in aktuellen und historischen Versionen als auch in CSV/JSONL-Exporten. Eine fehlende Quelle gibt den Text nicht frei. Verborgener Text kann nicht bearbeitet und durch Metadatenänderungen nicht offengelegt werden. Evals führen weiterhin die vollständige gespeicherte Revision aus.
 
 Antworten, Prüfungsnotizen und Bewertungsbelege benötigen `runs:view` und Zugriff auf den antwortenden Agenten. Fehlt eines davon, bleiben Ergebnis und Status sichtbar, aber Antworttext, Begründungen, Regeln und Zitate werden entfernt. Vor dem Kopieren einer fremden privaten Unterhaltung nennt der Dialog deren Eigentümer und warnt, dass Dataset-Leser mit Leserecht für Runs den Text sehen werden.
+
+Die Wissensstellen des Bewerters werden mit der Antwort entfernt. Wer die Antwort sieht, bekommt eine Stelle nur aus einer Wissensbasis, die er lesen darf; siehe [Eval-Runs](evals.md).
 
 Eine Entscheidung über die Antwort eines Eval-Runs oder ihre neue Bewertung erfordert ebenfalls `runs:view` und Zugriff auf den antwortenden Agenten, weil sie die auf diesem Run aufbauenden Urteile ändert: Wer die Antwort nicht sehen kann, bekommt keines von beiden angeboten, und die API lehnt beides mit `403` ab.
 

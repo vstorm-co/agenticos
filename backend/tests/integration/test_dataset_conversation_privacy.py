@@ -285,3 +285,95 @@ async def test_review_hides_answers_notes_and_judge_evidence_without_runs_view(d
     assert read.answer_hidden and read.case_masked
     assert "PRIVATE_" not in read.model_dump_json()
     assert case.input not in read.model_dump_json()
+
+
+async def test_a_judge_s_passages_reach_only_readers_of_the_answer_and_the_collection(db) -> None:
+    from app.core.permissions import Perm
+    from app.db.models.case_score import CaseScore
+    from app.db.models.knowledge_base import KnowledgeBase
+    from app.schemas.scoring import DatasetScoring
+    from app.services.scoring import ScoringService
+
+    owner = await _owner(db)
+    builder = await _member(db, owner, OrgRoleName.BUILDER)
+    viewer = await _member(db, owner, OrgRoleName.VIEWER)
+    keyed = replace(
+        builder,
+        api_key_id=uuid.uuid4(),
+        key_scopes=frozenset({Perm.DATASETS_VIEW, Perm.RUNS_VIEW, Perm.AGENTS_VIEW}),
+    )
+    bases = {}
+    for name, scope, owned_by in (("shared", "org", None), ("personal", "personal", owner)):
+        base = KnowledgeBase(
+            organization_id=owner.organization_id,
+            name=f"{name}-{uuid.uuid4().hex[:6]}",
+            collection_name=f"{name}_{uuid.uuid4().hex[:8]}",
+            embedding_model="text-embedding-3-small",
+            embedding_dim=1536,
+            scope=scope,
+            visibility="org",
+            owner_user_id=None if owned_by is None else owned_by.user_id,
+        )
+        db.add(base)
+        bases[name] = base
+    await db.flush()
+    secret = "ghp_" + "a1B2" * 9
+    dataset = await DatasetService(db).create(owner, DatasetCreate(name="graded by search"))
+    run, message = await _rated_down_turn(db, owner)
+    case = await DatasetService(db).add_from_message(
+        owner, dataset.id, DatasetCaseFromMessage(message_id=message.id)
+    )
+    db.add(
+        CaseScore(
+            organization_id=owner.organization_id,
+            dataset_id=dataset.id,
+            case_revision_id=case.id,
+            case_id=case.case_id,
+            run_id=run.id,
+            agent_id=run.agent_id,
+            answer="Thirty days.",
+            scoring=DatasetScoring().model_dump(mode="json"),
+            results=[
+                {
+                    "scorer": "judge",
+                    "name": "correctness",
+                    "required": True,
+                    "status": "pass",
+                    "reason": "It matches the handbook.",
+                    "knowledge": [
+                        {
+                            "source": "SHARED_SOURCE",
+                            "quote": "SHARED_PASSAGE",
+                            "knowledge_base_ids": [str(bases["shared"].id)],
+                        },
+                        {
+                            "source": "PERSONAL_SOURCE",
+                            "quote": "PERSONAL_PASSAGE",
+                            "knowledge_base_ids": [str(bases["personal"].id)],
+                        },
+                        {"source": "LEGACY_SOURCE", "quote": f"LEGACY_PASSAGE key {secret}"},
+                    ],
+                }
+            ],
+            passed=True,
+            review_state="none",
+        )
+    )
+    await db.flush()
+    scores = ScoringService(db)
+
+    async def passages(reader) -> str:
+        [read] = (await scores.list_scores(reader, dataset.id)).items
+        return " ".join(
+            f"{found.source} {found.quote}" for result in read.results for found in result.knowledge
+        )
+
+    seen_by_owner = await passages(owner)
+    assert "SHARED_PASSAGE" in seen_by_owner and "PERSONAL_PASSAGE" in seen_by_owner
+    assert "LEGACY_PASSAGE key [redacted:github_token]" in seen_by_owner
+    assert secret not in seen_by_owner
+    seen_by_builder = await passages(builder)
+    assert "SHARED_PASSAGE" in seen_by_builder and "LEGACY_PASSAGE" in seen_by_builder
+    assert "PERSONAL" not in seen_by_builder
+    assert await passages(keyed) == ""
+    assert await passages(viewer) == ""

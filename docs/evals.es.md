@@ -1,5 +1,5 @@
 ---
-source_sha: "5a321e5b8ad8"
+source_sha: "460ea414b292"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -345,6 +345,11 @@ que encontró allí: el documento y el comienzo del pasaje. Hasta que sus runs l
 den un historial, la estimación cuenta cada calificación por los pasos del
 juez. Un juez empieza con temperatura 0, para que la misma respuesta se
 califique igual dos veces, y su página avisa cuando se sube.
+
+Un pasaje encontrado solo lo ve quien puede ver la respuesta y leer la base de
+conocimiento de la que procede, y las credenciales que contenga se ocultan antes
+de guardarlo. Un pasaje que no nombra su base de conocimiento solo lo ve quien
+puede leer todas las colecciones.
 
 Un run terminado conserva el veredicto, los recuentos y las tasas de aprobados
 de su primer candidato como `outcome`, para que un listado los lea sin volver a

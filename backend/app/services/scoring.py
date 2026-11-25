@@ -59,6 +59,7 @@ from app.repositories import (
     dataset_repo,
     eval_run_repo,
     intercepted_tool_call_repo,
+    knowledge_base_repo,
     personal_data_repo,
     skill_check_repo,
 )
@@ -97,6 +98,7 @@ from app.services.access import (
     visible_resource_ids,
 )
 from app.services.agent_runner import AgentRunnerService
+from app.services.collection_access import readable_kb
 from app.services.dataset import DatasetService
 from app.services.model_outputs import model_outputs
 from app.services.scorers import (
@@ -272,8 +274,14 @@ def _case_view(case: DatasetCase) -> CaseView:
     )
 
 
+def _redacted_finding(found: KnowledgeFinding) -> KnowledgeFinding:
+    return found.model_copy(
+        update={"source": _redact(found.source), "quote": _redact(found.quote) or found.quote}
+    )
+
+
 def _kept_results(results: list[ScorerResult]) -> list[dict[str, Any]]:
-    """Results as a score keeps them: the judge's words with any secret redacted."""
+    """Results as a score keeps them: the judge's words, and what it found, with any secret redacted."""
     return [
         result.model_copy(
             update={
@@ -283,6 +291,7 @@ def _kept_results(results: list[ScorerResult]) -> list[dict[str, Any]]:
                 "unverified_quotes": [
                     _redact(quote) or quote for quote in result.unverified_quotes
                 ],
+                "knowledge": [_redacted_finding(found) for found in result.knowledge],
             }
         ).model_dump(mode="json")
         for result in results
@@ -958,7 +967,12 @@ class ScoringService:
         )
         if result.found:
             found = [
-                KnowledgeFinding(source=item.source, quote=item.quote) for item in result.found
+                KnowledgeFinding(
+                    source=item.source,
+                    quote=item.quote,
+                    knowledge_base_ids=list(item.knowledge_base_ids),
+                )
+                for item in result.found
             ]
             grades = [grade.model_copy(update={"knowledge": found}) for grade in grades]
         return Evaluation(grades, await self._pin(ctx, result.run, criteria, scoring))
@@ -1174,6 +1188,8 @@ class ScoringService:
             organization_id=ctx.organization_id,
         )
         access = await self._answer_access(ctx, {read.agent_id for read in reads})
+        readable_bases = await self._readable_bases(ctx, reads)
+        sees_every_collection = ctx.scope_for(Perm.COLLECTIONS_VIEW) >= Scope.ALL
         versions = await agent_repo.get_versions_by_ids(
             self.db,
             list({read.agent_version_id for read in reads if read.agent_version_id is not None}),
@@ -1191,6 +1207,10 @@ class ScoringService:
             shown = access.shows(read.agent_id, answered=read.answer is not None)
             if not shown:
                 read = _without_answer(read)
+            else:
+                read = _with_readable_knowledge(
+                    read, readable_bases, sees_every_collection=sees_every_collection
+                )
             version = None if read.agent_version_id is None else versions.get(read.agent_version_id)
             judged_on = (
                 None
@@ -1216,6 +1236,18 @@ class ScoringService:
                 )
             )
         return named
+
+    async def _readable_bases(self, ctx: AuthContext, reads: list[CaseScoreRead]) -> set[UUID]:
+        """The knowledge bases named by the scores' passages that the reader may read."""
+        named = {
+            base_id
+            for read in reads
+            for result in read.results
+            for found in result.knowledge
+            for base_id in found.knowledge_base_ids
+        }
+        bases = await knowledge_base_repo.get_by_ids(self.db, sorted(named))
+        return {base.id for base in bases.values() if await readable_kb(self.db, ctx, base)}
 
     async def _answer_access(self, ctx: AuthContext, agent_ids: set[UUID | None]) -> _AnswerAccess:
         agents = await agent_repo.get_many(
@@ -1481,6 +1513,37 @@ class ScoringService:
         return wanted
 
 
+def _with_readable_knowledge(
+    read: CaseScoreRead, readable_bases: set[UUID], *, sees_every_collection: bool
+) -> CaseScoreRead:
+    """A score with only the judge's passages from knowledge bases the reader may read.
+
+    A passage that names no base has nothing to check the reader against, so only
+    a reader of every collection is shown it. Each is redacted on the way out too,
+    whatever was redacted when it was kept.
+    """
+    return read.model_copy(
+        update={
+            "results": [
+                result.model_copy(
+                    update={
+                        "knowledge": [
+                            _redacted_finding(found)
+                            for found in result.knowledge
+                            if (
+                                readable_bases.issuperset(found.knowledge_base_ids)
+                                if found.knowledge_base_ids
+                                else sees_every_collection
+                            )
+                        ]
+                    }
+                )
+                for result in read.results
+            ]
+        }
+    )
+
+
 def _without_answer(read: CaseScoreRead) -> CaseScoreRead:
     """A score with the answer, and everything that can repeat it, left out."""
     return read.model_copy(
@@ -1496,6 +1559,7 @@ def _without_answer(read: CaseScoreRead) -> CaseScoreRead:
                         "unverified_quotes": [],
                         "judge_said": None,
                         "rule": None,
+                        "knowledge": [],
                     }
                 )
                 for result in read.results

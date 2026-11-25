@@ -1,5 +1,5 @@
 ---
-source_sha: "73654d50ca33"
+source_sha: "e3f4001f7981"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -721,6 +721,8 @@ granty, opisuje strona [Uprawnienia](permissions.md).
 Tekst przypadku skopiowanego z rozmowy widzą tylko czytelnicy z `runs:view` lub dostępem do rozmowy źródłowej. Pozostali widzą metadane i placeholder, zarówno w najnowszej i historycznych wersjach, jak i eksportach CSV/JSONL. Brak źródła nie odsłania tekstu. Czytelnik nie może edytować ukrytej treści, a zmiana metadanych jej nie ujawnia. Ewaluacje nadal wykonują pełną zapisaną rewizję.
 
 Odpowiedzi, notatki recenzenta i dowody oceny w przeglądzie wymagają `runs:view` oraz dostępu do odpowiadającego agenta. Bez któregoś z nich pozostają wynik i status, ale tekst odpowiedzi, uzasadnienia, reguły i cytaty są usuwane. Przed dodaniem cudzej prywatnej rozmowy dialog wskazuje jej właściciela i ostrzega, że czytelnicy datasetu mogący odczytywać runy zobaczą jej tekst.
+
+Fragmenty baz wiedzy znalezione przez sędziego są usuwane razem z odpowiedzią. Czytający, który widzi odpowiedź, dostaje fragment tylko z bazy wiedzy, którą może czytać; zobacz [Runy ewaluacji](evals.md).
 
 Decyzja w sprawie odpowiedzi runu ewaluacji albo jej nowa ocena również wymaga `runs:view` i dostępu do odpowiadającego agenta, bo zmienia werdykty zbudowane na tym runie: czytający, który nie widzi odpowiedzi, nie dostaje żadnej z tych opcji, a API odrzuca je z `403`.
 
