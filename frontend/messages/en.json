@@ -18652,7 +18652,8 @@
         "all_evidence": "Not checked: every question came from the conversations the change was learned from.",
         "cancelled": "Not checked: the check was stopped before its runs finished.",
         "own_not_asked": "Not checked: its own questions were left unasked, and they now decide it.",
-        "too_few_questions": "Not enough test questions to verify the change. {heldOut} questions were checked."
+        "too_few_questions": "Not enough test questions to verify the change. {heldOut} questions were checked.",
+        "unfinished": "Its own questions did not finish. The skill's questions did not confirm a regression, which alone does not show the change is safe for it."
       },
       "skillSetOnly": "Checked only on the skill's own questions: it had none of its own where it loaded the skill.",
       "stage": {

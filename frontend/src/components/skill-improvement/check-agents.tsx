@@ -52,6 +52,14 @@ const reasonOf = (row: SkillCheckAgent): UnknownReason | "other" | null =>
     ? row.unknown_reason
     : "other";
 
+/** Unknown because its own questions did not finish after the skill's were judged - a stage
+ * carries counts only once judged - without a regression: acknowledging it applies a change
+ * only part of its check has seen. */
+const unfinished = (row: SkillCheckAgent): boolean =>
+  row.state === "unknown" &&
+  row.unknown_reason === "failed" &&
+  row.stages.some((stage) => stage.kind === "skill_set" && stage.counts !== null);
+
 const byName = (a: SkillCheckAgent, b: SkillCheckAgent) => a.agent.name.localeCompare(b.agent.name);
 
 /** The worst-hit first among the worse, the most helped first among the better. */
@@ -239,11 +247,13 @@ function AgentRow({
           <span className="block truncate text-sm font-medium">{row.agent.name}</span>
           {row.unknown_reason !== null && (
             <span className="text-muted-foreground mt-1 block max-w-xl text-xs">
-              {t(`unknown.${reasonOf(row)}`, {
-                fixed: row.fixed,
-                broken: row.broken,
-                heldOut: row.held_out,
-              })}
+              {unfinished(row)
+                ? t("unknown.unfinished")
+                : t(`unknown.${reasonOf(row)}`, {
+                    fixed: row.fixed,
+                    broken: row.broken,
+                    heldOut: row.held_out,
+                  })}
             </span>
           )}
           {row.via_specialist !== null && (
