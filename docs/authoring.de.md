@@ -1,5 +1,5 @@
 ---
-source_sha: "11d42313d5f2"
+source_sha: "58becc2b41b5"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -567,6 +567,20 @@ Rest passt. Jede Antwort ist auf das Doppelte ihres Anteils an dieser Schätzung
 begrenzt, daher kann die Suche ihr Budget höchstens um die eine gerade bewertete
 Variante überschreiten. Die Sitzung zeigt die Ausgaben der Suche getrennt vom
 Rest.
+
+Das Limit einer Antwort deckt auch ab, was die längeren Anweisungen der Variante
+zu lesen kosten, und ein Agent, dessen bisherige Antworten nichts kosteten, wird
+auf den Preis eines nicht bepreisten Falls begrenzt. Eine Antwort, die an ihrem
+eigenen Limit anhält, gilt für diese Variante als unbeantwortet; nur ein
+erschöpftes Budget der Suche, der Sitzung oder des Monats beendet die Suche.
+
+Eine Bewertungseinheit beginnt keine Antworten mehr, bevor die Zeit ihres Jobs
+abläuft, und behält, was sie beantwortet hat; die nächste fragt den Rest, sodass
+jede Frage einmal bezahlt wird. Vor jeder Einheit prüft die Suche, ob die
+handelnde Person noch Bearbeitungsrecht am Agenten, `runs:view` und das Recht hat,
+das Dataset auszuführen; sonst hält die Sitzung an wie bei ihrem nächsten
+Schritt. Eine Notiz zu **Try again** erreicht auch den Helfer, der die Varianten
+schreibt.
 
 Den Text der Varianten, geschrieben aus den Fragen des Datasets, liest nur, wer
 die Sitzung starten könnte - mit Bearbeitungsrecht am Agenten, `runs:view` und

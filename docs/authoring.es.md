@@ -1,5 +1,5 @@
 ---
-source_sha: "11d42313d5f2"
+source_sha: "58becc2b41b5"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las herramientas, la configuración, los skills y los archivos de contexto de un agent. Una persona decide cada uno."
 ---
@@ -550,6 +550,20 @@ lo que queda. Cada respuesta tiene un tope del doble de su parte de esa
 estimación, así que la búsqueda puede superar su budget como mucho en la
 variante que estaba calificando. La sesión muestra lo que gastó la búsqueda
 aparte del resto.
+
+El tope de una respuesta también cubre lo que cuesta leer las instrucciones más
+largas de la variante, y un agent cuyas respuestas anteriores no costaron nada
+tiene como tope el precio de un caso sin precio. Una respuesta detenida en su
+propio tope cuenta como sin respuesta para esa variante; solo un budget agotado
+de la búsqueda, de la sesión o mensual termina la búsqueda.
+
+Una unidad de calificación deja de empezar respuestas antes de que se acabe el
+tiempo de su job y conserva lo que respondió; la siguiente pregunta el resto, así
+que cada pregunta se paga una vez. Antes de cada unidad, la búsqueda comprueba que
+quien actúa conserva el permiso de edición del agente, `runs:view` y el permiso
+para ejecutar el dataset; si no, la sesión se detiene como lo haría en su
+siguiente paso. Una nota dada con **Try again** llega también al ayudante que
+escribe las variantes.
 
 Solo quien podría iniciar la sesión - con permiso de edición del agente,
 `runs:view` y permiso para ejecutar el dataset - lee el texto de las variantes,

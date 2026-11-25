@@ -519,6 +519,18 @@ is capped at twice its share of that estimate, so the search can go over its
 budget by at most the one variant it was scoring. The session shows what the
 search spent apart from the rest.
 
+An answer's cap also covers what the variant's longer instructions cost to read,
+and an agent whose past answers cost nothing is capped at the price of an
+unpriced case. An answer stopped at its own cap counts as not answered for that
+variant; only a spent search, session or monthly budget ends the search.
+
+A scoring unit stops starting answers before its job's time runs out and keeps
+what it answered; the next unit asks the rest, so each question is paid for once.
+Before each unit the search checks that whoever is acting still has edit access
+to the agent, `runs:view` and the right to run the dataset, and otherwise the
+session stops as its next step would. A note given with **Try again** reaches the
+helper that writes the variants too.
+
 Only someone who could start the session - with edit access to the agent,
 `runs:view` and the right to run the dataset - reads the variants' text, which
 is written from the dataset's questions; anyone else sees the counts. A question
