@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { Badge, Button, Textarea } from "@/components/ui";
+import { writtenOut } from "@/lib/hidden-characters";
 import { cn } from "@/lib/utils";
 import type { MergeText as MergeTextValue } from "@/types/skill-merge";
 
@@ -109,7 +110,7 @@ function Side({ title, text }: { title: string; text: string }) {
 function Body({ text }: { text: string }) {
   return (
     <pre className="bg-muted/40 rounded-md p-2 font-mono text-xs break-words whitespace-pre-wrap">
-      {text}
+      {writtenOut(text)}
     </pre>
   );
 }

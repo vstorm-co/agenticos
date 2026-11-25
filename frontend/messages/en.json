@@ -16949,6 +16949,7 @@
         "no_change": "It changes nothing",
         "unknown_tool": "The agent has no such tool",
         "invalid_tool_change": "A tool name or description the agent cannot use",
+        "hidden_characters": "Its text holds characters a person cannot see",
         "not_a_target": "Not something the assistant may change",
         "operation": "Not a change that setting allows",
         "loosens_approval": "It would loosen approval",
@@ -17030,7 +17031,8 @@
       "view": "How to show the change",
       "unified": "Unified",
       "split": "Side by side",
-      "showUnchanged": "{count, plural, one {Show # unchanged line} other {Show # unchanged lines}}"
+      "showUnchanged": "{count, plural, one {Show # unchanged line} other {Show # unchanged lines}}",
+      "hidden": "This change holds characters that draw nothing or reorder the text. Each is written out by its code."
     },
     "instructionsEditor": {
       "current": "Current instructions",

@@ -40,6 +40,7 @@ from app.core.exceptions import (
     ValidationError,
 )
 from app.core.field_errors import field_details, refused_field
+from app.core.hidden_text import holds_refused
 from app.core.permissions import AuthContext, Perm, Scope
 from app.db.models.agent import Agent, AgentStatus
 from app.db.models.authoring import (
@@ -3233,6 +3234,12 @@ class ImprovementPipelineService:
                 self.db, agent_id=agent.id, organization_id=run.organization_id
             )
             for hunk in pending:
+                if holds_refused(
+                    [hunk.new_text, hunk.edited_text, hunk.new_name, hunk.new_description]
+                ):
+                    dropped.append(hunk.id)
+                    reasons.append({"hunk_id": str(hunk.id), "reason": "hidden_characters"})
+                    continue
                 if hunk.kind != HunkKind.SPEC_FIELD.value:
                     continue
                 staged = authoring_fields.stage(

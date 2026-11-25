@@ -74,6 +74,7 @@ export type Rejection =
   | "no_change"
   | "unknown_tool"
   | "invalid_tool_change"
+  | "hidden_characters"
   | "not_a_target"
   | "operation"
   | "loosens_approval"
