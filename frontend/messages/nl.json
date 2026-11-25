@@ -16833,6 +16833,7 @@
         "no_change": "Het wijzigt niets",
         "unknown_tool": "De agent heeft zo'n tool niet",
         "invalid_tool_change": "Een toolnaam of -beschrijving die de agent niet kan gebruiken",
+        "hidden_characters": "De tekst bevat tekens die een mens niet kan zien",
         "not_a_target": "Niet iets wat de assistent mag wijzigen",
         "operation": "Geen wijziging die die instelling toestaat",
         "loosens_approval": "Het zou goedkeuring versoepelen",
@@ -16914,7 +16915,8 @@
       "view": "Weergave van de wijziging",
       "unified": "Samengevoegd",
       "split": "Naast elkaar",
-      "showUnchanged": "{count, plural, one {# ongewijzigde regel tonen} other {# ongewijzigde regels tonen}}"
+      "showUnchanged": "{count, plural, one {# ongewijzigde regel tonen} other {# ongewijzigde regels tonen}}",
+      "hidden": "Deze wijziging bevat tekens die niets tekenen of de tekst herschikken. Elk staat uitgeschreven met zijn code."
     },
     "instructionsEditor": {
       "current": "Huidige instructies",

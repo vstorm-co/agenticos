@@ -66,6 +66,7 @@ from pydantic import ValidationError
 from app.agents.capabilities import REGISTRY, load_builtins
 from app.agents.spec import AgentSpec, CapabilityBindingSpec
 from app.core.exceptions import AppException
+from app.core.hidden_text import holds_refused
 from app.db.models.authoring import FieldOp
 
 _SUBAGENTS = "subagents"
@@ -395,6 +396,8 @@ def standing_refusal(path: str, op: str, base: Any, new: Any) -> str | None:
     """
     if weakens_protection(path, op, base):
         return "weakens_protection"
+    if holds_refused(new):
+        return "hidden_characters"
     if _adds_outside(path, op, new):
         return "reaches_network"
     if (
@@ -537,6 +540,8 @@ def stage(
         return "not_a_target"
     if op not in {allowed.value for allowed in ops(address)}:
         return "operation"
+    if holds_refused(value):
+        return "hidden_characters"
     if _adds_outside(path, op, value):
         return "reaches_network"
     if _adds_untunable_config(path, op, value) or _adds_unshown_settings(path, op, value):

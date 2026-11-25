@@ -32,6 +32,7 @@ from app.core.exceptions import (
 )
 from app.core.exceptions import ValidationError as TooLargeToMerge
 from app.core.field_errors import refused_field
+from app.core.hidden_text import holds_refused
 from app.core.permissions import AuthContext, Perm
 from app.db.models.agent import Agent, AgentStatus, AgentVersion
 from app.db.models.agent_environment import AgentEnvironment
@@ -417,6 +418,8 @@ class SkillCatchUpService:
         if len(proposed) != len(conflicts):
             raise ValueError(f"{len(conflicts)} conflicts, {len(proposed)} texts")
         for row, text in zip(conflicts, proposed, strict=True):
+            if holds_refused(text):
+                continue
             if row is description:
                 text = text.strip()
                 if not 1 <= len(text) <= _DESCRIPTION_CHARS:

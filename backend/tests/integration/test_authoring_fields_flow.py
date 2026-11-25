@@ -541,6 +541,42 @@ async def test_adding_back_is_judged_in_the_form_accept_writes(db):
     assert agent.draft_spec["capabilities"][-1]["tool_approval"] == gated["tool_approval"]
 
 
+@pytest.mark.security
+async def test_proposed_text_with_characters_nobody_can_see_is_never_recorded_or_accepted(db):
+    """Tag and bidi characters make a reviewer read one text and the model another; such a
+    change is not recorded, a zero-width one is, and a stored row carrying one anyway is
+    refused at Accept with the draft unchanged."""
+    ctx, agent, run = await _setup(db)
+    run_id = str(run.id)
+    model = _improver(
+        db,
+        run_id,
+        [],
+        instructions=[
+            {"old_text": "Be brief.", "new_text": "Be brief.\U000e0041", "rationale": "r"},
+            {"old_text": "Be brief.", "new_text": "Be​ brief.", "rationale": "r"},
+        ],
+    )
+
+    request = await _improve(db, ctx, agent, model)
+
+    assert request.report is not None
+    assert [(item["kind"], item["reason"]) for item in request.report["rejected"]] == [
+        ("instructions", "hidden_characters")
+    ]
+    (row,) = list(await db.scalars(select(SpecProposalHunk)))
+    assert row.new_text == "Be​ brief."
+    row.new_text = "Be brief.‮"
+    await db.flush()
+    before = dict(agent.draft_spec)
+
+    with pytest.raises(BadRequestError, match="cannot see") as refused:
+        await AuthoringService(db).decide(ctx, agent.id, row.id, HunkDecision(action="accept"))
+
+    assert refused.value.details["reason"] == "hidden_characters"
+    assert agent.draft_spec == before
+
+
 async def test_a_dismissed_field_change_is_not_proposed_again_and_says_so(db):
     ctx, agent, run = await _setup(db)
     run_id = str(run.id)

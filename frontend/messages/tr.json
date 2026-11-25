@@ -17076,9 +17076,6 @@
     }
   },
   "improvement": {
-    "acceptChanged": "Kabul etmek üzere olduğunuz deneme, siz incelediğinizden beri değişti. Oturum yenilendi; yeniden inceleyin.",
-    "unmeasuredEdits": "Taslakta bu oturum başlamadan önce yapılmış düzenlemeler vardı. Yayımlamak onları da yayınlar ve hiçbir kontrol onları ölçmedi.",
-    "publishUnmeasuredEdits": "Bu düzenlemeleri de yayımla",
     "signalWindow": "Son 30 günden {count, plural, one {# seçili kaynak örneği} other {# seçili kaynak örneği}}, en fazla {limit}. Önceki ajan sürümleri ve incelenmiş test yanıtları dahildir.",
     "likedSignals": "Olumlu değerlendirilen yanıtlar",
     "failedSignals": "Değerlendirilmemiş başarısız çalıştırmalar",
@@ -17115,7 +17112,10 @@
       "exactChange": "Tam metni karşılaştır",
       "invalid": "Test sürümleri güvenilir biçimde karşılaştıramadı. Sonuç çıkarmadan önce testi inceleyin.",
       "noExamples": "Gösterilecek değişmiş yanıt yok. Tüm sorular için tam testi açın."
-    }
+    },
+    "acceptChanged": "Kabul etmek üzere olduğunuz deneme, siz incelediğinizden beri değişti. Oturum yenilendi; yeniden inceleyin.",
+    "unmeasuredEdits": "Taslakta bu oturum başlamadan önce yapılmış düzenlemeler vardı. Yayımlamak onları da yayınlar ve hiçbir kontrol onları ölçmedi.",
+    "publishUnmeasuredEdits": "Bu düzenlemeleri de yayımla"
   },
   "personalModelKeys": {
     "copilot": {
@@ -17134,26 +17134,14 @@
     }
   },
   "authoring": {
-    "suggestion": {
-      "tool": "Araç {tool}",
-      "instructions": "Talimatlar",
-      "fromVerify": "Düzenlemelerinizin doğrulanmasından",
-      "reworded": "Değişiklikler adımında yeniden ifade edildi",
-      "status": {
-        "accepted": "Taslağa kabul edildi",
-        "dismissed": "Reddedildi"
-      },
-      "stale": "Artık taslağa uymuyor",
-      "editLabel": "Önerinin sizin ifadeniz",
-      "saveAndAccept": "Kaydet ve kabul et",
-      "cancel": "İptal",
-      "accept": "Kabul et",
-      "edit": "Düzenle",
-      "dismiss": "Reddet",
-      "undo": "Geri al"
-    },
-    "describe": {
-      "open": "{name} ile oluştur"
+    "diff": {
+      "added": "Eklendi:",
+      "removed": "Kaldırıldı:",
+      "view": "Değişikliğin nasıl gösterileceği",
+      "unified": "Birleşik",
+      "split": "Yan yana",
+      "showUnchanged": "{count, plural, one {Değişmeyen # satırı göster} other {Değişmeyen # satırı göster}}",
+      "hidden": "Bu değişiklik hiçbir şey çizmeyen veya metni yeniden sıralayan karakterler içeriyor. Her biri koduyla yazılı olarak gösteriliyor."
     },
     "rejected": {
       "title": "{count, plural, =1 {Asistanın eklemediği 1 fikir daha} other {Asistanın eklemediği # fikir daha}}",
@@ -17175,6 +17163,7 @@
         "no_change": "Hiçbir şeyi değiştirmiyor",
         "unknown_tool": "Agent'ın böyle bir aracı yok",
         "invalid_tool_change": "Agent'ın kullanamayacağı bir araç adı veya açıklaması",
+        "hidden_characters": "Metni, bir kişinin göremeyeceği karakterler içeriyor",
         "not_a_target": "Asistanın değiştirebileceği bir şey değil",
         "operation": "O ayarın izin verdiği bir değişiklik değil",
         "loosens_approval": "Onayı gevşetir",
@@ -17211,6 +17200,27 @@
         "cancel": "İptal",
         "create": "Skill oluştur"
       }
+    },
+    "describe": {
+      "open": "{name} ile oluştur"
+    },
+    "suggestion": {
+      "tool": "Araç {tool}",
+      "instructions": "Talimatlar",
+      "fromVerify": "Düzenlemelerinizin doğrulanmasından",
+      "reworded": "Değişiklikler adımında yeniden ifade edildi",
+      "status": {
+        "accepted": "Taslağa kabul edildi",
+        "dismissed": "Reddedildi"
+      },
+      "stale": "Artık taslağa uymuyor",
+      "editLabel": "Önerinin sizin ifadeniz",
+      "saveAndAccept": "Kaydet ve kabul et",
+      "cancel": "İptal",
+      "accept": "Kabul et",
+      "edit": "Düzenle",
+      "dismiss": "Reddet",
+      "undo": "Geri al"
     }
   },
   "consoleExperience": {

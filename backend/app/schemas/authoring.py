@@ -8,11 +8,20 @@ a change somewhere it was not meant to go.
 from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
-from typing import Literal, TypedDict
+from typing import Annotated, Literal, TypedDict
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, JsonValue, field_validator, model_validator
+from pydantic import (
+    AfterValidator,
+    BaseModel,
+    ConfigDict,
+    Field,
+    JsonValue,
+    field_validator,
+    model_validator,
+)
 
+from app.core.hidden_text import Proposed, holds_refused, unix_newlines_in, visible
 from app.schemas.base import BaseSchema
 from app.schemas.dataset_helpers import DatasetHelper
 from app.schemas.skill import skill_name_refusal
@@ -43,6 +52,8 @@ class Rejection(StrEnum):
     """It names a tool the agent does not have."""
     INVALID_TOOL_CHANGE = "invalid_tool_change"
     """A tool name or description a binding may not take."""
+    HIDDEN_CHARACTERS = "hidden_characters"
+    """Its text holds characters a person cannot see: controls, bidi or tag characters."""
     # What `authoring_fields.stage` refuses, by the names it gives.
     NOT_A_TARGET = "not_a_target"
     OPERATION = "operation"
@@ -127,7 +138,7 @@ class InstructionChange(BaseModel):
             "long enough to occur only once. Empty to insert new text."
         )
     )
-    new_text: str = Field(description="What replaces it. Empty to delete the passage.")
+    new_text: Proposed = Field(description="What replaces it. Empty to delete the passage.")
     after: str = Field(
         default="",
         description=(
@@ -142,10 +153,10 @@ class InstructionChange(BaseModel):
 class ToolChange(BaseModel):
     capability_id: str = Field(description="The capability the tool belongs to, as listed.")
     tool_id: str = Field(description="The tool's stable id, as listed - not its name.")
-    name: str | None = Field(
+    name: Proposed | None = Field(
         default=None, description="A new name of at most 64 characters, or null to keep it."
     )
-    description: str | None = Field(
+    description: Proposed | None = Field(
         default=None,
         description="A new description of at most 1024 characters, or null to keep it.",
     )
@@ -169,7 +180,7 @@ class FieldChange(BaseModel):
             "list - a capability binding, a collection id, a context file id."
         )
     )
-    value: JsonValue = Field(
+    value: Annotated[JsonValue, AfterValidator(unix_newlines_in)] = Field(
         description=(
             "For `set`, the new value; for `add`, the item to add - a capability binding "
             "is `{id, config}`; for `remove`, the item to remove - a capability by its id."
@@ -213,9 +224,9 @@ class NewSkillChange(BaseModel):
     those require their own policy-checked configuration proposals.
     """
 
-    name: str = Field(min_length=1, max_length=64)
-    description: str = Field(min_length=1, max_length=500)
-    content: str = Field(min_length=1, max_length=20_000)
+    name: Proposed = Field(min_length=1, max_length=64)
+    description: Proposed = Field(min_length=1, max_length=500)
+    content: Proposed = Field(min_length=1, max_length=20_000)
     rationale: str
     evidence: list[EvidenceQuote] = Field(default_factory=list)
 
@@ -274,8 +285,8 @@ class SkillImprovement(BaseModel):
 
     summary: str
     expected_effect: str
-    description: str = Field(description="The skill's one-line description, changed or not.")
-    content: str = Field(description="The complete new body, not a diff.")
+    description: Proposed = Field(description="The skill's one-line description, changed or not.")
+    content: Proposed = Field(description="The complete new body, not a diff.")
     rationale: str
     evidence: list[EvidenceQuote] = Field(default_factory=list)
 
@@ -285,8 +296,8 @@ class ContextImprovement(BaseModel):
 
     summary: str
     expected_effect: str
-    description: str = Field(description="The file's one-line description, changed or not.")
-    content: str = Field(description="The complete new body, not a diff.")
+    description: Proposed = Field(description="The file's one-line description, changed or not.")
+    content: Proposed = Field(description="The complete new body, not a diff.")
     rationale: str
     evidence: list[EvidenceQuote] = Field(default_factory=list)
 
@@ -521,9 +532,9 @@ class ProposedSkill(BaseSchema):
     What the preview shows, edited or not; the name follows the skill library's rule.
     """
 
-    name: str = Field(min_length=1, max_length=64)
-    description: str = Field(min_length=1, max_length=500)
-    content: str = Field(min_length=1, max_length=20_000)
+    name: Annotated[str, AfterValidator(visible)] = Field(min_length=1, max_length=64)
+    description: Annotated[str, AfterValidator(visible)] = Field(min_length=1, max_length=500)
+    content: Annotated[str, AfterValidator(visible)] = Field(min_length=1, max_length=20_000)
 
     @field_validator("name")
     @classmethod
@@ -560,8 +571,16 @@ class HunkDecision(BaseSchema):
     model_config = ConfigDict(str_strip_whitespace=False)
 
     action: Literal["accept", "dismiss", "undo"]
-    text: str | None = Field(default=None, max_length=20000)
+    text: Annotated[str, AfterValidator(visible)] | None = Field(default=None, max_length=20000)
     value: JsonValue = None
+
+    @field_validator("value")
+    @classmethod
+    def _value_is_visible(cls, value: JsonValue) -> JsonValue:
+        value = unix_newlines_in(value)
+        if holds_refused(value):
+            raise ValueError("This value holds characters that cannot be seen")
+        return value
 
 
 class ProposalCheck(BaseSchema):

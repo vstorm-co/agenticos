@@ -1447,6 +1447,30 @@ class TestCheckAndResult:
         assert read.check is not None and read.check.status == "running"
         assert read.outcomes == []
 
+    @pytest.mark.security
+    async def test_a_chosen_change_nobody_can_fully_see_is_never_checked(
+        self, db, evidence, monkeypatch
+    ):
+        """A stored change holding a bidi override is refused when the check would start,
+        before any model reads it."""
+        fake = _checked(db, monkeypatch)
+        ctx = await _owner(db)
+        run = await _at_changes(db, ctx)
+        [attempt] = await skill_improvement_repo.list_iterations(
+            db, organization_id=ctx.organization_id, run_id=run.id
+        )
+        [hunk] = await authoring_repo.list_hunks(
+            db, organization_id=ctx.organization_id, batch_id=attempt.batch_id
+        )
+        hunk.new_text = f"{hunk.new_text}\u202e"
+        await db.flush()
+
+        with pytest.raises(BadRequestError) as refused:
+            await _check_now(db, ctx, run)
+
+        assert [problem["field"] for problem in refused.value.details["fields"]] == ["hunk_ids"]
+        assert [call for call in fake.calls if call[0] == "start"] == []
+
     async def test_a_limit_raised_at_the_quote_is_the_limit_the_session_keeps(
         self, db, evidence, monkeypatch
     ):

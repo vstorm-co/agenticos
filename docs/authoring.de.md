@@ -1,5 +1,5 @@
 ---
-source_sha: "333ae38884c5"
+source_sha: "1eecf322ff59"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -87,6 +87,15 @@ Begründung und die Belege, und über jeden wird einzeln entschieden:
 | **Bearbeiten** | Ihre eigene Formulierung wird statt des Vorschlags angenommen. Bei Anweisungen öffnet sich der ganze Text: die aktuelle Version neben der vorgeschlagenen, die Sie bearbeiten, mit beim Tippen neu gezeichnetem Diff. Gespeichert wird nur die vorgeschlagene Passage; Text außerhalb ändern Sie im Anweisungseditor. |
 | **Verwerfen** | Festgehalten; eine spätere Anfrage schlägt es nicht wieder vor. |
 | **Rückgängig** | Kehrt die Entscheidung um, solange sie noch zum Entwurf passt. |
+
+Ein Vorschlag, dessen Text Zeichen enthält, die ein Mensch nicht sehen kann - ein
+Steuerzeichen außer Zeilenumbruch oder Tabulator, ein Steuerzeichen für die
+Schreibrichtung, ein Unicode-Tag-Zeichen -, wird nicht erfasst, und ein früher
+gespeicherter wird von einer Prüfung und bei **Annehmen** abgelehnt; ebenso ein
+solcher Vorschlag für einen Skill oder eine Context-Datei, eine Suchvariante, ein
+aus einer Idee erstellter Skill und die eigene Formulierung einer Person. Zeichen ohne Breite werden durchgelassen, und jeder
+Diff schreibt sie mit ihrem Code aus und sagt das. Ein Windows-Zeilenende oder ein
+einzelner Wagenrücklauf gilt als Zeilenumbruch und wird so gespeichert.
 
 Ein im Schritt **Änderungen** einer Improve-Sitzung umformulierter Vorschlag
 zeigt diese Formulierung, markiert mit **Im Schritt Änderungen umformuliert**:
