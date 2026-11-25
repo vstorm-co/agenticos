@@ -519,6 +519,40 @@ class TestAStaleKeyIsNotKept:
         assert _field(refused) == "embedding_secret_id"
         updated.assert_not_awaited()
 
+    async def test_a_stale_key_is_not_lent_to_a_new_address_either(
+        self, service, monkeypatch, updated, identified
+    ) -> None:
+        """Naming an endpoint as well must end in the same refusal, not a check of the old key."""
+        kb = _custom(
+            embedding_model="text-embedding-3-small", embedding_dim=1536, embedding_secret_id=SECRET
+        )
+        _hold(monkeypatch, service, kb)
+        monkeypatch.undo()
+        monkeypatch.setattr(service, "get_for_write", AsyncMock(return_value=kb))
+        monkeypatch.setattr(
+            knowledge_base_repo, "list_by_collection_name", AsyncMock(return_value=[kb])
+        )
+        monkeypatch.setattr(embedding_providers, "require_served_at", AsyncMock())
+        monkeypatch.setattr(f"{_AT}.validate_endpoint_url", AsyncMock(side_effect=lambda url: url))
+        lent = AsyncMock()
+        monkeypatch.setattr(service, "_check_embedding_secret", lent)
+        monkeypatch.setattr(knowledge_base_repo, "update", updated)
+
+        with pytest.raises(BadRequestError) as refused:
+            await service.update(
+                kb.id,
+                KnowledgeBaseUpdate(
+                    embedding_provider="openrouter",
+                    embedding_base_url="https://eu.openrouter.ai/api/v1",
+                    unverified=True,
+                ),
+                ctx=_ctx(),
+            )
+
+        assert _field(refused) == "embedding_secret_id"
+        lent.assert_not_awaited()
+        updated.assert_not_awaited()
+
     async def test_a_keyed_base_with_no_key_is_not_told_it_is_moving(
         self, service, monkeypatch, updated, identified
     ) -> None:

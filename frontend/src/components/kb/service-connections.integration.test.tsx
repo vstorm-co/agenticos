@@ -428,7 +428,9 @@ describe("ServiceConnections", () => {
       await userEvent.clear(screen.getByLabelText("Address"));
       await userEvent.type(screen.getByLabelText("Address"), "http://ollama-2:11434/v1");
 
-      expect(screen.getByRole("button", { name: "Test" })).toBeDisabled();
+      const test = screen.getByRole("button", { name: "Test" });
+      expect(test).toBeDisabled();
+      await userEvent.click(test);
       expect(apiClient.post).not.toHaveBeenCalled();
     });
 
@@ -440,9 +442,7 @@ describe("ServiceConnections", () => {
       await userEvent.clear(screen.getByLabelText("Address"));
       await userEvent.type(screen.getByLabelText("Address"), "http://ollama-2:11434/v1");
 
-      expect(
-        await screen.findByText(/estimate failed|Could not read how many billed/),
-      ).toBeVisible();
+      expect(await screen.findByText("estimate failed")).toBeVisible();
       expect(screen.getByRole("button", { name: "Test" })).toBeDisabled();
     });
 

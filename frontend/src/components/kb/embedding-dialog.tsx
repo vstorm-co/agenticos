@@ -112,8 +112,8 @@ export function EmbeddingDialog({
   // Only providers that serve this collection's model at its recorded width. A
   // list of every provider would offer moves the server refuses, and the reason
   // it refuses them is not something a person should have to discover twice.
-  // A custom endpoint serves any model, so it qualifies on the width alone: the
-  // index holds vectors up to a fixed size, and the Test decides the rest.
+  // A custom endpoint serves any model, so it qualifies whenever the index's
+  // width is one it could answer at; the Test checks it answers at exactly that.
   const usable = (models?.providers ?? []).filter(
     (entry) =>
       entry.models.some(

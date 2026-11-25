@@ -1057,13 +1057,16 @@ class KnowledgeBaseService:
             # Changing the destination lends the retained key to that host just
             # as choosing a new key does. Managing connections alone is not
             # authority to send a colleague's private credential elsewhere.
+            # Through the normalised view, like the kept-key check: a key a
+            # connection-served row still holds from before is never lent anywhere.
+            kept = EmbeddingSettings.of(kb).secret_id
             if (
-                kb.embedding_secret_id is not None
+                kept is not None
                 and data.embedding_secret_id is None
                 and not provider.via_connection
             ):
                 await self._check_embedding_secret(
-                    kb.embedding_secret_id,
+                    kept,
                     ctx=ctx,
                     organization_id=kb.organization_id,
                     provider=provider,
@@ -1270,12 +1273,14 @@ class KnowledgeBaseService:
         *,
         provider: embedding_providers.EmbeddingProviderEntry,
     ) -> None:
-        """Refuse a provider change that would leave the old key pointed at it.
+        """Refuse a keyed provider that would be paid with no key, or with the wrong one.
 
-        The key stays where it is unless the caller says otherwise, so moving the
-        provider on its own can produce a collection holding an OpenRouter key and
-        an OpenAI address - which is the one thing this whole change exists to stop.
-        Named on `embedding_provider`, because that is the control that moved.
+        The key stays where it is unless the caller says otherwise. With none kept -
+        a base reached through a connection holds none of its own, and any key such
+        a row still carries from before is ignored - the request must name one, and
+        the refusal is on `embedding_secret_id`. With one kept, a provider change
+        would leave an OpenRouter key pointed at an OpenAI address, which is
+        refused on `embedding_provider`, the control that moved.
         """
         # Read through the normalised view: a row on a connection provider may still
         # hold the key of the provider it left, and that one is never reused.

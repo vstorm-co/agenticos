@@ -93,7 +93,7 @@ function wrapper({ children }: { children: ReactNode }) {
 }
 
 let mayManage = false;
-let estimateMode: "ok" | "pending" | "error" = "ok";
+let estimateMode: "ok" | "pending" | "error" | "opaque" = "ok";
 // What `GET /rag/embedding-models/openrouter?base_url=` answers, per test.
 let endpointModels: {
   provider: string;
@@ -176,6 +176,8 @@ beforeEach(() => {
     if (path === "/kb/kb-1/embedding-probe/estimate") {
       if (estimateMode === "pending") return new Promise(() => {});
       if (estimateMode === "error") throw new Error("estimate failed");
+      // Not an Error at all: nothing to quote, so the dialog falls back to its own words.
+      if (estimateMode === "opaque") throw "unreadable";
       return { calls: 3, max_calls: 6, knowledge_bases: 1 };
     }
     if (path === "/me/permissions")
@@ -445,7 +447,9 @@ describe("testing a move against the stored chunks", () => {
     estimateMode = "pending";
     await moveToOpenAI();
 
-    expect(screen.getByRole("button", { name: "Test" })).toBeDisabled();
+    const test = screen.getByRole("button", { name: "Test" });
+    expect(test).toBeDisabled();
+    await userEvent.click(test);
     expect(apiClient.post).not.toHaveBeenCalled();
   });
 
@@ -453,7 +457,15 @@ describe("testing a move against the stored chunks", () => {
     estimateMode = "error";
     await moveToOpenAI();
 
-    expect(await screen.findByText(/estimate failed|Could not read how many billed/)).toBeVisible();
+    expect(await screen.findByText("estimate failed")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Test" })).toBeDisabled();
+  });
+
+  it("falls back to its own words when the failed estimate says nothing", async () => {
+    estimateMode = "opaque";
+    await moveToOpenAI();
+
+    expect(await screen.findByText("Could not read how many probes the test makes.")).toBeVisible();
     expect(screen.getByRole("button", { name: "Test" })).toBeDisabled();
   });
 
