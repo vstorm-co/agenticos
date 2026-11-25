@@ -69,6 +69,9 @@ targets:
         # The pairing scanner and the camera in the attach sheet; the offer
         # of a photo just taken; the lock (texts in InfoPlist.xcstrings).
         NSCameraUsageDescription: To scan the pairing code your console shows, and to take a photo for a message.
+        # Dictation and voice calls record in the console's web view; iOS ends an
+        # app that asks for the microphone without saying why.
+        NSMicrophoneUsageDescription: To dictate a message and talk to your agents by voice.
         NSPhotoLibraryUsageDescription: To offer the photo you just took when you open a chat.
         NSFaceIDUsageDescription: To unlock AgenticOS.
         NSSupportsLiveActivities: true

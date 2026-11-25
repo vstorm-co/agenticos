@@ -77,10 +77,17 @@ class PinShortcutPlugin: Plugin {
 ///
 /// The app delegate is Tauri's (tao's `AppDelegate`), which answers links but
 /// not quick actions, so the method is added to its class here - as the
-/// desktop shell adds `applicationDockMenu:` to its own. iOS calls it after
-/// launching, so it is in place for a cold start from the menu as well.
+/// desktop shell adds `applicationDockMenu:` to its own.
+///
+/// tao runs the app with scenes, though: its configuration names its own
+/// `TaoSceneDelegate`, and iOS hands a quick action chosen while the app runs
+/// to the window scene's delegate instead - so the same handler goes on that
+/// class too, once a scene has connected. A launch from the menu delivers the
+/// item with the scene's connection options, before either is in place, so
+/// that first choice only opens the app.
 enum QuickActions {
   private static var installed = false
+  private static var sceneAttempts = 0
 
   static func install() {
     guard !installed, let delegate = UIApplication.shared.delegate else { return }
@@ -94,6 +101,33 @@ enum QuickActions {
         }
     class_addMethod(
       type(of: delegate), selector, imp_implementationWithBlock(block), "v@:@@@?")
+    DispatchQueue.main.async { installOnScene() }
+  }
+
+  /// `windowScene(_:performActionFor:completionHandler:)` on the connected
+  /// scene's delegate class, unless tao answers it itself.
+  private static func installOnScene() {
+    guard
+      let delegate = UIApplication.shared.connectedScenes
+        .compactMap({ $0.delegate })
+        .first
+    else {
+      // No scene has connected yet: look again shortly, for a while.
+      sceneAttempts += 1
+      if sceneAttempts < 40 {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { installOnScene() }
+      }
+      return
+    }
+    let cls: AnyClass = type(of: delegate)
+    let selector = NSSelectorFromString("windowScene:performActionForShortcutItem:completionHandler:")
+    guard class_getInstanceMethod(cls, selector) == nil else { return }
+    let block:
+      @convention(block) (AnyObject, UIWindowScene, UIApplicationShortcutItem, @escaping (Bool) -> Void)
+        -> Void = { _, _, item, done in
+          done(open(item, in: UIApplication.shared))
+        }
+    class_addMethod(cls, selector, imp_implementationWithBlock(block), "v@:@@@?")
   }
 
   static func open(_ item: UIApplicationShortcutItem, in application: UIApplication) -> Bool {
