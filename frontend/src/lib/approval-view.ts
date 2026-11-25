@@ -33,6 +33,11 @@ function sentence(words: string[]): string {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
+/** Whether a tool name is this deployment's own platform tool, `agenticos_<action>`. */
+export function isPlatformTool(toolName: string): boolean {
+  return toolName.startsWith("agenticos_") && toolName.length > "agenticos_".length;
+}
+
 /**
  * The service and action an MCP tool name carries.
  *
@@ -42,7 +47,7 @@ function sentence(words: string[]): string {
  * A built-in tool (`known`) has no service; it keeps the catalog's own name.
  */
 export function serviceAction(toolName: string, known: boolean): ServiceAction {
-  if (toolName.startsWith("agenticos_") && toolName.length > "agenticos_".length) {
+  if (isPlatformTool(toolName)) {
     return {
       service: "AgenticOS",
       action: sentence(toolName.slice("agenticos_".length).split("_")),
