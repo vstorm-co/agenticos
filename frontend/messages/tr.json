@@ -9445,7 +9445,16 @@
       "readNoticeBody": "Dosya bağlantısını kontrol etmek için tekrar deneyin. Bu sohbeti kullanmaya devam edebilirsiniz.",
       "connectionSettings": "Sandbox bağlantıları",
       "technicalDetails": "Teknik ayrıntılar",
-      "zipFailed": "Klasör indirilemedi."
+      "zipFailed": "Klasör indirilemedi.",
+      "fileLocation": "Dosya konumu",
+      "chooseLocation": "Bir dosya konumu seçin",
+      "agentLocation": "Ajan dosyaları · {name}",
+      "projectLocation": "Proje dosyaları · {name}",
+      "locationUnavailable": "Bu dosya konumu artık kullanılamıyor. Başka bir konum seçin.",
+      "locationsTruncated": "Bazı dosya konumları bu listede gösterilmiyor.",
+      "filesTruncated": "Bu dosya listesi eksik.",
+      "loading": "Dosyalar yükleniyor…",
+      "retry": "Yeniden dene"
     },
     "generateShareLink": "Paylaşım bağlantısı oluştur",
     "helpful": "Yararlı",

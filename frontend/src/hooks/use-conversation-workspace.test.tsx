@@ -82,3 +82,170 @@ describe("the files one conversation is keeping", () => {
     expect(result.current.workspace).toBeNull();
   });
 });
+
+import { useAuthStore } from "@/stores/auth-store";
+import { useOrgStore } from "@/stores/org-store";
+import {
+  workspaceOriginKey,
+  type ConversationWorkspaceOrigin,
+  type ConversationWorkspaceOrigins,
+} from "@/lib/conversation-workspace-api";
+
+const agentOrigin: ConversationWorkspaceOrigin = {
+  kind: "agent",
+  workspace_id: "agent-space",
+  project_id: null,
+  scope: "agent",
+  backend: "state",
+  owner_label: "Research agent",
+};
+const projectOrigin: ConversationWorkspaceOrigin = {
+  kind: "project",
+  workspace_id: "project-space",
+  project_id: "project-1",
+  scope: "project",
+  backend: "state",
+  owner_label: "Research project",
+};
+function inventory(items = [agentOrigin, projectOrigin]): ConversationWorkspaceOrigins {
+  return {
+    default_origin: "project",
+    default_workspace_id: "project-space",
+    items,
+    truncated: false,
+  };
+}
+
+describe("explicit chat file origins", () => {
+  beforeEach(() => {
+    useAuthStore.setState({ sessionOwnerId: "reader-1" });
+    useOrgStore.setState({ activeOrgId: "org-1" });
+  });
+
+  function mockOrigins(initial = inventory()) {
+    const state = { inventory: initial, refused: false };
+    vi.mocked(apiClient.get).mockImplementation(async (url) => {
+      if (url.endsWith("workspace-origins")) {
+        if (state.refused) throw new Error("Conversation not available");
+        return state.inventory;
+      }
+      return {
+        scope: "project",
+        backend: "state",
+        owner_label: url,
+        items: [{ path: "/same.txt", size: 10, is_dir: false, modified_at: null }],
+        bytes_total: 10,
+        total: 1,
+        unreadable_reason: null,
+        truncated: false,
+      };
+    });
+    return state;
+  }
+
+  it("selects only the server's exact default and lists the project endpoint", async () => {
+    mockOrigins();
+    const { result } = renderHook(() => useConversationWorkspace("c1", { originPicker: true }), {
+      wrapper,
+    });
+    await waitFor(() => expect(result.current.workspace).not.toBeNull());
+    expect(result.current.source).toEqual({ kind: "project", id: "project-1" });
+    expect(apiClient.get).toHaveBeenCalledWith("/projects/project-1/files");
+    expect(apiClient.get).not.toHaveBeenCalledWith("/conversations/c1/workspace");
+    expect(result.current.workspace?.items[0]?.preview).toBeNull();
+    expect(result.current.contentKey).toContain("reader-1");
+    expect(result.current.contentKey).toContain("org-1");
+  });
+
+  it("uses a different source for the same path and keeps the explicit choice after refresh", async () => {
+    mockOrigins();
+    const { result } = renderHook(() => useConversationWorkspace("c1", { originPicker: true }), {
+      wrapper,
+    });
+    await waitFor(() => expect(result.current.workspace).not.toBeNull());
+    const firstKey = result.current.contentKey;
+    act(() => result.current.selectOrigin(workspaceOriginKey(agentOrigin)));
+    await waitFor(() =>
+      expect(apiClient.get).toHaveBeenCalledWith("/sandbox-workspaces/agent-space/files"),
+    );
+    expect(result.current.source).toEqual({ kind: "workspace", id: "agent-space" });
+    expect(result.current.contentKey).not.toEqual(firstKey);
+    await act(() => result.current.refresh());
+    expect(result.current.selectedOrigin).toEqual(agentOrigin);
+  });
+
+  it("removes a revoked location without switching source, then accepts an explicit choice", async () => {
+    const state = mockOrigins();
+    const { result } = renderHook(() => useConversationWorkspace("c1", { originPicker: true }), {
+      wrapper,
+    });
+    await waitFor(() => expect(result.current.workspace).not.toBeNull());
+    state.inventory = {
+      ...inventory([agentOrigin]),
+      default_origin: "agent",
+      default_workspace_id: "agent-space",
+    };
+    await act(() => result.current.refresh());
+    await waitFor(() => expect(result.current.originUnavailable).toBe(true));
+    expect(result.current.source).toBeNull();
+    expect(result.current.workspace).toBeNull();
+    expect(apiClient.get).not.toHaveBeenCalledWith("/sandbox-workspaces/agent-space/files");
+    act(() => result.current.selectOrigin(workspaceOriginKey(agentOrigin)));
+    await waitFor(() => expect(result.current.workspace).not.toBeNull());
+  });
+
+  it("clears cached listing on refusal without falling back to the legacy route", async () => {
+    const state = mockOrigins();
+    const { result } = renderHook(() => useConversationWorkspace("c1", { originPicker: true }), {
+      wrapper,
+    });
+    await waitFor(() => expect(result.current.workspace).not.toBeNull());
+    state.refused = true;
+    await act(() => result.current.refresh());
+    await waitFor(() => expect(result.current.error).toBe("Conversation not available"));
+    expect(result.current.workspace).toBeNull();
+    expect(result.current.source).toBeNull();
+    expect(apiClient.get).not.toHaveBeenCalledWith("/conversations/c1/workspace");
+  });
+
+  it("isolates the inventory, listing and preview keys by owner and organization", async () => {
+    mockOrigins();
+    const { result } = renderHook(() => useConversationWorkspace("c1", { originPicker: true }), {
+      wrapper,
+    });
+    await waitFor(() => expect(result.current.workspace).not.toBeNull());
+    const key = result.current.contentKey;
+    act(() => {
+      useAuthStore.setState({ sessionOwnerId: "reader-2" });
+      useOrgStore.setState({ activeOrgId: "org-2" });
+    });
+    expect(result.current.workspace).toBeNull();
+    await waitFor(() => expect(result.current.workspace).not.toBeNull());
+    expect(result.current.contentKey).not.toEqual(key);
+    expect(result.current.contentKey).toContain("reader-2");
+  });
+
+  it("preserves the legacy route for a successfully empty initial inventory", async () => {
+    mockOrigins({ default_origin: null, default_workspace_id: null, items: [], truncated: false });
+    const { result } = renderHook(() => useConversationWorkspace("c1", { originPicker: true }), {
+      wrapper,
+    });
+    await waitFor(() => expect(result.current.workspace).not.toBeNull());
+    expect(result.current.source).toEqual({ kind: "conversation", id: "c1" });
+    expect(apiClient.get).toHaveBeenCalledWith("/conversations/c1/workspace");
+  });
+
+  it("waits for the owner and refuses malformed or unknown project choices", async () => {
+    mockOrigins(inventory([{ ...projectOrigin, project_id: null }]));
+    useAuthStore.setState({ sessionOwnerId: null, user: null });
+    const { result } = renderHook(() => useConversationWorkspace("c1", { originPicker: true }), {
+      wrapper,
+    });
+    expect(apiClient.get).not.toHaveBeenCalled();
+    act(() => useAuthStore.setState({ sessionOwnerId: "reader-1" }));
+    await waitFor(() => expect(result.current.originUnavailable).toBe(true));
+    act(() => result.current.selectOrigin("unknown-origin"));
+    expect(result.current.source).toBeNull();
+    expect(apiClient.get).not.toHaveBeenCalledWith("/conversations/c1/workspace");
+  });
+});

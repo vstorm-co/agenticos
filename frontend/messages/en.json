@@ -1607,7 +1607,16 @@
       "readNoticeBody": "Try again to check the file connection. You can keep using this conversation.",
       "connectionSettings": "Sandbox connections",
       "technicalDetails": "Technical details",
-      "zipFailed": "The folder could not be downloaded."
+      "zipFailed": "The folder could not be downloaded.",
+      "fileLocation": "File location",
+      "chooseLocation": "Choose a file location",
+      "agentLocation": "Agent files · {name}",
+      "projectLocation": "Project files · {name}",
+      "locationUnavailable": "This file location is no longer available. Choose another location.",
+      "locationsTruncated": "Some file locations are omitted from this list.",
+      "filesTruncated": "This file list is incomplete.",
+      "loading": "Loading files…",
+      "retry": "Retry"
     },
     "generateShareLink": "Generate share link",
     "helpful": "Helpful",

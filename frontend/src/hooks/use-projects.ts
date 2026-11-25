@@ -113,6 +113,7 @@ export function useProject(projectId: string) {
     mutationFn: (target: string) => moveProjectWorkspace(projectId, target),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: qk.projects.all() });
+      await queryClient.invalidateQueries({ queryKey: qk.conversationWorkspace.all() });
     },
     onError: (failure) => toast.error(getErrorMessage(failure, tErrors)),
   });

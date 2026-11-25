@@ -874,6 +874,8 @@ export const qk = {
     detail: (changeId: string) => ["coding-changes", changeId] as const,
   },
   conversationWorkspace: {
+    context: (ownerId: string | null, orgId: string | null, conversationId: string | null) =>
+      ["conversation-workspace", "context", ownerId, orgId, conversationId] as const,
     all: () => ["conversation-workspace"] as const,
     files: (conversationId: string) => ["conversation-workspace", conversationId] as const,
     file: (conversationId: string, path: string) =>

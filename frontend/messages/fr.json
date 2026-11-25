@@ -1588,7 +1588,16 @@
       "readNoticeBody": "Réessayez pour vérifier la connexion aux fichiers. Vous pouvez continuer à utiliser cette conversation.",
       "connectionSettings": "Connexions sandbox",
       "technicalDetails": "Détails techniques",
-      "zipFailed": "Le dossier n’a pas pu être téléchargé."
+      "zipFailed": "Le dossier n’a pas pu être téléchargé.",
+      "fileLocation": "Emplacement des fichiers",
+      "chooseLocation": "Choisir un emplacement",
+      "agentLocation": "Fichiers de l’agent · {name}",
+      "projectLocation": "Fichiers du projet · {name}",
+      "locationUnavailable": "Cet emplacement n’est plus disponible. Choisissez-en un autre.",
+      "locationsTruncated": "Certains emplacements sont omis de cette liste.",
+      "filesTruncated": "Cette liste de fichiers est incomplète.",
+      "loading": "Chargement des fichiers…",
+      "retry": "Réessayer"
     },
     "generateShareLink": "Générer un lien de partage",
     "helpful": "Utile",

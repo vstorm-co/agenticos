@@ -8,6 +8,13 @@ import { toast } from "sonner";
 import { WorkspaceReadNotice } from "./workspace-read-notice";
 import { ChatSidePanel, ChatPanelHeader } from "./chat-side-panel";
 
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { FileCard, FileViewer, FileIcon, PathTree } from "@/components/files";
 import { useConversationWorkspace } from "@/hooks";
 import { useChanged } from "@/hooks/use-changed";
@@ -29,7 +36,7 @@ import {
   workspaceFileAccess,
   type FileSource,
 } from "@/lib/workspace-files";
-import type { ConversationFile } from "@/lib/conversation-workspace-api";
+import { workspaceOriginKey, type ConversationFile } from "@/lib/conversation-workspace-api";
 import type { ChatMessageFile } from "@/types";
 
 interface WorkspaceFilesProps {
@@ -97,12 +104,14 @@ export function WorkspaceFiles({
     isDesktopShell(shell) && target !== null && !target.computer_grant ? target.folder : null;
   const cloud = useConversationWorkspace(
     !beforeFirstMessage && localRoot === null ? conversationId : null,
+    { originPicker: true },
   );
   const local = useLocalWorkspace(
     beforeFirstMessage ? null : localRoot,
     t("onThisComputer", { folder: localRoot?.split(/[\\/]/).filter(Boolean).at(-1) ?? "" }),
   );
   const { workspace, error, refresh } = localRoot === null ? cloud : local;
+  const isLoading = localRoot === null && cloud.isLoading;
   const openAttachment = useFilePreviewStore((state) => state.open);
   const [open, setOpen] = useState(false);
   const sourcesOpen = useSourcesPanelStore((state) => state.isOpen);
@@ -121,13 +130,24 @@ export function WorkspaceFiles({
     setOpen(false);
     setReading(null);
   }
-  // The chat addresses files through its conversation, not through the workspace's
-  // id: that route authorises by fetching the conversation, so somebody this chat
-  // was shared with reaches the same files.
   const source = useMemo<FileSource | null>(() => {
     if (localRoot !== null) return { kind: "local", root: localRoot };
-    return conversationId === null ? null : { kind: "conversation", id: conversationId };
-  }, [conversationId, localRoot]);
+    return cloud.source;
+  }, [cloud.source, localRoot]);
+  const sourceIdentity = JSON.stringify(
+    localRoot === null ? cloud.contentKey : ["local", localRoot],
+  );
+  if (useChanged(sourceIdentity)) setReading(null);
+  const fileAccess =
+    reading !== null && source !== null ? workspaceFileAccess(source, reading.path) : null;
+  const previewAccess =
+    fileAccess !== null && localRoot === null
+      ? {
+          ...fileAccess,
+          textKey: [...cloud.contentKey, "text", reading?.path],
+          bytesKey: [...cloud.contentKey, "bytes", reading?.path],
+        }
+      : fileAccess;
 
   // Re-read when a turn ends rather than on a timer: the chat knows exactly when
   // the files could have changed, and a poll is wrong almost every time it fires.
@@ -272,6 +292,55 @@ export function WorkspaceFiles({
                   <p className="text-muted-foreground text-xs">{t("beforeStart")}</p>
                 )}
 
+                {localRoot === null && cloud.origins.length > 0 && (
+                  <div className="space-y-2">
+                    <label htmlFor={`${panelId}-origin`} className="text-xs font-medium">
+                      {t("fileLocation")}
+                    </label>
+                    <Select
+                      value={cloud.selectedOrigin ? workspaceOriginKey(cloud.selectedOrigin) : ""}
+                      onValueChange={(key) => {
+                        setReading(null);
+                        cloud.selectOrigin(key);
+                      }}
+                    >
+                      <SelectTrigger id={`${panelId}-origin`} className="w-full">
+                        <SelectValue placeholder={t("chooseLocation")} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {cloud.origins.map((origin) => (
+                          <SelectItem
+                            key={workspaceOriginKey(origin)}
+                            value={workspaceOriginKey(origin)}
+                          >
+                            {t(origin.kind === "agent" ? "agentLocation" : "projectLocation", {
+                              name: origin.owner_label,
+                            })}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+                {isLoading && <p className="text-muted-foreground text-xs">{t("loading")}</p>}
+                {localRoot === null && cloud.originUnavailable && error === null && (
+                  <div className="space-y-2 text-xs">
+                    <p>{t("locationUnavailable")}</p>
+                    <button
+                      type="button"
+                      className="underline underline-offset-4"
+                      onClick={() => void refresh()}
+                    >
+                      {t("retry")}
+                    </button>
+                  </div>
+                )}
+                {localRoot === null && cloud.originsTruncated && (
+                  <p className="text-muted-foreground text-xs">{t("locationsTruncated")}</p>
+                )}
+                {workspace?.truncated && (
+                  <p className="text-muted-foreground text-xs">{t("filesTruncated")}</p>
+                )}
                 {readIssue !== null && (
                   <WorkspaceReadNotice
                     detail={readIssue}
@@ -294,6 +363,7 @@ export function WorkspaceFiles({
                 {/* Full-width chips leave room for names in this narrow panel. */}
                 {drawn && (
                   <WorkspaceTree
+                    key={sourceIdentity}
                     files={workspace?.items ?? []}
                     selectedPath={reading?.path ?? null}
                     onOpen={setReading}
@@ -337,15 +407,16 @@ export function WorkspaceFiles({
                   </div>
                 )}
 
-                {source !== null && reading !== null && (
+                {previewAccess !== null && reading !== null && (
                   <FileViewer
+                    key={`${sourceIdentity}:${reading.path}`}
                     file={{
                       name: reading.path.split("/").filter(Boolean).pop() ?? reading.path,
                       path: reading.path,
                       size: reading.size,
                       modifiedAt: reading.modified_at,
                     }}
-                    access={workspaceFileAccess(source, reading.path)}
+                    access={previewAccess}
                     onClose={() => setReading(null)}
                   />
                 )}

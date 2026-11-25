@@ -1607,7 +1607,16 @@
       "readNoticeBody": "Probeer het opnieuw om de bestandsverbinding te controleren. Je kunt dit gesprek blijven gebruiken.",
       "connectionSettings": "Sandboxkoppelingen",
       "technicalDetails": "Technische details",
-      "zipFailed": "De map kon niet worden gedownload."
+      "zipFailed": "De map kon niet worden gedownload.",
+      "fileLocation": "Bestandslocatie",
+      "chooseLocation": "Kies een bestandslocatie",
+      "agentLocation": "Agentbestanden · {name}",
+      "projectLocation": "Projectbestanden · {name}",
+      "locationUnavailable": "Deze bestandslocatie is niet meer beschikbaar. Kies een andere locatie.",
+      "locationsTruncated": "Sommige bestandslocaties ontbreken in deze lijst.",
+      "filesTruncated": "Deze bestandslijst is onvolledig.",
+      "loading": "Bestanden laden…",
+      "retry": "Opnieuw proberen"
     },
     "generateShareLink": "Deellink aanmaken",
     "helpful": "Nuttig",
