@@ -1,5 +1,5 @@
 ---
-source_sha: "efcf8f8ad81e"
+source_sha: "9450e4fc0678"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -28,7 +28,7 @@ Er tut drei Dinge:
 
 Im Agent Builder enthält **Bauen** die Konfiguration und **Test** öffnet das interaktive Testpanel für den Entwurf. Öffnen Sie **Evals**, um einen Entwurf mit einer veröffentlichten Version auf einem Dataset zu vergleichen oder **Verbessern** zu starten. Vor der Ausführung erscheint die Kostenschätzung. Der ältere evidenzbasierte Verify-Endpunkt bleibt für API-Kompatibilität verfügbar.
 
-**Improve** öffnet eine Verbesserungssitzung. Modell und Anweisungen stehen in den **Einstellungen** des gewählten Datasets; Helfer haben Code-Vorgaben und keine bearbeitbare Katalogseite. Der Dialog zum Verbessern einer Context-Datei wählt ein Modell direkt. Budgetprüfungen und Aktivität-Aufzeichnungen bleiben bestehen.
+**Improve** öffnet eine Verbesserungssitzung. Modell und eventuelle Dataset-Hinweise stehen in den **Einstellungen** des gewählten Datasets; die Hinweise kommen unter die Plattformregeln des Helfers und ersetzen sie nie; Helfer haben Code-Vorgaben und keine bearbeitbare Katalogseite. Der Dialog zum Verbessern einer Context-Datei wählt ein Modell direkt. Budgetprüfungen und Aktivität-Aufzeichnungen bleiben bestehen.
 
 ## Was er liest { #what-it-reads }
 

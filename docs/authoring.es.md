@@ -1,5 +1,5 @@
 ---
-source_sha: "efcf8f8ad81e"
+source_sha: "9450e4fc0678"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las herramientas, la configuración, los skills y los archivos de contexto de un agent. Una persona decide cada uno."
 ---
@@ -28,7 +28,7 @@ Hace tres cosas:
 
 En Agent Builder, **Build** contiene la configuración y **Test** abre el panel interactivo del borrador. Abre **Evals** para comparar un borrador con una versión publicada en un dataset o iniciar **Improve**. La estimación aparece antes de la ejecución. El antiguo endpoint de verificación basada en evidencias sigue disponible por compatibilidad de API.
 
-**Improve** abre una sesión de mejora. El modelo y las instrucciones pertenecen a **Settings** del dataset elegido; los ayudantes tienen valores definidos en código y no tienen página editable en el catálogo. El diálogo para mejorar un archivo de contexto elige un modelo directamente. Se conservan controles de budget y registros en Activity.
+**Improve** abre una sesión de mejora. El modelo y las posibles orientaciones del dataset pertenecen a **Settings** del dataset elegido; las orientaciones se añaden bajo las reglas de la plataforma para el ayudante y nunca las sustituyen; los ayudantes tienen valores definidos en código y no tienen página editable en el catálogo. El diálogo para mejorar un archivo de contexto elige un modelo directamente. Se conservan controles de budget y registros en Activity.
 
 ## Qué lee { #what-it-reads }
 

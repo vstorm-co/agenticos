@@ -25,7 +25,7 @@ from app.agents.capabilities.knowledge._capability import KnowledgeConfig
 from app.agents.capabilities.skills import SkillBody
 from app.agents.factory import DEFAULT_MAX_STEPS
 from app.agents.spec import AgentSpec
-from app.agents.system_agents import IMPROVER, refuse_system_agent
+from app.agents.system_agents import refuse_system_agent
 from app.core.audit import record_audit
 from app.core.background import spawn_after_commit
 from app.core.config import settings
@@ -398,10 +398,7 @@ class ImprovementPipelineService:
         )
         helper = DatasetHelpers.model_validate(dataset.helper_settings or {}).improver
         helper = helper.model_copy(
-            update={
-                "model_profile_id": helper.model_profile_id or draft.model_profile_id,
-                "instructions": helper.instructions or IMPROVER.instructions,
-            }
+            update={"model_profile_id": helper.model_profile_id or draft.model_profile_id}
         )
         return Inputs(
             agent,

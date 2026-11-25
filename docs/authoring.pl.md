@@ -1,5 +1,5 @@
 ---
-source_sha: "efcf8f8ad81e"
+source_sha: "9450e4fc0678"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -28,7 +28,7 @@ Robi trzy rzeczy:
 
 W Agent Builderze **Budowa** zawiera konfigurację, a **Test** otwiera interaktywny panel wersji roboczej. Otwórz **Ewaluacje**, aby porównać wersję roboczą z opublikowaną wersją na datasecie lub uruchomić **Popraw**. Wycena pojawia się przed wykonaniem. Dawny endpoint sprawdzania na podstawie dowodów pozostaje dostępny dla zgodności API.
 
-**Improve** otwiera sesję ulepszania. Model i instrukcje ulepszania należą do **Ustawień** wybranego datasetu; pomocnicy mają domyślne instrukcje w kodzie i nie mają strony edycji w katalogu agentów. Dialog ulepszania pliku kontekstowego wybiera model bezpośrednio. Nadal obowiązują budżety i zapisy runów w Aktywności.
+**Improve** otwiera sesję ulepszania. Model ulepszania i ewentualne wskazówki datasetu należą do **Ustawień** wybranego datasetu; wskazówki dochodzą pod regułami platformy dla pomocnika i nigdy ich nie zastępują; pomocnicy mają domyślne instrukcje w kodzie i nie mają strony edycji w katalogu agentów. Dialog ulepszania pliku kontekstowego wybiera model bezpośrednio. Nadal obowiązują budżety i zapisy runów w Aktywności.
 
 ## Co czyta { #what-it-reads }
 

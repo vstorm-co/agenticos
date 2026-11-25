@@ -15780,6 +15780,9 @@
       "number": "Nummer"
     },
     "helpers": {
+      "guidance": "Richtlijnen voor deze dataset",
+      "guidanceHint": "Worden onder de platformregels voor deze helper toegevoegd. De regels gelden altijd; richtlijnen kunnen ze niet wijzigen of verwijderen.",
+      "platformRules": "Platformregels (alleen-lezen)",
       "generatorTitle": "Testgevallen genereren",
       "generatorDescription": "Kies het model en de instructies waarmee testgevallen voor deze dataset worden opgesteld. Gegenereerde testgevallen wachten op je goedkeuring.",
       "improverTitle": "Agents verbeteren",
