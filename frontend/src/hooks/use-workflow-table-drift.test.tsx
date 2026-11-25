@@ -152,12 +152,10 @@ describe("useWorkflowTableDrift", () => {
         code: "save(values=args)",
         actions: { save: { type: "table.record.create", config: { table: ref(["old"]) } } },
       };
-      store
-        .getState()
-        .seedGraph({
-          ...graph,
-          nodes: [{ ...graph.nodes[0]!, definition_id: "code.python.actions", config }],
-        });
+      store.getState().seedGraph({
+        ...graph,
+        nodes: [{ ...graph.nodes[0]!, definition_id: "code.python.actions", config }],
+      });
       renderHook(() => useWorkflowTableDrift(true), { wrapper });
       if (auto) {
         await waitFor(() =>
