@@ -246,3 +246,17 @@ async def test_bootstrap_enabling_grading_keeps_existing_criteria(db: AsyncSessi
     read = await DatasetService(db).read(owner, dataset.id)
     assert [criterion.name for criterion in read.scoring.judge.criteria] == ["Existing"]
     assert read.scoring.judge.enabled and read.scoring.reference.enabled
+
+
+async def test_a_generation_stores_no_guidance_rather_than_a_copy_of_the_rules(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The platform's rules are added when the generator is asked, never stored as if
+    they were the dataset's own instructions."""
+    owner, org, agent, dataset, _ = await _setup(db)
+    monkeypatch.setattr(SystemAgentRunner, "require_runnable", AsyncMock())
+
+    started = await _service(db).start(owner, dataset.id, _request(agent, "agent"))
+
+    row = await case_generation_repo.get_generation(db, started.id, organization_id=org.id)
+    assert row is not None and row.helper_settings.get("instructions") is None

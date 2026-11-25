@@ -22,6 +22,7 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.untrusted_text import fence
 from app.core.permissions import AuthContext, Perm
 from app.db.models.conversation import Message
 from app.db.models.skill_usage import RunSkillUse
@@ -151,22 +152,22 @@ class PackedRun:
             )
         if self.via_delegate:
             lines.append("Skill used by an agent this one delegated to")
-        lines += [f"Reader comment: {comment}" for comment in self.comments]
-        lines += [f"Graded: {line}" for line in self.grade_lines]
+        lines += [f"Reader comment:\n{fence(comment)}" for comment in self.comments]
+        lines += [f"Graded:\n{fence(line)}" for line in self.grade_lines]
         if self.uncovered_keys:
             lines.append(
                 "No source of this agent holds these keys, so the user must supply them "
                 f"rather than the instructions: {', '.join(self.uncovered_keys)}"
             )
         lines.append(
-            f"Test question from the dataset: {self.prompt}"
+            f"Test question from the dataset:\n{fence(self.prompt)}"
             if self.evidence_kind == "train_eval"
-            else f"Asked: {self.prompt}"
+            else f"Asked:\n{fence(self.prompt)}"
         )
-        lines += [f"Called: {call}" for call in self.calls]
-        lines.append(f"Answered: {self.answer}")
+        lines += [f"Called:\n{fence(call)}" for call in self.calls]
+        lines.append(f"Answered:\n{fence(self.answer)}")
         if self.error:
-            lines.append(f"Error: {self.error}")
+            lines.append(f"Error:\n{fence(self.error)}")
         return "\n".join(lines)
 
     @property
