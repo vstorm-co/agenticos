@@ -1,5 +1,5 @@
 ---
-source_sha: "66f4ea086b9f"
+source_sha: "f270385ae7d5"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -494,7 +494,7 @@ Nieudany krok propozycji lub ewaluacji można jawnie ponowić przez `/{run_id}/r
 
 Zakończenie wskazuje próbę, którą osoba obejrzała - `attempt` oraz `candidate_spec_hash` i `result_hash` tej próby z `iterations` sesji - i jest odrzucane z `409`, gdy sesja ma inną próbę, zmierzyła ją ponownie albo przegląd ocenił jej wynik na nowo: odczytaj sesję jeszcze raz i obejrzyj ją. Sesja, której wersja robocza miała edycje sprzed jej startu, ma `unmeasured_draft_edits`; te edycje są po obu stronach każdego checku, więc żaden ich nie zmierzył, a publikacja wymaga także `publish_unmeasured_edits`.
 
-Sesja zachowana jako wersja robocza jest zakończona: wersję roboczą publikuje się zwykłym **Opublikuj** agenta, a gdy to wersja zmierzona przez sesję, zostaje zapisana w sesji. Zakończenie może utworzyć suite uruchamianą przy publikacji, z zerowym limitem regresji. Nadal obowiązują standardowe uprawnienia i walidacja publikacji, a chronione środowiska czekają na swoje sprawdzenia. Zmiany edytowane po teście trzeba przetestować ponownie.
+Sesja zachowana jako wersja robocza jest zakończona: wersję roboczą publikuje się zwykłym **Opublikuj** agenta, a gdy to wersja zmierzona przez sesję, zostaje zapisana w sesji. Nowsze zlecenie albo sesja, która zastąpi jej sugestie, zostawia ją zachowaną jako wersja robocza, bo jej zmiany nadal są w wersji roboczej; porzucenie wersji roboczej kończy ją jako odrzuconą. Zakończenie może utworzyć suite uruchamianą przy publikacji, z zerowym limitem regresji. Nadal obowiązują standardowe uprawnienia i walidacja publikacji, a chronione środowiska czekają na swoje sprawdzenia. Zmiany edytowane po teście trzeba przetestować ponownie.
 
 Szacunek sesji obejmuje klasyfikację złych odpowiedzi z rozmów i nieudanych odpowiedzi treningowych względem edytowalnych baz wiedzy agenta oraz grupowanie ich braków w [tematy](knowledge-gaps.md#topics). Nie obejmuje szkiców: szkic powstaje tylko wtedy, gdy poprosi o niego człowiek, i jest rozliczany jako własny run szkicu. Każdy krok przed rozpoczęciem ponownie sprawdza swój pełny koszt. Klasyfikacja i grupowanie korzystają wyłącznie z przypiętych, niewymazanych rozmów i z odpowiedzi treningowych, z których uczy się sesja; odpowiedź treningowa z brakującą wiedzą pozostaje też materiałem agenta, a tekst kontrolny nie trafia do tych pomocników.
 

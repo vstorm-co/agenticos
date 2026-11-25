@@ -1,5 +1,5 @@
 ---
-source_sha: "66f4ea086b9f"
+source_sha: "f270385ae7d5"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -524,7 +524,7 @@ Ein fehlgeschlagener Vorschlags- oder Eval-Schritt lässt sich ausdrücklich mit
 
 Der Abschluss nennt den Versuch, den die Person angesehen hat - `attempt` sowie `candidate_spec_hash` und `result_hash` dieses Versuchs aus `iterations` der Sitzung - und wird mit `409` abgelehnt, wenn die Sitzung einen anderen Versuch hat, ihn erneut gemessen hat oder eine neue Bewertung eines Falls sein Ergebnis geändert hat: Lesen Sie die Sitzung erneut und sehen Sie ihn an. Eine Sitzung, deren Entwurf vor ihrem Start Änderungen enthielt, meldet `unmeasured_draft_edits`; diese Änderungen stehen auf beiden Seiten jeder Prüfung, also hat keine sie gemessen, und Veröffentlichen braucht zusätzlich `publish_unmeasured_edits`.
 
-Eine als Entwurf behaltene Sitzung ist abgeschlossen: Den Entwurf veröffentlicht das übliche **Veröffentlichen** des Agents, und wenn diese Version die von der Sitzung gemessene ist, wird sie in der Sitzung eingetragen. Der Abschluss kann eine Suite bei Veröffentlichung mit null erlaubten Regressionen anlegen. Übliche Berechtigungen und Veröffentlichungsprüfungen gelten weiter, und geschützte Umgebungen warten auf ihre Prüfungen. Nach ihrem Test bearbeitete Änderungen müssen erneut getestet werden.
+Eine als Entwurf behaltene Sitzung ist abgeschlossen: Den Entwurf veröffentlicht das übliche **Veröffentlichen** des Agents, und wenn diese Version die von der Sitzung gemessene ist, wird sie in der Sitzung eingetragen. Ersetzt eine neuere Anfrage oder Sitzung ihre Vorschläge, bleibt sie als Entwurf behalten, denn ihre Änderungen stehen weiter im Entwurf; das Verwerfen des Entwurfs beendet sie als abgelehnt. Der Abschluss kann eine Suite bei Veröffentlichung mit null erlaubten Regressionen anlegen. Übliche Berechtigungen und Veröffentlichungsprüfungen gelten weiter, und geschützte Umgebungen warten auf ihre Prüfungen. Nach ihrem Test bearbeitete Änderungen müssen erneut getestet werden.
 
 Die Sitzungsschätzung umfasst die Einordnung schlechter Chatantworten und fehlgeschlagener Trainingsantworten anhand bearbeitbarer Wissensbasen des Agenten und die Gruppierung ihrer Lücken zu [Themen](knowledge-gaps.md#topics). Entwürfe enthält sie nicht: Ein Entwurf entsteht nur, wenn ein Mensch ihn anfordert, und wird als eigener Run bezahlt. Jeder Schritt prüft vor dem Start erneut seine vollständige Schätzung. Nur festgelegte, nicht gelöschte Quellchats und die Trainingsantworten, aus denen die Sitzung lernt, erreichen Klassifizierung oder Gruppierung; eine Trainingsantwort mit fehlendem Wissen bleibt auch Agentenbeleg, Kontrolltexte erreichen diese Helfer nie.
 

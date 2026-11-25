@@ -13,6 +13,7 @@ from uuid import uuid4
 import pytest
 from sqlalchemy import select
 
+from app.agents.spec import AgentSpec
 from app.db.models.authoring import BatchStatus
 from app.db.models.eval_run import EvalRun
 from app.db.models.improvement import ImprovementRun
@@ -301,6 +302,172 @@ async def test_a_kept_draft_published_elsewhere_names_its_version_when_it_was_me
     settled = await service.read(ctx, agent.id, ready.id)
     assert settled.status == "published"
     assert settled.published_version == (None if edited else version.version)
+
+
+async def test_a_kept_draft_stays_accepted_when_a_newer_request_replaces_its_batch(db):
+    """An Improve from the Builder replaces the open batch; the kept changes are still in
+    the draft, so the session stays accepted, and a later publish is recorded on it."""
+    from app.services.agent_registry import AgentRegistryService
+    from tests.integration.test_authoring import Improver, _improve
+
+    ctx, agent, ready = await _ready_proposal(db)
+    service = ImprovementPipelineService(db)
+    await service.finish(ctx, agent.id, ready.id, await reviewed(db, ctx, agent.id, ready.id))
+    kept = await service.read(ctx, agent.id, ready.id)
+    [attempt] = kept.iterations
+    assert attempt.batch_id is not None
+
+    await _improve(db, ctx, agent, Improver(db))
+    await service.advance(ready.id, ctx.organization_id)
+
+    replaced = await authoring_repo.get_batch(
+        db, attempt.batch_id, organization_id=ctx.organization_id
+    )
+    assert replaced is not None and replaced.status == BatchStatus.SUPERSEDED
+    assert (await service.read(ctx, agent.id, ready.id)).status == "accepted"
+    assert [status for status, _ in await _ends(db, ready.id)] == ["ready"]
+
+    version = await AgentRegistryService(db).publish(ctx, agent.id)
+    await service.advance(ready.id, ctx.organization_id)
+
+    settled = await service.read(ctx, agent.id, ready.id)
+    assert settled.status == "published"
+    assert settled.published_version == version.version
+
+
+async def test_a_kept_draft_names_its_version_after_two_publishes_before_a_sweep(db):
+    """The measured candidate published, then an edited draft on top of it, both before the
+    sweep: the version recorded is the one that published what the session measured."""
+    from app.services.agent_registry import AgentRegistryService
+    from tests.integration.test_authoring import Improver, _improve
+
+    ctx, agent, ready = await _ready_proposal(db)
+    service = ImprovementPipelineService(db)
+    await service.finish(ctx, agent.id, ready.id, await reviewed(db, ctx, agent.id, ready.id))
+    await _improve(db, ctx, agent, Improver(db))
+    registry = AgentRegistryService(db)
+    measured = await registry.publish(ctx, agent.id)
+    agent.draft_spec = {**agent.draft_spec, "instructions": "Other."}
+    await db.flush()
+    await registry.publish(ctx, agent.id)
+
+    await service.advance(ready.id, ctx.organization_id)
+
+    settled = await service.read(ctx, agent.id, ready.id)
+    assert settled.status == "published"
+    assert settled.published_version == measured.version
+
+
+async def test_a_kept_draft_whose_draft_was_discarded_is_rejected(db):
+    """Discarding the draft puts the published version back and takes the kept changes
+    out with it, so the session is no longer kept as a draft."""
+    from app.schemas.agent import agent_draft_revision
+    from app.services.agent_registry import AgentRegistryService
+    from tests.integration.test_authoring import Improver, _improve
+
+    ctx, agent, ready = await _ready_proposal(db)
+    service = ImprovementPipelineService(db)
+    await service.finish(ctx, agent.id, ready.id, await reviewed(db, ctx, agent.id, ready.id))
+    await _improve(db, ctx, agent, Improver(db))
+    await service.advance(ready.id, ctx.organization_id)
+    assert (await service.read(ctx, agent.id, ready.id)).status == "accepted"
+    registry = AgentRegistryService(db)
+    await registry.discard_draft(
+        ctx,
+        agent.id,
+        expected_revision=agent_draft_revision(AgentSpec.model_validate(agent.draft_spec)),
+        expected_version_id=agent.current_version_id,
+    )
+
+    await service.advance(ready.id, ctx.organization_id)
+
+    assert (await service.read(ctx, agent.id, ready.id)).status == "rejected"
+
+
+async def test_a_kept_draft_published_with_other_edits_is_not_rejected(db):
+    """Its changes went out with more besides: the draft equals that version, but nothing
+    was discarded, so the session stays kept rather than rejected."""
+    from app.services.agent_registry import AgentRegistryService
+    from tests.integration.test_authoring import Improver, _improve
+
+    ctx, agent, ready = await _ready_proposal(db)
+    service = ImprovementPipelineService(db)
+    await service.finish(ctx, agent.id, ready.id, await reviewed(db, ctx, agent.id, ready.id))
+    await _improve(db, ctx, agent, Improver(db))
+    agent.draft_spec = {**agent.draft_spec, "description": "Answers refund questions."}
+    await db.flush()
+    await AgentRegistryService(db).publish(ctx, agent.id)
+
+    await service.advance(ready.id, ctx.organization_id)
+
+    assert (await service.read(ctx, agent.id, ready.id)).status == "accepted"
+    assert [status for status, _ in await _ends(db, ready.id)] == ["ready"]
+
+
+async def test_undoing_a_kept_draft_while_another_session_is_open_waits_for_it(db):
+    """Moving the kept draft back to ready would make two open sessions on one agent."""
+    from decimal import Decimal
+
+    from app.schemas.authoring import HunkDecision
+    from app.schemas.improvement import ImprovementStart
+    from app.services.authoring import AuthoringService
+    from tests.integration.test_eval_suites import _dataset
+
+    ctx, agent, ready = await _ready_proposal(db)
+    service = ImprovementPipelineService(db)
+    await service.finish(ctx, agent.id, ready.id, await reviewed(db, ctx, agent.id, ready.id))
+    batch = await authoring_repo.get_open_batch(
+        db, organization_id=ctx.organization_id, agent_id=agent.id
+    )
+    assert batch is not None
+    hunk = next(
+        hunk
+        for hunk in await authoring_repo.list_hunks(
+            db, organization_id=ctx.organization_id, batch_id=batch.id
+        )
+        if hunk.status == "accepted"
+    )
+    dataset = await _dataset(db, ctx, cases=5)
+    other = await service.start(
+        ctx,
+        agent.id,
+        ImprovementStart(dataset_id=dataset.id, max_iterations=1, budget_usd=Decimal("5")),
+    )
+    await AuthoringService(db).decide(ctx, agent.id, hunk.id, HunkDecision(action="undo"))
+
+    await service.advance(ready.id, ctx.organization_id)
+
+    assert (await service.read(ctx, agent.id, ready.id)).status == "accepted"
+    assert (await service.read(ctx, agent.id, other.id)).status == other.status
+
+    await service.cancel(ctx, agent.id, other.id)
+    await service.advance(ready.id, ctx.organization_id)
+    assert (await service.read(ctx, agent.id, ready.id)).status == "ready"
+
+
+async def test_a_kept_draft_whose_changes_were_undone_and_dismissed_is_rejected(db):
+    """Undo and dismiss before the next sweep is still the person's own rejection."""
+    from app.schemas.authoring import HunkDecision
+    from app.services.authoring import AuthoringService
+
+    ctx, agent, ready = await _ready_proposal(db)
+    service = ImprovementPipelineService(db)
+    await service.finish(ctx, agent.id, ready.id, await reviewed(db, ctx, agent.id, ready.id))
+    batch = await authoring_repo.get_open_batch(
+        db, organization_id=ctx.organization_id, agent_id=agent.id
+    )
+    assert batch is not None
+    authoring = AuthoringService(db)
+    for hunk in await authoring_repo.list_hunks(
+        db, organization_id=ctx.organization_id, batch_id=batch.id
+    ):
+        if hunk.status == "accepted":
+            await authoring.decide(ctx, agent.id, hunk.id, HunkDecision(action="undo"))
+        await authoring.decide(ctx, agent.id, hunk.id, HunkDecision(action="dismiss"))
+
+    await service.advance(ready.id, ctx.organization_id)
+
+    assert (await service.read(ctx, agent.id, ready.id)).status == "rejected"
 
 
 @pytest.mark.security

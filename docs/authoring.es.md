@@ -1,5 +1,5 @@
 ---
-source_sha: "66f4ea086b9f"
+source_sha: "f270385ae7d5"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las herramientas, la configuración, los skills y los archivos de contexto de un agent. Una persona decide cada uno."
 ---
@@ -508,7 +508,7 @@ Un paso de propuestas o eval fallido se reintenta explícitamente con `/{run_id}
 
 Al terminar se nombra el intento que la persona revisó - `attempt`, el `candidate_spec_hash` y el `result_hash` de ese intento en `iterations` de la sesión - y se rechaza con `409` cuando la sesión tiene otro intento, lo midió de nuevo o una revisión juzgó de nuevo su resultado: lea la sesión de nuevo y revíselo. Una sesión cuyo draft tenía ediciones antes de empezar indica `unmeasured_draft_edits`; esas ediciones están en ambos lados de cada comprobación, así que ninguna las midió, y publicar requiere además `publish_unmeasured_edits`.
 
-Una sesión guardada como borrador está terminada: el borrador se publica con el **Publish** del propio agente y, cuando esa versión es la que midió la sesión, queda registrada en ella. Terminar puede crear una suite que se ejecute al publicar, sin regresiones permitidas. Se mantienen los permisos y validaciones habituales, y los entornos protegidos esperan a sus comprobaciones. Los cambios editados después de su prueba deben probarse de nuevo.
+Una sesión guardada como borrador está terminada: el borrador se publica con el **Publish** del propio agente y, cuando esa versión es la que midió la sesión, queda registrada en ella. Si una petición o sesión más nueva reemplaza sus sugerencias, sigue guardada como borrador, porque sus cambios siguen en el borrador; descartar el borrador la termina como rechazada. Terminar puede crear una suite que se ejecute al publicar, sin regresiones permitidas. Se mantienen los permisos y validaciones habituales, y los entornos protegidos esperan a sus comprobaciones. Los cambios editados después de su prueba deben probarse de nuevo.
 
 La estimación incluye clasificar respuestas de chat incorrectas y respuestas de entrenamiento fallidas con las bases de conocimiento editables del agente y agrupar sus carencias en [temas](knowledge-gaps.md#topics). No incluye borradores: un borrador solo se escribe cuando una persona lo pide, y se paga como su propio run. Cada paso comprueba de nuevo su estimación completa antes de iniciarse. Solo los chats fuente fijados y no borrados y las respuestas de entrenamiento de las que aprende la sesión llegan a clasificación o agrupación; una respuesta de entrenamiento sin el conocimiento necesario sigue también como evidencia del agente, sin textos de control para estos asistentes.
 
