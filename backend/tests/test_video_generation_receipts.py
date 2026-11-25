@@ -364,3 +364,82 @@ async def test_protected_download_failure_does_not_log_the_signed_url(monkeypatc
         await make(chosen, receipt=chosen.receipt(), protected_downloads=True)
     assert error.value.failure is VideoFailure.UNAVAILABLE
     assert "DO_NOT_LOG" not in caplog.text and "DO_NOT_LOG" not in str(error.value)
+
+
+REFUSALS = (400, 401, 403, 429)
+
+
+@pytest.mark.parametrize("provider_id", PROVIDERS)
+@pytest.mark.parametrize("status", REFUSALS)
+async def test_a_refused_first_submission_is_a_submission_refusal_sent_exactly_once(
+    monkeypatch, provider_id, status
+):
+    chosen = offering(provider_id)
+    requests = api_transport(
+        monkeypatch, lambda _r: httpx.Response(status, json={"error": "private provider body"})
+    )
+    journal = AsyncMock()
+    with pytest.raises(VideoProviderError) as error:
+        await make(chosen, on_receipt=journal)
+    assert (error.value.phase, error.value.status) == ("submission", status)
+    assert [r.method for r in requests] == ["POST"]
+    journal.assert_not_awaited()
+    assert "private provider body" not in str(error.value) and KEY not in str(error.value)
+
+
+@pytest.mark.parametrize("provider_id", PROVIDERS)
+@pytest.mark.parametrize("status", [500, 503])
+async def test_a_failed_submission_is_sent_once_and_is_not_a_refusal_status(
+    monkeypatch, provider_id, status
+):
+    chosen = offering(provider_id)
+    requests = api_transport(monkeypatch, lambda _r: httpx.Response(status, json={}))
+    with pytest.raises(VideoProviderError) as error:
+        await make(chosen, on_receipt=AsyncMock())
+    assert error.value.status == status and error.value.failure is VideoFailure.UNAVAILABLE
+    assert [r.method for r in requests] == ["POST"]
+
+
+@pytest.mark.parametrize("provider_id", PROVIDERS)
+@pytest.mark.parametrize("lost", [httpx.ReadTimeout("late"), httpx.ReadError("dropped")])
+async def test_a_submission_lost_in_transit_carries_no_status(monkeypatch, provider_id, lost):
+    chosen = offering(provider_id)
+
+    def answer(_request):
+        raise lost
+
+    requests = api_transport(monkeypatch, answer)
+    with pytest.raises(VideoProviderError) as error:
+        await make(chosen, on_receipt=AsyncMock())
+    assert error.value.status is None
+    assert [r.method for r in requests] == ["POST"]
+
+
+@pytest.mark.parametrize("provider_id", ["byteplus", "xai", "alibaba", "google"])
+@pytest.mark.parametrize("status", [400, 401, 403])
+async def test_a_refusal_while_collecting_is_never_a_submission_refusal(
+    monkeypatch, provider_id, status
+):
+    chosen = offering(provider_id)
+
+    def answer(request):
+        if request.method == "POST":
+            return httpx.Response(200, json=chosen.accepted())
+        return httpx.Response(status, json={"error": "synthetic"})
+
+    api_transport(monkeypatch, answer)
+    with pytest.raises(VideoProviderError) as error:
+        await make(chosen, on_receipt=AsyncMock())
+    assert (error.value.phase, error.value.status) == ("collection", status)
+
+
+@pytest.mark.parametrize("provider_id", PROVIDERS)
+async def test_a_refusal_on_a_resumed_receipt_is_never_a_submission_refusal(
+    monkeypatch, provider_id
+):
+    chosen = offering(provider_id)
+    requests = api_transport(monkeypatch, lambda _r: httpx.Response(403, json={}))
+    with pytest.raises(VideoProviderError) as error:
+        await make(chosen, receipt=chosen.receipt())
+    assert (error.value.phase, error.value.status) == ("collection", 403)
+    assert all(r.method == "GET" for r in requests)

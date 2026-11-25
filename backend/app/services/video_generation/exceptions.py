@@ -1,6 +1,7 @@
 """How a video provider's refusal reaches the caller, without the provider's words."""
 
 from enum import StrEnum
+from typing import Literal
 
 from app.core.exceptions import ExternalServiceError
 
@@ -42,6 +43,12 @@ _MESSAGES = {
 }
 
 
+VideoPhase = Literal["submission", "collection"]
+"""`submission` is the answer to the one request that creates a job, before any
+receipt exists. `collection` is everything after: polling, downloading and any
+failure that is not an answer to that request."""
+
+
 class VideoProviderError(ExternalServiceError):
     """A provider call that produced no video.
 
@@ -52,9 +59,18 @@ class VideoProviderError(ExternalServiceError):
 
     code = "VIDEO_PROVIDER_ERROR"
 
-    def __init__(self, failure: VideoFailure, *, provider: str, status: int | None = None) -> None:
+    def __init__(
+        self,
+        failure: VideoFailure,
+        *,
+        provider: str,
+        status: int | None = None,
+        phase: VideoPhase = "collection",
+    ) -> None:
         super().__init__(
             message=_MESSAGES[failure],
             details={"provider": provider, "failure": failure.value, "status": status},
         )
         self.failure = failure
+        self.status = status
+        self.phase = phase
