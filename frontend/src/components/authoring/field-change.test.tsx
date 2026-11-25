@@ -207,6 +207,7 @@ describe("a field change", () => {
     const text = document.body.textContent ?? "";
     expect(text).toContain("Be kind\\u{202E}\\u{200B}evil");
     expect(text).not.toMatch(/[‮​]/);
+    expect(screen.getByText(/This change holds characters that draw nothing/)).toBeVisible();
   });
 
   it("shows the binding a removed capability takes out with it", () => {
