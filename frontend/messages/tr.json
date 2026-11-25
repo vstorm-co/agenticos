@@ -19335,5 +19335,55 @@
       "guidanceHint": "Bu yardımcı için platform kurallarının altına eklenir. Kurallar her zaman geçerlidir; yönlendirme bunları değiştiremez veya kaldıramaz.",
       "platformRules": "Platform kuralları (salt okunur)"
     }
+  },
+  "stepFailure": {
+    "technicalDetails": "Teknik ayrıntılar",
+    "step": {
+      "system_agent_not_seeded": "Bu adımın ihtiyaç duyduğu bir sistem agent'ı kurulamadı.",
+      "system_agent_missing": "Bu adımın ihtiyaç duyduğu bir sistem agent'ı ya da onun için seçilen sürüm artık yok. Başka birini seçin.",
+      "system_agent_unpublished": "Bu adımın ihtiyaç duyduğu bir sistem agent'ının yayınlanmış sürümü yok. Bir model seçip yayınlayın.",
+      "system_agent_archived": "Bu adımın ihtiyaç duyduğu bir sistem agent'ı arşivlendi. Yeniden kullanmak için geri yükleyin.",
+      "system_agent_no_access": "Bunu başlatan kişi, bu adımın ihtiyaç duyduğu bir sistem agent'ını çalıştıramaz. Ona erişim isteyin.",
+      "system_agent_no_model": "Bu adımın ihtiyaç duyduğu bir sistem agent'ı modeline ulaşamıyor.",
+      "system_agent_failed": "Bu adımın ihtiyaç duyduğu bir sistem agent'ı kullanılabilir bir yanıt vermedi. Run'ı Etkinlik'te saklanıyor.",
+      "only_anonymised": "Dataset'in her vakası, alındığı kişi silindiğinde anonimleştirildi. Önce bu vakaları yeniden yazın veya kaldırın.",
+      "all_evidence": "Dataset'in her vakası bu değişikliğin türetildiği konuşmalardan alındı, bu yüzden hiçbiri onu ölçemez. Başka konuşmalardan vaka ekleyin veya başka bir dataset seçin.",
+      "no_scorer": "Dataset'in puanlamasındaki hiçbir şey bir vakaya karar veremiyor. Bir kontrol ya da beklenen bir araç çağrısı ekleyin veya hakemi etkinleştirin.",
+      "no_reruns": "Temel ölçüme göre ölçülen bir run'ın en az bir kez yeniden sorulması gerekir ve bu kurulumda hiç ayarlanmamış.",
+      "evidence_too_large": "Önerinin kanıtları, testini güvenle yalıtmak için çok büyük. Yeni bir öneri isteyin.",
+      "budget": "Bu adım bitmeden budget tükendi.",
+      "not_found": "Bu adımın ihtiyaç duyduğu bir şey artık yok ya da artık görünmüyor.",
+      "not_allowed": "Bunu başlatan kişinin artık bu adımı yapma izni yok.",
+      "changed": "Bu adımın okuduğu bir şey, adım çalışırken değişti. Yeniden deneyin.",
+      "run_failed": "Bu adımın ihtiyaç duyduğu bir run başarısız oldu ya da model sağlayıcısı yanıt vermedi.",
+      "refused": "Bu adım reddedildi.",
+      "failed": "Bu adım sunucuda başarısız oldu."
+    },
+    "session": {
+      "too_few_held_out": "{missing, plural, one {Bir değişimi ölçmek için # ayrılmış test sorusu daha ekleyin.} other {Bir değişimi ölçmek için # ayrılmış test sorusu daha ekleyin.}}",
+      "no_evidence": "Henüz puanlanmış sohbet run'ı veya eğitim sorularında başarısızlık yok.",
+      "search_too_few_training": "{minimum, plural, one {Bir arama bu deneme için en az # eğitim sorusuna ihtiyaç duyar.} other {Bir arama bu deneme için en az # eğitim sorusuna ihtiyaç duyar.}}"
+    },
+    "request": {
+      "no_runs_view": "Bunu başlatan kişi artık run'ları okuyamaz.",
+      "evidence_erased": "Yardımcı çalışırken bir kanıt kaynağı silindi. Güncel kanıtlarla yeniden başlayın.",
+      "no_edit_agent": "Bunu başlatan kişi artık agent'ı düzenleyemez.",
+      "agent_gone": "Agent artık yok.",
+      "no_published_version": "Agent'ın karşılaştırılacak yayınlanmış bir sürümü yok.",
+      "skill_gone": "Skill artık yok.",
+      "no_edit_skill": "Bunu başlatan kişi artık skill'i düzenleyemez.",
+      "session_moved_on": "İyileştirme oturumu ilerledi.",
+      "conflicts_unanswered": "Yardımcı her çakışmayı yanıtlamadı; bunları Değişiklikler adımında çözün.",
+      "session_stopped": "İyileştirme oturumu durdu.",
+      "context_gone": "Bağlam dosyası artık yok.",
+      "no_edit_context": "Bunu başlatan kişi artık bağlam dosyasını düzenleyemez.",
+      "unknown_skill_use": "Bu aralıktaki hiçbir run'ın skill'i kullandığı bilinmiyor. {runs, plural, one {Olumsuz puanlanan veya başarısız # run, kullanımlar kaydedilmeden öncesine ait, bu yüzden skill'i kullanıp kullanmadığı bilinmiyor.} other {Olumsuz puanlanan veya başarısız # run, kullanımlar kaydedilmeden öncesine ait, bu yüzden skill'i kullanıp kullanmadıkları bilinmiyor.}}",
+      "no_evidence": "Henüz öğrenilecek bir şey yok: bu aralıktaki hiçbir run puanlanmadı veya başarısız olmadı. Aralığı genişletin ya da birkaç yanıt puanlandığında geri gelin.",
+      "key_revoked": "Bunu başlatan API anahtarı iptal edildi veya artık yok, bu yüzden durduruldu.",
+      "not_a_member": "Bunu başlatan kişi artık üye değil.",
+      "unexpected": "Yardımcı beklenmedik şekilde durdu. Yeniden deneyin.",
+      "stalled": "Yardımcı bitirmeden durdu. Yeniden deneyin.",
+      "withdrawn": "İstek başlamadan iptal edildi. Yeniden deneyin."
+    }
   }
 }
