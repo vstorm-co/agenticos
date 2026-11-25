@@ -18637,6 +18637,7 @@
       "loading": "Lezen wat er misging…",
       "summary": "{count, plural, =0 {Geen probleem met de skill gevonden} =1 {1 probleem met de skill} other {# problemen met de skill}}{elsewhere, plural, =0 {} other {, # antwoorden waarvan het probleem elders ligt}}{fine, plural, =0 {} other {, # die in orde waren}}.",
       "usageUnknown": "{count, plural, =1 {1 antwoord dateert van voordat het laden van skills werd vastgelegd en wordt niet meegeteld.} other {# antwoorden dateren van voordat het laden van skills werd vastgelegd en worden niet meegeteld.}}",
+      "seedWithheld": "{count, plural, =1 {1 probleem uit de sessie van de agent is weggelaten: het citeert een antwoord op een vraag die de controle van deze skill beoordeelt.} other {# problemen uit de sessie van de agent zijn weggelaten: ze citeren antwoorden op vragen die de controle van deze skill beoordeelt.}}",
       "agent": "{name} ({runs})",
       "occursIn": "In {runs, plural, =1 {1 antwoord} other {# antwoorden}}, bij {agents}{hidden, plural, =0 {} =1 { en 1 agent die je niet kunt zien} other { en # agents die je niet kunt zien}}.",
       "hiddenExamples": "{count, plural, =1 {+1 verborgen voorbeeld} other {+# verborgen voorbeelden}}"

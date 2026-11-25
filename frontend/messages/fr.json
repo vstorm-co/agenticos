@@ -18065,6 +18065,7 @@
       "loading": "Lecture de ce qui n’a pas fonctionné…",
       "summary": "{count, plural, =0 {Aucun problème trouvé avec le skill} =1 {1 problème avec le skill} other {# problèmes avec le skill}}{elsewhere, plural, =0 {} other {, # réponses dont le problème vient d’ailleurs}}{fine, plural, =0 {} other {, # qui étaient correctes}}.",
       "usageUnknown": "{count, plural, =1 {1 réponse date d’avant l’enregistrement des chargements de skill et n’est pas comptée.} other {# réponses datent d’avant l’enregistrement des chargements de skill et ne sont pas comptées.}}",
+      "seedWithheld": "{count, plural, =1 {1 problème transmis par la session de l’agent est écarté : il cite une réponse à une question que la vérification de ce skill note.} other {# problèmes transmis par la session de l’agent sont écartés : ils citent des réponses à des questions que la vérification de ce skill note.}}",
       "agent": "{name} ({runs})",
       "occursIn": "Dans {runs, plural, =1 {1 réponse} other {# réponses}}, chez {agents}{hidden, plural, =0 {} =1 { et 1 agent que vous ne voyez pas} other { et # agents que vous ne voyez pas}}.",
       "hiddenExamples": "{count, plural, =1 {+1 exemple masqué} other {+# exemples masqués}}"
