@@ -1230,10 +1230,16 @@ class SkillCheckService:
             )
 
     async def sweep(self, *, limit: int = 50) -> int:
-        """Queue one advance per running check, so one that fails rolls back alone."""
+        """Queue one advance per running check that can move, so one that fails rolls back
+        alone; a check waiting on runs still going leaves its place to one that can."""
         from app.worker import jobs
 
-        found = await skill_check_repo.running(self.db, limit=limit)
+        found = await skill_check_repo.needing_advance(
+            self.db,
+            settled=[status.value for status in _SETTLED_RUNS],
+            stale_before=datetime.now(UTC) - STALE_AFTER,
+            limit=limit,
+        )
         for organization_id, check_id in found:
             await enqueue(
                 self.db,
