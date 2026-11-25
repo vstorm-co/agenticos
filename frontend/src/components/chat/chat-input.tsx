@@ -1113,8 +1113,11 @@ export function ChatInput({
               </span>
             </Button>
           )}
+          {/* Give Stop a separate DOM identity in both layouts. If a turn ends
+              between pointer-down and pointer-up, that click must not submit. */}
           {minimal ? (
             <Button
+              key={primary === "stop" ? "stop" : "primary"}
               type={primary === "send" ? "submit" : "button"}
               variant="ghost"
               size="icon"
@@ -1172,6 +1175,7 @@ export function ChatInput({
             <>
               {canStop && onStop ? (
                 <Button
+                  key="stop"
                   type="button"
                   size="icon"
                   onClick={onStop}

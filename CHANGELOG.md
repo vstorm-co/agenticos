@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- Keep unsent chat drafts in the composer when the response finishes mid-click on Stop.
+
 ## [1.93.0] - 2026-11-24
 
 ### Added
