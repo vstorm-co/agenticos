@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { ConfirmDialog } from "./confirm-dialog";
@@ -167,5 +167,41 @@ describe("focus after a dialog opened from state closes", () => {
     await user.keyboard("{Escape}");
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(item).not.toHaveFocus();
+  });
+
+  it("leaves focus on the field a dialog's own action moved it to", async () => {
+    const user = userEvent.setup();
+    function MovesFocus() {
+      const [open, setOpen] = useState(false);
+      const [used, setUsed] = useState(false);
+      const notes = useRef<HTMLTextAreaElement>(null);
+      useEffect(() => {
+        if (used) notes.current?.focus();
+      }, [used]);
+      return (
+        <>
+          <button onClick={() => setOpen(true)}>Library template</button>
+          <textarea ref={notes} aria-label="Notes" />
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogContent>
+              <DialogTitle>Replace the notes?</DialogTitle>
+              <button
+                onClick={() => {
+                  setUsed(true);
+                  setOpen(false);
+                }}
+              >
+                Use template
+              </button>
+            </DialogContent>
+          </Dialog>
+        </>
+      );
+    }
+    render(<MovesFocus />);
+    await user.click(screen.getByRole("button", { name: "Library template" }));
+    await user.click(screen.getByRole("button", { name: "Use template" }));
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    expect(screen.getByRole("textbox", { name: "Notes" })).toHaveFocus();
   });
 });
