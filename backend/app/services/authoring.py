@@ -1497,7 +1497,7 @@ class AuthoringService:
         return moved
 
     async def dismiss_all(self, ctx: AuthContext, agent_id: UUID) -> AgentAuthoringRead:
-        """Dismiss every pending hunk of the open batch."""
+        """Dismiss every pending hunk of the open batch, each audited as one dismissal is."""
         agent = await self._editable(ctx, agent_id)
         batch = await authoring_repo.get_open_batch(
             self.db, organization_id=ctx.organization_id, agent_id=agent.id, lock=True
@@ -1514,6 +1514,15 @@ class AuthoringService:
                         expected=HunkStatus.PENDING,
                         status=HunkStatus.DISMISSED,
                         decided_by=ctx.user_id,
+                    )
+                    await record_audit(
+                        self.db,
+                        actor_user_id=ctx.subject_id,
+                        organization_id=ctx.organization_id,
+                        action="authoring.suggestion_dismiss",
+                        target_type="agent",
+                        target_id=str(agent.id),
+                        details={"hunk_id": str(hunk.id), "kind": hunk.kind},
                     )
         return await self._read(ctx, agent)
 
@@ -1932,10 +1941,8 @@ class AuthoringService:
             baseline_spec=checked.baseline_spec,
             proposal_check=checked.proposal,
         )
-        await authoring_repo.update_batch(
-            self.db,
-            batch=batch,
-            values={"check_eval_run_ids": [*batch.check_eval_run_ids, started.id]},
+        await authoring_repo.append_check_run(
+            self.db, organization_id=ctx.organization_id, batch=batch, run_id=started.id
         )
         return started
 

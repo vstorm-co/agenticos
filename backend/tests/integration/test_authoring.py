@@ -41,6 +41,7 @@ from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_run import AgentRun, RunSurface
 from app.db.models.api_key import ApiKey
+from app.db.models.audit_log import AppAdminAuditLog
 from app.db.models.authoring import AuthoringRequest, SpecProposalBatch
 from app.db.models.conversation import Conversation, Message
 from app.db.models.dataset import Dataset, DatasetCase
@@ -1244,6 +1245,17 @@ class TestEdges:
 
         assert read.batch is not None
         assert [hunk.status for hunk in read.batch.hunks] == ["accepted", "dismissed"]
+        dismissed = read.batch.hunks[1]
+        entries = list(
+            await db.scalars(
+                select(AppAdminAuditLog).where(
+                    AppAdminAuditLog.action == "authoring.suggestion_dismiss"
+                )
+            )
+        )
+        assert [(entry.target_id, (entry.details or {}).get("hunk_id")) for entry in entries] == [
+            (str(agent.id), str(dismissed.id))
+        ]
 
     async def test_changes_that_cannot_land_are_not_proposed(self, db):
         ctx, agent, _ = await _setup(db)
