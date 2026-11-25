@@ -27,7 +27,7 @@ It does three things:
 
 In Agent Builder, **Build** contains the configuration and **Test** opens the interactive draft panel. Open **Evals** to compare a draft with a published version on a dataset or start **Improve**. The estimate appears before execution. The legacy evidence-based verify endpoint remains available for API compatibility.
 
-**Improve** opens the improvement session. The selected dataset's **Settings** owns the improvement model and instructions; helpers have code defaults and no editable agent-catalog page. The context file improvement dialog chooses a model directly. Runs retain the existing budget checks and Activity records.
+**Improve** opens the improvement session. The selected dataset's **Settings** owns the improvement model and any dataset-specific guidance, added below the platform's rules for the helper and never in place of them; helpers have code defaults and no editable agent-catalog page. The context file improvement dialog chooses a model directly. Runs retain the existing budget checks and Activity records.
 
 ## What it reads { #what-it-reads }
 
