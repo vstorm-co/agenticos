@@ -302,6 +302,103 @@ async def test_a_kept_draft_published_elsewhere_names_its_version_when_it_was_me
     assert settled.published_version == (None if edited else version.version)
 
 
+async def test_a_kept_draft_stays_accepted_when_a_newer_request_replaces_its_batch(db):
+    """An Improve from the Builder replaces the open batch; the kept changes are still in
+    the draft, so the session stays accepted, and a later publish is recorded on it."""
+    from app.services.agent_registry import AgentRegistryService
+    from tests.integration.test_authoring import Improver, _improve
+
+    ctx, agent, ready = await _ready_proposal(db)
+    service = ImprovementPipelineService(db)
+    await service.finish(ctx, agent.id, ready.id, ImprovementFinish(confirmed=True))
+    kept = await service.read(ctx, agent.id, ready.id)
+    [attempt] = kept.iterations
+    assert attempt.batch_id is not None
+
+    await _improve(db, ctx, agent, Improver(db))
+    await service.advance(ready.id, ctx.organization_id)
+
+    replaced = await authoring_repo.get_batch(
+        db, attempt.batch_id, organization_id=ctx.organization_id
+    )
+    assert replaced is not None and replaced.status == BatchStatus.SUPERSEDED
+    assert (await service.read(ctx, agent.id, ready.id)).status == "accepted"
+    assert [status for status, _ in await _ends(db, ready.id)] == ["ready"]
+
+    version = await AgentRegistryService(db).publish(ctx, agent.id)
+    await service.advance(ready.id, ctx.organization_id)
+
+    settled = await service.read(ctx, agent.id, ready.id)
+    assert settled.status == "published"
+    assert settled.published_version == version.version
+
+
+async def test_undoing_a_kept_draft_while_another_session_is_open_waits_for_it(db):
+    """Moving the kept draft back to ready would make two open sessions on one agent."""
+    from decimal import Decimal
+
+    from app.schemas.authoring import HunkDecision
+    from app.schemas.improvement import ImprovementStart
+    from app.services.authoring import AuthoringService
+    from tests.integration.test_eval_suites import _dataset
+
+    ctx, agent, ready = await _ready_proposal(db)
+    service = ImprovementPipelineService(db)
+    await service.finish(ctx, agent.id, ready.id, ImprovementFinish(confirmed=True))
+    batch = await authoring_repo.get_open_batch(
+        db, organization_id=ctx.organization_id, agent_id=agent.id
+    )
+    assert batch is not None
+    hunk = next(
+        hunk
+        for hunk in await authoring_repo.list_hunks(
+            db, organization_id=ctx.organization_id, batch_id=batch.id
+        )
+        if hunk.status == "accepted"
+    )
+    dataset = await _dataset(db, ctx, cases=5)
+    other = await service.start(
+        ctx,
+        agent.id,
+        ImprovementStart(dataset_id=dataset.id, max_iterations=1, budget_usd=Decimal("5")),
+    )
+    await AuthoringService(db).decide(ctx, agent.id, hunk.id, HunkDecision(action="undo"))
+
+    await service.advance(ready.id, ctx.organization_id)
+
+    assert (await service.read(ctx, agent.id, ready.id)).status == "accepted"
+    assert (await service.read(ctx, agent.id, other.id)).status == other.status
+
+    await service.cancel(ctx, agent.id, other.id)
+    await service.advance(ready.id, ctx.organization_id)
+    assert (await service.read(ctx, agent.id, ready.id)).status == "ready"
+
+
+async def test_a_kept_draft_whose_changes_were_undone_and_dismissed_is_rejected(db):
+    """Undo and dismiss before the next sweep is still the person's own rejection."""
+    from app.schemas.authoring import HunkDecision
+    from app.services.authoring import AuthoringService
+
+    ctx, agent, ready = await _ready_proposal(db)
+    service = ImprovementPipelineService(db)
+    await service.finish(ctx, agent.id, ready.id, ImprovementFinish(confirmed=True))
+    batch = await authoring_repo.get_open_batch(
+        db, organization_id=ctx.organization_id, agent_id=agent.id
+    )
+    assert batch is not None
+    authoring = AuthoringService(db)
+    for hunk in await authoring_repo.list_hunks(
+        db, organization_id=ctx.organization_id, batch_id=batch.id
+    ):
+        if hunk.status == "accepted":
+            await authoring.decide(ctx, agent.id, hunk.id, HunkDecision(action="undo"))
+        await authoring.decide(ctx, agent.id, hunk.id, HunkDecision(action="dismiss"))
+
+    await service.advance(ready.id, ctx.organization_id)
+
+    assert (await service.read(ctx, agent.id, ready.id)).status == "rejected"
+
+
 @pytest.mark.security
 async def test_only_the_requester_spends_the_session_on_attribution_or_a_knowledge_check(db):
     from decimal import Decimal

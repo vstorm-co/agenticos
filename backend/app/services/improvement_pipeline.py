@@ -2408,7 +2408,12 @@ class ImprovementPipelineService:
             await self._move(run, rules.Transition(Status.STALE, stage, StopReason.STALE))
 
     async def _settle_decisions(self, run: ImprovementRun) -> None:
-        """Observe human decisions without acquiring an agent lock after the parent lock."""
+        """Observe human decisions without acquiring an agent lock after the parent lock.
+
+        A session kept as a draft moves only when a person decides again: a publish of
+        what it measured, an undo that puts a change back in front of them - while no
+        other session is open on the agent - or dismissing every change it kept.
+        """
         rounds = await improvement_repo.list_iterations(
             self.db, organization_id=run.organization_id, run_id=run.id
         )
@@ -2426,7 +2431,8 @@ class ImprovementPipelineService:
             # Exposing another of its own rounds is not a person's decision.
             if current is not None and current.improvement_run_id == run.id:
                 return
-        if batch is None or batch.status == BatchStatus.SUPERSEDED:
+        kept = run.status == Status.ACCEPTED
+        if batch is None or (batch.status == BatchStatus.SUPERSEDED and not kept):
             status = Status.REJECTED
         else:
             hunks = await authoring_repo.list_hunks(
@@ -2439,7 +2445,14 @@ class ImprovementPipelineService:
             ]
             accepted = any(h.status == HunkStatus.ACCEPTED for h in hunks)
             pending = any(h.status == HunkStatus.PENDING for h in hunks)
-            if batch.status == BatchStatus.PUBLISHED:
+            if batch.status == BatchStatus.SUPERSEDED:
+                # A kept draft's changes stay in the draft whatever replaced its batch:
+                # only a publish of what it measured still moves it.
+                published = await self._measured_version(run, selected, hunks)
+                if not published:
+                    return
+                status = Status.PUBLISHED
+            elif batch.status == BatchStatus.PUBLISHED:
                 status = Status.PUBLISHED if accepted else Status.REJECTED
                 if accepted:
                     published = await self._measured_version(run, selected, hunks)
@@ -2447,6 +2460,14 @@ class ImprovementPipelineService:
                 status = Status.READY
             else:
                 status = Status.ACCEPTED if accepted else Status.REJECTED
+        if (
+            kept
+            and status == Status.READY
+            and await improvement_repo.get_open(
+                self.db, organization_id=run.organization_id, agent_id=run.agent_id
+            )
+        ):
+            return
         if run.status != status:
             self._allow(run, status)
             await improvement_repo.update_run(
@@ -2466,7 +2487,8 @@ class ImprovementPipelineService:
         version = await agent_repo.newest_version(
             self.db, agent_id=run.agent_id, organization_id=run.organization_id
         )
-        assert version is not None, "a batch is closed as published by a publish"
+        if version is None:
+            return {}
         spec, skills = authoring_hunks.as_measured(AgentSpec.model_validate(version.spec), hunks)
         if spec_hash(spec, skills) != selected.candidate_spec_hash:
             return {}
