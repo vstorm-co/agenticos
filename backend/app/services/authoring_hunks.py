@@ -35,6 +35,8 @@ from uuid import NAMESPACE_URL, UUID, uuid5
 from app.agents.capabilities import ToolOverride
 from app.agents.capabilities.skills import SkillBody
 from app.agents.spec import AgentSpec
+from app.core.exceptions import BadRequestError
+from app.core.redaction import holds_credential
 from app.db.models.authoring import HunkKind, HunkStatus, SpecProposalHunk
 from app.schemas.authoring import InstructionChange, Rejection
 from app.schemas.skill import SkillCreate
@@ -403,6 +405,34 @@ def applies(spec: AgentSpec, hunk: SpecProposalHunk) -> bool:
     if hunk.status == HunkStatus.PENDING.value:
         return apply(spec, hunk) is not None
     return False
+
+
+QUOTES_CREDENTIAL = "This change quotes a credential; reject it or edit the text"
+
+
+def hunk_quotes_credential(hunk: SpecProposalHunk) -> bool:
+    """Whether anything the hunk would write quotes a credential: its text as a person left
+    it, a tool's new name or description, a field's value, or a new skill."""
+    return holds_credential(
+        [
+            hunk.edited_text or hunk.new_text,
+            hunk.new_name,
+            hunk.new_description,
+            hunk.new_value,
+        ]
+    )
+
+
+def refuse_quoted_credentials(hunks: Sequence[SpecProposalHunk]) -> None:
+    """Refuse to measure or apply changes when one of them quotes a credential: a check would
+    run, keep and send its spec to a model with the credential in it.
+
+    Raises:
+        BadRequestError: Some of `hunks` quote a credential; `hunk_ids` names them.
+    """
+    quoting = [hunk.id for hunk in hunks if hunk_quotes_credential(hunk)]
+    if quoting:
+        raise BadRequestError(message=QUOTES_CREDENTIAL, details={"hunk_ids": quoting})
 
 
 def projection(

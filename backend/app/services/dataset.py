@@ -20,7 +20,6 @@ from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import JsonValue, ValidationError
-from pydantic_ai_harness.guardrails.detectors import redact_secrets
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -40,6 +39,7 @@ from app.core.exceptions import (
 from app.core.exceptions import ValidationError as InvalidCaseError
 from app.core.field_errors import field_problems, refused_field
 from app.core.permissions import AuthContext, Perm, Scope
+from app.core.redaction import redact_secrets
 from app.db.locks import LockScope, hold_subject
 from app.db.models.case_generation import CaseOrigin
 from app.db.models.conversation import Message
@@ -200,15 +200,16 @@ def redact_credentials(text: str | None) -> tuple[str | None, int]:
     return verdict.replacement, verdict.replacement.count("[redacted:")
 
 
-def _redact_json(value: JsonValue) -> tuple[JsonValue, int]:
+def redact_json(value: JsonValue) -> tuple[JsonValue, int]:
+    """Every string in `value` redacted as :func:`redact_credentials` redacts text, and how many were."""
     if isinstance(value, str):
         cleaned, found = redact_credentials(value)
         return cleaned, found
     if isinstance(value, list):
-        items = [_redact_json(item) for item in value]
+        items = [redact_json(item) for item in value]
         return [item for item, _ in items], sum(found for _, found in items)
     if isinstance(value, dict):
-        entries = {key: _redact_json(item) for key, item in value.items()}
+        entries = {key: redact_json(item) for key, item in value.items()}
         return {key: item for key, (item, _) in entries.items()}, sum(
             found for _, found in entries.values()
         )
@@ -232,13 +233,13 @@ def redacted_case(content: DatasetCaseContent) -> tuple[dict[str, Any], int]:
         turn["content"], count = redact_credentials(turn["content"])
         found += count
     for call in data["expected_tool_calls"]:
-        call["args"], count = _redact_json(call["args"])
+        call["args"], count = redact_json(call["args"])
         found += count
     for check in data["checks"]:
         for key in [key for key in check if key != "type"]:
-            check[key], count = _redact_json(check[key])
+            check[key], count = redact_json(check[key])
             found += count
-    data["tags"], count = _redact_json(data["tags"])
+    data["tags"], count = redact_json(data["tags"])
     found += count
     return data, found
 

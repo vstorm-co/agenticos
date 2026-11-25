@@ -85,7 +85,6 @@ from pydantic_ai_harness.guardrails.detectors import (
     for_text,
     for_tool_result_text,
     redact_personal_data,
-    redact_secrets,
 )
 
 from app.agents.capabilities.budget import RefusedAfterAnswer
@@ -97,6 +96,7 @@ from app.core.phone import (
     phone_text_error,
     redact_phone_numbers,
 )
+from app.core.redaction import redact_secrets
 
 logger = logging.getLogger(__name__)
 

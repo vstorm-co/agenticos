@@ -1421,6 +1421,26 @@ class TestCheckAndResult:
         assert read.check is not None and read.check.status == "running"
         assert read.outcomes == []
 
+    @pytest.mark.security
+    async def test_a_change_quoting_a_credential_is_shown_redacted_and_never_checked(
+        self, db, evidence, monkeypatch
+    ):
+        fake = _checked(db, monkeypatch)
+        ctx = await _owner(db)
+        leaked = "postgres://app:Kanar3kSkillEdit@db/app"
+        run = await _at_changes(
+            db, ctx, [_body_edit("Refunds take 14 days.", f"Refunds take 30 days. Use {leaked}.")]
+        )
+        service = SkillImprovementService(db)
+
+        [change] = await service.changes(ctx, run.skill_id, run.id)
+        with pytest.raises(BadRequestError, match="quotes a credential"):
+            await _check_now(db, ctx, run)
+
+        assert change.contains_credential
+        assert "Kanar3kSkillEdit" not in change.new_text
+        assert [call for call in fake.calls if call[0] == "start"] == []
+
     async def test_a_limit_raised_at_the_quote_is_the_limit_the_session_keeps(
         self, db, evidence, monkeypatch
     ):
@@ -2171,6 +2191,48 @@ class TestReviewFixes:
         assert [item.quote for item in change.evidence] == ["Seen quote"]
         assert change.evidence_hidden == 1
         assert (len(everything.evidence), everything.evidence_hidden) == (2, 0)
+
+    @pytest.mark.security
+    async def test_a_kept_problem_and_change_are_read_with_their_credentials_redacted(
+        self, db, evidence
+    ):
+        ctx = await _owner(db)
+        skill = await _skill_on_main(db, ctx)
+        clerk = (await SkillImprovementService(db).skill_agents.line_agents(skill, None))[0].agent
+        rated = await _rated(db, ctx, clerk)
+        run = await _at_understand(db, ctx, skill)
+        assert run.analysis_request_id is not None
+        leaked = "postgres://app:Kanar3kSkill@db/app"
+        quoted = [{"run_id": str(rated.id), "quote": f"It broke on {leaked}"}]
+        await _finish(
+            db,
+            run.analysis_request_id,
+            {
+                "problems": [
+                    {
+                        "title": f"Fails on {leaked}",
+                        "summary": f"The skill sends {leaked}",
+                        "cause": "skill",
+                        "run_ids": [str(rated.id)],
+                        "evidence": quoted,
+                    }
+                ]
+            },
+        )
+        await _propose(
+            db,
+            ctx,
+            run,
+            [{**_body_edit("Refunds take 14 days.", "Refunds take 30 days."), "evidence": quoted}],
+        )
+        service = SkillImprovementService(db)
+
+        [problem] = (await service.problems(ctx, skill.id, run.id)).problems
+        [change] = await service.changes(ctx, skill.id, run.id)
+
+        read = problem.model_dump_json() + change.model_dump_json()
+        assert "Kanar3kSkill" not in read
+        assert read.count("[redacted:url_credentials]") == 4
 
     async def test_a_failed_session_expires_and_frees_its_line(self, db, evidence):
         ctx = await _owner(db)

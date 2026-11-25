@@ -38,7 +38,6 @@ from uuid import UUID
 import numpy as np
 import numpy.typing as npt
 from pydantic_ai.usage import RunUsage
-from pydantic_ai_harness.guardrails.detectors import redact_secrets
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities import get as get_capability
@@ -60,6 +59,7 @@ from app.core.exceptions import (
 from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext, Perm, Scope
 from app.core.phone import phone_text_error
+from app.core.redaction import redact_secrets
 from app.db.locks import LockScope, hold_subject
 from app.db.models.background_job import BackgroundJob
 from app.db.models.context import ContextFile
@@ -512,15 +512,17 @@ def _classification_prompt(
             + (f"\n\n{files}" if files else "")
         )
     for number, candidate in enumerate(candidates, start=1):
-        comments = "\n".join(f"- {_clip(comment, 600)}" for comment in candidate.comments)
+        comments = "\n".join(
+            f"- {_clip(_redacted(comment), 600)}" for comment in candidate.comments
+        )
         agent_number = (
             agent_numbers.get(candidate.agent_version_id) if candidate.agent_version_id else None
         )
         parts.append(
             f"## Answer {number}\n"
             + (f"Agent: {agent_number}\n" if agent_number else "")
-            + f"Asked: {_clip(candidate.question, 600)}\n"
-            f"Answered: {_clip(candidate.answer, 1_200)}\n"
+            + f"Asked: {_clip(candidate.question and _redacted(candidate.question), 600)}\n"
+            f"Answered: {_clip(_redacted(candidate.answer), 1_200)}\n"
             f"Comments of readers who rated it down:\n{comments or '(none)'}"
         )
     return "\n\n".join(parts)

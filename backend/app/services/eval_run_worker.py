@@ -31,7 +31,6 @@ from uuid import UUID
 from pydantic import JsonValue, TypeAdapter
 from pydantic_ai.exceptions import ModelAPIError, ModelHTTPError
 from pydantic_ai.messages import ToolCallPart
-from pydantic_ai_harness.guardrails.detectors import redact_secrets
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities.context import ContextBody
@@ -47,6 +46,7 @@ from app.core.exceptions import (
     NothingToScoreError,
 )
 from app.core.permissions import AuthContext, Perm
+from app.core.redaction import redact_secrets
 from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
 from app.db.models.case_score import CaseScore
 from app.db.models.dataset import DatasetCase

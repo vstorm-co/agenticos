@@ -989,3 +989,18 @@ def test_legacy_classifier_labels_pass_transport_validation_before_normalization
     answer = {"answers": [{"number": 1, "signal": legacy}]}
     Draft202012Validator(output_schema(ClassificationOutput)).validate(answer)
     assert read_output(answer, ClassificationOutput).answers[0].signal == current
+
+
+def test_the_classifier_is_shown_no_credential_a_question_answer_or_comment_held() -> None:
+    from app.services.knowledge_gaps import _classification_prompt
+
+    candidate = _candidate(missed=True)._replace(
+        question="Use postgres://app:Kanar3kAsk@db/app",
+        answer="Call https://x.test/?token=Kanar3kSaid1 now",
+        comments=["My key is ghp_" + "c" * 36],
+    )
+
+    prompt = _classification_prompt("Handbook", [candidate])
+
+    assert "Kanar3k" not in prompt and "ghp_" not in prompt
+    assert prompt.count("[redacted:") == 3
