@@ -1123,6 +1123,8 @@ can go on with the run. Every run has its own, made from its id under the
 deployment's secret and shown to nobody else: holding it is what lets a caller
 resume the run, so it is sent only where the answer should come from.
 
+Retrying starts a different run. A Resume link step, including one called from Python, generates a link for the new run. This does not redirect an old link or resend a message that already delivered it.
+
 ::: app.workflows.nodes.flow_resume_link._handler.ResumeLinkOutput
 
 ## Error handling { #error-handling }
@@ -1349,6 +1351,8 @@ For example, bind **Compare texts** as `compare`. The expression `compare(a=args
 For **Call an MCP tool**, select the connection and tool once. If the function name is `lookup`, call `lookup(arguments={"hostname": "leaf-01"})` and read its `structured` or `text` field. An action failure follows the Python step's workflow error policy, not a Python `except` clause. Use a normal result, such as an approval decision, for branches you expect.
 
 Calls run in order, up to 100 per script. The interpreter saves its place before each call (up to 512 KiB of interpreter state). An approval belongs to that call, not the entire script. A write whose outcome is unknown follows the action's own recovery rules. Retrying a failed run reuses completed calls with matching arguments; it does not silently repeat an unconfirmed write. Triggers, graph routing and both Finish steps stay on the canvas.
+
+A failed write can run in a new retry if every prior attempt recorded that it stopped before sending. A timeout after sending, or an older attempt without that evidence, is not safe to repeat automatically.
 
 `code.python.simple` runs a short script in the Monty sandbox, which has no
 filesystem, no network and a small standard library. The script reads the bound

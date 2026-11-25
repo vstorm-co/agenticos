@@ -696,11 +696,13 @@ class _ResolvedCall:
         node: NodeInstance,
         definition: NodeDefinition,
         error: WorkflowError,
+        *,
+        effect_not_started: bool = False,
     ) -> _ResolvedCall:
         """Record and route a failure already known without invoking the action."""
 
         async def hand_on_error(_config: BaseModel | None, _input: BaseModel | None) -> NodeResult:
-            return Failed(error=error)
+            return Failed(error=error, effect_not_started=effect_not_started)
 
         return cls(graph, node, definition, hand_on_error, None, None, None, stands_in="failure")
 
@@ -756,6 +758,7 @@ async def _script_action_call(
                 message="The script call arguments do not match the bound action",
                 details={"action": alias},
             ),
+            effect_not_started=True,
         )
     # workflow.run owns recovery of its original child. A GET is read-only;
     # a keyed write is not: its deduplication key changes in a new run.
@@ -763,7 +766,9 @@ async def _script_action_call(
     unknown_write = (
         definition.effect_kind == "write" and definition.id != "workflow.run" and not read_only_http
     )
-    known = await script_calls.retry_output(db, run, child, writes=unknown_write)
+    known = await script_calls.retry_output(
+        db, run, child, writes=unknown_write, reuse_result=definition.id != "flow.resume_link"
+    )
     return _ResolvedCall(
         graph,
         node,
@@ -822,8 +827,9 @@ async def _resolve_call(
     known: dict[str, Any] | None = None
     stands_in: StandIn | None = None
     if definition.kind != "control":
-        known = await _reused_output(db, run=run, node_run=node_run)
-        stands_in = "reused"
+        if run.retry_of_run_id is not None and not script_calls.produces_resume_link(node):
+            known = await _reused_output(db, run=run, node_run=node_run)
+            stands_in = "reused"
         if known is None and run.mode == WorkflowRunMode.TEST.value:
             known = node.pinned_output
             stands_in = "pinned"
@@ -1311,6 +1317,7 @@ async def _end_node(
     event before whatever the caller does to the run, so a client rebuilding
     node state from the stream sees every node end.
     """
+    await script_calls.discard_cursor(db, run, node_run)
     await workflow_run_repo.update_node_run(
         db,
         node_run=node_run,
@@ -1832,6 +1839,47 @@ async def _bounded_inline_outcome(
     ), marker
 
 
+async def _reserve_settled_outcome(
+    db: AsyncSession,
+    run: WorkflowRun,
+    node_run: NodeRun,
+    begun: BegunAttempt,
+    outcome: HandlerOutcome,
+    serialized: dict[str, JsonValue],
+    *,
+    ended: bool = False,
+) -> tuple[HandlerOutcome, dict[str, JsonValue]]:
+    """Replace, rather than temporarily double-charge, a consumed interpreter cursor."""
+    result = outcome.result
+    owner = None
+    if begun.definition.id == "code.python.actions" and node_run.resume_payload is not None:
+        if ended or isinstance(result, (Completed, Failed, ScriptActionRequest)):
+            owner = node_run
+    elif (
+        not ended and isinstance(result, Failed) and script_calls.child_alias(node_run) is not None
+    ):
+        # A failed child hands an error to its parent, not another value for
+        # the VM. Its final failure releases the cursor before retaining either.
+        owner = await script_calls.parent_of(db, run, node_run)
+    if owner is not None:
+        retry_pending = False
+        if (
+            not ended
+            and isinstance(result, Failed)
+            and result.error.retryable
+            and begun.stands_in != "failure"
+            and begun.retry_guarantee != "none"
+        ):
+            # The current failure counts toward the ceiling at settlement,
+            # but its attempt has not yet been recorded as failed.
+            policy = _retry_policy(await _graph_or_none(db, run), node_run)
+            prior = await workflow_run_repo.count_failed_attempts(db, node_run_id=node_run.id)
+            retry_pending = prior + 1 < _attempt_ceiling(policy)
+        if not retry_pending:
+            await script_calls.discard_cursor(db, run, owner, known_script=True)
+    return await _bounded_inline_outcome(db, run, outcome, serialized)
+
+
 async def settle(
     db: AsyncSession, *, begun: BegunAttempt, outcome: HandlerOutcome
 ) -> list[tuple[UUID, UUID]]:
@@ -1939,8 +1987,8 @@ async def _settle_loaded(
         WorkflowRunStatus(run.status).is_terminal
         or node_run.status == NodeRunStatus.CANCELLED.value
     ):
-        outcome, serialized_result = await _bounded_inline_outcome(
-            db, run, outcome, serialized_result
+        outcome, serialized_result = await _reserve_settled_outcome(
+            db, run, node_run, begun, outcome, serialized_result, ended=True
         )
         await _record_attempt(
             db, attempt=attempt, outcome=outcome, serialized_result=serialized_result, now=now
@@ -1986,7 +2034,9 @@ async def _settle_loaded(
         # booked on it by then.
         await _book_attempt_cost(db, attempt=attempt, outcome=cost_outcome)
         return []
-    outcome, serialized_result = await _bounded_inline_outcome(db, run, outcome, serialized_result)
+    outcome, serialized_result = await _reserve_settled_outcome(
+        db, run, node_run, begun, outcome, serialized_result
+    )
     result = outcome.result
     # Closed *before* dispatching to a `_settle_*` handler: `_settle_completed`
     # calls `_advance`, which decides the run is done by checking whether any
@@ -2377,7 +2427,8 @@ async def _settle_completed(
         await dispatch_queue.queue_dispatch(db, run=run, node_run_id=parent.id)
         return [(run.id, parent.id)]
     if definition.id == "code.python.actions" and node_run.resume_payload is not None:
-        await _replace_script_state(db, run, node_run, None)
+        # A late result chosen by an operator did not pass through ordinary settlement.
+        await script_calls.discard_cursor(db, run, node_run, known_script=True)
     graph = await _graph_or_none(db, run)
     # A step switched off, or one a retry run reuses, did nothing to log.
     if graph is not None and stands_in in (None, "pinned"):
@@ -2403,14 +2454,10 @@ async def _replace_script_state(
     db: AsyncSession,
     run: WorkflowRun,
     parent: NodeRun,
-    state: dict[str, JsonValue] | None,
+    state: dict[str, JsonValue],
 ) -> WorkflowError | None:
     """Account only the currently retained private cursor, not every previous VM snapshot."""
-    previous_size = (
-        json_byte_size(parent.resume_payload, limit=2**63 - 1) if parent.resume_payload else 0
-    )
-    size = json_byte_size(state, limit=2**63 - 1) if state else 0
-    delta = size - previous_size
+    delta = json_byte_size(state, limit=2**63 - 1) - script_calls.cursor_bytes(parent)
     if delta > 0:
         refusal = await _reserve_inline_result(db, run, delta)
         if refusal is not None:

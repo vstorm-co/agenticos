@@ -40,7 +40,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.permissions import AuthContext
 from app.core.pinned_http import PinnedAsyncClient
-from app.core.sanitize import UrlRefusedError
 from app.core.secret_kinds import HttpCredentialSecret
 from app.services.workflow_execution import context
 from app.workflows.contracts.definition import RetryGuarantee
@@ -69,6 +68,7 @@ from app.workflows.nodes._http import (
     private_allowlist_for,
     read_capped,
     response_output,
+    send_request,
     with_query,
 )
 
@@ -234,6 +234,7 @@ async def _fetch(
     secret: HttpCredentialSecret | None,
     auth_header_names: set[str],
     limit: int,
+    first_page: bool,
 ) -> _Page | Failed:
     """One request - its redirects followed, for a `GET` - read up to `limit` bytes."""
     for _hop in range(MAX_REDIRECTS + 1):
@@ -243,7 +244,9 @@ async def _fetch(
             headers=headers,
             content=content,
         )
-        response = await client.send(request, stream=True)
+        response = await send_request(client, request, first_request=first_page and _hop == 0)
+        if isinstance(response, Failed):
+            return response
         try:
             location = response.headers.get("location")
             if config.method == "GET" and response.status_code in REDIRECT_STATUSES and location:
@@ -319,7 +322,11 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
     if not isinstance(config, HttpRequestConfig):
         return failed("REQUEST_NOT_CONFIGURED", "This HTTP step has no request configured")
     if not is_http_url(config.url):
-        return failed("URL_REFUSED", "The URL must be an http or https URL with a host")
+        return failed(
+            "URL_REFUSED",
+            "The URL must be an http or https URL with a host",
+            effect_not_started=True,
+        )
     current = context.current()
     secret = await credential(config.auth, config.url)
     if isinstance(secret, Failed):
@@ -365,6 +372,7 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
                     secret=secret,
                     auth_header_names=auth_header_names,
                     limit=config.max_response_bytes - read,
+                    first_page=pages == 0,
                 )
                 if isinstance(page, Failed):
                     return page
@@ -388,11 +396,6 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
                     complete = False
                     break
                 url, number = following, number + 1
-    except UrlRefusedError as exc:
-        # Written in this repository and naming a host at most, never the URL.
-        return failed("URL_REFUSED", str(exc))
-    except httpx2.ConnectError, httpx2.ConnectTimeout:
-        return failed("HTTP_UNREACHABLE", "The server could not be reached", retryable=True)
     except httpx2.HTTPError:
         if safe_to_retry:
             return failed(

@@ -1,5 +1,5 @@
 ---
-source_sha: "b8db2c1cf551"
+source_sha: "5baecc227522"
 ---
 
 # Workflows { #workflows }
@@ -995,12 +995,9 @@ aller Workflows zusammen. Auf der Seite eines Laufs zeigt ein Klick auf einen
 Schritt dessen **Input** und **Output** aus diesem Lauf. Die Zeilen, die das
 [schnelle Log](#quick-log) eines Schritts geschrieben hat, stehen unter dem Schritt.
 
-**Retry from failed step**
-startet einen neuen Lauf derselben Version mit derselben Eingabe, in dem jeder
-erfolgreiche Schritt weitergibt, was er zuvor weitergegeben hat. So laufen nur der
-fehlgeschlagene Schritt und was er nicht erreicht hat, und ein Schreibzugriff
-geschieht nie zweimal. Eine Schleife läuft erneut und verwendet die erfolgreichen
-Schritte jedes Elements wieder. **Debug in editor** heftet an die Schritte des
+**Retry from failed step** startet einen neuen Lauf mit derselben Version und Eingabe. Er übernimmt die Ergebnisse abgeschlossener Schritte und der abgeschlossenen Aufrufe eines Python-Blocks, ohne deren Schreibvorgänge zu wiederholen. Schleifen laufen erneut und verwenden die erfolgreichen Schritte jedes Elements wieder. Ein Resume link wird neu erzeugt: Der Link des alten Laufs kann den neuen Lauf nicht fortsetzen.
+
+**Debug in editor** heftet an die Schritte des
 Entwurfs, was jeder Schritt außerhalb einer Schleife in diesem Lauf weitergegeben
 hat, sodass ein Testlauf dort beginnt, wo jener war. Über die API wiederholt `POST
 /api/v1/workflow-runs/{id}/retry`, und `GET /api/v1/workflow-runs` nimmt `status`,

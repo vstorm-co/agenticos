@@ -137,6 +137,49 @@ describe("useWorkflowTableDrift", () => {
       },
     });
   });
+  it("keeps Python get/query pins for author review when a returned field label changes", async () => {
+    const old = { ...column("owner"), label: "Owner" };
+    serve([old], [{ ...old, label: "Assignee" }, column("added")]);
+    seed(ref(null));
+    const graph = store.getState().graph!;
+    const first = ref(["owner"]);
+    const config = {
+      code: 'get_one(record_id=args["id"])["record"]["fields"]["Owner"]',
+      actions: {
+        get_one: { type: "table.record.get", config: { table: first } },
+        find: { type: "table.record.query", config: { table: ref(null) } },
+        exists: { type: "table.record.exists", config: { table: first } },
+      },
+    };
+    store.getState().seedGraph({
+      ...graph,
+      nodes: [{ ...graph.nodes[0]!, definition_id: "code.python.actions", config }],
+    });
+    renderHook(() => useWorkflowTableDrift(true), { wrapper });
+    await waitFor(() =>
+      expect(store.getState().tableDrift.map((item) => [item.field, item.requiresReview])).toEqual([
+        ["actions/get_one/config/table", undefined],
+        ["actions/find/config/table", undefined],
+      ]),
+    );
+    expect(store.getState().graph!.nodes[0]!.config.actions).toEqual({
+      ...config.actions,
+      exists: { type: "table.record.exists", config: { table: ref(["owner"], 2) } },
+    });
+    act(() =>
+      store
+        .getState()
+        .rebindTables(
+          store.getState().tableDrift.map(({ site, rebound }) => ({ site, ref: rebound })),
+        ),
+    );
+    await waitFor(() => expect(store.getState().tableDrift).toHaveLength(0));
+    expect(store.getState().graph!.nodes[0]!.config.actions).toMatchObject({
+      get_one: { config: { table: ref(["owner"], 2) } },
+      find: { config: { table: ref(null, 2) } },
+    });
+  });
+
   it.each([
     { nullable: true, default: null, auto: true },
     { nullable: false, default: "new", auto: true },

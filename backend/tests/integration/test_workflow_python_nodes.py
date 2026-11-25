@@ -24,6 +24,7 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
 from app.core.background import discard_deferred
+from app.core.config import settings
 from app.core.exceptions import BadRequestError
 from app.db.models.mcp_connection import McpConnection
 from app.db.models.virtual_table import VirtualTable
@@ -32,6 +33,7 @@ from app.db.models.workflow_approval import WorkflowApproval
 from app.db.models.workflow_file import WorkflowFile
 from app.db.models.workflow_run import (
     DispatchOutbox,
+    NodeAttempt,
     NodeRun,
     ResourceRef,
     WorkflowRun,
@@ -40,17 +42,31 @@ from app.db.models.workflow_run import (
 from app.repositories import workflow_run as workflow_run_repo
 from app.schemas.sandbox_connection import SandboxConnectionCreate
 from app.services.file_storage import LocalFileStorage
+from app.services.workflow_execution import dispatcher
 from app.services.workflow_execution.approvals import WorkflowApprovalService, wake_approval_step
 from app.services.workflow_execution.facade import WorkflowExecutionService
+from app.services.workflow_execution.resume import WorkflowResumeService
+from app.services.workflow_execution.resume_link import resume_token
 from app.workflows.contracts.io import Binding, FileRef, LiteralValue, NodeOutputRef
+from app.workflows.contracts.payload import json_byte_size
 from app.workflows.contracts.policy import NodePolicy, RetryPolicy
+from app.workflows.contracts.results import Completed, Failed, WorkflowError
 from app.workflows.graph.model import Edge, NodeInstance, NodePosition, WorkflowGraph
 from app.workflows.graph.validate import validate_graph
 from app.workflows.nodes import _sandbox_job as job
 from app.workflows.nodes.code_javascript_sandbox import _handler as js_node
 from app.workflows.nodes.code_python_sandbox import _handler as sandbox_node
 from app.workflows.nodes.mcp_call import _handler as mcp_node
-from tests.integration.workflow_run_support import SeededRun, drive, seed_member, seed_run
+from tests.integration.workflow_run_support import (
+    SeededRun,
+    begin,
+    drive,
+    run_row,
+    seed_member,
+    seed_run,
+    settle,
+    tick,
+)
 
 pytestmark = pytest.mark.anyio
 
@@ -330,8 +346,9 @@ class TestPythonWithActions:
             await db.commit()
             assert await workflow_run_repo.take_expired_runs(db, now=now, limit=10) == []
 
-    async def test_a_lost_reply_after_an_approved_mcp_write_needs_attention(
-        self, engine: AsyncEngine, monkeypatch: pytest.MonkeyPatch
+    @pytest.mark.parametrize("approved", [True, False])
+    async def test_a_rejected_mcp_write_can_reask_but_a_sent_write_needs_attention(
+        self, engine: AsyncEngine, monkeypatch: pytest.MonkeyPatch, approved: bool
     ):
         connection_id = uuid.uuid4()
         step = _node(
@@ -381,10 +398,53 @@ class TestPythonWithActions:
                     )
                 )
             ).one()
-            await WorkflowApprovalService(db).decide(seeded.ctx, request.id, approved=True)
+            await WorkflowApprovalService(db).decide(seeded.ctx, request.id, approved=approved)
             await db.commit()
             discard_deferred(db)
         await wake_approval_step(request.node_run_id, organization_id=seeded.org.id)
+        if not approved:
+            original = await drive(seeded)
+            assert original.status == WorkflowRunStatus.FAILED.value
+            assert original.error["code"] == "MCP_CALL_REJECTED"
+            # An old, unmarked approval wait must not count as a no-send proof;
+            # an unrelated timer is not the MCP gate even if it carries the flag.
+            async with seeded.factory() as db:
+                parked = await db.scalar(
+                    select(NodeAttempt).where(
+                        NodeAttempt.node_run_id == request.node_run_id,
+                        NodeAttempt.attempt_no == 1,
+                    )
+                )
+                assert parked is not None and parked.result is not None
+                envelope = parked.result
+                assert not await workflow_run_repo.may_have_dispatched(
+                    db, node_run_id=request.node_run_id
+                )
+                for unproven in (
+                    {key: value for key, value in envelope.items() if key != "effect_not_started"},
+                    {**envelope, "reason": "timer"},
+                ):
+                    parked.result = unproven
+                    await db.flush()
+                    assert await workflow_run_repo.may_have_dispatched(
+                        db, node_run_id=request.node_run_id
+                    )
+                await db.rollback()
+            async with seeded.factory() as db:
+                retried = await WorkflowExecutionService(db).retry(seeded.ctx, original.id)
+                await db.commit()
+                row = await db.get(WorkflowRun, retried.id)
+                assert row is not None
+            assert (
+                await drive(replace(seeded, run=row))
+            ).status == WorkflowRunStatus.WAITING_APPROVAL.value
+            session.call_tool.assert_not_awaited()
+            async with seeded.factory() as db:
+                fresh = await db.scalar(
+                    select(WorkflowApproval).where(WorkflowApproval.workflow_run_id == retried.id)
+                )
+                assert fresh is not None and fresh.id != request.id and fresh.status == "pending"
+            return
         assert (await drive(seeded)).status == WorkflowRunStatus.NEEDS_ATTENTION.value
         assert (await drive(seeded)).status == WorkflowRunStatus.NEEDS_ATTENTION.value
         session.call_tool.assert_awaited_once_with("create", {"title": "Investigate"})
@@ -534,6 +594,192 @@ class TestPythonWithActions:
         output = finished.output["structured"]
         assert output["results"] == [None, "next"]
         assert [(err["index"], err["code"]) for err in output["errors"]] == [(0, "INVALID_BINDING")]
+
+
+class TestScriptCursorStorage:
+    async def _checkpoint(
+        self, engine: AsyncEngine, *, retries: int = 3, sibling: NodeInstance | None = None
+    ) -> tuple[SeededRun, NodeRun, NodeRun]:
+        """Leave the script parked; its first child is ready but hasn't executed."""
+        script = _node(
+            "code.python.actions",
+            {
+                "actions": {"echo": {"type": "debug.echo"}},
+                "code": "pad = 'x' * 16000\necho(message='ready')\nlen(pad)",
+            },
+        ).model_copy(update={"policy": NodePolicy(retry=RetryPolicy(max_attempts=retries))})
+        graph = _chain(script)
+        if sibling is not None:
+            graph = graph.model_copy(
+                update={
+                    "nodes": (*graph.nodes, sibling),
+                    "edges": (*graph.edges, _edge(graph.node_by_id[graph.entry_node_id], sibling)),
+                }
+            )
+        seeded = await seed_run(engine, graph)
+        async with seeded.factory() as db:
+            entry = await workflow_run_repo.get_node_run_by_identity(
+                db,
+                workflow_run_id=seeded.run.id,
+                node_instance_id=graph.entry_node_id,
+                scope_path=[],
+            )
+        assert entry is not None
+        await tick(seeded, entry.id)
+        async with seeded.factory() as db:
+            parent = await workflow_run_repo.get_node_run_by_identity(
+                db, workflow_run_id=seeded.run.id, node_instance_id=script.id, scope_path=[]
+            )
+        assert parent is not None
+        await tick(seeded, parent.id)
+        async with seeded.factory() as db:
+            rows = await workflow_run_repo.list_node_runs_of(
+                db, workflow_run_id=seeded.run.id, node_instance_ids=[script.id]
+            )
+        parent, child = sorted(rows, key=lambda row: len(row.scope_path))
+        assert parent.resume_payload is not None and child.scope_path[-1]["action"] == "echo"
+        return seeded, parent, child
+
+    @pytest.mark.parametrize("scope", ["run", "organization"])
+    @pytest.mark.parametrize("result_kind", ["success", "last_failure"])
+    async def test_final_result_uses_the_space_freed_by_its_cursor(
+        self, engine: AsyncEngine, monkeypatch: pytest.MonkeyPatch, scope: str, result_kind: str
+    ):
+        seeded, parent, child = await self._checkpoint(engine, retries=1)
+        await tick(seeded, child.id)
+        before = (await run_row(seeded)).inline_result_bytes
+        cursor = json_byte_size(parent.resume_payload, limit=2**63 - 1)
+        begun, outcome = await begin(seeded, parent.id)
+        assert isinstance(outcome.result, Completed)
+        if result_kind == "last_failure":
+            outcome = dispatcher.HandlerOutcome(
+                result=Failed(
+                    error=WorkflowError(code="TRANSIENT", message="Exhausted", retryable=True)
+                )
+            )
+        serialized = outcome.result.model_dump(mode="json")
+        size = json_byte_size(serialized, limit=2**63 - 1)
+        if isinstance(outcome.result, Failed):
+            size += json_byte_size(serialized["error"], limit=2**63 - 1)
+        expected = before - cursor + size
+        # Every byte of headroom is in the cursor, not in the earlier attempt records.
+        monkeypatch.setattr(
+            settings,
+            "WORKFLOW_RUN_MAX_INLINE_RESULT_BYTES"
+            if scope == "run"
+            else "WORKFLOW_ORG_MAX_INLINE_RESULT_BYTES",
+            max(expected, before),
+        )
+        await settle(seeded, begun, outcome)
+        async with seeded.factory() as db:
+            stored = await db.get(NodeRun, parent.id)
+            assert stored is not None and stored.resume_payload is None
+            assert stored.status == ("succeeded" if result_kind == "success" else "failed")
+            latest = await workflow_run_repo.get_latest_attempt(db, node_run_id=parent.id)
+            assert latest.result == serialized
+            assert await workflow_run_repo.inline_result_bytes(db, seeded.org.id) == expected
+        assert (await run_row(seeded)).inline_result_bytes == expected
+
+    async def test_a_final_child_failure_replaces_the_vm_before_reserving_its_error(
+        self, engine: AsyncEngine, monkeypatch: pytest.MonkeyPatch
+    ):
+        seeded, parent, child = await self._checkpoint(engine, retries=1)
+        used = (await run_row(seeded)).inline_result_bytes
+        monkeypatch.setattr(settings, "WORKFLOW_RUN_MAX_INLINE_RESULT_BYTES", used)
+        begun, _ = await begin(seeded, child.id)
+        failure = WorkflowError(code="REFUSED", message="Cannot perform action")
+        await settle(seeded, begun, dispatcher.HandlerOutcome(result=Failed(error=failure)))
+        async with seeded.factory() as db:
+            waiting = await db.get(NodeRun, parent.id)
+            assert waiting.resume_payload == {"child_error": failure.model_dump(mode="json")}
+        assert await _failed_code(seeded) == "REFUSED"
+        async with seeded.factory() as db:
+            ended = await db.get(NodeRun, parent.id)
+            assert ended.resume_payload is None
+
+    async def test_a_retry_keeps_the_cursor_until_it_is_consumed(self, engine: AsyncEngine):
+        seeded, parent, child = await self._checkpoint(engine, retries=2)
+        await tick(seeded, child.id)
+        begun, _ = await begin(seeded, parent.id)
+        await settle(
+            seeded,
+            begun,
+            dispatcher.HandlerOutcome(
+                result=Failed(
+                    error=WorkflowError(code="TRANSIENT", message="Try again", retryable=True)
+                )
+            ),
+        )
+        async with seeded.factory() as db:
+            stored = await db.get(NodeRun, parent.id)
+            assert stored.status == "waiting" and stored.resume_payload == parent.resume_payload
+        await _due_now(seeded)
+        ended = await drive(seeded)
+        assert ended.output["structured"]["result"] == 16000
+        async with seeded.factory() as db:
+            stored = await db.get(NodeRun, parent.id)
+            assert stored.resume_payload is None
+
+    @pytest.mark.parametrize("finish", ["cancel", "deadline"])
+    async def test_terminal_cleanup_releases_only_the_private_cursor(
+        self, engine: AsyncEngine, finish: str
+    ):
+        wait = _node("flow.wait", {"until_called": True})
+        seeded, parent, child = await self._checkpoint(engine, sibling=wait)
+        # Public callback payloads may even match the script envelope exactly.
+        async with seeded.factory() as db:
+            other = await workflow_run_repo.get_node_run_by_identity(
+                db, workflow_run_id=seeded.run.id, node_instance_id=wait.id, scope_path=[]
+            )
+        assert other is not None
+        await tick(seeded, other.id)
+        async with seeded.factory() as db:
+            await WorkflowResumeService(db).resume(
+                seeded.run.id,
+                resume_token(seeded.run.id),
+                body=json.dumps(parent.resume_payload).encode(),
+            )
+            await db.commit()
+        cursor = json_byte_size(parent.resume_payload, limit=2**63 - 1)
+        before = (await run_row(seeded)).inline_result_bytes
+        if finish == "cancel":
+            async with seeded.factory() as db:
+                await WorkflowExecutionService(db).cancel(seeded.ctx, seeded.run.id)
+                await db.commit()
+        else:
+            # The child is already committed but the parent cannot dispatch again.
+            await tick(seeded, child.id)
+            before = (await run_row(seeded)).inline_result_bytes
+            async with seeded.factory() as db:
+                run = await db.get(WorkflowRun, seeded.run.id)
+                await workflow_run_repo.update_run(
+                    db,
+                    run=run,
+                    update_data={"deadline_at": datetime.now(UTC) - timedelta(seconds=1)},
+                )
+                await db.commit()
+            await tick(seeded, parent.id)
+        async with seeded.factory() as db:
+            run = await db.get(WorkflowRun, seeded.run.id)
+            cleared = await db.get(NodeRun, parent.id)
+            kept = await db.get(NodeRun, other.id)
+            assert cleared.resume_payload is None and kept.resume_payload == parent.resume_payload
+            assert run.inline_result_bytes == before - cursor
+
+    async def test_a_late_completion_does_not_charge_the_cursor_twice(self, engine: AsyncEngine):
+        seeded, parent, child = await self._checkpoint(engine)
+        await tick(seeded, child.id)
+        before = (await run_row(seeded)).inline_result_bytes
+        cursor = json_byte_size(parent.resume_payload, limit=2**63 - 1)
+        begun, done = await begin(seeded, parent.id)
+        async with seeded.factory() as db:
+            await WorkflowExecutionService(db).cancel(seeded.ctx, seeded.run.id)
+            await db.commit()
+        assert (await run_row(seeded)).inline_result_bytes == before - cursor
+        await settle(seeded, begun, done)
+        await settle(seeded, begun, done)
+        size = json_byte_size(done.result.model_dump(mode="json"), limit=2**63 - 1)
+        assert (await run_row(seeded)).inline_result_bytes == before - cursor + size
 
 
 class _Session:
@@ -1075,8 +1321,6 @@ async def _import(seeded: SeededRun, ref: FileRef) -> None:
 async def test_a_sandbox_output_quota_failure_removes_the_log_and_earlier_outputs(
     engine, host, monkeypatch
 ):
-    from app.core.config import settings
-
     monkeypatch.setattr(settings, "WORKFLOW_RUN_MAX_FILE_BYTES", 10)
     seeded = await seed_run(engine, _chain(_sandbox_step()))
     await drive(seeded)

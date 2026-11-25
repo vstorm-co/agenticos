@@ -44,6 +44,11 @@ export function stepProblems(
   return problems.filter((problem) => problem.nodeId === nodeId);
 }
 
+/** The named Python function whose config contains this problem. */
+export function actionAliasOfField(field: string): string | undefined {
+  return /^actions\/([^/]+)\/config\//.exec(field)?.[1];
+}
+
 /**
  * The label a step's form gives `field` - "Model" for `model_profile_id` - so a
  * problem names the field the way the form above it does. A key bound on its own
@@ -54,6 +59,8 @@ export function problemFieldLabel(
   field: string,
   t: Translate,
 ): string {
+  const alias = actionAliasOfField(field);
+  if (alias !== undefined) return alias;
   const name = field.split("/")[0] as string;
   // Not a config field: the step's quick log, named as the popover names it.
   if (name === "quick_log") return t("quickLogTitle");

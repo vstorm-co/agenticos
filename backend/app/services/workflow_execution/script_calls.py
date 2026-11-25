@@ -16,9 +16,49 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.models.workflow_run import NodeRun, NodeRunStatus, WorkflowRun
 from app.repositories import workflow_run as repo
 from app.services.workflow_execution.exceptions import InvalidBindingError, ScriptRetryUnsafeError
+from app.workflows.contracts.payload import json_byte_size
 from app.workflows.contracts.script import ScriptActionRequest, ScriptResume
 from app.workflows.files import import_output_files
 from app.workflows.graph.model import NodeInstance
+
+
+def cursor_bytes(parent: NodeRun) -> int:
+    return json_byte_size(parent.resume_payload, limit=2**63 - 1) if parent.resume_payload else 0
+
+
+async def discard_cursor(
+    db: AsyncSession,
+    run: WorkflowRun,
+    node: NodeRun,
+    *,
+    known_script: bool = False,
+) -> None:
+    """Release only a script parent's private state, under the run's row lock.
+
+    Bulk cancellation might not even have a resolvable graph. The first child
+    and the cursor were inserted atomically: its existence proves ownership,
+    unlike inspecting a Wait payload that a caller can fill with arbitrary JSON.
+    """
+    if node.resume_payload is None or child_alias(node) is not None:
+        return
+    if (
+        not known_script
+        and await repo.script_call_at(
+            db,
+            workflow_run_id=run.id,
+            node_instance_id=node.node_instance_id,
+            parent_scope=node.scope_path,
+            index=0,
+        )
+        is None
+    ):
+        return
+    await repo.update_run(
+        db,
+        run=run,
+        update_data={"inline_result_bytes": run.inline_result_bytes - cursor_bytes(node)},
+    )
+    await repo.update_node_run(db, node_run=node, update_data={"resume_payload": None})
 
 
 def child_alias(row: NodeRun) -> str | None:
@@ -45,6 +85,21 @@ def configured_step(
         return None
     kind, config = bound.get("type"), bound.get("config", {})
     return (kind, config) if isinstance(kind, str) and isinstance(config, dict) else None
+
+
+def produces_resume_link(node: NodeInstance) -> bool:
+    """A retry must regenerate its own URL, even inside a previously completed script."""
+    if node.definition_id == "flow.resume_link":
+        return True
+    bindings = node.config.get("actions")
+    return (
+        node.definition_id == "code.python.actions"
+        and isinstance(bindings, dict)
+        and any(
+            isinstance(binding, dict) and binding.get("type") == "flow.resume_link"
+            for binding in bindings.values()
+        )
+    )
 
 
 def child_scope(parent: NodeRun, request: ScriptActionRequest) -> list[dict[str, JsonValue]]:
@@ -110,6 +165,7 @@ async def retry_output(
     child: NodeRun,
     *,
     writes: bool,
+    reuse_result: bool = True,
 ) -> dict[str, JsonValue] | None:
     """Reuse settled calls across retry runs. Never repeat an unconfirmed write.
 
@@ -134,8 +190,11 @@ async def retry_output(
         if old is not None:
             if old.scope_path != child.scope_path:
                 raise ScriptRetryUnsafeError()
-            latest = await repo.get_latest_attempt(db, node_run_id=old.id)
             if old.status == NodeRunStatus.SUCCEEDED.value:
+                if not reuse_result:
+                    # Regenerate the run-local value only after matching the call.
+                    return None
+                latest = await repo.get_latest_attempt(db, node_run_id=old.id)
                 output = (
                     latest.result.get("output") if latest is not None and latest.result else None
                 )
@@ -150,7 +209,7 @@ async def retry_output(
                     node_instance_id=child.node_instance_id,
                 )
                 return output
-            if writes and latest is not None:
+            if writes and await repo.may_have_dispatched(db, node_run_id=old.id):
                 raise ScriptRetryUnsafeError()
         previous_id = previous.retry_of_run_id
     if previous_id is not None:

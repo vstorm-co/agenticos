@@ -1,5 +1,5 @@
 ---
-source_sha: "b8db2c1cf551"
+source_sha: "5baecc227522"
 ---
 
 # Workflows { #workflows }
@@ -916,11 +916,9 @@ podlinkować. **Runs** na liście workflow pokazuje przebiegi wszystkich workflo
 razem. Na stronie przebiegu kliknięcie kroku pokazuje jego **Input** i **Output** z
 tego przebiegu. Wiersze, które zapisał [szybki log](#quick-log) kroku, widać pod krokiem.
 
-**Retry from failed step** uruchamia nowy przebieg tej samej wersji
-z tym samym wejściem, w którym każdy krok, który się udał, przekazuje to, co
-przekazał wcześniej, więc działa tylko nieudany krok i to, do czego nie doszedł, a
-zapis nigdy nie powtarza się dwa razy. Pętla działa ponownie i używa kroków
-każdego elementu, które się udały. **Debug in editor** przypina do kroków wersji
+**Retry from failed step** rozpoczyna nowy przebieg tej samej wersji z tym samym wejściem. Wykorzystuje wyniki zakończonych kroków i wywołań bloku Pythona, nie powtarzając ich zapisów. Pętla działa ponownie i wykorzystuje zakończone pomyślnie kroki każdego elementu. Krok Resume link generuje nowy adres: adres poprzedniego przebiegu nie może wznowić nowego.
+
+**Debug in editor** przypina do kroków wersji
 roboczej to, co każdy krok poza pętlą przekazał w tym przebiegu, więc przebieg
 testowy zaczyna od miejsca, w którym tamten był. Przez API ponawia `POST
 /api/v1/workflow-runs/{id}/retry`, a `GET /api/v1/workflow-runs` przyjmuje

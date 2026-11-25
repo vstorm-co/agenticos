@@ -84,6 +84,7 @@ it("recognizes nested table refusals and valid omitted table pin defaults withou
   expect(graphTableRefs(graph)).toEqual([
     {
       site: { nodeId: "a", binding: null, action: "find" },
+      labelledRecords: true,
       ref: { kind: "table", table_id: "t", schema_version: 2, column_ids: null },
     },
   ]);

@@ -19,7 +19,7 @@ import {
 import { AnswerFormatForm } from "@/components/agents/answer-format-form";
 import { CodeEditor } from "@/components/workflows/property-panel/code-editor";
 import { argKeysOf } from "@/components/workflows/property-panel/code-keys";
-import { PythonActions, pythonCallOptions } from "./python-actions";
+import { type ActionEditorSelection, PythonActions, pythonCallOptions } from "./python-actions";
 import { CurlImport } from "@/components/workflows/property-panel/curl-import";
 import type { CodeLanguage } from "@/lib/workflows/code-editing";
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
@@ -1253,6 +1253,8 @@ function InputNode({ schema, name, required, path, defs, ctx }: FieldProps) {
 }
 
 export interface NodeFormProps {
+  /** Allows a problem link to open the named Python action. */
+  editingAction?: ActionEditorSelection;
   definition: NodeDefinition;
   node: NodeInstance;
   graph: WorkflowGraph;
@@ -1300,6 +1302,7 @@ function NodeFields({
   upsertBinding,
   removeBinding,
   toolSchema,
+  editingAction,
   actionAlias,
 }: NodeFormProps & {
   actionAlias?: string;
@@ -1530,9 +1533,13 @@ function NodeFields({
           />
         ) : (
           // Named for the dialog, which says a missing value once its field was left.
-          <div key={`config:${entry.name}`} data-field={entry.name}>
+          <div
+            key={`config:${entry.name}`}
+            data-field={actionAlias ? `actions/${actionAlias}/config/${entry.name}` : entry.name}
+          >
             {definition.id === "code.python.actions" && entry.name === "actions" ? (
               <PythonActions
+                editingAction={editingAction}
                 schema={entry.schema}
                 catalog={catalog}
                 value={record(node.config.actions)}

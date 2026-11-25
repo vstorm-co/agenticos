@@ -12387,7 +12387,7 @@
     },
     "stepEditorView": "Visualização da etapa",
     "stepEditorSettings": "Configurações da etapa",
-    "problemTableSchemaChanged": "Esta tabela mudou desde que a etapa foi configurada: uma coluna que ela lê foi removida ou teve o tipo alterado. Atualize-a para o esquema atual e verifique o que lê esta etapa.",
+    "problemTableSchemaChanged": "O esquema da tabela mudou. Revise os nomes, tipos e valores das colunas usados nesta etapa antes de atualizar a referência à tabela.",
     "problemTableDependenciesChanged": "Remova ou substitua as vinculações de filtro, ordenação e valor alteradas nesta etapa antes de atualizar o esquema da tabela."
   },
   "artifacts": {

@@ -887,10 +887,9 @@ linked. **Runs** on the workflows list shows every workflow's runs together. On 
 run's page, clicking a step shows its **Input** and **Output** from that run. The lines a step's
 [quick log](#quick-log) wrote show under the step.
 
-**Retry from failed step** starts a new run of the same version and input in which
-each step that succeeded hands on what it handed on before, so only the failed
-step and what it did not reach run, and a write is never made twice. A loop runs
-again and reuses each item's steps that had succeeded. **Debug in editor** pins
+**Retry from failed step** starts a new run with the same version and input. It reuses completed steps and the completed calls of a Python block, so it need not repeat their writes. Loops run again and reuse successful steps for each item. A Resume link is generated anew: an old run's link cannot wake this run.
+
+**Debug in editor** pins
 what each step outside a loop handed on in that run onto the draft's steps, so a
 test run starts from where that run was. Over the API, `POST
 /api/v1/workflow-runs/{id}/retry` retries, and `GET /api/v1/workflow-runs` takes

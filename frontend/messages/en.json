@@ -12503,7 +12503,7 @@
     },
     "stepEditorView": "Step view",
     "stepEditorSettings": "Step settings",
-    "problemTableSchemaChanged": "This table changed since the step was set up: a column it reads was removed or changed type. Update it to the current schema and check what reads this step.",
+    "problemTableSchemaChanged": "The table schema changed. Review the column names, types, and values this step uses before updating its table reference.",
     "problemTableDependenciesChanged": "Remove or replace changed filter, sort and value bindings in this step before updating its table schema."
   },
   "artifacts": {

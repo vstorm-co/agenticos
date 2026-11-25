@@ -66,6 +66,7 @@ async def test_a_new_run_will_not_repeat_an_unproven_write(call, problem):
     old = NodeRun(id=uuid4(), scope_path=child.scope_path, status="failed")
     repo.script_call_at.return_value = old
     repo.get_latest_attempt.return_value = NodeAttempt(status="uncertain")
+    repo.may_have_dispatched.return_value = True
     if problem == "missing-history":
         repo.get_run.return_value = None
     elif problem == "changed-arguments":
@@ -85,8 +86,22 @@ async def test_recovery_can_run_an_unsent_write_or_a_failed_read(call, writes, s
     repo.script_call_at.return_value = NodeRun(
         id=uuid4(), scope_path=child.scope_path, status="failed"
     )
-    repo.get_latest_attempt.return_value = NodeAttempt(status="failed") if started else None
+    repo.may_have_dispatched.return_value = started
     assert await script_calls.retry_output(AsyncMock(), run, child, writes=writes) is None
+
+
+async def test_a_safe_failure_in_the_previous_run_does_not_clear_an_uncertain_ancestor(call):
+    run, _, child, _, repo = call
+    first, previous = WorkflowRun(id=uuid4()), WorkflowRun(id=run.retry_of_run_id)
+    previous.retry_of_run_id = first.id
+    repo.get_run.side_effect = [previous, first]
+    repo.script_call_at.side_effect = [
+        NodeRun(id=uuid4(), scope_path=child.scope_path, status="failed"),
+        NodeRun(id=uuid4(), scope_path=child.scope_path, status="cancelled"),
+    ]
+    repo.may_have_dispatched.side_effect = [False, True]
+    with pytest.raises(ScriptRetryUnsafeError):
+        await script_calls.retry_output(AsyncMock(), run, child, writes=True)
 
 
 @pytest.mark.parametrize(

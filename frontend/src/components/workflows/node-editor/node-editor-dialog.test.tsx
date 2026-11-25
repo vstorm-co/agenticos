@@ -19,6 +19,7 @@ import { NodeEditorDialog } from "./node-editor-dialog";
 vi.mock("@/hooks", () => ({
   useWorkflowRuns: () => ({ start: { mutate: vi.fn() } }),
   useWorkflowTable: () => ({ table: null }),
+  useWorkflowTables: () => ({ tables: [{ id: "t", name: "Cases" }], isLoading: false }),
 }));
 vi.mock("./step-evals", async (original) => ({
   ...(await original<typeof import("./step-evals")>()),
@@ -475,6 +476,55 @@ describe("a step's missing values", () => {
     const field = document.querySelector("[data-field='mode']") as HTMLElement;
     await waitFor(() => expect(document.activeElement).toBe(field.querySelector("button")));
   });
+
+  it.each([false, true])(
+    "opens the Python alias named in a drift problem and focuses its control (read only: %s)",
+    async (readOnly) => {
+      const script = makeDefinition({
+        id: "code.python.actions",
+        config_schema: { type: "object", properties: { actions: { type: "object" } } },
+      });
+      const get = makeDefinition({
+        id: "table.record.get",
+        name: "Find record",
+        python_callable: true,
+        config_schema: {
+          type: "object",
+          properties: { table: { "x-resource": "table" } },
+          required: ["table"],
+        },
+      });
+      const pin = { kind: "table" as const, table_id: "t", schema_version: 1, column_ids: null };
+      const bind = { type: get.id, config: { table: pin } };
+      seed(node("script", script.id, { actions: { lookup: bind, verify: bind } }));
+      store.getState().editNode("script");
+      store.getState().setTableDrift(
+        ["lookup", "verify"].map((alias) => ({
+          nodeId: "script",
+          field: `actions/${alias}/config/table`,
+          site: { nodeId: "script", binding: null, action: alias },
+          rebound: { ...pin, schema_version: 2 },
+        })),
+      );
+      render(<NodeEditorDialog catalog={[script, get]} readOnly={readOnly} />);
+      await userEvent.click(screen.getByRole("button", { name: /^lookup\(/ }));
+      await userEvent.click(screen.getByRole("tab", { name: "Settings" }));
+      await userEvent.click(screen.getByRole("button", { name: /items to finish setup/ }));
+      await userEvent.click(screen.getByRole("button", { name: /^verify:/ }));
+      const header = screen.getByRole("button", { name: /^verify\(/ });
+      expect(header).toHaveAttribute("aria-expanded", "true");
+      expect(screen.getByRole("button", { name: /^lookup\(/ })).toHaveAttribute(
+        "aria-expanded",
+        "false",
+      );
+      const picker = screen.getByRole("combobox", { name: "Table" });
+      expect(picker.closest("[data-field]")).toHaveAttribute(
+        "data-field",
+        "actions/verify/config/table",
+      );
+      await waitFor(() => expect(readOnly ? header : picker).toHaveFocus());
+    },
+  );
 
   it("has not left a field while focus moves into its own list", () => {
     seed(node("a", "test.noted"));

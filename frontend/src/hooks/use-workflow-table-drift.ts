@@ -133,7 +133,7 @@ export function useWorkflowTableDrift(enabled: boolean): void {
   let plan: string | null = null;
   if (graph !== null && behind === "") {
     const result: Plan = { rebound: [], drift: [], orphans: [] };
-    for (const { site, ref } of stale) {
+    for (const { site, ref, labelledRecords } of stale) {
       const table = detail(ref.table_id)!;
       const next = rebindRef(ref, table.schema_version, liveColumns(table));
       const versions = history(ref.table_id)!.items;
@@ -143,7 +143,7 @@ export function useWorkflowTableDrift(enabled: boolean): void {
         site,
         previous && { before: previous.columns, after: liveColumns(table) },
       );
-      if (safeToRebind(ref, table, versions, dependencies)) {
+      if (safeToRebind(ref, table, versions, dependencies, labelledRecords)) {
         result.rebound.push({ site, ref: next });
       } else {
         const field =

@@ -1,5 +1,5 @@
 ---
-source_sha: "9a763a991a12"
+source_sha: "ada230bb7d06"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -1211,6 +1211,8 @@ seiner Id unter dem Geheimnis des Deployments gebildet und niemandem sonst gezei
 sie hat, kann den Lauf fortsetzen, daher wird sie nur dorthin geschickt, woher die
 Antwort kommen soll.
 
+Ein erneuter Versuch startet einen neuen Lauf. Der Schritt Resume link erzeugt einen Link für diesen Lauf, auch beim Aufruf aus Python. Der alte Link wird nicht umgeleitet. Eine bereits versandte Nachricht mit dem alten Link wird nicht erneut gesendet.
+
 ::: app.workflows.nodes.flow_resume_link._handler.ResumeLinkOutput
 
 ## Fehlerbehandlung { #error-handling }
@@ -1460,6 +1462,8 @@ Bindest du beispielsweise den Textvergleich als `compare` ein, gibt `compare(a=a
 Für einen MCP-Aufruf wählst du Verbindung und Tool einmal aus. Heißt die Funktion `lookup`, rufst du `lookup(arguments={"hostname": "leaf-01"})` auf und liest das Feld `structured` oder `text`. Schlägt eine Aktion fehl, gilt die Fehlerbehandlung des Workflow-Schritts, nicht eine Python-`except`-Klausel. Für erwartete Verzweigungen verwendest du ein Ergebnis wie die Freigabeentscheidung.
 
 Ein Skript führt bis zu 100 Aufrufe nacheinander aus. Vor jedem Aufruf speichert der Interpreter seine Position (bis zu 512 KiB Zustand). Eine Freigabe gilt nur für diesen Aufruf. Bei einem Schreibvorgang mit ungewissem Ausgang gelten die Wiederherstellungsregeln der Aktion. Beim erneuten Versuch nutzt der Lauf abgeschlossene Aufrufe mit denselben Argumenten und wiederholt einen unbestätigten Schreibvorgang nicht stillschweigend. Auslöser, Verzweigungen und beide Abschlussschritte bleiben auf der Arbeitsfläche.
+
+Bei einem neuen Versuch darf ein fehlgeschlagener Schreibvorgang erneut laufen, wenn für jeden vorherigen Versuch feststeht, dass nichts gesendet wurde. Nach einer Zeitüberschreitung beim Warten auf die Antwort oder bei einem älteren Versuch ohne diesen Nachweis wird nicht automatisch erneut gesendet.
 
 `code.python.simple` führt ein kurzes Skript in der Monty-Sandbox aus, die kein
 Dateisystem, kein Netzwerk und nur eine kleine Standardbibliothek hat. Das Skript liest

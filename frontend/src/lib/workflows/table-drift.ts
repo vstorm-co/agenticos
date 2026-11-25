@@ -18,6 +18,8 @@ export type TableRefSite =
   | { nodeId: Uuid; binding: number; action?: never };
 
 export interface TableRefAt {
+  /** Python sees the native record's `fields` map keyed by table column labels. */
+  labelledRecords?: boolean;
   site: TableRefSite;
   ref: TableIORef;
 }
@@ -69,6 +71,8 @@ function actionTableBinding(
   );
 }
 
+const boundRecordReads = new Set(["table.record.get", "table.record.query"]);
+
 /** Every table reference consumed by an enabled step: a step's `table`, and table-sourced bindings. */
 export function graphTableRefs(graph: WorkflowGraph): TableRefAt[] {
   const refs: TableRefAt[] = [];
@@ -81,7 +85,12 @@ export function graphTableRefs(graph: WorkflowGraph): TableRefAt[] {
       for (const [alias, binding] of Object.entries(node.config.actions)) {
         if (!actionTableBinding(binding)) continue;
         const ref = configTableRef(binding.config.table);
-        if (ref) refs.push({ site: { nodeId: node.id, binding: null, action: alias }, ref });
+        if (ref)
+          refs.push({
+            site: { nodeId: node.id, binding: null, action: alias },
+            ref,
+            ...(boundRecordReads.has(binding.type) ? { labelledRecords: true } : {}),
+          });
       }
     }
   }
@@ -230,6 +239,7 @@ export function safeToRebind(
   table: TableRead,
   versions: SchemaVersionRead[],
   additionalColumns: readonly string[] | null = [],
+  labelledRecords = false,
 ): boolean {
   // A whole-record input may name columns or labels only known at runtime.
   if (additionalColumns === null) return false;
@@ -239,6 +249,10 @@ export function safeToRebind(
   const previous = new Map(
     bound.columns.filter((column) => !column.archived).map((column) => [column.id, column]),
   );
+  // get/query hand the full native record to Python, even on a narrowed pin.
+  // A renamed key can break a script even though a rename keeps the column revision.
+  if (labelledRecords && [...previous].some(([id, old]) => now.get(id)?.label !== old.label))
+    return false;
   const read = new Set([...(ref.column_ids ?? previous.keys()), ...additionalColumns]);
   return [...read].every((id) => {
     const column = previous.get(id);

@@ -1230,6 +1230,31 @@ async def call_history_requires_child(
     )
 
 
+async def may_have_dispatched(db: AsyncSession, *, node_run_id: UUID) -> bool:
+    """Whether any attempt lacks proof that it stopped before sending the requested action."""
+    failed_before_effect = and_(
+        NodeAttempt.status == NodeAttemptStatus.FAILED.value,
+        NodeAttempt.result.contains({"status": "failed", "effect_not_started": True}),
+    )
+    # The gate wrote an approval request but did not invoke the requested tool.
+    # A retry will get its own decision. Other completed/waiting attempts do
+    # not imply that the action never ran.
+    gated_before_tool = and_(
+        NodeAttempt.status == NodeAttemptStatus.COMPLETED.value,
+        NodeAttempt.result.contains(
+            {
+                "status": "waiting",
+                "reason": "approval",
+                "effect_not_started": True,
+            }
+        ),
+    )
+    unproven = or_(failed_before_effect, gated_before_tool).is_not(True)
+    return bool(
+        await db.scalar(select(exists().where(NodeAttempt.node_run_id == node_run_id, unproven)))
+    )
+
+
 async def get_latest_attempt(db: AsyncSession, *, node_run_id: UUID) -> NodeAttempt | None:
     result = await db.execute(
         select(NodeAttempt)

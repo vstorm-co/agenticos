@@ -2,6 +2,7 @@
 
 import json
 import uuid
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -12,12 +13,13 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 from app.core.background import start_deferred
 from app.core.config import settings
 from app.core.exceptions import BadRequestError
-from app.db.models.workflow_run import DispatchOutbox, NodeRun, NodeRunStatus
+from app.db.models.workflow_run import DispatchOutbox, NodeRun, NodeRunStatus, WorkflowRun
 from app.services.workflow_execution.exceptions import (
     WorkflowNotWaitingError,
     WorkflowRunInputTooLargeError,
     WorkflowRunNotFoundError,
 )
+from app.services.workflow_execution.facade import WorkflowExecutionService
 from app.services.workflow_execution.resume import WorkflowResumeService
 from app.services.workflow_execution.resume_link import resume_token, resume_url
 from app.workflows.contracts.io import Binding, NodeOutputRef
@@ -135,6 +137,70 @@ async def test_resume_link_targets_the_nested_wait_without_overwriting_the_inter
     ended = await drive(seeded)
     assert ended.status == "succeeded", ended.error
     assert ended.output["structured"]["result"] == {"ticket": 41}
+
+
+@pytest.mark.parametrize("scripted_link", [False, True], ids=["canvas-link", "completed-script"])
+async def test_retry_issues_its_own_resume_links(engine: AsyncEngine, scripted_link: bool):
+    graph, link, wait = _waiting_for_a_call()
+    entry, _, _, out = graph.nodes
+    link_path = ("url",)
+    if scripted_link:
+        link = _node(
+            "code.python.actions",
+            {
+                "actions": {"link": {"type": "flow.resume_link"}},
+                "code": "link()",
+            },
+        )
+        link_path = ("result", "url")
+    awaiting = _node(
+        "code.python.actions",
+        {
+            "actions": {
+                "link": {"type": "flow.resume_link"},
+                "wait_for_callback": {"type": wait.definition_id, "config": wait.config},
+            },
+            "code": "url = link()['url']\nreply = wait_for_callback()\n{'url': url, 'body': reply['body']}",
+        },
+    )
+    graph = WorkflowGraph(
+        entry_node_id=entry.id,
+        nodes=(entry, link, awaiting, out),
+        edges=(_edge(entry, link), _edge(link, awaiting), _edge(awaiting, out)),
+        bindings=(
+            Binding(
+                target_node_id=out.id,
+                target_field="text",
+                source=NodeOutputRef(node_id=link.id, port="out", field_path=link_path),
+            ),
+            Binding(
+                target_node_id=out.id,
+                target_field="structured",
+                source=NodeOutputRef(node_id=awaiting.id, port="out", field_path=("result",)),
+            ),
+        ),
+    )
+    original = await seed_run(engine, graph)
+    await drive(original)
+    async with original.factory() as db:
+        service = WorkflowExecutionService(db)
+        await service.cancel(original.ctx, original.run.id)
+        await db.commit()
+        retry = await service.retry(original.ctx, original.run.id)
+        await db.commit()
+        row = await db.get(WorkflowRun, retry.id)
+        assert row is not None
+    retried = replace(original, run=row)
+    assert (await drive(retried)).status == "running"
+    with pytest.raises(WorkflowNotWaitingError):
+        await _resume(original, b"{}")
+    assert await _resume(retried, b'{"ok": true}') == 1
+    ended = await drive(retried)
+    assert ended.status == "succeeded", ended.error
+    # Both the step that finished and the script interrupted at Wait must issue
+    # this run's working callback, not the terminal original's URL.
+    assert ended.output["text"] == resume_url(retry.id)
+    assert ended.output["structured"] == {"url": resume_url(retry.id), "body": {"ok": True}}
 
 
 async def test_an_empty_call_resumes_with_an_empty_body(engine: AsyncEngine):

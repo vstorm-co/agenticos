@@ -1,5 +1,5 @@
 ---
-source_sha: "9a763a991a12"
+source_sha: "ada230bb7d06"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -1176,6 +1176,8 @@ modo que quien responda pueda seguir con la ejecución. Cada ejecución tiene la
 hecha con su id bajo el secreto del despliegue y no mostrada a nadie más: tenerla es lo
 que permite reanudar la ejecución, así que se envía solo adonde debe llegar la respuesta.
 
+Un reintento inicia otra ejecución. El paso de enlace de reanudación genera un enlace para la nueva ejecución, incluso cuando se llama desde Python. Esto no redirige el enlace anterior ni reenvía un mensaje que ya lo haya entregado.
+
 ::: app.workflows.nodes.flow_resume_link._handler.ResumeLinkOutput
 
 ## Gestión de errores { #error-handling }
@@ -1415,6 +1417,8 @@ Por ejemplo, si vinculas la comparación de textos como `compare`, la expresión
 Para llamar a una herramienta MCP, selecciona una vez la conexión y la herramienta. Si la función se llama `lookup`, usa `lookup(arguments={"hostname": "leaf-01"})` y lee el campo `structured` o `text`. Si falla una acción, se aplica la política de errores del paso de Python, no una cláusula `except` del script. Usa un resultado, como la decisión de aprobación, para las bifurcaciones previstas.
 
 Las llamadas se ejecutan en orden, hasta 100 por script. El intérprete guarda su posición antes de cada llamada (hasta 512 KiB de estado). La aprobación se aplica solo a esa llamada. Si no se conoce el resultado de una escritura, se aplican las reglas de recuperación de la acción. Al reintentar una ejecución fallida, se reutilizan las llamadas completadas con los mismos argumentos, sin repetir automáticamente una escritura no confirmada. Los disparadores, las bifurcaciones y los dos pasos de finalización permanecen en el lienzo.
+
+Una escritura fallida puede volver a ejecutarse si todos los intentos anteriores registraron que se detuvieron antes del envío. No se repite automáticamente si se agotó el tiempo de espera después del envío o si falta esa prueba en un intento anterior.
 
 `code.python.simple` ejecuta un script corto en el sandbox de Monty, que no tiene
 sistema de archivos, ni red, y tiene una biblioteca estándar pequeña. El script lee los

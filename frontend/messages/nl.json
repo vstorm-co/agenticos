@@ -12387,7 +12387,7 @@
     },
     "stepEditorView": "Stapweergave",
     "stepEditorSettings": "Stapinstellingen",
-    "problemTableSchemaChanged": "Deze tabel is veranderd sinds de stap werd ingesteld: een kolom die hij leest, is verwijderd of van type veranderd. Werk hem bij naar het huidige schema en controleer welke stappen deze stap lezen.",
+    "problemTableSchemaChanged": "Het tabelschema is gewijzigd. Controleer de kolomnamen, typen en waarden die deze stap gebruikt voordat je de tabelverwijzing bijwerkt.",
     "problemTableDependenciesChanged": "Verwijder of vervang gewijzigde filter-, sorteer- en waardekoppelingen in deze stap voordat je het tabelschema ervan bijwerkt."
   },
   "artifacts": {

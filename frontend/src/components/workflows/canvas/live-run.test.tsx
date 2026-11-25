@@ -18,6 +18,13 @@ vi.mock("@/hooks", () => ({
     nodes: [
       { node_instance_id: "a", status: "succeeded", attempts: 1, error: null },
       { node_instance_id: "b", status: "running", attempts: 1, error: null },
+      {
+        node_instance_id: "b",
+        status: "succeeded",
+        attempts: 1,
+        error: null,
+        scope_path: [{ action: "lookup", index: 0 }],
+      },
     ],
     cancel: watched.cancel,
   }),

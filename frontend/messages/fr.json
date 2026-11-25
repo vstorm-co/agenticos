@@ -12149,7 +12149,7 @@
     },
     "stepEditorView": "Vue de l’étape",
     "stepEditorSettings": "Réglages de l’étape",
-    "problemTableSchemaChanged": "Cette table a changé depuis la configuration de l’étape : une colonne qu’elle lit a été supprimée ou a changé de type. Mettez-la à jour vers le schéma actuel et vérifiez ce qui lit cette étape.",
+    "problemTableSchemaChanged": "Le schéma de la table a changé. Vérifiez les noms de colonnes, les types et les valeurs utilisés par cette étape avant de mettre à jour sa référence à la table.",
     "problemTableDependenciesChanged": "Retirez ou remplacez les liaisons de filtre, de tri et de valeur modifiées dans cette étape avant de mettre à jour le schéma de sa table."
   },
   "artifacts": {

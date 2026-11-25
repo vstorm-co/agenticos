@@ -100,6 +100,8 @@ export function pythonCallOptions(catalog: NodeCatalog, value: Config) {
     );
 }
 
+export type ActionEditorSelection = readonly [string | null, (alias: string | null) => void];
+
 /** Bind a published action contract once. Its input values belong in Python, not the form. */
 export function PythonActions({
   catalog,
@@ -107,9 +109,11 @@ export function PythonActions({
   disabled,
   onChange,
   renderConfig,
+  editingAction,
   schema,
 }: {
   catalog: NodeCatalog;
+  editingAction?: ActionEditorSelection;
   schema: Config;
   value: Config;
   disabled?: boolean;
@@ -124,7 +128,8 @@ export function PythonActions({
   const t = useTranslations("workflows");
   const [selection, setSelection] = useState("");
   const [alias, setAlias] = useState("");
-  const [editing, setEditing] = useState<string | null>(null);
+  const ownSelection = useState<string | null>(null);
+  const [editing, setEditing] = editingAction ?? ownSelection;
   const available = catalog.items.filter((action) => action.python_callable);
   const keyOf = (action: NodeDefinition) => `${action.id}@${action.version}`;
   const selected = available.find((action) => keyOf(action) === selection);
@@ -200,6 +205,7 @@ export function PythonActions({
             <div className="flex items-center gap-2">
               <button
                 type="button"
+                data-action-header={name}
                 aria-expanded={editing === name}
                 onClick={() => setEditing(editing === name ? null : name)}
                 className="min-w-0 flex-1 text-left"

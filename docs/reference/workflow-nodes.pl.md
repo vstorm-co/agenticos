@@ -1,5 +1,5 @@
 ---
-source_sha: "9a763a991a12"
+source_sha: "ada230bb7d06"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -1158,6 +1158,8 @@ odpowiada, mógł kontynuować przebieg. Każdy przebieg ma własny, zrobiony z 
 sekretem wdrożenia i nikomu innemu niepokazywany: to jego posiadanie pozwala wznowić
 przebieg, więc wysyła się go tylko tam, skąd ma przyjść odpowiedź.
 
+Ponowienie uruchamia nowy przebieg. Krok Resume link generuje dla niego nowy adres, także przy wywołaniu z Pythona. Stary adres nie przekierowuje do nowego przebiegu, a wysłana wcześniej wiadomość z adresem nie jest wysyłana ponownie.
+
 ::: app.workflows.nodes.flow_resume_link._handler.ResumeLinkOutput
 
 ## Obsługa błędów { #error-handling }
@@ -1392,6 +1394,8 @@ Jeśli na przykład powiążesz porównywanie tekstów z nazwą `compare`, wyra�
 Aby wywołać narzędzie MCP, wybierz raz połączenie i narzędzie. Jeśli funkcja ma nazwę `lookup`, wywołaj `lookup(arguments={"hostname": "leaf-01"})` i odczytaj pole `structured` lub `text`. Jeśli akcja się nie powiedzie, obowiązują zasady obsługi błędów kroku Pythona, a nie klauzula `except` w skrypcie. Do przewidzianych rozgałęzień użyj wyniku, na przykład decyzji o zatwierdzeniu.
 
 Skrypt wykonuje kolejno do 100 wywołań. Przed każdym wywołaniem interpreter zapisuje swoją pozycję (do 512 KiB stanu). Zatwierdzenie dotyczy tylko tego wywołania. Jeśli nie wiadomo, czy zapis się powiódł, obowiązują reguły odzyskiwania danej akcji. Ponowienie nieudanego runa wykorzystuje wyniki zakończonych wywołań z tymi samymi argumentami i nie powtarza automatycznie niepotwierdzonego zapisu. Wyzwalacze, rozgałęzienia i oba kroki końcowe pozostają na kanwie.
+
+Nieudany zapis można ponowić w nowym przebiegu, jeśli dla każdej wcześniejszej próby odnotowano, że niczego nie wysłano. Przekroczenie czasu oczekiwania po wysłaniu lub brak takiego potwierdzenia dla starszej próby wyklucza automatyczne powtórzenie.
 
 `code.python.simple` uruchamia krótki skrypt w sandboxie Monty, który nie ma systemu
 plików, sieci i ma małą bibliotekę standardową. Skrypt czyta powiązane wartości jako

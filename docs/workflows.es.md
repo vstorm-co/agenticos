@@ -1,5 +1,5 @@
 ---
-source_sha: "b8db2c1cf551"
+source_sha: "5baecc227522"
 ---
 
 # Workflows { #workflows }
@@ -942,11 +942,9 @@ todos. En la página de una ejecución, hacer clic en un paso muestra su **Input
 Las líneas que escribió el [quick log](#quick-log) de un
 paso aparecen debajo del paso.
 
-**Retry from failed step** inicia una ejecución nueva
-de la misma versión con la misma entrada, en la que cada paso que tuvo éxito
-entrega lo que entregó antes, así que solo se ejecutan el paso fallido y lo que no
-alcanzó, y una escritura nunca se hace dos veces. Un bucle vuelve a ejecutarse y
-reutiliza los pasos de cada elemento que tuvieron éxito. **Debug in editor** fija
+**Retry from failed step** inicia otra ejecución con la misma versión y la misma entrada. Reutiliza los resultados de los pasos completados y de las llamadas completadas de un bloque Python sin repetir sus escrituras. Un bucle vuelve a ejecutarse y reutiliza los pasos de cada elemento que tuvieron éxito. El enlace de reanudación se genera de nuevo: el enlace anterior no puede reanudar esta ejecución.
+
+**Debug in editor** fija
 en los pasos del borrador lo que cada paso fuera de un bucle entregó en esa
 ejecución, así que una ejecución de prueba empieza donde estaba aquella. Por la API,
 `POST /api/v1/workflow-runs/{id}/retry` reintenta, y `GET /api/v1/workflow-runs`

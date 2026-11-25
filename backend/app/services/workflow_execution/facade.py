@@ -1096,11 +1096,10 @@ class WorkflowExecutionService:
 
     async def retry(self, ctx: AuthContext, run_id: UUID) -> WorkflowRunRead:
         """Run again what `run_id` ran - the same version or draft snapshot, the same
-        input - with each step that succeeded there handing on the output it had.
+        input - reusing completed outputs without repeating their side effects.
 
-        Only the failed step and what it did not reach run, so a step with a side
-        effect is never repeated. A loop runs again, its items resolved from what
-        they handed on, and a deciding step decides again on the same data.
+        A loop resolves its items again, and a deciding step decides again.
+        Resume links are generated for the new run, including calls from Python.
 
         Raises:
             WorkflowRunNotFoundError: No such run, or this caller may not see it.
