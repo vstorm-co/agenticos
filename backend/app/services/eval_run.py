@@ -1961,7 +1961,10 @@ class EvalRunService:
             self.db, run.id, organization_id=ctx.organization_id, now=datetime.now(UTC)
         )
         if closed:
+            from app.services.skill_check import SkillCheckService
+
             await NotificationService(self.db).eval_run_finished(run)
+            await SkillCheckService(self.db).after_run(run.organization_id, run.id)
         return (await self._reads(ctx, [run]))[0]
 
     async def _readable(self, ctx: AuthContext, run_id: UUID) -> EvalRun:

@@ -1,5 +1,5 @@
 ---
-source_sha: "00db4ca3cf8e"
+source_sha: "70275d29e9ff"
 ---
 
 # Skills { #skills }
@@ -299,6 +299,8 @@ jüngsten Antworten, die den Skill geladen haben, oder leer - oder über die API
 `POST /api/v1/skills/{id}/test-set`, oder mit **Testfragen hinzufügen** neben einem
 Agent, den [Verbessern](#improving-a-skill) nicht prüfen konnte, und bearbeitet wie
 jedes andere [Dataset](datasets.md), das Datasets als das des Skills kennzeichnet.
+Der Satz trägt den Namen des Skills, nummeriert, wenn ein Dataset diesen Namen
+schon hat - etwa einer, den ein gelöschter Skill gleichen Namens zurückließ.
 
 Ein Judge bewertet den Satz und vergleicht jede Antwort mit der, die Personen
 positiv bewertet haben. Aus jüngsten Antworten angelegt, wird jede Frage einmal

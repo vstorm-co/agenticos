@@ -1,5 +1,5 @@
 ---
-source_sha: "00db4ca3cf8e"
+source_sha: "70275d29e9ff"
 ---
 
 # Skills { #skills }
@@ -287,7 +287,8 @@ questions** - a partir de respuestas recientes que cargaron el skill, o vacío -
 través de la API, `POST /api/v1/skills/{id}/test-set`, o con **Añadir preguntas de
 prueba** junto a un agent que [Improve](#improving-a-skill) no pudo comprobar, y
 editado como cualquier otro [dataset](datasets.md), que Datasets marca como el del
-skill.
+skill. El conjunto lleva el nombre del skill, numerado cuando un dataset ya tiene ese
+nombre - por ejemplo, uno que dejó un skill borrado del mismo nombre.
 
 Un juez califica el conjunto, comparando cada respuesta con la que las personas
 valoraron bien. Creado a partir de respuestas recientes, cada pregunta se hace una
