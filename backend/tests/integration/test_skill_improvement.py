@@ -1421,6 +1421,26 @@ class TestCheckAndResult:
         assert read.check is not None and read.check.status == "running"
         assert read.outcomes == []
 
+    @pytest.mark.security
+    async def test_a_change_quoting_a_credential_is_shown_redacted_and_never_checked(
+        self, db, evidence, monkeypatch
+    ):
+        fake = _checked(db, monkeypatch)
+        ctx = await _owner(db)
+        leaked = "postgres://app:Kanar3kSkillEdit@db/app"
+        run = await _at_changes(
+            db, ctx, [_body_edit("Refunds take 14 days.", f"Refunds take 30 days. Use {leaked}.")]
+        )
+        service = SkillImprovementService(db)
+
+        [change] = await service.changes(ctx, run.skill_id, run.id)
+        with pytest.raises(BadRequestError, match="quotes a credential"):
+            await _check_now(db, ctx, run)
+
+        assert change.contains_credential
+        assert "Kanar3kSkillEdit" not in change.new_text
+        assert [call for call in fake.calls if call[0] == "start"] == []
+
     async def test_a_limit_raised_at_the_quote_is_the_limit_the_session_keeps(
         self, db, evidence, monkeypatch
     ):

@@ -117,7 +117,7 @@ from app.services.authoring_config import ConfigurationService
 from app.services.authoring_evidence import EvidencePack, EvidenceService
 from app.services.background_jobs import enqueue
 from app.services.context import ContextService
-from app.services.dataset import redact_credentials, redact_json
+from app.services.dataset import quotes_credential, redact_credentials, redact_json
 from app.services.eval_run import EvalRunService, spec_hash
 from app.services.eval_suite import EvalSuiteService
 from app.services.model_profile import ModelProfileService
@@ -1057,9 +1057,9 @@ class AuthoringService:
             origin=hunk.origin,
             status=hunk.status,
             old_text=hunk.old_text,
-            new_text=hunk.new_text,
-            edited_text=hunk.edited_text,
-            accepted_text=hunk.accepted_text,
+            new_text=redact_credentials(hunk.new_text)[0] or hunk.new_text,
+            edited_text=redact_credentials(hunk.edited_text)[0],
+            accepted_text=redact_credentials(hunk.accepted_text)[0],
             context_before=hunk.context_before,
             context_after=hunk.context_after,
             capability_id=hunk.capability_id,
@@ -1090,6 +1090,7 @@ class AuthoringService:
             evidence_dropped=hunk.evidence_dropped,
             applies=authoring_hunks.applies(spec, hunk),
             decided_at=hunk.decided_at,
+            contains_credential=quotes_credential(hunk.edited_text or hunk.new_text),
         )
 
     async def _locked(self, ctx: AuthContext, agent: Agent) -> Agent:
@@ -1358,6 +1359,11 @@ class AuthoringService:
                 raise self._stale()
             return applied[0], {"accepted_override": applied[1]}
         replacement = text if text is not None else hunk.edited_text or hunk.new_text
+        if quotes_credential(replacement):
+            raise BadRequestError(
+                message="This change quotes a credential; reject it or edit the text",
+                details={"hunk_id": hunk.id},
+            )
         written = authoring_hunks.apply(spec, hunk, text=replacement)
         if written is None:
             raise self._stale()

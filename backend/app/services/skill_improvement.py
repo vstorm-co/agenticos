@@ -138,7 +138,7 @@ from app.services.api_key import job_context
 from app.services.authoring import AuthoringService
 from app.services.authoring_evidence import EvidencePack
 from app.services.background_jobs import enqueue
-from app.services.dataset import redact_credentials
+from app.services.dataset import quotes_credential, redact_credentials
 from app.services.improvement_pipeline import ImprovementPipelineService
 from app.services.improvement_skills import SkillSeed
 from app.services.skill_agents import SkillAgentService
@@ -293,6 +293,13 @@ def merge_outcomes(
         found.append("return_to_main")
     found.append(CheckOutcome.DISCARD)
     return found
+
+
+def _quotes_credential(hunk: SpecProposalHunk) -> bool:
+    """Whether the text a change would write into the skill quotes a credential."""
+    if hunk.kind == HunkKind.SKILL_DESCRIPTION.value:
+        return quotes_credential(hunk.edited_text or hunk.new_description)
+    return quotes_credential(hunk.edited_text or hunk.new_text)
 
 
 def candidate_text(base: SkillVersion, hunks: Sequence[SpecProposalHunk]) -> tuple[str, str] | None:
@@ -1857,7 +1864,13 @@ class SkillImprovementService:
         *,
         base: SkillVersion | None = None,
     ) -> SkillCheckStart:
-        text = candidate_text(base or await self.base_of(run), await self._chosen(ctx, iteration))
+        chosen = await self._chosen(ctx, iteration)
+        if any(_quotes_credential(hunk) for hunk in chosen):
+            raise refused_field(
+                "hunk_ids",
+                "A chosen change quotes a credential; leave it out or edit the text",
+            )
+        text = candidate_text(base or await self.base_of(run), chosen)
         if text is None:
             raise refused_field(
                 "hunk_ids",
@@ -2534,9 +2547,9 @@ class SkillImprovementService:
             origin=hunk.origin,
             status=hunk.status,
             old_text=hunk.old_text,
-            new_text=hunk.new_text,
-            edited_text=hunk.edited_text,
-            accepted_text=hunk.accepted_text,
+            new_text=redact_credentials(hunk.new_text)[0] or hunk.new_text,
+            edited_text=redact_credentials(hunk.edited_text)[0],
+            accepted_text=redact_credentials(hunk.accepted_text)[0],
             context_before=hunk.context_before,
             context_after=hunk.context_after,
             capability_id=None,
@@ -2544,7 +2557,7 @@ class SkillImprovementService:
             base_name=None,
             base_description=hunk.base_description,
             new_name=None,
-            new_description=hunk.new_description,
+            new_description=redact_credentials(hunk.new_description)[0],
             rationale=redact_credentials(hunk.rationale)[0] or hunk.rationale,
             expected_effect=redact_credentials(hunk.expected_effect)[0] or hunk.expected_effect,
             evidence=[
@@ -2562,6 +2575,7 @@ class SkillImprovementService:
             applies=description
             or authoring_hunks.apply_text(base.content, hunk, hunk.new_text) is not None,
             decided_at=hunk.decided_at,
+            contains_credential=_quotes_credential(hunk),
         )
 
     async def _at_changes(

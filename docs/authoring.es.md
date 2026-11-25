@@ -1,5 +1,5 @@
 ---
-source_sha: "ce7887967b64"
+source_sha: "6244e5e8b0f3"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las herramientas, la configuración, los skills y los archivos de contexto de un agent. Una persona decide cada uno."
 ---
@@ -620,7 +620,7 @@ Las pruebas manuales y la generación de preguntas notifican a quien las inició
 
 El paso Comprender muestra una muestra limitada de fuentes, la causa registrada, la respuesta, los comentarios de evaluación y un enlace a la conversación. Las causas desconocidas permanecen explícitamente sin clasificar. El paso Preguntas de prueba lee la versión fijada de la sesión e identifica las preguntas de entrenamiento y reservadas. Hoy muestra la referencia solo después de completar correctamente la prueba; una ejecución parcial o fallida no se presenta como una medición de referencia. La vista de fuentes requiere `runs:view`, comprueba el acceso actual a las bases de conocimiento y oculta credenciales en todos los campos de texto.
 
-Las pruebas que recibe el modelo del asistente - preguntas, respuestas, comentarios de evaluación, argumentos de llamadas a herramientas y errores - se ocultan igual antes de salir, de modo que también las citas que conserva un cambio están ocultadas. Las citas y los resúmenes guardados antes se ocultan cada vez que se leen.
+Las pruebas que recibe el modelo del asistente - preguntas, respuestas, comentarios de evaluación, argumentos de llamadas a herramientas y errores - se ocultan igual antes de salir, de modo que también las citas que conserva un cambio están ocultadas. Las citas y los resúmenes guardados antes se ocultan cada vez que se leen. Un cambio cuyo texto cita una credencial se muestra ocultado y marcado con `contains_credential`, y aceptarlo o comprobarlo se rechaza hasta que una persona elimine la credencial del texto.
 
 
 El paso de aceptación muestra el número de la siguiente versión y repite el resultado medido de la ronda seleccionada. La comprobación automática se ofrece solo si el agente no tiene ninguna suite. Publicar guarda la identidad y el número de versión en la sesión: al volver a abrirla, el enlace sigue apuntando a esa publicación. Las sesiones antiguas sin este dato muestran su estado sin adivinar una versión. Un error al leer sugerencias permite reintentar; las sugerencias sustituidas no permanecen cargando indefinidamente. Los entornos protegidos esperan sus comprobaciones y los fijados conservan su versión actual.

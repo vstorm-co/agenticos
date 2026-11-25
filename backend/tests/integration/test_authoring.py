@@ -464,6 +464,41 @@ class TestImprove:
         assert "Kanar3kKept" not in shown
         assert "[redacted:url_credentials]" in shown
 
+    @pytest.mark.security
+    async def test_a_kept_change_quoting_a_credential_is_shown_redacted_and_refused_until_edited(
+        self, db
+    ):
+        ctx, agent, _ = await _setup(db)
+        await _improve(db, ctx, agent, Improver(db))
+        service = AuthoringService(db)
+        before = (await service.for_agent(ctx, agent.id)).batch
+        assert before is not None
+        instruction = next(hunk for hunk in before.hunks if hunk.kind == "instructions")
+        stored = await authoring_repo.get_hunk(
+            db, instruction.id, organization_id=ctx.organization_id
+        )
+        assert stored is not None
+        stored.new_text = "Be brief. Connect with postgres://app:Kanar3kAccept@db/app."
+        await db.flush()
+
+        after = (await service.for_agent(ctx, agent.id)).batch
+        assert after is not None
+        shown = next(hunk for hunk in after.hunks if hunk.id == stored.id)
+        with pytest.raises(BadRequestError, match="quotes a credential"):
+            await service.decide(ctx, agent.id, stored.id, HunkDecision(action="accept"))
+        decided = await service.decide(
+            ctx,
+            agent.id,
+            stored.id,
+            HunkDecision(action="accept", text="Be brief. Refunds take 30 days."),
+        )
+
+        assert shown.contains_credential
+        assert "Kanar3kAccept" not in shown.new_text
+        assert "[redacted:url_credentials]" in shown.new_text
+        written = str(decided.draft_spec["instructions"])
+        assert "Refunds take 30 days." in written and "Kanar3kAccept" not in written
+
     async def test_a_large_body_of_evidence_is_digested_before_the_proposal(self, db, monkeypatch):
         ctx, agent, _ = await _setup(db)
         for _ in range(6):
