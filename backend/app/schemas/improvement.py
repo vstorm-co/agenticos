@@ -251,6 +251,12 @@ class ImprovementIterationRead(BaseSchema):
     verdict_detail: (
         dict[str, int | float | str | list[VerdictCriterion] | list[VerdictFamily] | None] | None
     )
+    result_hash: str | None = Field(
+        default=None,
+        description="A fingerprint of the attempt's verdict and its detail as measured, the "
+        "same for every reader. A review that judges a case again changes it; accepting "
+        "sends it back",
+    )
     held_out: int | None = Field(
         default=None,
         description="How many questions the attempt is measured on - kept aside, and no copy "
@@ -533,8 +539,8 @@ class AttributionConsent(BaseSchema):
 class ImprovementFinish(BaseSchema):
     """Accepting the attempt a person reviewed, bound to what they saw.
 
-    `attempt` and `candidate_spec_hash` are the attempt's number and its
-    `ImprovementIterationRead.candidate_spec_hash` as the reviewer read them; the
+    `attempt`, `candidate_spec_hash` and `result_hash` are the attempt's number and
+    its `ImprovementIterationRead` fingerprints as the reviewer read them; the
     session must still hold exactly that attempt, measured as it was, or the
     request is refused with 409.
     """
@@ -544,6 +550,10 @@ class ImprovementFinish(BaseSchema):
     candidate_spec_hash: str = Field(
         pattern=r"^[0-9a-f]{64}$",
         description="The reviewed attempt's `candidate_spec_hash`, from the session's read",
+    )
+    result_hash: str = Field(
+        pattern=r"^[0-9a-f]{64}$",
+        description="The reviewed attempt's `result_hash`, from the session's read",
     )
     publish: bool = False
     publish_unmeasured_edits: bool = Field(

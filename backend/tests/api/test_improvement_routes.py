@@ -71,7 +71,12 @@ _HASH = "a" * 64
             "POST",
             f"{_ONE}/finish",
             "finish",
-            {"confirmed": True, "attempt": 1, "candidate_spec_hash": "a" * 64},
+            {
+                "confirmed": True,
+                "attempt": 1,
+                "candidate_spec_hash": "a" * 64,
+                "result_hash": "b" * 64,
+            },
             False,
         ),
         ("POST", f"{_ONE}/continue/estimate", "estimate_continuation", {"budget_usd": "5"}, False),

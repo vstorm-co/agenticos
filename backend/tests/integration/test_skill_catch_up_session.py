@@ -459,7 +459,7 @@ class TestACatchUp:
             skill.id,
             run.id,
             SkillImprovementApply(
-                confirmed=True, check_id=await reviewed_check(db, ctx, skill.id, run.id)
+                confirmed=True, **await reviewed_check(db, ctx, skill.id, run.id)
             ),
         )
 
@@ -497,7 +497,7 @@ class TestACatchUp:
                 run.id,
                 SkillImprovementReturn(
                     confirmed=True,
-                    check_id=await reviewed_check(db, ctx, skill.id, run.id, main_alone=True),
+                    **await reviewed_check(db, ctx, skill.id, run.id, main_alone=True),
                 ),
             )
 
@@ -542,7 +542,7 @@ class TestACatchUp:
                 skill.id,
                 run.id,
                 SkillImprovementApply(
-                    confirmed=True, check_id=await reviewed_check(db, ctx, skill.id, run.id)
+                    confirmed=True, **await reviewed_check(db, ctx, skill.id, run.id)
                 ),
             )
 
@@ -565,7 +565,7 @@ class TestACatchUp:
                 skill.id,
                 run.id,
                 SkillImprovementApply(
-                    confirmed=True, check_id=await reviewed_check(db, ctx, skill.id, run.id)
+                    confirmed=True, **await reviewed_check(db, ctx, skill.id, run.id)
                 ),
             )
         applied = await service.apply(
@@ -574,7 +574,7 @@ class TestACatchUp:
             run.id,
             SkillImprovementApply(
                 confirmed=True,
-                check_id=await reviewed_check(db, ctx, skill.id, run.id),
+                **await reviewed_check(db, ctx, skill.id, run.id),
                 acknowledge_unknown=True,
             ),
         )
@@ -601,7 +601,7 @@ class TestACatchUp:
                 skill.id,
                 run.id,
                 SkillImprovementReturn(
-                    confirmed=True, check_id=await reviewed_check(db, ctx, skill.id, run.id)
+                    confirmed=True, **await reviewed_check(db, ctx, skill.id, run.id)
                 ),
             )
 
@@ -611,7 +611,7 @@ class TestACatchUp:
             run.id,
             SkillImprovementReturn(
                 confirmed=True,
-                check_id=await reviewed_check(db, ctx, skill.id, run.id, main_alone=True),
+                **await reviewed_check(db, ctx, skill.id, run.id, main_alone=True),
             ),
         )
 
@@ -646,7 +646,7 @@ class TestACatchUp:
                 run.id,
                 SkillImprovementReturn(
                     confirmed=True,
-                    check_id=await reviewed_check(db, ctx, skill.id, run.id, main_alone=True),
+                    **await reviewed_check(db, ctx, skill.id, run.id, main_alone=True),
                 ),
             )
 
@@ -679,7 +679,7 @@ class TestACatchUp:
                 run.id,
                 SkillImprovementReturn(
                     confirmed=True,
-                    check_id=await reviewed_check(db, ctx, skill.id, run.id, main_alone=True),
+                    **await reviewed_check(db, ctx, skill.id, run.id, main_alone=True),
                 ),
             )
         returned = await service.return_to_main(
@@ -688,7 +688,7 @@ class TestACatchUp:
             run.id,
             SkillImprovementReturn(
                 confirmed=True,
-                check_id=await reviewed_check(db, ctx, skill.id, run.id, main_alone=True),
+                **await reviewed_check(db, ctx, skill.id, run.id, main_alone=True),
                 acknowledge_unknown=True,
             ),
         )
@@ -769,7 +769,7 @@ class TestAMoveToMain:
             skill.id,
             run.id,
             SkillImprovementApply(
-                confirmed=True, check_id=await reviewed_check(db, ctx, skill.id, run.id)
+                confirmed=True, **await reviewed_check(db, ctx, skill.id, run.id)
             ),
         )
 
@@ -811,7 +811,7 @@ class TestAMoveToMain:
                 skill.id,
                 run.id,
                 SkillImprovementApply(
-                    confirmed=True, check_id=await reviewed_check(db, ctx, skill.id, run.id)
+                    confirmed=True, **await reviewed_check(db, ctx, skill.id, run.id)
                 ),
             )
         assert read_before is not None
@@ -888,7 +888,7 @@ class TestWhatAMergeIsNot:
                 run.id,
                 SkillImprovementFork(
                     confirmed=True,
-                    check_id=await reviewed_check(db, ctx, skill.id, run.id),
+                    **await reviewed_check(db, ctx, skill.id, run.id),
                     name="Other",
                 ),
             )
@@ -899,7 +899,7 @@ class TestWhatAMergeIsNot:
                 run.id,
                 SkillImprovementReturn(
                     confirmed=True,
-                    check_id=await reviewed_check(db, ctx, skill.id, run.id, main_alone=True),
+                    **await reviewed_check(db, ctx, skill.id, run.id, main_alone=True),
                 ),
             )
         read = await service.read(ctx, skill.id, run.id)
@@ -917,7 +917,7 @@ class TestWhatAMergeIsNot:
                 run.id,
                 SkillImprovementReturn(
                     confirmed=True,
-                    check_id=await reviewed_check(db, ctx, skill.id, run.id, main_alone=True),
+                    **await reviewed_check(db, ctx, skill.id, run.id, main_alone=True),
                 ),
             )
 
@@ -982,7 +982,7 @@ class TestAMergeOverTaken:
                 skill.id,
                 run.id,
                 SkillImprovementApply(
-                    confirmed=True, check_id=await reviewed_check(db, ctx, skill.id, run.id)
+                    confirmed=True, **await reviewed_check(db, ctx, skill.id, run.id)
                 ),
             )
 
@@ -1037,7 +1037,7 @@ class TestTheEdgesOfAMerge:
             skill.id,
             run.id,
             SkillImprovementApply(
-                confirmed=True, check_id=await reviewed_check(db, ctx, skill.id, run.id)
+                confirmed=True, **await reviewed_check(db, ctx, skill.id, run.id)
             ),
         )
 
@@ -1165,7 +1165,7 @@ class TestReviewFixes:
                 run.id,
                 SkillImprovementReturn(
                     confirmed=True,
-                    check_id=await reviewed_check(db, ctx, skill.id, run.id, main_alone=True),
+                    **await reviewed_check(db, ctx, skill.id, run.id, main_alone=True),
                 ),
             )
         with pytest.raises(ConcurrentChangeError) as taken:
@@ -1174,7 +1174,7 @@ class TestReviewFixes:
                 skill.id,
                 run.id,
                 SkillImprovementApply(
-                    confirmed=True, check_id=await reviewed_check(db, ctx, skill.id, run.id)
+                    confirmed=True, **await reviewed_check(db, ctx, skill.id, run.id)
                 ),
             )
 
@@ -1197,7 +1197,7 @@ class TestReviewFixes:
                 skill.id,
                 run.id,
                 SkillImprovementApply(
-                    confirmed=True, check_id=await reviewed_check(db, ctx, skill.id, run.id)
+                    confirmed=True, **await reviewed_check(db, ctx, skill.id, run.id)
                 ),
             )
         with pytest.raises(ConcurrentChangeError):
@@ -1207,7 +1207,7 @@ class TestReviewFixes:
                 run.id,
                 SkillImprovementReturn(
                     confirmed=True,
-                    check_id=await reviewed_check(db, ctx, skill.id, run.id, main_alone=True),
+                    **await reviewed_check(db, ctx, skill.id, run.id, main_alone=True),
                 ),
             )
 

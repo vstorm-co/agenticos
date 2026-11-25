@@ -1,5 +1,5 @@
 ---
-source_sha: "960146b2ea8b"
+source_sha: "f75050767f96"
 ---
 
 # Skille { #skills }
@@ -911,9 +911,10 @@ To, co proponuje Akceptacja, wynika z wyniku:
   odpowiedzi, w których agenci go wczytali, żeby następnym razem dało się ich
   sprawdzić.
 
-Każda decyzja wskazuje check, który osoba obejrzała - jego `check_id` albo, przy
-powrocie do main, id checku samego main - i jest odrzucana z `409`, gdy sesja ma
-inny wynik: odczytaj sesję jeszcze raz i obejrzyj go.
+Każda decyzja wskazuje check, który osoba obejrzała - jego `check_id` i
+`result_hash` albo, przy powrocie do main, te same pola checku samego main - i jest
+odrzucana z `409`, gdy sesja ma inny wynik albo przegląd ocenił go na nowo:
+odczytaj sesję jeszcze raz i obejrzyj go.
 
 Gdy po sprawdzeniu linia dostanie nową wersję albo zmienią się jej agenci, wynik
 przestaje obowiązywać i zamiast zastosowania proponuje **Sprawdź ponownie**: te

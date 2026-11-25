@@ -16899,7 +16899,7 @@
   },
   "improvement": {
     "acceptChanged": "Próba, którą chciałeś przyjąć, zmieniła się od czasu, gdy ją oglądałeś. Sesja została odświeżona; obejrzyj ją jeszcze raz.",
-    "unmeasuredEdits": "Draft miał edycje sprzed startu tej sesji. Publikacja wypuści także je, a żaden check ich nie zmierzył.",
+    "unmeasuredEdits": "Wersja robocza miała edycje sprzed startu tej sesji. Publikacja wypuści także je, a żaden check ich nie zmierzył.",
     "publishUnmeasuredEdits": "Opublikuj także te edycje",
     "attributionUnconfirmed": "Zmiana {number}: wynik nie jest potwierdzony.",
     "includeInTest": "Uwzględnij w teście",

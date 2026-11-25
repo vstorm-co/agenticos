@@ -247,6 +247,7 @@ export function useImprovement(subject: ImprovementSubject, runId: string) {
       confirmed: true;
       attempt: number;
       candidate_spec_hash: string;
+      result_hash: string;
       publish: boolean;
       publish_unmeasured_edits: boolean;
       automatic_check: boolean;

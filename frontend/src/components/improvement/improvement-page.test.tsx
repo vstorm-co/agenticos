@@ -182,6 +182,7 @@ beforeEach(() => {
         batch_id: "b1",
         eval_run_ids: [],
         candidate_spec_hash: "hash",
+        result_hash: "result",
         attribution_eval_run_ids: {},
         dropped_hunk_ids: [],
         dropped: [],
@@ -294,6 +295,7 @@ it("reopens the result and requires confirmation before publishing", async () =>
     confirmed: true,
     attempt: 1,
     candidate_spec_hash: "hash",
+    result_hash: "result",
     publish: true,
     publish_unmeasured_edits: false,
     automatic_check: true,
@@ -313,6 +315,7 @@ it("keeps a draft and lets the person decline automatic checks", async () => {
     confirmed: true,
     attempt: 1,
     candidate_spec_hash: "hash",
+    result_hash: "result",
     publish: false,
     publish_unmeasured_edits: false,
     automatic_check: false,
@@ -330,6 +333,22 @@ it("forgets the confirmation once another attempt is the one waiting", async () 
     ...state.session!,
     best_iteration_id: "r2",
     iterations: [first, { ...first, id: "r2", number: 2, candidate_spec_hash: "other" }],
+  };
+  rerender(<ImprovementPage agentId="a1" sessionId="s1" />);
+
+  expect(screen.getByLabelText(confirmation)).not.toBeChecked();
+  expect(screen.getByRole("button", { name: "Keep as draft" })).toBeDisabled();
+});
+it("forgets the confirmation once a review judges the waiting attempt again", async () => {
+  const { rerender } = render(<ImprovementPage agentId="a1" sessionId="s1" />);
+  await userEvent.click(screen.getByRole("button", { name: "Review and accept the changes" }));
+  const confirmation = "I have reviewed the selected changes and want to apply them.";
+  await userEvent.click(screen.getByLabelText(confirmation));
+
+  const first = state.session!.iterations[0]!;
+  state.session = {
+    ...state.session!,
+    iterations: [{ ...first, verdict_detail: { fixed: 3, broken: 1 }, result_hash: "again" }],
   };
   rerender(<ImprovementPage agentId="a1" sessionId="s1" />);
 
@@ -357,7 +376,11 @@ it("publishes edits the session never measured only once the person confirms the
 it("says the attempt changed and reads the session again when accepting is refused", async () => {
   actions.finish.mutateAsync.mockRejectedValueOnce(
     new ApiError(409, "The attempt waiting changed", {
-      error: { code: "CONCURRENT_CHANGE", message: "The attempt waiting changed" },
+      error: {
+        code: "CONCURRENT_CHANGE",
+        message: "The attempt waiting changed",
+        details: { attempt: 2, reviewed_attempt: 1 },
+      },
     }),
   );
   render(<ImprovementPage agentId="a1" sessionId="s1" />);
@@ -374,6 +397,21 @@ it("says the attempt changed and reads the session again when accepting is refus
   expect(
     screen.getByLabelText("I have reviewed the selected changes and want to apply them."),
   ).not.toBeChecked();
+});
+it("keeps the refusal's own reason when the draft, not the attempt, changed", async () => {
+  const reason = "The draft changed since this attempt was measured.";
+  actions.finish.mutateAsync.mockRejectedValueOnce(
+    new ApiError(409, reason, { error: { code: "CONCURRENT_CHANGE", message: reason } }),
+  );
+  render(<ImprovementPage agentId="a1" sessionId="s1" />);
+  await userEvent.click(screen.getByRole("button", { name: "Review and accept the changes" }));
+  const confirmation = "I have reviewed the selected changes and want to apply them.";
+  await userEvent.click(screen.getByLabelText(confirmation));
+  await userEvent.click(screen.getByRole("button", { name: "Keep as draft" }));
+
+  expect(await screen.findByText(reason)).toBeInTheDocument();
+  expect(screen.queryByText(/The session was refreshed/)).not.toBeInTheDocument();
+  expect(screen.getByLabelText(confirmation)).toBeChecked();
 });
 it("requires a separate confirmation of the attribution price", async () => {
   actions.estimateAttribution.mutateAsync.mockResolvedValue({
@@ -651,6 +689,7 @@ it("shows saved draft completion and the exact next version before publishing", 
     confirmed: true,
     attempt: 1,
     candidate_spec_hash: "hash",
+    result_hash: "result",
     publish: false,
     publish_unmeasured_edits: false,
     automatic_check: false,
@@ -998,6 +1037,7 @@ describe("every step's state matches what its panel shows", () => {
     batch_id: "b1",
     eval_run_ids: [],
     candidate_spec_hash: "hash",
+    result_hash: "result",
     attribution_eval_run_ids: {},
     dropped_hunk_ids: [],
     dropped: [],

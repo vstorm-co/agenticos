@@ -127,9 +127,10 @@ function Session({
   const active = isActive(session);
   const chosen = session.iterations.find((r) => r.id === session.best_iteration_id);
   // A confirmation holds for the attempt, as measured, that was on screen when it was given.
-  const reviewed = chosen?.candidate_spec_hash
-    ? `${chosen.id}:${chosen.candidate_spec_hash}`
-    : null;
+  const reviewed =
+    chosen?.candidate_spec_hash && chosen.result_hash
+      ? `${chosen.id}:${chosen.candidate_spec_hash}:${chosen.result_hash}`
+      : null;
   const confirm = reviewed !== null && confirmedFor === reviewed;
   const releasesUnmeasured = reviewed !== null && releasesFor === reviewed;
   const setConfirm = (checked: boolean) => setConfirmedFor(checked ? reviewed : null);
@@ -152,18 +153,19 @@ function Session({
   );
   const offersCheck = session.offer_automatic_check === true;
   async function accept(publish: boolean) {
-    if (!chosen?.candidate_spec_hash) return;
+    if (!chosen?.candidate_spec_hash || !chosen.result_hash) return;
     try {
       await actions.finish.mutateAsync({
         confirmed: true,
         attempt: chosen.number,
         candidate_spec_hash: chosen.candidate_spec_hash,
+        result_hash: chosen.result_hash,
         publish,
         publish_unmeasured_edits: publish && releasesUnmeasured,
         automatic_check: offersCheck && automatic,
       });
     } catch (error) {
-      if (error instanceof ApiError && error.status === 409) {
+      if (error instanceof ApiError && error.details?.reviewed_attempt !== undefined) {
         setConfirmedFor(null);
         void actions.refetch();
         throw new Error(t("acceptChanged"));

@@ -142,7 +142,7 @@ from app.services.improvement_pipeline import ImprovementPipelineService
 from app.services.improvement_skills import SkillSeed
 from app.services.skill_agents import SkillAgentService
 from app.services.skill_catch_up import MergeSides, SkillCatchUpService
-from app.services.skill_check import SkillCheckService
+from app.services.skill_check import SkillCheckService, result_hash
 from app.services.skill_versions import SkillVersionService
 from app.worker.jobs import ADVANCE_SKILL_IMPROVEMENT, AdvanceSkillImprovement
 
@@ -952,8 +952,9 @@ class SkillImprovementService:
         newest; a move to main makes it main's newest version, taken in from the fork.
         """
         line, run = await self._editable_row(ctx, skill_id, run_id, lock=True)
-        check_id = await self._decidable(run)
-        self._refuse_unreviewed(data.check_id, check_id)
+        check = await self._decidable(run)
+        await self._refuse_unreviewed(data, check)
+        check_id = check.id
         if run.purpose == Purpose.CATCH_UP.value:
             return await self._catch_up(ctx, line, run, check_id, data)
         merged_from_id = None
@@ -1027,7 +1028,7 @@ class SkillImprovementService:
         assert run.fork_id is not None, "a catch-up runs on its fork"
         alone = await self._main_alone_check(run)
         assert alone is not None, "return to main is offered after main alone was checked"
-        self._refuse_unreviewed(data.check_id, alone.id)
+        await self._refuse_unreviewed(data, alone)
         await self.checks.decidable_for_session(ctx, run.skill_id, alone.id)
         measured = await self.checks.read(ctx, run.skill_id, alone.id)
         unknown = measured.hidden_unknown + sum(
@@ -1116,8 +1117,9 @@ class SkillImprovementService:
                 message="A merge is taken in or moved back, not made a fork",
                 details={"purpose": run.purpose},
             )
-        check_id = await self._decidable(run)
-        self._refuse_unreviewed(data.check_id, check_id)
+        check = await self._decidable(run)
+        await self._refuse_unreviewed(data, check)
+        check_id = check.id
         forked = await self.checks.fork(
             ctx,
             skill_id,
@@ -2041,19 +2043,25 @@ class SkillImprovementService:
             self.db, iteration.skill_check_id, organization_id=run.organization_id
         )
 
-    @staticmethod
-    def _refuse_unreviewed(reviewed: UUID, current: UUID) -> None:
-        """Refuse a decision on any result but the one the person reviewed."""
-        if reviewed != current:
+    async def _refuse_unreviewed(
+        self,
+        data: SkillImprovementApply | SkillImprovementFork | SkillImprovementReturn,
+        current: SkillCheck,
+    ) -> None:
+        """Refuse a decision on any result but the one the person reviewed, as judged then."""
+        rows = await skill_check_repo.list_agents(
+            self.db, [current.id], organization_id=current.organization_id
+        )
+        if data.check_id != current.id or data.result_hash != result_hash(current, rows):
             raise ConcurrentChangeError(
                 message=(
                     "The result waiting to be decided changed since you reviewed it. "
                     "Refresh the session and review it again."
                 ),
-                details={"check_id": current, "reviewed_check_id": reviewed},
+                details={"check_id": current.id, "reviewed_check_id": data.check_id},
             )
 
-    async def _decidable(self, run: SkillImprovementRun) -> UUID:
+    async def _decidable(self, run: SkillImprovementRun) -> SkillCheck:
         """The check a person decides on: the result the session waits with."""
         if run.status != Status.READY:
             raise ConcurrentChangeError(
@@ -2062,7 +2070,7 @@ class SkillImprovementService:
             )
         check = await self._check(run)
         assert check is not None, "a session waits with a result only after its check"
-        return check.id
+        return check
 
     async def _decide(
         self,

@@ -86,11 +86,18 @@ it("returns a catch-up's agents to main with the session's consent", async () =>
   vi.mocked(apiClient.post).mockResolvedValue({ session: { id: "s1" }, returned: {} });
   const { result } = renderHook(() => useReturnToMain("k1", "s1"), { wrapper });
 
-  await act(() => result.current.mutateAsync({ checkId: "c1", acknowledgeUnknown: true }));
+  await act(() =>
+    result.current.mutateAsync({
+      checkId: "c1",
+      resultHash: "e".repeat(64),
+      acknowledgeUnknown: true,
+    }),
+  );
 
   expect(apiClient.post).toHaveBeenCalledWith("/skills/k1/improvements/s1/return-to-main", {
     confirmed: true,
     check_id: "c1",
+    result_hash: "e".repeat(64),
     acknowledge_unknown: true,
   });
 });

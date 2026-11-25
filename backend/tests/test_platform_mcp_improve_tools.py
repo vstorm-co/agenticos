@@ -52,6 +52,7 @@ SESSION_READ: dict[str, Any] = {
             },
             "cost_usd": "0.01",
             "candidate_spec_hash": "a" * 64,
+            "result_hash": "c" * 64,
         },
         {
             "id": BEST,
@@ -66,6 +67,7 @@ SESSION_READ: dict[str, Any] = {
             },
             "cost_usd": "0.02",
             "candidate_spec_hash": "b" * 64,
+            "result_hash": "d" * 64,
         },
     ],
 }
@@ -160,6 +162,7 @@ class TestReadingSessions:
             "chosen": True,
             "best": True,
             "candidate_hash": "b" * 64,
+            "result_hash": "d" * 64,
         }
         assert session["attempts"][0]["change"] == 1
         assert not session["attempts"][0]["chosen"]
@@ -1745,6 +1748,7 @@ class TestActingOnASession:
                 "session_id": str(SESSION),
                 "attempt": 2,
                 "candidate_hash": "c" * 64,
+                "result_hash": "e" * 64,
                 "publish": publish,
             },
         )
@@ -1758,6 +1762,7 @@ class TestActingOnASession:
                 "confirmed": True,
                 "attempt": 2,
                 "candidate_spec_hash": "c" * 64,
+                "result_hash": "e" * 64,
                 "publish": publish,
                 "publish_unmeasured_edits": False,
                 "automatic_check": False,

@@ -317,6 +317,17 @@ class EarlierAttempt:
     criteria: tuple[CriterionMoveRead, ...]
 
 
+def result_hash(attempt: ImprovementIteration) -> str:
+    """A fingerprint of an attempt's verdict and detail as stored, whoever reads it.
+
+    A person's review of a case judges the attempt again in place, keeping its
+    number and its candidate, so these alone do not say what was measured.
+    """
+    measured = {"verdict": attempt.verdict, "detail": attempt.verdict_detail}
+    canonical = json.dumps(measured, sort_keys=True, separators=(",", ":"), default=str)
+    return hashlib.sha256(canonical.encode()).hexdigest()
+
+
 def _change_excerpt(text: str | None) -> str | None:
     """Clip a value before adding its structural delimiters to the prompt."""
     if text is None or len(text) <= 700:
@@ -1257,7 +1268,12 @@ class ImprovementPipelineService:
         result.spent_usd = await improvement_repo.spent(
             self.db, run.id, organization_id=run.organization_id
         )
-        result.iterations = [ImprovementIterationRead.model_validate(item) for item in iterations]
+        result.iterations = [
+            ImprovementIterationRead.model_validate(item).model_copy(
+                update={"result_hash": result_hash(item)}
+            )
+            for item in iterations
+        ]
         searched = [
             (attempt, row)
             for attempt, row in zip(result.iterations, iterations, strict=True)
@@ -1534,11 +1550,12 @@ class ImprovementPipelineService:
         if (
             selected.number != data.attempt
             or selected.candidate_spec_hash != data.candidate_spec_hash
+            or result_hash(selected) != data.result_hash
         ):
             raise ConcurrentChangeError(
                 message=(
-                    "The attempt waiting to be accepted changed since you reviewed it. "
-                    "Refresh the session and review it again."
+                    "The attempt waiting to be accepted, or its result, changed since you "
+                    "reviewed it. Refresh the session and review it again."
                 ),
                 details={"attempt": selected.number, "reviewed_attempt": data.attempt},
             )

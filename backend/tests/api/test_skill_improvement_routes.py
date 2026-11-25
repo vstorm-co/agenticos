@@ -49,6 +49,7 @@ _HASH = "a" * 64
             {
                 "confirmed": True,
                 "check_id": "00000000-0000-0000-0000-000000000003",
+                "result_hash": "e" * 64,
                 "pin_worse": True,
                 "acknowledge_unknown": True,
             },
@@ -60,6 +61,7 @@ _HASH = "a" * 64
             {
                 "confirmed": True,
                 "check_id": "00000000-0000-0000-0000-000000000003",
+                "result_hash": "e" * 64,
                 "name": "Returns",
             },
         ),
@@ -94,7 +96,11 @@ _HASH = "a" * 64
             "POST",
             f"{_ONE}/return-to-main",
             "return_to_main",
-            {"confirmed": True, "check_id": "00000000-0000-0000-0000-000000000003"},
+            {
+                "confirmed": True,
+                "check_id": "00000000-0000-0000-0000-000000000003",
+                "result_hash": "e" * 64,
+            },
         ),
     ],
 )

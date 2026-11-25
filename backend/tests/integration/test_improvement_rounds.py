@@ -600,3 +600,32 @@ async def test_accepting_refuses_an_attempt_other_than_the_one_reviewed(db):
         ctx, agent.id, started.id, await reviewed(db, ctx, agent.id, started.id)
     )
     assert accepted.session.best_iteration_id == accepted.session.iterations[0].id
+
+
+@pytest.mark.security
+async def test_accepting_refuses_an_attempt_judged_again_since_it_was_reviewed(db):
+    """A review of a case judges the attempt again in place, keeping its number and its
+    candidate: the acceptance given on the result as it read before is refused."""
+    ctx, agent, started, _, _ = await _two_rounds(db)
+    service = ImprovementPipelineService(db)
+    shown = await reviewed(db, ctx, agent.id, started.id)
+    rounds = await improvement_repo.list_iterations(
+        db, organization_id=ctx.organization_id, run_id=started.id
+    )
+    chosen = next(item for item in rounds if item.number == shown.attempt)
+    await improvement_repo.update_iteration(
+        db,
+        iteration=chosen,
+        values={"verdict_detail": {**(chosen.verdict_detail or {}), "broken": 1}},
+    )
+    before = dict(agent.draft_spec)
+
+    with pytest.raises(ConcurrentChangeError, match="Refresh the session") as refused:
+        await service.finish(ctx, agent.id, started.id, shown)
+
+    assert refused.value.details == {"attempt": shown.attempt, "reviewed_attempt": shown.attempt}
+    assert agent.draft_spec == before
+    accepted = await service.finish(
+        ctx, agent.id, started.id, await reviewed(db, ctx, agent.id, started.id)
+    )
+    assert accepted.session.best_iteration_id == chosen.id

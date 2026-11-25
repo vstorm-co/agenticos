@@ -1,5 +1,5 @@
 ---
-source_sha: "960146b2ea8b"
+source_sha: "f75050767f96"
 ---
 
 # Skills { #skills }
@@ -989,9 +989,10 @@ Was Annehmen anbietet, folgt aus dem Ergebnis:
   geprüft werden können.
 
 Jede Entscheidung nennt die Prüfung, die die Person angesehen hat - ihre
-`check_id` oder, bei der Rückkehr zu main, die der Prüfung von main allein - und
-wird mit `409` abgelehnt, wenn die Sitzung ein anderes Ergebnis hat: Lesen Sie
-die Sitzung erneut und sehen Sie es an.
+`check_id` und ihren `result_hash` oder, bei der Rückkehr zu main, die der Prüfung
+von main allein - und wird mit `409` abgelehnt, wenn die Sitzung ein anderes
+Ergebnis hat oder eine neue Bewertung eines Falls es geändert hat: Lesen Sie die
+Sitzung erneut und sehen Sie es an.
 
 Bekommt die Linie nach der Prüfung eine neue Version oder ändern sich ihre
 Agents, gilt das Ergebnis nicht mehr und bietet statt des Anwendens **Erneut

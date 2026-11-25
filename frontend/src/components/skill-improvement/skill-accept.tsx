@@ -91,9 +91,10 @@ export function SkillAccept({
   const [acknowledged, setAcknowledged] = useState(false);
   const [aloneAcknowledged, setAloneAcknowledged] = useState(false);
   const aloneUnknown = unmeasured(session.main_alone_check);
-  // A confirmation holds for the check that was on screen when it was given.
+  // A confirmation holds for the check, as judged, that was on screen when it was given.
+  const reviewed = `${check.id}:${check.result_hash}`;
   const [confirmedFor, setConfirmedFor] = useState<string | null>(null);
-  const confirmed = confirmedFor === check.id;
+  const confirmed = confirmedFor === reviewed;
   const [refusal, setRefusal] = useState<string | null>(null);
   const [lineMoved, setLineMoved] = useState(false);
   const blockedOnFork =
@@ -124,6 +125,7 @@ export function SkillAccept({
     decide(() =>
       apply.mutateAsync({
         check_id: check.id,
+        result_hash: check.result_hash,
         acknowledge_unknown: acknowledged,
         pin_worse: pinWorse,
       }),
@@ -153,6 +155,7 @@ export function SkillAccept({
               const done = await fork.mutateAsync({
                 ...choice,
                 check_id: check.id,
+                result_hash: check.result_hash,
                 acknowledge_unknown: acknowledged,
               });
               onForked?.(done);
@@ -177,6 +180,7 @@ export function SkillAccept({
               if (!session.main_alone_check) return;
               const done = await returnToMain.mutateAsync({
                 checkId: session.main_alone_check.id,
+                resultHash: session.main_alone_check.result_hash,
                 acknowledgeUnknown: aloneAcknowledged,
               });
               onReturned?.(done.returned);
@@ -237,7 +241,7 @@ export function SkillAccept({
               <Checkbox
                 id="skill-accept-confirm"
                 checked={confirmed}
-                onCheckedChange={(checked) => setConfirmedFor(checked === true ? check.id : null)}
+                onCheckedChange={(checked) => setConfirmedFor(checked === true ? reviewed : null)}
               />
               <Label htmlFor="skill-accept-confirm" className="leading-snug font-normal">
                 {tImprovement("confirmation")}

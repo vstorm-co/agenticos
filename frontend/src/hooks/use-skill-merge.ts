@@ -84,11 +84,14 @@ export function useReturnToMain(skillId: string, sessionId: string) {
   return useMutation({
     mutationFn: ({
       checkId,
+      resultHash,
       acknowledgeUnknown,
     }: {
       checkId: string;
+      resultHash: string;
       acknowledgeUnknown: boolean;
-    }) => returnSkillImprovementToMain(skillId, sessionId, checkId, acknowledgeUnknown),
+    }) =>
+      returnSkillImprovementToMain(skillId, sessionId, { checkId, resultHash }, acknowledgeUnknown),
     onSuccess: settle,
     onError: settle,
   });

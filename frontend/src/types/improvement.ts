@@ -176,6 +176,8 @@ export interface ImprovementIteration {
   batch_id: string | null;
   eval_run_ids: string[];
   candidate_spec_hash: string | null;
+  /** A fingerprint of the attempt's verdict and detail; a review judging a case again changes it. */
+  result_hash?: string | null;
   included_hunk_ids?: string[] | null;
   /** What the person who asked for this attempt told its helper. */
   note?: string | null;

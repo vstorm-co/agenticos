@@ -50,7 +50,13 @@ def _changes(service: ImprovementPipelineService, ctx, agent_id, run_id):
             ctx,
             agent_id,
             run_id,
-            ImprovementFinish(confirmed=True, attempt=1, candidate_spec_hash=hash_, publish=True),
+            ImprovementFinish(
+                confirmed=True,
+                attempt=1,
+                candidate_spec_hash=hash_,
+                result_hash=hash_,
+                publish=True,
+            ),
         ),
         "retry": lambda: service.retry(ctx, agent_id, run_id),
         "estimate_continuation": lambda: service.estimate_continuation(

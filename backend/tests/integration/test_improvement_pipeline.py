@@ -74,6 +74,7 @@ async def reviewed(
         confirmed=True,
         attempt=1 if chosen is None else chosen.number,
         candidate_spec_hash=(chosen and chosen.candidate_spec_hash) or "0" * 64,
+        result_hash=(chosen and chosen.result_hash) or "0" * 64,
         **values,
     )
 

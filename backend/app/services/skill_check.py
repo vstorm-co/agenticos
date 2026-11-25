@@ -1504,6 +1504,7 @@ class SkillCheckService:
                 SkillCheckRead(
                     id=check.id,
                     skill_id=check.skill_id,
+                    result_hash=result_hash(check, mine),
                     source=CheckSource(check.source),
                     agent_id=check.agent_id,
                     candidate_version_id=check.candidate_version_id,
@@ -2459,6 +2460,34 @@ class SkillCheckService:
 
 
 _HELPED = frozenset({AgentState.BETTER.value, AgentState.CRITERIA_BETTER.value})
+
+
+def result_hash(check: SkillCheck, rows: Sequence[SkillCheckAgent]) -> str:
+    """A fingerprint of a check's verdict and every agent's judged result, whoever reads it.
+
+    A person's review of a case judges the check's agents again in place, keeping
+    the check's id, so the id alone does not say what was measured.
+    """
+    agents = [
+        {
+            "agent_id": row.agent_id,
+            "state": row.state,
+            "unknown_reason": row.unknown_reason,
+            "fixed": row.fixed,
+            "broken": row.broken,
+            "held_out": row.held_out,
+            "fixed_confirmed": row.fixed_confirmed,
+            "regressions_confirmed": row.regressions_confirmed,
+            "noisy": row.noisy,
+            "stages": row.stages,
+            "criteria": row.criteria,
+            "families": row.families,
+        }
+        for row in sorted(rows, key=lambda row: str(row.agent_id))
+    ]
+    measured = {"verdict": check.verdict, "agents": agents}
+    canonical = json.dumps(measured, sort_keys=True, separators=(",", ":"), default=str)
+    return hashlib.sha256(canonical.encode()).hexdigest()
 
 
 def _chosen_for_fork(

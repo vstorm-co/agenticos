@@ -794,6 +794,7 @@ def _attempt(iteration: dict[str, Any], chosen: Any) -> dict[str, Any]:
         "chosen": iteration["id"] == chosen,
         "best": iteration.get("verdict") in _GAINS,
         "candidate_hash": iteration.get("candidate_spec_hash"),
+        "result_hash": iteration.get("result_hash"),
     }
 
 
@@ -968,6 +969,7 @@ def _checked_agent(row: dict[str, Any]) -> dict[str, Any]:
 def _skill_check(check: dict[str, Any]) -> dict[str, Any]:
     return {
         "check_id": check.get("id"),
+        "result_hash": check.get("result_hash"),
         "verdict": check.get("verdict"),
         "warnings": check.get("warnings", []),
         "agents": [_checked_agent(row) for row in check.get("agents", [])],
@@ -3290,6 +3292,7 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         session_id: UUID,
         attempt: int,
         candidate_hash: str,
+        result_hash: str,
         publish: bool,
         automatic_check: bool = False,
         publish_unmeasured_edits: bool = False,
@@ -3297,10 +3300,11 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         """Accept a ready session's chosen attempt into the agent: as a draft, or published.
         Needs `agents:edit` and `runs:view`; `publish` also needs `agents:publish`.
 
-        `attempt` and `candidate_hash` are the chosen attempt's number and
-        `candidate_hash` from get_improvement, as you described it to the person;
-        when the session holds another attempt or measured it again, this is
-        refused - read the session again and tell the person what changed.
+        `attempt`, `candidate_hash` and `result_hash` are the chosen attempt's
+        number and fingerprints from get_improvement, as you described it to the
+        person; when the session holds another attempt, or its result was judged
+        again, this is refused - read the session again and tell the person what
+        changed.
         Publish only when the person asked for exactly that; otherwise accept as a
         draft they publish themselves. When the session has
         `unmeasured_draft_edits`, publishing also releases draft edits no check
@@ -3317,6 +3321,7 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
                 "confirmed": True,
                 "attempt": attempt,
                 "candidate_spec_hash": candidate_hash,
+                "result_hash": result_hash,
                 "publish": publish,
                 "publish_unmeasured_edits": publish_unmeasured_edits,
                 "automatic_check": automatic_check,
@@ -3795,6 +3800,7 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         session_id: UUID,
         outcome: Literal["apply", "apply_and_pin", "fork_for_helped", "catch_up", "return_to_main"],
         check_id: UUID,
+        result_hash: str,
         acknowledge_unknown: bool = False,
         fork_name: str | None = None,
         fork_agent_ids: list[UUID] | None = None,
@@ -3811,10 +3817,11 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         `return_to_main` moves the fork's agents back to main instead, offered
         only when main alone made none of them worse. Offer only the session's
         `next_actions`, and say which agents each choice moves. `acknowledge_unknown` only after the
-        person accepted the agents that could not be checked. `check_id` is the
-        `check_id` of the result you described to the person - the session's
-        `check`, or its `main_alone_check` for `return_to_main`; when the session
-        holds another result, this is refused: read it again and say what changed.
+        person accepted the agents that could not be checked. `check_id` and
+        `result_hash` are those of the result you described to the person - the
+        session's `check`, or its `main_alone_check` for `return_to_main`; when the
+        session holds another result, or judged it again, this is refused: read it
+        again and say what changed.
         """
         path = f"/skills/{skill_id}/improvements/{session_id}"
         if outcome == "return_to_main":
@@ -3833,6 +3840,7 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
                 json={
                     "confirmed": True,
                     "check_id": str(check_id),
+                    "result_hash": result_hash,
                     "acknowledge_unknown": acknowledge_unknown,
                 },
             )
@@ -3847,6 +3855,7 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
             choice: dict[str, Any] = {
                 "confirmed": True,
                 "check_id": str(check_id),
+                "result_hash": result_hash,
                 "name": fork_name,
                 "acknowledge_unknown": acknowledge_unknown,
             }
@@ -3866,6 +3875,7 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
             json={
                 "confirmed": True,
                 "check_id": str(check_id),
+                "result_hash": result_hash,
                 "acknowledge_unknown": acknowledge_unknown,
                 "pin_worse": outcome == "apply_and_pin",
             },
