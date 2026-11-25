@@ -9358,23 +9358,17 @@
     "endsAtHint": "Pozostaw puste, aby działać do zatrzymania. Ta data używa strefy {zone}, niezależnie od strefy harmonogramu.",
     "endsAtInvalid": "Wybierz prawidłową przyszłą datę albo wyczyść pole, aby usunąć koniec.",
     "actionConsents": {
-      "checkConnections": "Sprawdź te połączenia, aby przejrzeć ich działania: {names}.",
       "personalAccount": "{name} · Twoje konto",
       "organizationAccount": "{name} · konto organizacji",
       "title": "Zgody na działania",
       "description": "Działania rutyny domyślnie wymagają zatwierdzenia. Zezwól tylko wybranym działaniom wykonywać się bez pytania. Zgoda dotyczy tej opublikowanej wersji i konfiguracji rutyny; zatwierdzenia wymagane przez agenta nadal obowiązują. Każde działanie MCP dotyczy wyłącznie wskazanego konta.",
       "retry": "Spróbuj ponownie",
-      "notAllowedPermission": "Nie masz uprawnienia do zatwierdzania, więc nie możesz udzielić tej rutynie stałej zgody. Poproś administratora organizacji. Nadal możesz cofnąć wszystkie zgody.",
-      "notAllowedOrganization": "Organizacja wyłączyła stałe zgody, więc ta rutyna nie może pomijać zatwierdzeń. Można je włączyć w sekcji Budżet i zatwierdzenia. Nadal możesz cofnąć wszystkie zgody.",
-      "openApprovalSettings": "Otwórz ustawienia zatwierdzeń",
       "empty": "Ta wersja nie ma działań, dla których można tu udzielić zgody.",
       "revokeAll": "Cofnij wszystkie",
       "save": "Zapisz zgody",
       "search": "Szukaj akcji",
       "selectGroup": "Zaznacz dozwolone akcje w {name}",
       "noMatches": "Brak akcji pasujących do wyszukiwania.",
-      "reselectPrevious": "Zaznacz ponownie wcześniej sprawdzone akcje",
-      "tooMany": "Zaznaczono {count} akcji; limit to {limit}. Odznacz akcje przed zapisaniem.",
       "changed": {
         "version": "Zmieniła się opublikowana wersja agenta. Sprawdź ponownie jej akcje.",
         "intent": "Zmieniła się praca lub miejsce docelowe routine. Sprawdź ponownie akcje.",
@@ -9386,8 +9380,7 @@
       "useAgent": "Użyj ustawień agenta",
       "useAgentHint": "Zaznacza dokładnie te działania, które agent już w czacie wykonuje bez pytania, i zastępuje obecne zaznaczenie. Zgoda tutaj może tylko zawęzić to, na co pozwalają ustawienia agenta, nigdy tego nie poszerza: działania, przed którym agent pyta, nie ma na liście. Nic się nie zapisuje, dopóki nie wybierzesz Zapisz zgody.",
       "allowHeading": "Pozwól tym działaniom działać bez pytania o zgodę",
-      "alwaysAsks": "Zawsze pyta: wymagane przez agenta lub platformę",
-      "alwaysAsk": "{count, plural, one {1 akcja zawsze wymaga akceptacji, bo tak ustawiono w agencie lub połączeniu. Runy, które jej użyją, zatrzymają się na człowieku niezależnie od wyboru tutaj.} few {# akcje zawsze wymagają akceptacji, bo tak ustawiono w agencie lub połączeniu. Runy, które ich użyją, zatrzymają się na człowieku niezależnie od wyboru tutaj.} other {# akcji zawsze wymaga akceptacji, bo tak ustawiono w agencie lub połączeniu. Runy, które ich użyją, zatrzymają się na człowieku niezależnie od wyboru tutaj.}}"
+      "alwaysAsks": "Zawsze pyta: wymagane przez agenta lub platformę"
     },
     "sourceConsents": {
       "title": "Źródła",
@@ -9476,6 +9469,26 @@
       "actions_need_approval": "{count, plural, =1 {1 działanie nie ma stałej zgody i będzie wymagać zatwierdzenia, jeśli zostanie użyte.} few {# działania nie mają stałej zgody i będą wymagać zatwierdzenia, jeśli zostaną użyte.} other {# działań nie ma stałej zgody i będzie wymagać zatwierdzenia, jeśli zostaną użyte.}}",
       "readiness_checking": "Sprawdzanie, czy rutyna może się uruchomić…",
       "readiness_unavailable": "Nie udało się sprawdzić gotowości rutyny. Uruchom teraz nadal sprawdzi jej uprawnienia."
+    },
+    "toolSettings": {
+      "title": "Narzędzia rutyny",
+      "description": "Domyślnie obowiązują ustawienia agenta. Dla tej rutyny możesz wymagać zgody przed użyciem narzędzia lub je wyłączyć. Wymagane zgody nadal obowiązują; delegowani agenci zachowują własne ustawienia.",
+      "legacyMode": "Zapis włączy reguły zatwierdzania agenta i usunie poprzednie stałe zgody tej rutyny.",
+      "agentAsks": "Agent wymaga zatwierdzenia",
+      "agentFree": "Agent pozwala na użycie automatyczne",
+      "follow": "Jak u agenta",
+      "ask": "Pytaj za każdym razem",
+      "off": "Wyłączone",
+      "search": "Znajdź narzędzie",
+      "reset": "Ustawienia agenta dla wszystkich narzędzi",
+      "empty": "Ta rutyna nie ma konfigurowalnych narzędzi.",
+      "noMatches": "Brak narzędzi pasujących do wyszukiwania.",
+      "personalAccount": "Konto osobiste · {name}",
+      "organizationAccount": "Konto organizacji · {name}",
+      "unavailable": "Sprawdź te połączenia, aby zobaczyć ich narzędzia: {names}.",
+      "unavailableSettings": "Ograniczenia niedostępnych narzędzi",
+      "unavailableSettingsBody": "Zachowujemy te ograniczenia, nawet gdy narzędzie nie jest obecnie dostępne. Usuń wybrane ograniczenie, aby przestało obowiązywać.",
+      "removeRestriction": "Usuń ograniczenie dla {name}"
     }
   },
   "portals": {

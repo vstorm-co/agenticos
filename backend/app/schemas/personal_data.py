@@ -10,6 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field, JsonValue
 from app.schemas.personal_model_key import PersonalModelGenerationRead, PersonalModelKeyRead
 from app.schemas.routine_actions import RoutineConsent
 from app.schemas.routine_sources import RoutineSourcePolicy
+from app.schemas.routine_tools import RoutineToolSetting
 from app.schemas.telephony import PhoneContactConfig
 
 
@@ -69,6 +70,7 @@ class RoutineSourceExport(BaseModel):
     organization_id: UUID
     approved_sources: RoutineSourcePolicy | None
     action_consents: list[RoutineConsent] = Field(default_factory=list)
+    tool_settings: list[RoutineToolSetting] = Field(default_factory=list)
 
 
 class ProjectTrackingExport(BaseModel):

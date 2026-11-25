@@ -67,8 +67,8 @@ beforeEach(() => {
         accounts: [],
         unavailable_sources: [],
       };
-    if (path.endsWith("/action-consents"))
-      return { can_waive: true, review_token: "actions", items: [] };
+    if (path.endsWith("/tools"))
+      return { items: [], unavailable_settings: [], unavailable_sources: [] };
     return path === "/me/permissions"
       ? { role: "viewer", permissions: [] }
       : { items: [], total: 0 };

@@ -117,6 +117,7 @@ from app.schemas.portal import PortalPresetRead, PortalRead
 from app.schemas.routine_actions import RoutineActionOptions, RoutineActions
 from app.schemas.routine_readiness import TriggerReadiness
 from app.schemas.routine_sources import RoutineSourceConsent, RoutineSourceReview
+from app.schemas.routine_tools import RoutineToolOptions, RoutineToolSettings
 from app.services import (
     change_feed,
     device_hub,
@@ -155,6 +156,7 @@ from app.services.routine_sources import (
     RoutineSourcesRequired,
     read_policy,
 )
+from app.services.routine_tools import RoutineToolService
 from app.services.spend import month_start
 from app.worker.jobs import FIRE_TRIGGER, ROUTINE_CHAT_ANSWER, FireTrigger, RoutineChatAnswer
 
@@ -1703,6 +1705,18 @@ class AgentTriggerService:
     ) -> RoutineActionOptions:
         trigger = await self._owned(ctx, agent_id, trigger_id)
         return await RoutineActionService(self.db).replace(ctx, trigger, data)
+
+    async def tool_options(
+        self, ctx: AuthContext, agent_id: UUID, trigger_id: UUID
+    ) -> RoutineToolOptions:
+        trigger = await self._owned(ctx, agent_id, trigger_id)
+        return await RoutineToolService(self.db).tool_options(ctx, trigger)
+
+    async def set_tool_settings(
+        self, ctx: AuthContext, agent_id: UUID, trigger_id: UUID, data: RoutineToolSettings
+    ) -> RoutineToolOptions:
+        trigger = await self._owned(ctx, agent_id, trigger_id)
+        return await RoutineToolService(self.db).replace_settings(ctx, trigger, data)
 
     async def delete(self, ctx: AuthContext, agent_id: UUID, trigger_id: UUID) -> None:
         """Remove a schedule entirely - the agent stops running itself."""

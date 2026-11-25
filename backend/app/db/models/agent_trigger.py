@@ -269,6 +269,12 @@ class AgentTrigger(Base, TimestampMixin):
         JSONB, nullable=False, default=list, server_default="[]"
     )
 
+    # The owner's narrowing of the agent's own tool settings for this routine:
+    # `ask` or `off` per tool, never a release (`app/services/routine_tools.py`).
+    tool_settings: Mapped[list[dict[str, object]]] = mapped_column(
+        JSONB, nullable=False, default=list, server_default="[]"
+    )
+
     # A human label for this trigger, shown where it is listed away from a form.
     # Optional: null falls back to the agent's name, so an existing row and a
     # "just schedule it" without a title both still read sensibly in every list.

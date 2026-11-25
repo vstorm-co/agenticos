@@ -567,8 +567,8 @@ it("reopens pending setup from Resume without enabling an unreviewed routine", a
         accounts: [],
         unavailable_sources: [],
       };
-    if (path.endsWith("/action-consents"))
-      return { can_waive: false, review_token: "actions", items: [] };
+    if (path.endsWith("/tools"))
+      return { items: [], unavailable_settings: [], unavailable_sources: [] };
     return { items: [], total: 0 };
   });
   render(
@@ -608,11 +608,11 @@ it("finishes deferred setup before enabling the routine", async () => {
     accounts: [],
     unavailable_sources: [],
   };
-  const actions = { can_waive: false, review_token: "actions", items: [] };
+  const actions = { items: [], unavailable_settings: [], unavailable_sources: [] };
   vi.mocked(apiClient.get).mockImplementation(async (path) => {
     if (path.includes("/activations/")) return { state: "pending" };
     if (path.endsWith("/sources")) return sources;
-    if (path.endsWith("/action-consents")) return actions;
+    if (path.endsWith("/tools")) return actions;
     return { items: [], total: 0 };
   });
   vi.mocked(apiClient.put).mockImplementation(async (path) =>

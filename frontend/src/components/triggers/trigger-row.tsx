@@ -210,13 +210,13 @@ export function TriggerRow({ trigger, showAgent = false, blockers: read }: Trigg
           <TooltipProvider>
             <div className="ml-auto flex shrink-0 flex-wrap items-center gap-0.5">
               {isOwner && (
-                <ActionTooltip label={t("actionConsents.title")}>
+                <ActionTooltip label={t("toolSettings.title")}>
                   <Button
                     variant="ghost"
                     size="icon"
                     className="h-8 w-8"
                     data-tour="routine-access"
-                    aria-label={t("actionConsents.title")}
+                    aria-label={t("toolSettings.title")}
                     onClick={() => setConsenting(true)}
                   >
                     <ShieldCheck className="h-4 w-4" />

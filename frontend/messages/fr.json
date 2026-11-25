@@ -10433,23 +10433,17 @@
     "endsAtHint": "Laissez vide pour exécuter jusqu’à l’arrêt. Cette heure utilise {zone}, indépendamment du fuseau de la planification.",
     "endsAtInvalid": "Choisissez une heure future valide, ou effacez le champ pour supprimer la fin.",
     "actionConsents": {
-      "checkConnections": "Vérifiez ces connexions pour revoir leurs actions : {names}.",
       "personalAccount": "{name} · votre compte",
       "organizationAccount": "{name} · compte de l’organisation",
       "title": "Consentement aux actions",
       "description": "Les actions d’une routine demandent une approbation par défaut. N’autorisez à s’exécuter sans demander que les actions listées. Le consentement s’applique à cette version publiée et à cette configuration de routine ; les approbations exigées par l’agent s’appliquent toujours. Chaque action MCP ne s’applique qu’au compte nommé.",
       "retry": "Réessayer",
-      "notAllowedPermission": "Vous n’avez pas la permission de décider des approbations ; vous ne pouvez donc pas donner de consentement permanent à cette routine. Demandez à un administrateur de l’organisation. Vous pouvez toujours révoquer tout consentement.",
-      "notAllowedOrganization": "Votre organisation a désactivé le consentement permanent ; cette routine ne peut donc pas se passer d’approbations. Il peut être activé sous Budget et approbations. Vous pouvez toujours révoquer tout consentement.",
-      "openApprovalSettings": "Ouvrir les paramètres d’approbation",
       "empty": "Cette version n’a aucune action éligible à autoriser ici.",
       "revokeAll": "Tout révoquer",
       "save": "Enregistrer le consentement",
       "search": "Rechercher des actions",
       "selectGroup": "Sélectionner les actions éligibles dans {name}",
       "noMatches": "Aucune action ne correspond à votre recherche.",
-      "reselectPrevious": "Resélectionner les actions déjà revues",
-      "tooMany": "{count} actions sélectionnées ; la limite est de {limit}. Désélectionnez des actions avant d’enregistrer.",
       "changed": {
         "version": "La version publiée de l’agent a changé. Revoyez ses actions.",
         "intent": "Le travail ou la destination de la routine a changé. Revoyez ses actions.",
@@ -10520,7 +10514,27 @@
       "conclusion": "La conclusion du workflow ne correspondait pas.",
       "not_branch": "Le push a supprimé une branche ou n’était pas un push de branche."
     },
-    "deliveryPending": "Envoi de la dernière réponse au chat"
+    "deliveryPending": "Envoi de la dernière réponse au chat",
+    "toolSettings": {
+      "title": "Outils de la routine",
+      "description": "Par défaut, les outils suivent les réglages de l’agent. Pour cette routine, demandez une confirmation ou désactivez un outil. Les approbations obligatoires restent requises ; les agents délégués gardent leurs réglages.",
+      "legacyMode": "L’enregistrement applique les règles d’approbation de l’agent et supprime les anciennes autorisations permanentes de cette routine.",
+      "agentAsks": "L’agent exige une approbation",
+      "agentFree": "L’agent autorise l’utilisation automatique",
+      "follow": "Suivre l’agent",
+      "ask": "Toujours demander",
+      "off": "Désactivé",
+      "search": "Rechercher un outil",
+      "reset": "Suivre l’agent pour tous les outils",
+      "empty": "Cette routine n’a aucun outil configurable.",
+      "noMatches": "Aucun outil ne correspond à cette recherche.",
+      "personalAccount": "Compte personnel · {name}",
+      "organizationAccount": "Compte de l’organisation · {name}",
+      "unavailable": "Vérifiez ces connexions pour voir leurs outils : {names}.",
+      "unavailableSettings": "Restrictions des outils indisponibles",
+      "unavailableSettingsBody": "Ces restrictions sont conservées même lorsqu’un outil n’est pas proposé actuellement. Supprimez explicitement une restriction pour ne plus la conserver.",
+      "removeRestriction": "Supprimer la restriction pour {name}"
+    }
   },
   "portals": {
     "backToServices": "Retour aux services",

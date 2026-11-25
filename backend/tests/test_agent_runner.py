@@ -10360,6 +10360,7 @@ async def test_watch_preparation_uses_the_selected_agent_with_approved_sources_a
         require_local_target=MagicMock(),
         require_materialized=MagicMock(),
         mcp_sources=None,
+        tools_off=MagicMock(return_value=()),
     )
     receipt = WatchReadReceipt(activation_at=datetime.now(UTC))
     with (
