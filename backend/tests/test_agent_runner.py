@@ -3327,7 +3327,8 @@ class TestRunAccounting:
 
         The clause does not re-raise, so `execute` returns the empty answer, and
         the stored `error` is the guardrail's safe message - the edge and the
-        refusal, never the content that tripped it.
+        refusal, never the content that tripped it. Already-screened corrections
+        from earlier model requests still reach transcript recording.
         """
         service = AgentRunnerService(_db())
         prepared = _prepared()
@@ -3350,7 +3351,7 @@ class TestRunAccounting:
                 steering=SteeringInbox(transcript={None: ["previous correction"]}),
             )
 
-        assert record.await_args.kwargs["steers"] is None
+        assert record.await_args.kwargs["steers"] == {None: ["previous correction"]}
         assert output == ""
         assert finish.call_args.kwargs["status"] == RunStatus.GUARDRAIL_BLOCKED.value
         assert finish.call_args.kwargs["error"] == "This request was blocked by an input guardrail."
