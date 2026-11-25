@@ -9638,7 +9638,8 @@ class AgentRunnerService:
 
         An eval answer and a platform agent's run were sent dataset cases, so a
         reader without view access to every dataset gets their record without
-        `messages` and `transcript`, and a platform agent's without its prompt too.
+        `messages`, `transcript`, `code_runs` and `reviews`, and a platform agent's
+        without its prompt too.
 
         Raises:
             NotFoundError: The run is not in the caller's organization, or
@@ -9682,7 +9683,7 @@ class AgentRunnerService:
         """
         if ctx.scope_for(Perm.DATASETS_VIEW) is Scope.ALL:
             return {}
-        sent: dict[str, Any] = {"messages": [], "transcript": []}
+        sent: dict[str, Any] = {"messages": [], "transcript": [], "code_runs": [], "reviews": []}
         agent = await agent_repo.get(self.db, run.agent_id, organization_id=ctx.organization_id)
         if agent is None or agent.kind != AgentKind.AGENT.value:
             return {**sent, "instructions": None, "system_prompts": []}

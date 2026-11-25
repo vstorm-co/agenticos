@@ -760,7 +760,7 @@ class DatasetService:
         """A page of the cases one version holds - the newest version unless one is named.
 
         `same_input` narrows to the cases asking that question, as a new case is
-        checked for one already there; `total` then counts the matches on this page.
+        checked for one already there; `total` then counts every match.
         A case the caller reads masked is never a match, so a guess cannot be
         confirmed against a question they may not read.
         It is redacted as a case's input is when stored, so a question holding a
@@ -770,18 +770,22 @@ class DatasetService:
         held = await self._version(ctx, dataset, version)
         if held is None:
             return DatasetCaseList(items=[], total=0, version=0)
-        cases = await dataset_repo.list_cases(
-            self.db,
-            held.id,
-            organization_id=ctx.organization_id,
-            skip=skip,
-            limit=limit,
-            same_input=redact_credentials(same_input)[0],
-        )
-        if same_input is not None:
-            masked = await self.masked_case_ids(ctx, cases)
-            cases = [case for case in cases if case.id not in masked]
-        total = held.case_count if same_input is None else len(cases)
+        if same_input is None:
+            cases = await dataset_repo.list_cases(
+                self.db, held.id, organization_id=ctx.organization_id, skip=skip, limit=limit
+            )
+            total = held.case_count
+        else:
+            matches = await dataset_repo.list_cases(
+                self.db,
+                held.id,
+                organization_id=ctx.organization_id,
+                limit=None,
+                same_input=redact_credentials(same_input)[0],
+            )
+            masked = await self.masked_case_ids(ctx, matches)
+            readable = [case for case in matches if case.id not in masked]
+            cases, total = readable[skip : skip + limit], len(readable)
         return DatasetCaseList(
             items=await self.case_reads(ctx, cases), total=total, version=held.number
         )
@@ -1002,6 +1006,7 @@ class DatasetService:
             history_author_ids=authorship.history_for(len(fields.get("history") or [])),
             noted_by_user_id=authorship.noted_by,
             from_conversation=source is CaseSource.CONVERSATION
+            or authorship.asked_by is not None
             or any(provenance.get(link) is not None for link in chat),
             **fields,
             **provenance,

@@ -19,6 +19,7 @@ from app.db.models.user import User
 from app.main import app
 from app.schemas.dataset import (
     DatasetCaseContent,
+    DatasetCaseCreate,
     DatasetCaseFromMessage,
     DatasetCaseUpdate,
     DatasetCreate,
@@ -205,11 +206,37 @@ async def test_a_masked_case_is_never_a_twin_of_a_guessed_question(db) -> None:
         owner, dataset.id, DatasetCaseFromMessage(message_id=answer.id)
     )
 
-    for_owner = await service.list_cases(owner, dataset.id, same_input=case.input)
-    for_viewer = await service.list_cases(viewer, dataset.id, same_input=case.input)
+    alone = await service.list_cases(viewer, dataset.id, same_input=case.input)
+    typed = await service.add_case(
+        owner, dataset.id, DatasetCaseCreate(input=case.input, reference_answer="Yes.")
+    )
 
-    assert (for_owner.total, [item.case_id for item in for_owner.items]) == (1, [case.case_id])
-    assert (for_viewer.total, for_viewer.items) == (0, [])
+    for_owner = await service.list_cases(owner, dataset.id, same_input=case.input, limit=1)
+    for_viewer = await service.list_cases(viewer, dataset.id, same_input=case.input, limit=1)
+
+    assert (alone.total, alone.items) == (0, [])
+    assert (for_owner.total, [item.case_id for item in for_owner.items]) == (2, [case.case_id])
+    assert (for_viewer.total, [item.case_id for item in for_viewer.items]) == (1, [typed.case_id])
+
+
+@pytest.mark.security
+async def test_a_reviewed_case_whose_chat_is_gone_is_still_masked(db) -> None:
+    owner = await _owner(db)
+    viewer = await _member(db, owner, OrgRoleName.VIEWER)
+    service = DatasetService(db)
+    dataset = await service.create(owner, DatasetCreate(name="reviewed", visibility="org"))
+    await service.add_reviewed_case(
+        owner,
+        dataset.id,
+        DatasetCaseContent(input="Can I return a kettle?", reference_answer="Yes."),
+        asked_by=owner.user_id,
+        source_run_id=None,
+        source_conversation_id=None,
+    )
+
+    [read] = (await service.list_cases(viewer, dataset.id)).items
+
+    assert read.masked and read.input != "Can I return a kettle?"
 
 
 @pytest.mark.security

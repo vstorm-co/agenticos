@@ -776,7 +776,7 @@ Antworten, Prüfungsnotizen und Bewertungsbelege benötigen `runs:view` und Zugr
 
 Die Wissensstellen des Bewerters werden mit der Antwort entfernt. Wer die Antwort sieht, bekommt eine Stelle nur aus einer Wissensbasis, die er lesen darf; siehe [Eval-Runs](evals.md).
 
-Text, der aus den Fällen eines Datasets geschrieben wurde, folgt dem Zugriff auf das Dataset. Die Änderungen einer Improve-Sitzung brauchen Lesezugriff auf ihr Dataset. Ein Run speichert nicht, welches Dataset er gelesen hat, daher brauchen zwei Lesevorgänge Lesezugriff auf alle Datasets: die Zitate einer Skill-Sitzung aus Eval-Antworten und, im Protokoll des Runs, die Nachrichten an eine Eval-Antwort sowie Prompt und Nachrichten eines Plattform-Agenten wie des Judge.
+Text, der aus den Fällen eines Datasets geschrieben wurde, folgt dem Zugriff auf das Dataset. Die Änderungen einer Improve-Sitzung brauchen Lesezugriff auf ihr Dataset. Ein Run speichert nicht, welches Dataset er gelesen hat, daher brauchen zwei Lesevorgänge Lesezugriff auf alle Datasets: die Zitate einer Skill-Sitzung aus Eval-Antworten und, im Protokoll des Runs, die Nachrichten an eine Eval-Antwort sowie Prompt und Nachrichten eines Plattform-Agenten wie des Bewerters.
 
 Eine Entscheidung über die Antwort eines Eval-Runs oder ihre neue Bewertung erfordert ebenfalls `runs:view` und Zugriff auf den antwortenden Agenten, weil sie die auf diesem Run aufbauenden Urteile ändert: Wer die Antwort nicht sehen kann, bekommt keines von beiden angeboten, und die API lehnt beides mit `403` ab.
 

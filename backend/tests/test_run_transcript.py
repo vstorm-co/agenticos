@@ -242,6 +242,8 @@ class TestReadingWhatTheRunHandedItsModel:
                 "system_prompts": ["Dataset: Refunds"],
                 "messages": sent,
                 "transcript": [{"answer": "30 days"}],
+                "code_runs": [{"code": "lookup('refund window')"}],
+                "reviews": [{"reviewer": "Checker", "after_request": 1, "steer": "30 days"}],
                 "tools": [],
             },
             truncated=False,
@@ -269,7 +271,8 @@ class TestReadingWhatTheRunHandedItsModel:
             return
         assert got is not recorded
         assert (got.run_id, got.payload["tools"]) == (run.id, [])
-        assert (got.payload["messages"], got.payload["transcript"]) == ([], [])
+        sent_parts = ("messages", "transcript", "code_runs", "reviews")
+        assert [got.payload[part] for part in sent_parts] == [[], [], [], []]
         prompt = (got.payload["instructions"], got.payload["system_prompts"])
         if "prompt" in hidden:
             assert prompt == (None, [])
