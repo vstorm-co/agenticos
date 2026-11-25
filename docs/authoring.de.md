@@ -1,5 +1,5 @@
 ---
-source_sha: "c54032da48d1"
+source_sha: "03c8f017c247"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---

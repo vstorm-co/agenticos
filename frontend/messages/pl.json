@@ -15673,6 +15673,9 @@
       "number": "Numer przypadku"
     },
     "helpers": {
+      "guidance": "Wskazówki dla tego datasetu",
+      "guidanceHint": "Dodawane pod regułami platformy dla tego helpera. Reguły obowiązują zawsze; wskazówki nie mogą ich zmienić ani usunąć.",
+      "platformRules": "Reguły platformy (tylko do odczytu)",
       "generatorTitle": "Generowanie przypadków",
       "generatorDescription": "Wybierz model i instrukcje do tworzenia przypadków dla tego datasetu. Wygenerowane przypadki czekają na Twoją akceptację.",
       "improverTitle": "Ulepszanie agenta",
