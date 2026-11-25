@@ -1415,7 +1415,11 @@ class AuthoringService:
                 self.db, agent_id=batch.agent_id, organization_id=ctx.organization_id
             )
             refused = authoring_fields.readd_refusal(
-                published, spec, hunk.path, hunk.op, hunk.new_value
+                published,
+                spec,
+                hunk.path,
+                hunk.op,
+                authoring_fields.as_accepted(hunk.path, hunk.op, hunk.new_value),
             )
             if refused is not None:
                 raise BadRequestError(

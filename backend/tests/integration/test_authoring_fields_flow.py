@@ -512,6 +512,35 @@ async def test_adding_back_a_capability_cannot_loosen_what_the_published_version
     assert agent.draft_spec == before
 
 
+@pytest.mark.security
+async def test_adding_back_is_judged_in_the_form_accept_writes(db):
+    """A row stored before its writing tools were gated is accepted as Accept writes it,
+    gated, so adding back what the published version binds is not taken for a loosening."""
+    ctx, agent, run = await _setup(db)
+    gated = {
+        "id": "artifacts",
+        "tool_approval": dict.fromkeys(
+            ("publish_artifact", "export_artifact", "share_artifact"), "required"
+        ),
+    }
+    version = await db.get(AgentVersion, agent.current_version_id)
+    assert version is not None
+    version.spec = {**version.spec, "capabilities": [{"id": "charts"}, gated]}
+    await db.flush()
+    run_id = str(run.id)
+    model = _improver(db, run_id, [_change(run_id, "capabilities", "add", {"id": "artifacts"})])
+    await _improve(db, ctx, agent, model)
+    (row,) = list(
+        await db.scalars(select(SpecProposalHunk).where(SpecProposalHunk.path.is_not(None)))
+    )
+    row.new_value = {"id": "artifacts"}
+    await db.flush()
+
+    await AuthoringService(db).decide(ctx, agent.id, row.id, HunkDecision(action="accept"))
+
+    assert agent.draft_spec["capabilities"][-1]["tool_approval"] == gated["tool_approval"]
+
+
 async def test_a_dismissed_field_change_is_not_proposed_again_and_says_so(db):
     ctx, agent, run = await _setup(db)
     run_id = str(run.id)
