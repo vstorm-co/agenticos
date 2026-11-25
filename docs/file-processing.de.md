@@ -1,5 +1,5 @@
 ---
-source_sha: "50f9a9cd89ab"
+source_sha: "4d1947404138"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -730,16 +730,17 @@ Alle drei werden **pro Collection** entschieden, nicht pro Deployment, von
 
 Der Katalogeintrag `openai_compatible`, angezeigt als **Custom (OpenAI-compatible)**,
 listet keine Models. Er embeddet über jeden OpenAI-kompatiblen Endpunkt, den die
-Organisation als **Dienstverbindung** registriert (Knowledge → Integrations →
-**Add server**, API-Stil *OpenAI-compatible*); das Model wird als freier Text
-eingegeben. Die Verbindung kann einen Vault-Schlüssel der Organisation tragen (Zweck
+Organisation als **Dienstverbindung** registriert (Knowledge → Integrations → **Add
+server**, API-Stil *OpenAI-compatible*); das Model wird als freier Text eingegeben. Die
+Verbindung kann einen Vault-Schlüssel der Organisation tragen (Zweck
 `openai_compatible`): nur eine Verbindung der Organisation kann einen halten, und das
 Binden eines Schlüssels verleiht ihn an jede Collection auf der Verbindung, weshalb
-seine Auswahl `secrets:view` auf diesem Schlüssel braucht. Eine Verbindung verlangt
-einen Schlüssel, wenn beim Anlegen einer angegeben oder später einer hinzugefügt wurde;
-den Schlüssel aus einer Verbindung mit Schlüssel zu entfernen wird abgelehnt. Eine
-deploymentweite Verbindung ist schlüssellos. Ein gelöschter Schlüssel lässt die
-Verbindung mit Namen ablehnen, statt Anfragen ohne ihn zu senden.
+seine Auswahl `secrets:view` auf diesem Schlüssel braucht.
+
+Eine Verbindung verlangt einen Schlüssel, wenn beim Anlegen einer angegeben oder später
+einer hinzugefügt wurde; den Schlüssel aus einer Verbindung mit Schlüssel zu entfernen
+wird abgelehnt. Eine deploymentweite Verbindung ist schlüssellos. Ein gelöschter
+Schlüssel lässt die Verbindung mit Namen ablehnen, statt Anfragen ohne ihn zu senden.
 
 Ein eigener Endpunkt kann jedes Model bereitstellen, also darf nichts angenommen werden.
 Zwei Tests verhindern, dass sich der Vektorraum einer Collection versehentlich

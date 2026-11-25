@@ -49,16 +49,17 @@ that way and the software cooperates:
 | Mail | Your own SMTP relay |
 | Speech, images and video | For speech to text, no provider at all: keep dictation on `off` or `browser` and channel bots switched off, since a self-hosted speech-to-text server cannot be named yet (a planned follow-up). For speech generation and video, no `text_to_speech` or `video_generation` capability. For images, a profile on a provider you host, or no such profile |
 
-Embeddings included: the catalog names OpenRouter and OpenAI, which a
-collection reaches with a vault key, and `ollama`, which a collection reaches
-at a service connection - a row naming a server the organization or the deployment
-runs. A collection on `ollama` sends its chunks and queries nowhere but that
-host, and pays nobody. A deployment that must keep documents on its own
-hardware creates every collection there. The custom `openai_compatible` provider reaches a gateway
-through a connection too, and that gateway may be outside the deployment: every chunk and query goes
-where its address points, with an organization Vault key if the connection has one. The
-[data-protection report](#verifying-one-deployment) lists the connections as **Service connections**, with a
-**Vault key** column that says whether each one sends a credential.
+Embeddings included: the catalog names OpenRouter and OpenAI, which a collection reaches
+with a vault key, and `ollama`, which a collection reaches at a service connection - a
+row naming a server the organization or the deployment runs. A collection on `ollama`
+sends its chunks and queries nowhere but that host, and pays nobody. A deployment that
+must keep documents on its own hardware creates every collection there.
+
+The custom `openai_compatible` provider reaches a gateway through a connection too, and
+that gateway may be outside the deployment: every chunk and query goes where its address
+points, with an organization Vault key if the connection has one. The [data-protection
+report](#verifying-one-deployment) lists the connections as **Service connections**,
+with a **Vault key** column that says whether each one sends a credential.
 
 ## Who is responsible for what
 

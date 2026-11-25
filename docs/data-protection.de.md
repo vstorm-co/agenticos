@@ -1,5 +1,5 @@
 ---
-source_sha: "1e23167abea3"
+source_sha: "ec893b38be98"
 ---
 
 # Datenschutz { #data-protection }
@@ -58,17 +58,20 @@ entsprechend, und die Software macht mit:
 | E-Mail | Ihr eigenes SMTP-Relay |
 | Sprache, Bilder und Video | Für Spracherkennung gar kein Provider: Diktat auf `off` oder `browser` lassen und Kanal-Bots ausschalten, denn ein selbst gehosteter Spracherkennungsserver lässt sich noch nicht benennen (ein geplanter Folgeschritt). Für Sprachausgabe und Video keine Capability `text_to_speech` oder `video_generation`. Für Bilder ein Profil bei einem Provider, den Sie betreiben, oder gar kein solches Profil |
 
-Embeddings eingeschlossen: Der Katalog nennt OpenRouter und OpenAI, die eine
-Collection mit einem Vault-Schlüssel erreicht, und `ollama`, das eine Collection
-an einer Dienstverbindung erreicht — einer Zeile, die einen Server benennt, den die
-Organisation oder das Deployment betreibt. Eine Collection auf `ollama` schickt
-ihre Chunks und Anfragen an keinen anderen Host und zahlt niemandem etwas. Ein
-Deployment, das Dokumente auf eigener Hardware halten muss, legt dort jede
-Collection an. Der eigene Provider `openai_compatible` erreicht ein Gateway ebenfalls über eine Verbindung, und dieses
-Gateway kann außerhalb des Deployments liegen: Jeder Chunk und jede Anfrage geht dorthin, wohin seine Adresse zeigt, mit
-einem Vault-Schlüssel der Organisation, wenn die Verbindung einen hat. Der [Datenschutzbericht](#verifying-one-deployment)
-führt die Verbindungen als **Service connections** auf, mit einer Spalte **Vault key**, die sagt, ob jede einzelne
-ein Credential sendet.
+Embeddings eingeschlossen: Der Katalog nennt OpenRouter und OpenAI, die eine Collection
+mit einem Vault-Schlüssel erreicht, und `ollama`, das eine Collection an einer
+Dienstverbindung erreicht — einer Zeile, die einen Server benennt, den die Organisation
+oder das Deployment betreibt. Eine Collection auf `ollama` schickt ihre Chunks und
+Anfragen an keinen anderen Host und zahlt niemandem etwas. Ein Deployment, das Dokumente
+auf eigener Hardware halten muss, legt dort jede Collection an.
+
+Der eigene Provider `openai_compatible` erreicht ein Gateway ebenfalls über eine
+Verbindung, und dieses Gateway kann außerhalb des Deployments liegen: Jeder Chunk und
+jede Anfrage geht dorthin, wohin seine Adresse zeigt, mit einem Vault-Schlüssel der
+Organisation, wenn die Verbindung einen hat. Der
+[Datenschutzbericht](#verifying-one-deployment) führt die Verbindungen als **Service
+connections** auf, mit einer Spalte **Vault key**, die sagt, ob jede einzelne ein
+Credential sendet.
 
 ## Wer wofür verantwortlich ist { #who-is-responsible-for-what }
 

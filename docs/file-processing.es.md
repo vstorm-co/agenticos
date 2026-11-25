@@ -1,5 +1,5 @@
 ---
-source_sha: "50f9a9cd89ab"
+source_sha: "4d1947404138"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -700,17 +700,19 @@ Los tres se deciden **por colección**, no por deployment, en
 
 #### Un endpoint propio compatible con OpenAI y el Test { #a-custom-openai-compatible-endpoint-and-the-test }
 
-La entrada del catálogo `openai_compatible`, mostrada como **Custom (OpenAI-compatible)**,
-no lista ningún modelo. Genera embeddings a través de cualquier endpoint compatible con
-OpenAI que la organización registre como **conexión de servicio** (Knowledge →
-Integrations → **Add server**, estilo de API *OpenAI-compatible*), y el modelo se escribe
-como texto libre. La conexión puede llevar una clave del vault de la organización
-(propósito `openai_compatible`): solo una conexión propiedad de la organización puede
-tenerla, y vincular una clave la presta a cada colección de la conexión, así que elegirla
-exige `secrets:view` sobre esa clave. Una conexión exige clave si se dio una al crearla o
-se añadió después, y quitar la clave de una conexión con clave se rechaza. Una conexión de
-todo el deployment no tiene clave. Una clave eliminada hace que la conexión rechace con su
-nombre en lugar de enviar peticiones sin ella.
+La entrada del catálogo `openai_compatible`, mostrada como **Custom
+(OpenAI-compatible)**, no lista ningún modelo. Genera embeddings a través de cualquier
+endpoint compatible con OpenAI que la organización registre como **conexión de
+servicio** (Knowledge → Integrations → **Add server**, estilo de API
+*OpenAI-compatible*), y el modelo se escribe como texto libre.
+
+La conexión puede llevar una clave del vault de la organización (propósito
+`openai_compatible`): solo una conexión propiedad de la organización puede tenerla, y
+vincular una clave la presta a cada colección de la conexión, así que elegirla exige
+`secrets:view` sobre esa clave. Una conexión exige clave si se dio una al crearla o se
+añadió después, y quitar la clave de una conexión con clave se rechaza. Una conexión de
+todo el deployment no tiene clave. Una clave eliminada hace que la conexión rechace con
+su nombre en lugar de enviar peticiones sin ella.
 
 Un endpoint propio puede servir cualquier modelo, así que no se puede dar nada por hecho.
 Dos Tests evitan que el espacio vectorial de una colección se mueva por accidente:

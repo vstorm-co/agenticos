@@ -660,13 +660,14 @@ All three are decided **per collection**, not per deployment, by
 The catalog entry `openai_compatible`, shown as **Custom (OpenAI-compatible)**, lists no
 models. It embeds through any OpenAI-compatible endpoint the organization registers as a
 **service connection** (Knowledge → Integrations → **Add server**, API style
-*OpenAI-compatible*), and the model is typed as free text. The connection may carry an
-organization Vault key (purpose `openai_compatible`): only an organization-owned
-connection can hold one, and binding a key lends it to every collection on the connection,
-so choosing it needs `secrets:view` on that key. A connection requires a key if one was
-given at creation or added later, and removing the key from a keyed connection is refused.
-A deployment-wide connection is keyless. A deleted key makes the connection refuse by name
-instead of sending requests without it.
+*OpenAI-compatible*), and the model is typed as free text.
+
+The connection may carry an organization Vault key (purpose `openai_compatible`): only
+an organization-owned connection can hold one, and binding a key lends it to every
+collection on the connection, so choosing it needs `secrets:view` on that key. A
+connection requires a key if one was given at creation or added later, and removing the
+key from a keyed connection is refused. A deployment-wide connection is keyless. A
+deleted key makes the connection refuse by name instead of sending requests without it.
 
 A custom endpoint may serve any model, so nothing about it can be assumed. Two Tests keep
 a collection's vector space from moving by accident:

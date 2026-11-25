@@ -755,14 +755,17 @@ fija cada archivo compose de aquí.
 
 ### Embeddings { #embeddings }
 
-Nada aquí. Cada colección nombra el provider a través del cual genera sus
-embeddings, el modelo, y o bien la clave del vault de la organización que lo
-paga o bien — para el provider sin clave `ollama` — una **conexión de servicio**, una
-fila bajo Knowledge → Integrations que dice dónde responde el Ollama del
-deployment o de la organización. El provider propio `openai_compatible` también toma una conexión, con un
-modelo escrito como texto y una clave opcional del vault de la organización; solo una conexión propiedad
-de la organización puede tener clave, una conexión que la tiene no puede perderla, y una conexión de todo
-el deployment no tiene clave. La API es `/api/v1/service-connections`. Consulta [Procesamiento de archivos](file-processing.md#embeddings-the-model-whose-endpoint-answers-and-whose-key-pays).
+Nada aquí. Cada colección nombra el provider a través del cual genera sus embeddings, el
+modelo, y o bien la clave del vault de la organización que lo paga o bien — para el
+provider sin clave `ollama` — una **conexión de servicio**, una fila bajo Knowledge →
+Integrations que dice dónde responde el Ollama del deployment o de la organización.
+
+El provider propio `openai_compatible` también toma una conexión, con un modelo escrito
+como texto y una clave opcional del vault de la organización; solo una conexión
+propiedad de la organización puede tener clave, una conexión que la tiene no puede
+perderla, y una conexión de todo el deployment no tiene clave. La API es
+`/api/v1/service-connections`. Consulta [Procesamiento de
+archivos](file-processing.md#embeddings-the-model-whose-endpoint-answers-and-whose-key-pays).
 
 Antes había aquí dos variables. `EMBEDDING_MODEL` preseleccionaba un modelo para
 las colecciones nuevas y ha desaparecido: el formulario ofrece los modelos que

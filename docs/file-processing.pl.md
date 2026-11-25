@@ -1,5 +1,5 @@
 ---
-source_sha: "50f9a9cd89ab"
+source_sha: "4d1947404138"
 ---
 
 # Przetwarzanie plików { #file-processing }

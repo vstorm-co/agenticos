@@ -1,5 +1,5 @@
 ---
-source_sha: "1e23167abea3"
+source_sha: "ec893b38be98"
 ---
 
 # Protección de datos { #data-protection }
@@ -58,15 +58,18 @@ configura así y el software coopera:
 | Voz, imágenes y vídeo | Para la voz a texto, ningún provider: deja el dictado en `off` o `browser` y los bots de canal desactivados, porque todavía no se puede nombrar un servidor propio de voz a texto (un paso previsto). Para la síntesis de voz y el vídeo, ninguna capability `text_to_speech` ni `video_generation`. Para las imágenes, perfiles en un provider que alojes tú, o ningún perfil de ese tipo |
 
 Los embeddings incluidos: el catálogo nombra OpenRouter y OpenAI, a los que una
-colección llega con una clave del vault, y `ollama`, al que una colección llega a través de una conexión de servicio — una fila que nombra un servidor que opera la
-organización o el deployment. Una colección en `ollama` no envía sus chunks ni
-sus consultas a ningún host que no sea ese, y no le paga a nadie. Un deployment
-que deba mantener los documentos en su propio hardware crea allí todas sus
-colecciones. El provider propio `openai_compatible` también llega a una pasarela a través de una conexión, y esa
-pasarela puede estar fuera del deployment: cada chunk y cada consulta va adonde apunte su dirección, con una clave
-del vault de la organización si la conexión la tiene. El [informe de protección de datos](#verifying-one-deployment)
-lista las conexiones como **Service connections**, con una columna **Vault key** que dice si cada una envía una
-credencial.
+colección llega con una clave del vault, y `ollama`, al que una colección llega a través
+de una conexión de servicio — una fila que nombra un servidor que opera la organización
+o el deployment. Una colección en `ollama` no envía sus chunks ni sus consultas a ningún
+host que no sea ese, y no le paga a nadie. Un deployment que deba mantener los
+documentos en su propio hardware crea allí todas sus colecciones.
+
+El provider propio `openai_compatible` también llega a una pasarela a través de una
+conexión, y esa pasarela puede estar fuera del deployment: cada chunk y cada consulta va
+adonde apunte su dirección, con una clave del vault de la organización si la conexión la
+tiene. El [informe de protección de datos](#verifying-one-deployment) lista las
+conexiones como **Service connections**, con una columna **Vault key** que dice si cada
+una envía una credencial.
 
 ## Quién es responsable de qué { #who-is-responsible-for-what }
 

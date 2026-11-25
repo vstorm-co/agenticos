@@ -1,5 +1,5 @@
 ---
-source_sha: "1e23167abea3"
+source_sha: "ec893b38be98"
 ---
 
 # Ochrona danych { #data-protection }
@@ -54,16 +54,17 @@ tak i oprogramowanie współpracuje:
 | Poczta | Twój własny relay SMTP |
 | Mowa, obrazy i wideo | Dla zamiany mowy na tekst żaden provider: zostaw dyktowanie na `off` albo `browser` i wyłączone boty kanałów, bo własnego serwera zamiany mowy na tekst nie da się jeszcze wskazać (planowany kolejny krok). Dla syntezy mowy i wideo brak capability `text_to_speech` ani `video_generation`. Dla obrazów profil u providera, którego hostujesz, albo brak takich profili |
 
-Embeddingi w to wliczone: katalog wymienia OpenRouter i OpenAI, do których
-kolekcja sięga kluczem z vaultu, oraz `ollama`, do której kolekcja sięga przez
-połączenie usługi — wiersz wskazujący serwer prowadzony przez organizację albo
-wdrożenie. Kolekcja na `ollama` wysyła swoje chunki i zapytania wyłącznie na ten
-host i nikomu nie płaci. Wdrożenie, które musi trzymać dokumenty na własnym
-sprzęcie, tam tworzy każdą kolekcję. Własny provider `openai_compatible` też sięga do gatewaya przez połączenie, a ten
-gateway może leżeć poza wdrożeniem: każdy chunk i zapytanie trafia tam, gdzie wskazuje jego adres, z kluczem
-z vaultu organizacji, jeśli połączenie go ma. [Raport ochrony danych](#verifying-one-deployment) wymienia
-połączenia jako **Service connections**, z kolumną **Vault key**, która mówi, czy każde z nich wysyła
-poświadczenie.
+Embeddingi w to wliczone: katalog wymienia OpenRouter i OpenAI, do których kolekcja
+sięga kluczem z vaultu, oraz `ollama`, do której kolekcja sięga przez połączenie usługi
+— wiersz wskazujący serwer prowadzony przez organizację albo wdrożenie. Kolekcja na
+`ollama` wysyła swoje chunki i zapytania wyłącznie na ten host i nikomu nie płaci.
+Wdrożenie, które musi trzymać dokumenty na własnym sprzęcie, tam tworzy każdą kolekcję.
+
+Własny provider `openai_compatible` też sięga do gatewaya przez połączenie, a ten
+gateway może leżeć poza wdrożeniem: każdy chunk i zapytanie trafia tam, gdzie wskazuje
+jego adres, z kluczem z vaultu organizacji, jeśli połączenie go ma. [Raport ochrony
+danych](#verifying-one-deployment) wymienia połączenia jako **Service connections**, z
+kolumną **Vault key**, która mówi, czy każde z nich wysyła poświadczenie.
 
 ## Kto za co odpowiada { #who-is-responsible-for-what }
 
