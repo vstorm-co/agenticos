@@ -56,10 +56,11 @@ from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.skill import Skill
 from app.db.models.skill_proposal import SkillProposal
 from app.db.models.user import User
-from app.repositories import authoring_repo, eval_suite_repo, skill_usage_repo
+from app.repositories import authoring_repo, eval_run_repo, eval_suite_repo, skill_usage_repo
 from app.schemas.api_key import ApiKeyCreate
 from app.schemas.authoring import AuthoringStart, FileWaiting, HunkDecision, ProposalCheck
-from app.schemas.dataset import DatasetCaseCreate, DatasetCreate
+from app.schemas.dataset import DatasetCaseCreate, DatasetCreate, DatasetRead
+from app.schemas.eval_run import EvalRunRead
 from app.schemas.scoring import CaseVerdict, DatasetScoring
 from app.schemas.skill_usage import SkillUseRecord
 from app.services import rate_limit
@@ -884,33 +885,7 @@ class TestCheck:
 
     @pytest.mark.security
     async def test_a_reviewed_check_compares_again_only_with_the_comparison_admission(self, db):
-        ctx, agent, _ = await _setup(db)
-        await _improve(db, ctx, agent, Improver(db))
-        datasets = DatasetService(db)
-        dataset = await datasets.create(ctx, DatasetCreate(name="refunds"))
-        await datasets.add_case(
-            ctx,
-            dataset.id,
-            DatasetCaseCreate(input="Q0", checks=[{"type": "contains", "value": "30 days"}]),
-        )
-        await db.execute(
-            update(DatasetCase)
-            .where(DatasetCase.dataset_id == dataset.id)
-            .values(improvement_partition="holdout")
-        )
-        suite = await eval_suite_repo.create(
-            db,
-            organization_id=ctx.organization_id,
-            suite=EvalSuite(
-                agent_id=agent.id,
-                dataset_id=dataset.id,
-                owner_user_id=ctx.user_id,
-                name="nightly",
-                min_pass_rate=Decimal("0.9"),
-            ),
-        )
-        started = await AuthoringService(db).check(ctx, agent.id, ProposalCheck(suite_id=suite.id))
-        await _finish_eval(db, ctx, started.id, answer="Refunds take 90 days.")
+        ctx, agent, dataset, started = await _finished_suite_check(db)
         evals = EvalRunService(db)
         async with _another_request_comparing(ctx):
             unjudged = await evals.get(ctx, started.id, admission="keep")
@@ -935,6 +910,40 @@ class TestCheck:
         assert started.id in {run.id for run in listed.items}
         assert kept.suite_check is not None and kept.suite_check.status == "failed"
         assert again.suite_check is not None and again.suite_check.status == "inconclusive"
+
+    @pytest.mark.security
+    async def test_a_suite_verdict_due_on_its_own_takes_the_comparison_admission(
+        self, db, monkeypatch
+    ):
+        ctx, _, _, started = await _finished_suite_check(db)
+        evals = EvalRunService(db)
+        first = await evals.get(ctx, started.id, admission="refuse")
+        assert first.suite_check is not None and first.suite_check.status == "failed"
+        run = await db.get(EvalRun, started.id)
+        assert run is not None and run.suite_check is not None
+        run.suite_check = {**run.suite_check, "judged": None}
+        await db.flush()
+
+        async with _another_request_comparing(ctx):
+            with pytest.raises(RateLimitError):
+                await evals.get(ctx, started.id, admission="refuse")
+            kept = await evals.get(ctx, started.id, admission="keep")
+        assert kept.suite_check is not None and kept.suite_check.status is None
+
+        lock = eval_run_repo.lock
+
+        async def decided_meanwhile(session, run_id, **kwargs):
+            await session.execute(
+                update(EvalRun).where(EvalRun.id == run_id).values(outcome_at=datetime.now(UTC))
+            )
+            return await lock(session, run_id, **kwargs)
+
+        monkeypatch.setattr(eval_run_repo, "lock", decided_meanwhile)
+        judged = await evals.get(ctx, started.id)
+        await db.refresh(run)
+
+        assert judged.suite_check is not None and judged.suite_check.status == "failed"
+        assert run.suite_check is not None and run.suite_check["judged"] is None
 
     async def test_another_organizations_suite_and_its_checks_read_as_missing(self, db):
         ctx, agent, _ = await _setup(db)
@@ -1429,6 +1438,40 @@ async def test_an_agent_never_published_has_nothing_to_verify_against(db):
     )
 
     assert estimate.reason == "no_draft_change" and estimate.calls == 0
+
+
+async def _finished_suite_check(
+    db: AsyncSession,
+) -> tuple[AuthContext, Agent, DatasetRead, EvalRunRead]:
+    """A check of an agent's suggestions on a one-question suite, finished and failed."""
+    ctx, agent, _ = await _setup(db)
+    await _improve(db, ctx, agent, Improver(db))
+    datasets = DatasetService(db)
+    dataset = await datasets.create(ctx, DatasetCreate(name="refunds"))
+    await datasets.add_case(
+        ctx,
+        dataset.id,
+        DatasetCaseCreate(input="Q0", checks=[{"type": "contains", "value": "30 days"}]),
+    )
+    await db.execute(
+        update(DatasetCase)
+        .where(DatasetCase.dataset_id == dataset.id)
+        .values(improvement_partition="holdout")
+    )
+    suite = await eval_suite_repo.create(
+        db,
+        organization_id=ctx.organization_id,
+        suite=EvalSuite(
+            agent_id=agent.id,
+            dataset_id=dataset.id,
+            owner_user_id=ctx.user_id,
+            name="nightly",
+            min_pass_rate=Decimal("0.9"),
+        ),
+    )
+    started = await AuthoringService(db).check(ctx, agent.id, ProposalCheck(suite_id=suite.id))
+    await _finish_eval(db, ctx, started.id, answer="Refunds take 90 days.")
+    return ctx, agent, dataset, started
 
 
 @asynccontextmanager
