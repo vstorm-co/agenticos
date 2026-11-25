@@ -159,6 +159,7 @@ class TestReadingSessions:
             "cost_usd": "0.02",
             "chosen": True,
             "best": True,
+            "candidate_hash": "b" * 64,
         }
         assert session["attempts"][0]["change"] == 1
         assert not session["attempts"][0]["chosen"]
@@ -1739,7 +1740,13 @@ class TestActingOnASession:
 
         accepted = await server.call_tool(
             "accept_improvement",
-            {"agent_id": str(AGENT), "session_id": str(SESSION), "publish": publish},
+            {
+                "agent_id": str(AGENT),
+                "session_id": str(SESSION),
+                "attempt": 2,
+                "candidate_hash": "c" * 64,
+                "publish": publish,
+            },
         )
 
         assert api.request.await_args.args == (
@@ -1747,7 +1754,14 @@ class TestActingOnASession:
             f"/agents/{AGENT}/improvements/{SESSION}/finish",
         )
         assert api.request.await_args.kwargs == {
-            "json": {"confirmed": True, "publish": publish, "automatic_check": False}
+            "json": {
+                "confirmed": True,
+                "attempt": 2,
+                "candidate_spec_hash": "c" * 64,
+                "publish": publish,
+                "publish_unmeasured_edits": False,
+                "automatic_check": False,
+            }
         }
         assert accepted.structured_content["version"] == 4
 
