@@ -98,14 +98,41 @@ def _agent_setting(asks: bool) -> Literal["free", "ask"]:
     return "ask" if asks else "free"
 
 
+def provider_executed(spec: AgentSpec) -> set[RoutineActionKey]:
+    """Capability tools the model provider runs on its side under this spec.
+
+    Such a call never reaches this deployment's approval gate or the model's
+    tool list, so neither `ask` nor `off` could be enforced on it.
+    """
+    handed_over: set[RoutineActionKey] = set()
+    for binding in spec.capabilities:
+        if not binding.enabled:
+            continue
+        definition = capability(binding.id)
+        if definition.provider_executed is None:
+            continue
+        config = definition.validate_config(binding.config)
+        handed_over.update(
+            RoutineActionKey(capability_id=binding.id, tool_id=tool_id)
+            for tool_id in definition.provider_executed.tools_for(config)
+        )
+    return handed_over
+
+
 def capability_tool_options(spec: AgentSpec, *, local: bool) -> list[RoutineCapabilityToolOption]:
-    """Every tool the agent's enabled capabilities give it, reads included."""
+    """Every tool the agent's enabled capabilities give it, reads included.
+
+    Not the ones the model provider runs: a routine could not narrow those.
+    """
     options: list[RoutineCapabilityToolOption] = []
+    handed_over = provider_executed(spec)
     for binding in spec.capabilities:
         if not binding.enabled:
             continue
         definition = capability(binding.id)
         for tool in definition.effective_tools(binding.tool_overrides):
+            if RoutineActionKey(capability_id=binding.id, tool_id=tool.id) in handed_over:
+                continue
             options.append(
                 RoutineCapabilityToolOption(
                     capability_id=binding.id,
@@ -170,21 +197,30 @@ class RoutineToolService(RoutineActionService):
 
         `ctx` is the owner's: the accounts listed are the ones a run as them reaches.
         """
+        offered = await self._offered(ctx, trigger)
+        stored = read_tool_settings(trigger.tool_settings)
+        return offered.model_copy(
+            update={
+                "items": [
+                    option.model_copy(update={"setting": _shown(option, stored)})
+                    for option in offered.items
+                ]
+            }
+        )
+
+    async def _offered(self, ctx: AuthContext, trigger: AgentTrigger) -> RoutineToolOptions:
+        """The tools alone, without reading the stored narrowing they would show."""
         spec, _ = await self._spec(ctx, trigger)
         mcp, unavailable = await self._mcp_tools(ctx, trigger, spec)
         from app.services.channel_actions import ChannelActionService, with_actions
 
         spec = with_actions(spec, await ChannelActionService(ctx, trigger.agent_id).tools(self.db))
-        stored = read_tool_settings(trigger.tool_settings)
-        options: list[RoutineToolOption] = [
-            *capability_tool_options(spec, local=trigger.local_target is not None),
-            *mcp,
-            *platform_tool_options(spec, as_creator=trigger.runs_as_creator),
-        ]
         return RoutineToolOptions(
             unavailable_sources=unavailable,
             items=[
-                option.model_copy(update={"setting": _shown(option, stored)}) for option in options
+                *capability_tool_options(spec, local=trigger.local_target is not None),
+                *mcp,
+                *platform_tool_options(spec, as_creator=trigger.runs_as_creator),
             ],
         )
 
@@ -203,7 +239,10 @@ class RoutineToolService(RoutineActionService):
         if current is None or current.organization_id != ctx.organization_id:
             raise AuthorizationError(message="This routine is no longer available")
         self._human(ctx, current)
-        offered = {setting_key(option): option for option in (await self.tools(ctx, current)).items}
+        # Not `tools`: a replacement must be able to overwrite unreadable storage.
+        offered = {
+            setting_key(option): option for option in (await self._offered(ctx, current)).items
+        }
         chosen = {setting_key(setting): setting for setting in data.settings}
         if len(chosen) != len(data.settings):
             raise BadRequestError(message="Name each tool once")

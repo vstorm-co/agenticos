@@ -45,6 +45,7 @@ from app.services.routine_readiness import blockers
 from app.services.routine_sources import read_policy
 from app.services.routine_tools import (
     RoutineToolService,
+    capability_tool_options,
     read_tool_settings,
     stricter,
     tool_settings_of,
@@ -273,6 +274,43 @@ async def test_unreadable_settings_refuse_rather_than_release(
     await db.flush()
     with pytest.raises(AuthorizationError):
         await capture(db, world)
+
+
+async def test_a_replacement_overwrites_unreadable_settings(db: AsyncSession, world: World) -> None:
+    world.trigger.tool_settings = [{"capability_id": "sandbox", "setting": "maybe"}]
+    await db.flush()
+    await save(db, world, EXECUTE.model_dump())
+    assert read_tool_settings(world.trigger.tool_settings) == {
+        RoutineActionKey(capability_id="sandbox", tool_id="execute"): "off"
+    }
+
+
+async def test_a_tool_the_provider_runs_is_never_offered_nor_enforced_silently(
+    db: AsyncSession, world: World
+) -> None:
+    fetch = RoutineCapabilityToolSetting(
+        capability_id="web_fetch", tool_id="web_fetch", setting="off"
+    )
+    native = AgentSpec(
+        name="Worker",
+        capabilities=[CapabilityBindingSpec(id="web_fetch", config={"method": "native"})],
+    )
+    local = AgentSpec(
+        name="Worker",
+        capabilities=[CapabilityBindingSpec(id="web_fetch", config={"method": "local"})],
+    )
+    assert capability_tool_options(native, local=False) == []
+    assert [option.tool_id for option in capability_tool_options(local, local=False)] == [
+        "web_fetch"
+    ]
+    world.trigger.tool_settings = [fetch.model_dump(mode="json")]
+    await db.flush()
+    authority = await capture(db, world)
+    assert len(authority.tools_off(local)) == 1
+    # Narrowed while the agent ran it, then handed to the provider: refused, not released.
+    with pytest.raises(AuthorizationError) as refused:
+        authority.tools_off(native)
+    assert refused.value.details == {"tools": ["web_fetch"]}
 
 
 def test_two_narrowings_never_add_up_to_a_release() -> None:

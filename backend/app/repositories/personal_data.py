@@ -1636,7 +1636,7 @@ async def purge_routine_authority(db: AsyncSession, user_id: UUID) -> None:
     await db.execute(
         sql_update(AgentTrigger)
         .where(AgentTrigger.created_by_user_id == user_id)
-        .values(approved_sources=None, action_consents=[])
+        .values(approved_sources=None, action_consents=[], tool_settings=[])
     )
     await db.execute(
         sql_update(AgentRun).where(AgentRun.user_id == user_id).values(routine_policy=None)

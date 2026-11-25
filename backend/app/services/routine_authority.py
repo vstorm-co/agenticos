@@ -84,7 +84,7 @@ from app.services.routine_sources import (
     require_bound_sources,
     source_scope,
 )
-from app.services.routine_tools import read_tool_settings, stricter
+from app.services.routine_tools import provider_executed, read_tool_settings, stricter
 
 MCP_SOURCES = TypeAdapter(dict[UUID, McpSourceIdentity])
 
@@ -169,9 +169,28 @@ class RoutineAuthority:
 
         Only the root's: a delegate's tools are its own spec's, and a key naming
         a capability tool would otherwise reach the same tool of every delegate.
+
+        Raises:
+            AuthorizationError: If a setting names a tool the model provider runs
+                under this spec, where neither `ask` nor `off` can be enforced -
+                as when the agent moved a tool to its provider after the owner
+                narrowed it.
         """
-        off = {key for key, value in (self.tool_settings or {}).items() if value == "off"}
-        if self.routine_kind != "trigger" or not off:
+        if self.routine_kind != "trigger" or not self.tool_settings:
+            return ()
+        unenforceable = sorted(
+            key.tool_id for key in provider_executed(spec) if key in self.tool_settings
+        )
+        if unenforceable:
+            raise AuthorizationError(
+                message=(
+                    "This routine narrows a tool the model provider now runs, where "
+                    "the narrowing cannot be enforced. Review the routine's tools."
+                ),
+                details={"tools": unenforceable},
+            )
+        off = {key for key, value in self.tool_settings.items() if value == "off"}
+        if not off:
             return ()
         return (RoutineToolsOff(hidden=lambda tool: self.tool_key(spec, tool) in off),)
 
