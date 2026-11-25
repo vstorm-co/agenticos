@@ -219,7 +219,7 @@ class TestReadingWhatTheRunHandedItsModel:
         ("surface", "kind", "hidden"),
         [
             ("eval", "agent", {"messages"}),
-            ("web", "judge", {"messages", "prompt"}),
+            ("eval", "judge", {"messages", "prompt"}),
             ("web", "agent", set()),
         ],
     )

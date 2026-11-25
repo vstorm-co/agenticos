@@ -9683,12 +9683,10 @@ class AgentRunnerService:
         if ctx.scope_for(Perm.DATASETS_VIEW) is Scope.ALL:
             return {}
         sent: dict[str, Any] = {"messages": [], "transcript": []}
-        if run.surface == RunSurface.EVAL.value:
-            return sent
         agent = await agent_repo.get(self.db, run.agent_id, organization_id=ctx.organization_id)
-        if agent is not None and agent.kind == AgentKind.AGENT.value:
-            return {}
-        return {**sent, "instructions": None, "system_prompts": []}
+        if agent is None or agent.kind != AgentKind.AGENT.value:
+            return {**sent, "instructions": None, "system_prompts": []}
+        return sent if run.surface == RunSurface.EVAL.value else {}
 
     async def transcript_ratings(
         self, ctx: AuthContext, message_ids: list[UUID]
