@@ -1,5 +1,5 @@
 ---
-source_sha: "5110a2efa07a"
+source_sha: "fba2a036141f"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -228,8 +228,9 @@ poszerza tego, co działa bez udziału człowieka:
 - Capability, której narzędzia sięgają poza wdrożenie, nigdy nie jest dodawana:
   trafia pod **pomysły, których asystent nie dodał**, do dodania w Builderze,
   gdzie ustawia się jej limity.
-- Ponowne dodanie capability, którą wiąże opublikowana wersja, a draft już nie,
-  jest oceniane jako zmiana względem opublikowanego powiązania: jej ustawienia
+- Ponowne dodanie capability, którą wiąże opublikowana wersja, a wersja robocza
+  już nie, jest oceniane jako zmiana względem opublikowanego powiązania:
+  wyłączone powiązanie nie zostaje ponownie włączone, jej ustawienia
   zmieniają się tylko tam, gdzie dotyczą wyłącznie jakości, ustawienia
   zabezpieczenia nigdy, a żadne z jej narzędzi nie pyta o zatwierdzenie rzadziej
   niż wcześniej.

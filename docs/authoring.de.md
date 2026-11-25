@@ -1,5 +1,5 @@
 ---
-source_sha: "5110a2efa07a"
+source_sha: "fba2a036141f"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -242,7 +242,8 @@ hinzufügt. Er erweitert nie, was ohne einen Menschen läuft:
   werden.
 - Eine Capability wieder hinzuzufügen, die die veröffentlichte Version bindet
   und der Entwurf nicht mehr, gilt als Änderung gegenüber der veröffentlichten
-  Bindung: Ihre Einstellungen ändern sich nur dort, wo sie allein die Qualität
+  Bindung: Eine ausgeschaltete Bindung wird nicht wieder eingeschaltet, ihre
+  Einstellungen ändern sich nur dort, wo sie allein die Qualität
   betreffen, die einer Schutzmaßnahme nie, und keines ihrer Tools fragt seltener
   um Freigabe als zuvor.
 

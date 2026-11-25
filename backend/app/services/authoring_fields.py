@@ -90,6 +90,7 @@ TARGETS: tuple[tuple[str, tuple[FieldOp, ...]], ...] = (
 
 REACHES_OUTSIDE = frozenset(
     {
+        "background_tasks",
         "browser_use",
         "channel_actions",
         "channel_tools",
@@ -438,8 +439,9 @@ def readd_refusal(
     """Why adding back a capability the published version binds would loosen it, or `None`.
 
     The draft no longer binds it, so the addition is a change from the published
-    binding: its configuration may change only where it may be tuned and never on
-    a safeguard, and none of its tools may ask for less approval than it did.
+    binding: it is not switched back on, its configuration may change only where it
+    may be tuned and never on a safeguard, and none of its tools may ask for less
+    approval than it did.
     """
     if published is None or path != "capabilities" or op != FieldOp.ADD.value:
         return None
@@ -451,6 +453,8 @@ def readd_refusal(
     previous = _binding(published.model_dump(mode="json"), capability)
     if previous is None:
         return None
+    if previous.get("enabled", True) is False:
+        return "not_a_target"
     load_builtins()
     definition = REGISTRY.get(capability)
     if (value.get("config") or {}) != (previous.get("config") or {}):
@@ -467,7 +471,9 @@ def readd_refusal(
 def _strictness(binding: dict[str, Any], tool: str | None) -> int:
     """How strictly a binding asks before `tool` runs, or before any tool for `None`."""
     mode = (binding.get("tool_approval") or {}).get(tool) if tool is not None else None
-    return _STRICTNESS.get(mode or binding.get("approval", "default"), 0)
+    if mode in (None, "default"):
+        mode = binding.get("approval", "default")
+    return _STRICTNESS.get(mode, 0)
 
 
 def _adds_unshown_settings(path: str, op: str, value: Any) -> bool:

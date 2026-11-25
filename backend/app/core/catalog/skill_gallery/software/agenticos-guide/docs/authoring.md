@@ -220,7 +220,8 @@ a person:
   listed under **more ideas the assistant did not add**, to add in the Builder,
   where its limits are set.
 - Adding back a capability the published version binds and the draft no longer
-  does is judged as a change from the published binding: its settings change
+  does is judged as a change from the published binding: a binding switched off
+  is not switched back on, its settings change
   only where they are about quality alone, a safeguard's never, and none of its
   tools asks for less approval than before.
 

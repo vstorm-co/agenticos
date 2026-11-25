@@ -548,7 +548,6 @@ STAYS_INSIDE = frozenset(
     {
         "artifacts",
         "ask_user",
-        "background_tasks",
         "background_tools",
         "charts",
         "clock",
@@ -584,6 +583,7 @@ class TestNothingThatReachesOutIsAdded:
         load_builtins()
 
         assert {
+            "background_tasks",
             "browser_use",
             "channel_actions",
             "channel_tools",
@@ -646,8 +646,26 @@ class TestAddingBackIsReconfiguring:
                 {"id": "knowledge", "config": {"default_top_k": 8}},
                 None,
             ),
+            (
+                {
+                    "id": "charts",
+                    "approval": "required",
+                    "tool_approval": {"create_chart": "default"},
+                },
+                {"id": "charts"},
+                "loosens_approval",
+            ),
+            ({"id": "charts", "enabled": False}, {"id": "charts"}, "not_a_target"),
         ],
-        ids=["capability-asks-less", "tool-asks-less", "safeguard-reset", "same", "tuned"],
+        ids=[
+            "capability-asks-less",
+            "tool-asks-less",
+            "safeguard-reset",
+            "same",
+            "tuned",
+            "tool-default-defers-to-capability",
+            "switched-off",
+        ],
     )
     def test_an_addition_is_judged_against_the_published_binding(self, published, added, reason):
         draft = _spec(capabilities=[])

@@ -1,5 +1,5 @@
 ---
-source_sha: "5110a2efa07a"
+source_sha: "fba2a036141f"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las herramientas, la configuración, los skills y los archivos de contexto de un agent. Una persona decide cada uno."
 ---
@@ -233,7 +233,8 @@ Nunca amplía lo que se ejecuta sin una persona:
   en el Builder, donde se fijan sus límites.
 - Volver a añadir una capability que vincula la versión publicada y que el
   borrador ya no tiene se juzga como un cambio respecto a la vinculación
-  publicada: sus ajustes solo cambian donde tratan únicamente de calidad, los de
+  publicada: una vinculación desactivada no se vuelve a activar, sus ajustes
+  solo cambian donde tratan únicamente de calidad, los de
   una salvaguarda nunca, y ninguna de sus herramientas pide aprobación menos que
   antes.
 
