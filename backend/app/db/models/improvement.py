@@ -275,6 +275,27 @@ class SearchSettings(TypedDict):
     patience: int
 
 
+class PartialAnswer(TypedDict):
+    """One question a variant was asked and graded on, before its unit ran out of time."""
+
+    share: float
+    failed: list[str]
+    counted: bool
+
+
+class PartialScore(TypedDict):
+    """The answers one variant was scored on so far, for the unit that finishes it.
+
+    Bound to the variant's text and to how it is graded: a different text or grading
+    makes these answers say nothing about it, and they are asked again.
+    """
+
+    variant_id: str
+    text_hash: str
+    scoring_hash: str
+    answers: dict[str, PartialAnswer]
+
+
 class SearchProgress(TypedDict, total=False):
     """Where a search attempt is: its settings, what it spent and what it found.
 
@@ -299,6 +320,7 @@ class SearchProgress(TypedDict, total=False):
     cost_usd: str
     stop_reason: str | None
     chosen_variant_id: str | None
+    partial: PartialScore | None
 
 
 class ImprovementRun(Base):

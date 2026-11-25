@@ -1,5 +1,5 @@
 ---
-source_sha: "a37032cd6c51"
+source_sha: "423d6b25c588"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las herramientas, la configuración, los skills y los archivos de contexto de un agent. Una persona decide cada uno."
 ---
@@ -547,11 +547,27 @@ sesión se detiene con `no_variant`.
 
 La búsqueda tiene su propio budget, `search.budget_usd`, dentro del límite de la
 sesión, y la estimación de inicio suma ese budget y la comprobación de la
-variante que encuentre. Una variante empieza solo mientras su estimación cabe en
-lo que queda. Cada respuesta tiene un tope del doble de su parte de esa
+variante que encuentre. Una variante empieza solo mientras su estimación, con lo que cuesta leer sus
+instrucciones más largas, cabe en lo que queda. Cada respuesta tiene un tope del doble de su parte de esa
 estimación, así que la búsqueda puede superar su budget como mucho en la
 variante que estaba calificando. La sesión muestra lo que gastó la búsqueda
 aparte del resto.
+
+El tope de una respuesta también cubre lo que cuesta leer las instrucciones más
+largas de la variante, y un agent cuyas respuestas anteriores no costaron nada
+tiene como tope el precio de un caso sin precio. Una respuesta detenida en su
+propio tope cuenta como sin respuesta para esa variante; solo un budget agotado
+de la búsqueda, de la sesión o mensual termina la búsqueda.
+
+Una unidad de calificación deja de empezar respuestas antes de que se acabe el
+tiempo de su job, corta una respuesta que sigue en curso justo antes de que el job
+termine y conserva lo que respondió; la siguiente pregunta el resto, así que cada
+pregunta se paga una vez. Una respuesta conservada de una pregunta borrada desde
+entonces se descarta con ella. Antes de cada unidad, la búsqueda comprueba que
+quien actúa conserva el permiso de edición del agente, `runs:view` y el permiso
+para ejecutar el dataset; si no, la sesión se detiene como lo haría en su
+siguiente paso. Una nota dada con **Try again** llega también al ayudante que
+escribe las variantes.
 
 Solo quien podría iniciar la sesión - con permiso de edición del agente,
 `runs:view` y permiso para ejecutar el dataset - lee el texto de las variantes,

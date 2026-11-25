@@ -1,5 +1,5 @@
 ---
-source_sha: "a37032cd6c51"
+source_sha: "423d6b25c588"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -530,10 +530,26 @@ nie wypada lepiej niż obecne instrukcje, sesja zatrzymuje się z `no_variant`.
 
 Wyszukiwanie ma własny budget, `search.budget_usd`, w ramach limitu sesji, a
 wycena startu dolicza do sumy ten budget i sprawdzenie znalezionego wariantu.
-Wariant startuje tylko wtedy, gdy jego wycena mieści się w tym, co zostało.
+Wariant startuje tylko wtedy, gdy jego wycena, razem z kosztem przeczytania
+dłuższych instrukcji, mieści się w tym, co zostało.
 Każda odpowiedź ma limit dwukrotności swojej części wyceny, więc wyszukiwanie
 może przekroczyć budget najwyżej o jeden oceniany wariant. Sesja pokazuje
 wydatki wyszukiwania osobno od reszty.
+
+Limit odpowiedzi obejmuje też koszt przeczytania dłuższych instrukcji wariantu,
+a agent, którego dotychczasowe odpowiedzi nic nie kosztowały, dostaje limit w
+wysokości ceny niewycenionego przypadku. Odpowiedź zatrzymana na własnym limicie
+liczy się dla tego wariantu jako bez odpowiedzi; wyszukiwanie kończy dopiero
+wyczerpany budget wyszukiwania, sesji albo miesięczny.
+
+Zadanie oceniające przestaje zaczynać odpowiedzi, zanim skończy się czas jego
+joba, przerywa odpowiedź trwającą tuż przed końcem joba i zachowuje to, na co
+odpowiedziało; następne zadaje resztę, więc każde pytanie jest opłacone raz.
+Zachowana odpowiedź na pytanie usunięte w międzyczasie odpada razem z nim. Przed każdym zadaniem wyszukiwanie sprawdza, czy osoba,
+w której imieniu działa, nadal ma prawo edycji agenta, `runs:view` i prawo
+uruchamiania datasetu; inaczej sesja zatrzymuje się tak, jak zrobiłaby to w
+następnym kroku. Notatka podana przy **Try again** trafia też do helpera, który
+pisze warianty.
 
 Treść wariantów, pisaną na podstawie pytań datasetu, czyta tylko ktoś, kto
 mógłby uruchomić sesję - z prawem edycji agenta, `runs:view` i prawem

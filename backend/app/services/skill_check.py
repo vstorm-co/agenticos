@@ -1230,10 +1230,16 @@ class SkillCheckService:
             )
 
     async def sweep(self, *, limit: int = 50) -> int:
-        """Queue one advance per running check, so one that fails rolls back alone."""
+        """Queue one advance per running check that can move, so one that fails rolls back
+        alone; a check waiting on runs still going leaves its place to one that can."""
         from app.worker import jobs
 
-        found = await skill_check_repo.running(self.db, limit=limit)
+        found = await skill_check_repo.needing_advance(
+            self.db,
+            settled=[status.value for status in _SETTLED_RUNS],
+            stale_before=datetime.now(UTC) - STALE_AFTER,
+            limit=limit,
+        )
         for organization_id, check_id in found:
             await enqueue(
                 self.db,
@@ -2307,7 +2313,15 @@ class SkillCheckService:
         self, ctx: AuthContext, skill_id: UUID, check_id: UUID, *, from_session: bool = False
     ) -> SkillCheckRead:
         """Refuse the change; a pending proposal it checked is discarded with it."""
-        await self.versions.skill_for(ctx, skill_id, Perm.SKILLS_EDIT)
+        skill = await self.versions.skill_for(ctx, skill_id, Perm.SKILLS_EDIT)
+        # The skill first, as every decision on a check takes it, so an apply and a discard
+        # queue; then the proposal before the check, as discarding the proposal does.
+        await skill_repo.lock(self.db, skill.id)
+        proposal_id = (await self._check(ctx, skill_id, check_id)).proposal_id
+        if proposal_id is not None:
+            await skill_proposal_repo.lock(
+                self.db, proposal_id, organization_id=ctx.organization_id
+            )
         check = await self._check(ctx, skill_id, check_id, lock=True)
         await self._refuse_session_owned(check, from_session=from_session)
         if CheckStatus(check.status).decided:
@@ -2457,9 +2471,13 @@ class SkillCheckService:
     ) -> DatasetRead:
         """Give the skill its test questions, empty or from recent answers that loaded it.
 
+        The set is named after the skill, numbered when a dataset already has the name -
+        a set a deleted skill of the same name left behind, say.
+
         Raises:
             AuthorizationError: The caller may not create datasets.
             AlreadyExistsError: The skill has its test questions already.
+            BadRequestError: Every name the set could take is taken.
         """
         skill = await self.versions.skill_for(ctx, skill_id, Perm.SKILLS_EDIT)
         if not ctx.has(Perm.DATASETS_EDIT):
@@ -2474,7 +2492,7 @@ class SkillCheckService:
         created = await self.datasets.create(
             ctx,
             DatasetCreate(
-                name=f"{skill.name} · test questions",
+                name=await self._test_set_name(ctx, skill),
                 description=f"Questions every agent using '{skill.name}' is checked on.",
                 # Every question is held out: the set measures a change, and nothing
                 # learns from it.
@@ -2490,6 +2508,21 @@ class SkillCheckService:
             return await self.datasets.read(ctx, created.id)
         return created
 
+    async def _test_set_name(self, ctx: AuthContext, skill: Skill) -> str:
+        base = f"{skill.name} · test questions"
+        for attempt in range(1, _NAME_TRIES + 1):
+            name = base if attempt == 1 else f"{base} ({attempt})"
+            if await dataset_repo.get_by_name(self.db, name, organization_id=ctx.organization_id):
+                continue
+            return name
+        raise BadRequestError(
+            message="Every name for this skill's test questions is taken. Rename one of them.",
+            details={"skill_id": skill.id},
+        )
+
+
+_NAME_TRIES = 10
+"""Names a skill's test questions may take, numbered after the first, before giving up."""
 
 _HELPED = frozenset({AgentState.BETTER.value, AgentState.CRITERIA_BETTER.value})
 
