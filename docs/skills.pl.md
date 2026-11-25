@@ -1,5 +1,5 @@
 ---
-source_sha: "8f718c783682"
+source_sha: "7a96a6b374c4"
 ---
 
 # Skille { #skills }
@@ -348,8 +348,9 @@ startem, ze wskazaniem datasetu, do którego trzeba dodać inne pytania.
   pytania skilla potwierdziły regresję, zostaje **gorszy**: zmianę nadal trzeba
   przypiąć albo obejść forkiem. Agent, u którego pytania skilla nie pokazały
   regresji, jest **nieznany**: jego wiersz mówi, że własne pytania się nie
-  zakończyły, a pytania skilla nie pokazały regresji, a szczegóły zachowują wynik
-  pytań skilla, więc potwierdzenie go to decyzja podjęta na połowie sprawdzenia.
+  zakończyły, a pytania skilla nie pokazały regresji - albo, gdy nie mogły
+  wystartować, dlaczego - a szczegóły zachowują wynik pytań skilla, więc
+  potwierdzenie go to decyzja podjęta na połowie sprawdzenia.
 
 Sprawdzenie, w którym nie da się sprawdzić żadnego agenta, i tak startuje i od
 razu się kończy, ze wszystkimi agentami nieznanymi, do potwierdzenia przez osobę. Okno mówi to przed startem i proponuje pytania testowe skilla albo ocenianie, którego brakuje jego pytaniom.

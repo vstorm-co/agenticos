@@ -334,8 +334,9 @@ the dataset to add other questions to.
   confirmed a regression stays **worse**: the change still has to be pinned or
   forked around it. One the skill's questions showed no regression on is
   **unknown**: its row says its own questions did not finish and that the skill's
-  showed no regression, and its details keep what the skill's questions came to,
-  so acknowledging it is a decision made on half a check.
+  showed no regression - or, when they could not start, why - and its details
+  keep what the skill's questions came to, so acknowledging it is a decision made
+  on half a check.
 
 A check where no agent can be checked still starts, and finishes at once with
 every agent unknown, for a person to acknowledge. The dialog says so before the

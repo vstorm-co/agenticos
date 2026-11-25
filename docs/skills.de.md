@@ -1,5 +1,5 @@
 ---
-source_sha: "8f718c783682"
+source_sha: "7a96a6b374c4"
 ---
 
 # Skills { #skills }
@@ -373,8 +373,9 @@ andere Fragen hinzuzufügen sind.
   Änderung muss weiterhin angeheftet oder per Fork umgangen werden. Einer, bei dem
   die Fragen des Skills keine Regression zeigten, ist **unbekannt**: Seine Zeile
   sagt, dass seine eigenen Fragen nicht fertig wurden und die des Skills keine
-  Regression zeigten, und seine Details behalten, was die Fragen des Skills
-  ergaben, sodass ihn zu bestätigen eine Entscheidung auf einer halben Prüfung ist.
+  Regression zeigten - oder, wenn sie nicht starten konnten, warum -, und seine
+  Details behalten, was die Fragen des Skills ergaben, sodass ihn zu bestätigen
+  eine Entscheidung auf einer halben Prüfung ist.
 
 Eine Prüfung, in der kein Agent geprüft werden kann, startet trotzdem und endet
 sofort, mit jedem Agent unbekannt, damit eine Person das bestätigt. Der Dialog sagt das vor dem Start und bietet die Testfragen des Skills an oder die Bewertung, die seinen Fragen fehlt.

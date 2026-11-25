@@ -1,5 +1,5 @@
 ---
-source_sha: "8f718c783682"
+source_sha: "7a96a6b374c4"
 ---
 
 # Skills { #skills }
@@ -357,9 +357,9 @@ el paso se rechaza antes de empezar, con el dataset al que añadir otras pregunt
   confirmaran una regresión sigue **peor**: el cambio aún tiene que fijarse o
   rodearse con un fork. Uno en el que las preguntas del skill no mostraron
   regresión es **desconocido**: su fila dice que sus propias preguntas no
-  terminaron y que las del skill no mostraron regresión, y sus detalles conservan
-  lo que dieron las preguntas del skill, así que reconocerlo es una decisión
-  tomada sobre media comprobación.
+  terminaron y que las del skill no mostraron regresión - o, cuando no pudieron
+  empezar, por qué - y sus detalles conservan lo que dieron las preguntas del
+  skill, así que reconocerlo es una decisión tomada sobre media comprobación.
 
 Una comprobación en la que no se puede comprobar ningún agent empieza igualmente
 y termina enseguida, con todos los agents desconocidos, para que una persona lo
