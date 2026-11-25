@@ -22,10 +22,11 @@ Two things are versioned separately from this file and worth knowing about:
 ### Added
 
 - Embed a knowledge base through any OpenAI-compatible endpoint your organization registers, with an optional Vault key: pick **Custom (OpenAI-compatible)**, a service connection and a typed model, then **Test** before creating. Test before saving a change to a knowledge base's embeddings or to a connection's address or key; the Test re-embeds stored chunks and compares them with the vectors already indexed.
+- Knowledge base search marks where a result matches the query: the exact phrase when it appears, otherwise the query's words.
 
 ### Changed
 
-- A provider, key, endpoint or model change on a knowledge base, and an Ollama connection address edit, now need a passing Test or a confirmed unverified save. Knowledge → Integrations shows each connection's API style and key, and local services are now called service connections.
+- A provider, key, endpoint or model change on a knowledge base, and an Ollama connection address edit, now need a passing Test or a confirmed unverified save. The Integrations tab on the Knowledge bases page shows each connection's API style and key, and local services are now called service connections.
 
 ### Upgrading
 

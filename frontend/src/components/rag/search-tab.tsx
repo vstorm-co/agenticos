@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
+import { highlightSegments } from "@/lib/search-highlight";
 import { Database, Search } from "lucide-react";
 
 import {
@@ -52,6 +53,8 @@ export function SearchTab({ kbs, onCreate, loading = false }: SearchTabProps) {
   const [query, setQuery] = useState("");
   const [scope, setScope] = useState<string>(ALL_BASES);
   const [results, setResults] = useState<RAGSearchResult[]>([]);
+  // The query the shown results answer, not what is being typed now.
+  const [answered, setAnswered] = useState("");
   const [status, setStatus] = useState<SearchStatus>("idle");
   const [tookMs, setTookMs] = useState(0);
   const [opened, setOpened] = useState<CitedFile | null>(null);
@@ -120,6 +123,7 @@ export function SearchTab({ kbs, onCreate, loading = false }: SearchTabProps) {
       )
         return;
       setResults(data.results);
+      setAnswered(trimmed);
       setTookMs(Math.round(performance.now() - startedAt));
       setStatus("done");
     } catch {
@@ -297,7 +301,20 @@ export function SearchTab({ kbs, onCreate, loading = false }: SearchTabProps) {
                     {result.score.toFixed(3)}
                   </Badge>
                 </div>
-                <p className="text-muted-foreground text-sm leading-relaxed">{result.content}</p>
+                <p className="text-muted-foreground text-sm leading-relaxed">
+                  {highlightSegments(result.content, answered).map((segment, index) =>
+                    segment.match ? (
+                      <mark
+                        key={index}
+                        className="text-foreground rounded-sm bg-amber-200/70 px-0.5 dark:bg-amber-400/30"
+                      >
+                        {segment.text}
+                      </mark>
+                    ) : (
+                      segment.text
+                    ),
+                  )}
+                </p>
               </div>
             );
           })}
