@@ -276,6 +276,28 @@ class TestContinuingPastAnApprovedPlatformCall:
 
         assert decided == {_CALL_ID: ApprovalGranted(tool_args=approval.tool_args)}
 
+    async def test_the_runs_own_key_cannot_continue_it(self, db: AsyncSession):
+        org = await _org(db)
+        builder = await _member(db, org, OrgRoleName.BUILDER)
+        run, _approval = await _parked(db, org, builder, status=ApprovalStatus.APPROVED)
+        state = PausedRunState.model_validate(run.paused_state)
+
+        with pytest.raises(AuthorizationError):
+            await AgentRunnerService(db)._decisions(
+                replace(builder, api_key_id=uuid.uuid4()), run=run, state=state
+            )
+
+    async def test_an_impersonated_session_cannot_continue_it(self, db: AsyncSession):
+        org = await _org(db)
+        builder = await _member(db, org, OrgRoleName.BUILDER)
+        run, _approval = await _parked(db, org, builder, status=ApprovalStatus.APPROVED)
+
+        with _impersonated_by(uuid.uuid4()), pytest.raises(AuthorizationError):
+            await AgentRunnerService(db).resume(builder, run.id)
+
+        await db.refresh(run)
+        assert run.status == RunStatus.AWAITING_APPROVAL.value
+
     async def test_a_rejected_call_does_not_hold_the_run(self, db: AsyncSession):
         org = await _org(db)
         builder = await _member(db, org, OrgRoleName.BUILDER)
