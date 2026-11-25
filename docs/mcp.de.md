@@ -1,5 +1,5 @@
 ---
-source_sha: "ae26ea67fe6f"
+source_sha: "8a442bac0bd0"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -1552,6 +1552,11 @@ bei Bedarf. Beide Agentenentwurfs-Tools akzeptieren `context_ids`; die Liste
 ersetzt alle Context-Bindungen. Änderungen gebundener Dateien gelten beim
 nächsten Lauf; neue Entwurfsbindungen müssen veröffentlicht werden. Berechtigungen
 und Schreibfreigaben bleiben bestehen.
+
+`update_skill`, `add_skill_resource` und
+`update_context_file` ändern, was laufende Agenten beim nächsten Lauf lesen, also
+fragt jeder Aufruf zuerst die Person, auch bei stehender Zustimmung; ein neuer
+Skill oder eine neue Context-Datei wird standardmäßig angelegt.
 
 ### Herkunft und Berechtigung verbundener Konten { #connected-account-source-authority }
 
