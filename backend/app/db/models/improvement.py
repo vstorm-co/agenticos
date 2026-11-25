@@ -392,6 +392,9 @@ class ImprovementRun(Base):
     )
     stop_reason: Mapped[str | None] = mapped_column(String(16), nullable=True)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    error_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    """`error` as a code from `ImprovementFailure`; null on a session failed before codes."""
+    error_params: Mapped[dict[str, int] | None] = mapped_column(JSONB, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

@@ -377,7 +377,7 @@ async def test_an_ended_step_wakes_its_session_instead_of_waiting_for_the_sweep(
     proposing = await ImprovementPipelineService(db).read(ctx, agent.id, read.id)
     request = await db.get(AuthoringRequest, proposing.iterations[0].authoring_request_id)
     await _settle_queued_jobs(db)
-    await AuthoringWorker._fail(db, request, "The improver could not answer.")
+    await AuthoringWorker._fail(db, request, "The improver could not answer.", "unexpected")
     assert await _queued_advances(db, read.id) == 1
 
     await _settle_queued_jobs(db)
@@ -911,9 +911,14 @@ async def test_failed_proposal_needs_explicit_retry_and_repeated_click_starts_on
     assert (await service.read(ctx, agent.id, read.id)).status == "failed"
     await service.advance(read.id, ctx.organization_id)
     assert (await service.read(ctx, agent.id, read.id)).iterations[0].authoring_request_id == old_id
+    row = await db.get(ImprovementRun, read.id)
+    assert row is not None
+    row.error, row.error_code, row.error_params = "Add 2 more", "too_few_held_out", {"missing": 2}
+    await db.flush()
     retried = await service.retry(ctx, agent.id, read.id)
     new_id = retried.iterations[0].authoring_request_id
     assert new_id is not None and new_id != old_id
+    assert (retried.error, retried.error_code, retried.error_params) == (None, None, None)
     again = await service.retry(ctx, agent.id, read.id)
     assert again.iterations[0].authoring_request_id == new_id
     assert any(event.action == "improvement.retried" for event in again.timeline)

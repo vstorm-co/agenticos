@@ -517,19 +517,25 @@ class TestProposals:
         now = datetime.now(UTC)
 
         elsewhere = await authoring_repo.fail_unfinished(
-            db, request.id, organization_id=other.id, error="Stopped.", now=now
+            db,
+            request.id,
+            organization_id=other.id,
+            error="Stopped.",
+            error_code="stalled",
+            now=now,
         )
         failed = await authoring_repo.fail_unfinished(
-            db, request.id, organization_id=org.id, error="Stopped.", now=now
+            db, request.id, organization_id=org.id, error="Stopped.", error_code="stalled", now=now
         )
         again = await authoring_repo.fail_unfinished(
-            db, request.id, organization_id=org.id, error="Later.", now=now
+            db, request.id, organization_id=org.id, error="Later.", error_code="withdrawn", now=now
         )
         await db.refresh(request)
 
         assert (elsewhere, failed, again) == (False, True, False)
-        assert (request.status, request.error, request.finished_at) == (
+        assert (request.status, request.error, request.error_code, request.finished_at) == (
             AuthoringStatus.FAILED.value,
             "Stopped.",
+            "stalled",
             now,
         )
