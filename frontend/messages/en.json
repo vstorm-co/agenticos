@@ -12208,6 +12208,7 @@
     "pythonActionUnavailable": "Action unavailable",
     "pythonRemoveAction": "Remove {name}",
     "pythonToolArguments": "Tool argument schema",
+    "pythonRequiredConfigArgs": "Supply {fields} in each call, or set a default below.",
     "pythonOverrideFields": "Optional overrides: {fields}. Omit them to use the configured values.",
     "pythonResultFields": "Result fields: {fields}",
     "codeArgKeys": "Keys of args",

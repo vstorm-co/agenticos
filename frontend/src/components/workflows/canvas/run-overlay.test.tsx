@@ -58,6 +58,41 @@ describe("summarizeNodeRuns", () => {
     expect(summary.get("B")?.status).toBe("running");
   });
 
+  it("surfaces a child that needs a decision without counting its attempts, output, or time", () => {
+    const child = row({
+      status: "needs_attention",
+      scope_path: [{ action: "write", index: 0 }],
+      attempts: 5,
+      output: { list: [1] },
+      started_at: "2026-11-10T10:00:01Z",
+      ended_at: "2026-11-10T10:00:04Z",
+    });
+    const parent = row({
+      status: "waiting",
+      started_at: "2026-11-10T10:00:00Z",
+      ended_at: "2026-11-10T10:00:10Z",
+    });
+    for (const rows of [
+      [child, parent],
+      [parent, child],
+    ]) {
+      expect(summarizeNodeRuns(rows).get("A")).toMatchObject({
+        status: "needs_attention",
+        runs: 1,
+        succeeded: 0,
+        attempts: 1,
+        durationMs: 10000,
+        items: null,
+      });
+    }
+    expect(summarizeNodeRuns([child, { ...parent, status: "cancelled" }]).get("A")?.status).toBe(
+      "cancelled",
+    );
+    expect(summarizeNodeRuns([child, { ...parent, status: "failed" }]).get("A")?.status).toBe(
+      "failed",
+    );
+  });
+
   it("adds up the items each row handed on, while every row handed on a list", () => {
     const summary = summarizeNodeRuns([
       row({ output: { items: [1, 2] } }),

@@ -100,6 +100,7 @@ import {
   classify,
   defsOf,
   isBindable,
+  isPythonConfigInput,
   isRecord,
   labelOf,
   ownTitle,
@@ -355,6 +356,7 @@ function MemberPin({
 /** A static config leaf whose value is a pinned resource, edited through a picker. */
 function ResourcePin({
   nodeId,
+  actionAlias,
   kind,
   schema,
   label,
@@ -365,6 +367,7 @@ function ResourcePin({
   onChange,
 }: {
   nodeId: Uuid;
+  actionAlias?: string;
   kind: ResourceKind;
   schema: Schema;
   /** The field's own title, for a picker that labels its control; its own label when none. */
@@ -378,7 +381,11 @@ function ResourcePin({
 }) {
   const requiresReview = useWorkflowEditorStore((state) =>
     state.tableDrift.some(
-      (entry) => entry.nodeId === nodeId && entry.site.binding === null && entry.requiresReview,
+      (entry) =>
+        entry.nodeId === nodeId &&
+        entry.site.binding === null &&
+        entry.site.action === actionAlias &&
+        entry.requiresReview,
     ),
   );
   if (kind === "group") {
@@ -523,6 +530,7 @@ function ConfigLeaf({
         {!labelled && <Label>{label}</Label>}
         <ResourcePin
           nodeId={ctx.node.id}
+          actionAlias={ctx.actionAlias}
           kind={resource}
           schema={schema}
           label={ownTitle(schema, name)}
@@ -1406,7 +1414,7 @@ function NodeFields({
     (definition.id === "flow.await_reply" && ["provider", "connection_id"].includes(name)) ||
     (agentStep && name === AGENT_INLINE) ||
     (mcpStep && name === MCP_TOOL) ||
-    (definition.id === "email.send" && name === "smtp_secret_id") ||
+    (!actionAlias && definition.id === "email.send" && name === "smtp_secret_id") ||
     (profiledDecision &&
       ["secret_id", "model"].includes(name) &&
       node.config.secret_id === undefined);
@@ -1613,7 +1621,13 @@ function NodeFields({
               <ConfigNode
                 schema={entry.schema}
                 name={entry.name}
-                required={entry.required}
+                required={
+                  entry.required &&
+                  !(
+                    actionAlias &&
+                    isPythonConfigInput(entry.schema, entry.name, definition.input_schema)
+                  )
+                }
                 path={[entry.name]}
                 defs={configDefs}
                 ctx={ctx}

@@ -26,6 +26,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 from app.core.background import discard_deferred
 from app.core.exceptions import BadRequestError
 from app.db.models.mcp_connection import McpConnection
+from app.db.models.virtual_table import VirtualTable
 from app.db.models.workflow import Workflow
 from app.db.models.workflow_approval import WorkflowApproval
 from app.db.models.workflow_file import WorkflowFile
@@ -42,7 +43,9 @@ from app.services.file_storage import LocalFileStorage
 from app.services.workflow_execution.approvals import WorkflowApprovalService, wake_approval_step
 from app.services.workflow_execution.facade import WorkflowExecutionService
 from app.workflows.contracts.io import Binding, FileRef, LiteralValue, NodeOutputRef
+from app.workflows.contracts.policy import NodePolicy, RetryPolicy
 from app.workflows.graph.model import Edge, NodeInstance, NodePosition, WorkflowGraph
+from app.workflows.graph.validate import validate_graph
 from app.workflows.nodes import _sandbox_job as job
 from app.workflows.nodes.code_javascript_sandbox import _handler as js_node
 from app.workflows.nodes.code_python_sandbox import _handler as sandbox_node
@@ -72,22 +75,23 @@ def _node(definition_id: str, config: dict[str, Any] | None = None) -> NodeInsta
     )
 
 
+def _edge(source: NodeInstance, target: NodeInstance, port: str = "out") -> Edge:
+    return Edge(
+        id=uuid.uuid4(),
+        source_node_id=source.id,
+        source_port=port,
+        target_node_id=target.id,
+        target_port="in",
+    )
+
+
 def _chain(step: NodeInstance, *bindings: Binding) -> WorkflowGraph:
     entry, output = _node("core.input"), _node("core.output")
     nodes = (entry, step, output)
     return WorkflowGraph(
         entry_node_id=entry.id,
         nodes=nodes,
-        edges=tuple(
-            Edge(
-                id=uuid.uuid4(),
-                source_node_id=a.id,
-                source_port="out",
-                target_node_id=b.id,
-                target_port="in",
-            )
-            for a, b in itertools.pairwise(nodes)
-        ),
+        edges=tuple(_edge(a, b) for a, b in itertools.pairwise(nodes)),
         bindings=(
             *bindings,
             Binding(
@@ -146,6 +150,46 @@ class TestTheMontyScript:
 
 
 class TestPythonWithActions:
+    async def test_numeric_action_identity_survives_the_jsonb_round_trip(self, engine: AsyncEngine):
+        step = _node(
+            "code.python.actions",
+            {
+                "actions": {"store": {"type": "data.value"}},
+                "code": "store(value={'samples': [1.2345678901234568e20, -0.0, 1e-8]})['value']",
+            },
+        )
+        run = await drive(await seed_run(engine, _chain(step)))
+        assert run.status == WorkflowRunStatus.SUCCEEDED.value, run.error
+        # int(float) gives 123456789012345683968, not the decimal sent to PostgreSQL.
+        assert run.output["structured"]["result"]["samples"] == [123456789012345680000, 0.0, 1e-8]
+
+    async def test_a_required_action_field_can_come_entirely_from_the_script(
+        self, engine: AsyncEngine
+    ):
+        step = _node(
+            "code.python.actions",
+            {
+                "actions": {
+                    "make_table": {
+                        "type": "table.create",
+                        "config": {
+                            "columns": [{"label": "Title", "type": "text"}],
+                        },
+                    }
+                },
+                "code": "make_table(name=args['name'])['table_id']",
+            },
+        )
+        graph = _chain(step, _literal(step, "args", {"name": "Service Requests"}))
+        seeded = await seed_run(engine, graph)
+        async with seeded.factory() as db:
+            await validate_graph(db, seeded.ctx, graph)
+        finished = await drive(seeded)
+        assert finished.status == WorkflowRunStatus.SUCCEEDED.value, finished.error
+        async with seeded.factory() as db:
+            created = await db.get(VirtualTable, uuid.UUID(finished.output["structured"]["result"]))
+            assert created is not None and created.name == "Service Requests"
+
     async def test_a_script_can_compute_the_filename_for_each_native_file_action(
         self, engine: AsyncEngine
     ):
@@ -371,17 +415,125 @@ class TestPythonWithActions:
             ).all()
             assert len(rows) == 2 and all(row.status == "failed" for row in rows)
 
-    async def test_an_invalid_child_input_fails_the_parent(self, engine: AsyncEngine):
+    @pytest.mark.parametrize(
+        "bad_args", [False, True], ids=["exhausted-transient", "invalid-kwargs"]
+    )
+    async def test_error_handler_routes_the_original_child_failure(
+        self, engine: AsyncEngine, bad_args: bool
+    ):
+        code = "INVALID_BINDING" if bad_args else "TRANSIENT"
+        action = (
+            {"type": "text.compare"}
+            if bad_args
+            else {
+                "type": "error.raise",
+                "config": {"code": code, "message": "Try again", "retryable": True},
+            }
+        )
         step = _node(
             "code.python.actions",
             {
-                "actions": {"compare": {"type": "text.compare"}},
-                "code": "compare(a='missing b')",
+                "actions": {"do_work": action},
+                "code": "do_work(a='missing b')" if bad_args else "do_work()",
             },
+        ).model_copy(
+            update={"policy": NodePolicy(retry=RetryPolicy(max_attempts=2), on_error="route")}
         )
-        run = await drive(await seed_run(engine, _chain(step)))
-        assert run.status == WorkflowRunStatus.FAILED.value
-        assert run.error is not None
+        entry, normal, matched, fallback = (
+            _node("core.input"),
+            _node("debug.echo"),
+            _node("debug.echo"),
+            _node("debug.echo"),
+        )
+        handler = _node(
+            "error.handle",
+            {"branches": [{"name": "matched", "code": code, "retryable": not bad_args}]},
+        )
+        graph = WorkflowGraph(
+            entry_node_id=entry.id,
+            nodes=(entry, step, normal, handler, matched, fallback),
+            edges=(
+                _edge(entry, step),
+                _edge(step, normal),
+                _edge(step, handler, "error"),
+                _edge(handler, matched, "matched"),
+                _edge(handler, fallback, "default"),
+            ),
+        )
+        seeded = await seed_run(engine, graph)
+        finished = await drive(seeded)
+        if not bad_args:
+            assert finished.status == WorkflowRunStatus.WAITING_RETRY.value
+            await _due_now(seeded)
+            finished = await drive(seeded)
+        assert finished.status == WorkflowRunStatus.SUCCEEDED.value, finished.error
+        async with seeded.factory() as db:
+            rows = await workflow_run_repo.list_node_runs_at(
+                db, workflow_run_id=finished.id, scope_path=[]
+            )
+            by_id = {row.node_instance_id: row for row in rows}
+            assert by_id[matched.id].status == "succeeded"
+            assert by_id[fallback.id].status == by_id[normal.id].status == "skipped"
+            attempts = await workflow_run_repo.list_attempts_of(
+                db, node_run_ids=[by_id[step.id].id]
+            )
+            assert len(attempts) == 2  # One pause, one forwarded failure, no parent retry.
+            error = attempts[-1].result["error"]
+            assert error["code"] == code and error["retryable"] is (not bad_args)
+
+    async def test_foreach_collects_bad_action_arguments_and_continues(self, engine: AsyncEngine):
+        entry, loop, out = (
+            _node("core.input"),
+            _node("control.foreach", {"item_error_policy": "collect"}),
+            _node("core.output"),
+        )
+        item, script, yielded = (
+            node.model_copy(update={"scope_id": loop.id})
+            for node in (
+                _node("loop.item"),
+                _node(
+                    "code.python.actions",
+                    {
+                        "code": "echo(message=args['message'])['echoed']",
+                        "actions": {"echo": {"type": "debug.echo"}},
+                    },
+                ),
+                _node("loop.yield"),
+            )
+        )
+        graph = WorkflowGraph(
+            entry_node_id=entry.id,
+            nodes=(entry, loop, item, script, yielded, out),
+            edges=(
+                _edge(entry, loop),
+                _edge(loop, out, "done"),
+                _edge(item, script),
+                _edge(script, yielded),
+            ),
+            bindings=(
+                _literal(loop, "items", [{"message": {}}, {"message": "next"}]),
+                Binding(
+                    target_node_id=script.id,
+                    target_field="args",
+                    source=NodeOutputRef(node_id=item.id, port="out", field_path=("item",)),
+                ),
+                Binding(
+                    target_node_id=yielded.id,
+                    target_field="value",
+                    source=NodeOutputRef(node_id=script.id, port="out", field_path=("result",)),
+                ),
+                Binding(
+                    target_node_id=out.id,
+                    target_field="structured",
+                    source=NodeOutputRef(node_id=loop.id, port="done"),
+                ),
+            ),
+        )
+        finished = await drive(await seed_run(engine, graph))
+        assert finished.status == WorkflowRunStatus.SUCCEEDED.value, finished.error
+        output = finished.output["structured"]
+        assert output["results"] == [None, "next"]
+        assert [(err["index"], err["code"]) for err in output["errors"]] == [(0, "INVALID_BINDING")]
 
 
 class _Session:

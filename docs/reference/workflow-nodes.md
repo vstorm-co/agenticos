@@ -1342,7 +1342,7 @@ Sandbox output is also capped while streaming it from the host. A file that grow
 
 ## Python { #python }
 
-**Python with actions** (`code.python.actions`) runs your script without a model. Bind each action once under a Python name and configure its resources. Pass the action's input fields as keyword arguments; the function returns the same output object as its canvas step. You can also pass data fields that the action marks as bindable, such as a filename or URL. Its credentials and permissions do not change.
+**Python with actions** (`code.python.actions`) runs your script without a model. Bind each action once under a Python name and configure its resources. Pass the action's input fields as keyword arguments; the function returns the same output object as its canvas step. You can also pass data fields that the action marks as bindable, such as a filename or URL. A bindable field that the action requires, such as the HTTP URL, may be left unset when you bind the action. Supply it in each call instead. Credentials and permissions stay fixed.
 
 For example, bind **Compare texts** as `compare`. The expression `compare(a=args["expected"], b=args["actual"])["score"]` passes just the similarity score to the next step as `result`.
 

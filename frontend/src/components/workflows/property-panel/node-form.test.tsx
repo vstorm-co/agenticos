@@ -974,6 +974,81 @@ describe("NodeForm sections", () => {
     }
   });
 
+  it("pins the bound email sender to the chosen vault SMTP account", async () => {
+    const { updateNodeConfig } = renderForm({
+      definition: makeDefinition({
+        id: "code.python.actions",
+        config_schema: { type: "object", properties: { actions: { type: "object" } } },
+      }),
+      config: {
+        actions: { notify: { type: "email.send", config: { reply_to: "ops@example.com" } } },
+      },
+      catalogEntries: [
+        makeDefinition({
+          id: "email.send",
+          python_callable: true,
+          config_schema: {
+            type: "object",
+            properties: {
+              smtp_secret_id: {
+                anyOf: [{ type: "string" }, { type: "null" }],
+                "x-resource": "secret",
+                "x-secret-kind": "smtp_account",
+              },
+            },
+          },
+        }),
+      ],
+    });
+    await userEvent.click(screen.getByRole("button", { name: /notify\(/ }));
+    expect(screen.getByText("secret-kind:smtp_account")).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "set-secret" }));
+    expect(updateNodeConfig).toHaveBeenLastCalledWith("N", {
+      actions: {
+        notify: {
+          type: "email.send",
+          config: { reply_to: "ops@example.com", smtp_secret_id: "sec" },
+        },
+      },
+    });
+    await userEvent.click(screen.getByRole("button", { name: "clear-secret" }));
+    expect(updateNodeConfig).toHaveBeenLastCalledWith("N", {
+      actions: { notify: { type: "email.send", config: { reply_to: "ops@example.com" } } },
+    });
+  });
+
+  it("explains which required settings must be passed in code when no default is bound", async () => {
+    const definition = makeDefinition({
+      id: "code.python.actions",
+      config_schema: { type: "object", properties: { actions: { type: "object" } } },
+    });
+    const http = makeDefinition({
+      id: "http.request",
+      python_callable: true,
+      config_schema: {
+        type: "object",
+        properties: { url: { type: "string", "x-bindable": true } },
+        required: ["url"],
+      },
+    });
+    renderForm({
+      definition,
+      config: {
+        actions: {
+          fetch_data: { type: "http.request" },
+          with_default: { type: "http.request", config: { url: "https://example.com" } },
+        },
+      },
+      catalogEntries: [http],
+    });
+    await userEvent.click(screen.getByRole("button", { name: /fetch_data\(/ }));
+    expect(screen.getByText("Supply url in each call, or set a default below.")).toBeVisible();
+    expect(screen.queryByText(/Optional overrides:/)).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: /with_default\(/ }));
+    expect(screen.getByText(/Optional overrides: url/)).toBeVisible();
+    expect(screen.queryByText(/Supply url in each call/)).toBeNull();
+  });
+
   it("preserves unavailable imported bindings and disables editing in a run view", () => {
     renderForm({
       definition: makeDefinition({

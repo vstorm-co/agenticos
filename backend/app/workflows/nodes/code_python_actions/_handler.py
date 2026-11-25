@@ -39,8 +39,10 @@ _JSON = TypeAdapter(JsonValue)
 _KWARGS = TypeAdapter(dict[str, JsonValue])
 
 
-def _failed(code: str, message: str) -> Failed:
-    return Failed(error=WorkflowError(code=code, message=message[:MAX_OUTPUT_CHARS]))
+def _failed(code: str, message: str, *, bypassable: bool = True) -> Failed:
+    return Failed(
+        error=WorkflowError(code=code, message=message[:MAX_OUTPUT_CHARS], bypassable=bypassable)
+    )
 
 
 def _json_output(value: object) -> JsonValue:
@@ -84,14 +86,22 @@ async def _segment(
             raw = _decode(saved.checkpoint)
             progress = await session.load_snapshot(raw, print_callback=capture)
         except ValueError, MontyError:
-            return _failed("PYTHON_CHECKPOINT_INVALID", "Cannot restore the saved action call")
+            return _failed(
+                "PYTHON_CHECKPOINT_INVALID",
+                "Cannot restore the saved action call",
+                bypassable=False,
+            )
         if (
             not isinstance(progress, AsyncFunctionSnapshot)
             or progress.is_os_function
             or progress.function_name != saved.alias
             or saved.alias not in config.actions
         ):
-            return _failed("PYTHON_CHECKPOINT_INVALID", "The saved action does not match the call")
+            return _failed(
+                "PYTHON_CHECKPOINT_INVALID",
+                "The saved action does not match the call",
+                bypassable=False,
+            )
         index = saved.index + 1
         progress = await progress.resume(ExternalReturnValue(return_value=saved.output))
 

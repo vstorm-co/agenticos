@@ -1,5 +1,5 @@
 ---
-source_sha: "b22f35bb0f1b"
+source_sha: "9a763a991a12"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -1408,7 +1408,7 @@ Las salidas del sandbox también se limitan durante su descarga en streaming. Un
 
 ## Python { #python }
 
-**Python con acciones** (`code.python.actions`) ejecuta tu script sin un modelo. Vincula cada acción una vez con un nombre de Python y configura sus recursos. Pasa los campos de entrada como argumentos con nombre; la función devuelve el mismo objeto de salida que el paso del lienzo. También puedes pasar los campos que la acción permite vincular, como un nombre de archivo o una URL. Las credenciales y los permisos no cambian.
+**Python con acciones** (`code.python.actions`) ejecuta tu script sin un modelo. Vincula cada acción una vez con un nombre de Python y configura sus recursos. Pasa los campos de entrada como argumentos con nombre; la función devuelve el mismo objeto de salida que el paso del lienzo. También puedes pasar los campos que la acción permite vincular, como un nombre de archivo o una URL. Puedes dejar sin configurar un campo vinculable obligatorio, como la URL HTTP, y pasarlo en cada llamada. Las credenciales y los permisos no cambian.
 
 Por ejemplo, si vinculas la comparación de textos como `compare`, la expresión `compare(a=args["expected"], b=args["actual"])["score"]` pasa solo la puntuación de similitud al siguiente paso como `result`.
 

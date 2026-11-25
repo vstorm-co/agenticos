@@ -152,6 +152,7 @@ from app.workflows.nodes.control_foreach import (
     ForeachManifest,
     ForeachOutput,
 )
+from app.workflows.nodes.http_request import HttpRequestConfig
 from app.workflows.nodes.logic_merge._handler import LogicMergeConfig, branch_keys
 from app.workflows.nodes.loop_item import LoopItemOutput
 from app.workflows.triggers import CHAT, WEBHOOK_RESPOND, entry_graph
@@ -228,9 +229,9 @@ def _source_path(node_id: UUID, scope_path: ScopePath, node_scope: dict[UUID, UU
     return scope_path[: len(owner_chain(node_id, node_scope))]
 
 
-StandIn = Literal["disabled", "reused", "pinned"]
+StandIn = Literal["disabled", "reused", "pinned", "failure"]
 """Why a step's handler only hands data on: it is switched off, a retry run reuses what
-the step handed on, or a test run uses the output pinned on it."""
+the step handed on, a test run uses pinned data, or a script forwards a known failure."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -688,6 +689,21 @@ class _ResolvedCall:
     arrived_branches: dict[str, dict[str, Any] | None] | None = None
     script_resume: ScriptResume | None = None
 
+    @classmethod
+    def failed(
+        cls,
+        graph: WorkflowGraph,
+        node: NodeInstance,
+        definition: NodeDefinition,
+        error: WorkflowError,
+    ) -> _ResolvedCall:
+        """Record and route a failure already known without invoking the action."""
+
+        async def hand_on_error(_config: BaseModel | None, _input: BaseModel | None) -> NodeResult:
+            return Failed(error=error)
+
+        return cls(graph, node, definition, hand_on_error, None, None, None, stands_in="failure")
+
 
 def _script_binding(node: NodeInstance, alias: str) -> ActionBinding:
     # Import after the node registry has finished loading its builtins.
@@ -714,18 +730,39 @@ async def _script_action_call(
         raise NodeHandlerMissingError(node_id=definition.id, version=definition.version)
     try:
         request = await script_calls.pending_request(db, run, child)
+    except PydanticValidationError as exc:
+        raise InvalidBindingError(node_instance_id=node.id, field="action_checkpoint") from exc
+    invalid_inputs = False
+    try:
         config, values = binding.resolve_call(request.inputs)
-    except ValueError as exc:
-        raise InvalidBindingError(node_instance_id=node.id, field="action_inputs") from exc
+    except ValueError:
+        # The author/runtime supplies these arguments. Their validation may fail
+        # normally, but a revoked grant on the configured action still ends the run.
+        config, values = binding.binding_config(), None
+        invalid_inputs = True
     if (
         config is not None
         and definition.resource_check is not None
         and await definition.resource_check(db, auth, config)
     ):
         raise ScriptActionUnavailableError(details={"action": alias})
-    # workflow.run owns its own cross-run recovery: it finds and retries
-    # the original child workflow instead of starting another copy.
-    unknown_write = definition.effect_kind == "write" and definition.id != "workflow.run"
+    if invalid_inputs:
+        return _ResolvedCall.failed(
+            graph,
+            node,
+            definition,
+            WorkflowError(
+                code="INVALID_BINDING",
+                message="The script call arguments do not match the bound action",
+                details={"action": alias},
+            ),
+        )
+    # workflow.run owns recovery of its original child. A GET is read-only;
+    # a keyed write is not: its deduplication key changes in a new run.
+    read_only_http = isinstance(config, HttpRequestConfig) and config.method == "GET"
+    unknown_write = (
+        definition.effect_kind == "write" and definition.id != "workflow.run" and not read_only_http
+    )
     known = await script_calls.retry_output(db, run, child, writes=unknown_write)
     return _ResolvedCall(
         graph,
@@ -834,30 +871,20 @@ async def _resolve_call(
             arrived_branches = dict.fromkeys(keys.values())
             for edge, carried in await arrivals.arrived_by_wire(node.id):
                 arrived_branches[keys[(edge.source_node_id, edge.source_port)]] = carried
-    handler = definition.handler
     resume = None
     if definition.id == "code.python.actions" and node_run.resume_payload is not None:
-        if "child_error" in node_run.resume_payload:
-            error = WorkflowError.model_validate(node_run.resume_payload["child_error"])
-
-            async def child_failed(
-                _config: BaseModel | None, _inputs: BaseModel | None
-            ) -> NodeResult:
-                return Failed(error=error.model_copy(update={"retryable": False}))
-
-            handler = child_failed
-        else:
-            try:
-                resume = await script_calls.resume(db, run, node_run)
-            except PydanticValidationError as exc:
-                raise InvalidBindingError(
-                    node_instance_id=node.id, field="action_checkpoint"
-                ) from exc
+        try:
+            if "child_error" in node_run.resume_payload:
+                error = WorkflowError.model_validate(node_run.resume_payload["child_error"])
+                return _ResolvedCall.failed(graph, node, definition, error)
+            resume = await script_calls.resume(db, run, node_run)
+        except PydanticValidationError as exc:
+            raise InvalidBindingError(node_instance_id=node.id, field="action_checkpoint") from exc
     return _ResolvedCall(
         graph=graph,
         node=node,
         definition=definition,
-        handler=handler,
+        handler=definition.handler,
         script_resume=resume,
         config=config_obj,
         input=input_obj,
@@ -1082,9 +1109,11 @@ async def begin_attempt(
 
     reserved: Decimal | None = None
     handed = budget.remaining(run)
-    # A step woken because the run it called ended only collects the answer: the called
-    # run did the spending, and holding it back for a sibling's share could not help.
-    collecting = node_run.waiting_reason == WaitingReason.EXTERNAL_EVENT.value
+    # Collecting the end of a called run or forwarding a known failure does
+    # not spend money and need not wait for a sibling to release its share.
+    collecting = (
+        node_run.waiting_reason == WaitingReason.EXTERNAL_EVENT.value or call.stands_in == "failure"
+    )
     if definition.spends_budget and run.budget_limit is not None and not collecting:
         free = await budget.unreserved(db, run)
         if not free:
@@ -1108,11 +1137,12 @@ async def begin_attempt(
     # definition may answer from the resolved config. Decided here, before the
     # handler runs, and committed with the `in_flight` row, because it is what
     # the reconciler reads to decide an orphaned attempt it cannot ask about.
-    guarantee = (
-        definition.retry_guarantee_for(call.config)
-        if definition.retry_guarantee_for is not None
-        else definition.retry_guarantee
-    )
+    guarantee = definition.retry_guarantee
+    if call.stands_in == "failure":
+        # Losing a worker while delivering a failure sent nothing externally.
+        guarantee = "idempotent"
+    elif definition.retry_guarantee_for is not None:
+        guarantee = definition.retry_guarantee_for(call.config)
     attempt = await workflow_run_repo.create_attempt(
         db,
         organization_id=run.organization_id,
@@ -1987,6 +2017,17 @@ async def _settle_loaded(
             now=now,
         )
     if isinstance(result, Failed):
+        if begun.stands_in == "failure":
+            # The child already exhausted its own retries. Preserve its classification
+            # for error.handle without starting the parent's retry schedule.
+            return await _fail_for_good(
+                db,
+                run=run,
+                graph=await _graph_or_none(db, run),
+                node_run=node_run,
+                error=result.error,
+                now=now,
+            )
         return await _settle_failed(
             db, run=run, node_run=node_run, attempt=attempt, result=result, now=now
         )

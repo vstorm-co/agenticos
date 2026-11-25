@@ -12092,6 +12092,7 @@
     "pythonActionUnavailable": "Actie niet beschikbaar",
     "pythonRemoveAction": "{name} verwijderen",
     "pythonToolArguments": "Schema van toolargumenten",
+    "pythonRequiredConfigArgs": "Geef {fields} bij elke aanroep op of stel hieronder een standaardwaarde in.",
     "pythonOverrideFields": "Optioneel te overschrijven: {fields}. Laat deze argumenten weg om de ingestelde waarden te gebruiken.",
     "pythonResultFields": "Resultaatvelden: {fields}",
     "codeArgKeys": "Sleutels van args",

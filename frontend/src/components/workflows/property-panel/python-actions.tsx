@@ -12,7 +12,7 @@ import { NativeSelect } from "@/components/ui/native-select";
 import type { NodeCatalog, NodeDefinition } from "@/lib/workflows/types";
 import { nodeCopyKey } from "@/lib/workflows/node-copy";
 
-import { isBindable, isRecord } from "./schema-model";
+import { isPythonConfigInput, isRecord } from "./schema-model";
 
 type Config = Record<string, unknown>;
 
@@ -33,11 +33,23 @@ function boundPythonActions(catalog: NodeCatalog, value: Config) {
     const overrides = Object.entries(isRecord(configFields) ? configFields : {})
       .filter(
         ([key, field]) =>
-          isRecord(field) && isBindable(field) && !("x-resource" in field) && !inputs.includes(key),
+          isRecord(field) && isPythonConfigInput(field, key, action?.input_schema ?? null),
       )
       .map(([key]) => key);
     const parameters = [...inputs, ...overrides].map((field) => `${field}=...`);
-    return { name, binding, action, overrides, signature: `${name}(${parameters.join(", ")})` };
+    const required = action?.config_schema?.required;
+    const defaults = isRecord(binding.config) ? binding.config : {};
+    const requiredArgs = overrides.filter(
+      (key) => Array.isArray(required) && required.includes(key) && !Object.hasOwn(defaults, key),
+    );
+    return {
+      name,
+      binding,
+      action,
+      overrides: overrides.filter((key) => !requiredArgs.includes(key)),
+      requiredArgs,
+      signature: `${name}(${parameters.join(", ")})`,
+    };
   });
 }
 
@@ -214,6 +226,11 @@ export function PythonActions({
             </div>
             {editing === name && action && (
               <>
+                {bound.requiredArgs.length > 0 && (
+                  <p className="text-muted-foreground text-xs">
+                    {t("pythonRequiredConfigArgs", { fields: bound.requiredArgs.join(", ") })}
+                  </p>
+                )}
                 {bound.overrides.length > 0 && (
                   <p className="text-muted-foreground text-xs">
                     {t("pythonOverrideFields", { fields: bound.overrides.join(", ") })}

@@ -94,6 +94,7 @@ async def test_invalid_checkpoint_does_not_restart_the_script(damage: str):
     result = await segment(code, resume=state)
     assert isinstance(result, Failed)
     assert result.error.code == "PYTHON_CHECKPOINT_INVALID"
+    assert result.error.bypassable is False
 
 
 async def test_call_limit_stops_before_the_next_action(monkeypatch):

@@ -10,6 +10,7 @@ import base64
 import socket
 import uuid
 from collections.abc import Callable
+from dataclasses import replace
 from typing import Any
 
 import httpx2
@@ -24,8 +25,10 @@ from app.db.models.organization import Organization
 from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.resource_grant import Visibility
 from app.db.models.user import User
-from app.db.models.workflow_run import NodeAttempt, NodeRun, WorkflowRunStatus
+from app.db.models.workflow_run import NodeAttempt, NodeRun, WorkflowRun, WorkflowRunStatus
+from app.services.workflow_execution.facade import WorkflowExecutionService
 from app.workflows.contracts.io import Binding, LiteralValue, NodeOutputRef
+from app.workflows.contracts.policy import NodePolicy, RetryPolicy
 from app.workflows.graph.errors import GraphValidationError
 from app.workflows.graph.model import Edge, NodeInstance, NodePosition, WorkflowGraph
 from app.workflows.graph.validate import validate_graph
@@ -126,6 +129,58 @@ def _graph(http_config: dict[str, Any], *, body: Any = None) -> tuple[WorkflowGr
         bindings=tuple(bindings),
     )
     return graph, call
+
+
+@pytest.mark.parametrize("method", ["GET", "POST"])
+async def test_script_retry_can_repeat_a_read_but_not_a_write_with_a_new_key(
+    engine: AsyncEngine,
+    network,
+    method: str,
+):
+    config = {
+        "url": "https://api.example.com/orders",
+        "method": method,
+        "idempotency_key_header": "Idempotency-Key",
+    }
+    wire = network(lambda req: httpx2.Response(503))
+    native_graph, native = _graph(config)
+    step = native.model_copy(
+        update={
+            "definition_id": "code.python.actions",
+            "config": {
+                "actions": {"orders": {"type": "http.request", "config": config}},
+                "code": "orders()['body']",
+            },
+            "policy": NodePolicy(retry=RetryPolicy(max_attempts=1)),
+        }
+    )
+    graph = native_graph.model_copy(
+        update={"nodes": tuple(step if n.id == step.id else n for n in native_graph.nodes)}
+    )
+    seeded = await seed_run(engine, graph)
+    original = await drive(seeded)
+    assert (
+        original.status == WorkflowRunStatus.FAILED.value
+        and original.error["code"] == "HTTP_ERROR_STATUS"
+    )
+    assert original.error["retryable"] is True
+    assert [request.method for request in wire.sent] == [method]
+
+    network(lambda req: httpx2.Response(200, json={"ok": True}))
+    async with seeded.factory() as db:
+        retry = await WorkflowExecutionService(db).retry(seeded.ctx, seeded.run.id)
+        await db.commit()
+        row = await db.get(WorkflowRun, retry.id)
+        assert row is not None
+    finished = await drive(replace(seeded, run=row))
+    if method == "GET":
+        assert finished.status == WorkflowRunStatus.SUCCEEDED.value
+        assert finished.output["structured"]["result"] == {"ok": True}
+        assert len(wire.sent) == 2
+    else:
+        assert finished.status == WorkflowRunStatus.FAILED.value
+        assert finished.error["code"] == "SCRIPT_ACTION_RETRY_UNSAFE"
+        assert len(wire.sent) == 1
 
 
 async def _secret(

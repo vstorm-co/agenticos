@@ -1253,6 +1253,7 @@
     "pythonActionUnavailable": "Eylem kullanılamıyor",
     "pythonRemoveAction": "{name} işlevini kaldır",
     "pythonToolArguments": "Araç argümanlarının şeması",
+    "pythonRequiredConfigArgs": "Her çağrıda {fields} belirtin veya aşağıda varsayılan bir değer ayarlayın.",
     "pythonOverrideFields": "İsteğe bağlı geçersiz kılmalar: {fields}. Yapılandırılan değerleri kullanmak için bu argümanları atlayın.",
     "pythonResultFields": "Sonuç alanları: {fields}",
     "codeArgKeys": "args anahtarları",

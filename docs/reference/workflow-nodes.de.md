@@ -1,5 +1,5 @@
 ---
-source_sha: "b22f35bb0f1b"
+source_sha: "9a763a991a12"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -1453,7 +1453,7 @@ Sandbox-Ausgaben werden auch beim Streaming vom Host begrenzt. Eine nach der Mes
 
 ## Python { #python }
 
-**Python mit Aktionen** (`code.python.actions`) führt dein Skript ohne Modell aus. Binde jede Aktion einmal unter einem Python-Namen ein und konfiguriere ihre Ressourcen. Übergib die Eingabefelder als Schlüsselwortargumente. Die Funktion liefert dasselbe Ausgabeobjekt wie der Schritt auf der Arbeitsfläche. Auch bindbare Datenfelder wie Dateiname oder URL kannst du übergeben. Zugangsdaten und Berechtigungen ändern sich dadurch nicht.
+**Python mit Aktionen** (`code.python.actions`) führt dein Skript ohne Modell aus. Binde jede Aktion einmal unter einem Python-Namen ein und konfiguriere ihre Ressourcen. Übergib die Eingabefelder als Schlüsselwortargumente. Die Funktion liefert dasselbe Ausgabeobjekt wie der Schritt auf der Arbeitsfläche. Auch bindbare Datenfelder wie Dateiname oder URL kannst du übergeben. Ein bindbares Pflichtfeld wie die HTTP-URL kannst du beim Einbinden leer lassen. Übergib es dann bei jedem Aufruf. Zugangsdaten und Berechtigungen bleiben unverändert.
 
 Bindest du beispielsweise den Textvergleich als `compare` ein, gibt `compare(a=args["expected"], b=args["actual"])["score"]` nur den Ähnlichkeitswert als `result` an den nächsten Schritt weiter.
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "b22f35bb0f1b"
+source_sha: "9a763a991a12"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -1385,7 +1385,7 @@ Wyniki sandboxa są ograniczane także podczas strumieniowego pobierania z hosta
 
 ## Python { #python }
 
-**Python z akcjami** (`code.python.actions`) uruchamia skrypt bez modelu. Powiąż każdą akcję raz z nazwą w Pythonie i skonfiguruj jej zasoby. Przekaż pola wejściowe jako argumenty nazwane; funkcja zwróci taki sam obiekt jak odpowiedni krok na kanwie. Możesz też przekazać pola danych, które akcja pozwala powiązać, np. nazwę pliku lub adres URL. Dane uwierzytelniające i uprawnienia pozostają bez zmian.
+**Python z akcjami** (`code.python.actions`) uruchamia skrypt bez modelu. Powiąż każdą akcję raz z nazwą w Pythonie i skonfiguruj jej zasoby. Przekaż pola wejściowe jako argumenty nazwane; funkcja zwróci taki sam obiekt jak odpowiedni krok na kanwie. Możesz też przekazać pola danych, które akcja pozwala powiązać, np. nazwę pliku lub adres URL. Pole wymagane przez akcję, które można powiązać, np. adres URL żądania HTTP, wolno pominąć przy konfiguracji. Wtedy podaj je przy każdym wywołaniu. Dane uwierzytelniające i uprawnienia pozostają bez zmian.
 
 Jeśli na przykład powiążesz porównywanie tekstów z nazwą `compare`, wyrażenie `compare(a=args["expected"], b=args["actual"])["score"]` przekaże do następnego kroku tylko wynik podobieństwa jako `result`.
 

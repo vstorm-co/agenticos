@@ -130,10 +130,13 @@ async def test_oversized_calls_stop_before_an_action_is_queued(call, monkeypatch
 
 
 @pytest.mark.security
-async def test_a_caller_without_table_creation_permission_cannot_dispatch_the_action(call):
+@pytest.mark.parametrize("arguments", [{}, {"not_an_input": "invalid"}])
+async def test_a_caller_without_table_creation_permission_cannot_dispatch_the_action(
+    call, arguments
+):
     run, parent, child, _, repo = call
     request = ScriptActionRequest.model_validate(parent.resume_payload).model_copy(
-        update={"inputs": {}}
+        update={"inputs": arguments}
     )
     child.scope_path = script_calls.child_scope(parent, request)
     parent.resume_payload = request.model_dump(mode="json")

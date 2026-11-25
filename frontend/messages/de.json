@@ -11894,6 +11894,7 @@
     "pythonActionUnavailable": "Aktion nicht verfügbar",
     "pythonRemoveAction": "{name} entfernen",
     "pythonToolArguments": "Schema der Werkzeugargumente",
+    "pythonRequiredConfigArgs": "Gib {fields} bei jedem Aufruf an oder lege unten einen Standardwert fest.",
     "pythonOverrideFields": "Optionale Überschreibungen: {fields}. Ohne diese Argumente gelten die konfigurierten Werte.",
     "pythonResultFields": "Ergebnisfelder: {fields}",
     "codeArgKeys": "Schlüssel von args",

@@ -3,6 +3,8 @@
 import builtins
 import keyword
 import re
+from copy import copy
+from functools import cache
 from typing import Annotated
 
 from pydantic import (
@@ -14,6 +16,7 @@ from pydantic import (
     ValidationInfo,
     field_validator,
 )
+from pydantic.fields import FieldInfo
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import BadRequestError
@@ -68,12 +71,58 @@ def _callable_definition(action_type: str, version: int) -> NodeDefinition:
     return definition
 
 
-def _typed_config(definition: NodeDefinition, values: dict[str, JsonValue]) -> BaseModel | None:
-    if definition.config_schema is None:
+def _bindable(field: FieldInfo | None) -> bool:
+    metadata = field.json_schema_extra if field is not None else None
+    return (
+        isinstance(metadata, dict)
+        and metadata.get("x-bindable") is True
+        and "x-resource" not in metadata
+    )
+
+
+@cache
+def _binding_schema(
+    schema: type[BaseModel], input_schema: type[BaseModel] | None
+) -> type[BaseModel]:
+    """Validate every fixed setting without requiring data supplied by the script.
+
+    The subclass retains the node's field and model validators, and its type for
+    the node's resource checker. Only omission gets a default: an explicit bad
+    value (including null) is checked just as in the native schema. This model
+    is never handed to the handler; resolve_call validates the original schema.
+    """
+    overrides: dict[str, FieldInfo] = {}
+    for name, field in schema.model_fields.items():
+        if (
+            field.is_required()
+            and _bindable(field)
+            and not (input_schema and name in input_schema.model_fields)
+        ):
+            optional = copy(field)
+            optional.default = None
+            optional.validate_default = False
+            overrides[name] = optional
+    if not overrides:
+        return schema
+    namespace = {
+        "__annotations__": {name: field.annotation for name, field in overrides.items()},
+        "__module__": schema.__module__,
+        **overrides,
+    }
+    return type(f"{schema.__name__}Binding", (schema,), namespace)
+
+
+def _typed_config(
+    definition: NodeDefinition, values: dict[str, JsonValue], *, for_binding: bool = False
+) -> BaseModel | None:
+    schema = definition.config_schema
+    if schema is None:
         if values:
             raise ValueError(f"'{definition.id}' declares no configuration")
         return None
-    return definition.config_schema.model_validate(values)
+    if for_binding:
+        schema = _binding_schema(schema, definition.input_schema)
+    return schema.model_validate(values)
 
 
 class ActionBinding(BaseModel):
@@ -93,14 +142,18 @@ class ActionBinding(BaseModel):
         # Invalid type or version has its own field error. Put action-specific
         # errors under config, so the editor highlights the bound action's field.
         if "type" in info.data and "version" in info.data:
-            _typed_config(_callable_definition(info.data["type"], info.data["version"]), values)
+            _typed_config(
+                _callable_definition(info.data["type"], info.data["version"]),
+                values,
+                for_binding=True,
+            )
         return values
 
     def definition(self) -> NodeDefinition:
         return _callable_definition(self.type, self.version)
 
-    def validated_config(self) -> BaseModel | None:
-        return _typed_config(self.definition(), self.config)
+    def binding_config(self) -> BaseModel | None:
+        return _typed_config(self.definition(), self.config, for_binding=True)
 
     def resolve_call(
         self, arguments: dict[str, JsonValue]
@@ -115,12 +168,7 @@ class ActionBinding(BaseModel):
                 values[name] = value
                 continue
             field = config_schema.model_fields.get(name) if config_schema is not None else None
-            metadata = field.json_schema_extra if field is not None else None
-            if (
-                not isinstance(metadata, dict)
-                or metadata.get("x-bindable") is not True
-                or "x-resource" in metadata
-            ):
+            if not _bindable(field):
                 raise ValueError(f"'{self.type}' has no callable data field '{name}'")
             config[name] = value
         inputs = None
@@ -164,7 +212,7 @@ async def action_resource_problems(
             problems.append(
                 (path, f"This deployment has not granted: {', '.join(sorted(missing))}")
             )
-        validated = action.validated_config()
+        validated = action.binding_config()
         if definition.resource_check is not None and validated is not None:
             for field, message in await definition.resource_check(db, ctx, validated):
                 problems.append((f"{path}.config.{field}", message))

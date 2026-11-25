@@ -1,12 +1,30 @@
 """Private worker hand-off at a workflow Python action call."""
 
+from decimal import Decimal
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, JsonValue
+from pydantic import BaseModel, ConfigDict, Field, JsonValue, field_validator
 
 from app.workflows.contracts.results import Waiting
 
 MAX_ACTION_CALLS = 100
+
+
+def _jsonb_number_forms(value: JsonValue) -> JsonValue:
+    """Match the numeric forms read back by the JSON decoder after a JSONB write."""
+    if isinstance(value, dict):
+        return {key: _jsonb_number_forms(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_jsonb_number_forms(item) for item in value]
+    if isinstance(value, float):
+        if value == 0:
+            return 0.0  # JSONB drops the negative sign.
+        decimal_text = repr(value)
+        if "e+" in decimal_text:
+            # Python emits a positive exponent only for large integral floats.
+            # JSONB expands the JSON *decimal*, not the exact binary float.
+            return int(Decimal(decimal_text))
+    return value
 
 
 class ScriptActionRequest(Waiting):
@@ -22,6 +40,13 @@ class ScriptActionRequest(Waiting):
     inputs: dict[str, JsonValue]
     checkpoint: str
     stdout: str
+
+    @field_validator("inputs")
+    @classmethod
+    def _durable_inputs(cls, inputs: dict[str, JsonValue]) -> dict[str, JsonValue]:
+        # Scope digests and size reservations must see the same numbers before
+        # and after dispatch. Preserve ordinary floats and arbitrary-size ints.
+        return {key: _jsonb_number_forms(item) for key, item in inputs.items()}
 
 
 class ScriptResume(BaseModel):

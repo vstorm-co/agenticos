@@ -52,8 +52,12 @@ const SEVERITY: NodeRunStatus[] = [
 /** Fold a run's node rows into one summary per node instance. */
 export function summarizeNodeRuns(rows: WorkflowNodeRunRead[]): Map<string, NodeRunSummary> {
   const byNode = new Map<string, NodeRunSummary>();
+  const childAttention = new Set<string>();
   for (const row of rows) {
-    if (pythonCallOf(row)) continue;
+    if (pythonCallOf(row)) {
+      if (row.status === "needs_attention") childAttention.add(row.node_instance_id);
+      continue;
+    }
     const current = byNode.get(row.node_instance_id);
     if (current === undefined) {
       byNode.set(row.node_instance_id, {
@@ -84,6 +88,12 @@ export function summarizeNodeRuns(rows: WorkflowNodeRunRead[]): Map<string, Node
           : (current.durationMs ?? 0) + (took(row) ?? 0),
       startedAt: row.status === "running" ? row.started_at : current.startedAt,
     });
+  }
+  for (const id of childAttention) {
+    const summary = byNode.get(id);
+    if (summary && ["running", "pending", "waiting"].includes(summary.status)) {
+      summary.status = "needs_attention";
+    }
   }
   return byNode;
 }

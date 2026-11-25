@@ -95,9 +95,9 @@ def test_invalid_or_graph_only_bindings_are_refused(binding: dict, problem: str)
 
 
 def test_a_timer_and_a_configless_action_can_be_bound():
-    wait = ActionBinding(type="flow.wait", config={"seconds": 2}).validated_config()
+    wait = ActionBinding(type="flow.wait", config={"seconds": 2}).binding_config()
     assert wait is not None and wait.model_dump()["seconds"] == 2
-    assert ActionBinding(type="flow.resume_link").validated_config() is None
+    assert ActionBinding(type="flow.resume_link").binding_config() is None
 
 
 @pytest.mark.security
@@ -260,3 +260,80 @@ def test_script_inputs_win_over_config_defaults_and_required_fields_are_still_re
     config, data = file.resolve_call({"filename": "ticket.txt", "text": "case"})
     assert config is not None and config.model_dump()["filename"] == "ticket.txt"
     assert data is not None and data.model_dump()["text"] == "case"
+
+
+@pytest.mark.parametrize("action_type", ["http.request", "http.upload", "http.download"])
+def test_a_script_can_supply_the_required_http_url_at_call_time(action_type: str):
+    binding = ActionBinding(type=action_type)
+    call_inputs = (
+        {
+            "file": {
+                "kind": "file",
+                "file_id": str(uuid4()),
+                "content_type": "text/plain",
+                "byte_size": 10,
+            }
+        }
+        if action_type == "http.upload"
+        else {}
+    )
+    with pytest.raises(ValidationError, match="url"):
+        binding.resolve_call(call_inputs)
+    config, _ = binding.resolve_call({**call_inputs, "url": "https://example.org/report"})
+    assert config is not None and config.model_dump()["url"] == "https://example.org/report"
+    for bad in ("", None):
+        with pytest.raises(ValidationError, match="url"):
+            ActionBinding(type=action_type, config={"url": bad})
+    with pytest.raises(ValidationError, match="timeout_seconds"):
+        ActionBinding(type=action_type, config={"timeout_seconds": -1})
+
+
+@pytest.mark.security
+async def test_an_omitted_http_url_does_not_hide_a_vault_reference_from_publish(
+    monkeypatch: pytest.MonkeyPatch, mock_db_session: AsyncSession
+):
+    from app.repositories import organization_secret as secret_repo
+
+    secret_id = uuid4()
+    lookup = AsyncMock(return_value=None)
+    monkeypatch.setattr(secret_repo, "get", lookup)
+    graph = _script(
+        {
+            "fetch": {
+                "type": "http.request",
+                "config": {"auth": {"kind": "bearer", "secret_id": str(secret_id)}},
+            }
+        }
+    )
+    ctx = _ctx()
+    with pytest.raises(GraphValidationError) as refused:
+        await validate_graph(mock_db_session, ctx, graph)
+    assert any(
+        error["field"].endswith("actions.fetch.config.auth.secret_id")
+        for error in refused.value.details["fields"]
+    )
+    lookup.assert_awaited_once_with(mock_db_session, secret_id, organization_id=ctx.organization_id)
+
+
+@pytest.mark.security
+async def test_a_computed_table_name_does_not_hide_create_permission_or_fixed_columns(
+    mock_db_session: AsyncSession,
+):
+    columns = [{"label": "Title", "type": "text"}]
+    graph = _script({"create": {"type": "table.create", "config": {"columns": columns}}})
+    viewer = AuthContext(user_id=uuid4(), organization_id=uuid4(), role="viewer")
+    with pytest.raises(GraphValidationError) as refused:
+        await validate_graph(mock_db_session, viewer, graph)
+    assert any(
+        error["message"] == "You cannot create tables" for error in refused.value.details["fields"]
+    )
+    with pytest.raises(ValidationError, match="columns"):
+        ActionBinding(type="table.create")
+    with pytest.raises(ValidationError, match="Only a GET fetches pages"):
+        ActionBinding(
+            type="http.request",
+            config={
+                "method": "POST",
+                "pagination": {"mode": "page", "items_path": "items", "param": "page"},
+            },
+        )
