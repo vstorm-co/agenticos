@@ -1,5 +1,5 @@
 ---
-source_sha: "0e3f3c6c82f8"
+source_sha: "8819ef1c6f61"
 ---
 
 # Configura las fuentes de sincronización { #configure-sync-sources }
@@ -29,6 +29,8 @@ de `SyncLog` deja constancia del resultado de cada operación de sincronización
 | `SyncSourceService` | `app/services/sync_source.py` | Lógica de negocio del CRUD y del disparo manual |
 | Comandos CLI de RAG | `app/commands/rag.py` | Interfaz de línea de comandos para gestionar fuentes |
 | Rutas de la API de RAG | `app/api/routes/v1/rag.py` | API REST para gestionar fuentes |
+
+Las sincronizaciones de S3 y Google Drive inspeccionan como máximo 10 000 entradas y 1000 páginas de listado por ejecución. Se comprueba un presupuesto de 15 minutos antes y después de las solicitudes al proveedor. Cada archivo descargado debe respetar `MAX_UPLOAD_SIZE_MB`; cuentan los bytes reales transmitidos aunque falten los metadatos o sean incorrectos. Una ejecución puede descargar hasta 1 GiB, incluidas las transferencias parciales fallidas. Limita la carpeta o el prefijo cuando la fuente supere estos límites. Un listado rechazado no elimina los documentos sincronizados anteriormente.
 
 ## Inicio rápido -- CLI { #quick-start-cli }
 

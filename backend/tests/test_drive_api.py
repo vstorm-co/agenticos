@@ -9,7 +9,9 @@ import httpx
 import pytest
 from pydantic import SecretStr
 
+from app.core.exceptions import BadRequestError
 from app.services.rag.drive_api import DRIVE_API, SCOPES, DriveClient
+from app.services.rag.remote_limits import DownloadAllowance
 
 
 class _Credentials:
@@ -31,6 +33,10 @@ def drive(
 ) -> DriveClient:
     http = httpx.Client(base_url=DRIVE_API, transport=httpx.MockTransport(handler))
     return DriveClient(credentials or _Credentials(), http=http)
+
+
+def allowance(max_bytes: int = 1024) -> DownloadAllowance:
+    return DownloadAllowance(max_bytes=max_bytes, sync_limited=False)
 
 
 class TestListing:
@@ -180,7 +186,7 @@ class TestOneFile:
 
         dest = tmp_path / "a.txt"
         with drive(handler) as client:
-            client.download("f1", dest)
+            client.download("f1", dest, allowance=allowance())
 
         assert dest.read_bytes() == b"payload"
 
@@ -193,7 +199,7 @@ class TestOneFile:
 
         dest = tmp_path / "Doc.pdf"
         with drive(handler) as client:
-            client.export("d1", "application/pdf", dest)
+            client.export("d1", "application/pdf", dest, allowance=allowance())
 
         assert dest.read_bytes() == b"%PDF"
 
@@ -203,7 +209,24 @@ class TestOneFile:
             drive(lambda request: httpx.Response(404)) as client,
             pytest.raises(httpx.HTTPStatusError),
         ):
-            client.download("f1", dest)
+            client.download("f1", dest, allowance=allowance())
+
+        assert not dest.exists()
+
+    @pytest.mark.security
+    def test_an_oversized_stream_is_stopped_and_its_partial_file_removed(
+        self, tmp_path: Path
+    ) -> None:
+        dest = tmp_path / "a.txt"
+        with (
+            drive(
+                lambda request: httpx.Response(
+                    200, content=b"oversized", headers={"content-length": "1"}
+                )
+            ) as client,
+            pytest.raises(BadRequestError),
+        ):
+            client.download("f1", dest, allowance=allowance(3))
 
         assert not dest.exists()
 

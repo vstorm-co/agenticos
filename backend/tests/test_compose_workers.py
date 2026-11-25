@@ -45,6 +45,31 @@ def _untagged(loader: yaml.SafeLoader, _suffix: str, node: yaml.Node) -> object:
 _ComposeLoader.add_multi_constructor("!", _untagged)
 
 
+@pytest.mark.security
+@pytest.mark.parametrize(
+    ("file_name", "service_name"),
+    [
+        ("docker-compose.yml", "app"),
+        ("docker-compose-prod.yml", "app"),
+        ("docker-compose-dev.yml", "app"),
+        ("integrations/coolify-demo/compose.yml", "agenticos-api"),
+    ],
+)
+def test_api_containers_reap_orphaned_parser_descendants(file_name: str, service_name: str) -> None:
+    with (REPO_ROOT / file_name).open() as handle:
+        loaded = yaml.load(handle, Loader=_ComposeLoader)  # noqa: S506 - a SafeLoader subclass
+    assert loaded["services"][service_name]["init"] is True
+
+
+@pytest.mark.security
+def test_ml_services_inherits_the_backend_init_process() -> None:
+    with (REPO_ROOT / "deploy/profiles/ml-services/docker-compose.ml.yml").open() as handle:
+        loaded = yaml.load(handle, Loader=_ComposeLoader)  # noqa: S506 - a SafeLoader subclass
+    service = loaded["services"]["ml-services"]
+    assert service["extends"] == {"file": "docker-compose.yml", "service": "app"}
+    assert service.get("init", True) is True
+
+
 def _uvicorn_commands(file_name: str) -> list[tuple[str, str]]:
     with (REPO_ROOT / file_name).open() as handle:
         loaded: dict[str, Any] = yaml.load(handle, Loader=_ComposeLoader)  # noqa: S506 - a SafeLoader subclass

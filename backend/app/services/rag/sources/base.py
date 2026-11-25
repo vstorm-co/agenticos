@@ -14,6 +14,7 @@ from app.db.session import get_db_context
 from app.db.vector_tables import VectorWriterKind
 from app.services.rag.failures import IngestionStage, failure_summary
 from app.services.rag.filters import Source
+from app.services.rag.remote_limits import DownloadBudget
 from app.services.rag_document import RAGDocumentService
 
 logger = logging.getLogger(__name__)
@@ -53,6 +54,15 @@ class BaseDocumentSource(ABC):
     #: `source` exactly as one brought in through the worker connector flow is
     #: (FA-039). A subclass that omits it fails fast on the first sync.
     SOURCE: ClassVar[Source]
+    _download_budget: DownloadBudget | None = None
+
+    def _downloads(self) -> DownloadBudget:
+        """The actual-byte budget shared by every file in one CLI source run."""
+        budget = self._download_budget
+        if budget is None:
+            budget = DownloadBudget()
+            self._download_budget = budget
+        return budget
 
     @abstractmethod
     async def list_files(

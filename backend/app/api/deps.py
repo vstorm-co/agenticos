@@ -2275,20 +2275,27 @@ async def get_current_user_ws(
     1. `Sec-WebSocket-Protocol` header, in the form `access_token.<JWT>`.
        The chosen application subprotocol (e.g. `chat`) is echoed back on
        `accept()` via `websocket.state.accept_subprotocol`.
-    2. Same-origin `agenticos_access_token` cookie (fallback for same-origin clients).
+    2. `agenticos_access_token` cookie, only when Origin exactly matches a configured
+       console origin (fallback for same-origin clients).
 
     Tokens in query strings are NOT accepted - they leak into logs and
     Referer headers.
 
     Raises:
-        WebSocketException: If token is invalid or user not found. Raising the
-            WebSocket-native exception lets Starlette close the handshake cleanly
-            (close code 4001) - raising an HTTP-domain exception here instead
-            bubbles up unhandled and yields an HTTP 500 on the WS upgrade.
+        WebSocketException: If a cookie is sent without a trusted Origin, or the
+            token is invalid or its user is not found. Raising the WebSocket-native
+            exception lets Starlette close the handshake cleanly - raising an
+            HTTP-domain exception here instead bubbles up unhandled and yields an
+            HTTP 500 on the WS upgrade.
     """
 
     subprotocol_token, app_subprotocol = _extract_ws_auth(websocket)
     websocket.state.accept_subprotocol = app_subprotocol
+
+    if access_token and not subprotocol_token:
+        origin = websocket.headers.get("origin")
+        if origin is None or origin == "null" or origin not in settings.CORS_ORIGINS:
+            raise WebSocketException(code=4003, reason="WebSocket origin not allowed")
 
     auth_token = subprotocol_token or access_token
 

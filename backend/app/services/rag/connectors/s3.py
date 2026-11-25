@@ -28,6 +28,12 @@ from app.core.sanitize import UrlRefusedError, deployment_allowlist, resolve_pin
 from app.core.secret_kinds import AwsCredentialsSecret, SecretKind
 from app.services.rag.connectors import ConfigRefusal, ConnectorConfig, SyncCredential
 from app.services.rag.connectors.object_store import ObjectStoreConnector, StoredObject
+from app.services.rag.remote_limits import (
+    DOWNLOAD_CHUNK_BYTES,
+    DownloadAllowance,
+    ListingBudget,
+    write_download,
+)
 
 if TYPE_CHECKING:
     from botocore.client import BaseClient
@@ -176,11 +182,12 @@ class S3Connector(ObjectStoreConnector):
         prefix: str,
         config: ConnectorConfig,
         credential: SyncCredential | None,
+        budget: ListingBudget,
     ) -> Iterator[StoredObject]:
         """One page at a time, as `list_objects_v2` hands them over.
 
-        A generator, so a bucket of a million keys is one page in memory rather
-        than a list of all of them beside the one the caller is building.
+        A generator, so only one provider page sits beside the bounded list the
+        shared object-store layer is building.
 
         `Prefix` is omitted rather than sent empty, which is what the connector
         did before this became a subclass: boto3 accepts `Prefix=""` and means
@@ -197,6 +204,7 @@ class S3Connector(ObjectStoreConnector):
             params["Prefix"] = prefix
 
         for page in client.get_paginator("list_objects_v2").paginate(**params):
+            budget.observe_page()
             for obj in page.get("Contents", []):
                 modified_at = obj.get("LastModified")
                 if isinstance(modified_at, str):
@@ -210,5 +218,17 @@ class S3Connector(ObjectStoreConnector):
         dest_path: Path,
         config: ConnectorConfig,
         credential: SyncCredential | None,
+        allowance: DownloadAllowance,
     ) -> None:
-        self._get_s3_client(config, credential).download_file(container, key, str(dest_path))
+        response = self._get_s3_client(config, credential).get_object(Bucket=container, Key=key)
+        body = response["Body"]
+        try:
+            content_length = response.get("ContentLength")
+            allowance.check_declared(content_length if isinstance(content_length, int) else None)
+            write_download(
+                dest_path,
+                body.iter_chunks(chunk_size=DOWNLOAD_CHUNK_BYTES),
+                allowance,
+            )
+        finally:
+            body.close()

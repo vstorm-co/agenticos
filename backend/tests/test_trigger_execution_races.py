@@ -353,13 +353,14 @@ async def test_a_signed_event_with_stale_sources_never_claims_delivery(monkeypat
 
     service, trigger = _service(), _event_trigger()
     service._polled_source_current = AsyncMock(return_value=False)
-    service._claim = AsyncMock()
+    claim = AsyncMock()
     monkeypatch.setattr(module.agent_trigger_repo, "get_by_id", AsyncMock(return_value=trigger))
+    monkeypatch.setattr(module.agent_trigger_repo, "claim_webhook_delivery", claim)
     monkeypatch.setattr(module, "unseal", lambda *args, **kwargs: "secret")
     monkeypatch.setattr(module.trigger_events, "verify_signature", MagicMock(return_value=True))
     monkeypatch.setattr(module.trigger_events, "event_matches", MagicMock(return_value=True))
     assert await service.prepare_event_fire("github", trigger.id, body=b"{}", headers={}) is None
-    service._claim.assert_not_awaited()
+    claim.assert_not_awaited()
 
 
 @pytest.mark.parametrize("change", ["result_mode", "archived", "target", "expired_during_access"])

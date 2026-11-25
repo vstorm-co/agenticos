@@ -18,6 +18,8 @@ from urllib.parse import quote
 import httpx
 from pydantic import BaseModel, ConfigDict, Field, SecretStr
 
+from app.services.rag.remote_limits import DOWNLOAD_CHUNK_BYTES, DownloadAllowance, write_download
+
 if TYPE_CHECKING:
     from google.auth.transport import Request
 
@@ -174,22 +176,47 @@ class DriveClient:
         response.raise_for_status()
         return DriveFile.model_validate(response.json())
 
-    def download(self, file_id: str, dest_path: Path) -> None:
-        self._stream(_file_path(file_id), {"alt": "media", "supportsAllDrives": "true"}, dest_path)
+    def download(self, file_id: str, dest_path: Path, *, allowance: DownloadAllowance) -> None:
+        self._stream(
+            _file_path(file_id),
+            {"alt": "media", "supportsAllDrives": "true"},
+            dest_path,
+            allowance,
+        )
 
-    def export(self, file_id: str, mime_type: str, dest_path: Path) -> None:
+    def export(
+        self,
+        file_id: str,
+        mime_type: str,
+        dest_path: Path,
+        *,
+        allowance: DownloadAllowance,
+    ) -> None:
         self._stream(
             f"{_file_path(file_id)}/export",
             {"mimeType": mime_type, "supportsAllDrives": "true"},
             dest_path,
+            allowance,
         )
 
-    def _stream(self, path: str, params: dict[str, str], dest_path: Path) -> None:
+    def _stream(
+        self,
+        path: str,
+        params: dict[str, str],
+        dest_path: Path,
+        allowance: DownloadAllowance,
+    ) -> None:
         with self._http.stream("GET", path, params=params, headers=self._authorization()) as r:
             r.raise_for_status()
-            with dest_path.open("wb") as fh:
-                for chunk in r.iter_bytes():
-                    fh.write(chunk)
+            content_length = r.headers.get("content-length")
+            allowance.check_declared(
+                int(content_length) if content_length and content_length.isdigit() else None
+            )
+            write_download(
+                dest_path,
+                r.iter_bytes(chunk_size=DOWNLOAD_CHUNK_BYTES),
+                allowance,
+            )
 
     def _authorization(self) -> dict[str, str]:
         if not self._credentials.valid:

@@ -1,5 +1,5 @@
 ---
-source_sha: "29083d2aceb5"
+source_sha: "204099b80100"
 ---
 
 # Workflows { #workflows }
@@ -1246,11 +1246,11 @@ ersten Run beantwortet und startet nichts, weil die ID zusammen mit dem Run, den
 zugelassen hat, in einer Transaktion gespeichert wird.
 
 Die ID gehört nicht zu dem, was der Absender signiert, daher ist dieselbe signierte Anfrage
-unter einer anderen ID innerhalb von 24 Stunden ebenfalls eine Kopie: Sie wird mit dem
-ersten Run beantwortet und startet nichts, gleich in welchem der beiden Signatur-Header sie
-steckt. Derselbe Inhalt startet nach 24 Stunden wieder einen Run. Ein Absender, der
-denselben Body absichtlich öfter sendet, macht jeden unterscheidbar, mit eigener ID oder
-Zeit im Body, oder signiert die Zeit: Mit `X-Signature-Timestamp` (Unix-Sekunden) deckt
+unter einer anderen ID immer eine Kopie: Sie wird mit dem ersten Run beantwortet und startet
+nichts, unabhängig davon, wie spät sie wiederholt wird oder in welchem der beiden
+Signatur-Header sie steckt. Ein Absender, der denselben Body absichtlich öfter sendet,
+macht jede authentifizierte Anfrage unterscheidbar, mit einer eigenen Zeit im Body, oder
+signiert die Zeit: Mit `X-Signature-Timestamp` (Unix-Sekunden) deckt
 die Signatur `{timestamp}.{body}` ab und wird abgelehnt, wenn sie mehr als fünf Minuten
 von der Serveruhr abweicht.
 

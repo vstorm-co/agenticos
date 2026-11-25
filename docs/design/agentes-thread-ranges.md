@@ -159,7 +159,7 @@ clear stale selection; mutation refreshes remove returned stubs.
 
 ## Migration and validation
 
-Revision `0355_room_thread_context` follows `0353_nav_pins`.
+Revision `0358_room_thread_context` follows `0356_trigger_webhook_receipts`.
 Add nullable context fields and backfill accepted request scope before enabling
 the new behavior. The downgrade refuses to discard used context, moved ranges
 or accepted/display scope divergence. Release the additive schema before API,

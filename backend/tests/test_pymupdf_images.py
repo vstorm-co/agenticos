@@ -10,7 +10,7 @@ import pytest
 
 from app.db.vector_tables import VectorScope
 from app.services.rag.config import RAGSettings
-from app.services.rag.documents import DocumentProcessor, PyMuPDFParser
+from app.services.rag.documents import DocumentLimitExceeded, DocumentProcessor, PyMuPDFParser
 from app.services.rag.image_describer import BaseImageDescriber
 from app.services.rag.models import Document, DocumentImage, DocumentMetadata, DocumentPageChunk
 from app.services.rag.vectorstore import PgVectorStore
@@ -205,6 +205,28 @@ async def test_distinct_images_are_still_extracted_and_described(illustrated_pdf
     for chunk in document.chunked_pages:
         metadata = store._build_chunk_metadata(chunk, document, DEPLOYMENT_WIDE)
         assert metadata["image_count"] == [1, 2, 1][chunk.page_num - 1]
+
+
+@pytest.mark.security
+async def test_image_references_stop_at_the_document_budget(illustrated_pdf: Path) -> None:
+    parser = PyMuPDFParser(image_describer=RecordingDescriber(), max_images=2)
+
+    with pytest.raises(DocumentLimitExceeded) as caught:
+        await parser.parse(illustrated_pdf)
+
+    assert caught.value.budget == "images"
+    assert caught.value.maximum == 2
+
+
+@pytest.mark.security
+async def test_extracted_image_bytes_stop_at_the_document_budget(illustrated_pdf: Path) -> None:
+    parser = PyMuPDFParser(image_describer=RecordingDescriber(), max_image_bytes=1000)
+
+    with pytest.raises(DocumentLimitExceeded) as caught:
+        await parser.parse(illustrated_pdf)
+
+    assert caught.value.budget == "image bytes"
+    assert caught.value.maximum == 1000
 
 
 @pytest.mark.parametrize("failure", [RuntimeError, asyncio.CancelledError])

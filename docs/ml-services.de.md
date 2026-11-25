@@ -1,5 +1,5 @@
 ---
-source_sha: "57bc6e1afff1"
+source_sha: "fdd4d75fb9d2"
 ---
 
 # Die ML-Dienste { #the-ml-services }
@@ -95,6 +95,15 @@ ein zulässiger Upload antwortet also mit einem vielfach vervielfältigten Dokum
 Ein Dokument, in dem nichts lesbar ist, wird abgelehnt statt mit einer leeren
 Seitenliste beantwortet, und die Ablehnung sagt, stattdessen OCR aufzurufen — was
 ein Scan, der auf seine Textebene hin geparst wird, immer braucht.
+
+Die Analyse liest höchstens **1.000 Seiten**, behält höchstens **10.000.000
+Zeichen in vorbereiteten Chunks** und hat **120 Sekunden**. PyMuPDF begrenzt
+zusätzlich den extrahierten Inhalt auf **5.000.000 Zeichen** und **1.000 Tabellen**. Das Parsing läuft in einem eigenen Prozess
+mit CPU- und Speichergrenzen; ein Timeout oder eine abgebrochene Anfrage beendet
+diesen Prozess, bevor sein Zulassungsplatz freigegeben wird. Ein Dokument über
+einer semantischen Grenze wird mit der Bitte abgelehnt, es aufzuteilen; ein
+gewöhnliches Dokument innerhalb dieser Grenzen behält das oben gezeigte
+Antwortformat.
 
 ### OCR { #ocr }
 

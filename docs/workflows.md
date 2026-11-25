@@ -1110,10 +1110,10 @@ headers work as well. The trigger hands on the delivery's JSON as `body`, with i
 nothing, because the id is recorded with the run it admitted, in one transaction.
 
 The id is not part of what the sender signs, so the same signed request under another id
-within 24 hours is a copy too: it is answered with the first run and starts nothing,
-whichever of the two signature headers carries it. Identical content sent again after 24
-hours starts a run. A sender that sends the same body more often on purpose makes each one
-differ, with its own id or time in the body, or signs the time: with
+is always a copy: it is answered with the first run and starts nothing, however late it is
+replayed and whichever of the two signature headers carries it. A sender that sends the
+same body more than once on purpose makes each authenticated request differ, with its own
+time in the body, or signs the time: with
 `X-Signature-Timestamp` (Unix seconds) the signature covers `{timestamp}.{body}` and is
 refused more than five minutes from the server's clock.
 

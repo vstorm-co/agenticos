@@ -92,6 +92,7 @@ PLATFORM_MODULES = (
     "app/services/embedding_resolution.py",
     "app/services/health.py",
     "app/services/ingestion_config.py",
+    "app/services/ml/_parse_worker.py",
     "app/services/mcp_catalog.py",
     "app/services/mcp_connection.py",
     "app/services/model_profile.py",

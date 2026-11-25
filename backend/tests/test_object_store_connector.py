@@ -28,9 +28,11 @@ from pydantic import BaseModel, Field, SecretStr
 from app.core.config import settings
 from app.core.exceptions import BadRequestError
 from app.core.secret_kinds import AwsCredentialsSecret, StorableSecret
+from app.services.rag import remote_limits
 from app.services.rag.connectors import ConnectorConfig, RemoteFile
 from app.services.rag.connectors.object_store import ObjectStoreConnector, StoredObject
 from app.services.rag.connectors.s3 import S3Connector
+from app.services.rag.remote_limits import DownloadAllowance, ListingBudget
 
 pytestmark = pytest.mark.anyio
 
@@ -58,8 +60,10 @@ class BlobConnector(ObjectStoreConnector):
         prefix: str,
         config: ConnectorConfig,
         credential: StorableSecret | None,
+        budget: ListingBudget,
     ) -> list[StoredObject]:
         self.listed.append((container, prefix))
+        budget.observe_page()
         return self.objects
 
     def _download(
@@ -69,6 +73,7 @@ class BlobConnector(ObjectStoreConnector):
         dest_path: Path,
         config: ConnectorConfig,
         credential: StorableSecret | None,
+        allowance: DownloadAllowance,
     ) -> None:
         self.downloaded.append((container, key, dest_path))
         dest_path.write_bytes(b"contents")
@@ -127,6 +132,30 @@ class TestWhatEveryObjectStoreGetsForFree:
         files = (await connector.list_files({"container": "docs"}, None)).files
 
         assert (files[0].size, files[0].modified_at) == (41, when)
+
+    @pytest.mark.security
+    async def test_a_listing_stops_before_materializing_more_than_its_entry_ceiling(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(remote_limits, "MAX_SYNC_ITEMS", 2)
+        connector = BlobConnector(
+            [StoredObject(key="a.md"), StoredObject(key="b.md"), StoredObject(key="c.md")]
+        )
+
+        with pytest.raises(BadRequestError):
+            await connector.list_files({"container": "docs"}, None)
+
+    @pytest.mark.security
+    async def test_a_listing_refuses_declared_sync_work_over_its_byte_ceiling(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(remote_limits, "MAX_SYNC_BYTES", 3)
+        connector = BlobConnector(
+            [StoredObject(key="a.md", size=2), StoredObject(key="b.md", size=2)]
+        )
+
+        with pytest.raises(BadRequestError):
+            await connector.list_files({"container": "docs"}, None)
 
     async def test_the_download_reads_the_container_back_out_of_the_source_path(
         self, tmp_path: Path
@@ -216,22 +245,35 @@ class TestTheS3ConnectorStillListsWhatItListed:
 
         client.get_paginator.return_value.paginate.assert_called_once_with(Bucket="acme")
 
+    @pytest.mark.security
+    async def test_empty_provider_pages_cannot_bypass_the_listing_work_ceiling(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(remote_limits, "MAX_SYNC_PAGES", 1)
+        client = self._client([{"Contents": []}, {"Contents": []}])
+
+        with (
+            patch.object(S3Connector, "_get_s3_client", return_value=client),
+            pytest.raises(BadRequestError),
+        ):
+            await S3Connector().list_files({"bucket": "acme", "prefix": ""}, self._credential())
+
     def test_the_listing_is_never_materialized_beside_the_one_it_builds(self):
         """`_objects` yields, and this is the guard on that.
 
-        The shared `_listing` builds the `RemoteFile` list the sync path reads;
-        a `_objects` that returned a list of `StoredObject` would hold a second
-        copy of the largest thing a sync ever holds, live at the same time - a
-        bucket of a million keys is the case where that stops being academic and
-        starts being the reason a previously-working sync runs out of memory.
-        Asserted on the function rather than on a measurement, because the shape
-        is what is easy to revert by accident.
+        The shared `_listing` builds the bounded `RemoteFile` list the sync path
+        reads; a `_objects` that returned a list of `StoredObject` would still
+        materialize the provider's unbounded answer before the shared budget saw
+        one entry. Asserted on the function rather than on a measurement, because
+        the shape is what is easy to revert by accident.
         """
         assert inspect.isgeneratorfunction(S3Connector._objects)
 
     async def test_a_download_asks_the_client_for_the_key_it_listed(self, tmp_path: Path):
         client = MagicMock()
-        client.download_file.side_effect = lambda bucket, key, path: Path(path).write_bytes(b"pdf")
+        body = MagicMock()
+        body.iter_chunks.return_value = [b"pdf"]
+        client.get_object.return_value = {"Body": body, "ContentLength": 3}
         with patch.object(S3Connector, "_get_s3_client", return_value=client):
             landed = await S3Connector().download_file(
                 RemoteFile(
@@ -242,8 +284,75 @@ class TestTheS3ConnectorStillListsWhatItListed:
                 credential=self._credential(),
             )
 
-        client.download_file.assert_called_once_with("acme", "legal/nda.pdf", str(landed))
+        client.get_object.assert_called_once_with(Bucket="acme", Key="legal/nda.pdf")
+        body.iter_chunks.assert_called_once_with(chunk_size=remote_limits.DOWNLOAD_CHUNK_BYTES)
+        body.close.assert_called_once_with()
         assert landed.read_bytes() == b"pdf"
+
+    @pytest.mark.security
+    async def test_a_declared_oversized_object_is_refused_before_s3_is_called(
+        self, tmp_path: Path
+    ) -> None:
+        client = MagicMock()
+        file = RemoteFile(
+            id="large.pdf",
+            name="large.pdf",
+            size=settings.MAX_UPLOAD_SIZE_MB * remote_limits.MIB + 1,
+            source_path="s3://acme/large.pdf",
+        )
+
+        with (
+            patch.object(S3Connector, "_get_s3_client", return_value=client),
+            pytest.raises(BadRequestError),
+        ):
+            await S3Connector().download_file(
+                file,
+                tmp_path,
+                config={"bucket": "acme"},
+                credential=self._credential(),
+            )
+
+        client.get_object.assert_not_called()
+
+    @pytest.mark.security
+    async def test_an_s3_object_with_no_size_is_stopped_at_the_streamed_ceiling(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(remote_limits, "MAX_SYNC_BYTES", 3)
+        client = MagicMock()
+        body = MagicMock()
+        body.iter_chunks.return_value = [b"ab", b"cd"]
+        client.get_object.return_value = {"Body": body}
+        connector = S3Connector()
+
+        with patch.object(S3Connector, "_get_s3_client", return_value=client):
+            with pytest.raises(BadRequestError):
+                await connector.download_file(
+                    RemoteFile(
+                        id="unknown.pdf",
+                        name="unknown.pdf",
+                        source_path="s3://acme/unknown.pdf",
+                    ),
+                    tmp_path,
+                    config={"bucket": "acme"},
+                    credential=self._credential(),
+                )
+
+            with pytest.raises(BadRequestError):
+                await connector.download_file(
+                    RemoteFile(
+                        id="second.pdf",
+                        name="second.pdf",
+                        source_path="s3://acme/second.pdf",
+                    ),
+                    tmp_path,
+                    config={"bucket": "acme"},
+                    credential=self._credential(),
+                )
+
+        assert not (tmp_path / "unknown.pdf").exists()
+        client.get_object.assert_called_once_with(Bucket="acme", Key="unknown.pdf")
+        body.close.assert_called_once_with()
 
 
 class TestTheS3EndpointIsChecked:

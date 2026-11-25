@@ -1,5 +1,5 @@
 ---
-source_sha: "8e0da94ccb26"
+source_sha: "b480158b0af3"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -590,6 +590,14 @@ de entorno. Se guarda en `knowledge_bases.ingestion_config`.
 | LiteParse | Local, sin clave, consciente del diseño; lee formatos ofimáticos e imágenes; salida en markdown |
 | LlamaParse | Diseños complejos y PDF escaneados; en la nube, facturado por página |
 
+Los dos parsers locales respetan los valores `max_pages` y
+`parse_timeout_seconds` de la colección. PyMuPDF también conserva como máximo
+5 000 000 de caracteres extraídos, 1000 tablas, 1000 referencias de imágenes,
+64 MiB de imágenes extraídas y 10 000 000 de caracteres de fragmentos
+preparados. Al superar un límite se rechaza el documento antes de conservar más
+salida; los límites de memoria y duración del proceso hijo de la ingestión en
+segundo plano siguen conteniendo de forma estricta el trabajo nativo.
+
 ### Opciones de LiteParse { #liteparse-options }
 
 | Ajuste | Por defecto | Notas |
@@ -598,7 +606,7 @@ de entorno. Se guarda en `knowledge_bases.ingestion_config`.
 | `auto_ocr` | `true` | Ejecuta la comprobación barata de capa de texto de LiteParse por documento y aplica OCR solo a lo que lo necesita. El OCR domina el coste de un parseo. |
 | `ocr_language` | `eng` | Códigos de Tesseract — tres letras, unidos con `+` para varios (`eng+pol`). Un idioma sin su paquete instalado no lee nada; añade `tesseract-ocr-<lang>` al Dockerfile. |
 | `liteparse_dpi` | `150` | Más alto lee escaneos tenues, más lento. |
-| `max_pages` | `1000` | El ajuste que acota el coste de un documento; `parse_timeout_seconds` solo acota la espera. |
+| `max_pages` | `1000` | Ambos parsers locales se detienen antes de leer más páginas; `parse_timeout_seconds` limita su trabajo transcurrido. |
 
 ### Configuración de la fragmentación { #chunking-configuration }
 

@@ -38,6 +38,7 @@ services:
     labels:
       traefik.enable: 'false'
   agenticos-api:
+    init: true
     logging: *id001
     image: ghcr.io/vstorm-co/agenticos-backend:1.52.0@sha256:4b4e01a2e7afb094e57ce86891d34571799d2a33654c6936374aa3446109b001
     stop_grace_period: 40s

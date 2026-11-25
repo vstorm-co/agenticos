@@ -490,17 +490,20 @@ ordinary client gets from the resolver, without asking DNS a second time. A name
 answering with one public address and one private one is refused **whole** rather
 than narrowed to its public half.
 
-Two edges remain, both narrow and both deliberate:
+The **consent URL** is checked and then handed to somebody's browser, which
+resolves it itself. That browser connection is outside the server's pinning.
 
-- The **consent URL** is checked and then handed to somebody's browser, which
-  resolves it itself. There is no pinning to do.
-- The **connection's own URL** is checked at save and resolved again when an agent
-  runs — operator-typed, so rebinding it means being the operator. A listed
-  host (`OUTBOUND_PRIVATE_ALLOWLIST` or `MCP_ALLOWED_HOSTS`) is resolved too and
-  every answer is checked: a private answer passes only for a host the list admits,
-  a loopback or metadata answer never does, and a host listed by name that does not
-  resolve yet can still be saved. The OAuth requests of a connection whose own host
-  is listed may reach the listed hosts, pinned like every other hop.
+The **connection's own URL** is checked when saved, then every HTTP or SSE
+request is checked and dialled at an admitted address. Personal connections
+are member-controlled, not deployment configuration. Reconnects repeat the
+check. SDK redirects stay on the endpoint's origin (or an eligible HTTPS
+upgrade) and preserve the request method. An uncertain tool POST is not replayed.
+
+Only the operator's `OUTBOUND_PRIVATE_ALLOWLIST` and `MCP_ALLOWED_HOSTS` can admit
+private hosts. Every DNS answer is checked; loopback, link-local and metadata
+answers remain refused. A listed name that does not resolve yet can be saved,
+but must resolve safely before connecting. A public connection never gains
+private exceptions from a server's redirect or OAuth metadata.
 
 Nothing a _model_ chooses reaches this check at all, and nothing should: a URL an
 agent picked wants Pydantic AI's `safe_download`.

@@ -2,6 +2,7 @@
 
 import logging
 from abc import ABC, abstractmethod
+from contextvars import ContextVar
 from datetime import datetime
 from pathlib import Path
 from typing import Any, ClassVar
@@ -10,6 +11,7 @@ from pydantic import BaseModel
 
 from app.core.secret_kinds import SecretKind, StorableSecret
 from app.services.rag.drive_api import GoogleDriveOAuthGrant
+from app.services.rag.remote_limits import DownloadAllowance, DownloadBudget
 from app.services.rag.remote_names import destination_within
 
 logger = logging.getLogger(__name__)
@@ -127,6 +129,8 @@ class BaseSyncConnector(ABC):
     # whoever is running the sync (#937). A connector that needs none says
     # `SecretKind.NONE` - a public docs crawler, when there is one.
     SECRET_KIND: ClassVar[SecretKind] = SecretKind.NONE
+    _download_budget: DownloadBudget | None = None
+    _download_allowance_context: ContextVar[DownloadAllowance | None] | None = None
 
     @abstractmethod
     async def list_files(
@@ -162,10 +166,49 @@ class BaseSyncConnector(ABC):
         implementation a path rather than a directory is what makes the answer
         inherited instead of remembered - see `destination_within` for the
         refusal itself.
+
+        Declared size is refused before `_fetch`, and the completed file is
+        charged to this connector instance's aggregate budget. A streaming
+        implementation reads the same allowance through `_allowance(file)` so
+        missing or stale metadata cannot let it fill the destination first.
         """
         dest_path = destination_within(dest_dir, file.name)
-        await self._fetch(file, dest_path, config or {}, credential)
+        budget = self._downloads()
+        allowance = budget.allowance(file.size)
+        context = self._download_allowances()
+        token = context.set(allowance)
+        try:
+            await self._fetch(file, dest_path, config or {}, credential)
+            budget.record(dest_path, allowance)
+        except BaseException:
+            dest_path.unlink(missing_ok=True)
+            raise
+        finally:
+            context.reset(token)
         return dest_path
+
+    def _downloads(self) -> DownloadBudget:
+        """The actual-byte budget shared by every file this connector instance fetches."""
+        budget = self._download_budget
+        if budget is None:
+            budget = DownloadBudget()
+            self._download_budget = budget
+        return budget
+
+    def _allowance(self, file: RemoteFile) -> DownloadAllowance:
+        """The base call's allowance, or a safe one for a direct internal fetch."""
+        allowance = self._download_allowances().get()
+        return allowance or self._downloads().allowance(file.size)
+
+    def _download_allowances(self) -> ContextVar[DownloadAllowance | None]:
+        """Keep concurrent calls on one connector from sharing an active allowance."""
+        context = self._download_allowance_context
+        if context is None:
+            context = ContextVar[DownloadAllowance | None](
+                f"rag_download_allowance_{id(self)}", default=None
+            )
+            self._download_allowance_context = context
+        return context
 
     @abstractmethod
     async def _fetch(
@@ -175,7 +218,7 @@ class BaseSyncConnector(ABC):
         config: ConnectorConfig,
         credential: SyncCredential | None,
     ) -> None:
-        """Write `file`'s bytes to `dest_path`, which is already inside the sync directory."""
+        """Write `file` under `_allowance(file)` to the already-confined `dest_path`."""
 
     async def remote_version(
         self, config: ConnectorConfig, credential: SyncCredential | None, previous: str | None

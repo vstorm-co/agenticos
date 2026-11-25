@@ -90,11 +90,13 @@ _GITHUB_MEMBERS = frozenset({"OWNER", "MEMBER", "COLLABORATOR"})
 # Where each event keeps the thing somebody wrote - whose author is judged.
 _GITHUB_AUTHORED = {"issues": "issue", "pull_request": "pull_request", "issue_comment": "comment"}
 
-# The provider's own id for one delivery, the key a duplicate is recognised by.
+# The provider's own label for one delivery, retained as run metadata and used by
+# polled-source claims. Inbound replay identity comes from authenticated content,
+# never these headers.
 # GitHub reuses `X-GitHub-Delivery` when it re-sends the same delivery, Zendesk
 # its invocation id; a relay may set the generic header. HubSpot sends none and is
 # keyed on its events instead (`_hubspot_delivery`). A source that sends none
-# simply is not deduplicated.
+# simply omits this metadata; its authenticated content is still deduplicated.
 _DELIVERY_ID_HEADER = {
     EventSource.GITHUB.value: "x-github-delivery",
     EventSource.WEBHOOK.value: "x-delivery-id",
@@ -110,9 +112,9 @@ def delivery_id(source: str, headers: Mapping[str, str], payload: Mapping[str, A
     """The provider's id for this delivery, or `None` if it sent none.
 
     Stable across a provider's retries of one delivery - GitHub reuses the
-    `X-GitHub-Delivery` UUID - so it is the key an idempotency claim dedups on. A
-    source that sends no such header cannot be deduplicated and is fired every
-    time; the claim degrades to firing rather than dropping a real event.
+    `X-GitHub-Delivery` UUID - and useful in the run's input. Header values are
+    not authenticated and therefore never decide inbound webhook admission;
+    :func:`signed_delivery_digest` supplies that identity.
     """
     if source == EventSource.HUBSPOT.value:
         return _hubspot_delivery(payload)
@@ -155,9 +157,44 @@ def accepts_delivery(source: str) -> bool:
     return source in _SIGNATURE_HEADER
 
 
-def signature(source: str, headers: Mapping[str, str]) -> str:
-    """The signature a GitHub or generic webhook delivery carries, as `verify_signature` reads it."""
-    return headers.get(_SIGNATURE_HEADER[source], "")
+def signature(
+    source: str,
+    headers: Mapping[str, str],
+    *,
+    config: Mapping[str, Any] | None = None,
+) -> str:
+    """The verified signature value that identifies one authenticated request."""
+    header = _SIGNATURE_HEADER[source]
+    if source == EventSource.WEBHOOK.value:
+        webhook = WebhookTriggerConfig.model_validate(config or {})
+        if webhook.signature_scheme != "legacy":
+            assert webhook.signature_header is not None
+            header = webhook.signature_header
+    value = headers.get(header, "")
+    if source == EventSource.HUBSPOT.value and not value.strip():
+        value = headers.get("x-hubspot-signature", "")
+    if source in {EventSource.HUBSPOT.value, EventSource.ZENDESK.value}:
+        return value.strip()
+    return value
+
+
+def signed_delivery_digest(
+    source: str,
+    headers: Mapping[str, str],
+    payload: Mapping[str, Any],
+    *,
+    config: Mapping[str, Any] | None = None,
+) -> str:
+    """A replay identity derived only from content that already authenticated.
+
+    Call this only after :func:`verify_signature` succeeds. Most providers use
+    the verified signature itself, hashed so no authentication material is
+    retained. HubSpot retries change their signed body's `attemptNumber`, so its
+    authenticated event tuple remains the stable identity instead.
+    """
+    material = _hubspot_delivery(payload) if source == EventSource.HUBSPOT.value else None
+    authenticated = material or signature(source, headers, config=config)
+    return hashlib.sha256(authenticated.encode("latin-1", "ignore")).hexdigest()
 
 
 def verify_signature(
@@ -179,8 +216,9 @@ def verify_signature(
     **A generic webhook may also sign the time.** With `X-Signature-Timestamp`
     (Unix seconds) the signature covers `{timestamp}.{body}`, and a timestamp more
     than five minutes from `now` fails - Stripe's and Slack's scheme. A body-only
-    signature carries no time, so one captured delivery could be sent again for
-    ever; with the timestamp it is good for minutes, and dropping the header to
+    signature carries no time, so one captured delivery remains cryptographically
+    valid for ever; the caller's durable signed-content receipt still refuses its
+    replay. With the timestamp it is good for minutes, and dropping the header to
     replay it fails too, since the signature no longer covers the bare body. A
     sender that sends no timestamp is verified as before.
 

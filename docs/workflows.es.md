@@ -1,5 +1,5 @@
 ---
-source_sha: "29083d2aceb5"
+source_sha: "204099b80100"
 ---
 
 # Workflows { #workflows }
@@ -1186,11 +1186,11 @@ recibe como respuesta el primer run y no inicia nada, porque el id se guarda jun
 el run que admitió, en una sola transacción.
 
 El id no forma parte de lo que firma el remitente, así que la misma solicitud firmada con
-otro id en 24 horas también es una copia: recibe como respuesta el primer run y no inicia
-nada, la lleve cualquiera de las dos cabeceras de firma. El mismo contenido enviado de
-nuevo pasadas 24 horas inicia un run. Un remitente que envía el mismo cuerpo más a menudo a
-propósito hace que cada uno sea distinto, con su propio id u hora en el cuerpo, o firma la
-hora: con `X-Signature-Timestamp` (segundos Unix) la firma cubre `{timestamp}.{body}` y se
+otro id siempre es una copia: recibe como respuesta el primer run y no inicia nada, por
+mucho tiempo que pase antes de repetirla y la lleve cualquiera de las dos cabeceras de
+firma. Un remitente que envía el mismo cuerpo más de una vez a propósito hace que cada
+solicitud autenticada sea distinta, con su propia hora en el cuerpo, o firma la hora: con
+`X-Signature-Timestamp` (segundos Unix) la firma cubre `{timestamp}.{body}` y se
 rechaza a más de cinco minutos del reloj del servidor.
 
 Las entregas admitidas antes de guardar resúmenes de firmas conservan la deduplicación por ID de entrega. Esas filas antiguas no permiten reconocer copias firmadas con otro ID; la detección por firma empieza con las entregas guardadas por la nueva versión.

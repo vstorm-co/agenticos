@@ -3,6 +3,7 @@ import hashlib
 import logging
 import re
 import tempfile
+import time
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -23,6 +24,10 @@ from app.services.rag.config import (
     LITEPARSE_OFFICE_FORMATS,
     LITEPARSE_PDF_FORMATS,
     LLAMAPARSE_PDF_FORMATS,
+    PYMUPDF_MAX_CONTENT_CHARS,
+    PYMUPDF_MAX_IMAGE_BYTES,
+    PYMUPDF_MAX_IMAGES,
+    PYMUPDF_MAX_TABLES,
     PYMUPDF_PDF_FORMATS,
     DocumentExtensions,
     PdfParser,
@@ -51,6 +56,15 @@ logger = logging.getLogger(__name__)
 _MARKDOWN_NOISE = re.compile(r"```[a-z]*|`|\s+")
 
 
+class DocumentLimitExceeded(ValueError):
+    """A parser refused semantic work beyond one of its configured budgets."""
+
+    def __init__(self, budget: str, maximum: int | float) -> None:
+        self.budget = budget
+        self.maximum = maximum
+        super().__init__(f"The document exceeds the {budget} limit of {maximum}")
+
+
 def has_indexable_text(content: str) -> bool:
     """Whether a parsed page carries anything worth embedding.
 
@@ -58,6 +72,11 @@ def has_indexable_text(content: str) -> bool:
     anything" when the stored chunks are read back for display.
     """
     return bool(_MARKDOWN_NOISE.sub("", content))
+
+
+def _check_document_limit(value: int, maximum: int, budget: str) -> None:
+    if value > maximum:
+        raise DocumentLimitExceeded(budget, maximum)
 
 
 class BaseDocumentParser(ABC):
@@ -199,19 +218,48 @@ class PyMuPDFParser(BaseDocumentParser):
     # routed them, and saying so here keeps `is_extension_allowed` honest.
     allowed = sorted(PYMUPDF_PDF_FORMATS)
 
-    def __init__(self, enable_ocr: bool = False, image_describer: BaseImageDescriber | None = None):
+    def __init__(
+        self,
+        enable_ocr: bool = False,
+        image_describer: BaseImageDescriber | None = None,
+        *,
+        max_pages: int = 1000,
+        max_content_chars: int = PYMUPDF_MAX_CONTENT_CHARS,
+        max_tables: int = PYMUPDF_MAX_TABLES,
+        max_images: int = PYMUPDF_MAX_IMAGES,
+        max_image_bytes: int = PYMUPDF_MAX_IMAGE_BYTES,
+        timeout_seconds: float = 600.0,
+    ) -> None:
         self.enable_ocr = enable_ocr
         self._image_describer = image_describer
+        self.max_pages = max_pages
+        self.max_content_chars = max_content_chars
+        self.max_tables = max_tables
+        self.max_images = max_images
+        self.max_image_bytes = max_image_bytes
+        self.timeout_seconds = timeout_seconds
 
-    def _detect_repeated_content(self, doc: Any) -> set[str]:
+    def _check_deadline(self, deadline: float) -> None:
+        if time.monotonic() >= deadline:
+            raise DocumentLimitExceeded("elapsed seconds", self.timeout_seconds)
+
+    def _detect_repeated_content(self, doc: Any, *, deadline: float) -> set[str]:
         """Detect headers/footers -- text appearing on >70% of pages."""
         if len(doc) < 3:
             return set()
         text_counts: dict[str, int] = {}
+        scanned_chars = 0
         for page in doc:
-            for b in page.get_text("blocks"):
+            self._check_deadline(deadline)
+            blocks = page.get_text("blocks")
+            self._check_deadline(deadline)
+            for b in blocks:
+                self._check_deadline(deadline)
                 if b[6] != 0:  # skip image blocks
                     continue
+                scanned_chars += len(b[4])
+                if scanned_chars > self.max_content_chars:
+                    raise DocumentLimitExceeded("extracted characters", self.max_content_chars)
                 y_ratio = b[1] / page.rect.height if page.rect.height else 0
                 if y_ratio < 0.15 or y_ratio > 0.85:
                     text = b[4].strip()
@@ -220,31 +268,67 @@ class PyMuPDFParser(BaseDocumentParser):
         threshold = len(doc) * 0.7
         return {t for t, c in text_counts.items() if c >= threshold}
 
-    def _extract_text(self, page: Any, repeated: set[str]) -> str:
+    def _extract_text(
+        self,
+        page: Any,
+        repeated: set[str],
+        *,
+        remaining_chars: int,
+        deadline: float,
+    ) -> str:
         """Extract text blocks, filtering headers/footers."""
         texts = []
-        for b in page.get_text("blocks"):
+        rendered_chars = 0
+        blocks = page.get_text("blocks")
+        self._check_deadline(deadline)
+        for b in blocks:
+            self._check_deadline(deadline)
             if b[6] != 0:  # skip image blocks
                 continue
             text = b[4].strip()
             if text and text not in repeated:
+                rendered_chars += len(text) + (2 if texts else 0)
+                if rendered_chars > remaining_chars:
+                    raise DocumentLimitExceeded("extracted characters", self.max_content_chars)
                 texts.append(text)
         return str("\n\n".join(texts))
 
-    def _extract_tables(self, page: Any) -> str:
+    def _extract_tables(
+        self,
+        page: Any,
+        *,
+        remaining_tables: int,
+        remaining_chars: int,
+        deadline: float,
+    ) -> tuple[str, int]:
         """Extract tables as markdown."""
         try:
             tables = page.find_tables()
+            self._check_deadline(deadline)
             if not tables or not tables.tables:
-                return ""
+                return "", 0
+            _check_document_limit(
+                self.max_tables - remaining_tables + len(tables.tables), self.max_tables, "tables"
+            )
             parts = []
+            rendered_chars = 0
             for table in tables.tables:
+                self._check_deadline(deadline)
                 df = table.to_pandas()
                 if not df.empty:
-                    parts.append(df.to_markdown(index=False))
-            return "\n\n".join(parts)
+                    rendered = df.to_markdown(index=False)
+                    rendered_chars += len(rendered) + (2 if parts else 0)
+                    _check_document_limit(
+                        self.max_content_chars - remaining_chars + rendered_chars,
+                        self.max_content_chars,
+                        "extracted characters",
+                    )
+                    parts.append(rendered)
+            return "\n\n".join(parts), len(tables.tables)
+        except DocumentLimitExceeded:
+            raise
         except Exception:
-            return ""
+            return "", 0
 
     async def _ocr_page(self, page: Any, image_describer: BaseImageDescriber | None = None) -> str:
         """OCR a scanned page by rendering it as an image and sending it to LLM vision.
@@ -269,17 +353,26 @@ class PyMuPDFParser(BaseDocumentParser):
         page: PDFPage,
         *,
         image_cache: dict[int, tuple[bytes, str] | None],
-    ) -> list[DocumentImage]:
+        image_references: int,
+        total_image_bytes: int,
+        deadline: float,
+    ) -> tuple[list[DocumentImage], int, int]:
         """Extract each xref once, sharing its bytes across page-local images."""
         page_number = page.number
         assert page_number is not None  # Pages are attached to the open PDF throughout extraction.
         images: list[DocumentImage] = []
         seen: set[int] = set()
-        for img_info in page.get_images(full=True):
+        image_infos = page.get_images(full=True)
+        self._check_deadline(deadline)
+        for img_info in image_infos:
+            self._check_deadline(deadline)
             xref = img_info[0]
             if xref in seen:
                 continue
             seen.add(xref)
+            image_references += 1
+            if image_references > self.max_images:
+                raise DocumentLimitExceeded("images", self.max_images)
             if xref not in image_cache:
                 # Cache refusals too: a broken or tiny shared logo must not be
                 # decoded (or logged) again on every page that references it.
@@ -287,52 +380,105 @@ class PyMuPDFParser(BaseDocumentParser):
                 try:
                     base = doc.extract_image(xref)
                     if base and base["image"] and len(base["image"]) > 1000:
+                        _check_document_limit(
+                            total_image_bytes + len(base["image"]),
+                            self.max_image_bytes,
+                            "image bytes",
+                        )
                         ext = base.get("ext", "png")
                         mime_map = {"png": "image/png", "jpeg": "image/jpeg", "jpg": "image/jpeg"}
                         image_cache[xref] = (base["image"], mime_map.get(ext, f"image/{ext}"))
+                        total_image_bytes += len(base["image"])
+                except DocumentLimitExceeded:
+                    raise
                 except Exception:
                     # One unreadable embedded image should not fail the text.
                     logger.warning("Skipping an unreadable image on page %d", page_number + 1)
             cached = image_cache[xref]
             if cached is not None:
-                image_bytes, mime_type = cached
+                cached_bytes, mime_type = cached
                 images.append(
                     DocumentImage(
-                        page_num=page_number + 1, image_bytes=image_bytes, mime_type=mime_type
+                        page_num=page_number + 1,
+                        image_bytes=cached_bytes,
+                        mime_type=mime_type,
                     )
                 )
-        return images
+        return images, image_references, total_image_bytes
 
     async def _parse_pdf_file(self, filepath: Path) -> Document:
         """Parse PDF with smart extraction pipeline."""
         # Imported where a PDF is parsed, for the reason `_parse_docx_file` gives.
         import pymupdf
 
+        deadline = time.monotonic() + self.timeout_seconds
         with pymupdf.open(filepath) as doc:
+            if len(doc) > self.max_pages:
+                raise DocumentLimitExceeded("pages", self.max_pages)
+            self._check_deadline(deadline)
             meta = doc.metadata or {}
             toc = doc.get_toc()
+            self._check_deadline(deadline)
 
-            repeated = self._detect_repeated_content(doc)
+            repeated = self._detect_repeated_content(doc, deadline=deadline)
 
             image_cache: dict[int, tuple[bytes, str] | None] = {}
+            image_references = 0
+            image_bytes = 0
+            table_count = 0
+            content_chars = 0
             pages: list[DocumentPage] = []
             for page in doc:
-                text = self._extract_text(page, repeated)
+                self._check_deadline(deadline)
+                text = self._extract_text(
+                    page,
+                    repeated,
+                    remaining_chars=self.max_content_chars - content_chars,
+                    deadline=deadline,
+                )
+                if content_chars + len(text) > self.max_content_chars:
+                    raise DocumentLimitExceeded("extracted characters", self.max_content_chars)
+                content_chars += len(text)
 
-                tables_md = self._extract_tables(page)
+                tables_md, tables_found = self._extract_tables(
+                    page,
+                    remaining_tables=self.max_tables - table_count,
+                    remaining_chars=self.max_content_chars - content_chars,
+                    deadline=deadline,
+                )
+                table_count += tables_found
                 if tables_md:
-                    text = text + "\n\n" + tables_md if text.strip() else tables_md
+                    combined = text + "\n\n" + tables_md if text.strip() else tables_md
+                    revised_chars = content_chars - len(text) + len(combined)
+                    if revised_chars > self.max_content_chars:
+                        raise DocumentLimitExceeded("extracted characters", self.max_content_chars)
+                    text = combined
+                    content_chars = revised_chars
 
                 if self.enable_ocr and len(text.strip()) < self.MIN_TEXT_LENGTH:
                     ocr_text = await self._ocr_page(page, self._image_describer)
+                    self._check_deadline(deadline)
                     if len(ocr_text.strip()) > len(text.strip()):
+                        revised_chars = content_chars - len(text) + len(ocr_text)
+                        if revised_chars > self.max_content_chars:
+                            raise DocumentLimitExceeded(
+                                "extracted characters", self.max_content_chars
+                            )
+                        content_chars = revised_chars
                         text = ocr_text
                         logger.info("OCR fallback used for page %d", page.number + 1)
-                images = (
-                    self._extract_images(doc, page, image_cache=image_cache)
-                    if self._image_describer is not None
-                    else []
-                )
+                if self._image_describer is not None:
+                    images, image_references, image_bytes = self._extract_images(
+                        doc,
+                        page,
+                        image_cache=image_cache,
+                        image_references=image_references,
+                        total_image_bytes=image_bytes,
+                        deadline=deadline,
+                    )
+                else:
+                    images = []
+                self._check_deadline(deadline)
 
                 pages.append(
                     DocumentPage(
@@ -350,7 +496,9 @@ class PyMuPDFParser(BaseDocumentParser):
         if toc:
             additional["toc"] = [{"level": t[0], "title": t[1], "page": t[2]} for t in toc[:20]]
 
+        self._check_deadline(deadline)
         doc_meta = self.get_document_metadata(filepath)
+        self._check_deadline(deadline)
         if additional:
             doc_meta.additional_info = {**(doc_meta.additional_info or {}), **additional}
 
@@ -652,6 +800,7 @@ class PdfParserFactory:
     def create(
         parser_name: str, settings: RAGSettings | None = None, image_describer: Any = None
     ) -> BaseDocumentParser:
+        pdf = settings.pdf_parser if settings else PdfParser()
         if parser_name == "llamaparse":
             if not settings or not settings.pdf_parser.api_key:
                 raise ValueError(
@@ -662,7 +811,6 @@ class PdfParserFactory:
                 tier=settings.pdf_parser.tier,
             )
         if parser_name == "liteparse":
-            pdf = settings.pdf_parser if settings else PdfParser()
             return LiteParseParser(
                 enable_ocr=settings.enable_ocr if settings else True,
                 auto_ocr=pdf.liteparse_auto_ocr,
@@ -676,6 +824,12 @@ class PdfParserFactory:
         return PyMuPDFParser(
             enable_ocr=settings.enable_ocr if settings else False,
             image_describer=image_describer,
+            max_pages=pdf.pymupdf_max_pages,
+            max_content_chars=pdf.pymupdf_max_content_chars,
+            max_tables=pdf.pymupdf_max_tables,
+            max_images=pdf.pymupdf_max_images,
+            max_image_bytes=pdf.pymupdf_max_image_bytes,
+            timeout_seconds=pdf.pymupdf_timeout_seconds,
         )
 
 
@@ -792,8 +946,14 @@ class DocumentProcessor:
         pages = document.pages
 
         chunked_pages: list[DocumentPageChunk] = []
+        chunk_chars = 0
         for page in pages:
             for chunk_num, chunk in enumerate(self.splitter.split_text(page.content)):
+                chunk_chars += len(chunk)
+                if chunk_chars > self.settings.max_chunk_chars:
+                    raise DocumentLimitExceeded(
+                        "prepared chunk characters", self.settings.max_chunk_chars
+                    )
                 chunked_pages.append(
                     DocumentPageChunk(
                         chunk_content=chunk,

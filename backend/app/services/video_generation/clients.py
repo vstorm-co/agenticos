@@ -35,7 +35,7 @@ import logfire
 from app.core.pinned_http import PinnedAsyncClient
 from app.core.sanitize import UrlRefusedError
 from app.services.provider_error_code import error_code, safe_code
-from app.services.video_generation.exceptions import VideoFailure, VideoProviderError
+from app.services.video_generation.exceptions import VideoFailure, VideoPhase, VideoProviderError
 from app.services.video_generation.receipts import VideoReceipt
 
 logger = logging.getLogger(__name__)
@@ -227,8 +227,13 @@ def _failure_for(status: int, body: str) -> VideoFailure:
     return VideoFailure.UNAVAILABLE
 
 
-def _raise_for(call: VideoCall, response: httpx.Response) -> None:
-    """Refuse a non-2xx answer, logging only the provider's error code."""
+def _raise_for(
+    call: VideoCall, response: httpx.Response, *, phase: VideoPhase = "collection"
+) -> None:
+    """Refuse a non-2xx answer, logging only the provider's error code.
+
+    `phase` is `submission` only for the answer to the request that creates the job.
+    """
     if response.is_success:
         return
     body = response.text
@@ -243,6 +248,7 @@ def _raise_for(call: VideoCall, response: httpx.Response) -> None:
         _failure_for(response.status_code, body),
         provider=call.provider,
         status=response.status_code,
+        phase=phase,
     )
 
 
@@ -282,7 +288,7 @@ async def _create(
     except httpx.HTTPError, asyncio.CancelledError:
         call.reached("sent")
         raise
-    _raise_for(call, response)
+    _raise_for(call, response, phase="submission")
     try:
         found = job_id(_json(call, response))
     except VideoProviderError:
@@ -595,7 +601,7 @@ async def gemini_interactions(client: httpx.AsyncClient, call: VideoCall, deadli
         },
         timeout=_until(deadline),
     )
-    _raise_for(call, response)
+    _raise_for(call, response, phase="submission")
     video = next(
         (
             content

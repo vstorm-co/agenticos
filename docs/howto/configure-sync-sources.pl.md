@@ -1,5 +1,5 @@
 ---
-source_sha: "0e3f3c6c82f8"
+source_sha: "8819ef1c6f61"
 ---
 
 # Konfiguracja źródeł synchronizacji { #configure-sync-sources }
@@ -30,6 +30,8 @@ synchronizacji.
 | `SyncSourceService` | `app/services/sync_source.py` | Logika biznesowa CRUD i wyzwalania |
 | Komendy CLI dla RAG | `app/commands/rag.py` | Interfejs CLI do zarządzania źródłami |
 | Trasy API dla RAG | `app/api/routes/v1/rag.py` | REST API do zarządzania źródłami |
+
+Synchronizacje S3 i Google Drive sprawdzają najwyżej 10 000 wpisów i 1000 stron listy na przebieg. Budżet 15 minut na listowanie jest sprawdzany przed i po żądaniach do dostawcy. Każdy pobierany plik musi mieścić się w `MAX_UPLOAD_SIZE_MB`; liczą się rzeczywiście przesłane bajty, nawet gdy metadane są brakujące lub błędne. Przebieg może pobrać najwyżej 1 GiB, wliczając nieudane częściowe transfery. Zawęź folder lub prefiks, gdy źródło przekracza te limity. Odrzucona lista nie powoduje usunięcia wcześniej zsynchronizowanych dokumentów.
 
 ## Szybki start -- CLI { #quick-start-cli }
 

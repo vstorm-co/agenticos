@@ -285,7 +285,6 @@ jobs:
         ports:
           - 5432:5432
         options: >-
-          --tmpfs /var/lib/postgresql/data:rw,size=1g
           --health-cmd pg_isready
           --health-interval 10s
           --health-timeout 5s
@@ -403,6 +402,13 @@ jobs:
           BACKEND_SHARD: ${{ matrix.shard }}/3
           BACKEND_SHARD_TIMES: .shard-times/backend-file-times.json
         run: make test
+
+      - name: Report database storage after tests or failure
+        if: ${{ !cancelled() }}
+        timeout-minutes: 2
+        env:
+          POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
+        run: make ci-test-db-diagnostics
 
       - name: Save the shard's file list and test times
         if: ${{ !cancelled() }}
@@ -785,7 +791,6 @@ jobs:
         ports:
           - 5432:5432
         options: >-
-          --tmpfs /var/lib/postgresql/data:rw,size=1g
           --health-cmd pg_isready
           --health-interval 10s
           --health-timeout 5s
@@ -994,6 +999,13 @@ jobs:
           # Playwright starts beside the app - so the one spec covering the seams
           # runs on every push instead of skipping itself in every environment
           # that had no key, which was all of them including this one.
+
+      - name: Report database storage after tests or failure
+        if: ${{ !cancelled() }}
+        timeout-minutes: 2
+        env:
+          POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
+        run: make ci-test-db-diagnostics
 
       - name: Stop the CI worker pools
         if: always()

@@ -6,8 +6,23 @@ from decimal import Decimal
 from typing import Any, NamedTuple
 from uuid import UUID
 
-from sqlalchemy import DateTime, and_, cast, false, func, literal, or_, select, true
-from sqlalchemy import update as sql_update
+from sqlalchemy import (
+    DateTime,
+    and_,
+    cast,
+    false,
+    func,
+    literal,
+    or_,
+    select,
+    true,
+)
+from sqlalchemy import (
+    delete as sql_delete,
+)
+from sqlalchemy import (
+    update as sql_update,
+)
 from sqlalchemy.dialects.postgresql import JSONB, insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
@@ -15,7 +30,12 @@ from sqlalchemy.orm import aliased
 from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_environment import AgentEnvironment
 from app.db.models.agent_run import AgentRun, RunStatus
-from app.db.models.agent_trigger import AgentTrigger, TriggerAttempt, TriggerOverlap
+from app.db.models.agent_trigger import (
+    AgentTrigger,
+    AgentTriggerWebhookReceipt,
+    TriggerAttempt,
+    TriggerOverlap,
+)
 from app.db.models.resource_grant import Visibility
 from app.schemas.agent_trigger import (
     GithubFilteredEvent,
@@ -37,6 +57,38 @@ _NON_TERMINAL_STATUSES = (
 # worker crash that skipped its `finally` - and the schedule is freed rather than
 # parked for ever.
 FIRE_LEASE = timedelta(hours=1)
+
+
+async def claim_webhook_delivery(
+    db: AsyncSession, *, trigger: AgentTrigger, signed_digest: str
+) -> bool:
+    """Claim authenticated content once, in the transaction that queues its fire."""
+    statement = (
+        insert(AgentTriggerWebhookReceipt)
+        .values(
+            organization_id=trigger.organization_id,
+            trigger_id=trigger.id,
+            signed_digest=signed_digest,
+        )
+        .on_conflict_do_nothing(constraint="uq_agent_trigger_webhook_receipt_signed")
+        .returning(AgentTriggerWebhookReceipt.id)
+    )
+    receipt_id = (await db.execute(statement)).scalar_one_or_none()
+    await db.flush()
+    return receipt_id is not None
+
+
+async def release_webhook_delivery(
+    db: AsyncSession, *, trigger_id: UUID, signed_digest: str
+) -> None:
+    """Give back a claim when this transaction deliberately admits no fire."""
+    await db.execute(
+        sql_delete(AgentTriggerWebhookReceipt).where(
+            AgentTriggerWebhookReceipt.trigger_id == trigger_id,
+            AgentTriggerWebhookReceipt.signed_digest == signed_digest,
+        )
+    )
+    await db.flush()
 
 
 async def record_filtered_event(

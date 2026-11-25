@@ -101,10 +101,12 @@ deployment would otherwise lose OAuth entirely, and the proxy is its own egress
 control. Do not "fix" that by naming a transport on the client: an explicit transport
 turns httpx's environment-proxy mounting off, which is how it was broken once already.
 
-Two things the pin does not cover, and neither is an oversight. The **consent URL** is
-checked with `validate_mcp_url` and then handed to a browser that resolves it itself.
-The **connection's own URL** is checked at save and resolved again at run time — a
-point-in-time check (#840), bearable only because an operator typed it. A URL a *model*
+The **consent URL** is checked with `validate_mcp_url` and then handed to a browser
+that resolves it itself. The **connection's own URL** is checked at save and every
+remote HTTP/SSE request is checked and pinned again when connecting. Personal
+connections are member-controlled, not trusted deployment configuration. Session
+factories own and close fresh pinned clients, including reconnects and cancellation;
+the SDK keeps its method-preserving, within-origin redirect policy. A URL a *model*
 chose belongs in neither; it needs `safe_download`.
 
 The MCP allowlist (`sanitize.mcp_allowlist()`: `MCP_ALLOWED_HOSTS` plus

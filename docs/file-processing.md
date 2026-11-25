@@ -552,6 +552,13 @@ variable. Stored on `knowledge_bases.ingestion_config`.
 | LiteParse | Local, no key, layout-aware; reads office formats and images; markdown output |
 | LlamaParse | Complex layouts and scanned PDFs; cloud, billed per page |
 
+Both local parsers honor the collection's `max_pages` and
+`parse_timeout_seconds`. PyMuPDF also retains at most 5,000,000 extracted
+characters, 1,000 tables, 1,000 image references, 64 MiB of extracted image
+bytes and 10,000,000 prepared-chunk characters. Crossing a limit refuses the
+document before more output is retained; background ingestion's child-process
+memory and job-time ceilings remain the hard containment around native work.
+
 ### LiteParse options
 
 | Setting | Default | Notes |
@@ -560,7 +567,7 @@ variable. Stored on `knowledge_bases.ingestion_config`.
 | `auto_ocr` | `true` | Runs LiteParse's cheap text-layer check per document and OCRs only what needs it. OCR dominates the cost of a parse. |
 | `ocr_language` | `eng` | Tesseract codes — three letters, `+`-joined for several (`eng+pol`). A language with no pack installed reads nothing; add `tesseract-ocr-<lang>` to the Dockerfile. |
 | `liteparse_dpi` | `150` | Higher reads faint scans, slower. |
-| `max_pages` | `1000` | The setting that bounds the cost of one document; `parse_timeout_seconds` only bounds the wait. |
+| `max_pages` | `1000` | Both local parsers stop before reading more pages; `parse_timeout_seconds` bounds their elapsed work. |
 
 ### Chunking configuration
 

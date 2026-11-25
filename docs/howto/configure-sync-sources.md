@@ -26,6 +26,8 @@ outcome of every sync operation.
 | RAG CLI commands | `app/commands/rag.py` | CLI interface for managing sources |
 | RAG API routes | `app/api/routes/v1/rag.py` | REST API for managing sources |
 
+S3 and Google Drive syncs inspect at most 10,000 entries and 1,000 listing pages per run. A 15-minute listing budget is checked around provider requests. Each downloaded file must fit `MAX_UPLOAD_SIZE_MB`; the actual streamed bytes count even when metadata is missing or wrong. A run may download at most 1 GiB, including failed partial transfers. Narrow the folder or prefix when a source exceeds these limits. Refused listings do not trigger deletion of previously synced documents.
+
 ## Quick start -- CLI
 
 ### List available connector types
