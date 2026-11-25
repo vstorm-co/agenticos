@@ -24,13 +24,18 @@ would quietly answer a different question here.
 
 import asyncio
 import contextlib
+import json
 import logging
+import os
+import signal
+import sys
 import tempfile
 import weakref
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass
 from pathlib import Path
 from shutil import rmtree
+from typing import cast
 
 from app.core.blocking import run_blocking, write_bytes_cancel_safe
 from app.core.config import settings as app_settings
@@ -40,11 +45,15 @@ from app.services.rag.config import (
     LITEPARSE_PDF_FORMATS,
     NATIVE_FORMATS,
     PARSER_FORMATS,
+    PYMUPDF_MAX_CONTENT_CHARS,
+    PYMUPDF_MAX_IMAGE_BYTES,
+    PYMUPDF_MAX_IMAGES,
+    PYMUPDF_MAX_TABLES,
     DocumentParser,
     PdfParser,
     RAGSettings,
 )
-from app.services.rag.documents import DocumentProcessor
+from app.services.rag.documents import DocumentLimitExceeded
 from app.services.rag.models import Document
 
 logger = logging.getLogger(__name__)
@@ -92,9 +101,28 @@ PARSE_TIMEOUT_SECONDS = 120.0
 """How long one parse may take before the caller is told it did not finish.
 
 Also narrower than ingestion's 600: nothing is waiting on an ingestion, and a
-caller is waiting on this. It bounds the *request*, not the machine - a thread
-already parsing runs to completion - which is why the page ceiling above is the
-one that actually bounds cost."""
+caller is waiting on this. The ML parent enforces it as a hard wall deadline on
+a child process, so native parsing cannot keep consuming capacity after the
+request has ended."""
+
+MAX_ANALYSIS_PAGES = 1000
+"""The largest document the synchronous analysis service reads in one call."""
+
+PARSE_MEMORY_LIMIT_BYTES = 768 * 1024 * 1024
+"""Address-space ceiling applied inside each parser child before app imports.
+
+This is a per-child ceiling. Deployment sizing must account for the API
+processes, per-process admissions, and bounded parent protocol buffers.
+"""
+
+PARSE_RESPONSE_MAX_BYTES = 64 * 1024 * 1024
+"""Largest parser-child protocol response retained by the API process."""
+
+PARSE_STDERR_MAX_BYTES = 64 * 1024
+"""Largest diagnostic prefix retained from a failed parser child."""
+
+_PARSE_CPU_GRACE_SECONDS = 5
+_PARSE_WORKER_PATH = Path(__file__).with_name("_parse_worker.py")
 
 DEFAULT_CHUNK_SIZE = 512
 DEFAULT_CHUNK_OVERLAP = 50
@@ -156,7 +184,17 @@ async def analyze(
         chunk_overlap=chunk_overlap,
         chunking_strategy=chunking_strategy,
         document_parser=DocumentParser(),
-        pdf_parser=PdfParser(method=parser),
+        pdf_parser=PdfParser(
+            method=parser,
+            pymupdf_max_pages=MAX_ANALYSIS_PAGES,
+            pymupdf_max_content_chars=PYMUPDF_MAX_CONTENT_CHARS,
+            pymupdf_max_tables=PYMUPDF_MAX_TABLES,
+            pymupdf_max_images=PYMUPDF_MAX_IMAGES,
+            pymupdf_max_image_bytes=PYMUPDF_MAX_IMAGE_BYTES,
+            pymupdf_timeout_seconds=PARSE_TIMEOUT_SECONDS,
+            liteparse_max_pages=MAX_ANALYSIS_PAGES,
+            liteparse_timeout_seconds=PARSE_TIMEOUT_SECONDS,
+        ),
     )
     return await _run(
         content, filename, settings=settings, parser=parser, readable=PARSER_FORMATS[parser]
@@ -249,22 +287,228 @@ async def admitted(filename: str) -> AsyncGenerator[None]:
         yield
 
 
-def _parse(settings: RAGSettings, path: Path) -> Document:
-    """Run the pipeline's parsing stage on a worker thread.
+class _InvalidDocumentError(Exception):
+    """The isolated parser classified the submitted bytes as malformed."""
 
-    `DocumentProcessor.process_file` is a coroutine that does synchronous work:
-    PyMuPDF's parse, `python-docx`'s read, the file hash and the splitter all
-    block, and only LiteParse moves its own parse off the loop. Awaiting it
-    directly from a request handler therefore stops this worker answering
-    anything - health, sign-in, every other tenant - for the length of a large
-    PDF. So it runs on the dedicated file-io pool, in a loop of its own.
 
-    `asyncio.run` in the pool thread is safe and is the point: the thread has no
-    running loop, the coroutine awaits nothing that belongs to the request's, and
-    no image describer is configured on this surface, so there is no outbound call
-    inside it that would want the caller's loop back.
+async def _parse_in_child(settings: RAGSettings, path: Path) -> Document:
+    """Run parsing in a resource-limited child that cannot outlive this call.
+
+    Native parsers cannot be interrupted in a thread. The child owns all parser
+    CPU and allocations, applies CPU/address-space limits before importing the
+    pipeline, and is killed as a process group on wall timeout or cancellation.
+    The API's shared file-I/O pool is used only for the bounded input write and
+    cleanup, never for the attacker-controlled parse itself.
     """
-    return asyncio.run(DocumentProcessor(settings).process_file(path))
+    payload = settings.model_dump_json().encode("utf-8")
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + PARSE_TIMEOUT_SECONDS
+    proc = await _spawn_parse_child(path, deadline)
+    try:
+        response, stderr = await _exchange_parse_child(proc, payload, deadline)
+    finally:
+        # A converter can leave descendants after its launcher exits. Clear the
+        # owned group on success and failure, including cancellation at spawn.
+        await _reap_parse_child(proc)
+    if stderr:
+        logger.warning(
+            "ml_parse_child_stderr",
+            extra={"stderr": stderr.decode("utf-8", "replace")},
+        )
+    return _parse_child_response(response)
+
+
+async def _spawn_parse_child(path: Path, deadline: float) -> asyncio.subprocess.Process:
+    """Start the isolated parser within its wall budget, reaping spawn races."""
+    remaining = max(deadline - asyncio.get_running_loop().time(), 0.0)
+    spawn = asyncio.ensure_future(
+        asyncio.create_subprocess_exec(
+            sys.executable,
+            "-I",
+            str(_PARSE_WORKER_PATH),
+            str(int(PARSE_TIMEOUT_SECONDS) + _PARSE_CPU_GRACE_SECONDS),
+            str(PARSE_MEMORY_LIMIT_BYTES),
+            str(path),
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            start_new_session=True,
+            env={
+                **os.environ,
+                "TMPDIR": str(path.parent),
+                "TMP": str(path.parent),
+                "TEMP": str(path.parent),
+                # LiteParse's default Tokio pool scales with host CPUs and can
+                # exhaust this process's address-space budget before parsing.
+                "TOKIO_WORKER_THREADS": "1",
+            },
+        )
+    )
+    try:
+        async with asyncio.timeout(remaining):
+            await asyncio.wait({spawn})
+        return spawn.result()
+    except TimeoutError:
+        proc = await _settle_parse_spawn(spawn)
+        if proc is not None:
+            await _reap_parse_child(proc)
+        raise RuntimeError("The isolated document parser exceeded its wall deadline") from None
+    except asyncio.CancelledError:
+        proc = await _settle_parse_spawn(spawn)
+        if proc is not None:
+            await _reap_parse_child(proc)
+        raise
+    except OSError:
+        raise RuntimeError("The isolated document parser could not be started") from None
+
+
+async def _settle_parse_spawn(
+    spawn: asyncio.Task[asyncio.subprocess.Process],
+) -> asyncio.subprocess.Process | None:
+    """Wait out a shielded spawn while absorbing repeated cancellation."""
+    while not spawn.done():
+        with contextlib.suppress(asyncio.CancelledError):
+            await asyncio.wait({spawn})
+    try:
+        return spawn.result()
+    except Exception, asyncio.CancelledError:
+        return None
+
+
+async def _exchange_parse_child(
+    proc: asyncio.subprocess.Process, payload: bytes, deadline: float
+) -> tuple[bytes, bytes]:
+    """Exchange one bounded request and kill the child on timeout/cancellation."""
+    remaining = max(deadline - asyncio.get_running_loop().time(), 0.0)
+    try:
+        return await asyncio.wait_for(_transfer_parse_child(proc, payload), timeout=remaining)
+    except TimeoutError:
+        await _reap_parse_child(proc)
+        raise RuntimeError("The isolated document parser exceeded its wall deadline") from None
+    except asyncio.CancelledError:
+        await _reap_parse_child(proc)
+        raise
+    except OSError:
+        await _reap_parse_child(proc)
+        raise RuntimeError("The isolated document parser exited before replying") from None
+
+
+async def _transfer_parse_child(
+    proc: asyncio.subprocess.Process, payload: bytes
+) -> tuple[bytes, bytes]:
+    """Write settings, drain bounded output streams, and reap a normal exit."""
+    writer = cast(asyncio.StreamWriter, proc.stdin)
+    writer.write(payload)
+    await writer.drain()
+    writer.close()
+    await writer.wait_closed()
+
+    stdout = cast(asyncio.StreamReader, proc.stdout)
+    stderr = cast(asyncio.StreamReader, proc.stderr)
+    stdout_task = asyncio.create_task(_read_bounded(stdout, PARSE_RESPONSE_MAX_BYTES))
+    stderr_task = asyncio.create_task(_read_bounded(stderr, PARSE_STDERR_MAX_BYTES))
+    try:
+        (
+            (response, response_exceeded),
+            (diagnostic, _diagnostic_exceeded),
+            returncode,
+        ) = await asyncio.gather(stdout_task, stderr_task, proc.wait())
+    finally:
+        for task in (stdout_task, stderr_task):
+            if not task.done():
+                task.cancel()
+        await asyncio.gather(stdout_task, stderr_task, return_exceptions=True)
+
+    if response_exceeded:
+        raise RuntimeError("The isolated document parser produced too much output")
+    if returncode != 0:
+        if diagnostic:
+            logger.warning(
+                "ml_parse_child_failed",
+                extra={
+                    "returncode": returncode,
+                    "stderr": diagnostic.decode("utf-8", "replace"),
+                },
+            )
+        raise RuntimeError("The isolated document parser exited without a result")
+    return response, diagnostic
+
+
+async def _read_bounded(stream: asyncio.StreamReader, limit: int) -> tuple[bytes, bool]:
+    """Drain a stream to EOF while retaining at most a bounded prefix."""
+    captured = bytearray()
+    exceeded = False
+    while chunk := await stream.read(65536):
+        if exceeded:
+            continue
+        captured.extend(chunk)
+        if len(captured) > limit:
+            exceeded = True
+            del captured[limit:]
+    return bytes(captured), exceeded
+
+
+def _parse_child_response(response: bytes) -> Document:
+    """Validate the child protocol and restore its controlled failure class."""
+    try:
+        decoded = json.loads(response.decode("utf-8"))
+    except UnicodeDecodeError, json.JSONDecodeError:
+        raise RuntimeError("The isolated document parser returned a malformed result") from None
+    valid_envelope = isinstance(decoded, dict) and isinstance(decoded.get("ok"), bool)
+    if not valid_envelope:
+        raise RuntimeError("The isolated document parser returned a malformed result")
+    if decoded["ok"]:
+        try:
+            return Document.model_validate(decoded.get("document"))
+        except ValueError:
+            raise RuntimeError(
+                "The isolated document parser returned a malformed document"
+            ) from None
+
+    kind = decoded.get("kind")
+    if kind == "limit":
+        budget = decoded.get("budget")
+        maximum = decoded.get("maximum")
+        if (
+            isinstance(budget, str)
+            and isinstance(maximum, int | float)
+            and not isinstance(maximum, bool)
+        ):
+            raise DocumentLimitExceeded(budget, maximum)
+    if kind == "value_error":
+        raise ValueError("The document produced no indexable content")
+    if kind == "runtime_error":
+        raise RuntimeError("The document parser engine failed")
+    if kind == "bad_document":
+        raise _InvalidDocumentError
+    raise RuntimeError("The isolated document parser returned a malformed result")
+
+
+async def _reap_parse_child(proc: asyncio.subprocess.Process) -> None:
+    """Kill and reap a parser child despite repeated caller cancellation."""
+    cleanup = asyncio.ensure_future(_kill_and_reap_parse_child(proc))
+    while not cleanup.done():
+        with contextlib.suppress(asyncio.CancelledError):
+            await asyncio.wait({cleanup})
+    cleanup.result()
+
+
+async def _kill_and_reap_parse_child(proc: asyncio.subprocess.Process) -> None:
+    """Kill the parser's process group, drain its pipes, and reap its leader."""
+    with contextlib.suppress(ProcessLookupError, PermissionError):
+        os.killpg(proc.pid, signal.SIGKILL)
+    cast(asyncio.StreamWriter, proc.stdin).close()
+    await asyncio.gather(
+        _drain_parse_stream(cast(asyncio.StreamReader, proc.stdout)),
+        _drain_parse_stream(cast(asyncio.StreamReader, proc.stderr)),
+        proc.wait(),
+    )
+
+
+async def _drain_parse_stream(stream: asyncio.StreamReader) -> None:
+    """Discard a killed child's pipe so the transport can finish reaping it."""
+    while await stream.read(65536):
+        pass
 
 
 async def _run(
@@ -289,7 +533,26 @@ async def _run(
             path = workspace / f"document{suffix}"
             await write_bytes_cancel_safe(path, content)
             try:
-                document = await run_blocking(_parse, settings, path)
+                document = await _parse_in_child(settings, path)
+            except DocumentLimitExceeded as exc:
+                logger.info(
+                    "An ML parse exceeded its %s budget for %s",
+                    exc.budget,
+                    filename,
+                )
+                raise BadRequestError(
+                    message=(
+                        "This document exceeds the synchronous parsing limits. "
+                        "Split it into smaller documents and try again."
+                    ),
+                    details={
+                        "filename": filename,
+                        "parser": parser,
+                        "stage": "parse",
+                        "budget": exc.budget,
+                        "limit": exc.maximum,
+                    },
+                ) from exc
             except ValueError as exc:
                 logger.info("An ML parse produced nothing for %s", filename, exc_info=True)
                 raise BadRequestError(
@@ -300,11 +563,9 @@ async def _run(
                     details={"filename": filename, "parser": parser},
                 ) from exc
             except RuntimeError as exc:
-                # The parser raises `RuntimeError` for the three things that are
-                # the deployment's rather than the caller's: LibreOffice absent,
-                # the parse timing out, and the engine refusing the file. Its own
-                # message names a temporary path and carries the engine's text, so
-                # it goes to the log and the caller is told which stage failed.
+                # Runtime failures are the deployment's rather than the caller's:
+                # the isolated child could not start, crossed a hard resource
+                # ceiling, or its parser engine failed.
                 logger.warning("The %s engine failed on %s", parser, filename, exc_info=True)
                 raise ExternalServiceError(
                     message="The document could not be parsed by this deployment's engine.",

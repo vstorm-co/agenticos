@@ -721,9 +721,29 @@ class TestDownloads:
         tenant.nodes["i-hr"].size = 3 * 1024 * 1024
         connector, handbook = await self._file(tenant, "Handbook.pdf")
 
-        with pytest.raises(BadRequestError, match="is 3 MB, and a synced file may be at most 1 MB"):
+        with pytest.raises(BadRequestError, match="larger than the 1 MB limit") as caught:
             await connector.download_file(handbook, tmp_path, credential=CREDENTIAL)
+        assert caught.value.details == {"size_bytes": 3 * 1024 * 1024, "limit_bytes": 1024 * 1024}
         assert not [r for r in tenant.requests if r.url.host == "contoso.sharepoint.com"]
+
+    @pytest.mark.security
+    async def test_a_file_that_grows_since_listing_is_refused_before_download(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(settings, "MAX_UPLOAD_SIZE_MB", 1)
+        tenant = _handbook()
+        connector, handbook = await self._file(tenant, "Handbook.pdf")
+        assert handbook.size is not None and handbook.size < 1024 * 1024
+        tenant.nodes["i-hr"].size = 3 * 1024 * 1024
+
+        with pytest.raises(BadRequestError, match="a synced file may be at most 1 MB") as caught:
+            await connector.download_file(handbook, tmp_path, credential=CREDENTIAL)
+
+        assert caught.value.details == {"size_bytes": 3 * 1024 * 1024, "limit_bytes": 1024 * 1024}
+        assert not [
+            request for request in tenant.requests if request.url.host == "contoso.sharepoint.com"
+        ]
+        assert not (tmp_path / "Handbook.pdf").exists()
 
     async def test_a_body_larger_than_its_size_said_is_cut_off(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch

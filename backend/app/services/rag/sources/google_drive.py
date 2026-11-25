@@ -16,6 +16,7 @@ from pathlib import Path
 from app.core.config import settings
 from app.services.rag.drive_api import DriveClient
 from app.services.rag.filters import Source
+from app.services.rag.remote_limits import ListingBudget
 from app.services.rag.remote_names import checked_drive_folder_id, destination_within
 from app.services.rag.sources.base import BaseDocumentSource, SourceFile
 
@@ -84,6 +85,8 @@ class GoogleDriveSource(BaseDocumentSource):
         )
 
         files = []
+        budget = ListingBudget()
+        budget.observe_page()
         for f in page.files:
             mime = f.mime_type
             name = f.name
@@ -94,7 +97,9 @@ class GoogleDriveSource(BaseDocumentSource):
             else:
                 ext = Path(name).suffix.lower()
 
-            if extensions and ext not in extensions:
+            selected = not extensions or ext in extensions
+            budget.observe(f.size, downloadable=selected)
+            if not selected:
                 continue
 
             files.append(
@@ -125,7 +130,7 @@ class GoogleDriveSource(BaseDocumentSource):
         Raises:
             BadRequestError: the Drive name does not name a file inside `dest_dir`.
         """
-        meta = self.service.metadata(file_id, fields="name, mimeType")
+        meta = self.service.metadata(file_id, fields="name, mimeType,size")
         mime = meta.mime_type
         name = meta.name or "download"
 
@@ -136,10 +141,13 @@ class GoogleDriveSource(BaseDocumentSource):
                 name = f"{name}{ext}"
 
         dest_path = destination_within(dest_dir, name)
+        budget = self._downloads()
+        allowance = budget.allowance(meta.size)
         if export_mime is None:
-            self.service.download(file_id, dest_path)
+            self.service.download(file_id, dest_path, allowance=allowance)
         else:
-            self.service.export(file_id, export_mime, dest_path)
+            self.service.export(file_id, export_mime, dest_path, allowance=allowance)
+        budget.record(dest_path, allowance)
 
         logger.info("Downloaded %s from Google Drive (%d bytes)", name, dest_path.stat().st_size)
         return dest_path

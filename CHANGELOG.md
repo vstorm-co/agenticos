@@ -21,6 +21,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Upgrading
 
+- Recreate API and ML service containers with the matching Compose configuration. The backend services now enable the container engine's init process to reap parser descendants after forced termination; existing containers need recreation to receive this setting.
+
 - Magic-link sign-in adds migration `0355_magic_link_claims.py` after `0353_nav_pins.py`: one table of hashed, single-use claims. Links issued before this upgrade no longer sign in; request a fresh link. Downgrade drops outstanding claims. Deploy the matching API and migration together.
 - Signed agent-trigger webhook replay protection adds migration `0356_trigger_webhook_receipts.py` after `0355_magic_link_claims.py`: one durable receipt table keyed by trigger and authenticated signature digest. Existing deliveries cannot be backfilled, so protection for a captured pre-upgrade request begins after its first post-upgrade admission. Downgrade drops the receipts and their replay history; deploy the matching API and migration together.
 - Pinned sidebar items add migration `0353_nav_pins` after `0349_personal_work_context`: one new table, `nav_pins`, keyed on user and organization, created under a 5 second lock timeout. Every account starts with the four fixed items and no pins; nothing is migrated from older layouts. Downgrade drops the table and the pins with it.
@@ -174,6 +176,9 @@ Two things are versioned separately from this file and worth knowing about:
 - `agenticos cmd seed-demo` seeds a curated demo workspace — a "Demo — first-run example" project with a fictional Northwind meeting-notes conversation — for the guided first run. The stored answer carries `model_name="demo"` and no run id, so it can never count as a real completed run. It takes an organization id or exact name, is idempotent, and `--clear` removes every seeded project and demo chat (even a renamed one) through the normal project delete, so grants, tasks, triggers and the audit entry go too. An unknown or ambiguous organization exits non-zero, so `quickstart.sh --demo` fails instead of reporting success. `scripts/quickstart.sh --demo` runs it after bootstrap.
 
 ### Fixed
+
+- Bound S3 and Google Drive sync listings and streamed downloads, including CLI readers. Reject oversized files before transfer and remove partial results on refusal.
+- Bound PyMuPDF pages, extracted content, tables, images and prepared chunks. Run synchronous ML parsing in a killable child with CPU, memory and wall-time limits.
 
 - The member who added an organization API key now sees Delete for it in the vault; the key listing carries a `can_delete` flag, and rotate and share stay limited to those who can edit it.
 - The agent page's Failure learning tab now opens from a `?tab=failure-learning` link and from a click, with or without run permission; its id was missing from the tab allow-list, so both fell back to Build.

@@ -15,6 +15,7 @@ import signal
 import stat
 import sys
 from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -26,6 +27,26 @@ from app.core.office_convert import (
 )
 
 pytestmark = pytest.mark.anyio
+
+
+async def test_a_contained_converter_joins_its_parsers_group(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = tmp_path / "slides.pptx"
+    source.write_bytes(b"office source")
+    produced = tmp_path / "slides.pdf"
+    produced.write_bytes(b"converted")
+    process = MagicMock(pid=12345, returncode=0)
+    spawn = AsyncMock(return_value=process)
+    monkeypatch.setattr(office_convert, "soffice_command", lambda: "/synthetic/soffice")
+    monkeypatch.setattr(office_convert.asyncio, "create_subprocess_exec", spawn)
+    monkeypatch.setattr(office_convert, "_drain", AsyncMock(return_value=b""))
+    monkeypatch.setattr(office_convert.os, "getpgrp", lambda: 54321)
+    with office_convert.use_parent_process_group():
+        assert await convert_to_pdf(source, tmp_path, timeout_seconds=10) == produced
+    assert spawn.await_args.kwargs["start_new_session"] is False
+    assert office_convert._parent_owns_group.get() is False
 
 
 def _write_fake_soffice(directory: Path, body: str, *, name: str = "fake_soffice") -> Path:

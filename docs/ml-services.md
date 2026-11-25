@@ -89,6 +89,14 @@ A document with nothing readable in it is refused rather than answered with an
 empty page list, and the refusal says to call OCR instead — which is what a scan
 parsed for its text layer always needs.
 
+Analysis reads at most **1,000 pages**, retains at most **10,000,000 prepared-chunk
+characters**, and has **120 seconds**. PyMuPDF additionally limits extracted
+content to **5,000,000 characters** and **1,000 tables**. Parsing runs in a separate process with CPU and memory
+ceilings; a timeout or cancelled request stops that process before its admission
+slot is released. A document over a semantic limit is refused with a request to
+split it, while an ordinary document within those limits keeps the response
+shape above.
+
 ### OCR
 
 `POST /api/v1/ml/documents/ocr` recognises the text on every page, whether or

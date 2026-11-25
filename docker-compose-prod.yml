@@ -66,6 +66,7 @@ services:
     restart: "no"
 
   app:
+    init: true
     logging: *logging
     image: ${AGENTICOS_IMAGE_PREFIX:-ghcr.io/vstorm-co/agenticos}-backend:${AGENTICOS_VERSION:-latest}
     # Longer than background.drain()'s 30s timeout, or Docker's 10s default
@@ -86,8 +87,8 @@ services:
     # which fails the handshake against websockets >=14. The chat WS needs it in
     # production exactly as much as it does locally.
     #
-    # --workers puts uvicorn's own `Multiprocess` supervisor at PID 1, and it is
-    # deliberately left there (#358): it replaces a worker that died, and pings
+    # --workers uses uvicorn's own `Multiprocess` supervisor, under init so
+    # orphaned parser children are reaped. It replaces a worker that died and pings
     # the live ones over a pipe. What the ping cannot see is a worker whose
     # event loop is blocked, because a thread (`Process.always_pong`) answers it
     # regardless - so the worker judges its own loop (`app/core/watchdog.py`)

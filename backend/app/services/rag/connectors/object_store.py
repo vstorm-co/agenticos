@@ -35,6 +35,7 @@ from app.services.rag.connectors import (
     RemoteListing,
     SyncCredential,
 )
+from app.services.rag.remote_limits import DownloadAllowance, ListingBudget
 
 logger = logging.getLogger(__name__)
 
@@ -102,29 +103,39 @@ class ObjectStoreConnector(BaseSyncConnector):
     ) -> list[RemoteFile]:
         """The listing converted as it arrives, on the thread that fetched it.
 
-        One list in memory rather than two: `_objects` yields, so a bucket of a
-        million keys holds the `RemoteFile` list this returns and one
-        `StoredObject` at a time - which is what the connector held before it had
-        a shared class, and a peak worth not doubling on the largest sync anyone
-        runs. Converting here rather than in `list_files` is what keeps the
-        pagination *inside* the thread; a generator handed back to the event loop
-        would do the next page's network round trip on it.
+        One bounded list in memory rather than two: `_objects` yields and the
+        shared listing budget refuses excessive cardinality before another
+        `RemoteFile` is retained. Converting here rather than in `list_files` is
+        what keeps pagination *inside* the thread; a generator handed back to the
+        event loop would do the next page's network round trip on it.
 
         A key ending in `/` is skipped here rather than in each client: a console
         that creates a "folder" writes a zero-byte object with that name, and
         ingesting one is a document with no bytes and a name of `''`.
         """
-        return [
-            RemoteFile(
-                id=obj.key,
-                name=Path(obj.key).name,
-                size=obj.size,
-                modified_at=obj.modified_at,
-                source_path=f"{self.SCHEME}://{container}/{obj.key}",
+        budget = ListingBudget()
+        files: list[RemoteFile] = []
+        objects = iter(self._objects(container, prefix, config, credential, budget))
+        while True:
+            budget.check_time()
+            try:
+                obj = next(objects)
+            except StopIteration:
+                break
+            is_file = not obj.key.endswith("/")
+            budget.observe(obj.size, downloadable=is_file)
+            if not is_file:
+                continue
+            files.append(
+                RemoteFile(
+                    id=obj.key,
+                    name=Path(obj.key).name,
+                    size=obj.size,
+                    modified_at=obj.modified_at,
+                    source_path=f"{self.SCHEME}://{container}/{obj.key}",
+                )
             )
-            for obj in self._objects(container, prefix, config, credential)
-            if not obj.key.endswith("/")
-        ]
+        return files
 
     async def _fetch(
         self,
@@ -135,7 +146,16 @@ class ObjectStoreConnector(BaseSyncConnector):
     ) -> None:
         """Write one object to the path the base class chose."""
         container = file.source_path.removeprefix(f"{self.SCHEME}://").split("/", 1)[0]
-        await asyncio.to_thread(self._download, container, file.id, dest_path, config, credential)
+        allowance = self._allowance(file)
+        await asyncio.to_thread(
+            self._download,
+            container,
+            file.id,
+            dest_path,
+            config,
+            credential,
+            allowance,
+        )
         logger.info(
             "Downloaded %s://%s/%s (%d bytes)",
             self.SCHEME,
@@ -151,13 +171,15 @@ class ObjectStoreConnector(BaseSyncConnector):
         prefix: str,
         config: ConnectorConfig,
         credential: SyncCredential | None,
+        budget: ListingBudget,
     ) -> Iterable[StoredObject]:
         """This store's listing, paginated the way its SDK paginates.
 
         Blocking, consumed on a worker thread by `_listing`, and a **generator**
-        rather than a list wherever the SDK pages: nothing needs every object at
-        once, and materializing them is a second copy of the largest thing a sync
-        holds.
+        rather than a list wherever the SDK pages: the shared budget can stop
+        pagination without holding a second copy of every object already seen.
+        Implementations call `budget.observe_page()` after each provider response,
+        including empty pages that yield no object back to `_listing`.
         """
 
     @abstractmethod
@@ -168,5 +190,6 @@ class ObjectStoreConnector(BaseSyncConnector):
         dest_path: Path,
         config: ConnectorConfig,
         credential: SyncCredential | None,
+        allowance: DownloadAllowance,
     ) -> None:
-        """Write one object's bytes to `dest_path`. Blocking, on a worker thread."""
+        """Stream one object to `dest_path` without exceeding `allowance`."""
