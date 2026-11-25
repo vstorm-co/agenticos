@@ -1,5 +1,5 @@
 ---
-source_sha: "7a96a6b374c4"
+source_sha: "f64c84070877"
 ---
 
 # Skille { #skills }
@@ -346,9 +346,9 @@ startem, ze wskazaniem datasetu, do którego trzeba dodać inne pytania.
 - Agent, którego własne pytania się nie zakończyły - ich run się nie powiódł albo
   został zatrzymany, został odrzucony, albo sprawdzenie wygasło - po tym, jak
   pytania skilla potwierdziły regresję, zostaje **gorszy**: zmianę nadal trzeba
-  przypiąć albo obejść forkiem. Agent, u którego pytania skilla nie pokazały
+  przypiąć albo obejść forkiem. Agent, u którego pytania skilla nie potwierdziły
   regresji, jest **nieznany**: jego wiersz mówi, że własne pytania się nie
-  zakończyły, a pytania skilla nie pokazały regresji - albo, gdy nie mogły
+  zakończyły, a pytania skilla nie potwierdziły regresji - albo, gdy nie mogły
   wystartować, dlaczego - a szczegóły zachowują wynik pytań skilla, więc
   potwierdzenie go to decyzja podjęta na połowie sprawdzenia.
 

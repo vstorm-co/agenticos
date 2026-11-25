@@ -1,5 +1,5 @@
 ---
-source_sha: "7a96a6b374c4"
+source_sha: "f64c84070877"
 ---
 
 # Skills { #skills }
@@ -371,9 +371,9 @@ andere Fragen hinzuzufügen sind.
   wurde angehalten, wurde abgelehnt, oder die Prüfung lief ab -, nachdem die
   Fragen des Skills eine Regression bestätigt haben, bleibt **schlechter**: Die
   Änderung muss weiterhin angeheftet oder per Fork umgangen werden. Einer, bei dem
-  die Fragen des Skills keine Regression zeigten, ist **unbekannt**: Seine Zeile
+  die Fragen des Skills keine Regression bestätigten, ist **unbekannt**: Seine Zeile
   sagt, dass seine eigenen Fragen nicht fertig wurden und die des Skills keine
-  Regression zeigten - oder, wenn sie nicht starten konnten, warum -, und seine
+  Regression bestätigten - oder, wenn sie nicht starten konnten, warum -, und seine
   Details behalten, was die Fragen des Skills ergaben, sodass ihn zu bestätigen
   eine Entscheidung auf einer halben Prüfung ist.
 

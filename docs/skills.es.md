@@ -1,5 +1,5 @@
 ---
-source_sha: "7a96a6b374c4"
+source_sha: "f64c84070877"
 ---
 
 # Skills { #skills }
@@ -355,9 +355,9 @@ el paso se rechaza antes de empezar, con el dataset al que añadir otras pregunt
 - Un agent cuyas propias preguntas no terminaron - su run falló o se detuvo, se
   rechazó, o la comprobación caducó - después de que las preguntas del skill
   confirmaran una regresión sigue **peor**: el cambio aún tiene que fijarse o
-  rodearse con un fork. Uno en el que las preguntas del skill no mostraron
+  rodearse con un fork. Uno en el que las preguntas del skill no confirmaron
   regresión es **desconocido**: su fila dice que sus propias preguntas no
-  terminaron y que las del skill no mostraron regresión - o, cuando no pudieron
+  terminaron y que las del skill no confirmaron regresión - o, cuando no pudieron
   empezar, por qué - y sus detalles conservan lo que dieron las preguntas del
   skill, así que reconocerlo es una decisión tomada sobre media comprobación.
 

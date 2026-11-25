@@ -332,9 +332,9 @@ the dataset to add other questions to.
 - An agent whose own questions did not finish - their run failed or was
   stopped, was refused, or the check expired - after the skill's questions
   confirmed a regression stays **worse**: the change still has to be pinned or
-  forked around it. One the skill's questions showed no regression on is
+  forked around it. One the skill's questions did not confirm a regression on is
   **unknown**: its row says its own questions did not finish and that the skill's
-  showed no regression - or, when they could not start, why - and its details
+  did not confirm a regression - or, when they could not start, why - and its details
   keep what the skill's questions came to, so acknowledging it is a decision made
   on half a check.
 
