@@ -2506,7 +2506,11 @@ class ImprovementPipelineService:
         return {}
 
     async def _draft_is_published(self, run: ImprovementRun) -> bool:
-        """Whether the agent's draft is its newest version again, as discarding it leaves it."""
+        """Whether the draft is the session's base version again, as discarding it leaves it.
+
+        Only while nothing was published since the base: a later publish that took the
+        kept changes with other edits also leaves the draft equal to its version.
+        """
         agent = await agent_repo.get(self.db, run.agent_id, organization_id=run.organization_id)
         version = await agent_repo.newest_version(
             self.db, agent_id=run.agent_id, organization_id=run.organization_id
@@ -2514,6 +2518,7 @@ class ImprovementPipelineService:
         return (
             agent is not None
             and version is not None
+            and version.id == run.base_version_id
             and AgentSpec.model_validate(agent.draft_spec) == AgentSpec.model_validate(version.spec)
         )
 
