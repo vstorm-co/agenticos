@@ -2447,11 +2447,15 @@ class ImprovementPipelineService:
             pending = any(h.status == HunkStatus.PENDING for h in hunks)
             if batch.status == BatchStatus.SUPERSEDED:
                 # A kept draft's changes stay in the draft whatever replaced its batch:
-                # only a publish of what it measured still moves it.
+                # only a publish of what it measured, or a draft put back to the
+                # published version, still moves it.
                 published = await self._measured_version(run, selected, hunks)
-                if not published:
+                if published:
+                    status = Status.PUBLISHED
+                elif await self._draft_is_published(run):
+                    status = Status.REJECTED
+                else:
                     return
-                status = Status.PUBLISHED
             elif batch.status == BatchStatus.PUBLISHED:
                 status = Status.PUBLISHED if accepted else Status.REJECTED
                 if accepted:
@@ -2483,16 +2487,35 @@ class ImprovementPipelineService:
         selected: ImprovementIteration,
         hunks: list[SpecProposalHunk],
     ) -> dict[str, UUID | int]:
-        """The agent's newest version, when it is the candidate this session measured."""
+        """The newest version published since the session started that is the candidate it
+        measured, or nothing when none is.
+
+        A sweep may come after more than one publish, so every version newer than the
+        session's base is looked at, newest first.
+        """
+        for version in await agent_repo.list_versions(
+            self.db, agent_id=run.agent_id, organization_id=run.organization_id
+        ):
+            if version.id == run.base_version_id:
+                break
+            spec, skills = authoring_hunks.as_measured(
+                AgentSpec.model_validate(version.spec), hunks
+            )
+            if spec_hash(spec, skills) == selected.candidate_spec_hash:
+                return {"published_version_id": version.id, "published_version": version.version}
+        return {}
+
+    async def _draft_is_published(self, run: ImprovementRun) -> bool:
+        """Whether the agent's draft is its newest version again, as discarding it leaves it."""
+        agent = await agent_repo.get(self.db, run.agent_id, organization_id=run.organization_id)
         version = await agent_repo.newest_version(
             self.db, agent_id=run.agent_id, organization_id=run.organization_id
         )
-        if version is None:
-            return {}
-        spec, skills = authoring_hunks.as_measured(AgentSpec.model_validate(version.spec), hunks)
-        if spec_hash(spec, skills) != selected.candidate_spec_hash:
-            return {}
-        return {"published_version_id": version.id, "published_version": version.version}
+        return (
+            agent is not None
+            and version is not None
+            and AgentSpec.model_validate(agent.draft_spec) == AgentSpec.model_validate(version.spec)
+        )
 
     async def _audit(
         self,

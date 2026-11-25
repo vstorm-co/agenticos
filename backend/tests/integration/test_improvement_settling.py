@@ -13,6 +13,7 @@ from uuid import uuid4
 import pytest
 from sqlalchemy import select
 
+from app.agents.spec import AgentSpec
 from app.db.models.authoring import BatchStatus
 from app.db.models.eval_run import EvalRun
 from app.db.models.improvement import ImprovementRun
@@ -331,6 +332,55 @@ async def test_a_kept_draft_stays_accepted_when_a_newer_request_replaces_its_bat
     settled = await service.read(ctx, agent.id, ready.id)
     assert settled.status == "published"
     assert settled.published_version == version.version
+
+
+async def test_a_kept_draft_names_its_version_after_two_publishes_before_a_sweep(db):
+    """The measured candidate published, then an edited draft on top of it, both before the
+    sweep: the version recorded is the one that published what the session measured."""
+    from app.services.agent_registry import AgentRegistryService
+    from tests.integration.test_authoring import Improver, _improve
+
+    ctx, agent, ready = await _ready_proposal(db)
+    service = ImprovementPipelineService(db)
+    await service.finish(ctx, agent.id, ready.id, ImprovementFinish(confirmed=True))
+    await _improve(db, ctx, agent, Improver(db))
+    registry = AgentRegistryService(db)
+    measured = await registry.publish(ctx, agent.id)
+    agent.draft_spec = {**agent.draft_spec, "instructions": "Other."}
+    await db.flush()
+    await registry.publish(ctx, agent.id)
+
+    await service.advance(ready.id, ctx.organization_id)
+
+    settled = await service.read(ctx, agent.id, ready.id)
+    assert settled.status == "published"
+    assert settled.published_version == measured.version
+
+
+async def test_a_kept_draft_whose_draft_was_discarded_is_rejected(db):
+    """Discarding the draft puts the published version back and takes the kept changes
+    out with it, so the session is no longer kept as a draft."""
+    from app.schemas.agent import agent_draft_revision
+    from app.services.agent_registry import AgentRegistryService
+    from tests.integration.test_authoring import Improver, _improve
+
+    ctx, agent, ready = await _ready_proposal(db)
+    service = ImprovementPipelineService(db)
+    await service.finish(ctx, agent.id, ready.id, ImprovementFinish(confirmed=True))
+    await _improve(db, ctx, agent, Improver(db))
+    await service.advance(ready.id, ctx.organization_id)
+    assert (await service.read(ctx, agent.id, ready.id)).status == "accepted"
+    registry = AgentRegistryService(db)
+    await registry.discard_draft(
+        ctx,
+        agent.id,
+        expected_revision=agent_draft_revision(AgentSpec.model_validate(agent.draft_spec)),
+        expected_version_id=agent.current_version_id,
+    )
+
+    await service.advance(ready.id, ctx.organization_id)
+
+    assert (await service.read(ctx, agent.id, ready.id)).status == "rejected"
 
 
 async def test_undoing_a_kept_draft_while_another_session_is_open_waits_for_it(db):
