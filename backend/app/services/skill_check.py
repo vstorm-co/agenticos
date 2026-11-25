@@ -1476,6 +1476,14 @@ class SkillCheckService:
         by_check: dict[UUID, list[SkillCheckAgent]] = {}
         for row in rows:
             by_check.setdefault(row.check_id, []).append(row)
+        moved = await agent_repo.get_many(
+            self.db,
+            sorted({check.agent_id for check in checks if check.agent_id is not None}),
+            organization_id=ctx.organization_id,
+        )
+        shown_agents = await accessible_ids(
+            self.db, ctx, list(moved.values()), Perm.AGENTS_VIEW, resource_type=AGENT
+        )
         reads: list[SkillCheckRead] = []
         for check in checks:
             mine = by_check.get(check.id, [])
@@ -1505,7 +1513,7 @@ class SkillCheckService:
                     id=check.id,
                     skill_id=check.skill_id,
                     source=CheckSource(check.source),
-                    agent_id=check.agent_id,
+                    agent_id=check.agent_id if check.agent_id in shown_agents else None,
                     candidate_version_id=check.candidate_version_id,
                     candidate=CandidateText(
                         description=check.candidate_description, content=check.candidate_content
@@ -1673,7 +1681,7 @@ class SkillCheckService:
                     stages=[
                         CheckStage(
                             kind=stage.kind,
-                            dataset_id=stage.dataset.id,
+                            dataset_id=stage.dataset.id if stage.dataset.id in readable else None,
                             dataset_name=stage.dataset.name
                             if stage.dataset.id in readable
                             else None,
@@ -1682,7 +1690,9 @@ class SkillCheckService:
                             else len(stage.case_ids)
                             if stage.case_ids is not None
                             else stage.dataset.case_count,
-                            eval_run_id=_run_of(row, stage.kind),
+                            eval_run_id=_run_of(row, stage.kind)
+                            if stage.dataset.id in readable
+                            else None,
                             counts=StageCounts.model_validate(
                                 counted[str(_run_of(row, stage.kind))]
                             )

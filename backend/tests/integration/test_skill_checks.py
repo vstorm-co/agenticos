@@ -1258,6 +1258,36 @@ class TestNothingToRun:
         assert applied.version.content == NEW.content
 
 
+class TestWhatAReaderMayNotSee:
+    @pytest.mark.security
+    async def test_no_id_of_an_agent_or_dataset_the_reader_may_not_see(self, db, monkeypatch):
+        lab = await _lab(db)
+        evals = FakeEvals()
+        evals.install(monkeypatch)
+        service = SkillCheckService(db)
+        check = await service.start(lab.ctx, lab.skill.id, _start(mode="thorough"))
+        await _run_to_end(service, evals, lab, check.id)
+        row = await skill_check_repo.get(db, check.id, organization_id=lab.ctx.organization_id)
+        assert row is not None
+        await skill_check_repo.update(db, row=row, values={"agent_id": lab.pinned.id})
+        no_agents = replace(lab.ctx, key_scopes=frozenset({Perm.RUNS_VIEW, Perm.SKILLS_VIEW}))
+        no_datasets = replace(no_agents, key_scopes=no_agents.key_scopes | {Perm.AGENTS_VIEW})
+
+        full = await service.read(lab.ctx, lab.skill.id, check.id)
+        blind = await service.read(no_agents, lab.skill.id, check.id)
+        unread = await service.read(no_datasets, lab.skill.id, check.id)
+
+        assert (full.agent_id, blind.agent_id) == (lab.pinned.id, None)
+        assert blind.agents == [] and blind.hidden == len(full.agents)
+        shown = [stage for agent in full.agents for stage in agent.stages]
+        assert shown and all(stage.dataset_id and stage.eval_run_id for stage in shown)
+        hidden = [stage for agent in unread.agents for stage in agent.stages]
+        assert len(hidden) == len(shown)
+        assert {(stage.dataset_id, stage.dataset_name, stage.eval_run_id) for stage in hidden} == {
+            (None, None, None)
+        }
+
+
 class TestStartingAndStopping:
     async def test_the_same_check_started_again_while_it_runs_is_that_check(self, db, monkeypatch):
         lab = await _lab(db)
