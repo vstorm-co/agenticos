@@ -169,6 +169,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- The member who added an organization API key now sees Delete for it in the vault; the key listing carries a `can_delete` flag, and rotate and share stay limited to those who can edit it.
 - The agent page's Failure learning tab now opens from a `?tab=failure-learning` link and from a click, with or without run permission; its id was missing from the tab allow-list, so both fell back to Build.
 - Manual chat compaction resolves the published model's defaults, agent settings and Thinking capability before requesting a summary. It uses the already prepared model and refuses incomplete model preparation.
 - The first-run start offer can now appear: it no longer requires zero agents, which bootstrap made impossible by always publishing the Architect and AgenticOS starter agents. It is offered until the user has any activity or a real completed run, completes onboarding, or dismisses it — so the dashboard checklist and the chat start offer reach the guided start on a fresh install.
@@ -178,10 +179,13 @@ Two things are versioned separately from this file and worth knowing about:
 - Table link replacements validate every explicitly submitted destination before accepting an unchanged write. Hidden and missing destination IDs receive the same refusal; omitted hidden links remain preserved for older clients.
 - Table upserts return the same refusal for a hidden external ID and an unavailable creation, including absent or stale revisions, so row-grant readers cannot use error messages to discover hidden records.
 - Relationship backfill refuses invalid stored link limits, including zero, false and blank values. Only omitted or null limits use the legacy default; a refusal rolls back the new relationship tables without rewriting source data.
+- Workflow input validation no longer counts validator startup against its 2 s evaluation deadline, so a slow or loaded host no longer refuses every contract as `validation_limit`. The validator process imports first and announces readiness; startup has its own 10 s deadline and answers `503 WORKFLOW_INPUT_VALIDATION_UNAVAILABLE` with reason `start_timeout` (`start_failed` when the process exits or misreports before it is ready). The 2 s deadline then bounds evaluation alone. The CPU limit now covers both stages; memory, request-size, response-size and concurrency limits are unchanged, and the process is still killed and reaped on timeout or cancellation.
 - Deleting an app waits for workflow worker mutations before changing its rows, preventing a deadlock while a worker finishes a run started by that app.
 - Completed room answers containing only text can recover a missed save acknowledgement from history, restoring reply, fork and rating actions. Local tool results, thinking, errors, and pending approvals or questions retain their existing state.
 - Table links expose only readable destination IDs and labels, including exports and projected reads. Link filters and counts use the same visible destinations, and legacy array replacements retain hidden existing links. Invalid stored row policies block record access with a repairable `ROW_POLICY_INVALID` error instead of disabling restrictions.
+- Creating a private task board or a workflow template now takes the table storage lock before the table name lock, as table creation does, so it no longer deadlocks with a table created at the same time (#273).
 - Chat followers recover saved-answer acknowledgements and final outcomes when a turn finishes during replay or a quiet interval. Sequence checks keep recovered frames in order without duplicating earlier output.
+- Tools whose schema a strict grammar cannot express, such as `browser_fill_credential`, are sent non-strict, so an Anthropic model behind an OpenAI-style gateway no longer rejects the request with HTTP 400.
 - Room workers carry the persisted assistant message ID through their completion callback so connected participants receive a save acknowledgement before the turn ends. The acknowledgement still requires a separately committed message from the same run.
 
 ## [1.90.1] - 2026-11-22

@@ -81,7 +81,9 @@ class LockScope(IntEnum):
     #: The live table names of one organization. A name is unique among live
     #: tables, and "is this name free" followed by an insert is two statements:
     #: without this two creates of one name both pass the check and the second
-    #: dies on the unique index with a 500 instead of a 409 (#1782).
+    #: dies on the unique index with a 500 instead of a 409 (#1782). Taken after
+    #: `VIRTUAL_TABLE_STORAGE_PER_ORG` (17) by every path holding both: 17 -> 20
+    #: (#273).
     VIRTUAL_TABLE_NAMES_PER_ORG = 20
     #: The record count of one table. A quota reads "how many records" and then
     #: inserts, which two creates can do at once and both pass at limit - 1, so
@@ -99,6 +101,8 @@ class LockScope(IntEnum):
     #: same count and both admit past the limit, so the count is taken under this.
     WORKFLOW_RUN_CHAIN = 16
     #: Record writes and their retained copies share one per-organization byte ceiling.
+    #: Global order for table creation: 6 (private scope) -> 27 -> 17 -> 20 -> 21.
+    #: A path that holds 20 must not then take 17 - `create_table` takes 17 first (#273).
     VIRTUAL_TABLE_STORAGE_PER_ORG = 17
     #: One streaming table export per organization, held until its response ends.
     VIRTUAL_TABLE_EXPORT_PER_ORG = 18

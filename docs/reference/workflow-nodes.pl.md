@@ -1,5 +1,5 @@
 ---
-source_sha: "8bc14e41e751"
+source_sha: "0ffe0c35d627"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -148,20 +148,24 @@ nietypowane wejście w postaci obiektu JSON.
 
 Surowy schemat może mieć najwyżej 256 KiB przy publikacji. Przed przyjęciem
 runu żądanie walidacji zapisane jako JSON, zawierające schemat i wejście, musi
-mieścić się w 1 MiB. Walidacja działa w izolowanym procesie z limitem dwóch
-sekund, wliczając start procesu. Każda pętla zdarzeń API lub workera dopuszcza
+mieścić się w 1 MiB. Walidacja działa w izolowanym procesie. Proces importuje
+walidator i zgłasza gotowość w ciągu dziesięciu sekund na start; następnie limit
+dwóch sekund obejmuje wyłącznie ocenę i komunikację, więc wolny host nie skraca
+czasu oceny. Każda pętla zdarzeń API lub workera dopuszcza
 najwyżej dwie równoczesne walidacje; gdy oba miejsca są zajęte, przyjęcie runu
 jest od razu odrzucane z `429`. Dotychczasowe kontrakty prostych pól nadal są
 sprawdzane bez osobnego procesu.
 
-Linux wymusza dodatkowo limit przestrzeni adresowej 256 MiB i limit CPU.
+Linux wymusza dodatkowo limit przestrzeni adresowej 256 MiB i limit CPU, który obejmuje start i ocenę łącznie.
 Przy natywnym uruchomieniu na macOS pozostają limity CPU i czasu, ale bez limitu
 przestrzeni adresowej, ponieważ Darwin nie obsługuje `RLIMIT_AS`.
 
 Przekroczenie czasu lub limitu rozmiaru protokołu albo wyczerpanie pamięci
 walidatora odrzuca przyjęcie runu z `422 WORKFLOW_RUN_INPUT_INVALID`, wskazując `input` w `error.details.fields`
-i `validation_limit` jako `type` problemu w dotychczasowym formacie. Błąd startu
-walidatora, nieprawidłowe zakończenie procesu (także przez limit zasobów systemu
+i `validation_limit` jako `type` problemu w dotychczasowym formacie. Walidator, który nie jest gotowy w limicie
+startu, zwraca to samo `503` z powodem `start_timeout`; proces, którego nie można
+uruchomić albo który kończy się lub zgłasza błędnie przed gotowością, używa powodu
+`not_started` lub `start_failed`. Późniejsze nieprawidłowe zakończenie procesu (także przez limit zasobów systemu
 operacyjnego) lub nieprawidłowa odpowiedź zwraca
 `503 WORKFLOW_INPUT_VALIDATION_UNAVAILABLE`. Żadna z tych odmów nie tworzy runu.
 Diagnostyka ma limit 50 wpisów i 4 KiB JSON w UTF-8. Po osiągnięciu dowolnego

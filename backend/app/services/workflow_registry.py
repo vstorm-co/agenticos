@@ -76,6 +76,7 @@ from app.services.mcp_connection import McpConnectionService
 from app.services.sharing import SharingService
 from app.services.virtual_tables.dependencies import Dependent, register_dependency_checker
 from app.services.virtual_tables.facade import VirtualTableService
+from app.services.virtual_tables.quotas import lock_storage
 from app.services.workflow_authority import require_human_publisher
 from app.services.workflow_execution.exceptions import WorkflowArchivedError
 from app.services.workflow_triggers import WorkflowTriggerSync
@@ -600,7 +601,9 @@ class WorkflowRegistryService:
 
         Chosen under the lock `create_table` claims a name under, held to the end of
         this transaction, so nobody takes the chosen name before it is created.
+        The storage lock comes first, as in `create_table`, so the two never cross.
         """
+        await lock_storage(self.db, ctx)
         await hold_subject(self.db, LockScope.VIRTUAL_TABLE_NAMES_PER_ORG, ctx.organization_id)
         name, copy = base, 1
         while await virtual_table_repo.get_live_table_by_name(
