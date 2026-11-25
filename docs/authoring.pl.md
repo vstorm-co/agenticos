@@ -1,5 +1,5 @@
 ---
-source_sha: "5c5748c4374a"
+source_sha: "c8ef74b88ae1"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -93,6 +93,12 @@ zmieniana tam, gdzie miała być. Jeśli wersja robocza poszła dalej - fragment
 został usunięty albo opis narzędzia zmieniony ręcznie - sugestia mówi, że **nie
 pasuje już do wersji roboczej**, i można ją tylko odrzucić. Cofnij odmawia tak samo, gdy
 przyjęty tekst został potem zmieniony ręcznie: wyrzuciłoby to tę zmianę.
+
+Fragment przeniesiony ręcznie albo stojący obok zmiany przyjętej przed nim jest
+nadal odnajdywany, dopóki występuje tylko raz i jest całą linią, ma co najmniej 40
+znaków albo zachował jedną stronę swojego otoczenia. Krótsza fraza, na przykład
+kwota, nie jest śledzona do innego zdania: jej sugestia nie pasuje już do wersji
+roboczej.
 
 Pasek ma dwie zakładki, każdą z licznikiem. **Do decyzji** pokazuje w całości
 każdą sugestię, która wciąż czeka. **Zdecydowane** zwija każdą przyjętą, zmienioną
