@@ -35,6 +35,19 @@ describe("SuggestionCard", () => {
     ]);
   });
 
+  it("shows and edits a colleague's rewording, which is what Accept writes", async () => {
+    const reworded = hunk({ new_text: "A", edited_text: "Be brief. Refunds take 14 days." });
+    render(<SuggestionCard hunk={reworded} canEdit busy={false} onDecide={vi.fn()} />);
+
+    expect(screen.getByText("Reworded at the Changes step")).toBeVisible();
+    expect(screen.getByText(diffLine("Be brief. Refunds take 14 days."))).toBeInTheDocument();
+    expect(screen.queryByText(diffLine("A"))).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Edit" }));
+    expect(screen.getByRole("textbox", { name: "Your wording of the suggestion" })).toHaveValue(
+      "Be brief. Refunds take 14 days.",
+    );
+  });
+
   it("can leave the edit without deciding", async () => {
     render(<SuggestionCard hunk={hunk()} canEdit busy={false} onDecide={vi.fn()} />);
     await userEvent.click(screen.getByRole("button", { name: "Edit" }));

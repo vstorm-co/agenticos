@@ -58,6 +58,7 @@ it("reads the agents again once an attempt is applied or forked, since both move
   });
 
   await result.current.fork.mutateAsync({
+    check_id: "c1",
     name: "Returns",
     agent_ids: [],
     acknowledge_unknown: false,

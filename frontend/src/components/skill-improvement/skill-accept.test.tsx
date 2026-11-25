@@ -82,6 +82,28 @@ beforeEach(() => {
 });
 
 describe("SkillAccept", () => {
+  it("says the result changed and asks for a fresh confirmation when applying is refused", async () => {
+    vi.mocked(apiClient.post).mockRejectedValueOnce(
+      new ApiError(409, "Changed", {
+        error: {
+          code: "CONCURRENT_CHANGE",
+          message: "Changed",
+          details: { check_id: "c2", reviewed_check_id: "c1" },
+        },
+      }),
+    );
+    mount(skillCheck());
+    await confirm();
+    await userEvent.click(
+      screen.getByRole("button", { name: "Apply as the next version of main" }),
+    );
+
+    expect(await screen.findByText(/changed since you reviewed it/)).toBeVisible();
+    expect(
+      screen.getByLabelText("I have reviewed the selected changes and want to apply them."),
+    ).not.toBeChecked();
+  });
+
   it("applies a change that made nobody worse", async () => {
     mount(skillCheck());
 
@@ -93,6 +115,7 @@ describe("SkillAccept", () => {
 
     expect(apiClient.post).toHaveBeenCalledWith("/skills/k1/improvements/s1/apply", {
       confirmed: true,
+      check_id: "c1",
       acknowledge_unknown: false,
       pin_worse: false,
     });
@@ -128,6 +151,7 @@ describe("SkillAccept", () => {
 
       expect(apiClient.post).toHaveBeenCalledWith("/skills/k1/improvements/s1/fork", {
         confirmed: true,
+        check_id: "c1",
         name: "Returns",
         agent_ids: ["support"],
         acknowledge_unknown: false,
@@ -309,6 +333,7 @@ describe("SkillAccept", () => {
 
     expect(apiClient.post).toHaveBeenCalledWith("/skills/k1/improvements/s1/apply", {
       confirmed: true,
+      check_id: "c1",
       acknowledge_unknown: false,
       pin_worse: true,
     });
@@ -477,6 +502,7 @@ describe("SkillAccept", () => {
           fork_id: "f1",
           line_name: "returns",
           check,
+          main_alone_check: skillCheck(),
           outcomes: ["catch_up", "return_to_main", "discard"],
         })}
         check={check}
@@ -497,6 +523,7 @@ describe("SkillAccept", () => {
     await userEvent.click(take);
     expect(apiClient.post).toHaveBeenLastCalledWith("/skills/k1/improvements/s1/apply", {
       confirmed: true,
+      check_id: "c1",
       acknowledge_unknown: false,
       pin_worse: false,
     });
@@ -508,6 +535,7 @@ describe("SkillAccept", () => {
     );
     expect(apiClient.post).toHaveBeenLastCalledWith("/skills/k1/improvements/s1/return-to-main", {
       confirmed: true,
+      check_id: "c1",
       acknowledge_unknown: false,
     });
     expect(returned).toHaveBeenCalledWith(result);
@@ -526,6 +554,7 @@ describe("SkillAccept", () => {
           fork_id: "f1",
           line_name: "returns",
           check,
+          main_alone_check: skillCheck(),
           outcomes: ["catch_up", "return_to_main", "discard"],
         })}
         check={check}
@@ -633,6 +662,7 @@ describe("SkillAccept", () => {
 
     expect(apiClient.post).toHaveBeenLastCalledWith("/skills/k1/improvements/s1/return-to-main", {
       confirmed: true,
+      check_id: "c1",
       acknowledge_unknown: true,
     });
   });

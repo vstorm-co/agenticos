@@ -79,11 +79,12 @@ export function pickMergeFile(
 export function returnSkillImprovementToMain(
   skillId: string,
   sessionId: string,
+  checkId: string,
   acknowledgeUnknown: boolean,
 ): Promise<{ session: SkillImprovement; returned: ReturnedToMain }> {
   return apiClient.post<{ session: SkillImprovement; returned: ReturnedToMain }>(
     `/skills/${skillId}/improvements/${sessionId}/return-to-main`,
-    { confirmed: true, acknowledge_unknown: acknowledgeUnknown },
+    { confirmed: true, check_id: checkId, acknowledge_unknown: acknowledgeUnknown },
   );
 }
 

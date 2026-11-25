@@ -66,7 +66,7 @@ export function getSkillProblems(skillId: string, sessionId: string): Promise<Sk
 export function applySkillImprovement(
   skillId: string,
   sessionId: string,
-  body: { acknowledge_unknown: boolean; pin_worse: boolean },
+  body: { check_id: string; acknowledge_unknown: boolean; pin_worse: boolean },
 ): Promise<{ session: SkillImprovement }> {
   return apiClient.post<{ session: SkillImprovement }>(`${root(skillId)}/${sessionId}/apply`, {
     confirmed: true,
@@ -78,7 +78,7 @@ export function applySkillImprovement(
 export function forkSkillImprovement(
   skillId: string,
   sessionId: string,
-  body: { name: string; agent_ids: string[]; acknowledge_unknown: boolean },
+  body: { check_id: string; name: string; agent_ids: string[]; acknowledge_unknown: boolean },
 ): Promise<SkillImprovementForked> {
   return apiClient.post<SkillImprovementForked>(`${root(skillId)}/${sessionId}/fork`, {
     confirmed: true,

@@ -16639,6 +16639,7 @@
       "tool": "Tool {tool}",
       "instructions": "Instructies",
       "fromVerify": "Uit het verifiëren van je bewerkingen",
+      "reworded": "Anders geformuleerd bij de stap Wijzigingen",
       "status": {
         "accepted": "Opgenomen in het concept",
         "dismissed": "Verworpen"
@@ -17008,6 +17009,9 @@
     "gapsLabel": "{count, plural, =1 {1 open kennislacune} other {# open kennislacunes}}"
   },
   "improvement": {
+    "acceptChanged": "De poging die je wilde accepteren is veranderd sinds je ernaar keek. De sessie is vernieuwd; bekijk hem opnieuw.",
+    "unmeasuredEdits": "Het concept bevatte wijzigingen van vóór de start van deze sessie. Publiceren brengt ook die live, en geen controle heeft ze gemeten.",
+    "publishUnmeasuredEdits": "Ook die wijzigingen publiceren",
     "attributionUnconfirmed": "Wijziging {number}: het resultaat is niet bevestigd.",
     "includeInTest": "Opnemen in de test",
     "includeChange": "Wijziging {number} opnemen in de test",

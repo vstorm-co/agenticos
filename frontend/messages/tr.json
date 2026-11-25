@@ -17076,6 +17076,9 @@
     }
   },
   "improvement": {
+    "acceptChanged": "Kabul etmek üzere olduğunuz deneme, siz incelediğinizden beri değişti. Oturum yenilendi; yeniden inceleyin.",
+    "unmeasuredEdits": "Taslakta bu oturum başlamadan önce yapılmış düzenlemeler vardı. Yayımlamak onları da yayınlar ve hiçbir kontrol onları ölçmedi.",
+    "publishUnmeasuredEdits": "Bu düzenlemeleri de yayımla",
     "signalWindow": "Son 30 günden {count, plural, one {# seçili kaynak örneği} other {# seçili kaynak örneği}}, en fazla {limit}. Önceki ajan sürümleri ve incelenmiş test yanıtları dahildir.",
     "likedSignals": "Olumlu değerlendirilen yanıtlar",
     "failedSignals": "Değerlendirilmemiş başarısız çalıştırmalar",
@@ -17131,6 +17134,24 @@
     }
   },
   "authoring": {
+    "suggestion": {
+      "tool": "Araç {tool}",
+      "instructions": "Talimatlar",
+      "fromVerify": "Düzenlemelerinizin doğrulanmasından",
+      "reworded": "Değişiklikler adımında yeniden ifade edildi",
+      "status": {
+        "accepted": "Taslağa kabul edildi",
+        "dismissed": "Reddedildi"
+      },
+      "stale": "Artık taslağa uymuyor",
+      "editLabel": "Önerinin sizin ifadeniz",
+      "saveAndAccept": "Kaydet ve kabul et",
+      "cancel": "İptal",
+      "accept": "Kabul et",
+      "edit": "Düzenle",
+      "dismiss": "Reddet",
+      "undo": "Geri al"
+    },
     "describe": {
       "open": "{name} ile oluştur"
     }

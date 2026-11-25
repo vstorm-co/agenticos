@@ -16528,6 +16528,7 @@
       "tool": "Narzędzie {tool}",
       "instructions": "Instrukcje",
       "fromVerify": "Ze sprawdzenia Twoich zmian",
+      "reworded": "Przeredagowane w kroku Zmiany",
       "status": {
         "accepted": "Przyjęta do wersji roboczej",
         "dismissed": "Odrzucona"
@@ -16897,6 +16898,9 @@
     "gapsLabel": "{count, plural, one {1 otwarta luka w wiedzy} few {# otwarte luki w wiedzy} many {# otwartych luk w wiedzy} other {# otwartej luki w wiedzy}}"
   },
   "improvement": {
+    "acceptChanged": "Próba, którą chciałeś przyjąć, zmieniła się od czasu, gdy ją oglądałeś. Sesja została odświeżona; obejrzyj ją jeszcze raz.",
+    "unmeasuredEdits": "Draft miał edycje sprzed startu tej sesji. Publikacja wypuści także je, a żaden check ich nie zmierzył.",
+    "publishUnmeasuredEdits": "Opublikuj także te edycje",
     "attributionUnconfirmed": "Zmiana {number}: wynik nie jest potwierdzony.",
     "includeInTest": "Uwzględnij w teście",
     "includeChange": "Uwzględnij zmianę {number} w teście",

@@ -5,6 +5,7 @@ import { IMPROVEMENT_STEPS as STEPS, improvementSteps, isReachable } from "@/lib
 import type { Improvement, ImprovementIteration } from "@/types/improvement";
 import { ImprovementPage } from "./improvement-page";
 import { hunk } from "@/test-utils/authoring";
+import { ApiError } from "@/lib/api-error";
 import { comparison } from "@/test-utils/eval-runs";
 import type { EvalComparison } from "@/types/eval-runs";
 import type { Hunk } from "@/types/authoring";
@@ -291,7 +292,10 @@ it("reopens the result and requires confirmation before publishing", async () =>
   await userEvent.click(publish);
   expect(actions.finish.mutateAsync).toHaveBeenCalledWith({
     confirmed: true,
+    attempt: 1,
+    candidate_spec_hash: "hash",
     publish: true,
+    publish_unmeasured_edits: false,
     automatic_check: true,
   });
 });
@@ -307,9 +311,69 @@ it("keeps a draft and lets the person decline automatic checks", async () => {
   await userEvent.click(screen.getByRole("button", { name: "Keep as draft" }));
   expect(actions.finish.mutateAsync).toHaveBeenCalledWith({
     confirmed: true,
+    attempt: 1,
+    candidate_spec_hash: "hash",
     publish: false,
+    publish_unmeasured_edits: false,
     automatic_check: false,
   });
+});
+it("forgets the confirmation once another attempt is the one waiting", async () => {
+  const { rerender } = render(<ImprovementPage agentId="a1" sessionId="s1" />);
+  await userEvent.click(screen.getByRole("button", { name: "Review and accept the changes" }));
+  const confirmation = "I have reviewed the selected changes and want to apply them.";
+  await userEvent.click(screen.getByLabelText(confirmation));
+  expect(screen.getByRole("button", { name: "Keep as draft" })).toBeEnabled();
+
+  const first = state.session!.iterations[0]!;
+  state.session = {
+    ...state.session!,
+    best_iteration_id: "r2",
+    iterations: [first, { ...first, id: "r2", number: 2, candidate_spec_hash: "other" }],
+  };
+  rerender(<ImprovementPage agentId="a1" sessionId="s1" />);
+
+  expect(screen.getByLabelText(confirmation)).not.toBeChecked();
+  expect(screen.getByRole("button", { name: "Keep as draft" })).toBeDisabled();
+});
+it("publishes edits the session never measured only once the person confirms them", async () => {
+  state.session!.unmeasured_draft_edits = true;
+  render(<ImprovementPage agentId="a1" sessionId="s1" />);
+  await userEvent.click(screen.getByRole("button", { name: "Review and accept the changes" }));
+  await userEvent.click(
+    screen.getByLabelText("I have reviewed the selected changes and want to apply them."),
+  );
+  expect(screen.getByRole("note")).toHaveTextContent(/held edits before this session started/);
+  const publish = screen.getByRole("button", { name: "Accept and publish" });
+  expect(publish).toBeDisabled();
+
+  await userEvent.click(screen.getByLabelText("Publish those edits as well"));
+  await userEvent.click(publish);
+
+  expect(actions.finish.mutateAsync).toHaveBeenCalledWith(
+    expect.objectContaining({ publish: true, publish_unmeasured_edits: true }),
+  );
+});
+it("says the attempt changed and reads the session again when accepting is refused", async () => {
+  actions.finish.mutateAsync.mockRejectedValueOnce(
+    new ApiError(409, "The attempt waiting changed", {
+      error: { code: "CONCURRENT_CHANGE", message: "The attempt waiting changed" },
+    }),
+  );
+  render(<ImprovementPage agentId="a1" sessionId="s1" />);
+  await userEvent.click(screen.getByRole("button", { name: "Review and accept the changes" }));
+  await userEvent.click(
+    screen.getByLabelText("I have reviewed the selected changes and want to apply them."),
+  );
+  await userEvent.click(screen.getByRole("button", { name: "Keep as draft" }));
+
+  expect(
+    await screen.findByText(/changed since you reviewed it\. The session was refreshed/),
+  ).toBeInTheDocument();
+  expect(state.sessionRefetch).toHaveBeenCalled();
+  expect(
+    screen.getByLabelText("I have reviewed the selected changes and want to apply them."),
+  ).not.toBeChecked();
 });
 it("requires a separate confirmation of the attribution price", async () => {
   actions.estimateAttribution.mutateAsync.mockResolvedValue({
@@ -585,7 +649,10 @@ it("shows saved draft completion and the exact next version before publishing", 
   await userEvent.click(screen.getByRole("button", { name: "Keep as draft" }));
   expect(actions.finish.mutateAsync).toHaveBeenCalledWith({
     confirmed: true,
+    attempt: 1,
+    candidate_spec_hash: "hash",
     publish: false,
+    publish_unmeasured_edits: false,
     automatic_check: false,
   });
   state.session!.status = "accepted";

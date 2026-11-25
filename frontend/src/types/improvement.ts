@@ -197,6 +197,8 @@ export interface Improvement {
   published_version_id?: string | null;
   published_version?: number | null;
   next_version?: number | null;
+  /** The draft held edits before the session started; publishing releases them unmeasured. */
+  unmeasured_draft_edits?: boolean;
   offer_automatic_check?: boolean;
   can_restart?: boolean;
   can_discard?: boolean;

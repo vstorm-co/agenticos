@@ -10,7 +10,7 @@ import { useAgent } from "@/hooks/use-agents";
 import { useAgentAuthoring } from "@/hooks/use-authoring";
 import { useImprovement } from "@/hooks/use-improvements";
 import { usePermissions } from "@/hooks/use-permissions";
-import { getErrorMessage } from "@/lib/api-error";
+import { ApiError, getErrorMessage } from "@/lib/api-error";
 import { useOrgStore } from "@/stores/org-store";
 import { Perm } from "@/types/permissions";
 import { ImprovementStartRedirect } from "./improvement-start-redirect";
@@ -104,7 +104,8 @@ function Session({
   const authoringQuery = useAgentAuthoring(agentId);
   const { authoring } = authoringQuery;
   const [automaticChoice, setAutomatic] = useState<boolean | null>(null);
-  const [confirm, setConfirm] = useState(false);
+  const [confirmedFor, setConfirmedFor] = useState<string | null>(null);
+  const [releasesFor, setReleasesFor] = useState<string | null>(null);
   const [draftSelection, setDraftSelection] = useState<{ roundId: string; ids: string[] } | null>(
     null,
   );
@@ -125,6 +126,13 @@ function Session({
       : "viewOnly";
   const active = isActive(session);
   const chosen = session.iterations.find((r) => r.id === session.best_iteration_id);
+  // A confirmation holds for the attempt, as measured, that was on screen when it was given.
+  const reviewed = chosen?.candidate_spec_hash
+    ? `${chosen.id}:${chosen.candidate_spec_hash}`
+    : null;
+  const confirm = reviewed !== null && confirmedFor === reviewed;
+  const releasesUnmeasured = reviewed !== null && releasesFor === reviewed;
+  const setConfirm = (checked: boolean) => setConfirmedFor(checked ? reviewed : null);
   const resultRunId = (chosen ?? session.iterations.at(-1))?.eval_run_ids.at(-1);
   const gain = chosen !== undefined && GAINS.includes(chosen.verdict);
   // Without a measured gain nothing is pressed on the person: no standing check, no publish first.
@@ -142,6 +150,27 @@ function Session({
   const blockedChanges = selectedBatch?.hunks.some(
     (hunk) => hunk.status === "pending" && measuredIds.includes(hunk.id) && hunk.blocked !== null,
   );
+  const offersCheck = session.offer_automatic_check === true;
+  async function accept(publish: boolean) {
+    if (!chosen?.candidate_spec_hash) return;
+    try {
+      await actions.finish.mutateAsync({
+        confirmed: true,
+        attempt: chosen.number,
+        candidate_spec_hash: chosen.candidate_spec_hash,
+        publish,
+        publish_unmeasured_edits: publish && releasesUnmeasured,
+        automatic_check: offersCheck && automatic,
+      });
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 409) {
+        setConfirmedFor(null);
+        void actions.refetch();
+        throw new Error(t("acceptChanged"));
+      }
+      throw error;
+    }
+  }
   const knowledgeCheck = <KnowledgeDrafts session={session} />;
   return (
     <ImprovementShell
@@ -369,6 +398,23 @@ function Session({
                     />
                     {t("confirmation")}
                   </label>
+                  {canPublish && session.unmeasured_draft_edits && (
+                    <div className="space-y-2">
+                      <p role="note" className="text-warning-ink text-sm">
+                        {t("unmeasuredEdits")}
+                      </p>
+                      <label className="flex items-start gap-2 text-sm">
+                        <Checkbox
+                          className="mt-0.5"
+                          checked={releasesUnmeasured}
+                          onCheckedChange={(checked) =>
+                            setReleasesFor(checked === true ? reviewed : null)
+                          }
+                        />
+                        {t("publishUnmeasuredEdits")}
+                      </label>
+                    </div>
+                  )}
                   <div className="flex flex-wrap gap-3">
                     <Button
                       variant={gain || !canPublish ? "outline" : "default"}
@@ -379,15 +425,7 @@ function Session({
                         blockedChanges ||
                         actions.finish.isPending
                       }
-                      onClick={() =>
-                        void act(async () => {
-                          await actions.finish.mutateAsync({
-                            confirmed: true,
-                            publish: false,
-                            automatic_check: session.offer_automatic_check === true && automatic,
-                          });
-                        })
-                      }
+                      onClick={() => void act(() => accept(false))}
                     >
                       {t("keepDraft")}
                     </Button>
@@ -399,17 +437,10 @@ function Session({
                           missingBatch ||
                           selectionDirty ||
                           blockedChanges ||
+                          (session.unmeasured_draft_edits && !releasesUnmeasured) ||
                           actions.finish.isPending
                         }
-                        onClick={() =>
-                          void act(async () => {
-                            await actions.finish.mutateAsync({
-                              confirmed: true,
-                              publish: true,
-                              automatic_check: session.offer_automatic_check === true && automatic,
-                            });
-                          })
-                        }
+                        onClick={() => void act(() => accept(true))}
                       >
                         {session.next_version == null
                           ? t("publish")

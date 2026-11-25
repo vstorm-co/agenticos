@@ -80,12 +80,18 @@ it("loads a reopened session and requires the reviewed price for attribution", a
   await result.current.cancel.mutateAsync();
   await result.current.finish.mutateAsync({
     confirmed: true,
+    attempt: 2,
+    candidate_spec_hash: "c".repeat(64),
     publish: true,
+    publish_unmeasured_edits: false,
     automatic_check: true,
   });
   expect(apiClient.post).toHaveBeenLastCalledWith("/agents/a1/improvements/s1/finish", {
     confirmed: true,
+    attempt: 2,
+    candidate_spec_hash: "c".repeat(64),
     publish: true,
+    publish_unmeasured_edits: false,
     automatic_check: true,
   });
 });

@@ -110,14 +110,20 @@ export function useSkillAccept(skillId: string, sessionId: string) {
     ]);
   };
   const apply = useMutation({
-    mutationFn: (body: { acknowledge_unknown: boolean; pin_worse: boolean }) =>
+    mutationFn: (body: { check_id: string; acknowledge_unknown: boolean; pin_worse: boolean }) =>
       applySkillImprovement(skillId, sessionId, body),
     onSuccess: settle,
+    onError: settle,
   });
   const fork = useMutation({
-    mutationFn: (body: { name: string; agent_ids: string[]; acknowledge_unknown: boolean }) =>
-      forkSkillImprovement(skillId, sessionId, body),
+    mutationFn: (body: {
+      check_id: string;
+      name: string;
+      agent_ids: string[];
+      acknowledge_unknown: boolean;
+    }) => forkSkillImprovement(skillId, sessionId, body),
     onSuccess: settle,
+    onError: settle,
   });
   return { apply, fork };
 }

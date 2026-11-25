@@ -76,14 +76,21 @@ export function useSkillMerge(
 /** Return a catch-up's fork agents to main, which accepts the session. */
 export function useReturnToMain(skillId: string, sessionId: string) {
   const queryClient = useQueryClient();
+  const settle = () =>
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: qk.improvements.all() }),
+      queryClient.invalidateQueries({ queryKey: qk.skills.all() }),
+    ]);
   return useMutation({
-    mutationFn: (acknowledgeUnknown: boolean) =>
-      returnSkillImprovementToMain(skillId, sessionId, acknowledgeUnknown),
-    onSuccess: () =>
-      Promise.all([
-        queryClient.invalidateQueries({ queryKey: qk.improvements.all() }),
-        queryClient.invalidateQueries({ queryKey: qk.skills.all() }),
-      ]),
+    mutationFn: ({
+      checkId,
+      acknowledgeUnknown,
+    }: {
+      checkId: string;
+      acknowledgeUnknown: boolean;
+    }) => returnSkillImprovementToMain(skillId, sessionId, checkId, acknowledgeUnknown),
+    onSuccess: settle,
+    onError: settle,
   });
 }
 
