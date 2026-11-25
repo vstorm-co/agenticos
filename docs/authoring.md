@@ -358,7 +358,9 @@ A note that quotes a question the new attempt is measured on is refused, on
 `note`, and so is one in a skill's session that quotes a question its next check
 may grade: the helper would read what the check then measures. The comparison
 ignores case and spacing and catches a copy, not a paraphrase, so the Architect
-is never handed the text of a held-out question in the first place.
+is never handed the text of a held-out question in the first place. Only questions
+the caller may read are compared: refusing a note over one they cannot read would
+confirm a guess.
 
 Whoever may start a session on the agent - edit access, `runs:view`  - may take its next step or try again. The session records who did,
 and the steps after it run with that person's current permissions and credential,

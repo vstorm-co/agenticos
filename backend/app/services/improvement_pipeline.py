@@ -144,7 +144,7 @@ from app.schemas.notification import CriterionSources
 from app.schemas.scoring import DatasetScoring
 from app.services import authoring_fields, authoring_hunks, change_feed
 from app.services import improvement_states as rules
-from app.services.access import SKILL, accessible_ids, member_context
+from app.services.access import DATASET, SKILL, accessible_ids, member_context
 from app.services.agent_registry import AgentRegistryService
 from app.services.api_key import job_context
 from app.services.authoring import AuthoringService
@@ -2059,7 +2059,7 @@ class ImprovementPipelineService:
         if data.note is not None and quotes_a_question(
             data.note,
             await self._questions_of(
-                run, await self._kept_aside(run, quote.number, plan.measurable)
+                ctx, run, await self._kept_aside(run, quote.number, plan.measurable)
             ),
         ):
             raise refused_field("note", "The note quotes a question this attempt is measured on")
@@ -3332,9 +3332,19 @@ class ImprovementPipelineService:
             cases, share=share, seed=split_seed(run.id, number), measurable=measurable
         )
 
-    async def _questions_of(self, run: ImprovementRun, case_ids: Collection[UUID]) -> list[str]:
-        """The pinned questions of these cases, as an attempt asks them."""
+    async def _questions_of(
+        self, ctx: AuthContext, run: ImprovementRun, case_ids: Collection[UUID]
+    ) -> list[str]:
+        """The pinned questions of these cases, as an attempt asks them, when the caller may
+        read the dataset; none otherwise, since refusing a note would confirm a guess."""
         if not case_ids:
+            return []
+        dataset = await dataset_repo.get(
+            self.db, run.dataset_id, organization_id=run.organization_id
+        )
+        if dataset is None or not await accessible_ids(
+            self.db, ctx, [dataset], Perm.DATASETS_VIEW, resource_type=DATASET
+        ):
             return []
         version = await dataset_repo.get_version(
             self.db, run.dataset_id, run.dataset_version, organization_id=run.organization_id

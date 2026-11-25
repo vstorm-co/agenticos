@@ -1,5 +1,5 @@
 ---
-source_sha: "dea33e05483e"
+source_sha: "bf0a7ae06283"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -391,7 +391,9 @@ auf `note` abgelehnt, ebenso eine in der Sitzung eines Skills, die eine Frage
 zitiert, die seine nächste Prüfung bewerten kann: Der Helfer läse, was die
 Prüfung danach misst. Der Vergleich ignoriert Groß- und Kleinschreibung sowie
 Leerraum und erkennt eine Kopie, keine Umschreibung; deshalb bekommt der
-Architekt den Text zurückgelegter Fragen gar nicht erst.
+Architekt den Text zurückgelegter Fragen gar nicht erst. Verglichen werden nur
+Fragen, die der Aufrufer lesen darf: Eine Ablehnung wegen einer Frage, die er
+nicht sehen kann, würde seine Vermutung bestätigen.
 
 Wer eine Sitzung für den Agent starten darf - Bearbeitungsrechte, `runs:view` und
  -, darf auch ihren nächsten Schritt ausführen oder

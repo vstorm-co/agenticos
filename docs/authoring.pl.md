@@ -1,5 +1,5 @@
 ---
-source_sha: "dea33e05483e"
+source_sha: "bf0a7ae06283"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -370,7 +370,9 @@ Notatka cytująca pytanie, na którym mierzy się nowa próba, jest odrzucana na
 polu `note`, tak samo jak notatka w sesji skilla cytująca pytanie, które może
 ocenić jego następny test: pomocnik czytałby to, co test potem mierzy.
 Porównanie pomija wielkość liter i odstępy i łapie kopię, a nie parafrazę,
-dlatego Architekt w ogóle nie dostaje treści pytań odłożonych.
+dlatego Architekt w ogóle nie dostaje treści pytań odłożonych. Porównywane są tylko
+pytania, które osoba wywołująca może czytać: odrzucenie notatki z powodu pytania,
+którego nie widzi, potwierdzałoby jej domysł.
 
 Kto może rozpocząć sesję dla agenta - prawo edycji, `runs:view` i  - może też wykonać jej następny krok albo spróbować ponownie. Sesja
 zapisuje, kto to zrobił, a dalsze kroki idą z aktualnymi uprawnieniami i
