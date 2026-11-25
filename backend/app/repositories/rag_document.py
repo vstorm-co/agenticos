@@ -262,6 +262,7 @@ async def create(
     filesize: int,
     filetype: str,
     storage_path: str,
+    parsed_content_path: str | None = None,
     source_path: str | None = None,
     sync_source_id: UUID | None = None,
     status: DocumentStatus = DocumentStatus.PROCESSING,
@@ -283,6 +284,7 @@ async def create(
         filesize=filesize,
         filetype=filetype,
         storage_path=storage_path,
+        parsed_content_path=parsed_content_path,
         source_path=source_path,
         status=status,
         organization_id=organization_id,
@@ -315,6 +317,7 @@ async def update_status(
     completed_at: Any = None,
     ingestion_attempt: int | None = None,
     expected_attempt: int | None = None,
+    ingestion_config: dict[str, object] | None = None,
 ) -> RAGDocument | None:
     """Update the processing status of a RAG document.
 
@@ -348,6 +351,8 @@ async def update_status(
             values["completed_at"] = completed_at
         if ingestion_attempt is not None:
             values["ingestion_attempt"] = ingestion_attempt
+        if ingestion_config is not None:
+            values["ingestion_config"] = ingestion_config
         result = await db.execute(
             sql_update(RAGDocument)
             .where(RAGDocument.id == doc_id, RAGDocument.ingestion_attempt == expected_attempt)
@@ -373,6 +378,8 @@ async def update_status(
         doc.completed_at = completed_at
     if ingestion_attempt is not None:
         doc.ingestion_attempt = ingestion_attempt
+    if ingestion_config is not None:
+        doc.ingestion_config = ingestion_config
     await db.flush()
     return doc
 
@@ -789,10 +796,10 @@ async def delete_by_collection(db: AsyncSession, collection_name: str) -> list[s
     result = await db.execute(
         sql_delete(RAGDocument)
         .where(RAGDocument.collection_name == collection_name)
-        .returning(RAGDocument.storage_path)
+        .returning(RAGDocument.storage_path, RAGDocument.parsed_content_path)
     )
     await db.flush()
-    return [path for path in result.scalars().all() if path]
+    return [path for row in result.all() for path in row if path]
 
 
 async def delete_by_knowledge_base(db: AsyncSession, kb_id: UUID) -> list[str]:
@@ -1021,13 +1028,17 @@ async def _delete_returning(db: AsyncSession, where: ColumnElement[bool]) -> Del
     result = await db.execute(
         sql_delete(RAGDocument)
         .where(where)
-        .returning(RAGDocument.storage_path, RAGDocument.vector_document_id)
+        .returning(
+            RAGDocument.storage_path,
+            RAGDocument.parsed_content_path,
+            RAGDocument.vector_document_id,
+        )
     )
     await db.flush()
     rows = result.all()
     return DeletedDocuments(
-        storage_paths=[path for path, _ in rows if path],
-        vector_document_ids=[doc_id for _, doc_id in rows if doc_id],
+        storage_paths=[path for original, parsed, _ in rows for path in (original, parsed) if path],
+        vector_document_ids=[doc_id for _, _, doc_id in rows if doc_id],
     )
 
 
@@ -1198,3 +1209,33 @@ async def confirm_operator_unfiled(db: AsyncSession, collection_name: str) -> in
     )
     await db.flush()
     return count
+
+
+async def portable_page(
+    db: AsyncSession, *, scope: CollectionScope, after: UUID | None = None, limit: int = 100
+) -> list[RAGDocument]:
+    """Stable, bounded document metadata for a base's authorized export."""
+    statement = select(RAGDocument).where(in_collection_scope(scope))
+    if after is not None:
+        statement = statement.where(RAGDocument.id > after)
+    result = await db.execute(statement.order_by(RAGDocument.id).limit(limit))
+    return list(result.scalars())
+
+
+async def portable_unchanged(db: AsyncSession, *, document: RAGDocument) -> bool:
+    """Fence content staged outside SQL against concurrent retry, removal or replacement."""
+    return bool(
+        await db.scalar(
+            select(
+                exists().where(
+                    RAGDocument.id == document.id,
+                    RAGDocument.status == document.status,
+                    RAGDocument.ingestion_attempt == document.ingestion_attempt,
+                    RAGDocument.vector_document_id == document.vector_document_id,
+                    RAGDocument.storage_path == document.storage_path,
+                    RAGDocument.parsed_content_path == document.parsed_content_path,
+                    RAGDocument.updated_at == document.updated_at,
+                )
+            )
+        )
+    )

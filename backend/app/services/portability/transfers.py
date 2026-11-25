@@ -47,6 +47,12 @@ from app.services.portability.archive import BundleLimits, open_bundle, write_bu
 from app.services.portability.contracts import require_supported_root, verify_references
 from app.services.portability.facade import PortabilityService
 from app.services.portability.file_bundle import hydrate_text
+from app.services.portability.knowledge import (
+    KnowledgeTransfer,
+    persistent_prefix,
+    validate_knowledge_assets,
+)
+from app.services.rag.parsed_snapshot import MAX_SNAPSHOT_CHUNKS
 from app.worker.jobs import PORTABLE_TRANSFER, PortableTransferPayload
 
 _OBJECT = TypeAdapter(dict[str, JsonValue])
@@ -80,6 +86,20 @@ def _read_zip(path: Path, directory: Path) -> tuple[ResourceBundle, dict[str, Pa
                 for chunk in archive.asset_chunks(asset):
                     output.write(chunk)
             files[asset.sha256] = target
+        parsed_chunks = 0
+        for resource in archive.manifest.resources:
+            if (
+                resource.kind == BundleResourceKind.KNOWLEDGE_BASE
+                and resource.definition is not None
+            ):
+                assets = tuple(
+                    asset for asset in archive.manifest.assets if asset.resource == resource.key
+                )
+                parsed_chunks += validate_knowledge_assets(resource, assets, files)
+                if parsed_chunks > MAX_SNAPSHOT_CHUNKS:
+                    raise BadRequestError(
+                        message="Import at most 10,000 parsed chunks per transfer"
+                    )
         return archive.manifest, files
 
 
@@ -87,7 +107,7 @@ class PortableTransferService:
     def __init__(self, db: AsyncSession, *, storage: BaseFileStorage | None = None) -> None:
         self.db = db
         self.storage = storage or get_file_storage()
-        self.portability = PortabilityService(db)
+        self.portability = PortabilityService(db, storage=self.storage)
 
     @staticmethod
     def _require(ctx: AuthContext) -> None:
@@ -388,6 +408,18 @@ class PortableTransferService:
                         content = await run_blocking_settled(hydrate_text, single, files)
                         return content.resources[0]
 
+                    async def attach(resource: BundleResource, destination: UUID) -> None:
+                        await KnowledgeTransfer(self.db, storage=self.storage).import_documents(
+                            ctx,
+                            operation=row.id,
+                            resource=resource,
+                            kb_id=destination,
+                            assets=tuple(
+                                asset for asset in bundle.assets if asset.resource == resource.key
+                            ),
+                            files=files,
+                        )
+
                     # Imported resources and their receipt commit only after the
                     # final lease check. Do not block heartbeats during the import.
                     result = await self.portability.import_bundle(
@@ -396,6 +428,7 @@ class PortableTransferService:
                             {"operation_id": row.id, "bundle": bundle, "choices": row.choices}
                         ),
                         hydrate=hydrate,
+                        attach=attach,
                     )
             await self._fence(row, payload, attempt)
             row.manifest = _OBJECT.validate_python(bundle.model_dump(mode="json"))
@@ -467,4 +500,17 @@ class PortableTransferService:
             # The prefix is minted from the journal's UUID; no submitted path can
             # broaden cleanup. Expiry exceeds the maximum worker duration.
             await self.storage.delete_prefix(f"portability/{row.id}/")
+            if row.result is None:
+                # The journal survives owner deletion and worker rollback. A
+                # failed/stale attempt therefore cannot strand copied assets.
+                await self.storage.delete_prefix(persistent_prefix(row.id))
+            else:
+                bundle = ResourceBundle.model_validate(row.manifest)
+                receipt = BundleImportRead.model_validate(row.result)
+                for resource in bundle.resources:
+                    if (
+                        resource.kind == BundleResourceKind.KNOWLEDGE_BASE
+                        and resource.key not in receipt.created
+                    ):
+                        await self.storage.delete_prefix(persistent_prefix(row.id, resource.key))
             await operations.delete(self.db, row)

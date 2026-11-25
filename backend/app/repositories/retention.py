@@ -444,8 +444,8 @@ async def delete_artifacts(
 
 async def expiring_documents(
     db: AsyncSession, *, organization_id: UUID, cutoff: datetime, limit: int
-) -> list[tuple[UUID, str, str | None, str | None, VectorScope]]:
-    """Uploaded documents past their window: id, collection, vector id, file, scope.
+) -> list[tuple[UUID, str, str | None, str | None, VectorScope, str | None]]:
+    """Uploaded documents past their window: id, collection, vector id, original, scope, snapshot.
 
     **The scope comes off the knowledge base, not off the document.** A
     collection name is not unique, so the runtime table is shared and each row
@@ -474,13 +474,16 @@ async def expiring_documents(
             RAGDocument.vector_document_id,
             RAGDocument.storage_path,
             KnowledgeBase,
+            RAGDocument.parsed_content_path,
         )
         .outerjoin(KnowledgeBase, KnowledgeBase.id == RAGDocument.knowledge_base_id)
         .where(
             RAGDocument.organization_id == organization_id,
             RAGDocument.created_at < cutoff,
             RAGDocument.source_path.is_(None),
-            RAGDocument.status.in_((DocumentStatus.DONE, DocumentStatus.ERROR)),
+            RAGDocument.status.in_(
+                (DocumentStatus.STORED, DocumentStatus.DONE, DocumentStatus.ERROR)
+            ),
         )
         .order_by(RAGDocument.created_at, RAGDocument.id)
         .limit(limit)
@@ -493,6 +496,7 @@ async def expiring_documents(
             row[2],
             row[3],
             VectorScope(tenant=None) if row[4] is None else row[4].vector_scope,
+            row[5],
         )
         for row in rows.all()
     ]

@@ -37,6 +37,7 @@ class BundleResourceKind(StrEnum):
     MCP_CONNECTION = "mcp_connection"
     MODEL_PROFILE = "model_profile"
     EMBEDDING_ENDPOINT = "embedding_endpoint"
+    LOCAL_SERVICE = "local_service"
     SECRET = "secret"
     SANDBOX_CONNECTION = "sandbox_connection"
     TABLE = "table"

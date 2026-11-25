@@ -25,6 +25,7 @@ Two things are versioned separately from this file and worth knowing about:
 - Platform approval cards name the affected agent, skill, version or dataset and show trusted quoted estimates. Paid starts can reject a stale estimate; queued knowledge drafts retain and recheck their quote before work. External MCP clients receive destructive hints for actions that require confirmation.
 - Selective workflow resource bundles share the agent import/export review, dependency mapping and resumable ZIP transfers. Imports create private drafts, map delegates to explicitly selected published versions, refresh reused table schemas and report omitted bindings without activating triggers.
 
+- Selectively transfer knowledge-base originals and parsed text in ZIP bundles. Imports stay private and unindexed, show parsed previews without model calls, and can be indexed explicitly after configuring destination providers.
 - Per-role console navigation, an optional simple-assistant preset, a permission-filtered navigation preview and membership-owned menu choices. Deployment and organization controls can hide optional product prompts without changing resource access or operational notices.
 
 - Organization and personal controls for chat cost visibility, bounded by deployment availability. Chat history, live/reconnected answers and Q&A continuations withhold restricted financial metadata while keeping accounting and budget enforcement intact.
@@ -99,6 +100,7 @@ Two things are versioned separately from this file and worth knowing about:
   skill test sets are repaired to hold out every question. Downgrade removes
   the pinned-share column but intentionally keeps that test-set repair.
 
+- Migration `0371_portable_document_snapshots.py` records imported parsed-text files. Downgrading it requires deleting documents that own parsed snapshots through the application first, preserving file cleanup ownership.
 - Apply `0368_password_sign_in_policy.py`. Local sign-in stays enabled until an
   administrator disables it. The console's provider filter now defaults to all
   supported configured methods; an explicit `OAUTH_PROVIDERS` list keeps its

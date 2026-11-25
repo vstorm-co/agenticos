@@ -12,6 +12,7 @@ from app.core.permissions import AuthContext
 from app.schemas.resource_bundle import BundleResource, BundleResourceKind
 from app.services.portability.content import (
     ContextContent,
+    KnowledgeBaseContent,
     McpContent,
     ModelContent,
     SkillContent,
@@ -88,8 +89,23 @@ pytestmark = pytest.mark.anyio
             {"name": "API key", "sealed_secret": "POISON"},
             type(None),
         ),
-        ("knowledge_base", "KnowledgeBaseService.get", {"name": "Knowledge"}, type(None)),
+        (
+            "knowledge_base",
+            "KnowledgeBaseService.get",
+            {
+                "name": "Knowledge",
+                "description": None,
+                "ingestion_config": {},
+                "embedding_model": "text-embedding-3-small",
+                "embedding_provider": "openai",
+                "embedding_dim": 1536,
+                "embedding_secret_id": None,
+                "embedding_endpoint_id": None,
+            },
+            KnowledgeBaseContent,
+        ),
         ("sandbox_connection", "SandboxConnectionService.get", {"name": "Sandbox"}, type(None)),
+        ("local_service", "LocalServiceService.get_visible", {"name": "Local OCR"}, type(None)),
     ],
 )
 async def test_source_adapters_use_scoped_services_and_never_serialize_storage_rows(

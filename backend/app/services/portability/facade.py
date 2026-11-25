@@ -41,6 +41,8 @@ from app.schemas.workflow import (
 )
 from app.services.agent_registry import AgentRegistryService
 from app.services.context import ContextService
+from app.services.file_storage import BaseFileStorage
+from app.services.knowledge_base import KnowledgeBaseService
 from app.services.mcp_connection import McpConnectionService
 from app.services.model_profile import ModelProfileService
 from app.services.portability.archive import BundleLimits
@@ -48,6 +50,7 @@ from app.services.portability.content import (
     ContextContent,
     ImportedSkillResourceUpdate,
     ImportedSkillUpdate,
+    KnowledgeBaseContent,
     McpContent,
     ModelContent,
     SkillContent,
@@ -73,10 +76,12 @@ from app.services.portability.documents import (
     select_content,
 )
 from app.services.portability.file_bundle import externalize_text
+from app.services.portability.knowledge import KnowledgeTransfer
 from app.services.portability.mapping import rebind_definition
 from app.services.portability.snapshots import agent_snapshot
 from app.services.portability.sources import BundleSources, agent_spec_from_source
 from app.services.portability.workflows import WorkflowContent
+from app.services.rag.parsed_snapshot import MAX_SNAPSHOT_CHUNKS
 from app.services.skill_versions import SkillVersionService
 from app.services.skills import SkillService
 from app.services.workflow_registry import WorkflowRegistryService
@@ -96,6 +101,7 @@ _READABLE = frozenset(
         BundleResourceKind.SECRET,
         BundleResourceKind.KNOWLEDGE_BASE,
         BundleResourceKind.SANDBOX_CONNECTION,
+        BundleResourceKind.LOCAL_SERVICE,
     }
 )
 
@@ -104,8 +110,9 @@ MAX_EXPORT_ASSET_BYTES = BundleLimits().expanded_bytes
 
 
 class PortabilityService:
-    def __init__(self, db: AsyncSession) -> None:
+    def __init__(self, db: AsyncSession, *, storage: BaseFileStorage | None = None) -> None:
         self.db = db
+        self.storage = storage
         self.sources = BundleSources(db)
 
     async def destinations(
@@ -161,6 +168,7 @@ class PortabilityService:
         assets = []
         files: dict[str, Path] = {}
         inline_bytes = 0
+        parsed_chunks = 0
         for item in preview.bundle.resources:
             if selection.resources.get(item.key):
                 _, loaded = await self._source(ctx, item)
@@ -186,6 +194,24 @@ class PortabilityService:
                     item = staged.resources[0]
                     assets.extend(staged.assets)
                     files.update(paths)
+                    if item.kind == BundleResourceKind.KNOWLEDGE_BASE:
+                        item, kb_assets, kb_files, count = await KnowledgeTransfer(
+                            self.db, storage=self.storage
+                        ).export(
+                            ctx,
+                            item,
+                            selection.resources[item.key],
+                            asset_directory,
+                            asset_budget=MAX_EXPORT_ASSET_BYTES
+                            - sum({asset.sha256: asset.size_bytes for asset in assets}.values()),
+                        )
+                        parsed_chunks += count
+                        if parsed_chunks > MAX_SNAPSHOT_CHUNKS:
+                            raise BadRequestError(
+                                message="Export at most 10,000 parsed chunks per transfer"
+                            )
+                        assets.extend(kb_assets)
+                        files.update(kb_files)
                     if (
                         sum({asset.sha256: asset.size_bytes for asset in assets}.values())
                         > MAX_EXPORT_ASSET_BYTES
@@ -198,6 +224,14 @@ class PortabilityService:
                     raise BadRequestError(
                         message="This configuration exceeds 4 MiB; use a ZIP bundle"
                     )
+                if (
+                    asset_directory is None
+                    and item.kind == BundleResourceKind.KNOWLEDGE_BASE
+                    and selection.resources[item.key] - {BundleContentLayer.DEFINITION}
+                ):
+                    raise BadRequestError(
+                        message="Knowledge files and parsed text require a ZIP bundle"
+                    )
             resources.append(item)
         bundle = preview.bundle.model_copy(
             update={"resources": tuple(resources), "assets": tuple(assets)}
@@ -208,7 +242,13 @@ class PortabilityService:
         choices = selection.model_copy(
             update={
                 "resources": {
-                    item.key: item.included if selection.resources.get(item.key) else frozenset()
+                    item.key: (
+                        selection.resources.get(item.key, frozenset())
+                        if item.kind == BundleResourceKind.KNOWLEDGE_BASE
+                        else item.included
+                        if selection.resources.get(item.key)
+                        else frozenset()
+                    )
                     for item in bundle.resources
                 }
             }
@@ -334,7 +374,15 @@ class PortabilityService:
         return BundleResourceOption(
             key=item.key,
             available=True,
-            layers=frozenset({BundleContentLayer.DEFINITION})
+            layers=frozenset(
+                {
+                    BundleContentLayer.DEFINITION,
+                    BundleContentLayer.KB_DOCUMENTS,
+                    BundleContentLayer.KB_PARSED_TEXT,
+                }
+            )
+            if item.kind == BundleResourceKind.KNOWLEDGE_BASE
+            else frozenset({BundleContentLayer.DEFINITION})
             if source.copyable and item.kind in DEFINITION_MODELS
             else frozenset(),
             reusable_id=source.id,
@@ -350,9 +398,10 @@ class PortabilityService:
         request: BundleImportCreate,
         *,
         hydrate: Callable[[BundleResource], Awaitable[BundleResource]] | None = None,
+        attach: Callable[[BundleResource, UUID], Awaitable[None]] | None = None,
     ) -> BundleImportRead:
         require_agent_root(request.bundle)
-        return await self.import_bundle(ctx, request, hydrate=hydrate)
+        return await self.import_bundle(ctx, request, hydrate=hydrate, attach=attach)
 
     async def import_workflow(
         self, ctx: AuthContext, request: BundleImportCreate
@@ -366,6 +415,7 @@ class PortabilityService:
         request: BundleImportCreate,
         *,
         hydrate: Callable[[BundleResource], Awaitable[BundleResource]] | None = None,
+        attach: Callable[[BundleResource, UUID], Awaitable[None]] | None = None,
     ) -> BundleImportRead:
         """Create private resources in one transaction; retry replays the receipt.
 
@@ -474,6 +524,19 @@ class PortabilityService:
                         destination = BundleDestination(
                             id=await self._create(ctx, resource.kind, definition)
                         )
+                    if resource.kind == BundleResourceKind.KNOWLEDGE_BASE:
+                        if (
+                            attach is None
+                            and KnowledgeBaseContent.model_validate(definition).documents
+                        ):
+                            raise BadRequestError(
+                                message="Knowledge files require a complete bundle upload"
+                            )
+                        if attach is not None:
+                            await attach(
+                                content.model_copy(update={"definition": definition}),
+                                destination.id,
+                            )
                 resolved[resource_key] = destination
                 result[resource_key] = {"action": choice.action, "id": str(destination.id)}
                 pending.remove(resource_key)
@@ -651,6 +714,20 @@ class PortabilityService:
             if kind == BundleResourceKind.AGENT:
                 row = await AgentRegistryService(self.db).create(
                     ctx, AgentSpec.model_validate(definition), choose_model=False
+                )
+                return row.id
+            if kind == BundleResourceKind.KNOWLEDGE_BASE:
+                content = KnowledgeBaseContent.model_validate(definition)
+                row = await KnowledgeBaseService(self.db).create_portable_snapshot(
+                    ctx=ctx,
+                    name=content.name,
+                    description=content.description,
+                    ingestion_config=content.ingestion_config,
+                    embedding_model=content.embedding_model,
+                    embedding_provider=content.embedding_provider,
+                    embedding_dim=content.embedding_dim,
+                    embedding_secret_id=content.embedding_secret_id,
+                    embedding_endpoint_id=content.embedding_endpoint_id,
                 )
                 return row.id
             if kind == BundleResourceKind.CONTEXT:

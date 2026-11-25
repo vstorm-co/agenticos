@@ -16,14 +16,15 @@ from app.db.vector_tables import VectorWriterKind
 class DocumentStatus(enum.StrEnum):
     """Where a tracked document is in its ingestion.
 
-    Three values, and the column holds nothing else: a row is created
-    `PROCESSING` by the upload, and the pipeline moves it to `DONE` or `ERROR`.
+    Imported originals and parsed snapshots start `STORED`, without vectors.
+    An upload or explicit reindex moves to `PROCESSING`, then `DONE` or `ERROR`.
     It is an enum because it was not one - the listing's `indexed` count
     filtered on a fourth value, `"completed"`, that nothing has ever written, so
     every knowledge base in the product reported `indexed_count: 0` however many
     documents had finished (#148).
     """
 
+    STORED = "stored"
     PROCESSING = "processing"
     DONE = "done"
     ERROR = "error"
@@ -42,6 +43,7 @@ class RAGDocument(TimestampMixin, Base):
     filesize: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     filetype: Mapped[str] = mapped_column(String(20), nullable=False)
     storage_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    parsed_content_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
     # Which file this row tracks, as the ingest addressed it: `gdrive://<id>`,
     # `s3://bucket/key`, or an absolute path for a local or CLI sync. An upload
     # has no address - its only name is a basename, which two different files can
